@@ -484,1102 +484,647 @@ and `.arc/`.
 
 ---
 
-### **Phase 3.R:** CLI Vocabulary Alignment + Session-Init Remote-Sync
+## **Phase 3.R:** CLI Vocabulary Alignment + Session-Init Remote-Sync
 
-**Purpose:** Align `arc user` / `arc sync` command vocabulary with developer muscle memory (git fetch/pull semantics),
-add an `arc user status` inspection surface, and land session-init's remote-sync awareness — absorbing Phase 5.0. The
-rename and workflow integration land together so Phase 4 and Phase 5 are authored once against the final surface.
+_Purpose:_ Align `arc user` / `arc sync` command vocabulary with developer muscle memory (git fetch/pull
+semantics), add an `arc user status` inspection surface, and land session-init's remote-sync awareness —
+absorbing Phase 5.0. The rename and workflow integration land together so Phase 4 and Phase 5 are
+authored once against the final surface.
 
-**Origin:** Follow-on to Phase 3 close, surfaced while debugging multi-machine git-notes staleness. `arc user pull`
-semantically only fetched (ref updated, disk untouched); the true `git pull`-equivalent lived behind `arc sync --load`.
-No status/inspection surface existed. Session-init had no remote-sync check. A full audit of `arc user` commands vs
-dev muscle-memory produced the rename plan and demonstrated Phase 5.0 couldn't be cleanly expressed until vocabulary
-stabilized.
+_Origin:_ Follow-on to Phase 3 close, surfaced while debugging multi-machine git-notes staleness.
+`arc user pull` semantically only fetched (ref updated, disk untouched); the true `git pull`-equivalent
+lived behind `arc sync --load`. No status/inspection surface existed. Session-init had no remote-sync
+check. A full audit of `arc user` commands vs dev muscle-memory produced the rename plan and
+demonstrated Phase 5.0 couldn't be cleanly expressed until vocabulary stabilized.
 
-**Convention note:** Uses phase-level `X.R` as an extension of the documented task-level `X.Y.R` revision scheme; the
-extension is documented in 3.R.h.
+_Convention note:_ Uses phase-level `X.R` as an extension of the documented task-level `X.Y.R` revision
+scheme; both documented in `strategy-task-list-formatting.md` (per 3.R.m's strategy-addendum landing).
 
-- [x] **3.R.a CLI rename + test coverage**
+### `[x]` **3.R.a CLI rename + test coverage**
 
-    **Goal:** Primitives align with git muscle memory; `arc sync` becomes bidirectional smart porcelain.
+- _Outcome:_ Added `arc user fetch` for the existing fetch-only semantic; rewired `arc user pull` to
+  fetch + load (preserving `runUserLoad`'s backup behavior). Reworked `arc sync` into a direction-aware
+  porcelain that inspects local-vs-remote refs + disk-vs-snapshot state, prints push/pull banner before
+  acting, prompts on divergence. Removed `arc sync --load`. Coverage refreshed in `sync.test.ts`,
+  `user-handlers.test.ts`, `push-recovery.test.ts`.
 
-    **Outcome:** Added `arc user fetch` for the existing fetch-only semantic and rewired `arc user pull` to fetch +
-    load in one step, preserving `runUserLoad`'s backup behavior. Reworked `arc sync` into a direction-aware
-    porcelain that inspects local-vs-remote note refs plus disk-vs-local snapshot state, prints an explicit push/pull
-    banner before acting, and prompts on divergence instead of guessing. Removed `arc sync --load`. Updated command
-    exports/CLI wiring and refreshed unit coverage in `sync.test.ts`, `user-handlers.test.ts`, and the affected
-    `push-recovery.test.ts` mock surface.
+### `[x]` **3.R.b `arc user status` command**
 
-- [x] **3.R.b `arc user status` command**
+- _Outcome:_ Added `arc user status` plus a command-layer inspection/formatting surface shared with
+  later session-init work. Default mode probes remote notes; reports `in sync`, `remote ahead`,
+  `disk ahead`, `conflict`, or `remote unavailable` with action hints (`arc user pull`, `arc user save`,
+  or non-destructive `arc user fetch` inspection). `--offline` skips the remote probe; `--all`
+  enumerates remote identities for maintainer inspection. Detail lines surface saved-snapshot freshness
+  gaps and legacy/current pre-load backup presence without bloating the summary line. Coverage:
+  result-shaping unit tests, handler wiring, integration tests for remote-ahead / offline disk-ahead /
+  `--all`.
 
-    **Goal:** Three-way comparison (local-ref × remote-ref × disk) with actionable output; online-by-default since
-    the primary question is "am I in sync with the other machine?"
+  _Design decisions:_ Informational command (exit 0 across all states, including degraded). Output
+  shape: one summary line always, detail lines only when actionable. Built on a richer inspection
+  contract than 3.R.a's coarse sync matrix so `status` and session-init share the underlying primitive.
 
-    **Design decisions (resolved pre-implementation):**
-    - Informational command — exit code stays zero for all state shapes, including degraded remote checks
-    - Headline states: `in sync`, `remote ahead`, `disk ahead`, `conflict`; remote probe failure renders as
-      `remote unavailable`, not a conflict
-    - Output shape: one short summary line always; add detail lines only when there is an actionable next step
-    - Default mode performs the remote check; `--offline` skips it; `--all` lists all remote identities for maintainer
-      inspection
-    - Build on a richer inspection result than 3.R.a's coarse sync matrix so `status` and later session-init work can
-      share the same underlying contract
+### `[x]` **3.R.c Multi-snapshot backup hardening**
 
-    Build `test-first` (one behavior at a time):
-    - Clean state reports `in sync` with no action hint
-    - Remote-ahead state reports actionable guidance toward `arc user pull`
-    - Disk-ahead state reports actionable guidance toward `arc user save`
-    - Conflict state reports both sides diverged and names `arc user fetch` as the non-destructive inspection option
-    - Remote-unavailable state reports degraded status without presenting a false conflict
-    - `--offline` skips the remote probe and still reports local-vs-disk state coherently
-    - Backup presence from 3.R.c is surfaced in the status detail area without overwhelming the summary line
-    - Freshness gap between HEAD and the saved-on commit is surfaced in the status detail area
+- _Outcome:_ `runUserLoad` writes timestamped pre-load snapshots (replacing single-shot
+  `.pre-load-backup.json` writes), retains the latest 3 immediately after each new write, leaves any
+  existing legacy backup file in place for transition visibility. `arc user status` discovery surfaces
+  timestamped snapshots newest-first; stale-file warnings point at the specific snapshot created during
+  the load. Integration coverage: timestamped creation, retention pruning on the fourth snapshot,
+  legacy coexistence, dotfile exclusion, status-surface backup reporting.
 
-    **Outcome:** Added `arc user status` to the CLI plus a command-layer inspection/formatting surface shared across
-    the handler and future session-init work. Default mode probes remote notes and reports `in sync`, `remote ahead`,
-    `disk ahead`, `conflict`, or `remote unavailable` with action hints toward `arc user pull`, `arc user save`, or
-    non-destructive `arc user fetch` inspection as appropriate. `--offline` skips the remote probe while preserving
-    coherent local-vs-disk reporting, `--all` enumerates remote identities for maintainer inspection, and detail lines
-    now surface saved-snapshot freshness gaps plus legacy/current pre-load backup presence without bloating the summary
-    line. Coverage added in new unit tests for result shaping, handler tests for flag/summary wiring, and integration
-    tests for remote-ahead, offline disk-ahead, and `--all` output paths.
+  _Design decisions:_ Retention hardcoded at 3 (no new config key this phase). Pruning runs immediately
+  after each new snapshot. Legacy file remains readable during transition; new pulls write only the
+  timestamped form.
 
-- [x] **3.R.c Multi-snapshot backup hardening**
+### `[x]` **3.R.d `session.remote_sync` config addition**
 
-    **Goal:** `.pre-load-backup.json` is no longer single-shot; successive pulls preserve the last N pre-load
-    snapshots so a second pull-before-review doesn't lose the first pre-load state.
+- _Outcome:_ Added `session.remote_sync: enabled` to both `arc-config.yml` copies under a new Session
+  Initialization section with inline comments — session-init may probe remote notes automatically while
+  restoring user-directory content to disk remains user-confirmed. Init integration coverage asserts
+  the default key renders for both solo and team-mode installs. No runtime consumer yet — 3.R.e is the
+  first behavioral task.
 
-    **Design decisions (resolved pre-implementation):**
-    - Timestamped snapshot files replace new writes to the single-shot backup file
-    - Retention is hardcoded at 3 for this phase — no new config key
-    - Legacy `.pre-load-backup.json` remains readable/surfaceable during transition, but new pulls write only the
-      timestamped form
-    - Pruning happens immediately after a new snapshot is created
+### `[x]` **3.R.e Session-init remote-sync integration**
 
-    Build `test-first` (one behavior at a time):
-    - Pull/load creates a timestamped pre-load snapshot before overwriting local state
-    - Fourth snapshot prunes the oldest retained snapshot, leaving the latest three
-    - Legacy `.pre-load-backup.json` coexists without breaking retention or discovery
-    - Dotfile serialization rules continue to exclude both legacy and timestamped backup files
-    - Backup metadata surfaces correctly in `arc user status`
+- _Outcome:_ Session-init/runtime pieces for remote-sync awareness landed across two subtasks: probe
+  and orientation surface (3.R.e.1), then ancestor-walk hardening to remove the fragile default-walk
+  failure mode (3.R.e.2).
 
-    **Outcome:** `runUserLoad` now writes timestamped pre-load snapshots instead of overwriting the single-shot
-    legacy backup file, retains only the latest three timestamped snapshots immediately after each new write, and
-    leaves any existing legacy `.pre-load-backup.json` in place for explicit transition visibility. Backup discovery
-    used by `arc user status` now reports timestamped snapshots newest-first with legacy files still surfaced, and
-    backup-related stale-file warnings point at the specific snapshot created during the load. Integration coverage now
-    verifies timestamped snapshot creation, retention pruning on the fourth snapshot, legacy coexistence, dotfile
-    exclusion, and status-surface backup reporting.
+    - `[x]` **3.R.e.1 Session-init remote fetch + divergence orientation**
+        - Added `arc user status --session-init`: respects `session.remote_sync`, performs the existing
+          temp-ref remote probe without mutating live refs or disk, reports coarse session-init states
+          (`disabled`, `clean`, `remote-ahead`, `conflict`, `remote-unavailable`) plus an
+          agent-should-prompt-to-pull flag. Step 1.5 documented in both session-init workflow copies —
+          probe runs, agent incorporates result into orientation, prompt stays in the harness layer
+          (not inside the CLI).
+        - _Design decisions:_ Direct git fetch/probe steps, not a subprocess to `arc user fetch`.
+          Remote inspection fetches into a temp ref for comparison rather than mutating the live local
+          ref before confirmation. Orientation reports coarse states, not precise ahead/behind counts.
+          Resolution prompt separate from the standard `Proceed?` prompt.
 
-- [x] **3.R.d `session.remote_sync` config addition**
+    - `[x]` **3.R.e.2 Ancestor-walk hardening for `arc user load` / `arc user pull`**
+        - Removed the default `maxAncestorWalk: 20` false negative — nearest-note lookup now scans all
+          reachable ancestors unless an explicit cap is passed. `runUserLoad` records how far back the
+          loaded note was found; load summaries surface that distance so a far-back reachable note is
+          distinguished from the true no-note case. Load/pull/sync handler copy updated from "recent
+          ancestors" to "any reachable ancestor" — null path only claims what was actually checked.
 
-    **Goal:** New config key exists in both `arc-config.yml` copies with inline documentation; no behavior yet
-    (consumed by 3.R.e).
+### `[x]` **3.R.f Hook invocation fix for non-executable shell scripts**
 
-    **Design decisions (resolved pre-implementation):**
-    - Flat dotted-key config, matching the rest of `arc-config.yml`
-    - Governs session-init remote probing only; does not change handoff behavior or manual CLI command behavior
+- _Outcome:_ CHECK 13 in both pre-commit hook copies invokes `validate-links.sh` through `bash`,
+  removing the nested-script executable-bit dependency that fails on fresh clones (tracked `.sh` files
+  land without `+x`). Unit regression coverage locks in the bash-prefixed invocation and asserts no
+  remaining hook directly executes nested `.sh` files. Top-level hook executability remains the
+  existing install-time / hook-manager contract.
 
-    **Outcome:** Added `session.remote_sync: enabled` to both `arc-config.yml` copies under a new Session
-    Initialization section, with inline comments clarifying that session-init may fetch/probe remote notes
-    automatically while restoring user-directory content to disk remains explicitly user-confirmed. Updated init
-    integration coverage to assert the new default key is rendered for both solo and team-mode installs. No runtime
-    behavior consumes the setting yet; 3.R.e remains the first behavioral task.
+### `[x]` **3.R.g Documentation + ADR sync (runs after 3.R.m and 3.R.f)**
 
-- [x] **3.R.e Session-init remote-sync integration**
+- _Outcome:_ Synced shipped doc surfaces to the finalized portability model. Session-handoff names the
+  merge-recovery label and `arc sync --yes`. Session-operations documents the fetch/pull split plus
+  direction-aware `arc sync`. Team-coordination bootstrap fetches another developer's notes before
+  loading. QUICK-REFERENCE adds `arc user fetch`, `--yes`, `--max-walk`. `user/README.md` reflects the
+  same surface. Single-copy: ADR-012 amendment added; public docs drift routed through
+  `plan-docs-content-sweep.md`; `plan-arc-modes.md` updated to shipped tracked-mode semantics; old
+  Phase 5.0 pointer retired as superseded.
 
-    **Goal:** Land the session-init/runtime pieces needed for remote-sync awareness without bundling them into one
-    oversized review increment.
+    - `[x]` **3.R.g.1 Two-copy doc sync for remaining CLI references**
+        - Updated both-copy references in `session-handoff.md` (+ `.template.md`),
+          `strategy-session-operations.md`, `strategy-team-coordination.md`, `QUICK-REFERENCE.md` (+
+          `.template.md`), `user/README.md`. Replaced stale `arc sync --load`. Person-to-person
+          bootstrap switched from `arc user pull --identity` to `arc user fetch --identity` (avoids
+          implicit overwrite). Second-pass additions swept in: probe commands (`extensions status`,
+          `active status`, composite `status --session-init --json`); vocabulary (`disk ahead` →
+          `local unsaved`; canonical `conflict` over `divergence`); merge-recovery label; `--yes` /
+          `--max-walk` flags. Grep-verified zero stale command references in `.arc/**` and
+          `packages/arc-framework/arc/**` (excluding `reference/archive/**` and `reference/analysis/**`).
 
-    - [x] **3.R.e.1 Session-init remote fetch + divergence orientation**
-
-        **Goal:** Session-init probes remote state early, surfaces actionable divergence in the orientation, and asks
-        about remote resolution before the standard proceed prompt.
-
-        **Design decisions (resolved pre-implementation):**
-        - Session-init uses direct git fetch/probe steps, not a subprocess call to `arc user fetch`
-        - Remote notes inspection fetches into a temp ref for comparison rather than mutating the live local notes ref
-          before user confirmation
-        - Orientation reports coarse actionable states, not precise ahead/behind counts for notes
-        - Divergence resolution prompt is separate from the standard `Proceed to Next Action?` prompt
-
-        Build `test-first` (one behavior at a time):
-        - `session.remote_sync: disabled` skips the remote probe path cleanly
-        - Clean remote state produces no divergence block and leaves the normal proceed prompt unchanged
-        - Remote-unavailable probe failure degrades gracefully with a single actionable note
-        - Notes/code divergence produces the orientation block and the remote-resolution prompt before the normal
-          proceed prompt
-        - Accepting the resolution path runs the intended pull actions and reports the result clearly
-
-        **Outcome:** Added a non-interactive helper surface, `arc user status --session-init`, that respects
-        `session.remote_sync`, performs the existing temp-ref remote probe without mutating live refs or disk, and
-        reports coarse session-init states (`disabled`, `clean`, `remote-ahead`, `conflict`, `remote-unavailable`)
-        plus whether the agent should prompt the user to pull before continuing. Updated the user-status handler/CLI
-        wiring and summary formatting for the new mode, and documented Step 1.5 in both session-init workflow copies
-        so the agent runs the probe, incorporates the result into orientation, and keeps the pull prompt in the
-        harness layer rather than inside the CLI. Verification: targeted unit tests (`user-status`, `user-handlers`,
-        `sync`, framework-sync), targeted `user.test.ts` integration coverage, `lint:ts`, `typecheck`, and task-file
-        markdown lint all clean.
-
-    - [x] **3.R.e.2 Ancestor-walk hardening for `arc user load` / `arc user pull`**
-
-        **Goal:** Remove the fragile default-walk failure mode that motivated this phase so "no saved user directory
-        found" only appears when there truly is no reachable noted ancestor.
-
-        **Design decisions (resolved pre-implementation):**
-        - Fix the core loader behavior rather than exposing a new `--max-ancestors` CLI flag in this phase
-        - Use true reachable-ancestor detection internally and surface actionable guidance when the nearest note is far
-          back in history
-
-        Build `test-first` (one behavior at a time):
-        - Reachable noted ancestor beyond the old 20-commit window is still found and loaded
-        - No-note state still reports cleanly when no noted ancestor exists anywhere on reachable history
-        - Guidance message distinguishes "note exists but is far back" from "no saved note exists"
-        - `arc user pull` inherits the same hardened lookup behavior as `arc user load`
-
-        **Outcome:** Removed the default `maxAncestorWalk: 20` false negative by making nearest-note lookup scan all
-        reachable ancestors unless an explicit cap is passed for a targeted test. `runUserLoad` now records how far
-        back the loaded note was found, and load summaries surface that distance so a far-back reachable note is
-        distinguished from the true no-note case. Updated load/pull/sync handler copy from "recent ancestors" to
-        "any reachable ancestor" so the null path only claims what the search actually checked. Verification: targeted
-        unit coverage for user status/handlers/sync, targeted `user.test.ts` integration coverage including a
-        >20-commit ancestor case, plus `lint:ts` and `typecheck` all clean.
-
-- [x] **3.R.f Hook invocation fix for non-executable shell scripts**
-
-    **Goal:** Fresh clones do not require manual chmod for hook-invoked shell scripts. Top-level hook entrypoints
-    continue to rely on install-time executable bits in adopter repos or the project's hook manager.
-
-    **Design decisions (resolved pre-implementation):**
-    - Use bash-prefix invocation in hooks for nested `.sh` calls; do not add install-time chmod logic and do not
-      change tracked file mode
-    - Keep scope on hook-internal shell-script execution; top-level hook executability remains the existing
-      install-time / hook-manager contract
-
-    Build `test-first` (one behavior at a time):
-    - Hook path executes `validate-links.sh` successfully without relying on the exec bit
-    - No remaining hook directly invokes `.sh` files that may be non-executable in a fresh clone
-
-    **Outcome:** CHECK 13 in both pre-commit hook copies now invokes `validate-links.sh` through
-    `bash`, removing the nested-script executable-bit dependency that fails in fresh clones where
-    tracked `.sh` files land without `+x`. Added unit regression coverage that locks in the
-    bash-prefixed invocation and asserts the pre-commit hook no longer directly executes nested
-    `.sh` files. Verification: `npm run lint:sh`, `npm run lint:ts`, and `npm run test:unit -- pre-commit-shell-invocation`.
-
-- [x] **3.R.g Documentation + ADR sync (runs after 3.R.m and 3.R.f)**
-
-    **Goal:** Framework two-copy surfaces first, then non-`docs/` single-copy artifacts and ADR history. Scope
-    expanded by the second pass to cover the finalized probe commands, vocabulary rename, merge-recovery behavior,
-    and `--yes` / `--max-walk` flags. Public `docs/**` drift is captured in `plan-docs-content-sweep.md`, not
-    updated in this WU. Runs after second pass so doc churn happens once against the final surface.
-
-    **Outcome:** Synced the remaining shipped doc surfaces to the finalized portability model:
-    session-handoff now names the merge recovery label and `arc sync --yes`, session-operations
-    documents the fetch/pull split plus direction-aware `arc sync`, team-coordination bootstrap
-    now fetches another developer's notes before loading them, QUICK-REFERENCE adds
-    `arc user fetch`, `--yes`, and `--max-walk`, and `user/README.md` now reflects the same
-    command surface. Single-copy follow-up added the ADR-012 amendment, confirmed the public
-    docs drift is routed through `plan-docs-content-sweep.md`, updated `plan-arc-modes.md` to
-    the shipped tracked-mode semantics, and retired the old Phase 5.0 pointer as superseded.
-    Verification: markdown lint clean on all touched `.arc/` files; package-source copies
-    checked with the repo's package-excluded lint path plus a direct spot-check for command
-    drift; shipped `reference/`, `system/`, and `user/` surfaces are free of stale
-    `arc sync --load`, `arc user pull --identity`, and `disk ahead` references.
-
-    - [x] **3.R.g.1 Two-copy doc sync for remaining CLI references**
-
-        **Goal:** Package-source templates and installed `.arc/` copies reflect the finalized command vocabulary,
-        bootstrap semantics, and second-pass additions.
-
-        - Update both-copy references in:
-          `session-handoff.md` / `session-handoff.template.md`,
-          `strategy-session-operations.md`, `strategy-team-coordination.md`,
-          `QUICK-REFERENCE.md` / `QUICK-REFERENCE.template.md`, and `user/README.md`
-        - Replace stale `arc sync --load` references with the new command model
-        - Where person-to-person bootstrap is ref-only, switch guidance from `arc user pull --identity {outgoing}`
-          to `arc user fetch --identity {outgoing}` rather than implicitly overwriting local disk state
-        - Second-pass additions to sweep in:
-            - New probe commands (`arc extensions status`, `arc active status`, and composite
-              `arc status --session-init --json`) where those surfaces are documented
-            - Vocabulary: `disk ahead` → `local unsaved`; canonicalize `conflict` over `divergence` in user-facing
-              phrasing where this phase's docs touch the sync model
-            - Merge-recovery label (`"Merge: rebase my save onto remote, then push"`) wherever push recovery is
-              discussed
-            - `--yes` flag on `arc sync`, `arc user pull`, `arc user fetch`, `arc user load`
-            - `--max-walk` flag on `arc user load`, `arc user pull`, `arc sync` pull direction
-        - Grep-verify no remaining stale command references in `.arc/**` and `packages/arc-framework/arc/**`,
-          excluding `reference/archive/**` and `reference/analysis/**`
-
-    - [x] **3.R.g.2 Single-copy backlog/docs-sweep routing + ADR-012 amendment + Phase 5.0 retirement pointer**
-
-        **Goal:** Non-`docs/` single-copy artifacts reflect the final command surface, `docs/**` drift is routed to
-        the docs-content-sweep plan, ADR-012 captures the full Phase 3.R vocabulary realignment (both passes), and
-        the old Phase 5.0 pointer retires formally.
-
-        - Single-copy artifacts to update:
-          `plan-arc-modes.md`, `plan-docs-content-sweep.md`, and `adr-012-adopt-unified-user-directory-model.md`
-        - Capture public `docs/**` drift in `plan-docs-content-sweep.md` rather than editing `docs/` directly in
-          this WU (current known touch points: `docs/the-framework.md`, `docs/reference/team-coordination.md`,
-          `docs/index.md`, `docs/faq.md`)
-        - ADR-012 amendment — append a dated amendment section; preserve the original decision body unchanged.
-          Content covers both passes:
-            - First pass: `pull → fetch`, `pull = fetch + load`, `sync` as direction-aware porcelain, durable
-              2×2 sync-state matrix
-            - Second pass: composite/status probe additions actually shipped, vocabulary rename
-              (`local unsaved`, canonical `conflict`), merge-recovery semantics, bounded ancestor walk with
-              `--max-walk` override, confirmation-by-default + `--yes` policy
-        - QUICK-REFERENCE should point to the amendment for durable semantics context
-        - Verify the old Phase 5.0 pointer now resolves entirely through 3.R.e / 3.R.g (confirm no second-pass
-          addition introduced a 5.0-adjacent reference)
-        - Leave `reference/archive/**` and `reference/analysis/**` untouched as historical record
+    - `[x]` **3.R.g.2 Single-copy backlog/docs-sweep routing + ADR-012 amendment + Phase 5.0 retirement**
+        - Single-copy artifacts updated: `plan-arc-modes.md`, `plan-docs-content-sweep.md`, ADR-012.
+          Public `docs/**` drift captured in `plan-docs-content-sweep.md` rather than edited directly
+          (touch points: `docs/the-framework.md`, `docs/reference/team-coordination.md`,
+          `docs/index.md`, `docs/faq.md`).
+        - ADR-012 amendment appended (preserving original decision body): first-pass summary
+          (`pull → fetch`, `pull = fetch + load`, direction-aware `sync`, durable 2×2 sync-state
+          matrix); second-pass additions (composite/status probes shipped, vocabulary rename,
+          merge-recovery, bounded ancestor walk + `--max-walk`, confirmation-by-default + `--yes`).
+          QUICK-REFERENCE points at the amendment for durable semantics context.
+          `reference/archive/**` and `reference/analysis/**` left untouched as historical record.
 
 **Second Pass — Post-Review Remediation**
 
-**Purpose:** Address findings from the post-implementation review of 3.R.a–h. Four groupings: safety behaviors
-(user-visible correctness on destructive paths), vocabulary + reporting (CLI output matches mental models),
-probe-pattern extension (consistent coverage across extensions / methods / active-status, not a one-off), and
-structural cleanup + test coverage (the integration gap that let silent-discard slip past unit tests).
+_Purpose:_ Address findings from the post-implementation review of 3.R.a–h. Four groupings: safety
+behaviors (user-visible correctness on destructive paths), vocabulary + reporting (CLI output matches
+mental models), probe-pattern extension (consistent coverage across extensions / methods /
+active-status, not a one-off), and structural cleanup + test coverage (the integration gap that let
+silent-discard slip past unit tests).
 
-**Origin:** `/arc-task-review` on 3.R.a–h surfaced three warrants-discussion items (non-TTY conflict exits silently,
-push-recovery "pull first" discards just-saved note, sync pull path skips overwrite confirm) and a set of smaller
-quality concerns. External research (shallow-clone conventions, Gerrit prior art) fed the ancestor-walk strategy.
-Probe-pattern extension was added to this pass rather than deferred because the first-pass 3.R.e.1 surface proved
-clean enough that inconsistency across the three remaining session-init discovery points is the bigger risk.
+_Origin:_ `/arc-task-review` on 3.R.a–h surfaced three warrants-discussion items (non-TTY conflict
+exits silently, push-recovery "pull first" discards just-saved note, sync pull path skips overwrite
+confirm) plus smaller quality concerns. External research (shallow-clone conventions, Gerrit prior art)
+fed the ancestor-walk strategy. Probe-pattern extension added to this pass — first-pass 3.R.e.1 surface
+proved clean enough that inconsistency across the three remaining session-init discovery points is the
+bigger risk.
 
-- [x] **3.R.i Safety behaviors**
+### `[x]` **3.R.i Safety behaviors**
 
-    **Goal:** Every user-visible destructive path confirms by default, degrades gracefully in non-TTY environments,
-    never silently discards saved state, and surfaces actionable diagnostics when bounded operations hit their cap.
+- _Goal:_ Every user-visible destructive path confirms by default, degrades gracefully in non-TTY,
+  never silently discards saved state, and surfaces actionable diagnostics when bounded operations hit
+  their cap.
 
-    - [x] **3.R.i.a Non-TTY conflict + failure hardening**
-        - `handleConflict` (`sync.ts`) non-TTY branch now calls `degradeConflictToSaveOnly` — saves the user
-          directory, emits two warn-level banners ("conflict", "degrading to save-only"), then outros clean
-          without exit code 1. Matches the `prompt` policy degradation shape.
-        - `pushWithInteractiveRecovery` non-TTY divergence branch now returns
-          `{ kind: "failed-nontty-conflict" }` instead of the generic `{ kind: "failed", error }`. Added to
-          the `PushResult` discriminated union.
-        - Both `handlePushDirection` (sync.ts) and `handleUserPush` (user.ts) grew a `case "failed-nontty-conflict"`
-          arm that renders the "local save preserved; push skipped" banner plus a context-appropriate
-          re-run hint and sets exitCode 1 (push attempted and rejected).
-        - Tests: `push-recovery.test.ts` divergence-non-TTY case updated + second case added; `sync.test.ts`
-          gained the `failed-nontty-conflict` caller test plus a new non-TTY conflict-degradation describe
-          block (diverged, remote-ahead+disk-different, save-failure paths); `user-handlers.test.ts`
-          converted `isNonInteractiveEnvironment` to a mockable toggle and added the discriminant test.
-        - Implementation batched rather than strict test-first: the `PushResult` discriminant change is a
-          single coordinated edit across type + impl + two callers, and the non-TTY `handleConflict` path
-          mirrors an existing save-only shape verbatim. No independent discovery value from slicing.
+    - `[x]` **3.R.i.a Non-TTY conflict + failure hardening**
+        - `handleConflict` (`sync.ts`) non-TTY branch calls `degradeConflictToSaveOnly` — saves the
+          user directory, emits two warn-level banners ("conflict", "degrading to save-only"), outros
+          clean without exit 1. Matches the `prompt` policy degradation shape.
+        - `pushWithInteractiveRecovery` non-TTY divergence branch returns
+          `{ kind: "failed-nontty-conflict" }` (added to `PushResult` discriminated union). Both
+          `handlePushDirection` and `handleUserPush` grew matching arms rendering the "local save
+          preserved; push skipped" banner with re-run hint and `exitCode = 1`.
+        - Tests: `push-recovery.test.ts`, `sync.test.ts` (new non-TTY conflict-degradation describe
+          block), `user-handlers.test.ts` (`isNonInteractiveEnvironment` converted to mockable toggle).
 
-    - [x] **3.R.i.b Push-recovery merge redesign**
-
-        **Outcome:** Replaced the silent-discard "Pull first (overwrite local with remote)" recovery option
-        with a merge flow (`pushWithInteractiveRecovery`): force-fetch aligns the local notes ref with
-        remote, `runUserSave` writes the current disk state on top of the new base, then the aligned
-        state is pushed. Select label now reads `"Merge: rebase my save onto remote, then push"`.
-
-        **Surface changes:**
+    - `[x]` **3.R.i.b Push-recovery merge redesign**
+        - Replaced silent-discard "Pull first (overwrite local with remote)" with a merge flow:
+          force-fetch aligns the local notes ref with remote, `runUserSave` writes current disk state
+          on top of the new base, aligned state is pushed. Select label now reads `"Merge: rebase my
+          save onto remote, then push"`.
         - `PushResult` discriminant: `via: "merge"` replaces `via: "pull-then-push"` entirely.
-        - `pushWithInteractiveRecovery` now requires `cwd: string` as a third arg so the re-save can
-          locate the user directory. Both callers (`handlePushDirection` in sync.ts,
-          `handleUserPush` in user.ts) updated.
-        - Recovery errors (including `UserSaveError` during re-save) flow through the existing outer
-          try/catch → `{ kind: "failed", error }`. No partial push on save failure — the final push
-          only runs if save succeeded.
-
-        **Test-first execution:**
-        - Added failing tests first for both the happy path (fetch→save→push ordering, returns
-          `via: "merge"`) and the save-failure path (no second push call, `UserSaveError` surfaces
-          as `{ kind: "failed", error }`). Verified they failed against the current code.
-        - Implementation change made both green; replaced the parallel `pulls-then-pushes` test in
-          `user-handlers.test.ts` with the new merge expectation (adding `mockRunUserSave` tracking).
-          Updated `sync.test.ts` push-recovery mock to a 3-arg signature.
-
-    - [x] **3.R.i.c Confirmation defaults + `--yes` flag**
-        - `handlePullDirection` (sync.ts) now runs the overwrite confirm when `hasLocalNotes` is true,
-          matching `arc user pull` behaviour. The conflict-select pull path passes `yes: true` through a
-          shared `DirectionParams` type so the user isn't double-confirmed.
-        - Added `-y, --yes` to `arc sync`, `arc user pull`, `arc user fetch`, `arc user load` in cli.ts.
-          Handler option types extended: `SyncOptions`, `UserPullOptions`, `UserFetchOptions`,
-          `UserLoadOptions`. `handleUserLoad` accepts `yes` preemptively (no confirm exists there yet —
-          `runUserLoad` creates a timestamped backup; the flag is wired for future consistency).
-        - Standard prompt copy: `"Local notes will be overwritten by remote. Continue?"` — hoisted to a
-          module-level `OVERWRITE_CONFIRM_MESSAGE` constant in both sync.ts and user.ts.
-        - Non-TTY implicitly skips the overwrite confirm via a shared `shouldSkipOverwriteConfirm` helper
-          in user.ts and an inline guard in sync.ts's `handlePullDirection`. Loud failures from 3.R.i.a
-          (push-recovery non-TTY, conflict non-TTY) are unaffected — those run before this confirm.
-        - Tests added: confirm-present, confirm-declined (cancel), `--yes` bypass, non-TTY bypass — for
-          `handleSync` pull direction, `handleUserFetch`, `handleUserPull`. Also: "skips overwrite
-          confirm after conflict pull resolution (already acknowledged)" regression case.
-
-    - [x] **3.R.i.d Ancestor-walk cap + diagnostic**
-
-        **Outcome:** Replaced the uncapped rev-list walk with a bounded default (`DEFAULT_MAX_ANCESTOR_WALK = 1000`,
-        exported from `save-load.ts`) and an explicit `--max-walk <n>` override on `arc user load`,
-        `arc user pull`, and `arc sync`. Cap-hit without finding a note surfaces via the new
-        `onWalkExhausted(walked, maxWalk)` callback and renders the spec message verbatim.
-
-        **Surface changes:**
-        - `findNearestUserNote` now returns a structured `NearestNoteSearch`
-          (`{ note, walked, maxWalk, capped }`) instead of `NearestUserNote | null`. Internal callers in
-          `sync-status.ts` (`runUserStatus`, `inspectDiskVsLocalSnapshot`) updated to destructure `.note`.
-        - `UserLoadOptions` / `UserPullOptions` gained optional `onWalkExhausted` callback. `runUserLoad`
-          fires it when `capped && note === null`. `runUserPull` forwards it through to `runUserLoad`.
-        - `buildLoadSummary` replaces the prior
-          `"Note: loaded from a reachable ancestor N commit(s) behind HEAD."` line with
-          `"Loaded from N commit(s) back."` — emitted only when `ancestorDistance > 0`.
-        - Handlers (`handleUserLoad`, `handleUserPull`, `handlePullDirection` in sync.ts) render the
-          canonical diagnostic
-          `"walked N ancestors without finding a note; use --max-walk to search deeper or confirm remote
-          state with arc user status"` when the callback fires and result is null. `handleUserPull` and
-          `handlePullDirection` set `process.exitCode = 1`; `handleUserLoad` warns without exit code (its
-          existing "no note" path already didn't set one).
-        - CLI flags added with `parseInt` coercion on `arc user load`, `arc user pull`, `arc sync`.
-
-        **Test-first execution:**
-        - New `__tests__/unit/save-load.test.ts` (8 tests) covers `findNearestUserNote` cap application,
-          overrides smaller/larger than default, capped-true accounting, and `runUserLoad`'s
-          `onWalkExhausted` callback firing. All failed before implementation, pass after.
-        - New `__tests__/unit/user-format.test.ts` (3 tests) covers the `"Loaded from N commits back"`
-          phrasing + absence-when-zero + removal of the legacy "reachable ancestor" phrasing.
-        - `__tests__/unit/user-status.test.ts` buildLoadSummary assertion updated to the new phrasing.
-        - `__tests__/unit/user-handlers.test.ts` / `sync.test.ts` extended with `--max-walk` threading and
-          walk-exhausted diagnostic tests (handler-level).
-        - `mockHasLocalNotes` persistence across tests fixed by adding
-          `mockHasLocalNotes.mockResolvedValue(false)` to the sync `handleSync direction handling` beforeEach —
-          `vi.clearAllMocks()` clears history but not `.mockResolvedValue` implementations.
-        - Implementation note: `let walkExhausted` pattern triggered
-          `@typescript-eslint/no-unnecessary-condition` because TS doesn't see callback-side mutation.
-          Refactored to `const walkState: { capture: … | null } = { capture: null }` in all three handler
-          sites — the object wrapper keeps narrowing intact while allowing the callback to mutate.
-
-        **Follow-up (post-review):**
-        - `handleUserLoad` now sets `process.exitCode = 1` on walk-exhausted to match `handleUserPull` and
-          `handlePullDirection`. Rationale: walk-exhausted is ambiguous ("we can't confirm there's no note
-          deeper than the cap") and deserves the same failure signal across all three commands. Plain
-          "no note found" stays at exit 0 — unambiguous state, nothing to load. One-line change + test
-          update. Identified during post-implementation design review.
-
-- [x] **3.R.j Vocabulary + reporting**
-
-    **Goal:** CLI output matches user mental models without requiring code-level translation. Single canonical
-    terms across layers. Reporting surfaces enough context that a cold-open user doesn't have to guess.
-
-    - [x] **3.R.j.a Status vocabulary rename + detail enrichment**
-
-        **Outcome:** `disk ahead` renamed to `local unsaved` across `UserStatusHeadline` union, the
-        `determineUserStatusHeadline` / `determineUserStatusAction` branches, and all consuming
-        tests. Cold-open audit of the other headlines (`in sync`, `remote ahead`, `conflict`,
-        `remote unavailable`) — all pass; no further renames. Canonical vocabulary documented as a
-        JSDoc block on `UserStatusHeadline` in `types.ts`.
-
-        **Surface changes:**
-        - `UserStatusResult` gained `ancestorDistance: number`, `savedAtRelative: string | null`,
-          and `unsavedDirection: UserUnsavedDirection | null`. New `UserUnsavedDirection` union
-          (`"edits" | "missing" | "mixed"`) added to `types.ts` with JSDoc distinguishing each case.
-        - `BuildUserStatusInput` accepts the three new fields as optional; callers keep working
-          unchanged. `runUserStatus` populates all three.
-        - `buildUserStatusResult` renders three new detail lines when data is present:
-            - Direction hint (only when headline is `local unsaved`):
-              `"Disk has unsaved edits not yet in the saved note."` /
-              `"Disk is missing updates from the saved note."` /
-              `"Disk has unsaved edits and is missing updates from the saved note."`
-            - Save timestamp: `"Saved 11 hours ago."`
-            - Ancestor distance (distance > 0): replaces the prior
-              `"Saved snapshot is from abc1234, not current HEAD."` with
-              `"Saved snapshot is from abc1234, N commit(s) back."`
-        - New `commands/user/relative-time.ts` exporting `formatRelativeTime(past, now?)` — buckets
-          seconds → minutes → hours → days with singular/plural handling and future-date clamping.
-          `runUserStatus` calls `git show -s --format=%at <commit>` via `io.exec` when a note exists
-          and passes the formatted relative string through to `buildUserStatusResult`.
-        - `inspectDiskVsLocalSnapshot` refactored from returning `UserSyncDiskState` to a
-          `DiskVsSnapshotInspection { state, direction }`. `inspectUserSyncState` destructures
-          `.state` to preserve its public contract. New `computeUnsavedDirection` helper
-          (exported via `user.ts` barrel for testability) compares manifest file-key sets plus
-          content diffs to pick the direction.
-
-        **Test coverage added:**
-        - `__tests__/unit/user-status.test.ts`: 4 new `buildUserStatusResult` tests (direction hint
-          rendering for each case + suppression when headline is not `local unsaved`), 2 save-timestamp
-          tests (present/absent), 1 ancestor-distance-at-HEAD suppression test, 4 `computeUnsavedDirection`
-          tests (edits / edits via modified content / missing / mixed). Updated the pre-existing
-          3.R.b "disk-ahead" assertions to the new `local unsaved` + `"N commit(s) back"` phrasing.
-        - `__tests__/unit/relative-time.test.ts` (new, 5 tests): bucket boundaries, singular/plural,
-          future-date clamping.
-        - `__tests__/integration/user.test.ts`: existing local-unsaved test extended to assert
-          `unsavedDirection === "edits"` + direction-hint line + regex-matched `savedAtRelative`
-          (shape, not literal). Integration summary tests updated for the renamed headline.
-
-        **Quality gates:** 772 unit+integration tests green; 45 E2E green; `typecheck`,
-        `typecheck:test`, `lint:ts`, and `lint:sh` all pass. Live `npx arc user status`
-        confirms rendering end-to-end.
-
-    - [x] **3.R.j.b `conflict` vs `divergence` canonical language**
-
-        **Outcome:** Canonicalized `conflict` as the user-facing term for "refs both moved from common
-        ancestor." Added presentation-mapping JSDoc to `UserSyncRefState` in
-        `commands/user/types.ts` flagging the `diverged` variant as code-level-only and pointing at
-        `UserStatusHeadline` for canonical vocabulary. Swept user-facing strings:
-        `pushWithInteractiveRecovery`'s "Push rejected — remote has diverged from local notes."
-        → "Push rejected — local and remote notes conflict (both moved since common ancestor)."; same
-        phrasing adopted in `handleConflict` (`sync.ts:115`) and in the session-init conflict detail
-        (`sync-status.ts:236`). `cli.ts --force` help text and the two JSDoc siblings on
-        `UserPushOptions.force` / `UserFetchOptions.force` updated to "conflict" wording. Module-level
-        and function-level JSDoc in `push-recovery.ts` and `sync.ts` updated ("divergence" →
-        "conflict", "Non-divergence" → "Non-conflict"). Internal helper `isDivergentPushError` retained
-        — names the git-level topology, matches `UserSyncRefState.diverged` kept-for-code-clarity
-        principle. Disk-vs-note vocabulary in `UserUnsavedDirection` JSDoc moved off the overloaded
-        "divergence" term to "mismatch" (different semantic domain from ref-conflict). Tests updated:
-        `sync.test.ts` literal string assertion + `user-handlers.test.ts` substring from
-        "remote has diverged" → "notes conflict". Doc touch: `session-handoff.md § Save to Git Notes`
-        error-handling bullet rewritten with conflict vocabulary, and folded in the stale
-        "pull-first" option reference (no such option exists in current `pushWithInteractiveRecovery`
-        — replaced with "merge (fetch remote, re-save local state on top, then push)"). Two-copy
-        sync applied (`.arc/` + `packages/arc-framework/arc/` template).
-
-        **Quality gates:** lint:ts, typecheck, `lint:md:file` on both session-handoff copies,
-        targeted unit tests (`sync`, `user-handlers`, `user-status`, `push-recovery`) all green —
-        77 tests pass.
-
-    - [x] **3.R.j.c Label + spinner + summary consistency**
-
-        **Outcome:** Unified the `arc sync` pull direction (`handlePullDirection`) and `arc user
-        pull` (`handleUserPull`) result-box label from "Loaded" → "Pulled" so spinner ("Pulling")
-        → stop ("Pull complete.") → note ("Pulled") read as one verb. `arc user load` keeps
-        "Loaded" (matches its own outer command). Verb-tense audit across `p.log` / `p.spinner` /
-        `p.note` calls in `sync.ts`, `user.ts`, and `push-recovery.ts` found all other labels
-        already consistent — no further renames. Convention documented in the `runWithSpinner`
-        JSDoc in `handlers/shared.ts` (first use of the spinner helper): present-continuous for
-        in-progress label, completed-adjective for done label, past-tense for `p.note` matching
-        the outer command verb. Split `determineUserStatusAction` to branch on `diskState` for
-        the `local unsaved` headline: `diskState === "different"` → "run `arc user save`";
-        `diskState === "same"` (implies `refState === "local-ahead"` per the headline
-        derivation) → "run `arc user push` (or `arc sync`)". Inline comment records the
-        invariant. Kept `refState` out of the signature — diskState alone is sufficient given
-        the `determineUserStatusHeadline` logic; adding the param just to document intent would
-        invite drift. Two new `buildUserStatusResult` unit tests assert the exact hint for each
-        sub-case. Doc touch in `session-handoff.md § Save to Git Notes`: new paragraph directing
-        the agent to check `arc sync` exit code and report the outcome in the end-of-session
-        summary, closing the "work didn't land but user thought it did" gap flagged in review.
-        Two-copy sync applied across `.arc/` + `packages/arc-framework/arc/` template.
-
-        **Quality gates:** lint:ts, typecheck, typecheck:test, `lint:md:file` on session-handoff,
-        full unit+integration (774 tests green; +2 new) and E2E (45 green).
-
-- [x] **3.R.k Command surface cleanup + probe-pattern extension**
-
-    **Goal:** Non-destructive CLI probes returning structured state for session-init's harness layer to consume.
-    Three individual probes (extensions, active, config) plus a composite `arc status` that orchestrates them
-    alongside the retrofitted `arc user status`. Session-init calls the composite once instead of four separate
-    probes. Individual probes remain available standalone.
-
-    **Design decisions (resolved pre-implementation):**
-
-    - **Wire format is hybrid.** `--session-init` is a scope flag (session-init-filtered state); `--json` is a
-      format flag (machine-parseable output). Orthogonal and composable. Default (no-flag) = human-readable
-      Clack. `arc user status --session-init` is retrofit to accept `--json` in the same pass for uniformity —
-      no asymmetric first-mover on the wire contract.
-    - **Composite lives at `arc status`.** The `arc status` → `arc health` rename (3.R.k.a) frees the
-      `arc status` name. The freed slot hosts a composite that invokes the four probe helpers (user,
-      extensions, active, config) via `Promise.all` and emits a unified result. Session-init calls
-      `arc status --session-init --json` once; agent parses one output. Standalone individuals remain for
-      debugging, CI, and future consumers.
-    - **No methods probe.** Session-init does not inspect method override state at init time — methods load
-      at workflow trigger, not at init. Dropped from the original 3.R.k scope.
-    - **Shared lib for extensions scan.** `lib/extensions/{point-scanner,orphan-detector}.ts` serves both the
-      extensions probe's `--all` mode and Task 4.6 (D7b pre-commit hook). Shipped here; 4.6 consumes.
-    - **arc-config probe added mid-WU.** `arc-config.yml` is ~170 lines but ~85% inline comments (documentation
-      for human editors); the agent consumes key-value pairs only. Probe (`arc config status`, 3.R.k.c) emits
-      typed settings as JSON — full scope returns all agent-consumable settings, `--session-init` narrows to
-      init-gating fields. Replaces Batch 1's whole-file read. `hooks.*` excluded entirely — shell-consumed by
-      git hooks, never read by the agent.
-    - **Session-init ordering review (3.R.k.g) runs last.** Current Step 1.5 ("Sync Remote State") precedes
-      Step 2 but references "After Batch 1 resolves `{identity}`" — Batch 1 fires inside Step 2. The reorder
-      depends on all probes + composite integration landing first so it restructures against final command
-      surface, not intermediate states.
-    - **`arc active` naming holds.** `.arc/active/` houses WUs as bundles of co-named files (prd/notes/atomic/
-      tasks/status). `arc active status` = "for each in-flight WU, show its state marker" — parallels
-      `arc user status` (sync state of the user bundle). Directory and command agree on scope.
-    - **Rename hosted here, not in ARCd Rebrand WU.** The rename's motivation is `/arc-status` skill collision
-      plus semantic hygiene (status-command should mean work state, not install health). Both themes belong
-      with session-init orientation work, not with the binary rebrand. Rebrand WU absorbs the follow-on
-      `arc health` → `arcd health` sweep as part of its global `arc` → `arcd` binary rename — no dedicated
-      rename task left in that WU for this concern. Transplanted from ARCd Rebrand Task 1.5.
-    - **Forward-compat slot.** Future probes (e.g., `arc hooks status`) drop into the composite's internal
-      `Promise.all` without changing session-init workflow prose or adopter-facing CLI surface.
-    - **`arc version` subcommand NOT pulled forward.** That's pure rebrand-era work (idiomatic alignment with
-      `arcd version`), stays in ARCd Rebrand Task 1.5.
-
-    **Scope note:** `arc hooks status` remains out of scope for this work unit (session-init doesn't discover
-    hook state at init time). Worth a future work unit if hook health surfaces as a need; its landing site is
-    the composite.
-
-    - [x] **3.R.k.a `arc status` → `arc health` rename (command surface cleanup)**
-
-        **Goal:** Free the `arc status` name for the composite probe by renaming the existing framework-
-        installation-health command. Pure rename; no behavior change to the underlying command.
-
-        **Transplanted from:** ARCd Rebrand WU Task 1.5 (subtasks .a, .b, .c, .e, .f). Subtask 1.5.d
-        (`arcd version` subcommand) stays in the rebrand WU as rebrand-era work.
-
-        **Outcome:** Source and tests renamed via `git mv` (status.ts → health.ts; status.test.ts →
-        health.test.ts; status-diff.test.ts → health-diff.test.ts; status-diff.e2e.test.ts →
-        health-diff.e2e.test.ts). Identifier renames applied: `runStatus` → `runHealth`,
-        `buildStatusSummary` → `buildHealthSummary`, `StatusResult` → `HealthResult`, `StatusIOContext` →
-        `HealthIOContext`, `StatusOptions` → `HealthOptions`, `handleStatus` → `handleHealth`,
-        `makeStatusIO` (integration test helper) → `makeHealthIO`. `FileState` / `FileStatus` preserved
-        per task spec. CLI binding moved from `.command("status")` → `.command("health")`; description
-        updated. `manifestMissingError("status")` → `manifestMissingError("health")` (user-facing
-        `The health command requires...` error text). Doc sweep touched two files only: `init.e2e.test.ts`
-        (`runArc(["status"])` → `runArc(["health"])` in manifest-missing test), `lifecycle.e2e.test.ts`
-        (three golden-path invocations + related variable/comment updates), `smoke.e2e.test.ts`
-        (help-output assertion), `errors.ts` JSDoc example, and
-        `strategy-testing-methodology.md` (project-only file; no two-copy counterpart). QUICK-REFERENCE
-        never referenced `arc status` so no change there. Tier 1 gates all green: `typecheck`,
-        `typecheck:test`, `lint:ts`, `test:unit` (643 tests, 20 in the renamed `health.test.ts`), `build`.
-        Cross-WU refs in `.arc/active/` notes/tasks and `.arc/backlog/` files intentionally left intact
-        (they describe the rename itself or ARCd Rebrand WU coordination).
-
-        - `git mv packages/arc-framework/src/commands/status.ts packages/arc-framework/src/commands/health.ts`
-        - Apply the rename to test files: `__tests__/unit/status.test.ts` → `health.test.ts`;
-          `__tests__/integration/status-diff.test.ts` → `health-diff.test.ts`;
-          `__tests__/e2e/status-diff.e2e.test.ts` → `health-diff.e2e.test.ts`
-        - Internal identifier renames in the renamed files: `statusCommand` → `healthCommand`,
-          `StatusResult` → `HealthResult`, `StatusIOContext` → `HealthIOContext`. **Keep** `FileState` /
-          `FileStatus` — those describe per-file state, not command identity
-        - `src/handlers/lifecycle.ts` — rename `handleStatus` → `handleHealth`; grep for callers and update
-        - `src/cli.ts` — `.command("status")` → `.command("health")`; update description
-        - Sweep test imports and literal command invocations — `arc status` → `arc health` where the
-          reference is specifically to the CLI command (not unrelated `status` words in file state strings
-          or similar)
-        - Doc sweep: `QUICK-REFERENCE.md` (two-copy), any `.arc/` doc referencing `arc status` meaning
-          install health. Two-copy sync on framework-file doc edits
-        - Tier 1 quality gates: `npm run typecheck`, `npm run lint:ts`, `npm run test:unit`, `npm run build`
-
-    - [x] **3.R.k.b `arc extensions status` probe + shared lib + `arc user status --json` retrofit**
-
-        **Goal:** Replace session-init's extensions grep with a structured probe; extract the extension-point
-        scan into a shared lib that Task 4.6 (D7b hook) also consumes; establish the `--json` contract
-        across all session-init probes by retrofitting `arc user status`.
-
-        **Outcome:** Shared lib lives at `src/lib/extensions/{point-scanner,orphan-detector}.ts`.
-        The scanner recognizes the single anchor form (middle-dot + backtick-delimited hashtag
-        marker) serving both header-suffix and inline-bullet forms — no separate patterns needed
-        since the anchor uniquely disambiguates extension-point markers from other inline-code
-        mentions. The detector returns resolved and orphan buckets at reference-level granularity,
-        preserving input order within each. Command module landed at `src/commands/extensions/`
-        with `types.ts` / `status.ts` / `format.ts`; handler at `src/handlers/extensions.ts`; CLI
-        wiring in `src/cli.ts`. Flag matrix: default Clack renders counts plus active/inactive
-        lists plus orphan count; `--all` adds orphan detail entries; `--session-init` narrows to
-        the active-list and skips the workflow walk; `--json` emits typed results via
-        discriminated union on the `mode` field. The user-status retrofit adds a `--json` flag
-        that suppresses Clack intro/outro/note and writes JSON to stdout; works across all three
-        existing scopes (default, `--offline`, `--session-init`). Probe uses `fs/promises`
-        directly — no IO injection, since scanners/formatter are pure and unit-tested and the fs
-        side is covered by integration. Malformed extension frontmatter surfaces a warning and
-        still resolves refs by basename so parse errors don't cascade into orphan noise.
-        End-to-end sanity check against the repo: the session-init probe emits
-        `{"active":["pre-merge-review"]}` (matches the current grep output); the `--all` probe
-        surfaces one pre-existing orphan (`pre-merge-inbox-review` at
-        `integrate-work-unit.md:166`) — a content issue for Phase 3 sweep, not this task.
-
-        **Tier 1 green:** `typecheck` / `typecheck:test` / `lint:ts` / `test:unit` (674, +31 new:
-        8 `point-scanner` + 6 `orphan-detector` + 14 `extensions-format` + 3 `user-handlers` json
-        retrofit) / `build`. Integration suite adds 10 new tests under
-        `__tests__/integration/extensions.test.ts` against synthetic fixture trees
-        (active/inactive, orphans, malformed frontmatter, nested workflows, session-init fast path).
-
-        - `point-scanner` extracts `{ workflowPath, lineNumber, extensionName }` — single anchor
-          pattern (`· \`#<kebab-name>\``) serves both header-suffix and inline-bullet forms
-        - `point-scanner` accepts an explicit workflow file list (caller filters — probe scans all,
-          hook will scan staged)
-        - `orphan-detector` classifies refs against the extensions directory listing, returns
-          `{ orphans, resolved }` at reference-level granularity
-        - `arc extensions status` (no flag) renders active/inactive counts + orphan count in Clack
-        - `arc extensions status --session-init` returns only the active extensions list (structural
-          replacement for `grep -l "^active: true" .arc/system/extensions/*.md`)
-        - `arc extensions status --all` includes orphaned extension-point references
-        - `arc extensions status --json` emits typed `ExtensionsStatusResult` (shape in
-          `commands/extensions/types.ts`)
-        - `--session-init --json` and `--all --json` combinations both valid
-        - `arc user status --json` emits typed `UserStatusResult` as JSON, bypassing Clack
-        - `arc user status --session-init --json` emits typed `UserSessionInitStatusResult` as JSON
-
-        **Layout delivered:**
-        - Shared lib in `packages/arc-framework/src/lib/extensions/{point-scanner.ts,orphan-detector.ts}`
-        - Command module in `packages/arc-framework/src/commands/extensions/` + facade
-          `src/commands/extensions.ts` (matching `commands/user.ts` pattern)
-        - Handler at `src/handlers/extensions.ts`; CLI wiring in `src/cli.ts`
-        - `--json` flag added to `arc user status` in `src/cli.ts`; `handleUserStatus` branches on
-          the flag to emit JSON and suppress Clack ceremony
-
-    - [x] **3.R.k.c `arc config status` probe**
-
-        **Outcome:** `arc config status` probe delivered at `src/commands/config/` with shared reader at
-        `src/lib/config/status-reader.ts`. Handler at `src/handlers/config.ts`; CLI wired as
-        `arc config status [--session-init] [--json]`. Full mode emits 13 agent-consumable settings
-        (everything except `hooks.*`, which is shell-only). `--session-init` narrows to the 5-key
-        init-gating subset: `session.remote_sync`, `branch.protection`, `pm.mode`, `commit.format`,
-        `commit.context_footer`. Both scopes expose `defaultsApplied` (keys where the on-disk value was
-        absent and a documented default was substituted) and `errors` (file-access diagnostics).
-
-        **Reader:** `readConfigSettings(cwd)` generalizes the narrow readers in `handlers/shared.ts`
-        (`readPmMode`, `readSessionRemoteSyncEnabled`) into a single settings-map read with defaults
-        applied. Depends on `parseArcConfig` from `lib/config/index.ts`. `AGENT_CONSUMABLE_KEYS` is the
-        exported list of 13 keys excluding `hooks.*`.
-
-        **Layout delivered:**
-        - `src/lib/config.ts` → `src/lib/config/index.ts` (migration; 8 import-path updates, pure rename)
-        - `src/lib/config/status-reader.ts` (new — `readConfigSettings` + `AGENT_CONSUMABLE_KEYS`)
-        - `src/commands/config/{types,status,format}.ts` (new — types, probe runners, Clack formatters)
-        - `src/commands/config.ts` facade (new — re-exports)
-        - `src/handlers/config.ts` (new)
-        - `src/cli.ts` — new `arc config status` command wired
-
-        **Tier 1 green:** typecheck / typecheck:test / lint:ts / test:unit (694 tests, +20 new: 8 reader,
-        12 format) / build. Integration suite adds 6 new tests under `__tests__/integration/config.test.ts`.
-
-        **Deferred to 3.R.l.b:** `readPmMode` / `readSessionRemoteSyncEnabled` stay in `handlers/shared.ts`
-        for now — still consumed by `handlers/user.ts` (×2) and `handlers/join.ts`. 3.R.l.b updated
-        mid-implementation to retire both narrow readers in favor of `readConfigSettings` (supersedes
-        the earlier "relocate to `lib/config-readers.ts`" plan — relocation is moot once the
-        generalized reader already lives in `lib/config/`). No call-site churn added to this task's
-        scope; retirement + migration lands with 3.R.l.b.
-
-        **End-to-end sanity:** `npx arc config status --session-init --json` against this repo returns
-        the 5-key init-gating subset with zero defaults applied. `npx arc config status --json` returns
-        all 13 keys; `commit.custom_pattern` and `commit.context_pattern` correctly flagged as defaulted
-        (empty-value fall-through per parseArcConfig's shell-aligned behavior).
-
-    - [x] **3.R.k.d `arc active status` probe**
-
-        **Goal:** Structured enumeration of in-flight work units — full state per WU for general consumers,
-        session-init-scoped resolution for the harness.
-
-        **Reader:** `readActiveStatusCandidates(cwd)` at `src/lib/active/status-reader.ts` scans `.arc/active/`,
-        detects layout (Lite when `.arc/active/status.md` exists; Full otherwise, enumerating
-        `.arc/active/*/status-*.md`), and parses Branch / State / Next Task / Task List per candidate.
-        Exported `parseStatusFile(content)` returns `{ branch, state, nextTask, taskList }` nullable —
-        tolerant of list-bullet and bare `**Field:** value` forms, blockquote prefixes, and inline
-        backticks; takes the first match on repeats; returns `null` for absent or empty values.
-
-        **Probe runners:** `runActiveStatus` (full enumeration) and `runActiveSessionInitStatus`
-        (session-init resolution shaping) at `src/commands/active/status.ts`. Session-init applies a thin
-        none/single/multiple discriminant over the raw candidate list — zero-file → `{ resolution: "none",
-        path: null }`, one-file → `{ resolution: "single", path }`, many-file → `{ resolution: "multiple",
-        candidates: [...] }`. The probe does not apply Step 2 Item 8's SESSION-NOTES/branch/state precedence —
-        SESSION-NOTES lives in the identity-scoped user workspace and remains an agent-side concern.
-
-        **Layout delivered:**
-        - `src/lib/active/status-reader.ts` (new — reader + parser + `ReaderResult` / `ParsedStatusFields`)
-        - `src/commands/active/{types,status,format}.ts` (new — types, probe runners, Clack formatters)
-        - `src/commands/active.ts` facade (new — re-exports)
-        - `src/handlers/active.ts` (new)
-        - `src/cli.ts` — new `arc active status` command wired (alongside `arc active` parent group)
-
-        **Types:** `ActiveStatusResult` (full) and `ActiveSessionInitResult` (session-init) form a
-        discriminated union on `mode`; `ActiveSessionInitResolution` is `"none" | "single" | "multiple"`.
-        `StatusFileCandidate` carries `{ path, filename, branch, state, nextTask, taskList }` with paths
-        normalized to forward-slash form relative to cwd.
-
-        **Tier 1 green:** typecheck / typecheck:test / lint:ts / test:unit (725, +31: 16 reader + 15 format)
-        / build. Integration suite adds 9 new tests under `__tests__/integration/active.test.ts` (zero-file,
-        one-file with full field population, many-file across categories, Lite-layout detection, and the
-        three session-init resolution states plus missing-directory warning propagation).
-
-        **Batching rationale:** Reader/parser/formatter tests were batched per the test-first method's
-        batching-judgment clause — behaviors are tightly coupled to a single regex-driven parser and a
-        single layout detector; one-at-a-time slicing had no independent discovery value.
-
-        **End-to-end sanity:** `npx arc active status --session-init --json` returns
-        `{mode:"session-init",layout:"full",resolution:"single",path:".arc/active/technical/status-session-init-optimization.md",…}`;
-        `npx arc active status --json` returns the full candidate with `branch`, `state`, `nextTask`,
-        `taskList` parsed cleanly (inline backticks stripped from `Task 3.R.k.d — arc active status probe`
-        and from the task-list path).
-
-    - [x] **3.R.k.e Composite `arc status` command**
-
-        **Orchestrator:** `runStatus` / `runSessionInitStatus` at `src/commands/status/run.ts` fan out via
-        `Promise.all` over four injected probe slots (`user`, `extensions`, `config`, `active`), wrapping
-        each probe's resolution or rejection into a typed `Probe<T>` union (`{ ok: true; value } | { ok:
-        false; error: { kind: "identity-missing" | "runtime"; message } }`). Rejections never bubble —
-        the composite always resolves with a typed envelope and `process.exit` stays untouched. User-slot
-        short-circuit: when `identity === null`, the slot resolves synchronously to `identity-missing`
-        without invoking the user probe (user notes are identity-scoped; per session-init.md Step 1.5).
-
-        **Types:** `src/commands/status/types.ts` — `StatusResult` (full) and `SessionInitProbeResult`
-        (scoped) discriminated on `mode`, with per-slot `Probe<T>` wrapper. `StatusProbes` /
-        `SessionInitProbes` interfaces bind cwd and I/O at construction so the orchestrator sees simple
-        `() => Promise<T>` functions — enables trivial test mocking without `vi.mock`. Top-level
-        `identity: { identity: string | null; role: string | null }` resolves in the handler via two
-        parallel `git config --get` reads through `gitConfigGet`; empty/whitespace normalize to `null`
-        via the exported `normalizeGitConfigValue` helper.
-
-        **Format:** `src/commands/status/format.ts` — `buildStatusSummary` /
-        `buildSessionInitStatusSummary` render five stably-ordered sections (Identity, User, Extensions,
-        Config, Active). Each slot delegates to the probe's own `build*Summary` formatter on ok;
-        errored slots render `(unavailable) <message>` so one probe's failure doesn't obscure the
-        others. Session-init variant delegates to the `*SessionInitSummary` formatters.
-
-        **Handler:** `src/handlers/status.ts` — constructs the real probe bundle from
-        `createUserIOContext()` + per-probe imports, reads identity/role via parallel `gitConfigGet`
-        calls, and branches on `opts.sessionInit` / `opts.json`. `--json` writes the typed envelope via
-        `process.stdout.write` with a trailing newline; default mode renders Clack `intro` / `note` /
-        `outro`.
-
-        **CLI:** `src/cli.ts` — `arc status` registered after `arc active status` with `--session-init`
-        and `--json` flags (matches the individual probe commands' surface).
-
-        **Layout delivered:**
-        - `src/commands/status/{types,run,format}.ts` (new)
-        - `src/commands/status.ts` facade (new — re-exports)
-        - `src/handlers/status.ts` (new)
-        - `src/cli.ts` — composite `arc status` command wired
-
-        **Tier 1 green:** typecheck / typecheck:test / lint:ts / lint:sh / test:unit (757, +32: 19
-        orchestrator + 5 normalizer + 8 format) / build. Integration suite adds 4 new tests under
-        `__tests__/integration/status.test.ts` (clean state, multi-WU session-init resolution, mixed
-        partial-failure, identity-missing short-circuit).
-
-        **End-to-end sanity:** `npx arc status --session-init --json` on this repo returns
-        `{mode:"session-init",identity:{identity:"andrew",role:"maintainer"},user:{ok:true,…},…}` with
-        all four slots `ok:true` and active `resolution:"single"` pointing at the current WU's status
-        file. Default-mode `npx arc status` renders the five Clack sections in stable order with the
-        identity pointers + full probe summaries.
-
-        **Batching rationale:** Orchestrator / format / handler-normalizer tests batched per the
-        test-first method's batching-judgment clause — behaviors are tightly coupled to a single
-        orchestrator function and share mock-probe setup; one-at-a-time slicing had no independent
-        discovery value.
-
-    - [x] **3.R.k.f Session-init workflow integration + strategy pointer**
-
-        **Completed in tandem with 3.R.k.g** — both edit the same workflow; `.f` content change without
-        `.g`'s ordering pass leaves Step 1.5's "After Batch 1" prose more broken, not less. Combining
-        avoided an incoherent intermediate commit state.
-
-        **Outcome:** Session-init calls one composite (`arc status --session-init --json`) instead of
-        orchestrating four probes. Probe table in Step 2 documents the five-slot envelope
-        (`identity` / `user` / `extensions` / `config` / `active`). Item 8 many-file disambiguation now
-        sources candidates from `active.value.candidates`; single / none resolve from the same composite
-        response. Direct `arc-config.yml` read retired — `config.value.settings` exposes the session-relevant
-        whitelist (`session.remote_sync`, `branch.protection`, `pm.mode`, `commit.format`,
-        `commit.context_footer`); `platform.type` and custom commit patterns drop out of init and surface at
-        the workflow that consumes them. Probe-failure fallback added (not in original scope — keeps
-        session-init survivable on a fresh clone pre-build). `strategy-session-operations.md § Context
-        Loading Model` picks up a new **Probe pattern** subsection (non-destructive, harness-first,
-        composite-first, `Promise.all` fan-out, standalone individuals for debug/CI, future-composite
-        extension slot); § Method and Extension Loading § Session-Init Consumption aligned to "session-init
-        consumes from the composite" framing.
-
-        **Files:** `session-init.template.md` (package source, preserving `{{REPO_ROOT}}` +
-        `team.mode` / `pm.mode` conditionals); `session-init.md` (rendered for `pm.mode: arc-in-git`,
-        `team.mode: false`); `strategy-session-operations.md` (both copies, identical).
-
-    - [x] **3.R.k.g Session-init ordering review + workflow reorder**
-
-        **Completed in tandem with 3.R.k.f.** See `.f` for combining rationale.
-
-        **Outcome — linear 8-step ordering delivered:** 1. Verify Environment · 2. Probe ARC Domain · 3.
-        Conditional Sync Pull · 4. Load Context Documents · 5. Post-Context-Load Extensions · 6. Assess
-        Readiness · 7. Confirm Orientation · 8. If Context Seems Mismatched. Dependencies are explicit; no
-        "Step 1.5 actually fires after Batch 1" derived ordering.
-
-        **Stale-SESSION-NOTES race closed.** Step 3 (Conditional Sync Pull) fires between the probe and
-        context-doc loading — any pull happens _before_ SESSION-NOTES reads, not after as the previous
-        wording allowed.
-
-        **Design adjustments applied during implementation:**
-        - Standalone "Check Active Configuration" step retired (was pre-restructure Step 4). Config
-          consumption folded into Step 2 as "carry config forward as behavioral awareness"; platform /
-          custom-commit paragraphs removed from init (consumed at the workflow that needs them)
-        - "Batch 1 / Batch 2" naming dropped — artifact of four-probe orchestration no longer useful.
-          Step 4's "Parallelism" paragraph names the parallel-load group and the status-file serialization
-          explicitly
-
-        **Post-implementation review follow-ons (same commit):**
-        - Step 1 trimmed to `pwd` only. Runtime-verify comment block retired — template scaffolding that was
-          never customized for this project and offered no operational value at init. Template carries a
-          one-line adopter hint for where to add project-specific checks
-        - Step 2 self-hosting-prefix comment retired. Template shows the plain `arc ...` command (adopters
-          don't self-host); `.arc/` rendered copy shows the literal `npx arc ...` command (concrete for this
-          repo). Accepted drift — no comment asking the agent to mentally transform the command
-        - Broader init-time content audit (Contributor Session Path, Trust Hierarchy, Load Errors, probe
-          fallback) captured as Task 5.8.d for Phase 5 scope
-
-        **Downstream step-number references scanned:** ADR-013 and `analysis/`, `archive/`, and
-        non-activated `backlog/plan-arc-modes.md` are the only hits. ADRs stable once accepted (step
-        numbering is ephemeral content-reference drift, not a decision change); archive and analysis are
-        historical by nature; the `plan-arc-modes.md` staleness is already flagged in SESSION-NOTES
-        persistent context for Arc Modes activation. No live workflow references needed updating.
-
-        **Tier 1 green:** markdown lint clean on all linted files (`.arc/` rendered session-init +
-        strategy, both copies identical). Template copy is excluded from lint globs
-        (`packages/arc-framework/arc/**`) but was run through the same table-prettifier for parity.
-
-- [x] **3.R.l Structural cleanup + test coverage**
-
-    **Goal:** Close review-surfaced code quality items; close the integration coverage gap that let
-    push-recovery's silent-discard slip past unit tests.
-
-    - [x] **3.R.l.a `findNearestUserNote` cleanup**
-        - Extracted the rev-list ancestor scan into `walkAncestorsForNote`, leaving `findNearestUserNote`
-          responsible for note discovery orchestration and cap/result shaping.
-        - Removed the dead branch in the walk loop (`if (commit && ...)`) while preserving the existing
-          walk-count semantics for found vs. exhausted searches.
-        - The duplicate null-return cleanup noted in planning had already landed before execution; no
-          equivalent branch remained in `save-load.ts` to simplify further.
-        - Pure cleanup only; targeted unit suite stays green (`npm run test:unit -- save-load.test.ts`).
-
-    - [x] **3.R.l.b Module relocation + narrow-reader retirement**
-        - Moved `runUserPush`, `hasRemoteNotes`, `hasLocalNotes`, `runUserFetch`, and `runUserPull` into new
-          `commands/user/push-fetch.ts`; `sync-status.ts` now keeps only sync inspection/status shaping.
-        - Updated the `commands/user.ts` facade to re-export the moved primitives from the new module, so the
-          public command surface stays unchanged for handlers and tests.
-        - Retired `readPmMode` and `readSessionRemoteSyncEnabled` from `handlers/shared.ts`. `handlers/user.ts`,
-          `handlers/join.ts`, and the still-live `handlers/status.ts` session-init path now read
-          `readConfigSettings()` and derive `pm.mode` / `session.remote_sync` from the returned settings map.
-        - Updated `__tests__/unit/user-handlers.test.ts` to mock `readConfigSettings` directly instead of the
-          bespoke shared readers; focused handler/config tests stay green under direct Vitest invocation.
-
-    - [x] **3.R.l.c Integration test for `arc sync` → conflict → merge recovery**
-        - Added a real git-notes integration case in `__tests__/integration/user.test.ts` that drives the merge
-          recovery path end-to-end via `pushWithInteractiveRecovery(..., "merge")`: local save/push → clone
-          force-push diverged remote notes → local save diverges → ordinary push rejects → merge recovery
-          force-fetches remote, re-saves local disk state on top, and pushes the combined ref.
-        - Assertions cover the bug’s failure mode directly: local disk still contains the user's latest notes,
-          the recovered local notes ref is a descendant of the pre-recovery remote base, and the remote ref
-          equals the recovered local ref after push. A follow-up force-pull/load in the clone confirms the
-          recovered content is now portable.
-        - Integration work also surfaced a real regression from 3.R.l.b: `sync-status.ts` still referenced
-          `notesRef` in detailed ref inspection after the module split. Restored the import so user-status and
-          session-init remote probes keep working under integration coverage.
-
-    - [x] **3.R.l.d Refactor `runUserLoad` walk-exhausted surface from callback to discriminated union**
-
-        `UserLoadOptions` / `UserPullOptions` no longer expose `onWalkExhausted`; the command layer now exports
-        `UserLoadOutcome = UserLoadResult | UserLoadWalkExhausted`, with `UserLoadResult.kind = "loaded"` and
-        `{ kind: "walk-exhausted", walked, maxWalk }` returned when ancestor walking hits the cap. `runUserLoad`,
-        `runUserPull`, `handleUserLoad`, `handleUserPull`, and sync's `handlePullDirection` now branch directly on the
-        discriminated outcome instead of callback-mutation side state, leaving `null` reserved for the unambiguous
-        "no notes exist" case. Unit and integration tests were updated to narrow on `kind`; the shallow-clone cap-hit
-        path now asserts the explicit `walk-exhausted` outcome rather than the old `null`.
-
-    - [x] **3.R.l.e `resolveArcRoot` — cwd walk-up for CLI commands touching `.arc/`**
-
-        Added `resolveArcRoot(startDir = process.cwd())` to `lib/paths.ts` plus a handler-level
-        `requireArcProjectRoot` guard that emits the canonical
-        `"Not inside an ARC project (no .arc/ directory found walking up from cwd)."` error when
-        no `.arc/` directory is reachable. Wired the resolved root through every current handler
-        that reads or writes project `.arc/` state: user add/save/load/pull/status/push-recovery,
-        sync, status/active/config/extensions status, update/health/diff, join, and
-        `arc init --reconfigure`. Fresh `arc init` still uses the literal cwd by design.
-
-        Added unit coverage for `resolveArcRoot` (cwd hit, one/two-level walk-up, null, root
-        boundary, explicit `startDir`) and an e2e regression test that confirms
-        `arc user status --offline --json` from a nested subdirectory matches the repo-root result.
-
-    - [x] **3.R.l.f Sandbox-aware remote-probe degradation + session-init recovery path**
-
-        **Outcome:** `inspectUserSyncRefsDetailed` now starts with `git ls-remote` and only falls back to temp-ref
-        fetch + ancestry checks when both local and remote refs exist with different hashes. Easy cases (remote missing,
-        remote present with same hash, remote-only ref) no longer need fetch/write access. When the ancestry fallback is
-        blocked after remote visibility succeeds, the probe keeps the existing `remote-unavailable` state to avoid
-        widening the type surface, but session-init messaging now distinguishes "remote unreachable" from
-        "comparison blocked in this environment" and offers a local-continuation vs retry path. Unit coverage added for
-        the read-only happy path and the fetch-blocked fallback; existing integration coverage remains sufficient for
-        real git-note flows, and the sandbox-specific exec failure stays unit-only because the harness cannot model
-        `.git/FETCH_HEAD`/policy denial cleanly.
-
-        **Goal:** Make session-init robust in sandboxed environments without weakening the correctness bar for
-        full remote comparisons.
-
-        - [x] **3.R.l.f.1 Probe path split: read-only remote visibility before fetch fallback**
-            - `inspectUserSyncRefsDetailed` now probes `git ls-remote origin refs/notes/...` before any fetch, resolving
-              the easy cases without temp-ref bookkeeping or `.git/FETCH_HEAD` writes.
-            - Temp-ref fetch + `merge-base --is-ancestor` remain only for the ambiguous both-sides-exist / hashes-differ
-              case.
-            - Fetch failure after successful read-only visibility stays in the pragmatic `remote-unavailable` bucket; the
-              extra precision was not worth a public state expansion.
-
-        - [x] **3.R.l.f.2 Session-init workflow recovery branch for sandbox-limited environments**
-            - Updated both session-init workflow copies so `remote-unavailable` explicitly branches on probe wording:
-              either retry once the remote is reachable, or continue locally / retry in a remote-capable environment when
-              fetch/write access is blocked.
-            - Session-init status copy now distinguishes unreachable-remote wording from limited-comparison wording so it
-              does not read like actual note divergence.
-
-        - [x] **3.R.l.f.3 Tests and documentation**
-            - Added unit coverage for the read-only remote-probe path and for the fetch-blocked
-              "continue locally or retry elsewhere" session-init shaping.
-            - Left the sandbox-specific exec denial case unit-only; the current integration harness exercises real git
-              note flows but cannot reliably simulate network-policy / `.git/FETCH_HEAD` write denial.
-            - Captured the recovery guidance in the session-init workflow itself, which is the surface that consumes the
-              state during resume.
-
-        **Risk flags:**
-        - Symlinks: if the cwd is through a symlink (e.g., `~/dev -> /mnt/data/dev`), realpath
-          resolution may or may not be desired. Recommend: walk the given path as-is without
-          `fs.realpathSync`, matching git's default behavior. Document the choice.
-        - Monorepos with nested `.arc/` (unlikely but possible): the first `.arc/` found wins.
-          Acceptable since nested ARC projects are out of scope for now.
-
-- [x] **3.R.m Second-pass close — quality gates + Phase 3.R-wide content**
-
-    **Outcome:** Phase 3.R close is green. Full gates passed after updating three stale pre-init E2E expectations to
-    match the current root-walk guard copy (`Not inside an ARC project ...`) used by update/health/join before any
-    command-specific install check can run. The retired 3.R.h addendum landed in both
-    `strategy-task-list-formatting.md` copies: revision numbering now documents both subtask-level `X.Y.R` and
-    phase-level `X.R` follow-ons, and the old `3.1.R.1` / `3.1.R.2` examples are tightened to
-    `3.1.R.a` / `3.1.R.b`.
-
-    Local smoke ran in throwaway repos using `npx --prefix /home/andrew/dev/arc-framework arc ...` against the built
-    CLI: `user add/save/load/fetch/pull/push/status/sync`, `extensions status`, `active status`, and composite
-    `status --session-init --json` all exercised successfully; `user status --offline` surfaced the expected
-    `local unsaved` headline plus save-timestamp and ancestor-distance lines; `user load --max-walk 1` emitted the
-    cap-hit diagnostic and `--max-walk 5` loaded from two commits back. `arc methods status` is not a live CLI
-    surface in `cli.ts`, so the task bullet was stale and was verified as absent rather than smoked. For merge
-    recovery, a deterministic interactive divergent-notes scenario drove the shared `pushWithInteractiveRecovery`
-    helper through the `merge` choice end-to-end (fetch remote, re-save local disk state on top, push combined ref);
-    that is the same recovery path `arc sync` uses once it reaches the push branch, whereas reproducing the
-    sync-specific race from inspection to push is not stable enough for manual smoke.
-
-    **Atomic companion check:** confirmed `atomic-session-init-optimization.md` has no incomplete items from either
-    pass.
-
-    - [x] Full quality gate pass: `typecheck`, `typecheck:test`, `lint:ts`, `lint:sh`, `lint:md`, `build`,
-      `test` (unit + integration), `test:e2e`
-    - [x] Required local smoke on the full Phase 3.R command surface (both passes):
-      `arc user add`, `save`, `load`, `fetch`, `pull`, `push`, `status`, `sync`,
-      `arc extensions status`, `arc active status`, composite `arc status --session-init --json`
-      (`arc methods status` verified stale/absent)
-    - [x] Required local smoke on second-pass behavior additions: merge recovery via the shared
-      `pushWithInteractiveRecovery(..., "merge")` path used by `arc sync` push handling,
-      `arc user load --max-walk` cap-hit diagnostic, and status output carrying `local unsaved`,
-      ancestor-distance, and save-timestamp detail lines
-    - [x] Strategy addendum (moved from retired 3.R.h): revision-numbering guidance now covers
-      phase-level `X.R` and uses `3.1.R.a` / `3.1.R.b` examples
-    - [x] Confirm `atomic-session-init-optimization.md` has no remaining items deferred from either pass
-    - [x] Update `status-session-init-optimization.md`: Last Completed = 3.R.m; Next Task = 3.R.f; Next Action =
-      begin 3.R.f
-
-    **Next action (after close):** 3.R.f → 3.R.g → Phase 3.R archive + begin Phase 4.1.
-
-- [x] **3.R.n Post-close portability semantics refinement**
-
-    **Origin:** Real cross-machine resume validation after the Phase 3.R close surfaced that `arc user status`
-    still collapsed remote-note sync state and on-disk hydration state into a single `local unsaved` bucket.
-    The resulting guidance could incorrectly point users toward `arc user save` when the correct recovery was
-    `arc user load`.
-
-    **Outcome:** `arc user status` and `arc sync` now share an explicit two-axis model:
-    remote saved-note relation (`in sync`, `local ahead`, `remote ahead`, `conflict`, `remote unavailable`)
-    and disk relation (`current`, `stale`, `local unsaved`, `mixed`). User-facing headlines now surface the
-    dominant actionable state (`up to date`, `disk stale`, `local ahead`, etc.) with explicit `Remote:` and
-    `Disk:` detail lines, and `arc sync` consumes the same model to choose among push / pull / load / push-load /
-    conflict paths. This follow-up also added targeted unit + integration coverage for the stale-disk,
-    local-unsaved, and shared-matrix cases, plus a rebuild/smoke pass verifying the shipped CLI output and
-    `arc sync` behavior against the live repo state.
-
-    - [x] **3.R.n.1 Shared domain model + status vocabulary split**
-        - Added shared `UserRemoteStatus` / `UserDiskStatus` state in the user-sync types so status and sync derive
-          behavior from the same model instead of reinterpreting `diskState` ad hoc.
-        - Replaced the overloaded top-line `local unsaved` status in the stale-disk case with a dominant-state
-          headline model (`disk stale`, `up to date`, `local ahead`, etc.) and explicit `Remote:` / `Disk:` detail
-          lines so git-notes state and disk state are understandable without requiring prior git-notes knowledge.
-
-    - [x] **3.R.n.2 `arc sync` porcelain alignment**
-        - Reworked `arc sync` to consume the shared remote/disk model. Stale-disk cases now restore the saved note
-          locally via `load`; local-note-ahead + stale-disk cases take a `push-load` path; only true unsaved local
-          content defaults to save/push behavior.
-        - Rebuilt the package and smoke-tested the real CLI after the change to confirm the shipped output matches
-          the new semantics and that the stale-disk case resolves via `arc sync --yes`.
-
-    - [x] **3.R.n.3 Coverage updates**
-        - Expanded unit and integration coverage across `user-status`, `sync`, and composite status formatting to pin
-          the new vocabulary, detail lines, and action matrix.
-
-- [x] **3.R.o User-internal metadata layout cleanup**
-
-    **Origin:** Follow-on from 3.R.n. The new local-only sync provenance file solved stale-vs-unsaved ambiguity, but
-    together with rotating pre-load backups it increased root-level clutter under `user/{identity}/`. The usability
-    issue is not behavior but signaling: user-authored working files should be visually distinct from ARC-managed local
-    bookkeeping.
-
-    **Outcome:** Local-only user metadata now writes to `user/{identity}/.internal/`, matching the framework's
-    existing `system/.internal/` convention. New writes land in `.internal/`; reads remain backward-compatible with
-    legacy root-level files so existing clones upgrade in place without a migration step. Status output continues to
-    show backup basenames rather than leaking storage layout details.
-
-    - [x] **3.R.o.1 Move local-only portability metadata into `.internal/`**
-        - Moved the local sync provenance file and new pre-load backup writes under `user/{identity}/.internal/`.
-        - Preserved the user-dir portability contract: dot-directories are already excluded from serialization, so the
-          local-only files remain unsynced without additional manifest rules.
-
-- [x] **3.R.p Git-note terminology pass for status/sync UX**
-
-    **Origin:** After 3.R.n, the split between remote-note state and working-file state was clearer, but the new
-    phrasing still mixed abstractions (`saved snapshot`, `disk stale`) that made the status read awkwardly for a
-    dev-facing tool. Real usage showed that the next-step hints were correct, but the explanatory copy still fought
-    the user's mental model.
-
-    **Outcome:** `arc user status` and `arc sync` now use explicit git-note terminology in the user-facing copy while
-    keeping the stronger working-file phrasing from 3.R.n. Headlines now read `git note up to date`,
-    `git note out of date`, `local note ahead`, `remote note ahead`, and `notes conflict`; detail lines explicitly
-    describe working files vs. the latest local git note; sync porcelain messages were aligned to the same language.
-    Unit + integration coverage was updated to pin the new copy end-to-end.
-
-    - [x] **3.R.p.1 Status wording alignment**
-        - Replaced the snapshot/disk vocabulary in `arc user status` with git-note-specific headlines and detail
-          lines, including `Working files have changed since the latest local git note.` and
-          `Latest local git note is from <hash>, N commit(s) back.`
-        - Kept remote status subordinate via `Remote notes: ...` so the actionable headline reflects the dominant
-          local state without implying ordinary git working-tree semantics.
-
-    - [x] **3.R.p.2 Porcelain wording alignment**
-        - Updated `arc sync` progress/error copy to refer to local/remote git notes and working files instead of the
-          older saved-note/disk phrasing.
-        - Preserved the same action matrix from 3.R.n; this follow-up changes language, not sync direction semantics.
-
-    - [x] **3.R.p.3 Coverage + live validation**
-        - Updated the status-format, status-run, user-status, user-handlers, sync, and integration suites to pin the
-          new git-note wording.
-        - Re-ran the focused Vitest surface and checked live `npx arc user status` output against the current repo.
-
-- [x] **3.R.q User sync provenance hardening**
-
-    **Origin:** Pressure-testing the new status vocabulary against the live repo surfaced a remaining dead-end:
-    legacy hash-only local provenance could still misclassify a newer local-only user state as stale and point the
-    user to `arc user load` when the safe/correct next step was `arc user save`. The same pass also surfaced one
-    last duplicated detail-line branch in the `git note out of date` renderer.
-
-    **Outcome:** Local sync provenance now records the source commit and whether the current materialized state came
-    from `save` or `load`. Status uses that richer provenance for future precise load/save guidance and degrades
-    legacy hash-only provenance to an inspect-first fallback instead of making a wrong destructive recommendation.
-    The `git note out of date` summary renderer was also normalized so stale, mixed, and local-unsaved branches no
-    longer repeat the same sentence twice.
-
-    - [x] **3.R.q.1 Provenance schema upgrade**
-        - Upgraded `.sync-state.json` from hash-only provenance to include `sourceCommit` and `sourceOperation`
-          (`save` / `load`) so status can distinguish newer local-only state from older materialized state.
-        - `arc user save` and `arc user load` now both write the richer provenance format.
-
-    - [x] **3.R.q.2 Safe fallback for legacy provenance**
-        - Legacy v1 provenance now degrades ambiguous cases to `mixed` / inspect-first guidance instead of
-          confidently recommending `load`.
-        - This prevents status from sending users into a dead end when the tool cannot actually prove direction.
-
-    - [x] **3.R.q.3 Coverage + renderer cleanup**
-        - Added scenario coverage for: legacy ambiguous provenance, v2 save provenance, and v2 load provenance.
-        - Removed the remaining duplicated `git note out of date` detail-line branch exposed by the local-unsaved
-          path during live validation.
-
-    - [x] **3.R.o.2 Backward-compatible reads + retention**
-        - `readLocalSyncState` now checks `.internal/` first and falls back to the legacy root-level path.
-        - Backup listing reads both `.internal/` and legacy root-level files; timestamped retention now prunes only the
-          new `.internal/` location so older root files remain readable without forcing a migration.
-
-    - [x] **3.R.o.3 Coverage + task-state updates**
-        - Updated integration coverage for `.internal/` backup/provenance paths and kept the existing legacy-root backup
-          case as compatibility coverage.
+          `pushWithInteractiveRecovery` now requires `cwd: string` as a third arg. Both callers
+          updated. Recovery errors (including `UserSaveError` during re-save) flow through the
+          existing outer try/catch — no partial push on save failure.
+
+    - `[x]` **3.R.i.c Confirmation defaults + `--yes` flag**
+        - `handlePullDirection` (sync.ts) runs the overwrite confirm when `hasLocalNotes` is true,
+          matching `arc user pull`. The conflict-select pull path passes `yes: true` through a shared
+          `DirectionParams` type so the user isn't double-confirmed.
+        - Added `-y, --yes` to `arc sync`, `arc user pull`, `arc user fetch`, `arc user load`. Handler
+          option types extended. `handleUserLoad` accepts `yes` preemptively (no confirm exists there
+          yet — wired for future consistency).
+        - Standard prompt copy hoisted to `OVERWRITE_CONFIRM_MESSAGE` constant (sync.ts + user.ts).
+          Non-TTY skips overwrite confirm via shared `shouldSkipOverwriteConfirm` helper. Loud
+          failures from 3.R.i.a unaffected — those run before this confirm.
+
+    - `[x]` **3.R.i.d Ancestor-walk cap + diagnostic**
+        - Replaced uncapped rev-list walk with a bounded default
+          (`DEFAULT_MAX_ANCESTOR_WALK = 1000`) plus explicit `--max-walk <n>` override on
+          `arc user load`, `arc user pull`, `arc sync`. Cap-hit-without-finding-a-note surfaces via
+          new `onWalkExhausted(walked, maxWalk)` callback, rendering the canonical diagnostic
+          (`"walked N ancestors without finding a note; use --max-walk to search deeper or confirm
+          remote state with arc user status"`).
+        - `findNearestUserNote` returns structured `NearestNoteSearch`
+          (`{ note, walked, maxWalk, capped }`) instead of `NearestUserNote | null`.
+          `buildLoadSummary` replaces `"Note: loaded from a reachable ancestor N commit(s) behind
+          HEAD."` with `"Loaded from N commit(s) back."` (emitted only when `ancestorDistance > 0`).
+        - `handleUserLoad` sets `process.exitCode = 1` on walk-exhausted (post-review follow-on) to
+          match `handleUserPull` and `handlePullDirection`. Walk-exhausted is ambiguous and deserves
+          the failure signal across all three commands; plain "no note found" stays exit 0.
+        - _Implementation note:_ `let walkExhausted` triggered `no-unnecessary-condition` (TS doesn't
+          see callback-side mutation). Refactored to
+          `const walkState: { capture: … | null } = { capture: null }` in all three handler sites —
+          object wrapper keeps narrowing intact.
+
+### `[x]` **3.R.j Vocabulary + reporting**
+
+- _Goal:_ CLI output matches user mental models without code-level translation. Single canonical terms
+  across layers. Reporting surfaces enough context for cold-open reading.
+
+    - `[x]` **3.R.j.a Status vocabulary rename + detail enrichment**
+        - `disk ahead` → `local unsaved` across `UserStatusHeadline` union,
+          `determineUserStatusHeadline` / `determineUserStatusAction` branches, all consuming tests.
+          Cold-open audit of other headlines (`in sync`, `remote ahead`, `conflict`,
+          `remote unavailable`) — all pass; no further renames. Canonical vocabulary documented in
+          JSDoc on `UserStatusHeadline`.
+        - `UserStatusResult` gained `ancestorDistance`, `savedAtRelative`, `unsavedDirection` (with
+          `UserUnsavedDirection = "edits" | "missing" | "mixed"`). `buildUserStatusResult` renders
+          three new detail lines when present: direction hint (only when headline is `local unsaved`);
+          save timestamp (`"Saved 11 hours ago."`); ancestor distance (`"Saved snapshot is from
+          abc1234, N commit(s) back."`).
+        - New `commands/user/relative-time.ts` exporting `formatRelativeTime` (seconds → minutes →
+          hours → days, singular/plural, future-date clamping). `inspectDiskVsLocalSnapshot`
+          refactored to return `DiskVsSnapshotInspection { state, direction }`; `computeUnsavedDirection`
+          helper exported via `user.ts` barrel.
+
+    - `[x]` **3.R.j.b `conflict` vs `divergence` canonical language**
+        - Canonicalized `conflict` as the user-facing term for "refs both moved from common ancestor."
+          Presentation-mapping JSDoc on `UserSyncRefState` flags the `diverged` variant as
+          code-level-only, pointing at `UserStatusHeadline` for canonical vocabulary.
+        - Swept user-facing strings: `pushWithInteractiveRecovery` "Push rejected — remote has
+          diverged" → "Push rejected — local and remote notes conflict (both moved since common
+          ancestor)"; same phrasing in `handleConflict` and the session-init conflict detail.
+          `cli.ts --force` help text and `UserPushOptions.force` / `UserFetchOptions.force` JSDoc
+          updated.
+        - Internal helper `isDivergentPushError` retained — names the git-level topology, matches
+          `UserSyncRefState.diverged` kept-for-code-clarity principle. `UserUnsavedDirection` JSDoc
+          moved off "divergence" to "mismatch" (different semantic domain). Doc touch:
+          `session-handoff.md § Save to Git Notes` rewrote with conflict vocabulary and folded in the
+          stale "pull-first" reference (no such option exists; replaced with merge description).
+
+    - `[x]` **3.R.j.c Label + spinner + summary consistency**
+        - Unified pull-direction result-box label "Loaded" → "Pulled" so spinner ("Pulling") → stop
+          ("Pull complete.") → note ("Pulled") read as one verb. `arc user load` keeps "Loaded"
+          (matches its outer command). Verb-tense audit found all other labels already consistent.
+          Convention documented in `runWithSpinner` JSDoc: present-continuous in-progress,
+          completed-adjective for done, past-tense for `p.note` matching the outer command verb.
+        - Split `determineUserStatusAction` to branch on `diskState` for the `local unsaved` headline:
+          `diskState === "different"` → "run `arc user save`"; `diskState === "same"` (implies
+          `refState === "local-ahead"`) → "run `arc user push` (or `arc sync`)". `refState`
+          deliberately kept out of signature — diskState alone is sufficient given headline derivation.
+        - Doc touch in `session-handoff.md`: new paragraph directs the agent to check `arc sync` exit
+          code and report the outcome in end-of-session summary, closing the "work didn't land but
+          user thought it did" gap flagged in review.
+
+### `[x]` **3.R.k Command surface cleanup + probe-pattern extension**
+
+- _Outcome:_ Three individual probes (extensions, active, config) plus composite `arc status` that
+  orchestrates them alongside retrofitted `arc user status`. Session-init calls the composite once
+  instead of four separate probes; individuals remain available standalone.
+
+  _Design decisions:_
+    - Wire format hybrid: `--session-init` is scope (filtered state); `--json` is format
+      (machine-parseable). Orthogonal and composable. Default = human-readable Clack. `arc user
+      status --session-init` retrofit accepts `--json` in the same pass — no asymmetric first-mover.
+    - Composite at `arc status`: rename `arc status` → `arc health` (3.R.k.a) frees the name; freed
+      slot hosts a composite that fans out via `Promise.all` over the four probes and emits a unified
+      result.
+    - No methods probe — methods load at workflow trigger, not init. Dropped from original 3.R.k
+      scope.
+    - Shared lib `lib/extensions/{point-scanner,orphan-detector}.ts` serves both the extensions
+      probe's `--all` mode and Task 4.6 (D7b pre-commit hook).
+    - `arc-config` probe added mid-WU: `arc-config.yml` is ~85% inline comments; agent consumes
+      key-value pairs only. Probe (`arc config status`, 3.R.k.c) emits typed settings as JSON; full
+      scope returns all agent-consumable settings, `--session-init` narrows to init-gating fields.
+      `hooks.*` excluded entirely (shell-consumed by hooks, never read by agent).
+    - Session-init ordering review (3.R.k.g) runs last — current Step 1.5 ("Sync Remote State")
+      precedes Step 2 but references "After Batch 1 resolves `{identity}`" (Batch 1 fires inside
+      Step 2). Reorder restructures against final command surface.
+    - `arc active` naming holds: `.arc/active/` houses WUs as bundles of co-named files; `arc active
+      status` parallels `arc user status` (sync state of the user bundle). Directory and command
+      agree.
+    - `arc status` rename hosted here, not in ARCd Rebrand — motivation is `/arc-status` skill
+      collision + status-command-means-work-state hygiene; both belong with session-init orientation
+      work, not binary rebrand. Transplanted from ARCd Rebrand Task 1.5.
+    - `arc version` subcommand stays in ARCd Rebrand (rebrand-era idiomatic alignment with
+      `arcd version`).
+
+  _Scope note:_ `arc hooks status` out of scope — session-init doesn't discover hook state at init.
+  Worth a future WU if needed; landing site is the composite.
+
+    - `[x]` **3.R.k.a `arc status` → `arc health` rename (command surface cleanup)**
+        - Pure rename freeing `arc status` for the composite probe. Source + tests renamed via
+          `git mv` (status.ts → health.ts; status.test.ts → health.test.ts; status-diff.test.ts →
+          health-diff.test.ts; status-diff.e2e.test.ts → health-diff.e2e.test.ts). Identifier
+          renames: `runStatus` → `runHealth`, `buildStatusSummary` → `buildHealthSummary`,
+          `StatusResult` → `HealthResult`, `StatusIOContext` → `HealthIOContext`, `StatusOptions` →
+          `HealthOptions`, `handleStatus` → `handleHealth`, `makeStatusIO` → `makeHealthIO`.
+          `FileState` / `FileStatus` preserved per task spec (per-file state, not command identity).
+        - CLI binding `.command("status")` → `.command("health")`; description updated.
+          `manifestMissingError("status")` → `manifestMissingError("health")` (user-facing
+          `The health command requires...` error text). Doc sweep touched only test-side files +
+          `errors.ts` JSDoc + `strategy-testing-methodology.md`. QUICK-REFERENCE never referenced
+          `arc status`.
+        - Cross-WU refs in `.arc/active/` notes/tasks and `.arc/backlog/` files intentionally left
+          intact (they describe the rename itself or ARCd Rebrand WU coordination).
+        - _Transplanted from:_ ARCd Rebrand Task 1.5 (subtasks .a, .b, .c, .e, .f); .d
+          (`arcd version`) stays in rebrand WU.
+
+    - `[x]` **3.R.k.b `arc extensions status` probe + shared lib + `arc user status --json` retrofit**
+        - Shared lib at `src/lib/extensions/{point-scanner,orphan-detector}.ts`. Scanner recognizes
+          the single anchor form (middle-dot + backtick-delimited hashtag marker) — no separate
+          patterns needed since the anchor uniquely disambiguates extension-point markers from other
+          inline-code mentions. Detector returns resolved + orphan buckets at reference-level
+          granularity.
+        - Command at `src/commands/extensions/`; handler at `src/handlers/extensions.ts`; CLI in
+          `src/cli.ts`. Flag matrix: default Clack renders counts + active/inactive lists + orphan
+          count; `--all` adds orphan detail entries; `--session-init` narrows to active-list (skips
+          workflow walk); `--json` emits typed results via `mode` discriminated union.
+          `--session-init --json` and `--all --json` combinations both valid.
+        - User-status retrofit: `--json` flag suppresses Clack intro/outro/note and writes JSON to
+          stdout; works across all three existing scopes (default, `--offline`, `--session-init`).
+        - Probe uses `fs/promises` directly — no IO injection, since scanners/formatter are pure and
+          unit-tested and the fs side is covered by integration. Malformed extension frontmatter
+          surfaces a warning and still resolves refs by basename so parse errors don't cascade into
+          orphan noise.
+        - End-to-end sanity: session-init probe emits `{"active":["pre-merge-review"]}` (matches
+          current grep output); `--all` probe surfaces one pre-existing orphan
+          (`pre-merge-inbox-review` at `integrate-work-unit.md:166`) — content issue for Phase 3
+          sweep, not this task.
+
+    - `[x]` **3.R.k.c `arc config status` probe**
+        - Probe at `src/commands/config/`; shared reader at `src/lib/config/status-reader.ts`. CLI
+          wired as `arc config status [--session-init] [--json]`. Full mode: 13 agent-consumable
+          settings (everything except `hooks.*`, shell-only). `--session-init` narrows to 5-key
+          init-gating subset (`session.remote_sync`, `branch.protection`, `pm.mode`, `commit.format`,
+          `commit.context_footer`). Both expose `defaultsApplied` (keys where on-disk value was
+          absent and a default was substituted) and `errors` (file-access diagnostics).
+        - `readConfigSettings(cwd)` generalizes the narrow readers in `handlers/shared.ts` into a
+          single settings-map read with defaults applied. `AGENT_CONSUMABLE_KEYS` exported list of 13
+          keys excluding `hooks.*`. Layout migration: `src/lib/config.ts` → `src/lib/config/index.ts`
+          (8 import-path updates).
+        - _Deferred to 3.R.l.b:_ `readPmMode` / `readSessionRemoteSyncEnabled` stay in
+          `handlers/shared.ts` for now — still consumed by `handlers/user.ts` (×2) and
+          `handlers/join.ts`. 3.R.l.b updated mid-implementation to retire both readers in favor of
+          `readConfigSettings` (supersedes the earlier "relocate to `lib/config-readers.ts`" plan;
+          relocation is moot once the generalized reader already lives in `lib/config/`).
+
+    - `[x]` **3.R.k.d `arc active status` probe**
+        - Reader `readActiveStatusCandidates(cwd)` at `src/lib/active/status-reader.ts` scans
+          `.arc/active/`, detects layout (Lite when `.arc/active/status.md` exists; Full otherwise,
+          enumerating `.arc/active/*/status-*.md`), parses Branch / State / Next Task / Task List
+          per candidate. Exported `parseStatusFile(content)` returns
+          `{ branch, state, nextTask, taskList }` nullable — tolerant of list-bullet and bare
+          `**Field:** value` forms, blockquote prefixes, inline backticks; first match on repeats;
+          `null` for absent or empty values.
+        - Probe runners `runActiveStatus` (full enumeration) and `runActiveSessionInitStatus`
+          (session-init resolution shaping). Session-init applies a thin none/single/multiple
+          discriminant — zero-file → `resolution: "none"`; one-file → `resolution: "single"`;
+          many-file → `resolution: "multiple"` with candidate list. Probe does not apply Step 2
+          Item 8's SESSION-NOTES/branch/state precedence — SESSION-NOTES lives in identity-scoped
+          user workspace and remains an agent-side concern.
+        - Types: `ActiveStatusResult` and `ActiveSessionInitResult` form a `mode`-discriminated
+          union; `ActiveSessionInitResolution` is `"none" | "single" | "multiple"`.
+          `StatusFileCandidate` carries `{ path, filename, branch, state, nextTask, taskList }` with
+          paths normalized forward-slash relative to cwd.
+
+    - `[x]` **3.R.k.e Composite `arc status` command**
+        - Orchestrator `runStatus` / `runSessionInitStatus` at `src/commands/status/run.ts` fans out
+          via `Promise.all` over four injected probe slots (`user`, `extensions`, `config`,
+          `active`), wrapping each probe's resolution or rejection into a typed `Probe<T>` union
+          (`{ ok: true; value } | { ok: false; error: { kind: "identity-missing" | "runtime";
+          message } }`). Rejections never bubble — composite always resolves with a typed envelope;
+          `process.exit` stays untouched.
+        - User-slot short-circuit: when `identity === null`, the slot resolves synchronously to
+          `identity-missing` without invoking the user probe (user notes are identity-scoped per
+          session-init.md Step 1.5).
+        - `StatusProbes` / `SessionInitProbes` interfaces bind cwd and I/O at construction so
+          orchestrator sees simple `() => Promise<T>` functions — enables trivial test mocking
+          without `vi.mock`. Identity resolution: two parallel `git config --get` reads through
+          `gitConfigGet`; empty/whitespace normalize to `null` via exported `normalizeGitConfigValue`.
+        - Format `buildStatusSummary` / `buildSessionInitStatusSummary` renders five stably-ordered
+          sections (Identity, User, Extensions, Config, Active). Each slot delegates to the probe's
+          own `build*Summary` formatter on ok; errored slots render `(unavailable) <message>` so one
+          probe's failure doesn't obscure others.
+        - End-to-end sanity: `npx arc status --session-init --json` returns the five-slot envelope
+          with `identity: { identity, role }` and per-slot `ok:true` results.
+
+    - `[x]` **3.R.k.f Session-init workflow integration + strategy pointer**
+        - _Completed in tandem with 3.R.k.g:_ `.f` content change without `.g`'s ordering pass
+          leaves Step 1.5's "After Batch 1" prose more broken, not less.
+        - Session-init calls one composite (`arc status --session-init --json`) instead of
+          orchestrating four probes. Probe table in Step 2 documents the five-slot envelope. Item 8
+          many-file disambiguation now sources candidates from `active.value.candidates`. Direct
+          `arc-config.yml` read retired — `config.value.settings` exposes the session-relevant
+          whitelist; `platform.type` and custom commit patterns drop out of init.
+        - Probe-failure fallback added (not in original scope) — keeps session-init survivable on a
+          fresh clone pre-build. `strategy-session-operations.md § Context Loading Model` picks up a
+          new **Probe pattern** subsection (non-destructive, harness-first, composite-first,
+          `Promise.all` fan-out, future-composite extension slot); § Session-Init Consumption aligned
+          to "session-init consumes from the composite" framing.
+
+    - `[x]` **3.R.k.g Session-init ordering review + workflow reorder**
+        - _Completed in tandem with 3.R.k.f._
+        - _Linear 8-step ordering delivered:_ 1. Verify Environment · 2. Probe ARC Domain · 3.
+          Conditional Sync Pull · 4. Load Context Documents · 5. Post-Context-Load Extensions · 6.
+          Assess Readiness · 7. Confirm Orientation · 8. If Context Seems Mismatched. Dependencies
+          explicit; no "Step 1.5 actually fires after Batch 1" derived ordering.
+        - Stale-SESSION-NOTES race closed: Step 3 (Conditional Sync Pull) fires between probe and
+          context-doc loading — any pull happens before SESSION-NOTES reads.
+        - _Design adjustments during implementation:_ Standalone "Check Active Configuration" step
+          retired (was pre-restructure Step 4); config consumption folded into Step 2 as "carry
+          config forward as behavioral awareness"; platform / custom-commit paragraphs removed
+          (consumed at the workflow that needs them). "Batch 1 / Batch 2" naming dropped — artifact
+          of four-probe orchestration no longer useful; Step 4's "Parallelism" paragraph names the
+          parallel-load group + status-file serialization explicitly.
+        - _Post-implementation review follow-ons (same commit):_ Step 1 trimmed to `pwd` only —
+          runtime comment block was template scaffolding never customized. Step 2 self-hosting-prefix
+          comment retired — template shows plain `arc ...`; rendered `.arc/` copy shows literal
+          `npx arc ...`. Broader init-time content audit (Contributor Session Path, Trust Hierarchy,
+          Load Errors, probe fallback) captured as Task 5.8.d.
+        - Downstream step-number references scanned: ADR-013 + `analysis/`, `archive/`,
+          non-activated `backlog/plan-arc-modes.md` only hits. ADRs stable once accepted;
+          archive/analysis historical; plan-arc-modes staleness already flagged in SESSION-NOTES
+          persistent context. No live workflow references needed updating.
+
+### `[x]` **3.R.l Structural cleanup + test coverage**
+
+- _Goal:_ Close review-surfaced code quality items; close the integration coverage gap that let
+  push-recovery's silent-discard slip past unit tests.
+
+    - `[x]` **3.R.l.a `findNearestUserNote` cleanup**
+        - Extracted the rev-list ancestor scan into `walkAncestorsForNote`, leaving
+          `findNearestUserNote` responsible for note-discovery orchestration and cap/result shaping.
+          Removed the dead branch in the walk loop while preserving walk-count semantics. Pure
+          cleanup; targeted unit suite stays green.
+
+    - `[x]` **3.R.l.b Module relocation + narrow-reader retirement**
+        - Moved `runUserPush`, `hasRemoteNotes`, `hasLocalNotes`, `runUserFetch`, `runUserPull` into
+          new `commands/user/push-fetch.ts`; `sync-status.ts` keeps only sync inspection/status
+          shaping. `commands/user.ts` facade re-exports the moved primitives so the public command
+          surface stays unchanged.
+        - Retired `readPmMode` and `readSessionRemoteSyncEnabled` from `handlers/shared.ts`.
+          `handlers/user.ts`, `handlers/join.ts`, and the still-live session-init path in
+          `handlers/status.ts` now read `readConfigSettings()` and derive `pm.mode` /
+          `session.remote_sync` from the returned settings map.
+
+    - `[x]` **3.R.l.c Integration test for `arc sync` → conflict → merge recovery**
+        - Real git-notes integration case in `__tests__/integration/user.test.ts` drives the merge
+          recovery path end-to-end via `pushWithInteractiveRecovery(..., "merge")`: local save/push
+          → clone force-push diverged remote notes → local save diverges → ordinary push rejects →
+          merge recovery force-fetches remote, re-saves local disk state on top, pushes combined
+          ref. Assertions cover the bug's failure mode directly: local disk still contains the
+          user's latest notes; recovered local ref is descendant of pre-recovery remote base; remote
+          ref equals recovered local ref after push.
+        - _Surfaced regression:_ `sync-status.ts` still referenced `notesRef` in detailed ref
+          inspection after the 3.R.l.b module split. Restored the import.
+
+    - `[x]` **3.R.l.d Refactor `runUserLoad` walk-exhausted surface from callback to discriminated union**
+        - `UserLoadOptions` / `UserPullOptions` no longer expose `onWalkExhausted`. Command layer
+          exports `UserLoadOutcome = UserLoadResult | UserLoadWalkExhausted`
+          (`UserLoadResult.kind = "loaded"` and
+          `{ kind: "walk-exhausted", walked, maxWalk }`). `runUserLoad`, `runUserPull`,
+          `handleUserLoad`, `handleUserPull`, `handlePullDirection` branch directly on the
+          discriminated outcome instead of callback-mutation side state. `null` reserved for the
+          unambiguous "no notes exist" case. Tests narrow on `kind`; shallow-clone cap-hit path now
+          asserts the explicit `walk-exhausted` outcome.
+
+    - `[x]` **3.R.l.e `resolveArcRoot` — cwd walk-up for CLI commands touching `.arc/`**
+        - Added `resolveArcRoot(startDir = process.cwd())` to `lib/paths.ts` plus handler-level
+          `requireArcProjectRoot` guard emitting the canonical
+          `"Not inside an ARC project (no .arc/ directory found walking up from cwd)."` error when
+          no `.arc/` directory is reachable. Wired the resolved root through every current handler
+          that reads or writes project `.arc/` state. Fresh `arc init` still uses literal cwd by
+          design. Coverage: unit (cwd hit, one/two-level walk-up, null, root boundary, explicit
+          `startDir`) + e2e regression (`arc user status --offline --json` from nested subdirectory
+          matches repo-root result).
+        - _Risk flags:_ Symlinks — walk path as-is without `fs.realpathSync`, matching git's default
+          behavior. Monorepos with nested `.arc/` (unlikely): first found wins; nested ARC projects
+          out of scope.
+
+    - `[x]` **3.R.l.f Sandbox-aware remote-probe degradation + session-init recovery path**
+        - `inspectUserSyncRefsDetailed` now starts with `git ls-remote` and only falls back to
+          temp-ref fetch + ancestry checks when both local and remote refs exist with different
+          hashes. Easy cases (remote missing, remote present with same hash, remote-only ref) no
+          longer need fetch/write access. Ancestry-fallback-blocked-after-remote-visibility-succeeds
+          keeps the existing `remote-unavailable` state to avoid widening the type surface;
+          session-init messaging distinguishes "remote unreachable" from "comparison blocked in this
+          environment" and offers local-continuation vs retry path.
+
+            - `[x]` **3.R.l.f.1 Probe path split: read-only remote visibility before fetch fallback**
+                - `inspectUserSyncRefsDetailed` probes `git ls-remote origin refs/notes/...` before
+                  any fetch, resolving easy cases without temp-ref bookkeeping or
+                  `.git/FETCH_HEAD` writes. Temp-ref fetch + `merge-base --is-ancestor` remain only
+                  for the ambiguous both-sides-exist / hashes-differ case. Fetch failure after
+                  successful read-only visibility stays in the pragmatic `remote-unavailable` bucket.
+
+            - `[x]` **3.R.l.f.2 Session-init workflow recovery branch for sandbox-limited environments**
+                - Both session-init workflow copies branch on probe wording: retry once remote is
+                  reachable, or continue locally / retry in a remote-capable environment when
+                  fetch/write is blocked. Status copy distinguishes unreachable-remote wording from
+                  limited-comparison wording so it doesn't read like actual note divergence.
+
+            - `[x]` **3.R.l.f.3 Tests and documentation**
+                - Unit coverage for read-only remote-probe path and fetch-blocked
+                  "continue-locally-or-retry-elsewhere" session-init shaping. Sandbox-specific exec
+                  denial case unit-only — current integration harness exercises real git note flows
+                  but cannot reliably simulate network-policy / `.git/FETCH_HEAD` write denial.
+
+### `[x]` **3.R.m Second-pass close — quality gates + Phase 3.R-wide content**
+
+- _Outcome:_ Phase 3.R close green. Three stale pre-init E2E expectations updated to match the current
+  root-walk guard copy (`Not inside an ARC project ...`) used by update/health/join before any
+  command-specific install check. Retired 3.R.h addendum landed in both
+  `strategy-task-list-formatting.md` copies: revision numbering now documents both subtask-level
+  `X.Y.R` and phase-level `X.R` follow-ons; old `3.1.R.1` / `3.1.R.2` examples tightened to
+  `3.1.R.a` / `3.1.R.b`.
+
+  _Local smoke (throwaway repos via `npx --prefix /home/andrew/dev/arc-framework arc ...`):_
+  `user add/save/load/fetch/pull/push/status/sync`, `extensions status`, `active status`, composite
+  `status --session-init --json` all exercised; `user status --offline` surfaces expected `local
+  unsaved` headline + save-timestamp + ancestor-distance lines; `user load --max-walk 1` emits the
+  cap-hit diagnostic; `--max-walk 5` loads from two commits back. `arc methods status` not a live CLI
+  surface (task bullet stale; verified absent rather than smoked). For merge recovery, deterministic
+  interactive divergent-notes scenario drove `pushWithInteractiveRecovery` through the `merge` choice
+  end-to-end (fetch remote, re-save local disk on top, push combined ref) — same path `arc sync` uses
+  once it reaches the push branch. Sync-specific race from inspection-to-push not stable enough for
+  manual smoke.
+
+  _Next action (after close):_ 3.R.f → 3.R.g → Phase 3.R archive + begin Phase 4.1.
+
+### `[x]` **3.R.n Post-close portability semantics refinement**
+
+- _Origin:_ Real cross-machine resume validation post-Phase-3.R-close surfaced that `arc user status`
+  still collapsed remote-note sync state and on-disk hydration state into a single `local unsaved`
+  bucket, potentially pointing users toward `arc user save` when the correct recovery was `arc user
+  load`.
+
+- _Outcome:_ `arc user status` and `arc sync` now share an explicit two-axis model: remote saved-note
+  relation (`in sync`, `local ahead`, `remote ahead`, `conflict`, `remote unavailable`) and disk
+  relation (`current`, `stale`, `local unsaved`, `mixed`). User-facing headlines surface the dominant
+  actionable state (`up to date`, `disk stale`, `local ahead`) with explicit `Remote:` and `Disk:`
+  detail lines. `arc sync` consumes the same model to choose among push / pull / load / push-load /
+  conflict paths.
+
+    - `[x]` **3.R.n.1 Shared domain model + status vocabulary split**
+        - Added shared `UserRemoteStatus` / `UserDiskStatus` state in user-sync types so status and
+          sync derive behavior from the same model. Replaced overloaded `local unsaved` top-line in
+          stale-disk case with dominant-state headline model + explicit `Remote:` / `Disk:` detail
+          lines.
+
+    - `[x]` **3.R.n.2 `arc sync` porcelain alignment**
+        - Reworked `arc sync` to consume the shared remote/disk model. Stale-disk cases restore the
+          saved note locally via `load`; local-note-ahead + stale-disk takes a `push-load` path;
+          only true unsaved local content defaults to save/push. Rebuilt and smoke-tested the real
+          CLI to confirm shipped output matches new semantics.
+
+    - `[x]` **3.R.n.3 Coverage updates**
+        - Expanded unit + integration coverage across `user-status`, `sync`, composite status
+          formatting to pin new vocabulary, detail lines, action matrix.
+
+### `[x]` **3.R.o User-internal metadata layout cleanup**
+
+- _Origin:_ Follow-on from 3.R.n. New local-only sync provenance file solved stale-vs-unsaved
+  ambiguity, but together with rotating pre-load backups it increased root-level clutter under
+  `user/{identity}/`. Usability issue is signaling, not behavior — user-authored working files should
+  be visually distinct from ARC-managed local bookkeeping.
+
+- _Outcome:_ Local-only user metadata writes to `user/{identity}/.internal/`, matching the framework's
+  existing `system/.internal/` convention. New writes land in `.internal/`; reads remain
+  backward-compatible with legacy root-level files so existing clones upgrade in place without a
+  migration step. Status output continues to show backup basenames rather than leaking storage
+  layout details.
+
+    - `[x]` **3.R.o.1 Move local-only portability metadata into `.internal/`**
+        - Moved local sync provenance file and new pre-load backup writes under
+          `user/{identity}/.internal/`. User-dir portability contract preserved — dot-directories
+          already excluded from serialization, so local-only files remain unsynced without
+          additional manifest rules.
+
+    - `[x]` **3.R.o.2 Backward-compatible reads + retention**
+        - `readLocalSyncState` checks `.internal/` first and falls back to legacy root-level path.
+          Backup listing reads both `.internal/` and legacy root-level files; timestamped retention
+          prunes only the new `.internal/` location so older root files remain readable without
+          forcing a migration.
+
+    - `[x]` **3.R.o.3 Coverage + task-state updates**
+        - Updated integration coverage for `.internal/` backup/provenance paths; kept existing
+          legacy-root backup case as compatibility coverage.
+
+### `[x]` **3.R.p Git-note terminology pass for status/sync UX**
+
+- _Origin:_ After 3.R.n, the split between remote-note state and working-file state was clearer, but
+  the new phrasing still mixed abstractions (`saved snapshot`, `disk stale`) that read awkwardly for a
+  dev-facing tool. Real usage showed next-step hints were correct, but explanatory copy still fought
+  the user's mental model.
+
+- _Outcome:_ `arc user status` and `arc sync` use explicit git-note terminology in user-facing copy
+  while keeping the stronger working-file phrasing from 3.R.n. Headlines: `git note up to date`,
+  `git note out of date`, `local note ahead`, `remote note ahead`, `notes conflict`. Detail lines
+  explicitly describe working files vs. the latest local git note. Sync porcelain messages aligned to
+  the same language. Coverage updated to pin new copy end-to-end.
+
+    - `[x]` **3.R.p.1 Status wording alignment**
+        - Replaced snapshot/disk vocabulary in `arc user status` with git-note-specific headlines and
+          detail lines (`Working files have changed since the latest local git note.`, `Latest local
+          git note is from <hash>, N commit(s) back.`). Kept remote status subordinate via
+          `Remote notes: ...` so actionable headline reflects dominant local state without implying
+          ordinary git working-tree semantics.
+
+    - `[x]` **3.R.p.2 Porcelain wording alignment**
+        - Updated `arc sync` progress/error copy to refer to local/remote git notes and working
+          files instead of older saved-note/disk phrasing. Same action matrix from 3.R.n preserved
+          — language changes, not sync direction semantics.
+
+    - `[x]` **3.R.p.3 Coverage + live validation**
+        - Updated status-format, status-run, user-status, user-handlers, sync, integration suites to
+          pin the new git-note wording. Re-ran focused Vitest surface and checked live `npx arc user
+          status` output against current repo.
+
+### `[x]` **3.R.q User sync provenance hardening**
+
+- _Origin:_ Pressure-testing the new status vocabulary against the live repo surfaced a remaining
+  dead-end: legacy hash-only local provenance could still misclassify a newer local-only user state
+  as stale and point the user to `arc user load` when the safe/correct next step was `arc user save`.
+  Same pass surfaced one last duplicated detail-line branch in the `git note out of date` renderer.
+
+- _Outcome:_ Local sync provenance now records the source commit and whether the current materialized
+  state came from `save` or `load`. Status uses the richer provenance for precise load/save guidance
+  and degrades legacy hash-only provenance to inspect-first fallback instead of making a wrong
+  destructive recommendation. `git note out of date` summary renderer normalized so stale, mixed, and
+  local-unsaved branches no longer repeat the same sentence twice.
+
+    - `[x]` **3.R.q.1 Provenance schema upgrade**
+        - Upgraded `.sync-state.json` from hash-only provenance to include `sourceCommit` and
+          `sourceOperation` (`save` / `load`) so status can distinguish newer local-only state from
+          older materialized state. `arc user save` and `arc user load` both write the richer
+          provenance format.
+
+    - `[x]` **3.R.q.2 Safe fallback for legacy provenance**
+        - Legacy v1 provenance now degrades ambiguous cases to `mixed` / inspect-first guidance
+          instead of confidently recommending `load`. Prevents status from sending users into a
+          dead-end when the tool cannot prove direction.
+
+    - `[x]` **3.R.q.3 Coverage + renderer cleanup**
+        - Added scenario coverage: legacy ambiguous provenance, v2 save provenance, v2 load
+          provenance. Removed remaining duplicated `git note out of date` detail-line branch
+          exposed by the local-unsaved path during live validation.
 
 ---
 
