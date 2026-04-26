@@ -41,7 +41,7 @@ _Purpose:_ {what this phase delivers and why this granularity}
 
 - _Goal:_ {one-line clarification}
 
-    - [ ] **1.1.a {Subtask description}**
+    - `[ ]` **1.1.a {Subtask description}**
         - {detail bullet — plan now, outcome at `[x]`}
 
 ## **Phase N:** Verification

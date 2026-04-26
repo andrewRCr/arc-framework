@@ -94,8 +94,9 @@ file (`notes-{name}.md`), not in the task list.
       links to `notes-{name}.md` for full rationale; soft cap ~12 lines per preamble
 - [ ] Parent tasks are H3 headings with backtick-wrapped marker — see
       [strategy-task-list-formatting § Parent Tasks][task-list-formatting] for the canonical form
-- [ ] Subtasks use letter numbering: `- [ ] **X.Y.a Description**` (bullet, no backticks; bold
-      when detail bullets follow)
+- [ ] Subtasks use letter numbering with backtick-wrapped markers (matching parent task heading
+      style — keeps preview rendering consistent across parent and subtask). Bold when detail
+      bullets follow.
 - [ ] Third level uses letters (`X.Y.a`, `X.Y.b`), not numbers (`X.Y.1`, `X.Y.2`) — letters signal depth
 - [ ] Subtaskless parents carry no descriptor bullets pre-completion — title alone (no `_Goal:_` /
       `_Note:_` / etc.; `_Outcome:_` allowed post-completion)

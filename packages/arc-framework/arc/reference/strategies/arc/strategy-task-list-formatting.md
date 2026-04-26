@@ -84,8 +84,8 @@ anything longer belongs in the notes file.
 Level 3 heading; status marker (`` `[ ]` `` / `` `[x]` `` / `` `[~]` ``) wrapped in inline
 code (backticks); X.Y number and description both bold. The marker is text in the heading,
 toggled at completion as a one-character edit. Backticks distinguish the marker from
-incidentally-bracketed prose in titles and give the parent's marker visual weight that subtask
-bullets (no backticks) don't carry.
+incidentally-bracketed prose in titles. Subtasks use the same backtick-wrapped marker
+(§ Subtasks) for rendered-view consistency.
 
 Numbers follow `1.1`, `1.2`, `2.1` (not `1.1.0`). Description is concise but complete — what,
 not how.
@@ -96,10 +96,19 @@ navigation benefit.
 
 ### Subtasks (Third Level)
 
-`- [ ] **X.Y.a Description**` — GFM checkbox bullet (no backticks on the marker), letter
+```text
+- `[ ]` **X.Y.a Description**
+```
+
+Checkbox bullet with backtick-wrapped marker (matching parent task heading style); letter
 numbering at third level. Bold when detail bullets follow (creates visual hierarchy); plain
 when simple single-line. Indented 4 spaces from the parent task heading's content (under the
 parent's `_Goal:_` bullet — see § Goal/Note Lines for the structural anchor mechanic).
+
+The backtick wrapping prevents GFM from rendering the marker as an actual checkbox UI element
+in preview/rendered views. Without backticks, parent tasks (in headings — where GFM doesn't
+render task lists) and subtasks (in bullets — where GFM does) would render inconsistently.
+Backticks on both keeps the marker as literal monospace text in all renderers.
 
 **Use when:** Parent task requires 2+ distinct, independently completable steps. For test-first
 work, group by concern — one subtask covers both test and implementation.
@@ -109,7 +118,7 @@ work, group by concern — one subtask covers both test and implementation.
 ```text
 Phase:         ## **Phase X:**                       (H2 heading)
 Parent task:   ### `[x]` **X.Y Title**               (H3 heading, backtick marker)
-Subtask:       - [x] **X.Y.a Title**                 (bullet, no backticks)
+Subtask:       - `[x]` **X.Y.a Title**               (bullet, backtick marker)
 Fourth level:  X.Y.a.1                               (rare — resume numbers after letters)
 ```
 
