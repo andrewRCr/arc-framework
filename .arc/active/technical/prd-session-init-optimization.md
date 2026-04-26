@@ -293,8 +293,8 @@ synthetic test material.
 ## Non-Goals
 
 - **Automatic migration code for `arc update`.** Zero adopters currently; dev repo maintains
-  two-copy sync manually. Release notes document the breaking change in beta; any external
-  beta installer with populated `.override` sections reinstalls fresh. Migration WU can be
+  two-copy sync manually. All breaking changes land pre-publication — `plan-arcd-rebrand`
+  republishes under the new package name with no migration audience. Migration WU can be
   commissioned later if actual adopter need materializes.
 - **Docs-site-side integration of extracted content.** Handled by `plan-docs-content-sweep.md`.
 - **Starlight migration or docs-site build work.** Handled by `prd-arcd-docs-site.md`.
@@ -428,10 +428,13 @@ templates/template-tasks.md (new).
 ### Adopter Impact
 
 Breaking-for-update changes. `arc update` handles directory restructure and content slim-down
-via three-way merge. Release note flags: new methods/extensions layout, new constitutional
-rule, SESSION-NOTES `Working On:` type prefix formalization. User customizations (overrides,
-extension steps) preserved across per-file restructure where adopters exist; for current
-zero-adopter state, two-copy manual sync handles the dev repo.
+via three-way merge. Pre-publication breaking changes from this WU (methods/extensions layout,
+constitutional rule, agent-file surface removal, briefs rename, SESSION-NOTES `Working On:`
+type prefix formalization) land before any adopter exists — `plan-arcd-rebrand` republishes
+under the new package name without a migration path (PRD § "no changelog for the rename, no
+release notes"). User customizations (overrides, extension steps) preserved across per-file
+restructure where adopters exist; for current zero-adopter state, two-copy manual sync handles
+the dev repo.
 
 ## Success Criteria
 
@@ -460,7 +463,6 @@ Binary qualitative criteria. MVP ships when all hold:
 - Session-type conditional loading active; `Working On:` type prefix formalized;
   auto-inference handles common cases without user prompts
 - CLI (`arc init` / `arc join`) delivers updated SESSION-NOTES template
-- Adopter-facing changes documented in release notes with upgrade guidance
 - Two-copy sync clean; framework-sync test passing
 
 ### Measurement discipline

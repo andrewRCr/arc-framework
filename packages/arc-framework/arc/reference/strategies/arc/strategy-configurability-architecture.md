@@ -55,16 +55,15 @@ variation.
 Beyond mechanisms, adopters extend ARC through **content-level customization** — creating their own files that
 add domain-specific guidance, project-specific procedures, or extended standards:
 
-| Content Channel       | What It Does                   | Location              | Example                                          |
-|-----------------------|--------------------------------|-----------------------|--------------------------------------------------|
-| Project strategies    | Domain-specific guidance       | `strategies/project/` | `strategy-authentication.md` for auth patterns   |
-| Project workflows     | Project-specific procedures    | `workflows/project/`  | Custom deploy workflow, release checklist        |
-| Domain-specific rules | Extended project standards     | `constitution/`       | `DEV-RULES.FRONTEND.md`, `DEV-RULES.AUTH.md`     |
-| Agent-specific files  | Per-agent operational guidance | `agent/`              | `CLAUDE.ARC.md`, `GEMINI.ARC.md` for agent notes |
+| Content Channel       | What It Does                | Location              | Example                                        |
+|-----------------------|-----------------------------|-----------------------|------------------------------------------------|
+| Project strategies    | Domain-specific guidance    | `strategies/project/` | `strategy-authentication.md` for auth patterns |
+| Project workflows     | Project-specific procedures | `workflows/project/`  | Custom deploy workflow, release checklist      |
+| Domain-specific rules | Extended project standards  | `constitution/`       | `DEV-RULES.FRONTEND.md`, `DEV-RULES.AUTH.md`   |
 
-These are project-owned files — adopters create them, ARC doesn't ship them (except agent-specific templates).
-`DEV-RULES.ARC.md` and `DEV-RULES.PROJECT.md` are loaded during session initialization; project strategies,
-workflows, and domain-specific rules are loaded on demand when work touches their domain.
+These are project-owned files — adopters create them, ARC doesn't ship them. `DEV-RULES.ARC.md` and
+`DEV-RULES.PROJECT.md` are loaded during session initialization; project strategies, workflows, and domain-specific
+rules are loaded on demand when work touches their domain.
 
 **Authoring project workflows.** Unlike `workflows/arc/` (framework-owned, wholesale replaced on update),
 `workflows/project/` is adopter territory. Project workflows may load ARC methods or extensions by declaring them
@@ -120,7 +119,6 @@ a configurability path (how teams adapt it).
 | Collaborative voice in docs        | P9        | Team perspective, no "user/AI" framing   | Behavioral guidance — documentation style    |
 | Reference-style markdown links     | P9        | Reference links, definitions at file end | Behavioral guidance — link formatting style  |
 | No meta-project references in code | P9        | Task IDs stay in `.arc/` docs            | Behavioral guidance — enforcement strictness |
-| Agent-specific file structure      | P8        | `CLAUDE.ARC.md`, `GEMINI.ARC.md`, etc.   | File-customizable — file naming and location |
 
 **Configurability path definitions:**
 

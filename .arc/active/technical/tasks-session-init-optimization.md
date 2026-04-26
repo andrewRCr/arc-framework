@@ -4013,7 +4013,7 @@ Task 5.6 is TS-only (no markdown sync concern).
         Two-copy sync applied to both `.arc/system/workflows/arc/session-lifecycle/session-init.md`
         and `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/session-init.template.md`.
 
-- [ ] **5.7 Agent file surface removal + `system/briefs/` rename**
+- [x] **5.7 Agent file surface removal + `system/briefs/` rename**
 
     **Goal:** Retire the `{AGENT}.ARC.md` surface entirely (seven package per-agent templates, session-init load,
     init/add-agent scaffolding, schema hook coverage) and rename the containing directory `system/agent/` →
@@ -4360,51 +4360,86 @@ Task 5.6 is TS-only (no markdown sync concern).
         Tier 2 gates clean: markdown lint (215 files, 0 errors), typecheck
         (source + tests), eslint, full test suite (1117 tests / 8 files) green.
 
-    - [ ] **5.7.g `add-agent.md` verification (no-op confirmed)**
-        - **Resolved during audit:** Commit `27174b8` (Task 4.5.d, 2026-04-24) already retired
-          the file-scaffolding step from `add-agent.md` — Step 2 "Check for Agent-Specific
-          Configuration" removed wholesale, steps renumbered, summary updated. Workflow today
-          is in the desired post-pivot shape (orient → generate skills → restart)
-        - **Remaining work for this WU:** path/filename updates only — covered under 5.7.d as
-          part of the cross-reference sweep (`system/agent/AGENT-BRIEFING.{ARC,PROJECT}.md`
-          paths in `add-agent.md:25-26` rename to `system/briefs/AGENT-BRIEF.*.md`)
-        - **Mark `[~]` (deferred / no-op)** at execution — no content changes beyond the
-          5.7.d sweep
+    - [~] **5.7.g `add-agent.md` verification (no-op confirmed)**
 
-    - [ ] **5.7.h CHECK 12 hook revision**
-        - **Pre-commit hook regex** (`.arc/system/githooks/pre-commit:354` +
-          `packages/arc-framework/arc/system/githooks/pre-commit:354`):
-          `grep -E '^(\.arc|packages/arc-framework/arc)/system/(methods|extensions|agent)/'` —
-          remove the `|agent` alternation
-        - **Comment cleanup** (line 352): drop `agent-specific files (system/agent/{AGENT}.ARC.md)`
-          from the CHECK 12 description (path/filename sweep tracked under 5.7.d)
-        - **Two-copy sync** required (both `.arc/` and `packages/arc-framework/arc/` copies of
-          `pre-commit`)
-        - **Test coverage:** retire-path test edits (per 5.7.a) already remove agent test cases
-          from `validate-frontmatter.test.ts`. Verify `__tests__/unit/scripts/` coverage stays
-          green after CHECK 12 regex change. Hook should run clean on a briefs-only staged set
+        **Outcome:** No-op as anticipated by audit. Verified both copies
+        (`.arc/system/workflows/arc/supplemental/add-agent.md` and package
+        counterpart) carry zero residual references to `system/agent`,
+        `AGENT-BRIEFING`, `{AGENT}.ARC.md`, or `template-agent` — the
+        file-scaffolding step was retired in commit `27174b8` (Task 4.5.d)
+        and path/filename updates landed in 5.7.d's cross-reference sweep
+        (commit `f2c31f9`). Workflow shape is in the post-pivot form
+        (orient → skills → restart). `diff -q` between the two copies
+        confirms two-copy sync. No file changes.
 
-    - [ ] **5.7.i Release notes + sync verification + phase acceptance**
-        - **Release notes** entry documenting breaking changes:
-            - `{AGENT}.ARC.md` surface removed; migration advice = move agent-specific content
-              to harness-level file (`CLAUDE.md`, `AGENTS.md`, etc.)
-            - Directory rename `system/agent/` → `system/briefs/`; file rename
-              `AGENT-BRIEFING.*.md` → `AGENT-BRIEF.*.md` for any adopter code referencing paths
-            - Adopter migration: run `arc update` to migrate manifest paths
-              (`.arc/system/.internal/manifest.json` regenerates from new recipe)
-        - **Two-copy sync verification:** every touched file via framework-sync integration test
-          (if run locally) or manual diff. Explicit two-copy spots beyond docs: `pre-commit`
-          (CHECK 12 regex), `verify-integrity.sh` (path checks)
-        - **Grep verification:** `grep -rn "AGENT-BRIEFING\|system/agent\|{AGENT}.ARC.md" .arc/ packages/`
-          returns zero matches in live framework docs / source / hooks / scripts (archive / ADR /
-          analysis / research history may retain for provenance — exclude during grep)
-        - **Phase-level acceptance criteria** (all required for 5.7 done):
-            - `npm test` passes end-to-end with new layout
-            - Fresh `arc init` produces only the briefs set:
-              `system/briefs/AGENT-BRIEF.{ARC,PROJECT,CONTRIBUTOR}.md` and
-              `system/briefs/README.md` — no per-agent files, no `template-agent.md`
-            - Pre-commit CHECK 12 runs clean against a briefs-only staged set
-            - Markdown lint clean across all touched files
+    - [x] **5.7.h CHECK 12 hook revision**
+
+        **Outcome:** Updated CHECK 12 in both `pre-commit` copies.
+        Comment header (line 347) trimmed to "Frontmatter schema
+        validation (methods / extensions)" — dropped `/ agent files`.
+        Regex (line 354) narrowed to
+        `grep -E '^(\.arc|packages/arc-framework/arc)/system/(methods|extensions)/'` —
+        dropped the `|agent` alternation. Hook now skips invocation on
+        briefs-only staged sets (regex no longer matches `system/briefs/`
+        or any other path). `__tests__/unit/scripts/` coverage stayed
+        green; full unit suite (1054 tests / 74 files) and e2e suite
+        (45 tests / 8 files) green.
+
+        **In-flight scope expansion (5.7.d misses caught by 5.7.i grep
+        verification):** Pre-commit grep across live framework surfaces
+        (per 5.7.i acceptance criteria) surfaced three references the
+        5.7.d sweep missed. Folded into this commit since they
+        structurally close the surface removal:
+
+        - `strategy-session-operations.md:315-316` (both copies) —
+          context-monitoring example "Agent-specific configuration files
+          (e.g., CLAUDE.ARC.md)" updated to point at harness-level files
+          (`CLAUDE.md`, `AGENTS.md`); concept retained, example reframed
+        - `strategy-configurability-architecture.md:58-67` (both copies) —
+          "Agent-specific files" row removed from the content-channel
+          inventory table; "(except agent-specific templates)"
+          parenthetical removed from the surrounding paragraph
+          (ARC ships nothing per-agent now); column widths recompacted
+        - `strategy-configurability-architecture.md:118-123` (both
+          copies) — "Agent-specific file structure" row removed from the
+          design-commitment conventions table; no width changes (agent
+          row wasn't widest)
+
+        **Tier 2 gates clean:** 214 markdown files (0 errors),
+        eslint, typecheck, shellcheck clean, 1099 tests / 82 files
+        green (74 unit/integration + 8 e2e).
+
+    - [x] **5.7.i Sync verification + phase acceptance**
+
+        **Verification bullets all green** (run during the 5.7.h
+        commit unit boundary):
+
+        - **Two-copy sync:** `diff -q` confirms identical content in
+          both trees for `system/briefs/README.md`, `add-agent.md`,
+          `pre-commit`, `strategy-session-operations.md`, and
+          `strategy-configurability-architecture.md`
+        - **Grep verification:** `grep -rn "AGENT-BRIEFING\|system/agent\|{AGENT}.ARC.md\|{TOOL}.ARC.md"`
+          across `.arc/system/`, `.arc/reference/{constitution,strategies,templates}/`,
+          `packages/arc-framework/{src,scripts,arc}/` returns zero
+          matches. Remaining matches are confined to `reference/adr/`,
+          `reference/analysis/`, `reference/research/`, and active-WU
+          artifacts — all explicitly excluded per spec
+        - **Phase-level acceptance:** `npm test` end-to-end clean
+          (1099 tests / 82 files); markdown lint clean (214 files);
+          CHECK 12 hook regex no longer matches briefs-only staged
+          sets (skips invocation cleanly)
+
+        **Release-notes bullet retired:** Original spec called for
+        a `versions.json` entry documenting breaking changes for
+        adopters. Superseded by `plan-arcd-rebrand` PRD (backlog) —
+        that WU explicitly opts out of release-notes for the package
+        transition (PRD § 209 "no changelog for the rename, no release
+        notes"; § 328 "zero external adoption of `@arc-framework/cli@0.1.0`").
+        First published `@arcd/cli` re-publishes fresh under the new
+        name with all session-init-optimization breaking changes
+        absorbed pre-publication — no migration audience exists.
+        Matching WU-wide success criterion at the bottom of this task
+        list also retired.
 
 - [ ] **5.8 Session-init workflow Step 2/4/7 restructure**
 
@@ -4594,8 +4629,6 @@ definition plus a notes-file entry.
 - [ ] Session-type conditional loading active; `Working On:` type prefix formalized; auto- inference handles the common
       cases without user prompts
 - [ ] `arc init` and `arc join` deliver updated SESSION-NOTES template with type prefix convention
-- [ ] Release-notes entry drafted documenting breaking changes (methods/extensions layout, constitutional rule,
-      SESSION-NOTES prefix)
 - [ ] Framework-sync integration test passing; two-copy sync clean across methods, extensions, and touched
       workflow/rules files
 - [ ] All quality gates pass (markdown lint, TypeScript lint, shellcheck, typecheck, tests, build — zero violations)

@@ -5,33 +5,32 @@
 - **State:** In Progress
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
-- **Next Task:** 5.7.g — `add-agent.md` verification (no-op confirmed,
-  to be marked `[~]`); then 5.7.h → 5.7.i.
-- **Last Completed:** Task 5.7.e — `system/briefs/README.md` wholesale
-  rewrite in both trees. Retired dual-hub + tool-files architecture
-  framing ("Why Two Hub Files", "What Belongs in Tool-Specific Files",
-  "Adding Files for Other Tools", "Tool-Specific Templates", "When to
-  Update Tool-Specific Files"). New README scoped to session-init
-  briefings (style matches `methods/README.md` and `extensions/README.md`):
-  How briefs work + Loading model paragraphs, per-file Files table
-  (ARC + CONTRIBUTOR Framework, PROJECT Configurable), customize-PROJECT
-  adoption guidance, framework-managed note for ARC + CONTRIBUTOR, and
-  "Agent-Specific Guidance Lives Outside ARC" section pointing at
-  harness-level files (`CLAUDE.md`, `AGENTS.md`, `.gemini/GEMINI.md`)
-  as the pre-session-init system-prompt surface. Trimmed 154 → 41 lines
-  (~73% reduction). Mid-task correction: initial draft framed contributor
-  sessions as reading CONTRIBUTOR brief *instead of* PROJECT; per
-  session-init.md "Contributor Session Path" (lines 201–209), items 1–6
-  are universal (ARC + PROJECT both load) and CONTRIBUTOR loads
-  *additionally*. Corrected before commit. Two-copy sha256 match
-  (`98035b45…`); manifest `pristine_hash` recomputed (`487b9a12…` →
-  `98035b45…`). Tier 1 markdown lint clean (3 files); link check
-  confirms session-init.md target resolves.
+- **Next Task:** 5.8 — Session-init workflow Step 2/4/7 restructure
+  (parent task with subtasks 5.8.a Step 2 batching, 5.8.b Step 4
+  simplification, 5.8.c Step 7 mismatch handling); then 5.9 Phase 5
+  close → Phase 6.
+- **Last Completed:** Task 5.7 parent + all subtasks (a–i, with g
+  marked `[~]` no-op). Final commit batched 5.7.g + 5.7.h + 5.7.i
+  verification gates: CHECK 12 hook regex narrowed
+  (`(methods|extensions|agent)/` → `(methods|extensions)/`) in both
+  pre-commit copies; in-flight scope expansion picked up three 5.7.d
+  sweep misses caught by 5.7.i grep verification —
+  `strategy-session-operations.md:315-316` (context-monitoring example
+  reframed to harness-level files) and two table-row deletions in
+  `strategy-configurability-architecture.md` (content-channel inventory
+  and design-commitment conventions). 5.7.i release-notes bullet retired:
+  superseded by `plan-arcd-rebrand` PRD which explicitly opts out of
+  release-notes for the package transition (zero adopters, fresh
+  republish under `@arcd/cli`). Matching WU-wide success criterion
+  retired in both task list and PRD; PRD adopter-impact paragraph and
+  non-goals updated to point at the rebrand plan. Tier 2 gates clean
+  (1099 tests / 82 files, eslint, typecheck, shellcheck, 214 markdown).
 - **Blockers:** none
-- **Next Action:** Begin Task 5.7.g — `add-agent.md` verification.
-  Per audit findings, the file-scaffolding step was already retired in
-  commit `27174b8` (Task 4.5.d, 2026-04-24); path/filename updates were
-  covered under 5.7.d's cross-reference sweep. 5.7.g reduces to a no-op
-  confirmation: re-grep for residual `system/agent` / `AGENT-BRIEFING`
-  references in `add-agent.md` (both copies), confirm clean, mark `[~]`
-  with brief deferral note. No content changes expected.
+- **Next Action:** Begin Task 5.8 — Session-init workflow Step 2/4/7
+  restructure. Three subtasks: 5.8.a re-expresses Batch 1 / Batch 2
+  ordering given the slimmed loadset (with a SESSION-NOTES promotion
+  decision), 5.8.b simplifies Step 4 post-Task 3.5 (config values,
+  platform notes only — method overrides already retired), 5.8.c
+  reframes Step 7 mismatch-handling prose. Plus 5.9 Phase 5 close
+  (Tier 2 gates) before transitioning to Phase 6 (session-type
+  conditional loading).
