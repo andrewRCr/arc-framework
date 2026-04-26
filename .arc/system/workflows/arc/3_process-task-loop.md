@@ -65,19 +65,33 @@ arc:
        (established at session init), load and execute its [`.actions`][arc-ext-task-quality]. Otherwise, skip.
      - **Second**: Mark task as `[x]` in task list file (task list reflects completed work when reporting)
        - Update task description to reflect actual work done (not just original plan)
-       - Add completion notes with key findings/changes if work deviated from plan
-       - **Prefer outcome-shaped rewrites over append-only updates**: When marking complete, replace
-         planning-oriented text with concise completion-oriented notes unless the abandoned path is
-         itself historically important.
        - **No inline dates**: Don't add completion dates to individual tasks (e.g., "Completed: 2025-11-02"). Inline
          dates become temporal noise during archival. WU-level completion date lives on the completion doc's
          `**Completed:**` field; no task list or per-task date stamp is expected.
-       - **Streamline verbose planning details**: When marking complete, keep outcomes (actual changes,
-         key decisions, architectural impact) but trim planning scaffolding (pre-implementation steps,
-         detailed instructions) that no longer serves a purpose.
+       - **Completion notes — content discipline.** At task completion, **replace** pre-completion descriptors
+         (Goal, Note, Rationale, Approach, Context, Design decisions) with a single outcome record. Don't
+         accumulate plan AND outcome — the historical record needs only what was done. Outcome content is
+         optional when the task title carries the work; not every `[x]` requires a notes block.
+
+         **Include:** what changed (key files/symbols when not obvious from the title); decisions worth
+         preserving — only when the choice would surprise a reader; cross-references to the commit, ADR, or
+         `notes-{name}.md` for deeper context.
+
+         **Exclude:** quality-gate outcomes (`[x]` already implies they passed; metrics like "840/840 tests"
+         or "Tier 2 clean" are noise); per-decision rationale already in the commit body or `notes-{name}.md`
+         (link, don't restate); test-batching / sequencing narrative (mention only if deviating from project
+         default); process narration (what was tried, debugging steps, mid-task discoveries); forward planning
+         (belongs in next task entry or Next Action).
+
+         **Soft cap:** ~3 lines for atomic subtasks, ~6 lines for parent tasks summarizing rolled-up scope.
+         Longer content belongs in `notes-{name}.md`.
+
+         **Per-subtask outcome content:** the indented description bullet under each subtask shifts from plan
+         to outcome at `[x]`. Same shape, no label change — the indent under a `[x]` already signals "what
+         got done."
        - **Deferred or superseded tasks**: When a task is intentionally skipped — deferred to a later work
          unit, made irrelevant by a design decision, or superseded by a different approach — mark it `[~]`
-         instead of `[x]`. Add a brief note explaining why (e.g., "Deferred to WU3", "Superseded by
+         instead of `[x]`. Add a brief outcome note explaining why (e.g., "Deferred to WU3", "Superseded by
          ADR-011"). This distinguishes deliberate deferrals from incomplete work (`[ ]`).
        - **Do not update `status-{name}.md` at this step.** The status file updates at commit prep
          (step 4, "Await user instructions"), triggered by the user's commit request — not task completion.
