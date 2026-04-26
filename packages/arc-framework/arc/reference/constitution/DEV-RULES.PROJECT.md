@@ -100,7 +100,8 @@ Separate concerns, prefer composition over duplication, favor readability when p
 - **Line length**: 120 characters (enforced by markdownlint). Use the full target width — don't wrap prematurely at
   80-90 characters. Linting catches overflow but not underfill; consistently short lines waste space, hurt readability
   in wide content (tables, task lists, rationale blocks), and compound over time as subsequent edits match the short
-  pattern. Wrap at natural phrase boundaries near the target width.
+  pattern. Bullet continuations, multi-line field values, and bulleted-list entries (SESSION-NOTES, status-file
+  fields) are common over-wrapping sites — same target applies. Wrap at natural phrase boundaries near 120.
 
 ### Documentation style
 

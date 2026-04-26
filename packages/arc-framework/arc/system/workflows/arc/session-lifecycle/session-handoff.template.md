@@ -140,7 +140,8 @@ _Content discipline: the status file is a project pointer, not session narrative
 line (Next Action may span two when it names a multi-file scope). Push longer context elsewhere — commit
 body for what-and-why, SESSION-NOTES for next-session context, task list completion notes for per-task
 detail. If Last Completed or Next Action exceeds ~2 lines, the content likely belongs in one of those
-surfaces instead._
+surfaces instead. When fields do span lines, wrap to the 120-char target — under-wrapping (60-80 chars on
+continuation lines) is the common failure here._
 
 _Workflow step pointer: When the next action resumes a lifecycle workflow (integrate, archive, rotate,
 activate-planning-branch), include the workflow name and step — e.g., "integrate-work-unit Step 7 —
@@ -186,6 +187,9 @@ Markers:
 **Commit at Handoff:** `{{short-hash}}`
 
 ## Completed Work
+
+<!-- Wrap continuation lines on bullets to the 120-char target. Under-wrapping (60-80 chars)
+     is the common failure here — see DEV-RULES.PROJECT § Documentation Standards. -->
 
 [Committed work — one line per commit: hash + outcome. See "Committed work" below.]
 [Uncommitted work — commit-level detail. See "Uncommitted work" below.]

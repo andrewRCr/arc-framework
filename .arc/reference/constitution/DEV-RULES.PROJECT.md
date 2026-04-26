@@ -88,7 +88,9 @@ Apply standard software engineering principles:
 - Template-first documents with comprehensive inline guidance and framework defaults
 - READMEs required for each directory
 - Always run markdown linting after updating documentation files
-- **Line length**: 120 characters — wrap at natural phrase boundaries near the target width, not 80-90.
+- **Line length**: 120 characters — wrap at natural phrase boundaries near the target width. Linting catches
+  overflow but not underfill — consistently short lines (60-90 chars) are the more common failure than overflow.
+  Bullet continuations, multi-line field values, and SESSION-NOTES entries follow the same target.
 
 ### Documentation style
 
