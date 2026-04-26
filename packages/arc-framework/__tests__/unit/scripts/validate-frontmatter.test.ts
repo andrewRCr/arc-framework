@@ -1,8 +1,8 @@
 /**
  * Unit tests for the validate-frontmatter CLI dispatcher.
  *
- * Covers path classification (method / extension / agent / other), per-schema
- * delegation, and the silent-skip behavior for paths outside the three schema
+ * Covers path classification (method / extension / domain-rules / other), per-schema
+ * delegation, and the silent-skip behavior for paths outside the schema
  * directories. Uses an in-memory file reader — no filesystem dependency.
  */
 
@@ -30,8 +30,6 @@ const validExtension = [
   "---",
   "",
 ].join("\n");
-
-const validAgent = "---\nactive: true\n---\n";
 
 const validDomainRules = [
   "---",
@@ -68,25 +66,9 @@ describe("classifyPath", () => {
     ).toBe("extension");
   });
 
-  it("classifies agent-specific files as agent — CLAUDE.ARC.md, CODEX.ARC.md", () => {
-    expect(classifyPath(".arc/system/agent/CLAUDE.ARC.md")).toBe("agent");
-    expect(classifyPath(".arc/system/agent/CODEX.ARC.md")).toBe("agent");
-    expect(
-      classifyPath("packages/arc-framework/arc/system/agent/GEMINI.ARC.md"),
-    ).toBe("agent");
-  });
-
-  it("does not classify AGENT-BRIEFING files as agent (hyphenated name, shared briefing)", () => {
-    expect(classifyPath(".arc/system/agent/AGENT-BRIEFING.ARC.md")).toBe("other");
-    expect(classifyPath(".arc/system/agent/AGENT-BRIEFING.PROJECT.md")).toBe(
-      "other",
-    );
-  });
-
   it("does not classify README.md files as method or extension", () => {
     expect(classifyPath(".arc/system/methods/README.md")).toBe("other");
     expect(classifyPath(".arc/system/extensions/README.md")).toBe("other");
-    expect(classifyPath(".arc/system/agent/README.md")).toBe("other");
   });
 
   it("classifies unrelated paths as other", () => {
@@ -121,11 +103,10 @@ describe("classifyPath", () => {
 });
 
 describe("validateFiles", () => {
-  it("passes when a method, extension, and agent file all have valid frontmatter", () => {
+  it("passes when a method and extension file both have valid frontmatter", () => {
     const files = {
       ".arc/system/methods/commit-format.md": validMethod,
       ".arc/system/extensions/post-task-quality.md": validExtension,
-      ".arc/system/agent/CLAUDE.ARC.md": validAgent,
     };
     const result = validateFiles(Object.keys(files), fakeReader(files));
     expect(result.pass).toBe(true);
@@ -172,21 +153,7 @@ describe("validateFiles", () => {
     ).toBe(true);
   });
 
-  it("reports diagnostics for an invalid agent file — missing active", () => {
-    const invalid = "---\nunrelated: field\n---\n";
-    const files = { ".arc/system/agent/CLAUDE.ARC.md": invalid };
-    const result = validateFiles(Object.keys(files), fakeReader(files));
-    expect(result.pass).toBe(false);
-    expect(
-      result.diagnostics.some(
-        (d) =>
-          d.includes(".arc/system/agent/CLAUDE.ARC.md") &&
-          d.includes("`active`"),
-      ),
-    ).toBe(true);
-  });
-
-  it("silently skips non-method/extension/agent paths — they do not trigger the check", () => {
+  it("silently skips non-method/extension paths — they do not trigger the check", () => {
     const files = {
       "src/lib/frontmatter/method.ts": "// source file, no frontmatter",
       ".arc/active/technical/tasks-foo.md": "# Task list",
@@ -201,7 +168,8 @@ describe("validateFiles", () => {
     const files = {
       ".arc/system/methods/commit-format.md":
         "---\ndescription: no name\noverride-active: false\n---\n",
-      ".arc/system/agent/CLAUDE.ARC.md": "# no frontmatter",
+      ".arc/system/extensions/post-task-quality.md":
+        "---\nname: post-task-quality\ndescription: Example\n---\n",
     };
     const result = validateFiles(Object.keys(files), fakeReader(files));
     expect(result.pass).toBe(false);

@@ -56,14 +56,13 @@ export async function loadRecipeFile(
 }
 
 /**
- * Matches `key == value` or `key includes value` condition formats.
+ * Matches `key == value` condition format.
  *
- * Note: recipe conditions use `==` and `includes` operators (set membership
- * for multiselect values). Template rendering conditionals (render.ts) use
- * `==` and `!=` operators. The operator sets differ by design — recipes
- * evaluate prompt-level config, templates evaluate simple key-value equality.
+ * Note: recipe conditions and template rendering conditionals (render.ts)
+ * both gate on simple key-value equality. Templates additionally support
+ * `!=` for negative tests; recipes don't (no consumer needs the inverse).
  */
-const CONDITION_PATTERN = /^([\w.]+)\s+(==|includes)\s+(\S+)$/;
+const CONDITION_PATTERN = /^([\w.]+)\s+(==)\s+(\S+)$/;
 
 /** Result of recipe validation. */
 export interface RecipeValidationResult {
@@ -155,7 +154,7 @@ export function validateRecipe(data: unknown): RecipeValidationResult {
     for (const [key, value] of Object.entries(conditions)) {
       if (!CONDITION_PATTERN.test(key)) {
         errors.push(
-          `Invalid condition key '${key}' (expected 'key == value' or 'key includes value' format)`,
+          `Invalid condition key '${key}' (expected 'key == value' format)`,
         );
       }
       if (typeof value !== "object" || value === null) {
@@ -177,11 +176,9 @@ export function validateRecipe(data: unknown): RecipeValidationResult {
 /**
  * Evaluate a condition string against a config map.
  *
- * Supported operators:
- * - `key == value` — exact string equality
- * - `key includes value` — checks if value is in a comma-separated list
+ * Supported operator: `key == value` — exact string equality.
  *
- * @param condition - Condition string (e.g., `pm.mode == arc-in-git`, `tools includes claude`)
+ * @param condition - Condition string (e.g., `pm.mode == arc-in-git`)
  * @param config - Map of dotted config keys to string values
  * @returns Whether the condition matches
  */
@@ -193,19 +190,14 @@ export function evaluateCondition(
   if (!match) {
     return false;
   }
-  const [, key = "", operator = "", value = ""] = match;
+  const [, key = "", , value = ""] = match;
 
   const configValue = config[key];
   if (configValue === undefined) {
     return false;
   }
 
-  if (operator === "==") {
-    return configValue === value;
-  }
-
-  // includes: check if value is in a comma-separated list
-  return configValue.split(",").includes(value);
+  return configValue === value;
 }
 
 /**

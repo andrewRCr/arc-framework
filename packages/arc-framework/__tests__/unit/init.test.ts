@@ -171,35 +171,23 @@ describe("resolveFileList", () => {
       "pm.mode == arc-in-git": {
         include_files: ["backlog/ROADMAP.template.md"],
       },
-      "tools includes claude": {
-        include_files: ["system/agent/CLAUDE.ARC.md"],
-      },
-      "tools includes codex": {
-        include_files: ["system/agent/CODEX.ARC.md"],
-      },
     },
   };
 
   it("includes base files unconditionally", () => {
-    const files = resolveFileList(minimalRecipe, { "pm.mode": "none", "tools": "" });
+    const files = resolveFileList(minimalRecipe, { "pm.mode": "none" });
     expect(files).toContain("README.md");
     expect(files).toContain("system/arc-config.yml");
   });
 
   it("includes files when condition matches", () => {
-    const files = resolveFileList(minimalRecipe, { "pm.mode": "arc-in-git", "tools": "" });
+    const files = resolveFileList(minimalRecipe, { "pm.mode": "arc-in-git" });
     expect(files).toContain("backlog/ROADMAP.template.md");
   });
 
   it("excludes files when condition does not match", () => {
-    const files = resolveFileList(minimalRecipe, { "pm.mode": "none", "tools": "" });
+    const files = resolveFileList(minimalRecipe, { "pm.mode": "none" });
     expect(files).not.toContain("backlog/ROADMAP.template.md");
-  });
-
-  it("includes tool-conditional files when tool is selected", () => {
-    const files = resolveFileList(minimalRecipe, { "pm.mode": "none", "tools": "claude,cursor" });
-    expect(files).toContain("system/agent/CLAUDE.ARC.md");
-    expect(files).not.toContain("system/agent/CODEX.ARC.md");
   });
 
   it("returns no duplicates", () => {
@@ -278,7 +266,6 @@ describe("classifyFile", () => {
 
   it("classifies Configurable files", () => {
     expect(classifyFile("system/arc-config.yml")).toBe("Configurable");
-    expect(classifyFile("system/agent/CLAUDE.ARC.md")).toBe("Configurable");
     expect(classifyFile("system/methods/commit-format.md")).toBe("Configurable");
     expect(classifyFile("system/extensions/post-task-quality.md")).toBe("Configurable");
     expect(classifyFile("reference/constitution/DEV-RULES.PROJECT.md")).toBe("Configurable");
@@ -416,11 +403,7 @@ describe("runInit", () => {
       { id: "tools", type: "multiselect", message: "Tools?", options: ["claude"] },
       { id: "pm_mode", type: "select", message: "PM?", options: ["none"], config_key: "pm.mode" },
     ],
-    conditions: {
-      "tools includes claude": {
-        include_files: ["system/agent/CLAUDE.ARC.md"],
-      },
-    },
+    conditions: {},
   };
 
   it("fresh mode: renders .template files with tokens, copies others as-is", async () => {
@@ -431,7 +414,6 @@ describe("runInit", () => {
     const templateFiles: Record<string, string> = {
       "/templates/README.template.md": "# {{PROJECT_NAME}}",
       "/templates/system/arc-config.yml": "pm.mode: none\nbranch.base: main",
-      "/templates/system/agent/CLAUDE.ARC.md": "Claude config",
     };
     const io = mockIO(templateFiles);
 
@@ -460,12 +442,6 @@ describe("runInit", () => {
     );
     expect(configWrite).toBeDefined();
     expect(configWrite![1]).toContain("pm.mode: none");
-
-    // Conditional file included
-    const claudeWrite = writeCalls.find(
-      (c) => c[0] === "/project/.arc/system/agent/CLAUDE.ARC.md",
-    );
-    expect(claudeWrite).toBeDefined();
   });
 
   it("fresh mode: copies non-template files without rendering tokens", async () => {
@@ -821,7 +797,7 @@ describe("runInit", () => {
 describe("buildPostInitMessage", () => {
   it("shows file count in summary line", () => {
     const msg = buildPostInitMessage(makeInitResult({
-      filesWritten: ["README.md", "system/arc-config.yml", "system/agent/CLAUDE.ARC.md"],
+      filesWritten: ["README.md", "system/arc-config.yml", "system/methods/commit-format.md"],
     }));
 
     expect(msg).toContain("ARC installed in .arc/ (3 files)");
@@ -847,11 +823,10 @@ describe("buildPostInitMessage", () => {
     expect(msg).toContain("01_verify-and-configure.md");
   });
 
-  it("does not reference AGENT-BRIEFING.PROJECT.md or agent-specific files", () => {
+  it("does not reference AGENT-BRIEFING.PROJECT.md", () => {
     const msg = buildPostInitMessage(makeInitResult());
 
     expect(msg).not.toContain("AGENT-BRIEFING.PROJECT");
-    expect(msg).not.toContain("CLAUDE.ARC.md");
   });
 
   it("handles single-file install", () => {

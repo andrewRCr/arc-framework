@@ -53,9 +53,6 @@ function validRecipe(): Recipe {
           "reference/PROJECT-STATUS.template.md",
         ],
       },
-      "tools includes claude": {
-        include_files: ["system/agent/CLAUDE.ARC.md"],
-      },
     },
   };
 }
@@ -65,17 +62,6 @@ describe("validateRecipe", () => {
     const result = validateRecipe(validRecipe());
     expect(result.valid).toBe(true);
     expect(result.errors).toEqual([]);
-  });
-
-  it("accepts conditions with includes operator", () => {
-    const recipe = validRecipe();
-    recipe.conditions = {
-      "tools includes claude": {
-        include_files: ["system/agent/CLAUDE.ARC.md"],
-      },
-    };
-    const result = validateRecipe(recipe);
-    expect(result.valid).toBe(true);
   });
 
   it("rejects prompt with invalid type", () => {
@@ -219,38 +205,6 @@ describe("evaluateCondition", () => {
     expect(
       evaluateCondition("team.mode == true", { "team.mode": "false" }),
     ).toBe(false);
-  });
-
-  it("returns true when includes matches an item in comma-separated list", () => {
-    expect(
-      evaluateCondition("tools includes claude", {
-        tools: "claude,codex,gemini",
-      }),
-    ).toBe(true);
-  });
-
-  it("returns true when includes matches a single-item list", () => {
-    expect(
-      evaluateCondition("tools includes claude", { tools: "claude" }),
-    ).toBe(true);
-  });
-
-  it("returns false when includes does not match any item", () => {
-    expect(
-      evaluateCondition("tools includes cursor", {
-        tools: "claude,codex",
-      }),
-    ).toBe(false);
-  });
-
-  it("includes does not do substring matching", () => {
-    expect(
-      evaluateCondition("tools includes code", { tools: "claude,codex" }),
-    ).toBe(false);
-  });
-
-  it("returns false for includes with missing config key", () => {
-    expect(evaluateCondition("tools includes claude", {})).toBe(false);
   });
 });
 

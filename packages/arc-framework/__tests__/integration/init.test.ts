@@ -459,15 +459,6 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     }
   });
 
-  it("excludes unselected tool agent files", async () => {
-    try {
-      await stat(join(arcDir, "system/agent/CODEX.ARC.md"));
-      expect.fail("CODEX.ARC.md should not exist when codex not selected");
-    } catch (err: unknown) {
-      expect((err as NodeJS.ErrnoException).code).toBe("ENOENT");
-    }
-  });
-
   it("does not produce any completed-atomic files", async () => {
     const allFiles = await listFiles(arcDir, { skipInternal: false });
     const completedAtomic = allFiles.filter((f) => f.includes("completed-atomic"));

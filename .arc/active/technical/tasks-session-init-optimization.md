@@ -4067,43 +4067,96 @@ Task 5.6 is TS-only (no markdown sync concern).
     - **Tools-prompt semantics rename** (harness vs agents) captured to ATOMIC-INBOX.md as a
       follow-on; not blocking 5.7.
 
-    - [ ] **5.7.a Package per-agent source removal + agent classification retire**
-        - **File deletions:**
-            - Seven per-agent templates from `packages/arc-framework/arc/system/agent/`:
-              `CLAUDE.ARC.md`, `CODEX.ARC.md`, `COPILOT.ARC.md`, `CURSOR.ARC.md`, `GEMINI.ARC.md`,
-              `WARP.ARC.md`, `WINDSURF.ARC.md`
-            - `.arc/reference/templates/template-agent.md` AND
-              `packages/arc-framework/arc/reference/templates/template-agent.md` (both copies)
-        - **Classification entries** (`packages/arc-framework/src/lib/classification.ts`):
-            - Remove the seven `system/agent/{AGENT}.ARC.md` entries from `CONFIGURABLE_FILES`
-              (currently lines 77-83)
-            - `system/agent/AGENT-BRIEFING.PROJECT.template.md` (line 74) is NOT removed —
-              gets path-renamed in 5.7.c
-        - **Agent classification retire** (per resolved decision):
-            - Delete `packages/arc-framework/src/lib/frontmatter/agent.ts`
-            - Remove `parseAgentFrontmatter` re-export from
-              `packages/arc-framework/src/lib/frontmatter/index.ts`
-            - In `packages/arc-framework/src/scripts/validate-frontmatter.ts`: remove `agent`
-              from `PathClassification` (line 24-29), drop `AGENT_PATH` (line 39) and
-              `AGENT_NAME` (line 40) regexes, drop the agent dispatch in `classifyPath`
-              (lines 62-63), drop the agent branch in `validateFiles` (lines 100-103),
-              update the doc comment block (lines 4-5, 48-49) to drop the agent reference
-        - **Test-surface alignment** (retire path):
-            - Delete `packages/arc-framework/__tests__/unit/frontmatter/agent.test.ts`
-            - Remove agent test cases from
-              `packages/arc-framework/__tests__/unit/scripts/validate-frontmatter.test.ts`
-              (currently lines ~71-89, 124, 177-204)
-            - Update fixture paths in
-              `packages/arc-framework/__tests__/unit/template/recipe.test.ts`
-              (lines 21-22, 57, 74)
-            - Update path string in
-              `packages/arc-framework/__tests__/unit/scripts/validate-package-neutrality.test.ts:110`
-            - Update post-init layout assertions in `__tests__/integration/init.test.ts`,
-              `__tests__/e2e/init.e2e.test.ts`, `__tests__/unit/init.test.ts`,
-              `__tests__/integration/validate-links.test.ts:238,250` (filename rename)
-        - **Two-copy sync verification:** `.arc/system/agent/` confirmed clear of all per-agent
-          files (CLAUDE, CODEX, COPILOT, CURSOR, GEMINI, WARP, WINDSURF) — broader sweep than
-          spec's prior "CLAUDE.ARC.md and CODEX.ARC.md only" claim
+    - [x] **5.7.a Package per-agent source removal + agent classification retire**
+
+        **Outcome:** Retired the `{AGENT}.ARC.md` source surface and its
+        classification path in a single commit. Deleted seven per-tool templates
+        from `packages/arc-framework/arc/system/agent/` (CLAUDE, CODEX, COPILOT,
+        CURSOR, GEMINI, WARP, WINDSURF) and both `template-agent.md` copies
+        (`.arc/` + package source). Removed seven entries from
+        `CONFIGURABLE_FILES` in `classification.ts`; the
+        `AGENT-BRIEFING.PROJECT.template.md` entry stays for 5.7.c's rename.
+
+        Deleted `lib/frontmatter/agent.ts` and its `__tests__/unit/frontmatter/`
+        sibling. Pruned `parseAgentFrontmatter` and the `AgentFrontmatter` /
+        `AgentParseResult` re-exports from `frontmatter/index.ts`; updated the
+        module doc comment. In `validate-frontmatter.ts`: dropped `agent` from
+        `PathClassification`, removed `AGENT_PATH` / `AGENT_NAME` regexes, the
+        `classifyPath` agent dispatch, the `validateFiles` agent branch (now an
+        `else` falling through to domain-rules since `other` short-circuits), and
+        refreshed the module + `classifyPath` doc comments.
+
+        **`includes` operator retirement (in-flight scope expansion):**
+        With per-tool agent files retired, the only consumer of the recipe
+        `includes` operator was gone — both `init-recipe.json` and template
+        `<!-- arc:if -->` blocks gate exclusively on `==` (and templates
+        also `!=`). Surfaced when reviewing the test fixtures the cleanup
+        otherwise required: examples like `tools includes claude →
+        system/example-claude.md` were testing a code path with no
+        production consumer. Pulled the operator retirement into this
+        commit rather than deferring. `template/recipe.ts`:
+        `CONDITION_PATTERN` regex narrowed to `==` only,
+        `validateRecipe` error message updated, `evaluateCondition` doc +
+        body collapsed to equality. `template/render.ts` header doc
+        re-noted the recipe/template operator split.
+
+        Test-surface updates (combined retirement of agent files +
+        `includes` operator):
+        `validate-frontmatter.test.ts` lost `validAgent`, the agent
+        classification test, the AGENT-BRIEFING-as-other test (no longer
+        meaningful — no agent special-case to negate), the per-schema-README
+        test's agent line, the agent-file diagnostic test, and the agent
+        fixture in the multi-file diagnostics test (replaced with an
+        extension fixture).
+        `recipe.test.ts`: dropped the "accepts conditions with includes
+        operator" schema test and all five `evaluateCondition` includes
+        tests (single-item, multi-item, no-match, no-substring,
+        missing-key). The `validRecipe` factory's `tools includes claude`
+        fixture removed entirely (no replacement needed).
+        `unit/init.test.ts`: both `minimalRecipe` fixtures lost their
+        `tools includes` conditions; the dedicated
+        "includes tool-conditional files when tool is selected" test
+        deleted; the fresh-mode test's "Conditional file included"
+        expectation removed (token rendering and programmatic write
+        coverage retained — conditional resolution stays covered by
+        `resolveFileList` tests above and integration/e2e suites). The
+        `classifyFile` Configurable assertion for `CLAUDE.ARC.md` removed,
+        `not.toContain("CLAUDE.ARC.md")` assertion removed.
+        `integration/init.test.ts` "excludes unselected tool agent files"
+        deleted wholesale — premise gone.
+
+        Manifest sync: `.arc/system/.internal/manifest.json` purged of
+        `template-agent.md` and the two stale `system/agent/{CLAUDE,CODEX}.ARC.md`
+        entries (the seven per-agent files were never in `.arc/`, but two
+        manifest entries lingered as stale Configurable references).
+
+        **Deferred per spec phasing (5.7.c–e):**
+        `validate-package-neutrality.test.ts:110` (`agent/README.md` path) —
+        belongs with the directory rename in 5.7.c; left untouched here.
+        `validate-links.test.ts:238,250` (`template-agent.md` /
+        `AGENT-BRIEFING.ARC.md` fixture filenames in tmpdir) — fixture-only,
+        defer to 5.7.c per session-notes coupling.
+        Workflow content in `01_verify-and-configure.md` still references
+        `[template-agent]` and the `{AGENT}.ARC.md` configuration step;
+        retiring belongs to 5.7.d (cross-reference + content updates).
+        Hook-only validate-links scope means staged-file checks pass in the
+        interim — the dangling reference doesn't surface until 5.7.d stages
+        that file. The `agent/README.md` content listing the seven retired
+        files belongs to 5.7.e (subdir README rewrite). Strategy-doc text
+        references (`strategy-session-operations.md`,
+        `strategy-configurability-architecture.md`,
+        `strategy-file-classification.md`,
+        `system/agent/AGENT-BRIEFING.ARC.md:46`,
+        `system/agent/AGENT-BRIEFING.PROJECT.template.md:52`) — all 5.7.d.
+
+        **Tier 2 baseline:** 1099 tests / 8 files green (1054
+        unit/integration plus 45 e2e), down 18 from the 1117 baseline:
+        7 from `agent.test.ts` deletion, 3 from validate-frontmatter agent
+        assertions, 1 from the tool-exclusion integration test, 1 from the
+        schema-validator includes test, 5 from `evaluateCondition`
+        includes-operator tests, 1 from the fresh-mode conditional-file
+        test removal. typecheck + eslint clean; 214 markdown files clean
+        (down one from 215 — `template-agent.md` gone). Build green.
 
     - [x] **5.7.b Session-init integration removal**
 

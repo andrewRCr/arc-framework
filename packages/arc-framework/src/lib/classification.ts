@@ -74,13 +74,6 @@ const CONFIGURABLE_FILES: ReadonlySet<string> = new Set([
   "system/agent/AGENT-BRIEFING.PROJECT.template.md",
   "reference/QUICK-REFERENCE.template.md",
   // Copied as-is (customized in place by adopters)
-  "system/agent/CLAUDE.ARC.md",
-  "system/agent/CODEX.ARC.md",
-  "system/agent/GEMINI.ARC.md",
-  "system/agent/WARP.ARC.md",
-  "system/agent/COPILOT.ARC.md",
-  "system/agent/CURSOR.ARC.md",
-  "system/agent/WINDSURF.ARC.md",
   "reference/constitution/DEV-RULES.PROJECT.md",
   "reference/strategies/STRATEGY-INDEX.md",
   "reference/archive/README.md",

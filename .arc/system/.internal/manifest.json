@@ -87,11 +87,6 @@
       "layer": "core",
       "pristine_hash": "8c5e0f56ec966ab4241ca412b6e51e452f065642e83c83698ca75d3871373b05"
     },
-    "reference/templates/template-agent.md": {
-      "classification": "Framework",
-      "layer": "core",
-      "pristine_hash": "1eb97a9bd480c1a5827b0ebb7fae2fabe8c0cb6ea569f2acefc6655a9cd9030a"
-    },
     "reference/templates/template-completion-doc.md": {
       "classification": "Framework",
       "layer": "core",
@@ -501,16 +496,6 @@
       "classification": "Framework",
       "layer": "arc-in-git",
       "pristine_hash": "738a0df28debd0540eb7043b55fcae261316568124fba35f14e607a86142981a"
-    },
-    "system/agent/CLAUDE.ARC.md": {
-      "classification": "Configurable",
-      "layer": "core",
-      "pristine_hash": "909afcc29a5afefa2fe1ea70c0f82c79db03ce1a130434cc2b53f2f442ae1246"
-    },
-    "system/agent/CODEX.ARC.md": {
-      "classification": "Configurable",
-      "layer": "core",
-      "pristine_hash": "07fd0466438d76c982b1ee8b2643ba3e292835de089b36b83a60b722846b4b05"
     }
   }
 }
