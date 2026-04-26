@@ -357,13 +357,6 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     },
   );
 
-  it("installs CLAUDE.ARC.md (tool-conditional file)", async () => {
-    const claudeFile = await stat(
-      join(arcDir, "system/agent/CLAUDE.ARC.md"),
-    );
-    expect(claudeFile.isFile()).toBe(true);
-  });
-
   it("installs script files", async () => {
     const validateConfig = await stat(
       join(arcDir, "system/scripts/validate-config.sh"),

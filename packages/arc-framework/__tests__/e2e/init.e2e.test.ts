@@ -199,18 +199,6 @@ describe("init", () => {
     );
   });
 
-  it("init with --tools claude,codex installs agent-specific files", async () => {
-    const result = await runArc(
-      ["init", "--yes", "--name", "test-project", "--tools", "claude,codex"],
-      tmpDir,
-    );
-
-    expect(result.exitCode).toBe(0);
-
-    expect(await pathExists(join(tmpDir, ".arc", "system", "agent", "CLAUDE.ARC.md"))).toBe(true);
-    expect(await pathExists(join(tmpDir, ".arc", "system", "agent", "CODEX.ARC.md"))).toBe(true);
-  });
-
   it("init with --team sets team mode in arc-config.yml", async () => {
     const result = await runArc(
       ["init", "--yes", "--name", "test-project", "--team"],

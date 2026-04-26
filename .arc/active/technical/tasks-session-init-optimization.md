@@ -4178,25 +4178,27 @@ Task 5.6 is TS-only (no markdown sync concern).
           re-read for vestigial language carrying the old mental model
         - Two-copy sync
 
-    - [ ] **5.7.f `arc init` recipe cleanup** (per-agent + template-agent removal only)
-        - **Primary surface:** `packages/arc-framework/init-recipe.json`
-            - Remove `"reference/templates/template-agent.md"` from unconditional `include_files`
-              (line 17)
-            - Remove the seven per-tool conditions for `system/agent/{TOOL}.ARC.md`
-              (lines 149-184: claude, codex, gemini, copilot, cursor, windsurf, warp)
-        - **Briefs path renames moved to 5.7.c** — co-located with the directory rename they
-          depend on; 5.7.f no longer touches `system/agent/AGENT-BRIEFING.*` recipe entries
-        - **No init-flow logic changes** — the `tools` prompt remains; selection records to
-          `arc-config.yml` and drives skill placement (`detectExistingSkillDirs`), no longer
-          materializes per-agent files. Tools-prompt semantics rename (harness vs agents) is
-          captured in ATOMIC-INBOX.md; not blocking 5.7
-        - **Init output messaging:** post-init message path string handled in 5.7.d
-          (`init.ts:291`); no other messaging changes (no "tool-specific file scaffolded"
-          lines existed in current output)
-        - **Test coverage:** recipe schema validates after edits; full post-init layout
-          assertions land under 5.7.a (file-deletion impact) and 5.7.c (directory-rename
-          impact). Integration test should ultimately verify init produces `system/briefs/`
-          with three files + README.md only, no per-agent files, no `template-agent.md`
+    - [x] **5.7.f `arc init` recipe cleanup**
+
+        **Outcome:** Removed `reference/templates/template-agent.md` from
+        `init-recipe.json` unconditional `include_files`; removed the seven per-tool
+        conditions for `system/agent/{TOOL}.ARC.md` (claude, codex, gemini, copilot,
+        cursor, windsurf, warp). Recipe now produces a clean install with no per-agent
+        file scaffolding regardless of `--tools` selection; `tools` prompt remains
+        intact (drives skill placement only). Briefs-path entries left untouched per
+        scope split — they migrate in 5.7.c alongside the directory rename.
+
+        **Test-surface scope expansion (in-flight):** Deleted two obsolete tests that
+        asserted per-tool file install behavior — `installs CLAUDE.ARC.md
+        (tool-conditional file)` in `__tests__/integration/init.test.ts` and `init
+        with --tools claude,codex installs agent-specific files` in
+        `__tests__/e2e/init.e2e.test.ts`. Both were recipe-driven assertions (not
+        file-deletion-driven), so they belong with the recipe change rather than 5.7.a.
+        Remaining file-existence-coupled test alignment (per-agent source presence,
+        agent classification fixtures) stays under 5.7.a as originally scoped.
+
+        Tier 2 gates clean: markdown lint (215 files, 0 errors), typecheck
+        (source + tests), eslint, full test suite (1117 tests / 8 files) green.
 
     - [ ] **5.7.g `add-agent.md` verification (no-op confirmed)**
         - **Resolved during audit:** Commit `27174b8` (Task 4.5.d, 2026-04-24) already retired
