@@ -16,9 +16,8 @@
   "session-init item 11" → "item 10". Two-copy sync. Tier 1 lint clean.
 - **Blockers:** none
 - **Next Action:** Begin Task 5.7.f — primary surface is
-  `packages/arc-framework/init-recipe.json`. Two cleanup edits ready to land
-  immediately (drop `template-agent.md` from unconditional `include_files`
-  line 17; remove the seven per-tool conditions for
-  `system/agent/{TOOL}.ARC.md` lines 149-184). Briefs-path rename portion
-  of 5.7.f depends on 5.7.c (directory rename) — surface sub-sequencing
-  decision before executing the rename portion.
+  `packages/arc-framework/init-recipe.json`. Two recipe cleanup edits:
+  drop `template-agent.md` from unconditional `include_files` (line 17);
+  remove the seven per-tool conditions for `system/agent/{TOOL}.ARC.md`
+  (lines 149-184). 5.7.f scope reduced — briefs-path renames migrated to
+  5.7.c per pre-execution amendment.

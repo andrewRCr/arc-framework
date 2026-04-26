@@ -4055,8 +4055,9 @@ Task 5.6 is TS-only (no markdown sync concern).
       5.7.b first (docs-only) eliminates in-flight session-init mismatches before file deletes.
       5.7.f next (recipe-only) so `init-recipe.json` stops referencing per-agent templates +
       `template-agent.md` before 5.7.a deletes those source files — preserves test-suite green
-      across each task boundary. 5.7.f sub-sequencing (recipe cleanup vs. briefs-path renames
-      that depend on 5.7.c) to be resolved at 5.7.f execution.
+      across each task boundary. 5.7.f scope reduced to recipe cleanup only; the briefs-path
+      renames originally listed under 5.7.f migrate into 5.7.c (where they co-locate with the
+      directory rename they depend on).
     - **5.7.g re-scoped:** add-agent.md scaffolding step already retired in commit `27174b8`
       (Task 4.5.d, 2026-04-24). Workflow today is in the desired post-pivot shape — 5.7.g
       reduces to path/filename updates already covered by 5.7.d.
@@ -4129,6 +4130,11 @@ Task 5.6 is TS-only (no markdown sync concern).
         - Use `git mv` to preserve history; stage renames as rename operations (not delete + add)
         - **Update `CONFIGURABLE_FILES` path in `classification.ts:74`:**
           `system/agent/AGENT-BRIEFING.PROJECT.template.md` → `system/briefs/AGENT-BRIEF.PROJECT.template.md`
+        - **Update briefs paths in `packages/arc-framework/init-recipe.json` unconditional
+          `include_files`** (relocated from 5.7.f to co-locate with the directory rename):
+          `system/agent/AGENT-BRIEFING.{ARC,CONTRIBUTOR,PROJECT.template}.md` →
+          `system/briefs/AGENT-BRIEF.{ARC,CONTRIBUTOR,PROJECT.template}.md`;
+          `system/agent/README.md` → `system/briefs/README.md`
 
     - [ ] **5.7.d Cross-reference + content updates**
         - **Doc sweep:** grep `system/agent/` and `AGENT-BRIEFING` patterns across `.arc/` and
@@ -4172,16 +4178,14 @@ Task 5.6 is TS-only (no markdown sync concern).
           re-read for vestigial language carrying the old mental model
         - Two-copy sync
 
-    - [ ] **5.7.f `arc init` recipe + scaffolding update**
+    - [ ] **5.7.f `arc init` recipe cleanup** (per-agent + template-agent removal only)
         - **Primary surface:** `packages/arc-framework/init-recipe.json`
             - Remove `"reference/templates/template-agent.md"` from unconditional `include_files`
               (line 17)
             - Remove the seven per-tool conditions for `system/agent/{TOOL}.ARC.md`
               (lines 149-184: claude, codex, gemini, copilot, cursor, windsurf, warp)
-            - Rename briefs paths in unconditional `include_files` (lines 34-37):
-              `system/agent/AGENT-BRIEFING.{ARC,CONTRIBUTOR,PROJECT.template}.md` →
-              `system/briefs/AGENT-BRIEF.{ARC,CONTRIBUTOR,PROJECT.template}.md`;
-              `system/agent/README.md` → `system/briefs/README.md`
+        - **Briefs path renames moved to 5.7.c** — co-located with the directory rename they
+          depend on; 5.7.f no longer touches `system/agent/AGENT-BRIEFING.*` recipe entries
         - **No init-flow logic changes** — the `tools` prompt remains; selection records to
           `arc-config.yml` and drives skill placement (`detectExistingSkillDirs`), no longer
           materializes per-agent files. Tools-prompt semantics rename (harness vs agents) is
@@ -4189,10 +4193,10 @@ Task 5.6 is TS-only (no markdown sync concern).
         - **Init output messaging:** post-init message path string handled in 5.7.d
           (`init.ts:291`); no other messaging changes (no "tool-specific file scaffolded"
           lines existed in current output)
-        - **Test coverage:** post-init layout assertions updated under 5.7.a's
-          test-surface section; cross-reference confirmed here. Integration test should
-          verify init produces `system/briefs/` with three files + README.md only,
-          no per-agent files, no `template-agent.md`
+        - **Test coverage:** recipe schema validates after edits; full post-init layout
+          assertions land under 5.7.a (file-deletion impact) and 5.7.c (directory-rename
+          impact). Integration test should ultimately verify init produces `system/briefs/`
+          with three files + README.md only, no per-agent files, no `template-agent.md`
 
     - [ ] **5.7.g `add-agent.md` verification (no-op confirmed)**
         - **Resolved during audit:** Commit `27174b8` (Task 4.5.d, 2026-04-24) already retired
