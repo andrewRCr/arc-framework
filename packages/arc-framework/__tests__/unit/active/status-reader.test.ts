@@ -117,6 +117,16 @@ describe("parseStatusFile — formatting tolerance", () => {
     const parsed = parseStatusFile("- **Task List:** [none]\n");
     expect(parsed.taskList).toBe("[none]");
   });
+
+  it("extracts the Next Action field carrying a lifecycle workflow step pointer", () => {
+    const content = statusFileBody({
+      state: "Complete",
+      branch: "technical/foo",
+      extra: "- **Next Action:** integrate-work-unit Step 7 — push and create PR",
+    });
+    const parsed = parseStatusFile(content);
+    expect(parsed.nextAction).toBe("integrate-work-unit Step 7 — push and create PR");
+  });
 });
 
 describe("readActiveStatusCandidates — layout detection", () => {

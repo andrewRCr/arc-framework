@@ -35,6 +35,7 @@ function statusBody(fields: {
   branch: string;
   nextTask?: string;
   taskList?: string;
+  nextAction?: string;
 }): string {
   const lines: string[] = [
     "# Status: fixture",
@@ -46,6 +47,7 @@ function statusBody(fields: {
   ];
   if (fields.taskList !== undefined) lines.push(`- **Task List:** ${fields.taskList}`);
   if (fields.nextTask !== undefined) lines.push(`- **Next Task:** ${fields.nextTask}`);
+  if (fields.nextAction !== undefined) lines.push(`- **Next Action:** ${fields.nextAction}`);
   return lines.join("\n");
 }
 
@@ -502,5 +504,171 @@ describe("runActiveSessionInitStatus — contributor role-aware resolution", () 
     });
     expect(result.resolution).toBe("single");
     expect(result.path).toBe(".arc/active/technical/status-foo.md");
+  });
+});
+
+describe("runActiveSessionInitStatus — sessionType inference", () => {
+  let fixture: Fixture;
+  beforeEach(async () => {
+    fixture = await createFixture();
+  });
+  afterEach(async () => {
+    await rm(fixture.root, { recursive: true, force: true });
+  });
+
+  async function writeStatus(
+    category: string,
+    stem: string,
+    fields: { taskList?: string; nextAction?: string },
+  ): Promise<void> {
+    const sub = join(fixture.activeDir, category);
+    await mkdir(sub, { recursive: true });
+    await writeFile(
+      join(sub, `status-${stem}.md`),
+      statusBody({
+        state: "In Progress",
+        branch: `${category}/${stem}`,
+        ...fields,
+      }),
+    );
+  }
+
+  it("emits sessionType=planning when resolution is none (no active work)", async () => {
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root });
+    expect(result.resolution).toBe("none");
+    expect(result.sessionType).toBe("planning");
+  });
+
+  it("emits sessionType=null when resolution is multiple (defer until disambiguation)", async () => {
+    await writeStatus("feature", "alpha", {
+      taskList: "`.arc/active/feature/tasks-alpha.md`",
+      nextAction: "Start Task 1.1 — implement",
+    });
+    await writeStatus("technical", "beta", {
+      taskList: "`.arc/active/technical/tasks-beta.md`",
+      nextAction: "Start Task 2.3 — refactor",
+    });
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root });
+    expect(result.resolution).toBe("multiple");
+    expect(result.sessionType).toBeNull();
+  });
+
+  it("emits sessionType=planning when resolution=single + Task List: [none]", async () => {
+    await writeStatus("technical", "foo", {
+      taskList: "[none]",
+      nextAction: "Plan next phase",
+    });
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root });
+    expect(result.resolution).toBe("single");
+    expect(result.sessionType).toBe("planning");
+  });
+
+  it("emits sessionType=planning when resolution=single + Task List: [none associated]", async () => {
+    await writeStatus("technical", "foo", {
+      taskList: "[none associated]",
+      nextAction: "Draft PRD",
+    });
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root });
+    expect(result.resolution).toBe("single");
+    expect(result.sessionType).toBe("planning");
+  });
+
+  it("emits sessionType=integration when Next Action begins with integrate-work-unit", async () => {
+    await writeStatus("technical", "foo", {
+      taskList: "`.arc/active/technical/tasks-foo.md`",
+      nextAction: "integrate-work-unit Step 3 — push and create PR",
+    });
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root });
+    expect(result.resolution).toBe("single");
+    expect(result.sessionType).toBe("integration");
+  });
+
+  it("emits sessionType=integration when Next Action begins with archive-work-unit", async () => {
+    await writeStatus("technical", "foo", {
+      taskList: "`.arc/active/technical/tasks-foo.md`",
+      nextAction: "archive-work-unit Step 1 — archive artifacts and retire the status file",
+    });
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root });
+    expect(result.resolution).toBe("single");
+    expect(result.sessionType).toBe("integration");
+  });
+
+  it("emits sessionType=execution for a regular Start-Task Next Action", async () => {
+    await writeStatus("technical", "foo", {
+      taskList: "`.arc/active/technical/tasks-foo.md`",
+      nextAction: "Start Task 4.2 — write unit tests",
+    });
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root });
+    expect(result.resolution).toBe("single");
+    expect(result.sessionType).toBe("execution");
+  });
+
+  it("emits sessionType=execution for non-integration lifecycle workflows (e.g., rotate-branch)", async () => {
+    await writeStatus("technical", "foo", {
+      taskList: "`.arc/active/technical/tasks-foo.md`",
+      nextAction: "rotate-branch Step 2 — open intermediate PR",
+    });
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root });
+    expect(result.resolution).toBe("single");
+    expect(result.sessionType).toBe("execution");
+  });
+
+  it("infers sessionType under maintainer root when identity is null", async () => {
+    await writeStatus("technical", "foo", {
+      taskList: "`.arc/active/technical/tasks-foo.md`",
+      nextAction: "Start Task 1.1 — kick off",
+    });
+    const result = await runActiveSessionInitStatus({
+      cwd: fixture.root,
+      identity: null,
+      role: null,
+    });
+    expect(result.resolution).toBe("single");
+    expect(result.sessionType).toBe("execution");
+  });
+
+  it("infers sessionType under contributor root with identity set", async () => {
+    const userActiveDir = join(fixture.root, ".arc", "user", "alice", "active");
+    await mkdir(userActiveDir, { recursive: true });
+    await writeFile(
+      join(userActiveDir, "status-foo.md"),
+      statusBody({
+        state: "In Progress",
+        branch: "user/alice/foo",
+        taskList: "`.arc/user/alice/active/tasks-foo.md`",
+        nextAction: "integrate-work-unit Step 7 — push and create PR",
+      }),
+    );
+
+    const result = await runActiveSessionInitStatus({
+      cwd: fixture.root,
+      identity: "alice",
+      role: "contributor",
+    });
+    expect(result.resolution).toBe("single");
+    expect(result.sessionType).toBe("integration");
+    expect(result.path).toBe(".arc/user/alice/active/status-foo.md");
+  });
+
+  it("emits sessionType=planning when role=contributor + identity=null short-circuit fires", async () => {
+    const userActiveDir = join(fixture.root, ".arc", "user", "alice", "active");
+    await mkdir(userActiveDir, { recursive: true });
+    await writeFile(
+      join(userActiveDir, "status-foo.md"),
+      statusBody({
+        state: "In Progress",
+        branch: "user/alice/foo",
+        taskList: "`.arc/user/alice/active/tasks-foo.md`",
+        nextAction: "Start Task 1.1 — implement",
+      }),
+    );
+
+    const result = await runActiveSessionInitStatus({
+      cwd: fixture.root,
+      identity: null,
+      role: "contributor",
+    });
+    expect(result.resolution).toBe("none");
+    expect(result.sessionType).toBe("planning");
   });
 });

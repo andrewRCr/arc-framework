@@ -2035,50 +2035,30 @@ PRD History entry at phase close records the design pivot from P2.1 explicit-mar
 _Note:_ Empirical validation runs through Phase 6's own task work (execution sessions); planning
 and integration loadsets validated via deliberate `**Session Type:**` override spot-checks at 6.5.
 
-### `[ ]` **6.1 Probe-computed `sessionType` + integration-signal coverage** (test-first)
+### `[x]` **6.1 Probe-computed `sessionType` + integration-signal coverage** (test-first)
 
-- _Goal:_ Composite probe envelope carries `sessionType` derived from active state; integration
-  signal (`**Next Action:** integrate-work-unit Step …`) consistently written across all entry
-  points so inference is reliable.
-    - **TS placement:** `runActiveSessionInitStatus` (or sibling helper) in
-      `packages/arc-framework/src/commands/active/status.ts`. Reads `**Task List:**` and
-      `**Next Action:**` from the resolved status file (probe is already touching `active.value`);
-      no additional I/O.
-    - **Envelope shape:**
-      `active.value.sessionType: "planning" | "execution" | "integration" | null` — null when
-      `resolution === "multiple"` (agent recomputes after disambiguation in session-init Step 3
-      item 7).
-    - **Inference rules:**
-        - `resolution === "none"` → `planning`
-        - `resolution === "multiple"` → `null` (defer)
-        - `resolution === "single"` + `**Task List:**` ∈ `{[none], [none associated], missing}` →
-          `planning`
-        - `resolution === "single"` + `**Next Action:**` matches
-          `^(integrate-work-unit|archive-work-unit)\b` → `integration`
-        - Otherwise → `execution`
-    - **Cross-root coverage:** inference runs against whichever root resolved (maintainer
-      `.arc/active/` or contributor `.arc/user/{identity}/active/`); no SESSION-NOTES dependency,
-      so identity-null path works.
-    - **Integration-signal sweep:** grep `integrate-work-unit.md`, `archive-work-unit.md`,
-      completion docs guidance, and any other handoff-writing surfaces; verify the
-      `**Next Action:** integrate-work-unit Step …` / `archive-work-unit Step …` convention is
-      consistently written. Fix gaps as small docs edits in this commit (touch only files that
-      omit the convention).
-
-    Build `test-first` (one behavior at a time):
-    - `resolution === "none"` → `sessionType: "planning"`
-    - `resolution === "multiple"` → `sessionType: null`
-    - `resolution === "single"` + `Task List: [none]` → `planning`
-    - `resolution === "single"` + `Task List: [none associated]` → `planning`
-    - `resolution === "single"` + `Next Action: integrate-work-unit Step 3 — push and create PR` →
-      `integration`
-    - `resolution === "single"` + `Next Action: archive-work-unit Step 1 — archive artifacts` →
-      `integration`
-    - `resolution === "single"` + `Next Action: Start Task 4.2 — write unit tests` → `execution`
-    - `resolution === "single"` + `Next Action: rotate-branch Step 2 — open intermediate PR` →
-      `execution` (lifecycle workflow but not integration)
-    - Identity null + active resolves under maintainer root → inference works
-    - Contributor role + active resolves under user root → inference works
+- _Outcome:_ `ActiveSessionInitResult.sessionType: "planning" | "execution" | "integration" | null`
+  computed in `resolveSessionInit` (`packages/arc-framework/src/commands/active/status.ts`) via
+  exported `inferSessionType(taskList, nextAction)` helper. `resolution === "none"` and the
+  contributor-identity-missing short-circuit emit `planning`; `multiple` emits `null`; `single`
+  applies the rules — `Task List` ∈ `{null, [none], [none associated]}` → `planning`,
+  `Next Action` matches `/^(integrate-work-unit|archive-work-unit)\b(?!-)/i` → `integration`,
+  else `execution`. Negative lookahead defends against hyphen-extended identifiers.
+  `parseStatusFile` extended with `nextAction` extraction; `StatusFileCandidate` and
+  `ParsedStatusFields` carry the new field. No additional I/O — probe was already reading the
+  status file. Tests: 11 new in `__tests__/unit/active/session-type.test.ts` (direct logic),
+  11 new in `__tests__/integration/active.test.ts` (real-fixture integration covering the
+  10 task-spec behaviors), 1 new in `__tests__/unit/active/status-reader.test.ts` (parser
+  field extraction). Tier 1 gates clean (878 unit/integration tests).
+- _Integration-signal sweep:_ Verified the convention is codified across handoff-writing surfaces:
+  `session-handoff.md` § _Workflow step pointer_ (general guidance), § Task List Completion shows
+  `archive-work-unit Step 1 — …` example (entry into archive), `integrate-work-unit.md` Step 6c
+  shows `integrate-work-unit Step 7 — …` example (mid-integration update). One gap closed —
+  added an "On workflow entry" note to `integrate-work-unit.md` (both copies) Phase 1 preamble
+  instructing the agent to write `integrate-work-unit Step 1 — verify completion` if not already
+  pointed at the workflow. Closes the verification→integration handoff window so the inference
+  signal stays deterministic. Manifest `pristine_hash` recomputed for `integrate-work-unit.md`;
+  `arc health` no longer flags it as modified.
 
 ### `[ ]` **6.2 SESSION-NOTES `**Session Type:**` override field**
 

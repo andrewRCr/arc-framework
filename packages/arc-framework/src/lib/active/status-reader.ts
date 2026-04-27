@@ -188,6 +188,7 @@ async function parseCandidate(
     state: parsed.state,
     nextTask: parsed.nextTask,
     taskList: parsed.taskList,
+    nextAction: parsed.nextAction,
   };
 }
 
@@ -196,10 +197,11 @@ export interface ParsedStatusFields {
   state: string | null;
   nextTask: string | null;
   taskList: string | null;
+  nextAction: string | null;
 }
 
 /**
- * Parse the four session-init-relevant fields from a status-file body.
+ * Parse the five session-init-relevant fields from a status-file body.
  *
  * Accepts both list-item (`- **Field:** value`) and bare (`**Field:** value`)
  * forms; bullets and leading whitespace are tolerated. Values are taken
@@ -216,6 +218,7 @@ export function parseStatusFile(content: string): ParsedStatusFields {
     state: extractField(content, "State"),
     nextTask: extractField(content, "Next Task"),
     taskList: extractField(content, "Task List"),
+    nextAction: extractField(content, "Next Action"),
   };
 }
 

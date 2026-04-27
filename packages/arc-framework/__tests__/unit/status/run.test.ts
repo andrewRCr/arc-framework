@@ -174,6 +174,7 @@ function activeSessionInit(
     resolution: "none",
     path: null,
     candidates: [],
+    sessionType: "planning",
     warnings: [],
     ...overrides,
   };

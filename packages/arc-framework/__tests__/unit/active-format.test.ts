@@ -26,6 +26,7 @@ function candidate(overrides: Partial<StatusFileCandidate> = {}): StatusFileCand
     state: "In Progress",
     nextTask: "Task 1.1 — do thing (line ~10)",
     taskList: ".arc/active/technical/tasks-foo.md",
+    nextAction: "Start Task 1.1 — do thing",
     ...overrides,
   };
 }
@@ -49,6 +50,7 @@ function sessionInitResult(
     resolution: "none",
     path: null,
     candidates: [],
+    sessionType: "planning",
     warnings: [],
     ...overrides,
   };

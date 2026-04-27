@@ -50,6 +50,11 @@ not a post-merge activity. This ensures PR reviewers see clean, well-organized d
 
 **Context:** You're on the child branch where work was completed (e.g., `incidental/fix-auth-edge-cases`).
 
+**On workflow entry:** if the active status file's `**Next Action:**` doesn't already point at this workflow,
+update it to `integrate-work-unit Step 1 — verify completion` before proceeding. This keeps the integration-
+signal convention consistent across handoffs that fall between verification and Step 6c (per
+[session-handoff][session-handoff] § _Workflow step pointer_; consumed by session-init `sessionType` inference).
+
 ### 1) Verify Work Completion
 
 - [ ] All task list subtasks and parent tasks marked `[x]`
@@ -378,3 +383,4 @@ Earlier phases remain valid (will be used by new approach), but later phases are
 [activate-planning-branch]: planning/activate-planning-branch.md
 [archive-work-unit]: archive-work-unit.md
 [dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md
+[session-handoff]: ../session-lifecycle/session-handoff.md

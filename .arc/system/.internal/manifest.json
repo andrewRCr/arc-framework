@@ -445,7 +445,7 @@
     "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "dbac356afa718d1d222928c81db31092610027e28427f1a1f27dfeb7bf2acda9"
+      "pristine_hash": "cd79756a954c2dbc05464d4dffb6d37fc59455eb2bb5310a23c1cc77b60ed879"
     },
     "system/workflows/arc/work-unit-lifecycle/planning/activate-planning-branch.md": {
       "classification": "Framework",

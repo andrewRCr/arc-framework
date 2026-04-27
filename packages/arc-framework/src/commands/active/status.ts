@@ -27,6 +27,7 @@ import type {
   ActiveSessionInitResult,
   ActiveStatusOptions,
   ActiveStatusResult,
+  SessionType,
   StatusFileCandidate,
 } from "./types.js";
 
@@ -34,6 +35,41 @@ const CONTRIBUTOR_IDENTITY_MISSING_WARNING =
   "Role is `contributor` but `arc.identity` is missing — contributor active root cannot be resolved.";
 
 const TASK_LIST_FULL_PATTERN = /^tasks-(.+)\.md$/;
+
+/** Task-list values that signal "no associated task list" → planning. */
+const TASK_LIST_PLANNING_VALUES = new Set(["[none]", "[none associated]"]);
+
+/**
+ * Next-Action prefixes that signal integration phase (case-insensitive).
+ * The negative lookahead rejects hyphen-extended identifiers so a stray
+ * `integrate-work-unit-foo` token wouldn't false-match.
+ */
+const INTEGRATION_WORKFLOW_PREFIX = /^(integrate-work-unit|archive-work-unit)\b(?!-)/i;
+
+/**
+ * Infer session type from a resolved candidate's status fields.
+ *
+ * Rules (precedence top-down):
+ *
+ * - `**Task List:**` is `[none]` / `[none associated]` / missing → `planning`
+ * - `**Next Action:**` matches `^(integrate-work-unit|archive-work-unit)\b` → `integration`
+ * - Otherwise → `execution`
+ *
+ * Caller handles the `none` (no candidate → planning) and `multiple`
+ * (deferred → null) cases.
+ */
+export function inferSessionType(
+  taskList: string | null,
+  nextAction: string | null,
+): SessionType {
+  if (taskList === null || TASK_LIST_PLANNING_VALUES.has(taskList)) {
+    return "planning";
+  }
+  if (nextAction !== null && INTEGRATION_WORKFLOW_PREFIX.test(nextAction)) {
+    return "integration";
+  }
+  return "execution";
+}
 
 /** Produce the full per-WU enumeration for `arc active status` (default mode). */
 export async function runActiveStatus(
@@ -77,6 +113,7 @@ export async function runActiveSessionInitStatus(
       resolution: "none",
       path: null,
       candidates: [],
+      sessionType: "planning",
       warnings: [CONTRIBUTOR_IDENTITY_MISSING_WARNING],
     };
   }
@@ -111,20 +148,24 @@ async function resolveSessionInit(
   let resolution: ActiveSessionInitResolution;
   let path: string | null;
   let emittedCandidates: StatusFileCandidate[];
+  let sessionType: SessionType | null;
 
   const [only] = candidates;
   if (only === undefined) {
     resolution = "none";
     path = null;
     emittedCandidates = [];
+    sessionType = "planning";
   } else if (candidates.length === 1) {
     resolution = "single";
     path = only.path;
     emittedCandidates = [];
+    sessionType = inferSessionType(only.taskList, only.nextAction);
   } else {
     resolution = "multiple";
     path = null;
     emittedCandidates = candidates;
+    sessionType = null;
   }
 
   const result: ActiveSessionInitResult = {
@@ -133,6 +174,7 @@ async function resolveSessionInit(
     resolution,
     path,
     candidates: emittedCandidates,
+    sessionType,
     warnings,
   };
 

@@ -22,6 +22,18 @@ export type ActiveLayout = "full" | "lite";
 export type ActiveSessionInitResolution = "none" | "single" | "multiple";
 
 /**
+ * Resolved session type — drives session-init's per-type loadset (Step 3
+ * items 9–10). Inferred from active state; null when resolution is
+ * `multiple` and the agent must recompute after disambiguation.
+ *
+ * - `planning` — between work units, or no task list yet.
+ * - `execution` — task list present, regular task work.
+ * - `integration` — `**Next Action:**` matches an integration-lifecycle
+ *   workflow (`integrate-work-unit` / `archive-work-unit`).
+ */
+export type SessionType = "planning" | "execution" | "integration";
+
+/**
  * One parsed status file. `path` is always relative to the probe's cwd so
  * consumers can cross-reference against other probe results without
  * normalization.
@@ -38,6 +50,8 @@ export interface StatusFileCandidate {
   nextTask: string | null;
   /** Raw `**Task List:**` value — path or `[none]`. */
   taskList: string | null;
+  /** Raw `**Next Action:**` value — freeform action description; carries lifecycle workflow step pointers. */
+  nextAction: string | null;
 }
 
 /** Full enumeration — default rendering. */
@@ -78,6 +92,13 @@ export interface ActiveSessionInitResult {
     notes: string | null;
     atomic: string | null;
   };
+  /**
+   * Resolved session type for per-type loadset selection. Computed from
+   * `resolution` plus the resolved candidate's `**Task List:**` and
+   * `**Next Action:**` fields. `null` when `resolution === "multiple"`
+   * and the caller must disambiguate before computing type.
+   */
+  sessionType: SessionType | null;
   warnings: string[];
 }
 

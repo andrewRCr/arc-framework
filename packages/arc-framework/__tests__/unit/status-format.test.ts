@@ -157,6 +157,7 @@ function makeSessionInitResult(
         resolution: "single",
         path: ".arc/active/technical/status-foo.md",
         candidates: [],
+        sessionType: "execution",
         warnings: [],
       },
     },
