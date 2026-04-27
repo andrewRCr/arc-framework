@@ -5,7 +5,7 @@
 - **State:** In Progress
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
-- **Next Task:** Task 5.8.a — Preamble + wrapper retirement + step header phrasing pass (line ~1861)
-- **Last Completed:** Task 5.7 — `{AGENT}.ARC.md` retirement + `system/agent` → `system/briefs` rename
+- **Next Task:** Task 5.10.a — Step 1+2 merge — "Resolve Session Context" (line ~1932)
+- **Last Completed:** Task 5.8 — Init + handoff workflow audit (subtasks a–g)
 - **Blockers:** none
-- **Next Action:** Start Task 5.8.a — preamble + wrapper retirement on `session-init.md` and `session-handoff.md`.
+- **Next Action:** Start Task 5.10.a — merge Steps 1+2 into "Resolve Session Context".

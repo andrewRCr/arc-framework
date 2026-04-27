@@ -1846,7 +1846,7 @@ Task 5.6 is TS-only (no markdown sync concern).
           optimization breaking changes absorbed pre-publication. Matching WU-wide success
           criterion at the bottom of this task list also retired.
 
-### `[ ]` **5.8 Init + handoff workflow audit — surface tightening, externalization, output discipline**
+### `[x]` **5.8 Init + handoff workflow audit — surface tightening, externalization, output discipline**
 
 - _Lens:_ Treat `session-init.md` and `session-handoff.md` as paired endpoints. Apply three
   lenses: (1) structural externalization of role-conditional content; (2) inline prose tightening
@@ -1858,56 +1858,123 @@ Task 5.6 is TS-only (no markdown sync concern).
   Folded into a fresh scope rather than executed as written. Pre-implementation audit
   (2026-04-27) folded into subtask scope.
 
-    - `[ ]` **5.8.a Preamble + wrapper retirement + step header phrasing pass**
-        - Drop `session-init.md` preamble (lines 13-23) — content covered by
-          `strategy-session-operations.md` § Context Loading Model + § Auto-Compaction and
-          `DEV-RULES.ARC.md` § Session Management. Lift Steps 1-8 from `### N.` to `## N.`,
-          retiring `## Steps` wrapper.
-        - Same retirement on `session-handoff.md` preamble + `## Handoff Protocol` wrapper.
-        - Step header phrasing pass: rename Step 8 "If Context Seems Mismatched" → "Handle
-          Context Mismatches" (conditional clause → imperative, parallel with other action-verb
-          steps). Sweep remaining headers for clumsiness; expect minimal additional change.
+    - `[x]` **5.8.a Preamble + wrapper retirement + step header phrasing pass**
+        - _Outcome:_ Both copies of `session-init.md` and `session-handoff.md` drop preamble
+          (When-to-use / Session-lifecycle-assumption / Design-context) and wrapper headings
+          (`## Steps` / `## Handoff Protocol`) — H1 → H2 directly. Step headings lifted to H2
+          (intra-step H4 → H3). Step 8 renamed "If Context Seems Mismatched" → "Handle Context
+          Mismatches" (imperative, parallel with action-verb steps). No content semantics
+          changed; cross-references checked clean.
 
-    - `[ ]` **5.8.b Contributor path offload to `session-init.contributor.md`**
-        - Promote contributor branch to a one-line offload after Step 4 items 1-6. Standalone
-          `session-init.contributor.md` (dot-variant naming follows `AGENT-BRIEF.CONTRIBUTOR` /
-          `DEV-RULES.{DOMAIN}` convention) carries divergent surface: Step 4 item 7+ replacement,
-          Step 6 skip, Step 7 contributor orientation format. Step 8 stays universal. Drift
-          surface ~25 lines (current contributor blockquote size).
+    - `[x]` **5.8.b Contributor path offload to `session-init.contributor.md`**
+        - _Outcome:_ New `session-init.contributor.md` (both copies, ~37 lines) carries the
+          divergent surface — Step 4 item 7+, Step 6 skip, Step 7 contributor orientation. Step 2
+          contributor cue rewritten to point at the offload doc; Contributor Session Path
+          blockquote retired; Step 6's redundant "skip when contributor" sentence retired.
+          `init-recipe.json` and `manifest.json` updated for the new file.
 
-    - `[ ]` **5.8.c Step 7+8 + Trust Hierarchy tightening**
-        - Tier 2 three-step list → one sentence (~4 lines).
-        - Drop SESSION-NOTES-vs-git Tier 1 example (implied by trust order); keep
-          status-file-vs-task-list and worktree-diverged examples (~5 lines).
-        - Pass on Step 7 orientation format prose for residual tightening.
-        - Outcome may be net-zero on lines if found tight; that's the audit value.
+    - `[x]` **5.8.c Step 7+8 + Trust Hierarchy tightening**
+        - _Outcome:_ Tier 2 three-numbered-step list collapsed to a single sentence; SESSION-NOTES-
+          vs-git Tier 1 example dropped (implied by trust order); Step 7 opener tightened from
+          three sentences to bare imperative ("Produce the orientation summary."). Step 7 field
+          descriptions left for 5.8.d. Net ~9 lines tightened, no semantic change.
 
-    - `[ ]` **5.8.d Structured-summary field bounds**
-        - Codify per-field bounds in Step 7 (init) and § Confirm Handoff (handoff): Last Completed
-          / Current Task / Next Session / Session Summary bullets → one line. Blockers / Next
-          Action (off-task-list) / Uncommitted work → unbounded. Mirror the "commit-by-commit
-          narration" anti-pattern (already in SESSION-NOTES guidance) into the spoken-summary
-          guidance.
+    - `[x]` **5.8.d Structured-summary field bounds**
+        - _Outcome:_ Step 7 field placeholders rewritten as bounds — Last Completed / Current Task
+          one line each; Blockers `none` or freeform unbounded; Next action one line on-task-list,
+          unbounded off-task-list. Anti-pattern note added: "Restating the Next Task's full
+          description from the task list." Confirm Handoff mirrors: Session summary bullets `<hash> —
+          <outcome>` one line; Next session one line on-task-list; Uncommitted work omitted entirely
+          when nothing uncommitted. Cross-references SESSION-NOTES "commit-by-commit narration"
+          anti-pattern.
 
-    - `[ ]` **5.8.e Output discipline guardrail**
-        - Add to both workflows: between tool calls and the final structured summary, generate
-          text only for (a) problems/blockers, (b) judgment calls, (c) flow-control pivots; pure
-          narration of tool calls or workflow branches is omitted. Scope-limited override of
-          harness default narration cadence noted in body.
+    - `[x]` **5.8.e Output discipline guardrail**
+        - _Outcome:_ Five-line "Output discipline" callout added at the top of both `session-init.md`
+          and `session-handoff.md` (both copies), placed between H1 and the first step heading.
+          Three permitted-text categories: problems/blockers, judgment calls not inferable from
+          tool stream, flow-control pivots. Scope-limited override of harness-default narration
+          cadence noted explicitly.
 
-    - `[ ]` **5.8.f Speed audit + tool-call discipline**
-        - Specify Step 3 combined-pull pattern (`git pull && arc user pull` single Bash on
-          combined-accept path). Drop post-pull re-probe on success. Make Step 4 parallelism
-          prescriptive (issue items 1-6, 8, and active-status-file Read in a single tool-message).
-          Drop `test -f` precheck for SESSION-NOTES. Drop pre-Read structural grep on task list
-          (use direct graduated-lookup Read). Target: ~10-12 tool calls from `pwd` to orientation
-          in clean-state happy path (down from ~24 in baseline session). Document baseline in
-          `notes-session-init-optimization.md`.
+    - `[x]` **5.8.f Speed audit + tool-call discipline**
+        - _Outcome:_ Five round-trip eliminations codified in `session-init.md` (both copies):
+          combined-pull single Bash on combined-accept; drop post-pull re-probe on success; Step 4
+          Parallelism made prescriptive (items 1–6 + SESSION-NOTES + active-status-file in a single
+          tool-message); SESSION-NOTES `test -f` precheck retired (Read handles missing files);
+          structural-mapping grep consolidated to one call returning all phase positions. Baseline
+          breakdown (~24 → ~9 round-trips) documented in `notes-session-init-optimization.md` §
+          Phase 5.8 Session-Init Speed Baseline. Wall-clock not measured — round-trip count is the
+          load-bearing proxy.
 
-    - `[ ]` **5.8.g Externalization candidates — per-candidate dispositions**
-        - Apply 5.5-style per-candidate decisions to original-5.8.d candidate residue after
-          5.8.a and 5.8.b absorb their main outputs. Probable single remaining: Step 2
-          probe-failure fallback (lean-stub candidate). Confirm and close.
+    - `[x]` **5.8.g Externalization candidates — per-candidate dispositions**
+        - _Outcome:_ Per-candidate dispositions for the original 5.8.d candidate list:
+            - Lifecycle/Design-context paragraphs → **drop** (5.8.a — preamble retired).
+            - Contributor Session Path blockquote → **extract** (5.8.b — offloaded to
+              `session-init.contributor.md`).
+            - Step 8 Trust Hierarchy → **keep + tighten** (5.8.c — ~9 lines compressed, examples
+              and substance preserved per user direction).
+            - Item 9 SESSION-NOTES load errors → **already extracted** (4.2.e — single-line pointer
+              to `strategy-session-operations.md § SESSION-NOTES Load Error Recovery`).
+            - Step 2 probe-failure fallback → **keep inline** (4 lines; in-context-during-failure
+              reliability value outweighs the marginal externalization gain — agents hitting this
+              branch are already in a degraded state and benefit from inline recovery prose).
+        - Manifest `pristine_hash` recomputed for `session-init.md`, `session-handoff.md`, and the
+          new `session-init.contributor.md` to reflect post-5.8 stable content.
+
+### `[ ]` **5.10 Step 1+2 merge + contributor freshness/orientation**
+
+- _Lens:_ Pre-implementation audit (2026-04-27) during 5.8.b surfaced two improvements that
+  weren't in the original 5.8 scope: (1) Steps 1 (`pwd`) and 2 (composite probe) are independent
+  read-only operations that can chain in a single Bash call, saving one round-trip; (2)
+  `session-init.contributor.md` skipped Step 6 entirely and defaulted Step 7 orientation to a
+  generic "Ready for work", missing the contributor's freshness check (SESSION-NOTES handoff
+  hash applies universally) and status-contributor.md state surfacing. All edits two-copy synced.
+
+    - `[ ]` **5.10.a Step 1+2 merge — "Resolve Session Context"**
+        - Merge `## 1. Verify Environment` and `## 2. Probe ARC Domain` into a single step
+          named "Resolve Session Context". Body chains `pwd && arc status --session-init --json`
+          in one Bash invocation. Renumber Steps 3–8 → 2–7 in `session-init.md` (both copies).
+          Sweep inline `Step N` cross-references in both `session-init.md` and
+          `session-init.contributor.md` to match new numbering.
+
+    - `[ ]` **5.10.b Contributor freshness + orientation improvements**
+        - Recast `session-init.contributor.md § Step 6` from "skip entirely" to a contributor-
+          flavored freshness check: SESSION-NOTES handoff-hash check applies universally; skip
+          maintainer next-work-discovery (work-unit lifecycle isn't a contributor concern). When
+          `status-contributor.md` exists, treat as project pointer for Step 7 orientation.
+        - Step 7 contributor orientation: when status-contributor.md provides state, surface it
+          using the same field bounds as `session-init.md § 7` (one-line Last Completed /
+          Current Task; freeform Blockers; one-line Next action on-task-list, unbounded
+          off-task-list). When absent or empty, keep current minimal "Ready for work" form.
+
+### `[ ]` **5.11 Composite probe contributor-awareness (CLI/TS)**
+
+- _Lens:_ Surfaced during 5.8.b/5.10.b. Composite probe's `active` slot resolves
+  `.arc/active/**/status-*.md` (maintainer state). Contributors maintain personal state at
+  `.arc/user/{identity}/status-contributor.md` per the convention referenced in
+  `notes-docs-content-sweep.md`. Probe-side resolution makes the contributor flow envelope-driven
+  rather than agent-side file existence checks; parallels how 5.6 moved companion-file paths
+  into the probe.
+
+    - `[ ]` **5.11.a Probe role-aware active resolution (test-first)**
+        - When `identity.role === "contributor"`, `runActiveSessionInitStatus` resolves from
+          `.arc/user/{identity}/active/` + `status-contributor.md` rather than
+          `.arc/active/**/status-*.md`. Same `single` / `multiple` / `none` discriminant.
+          Backward-compat preserved for maintainer flow.
+        - Behaviors: (i) contributor-role + status-contributor.md present → `single` resolution
+          to the contributor file; (ii) contributor-role + no status-contributor.md → `none`;
+          (iii) maintainer-role unchanged from current behavior; (iv) contributor with
+          `user/{identity}/active/` directory containing multiple status files → `multiple` (if
+          that pattern is permitted).
+
+    - `[ ]` **5.11.b Workflow consumption update**
+        - `session-init.contributor.md` Step 4 item 7+ wording references the envelope's
+          contributor-resolved active slot rather than instructing a raw file-existence check.
+          Step 6/7 orientation pulls fields from the envelope, mirroring maintainer.
+
+    - `[ ]` **5.11.c Companion files for contributor (forward compat)**
+        - Evaluate whether contributor `status-contributor.md` should also have companions
+          (`notes-contributor.md`, `atomic-contributor.md`) per 5.6's pattern. Disposition only —
+          implementation if approved follows.
 
 ### `[ ]` **5.9 Phase 5 close — Tier 2 quality gates**
 

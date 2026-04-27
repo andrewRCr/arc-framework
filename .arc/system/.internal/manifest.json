@@ -380,12 +380,17 @@
     "system/workflows/arc/session-lifecycle/session-handoff.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "47b8584b52fcd5dae41e2c89f852a32dc7f4e0ee2756d20cff3f05f426d85d95"
+      "pristine_hash": "7180aca8224f0bb714c5194bf953bbab9c718ab2050bffd64d7ce4be6199d150"
+    },
+    "system/workflows/arc/session-lifecycle/session-init.contributor.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "69ab3ceaae5ed2eff421896931a8ce5f6f71d723f99cdece5858a7b64cec1656"
     },
     "system/workflows/arc/session-lifecycle/session-init.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "6a977b6b97c5e2cac93b224c6e6c0fba1135e7d7e2a44d451f00c09a5ab39cab"
+      "pristine_hash": "ecf25426a5f3903669eb42f8484666b88a0f15560218aef07e5aa42a8465858a"
     },
     "system/workflows/arc/session-lifecycle/session-loop.md": {
       "classification": "Framework",

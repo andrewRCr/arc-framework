@@ -8,14 +8,13 @@ arc:
 
 # Workflow: Session Handoff
 
-**When to use**: User-triggered at the end of a session, or when transitioning between work contexts.
+**Output discipline:** Between tool calls and the final structured summary, generate text only for (a)
+problems, blockers, or detected mismatches; (b) judgment calls the user couldn't infer from the tool
+stream; (c) flow-control pivots the user needs to track. Pure narration of tool calls, workflow branches,
+or "now reading X" is omitted. Scope-limited override of any harness-default narration cadence for the
+duration of this workflow.
 
-**Design context**: State capture for agents with ephemeral context. Override the default via the
-[session-state method][arc-methods-session].
-
-## Handoff Protocol
-
-### Pre-Update Verification
+## Pre-Update Verification
 
 **Before writing the handoff, verify actual state:**
 
@@ -33,7 +32,7 @@ arc:
 > don't manage the project work pipeline — proceed directly to the SESSION-NOTES.md update, git
 > notes save, and confirmation.
 
-### What to Update
+## What to Update
 
 Session state is split across tracked project state and personal session state (per the
 [session-state method][arc-methods-session] default — if your project overrides session-state,
@@ -64,7 +63,7 @@ status file (if one exists)
 removal triggers. See § Comprehensive Handoff Format step 1 and § Persistent Context below for the
 preservation criterion and review cadence.
 
-### Comprehensive Handoff Format
+## Comprehensive Handoff Format
 
 Update session state files before ending session:
 
@@ -284,7 +283,7 @@ probably doesn't belong:
 - Observed risks
 - "Currently mid-X with concrete next action Y" when stopping mid-task
 
-### Handoff Examples
+## Handoff Examples
 
 **Example 1: Off-task-list with known path back**
 
@@ -360,7 +359,7 @@ SESSION-NOTES.md:
 2. Token refresh flow has edge case when refresh token expires mid-request
 ```
 
-### Task List Completion & Transition Format
+## Task List Completion & Transition Format
 
 **When work is complete and/or task list has been archived**, use this expanded format:
 
@@ -379,12 +378,12 @@ If the work unit has already been archived, no active status file remains. SESSI
 completion is minimal — accomplishment summary with commit hashes, archive path. Preserve any
 Persistent Context entries that span work units; reset ephemeral sections.
 
-### Post-Update Cleanup
+## Post-Update Cleanup
 
 After updating session state files, verify clean markdown. If SESSION-NOTES.md is gitignored, your linter
 may skip it by default — pass the path explicitly or use an IDE-integrated linter.
 
-### Save to Git Notes
+## Save to Git Notes
 
 After writing SESSION-NOTES.md, run `arc sync`:
 
@@ -420,34 +419,33 @@ outcome line prevents the "work didn't land but user thought it did" failure mod
 If save itself fails (empty user directory, filesystem permissions), the session state is
 only in SESSION-NOTES.md on disk. Resolve the issue and re-run `arc user save`.
 
-### Confirm Handoff
+## Confirm Handoff
 
-After updating the active status file (if any) and SESSION-NOTES.md, deliver a verbal summary to
-the user. This is a quick
-confirmation for the human — the session state files are the durable artifacts.
+After updating the active status file (if any) and SESSION-NOTES.md, deliver a verbal summary to the user.
+This is a quick confirmation for the human — the session state files are the durable artifacts.
 
 **ARC session handoff complete** · `{branch-name}` · {clean | uncommitted changes}
 
 **Session summary:**
 
-- [What was accomplished — bullet per logical unit of work]
-- [Include commit hashes for committed work]
+- [`<hash>` — `<outcome>` (one line per logical unit)]
 
 **Uncommitted work:**
 
-- [Files/changes with logical commit grouping]
+- [Files/changes with logical commit grouping; omit section entirely when nothing uncommitted]
 
-**Next session:** [What comes next per the active status file, or next-work discovery when between WUs]
+**Next session:** [Task list pointer (on-task-list) or freeform (off-task-list)]
 
 **Formatting guidance:**
 
-- Mirrors the session-init orientation summary — bookend pattern
-- **Session summary** is accomplishments, not a task list replay — focus on outcomes
-- **Uncommitted work** maps to commits: enough detail for the next session to
-  reconstruct proper atomic commits without re-reading diffs. Omit this section
-  entirely when all work is committed — less noise when there's nothing to report
-- **Next session** is standalone and prominent — same scanning target as init's
-  "Next action"
+- Mirrors the session-init orientation summary — bookend pattern.
+- **Session summary** bullets: one line per logical unit — `<hash> — <outcome>`. Don't restate commit body
+  content; `git log` is the durable record. (Same anti-pattern as SESSION-NOTES § "commit-by-commit
+  retrospective narration".)
+- **Uncommitted work** maps to commits — enough detail for the next session to reconstruct proper atomic
+  commits without re-reading diffs. Omit entirely when all work is committed.
+- **Next session**: one line on-task-list (status file pointer); unbounded only when off-task-list — same
+  bounding as session-init Step 7 Next action.
 
 [arc-methods-session]: ../../../methods/session-state.md
 [dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md

@@ -10,26 +10,20 @@ arc:
 
 # Workflow: Session Initialization
 
-**When to use**: User-triggered at the start of every session (resuming features, starting new work, handling
-incidental tasks, etc.). The agent does not initiate this workflow on its own.
+**Output discipline:** Between tool calls and the final structured summary, generate text only for (a)
+problems, blockers, or detected mismatches; (b) judgment calls the user couldn't infer from the tool
+stream; (c) flow-control pivots the user needs to track. Pure narration of tool calls, workflow branches,
+or "now reading X" is omitted. Scope-limited override of any harness-default narration cadence for the
+duration of this workflow.
 
-**Session lifecycle assumption**: ARC sessions are bounded — they begin with this initialization workflow and
-end with an explicit handoff (see `session-handoff.md`). If an agent's context fills mid-session, the correct
-response is to complete the current work item and hand off, not to compact or summarize prior context.
-
-**Design context**: Structured document loading for agents with ephemeral context. Override the default set
-via the [session-state method][arc-methods-session].
-
-## Steps
-
-### 1. Verify Environment
+## 1. Verify Environment
 
 ```bash
 pwd
 # Expected: {{REPO_ROOT}} (repo root)
 ```
 
-### 2. Probe ARC Domain
+## 2. Probe ARC Domain
 
 Run the composite probe:
 
@@ -56,15 +50,15 @@ and overrides reach the user at the consuming operation.
 ATOMIC-INBOX, and git notes all depend on identity for path resolution. Surface a warning in orientation.
 Sessions without identity cannot perform handoff.
 
-**Role is `contributor`**: Follow the **Contributor Session Path** below — skip items 7, 9–10 in Step 4, skip
-Step 6, and use the contributor orientation format in Step 7.
+**Role is `contributor`**: After Step 4 items 1–6, switch to [`session-init.contributor.md`][session-init-contributor]
+for item 7+, Step 6 skip, and Step 7 contributor orientation. Step 5 and Step 8 apply universally.
 
 **Probe failure fallback**: If the composite call fails, fall back to direct commands:
 `git config arc.identity` / `arc.role`, `grep -l "^active: true" .arc/system/extensions/*.md`, and a scan
 of `.arc/active/**/status-*.md`. Skip Step 3 (no user-sync state available) and note the degradation in
 orientation.
 
-### 3. Conditional Sync Pulls
+## 3. Conditional Sync Pulls
 
 Two channels may need attention: worktree (`worktree.value`) and personal notes (`user.value`).
 
@@ -73,8 +67,9 @@ must warn: "working tree dirty — stash or commit before accepting". No auto-st
 
 **Worktree channel** — keyed on `worktree.value.state` and `config.value.settings["session.init_pull.worktree"]`:
 
-- `remote-ahead`: `prompt` mode → ask before pulling. On accept, run `git pull --ff-only` and re-probe the
-  envelope. `manual` mode → surface in orientation; do not prompt.
+- `remote-ahead`: `prompt` mode → ask before pulling. On accept, run `git pull --ff-only`. Skip post-pull
+  re-probe on success — `clean` post-state is implied by a clean pull. `manual` mode → surface in
+  orientation; do not prompt.
 - `diverged`: Non-blocking. Surface in Step 7 as `Reconcile required:`; carry forward.
 - `local-ahead`: Single informational line in Step 7. No prompt.
 - `clean`, `no-upstream`, `detached-head`, `no-remote`, `skipped`: No action.
@@ -93,20 +88,22 @@ must warn: "working tree dirty — stash or commit before accepting". No auto-st
 **Combined prompt.** When both channels need a prompt under `prompt` mode, issue one combined prompt instead
 of two. Name each channel with its counts (worktree: `value.ahead` / `value.behind`; notes: from `user.value`
 when present), include the dirty-tree warning when applicable, and offer per-channel choices (pull both /
-worktree only / notes only / skip). Worktree pulls first; after acceptance, re-probe notes and pull if still
-ahead.
+worktree only / notes only / skip). On combined-accept, issue `git pull --ff-only && arc user pull` as a
+single Bash call; skip post-pull re-probe on success. On partial pulls or single-channel accept where
+downstream state ambiguity matters, re-probe to confirm.
 
 The agent owns the prompt — do not defer it to the CLI. If `identity.identity === null`, the notes channel
 has no path; skip notes regardless of state. Worktree channel still applies.
 
-### 4. Load Context Documents
+## 4. Load Context Documents
 
 **Reading rule**: Read every document in the list below in full EXCEPT QUICK-REFERENCE (item 6 —
 section-level partial read) and the active task list (item 9 — strategic partial read).
 
-**Parallelism**: Framework docs (items 1–6), SESSION-NOTES (item 8), and — when `active.resolution === "single"` —
-the active status file can load in parallel. Task list (item 9) and task execution workflow (item 10) wait
-for the status file to resolve. Sequential execution is fine if your platform doesn't support parallel reads.
+**Parallelism (prescriptive)**: Issue items 1–6, 8 (SESSION-NOTES), and — when
+`active.resolution === "single"` — the active status file as Reads in a single tool-message. Items 9–10
+follow after the status file resolves; they may parallel each other. Don't serialize when the platform
+supports parallel reads.
 
 The document set below is the [session-state method][arc-methods-session] default. If your project overrides
 session-state, follow the override instead.
@@ -170,7 +167,8 @@ work-unit state (one "Next Task"). In team mode, your personal task may differ. 
 See [Team Coordination Strategy][team-coordination] § Task Ownership for the `(@name)` convention.
 <!-- arc:endif -->
 
-8. `.arc/user/{identity}/SESSION-NOTES.md` — **read if exists**. Uses `{identity}` from Step 2
+8. `.arc/user/{identity}/SESSION-NOTES.md` — **Read directly** (no `test -f` precheck — Read tool handles
+   missing files gracefully). Uses `{identity}` from Step 2
     - Personal working context from prior session: approach, decisions, things tried, known risks
     - **Persistent context**: The `## Persistent Context` section carries entries that survive across handoffs
       (each has an explicit removal trigger). Treat these as active constraints for this session
@@ -203,6 +201,10 @@ See [Team Coordination Strategy][team-coordination] § Task Ownership for the `(
         2. Search for the task number (e.g., `**4.2`) if the line hint is stale
         3. Search for the title fragment if the task was renumbered
         4. If none resolve, report the mismatch (Step 8)
+    - **Structural mapping** for header + phase preamble: when line-precise Reads are needed, issue one
+      grep for `^### \*\*Phase` (or equivalent phase-heading marker) returning all phase positions in a
+      single call — sufficient to compute Read offsets for header (above first phase), current phase
+      preamble, and current task section. Don't issue per-section greps.
     - **Companion file awareness**: From `active.value.companions` — note their existence so
       references during execution resolve immediately. **Do not read these at init**
 
@@ -211,41 +213,14 @@ See [Team Coordination Strategy][team-coordination] § Task Ownership for the `(
     **Skip if** the active status file is not resolved or shows `**Task List:** [none]`. Load later if the
     session pivots to task execution.
 
-> **Contributor Session Path**
->
-> When `arc.role = contributor`, the session loads a reduced document set. Items 1–6 are universal — load them
-> normally. Then:
->
-> - **Load** `.arc/system/briefs/AGENT-BRIEF.CONTRIBUTOR.md`
-> - **Load** `.arc/user/{identity}/SESSION-NOTES.md` if identity resolved and the file exists
-> - **Check** `.arc/user/{identity}/status-contributor.md` if identity resolved — optional local planning
->   state; note in orientation if present
-> - **Skip** items 7, 9–10
-> - **Skip** Step 6 (next-work discovery — maintainer concern)
-> - **Proceed to** Step 5 (extensions) → Step 7 with contributor orientation format:
->
-> **Contributor orientation format:**
->
-> **ARC session initialized** · `{branch-name}` · contributor · {clean | uncommitted changes}
->
-> **Context:** Contributor session — working on project code, not managing ARC planning artifacts.
->
-> **Next action:** Ready for work. Use `Context: contribution (...)` commit footer.
->
-> Include status-contributor.md state if present and any blockers or configuration issues detected.
-> Otherwise keep it minimal.
-
-### 5. Post-Context-Load Extensions · `#post-context-load`
+## 5. Post-Context-Load Extensions · `#post-context-load`
 
 If `post-context-load` appears in the active-extensions list (from Step 2), load and execute its
 [`.actions`][arc-ext-post-context-load]. Otherwise, skip.
 
-### 6. Assess Readiness
+## 6. Assess Readiness
 
-**Skip entirely** when `identity.role === "contributor"` — freshness and work-unit discovery are maintainer
-concerns. Proceed directly to Step 7.
-
-#### Freshness check
+### Freshness check
 
 **Skip if** SESSION-NOTES `Commit at Handoff` hash matches current HEAD — documents are current.
 
@@ -272,7 +247,7 @@ than stale session state. If the active status file was updated by a different a
 session, note this in orientation — another developer may be actively working on the same branch.
 <!-- arc:endif -->
 
-#### Next work unit discovery
+### Next work unit discovery
 
 **Skip if** an active status file was resolved and its `**Task List:**` is not `[none]` — discovery only
 applies between work units.
@@ -299,9 +274,9 @@ for the next unit:
 > Under partial protection (the default), proceed directly to [1_create-prd.md][create-prd] — no planning
 > branch needed.
 
-### 7. Confirm Orientation
+## 7. Confirm Orientation
 
-Produce the orientation summary — the user's first view of session state. Keep it focused on what matters.
+Produce the orientation summary.
 
 **Output format:**
 
@@ -309,16 +284,21 @@ Produce the orientation summary — the user's first view of session state. Keep
 
 **Active work state:**
 
-- **Last completed**: What was finished and its current state (committed, uncommitted, etc.)
-- **Current task**: Task being worked on per the active status file (or "none" between work units)
-- **Blockers**: Any blockers or mismatches detected during initialization, or "none"
+- **Last completed**: One line. Task ID + title + commit state.
+- **Current task**: One line. Task ID + title, or `none` between work units.
+- **Blockers**: `none` or freeform — mismatch detail and blocker context unbounded.
 
-**Next action:** What comes next per the active status file (or discovery result when between work units)
+**Next action:** One line on-task-list (status file pointer). Unbounded when off-task-list — carries work
+no other tracked source documents.
 
 Awaiting direction — proceed to Next Action?
 
 **Include only if actionable**: freshness gaps, missing identity, environment issues, sync states other than
 `clean` (worktree or notes), probe-failure fallback.
+
+**Anti-pattern:** Restating the Next Task's full description from the task list. The task list carries the
+detail; orientation needs only the pointer. Reserve unbounded prose for off-task-list scenarios where no
+tracked source documents the work.
 
 **Conditional top-level sections** — prepend above `**Active work state:**` when applicable:
 
@@ -338,7 +318,7 @@ Awaiting direction — proceed to Next Action?
 **Never include**: configuration overrides, active-extensions list (any state), defaults active, freshness
 clean, environment checks passed.
 
-### 8. If Context Seems Mismatched
+## 8. Handle Context Mismatches
 
 If documented state doesn't match reality during initialization, use the trust hierarchy.
 
@@ -360,18 +340,14 @@ Examples:
 
 - Active status file says "Task 3.3 in progress" but task list shows 3.3 marked `[x]` and git log confirms the
   commit → proceed with Task 3.4 as current
-- SESSION-NOTES describes uncommitted work but `git status` is clean and git log shows it committed → proceed
-  with committed state
 - `worktree.value.state == "diverged"` while session docs reflect clean state → git is ground truth.
   Surface as `Reconcile required:` (Step 7) and carry forward. Non-blocking; do not auto-reconcile.
 
 **Tier 2 — Stop and ask:**
 
-When the mismatch is ambiguous — multiple plausible explanations, or sources at the same trust tier disagree.
-
-1. **Stop immediately** — do not proceed with work
-2. **Report the mismatch** with specific details from each source
-3. **Ask for guidance**; wait for explicit direction before taking any corrective action
+When the mismatch is ambiguous — multiple plausible explanations, or sources at the same trust tier disagree —
+stop, report each source's view with specific details, and wait for explicit direction before any corrective
+action.
 
 Examples:
 
@@ -388,3 +364,4 @@ Examples:
 [arc-ext-post-context-load]: ../../../extensions/post-context-load.md
 [team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md
 [session-ops-load-errors]: ../../../../reference/strategies/arc/strategy-session-operations.md#session-notes-load-error-recovery
+[session-init-contributor]: session-init.contributor.md

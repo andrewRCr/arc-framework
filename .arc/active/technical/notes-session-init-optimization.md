@@ -1047,3 +1047,56 @@ Leave it cleaner (canonical routing table, methodology rule); DEV-RULES.PROJECT 
 DEV-RULES.ARC § Leave it cleaner (the routing table) — that's the substantive section worth
 evaluating against the reliability bar. DEV-RULES.PROJECT § Capture Routing is too short to matter
 and likely always-loaded by default.
+
+## Phase 5.8 Session-Init Speed Baseline (Task 5.8.f)
+
+**Baseline session** (2026-04-27, pre-5.8.f tightenings): ~24 tool calls from `pwd` to orientation
+summary on a clean-state happy path with sync pulls accepted.
+
+**Tool-call breakdown:**
+
+1. `pwd` (Bash)
+2. `arc status --session-init --json` (Bash) — composite probe
+3. `git status --porcelain` (Bash) — dirty-tree precheck
+4. AskUserQuestion (sync prompt)
+5. `git pull --ff-only` (Bash)
+6. `arc user pull` (Bash) — _now combinable with #5 in single Bash_
+7. Re-probe `arc status --session-init --json` (Bash) — _now droppable on success path_
+8–13. Six sequential Reads for Step 4 items 1–6 — _now mandatorily parallelized via single
+   tool-message_
+14. grep for QUICK-REFERENCE section anchors (Bash) — anchor stable, often droppable
+15. Read QUICK-REFERENCE.md (partial)
+16. Read active status file
+17. `test -f` SESSION-NOTES.md (Bash) — _now dropped per item-8 wording_
+18. Read SESSION-NOTES.md
+19–20. Two greps for task-list structural mapping (Bash) — _now consolidated to a single grep
+   returning all phase positions_
+21–23. Three Reads for task-list sections (header, phase preamble, current task)
+24. Read process-task-loop.md
+
+**Target post-5.8.f:** ~9–10 tool calls on the clean-state happy path:
+
+1. `pwd`
+2. Composite probe
+3. `git status --porcelain`
+4. AskUserQuestion (when sync prompts needed)
+5. Combined pull (`git pull --ff-only && arc user pull` single Bash)
+6. Single tool-message: items 1–6 Reads + SESSION-NOTES Read + active-status-file Read + (optional)
+   QUICK-REFERENCE partial Read = ~9 parallel Reads → 1 round-trip
+7. Single grep for `^### \_\_Phase` (task-list structural mapping)
+8. Single tool-message: header + phase preamble + current task Reads (3 parallel) → 1 round-trip
+9. Read process-task-loop.md (or parallelable with #8)
+
+**Wins captured by 5.8.f:**
+
+- Combined pull: −1 round-trip
+- Drop post-pull re-probe on success: −1 round-trip
+- Drop `test -f` precheck: −1 round-trip
+- Mandatory parallel Reads in Step 4: −5 round-trips (6 sequential → 1 batch)
+- Consolidated structural grep: −1 round-trip (2 → 1)
+
+Net: ~24 → ~9 round-trips contingent on harness honoring the parallelism prescription. No branch's
+correctness sacrificed.
+
+**Not measured here:** wall-clock time. Per-call latency is dominated by network/process variance.
+Round-trip count is the load-bearing proxy.
