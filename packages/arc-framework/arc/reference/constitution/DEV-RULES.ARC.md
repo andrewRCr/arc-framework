@@ -84,14 +84,8 @@ for task ownership, branching patterns, and handoff conventions.
 > (`arc.role = contributor`) work on project code, not ARC task lists — see
 > [AGENT-BRIEF.CONTRIBUTOR][contributor-briefing].
 
-- **Complete one review increment** — never bundle multiple deliverables
-- **Mark complete immediately** when work is done (quality checks pass)
-- **Mandatory stop** after reporting completion — wait for user approval to proceed
-- **Implied permission:** User approval ("looks good", "proceed") implies permission to continue
-  UNLESS explicitly stated otherwise. Address any stated concerns before moving to the next task.
-
-**For the full task execution protocol** (completion steps, quality gate checkpoints, deferred
-review), load the [process-task-loop workflow][process-task-loop].
+**For the full task execution protocol** (completion steps, quality gate checkpoints, mandatory
+stop, implied permission, deferred review), load the [process-task-loop workflow][process-task-loop].
 
 ### Sub-agent scope
 

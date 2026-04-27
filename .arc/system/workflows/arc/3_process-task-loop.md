@@ -103,6 +103,9 @@ arc:
      - **Third**: Verify completion before reporting (use pre-report checklist below)
      - **Fourth**: **REPORT** completed work to user with summary of changes
      - **Fifth**: ⛔ **MANDATORY STOP** - Wait for user approval before proceeding
+       - **Implied permission:** User approval ("looks good", "proceed") implies permission to
+         continue to the next task UNLESS explicitly stated otherwise. Address any stated concerns
+         before moving on.
 
      **Pre-Report Checklist** (verify before generating completion report):
 
