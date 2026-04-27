@@ -1,13 +1,8 @@
 # Completion: Session-Init Optimization
 
 - **Started**: 2026-04-18
-
 - **Completed**: 2026-04-27
-
 - **Branch**: technical/session-init-optimization
-
-- **Category**: Technical
-
 - **Pull Request**: {URL — added in integrate-work-unit Step 7}
 
 - **Context**: Roadmap initiative — bring session-init token cost back below the architectural
