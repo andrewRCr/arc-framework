@@ -203,23 +203,47 @@ export interface ParsedStatusFields {
 /**
  * Parse the five session-init-relevant fields from a status-file body.
  *
- * Accepts both list-item (`- **Field:** value`) and bare (`**Field:** value`)
- * forms; bullets and leading whitespace are tolerated. Values are taken
- * verbatim to end of line, trimmed. Inline backticks are stripped so
- * path fields like `` `.arc/active/.../tasks-foo.md` `` round-trip as
- * plain paths.
+ * Field extraction is bounded to the `## Active Work` section per the
+ * session-init contract (see `session-init.md` Step 4 item 7) — content
+ * outside that section (e.g., the "About this file" blockquote, trailing
+ * notes) cannot leak into parsed fields. When `## Active Work` is absent,
+ * all fields return `null`.
+ *
+ * Within the section, accepts both list-item (`- **Field:** value`) and
+ * bare (`**Field:** value`) forms; bullets and leading whitespace are
+ * tolerated. Values are taken verbatim to end of line, trimmed. Inline
+ * backticks are stripped so path fields like
+ * `` `.arc/active/.../tasks-foo.md` `` round-trip as plain paths.
  *
  * Returns `null` for any field whose marker isn't present — downstream
  * rendering decides how to surface missing fields.
  */
 export function parseStatusFile(content: string): ParsedStatusFields {
+  const section = extractActiveWorkSection(content) ?? "";
   return {
-    branch: extractField(content, "Branch"),
-    state: extractField(content, "State"),
-    nextTask: extractField(content, "Next Task"),
-    taskList: extractField(content, "Task List"),
-    nextAction: extractField(content, "Next Action"),
+    branch: extractField(section, "Branch"),
+    state: extractField(section, "State"),
+    nextTask: extractField(section, "Next Task"),
+    taskList: extractField(section, "Task List"),
+    nextAction: extractField(section, "Next Action"),
   };
+}
+
+/**
+ * Extract the `## Active Work` section body — heading line through the
+ * line before the next `## ` heading (or end of file). Returns `null`
+ * when the heading is absent.
+ */
+function extractActiveWorkSection(content: string): string | null {
+  const headingRe = /^## Active Work\s*$/m;
+  const headingMatch = headingRe.exec(content);
+  if (!headingMatch) return null;
+  const sectionStart = headingMatch.index + headingMatch[0].length;
+  const after = content.slice(sectionStart);
+  const nextHeadingMatch = /^## /m.exec(after);
+  return nextHeadingMatch
+    ? after.slice(0, nextHeadingMatch.index)
+    : after;
 }
 
 function extractField(content: string, label: string): string | null {

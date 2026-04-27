@@ -77,7 +77,7 @@ describe("parseStatusFile — happy path", () => {
 
 describe("parseStatusFile — missing fields", () => {
   it("returns null for any field whose marker is absent", () => {
-    const parsed = parseStatusFile("# Status: fixture\n\nJust prose.\n");
+    const parsed = parseStatusFile("# Status: fixture\n\n## Active Work\n\nJust prose.\n");
     expect(parsed.state).toBeNull();
     expect(parsed.branch).toBeNull();
     expect(parsed.nextTask).toBeNull();
@@ -85,36 +85,43 @@ describe("parseStatusFile — missing fields", () => {
   });
 
   it("returns null for a field whose value is empty after the marker", () => {
-    const content = "- **Branch:** \n- **State:** In Progress\n";
+    const content = "## Active Work\n\n- **Branch:** \n- **State:** In Progress\n";
     const parsed = parseStatusFile(content);
     expect(parsed.branch).toBeNull();
     expect(parsed.state).toBe("In Progress");
+  });
+
+  it("returns null for every field when `## Active Work` heading is absent", () => {
+    const content = "# Status: fixture\n\n- **Branch:** main\n- **State:** In Progress\n";
+    const parsed = parseStatusFile(content);
+    expect(parsed.branch).toBeNull();
+    expect(parsed.state).toBeNull();
   });
 });
 
 describe("parseStatusFile — formatting tolerance", () => {
   it("parses the bare `**Field:** value` form without a list bullet", () => {
-    const content = "**State:** In Progress\n**Branch:** main\n";
+    const content = "## Active Work\n\n**State:** In Progress\n**Branch:** main\n";
     const parsed = parseStatusFile(content);
     expect(parsed.state).toBe("In Progress");
     expect(parsed.branch).toBe("main");
   });
 
   it("tolerates blockquote prefixes (e.g., `> - **State:**`)", () => {
-    const content = "> - **State:** Paused\n> - **Branch:** feature/x\n";
+    const content = "## Active Work\n\n> - **State:** Paused\n> - **Branch:** feature/x\n";
     const parsed = parseStatusFile(content);
     expect(parsed.state).toBe("Paused");
     expect(parsed.branch).toBe("feature/x");
   });
 
   it("takes the first match when a field is repeated (stable behavior)", () => {
-    const content = "- **Branch:** first\n- **Branch:** second\n";
+    const content = "## Active Work\n\n- **Branch:** first\n- **Branch:** second\n";
     const parsed = parseStatusFile(content);
     expect(parsed.branch).toBe("first");
   });
 
   it("handles `[none]` Task List value verbatim", () => {
-    const parsed = parseStatusFile("- **Task List:** [none]\n");
+    const parsed = parseStatusFile("## Active Work\n\n- **Task List:** [none]\n");
     expect(parsed.taskList).toBe("[none]");
   });
 
@@ -126,6 +133,38 @@ describe("parseStatusFile — formatting tolerance", () => {
     });
     const parsed = parseStatusFile(content);
     expect(parsed.nextAction).toBe("integrate-work-unit Step 7 — push and create PR");
+  });
+});
+
+describe("parseStatusFile — section boundary", () => {
+  it("ignores field markers that appear above `## Active Work`", () => {
+    const content = [
+      "# Status: fixture",
+      "",
+      "> About this file: example uses `- **Branch:** decoy`",
+      "",
+      "## Active Work",
+      "",
+      "- **Branch:** real",
+      "",
+    ].join("\n");
+    const parsed = parseStatusFile(content);
+    expect(parsed.branch).toBe("real");
+  });
+
+  it("ignores field markers that appear below the next `## ` heading", () => {
+    const content = [
+      "## Active Work",
+      "",
+      "- **State:** In Progress",
+      "",
+      "## Notes",
+      "",
+      "- **State:** Decoy from a quoted snippet",
+      "",
+    ].join("\n");
+    const parsed = parseStatusFile(content);
+    expect(parsed.state).toBe("In Progress");
   });
 });
 
