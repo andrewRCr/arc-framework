@@ -2018,83 +2018,136 @@ Task 5.6 is TS-only (no markdown sync concern).
 
 ## **Phase 6:** Session-Type Conditional Loading
 
-_Purpose:_ Planning, execution, and integration sessions have different needs. The `Working On:`
-type prefix + auto-inference delivers a per-type load set without forcing user ceremony. Empirical
-validation during the phase's own task work confirms the minimal set suffices.
+_Purpose:_ Planning, execution, and integration sessions have different needs. Per-type loadset
+delivers the right workflow + skip-list at session-init without forcing user ceremony.
 
-_Note:_ Empirical validation (P2.6) is a running observation during Phase 6, not a distinct task —
-each Phase 6 subtask operates a specific session type, and observed insufficiency surfaces as an
-adjustment to the load-set definition plus a notes-file entry.
+_Lens:_ Pre-implementation audit (2026-04-27) folded into subtask scope. Original 6.1–6.7 premises
+stale on three fronts after Phase 5 restructure: (1) Step references off-by-one or more (loadset
+is now Step 3, not Step 2; renumbering landed via 5.0.e + 5.7.b + 5.9.a); (2) "type prefix"
+framing assumed personal-marker as primary signal — boundary analysis identified session type as a
+WU-phase property (tracked state), not personal context; (3) inference signals already live in
+the status file's existing fields, making an explicit marker a denormalization. Revised design:
+probe-side computed `sessionType` from active state as the default (rules in 6.1); SESSION-NOTES
+`**Session Type:**` field as opt-in personal override (6.2) consistent with SESSION-NOTES's
+design intent as the personal layer above tracked WU state. Original 7 subtasks folded into 5;
+PRD History entry at phase close records the design pivot from P2.1 explicit-marker-as-primary.
 
-### `[ ]` **6.1 `Working On:` type prefix formalized in SESSION-NOTES template**
+_Note:_ Empirical validation runs through Phase 6's own task work (execution sessions); planning
+and integration loadsets validated via deliberate `**Session Type:**` override spot-checks at 6.5.
 
-- _Goal:_ Template documents prefix pattern explicitly; agents writing handoff know the convention.
-    - File: `packages/arc-framework/templates/user/SESSION-NOTES.md` (plus `.arc/user/` instances —
-      note: gitignored, so only the package template ships)
-    - Document prefix pattern: `[planning: name]`, `[execution: name]`, `[integration: name]`
-    - Include one-line rationale inline (session-type awareness drives conditional load)
+### `[ ]` **6.1 Probe-computed `sessionType` + integration-signal coverage** (test-first)
 
-### `[ ]` **6.2 session-handoff writes the prefix explicitly**
-
-- Update `.arc/system/workflows/arc/session-lifecycle/session-handoff.md` to instruct the agent to
-  compute current session type and write the prefix
-- Type-resolution rules parallel Phase 6.3 inference (so handoff and init use the same logic, just
-  in opposite directions)
-- Two-copy sync
-
-### `[ ]` **6.3 Session-init inference logic (test-first)**
-
-- _Goal:_ When SESSION-NOTES is absent or prefix is missing, infer from active status file signals
-  and branch state.
-    - Placement: documented in `session-init.md` Step 2; if logic is non-trivial, extract to a CLI
-      helper (`packages/arc-framework/src/lib/session-type/`) that agent can invoke
+- _Goal:_ Composite probe envelope carries `sessionType` derived from active state; integration
+  signal (`**Next Action:** integrate-work-unit Step …`) consistently written across all entry
+  points so inference is reliable.
+    - **TS placement:** `runActiveSessionInitStatus` (or sibling helper) in
+      `packages/arc-framework/src/commands/active/status.ts`. Reads `**Task List:**` and
+      `**Next Action:**` from the resolved status file (probe is already touching `active.value`);
+      no additional I/O.
+    - **Envelope shape:**
+      `active.value.sessionType: "planning" | "execution" | "integration" | null` — null when
+      `resolution === "multiple"` (agent recomputes after disambiguation in session-init Step 3
+      item 7).
+    - **Inference rules:**
+        - `resolution === "none"` → `planning`
+        - `resolution === "multiple"` → `null` (defer)
+        - `resolution === "single"` + `**Task List:**` ∈ `{[none], [none associated], missing}` →
+          `planning`
+        - `resolution === "single"` + `**Next Action:**` matches
+          `^(integrate-work-unit|archive-work-unit)\b` → `integration`
+        - Otherwise → `execution`
+    - **Cross-root coverage:** inference runs against whichever root resolved (maintainer
+      `.arc/active/` or contributor `.arc/user/{identity}/active/`); no SESSION-NOTES dependency,
+      so identity-null path works.
+    - **Integration-signal sweep:** grep `integrate-work-unit.md`, `archive-work-unit.md`,
+      completion docs guidance, and any other handoff-writing surfaces; verify the
+      `**Next Action:** integrate-work-unit Step …` / `archive-work-unit Step …` convention is
+      consistently written. Fix gaps as small docs edits in this commit (touch only files that
+      omit the convention).
 
     Build `test-first` (one behavior at a time):
-    - Explicit prefix in SESSION-NOTES → honored without inference
-    - Active status file `**Task List:** [none]` + backlog/planning context → `planning`
-    - Active status file with incomplete task list → `execution`
-    - Active status file signals integration-ready → `integration`
-    - Branch in integration phase (e.g., branch name matches integration convention) → `integration`
-    - Between WUs with no active status file → `planning`
-    - Genuinely ambiguous signals → prompt user (surface in session-init Step 6 orientation)
+    - `resolution === "none"` → `sessionType: "planning"`
+    - `resolution === "multiple"` → `sessionType: null`
+    - `resolution === "single"` + `Task List: [none]` → `planning`
+    - `resolution === "single"` + `Task List: [none associated]` → `planning`
+    - `resolution === "single"` + `Next Action: integrate-work-unit Step 3 — push and create PR` →
+      `integration`
+    - `resolution === "single"` + `Next Action: archive-work-unit Step 1 — archive artifacts` →
+      `integration`
+    - `resolution === "single"` + `Next Action: Start Task 4.2 — write unit tests` → `execution`
+    - `resolution === "single"` + `Next Action: rotate-branch Step 2 — open intermediate PR` →
+      `execution` (lifecycle workflow but not integration)
+    - Identity null + active resolves under maintainer root → inference works
+    - Contributor role + active resolves under user root → inference works
 
-### `[ ]` **6.4 Per-type load set implementation**
+### `[ ]` **6.2 SESSION-NOTES `**Session Type:**` override field**
 
-- _Goal:_ session-init Step 2 branches on resolved session type; loadset matches updated load model.
-    - Update `session-init.md` Step 2 to key load decisions off the resolved session type
-    - Loadset specification (updated post-3.5 — PRD P2.3 table refresh folded into Task 3.10):
-        - All types: Items 1–7, active-extensions list (single grep per 3.5.b), SESSION-NOTES,
-          active status file if present. Methods not loaded at init for any session type — they
-          load at workflow trigger only
-        - Execution + Integration only: Item 10 (task list partial read)
-        - Core workflow: execution → `3_process-task-loop.md`; integration → `integrate-work-unit.md`;
-          planning → none today, forward-compatible with `refine-plan-loop.md` if Expanded Planning
-          Path WU lands
-    - Two-copy sync
+- _Goal:_ Optional opt-in override surface in SESSION-NOTES; absent (default) → probe inference
+  governs; present → supersedes for that session.
+    - **Template edit:** `packages/arc-framework/templates/user/SESSION-NOTES.md` Handoff Metadata
+      block gains optional `**Session Type:**` line below `**Commit at Handoff:**`. Adjacent
+      comment documents semantics: "Optional override; absent → inferred from tracked state. Use
+      when next session's intent diverges from what active status implies."
+    - **Validation:** value must match `planning | execution | integration` (case-insensitive).
+      Invalid → ignore + warn in orientation. No CLI-side enforcement (gitignored personal file).
+    - **`session-handoff.md` edit (both copies):** document the override field in §
+      Comprehensive Handoff Format. Explicit guidance: don't write by default — only when the
+      next session's intent diverges from what tracked state implies. Zero handoff ceremony for
+      the 99% case.
+    - **Two-copy sync:** template (single copy — adopter-facing) + `.arc/user/andrew/SESSION-NOTES.md`
+      reflects new field shape opportunistically; session-handoff.md × 2.
 
-### `[ ]` **6.5 CLI template updates**
+### `[ ]` **6.3 `session-init.md` Step 3 items 9–10 conditional on `sessionType`**
 
-- _Goal:_ `arc init` and `arc join` deliver updated SESSION-NOTES template to adopters and
-  contributors.
-    - `arc init` sources SESSION-NOTES from `packages/arc-framework/templates/user/SESSION-NOTES.md`
-      (already done in 6.1); verify initialization writes the template correctly
-    - `arc join` uses same template; verify no structural divergence
-    - Update any related CLI test fixtures if template content is asserted in tests
+- _Goal:_ Loadset switches on resolved session type. Items 1–8 unchanged.
+    - **Step 3 edit (both copies):** add a "Resolve session type" sub-step after the batch-1
+      reads (items 1–8 + active status file) and before items 9–10. Resolution precedence:
+      SESSION-NOTES `**Session Type:**` (if present and valid) supersedes
+      `active.value.sessionType` from envelope; otherwise envelope value governs. When
+      `resolution === "multiple"`, recompute from chosen candidate after disambiguation.
+    - **Item 9 (task list partial read):** add gate "Skip if `sessionType === "planning"`"
+      alongside the existing "Skip if `**Task List:** [none]`" gate (the latter becomes
+      redundant under inference but stays as defense-in-depth — direct shape check, no
+      coupling to inference logic).
+    - **Item 10 (workflow):** branch on type — `execution` → `3_process-task-loop.md` (current
+      behavior); `integration` → `integrate-work-unit.md`; `planning` → none today
+      (forward-compatible with `refine-plan-loop.md` if Expanded Planning Path WU lands).
+    - **Contributor scope:** out-of-scope for Phase 6. Contributors do execution-type project
+      work by default; per-type loadset gain is marginal against the additional surface.
+      `session-init.contributor.md` (both copies) gets a one-line note explicitly excluding
+      session-type inference from the contributor path.
+    - **Two-copy sync:** `session-init.md` × 2 + `session-init.contributor.md` × 2.
 
-### `[ ]` **6.6 Session-type test coverage**
+### `[ ]` **6.4 Test coverage**
 
-- Unit: inference logic test cases from 6.3 (expand if new cases surface)
-- Integration: session-init with explicit prefix, with inferred prefix, with ambiguous signals
-  (expected: user prompt)
-- E2E: fresh session-init across each type variant produces the correct load set (assert loaded
-  files / skipped files per PRD P2.3)
+- _Goal:_ Inference + override + loadset substitution exercised at all three test tiers.
+    - **Unit:** covered by 6.1 test-first behaviors; expand only if new edge cases surface
+      during 6.3 implementation.
+    - **Integration:** composite probe envelope carries correct `sessionType` across each
+      active-state shape (mirrors 6.1 unit cases at integration tier with real status files).
+      Override precedence: SESSION-NOTES `**Session Type:**` value supersedes envelope inference
+      when both present; invalid override value → envelope value used + warning.
+    - **E2E:** fresh session-init across each type variant (planning / execution / integration)
+      produces the correct loaded-files / skipped-files set per the loadset rules in 6.3. One
+      override scenario (e.g., status file implies execution, SESSION-NOTES override sets
+      planning → planning loadset).
+    - Two-copy sync where test fixtures or templates touched.
 
-### `[ ]` **6.7 Phase 6 close — Tier 3 quality gates + empirical observation note**
+### `[ ]` **6.5 Phase 6 close — Tier 3 quality gates + observation note + PRD History**
 
-- Full quality gate pass
-- Record empirical observation: did the minimal load set suffice for each session type operated
-  during 6.1–6.6 work? Append to notes file. Any adjustments applied as revisions (R-scheme) to
-  Phase 6 tasks
+- _Goal:_ Phase close with deliberate non-default loadset spot-checks; PRD reflects design pivot.
+    - Full Tier 3 quality gate pass.
+    - **Empirical observation:** record whether the minimal load set sufficed for execution
+      sessions operated during 6.1–6.4 work. Append to `notes-session-init-optimization.md`. Any
+      adjustments applied as revisions (R-scheme) to Phase 6 tasks.
+    - **Planning + integration spot-checks:** temporarily set SESSION-NOTES `**Session Type:**`
+      override to validate the planning and integration loadsets without staging full WU shifts.
+      Confirm correct loadset; record any insufficiency observations.
+    - **PRD History entry:** add row noting the design pivot — P2.1 originally specified
+      explicit `Working On:` prefix as primary signal; revised to probe-side inference as
+      default with SESSION-NOTES `**Session Type:**` override as opt-in personal layer
+      (preserves SESSION-NOTES boundary; eliminates marker drift surface; reduces handoff
+      ceremony to zero in default case).
 
 ---
 
