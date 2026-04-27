@@ -9,8 +9,6 @@
 
 ---
 
-## Tasks
-
 ## **Phase 1:** Workflow Trigger Contract + Per-File Restructure + CI Enforcement
 
 _Purpose:_ Establish the workflow→method/extension trigger contract end-to-end — structural YAML frontmatter schema,
@@ -1549,1148 +1547,416 @@ restructure.
 
 ---
 
-### **Phase 5:** Worktree-Sync Completion + Partial-Read Narrowing + Session-Init Workflow Restructure
+## **Phase 5:** Worktree-Sync Completion + Partial-Read Narrowing + Session-Init Workflow Restructure
 
-**Purpose:** With Phase 3.R.e + Task 5.0 closing the remote-sync detection half, this phase tightens
+_Purpose:_ With Phase 3.R.e + Task 5.0 closing the remote-sync detection half, this phase tightens
 the always-loaded surface — task-list authoring shape (5.2), per-document partial-reads (5.1, 5.3–5.5),
 companion-file paths via composite probe (5.6), `{AGENT}.ARC.md` retirement and `system/agent/` →
 `system/briefs/` rename (5.7) — then restructures `session-init.md` Step 2/4/7 against Phase 4 audit
 outcomes (5.8).
 
-**Design decisions:** Per-rule reliability gate for DEV-RULES section partial-reads — default up-front
+_Design decisions:_ Per-rule reliability gate for DEV-RULES section partial-reads — default up-front
 load; shift to conditional only where trigger is clear. Two-copy sync standard for markdown edits;
 Task 5.6 is TS-only (no markdown sync concern).
 
-- [x] **5.0 Worktree-sync detection at session-init — completes 3.R.e scope** — done
-
-    **Outcome:** Worktree drift detection lands across the full session-init pipeline. `runWorktreeSyncStatus`
-    (5.0.a) classifies local-vs-`origin/<branch>` drift into a 9-state enum with bounded fetch; flat-dotted
-    `session.init_pull.worktree` / `session.init_pull.notes` config (5.0.b) governs per-channel pull policy
-    with parser-level `always`-on-worktree rejection. `arc status --session-init --json` (5.0.c) carries a peer
-    `worktree` slot and attaches a `clean-at-current-head` qualifier on the user channel when worktree=remote-ahead
-    and user=clean. `arc user status` and `arc sync` (5.0.d) share `formatWorktreeQualifierLine` to emit drift
-    qualifiers across the user-facing notes-status surfaces; offline and disabled paths handled. Session-init.md
-    (5.0.e, both copies) consumes the envelope end-to-end — Step 2 envelope table, Step 3 dual-channel pull surface
-    with dirty-tree precheck and combined-prompt, Step 7 conditional `Reconcile required:` / `Local-ahead:` inserts,
-    Step 8 Tier 1 diverged example. Integration coverage (5.0.f) verifies real-exec composition through the
-    composite orchestrator and `runUserStatus`. ADR-012 amendment, `arc-config.yml` cross-references, and CLI
-    help text (5.0.g) close out the doc surface. Per-subtask outcomes carry implementation detail; this block
-    summarizes the rolled-up scope.
-
-    **Goal:** Session-init detects and reports local-vs-remote worktree drift with the same rigor as user-notes
-    drift. Extends the existing `session.remote_sync` gate and Step 2 probe architecture to the branch channel,
-    closing the gap where a stale worktree produces a misleadingly-confident orientation.
-
-    **Context:** Phase 3.R.e pulled forward the notes half of the original Task 5.0 scope during the multi-machine
-    dogfooding that surfaced the git-notes staleness failure. The worktree half was not carried forward: session-init
-    reports user-notes drift but remains silent on the underlying branch drift that causes it. In practice, when the
-    local branch is behind origin, (a) the agent loads stale tracked context (status file, task list, PRD, notes) and
-    reports confidently on obsolete state, and (b) the notes probe's "clean" verdict is truthful only with respect to
-    reachable ancestors, so notes attached to unfetched commits are invisible and unreported. The same truthfulness
-    bound affects any notes-status surface run outside a session-init flow — `arc user status`, direction reporting
-    in `arc sync` — so a "clean" verdict there can be misread as "fully up-to-date" when the check is bounded by a
-    stale worktree. External research (2026-04-23, captured in `notes-session-init-optimization.md` § Phase 5.0
-    Worktree-Sync Research) validated the UX shape: fetch-on-init gated by an opt-in config, `prompt` default, no
-    `always` mode for worktree, combined prompt when both channels drift, fast-forward only.
-
-    **Design decisions (resolved pre-implementation):**
-    - Narrow fetch scope: `git fetch origin <current-branch>` only; not a whole-remote fetch
-    - Bounded fetch timeout (3s default) with `remote-unavailable` on timeout; session-init continues
-    - Additive config: new `session.init_pull.worktree` and `session.init_pull.notes`, each
-      `manual | prompt | always`. `always` is not a valid value for `worktree` (validation rejects it).
-      Defaults `prompt` for both
-    - Master gate stays `session.remote_sync` — if disabled, both channels skip entirely
-    - Probe layer reports state only; prompt/pull orchestration lives in the session-init workflow, not in the
-      CLI probe surface
-    - Worktree pull sequence precedes notes pull when both channels drift — notes ancestor walk depends on HEAD
-      being current
-    - Dirty working tree with remote-ahead: prompt warns explicitly; no auto-stash, no auto-pull override
-    - Divergence non-blocking: surfaced as a distinct top-level orientation section (not folded under `Blockers`);
-      session-init continues with local state; agent carries the divergence forward as an active constraint
-    - `local-ahead` on worktree: no prompt (matches the asymmetry in `user.sync_push` — pushing is intentional,
-      not a session-init concern); surfaces as a single informational line in orientation
-    - No widening of `arc sync` — worktree drift is strictly a session-init-time concern; outside sessions users
-      use plain `git` (`git fetch`, `git pull --ff-only`)
-    - Tracking-ref strategy: `git fetch origin <branch>` safely updates `refs/remotes/origin/<branch>` without
-      mutating HEAD or the local branch ref. No temp-ref gymnastics needed (contrast with notes, where temp-ref
-      was required to avoid mutating the live local note ref)
-    - No new persistent state file: worktree state is a pure git comparison (local HEAD vs tracking ref) — git's
-      own refs are the state store. `.sync-state.json` remains user-notes-specific (disk-vs-manifest reconciliation)
-    - Reporting honesty across surfaces: all user-facing notes-status outputs (session-init JSON envelope via
-      5.0.c, `arc user status` and `arc sync` direction reporting via 5.0.d) carry a qualifier when the worktree
-      probe indicates drift. A "clean" notes verdict stays accurate but is no longer misreadable as "fully
-      up-to-date" when the check is bounded by a stale worktree
-
-    - [x] **5.0.a Worktree sync state inspection (probe)**
-
-        **Outcome:** `runWorktreeSyncStatus` shipped at `packages/arc-framework/src/lib/git/worktree-sync.ts`
-        with companion 10-test unit suite at `__tests__/unit/git/worktree-sync.test.ts`. All 10 documented
-        behaviors GREEN; 840/840 unit total. Result shape: `{state, ahead, behind, failureReason?}`. State
-        enum: `skipped | clean | remote-ahead | local-ahead | diverged | no-upstream | detached-head |
-        no-remote | remote-unavailable`.
-
-        **Implementation decisions:**
-        - `failureReason: "timeout" | "error"` (optional, omitted outside `remote-unavailable`) added to
-          satisfy "distinguishing detail" for the fetch-error behavior — 5.0.c/5.0.d consumers can surface
-          this without cluttering the basic state contract.
-        - `GitExec` extended with optional `signal: AbortSignal` via new `GitExecOptions`; `gitExec`
-          runtime forwards to `execFileAsync`. Backward-compatible (TS function-type variance).
-          `GitExecOptions` re-exported from `lib/git/index.ts` alongside the worktree-sync types.
-        - Probe sequence: detached-head check → upstream lookup → origin existence (only when upstream
-          missing) → bounded fetch (`DEFAULT_FETCH_TIMEOUT_MS = 3000`) → ahead/behind count → classify.
-        - `boundedFetch` helper isolates AbortController + timer; uses `signal.aborted` to distinguish
-          timeout from other errors post-catch.
-
-        **Test batching:** RED→GREEN in three rounds — (1) disabled short-circuit alone; (2) happy-path
-        state mapping from counts (clean, remote-ahead, local-ahead, diverged share one classifier); (3)
-        pre-fetch degraded states (no-upstream, detached-head, no-remote share short-circuit pattern);
-        (4) fetch failure modes (timeout + error share the GitExec-extension concern). Per process-task-loop
-        "batching judgment": tightly-coupled behaviors with no independent discovery value batched into
-        their natural unit, RED-GREEN cycle preserved per round.
-
-    - [x] **5.0.b Config schema + types for init_pull channels**
-
-        **Outcome:** Flat-dotted keys `session.init_pull.worktree` and `session.init_pull.notes` parse,
-        validate, and default to `prompt` end-to-end. TypeScript reader (`lib/config/status-reader.ts`)
-        substitutes the documented default and surfaces a parse-time diagnostic in `ReaderResult.errors`
-        for invalid enum values; on absence, records the key in `defaultsApplied`. Shell-side
-        `validate-config.sh` rejects invalid values via per-key enum entries; the missing
-        `session.remote_sync` enum was backfilled opportunistically.
-
-        **Implementation decisions:**
-        - Validation lives in the reader, not in `parseArcConfig`. New `ENUM_VALIDATORS` table in
-          `status-reader.ts` carries the per-key allowed sets — extending the table is the way to
-          add future parser-level enum checks. `parseArcConfig` stays a flat key/value reader.
-        - Invalid values fall back to the documented default in `settings`, push to `errors`, but do
-          NOT enter `defaultsApplied`. `defaultsApplied` keeps its meaning of "absent in the file";
-          consumers reconcile via `errors` when they care about the substitution.
-        - "Cross-field" rejection of `always` on worktree is achieved by separate per-key enum sets
-          (worktree: `manual | prompt`, notes: `manual | prompt | always`) — no special-casing.
-        - `ConfigSettings` grew from 13 to 15 keys; `ConfigSessionInitSettings` grew from 5 to 7.
-          Hardcoded counts in two unrelated test fixtures (`status-format.test.ts`,
-          `config-format.test.ts`) updated. Settings literals in `status/run.test.ts` and
-          `status-format.test.ts` extended to keep `ConfigSettings`-typed fixtures complete.
-        - Two-copy sync covers `arc-config.yml`, `validate-config.sh`, and the shell-side
-          `known_keys` allowlist (also extended for the backfilled `session.remote_sync`).
-        - `arc init` / `arc init --reconfigure` render both keys via the existing template +
-          `renderConfigOverrides` pipeline — no init-prompt addition; both flow paths emit defaults.
-
-        **Test batching:** All 7 reader behaviors batched into a single round (tightly coupled —
-        single function, shared fixture, derive-validation-contract together). Envelope and init
-        rendering tested as additive integration tests reusing fixture setup. Per process-task-loop
-        "batching judgment".
-
-        **Quality gates:** Tier 1 clean — `lint:ts`, `lint:sh`, `typecheck` (src + test),
-        `test:unit` 849/849, full `npm test` 46/46 e2e+integration. Live
-        `validate-config.sh` against `.arc/system/arc-config.yml` passes the new enum entries;
-        smoke-tested rejection of `always` on worktree, unknown values on notes/worktree, and
-        invalid `session.remote_sync` against a temp fixture.
-
-    - [x] **5.0.c Composite probe envelope — worktree field + notes qualifier**
-
-        **Outcome:** `arc status --session-init --json` carries a peer `worktree` slot alongside `user`,
-        wrapped in `Probe<WorktreeSyncStatusResult>` like the other slots; `user.value` carries an optional
-        `qualifier: "clean-at-current-head"` when the worktree probe says `remote-ahead` and the user probe
-        says `clean`. All probes run in parallel via the existing `Promise.all` orchestration.
-
-        **Implementation decisions:**
-        - Cross-channel qualifier is computed in the composite (`runSessionInitStatus` post-processes the
-          resolved slots) rather than in the user probe, because the user probe must remain independently
-          reusable for `runStatus` and `arc user status`. The user probe doesn't need to know about
-          worktree state; the composite owns the cross-slot reasoning.
-        - `qualifier` is an optional field on `UserSessionInitStatusResult` — omitted (not `null`) when not
-          applicable. New `UserSessionInitQualifier` type narrows the value space; future qualifiers can
-          extend the union without changing the carrier shape.
-        - `WorktreeSyncStatusResult` is the same shape produced by 5.0.a's `runWorktreeSyncStatus` — no
-          slot-specific reshape; the probe value flows through unchanged.
-        - Worktree slot positioned between User and Extensions in both the type ordering and the Clack
-          formatter — the two channels are surfaced as a notes-vs-worktree pair, then the per-install
-          probes follow.
-        - Handler reuses the same `remoteSyncEnabled` flag for both probes — no second config read.
-
-        **Test batching:** All 7 behaviors batched in a single round (orchestration concerns, single
-        function, shared probe-fixture factory; no independent discovery value across slices). Per
-        process-task-loop "batching judgment".
-
-        **Quality gates:** Tier 1 clean — `lint:ts`, `typecheck` (src + test), `test:unit` 859/859, full
-        `npm test` 46/46 e2e+integration, `npm run build` succeeds. Live `npx arc status --session-init
-        --json` against the working tree confirms the envelope shape: `worktree` peer slot with
-        `state: local-ahead, ahead: 3, behind: 0`, user slot has no qualifier (correct — worktree is
-        `local-ahead`, not `remote-ahead`).
-
-    - [x] **5.0.d CLI status reporting surfaces — worktree qualifier**
-
-        **Outcome:** `runUserStatus` orchestrates the worktree probe in parallel with the existing notes/disk
-        probes when `session.remote_sync` is enabled and `--offline` is not set; result is appended to
-        `UserStatusResult.detailLines` (and surfaced as a peer `worktree` field on the JSON result for
-        consumers). `arc sync` reads the same config gate and emits the qualifier as a `p.log.info` line via
-        the shared `formatWorktreeQualifierLine` helper before action dispatch — so isolated CLI invocations
-        no longer read "fully up-to-date" when the verdict is truthful only with respect to reachable
-        ancestors. No new headline values; qualifier is purely additive detail.
-
-        **Implementation decisions:**
-        - Worktree probe call lives inside `runUserStatus`, gated on `!offline && remoteSyncEnabled` (added
-          to `UserStatusOptions`). Reuses `io.exec` — no new injection points; keeps the layer testable via
-          the same fake-exec pattern already established for the notes probes.
-        - `formatWorktreeQualifierLine` is a pure helper exported from `commands/user/sync-status.ts` and
-          re-exported through `commands/user.ts`. Both `arc user status` (via `buildUserStatusResult`) and
-          `arc sync` (via the handler) call it — single source of truth for the qualifier vocabulary.
-        - Offline branch: emits the skip note only when `remoteSyncEnabled === true`; disabled config stays
-          silent. Distinguishes "user opted out for this run" from "feature not wired up".
-        - `remote-unavailable` carries through to a softer "comparison unavailable" qualifier rather than
-          silencing — the detail explains why the verdict is approximate.
-        - Healthy non-drift states (`clean`, `local-ahead`, `no-upstream`, `detached-head`, `no-remote`,
-          `skipped`) emit no qualifier — only `remote-ahead` / `diverged` / `remote-unavailable` carry
-          actionable signal.
-        - `arc sync` calls `runWorktreeSyncStatus` once alongside `inspectUserSyncState` via `Promise.all`,
-          so the probe doesn't serialize behind the notes inspection.
-        - `UserStatusResult.worktree` is optional — omitted when no probe ran, so existing JSON consumers and
-          test fixtures don't need to know about the new field.
-
-        **Test batching:** All 9 behaviors (8 status, 1 sync) batched in a single round — orchestration
-        concerns over a single function plus a single handler, shared probe-fixture pattern, no
-        cross-behavior discovery value. Per process-task-loop "batching judgment".
-
-        **Quality gates:** Tier 1 clean — `lint:ts`, `typecheck` (src + test), unit suite 876/876 (was 859;
-        +17 new across `user-status.test.ts` and `sync.test.ts`), full `npm test` 46/46, `npm run build`
-        succeeds. Live smoke: `npx arc user status` (worktree clean → no qualifier), `npx arc user status
-        --offline` (skip note rendered), `npx arc user status --json` (JSON envelope carries the new
-        `worktree` peer field).
-
-    - [x] **5.0.e Session-init workflow rewrite — Step 2/3/7/8**
-
-        **Outcome:** `session-init.md` (both copies) now consumes the worktree envelope slot end-to-end.
-        Step 2 envelope table documents the new `worktree` field (state vocabulary + `ahead`/`behind`
-        semantics) and notes the cross-channel qualifier on the `user` row's `value.detailLines`; the
-        `config` row was updated to list the two new `session.init_pull.*` keys. Step 3 renamed to
-        "Conditional Sync Pulls" and split into two channel-keyed bullet lists with a dirty-tree
-        porcelain precheck preceding any prompt and a combined-prompt section for the both-channels-
-        remote-ahead case (worktree pulls first, notes envelope re-evaluated after); divergence routes
-        to a non-blocking carry-forward, `local-ahead` to a single informational line. Step 7 grew a
-        `Conditional top-level sections` block defining `Reconcile required:` (when diverged) and
-        `Local-ahead:` (when local-ahead) as inserts above `Active work state:`, with literal text
-        templates the agent can fill at orientation time. Step 8 trust hierarchy gained a Tier 1
-        diverged-worktree example reinforcing git-as-ground-truth and the carry-forward treatment.
-
-        **Implementation decisions:**
-        - Worktree-first ordering for the combined prompt is documented as workflow contract, not just
-          probe-layer behavior — the agent re-probes the notes channel after the worktree pull so the
-          notes decision walks from the new HEAD (avoiding the stale-comparison case 5.0.c was designed
-          to flag).
-        - Combined prompt offers per-channel choices (`pull both / worktree only / notes only / skip`)
-          rather than a single yes/no, preserving user control when one channel is dirty or one pull is
-          undesired.
-        - Mode handling delegates to envelope `config.value.settings` rather than re-reading config;
-          both channel sections key on their respective `session.init_pull.*` value (`prompt` /
-          `manual`, plus `always` for notes only — `always` is rejected for worktree per 5.0.b).
-        - No auto-stash. Dirty-tree precheck adds explicit warning text to the prompt; user resolves
-          manually before accepting. No `--autostash` flag, no clobber-stash fallback.
-        - `Reconcile required:` placed above `Active work state:` (top-level peer of the work-state
-          block, not folded under `Blockers`) so the constraint is visible immediately and the agent
-          carries it forward as a session-scoped constraint against later commit/push requests.
-        - `Local-ahead:` is a single informational line (not a multi-line section) — lower visual weight
-          matches the lower urgency.
-        - Tier 1 example keeps the diverged-worktree case in the auto-recover band rather than
-          escalating to Tier 2 (which would halt session-init); the design is that the agent surfaces
-          and proceeds, not that it stops.
-        - No external doc references to the old "Conditional Sync Pull" name needed updating (verified
-          by grep across `.arc/` and `packages/arc-framework/arc/`).
-
-        **Two-copy sync:** `.arc/system/workflows/arc/session-lifecycle/session-init.md` and
-        `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/session-init.template.md`.
-        Diff shows expected template-vs-rendered differences only (`{{REPO_ROOT}}` placeholder plus
-        three `<!-- arc:if -->` conditional blocks for `team.mode` / `pm.mode`).
-
-        **Quality gates:** Tier 1 — markdown lint clean on both copies (table alignment normalized via
-        `markdown-table-prettify` after envelope-row additions broke MD060). No code changes; no test
-        suite or build needed at this tier.
-
-        **Streamlining pass:** Initial draft added ~50 net lines to session-init.md; post-review
-        compression cut that to ~39 by removing duplicated narrative (worktree-first ordering stated
-        in both opener and combined-prompt section), tightening verbose phrasing in the dirty-tree
-        precheck, collapsing the diverged-bullet narrative that duplicated Step 7's carry-forward
-        treatment, condensing the `Reconcile required:` template body (4 prose lines → 2), and
-        trimming the Step 8 mismatch example. State vocabulary, mode→action mappings, and
-        `remote-unavailable` failure-mode disambiguation kept verbatim — no operational meaning
-        sacrificed.
-
-    - [x] **5.0.f Integration test coverage**
-
-        **Outcome:** Six integration scenarios shipped — four extending
-        `__tests__/integration/status.test.ts` (composite envelope with the real `runWorktreeSyncStatus`
-        replacing the prior stub at line 185), two extending `__tests__/integration/user.test.ts`
-        (`runUserStatus` real-exec worktree drift). Suite counts: status integration 4 → 8 tests,
-        user integration 37 → 39 tests. Full unit + integration + e2e suite remains green.
-
-        **Composite-envelope scenarios (`__tests__/integration/status.test.ts` § "real worktree probe"):**
-        - Worktree clean + bare-remote in sync → `worktree.state === "clean"`, ahead/behind 0/0,
-          no qualifier on user
-        - Bare remote ahead by 1 (`commit; push; reset --hard HEAD~1`) → `worktree.state ===
-          "remote-ahead"`, `behind === 1`, `user.value.qualifier === "clean-at-current-head"`
-        - No origin configured → `worktree.state === "no-remote"`, user channel independent
-        - `remoteSyncEnabled: false` (proxy for `session.remote_sync: disabled`) → `worktree.state
-          === "skipped"`, `user.state === "disabled"` (distinct vocabularies preserved per design)
-
-        **`runUserStatus` real-exec scenarios (`__tests__/integration/user.test.ts` § "user status"):**
-        - Bare remote ahead by 1 → `detailLines` contains "Worktree is behind origin by 1 commit(s).";
-          `result.worktree.state === "remote-ahead"`, `behind === 1`
-        - Same fixture with `offline: true` → `detailLines` contains "Worktree remote comparison
-          skipped (`--offline`); reported state reflects local refs only."; `result.worktree`
-          omitted (no probe ran)
-
-        **Implementation decisions:**
-        - Reused existing `Fixture` shape from `createFixture()` and added two thin helpers
-          (`gitInit` running `git init` + identity config + initial empty commit; `pushToBareRemote`
-          mirroring the published `addBareRemote` shape but local to the status suite). Kept these
-          inline rather than promoting to `helpers/integration.ts` — both consumers live in one file
-          and the existing helper is already exported for the user-suite pattern; consolidation is
-          premature.
-        - Drift production for the remote-ahead scenario uses `commit → addBareRemote → reset --hard
-          HEAD~1` rather than `git update-ref` against the bare dir. Slightly more git operations
-          but stays inside the same fixture cwd — no need to bind a second `gitExec` to the bare
-          remote dir or compute commit hashes by hand.
-        - User-channel state for the `remote_sync: disabled` scenario is supplied by the stub
-          (`stubUserSessionInit(identity, "disabled")`) — proves the orchestrator doesn't synthesize
-          the `disabled` state itself, which is correct: that's the user probe's responsibility per
-          5.0.c's separation-of-concerns decision.
-        - The `runUserStatus` tests assert against `result.worktree` (typed peer field) plus
-          `detailLines` rather than rendered summary text — same convention as the unit suite.
-
-        **Pre-existing coverage cross-referenced (not duplicated):** Per-state classifier matrix at
-        `__tests__/unit/git/worktree-sync.test.ts` (10 tests); composite orchestrator wiring +
-        qualifier propagation at `__tests__/unit/status/run.test.ts` (6 tests); `buildUserStatusResult`
-        qualifier vocabulary + `--offline` substitute + remote-unavailable softening at
-        `__tests__/unit/user-status.test.ts`; `handleSync` qualifier emission at
-        `__tests__/unit/sync.test.ts`. Fetch timeout / error fault injection kept unit-only — cannot
-        be reproduced reliably at integration tier without partial exec mocking. `arc sync`
-        integration kept out of scope — `p.log.info` emission is only assertable with the Clack
-        mocks already plumbed at unit tier.
-
-        **Test batching:** All 6 scenarios batched per process-task-loop "batching judgment" —
-        tightly coupled (single integration tier, fixture-builder pattern, no independent discovery
-        value across slices). Configured-state setup dominates per-test time; one-at-a-time would
-        just multiply scaffolding without surfacing additional behavior.
-
-        **Quality gates:** Tier 2 — `lint:ts` clean, `lint:md` clean (223 files), `typecheck` (src +
-        test) clean, full `npm test` 46/46 (8 e2e + integration files), `npm run build` succeeds.
-        Status integration: 8/8; user integration: 39/39.
-
-    - [x] **5.0.g Documentation + ADR + config comment sync**
-
-        **Outcome:** ADR-012 amendment (2026-04-25) added — distinguishes worktree from notes channel
-        as peer concerns at session-start, names per-channel governance keys (`session.init_pull.*`),
-        documents the worktree-channel `always`-mode rejection, and points at session-init.md for the
-        combined-prompt logic. `arc-config.yml` inline comments (both copies) now carry a one-line
-        cross-reference to session-init.md § Conditional Sync Pulls on each `session.init_pull.*`
-        block — terse, with deeper rationale deferred to the ADR per the design note about
-        future-proofing against a possible `notes` rename. `arc user status` CLI help text updated:
-        main description names the worktree-drift qualifier; `--offline` description clarifies that
-        both probes are skipped. Release-notes-style writeup redirected to plan-docs-content-sweep.md
-        (§ Content Contributions #7) — this project doesn't ship release notes in-repo, and the docs
-        site is the public-facing surface for "what's new" copy. Cross-reference scan turned up no
-        other docs referencing `session.remote_sync` or Phase 3.R.e behavior outside the WU's own
-        notes/tasks files.
-
-        **Implementation decisions:**
-        - ADR-012 amendment placed after the 2026-04-22 amendment (chronological sequence preserved)
-          and uses the same structural shape as the prior amendment block. Frames worktree-as-distinct
-          channel without superseding the notes-channel decision — both coexist as peer governance
-          surfaces under the unified user-directory model.
-        - `arc-config.yml` cross-reference is a single line per channel block, not a re-explanation of
-          modes (modes are already documented in the existing comments). One-line addition keeps
-          future renames (e.g., `session.init_pull.notes` → `session.bootstrap.*` per Phase 6 gate-model
-          consolidation) a trivial edit.
-        - `arc user status` description change is minimal — appended a parenthetical, did not bloat
-          the line. `addHelpText("after", ...)` was considered but skipped: no other command in cli.ts
-          uses it, and adding the first instance for a single qualifier is disproportionate. The
-          worktree-drift qualifier appears in actual command output; help text just signals that it
-          exists.
-        - "Soft `remote-unavailable` fallback" omitted from CLI help — that's implementation behavior
-          (5.0.d auto-degradation when probe times out), not a user-facing flag. Documenting it in
-          help would be awkward and out of register with other `--help` text.
-        - plan-docs-content-sweep.md entry follows the established "Content Contribution" shape from
-          #5 (agent-native positioning): what changed / input type / suggested destinations /
-          authoritative sources / nuance. Numbered #7 per shared-sequence convention (last entry was
-          Drift Item #6). Document History row added.
-
-        **Two-copy sync:** `arc-config.yml` (both copies) — diff confirms expected project-specific
-        value overrides only (`branch.protection`, `hooks.test_patterns`, `hooks.meta_ref_patterns`),
-        no comment-block divergence. ADR-012 lives in `.arc/reference/adr/` only (package source has
-        only README.md under `packages/arc-framework/arc/reference/adr/`).
-
-        **Quality gates:** Tier 2 — markdown lint clean (223 files), `lint:ts` clean, `typecheck`
-        (src + test) clean, `test:unit` 876/876, full `npm test` 46/46 (8 e2e + integration files),
-        `npm run build` succeeds. CLI smoke test (`npx arc user status --help`) confirms the new
-        description renders cleanly.
-
-- [x] **5.1 QUICK-REFERENCE partial-read at session-init + template structural alignment**
-
-    **Goal:** Session-init reads only `## Environment & Path Context` (subsumes the `### Runtime Environment`
-    H3 nested inside it). Other sections — `Command Patterns`, `Quality Gate Commands`, `ARC CLI Commands`,
-    `npm Publishing` — load on demand via existing prose pointers in workflows. No new structural trigger
-    contract: QUICK-REFERENCE is reference material consulted ad-hoc, not behavior injected at workflow steps.
-
-    **Design decision (resolved pre-implementation):** Hybrid favoring strategy-index-style awareness — load
-    `## Environment & Path Context` always; rely on existing prose pointers (`rotate-branch.md`,
-    `integrate-planning-branch.md`, `deactivate-work-unit.md`, etc.) for everything else. Rejected: (A)
-    structural Phase-1-style triggers (overkill — methods/extensions earn their declaration contract because
-    workflows must inject behavior at deterministic points; QUICK-REFERENCE doesn't drive behavior),
-    (C) full-load with content tightening (template already clean and agnostic; populated `.arc/` value not
-    worth tightening if the section isn't always loaded). Captured in `notes-session-init-optimization.md`
-    § Phase 5 Partial-Read Design Decisions.
-
-    - [x] **5.1.a Session-init.md narrowing**
-        - Step 4 item 7 reshaped to **section-level partial read**: `## Environment & Path Context`
-          only (subsumes `### Runtime Environment`)
-        - Reading-rule preamble updated to enumerate both partial reads (item 7 + item 10) so the
-          full-read default still reads cleanly
-        - Two-copy sync verified byte-identical across `session-init.md` and `session-init.template.md`
-          (Step 4 region diff clean)
-        - Tier 1: `lint:md` clean on both modified files
-
-    - [x] **5.1.b QUICK-REFERENCE template structural alignment**
-        - Awareness note added inside `## Environment & Path Context` in both copies, placed between the
-          repository-root frontmatter and `### Critical Path Reference`. Template variant lists the three
-          framework-universal sections (`Command Patterns`, `Quality Gate Commands`, `ARC CLI Commands`);
-          `.arc/` variant additionally names `npm Publishing` (project-specific). Divergence intentional —
-          template stays tech-stack-agnostic
-        - Tier 2 slot inserted into `Quality Gate Commands` between T1 and T3 in the template — placeholder
-          commands (`[md_lint_command_all]`, `[lint_command_all]`, `[type_check_command_all]`,
-          `[test_command_all]`) matching the existing T1/T3 placeholder convention. `.arc/` already had T2
-          populated — no edit needed there
-        - Template re-verified bare-bones: no Prettier section, no MD060 tooling, no `npm Publishing`, no
-          project-specifics. Section-heading shape now matches across both copies (T1 + T2 + T3 symmetric)
-        - Tier 1: `lint:md` clean on both modified files
-
-    - [x] **5.1.c Verify callers**
-        - Workflow-tree grep hit ~30 `QUICK-REFERENCE` mentions across `.arc/system/workflows/`,
-          `.arc/reference/strategies/`, `.arc/reference/constitution/`, plus package counterparts.
-          Triaged into: load-on-demand pointers (the in-scope target for promotion),
-          file-level/meta-descriptive references (file purpose, classification, capture-routing
-          targets), and initial-setup workflows (which create QUICK-REFERENCE rather than load it)
-        - **Bare pointers promoted to `§ Platform Commands`** (joining the
-          `rotate-branch.md:42` pattern):
-            - `system/workflows/arc/work-unit-lifecycle/deactivate-work-unit.md` (line 58 code-block
-              comment)
-            - `system/workflows/arc/work-unit-lifecycle/planning/integrate-planning-branch.md`
-              (line 75 platform note)
-            - `reference/strategies/arc/strategy-configurability-architecture.md` (line 147 agent
-              discovery; line 371 platform-notes meta-prose preceding the canonical example;
-              line 392 platform config setting)
-        - **Out of scope (descriptive/capture-routing references — left untouched):**
-          `session-handoff.md:266` and `integrate-external-content.md:106` (where to _write_
-          durable lessons, not where to read them); `02_define-project.md` and
-          `01_verify-and-configure.md` initial-setup mentions; `strategy-quality-gates.md`,
-          `strategy-session-operations.md`, `strategy-package-project-sync.md`,
-          `strategy-file-classification.md`, `strategy-testing-methodology.md`, and
-          remaining `strategy-configurability-architecture.md` mentions describing
-          QUICK-REFERENCE's role rather than directing a load
-        - **Platform Commands conditional-rendering gap** (workflows naming `§ Platform Commands`
-          while the section is gated `platform.type != github`) remains captured in
-          `user/andrew/ATOMIC-INBOX.md` — orthogonal to caller verification; needs framework-level
-          decision on conditional-section pattern
-        - All edits two-copy synced (`.arc/` ↔ package source); per-file diffs clean
-        - Acceptance met: every workflow-tree QUICK-REFERENCE load-pointer either inlines the
-          content directly or names the section
-
-- [x] **5.2 Task list preamble shape codification + one-time cleanup**
-
-    **Goal:** PRD becomes canonical for Scope (Will Do / Won't Do); task-list `## Overview` and `## Scope`
-    blocks collapse into a one-line `**Purpose:**` field in the Header; phase-preamble shape codified so the
-    boundary contract in 5.3 lands on a tightened authoring spec rather than ratifying current sprawl.
-
-    **Rationale:** PRD is canonical for Scope but isn't loaded at session-init; task lists currently mirror PRD
-    Scope as the every-session-read derivative — inverting the canonical hierarchy. The on-demand-via-prose-pointer
-    pattern from 5.1 (`§ Platform Commands`) extends naturally: task-list Header carries a one-line Purpose
-    summary; agent loads PRD § Scope when scope decisions arise. Boundary contract in 5.3 becomes Header +
-    current phase preamble + current task — significantly leaner than the prior shape (Header, Overview, Scope,
-    phase preamble, current task).
-
-    - [x] **5.2.a Authoring shape edits**
-        - `template-tasks.md` (both copies): Feature/Technical skeleton dropped `## Overview` and `## Scope`
-          blocks; added `**Purpose:**` one-line field to the Header bullet list (after PRD / Branch / Base
-          Branch). Prose intro for the variant updated to name PRD as canonical for Scope. Incidental
-          variant untouched
-        - `strategy-task-list-formatting.md` (both copies): § Task List Headers — Feature/Technical bullets
-          gained a `**Purpose:**` line; Incidental bullets call out `## Context` replacing the Purpose
-          field and explicitly retain `## Scope`; the "Both variants: `## Scope`" wrap-up rewritten to drop
-          Scope (now Incidental-only). Added new `### Phase Preamble` sub-section under Format Elements
-          Reference, slotted between Phase Headers and Parent Tasks: required `**Purpose:**` line, optional
-          `**Design decisions:**` block linking to `notes-{name}.md`, ~12-line soft cap
-        - `2_generate-tasks.md` Step 4 checklist (both copies — `.template.md` paired): two new items at the
-          top of the checklist — Header `**Purpose:**` field (with Feature/Technical vs. Incidental
-          carve-out) and phase-preamble shape. § Task List Format parenthetical refreshed from
-          "(Overview, Scope, Tasks, Verification Phase, Atomic Tasks, Success Criteria)" to
-          "(header with Purpose, Tasks with phase preambles, Verification Phase, Success Criteria)"
-        - All three pairs verified in sync (workflow pair differs only on the expected team-mode toggle
-          blocks); Tier 1 markdown lint clean across all six files
-
-    - [x] **5.2.b One-time cleanup**
-        - Active + backlog swept (per-session decision; archive deferred — `2025-q4` historical, `2026-q1`/`q2`
-          declined for shape consistency since they don't pay session-init cost)
-        - This task list: Overview + Scope collapsed into Header `**Purpose:**` (one wrapped sentence);
-          notes-file pointer dropped (companion-file convention codified in template); Phase 5 preamble
-          compressed 15 → 9 lines, factoring out per-task enumeration and per-task two-copy reminders.
-          Phases 1, 2, 3, 6, 7 already under cap; Phase 3.R fully complete (preserved historical Origin
-          paragraph); Phase 4 carries operational audit-heuristic guidance applied per-subtask — justified
-          soft-cap overrun, left as-is
-        - `tasks-arcd-rebrand.md` (backlog): Overview + Scope collapsed; the Multi-branch structure
-          paragraph dropped (duplicates the structured Branch(es) header bullet); Activation-time
-          reconciliation blockquote preserved (operational); Phase 2 lightly tightened by combining the
-          Commit-granularity note into a Design decisions block and inlining Branch — still over cap due
-          to inline guardrails A–F cheat sheet (operational reference, justified)
-        - Orphan `[work-org]` link reference removed after Multi-branch paragraph deletion. Tier 1
-          markdown lint clean on both files. No two-copy sync — both files are project instances
-
-- [x] **5.3 Task list partial-read narrowing**
-
-    **Outcome:** `session-init.md` Step 4 item 10 reshaped to a three-section boundary contract
-    (Header + current phase preamble + current task) replacing the prior "first ~100 lines" heuristic.
-    Phase preamble located via task-identifier-derived lookup — strip the leaf segment (`5.3` → `5`,
-    `3.R.e` → `3.R`), grep `^### \*\*Phase {id}:\*\*`. **Preamble boundary contract** documented
-    inline at bullet 2: from the phase heading line through the line immediately before the first
-    `- [ ]` / `- [x]` bullet; multi-paragraph framing (Purpose, Design decisions, Rationale) included,
-    task entries excluded. Two-copy synced (`.arc/` + `.template.md`); Tier 1 markdown lint clean.
-
-    **Design decisions:**
-    - Phase identifier derived from task identifier rather than surfaced via the composite probe or
-      stored as a dual pointer in the status file. Probe-computed line numbers couple the CLI to
-      markdown structure (parser obligation grows with task-list shape evolution); dual pointers add
-      an authoring obligation triple-anchor was designed to avoid. Net cost is two ops at
-      session-init — micro-optimization not worth the structural coupling
-    - Line-hint-independence inline guardrail (per original task spec) dropped — read as author-facing
-      meta-commentary, not runtime-actionable. Graduated lookup step 1 ("Jump to the line hint") is
-      self-sufficient; line numbers are absolute by convention. Documented here as a design invariant
-      rather than workflow-body content
-
-- [x] **5.4 Status file partial-read narrowing**
-
-    **Outcome:** `session-init.md` Step 4 item 8 lead paragraph rewritten — "resolve from `active.value`
-    and read in full" → "resolve from `active.value` and partial-read the `## Active Work` section
-    (heading line through the last `**Field:**` line)". Added two sub-bullets after the resolution
-    branches: **Read scope** enumerating load-bearing + optional fields, and **Contract boundary**
-    requiring any session-init-relevant content to live inside `## Active Work`. Combined with Phase 4.2's
-    `template-status.md` cleanup, the partial-read is the durable guard against future authoring drift —
-    template content outside the section can't leak into session-init load. Two-copy synced; Tier 1
-    markdown lint clean.
-
-- [x] **5.5 DEV-RULES section-level partial-read evaluation (per-rule)**
-
-    **Outcome:** All four candidates evaluated against the strict reliability bar (clear trigger, detectable at
-    session-init, agent doesn't need pre-awareness to consult). Dispositions: all `up-front-load`. Default holds; no
-    structural change to `session-init.md` Step 4. Per-section rationale: **DEV-RULES.ARC § Task Execution** — § Leave
-    it cleaner subsection is universally applicable, sub-section partial-read complexity exceeds benefit on 89-line
-    section. **DEV-RULES.ARC § Leave it cleaner** — universal trigger (any session may surface routable issues), no
-    detect-at-init signal, agent unawareness causes silent under-routing. **DEV-RULES.PROJECT § Quality Gates** — gate
-    awareness needed for any commit (planning, incidentals, task work all hit Tier 1); short policy framing (~27
-    lines). **DEV-RULES.PROJECT § Package-Project Sync** — self-hosting context makes framework edits nearly universal;
-    pre-commit hook is fallback, not primary defense.
-
-    **Process deviation:** Original 5.5.b ("Record dispositions in notes file") deferred — rationale captured in commit
-    message instead. Notes-file step would have been write-once-read-never given immediate execution by 5.5.c; judgment
-    call to skip the intermediate documentation overhead.
-
-    **Adjacent finding** (captured to `atomic-session-init-optimization.md`): DEV-RULES.ARC § Task Execution "One task
-    at a time" subsection duplicates process-task-loop's Task Implementation lead + Completion protocol. Trim
-    opportunity (~6-8 lines) is content-tightening, not partial-read narrowing — outside 5.5 scope.
-
-    - [x] **5.5.a Evaluate candidate sections** — Done; all four → up-front-load (per Outcome above).
-
-    - [~] **5.5.b Record dispositions in notes file** — Deferred; rationale captured in commit message instead.
-
-    - [x] **5.5.c Apply dispositions** — No-op. All dispositions `up-front-load` → no structural change.
-
-- [x] **5.6 Companion-file paths in composite probe**
-
-    **Goal:** Composite probe (`arc status --session-init --json`) surfaces companion-file paths
-    (`notes-{stem}.md`, `atomic-{stem}.md`) directly in `active.value`, eliminating the agent-side
-    directory listing currently required at session-init item 10's "Companion file awareness" sub-bullet.
-
-    **Rationale:** Pattern parallel to 5.0 (worktree-sync probe surface). Agent-side `ls` of the task-list
-    directory at orientation is one Bash call we can avoid by surfacing resolved paths in the probe envelope.
-    Net savings: small but consistent with the "let probe carry orientation-relevant state" principle.
-
-    **Lite-mode deferral:** Companion-name derivation here is Full-layout only (`tasks-{stem}.md` filename
-    pattern). Lite-shape task lists (e.g., `tasks.md`) → `companions` field omitted, signaling no
-    companion-resolution attempted. Lite's overall composite-probe shape (likely a separate path entirely,
-    given Lite's single-work-unit model) and companion-file conventions get settled during the ARC Operating
-    Modes WU — callback note added to `plan-arc-modes.md` header.
-
-    - [x] **5.6.a Companion resolution + envelope shape (test-first)**
-
-        **Outcome:** `ActiveSessionInitResult` carries optional
-        `companions?: { notes: string | null; atomic: string | null }`. Population gated to the `single`
-        branch with Full-pattern task-list filename — no extra I/O on `multiple`/`none` paths or
-        non-matching filenames (Lite `tasks.md`, `[none]`). Derivation in `resolveSessionInit`
-        (`commands/active/status.ts`) reads the `**Task List:**` value verbatim, regex-matches
-        `^tasks-(.+)\.md$` to extract stem, stats `notes-{stem}.md` / `atomic-{stem}.md` in the same
-        directory, emits paths relative to cwd (forward-slash normalized) or `null` per file.
-        `buildActiveSessionInitSummary` renders only present (non-null) companion paths under the
-        `Resolved:` line; absent companions field or both-null inner values render no extra lines.
-
-        **Test coverage:** All 9 behaviors covered. Integration tests in
-        `__tests__/integration/active.test.ts` exercise the seven resolution × companion-presence
-        permutations (both / notes-only / atomic-only / neither / Lite-shape / multiple / none) plus a
-        `[none]` task-list edge case; composite carry-through verified in
-        `__tests__/integration/status.test.ts`. Formatter coverage in
-        `__tests__/unit/active-format.test.ts` exercises the five rendering shapes.
-
-        **Batching rationale (test-first judgment):** Behaviors tightly coupled around a single derive
-        helper + parameterized fixture pattern; design parallels the existing single/multiple/none
-        resolution branch already shipped. One-at-a-time slicing would only multiply scaffolding
-        without independent discovery value.
-
-        - [x] Both companions present → both paths populated, relative to cwd
-        - [x] Only notes present → `notes` path populated, `atomic: null`
-        - [x] Only atomic present → `atomic` path populated, `notes: null`
-        - [x] Neither present → `companions: { notes: null, atomic: null }` (still emitted)
-        - [x] Lite-shape task list (`tasks.md`) → `companions` field omitted entirely
-        - [x] `resolution === "multiple"` → `companions` field omitted
-        - [x] `resolution === "none"` → `companions` field omitted
-        - [x] Composite probe envelope (`runSessionInitStatus`) carries `companions` through unchanged
-        - [x] `buildActiveSessionInitSummary` renders companion paths when present, omits cleanly when absent
-
-    - [x] **5.6.b Session-init.md item 10 simplification**
-
-        **Outcome:** "Companion file awareness" sub-bullet rewritten to reference
-        `active.value.companions` instead of directing the agent to scan the task-list directory.
-        Two-copy sync applied to both `.arc/system/workflows/arc/session-lifecycle/session-init.md`
-        and `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/session-init.template.md`.
-
-- [x] **5.7 Agent file surface removal + `system/briefs/` rename**
-
-    **Goal:** Retire the `{AGENT}.ARC.md` surface entirely (seven package per-agent templates, session-init load,
-    init/add-agent scaffolding, schema hook coverage) and rename the containing directory `system/agent/` →
-    `system/briefs/` with file-level rename `AGENT-BRIEFING.*.md` → `AGENT-BRIEF.*.md` to match the retained
-    session-init briefings.
-
-    **Rationale:** Pressure-test during 4.2.b setup concluded the `{AGENT}.ARC.md` surface has no valid
-    ARC-exclusive use case. Candidate content across months of self-hosting fell into three buckets: (a) link
-    blocks duplicating already-loaded docs, (b) harness-layer behavior (bash auto-approve quirks, sandbox
-    escalation) that belongs in the harness-level file, (c) sub-agent / MCP guidance that's agent-system-prompt
-    territory and makes no ARC reference. Harness-level files (`CLAUDE.md`, `AGENTS.md`, `.gemini/GEMINI.md`,
-    etc.) dominate on every dimension: load order (pre-session-init), always-in-context (system prompt), and
-    agent-specific by design (each harness reads its own file). Keeping `{AGENT}.ARC.md` as a scaffolded-empty
-    surface is a false affordance — the empty set for "ARC-aware agent-specific guidance that can't live in the
-    harness file" is real. Removal is reversible: if such content ever emerges, adding back a directory + one
-    session-init line is cheap.
-
-    Post-removal, `system/agent/` contains only the three session-init briefings (`AGENT-BRIEFING.ARC.md`,
-    `.PROJECT.md`, `.CONTRIBUTOR.md`). Directory name becomes misleading — invites sub-agent-housing mental
-    model, misaligned with its actual category (orientation documents). Rename to `briefs/` with file-level
-    `AGENT-BRIEF.*.md` pairing for cleaner paths and semantic accuracy (`brief` = foundational orienting
-    document; noun-noun reads cleaner than "briefing" noun-verb).
-
-    **Superseded scope:** The pre-revision scope ("conditional-load via `active` frontmatter for agent files") is
-    retired — the pattern was scoped specifically to `{AGENT}.ARC.md`, which no longer exists. No other
-    session-init-loaded files ship as unpopulated templates (briefings all carry real content), so the
-    pattern has no remaining application. If such a candidate emerges in future work, the pattern can be
-    derived fresh at that point; preserving it here without a use case is premature abstraction.
-
-    **Pre-implementation audit (completed 2026-04-25):** Audit findings folded back into the
-    subtasks below. Resolved decisions:
-
-    - **Agent classification path:** retire entirely — delete `frontmatter/agent.ts`,
-      `__tests__/unit/frontmatter/agent.test.ts`, agent test cases in
-      `validate-frontmatter.test.ts`, and remove the `agent` branch + `AGENT_PATH`/`AGENT_NAME`
-      regexes + dispatch case in `validate-frontmatter.ts`. With no remaining `{AGENT}.ARC.md`
-      files, the classification has no live callers; retiring avoids surface accumulation.
-    - **Execution order:** 5.7.b → 5.7.f → 5.7.a → 5.7.c → 5.7.d → 5.7.e → 5.7.g → 5.7.h → 5.7.i.
-      5.7.b first (docs-only) eliminates in-flight session-init mismatches before file deletes.
-      5.7.f next (recipe-only) so `init-recipe.json` stops referencing per-agent templates +
-      `template-agent.md` before 5.7.a deletes those source files — preserves test-suite green
-      across each task boundary. 5.7.f scope reduced to recipe cleanup only; the briefs-path
-      renames originally listed under 5.7.f migrate into 5.7.c (where they co-locate with the
-      directory rename they depend on).
-    - **5.7.g re-scoped:** add-agent.md scaffolding step already retired in commit `27174b8`
-      (Task 4.5.d, 2026-04-24). Workflow today is in the desired post-pivot shape — 5.7.g
-      reduces to path/filename updates already covered by 5.7.d.
-    - **Recipe surface:** 5.7.f's primary edit target is `packages/arc-framework/init-recipe.json`
-      (per-tool conditions + `template-agent.md` include + briefs path rename). Source-code init
-      flow (`init.ts`) reads the recipe; code edits limit to the post-init message string.
-    - **Tools-prompt semantics rename** (harness vs agents) captured to ATOMIC-INBOX.md as a
-      follow-on; not blocking 5.7.
-
-    - [x] **5.7.a Package per-agent source removal + agent classification retire**
-
-        **Outcome:** Retired the `{AGENT}.ARC.md` source surface and its
-        classification path in a single commit. Deleted seven per-tool templates
-        from `packages/arc-framework/arc/system/agent/` (CLAUDE, CODEX, COPILOT,
-        CURSOR, GEMINI, WARP, WINDSURF) and both `template-agent.md` copies
-        (`.arc/` + package source). Removed seven entries from
-        `CONFIGURABLE_FILES` in `classification.ts`; the
-        `AGENT-BRIEFING.PROJECT.template.md` entry stays for 5.7.c's rename.
-
-        Deleted `lib/frontmatter/agent.ts` and its `__tests__/unit/frontmatter/`
-        sibling. Pruned `parseAgentFrontmatter` and the `AgentFrontmatter` /
-        `AgentParseResult` re-exports from `frontmatter/index.ts`; updated the
-        module doc comment. In `validate-frontmatter.ts`: dropped `agent` from
-        `PathClassification`, removed `AGENT_PATH` / `AGENT_NAME` regexes, the
-        `classifyPath` agent dispatch, the `validateFiles` agent branch (now an
-        `else` falling through to domain-rules since `other` short-circuits), and
-        refreshed the module + `classifyPath` doc comments.
-
-        **`includes` operator retirement (in-flight scope expansion):**
-        With per-tool agent files retired, the only consumer of the recipe
-        `includes` operator was gone — both `init-recipe.json` and template
-        `<!-- arc:if -->` blocks gate exclusively on `==` (and templates
-        also `!=`). Surfaced when reviewing the test fixtures the cleanup
-        otherwise required: examples like `tools includes claude →
-        system/example-claude.md` were testing a code path with no
-        production consumer. Pulled the operator retirement into this
-        commit rather than deferring. `template/recipe.ts`:
-        `CONDITION_PATTERN` regex narrowed to `==` only,
-        `validateRecipe` error message updated, `evaluateCondition` doc +
-        body collapsed to equality. `template/render.ts` header doc
-        re-noted the recipe/template operator split.
-
-        Test-surface updates (combined retirement of agent files +
-        `includes` operator):
-        `validate-frontmatter.test.ts` lost `validAgent`, the agent
-        classification test, the AGENT-BRIEFING-as-other test (no longer
-        meaningful — no agent special-case to negate), the per-schema-README
-        test's agent line, the agent-file diagnostic test, and the agent
-        fixture in the multi-file diagnostics test (replaced with an
-        extension fixture).
-        `recipe.test.ts`: dropped the "accepts conditions with includes
-        operator" schema test and all five `evaluateCondition` includes
-        tests (single-item, multi-item, no-match, no-substring,
-        missing-key). The `validRecipe` factory's `tools includes claude`
-        fixture removed entirely (no replacement needed).
-        `unit/init.test.ts`: both `minimalRecipe` fixtures lost their
-        `tools includes` conditions; the dedicated
-        "includes tool-conditional files when tool is selected" test
-        deleted; the fresh-mode test's "Conditional file included"
-        expectation removed (token rendering and programmatic write
-        coverage retained — conditional resolution stays covered by
-        `resolveFileList` tests above and integration/e2e suites). The
-        `classifyFile` Configurable assertion for `CLAUDE.ARC.md` removed,
-        `not.toContain("CLAUDE.ARC.md")` assertion removed.
-        `integration/init.test.ts` "excludes unselected tool agent files"
-        deleted wholesale — premise gone.
-
-        Manifest sync: `.arc/system/.internal/manifest.json` purged of
-        `template-agent.md` and the two stale `system/agent/{CLAUDE,CODEX}.ARC.md`
-        entries (the seven per-agent files were never in `.arc/`, but two
-        manifest entries lingered as stale Configurable references).
-
-        **Deferred per spec phasing (5.7.c–e):**
-        `validate-package-neutrality.test.ts:110` (`agent/README.md` path) —
-        belongs with the directory rename in 5.7.c; left untouched here.
-        `validate-links.test.ts:238,250` (`template-agent.md` /
-        `AGENT-BRIEFING.ARC.md` fixture filenames in tmpdir) — fixture-only,
-        defer to 5.7.c per session-notes coupling.
-        Workflow content in `01_verify-and-configure.md` still references
-        `[template-agent]` and the `{AGENT}.ARC.md` configuration step;
-        retiring belongs to 5.7.d (cross-reference + content updates).
-        Hook-only validate-links scope means staged-file checks pass in the
-        interim — the dangling reference doesn't surface until 5.7.d stages
-        that file. The `agent/README.md` content listing the seven retired
-        files belongs to 5.7.e (subdir README rewrite). Strategy-doc text
-        references (`strategy-session-operations.md`,
-        `strategy-configurability-architecture.md`,
-        `strategy-file-classification.md`,
-        `system/agent/AGENT-BRIEFING.ARC.md:46`,
-        `system/agent/AGENT-BRIEFING.PROJECT.template.md:52`) — all 5.7.d.
-
-        **Tier 2 baseline:** 1099 tests / 8 files green (1054
-        unit/integration plus 45 e2e), down 18 from the 1117 baseline:
-        7 from `agent.test.ts` deletion, 3 from validate-frontmatter agent
-        assertions, 1 from the tool-exclusion integration test, 1 from the
-        schema-validator includes test, 5 from `evaluateCondition`
-        includes-operator tests, 1 from the fresh-mode conditional-file
-        test removal. typecheck + eslint clean; 214 markdown files clean
-        (down one from 215 — `template-agent.md` gone). Build green.
-
-    - [x] **5.7.b Session-init integration removal**
-
-        **Outcome:** Removed Step 4 item 3 (agent-specific file conditional load) from
-        `session-init.md`; renumbered items 4–11 → 3–10 throughout. Updated every
-        renumber-impacted reference: Step 2 contributor cue (`skip items 7, 9–10 in
-        Step 4`), reading rule (`item 6` / `item 9`), parallelism guidance (`items 1–6`,
-        `item 8`, `item 9` / `item 10`), item 7's inner cross-refs (`Skip items 9–10`,
-        SESSION-NOTES `item 8`), Contributor Session Path (`Items 1–6 are universal`,
-        `Skip items 7, 9–10`). Dropped the `{AGENT}.ARC.md` row from
-        `AGENT-BRIEFING.ARC.md` Key Documents table (row deletion only — closing pointer
-        left for 5.7.d's rename sweep per spec scope). Updated `DEV-RULES.ARC.md` § When
-        to Load Additional Guidance "session-init item 11" → "item 10" — stale-by-renumber
-        cross-reference caught by the disambiguation scan. Two-copy sync across `.arc/` and
-        `packages/arc-framework/arc/` (`session-init.template.md` and tracked siblings).
-        Tier 1 lint clean (6 files, 0 errors).
-
-    - [x] **5.7.c Directory and file renames**
-
-        **Outcome:** Renamed `system/agent/` → `system/briefs/` in both
-        trees and renamed all briefing files via `git mv` (8 rename ops;
-        all staged as `R` rename operations preserving history).
-        `.arc/system/briefs/`: `AGENT-BRIEF.{ARC,CONTRIBUTOR,PROJECT}.md`
-        plus `README.md`. Package source:
-        `AGENT-BRIEF.{ARC,CONTRIBUTOR}.md`,
-        `AGENT-BRIEF.PROJECT.template.md`, `README.md`.
-
-        Updated `CONFIGURABLE_FILES` in `classification.ts:74` to the new
-        template path. Updated `init-recipe.json` unconditional
-        `include_files` (4 entries: ARC, CONTRIBUTOR, PROJECT.template,
-        README) — briefs-path migration absorbed from 5.7.f as scoped.
-
-        **Test-surface scope expansion:** Path-existence-coupled
-        assertions across the test suite required updates to keep
-        green — broader than the two files 5.7.a deferred. Updated:
-        `recipe.test.ts:21-22` (`validRecipe()` factory `include_files`),
-        `__tests__/integration/init.test.ts` (`expectedDirs` list at
-        line 96 plus 4 file-existence/path checks at 116, 271, 276, 407),
-        `__tests__/unit/init.test.ts:272,279` (`classifyFile` assertions —
-        would have flipped Configurable→Framework after the
-        `CONFIGURABLE_FILES` Set change). The two explicitly-deferred
-        files landed alongside: `validate-package-neutrality.test.ts:110`
-        (`agent/README.md` → `briefs/README.md`) and
-        `validate-links.test.ts:238,250` (fixture link targets
-        `AGENT-BRIEFING.ARC.md` → `AGENT-BRIEF.ARC.md`; fixture source
-        filenames left as-is — they test pattern-matching, not specific
-        files).
-
-        **Manifest sync:** `.arc/system/.internal/manifest.json` updated
-        for 3 path entries (ARC, PROJECT, README); pristine hashes
-        preserved (rename only, no content change). Note: the manifest
-        carries no `AGENT-BRIEFING.CONTRIBUTOR.md` entry — pre-existing
-        gap, not introduced here.
-
-        **Deferred per spec phasing (5.7.d):**
-        `src/commands/init.ts:291` post-init message string still says
-        "system/agent/AGENT-BRIEFING.ARC.md" — explicitly listed under
-        5.7.d source-code path strings. Tests asserting that message
-        content (`init.test.ts:474`, `unit/init.test.ts:822,826,829`)
-        therefore stay green and update with init.ts:291 in 5.7.d.
-
-        **Tier 2 baseline:** 1099 tests / 8 files green, typecheck +
-        eslint clean, 214 markdown files clean, build success.
-        Test count unchanged from 5.7.a.
-
-    - [x] **5.7.d Cross-reference + content updates**
-
-        **Outcome:** Swept all live framework docs, source, hooks, and scripts
-        for `system/agent/` and `AGENT-BRIEFING` patterns and renamed to
-        `system/briefs/` / `AGENT-BRIEF`. Two-copy sync across `.arc/` and
-        `packages/arc-framework/arc/` for every touched file.
-
-        **Brief files self-references:** Updated titles (line 1) plus
-        embedded references in `AGENT-BRIEF.ARC.md` (Key Documents table
-        and closing pointer), `AGENT-BRIEF.PROJECT.md` and
-        `AGENT-BRIEF.PROJECT.template.md` (closing pointers — also reframed
-        the "agent-specific guidance" trailer to point at harness-level
-        files (`CLAUDE.md`, `AGENTS.md`) instead of the retired
-        `{AGENT}.ARC.md` surface), `AGENT-BRIEF.CONTRIBUTOR.md` (title).
-        Pre-commit hook flagged the 3 link-syntax self-references; opportunistic
-        cleanup of the prose-mention "harness-level" framing rode along.
-
-        **Workflows:** `session-init.md` items 1, 2, 7 (contributor variant)
-        paths; `add-agent.md` step-1 paths; `02_define-project.md` Step 3
-        title + template path + maintenance bullet + "Next Step" mention +
-        ref-link target; `maintain-project-docs.md` four `agent/`-prefixed
-        path strings; `01_verify-and-configure.md` content section
-        deletions per spec — Path 1 `**Agent config file:**` paragraph
-        (lines 62-69), Path 2 bullet (lines 150-152),
-        `[template-agent]` ref-link definition (line 186), plus `Path 2`
-        Constitutional-documents prose mention rename.
-
-        **Constitution + strategies:** `DEV-RULES.ARC.md` two prose
-        mentions + ref-link target; `strategy-session-operations.md`
-        T1 list (also dropped the now-obsolete "Agent-specific file"
-        bullet — surface retired); `strategy-file-classification.md`
-        examples list (dropped `CLAUDE.ARC` example), file-type prose
-        examples, and template-suffix-stripping example;
-        `strategy-package-project-sync.md` (project-only, no package
-        counterpart) — table row, Framework templates list (dropped
-        `template-agent.md` entry retired in 5.7.a), Framework system
-        list, Configurable list (dropped `CLAUDE.ARC.md` and
-        `CODEX.ARC.md` entries — files retired in 5.7.a), package-only
-        section (entire "Init-selected agent files" subsection removed —
-        no per-tool agent files remain), template counterpart list.
-
-        **Reference + READMEs:** `META-PRD.md` Hub-spoke architecture
-        bullet (also reframed "agent-specific files (CLAUDE.ARC.md, etc.)"
-        to harness-level files outside ARC); `PROJECT-STATUS.md` two
-        completion-history entries; `TECHNICAL-OVERVIEW.md` `Agent files`
-        directory bullet rewritten as "Agent briefs" (per-agent files
-        retired); `.arc/README.md` and `packages/arc-framework/arc/README.md`
-        directory tree comment; `.arc/user/README.md` and package
-        counterpart contributor briefing path; `template-contributing.md`
-        contributor briefing path (both copies).
-
-        **Skills + hooks + scripts + source:** `arc-setup/SKILL.md` brief
-        path (both copies); `verify-integrity.sh` 4 direct path checks
-        (lines 95-96, 254-255) plus check-message text (`Agent briefing` →
-        `Agent brief`); `validate-links.sh` comment example (both copies);
-        `pre-commit:351-352` comment cleanup — dropped agent-specific
-        files mention (regex change at line 354 stays under 5.7.h);
-        `init.ts:291` post-init message string literal +
-        `init.test.ts:474` and `unit/init.test.ts:822,826,829` dependent
-        message-string assertions.
-
-        **Manifest sync:** Recomputed `.arc/system/.internal/manifest.json`
-        pristine_hash for the 3 briefs entries — content (titles, footers)
-        changed in this commit so the 5.7.c rename-only hashes were stale.
-
-        **Deferred to 5.7.e:** `.arc/system/briefs/README.md` and package
-        counterpart still carry full pre-removal architecture framing
-        ("dual-hub pattern with tool-specific extensions", "What Belongs
-        in Tool-Specific Files", per-tool template descriptions). 5.7.e
-        rewrites this README wholesale; path-substitution alone would
-        leave structurally obsolete prose. 34 grep matches remain there
-        and clear under 5.7.e.
-
-        **Tier 2 gates clean:** 1099 tests / 8 files green (test count
-        unchanged), typecheck + eslint + shellcheck clean, 214 markdown
-        files clean, build success.
-
-    - [x] **5.7.e Subdir README rewrite**
-
-        **Outcome:** Rewrote `system/briefs/README.md` wholesale in both
-        trees (`.arc/` and `packages/arc-framework/arc/`). Retired the
-        dual-hub + tool-files architecture framing, "Why Two Hub Files",
-        "What Belongs in Tool-Specific Files", "Adding Files for Other
-        Tools", "Tool-Specific Templates", and "When to Update
-        Tool-Specific Files" sections — all obsolete under the
-        `{AGENT}.ARC.md` removal. New README scoped to session-init
-        briefings: opening line, How briefs work + Loading model paragraphs
-        (matching `methods/README.md` and `extensions/README.md` style),
-        per-file Files table (ARC + CONTRIBUTOR Framework, PROJECT
-        Configurable, with role descriptions), customize-PROJECT adoption
-        guidance, framework-managed note for ARC + CONTRIBUTOR, and
-        "Agent-Specific Guidance Lives Outside ARC" section pointing at
-        harness-level files (`CLAUDE.md`, `AGENTS.md`, `.gemini/GEMINI.md`)
-        as the pre-session-init system-prompt surface for tool-specific
-        guidance. Trimmed from 154 lines to 41 lines (~73% reduction).
-
-        Both copies content-identical (`sha256: 98035b45…`); manifest
-        `pristine_hash` for `system/briefs/README.md` recomputed
-        (`487b9a12…` → `98035b45…`). Tier 1 markdown lint clean across
-        both files; link check confirms `../workflows/arc/session-lifecycle/session-init.md`
-        resolves.
-
-        **In-flight correction:** initial draft framed contributor sessions
-        as reading `AGENT-BRIEF.CONTRIBUTOR.md` _instead of_
-        `AGENT-BRIEF.PROJECT.md`. Per session-init.md "Contributor Session
-        Path" (lines 201–209), items 1–6 (which include both ARC + PROJECT
-        briefs) are universal; CONTRIBUTOR loads _additionally_. Project
-        orientation is just as relevant to contributors as maintainers.
-        Corrected the "How briefs work" paragraph and the CONTRIBUTOR row
-        in the Files table (role → "addendum" rather than "variant") in
-        both copies.
-
-        Vestigial-language scope check passed — grep for `AGENT-BRIEFING`,
-        `system/agent`, `{AGENT}.ARC.md`, `dual-hub`, and "Tool-Specific
-        Files" returns zero matches in either copy.
-
-    - [x] **5.7.f `arc init` recipe cleanup**
-
-        **Outcome:** Removed `reference/templates/template-agent.md` from
-        `init-recipe.json` unconditional `include_files`; removed the seven per-tool
-        conditions for `system/agent/{TOOL}.ARC.md` (claude, codex, gemini, copilot,
-        cursor, windsurf, warp). Recipe now produces a clean install with no per-agent
-        file scaffolding regardless of `--tools` selection; `tools` prompt remains
-        intact (drives skill placement only). Briefs-path entries left untouched per
-        scope split — they migrate in 5.7.c alongside the directory rename.
-
-        **Test-surface scope expansion (in-flight):** Deleted two obsolete tests that
-        asserted per-tool file install behavior — `installs CLAUDE.ARC.md
-        (tool-conditional file)` in `__tests__/integration/init.test.ts` and `init
-        with --tools claude,codex installs agent-specific files` in
-        `__tests__/e2e/init.e2e.test.ts`. Both were recipe-driven assertions (not
-        file-deletion-driven), so they belong with the recipe change rather than 5.7.a.
-        Remaining file-existence-coupled test alignment (per-agent source presence,
-        agent classification fixtures) stays under 5.7.a as originally scoped.
-
-        Tier 2 gates clean: markdown lint (215 files, 0 errors), typecheck
-        (source + tests), eslint, full test suite (1117 tests / 8 files) green.
-
-    - [~] **5.7.g `add-agent.md` verification (no-op confirmed)**
-
-        **Outcome:** No-op as anticipated by audit. Verified both copies
-        (`.arc/system/workflows/arc/supplemental/add-agent.md` and package
-        counterpart) carry zero residual references to `system/agent`,
-        `AGENT-BRIEFING`, `{AGENT}.ARC.md`, or `template-agent` — the
-        file-scaffolding step was retired in commit `27174b8` (Task 4.5.d)
-        and path/filename updates landed in 5.7.d's cross-reference sweep
-        (commit `f2c31f9`). Workflow shape is in the post-pivot form
-        (orient → skills → restart). `diff -q` between the two copies
-        confirms two-copy sync. No file changes.
-
-    - [x] **5.7.h CHECK 12 hook revision**
-
-        **Outcome:** Updated CHECK 12 in both `pre-commit` copies.
-        Comment header (line 347) trimmed to "Frontmatter schema
-        validation (methods / extensions)" — dropped `/ agent files`.
-        Regex (line 354) narrowed to
-        `grep -E '^(\.arc|packages/arc-framework/arc)/system/(methods|extensions)/'` —
-        dropped the `|agent` alternation. Hook now skips invocation on
-        briefs-only staged sets (regex no longer matches `system/briefs/`
-        or any other path). `__tests__/unit/scripts/` coverage stayed
-        green; full unit suite (1054 tests / 74 files) and e2e suite
-        (45 tests / 8 files) green.
-
-        **In-flight scope expansion (5.7.d misses caught by 5.7.i grep
-        verification):** Pre-commit grep across live framework surfaces
-        (per 5.7.i acceptance criteria) surfaced three references the
-        5.7.d sweep missed. Folded into this commit since they
-        structurally close the surface removal:
-
-        - `strategy-session-operations.md:315-316` (both copies) —
-          context-monitoring example "Agent-specific configuration files
-          (e.g., CLAUDE.ARC.md)" updated to point at harness-level files
-          (`CLAUDE.md`, `AGENTS.md`); concept retained, example reframed
-        - `strategy-configurability-architecture.md:58-67` (both copies) —
-          "Agent-specific files" row removed from the content-channel
-          inventory table; "(except agent-specific templates)"
-          parenthetical removed from the surrounding paragraph
-          (ARC ships nothing per-agent now); column widths recompacted
-        - `strategy-configurability-architecture.md:118-123` (both
-          copies) — "Agent-specific file structure" row removed from the
-          design-commitment conventions table; no width changes (agent
-          row wasn't widest)
-
-        **Tier 2 gates clean:** 214 markdown files (0 errors),
-        eslint, typecheck, shellcheck clean, 1099 tests / 82 files
-        green (74 unit/integration + 8 e2e).
-
-    - [x] **5.7.i Sync verification + phase acceptance**
-
-        **Verification bullets all green** (run during the 5.7.h
-        commit unit boundary):
-
-        - **Two-copy sync:** `diff -q` confirms identical content in
-          both trees for `system/briefs/README.md`, `add-agent.md`,
-          `pre-commit`, `strategy-session-operations.md`, and
-          `strategy-configurability-architecture.md`
-        - **Grep verification:** `grep -rn "AGENT-BRIEFING\|system/agent\|{AGENT}.ARC.md\|{TOOL}.ARC.md"`
-          across `.arc/system/`, `.arc/reference/{constitution,strategies,templates}/`,
-          `packages/arc-framework/{src,scripts,arc}/` returns zero
-          matches. Remaining matches are confined to `reference/adr/`,
-          `reference/analysis/`, `reference/research/`, and active-WU
-          artifacts — all explicitly excluded per spec
-        - **Phase-level acceptance:** `npm test` end-to-end clean
-          (1099 tests / 82 files); markdown lint clean (214 files);
-          CHECK 12 hook regex no longer matches briefs-only staged
-          sets (skips invocation cleanly)
-
-        **Release-notes bullet retired:** Original spec called for
-        a `versions.json` entry documenting breaking changes for
-        adopters. Superseded by `plan-arcd-rebrand` PRD (backlog) —
-        that WU explicitly opts out of release-notes for the package
-        transition (PRD § 209 "no changelog for the rename, no release
-        notes"; § 328 "zero external adoption of `@arc-framework/cli@0.1.0`").
-        First published `@arcd/cli` re-publishes fresh under the new
-        name with all session-init-optimization breaking changes
-        absorbed pre-publication — no migration audience exists.
-        Matching WU-wide success criterion at the bottom of this task
-        list also retired.
-
-- [ ] **5.8 Session-init workflow Step 2/4/7 restructure**
-
-    **Goal:** Batching structure, configuration check, and mismatch-handling prose all match Phase 4 audit outcomes and
-    preceding Phase 5 changes (remote sync step, partial-reads, agent file surface retirement + briefs/ rename).
-    - [ ] **5.8.a Step 2 batching**
+### `[x]` **5.0 Worktree-sync detection at session-init — completes 3.R.e scope**
+
+- _Outcome:_ Worktree drift detection lands across the full session-init pipeline.
+  `runWorktreeSyncStatus` classifies local-vs-`origin/<branch>` drift into a 9-state enum with
+  bounded fetch; flat-dotted `session.init_pull.{worktree,notes}` config governs per-channel pull
+  policy with parser-level `always`-on-worktree rejection. Composite probe carries a peer `worktree`
+  slot and attaches a `clean-at-current-head` qualifier on `user` when worktree=remote-ahead and
+  user=clean. `arc user status` and `arc sync` share `formatWorktreeQualifierLine` for parity across
+  notes-status surfaces. `session-init.md` (both copies) consumes the envelope end-to-end — Step 2
+  envelope table, Step 3 dual-channel pull surface with dirty-tree precheck and combined-prompt,
+  Step 7 conditional `Reconcile required:` / `Local-ahead:` inserts, Step 8 Tier 1 diverged example.
+  ADR-012 amendment (2026-04-25) frames worktree as peer channel; `arc-config.yml` and CLI help text
+  close out the doc surface.
+
+    - `[x]` **5.0.a Worktree sync state inspection (probe)**
+        - `runWorktreeSyncStatus` at `lib/git/worktree-sync.ts`. State enum: `skipped | clean |
+          remote-ahead | local-ahead | diverged | no-upstream | detached-head | no-remote |
+          remote-unavailable`. Bounded fetch via `boundedFetch` helper
+          (`DEFAULT_FETCH_TIMEOUT_MS = 3000`, AbortController). `GitExec` extended with optional
+          `signal: AbortSignal` via new `GitExecOptions`; backward-compatible (TS function-type
+          variance). `failureReason: "timeout" | "error"` optional field distinguishes the two
+          `remote-unavailable` causes for downstream consumers.
+
+    - `[x]` **5.0.b Config schema + types for init_pull channels**
+        - Flat-dotted `session.init_pull.{worktree,notes}` parse, validate, default to `prompt`. New
+          `ENUM_VALIDATORS` table in `lib/config/status-reader.ts` carries per-key allowed sets;
+          worktree rejects `always` via separate enum (no special-casing). Validation lives in the
+          reader, not `parseArcConfig`. Invalid values fall back to default in `settings`, push to
+          `errors`, but don't enter `defaultsApplied`. Shell-side `validate-config.sh` extended;
+          missing `session.remote_sync` enum backfilled opportunistically.
+
+    - `[x]` **5.0.c Composite probe envelope — worktree field + notes qualifier**
+        - `arc status --session-init --json` carries peer `worktree` slot wrapped in
+          `Probe<WorktreeSyncStatusResult>`; `user.value.qualifier: "clean-at-current-head"` set
+          when worktree=remote-ahead and user=clean. Cross-channel qualifier computed in the
+          composite (post-processing the resolved slots), keeping the user probe independently
+          reusable for `runStatus` and `arc user status`. Worktree slot positioned between User and
+          Extensions in both type ordering and Clack formatter.
+
+    - `[x]` **5.0.d CLI status reporting surfaces — worktree qualifier**
+        - `runUserStatus` orchestrates the worktree probe in parallel with notes/disk probes when
+          `session.remote_sync` is enabled and `--offline` is not set. Shared
+          `formatWorktreeQualifierLine` helper (exported from `commands/user/sync-status.ts`) drives
+          both `arc user status` and `arc sync` qualifier emission — single source of truth for the
+          qualifier vocabulary. Healthy non-drift states emit no qualifier; only `remote-ahead` /
+          `diverged` / `remote-unavailable` carry actionable signal.
+
+    - `[x]` **5.0.e Session-init workflow rewrite — Step 2/3/7/8**
+        - `session-init.md` (both copies) consumes the envelope end-to-end: Step 2 envelope table
+          gains the `worktree` row + cross-channel qualifier note; Step 3 renamed to "Conditional
+          Sync Pulls" with channel-keyed bullet lists, dirty-tree porcelain precheck, combined-prompt
+          (worktree pulls first, notes re-evaluated after); Step 7 grew `Reconcile required:` and
+          `Local-ahead:` inserts above `Active work state:`; Step 8 Tier 1 diverged example added.
+          No auto-stash; combined prompt offers per-channel choices. Streamlining pass cut ~50-line
+          initial draft to ~39 net lines.
+
+    - `[x]` **5.0.f Integration test coverage**
+        - Six scenarios — four extending `__tests__/integration/status.test.ts` (composite envelope
+          with real `runWorktreeSyncStatus` replacing the prior stub), two extending
+          `__tests__/integration/user.test.ts` (`runUserStatus` real-exec drift). Drift produced via
+          `commit → addBareRemote → reset --hard HEAD~1` rather than `update-ref` against the bare
+          dir. Fetch-fault scenarios kept unit-only (cannot be reliably reproduced at integration
+          tier without partial exec mocking).
+
+    - `[x]` **5.0.g Documentation + ADR + config comment sync**
+        - ADR-012 amendment (2026-04-25) frames worktree as peer channel without superseding the
+          notes-channel decision. `arc-config.yml` (both copies) gains one-line cross-reference to
+          `session-init.md § Conditional Sync Pulls` on each `session.init_pull.*` block. `arc user
+          status` description appends a parenthetical naming the worktree-drift qualifier. Release-
+          notes writeup redirected to `plan-docs-content-sweep.md § Content Contributions #7` —
+          this project doesn't ship release notes in-repo.
+
+### `[x]` **5.1 QUICK-REFERENCE partial-read at session-init + template structural alignment**
+
+- _Outcome:_ Session-init reads only `## Environment & Path Context` (subsumes nested `### Runtime
+  Environment`); other sections — `Command Patterns`, `Quality Gate Commands`, `ARC CLI Commands`,
+  `npm Publishing` — load on demand via existing prose pointers. Hybrid favoring strategy-index-style
+  awareness — no structural Phase-1-style triggers (overkill for ad-hoc reference material). Bare
+  pointers across `deactivate-work-unit.md`, `integrate-planning-branch.md`, and three sites in
+  `strategy-configurability-architecture.md` promoted to `§ Platform Commands`. Template structurally
+  aligned (T1+T2+T3 symmetric); awareness note added inside `## Environment & Path Context` listing
+  on-demand sections.
+
+    - `[x]` **5.1.a Session-init.md narrowing**
+        - Step 4 item 7 reshaped to section-level partial read; reading-rule preamble updated to
+          enumerate both partial reads (item 7 + item 10). Two-copy synced.
+
+    - `[x]` **5.1.b QUICK-REFERENCE template structural alignment**
+        - Tier 2 slot inserted in `Quality Gate Commands` between T1 and T3 in the template;
+          placeholder commands (`[md_lint_command_all]`, `[lint_command_all]`,
+          `[type_check_command_all]`, `[test_command_all]`) match the existing T1/T3 convention.
+          `.arc/` already had T2 populated. Template stays bare-bones (no Prettier section, no MD060
+          tooling, no `npm Publishing`).
+
+    - `[x]` **5.1.c Verify callers**
+        - ~30 grep matches triaged into load-on-demand pointers, file-level/meta-descriptive
+          references, and initial-setup workflows. Five bare-pointer sites promoted to
+          `§ Platform Commands`; remaining matches descriptive or capture-routing — left untouched.
+          Platform Commands conditional-rendering gap captured to `user/andrew/ATOMIC-INBOX.md` as
+          orthogonal framework-level decision.
+
+### `[x]` **5.2 Task list preamble shape codification + one-time cleanup**
+
+- _Outcome:_ PRD becomes canonical for Scope; task-list `## Overview` and `## Scope` blocks collapse
+  into a one-line `**Purpose:**` field in the Header. Phase-preamble shape codified — required
+  `**Purpose:**`, optional `**Design decisions:**` linking to `notes-{name}.md`, ~12-line soft cap —
+  slotted into `strategy-task-list-formatting.md § Phase Preamble`. Active + backlog swept (archive
+  deferred — `2025-q4` historical, `2026-q1`/`q2` declined for shape consistency since they don't
+  pay session-init cost).
+
+    - `[x]` **5.2.a Authoring shape edits**
+        - `template-tasks.md` (both copies): Feature/Technical skeleton drops `## Overview` /
+          `## Scope`, gains Header `**Purpose:**`. Incidental variant retains `## Scope` and uses
+          `## Context` instead of Purpose. `strategy-task-list-formatting.md` § Task List Headers
+          updated; new `### Phase Preamble` sub-section under Format Elements Reference.
+          `2_generate-tasks.md` Step 4 checklist gains two new items (Header Purpose + phase-preamble
+          shape).
+
+    - `[x]` **5.2.b One-time cleanup**
+        - This task list: Overview + Scope collapsed into Header Purpose; companion-file pointer
+          dropped (codified in template); Phase 5 preamble compressed 15 → 9 lines.
+          `tasks-arcd-rebrand.md` (backlog): Overview + Scope collapsed; Multi-branch paragraph
+          dropped (duplicates Branch(es) header). Orphan `[work-org]` ref-link removed. Phases 1, 2,
+          3, 6, 7 already under cap; Phase 4 carries audit-heuristic guidance applied per-subtask
+          (justified soft-cap overrun, left as-is).
+
+### `[x]` **5.3 Task list partial-read narrowing**
+
+- _Outcome:_ `session-init.md` Step 4 item 10 reshaped to a three-section boundary contract
+  (Header + current phase preamble + current task) replacing the prior "first ~100 lines" heuristic.
+  Phase preamble located via task-identifier-derived lookup — strip leaf segment (`5.3` → `5`,
+  `3.R.e` → `3.R`), grep `^### \*\*Phase {id}:\*\*`. **Preamble boundary contract** documented inline
+  at bullet 2: heading line through the line immediately before the first `- [ ]` / `- [x]` bullet;
+  multi-paragraph framing (Purpose, Design decisions, Rationale) included, task entries excluded.
+  Phase identifier derived from task identifier rather than probe-computed (probe-computed line
+  numbers couple the CLI to markdown structure; net cost is two ops at session-init — micro-
+  optimization not worth the structural coupling). Two-copy synced.
+
+### `[x]` **5.4 Status file partial-read narrowing**
+
+- _Outcome:_ `session-init.md` Step 4 item 8 lead paragraph rewritten to partial-read the
+  `## Active Work` section (heading line through the last `**Field:**` line). Two sub-bullets added:
+  **Read scope** (load-bearing + optional fields enumerated) and **Contract boundary** (any
+  session-init-relevant content lives inside `## Active Work`). Combined with Phase 4.2's
+  `template-status.md` cleanup, the partial-read is the durable guard against future authoring
+  drift — template content outside the section can't leak into session-init load. Two-copy synced.
+
+### `[x]` **5.5 DEV-RULES section-level partial-read evaluation (per-rule)**
+
+- _Outcome:_ All four candidate sections evaluated against the strict reliability bar (clear trigger,
+  detectable at session-init, agent doesn't need pre-awareness to consult). Dispositions: all
+  `up-front-load`. Default holds; no structural change to `session-init.md` Step 4. Per-section:
+  universal triggers (any session may surface routable issues, hit a quality gate, or edit framework
+  files), no detect-at-init signal, agent unawareness causes silent under-routing or missed gate
+  awareness. 5.5.b ("Record dispositions in notes file") deferred — rationale captured in commit
+  message instead; notes-file step would have been write-once-read-never given immediate execution
+  by 5.5.c. Adjacent finding (DEV-RULES.ARC § Task Execution duplicates process-task-loop content)
+  captured to `atomic-session-init-optimization.md` as content-tightening, outside 5.5 scope.
+
+    - `[x]` **5.5.a Evaluate candidate sections** — all four → up-front-load.
+    - `[~]` **5.5.b Record dispositions in notes file** — Deferred; rationale captured in commit message.
+    - `[x]` **5.5.c Apply dispositions** — No-op. All up-front-load → no structural change.
+
+### `[x]` **5.6 Companion-file paths in composite probe**
+
+- _Outcome:_ `ActiveSessionInitResult` carries optional
+  `companions?: { notes: string | null; atomic: string | null }`. Population gated to the `single`
+  branch with Full-pattern task-list filename — no extra I/O on `multiple` / `none` paths or
+  non-matching filenames (Lite `tasks.md`, `[none]`). Replaces the agent-side `ls` of the task-list
+  directory at orientation; same pattern as 5.0 (let probe carry orientation-relevant state). Lite-
+  mode handling (likely a separate path entirely under ARC Operating Modes WU) deferred — callback
+  note added to `plan-arc-modes.md` header.
+
+    - `[x]` **5.6.a Companion resolution + envelope shape (test-first)**
+        - Derivation in `resolveSessionInit` (`commands/active/status.ts`) reads `**Task List:**`
+          verbatim, regex-matches `^tasks-(.+)\.md$`, stats `notes-{stem}.md` / `atomic-{stem}.md`
+          in the same directory, emits paths relative to cwd (forward-slash normalized) or `null`
+          per file. Nine behaviors covered across integration + formatter tests (resolution ×
+          companion-presence permutations + composite carry-through + rendering shapes).
+
+    - `[x]` **5.6.b Session-init.md item 10 simplification**
+        - "Companion file awareness" sub-bullet rewritten to reference `active.value.companions`
+          instead of directing the agent to scan the task-list directory. Two-copy synced.
+
+### `[x]` **5.7 Agent file surface removal + `system/briefs/` rename**
+
+- _Outcome:_ Retired the `{AGENT}.ARC.md` surface entirely (seven package per-agent templates,
+  session-init load, init/add-agent scaffolding, schema hook coverage) and renamed the containing
+  directory `system/agent/` → `system/briefs/` with file-level rename `AGENT-BRIEFING.*.md` →
+  `AGENT-BRIEF.*.md` to match the retained briefings. Pressure-test concluded the surface had no
+  valid ARC-exclusive use case — harness-level files (`CLAUDE.md`, `AGENTS.md`, etc.) dominate on
+  load order, always-in-context, and agent-specific design. Pre-revision scope ("conditional-load
+  via `active` frontmatter") retired; no other session-init-loaded files ship as unpopulated
+  templates. Post-removal `system/briefs/` contains only the three session-init briefings; rename
+  aligns directory name with actual category (orientation documents). Pre-implementation audit
+  (2026-04-25) folded into subtask scope; execution order
+  5.7.b → 5.7.f → 5.7.a → 5.7.c → 5.7.d → 5.7.e → 5.7.g → 5.7.h → 5.7.i — docs-only first, then
+  recipe cleanup, then file deletes/renames, preserving test-suite green across each task boundary.
+
+    - `[x]` **5.7.a Package per-agent source removal + agent classification retire**
+        - Single commit retiring the source surface and classification path. Deleted seven per-tool
+          templates from `packages/arc-framework/arc/system/agent/` plus both `template-agent.md`
+          copies. Removed `frontmatter/agent.ts` + sibling tests; pruned `parseAgentFrontmatter`
+          from `frontmatter/index.ts`; in `validate-frontmatter.ts` dropped the `agent`
+          PathClassification, `AGENT_PATH`/`AGENT_NAME` regexes, and dispatch case.
+        - _`includes` operator retirement (in-flight scope expansion):_ With per-tool agent files
+          retired, the only consumer of the recipe `includes` operator was gone — both
+          `init-recipe.json` and template `<!-- arc:if -->` blocks gate exclusively on `==` (and
+          templates also `!=`). Pulled into this commit. `template/recipe.ts` regex narrowed to
+          `==`; `evaluateCondition` doc + body collapsed to equality.
+
+    - `[x]` **5.7.b Session-init integration removal**
+        - Removed Step 4 item 3 (agent-specific file conditional load); renumbered items 4–11 → 3–10
+          throughout. Updated every renumber-impacted reference (Step 2 contributor cue, reading
+          rule, parallelism guidance, item 7 inner cross-refs, Contributor Session Path). Dropped
+          `{AGENT}.ARC.md` row from `AGENT-BRIEFING.ARC.md` Key Documents table.
+          `DEV-RULES.ARC.md § When to Load Additional Guidance` "session-init item 11" → "item 10"
+          stale-by-renumber cross-reference fixed.
+
+    - `[x]` **5.7.c Directory and file renames**
+        - 8 `git mv` rename ops (all staged as `R` preserving history). Updated `CONFIGURABLE_FILES`
+          in `classification.ts:74` and `init-recipe.json` unconditional `include_files` (briefs-
+          path migration absorbed from 5.7.f). Path-existence-coupled tests updated across
+          `recipe.test.ts`, `__tests__/integration/init.test.ts`, `__tests__/unit/init.test.ts`,
+          plus the two files 5.7.a deferred (`validate-package-neutrality.test.ts`,
+          `validate-links.test.ts`). Manifest rename-only; pristine hashes preserved.
+
+    - `[x]` **5.7.d Cross-reference + content updates**
+        - Swept all live framework docs, source, hooks, and scripts for `system/agent/` /
+          `AGENT-BRIEFING` patterns. Brief files self-references (titles + Key Documents table +
+          closing pointers) updated; "agent-specific guidance" trailers reframed at harness-level
+          files. Workflows: `session-init.md`, `add-agent.md`, `02_define-project.md`,
+          `maintain-project-docs.md`, `01_verify-and-configure.md` content section deletions per
+          spec. Constitution + strategies: `DEV-RULES.ARC.md`, `strategy-session-operations.md`,
+          `strategy-file-classification.md`, `strategy-package-project-sync.md` (Init-selected
+          agent files subsection removed). Reference + READMEs: `META-PRD.md`, `PROJECT-STATUS.md`,
+          `TECHNICAL-OVERVIEW.md`, etc. Skills + hooks + scripts + source. Manifest pristine_hash
+          recomputed for the 3 briefs entries (content changed in this commit).
+
+    - `[x]` **5.7.e Subdir README rewrite**
+        - `system/briefs/README.md` rewritten wholesale in both trees (154 → 41 lines, ~73%).
+          Retired dual-hub + tool-files architecture framing, "Why Two Hub Files", "What Belongs in
+          Tool-Specific Files", and per-tool template descriptions. New scope: How briefs work +
+          Loading model, per-file Files table, customize-PROJECT adoption guidance, "Agent-Specific
+          Guidance Lives Outside ARC" section pointing at harness-level files. Initial draft framed
+          CONTRIBUTOR as reading _instead of_ PROJECT brief; corrected — Contributor Session Path
+          is additive, not substitutive.
+
+    - `[x]` **5.7.f `arc init` recipe cleanup**
+        - Removed `template-agent.md` from unconditional `include_files`; removed seven per-tool
+          conditions for `system/agent/{TOOL}.ARC.md`. Recipe now produces a clean install with no
+          per-agent file scaffolding regardless of `--tools` selection; `tools` prompt drives skill
+          placement only. Briefs-path entries left for 5.7.c. Two obsolete tests deleted —
+          `installs CLAUDE.ARC.md (tool-conditional file)` and `init with --tools claude,codex
+          installs agent-specific files` (recipe-driven assertions belonging with this change).
+
+    - `[~]` **5.7.g `add-agent.md` verification (no-op confirmed)**
+        - Workflow already in post-pivot shape (orient → skills → restart) per commit `27174b8`
+          (Task 4.5.d). Path/filename updates landed in 5.7.d. Two-copy sync verified via
+          `diff -q`. No file changes.
+
+    - `[x]` **5.7.h CHECK 12 hook revision**
+        - CHECK 12 in both `pre-commit` copies: comment header trimmed to "Frontmatter schema
+          validation (methods / extensions)"; regex narrowed to drop the `|agent` alternation. Hook
+          now skips invocation on briefs-only staged sets.
+        - _In-flight scope expansion (5.7.d misses caught by 5.7.i grep verification):_ Three
+          live-surface references the 5.7.d sweep missed, folded into this commit:
+          `strategy-session-operations.md:315-316` (CLAUDE.ARC.md context-monitoring example
+          reframed at harness-level files); `strategy-configurability-architecture.md` "Agent-
+          specific files" rows removed from both content-channel inventory and design-commitment
+          conventions tables.
+
+    - `[x]` **5.7.i Sync verification + phase acceptance**
+        - All verification bullets green: two-copy sync via `diff -q`; grep across `.arc/system/`,
+          `.arc/reference/{constitution,strategies,templates}/`,
+          `packages/arc-framework/{src,scripts,arc}/` for
+          `AGENT-BRIEFING|system/agent|{AGENT}.ARC.md|{TOOL}.ARC.md` returns zero matches
+          (remaining matches confined to `reference/adr/`, `reference/analysis/`,
+          `reference/research/`, and active-WU artifacts — explicitly excluded per spec); CHECK 12
+          hook regex no longer matches briefs-only staged sets.
+        - _Release-notes bullet retired:_ Original spec called for a `versions.json` entry
+          documenting breaking changes for adopters. Superseded by `plan-arcd-rebrand` PRD
+          (backlog), which explicitly opts out of release-notes for the package transition — first
+          published `@arcd/cli` re-publishes fresh under the new name with all session-init-
+          optimization breaking changes absorbed pre-publication. Matching WU-wide success
+          criterion at the bottom of this task list also retired.
+
+### `[ ]` **5.8 Session-init workflow Step 2/4/7 restructure**
+
+- _Note:_ Audit `session-init.md` for speed considerations alongside the structural restructure.
+  Baseline ~2 minutes from `/arc-resume` to orientation summary (pre-optimization). Phase 1–4
+  reductions shrink wall-clock time naturally; 5.8 is the moment to evaluate structural speed wins
+  independent of load-set size — unexploited batching opportunities, redundant checks, steps whose
+  cost is dominated by serial tool calls. Apply low-risk wins inline during 5.8.a–c; record larger
+  opportunities as follow-ons. All edits two-copy synced.
+
+- _Goal:_ Batching structure, configuration check, and mismatch-handling prose all match Phase 4
+  audit outcomes and preceding Phase 5 changes (remote sync step, partial-reads, agent file surface
+  retirement + briefs/ rename).
+
+    - `[ ]` **5.8.a Step 2 batching**
         - Re-express Batch 1 / Batch 2 ordering given slimmed loadset
-        - Update embedded examples (e.g., many-file disambiguation prompt) if they reference content that moved
-        - Evaluate promoting SESSION-NOTES into Batch 1 (or a pre-batch slot after identity resolves).
-          SESSION-NOTES carries persistent context and ad-hoc session guidance that can influence subsequent
-          reads — loading it in Batch 2 may be structurally late. Identity-resolution prerequisite is already
-          satisfied in Batch 1. Decision criteria: does any later load realistically change based on
-          SESSION-NOTES content (persistent context, session-type prefix, one-off instructions)? If yes,
-          promote; if no, current Batch 2 placement is fine.
+        - Update embedded examples (e.g., many-file disambiguation prompt) if they reference content
+          that moved
+        - Evaluate promoting SESSION-NOTES into Batch 1 (or a pre-batch slot after identity
+          resolves). SESSION-NOTES carries persistent context and ad-hoc session guidance that can
+          influence subsequent reads — loading it in Batch 2 may be structurally late. Identity-
+          resolution prerequisite is already satisfied in Batch 1. Decision criteria: does any later
+          load realistically change based on SESSION-NOTES content (persistent context, session-type
+          prefix, one-off instructions)? If yes, promote; if no, current Batch 2 placement is fine.
 
-    - [ ] **5.8.b Step 4 simplification (reduced scope after Task 3.5)**
-        - Task 3.5.b already retired item 4.2 (method overrides). Remaining Step 4 scope: config values, platform
-          awareness, custom commit patterns
-        - Evaluate whether any further simplification is warranted post-Phase 4 audit (e.g., inline rationale that
-          can move to staging). If none, collapse this task to a notes-file entry confirming Step 4 is at minimal
-          scope
+    - `[ ]` **5.8.b Step 4 simplification (reduced scope after Task 3.5)**
+        - Task 3.5.b already retired item 4.2 (method overrides). Remaining Step 4 scope: config
+          values, platform awareness, custom commit patterns
+        - Evaluate whether any further simplification is warranted post-Phase 4 audit (e.g., inline
+          rationale that can move to staging). If none, collapse this task to a notes-file entry
+          confirming Step 4 is at minimal scope
 
-    - [ ] **5.8.c Step 7 tightening**
-        - Mismatch-handling prose tightened; trust hierarchy preserved; no semantic change to auto-recover vs.
-          stop-and-ask tiers
+    - `[ ]` **5.8.c Step 7 tightening**
+        - Mismatch-handling prose tightened; trust hierarchy preserved; no semantic change to
+          auto-recover vs. stop-and-ask tiers
 
-    - [ ] **5.8.d Init-time content audit — externalize rarely-triggered content**
+    - `[ ]` **5.8.d Init-time content audit — externalize rarely-triggered content**
+        - _Origin:_ 3.R.k.f+g review observations. Post-restructure the 8-step workflow is
+          structurally cleaner, but ~30-40% of its body is scaffolding or rarely-triggered branches
+          loading every session for no operational benefit. Externalization candidates (per-candidate
+          evaluation — not all warrant extraction):
 
-        **Origin:** 3.R.k.f+g review observations. Post-restructure the 8-step workflow is structurally
-        cleaner, but ~30-40% of its body is scaffolding or rarely-triggered branches loading every session
-        for no operational benefit. Externalization candidates (per-candidate evaluation — not all warrant
-        extraction):
+            - **"Session lifecycle assumption" + "Design context" + "When to use" paragraphs**
+              (~12 lines) — meta-commentary, zero init-time operational value. Fold load-bearing
+              bits into `AGENT-BRIEFING.ARC § How ARC Works` (already every-session, appropriate
+              home); drop from session-init
+            - **Contributor Session Path blockquote (~25 lines)** — only fires when
+              `role === "contributor"`. Maintainer sessions (most) read and discard. Candidate for
+              extraction to separate doc loaded conditionally from Step 2's `identity.role` result
+            - **Step 8 Trust Hierarchy (~45 lines)** — only fires when a mismatch is detected during
+              init. Most sessions have none. Candidate for on-demand load; risk is latency when it
+              IS needed. Consider lean stub in session-init ("if mismatch detected, load
+              `session-init-mismatch-handling.md`") with full content externalized
+            - **Item 9 "Load errors" sub-bullets** — detailed recovery for rare error classes (no
+              note / corrupt / pull failure / stale file warnings). Candidate for on-demand load
+              keyed on SESSION-NOTES load-error signal
+            - **Step 2 probe-failure fallback** — only fires when the composite CLI call fails (CLI
+              not on PATH, fresh clone pre-build). Lean stub + externalized detail
 
-        - **"Session lifecycle assumption" + "Design context" + "When to use" paragraphs** (~12 lines) —
-          meta-commentary, zero init-time operational value. Fold load-bearing bits into
-          `AGENT-BRIEFING.ARC § How ARC Works` (already every-session, appropriate home); drop from
-          session-init
-        - **Contributor Session Path blockquote (~25 lines)** — only fires when `role === "contributor"`.
-          Maintainer sessions (most) read and discard. Candidate for extraction to separate doc loaded
-          conditionally from Step 2's `identity.role` result
-        - **Step 8 Trust Hierarchy (~45 lines)** — only fires when a mismatch is detected during init.
-          Most sessions have none. Candidate for on-demand load; risk is latency when it IS needed.
-          Consider lean stub in session-init ("if mismatch detected, load
-          `session-init-mismatch-handling.md`") with full content externalized
-        - **Item 9 "Load errors" sub-bullets** — detailed recovery for rare error classes (no note /
-          corrupt / pull failure / stale file warnings). Candidate for on-demand load keyed on
-          SESSION-NOTES load-error signal
-        - **Step 2 probe-failure fallback** — only fires when the composite CLI call fails (CLI not on
-          PATH, fresh clone pre-build). Lean stub + externalized detail
+        - _Evaluation factors per candidate:_ frequency (how often the branch fires), urgency (can
+          the agent tolerate an on-demand round-trip when it IS needed), size (is extraction worth
+          the conditional-load overhead), cohesion (does the content form a coherent external unit).
 
-        **Evaluation factors per candidate:** frequency (how often the branch fires), urgency (can the agent
-        tolerate an on-demand round-trip when it IS needed), size (is extraction worth the conditional-load
-        overhead), cohesion (does the content form a coherent external unit).
+        - _Deliverables per extracted candidate:_ new external doc or section in an existing
+          every-session doc; session-init stub with named trigger referencing it;
+          `strategy-session-operations.md` pattern documentation updates if the conditional-load
+          mechanism itself evolves.
 
-        **Deliverables per extracted candidate:** new external doc or section in an existing every-session
-        doc; session-init stub with named trigger referencing it; `strategy-session-operations.md` pattern
-        documentation updates if the conditional-load mechanism itself evolves.
+        - _Scope note on 5.8.a / 5.8.b:_ Those subtasks reference Batch 1/Batch 2 naming and
+          separate Step 4 "Check Active Configuration" structures that 3.R.k.f+g retired. Phase 5
+          activation should refresh or consolidate their scope against the post-restructure workflow
+          before executing.
 
-        **Scope note on 5.8.a / 5.8.b:** Those subtasks reference Batch 1/Batch 2 naming and separate
-        Step 4 "Check Active Configuration" structures that 3.R.k.f+g retired. Phase 5 activation should
-        refresh or consolidate their scope against the post-restructure workflow before executing.
+### `[ ]` **5.9 Phase 5 close — Tier 2 quality gates**
 
-    **Note:** Audit session-init.md for speed considerations alongside the structural restructure. Baseline:
-    ~2 minutes from `/arc-resume` invocation to orientation summary (pre-optimization). Phase 1–4 reductions
-    shrink wall-clock time naturally (less content to read and process); 5.8 is the moment to also evaluate
-    structural speed wins independent of load-set size — unexploited batching opportunities, redundant checks,
-    steps whose cost is dominated by serial tool calls rather than content. Apply low-risk wins inline during
-    5.8.a–c; record larger opportunities as follow-ons.
-
-    - Two-copy sync
-
-- [ ] **5.9 Phase 5 close — Tier 2 quality gates**
-    - Markdown lint, framework-sync, targeted re-run of session-init against a representative active task list (if
-      available) to spot-check regressions
+- Markdown lint, framework-sync, targeted re-run of session-init against a representative active
+  task list (if available) to spot-check regressions
 
 ---
 
-### **Phase 6:** Session-Type Conditional Loading
+## **Phase 6:** Session-Type Conditional Loading
 
-**Purpose:** Planning, execution, and integration sessions have different needs. The `Working On:` type prefix +
-auto-inference delivers a per-type load set without forcing user ceremony. Empirical validation during the phase's own
-task work confirms the minimal set suffices.
+_Purpose:_ Planning, execution, and integration sessions have different needs. The `Working On:`
+type prefix + auto-inference delivers a per-type load set without forcing user ceremony. Empirical
+validation during the phase's own task work confirms the minimal set suffices.
 
-**Note:** Empirical validation (P2.6) is a running observation during Phase 6, not a distinct task — each Phase 6
-subtask operates a specific session type, and observed insufficiency surfaces as an adjustment to the load-set
-definition plus a notes-file entry.
+_Note:_ Empirical validation (P2.6) is a running observation during Phase 6, not a distinct task —
+each Phase 6 subtask operates a specific session type, and observed insufficiency surfaces as an
+adjustment to the load-set definition plus a notes-file entry.
 
-- [ ] **6.1 `Working On:` type prefix formalized in SESSION-NOTES template**
+### `[ ]` **6.1 `Working On:` type prefix formalized in SESSION-NOTES template**
 
-    **Goal:** Template documents prefix pattern explicitly; agents writing handoff know the convention.
-    - File: `packages/arc-framework/templates/user/SESSION-NOTES.md` (plus `.arc/user/` instances — note: gitignored, so
-      only the package template ships)
+- _Goal:_ Template documents prefix pattern explicitly; agents writing handoff know the convention.
+    - File: `packages/arc-framework/templates/user/SESSION-NOTES.md` (plus `.arc/user/` instances —
+      note: gitignored, so only the package template ships)
     - Document prefix pattern: `[planning: name]`, `[execution: name]`, `[integration: name]`
     - Include one-line rationale inline (session-type awareness drives conditional load)
 
-- [ ] **6.2 session-handoff writes the prefix explicitly**
-    - Update `.arc/system/workflows/arc/session-lifecycle/session-handoff.md` to instruct the agent to compute current
-      session type and write the prefix
-    - Type-resolution rules parallel Phase 6.3 inference (so handoff and init use the same logic, just in opposite
-      directions)
-    - Two-copy sync
+### `[ ]` **6.2 session-handoff writes the prefix explicitly**
 
-- [ ] **6.3 Session-init inference logic (test-first)**
+- Update `.arc/system/workflows/arc/session-lifecycle/session-handoff.md` to instruct the agent to
+  compute current session type and write the prefix
+- Type-resolution rules parallel Phase 6.3 inference (so handoff and init use the same logic, just
+  in opposite directions)
+- Two-copy sync
 
-    **Goal:** When SESSION-NOTES is absent or prefix is missing, infer from active status file signals and branch state.
-    - Placement: documented in `session-init.md` Step 2; if logic is non-trivial, extract to a CLI helper
-      (`packages/arc-framework/src/lib/session-type/`) that agent can invoke
+### `[ ]` **6.3 Session-init inference logic (test-first)**
+
+- _Goal:_ When SESSION-NOTES is absent or prefix is missing, infer from active status file signals
+  and branch state.
+    - Placement: documented in `session-init.md` Step 2; if logic is non-trivial, extract to a CLI
+      helper (`packages/arc-framework/src/lib/session-type/`) that agent can invoke
 
     Build `test-first` (one behavior at a time):
     - Explicit prefix in SESSION-NOTES → honored without inference
@@ -2701,48 +1967,55 @@ definition plus a notes-file entry.
     - Between WUs with no active status file → `planning`
     - Genuinely ambiguous signals → prompt user (surface in session-init Step 6 orientation)
 
-- [ ] **6.4 Per-type load set implementation**
+### `[ ]` **6.4 Per-type load set implementation**
 
-    **Goal:** session-init Step 2 branches on resolved session type; loadset matches updated load model.
+- _Goal:_ session-init Step 2 branches on resolved session type; loadset matches updated load model.
     - Update `session-init.md` Step 2 to key load decisions off the resolved session type
     - Loadset specification (updated post-3.5 — PRD P2.3 table refresh folded into Task 3.10):
-        - All types: Items 1–7, active-extensions list (single grep per 3.5.b), SESSION-NOTES, active status file
-          if present. Methods not loaded at init for any session type — they load at workflow trigger only
+        - All types: Items 1–7, active-extensions list (single grep per 3.5.b), SESSION-NOTES,
+          active status file if present. Methods not loaded at init for any session type — they
+          load at workflow trigger only
         - Execution + Integration only: Item 10 (task list partial read)
-        - Core workflow: execution → `3_process-task-loop.md`; integration → `integrate-work-unit.md`; planning → none
-          today, forward-compatible with `refine-plan-loop.md` if Expanded Planning Path WU lands
+        - Core workflow: execution → `3_process-task-loop.md`; integration → `integrate-work-unit.md`;
+          planning → none today, forward-compatible with `refine-plan-loop.md` if Expanded Planning
+          Path WU lands
     - Two-copy sync
 
-- [ ] **6.5 CLI template updates**
+### `[ ]` **6.5 CLI template updates**
 
-    **Goal:** `arc init` and `arc join` deliver updated SESSION-NOTES template to adopters and contributors.
-    - `arc init` sources SESSION-NOTES from `packages/arc-framework/templates/user/SESSION-NOTES.md` (already done in
-      6.1); verify initialization writes the template correctly
+- _Goal:_ `arc init` and `arc join` deliver updated SESSION-NOTES template to adopters and
+  contributors.
+    - `arc init` sources SESSION-NOTES from `packages/arc-framework/templates/user/SESSION-NOTES.md`
+      (already done in 6.1); verify initialization writes the template correctly
     - `arc join` uses same template; verify no structural divergence
     - Update any related CLI test fixtures if template content is asserted in tests
 
-- [ ] **6.6 Session-type test coverage**
-    - Unit: inference logic test cases from 6.3 (expand if new cases surface)
-    - Integration: session-init with explicit prefix, with inferred prefix, with ambiguous signals (expected: user
-      prompt)
-    - E2E: fresh session-init across each type variant produces the correct load set (assert loaded files / skipped
-      files per PRD P2.3)
+### `[ ]` **6.6 Session-type test coverage**
 
-- [ ] **6.7 Phase 6 close — Tier 3 quality gates + empirical observation note**
-    - Full quality gate pass
-    - Record empirical observation: did the minimal load set suffice for each session type operated during 6.1–6.6 work?
-      Append to notes file. Any adjustments applied as revisions (R-scheme) to Phase 6 tasks
+- Unit: inference logic test cases from 6.3 (expand if new cases surface)
+- Integration: session-init with explicit prefix, with inferred prefix, with ambiguous signals
+  (expected: user prompt)
+- E2E: fresh session-init across each type variant produces the correct load set (assert loaded
+  files / skipped files per PRD P2.3)
+
+### `[ ]` **6.7 Phase 6 close — Tier 3 quality gates + empirical observation note**
+
+- Full quality gate pass
+- Record empirical observation: did the minimal load set suffice for each session type operated
+  during 6.1–6.6 work? Append to notes file. Any adjustments applied as revisions (R-scheme) to
+  Phase 6 tasks
 
 ---
 
-### **Phase 7:** Verification
+## **Phase 7:** Verification
 
-- [ ] **7.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+### `[ ]` **7.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
 
-    **Note:** The verification workflow conducts Tier 3 quality gates, success criteria validation, atomic task
-    resolution, measurement (V.1 — tokens at orientation completion vs ~75–80k baseline; target ≥25% drop to ≤60k),
-    audit quality spot-check (V.2 — 3–5 random extracted passages verified as operational vs non-operational), and
-    late-session verification observation noted for the next task-executing WU (V.3 — organic, not synthetic).
+- _Note:_ The verification workflow conducts Tier 3 quality gates, success criteria validation,
+  atomic task resolution, measurement (V.1 — tokens at orientation completion vs ~75–80k baseline;
+  target ≥25% drop to ≤60k), audit quality spot-check (V.2 — 3–5 random extracted passages verified
+  as operational vs non-operational), and late-session verification observation noted for the next
+  task-executing WU (V.3 — organic, not synthetic).
 
 ---
 
