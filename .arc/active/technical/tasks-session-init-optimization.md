@@ -3,6 +3,7 @@
 - **PRD:** `.arc/active/technical/prd-session-init-optimization.md`
 - **Branch(es):** `technical/session-init-optimization`
 - **Base Branch:** `main`
+- **Completed:** 2026-04-27
 - **Purpose:** Cut session-init token cost from ~75–80k to ≤60k at orientation via per-file
   methods/extensions, narrower partial-reads, and session-type conditional loading — without
   regressing orientation correctness or compliance reliability.

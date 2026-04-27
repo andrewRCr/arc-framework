@@ -1,5 +1,7 @@
 # Notes: Session-Init Optimization
 
+**Completed:** 2026-04-27
+
 ## Contents
 
 - [Alternatives Considered](#alternatives-considered)
