@@ -1128,1165 +1128,424 @@ bigger risk.
 
 ---
 
-### **Phase 4:** Operational-Context Audit + Task-List-Formatting Restructure + D7b
+## **Phase 4:** Operational-Context Audit + Task-List-Formatting Restructure + D7b
 
-**Purpose:** Apply the "operational context only" lens across always-loaded docs and workflows; stage extractions for
-the future docs-content-sweep WU; land the D7b extension-point match hook against the existing anchor-suffix
+_Purpose:_ Apply the "operational context only" lens across always-loaded docs and workflows; stage extractions
+for the future docs-content-sweep WU; land the D7b extension-point match hook against the existing anchor-suffix
 convention. Ordering is Tier 1 → Tier 2 → Task-list-formatting restructure → Tier 3, so Tier 3 audits the
 post-restructure state of `2_generate-tasks.md` and `strategy-task-list-formatting.md`.
 
-**Heuristic reminder (apply throughout 4.2–4.5):** keep content that helps conceptual flow, is counterintuitive, or
-would confuse if absent. Target ~80–90% extraction on rationale/background/overflow-example content with case-by-case
-retention. Hedges with undefined state (`unless already loaded`, `if applicable`, `when relevant`) are eliminated.
-Operational rationale clauses (`because ...`) are single-clause, ≤12 words, inline — anything longer extracts.
+_Heuristic (4.2–4.5):_ Keep content that helps conceptual flow, is counterintuitive, or would confuse if absent.
+Target ~80–90% extraction on rationale/background/overflow-example content with case-by-case retention. Hedges
+with undefined state eliminated. Operational rationale clauses (`because ...`) ≤12 words inline — anything longer
+extracts. Stopping signal: re-read the file — remaining content reads as imperative operational guidance with no
+rationale digressions.
 
-**Stopping rule:** After trim, re-read the file — remaining content should read as imperative operational guidance
-with no rationale digressions. That's the signal for "enough."
-
-**Strategy-docs exclusion:** Strategies (`reference/strategies/**/*.md`) are excluded from tiered audit — they're T3
+_Strategy-docs exclusion:_ Strategies (`reference/strategies/**/*.md`) are excluded from tiered audit — T3
 on-demand, not session-init-loaded. `strategy-task-list-formatting.md` is trimmed in 4.4.c as part of the formatting
-restructure, not as a Phase 4 audit target.
-
-- [x] **4.1 Staging infrastructure**
-
-    **Outcome:** `notes-docs-content-sweep.md` created at `.arc/backlog/technical/` with the locked entry
-    template (Entry N heading; Source / Content / Suggested destination / Stylistic integration notes fields)
-    and the source-side `[TODO-docs-site]` placeholder convention documented in the header. Convention
-    decisions recorded: descriptive link text + literal `TODO-docs-site` label (no per-entry suffixes — sweep
-    resolves globally); no source-side definition added (MD052 unresolved-reference is the intended signal);
-    completion verified by `grep -rn "TODO-docs-site"` returning zero matches and MD052 clearing once the
-    sweep WU rewrites to final docs URLs. Header also captures lifecycle (populate → source-side placeholder →
-    sweep) and the rationale for splitting the convention between this file and
-    `plan-docs-content-sweep.md` § Content Contributions.
-
-- [ ] **4.2 Tier 1 audit — always-loaded docs**
-
-    **Goal:** Operational-context audit applied to every file session-init loads unconditionally. Decomposed by file
-    weight and cohesion so heavy files get dedicated focus and small files batch.
-
-    **Protocol per subtask:** extract rationale/background/overflow examples to `notes-docs-content-sweep.md` per
-    the locked template (Task 4.1); leave `[TODO-docs-site]` reference-style placeholders at extraction sites;
-    two-copy sync per file.
-
-    - [x] **4.2.a Agent briefings cluster — audited**
-
-        **Outcome:** All four files trimmed and lint-clean. Total line count 306 → 203 (34% reduction):
-        `AGENT-BRIEFING.ARC.md` 57→47 (first pass tightened How ARC Works subsections; second pass
-        through strict agent-audience lens dropped invocation-syntax parenthetical, the three
-        `[TODO-docs-site]` runtime-link pointers, the adopter-only "add-agent.md" footer pointer,
-        the `(per-WU)` table-cell qualifier, and added "Sessions are bounded" lead — the only
-        genuinely new orientation a zero-prior-knowledge agent needs), `AGENT-BRIEFING.PROJECT.md`
-        47→40 (dropped duplicate ARC framing in Project Overview, dropped Zero-tolerance /
-        Commands-in-QUICK-REFERENCE friction items as duplicates of DEV-RULES.PROJECT and
-        QUICK-REFERENCE), `AGENT-BRIEFING.CONTRIBUTOR.md` 163→79 (largest win — Personal Workspace
-        and Running Pipeline subsections moved to docs site with operational core retained),
-        `CLAUDE.ARC.md` 39→37 (dropped two `**Never**` bullets that duplicate DEV-RULES.ARC §
-        Context quality).
-
-        **Agent-audience lens — applies to remaining 4.2 / 4.3 / 4.5 subtasks:** for files that load
-        only into agent context (no human-reader role), inline `[TODO-docs-site]` placeholders are
-        supererogatory because agents can't follow runtime links to docs. Sweep WU finds extractions
-        via the staging entry's Source range. Dual-audience files (e.g., contributor briefing,
-        DEV-RULES with adopter-template content) keep placeholders. Per-file judgment call; default
-        is to retain placeholders, drop only when the file is strictly agent-loaded.
-
-        **Staging entries added to `notes-docs-content-sweep.md`:** six entries —
-        Entry 1: AGENT-BRIEFING.ARC.md § Introduction + How ARC Works;
-        Entries 2-6: AGENT-BRIEFING.CONTRIBUTOR.md § Boundaries (paragraph) /
-        § Commit Convention / § Session Workflow / § Personal Workspace (3 non-contiguous
-        extractions consolidated as one thematic unit) / § Running a Full Planning Pipeline Locally.
-        AGENT-BRIEFING.PROJECT.md and CLAUDE.ARC.md trims dropped pure duplicates with no extraction
-        entries (covered by adjacent loaded files).
-
-        **Two-copy sync:** Framework files (`AGENT-BRIEFING.ARC.md`, `AGENT-BRIEFING.CONTRIBUTOR.md`)
-        edited in both `.arc/` and `packages/arc-framework/arc/`; verified identical post-edit.
-        Configurable files (`AGENT-BRIEFING.PROJECT.md`, `CLAUDE.ARC.md`) edited in `.arc/` only;
-        package templates unchanged (project-specific content trims, not framework defaults).
-
-        **Convention amendment surfaced during execution:** Task 4.1's "no source-side definition for
-        `[TODO-docs-site]`" placeholder convention failed MD052 zero-tolerance lint on first
-        placeholder use. Convention revised in `notes-docs-content-sweep.md` § Source-Side Placeholder
-        Convention to require a stub definition
-        (`[TODO-docs-site]: # "Placeholder pending docs-content-sweep — see notes-docs-content-sweep.md"`)
-        at file bottom — one stub per file, serves all references via DRY label, sweep WU rewrites
-        the stub to resolve all references in the file. User approved before execution proceeded.
-
-        **Follow-on deletion (pre-4.2.b):** `CLAUDE.ARC.md` and `CODEX.ARC.md` deleted from
-        `.arc/system/agent/` following pressure-test finding no valid ARC-exclusive use case for
-        the `{AGENT}.ARC.md` surface — harness-level files (`CLAUDE.md`, `AGENTS.md`, etc.) dominate
-        on load order (pre-session-init) and always-in-context, with no ARC-specific capability
-        lost. Surgical scope (project copies only); full mechanism removal — seven package sources,
-        `template-agent.md`, session-init Step 4 item 3, `arc init` / `add-agent` scaffolding,
-        CHECK 12 hook, directory rename `system/agent/` → `system/briefs/`, file rename
-        `AGENT-BRIEFING.*.md` → `AGENT-BRIEF.*.md`, subdir README rewrite — absorbed into revised
-        Task 5.7. Docs-site drift captured in `plan-docs-content-sweep.md` Drift Item #4.
-
-    - [x] **4.2.b `DEV-RULES.ARC.md` — audited**
-
-        **Outcome:** Trimmed and lint-clean. 385 → 327 lines (15% reduction). Character of the trim was
-        surgical — scattered rationale paragraphs + overflow examples + 4-5 consolidation sites — rather
-        than whole-subsection extractions, reflecting the file's already-tight operational baseline.
-
-        **Extractions (4 staging entries, #7-10 in `notes-docs-content-sweep.md`):**
-        Entry 7 — Sub-agent scope first paragraph (what sub-agents are, when valuable); operational
-        rule "task-list work stays in primary agent" retained with `[TODO-docs-site]` pointer.
-        Entry 8 — Context quality rationale ("weaker retrieval positions" / "marathon sessions that
-        technically fit in the window"); operational rule + pointer retained.
-        Entry 9 — Write for the reader § 4 of 6 examples (kept 2 canonical inline: code-comment +
-        PR-description variants; extracted code-comment-FooBar, list-absence, and two notes-file-header
-        examples).
-        Entry 10 — Preamble P1-P11 framing + rule → principle mapping table (17 rules mapped);
-        paired with file-wide strip of `· PN` heading annotations.
-
-        **Compressions (no extractions):**
-        Preamble callout restructured ("How configurable rules work" — no more P1-P11 framing).
-        Commit control four-bullet "AI controls commits" restatements consolidated to one.
-        Commit format "Format enforcement and traceability are required..." framing dropped.
-        One-task-at-a-time: "(P2 — human-agent co-development)" parenthetical + "checkpoint at
-        checkbox level" redundancy removed; contributor note compressed 4 → 2 lines.
-        Leave-it-cleaner: "Don't pass over an issue..." restatement + method meta-commentary
-        ("The method determines fix-vs-defer thresholds...") dropped.
-        Test-first: major compression 14 → 5 lines. Decision-tree defaults and red-green-refactor
-        restatement dropped — method is authoritative and loaded at trigger time; DEV-RULES.ARC
-        embedding defaults risked contradiction if adopters override. User call.
-        No-meta-project-references: 3 sentences → 2 (restatement dropped).
-        When-to-Load: "method dependencies block triggers loading of..." informational subtext
-        trimmed from process-task-loop and prepare-commits bullets.
-
-        **Removals (pure cut, no docs-site target):**
-        "Re-check core documents" subsection removed entirely. 90% tautology ("if uncertain about X,
-        reread X"); remaining "workflows are authoritative for their domain" insight is implied by
-        § Method and extension loading. User call; replaced Contents TOC entry.
-        "Wrong information is worse than no information." aphorism at § Verify before assuming.
-
-        **P-annotation removal:** 17 `· PN` annotations stripped from rule headings across the file;
-        preamble paragraph "Every rule traces to one of ARC's 11 principles (P1–P11)..." removed
-        and staged (Entry 10). Rule → principle mapping preserved in the staging table for docs-site
-        absorption — adopter-facing methodology coherence retained without inline rule restatement.
-        `· [configurable]` annotations retained (operationally meaningful — signals override mechanism
-        exists). `[core-philosophy]` link definition removed from DEV-RULES.ARC (no remaining
-        inline reference); staged in Entry 10 for docs-site mapping page absorption.
-
-        **Agent-audience lens application:** DEV-RULES.ARC is dual-audience (agent at session-init +
-        adopter reading the constitution), so `[TODO-docs-site]` placeholders are retained at
-        extraction sites per 4.2.a's lens default. Four placeholders added; stub definition added to
-        file bottom.
-
-        **Two-copy sync:** Framework file. Edits in `.arc/` synced to
-        `packages/arc-framework/arc/reference/constitution/DEV-RULES.ARC.md` via cp; `diff` verified
-        identical post-sync.
-
-    - [x] **4.2.c `DEV-RULES.PROJECT.md` — audited**
-
-        **Outcome:** Trimmed and lint-clean. 214 → 137 lines (36% reduction). Character of the trim was
-        structural — whole-section extractions/drops driven by redirection to existing project-level
-        strategies — rather than the surgical trim 4.2.b applied to DEV-RULES.ARC.
-
-        **Lens calibration (new precedent for project-level files):** Project-level / configurable files
-        have three audit outcomes — **drop**, **tighten-in-place**, or **relocate to a project-level
-        strategy**. Staging entries in `notes-docs-content-sweep.md` do NOT apply; that staging flow is
-        framework-content-only since the docs site serves adopters, not this repo's project specifics.
-        `[TODO-docs-site]` placeholders likewise unused. Apply this lens to remaining project-level
-        files in Phase 4 (incl. 4.2.d's QUICK-REFERENCE which is configurable).
-
-        **Relocations (1 cross-file move):**
-        Mock hygiene block (Vitest hoisting / resetAllMocks / re-establish defaults + "Why this
-        matters" rationale) moved into `strategy-testing-methodology.md` as new `### Vitest mock
-        mechanics` subsection under `## Mocking Rules`. Strategy already covered what-to-mock
-        (boundaries vs internals); Vitest mechanics is a distinct footgun class. Content moved intact
-        — no rewrite. Testing Methodology pointer in DEV-RULES (§ Testing Requirements) updated to
-        call out "including Vitest mock mechanics" so readers know the footgun guidance is reachable.
-
-        **Drops (whole sections / subsections, covered by other sources):**
-        - **Domain-scoped rules callout** (intro) — framework meta-guidance; session-init Step 4
-          already directs the agent to scan `constitution/` for domain rule files
-        - **File Organization section** — duplicated AGENT-BRIEFING.PROJECT § Repository Layout and
-          QUICK-REFERENCE § Environment, both loaded at session-init
-        - **Capture Routing 3 bullets** — pure duplication of DEV-RULES.ARC § Leave it cleaner table
-          (same session-init load set); kept pm.mode line + pointer
-        - **CI Validation item 6** in Quality Gates list — informational about GH Actions pipeline,
-          not an action the agent takes
-        - **Redundant "Markdown linting remains the primary quality gate" line** at end of Testing —
-          duplicated Quality Gates item 1
-        - **Testing Requirements tier descriptions** (Unit/Integration/E2E paragraphs) —
-          `strategy-testing-methodology.md` § Test Tiers already covers this more comprehensively;
-          pointer retained
-        - **ADR decision criteria** ("Write an ADR when" / "Don't write an ADR for" / stability
-          paragraph) — `strategy-adr-methodology.md` owns criteria and policy; reduced to intro
-          sentence + pointer
-        - **Trailing "Separate concerns, prefer composition..." sentence** under Code Quality
-          Principles — overlapped with DRY bullet, drop call was close but followed plan
-
-        **Compressions (in-place tightening):**
-        - Tiered approach paragraph (Quality Gates) 4 lines → 1 line ("T1 per-task, T2 per-unit, T3
-          pre-PR. See strategy.")
-        - shellcheck install note (Code Linting item 2) 3 lines → 1 line; dropped apt/brew command
-          examples and CI runner note (well-known install, CI detail informational)
-        - Line-length rule (Docs Standards) 4 lines → 1 line; dropped underfill rationale paragraph
-          (`because ...` clause ~45 words, well over ≤12-word heuristic)
-        - TOC updated — File Organization line removed
-
-        **Retained in full (judgment calls flagged during pre-edit review):**
-        - DRY/SOLID/KISS/YAGNI list (canon-but-signals-project-values) — kept 4-bullet enumeration
-        - Documentation Standards ❌/✅ example pairs (all 3 kept; already minimal vs 4.2.b's 2-of-6
-          retention for Write-for-the-reader)
-        - Quality Gates items 1-5 current shape (enumeration IS the operational teeth of zero-
-          tolerance; commands inline keep gates concrete without ref-chasing)
-
-        **Agent-audience lens application:** DEV-RULES.PROJECT is dual-audience (agent at
-        session-init + human contributors reading the constitution). Under the corrected
-        project-level lens, `[TODO-docs-site]` placeholders are N/A regardless — no extractions
-        destined for the docs site. No placeholders added. File bottom stub not introduced.
-
-        **Two-copy sync:** Configurable file. `.arc/` copy edited only; package source
-        (`packages/arc-framework/arc/reference/constitution/DEV-RULES.PROJECT.md`, 173-line
-        adopter template with placeholders) intentionally unchanged per 4.2.a configurable-file
-        precedent. Cross-file relocation target `strategy-testing-methodology.md` is a project
-        strategy (`strategies/project/`); not shipped to adopters, no package counterpart exists.
-
-    - [x] **4.2.d `QUICK-REFERENCE.md` — audited (project copy + template)**
-
-        **Outcome:** Both copies trimmed and lint-clean. Project copy 330 → 296 lines (10%
-        reduction). Template 242 → 225 lines (7% reduction net — T3+T4 drops partly offset by T1
-        new Platform Commands scaffold).
-
-        **Lens calibration amendment (extends 4.2.c):** Configurable-file audit has TWO passes —
-        `.arc/` trim for project-specific content, **plus** package-template edits for
-        framework-template quality issues (structural gaps, broken pointers, duplication the
-        template itself introduces). The 4.2.c precedent "configurable → `.arc/` only" was
-        overgeneralized; it correctly applies to project-specific content changes but NOT to
-        framework-template quality improvements that affect every adopter. Carry this refined
-        lens into 4.2.f (which touches template-shaping files).
-
-        **Drops (project copy + template):**
-        - **Anti-Patterns section** — duplicated Env & Path guidance + AGENT-BRIEFING.PROJECT §
-          Common Friction Points + DEV-RULES.PROJECT. No workflow anchors targeted `§
-          Anti-Patterns`. Dropped in both copies for DRY.
-        - **Bottom summary line** ("Commands assume repo root…" / "If working from subdirectory,
-          see active status file for adjusted paths") — redundant with intro and Env & Path
-          sections. Dropped in both copies.
-
-        **Project-copy-only changes:**
-        - **Working Directory Note** (Env & Path) compressed 2 lines → 1 line, dropped the
-          hybrid-project restatement that duplicated AGENT-BRIEFING.PROJECT § Common Friction
-          Points.
-        - **Runtime Environment § Quality Tools** — 5-bullet command list compressed to
-          tool-names-only line + pointer to § Command Patterns / § Quality Gate Commands below.
-          Commands were duplicated in both sections; under Phase 5.1 partial-read, commands
-          reach the agent via workflow-triggered method loading (quality-gate-commands) rather
-          than the partial-read pair.
-
-        **Template-only changes:**
-        - **Working Directory Note** (Env & Path) dropped entirely — "Check active status file
-          for current context and adjusted paths" was doubly wrong (status file carries task
-          state, not paths; SESSION-NOTES would carry adjusted paths if any). User call — note
-          was overtuned guidance, cleaner without.
-        - **New conditional § Platform Commands section** added between § ARC CLI Commands and
-          EOF. Wrapped in `<!-- arc:if platform.type != github --> … <!-- arc:endif -->`, using
-          the existing idiomatic conditional-render mechanism (already used for `team.mode` and
-          `pm.mode` in other templates). Default (github) adopters render without the section;
-          GitLab/Gitea/etc. adopters render a minimal 3-row scaffold (Create PR/MR, List PRs/MRs,
-          Create issue) with an intro comment directing them to fill in their platform CLI.
-          Resolves all 6 inbound workflow references to `QUICK-REFERENCE § Platform Commands`
-          that were previously dead pointers (rotate-branch, integrate-planning-branch,
-          deactivate-work-unit, strategy-configurability-architecture ×3). arc-config.yml:131
-          comment already says "See QUICK-REFERENCE for platform-specific command alternatives"
-          — config and template now align.
-
-        **Shared change (both copies):**
-        - **ADR-012 trailing explanation** in § Session State Portability — replaced with
-          pointer to `strategy-session-operations.md § Session State Portability`. User call to
-          prefer canonical living strategy over the decision record that led to it. Strategy
-          covers git notes mechanism, `arc sync` direction semantics, `user.sync_push` policy
-          more thoroughly. Added `[session-ops]` reference-style link to project copy's link
-          definitions block; template uses inline link (matches its style).
-
-        **Preserved in project copy (judgment calls flagged pre-edit):**
-        - § Environment & Path Context Critical Path Reference table (4 rows) — compact
-          load-cost-lens orientation aid, info not elsewhere in this form
-        - § Quality Gate Commands section unchanged — canonical tier reference per
-          strategy-quality-gates, already command-dense
-        - ARC CLI Commands self-hosting callout — critical project-specific rule (`npx arc …`
-          vs `arc`), operational
-        - § Command Patterns Prettier gotchas + Markdown Linting MD060 note — genuine tool
-          footguns
-        - npm Publishing section — tight, project-specific, on-demand load makes cost OK
-
-        **Retained in template:**
-        - Placeholder comments inside sections (`<!-- Example using… -->`, `<!-- Omit this
-          section if… -->`) — serve template-use purpose, operational for adopters filling in
-        - Command Patterns placeholder scaffolds — template shape guides adopters
-
-        **Two-copy sync model refined:**
-        - Project copy (`.arc/reference/QUICK-REFERENCE.md`) edited independently for
-          project-specific content trims (C, D)
-        - Template (`packages/arc-framework/arc/reference/QUICK-REFERENCE.template.md`) edited
-          independently for framework-template quality (T1, T-extra)
-        - Shared changes (A/T3, B/T4, E/T2) applied to both — same defects in both copies
-        - Template file name is `.template.md` (not `.md`) — it's a rendered-at-init
-          configurable file, not a direct copy. Lint-excluded by default in workspace config;
-          force-linted via temp-copy workaround, zero errors.
-
-        **Scope note — out of scope:** Workflow references to `§ Platform Commands` previously
-        called "drift" are structural gap, not decay. T1 closes the gap. No workflow edits
-        needed — references already resolve once template renders with the conditional section
-        present.
-
-    - [x] **4.2.e `session-init.md` — audited (both copies)**
-
-        **Outcome:** Project copy 344 → 308 lines (10.5% reduction); template 373 → 336 lines
-        (9.9% reduction). Character of the trim was mostly surgical — scattered rationale paragraphs
-        plus 3 heavy extractions. Came in below the Phase 4 ~80-90% extraction heuristic by design:
-        4.2.g was spun off (DEV-RULES domain scan wording held for full structural replacement), and
-        one of the four heavy-extraction candidates was relocated (not staged for docs sweep).
-
-        **Heavy changes:**
-        - **SESSION-NOTES load errors (4 error classes with diagnostic commands)** relocated to
-          `strategy-session-operations.md § SESSION-NOTES Load Error Recovery` (new subsection under
-          § Session State Portability). Operational recovery reference — agent needs the commands at
-          runtime; docs-site target serves no read-path. session-init.md retains a single pointer via
-          new `[session-ops-load-errors]` reference link.
-        - **Multi-file disambiguation prompt example** trimmed from 11-line illustration to 4-line
-          structural scaffold (`[N] <filename> · <branch> / Next Task / State` pattern). Verbose
-          concrete examples not staged — project-specific pedagogical value low.
-        - **Planning-readiness enumeration** (§ Next work unit discovery closing paragraph) dropped;
-          staged Entry 12. 4-step discovery protocol retained.
-        - **Context-mismatch examples** trimmed Tier 1 4→2 and Tier 2 3→2 (matches 4.2.b Write-for-
-          the-reader precedent); dropped examples staged Entry 13.
-
-        **Adjacent captures from audit:**
-        - **Step 1 "Adopters: add project-specific runtime checks" prose dropped in both copies.**
-          Misleading — rendered copies churn on `arc update`; template isn't adopter-owned. Correct
-          surface for non-ARC pre-session guidance is outside ARC (harness-level files). User-
-          approved framing: same reasoning that retired `CLAUDE.ARC.md`; no new extension invented
-          (no reinventing the wheel). `pwd` retained — lightweight cwd orientation, sessions shift
-          cwd genuinely. `plan-docs-content-sweep.md` Drift Item #4 augmented to capture env-
-          bootstrap as an additional harness-layer use case.
-        - **New task 4.2.g — DEV-RULES domain enumeration via composite probe** added. Replaces
-          Step 4 item 5 scan instruction (nearly always-empty) with probe-delivered
-          `{path, domain, purpose}` tuples via frontmatter on DEV-RULES.{domain}.md files; ships new
-          `reference/templates/template-dev-rules.md` scaffold (user-initiated addition — makes
-          domain-rules adoption copy-paste); captures docs-site drift at implementation time. Step 4
-          item 5 wording trim held for 4.2.g's wholesale replacement.
-
-        **Staging entries added (3, 11-13 in `notes-docs-content-sweep.md`):**
-        Entry 11 — Design context P5 framing + persistent-memory nuance (preamble);
-        Entry 12 — Next-work-unit planning-readiness enumeration;
-        Entry 13 — Context-mismatch dropped illustrations (Tier 1 ex 3+4, Tier 2 ex 3).
-
-        **Inline tightenings (~10 sites):** Design-context P5 annotation stripped; config-awareness
-        rationale tightened (§ 2); probe-failure parenthetical + closing reassurance dropped; remote-
-        ahead rationale tightened (§ 3); reading-rule parenthetical dropped; task-list "Why partial
-        read OK" folded into the header clause; task-execution-workflow rationale tightened (§ 4);
-        post-context-load use-cases dropped (§ 5); "Never include" closing rationale tightened (§ 7);
-        contributor-block closing rationale tightened.
-
-        **Agent-audience lens:** `audience: agent` in frontmatter — strictly agent-loaded. Per 4.2.a
-        lens default: no `[TODO-docs-site]` placeholders at extraction sites; sweep WU locates
-        extractions via staging Source ranges. No file-bottom stub added.
-
-        **Two-copy sync (configurable-file two-pass per 4.2.d):** All content trims applied to both
-        copies. Template-specific conditional blocks preserved intact (`team.mode` × 2, `pm.mode ==
-        arc-in-git`, `pm.mode != arc-in-git`); `{{REPO_ROOT}}` placeholder preserved. Template
-        lint-excluded by workspace config; force-linted via temp-copy, zero errors.
-
-    - [x] **4.2.f Template + reference + config cluster — audited (all three)**
-
-        **Outcome:** `template-status.md` 56 → 11 lines (80% reduction; highest-leverage target because the skeleton
-        propagates into every WU's status file and is Tier-1 loaded per-session). `STRATEGY-INDEX.md` `.arc/` copy
-        79 → 38 lines (52%); package copy 79 → 56 lines (29%). `arc-config.yml` audited, no material change —
-        comments are largely interface documentation, not rationale bloat. STRATEGY-INDEX confirmed Configurable
-        per `strategy-file-classification.md:36` — `.arc/`-side divergence is the intended `arc update` merge
-        pattern, not a risk.
-
-        **Heavy changes — `template-status.md`:**
-        - **"About this file" callout (L3-L9) dropped.** Same P5/companion/protocol framing already authoritative in
-          `AGENT-BRIEFING.ARC § Session lifecycle`, `DEV-RULES.ARC § Session Management`, and `session-handoff.md`.
-          Carried into every WU's status file was pure duplication.
-        - **Optional fields HTML comment (L21-L35) relocated** — Interrupts / Paused At / Paused To / Superseded By
-          field documentation moved to new `strategy-work-organization.md § Work Unit State § Optional Pointer
-          Fields` subsection.
-        - **State enum HTML comment (L37-L56) relocated** — 5-value enum with set-by cross-references moved to new
-          `strategy-work-organization.md § Work Unit State § State Enum` subsection.
-        - Final template shape: H1 title + `## Active Work` + 7-field scaffold. Self-documenting.
-
-        **Cross-reference updates:**
-        - `integrate-work-unit.md` (both copies) L295 + L306 redirected from `[template-status]` to
-          `[work-org-state]` (anchor link into the new strategy subsection). `[template-status]` reference link
-          removed from the file; `[work-org-state]` added.
-        - `activate-work-unit.md` + `manage-incidental-work.md` references to `template-status.md` left intact —
-          those point to the template as a copy-source (still valid — the template is the skeleton).
-
-        **Heavy changes — `STRATEGY-INDEX.md` (two-pass):**
-        - **§ Usage Protocol (13 lines) dropped from both copies.** Redundant with `DEV-RULES.ARC § Verification
-          and Discovery → Consult strategy guidance` (loaded earlier in session-init order). Per-entry "Consult
-          when" triggers ARE the discovery mechanism.
-        - **Top preamble (Location + Naming, 7 lines) dropped from both copies.** Per-entry `arc/` vs `project/`
-          prefixes document the structure inline; framework-authoring guidance on the `strategy-` prefix is
-          meta-noise at session-init.
-        - **§ Project Strategies divergence (`.arc/` only):** illustrative examples replaced with this project's
-          actual strategies (`strategy-package-project-sync.md`, `strategy-testing-methodology.md`). Package copy
-          retains the illustrative block (adopter-facing scaffold).
-        - **Maintenance note dropped from `.arc/` copy** (framework-authoring guidance), retained in package copy.
-
-        **`arc-config.yml` — audited, no material change.** Per-section comment structure is mostly enum-value
-        rosters, default markers, strategy-pointer lines, and examples blocks for regex-valued settings — all
-        interface documentation adopters need when configuring. Scattered candidates (header "Format:" paragraph,
-        `team.mode` effect bullets, `hooks.subject_max_length` rationale) are minor and don't justify the edit
-        churn given 3.R already removed the load-cost pressure. Minimal-touch verdict.
-
-        **Lens application:** Configurable-file lens per 4.2.c/4.2.d precedents — three outcomes (drop /
-        tighten-in-place / relocate to project-level strategy). Relocations went to framework strategy
-        (`strategy-work-organization.md`), not docs-sweep staging. No `[TODO-docs-site]` placeholders at drop
-        sites (agent-loaded files); docs-site coverage happens naturally when the strategy doc is processed.
-
-        **Classification verification:** Pulled `strategy-file-classification.md` during audit to confirm
-        STRATEGY-INDEX is Configurable (L36, L147) — three-way merge applies on `arc update`, `.arc/`-side
-        divergence in project-specific sections is the intended-use pattern. `template-status.md` not explicitly
-        classified in taxonomy but behaves as Framework (no render placeholders, no customization surface) —
-        package-source edits authoritative, sync forward to `.arc/`.
-
-        **Two-copy sync:** All trims applied to both copies. Content identical across copies except the two
-        intentional STRATEGY-INDEX § Project Strategies divergences.
-
-    - [x] **4.2.g DEV-RULES domain enumeration via composite probe**
-
-        **Goal:** Replace session-init.md Step 4 item 5's `constitution/` scan instruction with
-        probe-delivered domain-rules awareness. Surfaced during 4.2.e audit: every session scans
-        `constitution/` for `DEV-RULES.*.md` domain files with near-always-empty result (rare adopter
-        need). Zero domain files exist in this repo; no migration.
-
-        **Design decisions (resolved pre-implementation):**
-
-        - **Frontmatter schema — flat, unnamespaced**: top-level `domain:` (string) and `purpose:`
-          (string). Mirrors method/extension frontmatter precedent (same family: harness-enumerated
-          markdown files) rather than the workflow `arc:` namespace pattern. Filename must match
-          `DEV-RULES.{DOMAIN}.md` where `{DOMAIN}` matches the `domain:` value (case-insensitive),
-          mirroring the method `name`-matches-basename contract.
-        - **Enumeration discriminator — frontmatter presence**: probe globs `DEV-RULES.*.md` in
-          `reference/constitution/` and filters by successful frontmatter parse. `DEV-RULES.ARC.md`
-          and `DEV-RULES.PROJECT.md` carry no frontmatter and are silently skipped — no
-          reserved-list maintenance. Any adopter `DEV-RULES.SECURITY.md` with the schema is
-          auto-discovered.
-        - **Malformed frontmatter handling**: mirrors extensions probe — surfaces in a
-          `warnings: string[]` slot on the probe result. File skipped from enumeration; session-init
-          continues.
-        - **Probe envelope shape**:
-            - Module: `src/commands/constitution/` (mirrors `.arc/reference/constitution/` directory
-              mapping convention used by other command modules)
-            - Top-level slot on `SessionInitProbeResult`:
-              `domainRules: Probe<DomainRulesSessionInitResult>` (precise — `constitution` the
-              module enumerates specifically the domain-rules subset)
-            - Inner shape:
-              `{ mode: "session-init"; rules: Array<{ path; domain; purpose }>; warnings: string[] }`
-            - **Session-init-only at launch**: no full-mode rendering added — no current consumer.
-              `arc status` default rendering skips the slot. Adding full mode is a later task if an
-              `arc constitution status` surface is needed.
-        - **Session-init.md Step 4 item 5 — re-composed under Option C**: merge domain-rules
-          pointer as rewritten nested bullet under existing item 5 (DEV-RULES.PROJECT.md). No
-          renumbering. Drops the `constitution/` scan instruction; references `domainRules` probe
-          output instead.
-        - **`template-dev-rules.md` classification — Framework (default)**: static scaffold with
-          fixed content; adopters copy-and-rename to `DEV-RULES.{DOMAIN}.md`, so upstream template
-          edits propagate cleanly. No entry needed in `src/lib/classification.ts` (default
-          behavior).
-
-        **Scope:**
-
-        - [x] **4.2.g.a `parseDevRulesFrontmatter` — schema parser**
-
-            Shipped `src/lib/frontmatter/dev-rules.ts` with the flat `{domain, purpose}` schema:
-            case-insensitive filename-fragment match against `DEV-RULES.{DOMAIN}` basename,
-            non-empty `purpose` enforced, extra unknown keys accepted for forward-compatibility.
-            Exported from `src/lib/frontmatter/index.ts`. 12 tests in
-            `__tests__/unit/frontmatter/dev-rules.test.ts` (11 spec'd behaviors + case-insensitive
-            match affirmation). Tier 1 gates clean (lint:ts, typecheck, typecheck:test, 784 unit
-            tests passing).
-
-            **Behaviors batched rationale:** Tightly coupled single parser, shared test setup, no
-            independent discovery value — per `3_process-task-loop.md` § Batching judgment.
-
-        - [x] **4.2.g.b Probe module — `runDomainRulesSessionInitStatus`**
-
-            Shipped `src/commands/constitution/` module: `types.ts` (envelope shapes), `status.ts`
-            (probe enumerating `DEV-RULES.*.md` under `.arc/reference/constitution/`), `format.ts`
-            (Clack summary stub), `constitution.ts` (barrel re-export). Discriminator is
-            frontmatter-presence: files without a frontmatter block are silently skipped (ARC +
-            PROJECT handled automatically), structural/content defects surface in `warnings`.
-            Missing-directory throws per extensions probe precedent (composite wraps as per-slot
-            runtime error).
-
-            9 integration tests in `__tests__/integration/constitution.test.ts` cover empty
-            directory, ARC/PROJECT skip, single/multiple valid, malformed warn, mixed, README
-            exclusion, non-`.md` exclusion, missing-directory throw. 4 unit tests in
-            `__tests__/unit/constitution-format.test.ts` cover the formatter (empty, rules only,
-            rules + warnings, warnings only).
-
-            **Incidental discovered during this subtask:** renderer left `\n\n` at EOF when an
-            `arc:if` block stripped near EOF, tripping MD012 in the e2e init-suite lint. Fixed in
-            `src/lib/template/render.ts` by normalizing trailing newlines to exactly one (commit
-            `b4454c3`). Unblocks full `npm test` suite.
-
-            Tier 1 gates clean (lint:ts, typecheck, typecheck:test, 788 unit tests); full suite
-            including 14 e2e tests green post-renderer-fix.
-
-        - [x] **4.2.g.c Composite wiring + handler integration**
-
-            Threaded `domainRules` through the session-init composite. `SessionInitProbeResult`
-            and `SessionInitProbes` in `src/commands/status/types.ts` gained a
-            `Probe<DomainRulesSessionInitResult>` slot; `runSessionInitStatus` in `run.ts`
-            extended to a 5-element `Promise.all`; `buildSessionInitStatusSummary` in `format.ts`
-            renders a `Domain Rules:` section after `Active:` via
-            `buildDomainRulesSessionInitSummary`. Handler binding added in
-            `src/handlers/status.ts` — session-init branch only. Full-mode `StatusResult`
-            unchanged (per the resolved session-init-only design).
-
-            7 new behavior-scoped tests added across existing suites: 3 in
-            `__tests__/unit/status/run.test.ts` (slot exposure, runtime-error isolation,
-            full-mode absence), 4 in `__tests__/unit/status-format.test.ts` (section ordering,
-            empty-case delegation, populated delegation, error-marker rendering); existing
-            "invokes every probe" and JSON round-trip tests were extended rather than
-            duplicated. `__tests__/integration/status.test.ts` fixture updated to create an
-            empty `constitution/` dir and `makeSessionInitProbes` to bind the new probe —
-            keeps composite integration tests in "clean" state.
-
-            **Behaviors batched rationale:** five behaviors tightly coupled to one composite
-            change with shared fixture setup (probe bundle with `domainRules`); one-at-a-time
-            slicing offered no independent discovery value.
-
-            Tier 1 gates clean (lint:ts, typecheck, typecheck:test, 797 unit tests); full
-            suite green (972 tests). CLI sanity — `arc status --session-init --json` emits a
-            `domainRules: {ok: true, value: {mode: "session-init", rules: [], warnings: []}}`
-            slot on the self-hosting repo (ARC and PROJECT domain files silently skipped per
-            frontmatter-presence discriminator).
-
-        - [x] **4.2.g.d Pre-commit hook — DEV-RULES frontmatter validation**
-
-            Shipped as a new CHECK 13 in `pre-commit` (both copies) — "Domain-rules frontmatter
-            validation". CHECK 13 (Markdown link resolution) renumbered to 14; CHECK 14
-            (Package-source neutrality) renumbered to 15. Hook greps staged paths matching
-            `^(\.arc|packages/arc-framework/arc)/reference/constitution/DEV-RULES\.[^/]+\.md$`
-            and delegates to the existing `validate-frontmatter.ts`, which was extended with
-            a `"domain-rules"` classification. Reserved filenames (`DEV-RULES.ARC.md`,
-            `DEV-RULES.PROJECT.md`) are filtered at the classifier level — captured-fragment
-            lookup against the `DOMAIN_RULES_RESERVED = {"ARC", "PROJECT"}` set — so they
-            short-circuit to `"other"` before parsing.
-
-            9 behavior tests added to `__tests__/unit/scripts/validate-frontmatter.test.ts`:
-            4 in `classifyPath` (domain-rules paths classified, reserved filenames excluded,
-            constitution non-DEV-RULES files pass through, existing "unrelated paths"
-            trimmed of the now-moved DEV-RULES.ARC reference) and 5 in `validateFiles` (valid
-            pass, missing `domain` diagnostic, filename/domain mismatch both-values
-            diagnostic, reserved filenames silently skipped, malformed YAML surfaces inner
-            parse error, no-domain-rules paths pass cleanly). Tier 1 gates clean
-            (lint:ts, lint:sh, typecheck, typecheck:test, 806 unit tests).
-
-            **Behaviors batched rationale:** all 7 specified behaviors exercise one dispatcher
-            (`classifyPath` + `validateFiles`) with shared fixture builders; one-at-a-time
-            slicing would re-run the same fixture setup without discovery value.
-
-            End-to-end smoke-tested: staged `DEV-RULES.SMOKE.md` with
-            `domain: backend` under filename `SMOKE` → hook surfaces
-            `Domain-rules frontmatter validation failed` with the expected both-values
-            diagnostic. Valid frontmatter smoke → `Pre-commit checks PASSED`.
-
-        - [x] **4.2.g.e CI audit — sibling `audit-domain-rules.ts` + parser case contract**
-
-            Shipped as sibling script — `audit-method-triggers.ts` is strictly method/extension-
-            scoped by filename contract, module doc, success message, and corpus (walks
-            `system/workflows/`). Force-fitting DEV-RULES validation would require rename +
-            module-doc rewrite + widened CLI surface for no structural payoff; the two audits
-            share only the `lib/frontmatter/` primitives, which a sibling already inherits for
-            free.
-
-            `packages/arc-framework/src/scripts/audit-domain-rules.ts` exports
-            `enumerateDomainFiles(dir)` and `audit(constitutionDir): AuditResult` matching the
-            method-triggers `AuditResult` shape. Per-file validation delegates to
-            `parseDevRulesFrontmatter`. Zero-files returns clean pass with informational
-            stdout (`no domain files present (opt-in extension)`); CLI exits 1 on diagnostics,
-            0 on pass with file count.
-
-            **Parser case contract (design tightening during this task):** the original
-            parser accepted case-insensitive filename/domain matches, which created a
-            cross-file duplicate-`domain` corner case only reachable on case-sensitive
-            filesystems (two files differing only in fragment case could both parse as valid
-            with the same `domain`). Rather than paper over with a platform-skip test or a
-            defense-in-depth duplicate check, the parser now enforces an asymmetric case
-            contract: filename fragment must be uppercase (signals "broad/overarching" per
-            ARC convention — DEV-RULES.ARC.md, DEV-RULES.PROJECT.md, AGENT-BRIEFING, README),
-            `domain:` value must be lowercase (programmatic identifier), and
-            `fragment.toLowerCase() === domain` exactly. Cross-file uniqueness becomes
-            structurally guaranteed — two valid files cannot share a `domain` because their
-            fragments would have to be identical. The duplicate check was removed from the
-            audit as dead code. Template-side comment documenting this as a **mechanical
-            requirement** (probe + hook enforced, not convention) is threaded into 4.2.g.f.
-
-            Tests added / updated:
-            - `__tests__/unit/scripts/audit-domain-rules.test.ts` — 7 behavior tests
-              (enumeration: sorted + reserved-excluded + non-DEV-RULES excluded + empty;
-              audit: empty pass, single valid, invalid-frontmatter diagnostic, reserved
-              ignored).
-            - `__tests__/unit/frontmatter/dev-rules.test.ts` — existing case-insensitive
-              acceptance test inverted to assert lowercase-fragment rejection; 3 new tests
-              for mixed-case fragment, uppercase `domain:`, mixed-case `domain:` rejection.
-
-            Wiring: `package.json` adds `lint:arc:domain-rules` alongside `lint:arc:triggers`;
-            `.github/workflows/ci.yml` adds a parallel step after `lint:arc:triggers`.
-            Smoke-tested on self-hosting repo: `npm run lint:arc:domain-rules` →
-            `audit-domain-rules: no domain files present (opt-in extension)`.
-
-            **Behaviors batched rationale:** scenarios exercise one `audit()` + one parser
-            with shared fixture setup; one-at-a-time slicing offered no independent
-            discovery value.
-
-            Tier 1 gates clean (lint:ts, lint:sh, typecheck, typecheck:test, 816 unit tests).
-
-        - [x] **4.2.g.f Markdown surface — session-init rewrite, template, drift capture**
-
-            Single atomic commit covering the markdown/config surface for the domain-rules
-            feature:
-
-            - **`session-init.md` Step 4 item 5 rewritten** (two-copy). Replaced the static
-              "scan `constitution/` for additional `DEV-RULES.*.md`" instruction with a nested
-              bullet pointing agents at the probe's `domainRules` field for `{path, domain,
-              purpose}` tuples; retained "load on-demand when a task touches the relevant domain"
-              guidance.
-            - **`session-init.md` Step 2 probe table** gained a `domainRules` row documenting
-              `value.rules` ({path, domain, purpose} tuples) and `value.warnings` (parse
-              diagnostics). Widened the Field column by 1 char so `domainRules` fits without
-              MD060 alignment drift; `markdown-table-prettify` applied to both copies.
-            - **New `reference/templates/template-dev-rules.md`** (two-copy). Frontmatter
-              scaffold (`domain: your_domain`, placeholder `purpose:`), HTML comment block
-              framing the case contract as a **mechanical requirement** (probe + pre-commit
-              hook enforce it) with a worked example (`DEV-RULES.FRONTEND.md` /
-              `domain: frontend`), body skeleton mirroring DEV-RULES.ARC / DEV-RULES.PROJECT
-              shape (Contents, sample sections, reference-links block). Framework
-              classification (default — no `classification.ts` entry).
-            - **`packages/arc-framework/init-recipe.json`** — added
-              `reference/templates/template-dev-rules.md` to `include_files` alongside the
-              other per-document templates (one-line addition). Scope note: the task
-              description called for "markdown-only, no CLI code," but without the recipe
-              entry adopters wouldn't receive the template on `arc init`; recipe JSON is
-              config, not CLI logic, and the "template ships" outcome stays self-contained in
-              this commit. Confirmed with user before applying.
-            - **`plan-docs-content-sweep.md`** — added Drift Item #6 (DEV-RULES domain-rules
-              pattern) under § Drift Items with the template-standard shape (what changed /
-              edit type / touch points / nuance), plus Document History entry.
-
-            **Tier 1 gates clean** on modified markdown (5 files; MD060 surfaced on the new
-            probe-table row and was resolved by `markdown-table-prettify` widening the Field
-            column across all rows); probe re-verified (`domainRules.rules = []`,
-            `warnings = []`); full unit suite green (816/816).
-
-            Closes 4.2.g as a coherent unit — Tier 2 gates to run per process-task-loop §
-            Coherent unit completion.
-
-        **Dependencies:** 4.2.g.a blocks 4.2.g.b, .d, .e (they consume the parser). 4.2.g.b blocks
-        4.2.g.c (composite consumes probe). 4.2.g.f depends on 4.2.g.c shipping so agents can
-        actually consume `domainRules` in the harness. Implementation order:
-        a → b → c → (d, e parallel) → f.
-
-        **Commit cadence:** expected 3–4 commits. Candidate boundaries: (1) parser + probe +
-        composite wiring; (2) hook + CI audit; (3) markdown surface. Split further if atomicity
-        discipline calls for it at commit time.
-
-    **Goal:** Same operational-context audit applied to core lifecycle workflows — commit/task flow (4.3.a) fires
-    repeatedly per session; integrate-work-unit (4.3.b) fires per-WU; session-handoff (4.3.c) fires per-session.
-    Load-frequency varies; audit pressure is high across the set. Decomposed by file weight.
-
-    **Protocol per subtask:** same as 4.2 — extract to staging, leave placeholders, two-copy sync per file.
-
-    - [x] **4.3.a Commit/task flow cluster — audited**
-
-      **Outcome:** Both files trimmed and lint-clean. `3_process-task-loop.md` 269 → 241 (10%);
-      `prepare-commits.md` 171 → 161 (6%). Softer line-count reduction than 4.2.a/b reflects the
-      pre-audit baseline — both files were already operational-heavy with limited rationale overhead.
-
-      **Trims applied — `3_process-task-loop.md`:** co-development rationale why-clause (workflow
-      directive preserved); inline Tier 1/2/3 definitions recap (pointer to Quality Gates Strategy
-      retained); outcome-shaped rewrite second sentence (tautological restatement); "Implied
-      permission" note (verbatim duplicate of DEV-RULES.ARC § Task Execution, always-loaded);
-      atomicity-check common-splits enumeration (imperative + pointer retained); Quick Decision
-      Guide ✅/❌ criteria (compressed to atomic-vs-task-list distinction + manage-incidental-work
-      pointer); Where to Capture lifecycle-intent routing with three pm.mode conditional bullets
-      (pointer to DEV-RULES.ARC § Leave it cleaner routing table — which covers all PM modes via
-      its own conditional tables — replaces the arc:if scaffolding entirely); Session-Scoped
-      Tracking TodoWrite rationale paragraph (imperative retained, explanation extracted).
-
-      **Trims applied — `prepare-commits.md`:** Shared-Docs Commit Pattern scenario preamble
-      compressed to single-sentence rule (Applies/Does NOT apply bullets preserved as operational
-      boundary); Granularity guidance bullet expansion clauses extracted — rule leads and
-      intermingled-code exception retained; reversibility bullet keeps its first two sentences
-      (operational), drops the category-naming third sentence; tracking-docs-ride-with-content
-      keeps through "not a separate meta-commit" (operational), drops the "dangling tracking
-      commits create churn" rationale tail.
-
-      **Staging entries added to `notes-docs-content-sweep.md`:** six entries (14-19) —
-      Entry 14: process-task-loop § Co-development awareness rationale;
-      Entry 15: process-task-loop § Completion protocol atomicity-check common-splits examples;
-      Entry 16: process-task-loop § Quick Decision Guide ✅/❌ criteria;
-      Entry 17: process-task-loop § Task List Maintenance TodoWrite rationale;
-      Entry 18: prepare-commits § Shared-Docs Commit Pattern scenario framing;
-      Entry 19: prepare-commits § Granularity guidance bullet expansions.
-      Pure duplicates were dropped without staging (Tier definitions recap duplicates Quality Gates
-      Strategy; Implied permission duplicates DEV-RULES.ARC; outcome-shaped second sentence is
-      tautological; Where to Capture routing duplicates DEV-RULES.ARC § Leave it cleaner table).
-
-      **Agent-audience lens applied:** both files are strictly agent-loaded workflows (no dual
-      audience). Per the 4.2.a resolution, no inline `[TODO-docs-site]` placeholders left —
-      staging entry Source ranges let the sweep WU find extractions. Matches AGENT-BRIEFING.ARC
-      and AGENT-BRIEFING.PROJECT handling.
-
-      **Two-copy sync:** `3_process-task-loop.md` renders from
-      `packages/arc-framework/arc/system/workflows/arc/3_process-task-loop.template.md` (contains
-      team.mode / pm.mode arc:if directives); template edited first, rendered `.arc/` copy mirrored
-      the non-conditional edits. Removed the pm.mode external/none arc:if bullets and the
-      conditional `[dev-rules-project]` link definition in the template (no longer referenced).
-      `prepare-commits.md` is a straight two-copy file (no template); both copies edited
-      identically. Post-edit diff: `prepare-commits` identical across copies; `3_process-task-loop`
-      diff shows only the two team.mode conditional blocks (correctly stripped from `.arc/` via
-      team.mode=false). Tier 1 markdownlint clean on all five modified files.
-
-      **Note:** The MD046 structural issue in `3_process-task-loop.template.md` (team-mode
-      conditional blocks creating phantom indented code blocks) was pre-fixed during an earlier
-      CI unblock; this audit only did the operational-context pass.
-
-    - [x] **4.3.b `integrate-work-unit.md` — audited**
-
-      **Outcome:** Trimmed and lint-clean. 360 → 353 (2%) — smallest reduction in Phase 4,
-      consistent with the lighter-posture lens applied to this file: it loads per-WU (once per
-      branch), not per-session, so amortized cost is low and clarity wins over brevity. Most of
-      the file resists trimming — checklist-heavy phases with bash blocks, edge-case handling,
-      and `why` clauses that each prevent a specific non-obvious error (standalone status-file
-      commits resetting PR reviews, PR body reader-hostility, etc.). The four trims applied were
-      all small, targeted redundancy removals.
-
-      **Trims applied:** multi-branch ops rationale tail (status-file-travel mechanics —
-      duplicates Work Organization Strategy, whose pointer remains at L36); completion-doc
-      freshness rationale tail ("undermines the review it's meant to support" — kept "doubles
-      as the PR description" as the operational why-link); `[~]` marker distinct-from
-      enumeration (duplicates `strategy-task-list-formatting.md`, whose pointer is in the same
-      sentence); Appendix "Key principle" closing block (restates what elements #4 / #5 already
-      establish + duplicates the operational boundary from elements #1 / #2).
-
-      **Staging entries added:** one entry (20) — integrate-work-unit § Appendix Key principle
-      closer. Conceptual-framing value for adopter docs (audit-trail vs. abandoned-work
-      distinction is the essential motivation for the supersession protocol). Other three trims
-      were pure drops with existing coverage elsewhere.
-
-      **Deliberately preserved under the lighter lens:** multi-branch intro framing, Workflow
-      Overview "Key principle" establishing the docs-as-deliverable model, Supplementary Files
-      evaluation criteria with the "6 months from now" heuristic, Status File discipline
-      preventive paragraph (L160-164), Common Pitfalls end-of-workflow scan, Appendix elements
-      #1-5 with code templates (operational when the scenario applies).
-
-      **Agent-audience lens applied:** no inline `[TODO-docs-site]` placeholder for Entry 20
-      — staging Source range sufficient.
-
-      **Two-copy sync:** straight two-copy file (no template suffix); both copies edited
-      identically, post-edit diff clean.
-
-    - [x] **4.3.c `session-handoff.md` — audited**
-
-      **Outcome:** Trimmed and lint-clean. 473 → 450 (5%) — standard posture, consistent with per-session
-      load frequency but bounded by ADR-016 preservation constraint. The gate model expands
-      handoff-interior responsibilities (rotation-field migration commit→handoff; configurable toggles
-      for worktree push, notes push, quality-gate finalization), so structural scaffolding — rotation
-      template, step-by-step format, Save-to-Git-Notes section, Confirm Handoff orientation — stayed
-      intact. Extractions targeted principle-grounding framing and verbose error-handling prose.
-
-      **Trims applied:** Design context (L13–16, ephemeral-context framing + persistent-memory
-      nuance) compressed to a two-line override pointer; "Preserve persistent context" paragraph in
-      § What to Update (L65–71) compressed to a three-line pointer to § Comprehensive Handoff Format
-      step 1 + § Persistent Context (pure dedup); "Long-session bias — resist it" paragraph (L168–172)
-      dropped entirely (behavioral nudge redundant with the Audience paragraph's "volume is a side
-      effect" framing and the Anti-patterns block's concrete counter-examples); § Save to Git Notes
-      error-handling bullets (L425–439) compressed from 15 lines to a three-bullet recognition list
-      ("CLI surfaces errors — follow its guidance"), extracting the resolution-choice reasoning and
-      root-cause teaching.
-
-      **Staging entries added:** two — Entry 21 (Design context persistent-memory nuance; parallels
-      Entry 11's session-init extraction, sets up consolidated Design-context narrative in docs
-      absorption) and Entry 22 (error-handling rationale + root-cause patterns). "Long-session bias"
-      paragraph dropped without staging (rhetorical nudge without docs-absorbable substance); "Preserve
-      persistent context" paragraph compressed without staging (pure dedup with downstream sections).
-
-      **Deliberately preserved under ADR-016 constraint:** rotation-field template block and its
-      three _Note_ clauses (becomes the primary site for Next Task / Last Completed / Next Action
-      updates under gate model); Save-to-Git-Notes preamble and `arc sync` push-policy bullets
-      (attachment point for worktree-push toggle); Confirm Handoff orientation template (pairs with
-      session-init); Handoff Examples (canonical rotation-field demonstrations); Anti-patterns
-      "omit by name" block (operational teaching that counters the same biases the dropped
-      "Long-session bias" paragraph gestured at).
-
-      **Agent-audience lens applied:** no inline `[TODO-docs-site]` placeholders for Entry 21 or
-      Entry 22 — staging Source ranges sufficient (mirrors Task 4.3.b / Entry 20 protocol).
-
-      **Two-copy sync:** template suffix file (`session-handoff.template.md`). Both copies edited
-      identically; post-edit diff shows only the `<!-- arc:if team.mode == true -->` block at L106–115
-      of the template (correctly stripped from `.arc/` via team.mode=false), no other deltas.
-
-- [x] **4.4 Task-list-formatting restructure (P1.4 — three moves) — done**
-
-    **Outcome:** Three moves landed. `template-tasks.md` created (both copies) absorbing
-    skeleton blocks; Quick Format Checklist relocated to `2_generate-tasks.md` Step 4 as the
-    pre-save gate; `strategy-task-list-formatting.md` rewritten to rules-only (701 → 285 lines,
-    ~59% reduction; 7 contract-carrying sections preserved with cross-references to the
-    extracted surfaces). Tier 3 audit (4.5) now inherits a tighter `2_generate-tasks.md` and
-    `strategy-task-list-formatting.md`. Five staging entries (23-27) captured pedagogical and
-    design-philosophy content for the docs-content-sweep WU.
-
-    - [x] **4.4.a Extract templates to `template-tasks.md` + apply resolved `**Strategies:**` convention change**
-
-      **Outcome:** Templates landed; convention change applied; stale annotation swept.
-
-        - **New file:** `.arc/reference/templates/template-tasks.md` (217 lines) — created following
-          the `template-completion-doc.md` convention (single file, variants under headings, nested
-          triple-backtick code blocks, curly-brace placeholders, prose pointers to
-          `strategy-task-list-formatting.md` for rules). Contains: feature/technical header template,
-          incidental header template, verification phase block, atomic companion file template,
-          success criteria block — each with a short "Use when" framing and a reference back to the
-          strategy doc for detailed rules. Phase-header template ships without a `**Strategies:**`
-          field (per resolved convention). Two-copy sync: mirrored to
-          `packages/arc-framework/arc/reference/templates/template-tasks.md`; post-write diff
-          identical.
-
-        - **`2_generate-tasks.md` Step 3 update:** dropped the "under the phase header or" option
-          from the `**Strategies:**` wording; reframed the "use when it adds value, skip when the
-          connection is obvious" closer to "use when the connection isn't obvious from the task
-          title". Applied to both copies (`.arc/` + the `.template.md` counterpart); post-edit diff
-          shows only the pre-existing team.mode conditional blocks (L71-79 ownership note, L170-172
-          team-coordination link def).
-
-        - **`tasks-arcd-rebrand.md` sweep:** removed the document-level `**Strategies:**` block
-          (four-line citation of work-organization, package-project-sync, file-classification, and
-          configurability-architecture strategies under the Overview). Only non-task-level
-          `**Strategies:**` instance in the file. Also removed three orphaned reference-link
-          definitions (`[package-sync]`, `[file-classification]`, `[config-arch]`) — confirmed
-          unused elsewhere via grep. `[work-org]` retained (still referenced in Overview prose at
-          L25).
-
-        - **Tier 1 markdownlint:** clean on all five modified files after removing an unused
-          `[verify-work-unit]` reference-link definition at the bottom of `template-tasks.md` (all
-          actual uses of that label are inside nested code blocks, which don't resolve link
-          references — definition was orphaned per MD053).
-
-    - [x] **4.4.b Relocate Quick Format Checklist into `2_generate-tasks.md` Step 4**
-
-      **Outcome:** Checklist moved verbatim; caller prose in `2_generate-tasks.md` body tightened
-      (dropped the now-redundant "Use its Quick Format Checklist to verify before saving" pointer).
-      Strategy doc TOC shrunk by one entry; the new checklist location is surfaced via a pointer
-      line directly under the TOC ("See 2_generate-tasks.md § Step 4 for the pre-save format
-      checklist"). Placement decision: checklist appears between the "Combine phases..." intro
-      and the "Save to" paths, as a pre-save verification gate. Two-copy sync on
-      `2_generate-tasks.md` (template suffix; diff clean except expected team.mode blocks).
-
-    - [x] **4.4.c Trim `strategy-task-list-formatting.md` to rules-only**
-
-      **Outcome:** 701 → 285 lines (59% reduction). Above the aspirational ~70-line target but in
-      line with the "rough guide, not hard ceiling" framing given the surface area to cover
-      (headers, 10 format elements, ownership, test-first, verification, atomic companion,
-      success criteria).
-
-      **Restructure shape:** Preserved 7 contract-carrying sections (Task List Headers, Format
-      Elements Reference, Task Ownership Markers, Test-First Task Structure, Verification Phase,
-      Atomic Companion File, Success Criteria Section). Each format-element subsection collapsed
-      to 2-4 line rule summaries with illustrative single-line examples only where the rule text
-      alone would be ambiguous (numbering hierarchy tree, team-ownership examples). Templates
-      delegated to `template-tasks.md` via cross-reference. Three-state success-criteria marker
-      table retained (operationally essential). Heading structure stable — all cross-references
-      by section name continue to resolve.
-
-      **Extracted to staging (Entries 23-27 in `notes-docs-content-sweep.md`):**
-
-        - **Entry 23** — Task List Headers § Incidental worked example ("CLI Output Encoding
-          on Windows", original L151-181). Adopter-facing concrete illustration.
-        - **Entry 24** — Format Elements § Indentation visual hierarchy + fully-populated
-          worked example (original L390-440). Pattern-recognition pedagogical content.
-        - **Entry 25** — Verification Phase rationale ("Why a single task" +
-          "Completion notes as record", original L551-566). Design-philosophy paragraphs.
-        - **Entry 26** — Success Criteria Section worked example with Deviation + Superseded
-          annotations (original L686-703). Concrete three-state demonstration.
-        - **Entry 27** — Atomic Companion File Purpose prose + fully-populated sample (original
-          L572-603). Conceptual framing for why atomic is a separate surface.
-
-      **Cross-reference updates:**
-
-        - `STRATEGY-INDEX.md` (both copies): revised one-line description from "formatting
-          specification, header templates, element rules" to "formatting rules — structure,
-          ownership, verification, success criteria"; added Companion line pointing to
-          `template-tasks.md` + `2_generate-tasks.md` § Step 4 for the pre-save checklist.
-        - Verified external callers — anchor-free references (DEV-RULES.ARC, 2_generate-tasks.md
-          body, integrate-work-unit.md, verify-work-unit.md, manage-incidental-work.md,
-          strategy-planning-module.md, arc-config.yml comment, pre-commit hook messages) all
-          still resolve; retained sections match original anchor names.
-
-      **Agent-audience lens applied:** no inline `[TODO-docs-site]` placeholders for Entries
-      23-27 — staging Source ranges sufficient (mirrors Task 4.3.b-4.3.c protocol). Two-copy
-      sync: strategy-task-list-formatting.md is a straight two-copy file (no template suffix);
-      both copies identical after rewrite.
-
-- [x] **4.4.d Templates directory outlier cleanup** — `template-tasks.md` 215 → 169 (~21%);
-    `template-completion-doc.md` 161 → 126 (~22%); `integrate-work-unit.md` 353 → 380 (+27,
-    from 4.4.d.b relocation). 4.4.d.a dropped redundant meta-sections now owned by
-    `strategy-task-list-formatting.md` + dangling strategy pointer cleaned up. 4.4.d.b
-    relocated pre-drafting gather list + post-drafting verification checklist to
-    `integrate-work-unit.md § 3) Create Completion Metadata` (mirrors 4.4.b's
-    operational-machinery-to-use-site pattern). Both outlier templates now carry only
-    scaffold-pattern content (intro + variant-selection + scaffold code blocks); scaffold
-    skeletons themselves retained as on-disk content of target files. Two-copy sync verified
-    across all six modified files. Tier 1 markdown lint clean throughout.
-
-    - [x] **4.4.d.a Reshape `template-tasks.md`** — 215 → 169 lines (~21%).
-
-        Dropped § Verification Phase (skeleton already shown inline in
-        `strategy-task-list-formatting.md § Verification Phase` and embedded within each
-        variant scaffold — dedicated section was pure redundancy). Dropped § Success Criteria
-        Section (skeleton embedded within each variant scaffold at the bottom). Trimmed
-        § Atomic Companion File to minimal lead-in + skeleton block (Purpose/Ordering
-        paragraphs inside the skeleton code block retained — verified against real atomic
-        files in use across active + archive; those paragraphs are on-disk content of every
-        atomic file, not meta-guidance). Intro collapsed: removed the four-bullet "every task
-        list..." list that referenced dead anchors (`#verification-phase`,
-        `#success-criteria-section`); kept the pointer to `#atomic-companion-file` (retained
-        anchor) + strategy/checklist pointers.
-
-        **Actual reduction vs task-spec target:** 21% vs. ~40%. Driver: the Purpose/Ordering
-        paragraphs inside the atomic skeleton code block are on-disk content of every real
-        atomic file (verified via `head` of existing atomic files across active + archive),
-        so not trim-eligible without changing the atomic-file-creation contract. Target
-        adjusted.
-
-        **Cross-reference cleanup (discovered during verification):**
-        `strategy-task-list-formatting.md § Verification Phase` had a dangling pointer
-        ("See `template-tasks.md` for the skeleton") redundant with the inline skeleton
-        directly above it; dropped in both copies. Strategy § Success Criteria Section pointer
-        left as-is — still resolves to the variant-scaffold embedded block. No other inbound
-        anchor-level references (confirmed via grep for `template-tasks.md#` and
-        `template-tasks.md §`). STRATEGY-INDEX entry unchanged (description still accurate —
-        post-trim file is still the skeleton source).
-
-        Two-copy sync verified (both `template-tasks.md` and `strategy-task-list-formatting.md`
-        are straight two-copy files). Tier 1 markdown lint clean across all four modified files.
-
-    - [x] **4.4.d.b Reshape `template-completion-doc.md`** — 161 → 126 lines (~22%);
-        `integrate-work-unit.md` 353 → 380 lines (+27).
-
-        Relocated "Required Reading Before Drafting" (5-item gather list) from template into
-        `integrate-work-unit.md § 3) Create Completion Metadata` as a pre-drafting gather
-        section. Relocated "Standard Template Verification Checklist" (7-item post-drafting
-        verification) into the same § 3 as a post-drafting verify gate (standard template only),
-        with the Lightweight-template "verify by inspection" note appended as the tail
-        instruction. "Evidence format: note where verified" discipline folded into the
-        "Quantitative claims" checklist item inline. Template retains: intro + "All work gets
-        a completion document" framing, § Choosing a Template variant-selection prose, both
-        variant scaffolds (Standard + Lightweight) as untouched code blocks, closing link
-        definition.
-
-        **Actual reduction vs task-spec target:** 22% vs. ~50%. Same structural driver as
-        4.4.d.a: the Standard Template scaffold code block (~60 lines) is on-disk content of
-        every completion doc — not trim-eligible. Lightweight scaffold similar. The
-        relocations landed the full intended content shift; non-scaffold surface reduced
-        from ~55 lines to ~30 lines (~45% of non-scaffold prose removed — in line with spec
-        intent, just denominated differently). Target adjusted.
-
-        **Integrate-work-unit.md impact:** +27 lines in § 3. Mirrors 4.4.b precedent
-        (`2_generate-tasks.md` grew ~23 lines from Quick Format Checklist relocation). 4.3.b's
-        trim was prose/rationale; relocating structured operational gates is not a reversal.
-
-        **Cross-reference verification:** No inbound anchor-level references to template
-        (confirmed via grep for `template-completion-doc.md#` and `template-completion-doc.md §`).
-        Bidirectional pointers preserved: integrate-work-unit.md § 3 still references
-        `[template-completion-doc]` for scaffold selection; template intro still references
-        `[integrate-work-unit]` workflow (Phase 1, Step 3).
-
-        Two-copy sync verified across all four files (both template-completion-doc.md and
-        integrate-work-unit.md are straight two-copy files). Tier 1 markdown lint clean.
-
-- [x] **4.5 Tier 3 audit — remaining workflows — done**
-
-    **Outcome:** Operational-context audit completed across 15 agent-loaded
-    workflows in four clusters (4.5.a planning, 4.5.b work-unit-lifecycle core,
-    4.5.c branch/verify/planning, 4.5.d supplemental). Aggregate: 2722→2372
-    (-350 lines, ~13%). Staging entries 28-68 (41 entries) appended to
-    `notes-docs-content-sweep.md`. Two strict no-ops confirmed (verify-work-unit.md
-    in 4.5.c, verify-arc-integrity.md in 4.5.d) plus one constrained-yield case
-    (2_generate-tasks.md in 4.5.a, ~6%, protected Quick Format Checklist structure).
-    **Use-site relocation pattern** (4.4.b / 4.4.d.b) did not recur across the
-    series — cluster gates were inline at workflow level across all 15 files.
-    **Partial-extract pattern** deployed five times (4.5.c: 3; 4.5.d: 2) — paired
-    "full pre-trim" / "retained in trimmed workflow" blocks document the new
-    structural variant in staging entries for future audits. Retirement cleanup on
-    `add-agent.md` (agent-specific `{AGENT}.ARC.md` configuration step removed per
-    separately confirmed framework change) folded in during 4.5.d — not staged,
-    retired outright. Two-copy sync verified and Tier 2 markdown lint clean after
-    each subtask.
-
-    - [x] **4.5.a Planning workflows** — `1_create-prd.md` (138 → 115, ~17%): preamble
-      feature/technical taxonomy collapsed to one-line strategy pointer + consolidated rule
-      in Step 2; Step 3 "Without a plan" discovery bullets collapsed to discovery-checklist
-      pointer; Step 5 "Framing the notes file" pedagogical paragraph extracted, operational
-      constraint retained (notes-file header minimality + DEV-RULES.ARC § Documentation
-      Boundaries pointer); Step 2 emphasis-rationale tail trimmed (too vague to stage).
-      `2_generate-tasks.md` (177 → 166, ~6%; constrained by protected Quick Format
-      Checklist): `## Task List Format` collapsed from Header/Body subsection structure to
-      two-pointer flat layout — `template-tasks.md` for skeleton (direct pointer, removes
-      previous two-hop workflow→strategy→template lookup), `strategy-task-list-formatting.md`
-      for rules; path-update workflow nuance retained.
-
-      **Extracted to staging (Entries 28-31 in `notes-docs-content-sweep.md`):**
-
-        - **Entry 28** — 1_create-prd.md § Preamble feature/technical taxonomy (original
-          L8-14). Pedagogical framing duplicated by Step 2 rule.
-        - **Entry 29** — 1_create-prd.md § Step 3 "Without a plan" discovery bullets
-          (original L72-78). Duplicated `strategy-work-planning.md § Discovery Checklist`.
-        - **Entry 30** — 1_create-prd.md § Step 5 "Framing the notes file" guidance
-          (original L112-119). Pedagogical application of DEV-RULES.ARC § Documentation
-          Boundaries.
-        - **Entry 31** — 2_generate-tasks.md § Task List Format Header code block +
-          path-update note (original L127-141 in `.arc/`, L136-150 in `.template.md`).
-          Skeleton content now canonically owned by `template-tasks.md`.
-
-      **Cross-reference verification:** Section-name anchors preserved (Step 2 Determine
-      Work Category, Step 5 Retire Plan Documents). Inbound references from ADR-015,
-      strategy-work-planning.md, strategy-work-organization.md, analysis-cross-cutting-
-      dependencies.md, archive-work-unit.md all filename-only or section-name-anchored —
-      all resolve post-trim. `[template-tasks]` reference-link added to both copies of
-      `2_generate-tasks.md` (.arc/ + `.template.md`).
-
-      **Agent-audience lens applied:** no inline `[TODO-docs-site]` placeholders (mirrors
-      4.3.b-4.3.c / 4.4.c protocol). Two-copy sync: `1_create-prd.md` straight two-copy
-      (identical post-trim); `2_generate-tasks.md` uses `.template.md` in package source
-      with team.mode conditional block in Step 3 (Task List Format region has no
-      template-only delta). Tier 1 markdown lint clean across six touched files.
-
-      **Discovered during execution:** `template-tasks.md` and `template-completion-doc.md`
-      identified as structural outliers in `reference/templates/` (meta-title + embedded
-      scaffolds vs. direct-use pattern of other 8 templates). Captured as new Task 4.4.d
-      with two subtasks — 4.4.d.a follows 4.4.c driver (strategy-rules-only exposed
-      duplicate meta-sections); 4.4.d.b mirrors 4.4.b pattern (operational-machinery-to-
-      use-site relocation).
-
-    - [x] **4.5.b Work-unit lifecycle core** — `activate-work-unit.md` 234→222 (~5%); `archive-work-unit.md` 275→229
-      (~17%); `clean-work-unit.md` 374→291 (~22%); `deactivate-work-unit.md` 278→260 (~6%). Cluster total 1161→1002
-      (~14%). Seventeen staging entries (32-48) appended to `notes-docs-content-sweep.md` covering blockquote
-      extractions (Entry 32), rationale paragraphs (33, 44-48), example enumerations (34), reference blocks (35),
-      Common Pitfalls sections (36, 40), ✅/❌ mode enumerations (37-38), conceptual recaps (39), and BEFORE/AFTER worked
-      examples (41-43). Two-copy sync verified across all four file pairs; Tier 2 markdown lint clean (223 files).
-      **Use-site relocation pattern did not recur** in this cluster — all gates already inline at workflow level; the
-      4.4.b / 4.4.d.b hoisting opportunity did not surface. Yield driver: clean carried 52% of the cluster trim
-      (83/159 lines), consistent with its "heavy" flagging — largest yield from § Common Pitfalls + § Output wholesale
-      deletions + three BEFORE/AFTER code fences + two ✅/❌ mode enumerations
-
-    - [x] **4.5.c Work-unit lifecycle (branch/verify/planning)** — `rotate-branch.md` 155→117 (~25%);
-      `verify-work-unit.md` 80→80 (no-op, already operational-dense); `planning/activate-planning-branch.md` 115→99
-      (~14%); `planning/integrate-planning-branch.md` 152→135 (~11%). Cluster total 502→431 (~14%, 71 lines extracted).
-      Eleven staging entries (49-59) appended to `notes-docs-content-sweep.md`: preamble framing (49, 54, 57), scenario
-      enumeration (50), consequence-explanation partial extract (51), session-boundary blockquote (52), Common Pitfalls
-      wholesale (53, 56, 59), naming-rationale partial extract (55), PR-body-scope partial extract (58). Two new link
-      defs added to staging file: `[work-org-branches]`, `[config-merge]`. Two-copy sync verified across all four file
-      pairs; Tier 2 markdown lint clean (223 files). **verify-work-unit.md no-op confirmed** — pre-implementation
-      assessment that the file was already operational-dense held; no rationale/example content warranted extraction
-      (same framing as Task 1.1.c no-op). **Use-site relocation pattern did not recur** (consistent with 4.5.b) —
-      cluster's gates were already inline at workflow level. **Partial-extract pattern deployed three times** (Entries
-      51, 55, 58) where a consequence signal or operational mechanic needed retention while rationale/examples were
-      staged — new structural variant documented in each entry with both "full pre-trim" and "retained in trimmed
-      workflow" blocks. Cluster yield matches 4.5.b's 14% exactly by coincidence, despite 4.5.c being less than half
-      4.5.b's cluster size (502 vs 1161 lines).
-
-    - [x] **4.5.d Supplemental** — `manage-incidental-work.md` 226→189 (~16%); `maintain-project-docs.md` 150→123
-      (~18%); `add-agent.md` 87→72 (~17%, retirement cleanup — not extraction); `verify-arc-integrity.md` 151→151
-      (strict no-op, reference material); `integrate-external-content.md` 130→123 (~5%). Cluster total 744→658
-      (-86 lines, ~12%). Extraction-only yield: 71 lines / ~9.5% (manage-incidental-work 37, maintain-project-docs 27,
-      integrate-external-content 7). Nine staging entries (60-68) appended to `notes-docs-content-sweep.md`:
-      § Overview wholesale (60), Key Distinction examples (61), Why This Matters rationale (62), filename-examples
-      partial (63), concrete commit-message example (64), full-protection reassurance line (65), § Document Hierarchy
-      wholesale (66), SSOT example (67), Skills context blockquote wholesale (68). Two-copy sync verified across all
-      five file pairs; Tier 2 markdown lint clean (223 files).
-
-      **`add-agent.md` retirement cleanup** — Step 2 "Check for Agent-Specific Configuration" removed wholesale per
-      user note that agent-specific (`{AGENT}.ARC.md`) files were retired from the framework. Steps 3→2 and 4→3
-      renumbered; "After this workflow" summary updated to drop "agent-specific config" reference. No staging entry —
-      content is retired, not staged for docs absorption. All 15 lines of the file's reduction came from this cleanup;
-      0 from content extraction.
-
-      **`verify-arc-integrity.md` strict no-op** — reference material by nature; six Check Categories each carry
-      description/severity/remediation triples the agent needs when interpreting script output. Trimming reduces
-      reference value.
-
-      **Entry 66 deviation from standard destination framing** — `maintain-project-docs.md` § Document Hierarchy
-      duplicated session-init.md's canonical loading model. Staged as known-stale rather than docs-absorption-ready;
-      entry flags for discard when docs-sweep WU resolves the loading model.
-
-      Cluster yield (12% total, ~9.5% extraction-only) is the lowest in the 4.5 series, driven by three of five files
-      being already operational-dense. Confirms the pre-implementation read that supplementals are tighter than
-      lifecycle core.
-
-    - **Out of Tier 3 scope (excluded explicitly for visibility):** `initial-setup/*.md` (one-off install workflows,
-      not loaded per-session), `session-lifecycle/session-loop.md` (`audience: human`, not agent-loaded),
-      `reference/strategies/**/*.md` (T3 on-demand; `strategy-task-list-formatting.md` handled in 4.4.c as part of
-      the formatting restructure)
-
-- [x] **4.6 D7b extension-point match pre-commit hook (test-first)**
-
-    **Outcome:** CHECK 16 landed in both hook copies; new validator script
-    `packages/arc-framework/src/scripts/validate-extension-points.ts` delegates scanning to the shared `point-scanner` +
-    `orphan-detector` helpers from Task 3.R.k.b. 14 unit tests at
-    `__tests__/unit/scripts/validate-extension-points.test.ts` cover path classification, header- and inline-form
-    resolution, orphan diagnostics with line numbers, metadata-agnostic existence criterion, multi-reference files,
-    malformed-marker rejection, non-workflow skips, empty-input short-circuit, and same-copy lookup in both directions.
-    Full unit suite green (830 tests); `lint:ts`, `lint:sh`, `typecheck`, `typecheck:test` all pass.
-
-    **Validator shape (audit C2):** Follows CHECK 12/13/15's pattern — `validateFiles(paths, readFile, listExtensions)`
-    is pure and injectable for unit testing; CLI entry reads the working tree and lists extension basenames via
-    `readdirSync`. Diagnostics shaped
-    `` path:line: extension-point reference `#<name>` has no matching `<copy>/system/extensions/<name>.md` `` so editors
-    can jump to the offending line.
-
-    **Same-copy listing (audit C1):** Opted for a minimal local `listExtensionBasenames(dir)` helper inside the
-    validator rather than exporting `extensions/status.ts`'s `readExtensionsDirectory`. The task's stated criterion is
-    file existence, not frontmatter-declared name (CHECK 12 already enforces name ↔ basename), so the simpler listing
-    keeps the validator's dependency surface minimal. `readExtensionsDirectory` remains status.ts-private.
-
-    **CHECK 14 dual-fire (audit C3):** Workflows that pair an anchor-suffix marker with a reference-style link to the
-    extension file (e.g., `3_process-task-loop.md`) will surface both CHECK 14 (link resolution) and CHECK 16 (reference
-    resolution) when an extension is deleted. Expected — different surfaces, different diagnostics — and tolerable
-    given both point at the same root cause.
-
-    **Scope boundary (audit C5):** Hook checks only staged workflow paths; a commit that deletes
-    `system/extensions/foo.md` while leaving references in unstaged workflows is by design out of scope (full-repo
-    orphan detection lives in `arc extensions status`).
-
-- [x] **4.7 Phase 4 close — Tier 3 quality gates**
-
-    **Outcome:** Tier 3 suite clean — markdown lint (223 files, 0 errors), TS lint, shell lint, typecheck (src + test),
-    full test suite (1005 + 46 = 1051 tests across the monorepo), build success. Spot-check on 4 staging entries (1,
-    30, 55, 68) across the 68-entry corpus: all follow the locked template (source + line range, verbatim content
-    blockquote, suggested destination, stylistic integration notes); the partial-extract variant introduced in 4.5.c
-    (paired "Retained in trimmed workflow" + "Extracted" subsections) is cleanly structured. Fixed-pattern
-    `[TODO-docs-site]` greppable across all trimmed source files that preserved in-prose continuity (DEV-RULES.ARC,
-    AGENT-BRIEFING.CONTRIBUTOR — 11 occurrences total including one reference definition per file). Phase 4.5 workflow
-    trims were dominated by wholesale-section removals with no residual anchor — placeholders only apply where trimming
-    preserves the surrounding prose; sweep WU enumerates wholesale removals via entry metadata in
-    `notes-docs-content-sweep.md`.
-
-    **CHECK 16 surface check (3.12 discipline mirror):**
-    - SET A (negative-path staging): `README.md`, strategy `.md`, `src/cli.ts`, `.github/workflows/ci.yml`,
-      `docs/release-notes.md` — hook's grep filter produces empty candidate list; validator is not invoked
-      (short-circuit holds, mirrors CHECK 12/13/14/15)
-    - SET B (positive resolvable): synthetic workflow at `.arc/system/workflows/arc/_surface-valid.md` with
-      `` ### X · `#post-context-load` `` reference → validator exit 0
-    - SET C (positive unresolvable): synthetic workflow at `.arc/system/workflows/arc/_surface-invalid.md` with
-      `` ### X · `#does-not-exist-anywhere` `` reference → validator exit 1 with diagnostic:
+restructure.
+
+### `[x]` **4.1 Staging infrastructure**
+
+- _Outcome:_ `notes-docs-content-sweep.md` created at `.arc/backlog/technical/` with the locked entry
+  template (Source / Content / Suggested destination / Stylistic integration notes) and the source-side
+  `[TODO-docs-site]` placeholder convention documented in the header. Convention: descriptive link text +
+  literal `TODO-docs-site` label (no per-entry suffixes — sweep resolves globally); no source-side
+  definition initially (revised in 4.2.a — see below). Header captures lifecycle (populate → source-side
+  placeholder → sweep) and rationale for splitting the convention between this file and
+  `plan-docs-content-sweep.md § Content Contributions`.
+
+### `[x]` **4.2 Tier 1 audit — always-loaded docs**
+
+- _Outcome:_ Six clusters audited (4.2.a–f) covering agent briefings, both DEV-RULES, QUICK-REFERENCE,
+  session-init.md, and the template + reference + config triplet, then 4.2.g landed DEV-RULES domain
+  enumeration via composite probe (a feature spun off from 4.2.e's audit findings). Staging Entries
+  1–13 in `notes-docs-content-sweep.md`. Per-file trim variance reflects baseline (template-status
+  80%, AGENT-BRIEFING.CONTRIBUTOR 52%, others 5–36%).
+
+  _Lens calibrations established (carried into 4.3–4.5):_ (a) Agent-audience lens (4.2.a) — files
+  strictly agent-loaded skip `[TODO-docs-site]` placeholders; sweep WU finds extractions via staging
+  Source ranges. Dual-audience files retain placeholders. (b) Project-level lens (4.2.c) — three
+  outcomes: drop / tighten-in-place / relocate to a project-level strategy; `[TODO-docs-site]`
+  staging N/A. (c) Configurable two-pass lens (4.2.d, refined from 4.2.c) — `.arc/` trim for
+  project-specific content **plus** package-template edits for framework-template quality issues.
+  The 4.2.c "configurable → `.arc/` only" precedent applies to project-specific content but NOT to
+  framework-template quality improvements affecting every adopter.
+
+    - `[x]` **4.2.a Agent briefings cluster**
+        - Four files: 306 → 203 (34%). `AGENT-BRIEFING.ARC.md` 57→47 (added "Sessions are bounded"
+          lead). `AGENT-BRIEFING.PROJECT.md` 47→40 (dropped Zero-tolerance + Commands-in-QUICK-REFERENCE
+          friction-item duplicates). `AGENT-BRIEFING.CONTRIBUTOR.md` 163→79 (largest win — Personal
+          Workspace and Running Pipeline subsections moved to docs site; operational core retained).
+          `CLAUDE.ARC.md` 39→37. Staging Entries 1–6.
+        - _Convention amendment surfaced during execution:_ Task 4.1's "no source-side definition" for
+          `[TODO-docs-site]` failed MD052 zero-tolerance lint on first use. Revised to require a
+          file-bottom stub (`[TODO-docs-site]: # "Placeholder pending docs-content-sweep — see
+          notes-docs-content-sweep.md"`) — one stub per file, sweep WU rewrites to resolve all
+          references. User approved before execution proceeded.
+        - _Follow-on deletion (pre-4.2.b):_ `CLAUDE.ARC.md` and `CODEX.ARC.md` deleted from
+          `.arc/system/agent/` after pressure-test found no valid ARC-exclusive use case for
+          `{AGENT}.ARC.md` — harness-level files dominate on load order with no ARC-specific
+          capability lost. Surgical scope; full mechanism removal absorbed into revised Task 5.7.
+          Drift Item #4 in `plan-docs-content-sweep.md`.
+
+    - `[x]` **4.2.b `DEV-RULES.ARC.md`**
+        - 385 → 327 (15%). Surgical trim — scattered rationale paragraphs + overflow examples +
+          consolidation sites, reflecting an already-tight operational baseline. Staging Entries 7–10.
+          P-annotation removal: 17 `· PN` annotations stripped from rule headings; rule → principle
+          mapping preserved in Entry 10 staging table for docs-site absorption. `· [configurable]`
+          retained (operationally meaningful). Test-first major compression (14 → 5 lines) — decision-
+          tree defaults dropped to avoid contradicting adopter method overrides; method is
+          authoritative and loaded at trigger time.
+
+    - `[x]` **4.2.c `DEV-RULES.PROJECT.md`**
+        - 214 → 137 (36%). Structural trim — whole-section drops driven by existing project-level
+          strategies. Vitest mock hygiene block relocated to `strategy-testing-methodology.md` as new
+          `### Vitest mock mechanics` subsection. Drops: Domain-scoped rules callout, File
+          Organization, Capture Routing duplicates, CI Validation item, Testing tier descriptions, ADR
+          decision criteria, trailing composition sentence. Compressions: Tiered approach 4→1,
+          shellcheck install 3→1, Line-length rule 4→1. Retained: DRY/SOLID/KISS/YAGNI list, ❌/✅
+          examples, Quality Gates items 1–5 (operational teeth of zero-tolerance).
+
+    - `[x]` **4.2.d `QUICK-REFERENCE.md` (project copy + template)**
+        - Project copy 330 → 296 (10%); template 242 → 225 (7% net — T3+T4 drops partly offset by new
+          Platform Commands scaffold). Drops both copies: Anti-Patterns section, bottom summary line.
+          Project-only: Working Directory Note compressed; Quality Tools 5-bullet → tool-names +
+          pointer. Template-only: Working Directory Note dropped (was overtuned guidance); new
+          conditional § Platform Commands wrapped in `<!-- arc:if platform.type != github -->`,
+          resolving 6 inbound dead pointers (rotate-branch, integrate-planning-branch,
+          deactivate-work-unit, configurability-architecture ×3). Shared: ADR-012 trailing
+          explanation replaced with pointer to `strategy-session-operations.md § Session State
+          Portability`.
+        - _Two-copy sync model refined:_ Project copy edited independently for project-specific
+          content; template edited independently for framework-template quality; shared changes
+          applied to both. Template file is `.template.md` (rendered-at-init), lint-excluded by
+          default; force-linted via temp-copy workaround.
+
+    - `[x]` **4.2.e `session-init.md` (both copies)**
+        - Project 344 → 308 (10.5%); template 373 → 336 (9.9%). Below the ~80–90% extraction
+          heuristic by design — 4.2.g spun off (DEV-RULES domain scan held for full structural
+          replacement); one heavy-extraction candidate relocated rather than staged. Heavy changes:
+          SESSION-NOTES load errors relocated to `strategy-session-operations.md § SESSION-NOTES Load
+          Error Recovery`; multi-file disambiguation prompt trimmed 11 → 4 lines; planning-readiness
+          enumeration dropped (Entry 12); context-mismatch examples trimmed Tier 1 4→2 and Tier 2
+          3→2 (Entry 13). Step 1 "Adopters: add project-specific runtime checks" prose dropped —
+          rendered copies churn on `arc update`; correct surface for non-ARC pre-session guidance is
+          harness-level files. `pwd` retained (lightweight cwd orientation). Staging Entries 11–13.
+          ~10 inline tightenings across §§ 2–7.
+
+    - `[x]` **4.2.f Template + reference + config cluster**
+        - `template-status.md` 56 → 11 (80% — highest-leverage; skeleton propagates into every WU's
+          status file). `STRATEGY-INDEX.md` `.arc/` 79 → 38 (52%); package 79 → 56 (29%).
+          `arc-config.yml` audited, no material change (per-section comments are interface
+          documentation, not rationale bloat). Heavy changes — `template-status.md`: "About this
+          file" callout dropped (pure duplication); Optional fields HTML comment relocated to new
+          `strategy-work-organization.md § Work Unit State § Optional Pointer Fields`; State enum
+          HTML comment relocated to `§ State Enum`. Final shape: H1 + `## Active Work` + 7-field
+          scaffold.
+        - _Cross-reference updates:_ `integrate-work-unit.md` redirected `[template-status]` →
+          `[work-org-state]`. `STRATEGY-INDEX.md`: Usage Protocol dropped (duplicates DEV-RULES.ARC
+          § Verification and Discovery); Location + Naming preamble dropped (per-entry prefixes
+          self-documenting); `.arc/` § Project Strategies replaced with this project's actual
+          strategies.
+
+    - `[x]` **4.2.g DEV-RULES domain enumeration via composite probe**
+        - Replaces session-init.md Step 4 item 5's `constitution/` scan with probe-delivered
+          domain-rules awareness. Surfaced during 4.2.e: every session scans for `DEV-RULES.*.md`
+          domain files with near-always-empty result. Zero domain files exist in this repo; no
+          migration. Six implementation subtasks (4.2.g.a–f). Implementation order: a → b → c →
+          (d, e parallel) → f.
+        - _Design decisions:_ Frontmatter schema flat (top-level `domain:` + `purpose:` strings;
+          mirrors method/extension precedent rather than workflow `arc:` namespace). Filename must
+          match `DEV-RULES.{DOMAIN}.md` where `{DOMAIN}` matches `domain:` value. Discriminator:
+          frontmatter presence (DEV-RULES.ARC and DEV-RULES.PROJECT carry no frontmatter, silently
+          skipped — no reserved-list maintenance). Malformed frontmatter surfaces in
+          `warnings: string[]`. Probe shape: top-level `domainRules` slot on `SessionInitProbeResult`,
+          inner `{ mode, rules: Array<{path, domain, purpose}>, warnings }`. Session-init-only at
+          launch (no full-mode rendering — no current consumer). `template-dev-rules.md` ships as
+          Framework classification (default — adopters copy-and-rename).
+
+        - `[x]` **4.2.g.a `parseDevRulesFrontmatter`**
+            - `src/lib/frontmatter/dev-rules.ts` with flat `{domain, purpose}` schema:
+              case-insensitive filename-fragment match against `DEV-RULES.{DOMAIN}` basename,
+              non-empty `purpose` enforced, extra unknown keys accepted. (Case contract tightened
+              later in 4.2.g.e.)
+
+        - `[x]` **4.2.g.b Probe module — `runDomainRulesSessionInitStatus`**
+            - `src/commands/constitution/` module: discriminator is frontmatter-presence;
+              missing-directory throws (composite wraps as per-slot runtime error).
+            - _Incidental discovered:_ renderer left `\n\n` at EOF when an `arc:if` block stripped
+              near EOF, tripping MD012 in the e2e init-suite lint. Fixed in
+              `src/lib/template/render.ts` by normalizing trailing newlines (commit `b4454c3`).
+              Unblocks full `npm test` suite.
+
+        - `[x]` **4.2.g.c Composite wiring + handler integration**
+            - Threaded `domainRules` through the session-init composite. `Promise.all` extended to 5
+              elements; `buildSessionInitStatusSummary` renders `Domain Rules:` after `Active:`.
+              Handler binding session-init branch only — full-mode `StatusResult` unchanged per
+              session-init-only design.
+
+        - `[x]` **4.2.g.d Pre-commit hook — DEV-RULES frontmatter validation**
+            - New CHECK 13 in `pre-commit` (both copies). Existing CHECK 13 → 14, CHECK 14 → 15.
+              Hook greps staged paths
+              `^(\.arc|packages/arc-framework/arc)/reference/constitution/DEV-RULES\.[^/]+\.md$`
+              and delegates to `validate-frontmatter.ts` extended with `"domain-rules"`
+              classification. Reserved filenames (ARC, PROJECT) filtered at classifier level —
+              short-circuit to `"other"` before parsing.
+
+        - `[x]` **4.2.g.e CI audit — sibling `audit-domain-rules.ts` + parser case contract**
+            - Sibling script — `audit-method-triggers.ts` is strictly method/extension-scoped by
+              filename contract, module doc, and corpus. Force-fitting would require rename +
+              module rewrite + widened CLI for no structural payoff; the two share only
+              `lib/frontmatter/` primitives.
+            - _Parser case contract (design tightening):_ Original case-insensitive matching
+              created a cross-file duplicate-`domain` corner case only reachable on case-sensitive
+              filesystems. Parser now enforces an asymmetric case contract: filename fragment
+              uppercase (signals "broad/overarching" per ARC convention), `domain:` value
+              lowercase (programmatic identifier), `fragment.toLowerCase() === domain` exactly.
+              Cross-file uniqueness becomes structurally guaranteed. Duplicate check removed from
+              audit as dead code. Template-side comment documenting this as a **mechanical
+              requirement** (probe + hook enforced) threaded into 4.2.g.f.
+            - Wiring: `package.json` adds `lint:arc:domain-rules` alongside `lint:arc:triggers`;
+              `.github/workflows/ci.yml` adds parallel step.
+
+        - `[x]` **4.2.g.f Markdown surface — session-init rewrite, template, drift capture**
+            - Single atomic commit covering markdown/config: session-init.md Step 4 item 5
+              rewritten (two-copy) — replaced static `constitution/` scan with nested bullet
+              pointing at the probe's `domainRules` field; Step 2 probe table gained `domainRules`
+              row (Field column widened by 1 char so `domainRules` fits without MD060 alignment
+              drift). New `reference/templates/template-dev-rules.md` (two-copy) with frontmatter
+              scaffold, case-contract framing as **mechanical requirement** with worked example,
+              body skeleton mirroring DEV-RULES.ARC/PROJECT shape. `init-recipe.json` adds the
+              template path. `plan-docs-content-sweep.md` Drift Item #6.
+
+### `[x]` **4.3 Tier 2 audit — core lifecycle workflows**
+
+- _Outcome:_ Three workflows trimmed under per-file load-frequency lens — commit/task flow (4.3.a)
+  fires repeatedly per session; integrate-work-unit (4.3.b) per-WU; session-handoff (4.3.c)
+  per-session. Cluster yields 6%/2%/5% — softer than 4.2 because all three were already
+  operational-heavy with limited rationale overhead. Staging Entries 14–22.
+
+    - `[x]` **4.3.a Commit/task flow cluster (`3_process-task-loop.md` + `prepare-commits.md`)**
+        - `3_process-task-loop.md` 269 → 241 (10%); `prepare-commits.md` 171 → 161 (6%). Trims:
+          co-development rationale why-clause, inline Tier 1/2/3 definitions recap, Implied
+          permission duplicate, atomicity-check common-splits enumeration, Quick Decision Guide
+          ✅/❌ criteria, Where to Capture lifecycle-intent routing (replaced with pointer to
+          DEV-RULES.ARC § Leave it cleaner routing table), TodoWrite rationale paragraph.
+          `prepare-commits.md`: Shared-Docs Commit Pattern preamble, Granularity bullet expansions,
+          reversibility category-naming tail, tracking-docs rationale tail. Staging Entries 14–19.
+          Pure duplicates dropped without staging (Tier definitions, Implied permission,
+          outcome-shaped restatement, Where to Capture routing).
+
+    - `[x]` **4.3.b `integrate-work-unit.md`**
+        - 360 → 353 (2%) — smallest reduction in Phase 4. Lighter posture: file loads per-WU (once
+          per branch), so amortized cost is low and clarity wins over brevity. Most of the file
+          resists trimming — checklist-heavy phases with bash blocks, edge-case handling, and `why`
+          clauses each preventing a specific non-obvious error. Four targeted redundancy removals:
+          multi-branch ops rationale tail (duplicates Work Organization Strategy), completion-doc
+          freshness rationale tail, `[~]` marker distinct-from enumeration, Appendix "Key
+          principle" closer (restates elements #4/#5). Entry 20 staged.
+
+    - `[x]` **4.3.c `session-handoff.md`**
+        - 473 → 450 (5%). Bounded by ADR-016 preservation constraint — gate model expands
+          handoff-interior responsibilities (rotation-field migration commit→handoff; configurable
+          toggles for worktree push, notes push, quality-gate finalization), so structural
+          scaffolding (rotation template, step-by-step format, Save-to-Git-Notes section, Confirm
+          Handoff orientation) stayed intact. Trims targeted principle-grounding framing and verbose
+          error-handling prose: Design context compressed to two-line override pointer; "Preserve
+          persistent context" paragraph compressed to dedup pointer; "Long-session bias" paragraph
+          dropped (rhetorical nudge); § Save to Git Notes error-handling 15 → 3 lines. Staging
+          Entries 21–22.
+
+### `[x]` **4.4 Task-list-formatting restructure (P1.4 — three moves)**
+
+- _Outcome:_ Three moves landed. `template-tasks.md` created (both copies) absorbing skeleton
+  blocks; Quick Format Checklist relocated to `2_generate-tasks.md` Step 4 as the pre-save gate;
+  `strategy-task-list-formatting.md` rewritten to rules-only (701 → 285 lines, ~59%; 7
+  contract-carrying sections preserved with cross-references to extracted surfaces). Tier 3 audit
+  (4.5) inherits a tighter `2_generate-tasks.md` and `strategy-task-list-formatting.md`. Staging
+  Entries 23–27. 4.4.d added mid-phase as templates-directory outlier cleanup discovered during
+  4.5.a.
+
+    - `[x]` **4.4.a Extract templates to `template-tasks.md` + apply resolved `**Strategies:**` convention change**
+        - New `.arc/reference/templates/template-tasks.md` (217 lines) following
+          `template-completion-doc.md` convention: feature/technical header, incidental header,
+          verification phase block, atomic companion file, success criteria — each with "Use when"
+          framing and reference back to the strategy doc. Phase-header template ships without
+          `**Strategies:**` field per resolved convention.
+        - `2_generate-tasks.md` Step 3: dropped "under the phase header or" option from
+          `**Strategies:**` wording; reframed closer to "use when the connection isn't obvious from
+          the task title".
+        - `tasks-arcd-rebrand.md` sweep: removed document-level `**Strategies:**` block + three
+          orphaned reference-link defs (`[package-sync]`, `[file-classification]`,
+          `[config-arch]`); `[work-org]` retained.
+
+    - `[x]` **4.4.b Relocate Quick Format Checklist into `2_generate-tasks.md` Step 4**
+        - Checklist moved verbatim; caller prose tightened. Strategy doc TOC shrunk by one entry;
+          new location surfaced via pointer line under TOC. Placement: between "Combine phases…"
+          intro and "Save to" paths, as a pre-save verification gate.
+
+    - `[x]` **4.4.c Trim `strategy-task-list-formatting.md` to rules-only**
+        - 701 → 285 lines (59%). Above the aspirational ~70-line target but in line with "rough
+          guide, not hard ceiling" given surface area (headers, 10 format elements, ownership,
+          test-first, verification, atomic companion, success criteria). Preserved 7
+          contract-carrying sections; each format-element subsection collapsed to 2-4 line rule
+          summaries with single-line examples only where rule text alone would be ambiguous.
+          Templates delegated to `template-tasks.md` via cross-reference. Three-state
+          success-criteria marker table retained (operationally essential). Staging Entries 23–27.
+
+    - `[x]` **4.4.d Templates directory outlier cleanup**
+        - `template-tasks.md` 215 → 169 (~21%); `template-completion-doc.md` 161 → 126 (~22%);
+          `integrate-work-unit.md` 353 → 380 (+27, from 4.4.d.b relocation). 4.4.d.a dropped
+          redundant meta-sections now owned by `strategy-task-list-formatting.md`; 4.4.d.b
+          relocated pre-drafting gather list + post-drafting verification checklist to
+          `integrate-work-unit.md § 3) Create Completion Metadata` (mirrors 4.4.b's operational-
+          machinery-to-use-site pattern). Both outlier templates now carry only scaffold-pattern
+          content; scaffold skeletons retained as on-disk content of target files.
+
+        - `[x]` **4.4.d.a Reshape `template-tasks.md`** — 215 → 169 (~21%). Dropped § Verification
+          Phase + § Success Criteria Section (both already inline in `strategy-task-list-formatting.md`
+          and embedded in variant scaffolds). Trimmed § Atomic Companion File to lead-in + skeleton;
+          Purpose/Ordering paragraphs inside the skeleton retained (verified as on-disk content of
+          every real atomic file across active + archive). Reduction below ~40% target driven by
+          skeleton blocks being on-disk content, not trim-eligible. Cross-reference cleanup:
+          dropped `strategy-task-list-formatting.md § Verification Phase` dangling "See
+          `template-tasks.md` for the skeleton" pointer (redundant with inline skeleton directly
+          above).
+
+        - `[x]` **4.4.d.b Reshape `template-completion-doc.md`** — 161 → 126 (~22%);
+          `integrate-work-unit.md` 353 → 380 (+27). Relocated "Required Reading Before Drafting"
+          (5-item gather) and "Standard Template Verification Checklist" (7-item post-drafting
+          verify) from template into `integrate-work-unit.md § 3) Create Completion Metadata` as
+          pre/post drafting gates. "Evidence format: note where verified" folded into "Quantitative
+          claims" checklist item inline. Template retains intro + variant-selection + both scaffold
+          blocks. Reduction below ~50% target same structural driver as 4.4.d.a (scaffold blocks
+          on-disk). Mirrors 4.4.b precedent — relocating structured operational gates is not a
+          reversal of 4.3.b's prose/rationale trim.
+
+### `[x]` **4.5 Tier 3 audit — remaining workflows**
+
+- _Outcome:_ Operational-context audit across 15 agent-loaded workflows in four clusters
+  (4.5.a planning, 4.5.b work-unit-lifecycle core, 4.5.c branch/verify/planning, 4.5.d
+  supplemental). Aggregate 2722 → 2372 (-350 lines, ~13%). Staging Entries 28–68 (41 entries).
+  Two strict no-ops (verify-work-unit.md in 4.5.c, verify-arc-integrity.md in 4.5.d) plus one
+  constrained-yield case (2_generate-tasks.md in 4.5.a, ~6%, protected Quick Format Checklist).
+  **Use-site relocation pattern** (4.4.b / 4.4.d.b) did not recur — cluster gates were inline at
+  workflow level across all 15 files. **Partial-extract pattern** deployed five times (4.5.c: 3;
+  4.5.d: 2) — paired "full pre-trim" / "retained in trimmed workflow" blocks document the new
+  structural variant in staging entries.
+
+  _Out of Tier 3 scope:_ `initial-setup/*.md` (one-off install workflows, not per-session),
+  `session-lifecycle/session-loop.md` (`audience: human`),
+  `reference/strategies/**/*.md` (T3 on-demand; `strategy-task-list-formatting.md` handled in 4.4.c).
+
+    - `[x]` **4.5.a Planning workflows**
+        - `1_create-prd.md` 138 → 115 (~17%): preamble feature/technical taxonomy collapsed to
+          one-line strategy pointer + consolidated rule in Step 2; Step 3 "Without a plan"
+          discovery bullets collapsed to discovery-checklist pointer; Step 5 "Framing the notes
+          file" extracted with operational constraint retained; Step 2 emphasis-rationale tail
+          trimmed.
+        - `2_generate-tasks.md` 177 → 166 (~6%; constrained by protected Quick Format Checklist):
+          `## Task List Format` collapsed from Header/Body subsection structure to two-pointer
+          flat layout — `template-tasks.md` for skeleton (removes previous two-hop lookup),
+          `strategy-task-list-formatting.md` for rules. Staging Entries 28–31.
+        - _Discovered during execution:_ `template-tasks.md` and `template-completion-doc.md`
+          identified as structural outliers (meta-title + embedded scaffolds vs. direct-use
+          pattern of other 8 templates). Captured as new Task 4.4.d.
+
+    - `[x]` **4.5.b Work-unit lifecycle core**
+        - `activate-work-unit.md` 234→222 (~5%); `archive-work-unit.md` 275→229 (~17%);
+          `clean-work-unit.md` 374→291 (~22%); `deactivate-work-unit.md` 278→260 (~6%). Cluster
+          total 1161→1002 (~14%). Staging Entries 32–48 (17 entries) covering blockquote
+          extractions, rationale paragraphs, example enumerations, reference blocks, Common
+          Pitfalls sections, ✅/❌ mode enumerations, conceptual recaps, BEFORE/AFTER worked
+          examples. Yield driver: clean carried 52% of cluster trim (83/159 lines), largest yield
+          from § Common Pitfalls + § Output wholesale deletions + three BEFORE/AFTER code fences +
+          two ✅/❌ mode enumerations.
+
+    - `[x]` **4.5.c Work-unit lifecycle (branch/verify/planning)**
+        - `rotate-branch.md` 155→117 (~25%); `verify-work-unit.md` 80→80 (no-op, already
+          operational-dense); `planning/activate-planning-branch.md` 115→99 (~14%);
+          `planning/integrate-planning-branch.md` 152→135 (~11%). Cluster total 502→431 (~14%,
+          71 lines extracted). Staging Entries 49–59 (11 entries).
+        - _verify-work-unit.md no-op confirmed_ — pre-implementation assessment held, no
+          rationale/example warranted extraction (mirrors Task 1.1.c no-op).
+        - _Partial-extract pattern deployed three times_ (Entries 51, 55, 58) where a consequence
+          signal or operational mechanic needed retention while rationale/examples were staged —
+          new structural variant documented in each entry.
+
+    - `[x]` **4.5.d Supplemental**
+        - `manage-incidental-work.md` 226→189 (~16%); `maintain-project-docs.md` 150→123 (~18%);
+          `add-agent.md` 87→72 (~17%, retirement cleanup — not extraction);
+          `verify-arc-integrity.md` 151→151 (strict no-op, reference material);
+          `integrate-external-content.md` 130→123 (~5%). Cluster total 744→658 (-86, ~12%).
+          Extraction-only yield ~9.5% (lowest in 4.5 series — three of five files already
+          operational-dense). Staging Entries 60–68.
+        - _`add-agent.md` retirement cleanup:_ Step 2 "Check for Agent-Specific Configuration"
+          removed wholesale per separately confirmed framework change ({AGENT}.ARC.md retirement).
+          Steps 3→2 and 4→3 renumbered. No staging entry — content retired, not absorbed. All 15
+          lines of file's reduction came from this cleanup.
+        - _`verify-arc-integrity.md` strict no-op:_ reference material by nature; six Check
+          Categories each carry description/severity/remediation triples the agent needs when
+          interpreting script output. Trimming reduces reference value.
+        - _Entry 66 deviation:_ `maintain-project-docs.md § Document Hierarchy` duplicates
+          session-init.md's canonical loading model. Staged as known-stale rather than
+          docs-absorption-ready; entry flags for discard when docs-sweep WU resolves the loading
+          model.
+
+### `[x]` **4.6 D7b extension-point match pre-commit hook (test-first)**
+
+- _Outcome:_ CHECK 16 landed in both hook copies; new validator
+  `packages/arc-framework/src/scripts/validate-extension-points.ts` delegates scanning to the
+  shared `point-scanner` + `orphan-detector` helpers from Task 3.R.k.b. Tests cover path
+  classification, header- and inline-form resolution, orphan diagnostics with line numbers,
+  metadata-agnostic existence criterion, multi-reference files, malformed-marker rejection,
+  non-workflow skips, empty-input short-circuit, and same-copy lookup in both directions.
+
+  _Validator shape:_ Follows CHECK 12/13/15's pattern — `validateFiles(paths, readFile,
+  listExtensions)` is pure and injectable; CLI entry reads working tree and lists extension
+  basenames via `readdirSync`. Diagnostics shape
+  `` path:line: extension-point reference `#<name>` has no matching `<copy>/system/extensions/<name>.md` ``
+  so editors can jump to the offending line.
+
+  _Same-copy listing:_ Minimal local `listExtensionBasenames(dir)` helper inside the validator
+  rather than exporting `extensions/status.ts`'s `readExtensionsDirectory`. Stated criterion is
+  file existence, not frontmatter-declared name (CHECK 12 already enforces name ↔ basename).
+
+  _CHECK 14 dual-fire:_ Workflows pairing an anchor-suffix marker with a reference-style link to
+  the extension file (e.g., `3_process-task-loop.md`) surface both CHECK 14 (link resolution) and
+  CHECK 16 (reference resolution) when an extension is deleted. Expected — different surfaces,
+  different diagnostics — tolerable since both point at the same root cause.
+
+  _Scope boundary:_ Hook checks only staged workflow paths; deletes leaving references in
+  unstaged workflows are out of scope (full-repo orphan detection lives in `arc extensions status`).
+
+### `[x]` **4.7 Phase 4 close — Tier 3 quality gates**
+
+- _Outcome:_ Tier 3 suite clean — markdown lint (223 files), TS lint, shell lint, typecheck
+  (sources and tests), full test suite (1051 tests across the monorepo), build success.
+  Spot-check on 4 staging entries (1, 30, 55, 68) across 68-entry corpus: all follow the locked
+  template; partial-extract variant introduced in 4.5.c (paired "Retained in trimmed workflow"
+  with "Extracted" subsections) is cleanly structured. `[TODO-docs-site]` greppable across all
+  trimmed source files that preserved in-prose continuity (DEV-RULES.ARC,
+  AGENT-BRIEFING.CONTRIBUTOR — 11 occurrences total). Phase 4.5 workflow trims were dominated by
+  wholesale-section removals with no residual anchor — placeholders only apply where trimming
+  preserves surrounding prose; sweep WU enumerates wholesale removals via entry metadata in
+  `notes-docs-content-sweep.md`.
+
+  _CHECK 16 surface check (3.12 discipline mirror):_
+    - SET A (negative-path staging): `README.md`, strategy `.md`, `src/cli.ts`,
+      `.github/workflows/ci.yml`, `docs/release-notes.md` — hook's grep filter produces empty
+      candidate list; validator not invoked.
+    - SET B (positive resolvable): synthetic `.arc/system/workflows/arc/_surface-valid.md` with a
+      `` ### X · `#post-context-load` `` reference → validator exit 0.
+    - SET C (positive unresolvable): synthetic `.arc/system/workflows/arc/_surface-invalid.md`
+      with a `` ### X · `#does-not-exist-anywhere` `` reference → validator exit 1 with diagnostic:
 
       ```text
-      .arc/system/workflows/arc/_surface-invalid.md:1: extension-point reference `#does-not-exist-anywhere` has no
-        matching `.arc/system/extensions/does-not-exist-anywhere.md`
+      extension-point reference `#does-not-exist-anywhere` has no matching
+      `.arc/system/extensions/does-not-exist-anywhere.md`
       ```
-
-    **Phase 4 closes.** Workflow-trigger contract, per-file methods/extensions restructure, method-rename, CI
-    enforcement (CHECK 12/13/14/15/16), operational-context audit across Tier 1/2/3 docs, and staging infrastructure
-    all shipped. Next: Phase 5 worktree-sync completion + partial-read narrowing + session-init Step 2/4/7 restructure.
 
 ---
 
