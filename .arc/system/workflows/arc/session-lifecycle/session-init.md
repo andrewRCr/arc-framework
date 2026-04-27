@@ -203,7 +203,7 @@ after disambiguation resolves to a single status file.
 10. **Lifecycle workflow** — **read in full**, branched on `sessionType`:
 
     - `execution` → `.arc/system/workflows/arc/3_process-task-loop.md`
-    - `integration` → `.arc/system/workflows/arc/session-lifecycle/integrate-work-unit.md`
+    - `integration` → `.arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md`
     - `planning` → none today (forward-compatible with `refine-plan-loop.md` if the Expanded Planning
        Path WU lands)
     - `null` (multiple unresolved candidates) → defer until disambiguation completes
