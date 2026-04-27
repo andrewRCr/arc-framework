@@ -1944,35 +1944,74 @@ Task 5.6 is TS-only (no markdown sync concern).
           bounds from session-init.md § 6); minimal "Ready for work" form retained when absent or
           empty. Manifest pristine_hash recomputed for `session-init.contributor.md`.
 
-### `[ ]` **5.10 Composite probe contributor-awareness (CLI/TS)**
+### `[ ]` **5.10 Contributor active resolution — mirror maintainer under `user/{identity}/`**
 
-- _Lens:_ Surfaced during 5.8.b/5.9.b. Composite probe's `active` slot resolves
-  `.arc/active/**/status-*.md` (maintainer state). Contributors maintain personal state at
-  `.arc/user/{identity}/status-contributor.md` per the convention referenced in
-  `notes-docs-content-sweep.md`. Probe-side resolution makes the contributor flow envelope-driven
-  rather than agent-side file existence checks; parallels how 5.6 moved companion-file paths
-  into the probe.
+- _Lens:_ Pre-implementation audit (2026-04-27) surfaced an architectural inconsistency in the
+  original 5.10 scope: contributor active state used a singleton `status-contributor.md` at user
+  root while task lists lived in a flat `user/{identity}/active/` tree, forcing the probe to
+  role-branch on file-shape and forcing 5.10.c to disposition special-case companions. Cleaner
+  shape: contributor flow is "maintainer flow rooted at `.arc/user/{identity}/`" — canonical
+  pattern is `user/{identity}/active/status-{name}.md` (flat full-layout, no category subdir;
+  lite at `user/{identity}/active/status.md`) with optional `tasks-{name}.md` /
+  `notes-{name}.md` / `atomic-{name}.md` companions per 5.6. Single resolution algorithm
+  parameterized by root; naturally scales 0/1/N WUs; no special-case file shape. ADR-014
+  amendment retires the singleton; downstream consumers (probe, session-init, session-handoff,
+  AGENT-BRIEF) update in lockstep.
 
-    - `[ ]` **5.10.a Probe role-aware active resolution (test-first)**
-        - When `identity.role === "contributor"`, `runActiveSessionInitStatus` resolves from
-          `.arc/user/{identity}/active/` + `status-contributor.md` rather than
-          `.arc/active/**/status-*.md`. Same `single` / `multiple` / `none` discriminant.
-          Backward-compat preserved for maintainer flow.
-        - Behaviors: (i) contributor-role + status-contributor.md present → `single` resolution
-          to the contributor file; (ii) contributor-role + no status-contributor.md → `none`;
-          (iii) maintainer-role unchanged from current behavior; (iv) contributor with
-          `user/{identity}/active/` directory containing multiple status files → `multiple` (if
-          that pattern is permitted).
+    - `[ ]` **5.10.a ADR-014 amendment + contributor canon docs**
+        - ADR-014 amendment (2026-04-27): retire singleton `status-contributor.md`; canonical
+          contributor active state is `user/{identity}/active/status-{name}.md` (flat full-
+          layout) plus lite `user/{identity}/active/status.md`. Rationale captured: probe
+          parameterizes by root; companions derive identically via the task-list field; naturally
+          scales single-in-flight (typical) and multi-WU (rare-but-supported). Personal status
+          file is gitignored (per `.arc/user/*/`) — handoff is the natural update trigger.
+        - `AGENT-BRIEF.CONTRIBUTOR.md` (both copies): § Personal Workspace Read Contract row
+          replacement (`status-contributor.md` → `active/status-{name}.md`); § Session Workflow
+          paragraph reword; § Personal Workspace bullet list realignment.
+        - `user/README.md` (both copies): § Framework Read Contract footnote alignment.
+        - `notes-docs-content-sweep.md`: contributor-section prose realigned (path examples,
+          tree diagram, completion-and-archival bullet) to the new convention.
+        - `analysis-modes-contributor-lifecycle-stress-test.md`: trim residual singleton
+          references; the canonical-`active/` framing already aligns.
 
-    - `[ ]` **5.10.b Workflow consumption update**
-        - `session-init.contributor.md` Step 4 item 7+ wording references the envelope's
-          contributor-resolved active slot rather than instructing a raw file-existence check.
-          Step 6/7 orientation pulls fields from the envelope, mirroring maintainer.
+    - `[ ]` **5.10.b Probe role-aware active resolution (test-first)**
+        - Extend `ActiveSessionInitOptions` with `identity: string | null` and `role: string |
+          null`. Parameterize `readActiveStatusCandidates` by root + scan-shape: maintainer uses
+          `.arc/active/` with category subdirs; contributor uses `.arc/user/{identity}/active/`
+          flat (no subdirs). Lite layout supported under both roots.
+        - Companion derivation unchanged — driven by the parsed `**Task List:**` field.
+        - Behaviors: (i) maintainer-default unchanged across none/single/multiple; (ii)
+          contributor + identity + flat full-layout single → `single` resolves to
+          `user/{identity}/active/status-{name}.md`; (iii) contributor + identity + flat full-
+          layout multiple → `multiple`; (iv) contributor + identity + lite layout → `single`
+          resolves to `user/{identity}/active/status.md`; (v) contributor + identity + zero
+          files → `none`; (vi) contributor + identity-null → `none` with warning; (vii)
+          companions resolve identically under contributor root.
+        - Tests: extend `__tests__/integration/active.test.ts` with a contributor-flow describe
+          block (fixture helper for `user/{identity}/active/`); extend
+          `__tests__/integration/status.test.ts` with one contributor-role composite scenario;
+          unit tests at `__tests__/unit/active/status-reader.test.ts` for the parameterized scan.
 
-    - `[ ]` **5.10.c Companion files for contributor (forward compat)**
-        - Evaluate whether contributor `status-contributor.md` should also have companions
-          (`notes-contributor.md`, `atomic-contributor.md`) per 5.6's pattern. Disposition only —
-          implementation if approved follows.
+    - `[ ]` **5.10.c Composite + workflow + handoff consumption**
+        - `handlers/status.ts`: thread `identity` + `role` into the active probe (parallel to
+          user-probe wiring); update `SessionInitProbes.active` signature.
+        - `session-init.contributor.md` (both copies): § Step 3 (item 7+) rewrite — drop
+          singleton-file check, consume envelope's role-resolved active slot mirroring
+          maintainer Step 3 item 7; companion paths from envelope. § Step 5 — drop "Status-
+          contributor:" bullet; status-file freshness via the resolved active path. § Step 6
+          orientation — pull fields from envelope using maintainer's field bounds; minimal
+          "Ready for work" form retained when `resolution === "none"`.
+        - `session-init.md` (both copies): § Step 1 probe-failure fallback — add role-aware
+          scan path note (`.arc/user/{identity}/active/` for contributor role).
+        - `session-handoff.md` (both copies): § contributor blockquote (~L29) and task-list
+          completion bullet (~L98) refined — contributors skip *project-level* status-file
+          updates but DO update personal `user/{identity}/active/status-{name}.md` at handoff
+          (gitignored, so commit-time staging doesn't apply; handoff is the natural update
+          trigger, parallel to SESSION-NOTES).
+        - `DEV-RULES.ARC.md` (both copies) § Commit Discipline § Work status accuracy —
+          Contributor override clarified: project-level status files skipped at commit-time;
+          personal status updated at handoff.
+        - Manifest `pristine_hash` recompute for affected rendered files.
 
 ### `[ ]` **5.11 Phase 5 close — Tier 2 quality gates**
 
