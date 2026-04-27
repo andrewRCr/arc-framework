@@ -131,17 +131,23 @@ based on work complexity.
 
 **After drafting (standard template only), verify every claim:**
 
-- [ ] **Started / Completed dates**: Started = activation commit date; Completed = integration
+- [ ] _Started / Completed dates:_ Started = activation commit date; Completed = integration
       prep date
-- [ ] **Pull Request URL**: added after `gh pr create` in Step 7
-- [ ] **Phase count**: matches actual phases in task file — `grep -c "^###.*Phase" tasks-*.md`
-- [ ] **Quantitative claims**: each number verified in task file (note where verified —
-      e.g., "7 themes" → Phase X, line Y)
-- [ ] **Follow-up work**: reflects FINAL phase state; only list items ACTUALLY still deferred
+
+- [ ] _Pull Request URL:_ added after `gh pr create` in Step 7
+
+- [ ] _Phase count:_ matches actual phases in task file — `grep -c "^## \*\*Phase" tasks-*.md`
+
+- [ ] _Quantitative claims:_ each number verified in task file (note where verified —
+      e.g., "7 themes" → Phase X, line Y). Avoid file/test counts in Verification — pre-merge
+      review routinely shifts those numbers, leaving the doc stale at archive time.
+
+- [ ] _Follow-up work:_ reflects FINAL phase state; only list items ACTUALLY still deferred
       at task end
-- [ ] **No stale references**: no mentions of deleted notes files, completed deferred items,
-      etc.
-- [ ] **All major phases represented**: check CLEANUP-PROGRESS data includes all phases
+
+- [ ] _No stale references:_ no mentions of deleted notes files, completed deferred items, etc.
+
+- [ ] _All major phases represented:_ check CLEANUP-PROGRESS data includes all phases
 
 Lightweight template: verify the summary against the task list by inspection (no structured
 checklist).

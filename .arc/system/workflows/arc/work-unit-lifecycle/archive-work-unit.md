@@ -86,7 +86,8 @@ different: tightly coupled to the work unit, archives normally.
 
 - **Yes** → Move (not copy) to the appropriate reference directory. Never duplicate files across
   archive and reference — a file lives in one place. Note the routing in the completion doc's
-  Related Documentation section.
+  Routed Reference Files section (add the section if not present — see
+  [template-completion-doc][template-completion-doc] § Optional Sections).
     - `.arc/reference/research/` — externally-sourced investigation and synthesis (`research-*`)
     - `.arc/reference/analysis/` — internally-produced maps, audits, assessments
 - **No** → Proceed directly to archival. Most work units won't produce standalone reference
@@ -227,3 +228,4 @@ each quarter. See [Work Organization Strategy][work-org] for categorization rule
 [integrate-planning-branch]: planning/integrate-planning-branch.md
 [arc-ext-post-archive]: ../../../extensions/post-work-unit-archive.md
 [incidental]: ../supplemental/manage-incidental-work.md
+[template-completion-doc]: ../../../../reference/templates/template-completion-doc.md
