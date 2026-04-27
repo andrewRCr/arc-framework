@@ -237,45 +237,59 @@ content audit rather than loading logic).
 
 ### P2 — Session-type conditional loading
 
-**P2.1 `Working On:` type prefix formalized.** SESSION-NOTES template documents the prefix
-pattern: `[planning: name]`, `[execution: name]`, `[integration: name]`. session-handoff
-workflow writes the prefix explicitly based on current-session state.
+**P2.1 Probe-computed `sessionType` from tracked state.** The composite probe envelope
+(`arc status --session-init --json`) carries an inferred `sessionType` ∈
+`{"planning", "execution", "integration", null}` computed in `resolveSessionInit` from the
+resolved status file's tracked fields. SESSION-NOTES `**Session Type:**` is an opt-in
+personal-layer override — present and valid (case-insensitive
+`planning | execution | integration`) supersedes the envelope; invalid value → ignored +
+warning at session-init. Default behavior requires zero handoff ceremony — inference covers
+the 99% case.
 
-**P2.2 Inference rules at session-init.** When SESSION-NOTES is absent or prefix is missing,
-infer from:
+**P2.2 Inference rules at the probe.** Computed in `inferSessionType(taskList, nextAction)`:
 
-- Active status file `**Task List:** [none]` + backlog/planning context → `planning`
-- Active status file with incomplete task list → `execution`
-- Active status file signals integration-ready OR branch is in integration phase → `integration`
-- Between WUs with no active status file → `planning`
+- `resolution === "none"` (no active work) → `planning`
+- `resolution === "multiple"` (disambiguation pending) → `null` (recompute after disambiguation)
+- `resolution === "single"`:
+    - `**Task List:**` ∈ `{null, [none], [none associated]}` → `planning`
+    - `**Next Action:**` matches `/^(integrate-work-unit|archive-work-unit)\b(?!-)/i` → `integration`
+    - else → `execution`
+- Contributor-identity-missing short-circuit → `planning`
 
-User prompt only when genuinely ambiguous.
+Negative lookahead defends against hyphen-extended identifiers.
 
-**P2.3 Per-type load sets.**
+**P2.3 Per-type load sets.** Items 1–8 of `session-init.md` Step 3 (briefings, rules, strategy
+index, QUICK-REFERENCE, status file partial-read, SESSION-NOTES) load universally. Items 9–10
+gate on `sessionType`:
 
-| Load                                           | Planning | Execution                 | Integration              |
-| ---------------------------------------------- | :------: | :-----------------------: | :----------------------: |
-| Items 1–7 (briefings, rules, index, quick-ref) | ✓        | ✓                         | ✓                        |
-| Methods/extensions frontmatter index           | ✓        | ✓                         | ✓                        |
-| SESSION-NOTES                                  | ✓        | ✓                         | ✓                        |
-| Active status file (if present)                | ✓        | ✓                         | ✓                        |
-| Item 10 — task list partial read               | ✗        | ✓                         | ✓                        |
-| Core workflow                                  | —        | `3_process-task-loop.md`  | `integrate-work-unit.md` |
+| Load                            | Planning | Execution                | Integration              |
+|---------------------------------|:--------:|:------------------------:|:------------------------:|
+| Items 1–8 (universal)           |    ✓     |            ✓             |            ✓             |
+| Item 9 — task list partial read |    ✗     |            ✓             |            ✓             |
+| Item 10 — lifecycle workflow    |    —     | `3_process-task-loop.md` | `integrate-work-unit.md` |
 
 No supplementary method preloads per type — methods load on first workflow reference. Planning
-has no core workflow today; forward-compatible with `refine-plan-loop.md` if/when Expanded
+has no lifecycle workflow today; forward-compatible with `refine-plan-loop.md` if the Expanded
 Planning Path WU lands.
 
-**P2.4 CLI and template updates.** `arc init` installs updated SESSION-NOTES template with
-type prefix convention documented. `arc join` same template update; no structural changes.
+**P2.4 SESSION-NOTES override field.** SESSION-NOTES template (single adopter-facing copy)
+gains an optional, commented-out `**Session Type:**` line in Handoff Metadata with adjacent
+semantics documentation. `session-handoff.md` § Comprehensive Handoff Format documents the
+override and the "don't write by default" guidance. Override resolution is agent-side at
+SESSION-NOTES read-time — the probe stays focused on tracked state; personal-layer context
+stays in the agent's hands. Boundary preservation eliminates the marker drift surface that
+an explicit-prefix design would carry.
 
-**P2.5 Test coverage for session-type.** Unit (inference logic: signals → type resolution);
-integration (session-init with explicit type prefix, with inferred type, with ambiguous
-signals); E2E (fresh session-init across each type variant produces correct load set).
-
-**P2.6 Empirical validation at implementation.** During P2 task work, spot-check one session
-of each type to confirm the minimal set suffices. If a session type consistently needs a
-supplementary preload, adjust the load-set definition and document the rationale.
+**P2.5 Test coverage for session-type.** Unit
+(`__tests__/unit/active/session-type.test.ts` — `inferSessionType` logic);
+integration at the active-probe layer
+(`__tests__/integration/active.test.ts` — envelope-level inference across all
+active-state shapes) and the composite-probe layer
+(`__tests__/integration/status.test.ts` — `sessionType` travels through
+`runSessionInitStatus`); E2E (`__tests__/e2e/session-init.e2e.test.ts` —
+`arc status --session-init --json` binary output across type variants).
+Override behavior is agent-side and exercised manually via SESSION-NOTES override toggle at
+phase close (workflow-doc walkthrough).
 
 ### Verification (applies across all priorities)
 

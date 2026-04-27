@@ -9,6 +9,4 @@
 - **Last Completed:** Phase 6 — Session-Type Conditional Loading (Tasks 6.1–6.5)
 - **Blockers:** none
 - **Next Action:** Begin Task 7.1 — load and follow `verify-work-unit.md` (Tier 3 quality gates,
-  success-criteria validation against PRD, integration prep). Optional pre-step: rewrite PRD
-  P2.1–P2.6 body to reflect the landed probe-side inference + override design (currently still
-  describes original prefix design; only History row carries the trail).
+  success-criteria validation against PRD, integration prep).
