@@ -2116,22 +2116,28 @@ and integration loadsets validated via deliberate `**Session Type:**` override s
 - _Test counts:_ unit 878 (unchanged), integration 213 (+3), E2E 48 (+3). Tier 1 quality gates
   clean (lint:ts, lint:md, typecheck, typecheck:test, full unit + integration + E2E).
 
-### `[ ]` **6.5 Phase 6 close — Tier 3 quality gates + observation note + PRD History**
+### `[x]` **6.5 Phase 6 close — Tier 3 quality gates + spot-checks + PRD History**
 
-- _Goal:_ Phase close with deliberate non-default loadset spot-checks; PRD reflects design pivot.
-
-    - Full Tier 3 quality gate pass.
-    - **Empirical observation:** record whether the minimal load set sufficed for execution
-      sessions operated during 6.1–6.4 work. Append to `notes-session-init-optimization.md`. Any
-      adjustments applied as revisions (R-scheme) to Phase 6 tasks.
-    - **Planning + integration spot-checks:** temporarily set SESSION-NOTES `**Session Type:**`
-      override to validate the planning and integration loadsets without staging full WU shifts.
-      Confirm correct loadset; record any insufficiency observations.
-    - **PRD History entry:** add row noting the design pivot — P2.1 originally specified
-      explicit `Working On:` prefix as primary signal; revised to probe-side inference as
-      default with SESSION-NOTES `**Session Type:**` override as opt-in personal layer
-      (preserves SESSION-NOTES boundary; eliminates marker drift surface; reduces handoff
-      ceremony to zero in default case).
+- _Outcome:_ Phase 6 closed. Tier 3 quality gates clean — markdown lint (223 files), TS lint,
+  shell lint, typecheck (src + test), full test suite (unit 878 + integration 213 + E2E 48 =
+  1139 tests), build. PRD `## Document History` gains a 2026-04-27 row recording the design
+  pivot from P2.1 explicit `Working On:` type-prefix to probe-side inference + SESSION-NOTES
+  `**Session Type:**` override (preserves SESSION-NOTES boundary; eliminates marker drift
+  surface; reduces handoff ceremony to zero for the default case). PRD body for P2.1–P2.6 still
+  describes the original prefix design — body rewrite is out of scope for the History-row task,
+  but worth flagging for documentation hygiene as a follow-on.
+- _Spot-checks (workflow-doc walkthrough, no session restart):_
+    - Override `planning`: Step 3 sub-step supersedes envelope `execution`; item 9 skipped via
+      primary gate; item 10 branches to `planning` → none. Loadset = items 1–8 only. ✓
+    - Override `integration`: supersedes envelope `execution`; item 9 strategic partial-read
+      proceeds; item 10 branches to `integrate-work-unit.md`. Loadset = items 1–8 + task list
+      partial read + `integrate-work-unit.md`. ✓
+    - Invalid override (e.g., `experimental`): ignored + warning emitted in orientation;
+      effective `sessionType` = envelope value; items 9–10 fire per envelope. ✓
+    - No insufficiencies surfaced — design internally consistent across the override scenarios.
+- _Empirical observation:_ dropped — no session switches occurred during 6.1–6.4 work, so the
+  minimal-loadset claim has no in-WU validation surface. Will be exercised organically in
+  general use post-merge.
 
 ---
 

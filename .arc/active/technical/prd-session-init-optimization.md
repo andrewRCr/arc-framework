@@ -496,9 +496,10 @@ checklist, trim strategy).
 
 ## Document History
 
-| Date       | Change                                                                              |
-|------------|-------------------------------------------------------------------------------------|
-| 2026-04-18 | Initial draft                                                                       |
-| 2026-04-20 | P0.2/P0.3/D7a refined: workflow frontmatter trigger contract; constitutional pair   |
-| 2026-04-20 | P0.3/D7a narrowed at Phase 2.1 landing: frontmatter-triggered rule; T1/T3 split     |
-| 2026-04-23 | Task 5.0 revived; dual-channel remote-sync integrity (worktree + notes)             |
+| Date       | Change                                                                                |
+|------------|---------------------------------------------------------------------------------------|
+| 2026-04-18 | Initial draft                                                                         |
+| 2026-04-20 | P0.2/P0.3/D7a refined: workflow frontmatter trigger contract; constitutional pair     |
+| 2026-04-20 | P0.3/D7a narrowed at Phase 2.1 landing: frontmatter-triggered rule; T1/T3 split       |
+| 2026-04-23 | Task 5.0 revived; dual-channel remote-sync integrity (worktree + notes)               |
+| 2026-04-27 | P2 design pivot: explicit `Working On:` type-prefix → probe-side inference + override |
