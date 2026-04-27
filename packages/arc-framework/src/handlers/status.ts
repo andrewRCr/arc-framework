@@ -54,7 +54,7 @@ export interface StatusCliOptions {
   json?: boolean;
 }
 
-/** Normalize a `git config` readback — `undefined` and empty string become `null`. */
+/** Normalize a `git config` readback — `undefined`, empty, and whitespace-only become `null`. */
 export function normalizeGitConfigValue(value: string | undefined): string | null {
   if (value === undefined) return null;
   const trimmed = value.trim();
