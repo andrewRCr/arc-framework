@@ -52,10 +52,10 @@ _Purpose:_ {what this phase delivers and why this granularity}
 
 ## Success Criteria
 
-- [ ] {Verifiable outcome derived from Scope "Will Do"}
-- [ ] {Another verifiable outcome}
-- [ ] All quality gates pass (tests, linting, type checking)
-- [ ] Ready for {archival | next phase | merge}
+- `[ ]` {Verifiable outcome derived from Scope "Will Do"}
+- `[ ]` {Another verifiable outcome}
+- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[ ]` Ready for integration
 
 [verify-work-unit]: ../../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md
 ```
@@ -114,9 +114,9 @@ _Purpose:_ {what this phase delivers and why this granularity}
 
 ## Success Criteria
 
-- [ ] {Verifiable outcome}
-- [ ] All quality gates pass
-- [ ] Ready for {archival | merge}
+- `[ ]` {Verifiable outcome}
+- `[ ]` All quality gates pass
+- `[ ]` Ready for integration
 
 [verify-work-unit]: ../../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md
 ```

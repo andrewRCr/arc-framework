@@ -2021,35 +2021,35 @@ adjustment to the load-set definition plus a notes-file entry.
 
 ## Success Criteria
 
-- [ ] `arc-methods.md` and `arc-extensions.md` retired; replaced by per-file directories in `system/methods/` and
+- `[ ]` `arc-methods.md` and `arc-extensions.md` retired; replaced by per-file directories in `system/methods/` and
       `system/extensions/` (both copies)
-- [ ] Session-init Step 2: methods not loaded at init (trigger-time only); extensions enumerated via single `grep`
+- `[ ]` Session-init Step 2: methods not loaded at init (trigger-time only); extensions enumerated via single `grep`
       for `^active: true` producing the active-extensions list carried in session context; fire-point directives
       consult the list by name; method and extension bodies load on-demand at workflow trigger / fire point
-- [ ] Reliable-trigger CI check (`npm run lint:arc`) active and passing on `main`; reads workflow frontmatter only
-- [ ] All workflows under `system/workflows/**/*.md` carry schema-conformant YAML frontmatter (`audience`, `purpose`,
+- `[ ]` Reliable-trigger CI check (`npm run lint:arc`) active and passing on `main`; reads workflow frontmatter only
+- `[ ]` All workflows under `system/workflows/**/*.md` carry schema-conformant YAML frontmatter (`audience`, `purpose`,
       `arc.methods`, `arc.extensions`); body-level "Method dependencies" prose preambles retired
-- [ ] "Method and extension loading" subsection present in DEV-RULES.ARC § Verification and Discovery (both copies)
+- `[ ]` "Method and extension loading" subsection present in DEV-RULES.ARC § Verification and Discovery (both copies)
       with agent-side compliance rule (load frontmatter-declared methods/extensions before executing the workflow);
       paired author-side declaration rule lives in `strategy-workflow-authoring.md § Author-side Declaration Rule`
       (T3 on-demand, not every-session)
-- [ ] ADR-013 Tier 2 amendment reflects the implemented per-file model and constitutional rule
-- [ ] Observed tokens-at-orientation-completion drops ≥25% from baseline (~75–80k → ≤60k) in a clean maintainer session
+- `[ ]` ADR-013 Tier 2 amendment reflects the implemented per-file model and constitutional rule
+- `[ ]` Observed tokens-at-orientation-completion drops ≥25% from baseline (~75–80k → ≤60k) in a clean maintainer session
       with active task list
-- [ ] Orientation summary correctness verified (active work state, blockers, non-default config, freshness, next action
+- `[ ]` Orientation summary correctness verified (active work state, blockers, non-default config, freshness, next action
       remain accurate across sampled session types)
-- [ ] Operational-context audit Tier 1–3 complete; extractions staged in `notes-docs-content-sweep.md`;
+- `[ ]` Operational-context audit Tier 1–3 complete; extractions staged in `notes-docs-content-sweep.md`;
       `[TODO-docs-site]` placeholders greppable across touched files
-- [ ] `template-tasks.md` extracted to `.arc/reference/templates/`; `2_generate-tasks.md` hosts Quick Format Checklist;
+- `[ ]` `template-tasks.md` extracted to `.arc/reference/templates/`; `2_generate-tasks.md` hosts Quick Format Checklist;
       `strategy-task-list-formatting.md` trimmed to rules-only
-- [ ] Frontmatter schema + D7a link-resolution + D7b extension-point match pre-commit hooks active and tested
-- [ ] Session-type conditional loading active; `Working On:` type prefix formalized; auto- inference handles the common
+- `[ ]` Frontmatter schema + D7a link-resolution + D7b extension-point match pre-commit hooks active and tested
+- `[ ]` Session-type conditional loading active; `Working On:` type prefix formalized; auto- inference handles the common
       cases without user prompts
-- [ ] `arc init` and `arc join` deliver updated SESSION-NOTES template with type prefix convention
-- [ ] Framework-sync integration test passing; two-copy sync clean across methods, extensions, and touched
+- `[ ]` `arc init` and `arc join` deliver updated SESSION-NOTES template with type prefix convention
+- `[ ]` Framework-sync integration test passing; two-copy sync clean across methods, extensions, and touched
       workflow/rules files
-- [ ] All quality gates pass (markdown lint, TypeScript lint, shellcheck, typecheck, tests, build — zero violations)
-- [ ] Ready for archival
+- `[ ]` All quality gates pass (markdown lint, TypeScript lint, shellcheck, typecheck, tests, build — zero violations)
+- `[ ]` Ready for integration
 
 ---
 

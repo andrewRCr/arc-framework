@@ -65,7 +65,8 @@ Current State, Testing Strategy) only when the work needs them.
 
 `## **Phase X:** Description` — level 2, phase number bold within heading, name plain after
 colon. Blank line before and after. No time estimates. Phases are the document's section
-headings; the document title (`# Task List: ...`) is the only H1.
+headings; the document title (`# Task List: ...`) is the only H1. No intermediate `## Tasks`
+wrapper between H1 and phase H2s — phases are the H2 layer.
 
 ### Phase Preamble
 
@@ -320,10 +321,11 @@ criterion — the checkable operationalization of the PRD's success criteria. Se
 [`template-tasks.md`][template-tasks] for the block.
 
 Checked during the [verification phase](#verification-phase), not during implementation or
-archival. Always include "All quality gates pass" and "Ready for {archival | next phase |
-merge}" as standard items. Criterion text is immutable — never rewrite to match actual
-implementation. Do not duplicate the PRD's criteria verbatim — operationalize them into
-checkable items.
+archival. Markers backtick-wrapped (matching parent + subtask convention — see
+[§ Subtasks](#subtasks-third-level) for rationale). Always include "All quality gates pass"
+and "Ready for integration" as standard items. Criterion text is immutable — never rewrite
+to match actual implementation. Do not duplicate the PRD's criteria verbatim — operationalize
+them into checkable items.
 
 **Three states** (applied during [`verify-work-unit.md`][verify-work-unit]):
 
