@@ -40,8 +40,8 @@ awareness, the total reduction is larger than any single strategy alone.
 
 ## Use Cases
 
-**Session bootstrap — agent perspective.** An agent begins a session via `/arc-resume`, reads
-the loadset, and produces an orientation summary. The current cost pushes the agent toward
+**Session bootstrap — agent perspective.** An agent begins a session via the `arc-resume` skill,
+reads the loadset, and produces an orientation summary. The current cost pushes the agent toward
 ~75–80k observed tokens before any work begins. The optimized flow loads a thin methods/extensions
 index plus operationally-trimmed baseline docs, with full method/extension bodies loading
 on-demand when workflows reference them.

@@ -64,13 +64,16 @@ no action needed.
 
 When marking the verification task `[x]`, include completion notes that make the task
 self-documenting — a reader of the archived task list should understand what was verified
-without loading this workflow. Cover all three steps:
+without loading this workflow. The verification task uses three italic descriptor bullets in
+lieu of the single `_Outcome:_` rule (per
+[strategy-task-list-formatting § Goal/Note Lines][task-list-formatting] —
+verification-task exception). Cover all three steps:
 
-- **Quality gates**: What ran and the outcome (e.g., "md lint, code lint, typecheck,
+- _Quality gates:_ what ran and the outcome (e.g., "md lint, code lint, typecheck,
   42 tests, build — all passed")
-- **Success criteria**: Summary disposition (e.g., "8 criteria: 7 met, 1 superseded
+- _Success criteria:_ summary disposition (e.g., "8 criteria: 7 met, 1 superseded
   with annotation")
-- **Atomic tasks**: Disposition (e.g., "companion file empty" or "3 completed, 1 deferred
+- _Atomic tasks:_ disposition (e.g., "companion file empty" or "3 completed, 1 deferred
   to backlog")
 
 ---

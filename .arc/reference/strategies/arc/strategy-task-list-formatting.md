@@ -61,6 +61,24 @@ Current State, Testing Strategy) only when the work needs them.
 
 ## Format Elements Reference
 
+### Bold and Italic Conventions
+
+Convention tracks document role, not a single global rule:
+
+- **File-header metadata** uses `**Bold:**` field labels — task list `**PRD:**`, `**Branch(es):**`,
+  `**Purpose:**`; atomic file `**Purpose:**`, `**Ordering:**`. These describe the file.
+
+- **Work descriptors** use `_Italic:_` field labels — phase preamble `_Purpose:_`, parent-task
+  `_Goal:_` / `_Note:_` / `_Outcome:_`, atomic-item `_Observation:_` / `_Scope:_` / `_Files:_`.
+  These describe the work.
+
+- **Actionable titles** use `**Bold**` (no colon) — parent task `**X.Y Title**`, subtask
+  `**X.Y.a Title**`, atomic item `**Title**`. These are the work.
+
+Bold signals "structural piece" (file metadata, task titles); italic signals "describing the
+work" (descriptors, rationale, outcomes). The layered split is what keeps the visual hierarchy
+readable across document types.
+
 ### Phase Headers
 
 `## **Phase X:** Description` — level 2, phase number bold within heading, name plain after
@@ -165,6 +183,13 @@ descriptor bullets are REPLACED by a single `_Outcome:_` bullet at root level (p
 subtaskless parents too — `_Outcome:_` is allowed when warranted, and is the only descriptor
 a subtaskless parent ever carries. Don't accumulate plan AND outcome.
 
+**Verification-task exception.** The verification phase's single task (per
+[verify-work-unit.md][verify-work-unit]) carries three required completion-note categories —
+quality gates, success criteria, atomic tasks. These appear as three italic descriptor bullets
+at root level (`_Quality gates:_`, `_Success criteria:_`, `_Atomic tasks:_`) in lieu of a
+single `_Outcome:_`. Same italic convention; structured layout reflects the verification
+workflow's required coverage.
+
 ### Revision Numbering (R Scheme)
 
 Expanding a previously-complete subtask without destroying existing numbering:
@@ -204,13 +229,21 @@ names (`method_name()`), file names (`models.py`), API endpoints (`/api/users/`)
 Blank lines required:
 
 - Before and after every phase heading (H2)
+
 - Before and after every parent task heading (H3)
+
 - Between every subtask (whether or not it carries detail bullets)
+
+- Loose-list rendering for any list containing multi-line items — when at least one item spans
+  2+ lines, every item in that list separates from its neighbors with a blank line. Lists
+  where every item is single-line stay tight. Applies uniformly to atomic-file items,
+  ATOMIC-INBOX entries, success criteria items, item-level descriptor sub-bullets, and any
+  other list content where multi-line entries appear.
+
 - Before and after multi-paragraph descriptor blocks within a phase preamble
 
-Always blank line — no conditional rules. Markdownlint MD022 enforces heading spacing; the
-"between every subtask" rule is project convention beyond MD022 and is verified at the pre-save
-checklist.
+Markdownlint MD022 enforces heading spacing; the "between every subtask" and loose-list rules
+are project convention beyond MD022 and are verified at the pre-save checklist.
 
 ---
 
@@ -265,9 +298,9 @@ Required final phase of every task list — a single task pointing to
 [`verify-work-unit.md`][verify-work-unit]:
 
 ```markdown
-### **Phase N:** Verification
+## **Phase N:** Verification
 
-- [ ] **N.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+### `[ ]` **N.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
 ```
 
 Include the `[verify-work-unit]` reference-link definition with other reference links at the
@@ -278,12 +311,38 @@ task list's end.
 ## Atomic Companion File
 
 Created alongside every task list: `atomic-{name}.md` in the same directory as
-`tasks-{name}.md`. Flat checkbox list — no phases, no numbering, no hierarchy. Empty by default;
-populated during execution as off-plan work surfaces.
+`tasks-{name}.md`. No phases or numbering hierarchy; items are flat parent-level entries under
+a single `## Tasks` wrapper. Empty by default; populated during execution as off-plan work
+surfaces.
 
 See [`template-tasks.md`][template-tasks] for the skeleton and
 [3_process-task-loop.md § Atomic Task Completion][process-task-loop] for the completion
 protocol.
+
+**Shape parity with task lists.** Atomic items follow Format C parent-task conventions:
+
+- Items are H3 headings with backtick-wrapped markers: `` ### `[ ]` **{Title}** `` /
+  `` ### `[x]` **{Title}** `` / `` ### `[~]` **{Title}** ``
+
+- A single `## Tasks` wrapper sits between the file-header preamble and the items, demoting
+  items to H3 (the parent-task layer) so visual level matches task-list parent tasks
+
+- File-header preamble field labels stay bold (`**Purpose:**`, `**Ordering:**`) per § Bold
+  and Italic Conventions — file-header metadata, not work descriptors
+
+- Item-level descriptor sub-bullets use italic when needed (`_Observation:_`, `_Scope:_`,
+  `_Files:_`, `_Approach:_`)
+
+- At completion, planning content is replaced by outcome content — single `_Outcome:_`
+  bullet, or outcome prose under the heading
+
+What atomic files don't carry: phases, subtask layer, letter numbering. Each item is
+indivisible by definition — that's the contract.
+
+**ATOMIC-INBOX parallel** (arc-in-git mode, `user/{identity}/`): same shape — `## Inbox`
+wrapper in lieu of `## Tasks`, H3 items with backtick markers, italic descriptor sub-bullets.
+File-header preamble fields stay bold. The wrapper name reflects the file's queue-of-deferred
+semantics; the structural shape (H1 → H2 wrapper → H3 items) matches the companion file.
 
 **Scope guards** (each item must satisfy all three):
 
@@ -305,8 +364,7 @@ without formal numbering.
 artifacts.
 
 **Lifecycle:** Don't delete an empty companion file — its presence signals off-plan work has a
-home. Feature, technical, and incidental task lists all get companion files. Bold headers and
-grouped sub-bullets are acceptable for larger items.
+home. Feature, technical, and incidental task lists all get companion files.
 
 **Commit context:** `Context: atomic-{name}.md` (no task number, no special suffix). The commit
 message body describes the work. **Archival:** alongside the task list if it contains any

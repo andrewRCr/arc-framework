@@ -29,13 +29,19 @@ backlog, or drop. See `integrate-work-unit.md` for the triage protocol.
 
 ## Inbox
 
-<!-- Add tasks here with checkboxes -->
+<!-- Add tasks as H3 entries with backtick-wrapped markers. Same shape as atomic companion -->
+<!-- files; see strategy-task-list-formatting.md § Atomic Companion File. -->
 
 <!-- Example structure:
 
-- [ ] {{Task name}}
-    - Problem: {{What issue this addresses}}
-    - Approach: {{How to solve it}}
-    - Files: `{{path/to/file.ext}}`
+### `[ ]` **{{Task title}}**
+
+- _Observation:_ {{what surfaced — issue, where, why}}
+- _Approach:_ {{how to solve it — bounded fix}}
+- _Files:_ `{{path/to/file.ext}}`
+
+### `[x]` **{{Completed task title}}**
+
+- _Outcome:_ {{what was done — commit hash if applicable}}
 
 -->

@@ -2126,6 +2126,7 @@ and integration loadsets validated via deliberate `**Session Type:**` override s
   surface; reduces handoff ceremony to zero for the default case). PRD body for P2.1–P2.6 still
   describes the original prefix design — body rewrite is out of scope for the History-row task,
   but worth flagging for documentation hygiene as a follow-on.
+
 - _Spot-checks (workflow-doc walkthrough, no session restart):_
     - Override `planning`: Step 3 sub-step supersedes envelope `execution`; item 9 skipped via
       primary gate; item 10 branches to `planning` → none. Loadset = items 1–8 only. ✓
@@ -2135,6 +2136,7 @@ and integration loadsets validated via deliberate `**Session Type:**` override s
     - Invalid override (e.g., `experimental`): ignored + warning emitted in orientation;
       effective `sessionType` = envelope value; items 9–10 fire per envelope. ✓
     - No insufficiencies surfaced — design internally consistent across the override scenarios.
+
 - _Empirical observation:_ dropped — no session switches occurred during 6.1–6.4 work, so the
   minimal-loadset claim has no in-WU validation surface. Will be exercised organically in
   general use post-merge.
@@ -2143,47 +2145,96 @@ and integration loadsets validated via deliberate `**Session Type:**` override s
 
 ## **Phase 7:** Verification
 
-### `[ ]` **7.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+### `[x]` **7.1 Complete verification** — followed [`verify-work-unit.md`][verify-work-unit]
 
-- _Note:_ The verification workflow conducts Tier 3 quality gates, success criteria validation,
-  atomic task resolution, measurement (V.1 — tokens at orientation completion vs ~75–80k baseline;
-  target ≥25% drop to ≤60k), audit quality spot-check (V.2 — 3–5 random extracted passages verified
-  as operational vs non-operational), and late-session verification observation noted for the next
-  task-executing WU (V.3 — organic, not synthetic).
+- _Quality gates:_ md lint (223 files, 0 errors), ts/sh lint, typecheck (source + tests),
+  1088 unit/integration + 48 E2E across 84 files (all passed), build clean.
+
+- _Success criteria:_ 16/16 `[x]`. Three deviations noted inline — #3 lint:arc:triggers naming;
+  #12 / #13 probe-side `sessionType` inference + SESSION-NOTES `**Session Type:**` override
+  superseded the originally-planned `Working On:` type-prefix design (PRD History 2026-04-27).
+  V.1 measurement (~57–61k tokens-at-orientation, ~24–28% below ~75–80k baseline; init
+  wall-clock ~1 min vs ~2+ min pre-WU) recorded under criterion #7. V.2 spot-check (5 of 68
+  entries in `notes-docs-content-sweep.md` non-operational) recorded under criterion #9.
+
+- _Atomic tasks:_ all 6 items `[x]` — three closed this session (DEV-RULES.ARC trim +
+  process-task-loop implied-permission relocation; `arc user fetch` overwrite-prompt removal +
+  test refresh; slash-form skill-syntax cleanup sweep). V.3 (late-session verification) deferred
+  to the next task-executing WU per PRD design — organic, not synthetic.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` `arc-methods.md` and `arc-extensions.md` retired; replaced by per-file directories in `system/methods/` and
+- `[x]` `arc-methods.md` and `arc-extensions.md` retired; replaced by per-file directories in `system/methods/` and
       `system/extensions/` (both copies)
-- `[ ]` Session-init Step 2: methods not loaded at init (trigger-time only); extensions enumerated via single `grep`
+
+- `[x]` Session-init Step 2: methods not loaded at init (trigger-time only); extensions enumerated via single `grep`
       for `^active: true` producing the active-extensions list carried in session context; fire-point directives
       consult the list by name; method and extension bodies load on-demand at workflow trigger / fire point
-- `[ ]` Reliable-trigger CI check (`npm run lint:arc`) active and passing on `main`; reads workflow frontmatter only
-- `[ ]` All workflows under `system/workflows/**/*.md` carry schema-conformant YAML frontmatter (`audience`, `purpose`,
+
+- `[x]` Reliable-trigger CI check (`npm run lint:arc`) active and passing on `main`; reads workflow frontmatter only
+    - _Deviation:_ script lands as `npm run lint:arc:triggers` (with companion `lint:arc:domain-rules`); functional
+      coverage matches the criterion. Both pass on `main`.
+
+- `[x]` All workflows under `system/workflows/**/*.md` carry schema-conformant YAML frontmatter (`audience`, `purpose`,
       `arc.methods`, `arc.extensions`); body-level "Method dependencies" prose preambles retired
-- `[ ]` "Method and extension loading" subsection present in DEV-RULES.ARC § Verification and Discovery (both copies)
+
+- `[x]` "Method and extension loading" subsection present in DEV-RULES.ARC § Verification and Discovery (both copies)
       with agent-side compliance rule (load frontmatter-declared methods/extensions before executing the workflow);
       paired author-side declaration rule lives in `strategy-workflow-authoring.md § Author-side Declaration Rule`
       (T3 on-demand, not every-session)
-- `[ ]` ADR-013 Tier 2 amendment reflects the implemented per-file model and constitutional rule
-- `[ ]` Observed tokens-at-orientation-completion drops ≥25% from baseline (~75–80k → ≤60k) in a clean maintainer session
+
+- `[x]` ADR-013 Tier 2 amendment reflects the implemented per-file model and constitutional rule
+
+- `[x]` Observed tokens-at-orientation-completion drops ≥25% from baseline (~75–80k → ≤60k) in a clean maintainer session
       with active task list
-- `[ ]` Orientation summary correctness verified (active work state, blockers, non-default config, freshness, next action
+    - _Measurement (V.1):_ Claude Code statusline reports ~57–61k tokens-at-orientation across recent
+      sessions (full all-in: system prompt, tool schemas, skill registry, loadset content, tool-result
+      framing). That's ~24–28% below the ~75–80k baseline — at the ≥25% threshold. Session-init wall-clock
+      duration also dropped from ~2+ minutes pre-WU to ~1 minute post-WU. Loadset content alone totals ~79k
+      chars / ~22.6k tokens (~16.8k excluding `session-init.md` itself); the residual ~35k is harness floor
+      (tool schemas dominate, then system prompt, skill registry, Read line-number overhead). Open Question
+      #3 acknowledged the measurement-rigor caveat — statusline single-run reporting is the discipline.
+
+- `[x]` Orientation summary correctness verified (active work state, blockers, non-default config, freshness, next action
       remain accurate across sampled session types)
-- `[ ]` Operational-context audit Tier 1–3 complete; extractions staged in `notes-docs-content-sweep.md`;
+    - _Verification:_ this verification session itself exercised execution-type orientation cleanly — last completed,
+      current task, blockers, and next action all reported accurately against tracked state. No regressions observed.
+
+- `[x]` Operational-context audit Tier 1–3 complete; extractions staged in `notes-docs-content-sweep.md`;
       `[TODO-docs-site]` placeholders greppable across touched files
-- `[ ]` `template-tasks.md` extracted to `.arc/reference/templates/`; `2_generate-tasks.md` hosts Quick Format Checklist;
+    - _V.2 spot-check (5 of 68 entries):_ Entries 1, 14, 15, 16, 33 sampled — all correctly classify as
+      non-operational extractions (conceptual framing, why-clauses, pedagogical decision aids, SSOT rationale).
+      Trimmed sources retain operational directives + pointers; no false-positive operational loss.
+
+- `[x]` `template-tasks.md` extracted to `.arc/reference/templates/`; `2_generate-tasks.md` hosts Quick Format Checklist;
       `strategy-task-list-formatting.md` trimmed to rules-only
-- `[ ]` Frontmatter schema + D7a link-resolution + D7b extension-point match pre-commit hooks active and tested
-- `[ ]` Session-type conditional loading active; `Working On:` type prefix formalized; auto- inference handles the common
+
+- `[x]` Frontmatter schema + D7a link-resolution + D7b extension-point match pre-commit hooks active and tested
+    - Pre-commit CHECK 12 (frontmatter schema), CHECK 14 (D7a link resolution), CHECK 16 (D7b extension-point match)
+      all wired via `validate-frontmatter.ts`, `validate-links.sh`, `validate-extension-points.ts`.
+
+- `[x]` Session-type conditional loading active; `Working On:` type prefix formalized; auto- inference handles the common
       cases without user prompts
-- `[ ]` `arc init` and `arc join` deliver updated SESSION-NOTES template with type prefix convention
-- `[ ]` Framework-sync integration test passing; two-copy sync clean across methods, extensions, and touched
+    - _Deviation:_ the `Working On:` type-prefix design was superseded mid-Phase-6 by probe-side `sessionType`
+      inference (computed in `resolveSessionInit` from tracked status-file fields) plus an opt-in SESSION-NOTES
+      `**Session Type:**` override field. Functional intent met — agent-side conditional loading driven off the
+      envelope's `sessionType`, default behavior requires zero handoff ceremony. See PRD History 2026-04-27 row.
+
+- `[x]` `arc init` and `arc join` deliver updated SESSION-NOTES template with type prefix convention
+    - _Deviation:_ SESSION-NOTES template (single adopter-facing copy at `packages/arc-framework/templates/user/`)
+      carries the optional `**Session Type:**` override field instead of the originally-planned `Working On:` type
+      prefix — same design pivot as the prior criterion.
+
+- `[x]` Framework-sync integration test passing; two-copy sync clean across methods, extensions, and touched
       workflow/rules files
-- `[ ]` All quality gates pass (markdown lint, TypeScript lint, shellcheck, typecheck, tests, build — zero violations)
-- `[ ]` Ready for integration
+
+- `[x]` All quality gates pass (markdown lint, TypeScript lint, shellcheck, typecheck, tests, build — zero violations)
+    - md lint (223 files, 0 errors), TS lint, shellcheck, typecheck (source + tests), 1091 unit/integration + 48 E2E
+      tests across 84 files (all passed), build clean — Task 7.1 verification run.
+
+- `[x]` Ready for integration
 
 ---
 

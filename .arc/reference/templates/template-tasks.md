@@ -127,14 +127,15 @@ _Purpose:_ {what this phase delivers and why this granularity}
 
 Create alongside every task list: `atomic-{name}.md` in the same directory. Empty by default;
 see [strategy-task-list-formatting.md § Atomic Companion File][task-list-formatting] for scope
-guards and lifecycle rules.
+guards, shape rules, and lifecycle.
 
 ```markdown
 # Atomic Tasks — {Work Unit Name}
 
 **Purpose:** Tracking of indivisible one-off tasks you elect to do in parallel to the
 planned work — discovered during execution, not required for the work unit's success
-criteria. Flat checkbox list, no numbering hierarchy.
+criteria. No phases or numbering hierarchy; items are flat parent-level entries under
+a single `## Tasks` wrapper.
 
 **Ordering:** Incomplete tasks (`[ ]`) stay at the top. Completed tasks (`[x]`) sink
 below them in completion order (oldest completed first). See process-task-loop §
@@ -145,11 +146,17 @@ Atomic Task Completion for the full protocol.
 
 ---
 
-- [ ] {Example incomplete task — note where/when discovered, e.g., "noticed during Task X.Y, deferred"}
+## Tasks
 
-- [x] {Example completed task — "discovered during Task A.B"}
+### `[ ]` **{Example incomplete task title}**
 
----
+- _Observation:_ {what surfaced — where/when discovered, e.g., "noticed during Task X.Y"}
+- _Scope:_ {bounded effort}
+- _Files:_ `{path/to/file.ext}`
+
+### `[x]` **{Example completed task title}**
+
+- _Outcome:_ {what was done — discovered during Task A.B, fixed in commit `abc1234`.}
 ```
 
 ---

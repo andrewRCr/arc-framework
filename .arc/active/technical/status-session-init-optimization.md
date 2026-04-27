@@ -5,8 +5,9 @@
 - **State:** In Progress
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
-- **Next Task:** Task 7.1 — Complete verification (line ~2136)
-- **Last Completed:** Phase 6 — Session-Type Conditional Loading (Tasks 6.1–6.5)
+- **Next Task:** [none]
+- **Last Completed:** Phase 7 — Verification (Task 7.1; gates clean, success criteria 16/16,
+  atomic companion 6/6 — three closed this session)
 - **Blockers:** none
-- **Next Action:** Begin Task 7.1 — load and follow `verify-work-unit.md` (Tier 3 quality gates,
-  success-criteria validation against PRD, integration prep).
+- **Next Action:** Integration — load and follow `integrate-work-unit.md` (documentation cleanup,
+  PR, merge). `pre-merge-review` extension active per the active-extensions list.

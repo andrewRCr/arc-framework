@@ -21,24 +21,23 @@ Each session follows the same rhythm: establish context, co-develop, preserve st
    platform mechanism varies (new conversation, `/clear`, fresh terminal session).
 
 2. **Initialize.** Trigger the [session-init workflow][session-init]. The agent loads project context, verifies the
-   environment, and presents an orientation summary with active work state and next action. Invoke via skill trigger
-   (e.g., `/arc-resume`) or conversational request.
+   environment, and presents an orientation summary with active work state and next action. Invoke via the `arc-resume`
+   skill (invocation syntax is agent-specific) or conversational request.
 
 3. **Co-develop.** Work with the agent — task execution, planning, investigation, whatever the session requires. Commit
-   at your own pace throughout, via skill trigger (e.g., `/arc-commit`) or conversational request. The agent works one
-   review increment at a time per [DEV-RULES.ARC][dev-rules-arc] § Task Execution.
+   at your own pace throughout, via the `arc-commit` skill or conversational request. The agent works one review
+   increment at a time per [DEV-RULES.ARC][dev-rules-arc] § Task Execution.
 
 4. **Hand off.** When the session should end (see [When to End a Session](#when-to-end-a-session)), trigger the
    [session-handoff workflow][session-handoff]. The agent captures work state, session notes, and any unfinished
-   context. Committing before handoff is recommended but at your discretion. Invoke via skill trigger (e.g.,
-   `/arc-handoff`) or conversational request.
+   context. Committing before handoff is recommended but at your discretion. Invoke via the `arc-handoff` skill or
+   conversational request.
 
 5. **Clear and repeat.** After handoff is complete and you've received the session summary, clear the conversation or
    context. Return to step 1.
 
-The skill triggers (`/arc-resume`, `/arc-commit`, `/arc-handoff`) are ARC's intended invocation mechanism — they make
-the common workflow mechanical and consistent. Conversational requests accomplish the same thing; the skills just remove
-ambiguity.
+The skills (`arc-resume`, `arc-commit`, `arc-handoff`) are ARC's intended invocation mechanism — they make the common
+workflow mechanical and consistent. Conversational requests accomplish the same thing; the skills just remove ambiguity.
 
 ---
 
