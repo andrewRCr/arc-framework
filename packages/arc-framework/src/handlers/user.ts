@@ -246,7 +246,6 @@ export async function handleUserPush(opts: UserPushOptions): Promise<void> {
 
 export interface UserFetchOptions {
   identity?: string;
-  yes?: boolean;
 }
 
 export async function handleUserFetch(opts: UserFetchOptions): Promise<void> {
@@ -266,20 +265,10 @@ export async function handleUserFetch(opts: UserFetchOptions): Promise<void> {
   }
   const io = createUserIOContext();
 
-  // Check once — reused for the prompt and the force flag
+  // Force-fetch when a local note exists for this identity so the remote ref
+  // overwrites it. Working files are untouched — pull is the operation that
+  // restores files and prompts before overwriting.
   const hasLocal = await hasLocalNotes(io, identity);
-
-  // Warn if local notes exist that would be overwritten
-  if (hasLocal && !shouldSkipOverwriteConfirm(opts.yes)) {
-    const proceed = await p.confirm({
-      message: OVERWRITE_CONFIRM_MESSAGE,
-      initialValue: true,
-    });
-    if (p.isCancel(proceed) || !proceed) {
-      p.log.info("Fetch cancelled.");
-      return;
-    }
-  }
   try {
     await runWithSpinner(
       "Fetching user notes...",

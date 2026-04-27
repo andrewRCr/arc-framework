@@ -104,7 +104,6 @@ userCmd
   .command("fetch")
   .description("Fetch user notes from remote")
   .option("--identity <name>", "Pull another developer's notes instead of your own")
-  .option("-y, --yes", "Skip overwrite confirmation prompts")
   .action(handleUserFetch);
 
 userCmd

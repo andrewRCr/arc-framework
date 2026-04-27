@@ -240,7 +240,7 @@ describe("handleUserPush divergence resolution", () => {
 
 // --- handleUserFetch tests ---
 
-describe("handleUserFetch overwrite flow", () => {
+describe("handleUserFetch flow", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     resetMockDefaults();
@@ -261,44 +261,8 @@ describe("handleUserFetch overwrite flow", () => {
     );
   });
 
-  it("prompts and fetches with force when local notes exist and user confirms", async () => {
+  it("fetches with force when local notes exist (no overwrite prompt)", async () => {
     mockHasLocalNotes.mockResolvedValue(true);
-    mockConfirm.mockResolvedValue(true);
-    mockRunUserFetch.mockResolvedValue(undefined);
-
-    await handleUserFetch({});
-
-    expect(mockConfirm).toHaveBeenCalledTimes(1);
-    expect(mockRunUserFetch).toHaveBeenCalledWith(
-      expect.objectContaining({ force: true }),
-    );
-  });
-
-  it("cancels when user declines overwrite", async () => {
-    mockHasLocalNotes.mockResolvedValue(true);
-    mockConfirm.mockResolvedValue(false);
-
-    await handleUserFetch({});
-
-    expect(mockLog.info).toHaveBeenCalledWith("Fetch cancelled.");
-    expect(mockRunUserFetch).not.toHaveBeenCalled();
-  });
-
-  it("bypasses overwrite confirm when --yes is passed", async () => {
-    mockHasLocalNotes.mockResolvedValue(true);
-    mockRunUserFetch.mockResolvedValue(undefined);
-
-    await handleUserFetch({ yes: true });
-
-    expect(mockConfirm).not.toHaveBeenCalled();
-    expect(mockRunUserFetch).toHaveBeenCalledWith(
-      expect.objectContaining({ force: true }),
-    );
-  });
-
-  it("bypasses overwrite confirm in non-TTY environments", async () => {
-    mockHasLocalNotes.mockResolvedValue(true);
-    mockIsNonInteractive.mockReturnValue(true);
     mockRunUserFetch.mockResolvedValue(undefined);
 
     await handleUserFetch({});
