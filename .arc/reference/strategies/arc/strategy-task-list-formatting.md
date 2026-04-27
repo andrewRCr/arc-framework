@@ -242,8 +242,24 @@ Blank lines required:
 
 - Before and after multi-paragraph descriptor blocks within a phase preamble
 
-Markdownlint MD022 enforces heading spacing; the "between every subtask" and loose-list rules
-are project convention beyond MD022 and are verified at the pre-save checklist.
+**File-header metadata blocks follow a different rule** from content lists. The bullet block
+at the top of a task list, completion doc, or similar metadata cluster is shape-mixed:
+key/value and enum-shaped fields (PRD, Branch, Started, Completed, Category, etc.) describe
+the doc; descriptive-prose fields (Purpose, Context) describe what the work is. The two
+shapes get different visual treatment:
+
+- Key/value and enum fields stay tight to each other — the cluster keeps its scan rhythm
+- Descriptive-prose fields (Purpose, Context, etc.) separate from neighbors with a blank
+  line — the prose trailer is visually demarcated from the metadata cluster
+
+The test is field shape, not line count: a key/value that happens to wrap (e.g., long path)
+stays tight; a one-sentence Context that fits on one line still gets the separator because
+it's prose by role. By convention descriptive fields land at the end of the block, but the
+rule is shape-based — a descriptive field anywhere separates from its neighbors.
+
+Markdownlint MD022 enforces heading spacing; the "between every subtask", loose-list, and
+file-header-metadata-block rules are project convention beyond MD022 and are verified at the
+pre-save checklist.
 
 ---
 

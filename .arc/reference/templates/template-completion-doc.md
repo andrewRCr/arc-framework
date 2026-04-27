@@ -42,9 +42,9 @@ the archive.
 
 - **Started**: YYYY-MM-DD
 - **Completed**: YYYY-MM-DD
-- **Branch**: {branch-name}
-- **Category**: {Feature | Technical | Incidental}
+- **Branch**: {branch-name — category prefix already carries the work type}
 - **Pull Request**: {URL — add once PR is created in integrate-work-unit Step 7}
+
 - **Context**: {One-liner: "Discovered during X" or "Part of roadmap initiative Y"}
 
 <!-- Optional (supersession case only):
@@ -128,9 +128,9 @@ detailed record.
 
 - **Started**: YYYY-MM-DD
 - **Completed**: YYYY-MM-DD
-- **Branch**: {branch-name}
-- **Category**: Incidental
+- **Branch**: {branch-name — `incidental/` prefix carries the work type}
 - **Pull Request**: {URL — add once PR is created}
+
 - **Context**: {One-liner: "Discovered during X"}
 
 ## Summary

@@ -29,6 +29,7 @@ project's configured base branch per [`arc-config.yml`][arc-config], not a hardc
 - **PRD:** `.arc/{active|backlog}/{feature|technical}/prd-{name}.md`
 - **Branch(es):** `{feature|technical}/{branch-name}`
 - **Base Branch:** {base branch per arc-config.yml — typically `main`}
+
 - **Purpose:** {One-sentence summary — full Scope lives in the PRD}
 
 ---
