@@ -60,6 +60,14 @@ If unresolved atomic tasks are found, address them before considering verificati
 If the companion file is empty (no checkbox items), it will be deleted during integration —
 no action needed.
 
+## Step 4 — Pre-align Status File for Integration Handoff
+
+Before marking the verification task `[x]`, update the active status file's `**Next Action:**`
+to `integrate-work-unit Step 1 — verify completion` per the workflow-step-pointer convention
+([session-handoff][session-handoff] § _Workflow step pointer_). This closes the inference gap
+between verification close and integrate-entry — the session-init probe relies on this prefix
+to set `sessionType: integration`. Stage with the verification commit.
+
 ## Completion Notes
 
 When marking the verification task `[x]`, include completion notes that make the task
@@ -81,3 +89,4 @@ verification-task exception). Cover all three steps:
 [quality-gates]: ../../../../reference/strategies/arc/strategy-quality-gates.md
 [task-list-formatting]: ../../../../reference/strategies/arc/strategy-task-list-formatting.md
 [integrate-work-unit]: integrate-work-unit.md
+[session-handoff]: ../session-lifecycle/session-handoff.md
