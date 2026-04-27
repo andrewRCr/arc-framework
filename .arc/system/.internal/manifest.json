@@ -385,12 +385,12 @@
     "system/workflows/arc/session-lifecycle/session-init.contributor.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "69ab3ceaae5ed2eff421896931a8ce5f6f71d723f99cdece5858a7b64cec1656"
+      "pristine_hash": "2e67bbaa360c264a164ac4f1fe0b73c0a261d8e3b36b22dff807d88b9cd1766b"
     },
     "system/workflows/arc/session-lifecycle/session-init.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "ecf25426a5f3903669eb42f8484666b88a0f15560218aef07e5aa42a8465858a"
+      "pristine_hash": "0871801f0f2972035303c3240dd364ba10c0f30515d266c174fb6e2804ccfcb0"
     },
     "system/workflows/arc/session-lifecycle/session-loop.md": {
       "classification": "Framework",

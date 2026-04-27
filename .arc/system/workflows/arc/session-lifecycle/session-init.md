@@ -16,22 +16,16 @@ stream; (c) flow-control pivots the user needs to track. Pure narration of tool 
 or "now reading X" is omitted. Scope-limited override of any harness-default narration cadence for the
 duration of this workflow.
 
-## 1. Verify Environment
+## 1. Resolve Session Context
+
+Verify environment and probe ARC state in a single Bash chain — both non-destructive reads:
 
 ```bash
-pwd
-# Expected: /home/andrew/dev/arc-framework (repo root)
+pwd && arc status --session-init --json
 ```
 
-## 2. Probe ARC Domain
-
-Run the composite probe:
-
-```bash
-arc status --session-init --json
-```
-
-Non-destructive. Returns a single JSON envelope the agent consumes:
+`pwd` should match the repo root (`/home/andrew/dev/arc-framework`). The probe returns a single JSON envelope
+the agent consumes:
 
 | Field         | Contents                                                                                                                                                                                                                                                 |
 |---------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -50,15 +44,15 @@ and overrides reach the user at the consuming operation.
 ATOMIC-INBOX, and git notes all depend on identity for path resolution. Surface a warning in orientation.
 Sessions without identity cannot perform handoff.
 
-**Role is `contributor`**: After Step 4 items 1–6, switch to [`session-init.contributor.md`][session-init-contributor]
-for item 7+, Step 6 skip, and Step 7 contributor orientation. Step 5 and Step 8 apply universally.
+**Role is `contributor`**: After Step 3 items 1–6, switch to [`session-init.contributor.md`][session-init-contributor]
+for item 7+, Step 5 skip, and Step 6 contributor orientation. Step 4 and Step 7 apply universally.
 
 **Probe failure fallback**: If the composite call fails, fall back to direct commands:
 `git config arc.identity` / `arc.role`, `grep -l "^active: true" .arc/system/extensions/*.md`, and a scan
-of `.arc/active/**/status-*.md`. Skip Step 3 (no user-sync state available) and note the degradation in
+of `.arc/active/**/status-*.md`. Skip Step 2 (no user-sync state available) and note the degradation in
 orientation.
 
-## 3. Conditional Sync Pulls
+## 2. Conditional Sync Pulls
 
 Two channels may need attention: worktree (`worktree.value`) and personal notes (`user.value`).
 
@@ -70,15 +64,15 @@ must warn: "working tree dirty — stash or commit before accepting". No auto-st
 - `remote-ahead`: `prompt` mode → ask before pulling. On accept, run `git pull --ff-only`. Skip post-pull
   re-probe on success — `clean` post-state is implied by a clean pull. `manual` mode → surface in
   orientation; do not prompt.
-- `diverged`: Non-blocking. Surface in Step 7 as `Reconcile required:`; carry forward.
-- `local-ahead`: Single informational line in Step 7. No prompt.
+- `diverged`: Non-blocking. Surface in Step 6 as `Reconcile required:`; carry forward.
+- `local-ahead`: Single informational line in Step 6. No prompt.
 - `clean`, `no-upstream`, `detached-head`, `no-remote`, `skipped`: No action.
 - `remote-unavailable`: Note in orientation. Continue session-init.
 
 **Notes channel** — keyed on `user.value.state` and `config.value.settings["session.init_pull.notes"]`:
 
 - `remote-ahead` or `conflict`: `prompt` mode → ask before running `arc user pull`. `always` mode → pull
-  without prompting. `manual` mode → surface in orientation; do not prompt. **Pull before Step 4** —
+  without prompting. `manual` mode → surface in orientation; do not prompt. **Pull before Step 3** —
   SESSION-NOTES reads below would be stale otherwise.
 - `clean`, `disabled`: No action.
 - `remote-unavailable`: Note the degraded state. If the remote is unreachable, continue with local tracked
@@ -95,7 +89,7 @@ downstream state ambiguity matters, re-probe to confirm.
 The agent owns the prompt — do not defer it to the CLI. If `identity.identity === null`, the notes channel
 has no path; skip notes regardless of state. Worktree channel still applies.
 
-## 4. Load Context Documents
+## 3. Load Context Documents
 
 **Reading rule**: Read every document in the list below in full EXCEPT QUICK-REFERENCE (item 6 —
 section-level partial read) and the active task list (item 9 — strategic partial read).
@@ -129,7 +123,7 @@ session-state, follow the override instead.
 7. **Active status file** — resolve from `active.value` and partial-read the `## Active Work`
    section (heading line through the last `**Field:**` line):
     - `resolution: "single"`: path is `active.value.path`
-    - `resolution: "none"`: no active work unit. Skip items 9–10; Step 6 handles next-work discovery
+    - `resolution: "none"`: no active work unit. Skip items 9–10; Step 5 handles next-work discovery
     - `resolution: "multiple"` (full mode only): apply disambiguation after SESSION-NOTES loads (item 8) —
       precedence:
         1. SESSION-NOTES `**Working On:**` value matches a candidate filename
@@ -155,7 +149,7 @@ session-state, follow the override instead.
       sufficient for reliable lookup.
 
 8. `.arc/user/{identity}/SESSION-NOTES.md` — **Read directly** (no `test -f` precheck — Read tool handles
-   missing files gracefully). Uses `{identity}` from Step 2
+   missing files gracefully). Uses `{identity}` from Step 1
     - Personal working context from prior session: approach, decisions, things tried, known risks
     - **Persistent context**: The `## Persistent Context` section carries entries that survive across handoffs
       (each has an explicit removal trigger). Treat these as active constraints for this session
@@ -187,7 +181,7 @@ session-state, follow the override instead.
         1. Jump to the line hint (`line ~N`) — if the task number matches there, done
         2. Search for the task number (e.g., `**4.2`) if the line hint is stale
         3. Search for the title fragment if the task was renumbered
-        4. If none resolve, report the mismatch (Step 8)
+        4. If none resolve, report the mismatch (Step 7)
     - **Structural mapping** for header + phase preamble: when line-precise Reads are needed, issue one
       grep for `^### \*\*Phase` (or equivalent phase-heading marker) returning all phase positions in a
       single call — sufficient to compute Read offsets for header (above first phase), current phase
@@ -200,12 +194,12 @@ session-state, follow the override instead.
     **Skip if** the active status file is not resolved or shows `**Task List:** [none]`. Load later if the
     session pivots to task execution.
 
-## 5. Post-Context-Load Extensions · `#post-context-load`
+## 4. Post-Context-Load Extensions · `#post-context-load`
 
-If `post-context-load` appears in the active-extensions list (from Step 2), load and execute its
+If `post-context-load` appears in the active-extensions list (from Step 1), load and execute its
 [`.actions`][arc-ext-post-context-load]. Otherwise, skip.
 
-## 6. Assess Readiness
+## 5. Assess Readiness
 
 ### Freshness check
 
@@ -246,7 +240,7 @@ for the next unit:
 > Under partial protection (the default), proceed directly to [1_create-prd.md][create-prd] — no planning
 > branch needed.
 
-## 7. Confirm Orientation
+## 6. Confirm Orientation
 
 Produce the orientation summary.
 
@@ -290,7 +284,7 @@ tracked source documents the work.
 **Never include**: configuration overrides, active-extensions list (any state), defaults active, freshness
 clean, environment checks passed.
 
-## 8. Handle Context Mismatches
+## 7. Handle Context Mismatches
 
 If documented state doesn't match reality during initialization, use the trust hierarchy.
 
@@ -313,7 +307,7 @@ Examples:
 - Active status file says "Task 3.3 in progress" but task list shows 3.3 marked `[x]` and git log confirms the
   commit → proceed with Task 3.4 as current
 - `worktree.value.state == "diverged"` while session docs reflect clean state → git is ground truth.
-  Surface as `Reconcile required:` (Step 7) and carry forward. Non-blocking; do not auto-reconcile.
+  Surface as `Reconcile required:` (Step 6) and carry forward. Non-blocking; do not auto-reconcile.
 
 **Tier 2 — Stop and ask:**
 

@@ -1920,7 +1920,7 @@ Task 5.6 is TS-only (no markdown sync concern).
         - Manifest `pristine_hash` recomputed for `session-init.md`, `session-handoff.md`, and the
           new `session-init.contributor.md` to reflect post-5.8 stable content.
 
-### `[ ]` **5.9 Step 1+2 merge + contributor freshness/orientation**
+### `[x]` **5.9 Step 1+2 merge + contributor freshness/orientation**
 
 - _Lens:_ Pre-implementation audit (2026-04-27) during 5.8.b surfaced two improvements that
   weren't in the original 5.8 scope: (1) Steps 1 (`pwd`) and 2 (composite probe) are independent
@@ -1929,22 +1929,20 @@ Task 5.6 is TS-only (no markdown sync concern).
   generic "Ready for work", missing the contributor's freshness check (SESSION-NOTES handoff
   hash applies universally) and status-contributor.md state surfacing. All edits two-copy synced.
 
-    - `[ ]` **5.9.a Step 1+2 merge — "Resolve Session Context"**
-        - Merge `## 1. Verify Environment` and `## 2. Probe ARC Domain` into a single step
-          named "Resolve Session Context". Body chains `pwd && arc status --session-init --json`
-          in one Bash invocation. Renumber Steps 3–8 → 2–7 in `session-init.md` (both copies).
-          Sweep inline `Step N` cross-references in both `session-init.md` and
-          `session-init.contributor.md` to match new numbering.
+    - `[x]` **5.9.a Step 1+2 merge — "Resolve Session Context"**
+        - _Outcome:_ Steps 1+2 merged into a single Step 1 "Resolve Session Context" — body chains
+          `pwd && arc status --session-init --json` as one Bash call. Steps 3–8 renumbered to 2–7
+          across `session-init.md` (both copies). Cross-references swept in `session-init.md` and
+          `session-init.contributor.md` (both copies). Manifest pristine_hashes recomputed for the
+          two affected rendered files.
 
-    - `[ ]` **5.9.b Contributor freshness + orientation improvements**
-        - Recast `session-init.contributor.md § Step 6` from "skip entirely" to a contributor-
-          flavored freshness check: SESSION-NOTES handoff-hash check applies universally; skip
-          maintainer next-work-discovery (work-unit lifecycle isn't a contributor concern). When
-          `status-contributor.md` exists, treat as project pointer for Step 7 orientation.
-        - Step 7 contributor orientation: when status-contributor.md provides state, surface it
-          using the same field bounds as `session-init.md § 7` (one-line Last Completed /
-          Current Task; freeform Blockers; one-line Next action on-task-list, unbounded
-          off-task-list). When absent or empty, keep current minimal "Ready for work" form.
+    - `[x]` **5.9.b Contributor freshness + orientation improvements**
+        - _Outcome:_ Contributor § Step 5 recast from "Skip" to "Contributor freshness check" —
+          SESSION-NOTES handoff-hash check kept universal; status-contributor.md surfacing added;
+          maintainer next-work-discovery dropped. § Step 6 orientation gained conditional field-
+          bound surfacing when status-contributor.md provides state (mirrors maintainer field
+          bounds from session-init.md § 6); minimal "Ready for work" form retained when absent or
+          empty. Manifest pristine_hash recomputed for `session-init.contributor.md`.
 
 ### `[ ]` **5.10 Composite probe contributor-awareness (CLI/TS)**
 
