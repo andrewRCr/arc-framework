@@ -44,7 +44,10 @@ documentation style — live in [DEV-RULES.PROJECT][dev-rules-project].
   activation, archival) that change the branch, next action, or active work unit. Session
   handoff catches missed updates as a fallback, but commit-time is primary.
   **Contributor override:** Contributors (`arc.role = contributor`) do not update project-level
-  status files — see [AGENT-BRIEF.CONTRIBUTOR][contributor-briefing] for contributor boundaries.
+  status files at commit-time — those are maintainer-managed. Contributors maintain their own
+  personal active status file at `.arc/user/{identity}/active/status-{name}.md`, which is
+  gitignored; the update trigger is session handoff (parallel to SESSION-NOTES), not commit-time.
+  See [AGENT-BRIEF.CONTRIBUTOR][contributor-briefing] for contributor boundaries.
 
 **For complex commits** (multi-session accumulated work, interleaved concerns), load the
 [prepare-commits workflow][prepare-commits].

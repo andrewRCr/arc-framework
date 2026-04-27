@@ -87,6 +87,19 @@ export interface ActiveStatusOptions {
   cwd: string;
 }
 
+/**
+ * Session-init probe options.
+ *
+ * `identity` and `role` drive role-aware active resolution: contributor flow
+ * scans `.arc/user/{identity}/active/` (flat scan-shape — no category subdirs);
+ * maintainer flow (or absent role) scans `.arc/active/` with category subdirs.
+ *
+ * When `role === "contributor"` and `identity === null`, the probe short-
+ * circuits to `resolution: "none"` with a diagnostic warning — the contributor
+ * active root is identity-keyed and cannot be resolved without one.
+ */
 export interface ActiveSessionInitOptions {
   cwd: string;
+  identity?: string | null;
+  role?: string | null;
 }

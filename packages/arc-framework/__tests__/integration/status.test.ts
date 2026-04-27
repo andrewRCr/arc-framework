@@ -331,6 +331,60 @@ describe("runSessionInitStatus — companion-file resolution carry-through", () 
   });
 });
 
+describe("runSessionInitStatus — contributor role-aware active resolution", () => {
+  let fixture: Fixture;
+  beforeEach(async () => {
+    fixture = await createFixture();
+    await writeConfig(fixture.configPath);
+    await writeExtension(fixture.extDir, "pre-merge-review", true);
+    const userActiveDir = join(fixture.root, ".arc", "user", "alice", "active");
+    await mkdir(userActiveDir, { recursive: true });
+    await writeFile(
+      join(userActiveDir, "status-foo.md"),
+      [
+        "# Status: fixture",
+        "",
+        "## Active Work",
+        "",
+        "- **State:** In Progress",
+        "- **Branch:** user/alice/foo",
+        "- **Task List:** `.arc/user/alice/active/tasks-foo.md`",
+      ].join("\n"),
+    );
+    await writeFile(join(userActiveDir, "tasks-foo.md"), "# tasks\n");
+    await writeFile(join(userActiveDir, "notes-foo.md"), "# notes\n");
+  });
+  afterEach(async () => {
+    await rm(fixture.root, { recursive: true, force: true });
+  });
+
+  it("resolves active under .arc/user/{identity}/active/ when role=contributor and surfaces companions", async () => {
+    const probes: SessionInitProbes = {
+      user: async (id) => stubUserSessionInit(id),
+      worktree: async () => ({ state: "skipped", ahead: 0, behind: 0 }),
+      extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
+      config: () => runConfigSessionInitStatus({ cwd: fixture.root }),
+      active: (identity, role) =>
+        runActiveSessionInitStatus({ cwd: fixture.root, identity, role }),
+      domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
+    };
+    const result = await runSessionInitStatus({
+      identity: "alice",
+      role: "contributor",
+      probes,
+    });
+    expect(result.active.ok).toBe(true);
+    if (result.active.ok) {
+      expect(result.active.value.resolution).toBe("single");
+      expect(result.active.value.path).toBe(".arc/user/alice/active/status-foo.md");
+      expect(result.active.value.companions).toEqual({
+        notes: ".arc/user/alice/active/notes-foo.md",
+        atomic: null,
+      });
+    }
+  });
+});
+
 describe("runStatus — mixed (one probe errors, others succeed)", () => {
   let fixture: Fixture;
   beforeEach(async () => {

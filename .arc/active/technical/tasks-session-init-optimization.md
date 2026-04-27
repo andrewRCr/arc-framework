@@ -1944,7 +1944,7 @@ Task 5.6 is TS-only (no markdown sync concern).
           bounds from session-init.md § 6); minimal "Ready for work" form retained when absent or
           empty. Manifest pristine_hash recomputed for `session-init.contributor.md`.
 
-### `[ ]` **5.10 Contributor active resolution — mirror maintainer under `user/{identity}/`**
+### `[x]` **5.10 Contributor active resolution — mirror maintainer under `user/{identity}/`**
 
 - _Lens:_ Pre-implementation audit (2026-04-27) surfaced an architectural inconsistency in the
   original 5.10 scope: contributor active state used a singleton `status-contributor.md` at user
@@ -1965,49 +1965,54 @@ Task 5.6 is TS-only (no markdown sync concern).
           copy synced), `notes-docs-content-sweep.md`, and `analysis-modes-contributor-lifecycle-
           stress-test.md` realigned to the new convention. Markdown lint clean.
 
-    - `[ ]` **5.10.b Probe role-aware active resolution (test-first)**
-        - Extend `ActiveSessionInitOptions` with `identity: string | null` and `role: string |
-          null`. Parameterize `readActiveStatusCandidates` by root + scan-shape: maintainer uses
-          `.arc/active/` with category subdirs; contributor uses `.arc/user/{identity}/active/`
-          flat (no subdirs). Lite layout supported under both roots.
-        - Companion derivation unchanged — driven by the parsed `**Task List:**` field.
-        - Behaviors: (i) maintainer-default unchanged across none/single/multiple; (ii)
-          contributor + identity + flat full-layout single → `single` resolves to
-          `user/{identity}/active/status-{name}.md`; (iii) contributor + identity + flat full-
-          layout multiple → `multiple`; (iv) contributor + identity + lite layout → `single`
-          resolves to `user/{identity}/active/status.md`; (v) contributor + identity + zero
-          files → `none`; (vi) contributor + identity-null → `none` with warning; (vii)
-          companions resolve identically under contributor root.
-        - Tests: extend `__tests__/integration/active.test.ts` with a contributor-flow describe
-          block (fixture helper for `user/{identity}/active/`); extend
-          `__tests__/integration/status.test.ts` with one contributor-role composite scenario;
-          unit tests at `__tests__/unit/active/status-reader.test.ts` for the parameterized scan.
+    - `[x]` **5.10.b Probe role-aware active resolution (test-first)**
+        - _Outcome:_ `ActiveSessionInitOptions` carries optional `identity` + `role`;
+          `readActiveStatusCandidates` accepts `{ rootSegments, scanShape }` (default
+          `[".arc","active"]` + `subdir`; contributor flow passes
+          `[".arc","user",identity,"active"]` + `flat`). `runActiveSessionInitStatus` dispatches
+          on `role === "contributor"`: identity-null short-circuits to `resolution: "none"`
+          with a warning naming the role/identity mismatch; identity-set scans the contributor
+          root flat. Companion derivation unchanged — `**Task List:**` filename pattern still
+          drives `notes-{stem}.md` / `atomic-{stem}.md` resolution under whichever root
+          resolved. `SessionInitProbes.active` signature now accepts
+          `(identity, role) => Promise<...>`; the orchestrator and handler thread the pointers
+          through. Tests cover all seven behaviors (i)–(vii) — unit at
+          `__tests__/unit/active/status-reader.test.ts` (parameterized scan + warning text);
+          integration at `__tests__/integration/active.test.ts` (8-test contributor describe
+          block); composite at `__tests__/integration/status.test.ts` (one contributor-role
+          scenario including companion carry-through).
 
-    - `[ ]` **5.10.c Composite + workflow + handoff consumption**
-        - `handlers/status.ts`: thread `identity` + `role` into the active probe (parallel to
-          user-probe wiring); update `SessionInitProbes.active` signature.
-        - `session-init.contributor.md` (both copies): § Step 3 (item 7+) rewrite — drop
-          singleton-file check, consume envelope's role-resolved active slot mirroring
-          maintainer Step 3 item 7; companion paths from envelope. § Step 5 — drop "Status-
-          contributor:" bullet; status-file freshness via the resolved active path. § Step 6
-          orientation — pull fields from envelope using maintainer's field bounds; minimal
-          "Ready for work" form retained when `resolution === "none"`.
-        - `session-init.md` (both copies): § Step 1 probe-failure fallback — add role-aware
-          scan path note (`.arc/user/{identity}/active/` for contributor role).
-        - `session-handoff.md` (both copies): § contributor blockquote (~L29) and task-list
-          completion bullet (~L98) refined — contributors skip _project-level_ status-file
-          updates but DO update personal `user/{identity}/active/status-{name}.md` at handoff
-          (gitignored, so commit-time staging doesn't apply; handoff is the natural update
-          trigger, parallel to SESSION-NOTES).
-        - `DEV-RULES.ARC.md` (both copies) § Commit Discipline § Work status accuracy —
-          Contributor override clarified: project-level status files skipped at commit-time;
-          personal status updated at handoff.
-        - Manifest `pristine_hash` recompute for affected rendered files.
+    - `[x]` **5.10.c Composite + workflow + handoff consumption**
+        - _Outcome:_ TS-side wiring landed alongside 5.10.b — `handlers/status.ts` threads
+          `identity` + `role` into the active probe, `SessionInitProbes.active` signature
+          updated to `(identity, role) => Promise<...>`, orchestrator forwards the pointers.
+          `session-init.contributor.md` (both copies) Step 3 (item 7+) rewritten to mirror
+          maintainer item 7 — items 7/9/10 consume the envelope's role-resolved active slot
+          (no singleton lookup), AGENT-BRIEF.CONTRIBUTOR.md folds into item 8 alongside
+          SESSION-NOTES under the parallelism rule, items 9–10 gate on `**Task List:**` ≠
+          `[none]`. § Step 5 dropped the Status-contributor bullet; freshness is the universal
+          handoff-hash check (gitignored personal active path has no git-history-based
+          freshness signal). § Step 6 orientation pulls fields from `active.value` using
+          maintainer's field bounds; `resolution === "multiple"` runs the disambiguation
+          algorithm before producing orientation; `resolution === "none"` retains the minimal
+          "Ready for work" form. `session-init.md` (both copies) Step 1 probe-failure
+          fallback names the role-resolved scan path. `session-handoff.md` (both copies)
+          contributor blockquote and Step 5 safety-check note refined — contributors update
+          their personal `.arc/user/{identity}/active/status-{name}.md` at handoff step 4
+          (gitignored, no commit-time staging) but skip the project-level safety-check commit.
+          `DEV-RULES.ARC.md` (both copies) § Work status accuracy Contributor override
+          clarifies the project-level vs personal split and the handoff update trigger.
+          Manifest `pristine_hash` recomputed for `session-init.contributor.md`,
+          `session-init.md`, `session-handoff.md`, and `DEV-RULES.ARC.md` — `arc health` clean.
 
-### `[ ]` **5.11 Phase 5 close — Tier 2 quality gates**
+### `[x]` **5.11 Phase 5 close — Tier 2 quality gates**
 
-- Markdown lint, framework-sync, targeted re-run of session-init against a representative active
-  task list (if available) to spot-check regressions
+- _Outcome:_ Tier 2 gates clean — `lint:md` (223 files, 0 errors), `lint:ts`, `lint:sh`,
+  `typecheck`, `typecheck:test`, `npm test` (1066 unit+integration, 45 e2e). Framework-sync
+  verified for the four edited file pairs (`session-init.contributor.md`, `session-init.md`,
+  `session-handoff.md`, `DEV-RULES.ARC.md`) — `arc health` reports no drift on these. Targeted
+  session-init re-run skipped — not viable as a synthetic spot-check; will be validated
+  through actual use.
 
 ---
 

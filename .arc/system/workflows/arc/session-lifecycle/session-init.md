@@ -49,8 +49,9 @@ for item 7+, Step 5 skip, and Step 6 contributor orientation. Step 4 and Step 7 
 
 **Probe failure fallback**: If the composite call fails, fall back to direct commands:
 `git config arc.identity` / `arc.role`, `grep -l "^active: true" .arc/system/extensions/*.md`, and a scan
-of `.arc/active/**/status-*.md`. Skip Step 2 (no user-sync state available) and note the degradation in
-orientation.
+of the role-resolved active root — `.arc/active/**/status-*.md` for maintainer / null role,
+`.arc/user/{identity}/active/status-*.md` (flat) for contributor with identity resolved. Skip Step 2 (no
+user-sync state available) and note the degradation in orientation.
 
 ## 2. Conditional Sync Pulls
 

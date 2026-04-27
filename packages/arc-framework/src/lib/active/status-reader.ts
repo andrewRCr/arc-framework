@@ -15,10 +15,28 @@ import { join, relative, sep } from "node:path";
 
 import type { ActiveLayout, StatusFileCandidate } from "../../commands/active/types.js";
 
-const ACTIVE_SEGMENTS = [".arc", "active"] as const;
+const DEFAULT_ROOT_SEGMENTS = [".arc", "active"] as const;
 const LITE_FILENAME = "status.md";
 const FULL_PREFIX = "status-";
 const FULL_SUFFIX = ".md";
+
+/**
+ * Scan-shape under the active root.
+ *
+ * - `subdir` (maintainer default) — enumerate `<root>/<category>/status-*.md`.
+ * - `flat` (contributor) — enumerate `<root>/status-*.md` directly; ignore subdirs.
+ */
+export type ActiveScanShape = "subdir" | "flat";
+
+export interface ReadActiveCandidatesOptions {
+  /**
+   * Active dir relative to `cwd` as path segments. Defaults to `[".arc", "active"]`.
+   * Contributor flow uses `[".arc", "user", identity, "active"]`.
+   */
+  rootSegments?: readonly string[];
+  /** Scan shape under the active root. Defaults to `subdir`. */
+  scanShape?: ActiveScanShape;
+}
 
 export interface ReaderResult {
   layout: ActiveLayout;
@@ -27,20 +45,27 @@ export interface ReaderResult {
 }
 
 /**
- * Scan `.arc/active/` and return parsed status-file candidates.
+ * Scan the active directory and return parsed status-file candidates.
  *
  * Layout detection:
  *
- * - If `.arc/active/status.md` exists, layout is `lite` (at most one
- *   candidate, ignoring any stray subdirectory files).
- * - Otherwise, layout is `full` and the reader enumerates
- *   `.arc/active/*\/status-*.md`.
+ * - If `<root>/status.md` exists, layout is `lite` (at most one candidate;
+ *   stray subdirectory files are ignored).
+ * - Otherwise, layout is `full` and enumeration depends on `scanShape`:
+ *     - `subdir` (default): `<root>/<category>/status-*.md`.
+ *     - `flat`: `<root>/status-*.md` directly.
  *
- * Missing `.arc/active/` directory is not an error — returns an empty
- * candidate set with a warning.
+ * A missing root directory is not an error — returns an empty candidate set
+ * with a warning naming the supplied root.
  */
-export async function readActiveStatusCandidates(cwd: string): Promise<ReaderResult> {
-  const activeDir = join(cwd, ...ACTIVE_SEGMENTS);
+export async function readActiveStatusCandidates(
+  cwd: string,
+  options?: ReadActiveCandidatesOptions,
+): Promise<ReaderResult> {
+  const rootSegments = options?.rootSegments ?? DEFAULT_ROOT_SEGMENTS;
+  const scanShape: ActiveScanShape = options?.scanShape ?? "subdir";
+  const activeDir = join(cwd, ...rootSegments);
+  const rootDisplay = `${rootSegments.join("/")}/`;
   const warnings: string[] = [];
 
   let exists = false;
@@ -52,7 +77,7 @@ export async function readActiveStatusCandidates(cwd: string): Promise<ReaderRes
   }
 
   if (!exists) {
-    warnings.push(`.arc/active/ not found — no active work units to enumerate.`);
+    warnings.push(`${rootDisplay} not found — no active work units to enumerate.`);
     return { layout: "full", candidates: [], warnings };
   }
 
@@ -70,7 +95,9 @@ export async function readActiveStatusCandidates(cwd: string): Promise<ReaderRes
     return { layout: "lite", candidates: candidate ? [candidate] : [], warnings };
   }
 
-  const paths = await findFullModeStatusFiles(activeDir);
+  const paths = scanShape === "flat"
+    ? await findFlatLayoutStatusFiles(activeDir)
+    : await findSubdirLayoutStatusFiles(activeDir);
   paths.sort();
 
   const candidates: StatusFileCandidate[] = [];
@@ -82,7 +109,7 @@ export async function readActiveStatusCandidates(cwd: string): Promise<ReaderRes
   return { layout: "full", candidates, warnings };
 }
 
-async function findFullModeStatusFiles(activeDir: string): Promise<string[]> {
+async function findSubdirLayoutStatusFiles(activeDir: string): Promise<string[]> {
   const out: string[] = [];
   let entries: string[];
   try {
@@ -110,6 +137,29 @@ async function findFullModeStatusFiles(activeDir: string): Promise<string[]> {
         out.push(join(full, name));
       }
     }
+  }
+  return out;
+}
+
+async function findFlatLayoutStatusFiles(activeDir: string): Promise<string[]> {
+  const out: string[] = [];
+  let entries: string[];
+  try {
+    entries = await readdir(activeDir);
+  } catch {
+    return out;
+  }
+  for (const entry of entries) {
+    if (!entry.startsWith(FULL_PREFIX) || !entry.endsWith(FULL_SUFFIX)) continue;
+    const full = join(activeDir, entry);
+    let s;
+    try {
+      s = await stat(full);
+    } catch {
+      continue;
+    }
+    if (!s.isFile()) continue;
+    out.push(full);
   }
   return out;
 }

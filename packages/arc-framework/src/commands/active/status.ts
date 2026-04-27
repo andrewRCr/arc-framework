@@ -16,7 +16,10 @@
 import { stat } from "node:fs/promises";
 import { join, sep } from "node:path";
 
-import { readActiveStatusCandidates } from "../../lib/active/status-reader.js";
+import {
+  readActiveStatusCandidates,
+  type ActiveScanShape,
+} from "../../lib/active/status-reader.js";
 import type {
   ActiveLayout,
   ActiveSessionInitOptions,
@@ -26,6 +29,9 @@ import type {
   ActiveStatusResult,
   StatusFileCandidate,
 } from "./types.js";
+
+const CONTRIBUTOR_IDENTITY_MISSING_WARNING =
+  "Role is `contributor` but `arc.identity` is missing — contributor active root cannot be resolved.";
 
 const TASK_LIST_FULL_PATTERN = /^tasks-(.+)\.md$/;
 
@@ -61,8 +67,39 @@ export async function runActiveStatus(
 export async function runActiveSessionInitStatus(
   options: ActiveSessionInitOptions,
 ): Promise<ActiveSessionInitResult> {
-  const { layout, candidates, warnings } = await readActiveStatusCandidates(options.cwd);
+  const role = options.role ?? null;
+  const identity = options.identity ?? null;
+
+  if (role === "contributor" && identity === null) {
+    return {
+      mode: "session-init",
+      layout: "full",
+      resolution: "none",
+      path: null,
+      candidates: [],
+      warnings: [CONTRIBUTOR_IDENTITY_MISSING_WARNING],
+    };
+  }
+
+  const readerOptions = resolveReaderOptions(role, identity);
+  const { layout, candidates, warnings } = await readActiveStatusCandidates(
+    options.cwd,
+    readerOptions,
+  );
   return resolveSessionInit(options.cwd, layout, candidates, warnings);
+}
+
+function resolveReaderOptions(
+  role: string | null,
+  identity: string | null,
+): { rootSegments: readonly string[]; scanShape: ActiveScanShape } | undefined {
+  if (role === "contributor" && identity !== null) {
+    return {
+      rootSegments: [".arc", "user", identity, "active"],
+      scanShape: "flat",
+    };
+  }
+  return undefined;
 }
 
 async function resolveSessionInit(

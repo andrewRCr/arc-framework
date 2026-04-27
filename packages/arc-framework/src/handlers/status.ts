@@ -90,7 +90,7 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
       worktree: () => runWorktreeSyncStatus({ exec: gitExec, remoteSyncEnabled }),
       extensions: () => runExtensionsSessionInitStatus({ cwd }),
       config: () => runConfigSessionInitStatus({ cwd }),
-      active: () => runActiveSessionInitStatus({ cwd }),
+      active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r }),
       domainRules: () => runDomainRulesSessionInitStatus({ cwd }),
     };
     const result = await runSessionInitStatus({ identity, role, probes });

@@ -108,7 +108,7 @@ export async function runSessionInitStatus(
   const worktreeTask = probes.worktree().then(ok, fromRejection);
   const extensionsTask = probes.extensions().then(ok, fromRejection);
   const configTask = probes.config().then(ok, fromRejection);
-  const activeTask = probes.active().then(ok, fromRejection);
+  const activeTask = probes.active(identity, role).then(ok, fromRejection);
   const domainRulesTask = probes.domainRules().then(ok, fromRejection);
 
   const [user, worktree, extensions, config, active, domainRules] = await Promise.all([

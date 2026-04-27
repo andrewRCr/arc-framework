@@ -98,7 +98,16 @@ export interface SessionInitProbes {
   worktree: () => Promise<WorktreeSyncStatusResult>;
   extensions: () => Promise<ExtensionsSessionInitResult>;
   config: () => Promise<ConfigSessionInitResult>;
-  active: () => Promise<ActiveSessionInitResult>;
+  /**
+   * Active probe receives `identity` and `role` so contributor flow can
+   * scan `.arc/user/{identity}/active/` instead of the maintainer root.
+   * Both pointers are forwarded verbatim from the composite — `null` means
+   * the corresponding `git config` key was absent.
+   */
+  active: (
+    identity: string | null,
+    role: string | null,
+  ) => Promise<ActiveSessionInitResult>;
   domainRules: () => Promise<DomainRulesSessionInitResult>;
 }
 

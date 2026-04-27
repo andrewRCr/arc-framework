@@ -26,11 +26,12 @@ duration of this workflow.
 5. **Working directory** — if it changed during the session, update paths in the active status file
    if one exists
 
-> **Contributor role (`arc.role = contributor`):** Contributors write SESSION-NOTES.md and save
-> to git notes (same as maintainers), but skip project-level active status-file work — items
-> 4–5 in the pre-handoff checks above, and steps 4–5 in the handoff format below. Contributors
-> don't manage the project work pipeline — proceed directly to the SESSION-NOTES.md update, git
-> notes save, and confirmation.
+> **Contributor role (`arc.role = contributor`):** Contributors write SESSION-NOTES.md and save to
+> git notes (same as maintainers), and update their personal active status file at
+> `.arc/user/{identity}/active/status-{name}.md` during handoff step 4 — that path is gitignored,
+> so commit-time staging doesn't apply; handoff is the natural update trigger, parallel to
+> SESSION-NOTES. Contributors skip pre-handoff check 4 (task-list checkboxes — maintainer-managed)
+> and handoff step 5's safety-check commit (nothing tracked to commit).
 
 ## What to Update
 
@@ -95,8 +96,9 @@ Update session state files before ending session:
 
     The new HEAD becomes the `**Commit at Handoff:**` value written in step 6. Most handoffs skip
     this — [DEV-RULES.ARC][dev-rules-arc] § Work status accuracy makes commit-time primary.
-    Contributors (`arc.role = contributor`) skip this step — no project-level status file to
-    commit.
+    Contributors (`arc.role = contributor`) skip this commit — their personal active status file at
+    `.arc/user/{identity}/active/status-{name}.md` is gitignored, so step 4's update lands without
+    staging.
 6. **Write SESSION-NOTES** per the guidance below. Record `**Commit at Handoff:**` from current
    HEAD (post-step-5 if a commit was made).
 

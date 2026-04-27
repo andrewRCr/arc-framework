@@ -55,7 +55,7 @@
     "reference/constitution/DEV-RULES.ARC.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "e768281d42e8fe4dd4a50f0d4655be0b1a2c11798652e0e54ddff19335c47cc1"
+      "pristine_hash": "69f8bcd14e8219d162464475ce135db9c0a7b2d0694a9bdc75eaefd00496b883"
     },
     "reference/constitution/DEV-RULES.PROJECT.md": {
       "classification": "Configurable",
@@ -380,17 +380,17 @@
     "system/workflows/arc/session-lifecycle/session-handoff.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "7180aca8224f0bb714c5194bf953bbab9c718ab2050bffd64d7ce4be6199d150"
+      "pristine_hash": "962de079efbdf3d42aa7aaf61d148a632652a61c51aa37aef8aebb2468dd51b7"
     },
     "system/workflows/arc/session-lifecycle/session-init.contributor.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "2e67bbaa360c264a164ac4f1fe0b73c0a261d8e3b36b22dff807d88b9cd1766b"
+      "pristine_hash": "600a728e88577c3241b223dc75d1cbde5833558ffe59b1b4328443a26e0842a5"
     },
     "system/workflows/arc/session-lifecycle/session-init.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "0871801f0f2972035303c3240dd364ba10c0f30515d266c174fb6e2804ccfcb0"
+      "pristine_hash": "12404a92418548c517381e3f0dc03bf40a5316c46b395a47b95388538c6024b5"
     },
     "system/workflows/arc/session-lifecycle/session-loop.md": {
       "classification": "Framework",

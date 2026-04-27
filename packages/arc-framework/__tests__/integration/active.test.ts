@@ -339,3 +339,168 @@ describe("runActiveSessionInitStatus — companion-file resolution", () => {
     expect(result.companions).toBeUndefined();
   });
 });
+
+describe("runActiveSessionInitStatus — contributor role-aware resolution", () => {
+  let fixture: Fixture;
+  let userActiveDir: string;
+  beforeEach(async () => {
+    fixture = await createFixture();
+    userActiveDir = join(fixture.root, ".arc", "user", "alice", "active");
+    await mkdir(userActiveDir, { recursive: true });
+  });
+  afterEach(async () => {
+    await rm(fixture.root, { recursive: true, force: true });
+  });
+
+  it("resolves contributor full-layout single → user/{identity}/active/status-{name}.md", async () => {
+    await writeFile(
+      join(userActiveDir, "status-foo.md"),
+      statusBody({ state: "In Progress", branch: "user/alice/foo" }),
+    );
+
+    const result = await runActiveSessionInitStatus({
+      cwd: fixture.root,
+      identity: "alice",
+      role: "contributor",
+    });
+    expect(result.resolution).toBe("single");
+    expect(result.path).toBe(".arc/user/alice/active/status-foo.md");
+    expect(result.layout).toBe("full");
+  });
+
+  it("resolves contributor full-layout multiple → resolution=multiple with candidate list", async () => {
+    await writeFile(
+      join(userActiveDir, "status-foo.md"),
+      statusBody({ state: "In Progress", branch: "user/alice/foo" }),
+    );
+    await writeFile(
+      join(userActiveDir, "status-bar.md"),
+      statusBody({ state: "Paused", branch: "user/alice/bar" }),
+    );
+
+    const result = await runActiveSessionInitStatus({
+      cwd: fixture.root,
+      identity: "alice",
+      role: "contributor",
+    });
+    expect(result.resolution).toBe("multiple");
+    expect(result.path).toBeNull();
+    expect(result.candidates).toHaveLength(2);
+    const paths = result.candidates.map((c) => c.path).sort();
+    expect(paths).toEqual([
+      ".arc/user/alice/active/status-bar.md",
+      ".arc/user/alice/active/status-foo.md",
+    ]);
+  });
+
+  it("resolves contributor lite-layout {root}/status.md → resolution=single", async () => {
+    await writeFile(
+      join(userActiveDir, "status.md"),
+      statusBody({ state: "In Progress", branch: "main" }),
+    );
+
+    const result = await runActiveSessionInitStatus({
+      cwd: fixture.root,
+      identity: "alice",
+      role: "contributor",
+    });
+    expect(result.layout).toBe("lite");
+    expect(result.resolution).toBe("single");
+    expect(result.path).toBe(".arc/user/alice/active/status.md");
+  });
+
+  it("returns resolution=none when contributor active dir has no files", async () => {
+    const result = await runActiveSessionInitStatus({
+      cwd: fixture.root,
+      identity: "alice",
+      role: "contributor",
+    });
+    expect(result.resolution).toBe("none");
+    expect(result.path).toBeNull();
+  });
+
+  it("returns resolution=none with a warning when role=contributor but identity is null", async () => {
+    await writeFile(
+      join(userActiveDir, "status-foo.md"),
+      statusBody({ state: "In Progress", branch: "user/alice/foo" }),
+    );
+
+    const result = await runActiveSessionInitStatus({
+      cwd: fixture.root,
+      identity: null,
+      role: "contributor",
+    });
+    expect(result.resolution).toBe("none");
+    expect(result.path).toBeNull();
+    expect(result.warnings.length).toBeGreaterThanOrEqual(1);
+    expect(result.warnings.some((w) => /identity/i.test(w))).toBe(true);
+  });
+
+  it("derives companion paths under the contributor root when single resolves with a Task List value", async () => {
+    await writeFile(
+      join(userActiveDir, "status-foo.md"),
+      statusBody({
+        state: "In Progress",
+        branch: "user/alice/foo",
+        taskList: "`.arc/user/alice/active/tasks-foo.md`",
+      }),
+    );
+    await writeFile(join(userActiveDir, "tasks-foo.md"), "# tasks\n");
+    await writeFile(join(userActiveDir, "notes-foo.md"), "# notes\n");
+    await writeFile(join(userActiveDir, "atomic-foo.md"), "# atomic\n");
+
+    const result = await runActiveSessionInitStatus({
+      cwd: fixture.root,
+      identity: "alice",
+      role: "contributor",
+    });
+    expect(result.resolution).toBe("single");
+    expect(result.companions).toEqual({
+      notes: ".arc/user/alice/active/notes-foo.md",
+      atomic: ".arc/user/alice/active/atomic-foo.md",
+    });
+  });
+
+  it("ignores stray subdirectories under the contributor root (flat scan-shape)", async () => {
+    await writeFile(
+      join(userActiveDir, "status-foo.md"),
+      statusBody({ state: "In Progress", branch: "user/alice/foo" }),
+    );
+    const stray = join(userActiveDir, "technical");
+    await mkdir(stray, { recursive: true });
+    await writeFile(
+      join(stray, "status-stray.md"),
+      statusBody({ state: "In Progress", branch: "technical/stray" }),
+    );
+
+    const result = await runActiveSessionInitStatus({
+      cwd: fixture.root,
+      identity: "alice",
+      role: "contributor",
+    });
+    expect(result.resolution).toBe("single");
+    expect(result.path).toBe(".arc/user/alice/active/status-foo.md");
+  });
+
+  it("preserves maintainer-default resolution when role is null/maintainer (behavior i)", async () => {
+    const sub = join(fixture.activeDir, "technical");
+    await mkdir(sub, { recursive: true });
+    await writeFile(
+      join(sub, "status-foo.md"),
+      statusBody({ state: "In Progress", branch: "technical/foo" }),
+    );
+    // Also place a contributor-shape file that should NOT be picked up
+    await writeFile(
+      join(userActiveDir, "status-other.md"),
+      statusBody({ state: "In Progress", branch: "user/alice/other" }),
+    );
+
+    const result = await runActiveSessionInitStatus({
+      cwd: fixture.root,
+      identity: "alice",
+      role: "maintainer",
+    });
+    expect(result.resolution).toBe("single");
+    expect(result.path).toBe(".arc/active/technical/status-foo.md");
+  });
+});

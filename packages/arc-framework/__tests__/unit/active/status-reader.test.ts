@@ -148,6 +148,63 @@ describe("readActiveStatusCandidates — layout detection", () => {
     }
   });
 
+  it("uses rootSegments + scan-shape flat to enumerate status-*.md files at the active root (no subdir scan)", async () => {
+    const userActiveDir = join(fixture.root, ".arc", "user", "alice", "active");
+    await mkdir(userActiveDir, { recursive: true });
+    await writeFile(
+      join(userActiveDir, "status-foo.md"),
+      statusFileBody({ state: "In Progress", branch: "user/foo" }),
+    );
+    await writeFile(
+      join(userActiveDir, "status-bar.md"),
+      statusFileBody({ state: "Paused", branch: "user/bar" }),
+    );
+    // Stray subdirectory must be ignored under flat scan-shape
+    const stray = join(userActiveDir, "technical");
+    await mkdir(stray, { recursive: true });
+    await writeFile(
+      join(stray, "status-stray.md"),
+      statusFileBody({ state: "In Progress", branch: "technical/stray" }),
+    );
+
+    const result = await readActiveStatusCandidates(fixture.root, {
+      rootSegments: [".arc", "user", "alice", "active"],
+      scanShape: "flat",
+    });
+    expect(result.layout).toBe("full");
+    expect(result.candidates).toHaveLength(2);
+    const filenames = result.candidates.map((c) => c.filename).sort();
+    expect(filenames).toEqual(["status-bar.md", "status-foo.md"]);
+    expect(result.candidates[0]!.path.startsWith(".arc/user/alice/active/")).toBe(true);
+  });
+
+  it("detects lite layout under flat scan-shape via {root}/status.md", async () => {
+    const userActiveDir = join(fixture.root, ".arc", "user", "alice", "active");
+    await mkdir(userActiveDir, { recursive: true });
+    await writeFile(
+      join(userActiveDir, "status.md"),
+      statusFileBody({ state: "In Progress", branch: "main" }),
+    );
+
+    const result = await readActiveStatusCandidates(fixture.root, {
+      rootSegments: [".arc", "user", "alice", "active"],
+      scanShape: "flat",
+    });
+    expect(result.layout).toBe("lite");
+    expect(result.candidates).toHaveLength(1);
+    expect(result.candidates[0]!.path).toBe(".arc/user/alice/active/status.md");
+  });
+
+  it("emits a warning naming the supplied root path when the active directory is absent", async () => {
+    const result = await readActiveStatusCandidates(fixture.root, {
+      rootSegments: [".arc", "user", "alice", "active"],
+      scanShape: "flat",
+    });
+    expect(result.candidates).toEqual([]);
+    expect(result.warnings.length).toBe(1);
+    expect(result.warnings[0]).toContain(".arc/user/alice/active/");
+  });
+
   it("detects lite layout when .arc/active/status.md exists", async () => {
     await writeFile(
       join(fixture.activeDir, "status.md"),
