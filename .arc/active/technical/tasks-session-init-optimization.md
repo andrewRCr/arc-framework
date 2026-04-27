@@ -2050,6 +2050,7 @@ and integration loadsets validated via deliberate `**Session Type:**` override s
   11 new in `__tests__/integration/active.test.ts` (real-fixture integration covering the
   10 task-spec behaviors), 1 new in `__tests__/unit/active/status-reader.test.ts` (parser
   field extraction). Tier 1 gates clean (878 unit/integration tests).
+
 - _Integration-signal sweep:_ Verified the convention is codified across handoff-writing surfaces:
   `session-handoff.md` § _Workflow step pointer_ (general guidance), § Task List Completion shows
   `archive-work-unit Step 1 — …` example (entry into archive), `integrate-work-unit.md` Step 6c
@@ -2073,30 +2074,28 @@ and integration loadsets validated via deliberate `**Session Type:**` override s
   guidance with explicit "don't write by default" framing. Validation + override resolution land
   in 6.3 — this task is template + documentation only.
 
-### `[ ]` **6.3 `session-init.md` Step 3 items 9–10 conditional on `sessionType`**
+### `[x]` **6.3 `session-init.md` Step 3 items 9–10 conditional on `sessionType`**
 
-- _Goal:_ Loadset switches on resolved session type. Items 1–8 unchanged.
-    - **Step 3 edit (both copies):** add a "Resolve session type" sub-step after the batch-1
-      reads (items 1–8 + active status file) and before items 9–10. Resolution precedence:
-      SESSION-NOTES `**Session Type:**` (if present and valid) supersedes
-      `active.value.sessionType` from envelope; otherwise envelope value governs. When
-      `resolution === "multiple"`, recompute from chosen candidate after disambiguation.
-    - **Item 9 (task list partial read):** add gate "Skip if `sessionType === "planning"`"
-      alongside the existing "Skip if `**Task List:** [none]`" gate (the latter becomes
-      redundant under inference but stays as defense-in-depth — direct shape check, no
-      coupling to inference logic).
-    - **Item 10 (workflow):** branch on type — `execution` → `3_process-task-loop.md` (current
-      behavior); `integration` → `integrate-work-unit.md`; `planning` → none today
-      (forward-compatible with `refine-plan-loop.md` if Expanded Planning Path WU lands).
-    - **Contributor scope:** out-of-scope for Phase 6. Contributors do execution-type project
-      work by default; per-type loadset gain is marginal against the additional surface.
-      `session-init.contributor.md` (both copies) gets a one-line note explicitly excluding
-      session-type inference from the contributor path.
-    - **Two-copy sync:** `session-init.md` × 2 + `session-init.contributor.md` × 2.
+- _Outcome:_ Step 3 of `session-init.md` (both copies) now resolves session type between item 8
+  and items 9–10 via a "Resolve session type" sub-step — SESSION-NOTES `**Session Type:**` (when
+  present and valid, case-insensitive against `planning | execution | integration`) supersedes
+  the envelope's `active.value.sessionType`; invalid override → ignore + warning; `multiple`
+  resolution recomputes after disambiguation. Item 9 adds the primary `sessionType === "planning"`
+  skip-gate alongside defense-in-depth shape checks (status not resolved, Task List `[none]`).
+  Item 10 retitled "Lifecycle workflow" and branches: `execution` → `3_process-task-loop.md`,
+  `integration` → `integrate-work-unit.md`, `planning` → none today (forward-compatible with
+  `refine-plan-loop.md`), `null` → defer until disambiguation. `session-init.contributor.md`
+  (both copies) Item 10 gains a one-line note marking session-type inference as maintainer-only —
+  contributors always load `3_process-task-loop.md`. Manifest `pristine_hash` recomputed for
+  `session-init.md`, `session-init.contributor.md`, and `session-handoff.md` (latter from 6.2's
+  edit); `arc health` no longer flags them. Override resolution is agent-side at SESSION-NOTES
+  read-time; whether 6.4 also wires SESSION-NOTES parsing into `resolveSessionInit` for
+  integration-tier coverage is a 6.4 design call.
 
 ### `[ ]` **6.4 Test coverage**
 
 - _Goal:_ Inference + override + loadset substitution exercised at all three test tiers.
+
     - **Unit:** covered by 6.1 test-first behaviors; expand only if new edge cases surface
       during 6.3 implementation.
     - **Integration:** composite probe envelope carries correct `sessionType` across each
@@ -2112,6 +2111,7 @@ and integration loadsets validated via deliberate `**Session Type:**` override s
 ### `[ ]` **6.5 Phase 6 close — Tier 3 quality gates + observation note + PRD History**
 
 - _Goal:_ Phase close with deliberate non-default loadset spot-checks; PRD reflects design pivot.
+
     - Full Tier 3 quality gate pass.
     - **Empirical observation:** record whether the minimal load set sufficed for execution
       sessions operated during 6.1–6.4 work. Append to `notes-session-init-optimization.md`. Any

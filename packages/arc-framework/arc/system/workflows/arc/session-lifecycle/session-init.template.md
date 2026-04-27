@@ -176,10 +176,20 @@ See [Team Coordination Strategy][team-coordination] § Task Ownership for the `(
 > namespace (`refs/notes/arc/user/{their-identity}`). See [Team Coordination Strategy][team-coordination]
 > § Person-to-Person Task Handoff for the incoming bootstrap protocol.
 
+**Resolve session type** — after the parallel batch and item 8 resolve, settle the session type that gates
+items 9–10. The probe envelope carries `active.value.sessionType` ∈
+`{"planning", "execution", "integration", null}` inferred from the resolved status file's tracked fields.
+SESSION-NOTES `**Session Type:**`, when present and matching `planning | execution | integration`
+(case-insensitive), supersedes the envelope value for this session. Invalid override → ignore + emit a
+warning in orientation. When `resolution === "multiple"`, recompute from the chosen candidate's fields
+after disambiguation resolves to a single status file.
+
 9. **Active task list** — **strategic partial read**. Reference material too large to internalize upfront;
     read other sections on-demand during work.
 
-    **Skip if** the active status file is not resolved or shows `**Task List:** [none]`.
+    **Skip if** `sessionType === "planning"` (primary gate) or the active status file is not resolved or
+    shows `**Task List:** [none]` (defense-in-depth shape checks — redundant under inference but kept as
+    direct checks).
 
     - Path from the active status file (e.g., `.arc/active/feature/tasks-[name].md`)
     - **Always read** — three sections, nothing else:
@@ -203,10 +213,15 @@ See [Team Coordination Strategy][team-coordination] § Task Ownership for the `(
     - **Companion file awareness**: From `active.value.companions` — note their existence so
       references during execution resolve immediately. **Do not read these at init**
 
-10. **Task execution workflow** `.arc/system/workflows/arc/3_process-task-loop.md` — **read in full**.
+10. **Lifecycle workflow** — **read in full**, branched on `sessionType`:
 
-    **Skip if** the active status file is not resolved or shows `**Task List:** [none]`. Load later if the
-    session pivots to task execution.
+    - `execution` → `.arc/system/workflows/arc/3_process-task-loop.md`
+    - `integration` → `.arc/system/workflows/arc/session-lifecycle/integrate-work-unit.md`
+    - `planning` → none today (forward-compatible with `refine-plan-loop.md` if the Expanded Planning
+       Path WU lands)
+    - `null` (multiple unresolved candidates) → defer until disambiguation completes
+
+    Load later if the session pivots to a different lifecycle phase.
 
 ## 4. Post-Context-Load Extensions · `#post-context-load`
 

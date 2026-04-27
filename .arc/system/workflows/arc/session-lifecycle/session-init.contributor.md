@@ -30,7 +30,9 @@ items 1–6 and item 7 per maintainer's parallelism rule.
 `[none]`. Same partial-read shape as maintainer item 9 (header + current phase preamble + current
 task section). Companion paths come from `active.value.companions`.
 
-**Item 10 — Task execution workflow.** Apply when item 9 applies.
+**Item 10 — Task execution workflow.** Apply when item 9 applies. (Session-type inference — maintainer
+Step 3 "Resolve session type" — does not apply on the contributor path; contributors always load
+`3_process-task-loop.md` here.)
 
 ## Step 5 — Contributor freshness check
 
