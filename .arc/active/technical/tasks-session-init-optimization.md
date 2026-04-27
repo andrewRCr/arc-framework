@@ -1846,77 +1846,68 @@ Task 5.6 is TS-only (no markdown sync concern).
           optimization breaking changes absorbed pre-publication. Matching WU-wide success
           criterion at the bottom of this task list also retired.
 
-### `[ ]` **5.8 Session-init workflow Step 2/4/7 restructure**
+### `[ ]` **5.8 Init + handoff workflow audit — surface tightening, externalization, output discipline**
 
-- _Note:_ Audit `session-init.md` for speed considerations alongside the structural restructure.
-  Baseline ~2 minutes from `/arc-resume` to orientation summary (pre-optimization). Phase 1–4
-  reductions shrink wall-clock time naturally; 5.8 is the moment to evaluate structural speed wins
-  independent of load-set size — unexploited batching opportunities, redundant checks, steps whose
-  cost is dominated by serial tool calls. Apply low-risk wins inline during 5.8.a–c; record larger
-  opportunities as follow-ons. All edits two-copy synced.
+- _Lens:_ Treat `session-init.md` and `session-handoff.md` as paired endpoints. Apply three
+  lenses: (1) structural externalization of role-conditional content; (2) inline prose tightening
+  of Steps 7+8 + Trust Hierarchy; (3) operational efficiency (speed audit, output discipline,
+  structured-summary field bounds). All edits two-copy synced.
 
-- _Goal:_ Batching structure, configuration check, and mismatch-handling prose all match Phase 4
-  audit outcomes and preceding Phase 5 changes (remote sync step, partial-reads, agent file surface
-  retirement + briefs/ rename).
+- _Scope refresh note:_ Original 5.8.a/b/c premises stale — 3.R.k.f+g restructured the 8-step
+  shape; 4.2.e + 4.2.g + 5.7.b incrementally tightened Step 4; Step 7 was rewritten in 5.0.e.
+  Folded into a fresh scope rather than executed as written. Pre-implementation audit
+  (2026-04-27) folded into subtask scope.
 
-    - `[ ]` **5.8.a Step 2 batching**
-        - Re-express Batch 1 / Batch 2 ordering given slimmed loadset
-        - Update embedded examples (e.g., many-file disambiguation prompt) if they reference content
-          that moved
-        - Evaluate promoting SESSION-NOTES into Batch 1 (or a pre-batch slot after identity
-          resolves). SESSION-NOTES carries persistent context and ad-hoc session guidance that can
-          influence subsequent reads — loading it in Batch 2 may be structurally late. Identity-
-          resolution prerequisite is already satisfied in Batch 1. Decision criteria: does any later
-          load realistically change based on SESSION-NOTES content (persistent context, session-type
-          prefix, one-off instructions)? If yes, promote; if no, current Batch 2 placement is fine.
+    - `[ ]` **5.8.a Preamble + wrapper retirement + step header phrasing pass**
+        - Drop `session-init.md` preamble (lines 13-23) — content covered by
+          `strategy-session-operations.md` § Context Loading Model + § Auto-Compaction and
+          `DEV-RULES.ARC.md` § Session Management. Lift Steps 1-8 from `### N.` to `## N.`,
+          retiring `## Steps` wrapper.
+        - Same retirement on `session-handoff.md` preamble + `## Handoff Protocol` wrapper.
+        - Step header phrasing pass: rename Step 8 "If Context Seems Mismatched" → "Handle
+          Context Mismatches" (conditional clause → imperative, parallel with other action-verb
+          steps). Sweep remaining headers for clumsiness; expect minimal additional change.
 
-    - `[ ]` **5.8.b Step 4 simplification (reduced scope after Task 3.5)**
-        - Task 3.5.b already retired item 4.2 (method overrides). Remaining Step 4 scope: config
-          values, platform awareness, custom commit patterns
-        - Evaluate whether any further simplification is warranted post-Phase 4 audit (e.g., inline
-          rationale that can move to staging). If none, collapse this task to a notes-file entry
-          confirming Step 4 is at minimal scope
+    - `[ ]` **5.8.b Contributor path offload to `session-init.contributor.md`**
+        - Promote contributor branch to a one-line offload after Step 4 items 1-6. Standalone
+          `session-init.contributor.md` (dot-variant naming follows `AGENT-BRIEF.CONTRIBUTOR` /
+          `DEV-RULES.{DOMAIN}` convention) carries divergent surface: Step 4 item 7+ replacement,
+          Step 6 skip, Step 7 contributor orientation format. Step 8 stays universal. Drift
+          surface ~25 lines (current contributor blockquote size).
 
-    - `[ ]` **5.8.c Step 7 tightening**
-        - Mismatch-handling prose tightened; trust hierarchy preserved; no semantic change to
-          auto-recover vs. stop-and-ask tiers
+    - `[ ]` **5.8.c Step 7+8 + Trust Hierarchy tightening**
+        - Tier 2 three-step list → one sentence (~4 lines).
+        - Drop SESSION-NOTES-vs-git Tier 1 example (implied by trust order); keep
+          status-file-vs-task-list and worktree-diverged examples (~5 lines).
+        - Pass on Step 7 orientation format prose for residual tightening.
+        - Outcome may be net-zero on lines if found tight; that's the audit value.
 
-    - `[ ]` **5.8.d Init-time content audit — externalize rarely-triggered content**
-        - _Origin:_ 3.R.k.f+g review observations. Post-restructure the 8-step workflow is
-          structurally cleaner, but ~30-40% of its body is scaffolding or rarely-triggered branches
-          loading every session for no operational benefit. Externalization candidates (per-candidate
-          evaluation — not all warrant extraction):
+    - `[ ]` **5.8.d Structured-summary field bounds**
+        - Codify per-field bounds in Step 7 (init) and § Confirm Handoff (handoff): Last Completed
+          / Current Task / Next Session / Session Summary bullets → one line. Blockers / Next
+          Action (off-task-list) / Uncommitted work → unbounded. Mirror the "commit-by-commit
+          narration" anti-pattern (already in SESSION-NOTES guidance) into the spoken-summary
+          guidance.
 
-            - **"Session lifecycle assumption" + "Design context" + "When to use" paragraphs**
-              (~12 lines) — meta-commentary, zero init-time operational value. Fold load-bearing
-              bits into `AGENT-BRIEFING.ARC § How ARC Works` (already every-session, appropriate
-              home); drop from session-init
-            - **Contributor Session Path blockquote (~25 lines)** — only fires when
-              `role === "contributor"`. Maintainer sessions (most) read and discard. Candidate for
-              extraction to separate doc loaded conditionally from Step 2's `identity.role` result
-            - **Step 8 Trust Hierarchy (~45 lines)** — only fires when a mismatch is detected during
-              init. Most sessions have none. Candidate for on-demand load; risk is latency when it
-              IS needed. Consider lean stub in session-init ("if mismatch detected, load
-              `session-init-mismatch-handling.md`") with full content externalized
-            - **Item 9 "Load errors" sub-bullets** — detailed recovery for rare error classes (no
-              note / corrupt / pull failure / stale file warnings). Candidate for on-demand load
-              keyed on SESSION-NOTES load-error signal
-            - **Step 2 probe-failure fallback** — only fires when the composite CLI call fails (CLI
-              not on PATH, fresh clone pre-build). Lean stub + externalized detail
+    - `[ ]` **5.8.e Output discipline guardrail**
+        - Add to both workflows: between tool calls and the final structured summary, generate
+          text only for (a) problems/blockers, (b) judgment calls, (c) flow-control pivots; pure
+          narration of tool calls or workflow branches is omitted. Scope-limited override of
+          harness default narration cadence noted in body.
 
-        - _Evaluation factors per candidate:_ frequency (how often the branch fires), urgency (can
-          the agent tolerate an on-demand round-trip when it IS needed), size (is extraction worth
-          the conditional-load overhead), cohesion (does the content form a coherent external unit).
+    - `[ ]` **5.8.f Speed audit + tool-call discipline**
+        - Specify Step 3 combined-pull pattern (`git pull && arc user pull` single Bash on
+          combined-accept path). Drop post-pull re-probe on success. Make Step 4 parallelism
+          prescriptive (issue items 1-6, 8, and active-status-file Read in a single tool-message).
+          Drop `test -f` precheck for SESSION-NOTES. Drop pre-Read structural grep on task list
+          (use direct graduated-lookup Read). Target: ~10-12 tool calls from `pwd` to orientation
+          in clean-state happy path (down from ~24 in baseline session). Document baseline in
+          `notes-session-init-optimization.md`.
 
-        - _Deliverables per extracted candidate:_ new external doc or section in an existing
-          every-session doc; session-init stub with named trigger referencing it;
-          `strategy-session-operations.md` pattern documentation updates if the conditional-load
-          mechanism itself evolves.
-
-        - _Scope note on 5.8.a / 5.8.b:_ Those subtasks reference Batch 1/Batch 2 naming and
-          separate Step 4 "Check Active Configuration" structures that 3.R.k.f+g retired. Phase 5
-          activation should refresh or consolidate their scope against the post-restructure workflow
-          before executing.
+    - `[ ]` **5.8.g Externalization candidates — per-candidate dispositions**
+        - Apply 5.5-style per-candidate decisions to original-5.8.d candidate residue after
+          5.8.a and 5.8.b absorb their main outputs. Probable single remaining: Step 2
+          probe-failure fallback (lean-stub candidate). Confirm and close.
 
 ### `[ ]` **5.9 Phase 5 close — Tier 2 quality gates**
 
