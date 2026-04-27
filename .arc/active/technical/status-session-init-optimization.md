@@ -8,5 +8,4 @@
 - **Next Task:** Task 5.8 — Session-init workflow Step 2/4/7 restructure (line ~1851)
 - **Last Completed:** Task 5.7 — `{AGENT}.ARC.md` retirement + `system/agent` → `system/briefs` rename
 - **Blockers:** none
-- **Next Action:** Migrate `tasks-arcd-rebrand.md` (backlog) to Format C — last housekeeping
-  before resuming Task 5.8.a.
+- **Next Action:** Resume Task 5.8.a — Step 2 batching restructure.
