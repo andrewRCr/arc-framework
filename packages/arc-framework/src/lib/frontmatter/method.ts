@@ -42,7 +42,7 @@ export function parseMethodFrontmatter(
   if (parsed.data === null) {
     return { errors: ["missing frontmatter block"] };
   }
-  if (typeof parsed.data !== "object") {
+  if (typeof parsed.data !== "object" || Array.isArray(parsed.data)) {
     return { errors: ["frontmatter must be a YAML mapping"] };
   }
   const data = parsed.data as Record<string, unknown>;

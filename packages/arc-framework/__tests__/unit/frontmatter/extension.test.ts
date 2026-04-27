@@ -108,4 +108,11 @@ describe("parseExtensionFrontmatter", () => {
     expect(result.frontmatter).toBeUndefined();
     expect(result.errors.some((e) => /YAML|yaml/.test(e))).toBe(true);
   });
+
+  it("rejects an array-rooted YAML document with a mapping diagnostic", () => {
+    const content = "---\n- one\n- two\n---\n";
+    const result = parseExtensionFrontmatter(content, "example");
+    expect(result.frontmatter).toBeUndefined();
+    expect(result.errors).toEqual(["frontmatter must be a YAML mapping"]);
+  });
 });
