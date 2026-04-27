@@ -120,21 +120,21 @@ async function writeStatusFile(
   activeDir: string,
   category: string,
   filename: string,
-  body: { branch: string; state: string },
+  body: { branch: string; state: string; taskList?: string; nextAction?: string },
 ): Promise<void> {
   const dir = join(activeDir, category);
   await mkdir(dir, { recursive: true });
-  await writeFile(
-    join(dir, filename),
-    [
-      "# Status: fixture",
-      "",
-      "## Active Work",
-      "",
-      `- **State:** ${body.state}`,
-      `- **Branch:** ${body.branch}`,
-    ].join("\n"),
-  );
+  const lines: string[] = [
+    "# Status: fixture",
+    "",
+    "## Active Work",
+    "",
+    `- **State:** ${body.state}`,
+    `- **Branch:** ${body.branch}`,
+  ];
+  if (body.taskList !== undefined) lines.push(`- **Task List:** ${body.taskList}`);
+  if (body.nextAction !== undefined) lines.push(`- **Next Action:** ${body.nextAction}`);
+  await writeFile(join(dir, filename), lines.join("\n"));
 }
 
 // Stub user result — the probe is exercised in its own suite; here we just
@@ -632,6 +632,94 @@ describe("runSessionInitStatus — real worktree probe", () => {
     if (result.user.ok) {
       expect(result.user.value.state).toBe("disabled");
       expect(result.user.value.qualifier).toBeUndefined();
+    }
+  });
+});
+
+describe("runSessionInitStatus — sessionType envelope coverage", () => {
+  // Verifies that sessionType travels through the composite probe envelope
+  // unchanged. Per-shape inference behavior is exhaustively covered at the
+  // active-probe layer in active.test.ts; here we confirm the composite
+  // doesn't drop the field across the wrapping layer.
+  let fixture: Fixture;
+  beforeEach(async () => {
+    fixture = await createFixture();
+    await writeConfig(fixture.configPath);
+    await writeExtension(fixture.extDir, "pre-merge-review", true);
+  });
+  afterEach(async () => {
+    await rm(fixture.root, { recursive: true, force: true });
+  });
+
+  it("carries sessionType=execution through the composite for a single-WU + Start-Task fixture", async () => {
+    await writeStatusFile(fixture.activeDir, "technical", "status-foo.md", {
+      branch: "technical/foo",
+      state: "In Progress",
+      taskList: "`.arc/active/technical/tasks-foo.md`",
+      nextAction: "Start Task 4.2 — write unit tests",
+    });
+
+    const probes = makeSessionInitProbes(fixture);
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+
+    expect(result.active.ok).toBe(true);
+    if (result.active.ok) {
+      expect(result.active.value.resolution).toBe("single");
+      expect(result.active.value.sessionType).toBe("execution");
+    }
+  });
+
+  it("carries sessionType=integration through the composite when Next Action begins with integrate-work-unit", async () => {
+    await writeStatusFile(fixture.activeDir, "technical", "status-foo.md", {
+      branch: "technical/foo",
+      state: "In Progress",
+      taskList: "`.arc/active/technical/tasks-foo.md`",
+      nextAction: "integrate-work-unit Step 7 — push and create PR",
+    });
+
+    const probes = makeSessionInitProbes(fixture);
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+
+    expect(result.active.ok).toBe(true);
+    if (result.active.ok) {
+      expect(result.active.value.resolution).toBe("single");
+      expect(result.active.value.sessionType).toBe("integration");
+    }
+  });
+
+  it("carries sessionType=null through the composite when resolution is multiple (defer until disambiguation)", async () => {
+    await writeStatusFile(fixture.activeDir, "feature", "status-alpha.md", {
+      branch: "feature/alpha",
+      state: "In Progress",
+      taskList: "`.arc/active/feature/tasks-alpha.md`",
+      nextAction: "Start Task 1.1 — kick off",
+    });
+    await writeStatusFile(fixture.activeDir, "technical", "status-beta.md", {
+      branch: "technical/beta",
+      state: "In Progress",
+      taskList: "`.arc/active/technical/tasks-beta.md`",
+      nextAction: "integrate-work-unit Step 1 — verify completion",
+    });
+
+    const probes = makeSessionInitProbes(fixture);
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+
+    expect(result.active.ok).toBe(true);
+    if (result.active.ok) {
+      expect(result.active.value.resolution).toBe("multiple");
+      expect(result.active.value.sessionType).toBeNull();
     }
   });
 });

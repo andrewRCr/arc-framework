@@ -383,4 +383,4 @@ Earlier phases remain valid (will be used by new approach), but later phases are
 [activate-planning-branch]: planning/activate-planning-branch.md
 [archive-work-unit]: archive-work-unit.md
 [dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md
-[session-handoff]: ../session-lifecycle/session-handoff.template.md
+[session-handoff]: ../session-lifecycle/session-handoff.md

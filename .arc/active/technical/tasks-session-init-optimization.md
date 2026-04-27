@@ -2092,21 +2092,29 @@ and integration loadsets validated via deliberate `**Session Type:**` override s
   read-time; whether 6.4 also wires SESSION-NOTES parsing into `resolveSessionInit` for
   integration-tier coverage is a 6.4 design call.
 
-### `[ ]` **6.4 Test coverage**
+### `[x]` **6.4 Test coverage**
 
-- _Goal:_ Inference + override + loadset substitution exercised at all three test tiers.
+- _Outcome:_ Code-tier coverage for envelope-level `sessionType` inference, scoped to what crosses
+  the CLI boundary under Option A (agent-side override). Unit tier already covered by 6.1 (no
+  new edge cases surfaced during 6.3). Integration: 3 new tests in `integration/status.test.ts`
+  asserting `sessionType` carries through the composite probe envelope (`runSessionInitStatus`)
+  for execution, integration, and multi-WU `null` shapes; per-shape inference exhaustively covered
+  at the active-probe layer in 6.1's `integration/active.test.ts` (11 tests). E2E: new
+  `e2e/session-init.e2e.test.ts` (3 tests) invoking `arc status --session-init --json` against
+  a fresh `arc init` install across planning / execution / integration variants — validates the
+  CLI binary's argument parsing + JSON serialization carry the field correctly.
 
-    - **Unit:** covered by 6.1 test-first behaviors; expand only if new edge cases surface
-      during 6.3 implementation.
-    - **Integration:** composite probe envelope carries correct `sessionType` across each
-      active-state shape (mirrors 6.1 unit cases at integration tier with real status files).
-      Override precedence: SESSION-NOTES `**Session Type:**` value supersedes envelope inference
-      when both present; invalid override value → envelope value used + warning.
-    - **E2E:** fresh session-init across each type variant (planning / execution / integration)
-      produces the correct loaded-files / skipped-files set per the loadset rules in 6.3. One
-      override scenario (e.g., status file implies execution, SESSION-NOTES override sets
-      planning → planning loadset).
-    - Two-copy sync where test fixtures or templates touched.
+- _Override coverage:_ Agent-side per Option A — does not cross the CLI boundary, so untestable
+  at integration / E2E. Manual spot-checks land at 6.5 phase close per its existing scope.
+
+- _Incidental:_ Fixed pre-existing framework-sync drift in
+  `packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md`
+  line 386 — link reference pointed to `session-handoff.template.md` (template filename) instead
+  of `session-handoff.md` (rendered filename); introduced in commit `bcf34f4` (Task 6.1) and
+  flagged by `framework-sync.test.ts`.
+
+- _Test counts:_ unit 878 (unchanged), integration 213 (+3), E2E 48 (+3). Tier 1 quality gates
+  clean (lint:ts, lint:md, typecheck, typecheck:test, full unit + integration + E2E).
 
 ### `[ ]` **6.5 Phase 6 close — Tier 3 quality gates + observation note + PRD History**
 
