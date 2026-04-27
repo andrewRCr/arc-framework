@@ -238,22 +238,23 @@ out the page.
 >
 > **Initialization:** Loads project identity (AGENT-BRIEFING.ARC, AGENT-BRIEFING.PROJECT),
 > constitutional context (DEV-RULES, QUICK-REFERENCE), and this briefing. Skips maintainer
-> artifacts (upstream's status file, task list, task execution workflow). If you maintain your
-> own personal status-contributor.md at `user/{identity}/status-contributor.md`, it is loaded automatically.
+> artifacts (upstream's status file, task list, task execution workflow). If you maintain personal
+> active state under `user/{identity}/active/` (mirroring maintainer structure: `status-<name>.md`
+> per in-flight contribution plus optional companion files), it is loaded automatically.
 >
 > **Handoff:** Writes SESSION-NOTES.md for personal context across sessions. Skips project-level
-> active status file update (maintainer-managed). Your personal status-contributor.md is updated if you're
-> running a full planning pipeline locally.
+> active status file update (maintainer-managed). Your personal `active/status-<name>.md` is
+> updated at handoff if you're running a full planning pipeline locally.
 
 **Suggested destination:** `docs/concepts/contributor-role/` § Session Lifecycle — describes what
 session-init.md and session-handoff.md do for contributors specifically (load set, skipped
-artifacts, optional status-contributor.md handling).
+artifacts, optional personal active-state handling).
 
 **Stylistic integration notes:** Trimmed source replaces both paragraphs with a pointer to
 session-init.md / session-handoff.md (the operational truth) plus a one-line note about optional
-`status-contributor.md` loading. Extracted paragraphs duplicate behavior already documented
-authoritatively in the workflow files; sweep absorption converts duplicate-restated-in-briefing
-into explained-once-in-docs with cross-link to workflow files. Voice adaptation: shift
+personal `active/status-<name>.md` loading. Extracted paragraphs duplicate behavior already
+documented authoritatively in the workflow files; sweep absorption converts duplicate-restated-in-
+briefing into explained-once-in-docs with cross-link to workflow files. Voice adaptation: shift
 second-person ("you maintain") to third-person reader-facing prose where appropriate.
 
 ## Entry 5 — AGENT-BRIEFING.CONTRIBUTOR.md § Personal Workspace — concept + recommendation prose
@@ -313,8 +314,8 @@ shift second-person ("Your `.arc/user/{identity}/` directory") to third-person f
 > ```text
 > .arc/user/{identity}/
 >   SESSION-NOTES.md            ← session context (handled automatically by session workflows)
->   status-contributor.md       ← your personal work state
 >   active/
+>     status-<name>.md          ← your personal work state
 >     plan-<name>.md            ← plan doc (transient; subsumed by PRD at PRD-creation)
 >     prd-<name>.md             ← PRD (after plan doc is promoted)
 >     tasks-<name>.md           ← task list
@@ -343,8 +344,7 @@ shift second-person ("Your `.arc/user/{identity}/` directory") to third-person f
 > The lightweight path:
 >
 > 1. Delete `user/{identity}/active/` entries for the completed work, or leave them
-> 2. Reset `user/{identity}/status-contributor.md` to "no active work"
-> 3. Move on
+> 2. Move on
 >
 > If you want historical reference for your own completed work, mirror ARC's archive structure
 > inside your workspace (`user/{identity}/reference/archive/<quarter>/<category>/`). This is a

@@ -1958,21 +1958,12 @@ Task 5.6 is TS-only (no markdown sync concern).
   amendment retires the singleton; downstream consumers (probe, session-init, session-handoff,
   AGENT-BRIEF) update in lockstep.
 
-    - `[ ]` **5.10.a ADR-014 amendment + contributor canon docs**
-        - ADR-014 amendment (2026-04-27): retire singleton `status-contributor.md`; canonical
-          contributor active state is `user/{identity}/active/status-{name}.md` (flat full-
-          layout) plus lite `user/{identity}/active/status.md`. Rationale captured: probe
-          parameterizes by root; companions derive identically via the task-list field; naturally
-          scales single-in-flight (typical) and multi-WU (rare-but-supported). Personal status
-          file is gitignored (per `.arc/user/*/`) — handoff is the natural update trigger.
-        - `AGENT-BRIEF.CONTRIBUTOR.md` (both copies): § Personal Workspace Read Contract row
-          replacement (`status-contributor.md` → `active/status-{name}.md`); § Session Workflow
-          paragraph reword; § Personal Workspace bullet list realignment.
-        - `user/README.md` (both copies): § Framework Read Contract footnote alignment.
-        - `notes-docs-content-sweep.md`: contributor-section prose realigned (path examples,
-          tree diagram, completion-and-archival bullet) to the new convention.
-        - `analysis-modes-contributor-lifecycle-stress-test.md`: trim residual singleton
-          references; the canonical-`active/` framing already aligns.
+    - `[x]` **5.10.a ADR-014 amendment + contributor canon docs**
+        - _Outcome:_ ADR-014 amended (2026-04-27): singleton `status-contributor.md` retired in
+          favor of `user/{identity}/active/status-{name}.md` (flat full-layout). Forward-pointer
+          added to § Contributor planning. `AGENT-BRIEF.CONTRIBUTOR.md` + `user/README.md` (two-
+          copy synced), `notes-docs-content-sweep.md`, and `analysis-modes-contributor-lifecycle-
+          stress-test.md` realigned to the new convention. Markdown lint clean.
 
     - `[ ]` **5.10.b Probe role-aware active resolution (test-first)**
         - Extend `ActiveSessionInitOptions` with `identity: string | null` and `role: string |
@@ -2004,7 +1995,7 @@ Task 5.6 is TS-only (no markdown sync concern).
         - `session-init.md` (both copies): § Step 1 probe-failure fallback — add role-aware
           scan path note (`.arc/user/{identity}/active/` for contributor role).
         - `session-handoff.md` (both copies): § contributor blockquote (~L29) and task-list
-          completion bullet (~L98) refined — contributors skip *project-level* status-file
+          completion bullet (~L98) refined — contributors skip _project-level_ status-file
           updates but DO update personal `user/{identity}/active/status-{name}.md` at handoff
           (gitignored, so commit-time staging doesn't apply; handoff is the natural update
           trigger, parallel to SESSION-NOTES).
