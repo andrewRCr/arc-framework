@@ -176,6 +176,12 @@ Markers:
 -->
 
 **Commit at Handoff:** `{{short-hash}}`
+<!--
+  **Session Type:** {planning | execution | integration}
+  Optional override; absent → inferred from tracked state. Set only when the next session's
+  intent diverges from what the active status file implies. Case-insensitive. Invalid value →
+  ignored + warning at session-init.
+-->
 
 ## Completed Work
 
@@ -203,6 +209,12 @@ _Remove when: [explicit trigger condition]_
 
 - [Context that must persist until trigger is met]
 ```
+
+**Session Type override (optional):** Add `**Session Type:**` to Handoff Metadata only when the
+next session's intent diverges from what the active status file implies — for example, status
+points to an in-progress execution WU but the next session will plan a separate concern. Absent
+(default) → session-init infers from tracked state. Don't write by default; the inference covers
+the 99% case.
 
 **Completed Work — committed work (default):** One line per commit: hash + outcome. Nothing more.
 

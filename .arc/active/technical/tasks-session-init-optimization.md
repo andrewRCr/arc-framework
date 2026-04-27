@@ -2060,22 +2060,18 @@ and integration loadsets validated via deliberate `**Session Type:**` override s
   signal stays deterministic. Manifest `pristine_hash` recomputed for `integrate-work-unit.md`;
   `arc health` no longer flags it as modified.
 
-### `[ ]` **6.2 SESSION-NOTES `**Session Type:**` override field**
+### `[x]` **6.2 SESSION-NOTES `**Session Type:**` override field**
 
-- _Goal:_ Optional opt-in override surface in SESSION-NOTES; absent (default) → probe inference
-  governs; present → supersedes for that session.
-    - **Template edit:** `packages/arc-framework/templates/user/SESSION-NOTES.md` Handoff Metadata
-      block gains optional `**Session Type:**` line below `**Commit at Handoff:**`. Adjacent
-      comment documents semantics: "Optional override; absent → inferred from tracked state. Use
-      when next session's intent diverges from what active status implies."
-    - **Validation:** value must match `planning | execution | integration` (case-insensitive).
-      Invalid → ignore + warn in orientation. No CLI-side enforcement (gitignored personal file).
-    - **`session-handoff.md` edit (both copies):** document the override field in §
-      Comprehensive Handoff Format. Explicit guidance: don't write by default — only when the
-      next session's intent diverges from what tracked state implies. Zero handoff ceremony for
-      the 99% case.
-    - **Two-copy sync:** template (single copy — adopter-facing) + `.arc/user/andrew/SESSION-NOTES.md`
-      reflects new field shape opportunistically; session-handoff.md × 2.
+- _Outcome:_ Optional `**Session Type:**` field codified in SESSION-NOTES template + session-handoff
+  workflow (both copies). Field is commented out by default in the Handoff Metadata block — adjacent
+  HTML-comment shows the value shape `{planning | execution | integration}` and documents semantics
+  (opt-in override; absent → inferred from tracked state; case-insensitive; invalid → ignored +
+  warning at session-init). Files touched: `packages/arc-framework/templates/user/SESSION-NOTES.md`,
+  both copies of `session-handoff.md` (project + package), and `.arc/user/andrew/SESSION-NOTES.md`
+  (opportunistic — no override active for current session). `session-handoff.md` § Comprehensive
+  Handoff Format gains a "Session Type override (optional)" paragraph above the field-by-field
+  guidance with explicit "don't write by default" framing. Validation + override resolution land
+  in 6.3 — this task is template + documentation only.
 
 ### `[ ]` **6.3 `session-init.md` Step 3 items 9–10 conditional on `sessionType`**
 
