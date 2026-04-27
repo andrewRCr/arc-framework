@@ -32,4 +32,11 @@ describe("parseFrontmatter", () => {
     expect(result.parseError).toBeDefined();
     expect(result.parseError).toMatch(/.+/);
   });
+
+  it("parses frontmatter with CRLF line endings", () => {
+    const content = "---\r\nname: hello\r\ncount: 42\r\n---\r\n\r\nBody\r\n";
+    const result = parseFrontmatter(content);
+    expect(result.parseError).toBeUndefined();
+    expect(result.data).toEqual({ name: "hello", count: 42 });
+  });
 });

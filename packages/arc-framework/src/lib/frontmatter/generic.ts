@@ -26,7 +26,8 @@ export interface ParsedFrontmatter {
  *   or `{ data: null, parseError }` on malformed YAML.
  */
 export function parseFrontmatter(content: string): ParsedFrontmatter {
-  const match = /^---\n([\s\S]*?)\n---/.exec(content);
+  const normalized = content.replace(/\r\n/g, "\n");
+  const match = /^---\n([\s\S]*?)\n---/.exec(normalized);
   if (!match?.[1]) return { data: null };
   try {
     return { data: yaml.load(match[1]) };
