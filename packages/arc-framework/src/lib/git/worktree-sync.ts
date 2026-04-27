@@ -121,8 +121,11 @@ async function boundedFetch(
   try {
     await exec("git", ["fetch", "origin", branch], { signal: controller.signal });
     return "ok";
-  } catch {
-    return controller.signal.aborted ? "timeout" : "error";
+  } catch (err) {
+    // Classify on AbortError name, not signal.aborted — a non-abort fetch
+    // error coincident with the timer firing would otherwise misclassify.
+    const isAbortError = err instanceof Error && err.name === "AbortError";
+    return isAbortError ? "timeout" : "error";
   } finally {
     clearTimeout(timer);
   }

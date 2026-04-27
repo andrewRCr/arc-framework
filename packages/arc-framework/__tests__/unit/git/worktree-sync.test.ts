@@ -222,4 +222,28 @@ describe("runWorktreeSyncStatus", () => {
     expect(result.ahead).toBe(0);
     expect(result.behind).toBe(0);
   });
+
+  it("classifies as error (not timeout) when a non-AbortError rejection coincides with signal abort", async () => {
+    const { exec } = buildExec({
+      [REV_PARSE_HEAD]: { stdout: "main", stderr: "" },
+      [REV_PARSE_UPSTREAM]: { stdout: "origin/main", stderr: "" },
+      [FETCH_BRANCH]: (_args, options) =>
+        new Promise((_resolve, reject) => {
+          options?.signal?.addEventListener("abort", () => {
+            // Race-window simulation: signal aborts, but the underlying
+            // failure is not AbortError (e.g., DNS, auth prompt closing).
+            reject(new Error("fatal: connection refused"));
+          });
+        }),
+    });
+
+    const result = await runWorktreeSyncStatus({
+      exec,
+      remoteSyncEnabled: true,
+      fetchTimeoutMs: 25,
+    });
+
+    expect(result.state).toBe("remote-unavailable");
+    expect(result.failureReason).toBe("error");
+  });
 });
