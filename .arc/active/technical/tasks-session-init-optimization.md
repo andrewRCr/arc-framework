@@ -1920,7 +1920,7 @@ Task 5.6 is TS-only (no markdown sync concern).
         - Manifest `pristine_hash` recomputed for `session-init.md`, `session-handoff.md`, and the
           new `session-init.contributor.md` to reflect post-5.8 stable content.
 
-### `[ ]` **5.10 Step 1+2 merge + contributor freshness/orientation**
+### `[ ]` **5.9 Step 1+2 merge + contributor freshness/orientation**
 
 - _Lens:_ Pre-implementation audit (2026-04-27) during 5.8.b surfaced two improvements that
   weren't in the original 5.8 scope: (1) Steps 1 (`pwd`) and 2 (composite probe) are independent
@@ -1929,14 +1929,14 @@ Task 5.6 is TS-only (no markdown sync concern).
   generic "Ready for work", missing the contributor's freshness check (SESSION-NOTES handoff
   hash applies universally) and status-contributor.md state surfacing. All edits two-copy synced.
 
-    - `[ ]` **5.10.a Step 1+2 merge — "Resolve Session Context"**
+    - `[ ]` **5.9.a Step 1+2 merge — "Resolve Session Context"**
         - Merge `## 1. Verify Environment` and `## 2. Probe ARC Domain` into a single step
           named "Resolve Session Context". Body chains `pwd && arc status --session-init --json`
           in one Bash invocation. Renumber Steps 3–8 → 2–7 in `session-init.md` (both copies).
           Sweep inline `Step N` cross-references in both `session-init.md` and
           `session-init.contributor.md` to match new numbering.
 
-    - `[ ]` **5.10.b Contributor freshness + orientation improvements**
+    - `[ ]` **5.9.b Contributor freshness + orientation improvements**
         - Recast `session-init.contributor.md § Step 6` from "skip entirely" to a contributor-
           flavored freshness check: SESSION-NOTES handoff-hash check applies universally; skip
           maintainer next-work-discovery (work-unit lifecycle isn't a contributor concern). When
@@ -1946,16 +1946,16 @@ Task 5.6 is TS-only (no markdown sync concern).
           Current Task; freeform Blockers; one-line Next action on-task-list, unbounded
           off-task-list). When absent or empty, keep current minimal "Ready for work" form.
 
-### `[ ]` **5.11 Composite probe contributor-awareness (CLI/TS)**
+### `[ ]` **5.10 Composite probe contributor-awareness (CLI/TS)**
 
-- _Lens:_ Surfaced during 5.8.b/5.10.b. Composite probe's `active` slot resolves
+- _Lens:_ Surfaced during 5.8.b/5.9.b. Composite probe's `active` slot resolves
   `.arc/active/**/status-*.md` (maintainer state). Contributors maintain personal state at
   `.arc/user/{identity}/status-contributor.md` per the convention referenced in
   `notes-docs-content-sweep.md`. Probe-side resolution makes the contributor flow envelope-driven
   rather than agent-side file existence checks; parallels how 5.6 moved companion-file paths
   into the probe.
 
-    - `[ ]` **5.11.a Probe role-aware active resolution (test-first)**
+    - `[ ]` **5.10.a Probe role-aware active resolution (test-first)**
         - When `identity.role === "contributor"`, `runActiveSessionInitStatus` resolves from
           `.arc/user/{identity}/active/` + `status-contributor.md` rather than
           `.arc/active/**/status-*.md`. Same `single` / `multiple` / `none` discriminant.
@@ -1966,17 +1966,17 @@ Task 5.6 is TS-only (no markdown sync concern).
           `user/{identity}/active/` directory containing multiple status files → `multiple` (if
           that pattern is permitted).
 
-    - `[ ]` **5.11.b Workflow consumption update**
+    - `[ ]` **5.10.b Workflow consumption update**
         - `session-init.contributor.md` Step 4 item 7+ wording references the envelope's
           contributor-resolved active slot rather than instructing a raw file-existence check.
           Step 6/7 orientation pulls fields from the envelope, mirroring maintainer.
 
-    - `[ ]` **5.11.c Companion files for contributor (forward compat)**
+    - `[ ]` **5.10.c Companion files for contributor (forward compat)**
         - Evaluate whether contributor `status-contributor.md` should also have companions
           (`notes-contributor.md`, `atomic-contributor.md`) per 5.6's pattern. Disposition only —
           implementation if approved follows.
 
-### `[ ]` **5.9 Phase 5 close — Tier 2 quality gates**
+### `[ ]` **5.11 Phase 5 close — Tier 2 quality gates**
 
 - Markdown lint, framework-sync, targeted re-run of session-init against a representative active
   task list (if available) to spot-check regressions
