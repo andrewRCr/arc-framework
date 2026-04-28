@@ -111,7 +111,12 @@ get promoted: add the plan-*/PRD, restructure the task list into phases, continu
    in-flight WUs migrate to `**Tier: standard**` (matches their current ceremony level).
 
 3. **`**Spec:**` field on every status file** — pointer to where the work's specification lives.
+   **Field introduction is upstream:** `**Spec:**` is introduced as a generic optional pointer in
+   [plan-session-operational-flow][plan-ops] Phase 1 (planning-session active surface scope, with
+   `**Spec:** plan-{name}.md` value). This WU adds tier-specific value semantics and tier-aware
+   validation on top of the already-introduced field.
    Values:
+    - `**Spec:** plan-{name}.md` — planning state (introduced upstream)
     - `**Spec:** prd-{name}.md` — standard tier, in-repo PRD
     - `**Spec:** tasks-{name}.md` — quick tier under arc-in-git, points to Scope section in the
       task list header
@@ -150,8 +155,10 @@ get promoted: add the plan-*/PRD, restructure the task list into phases, continu
     [plan-session-operational-flow][plan-ops] § Scope → "Metadata-state foundation for WU lifecycle"
     against the actual lifecycle workflows. Concrete deliverables:
 
-    - **State + Integration field rollout.** `**State:**` enum stays narrow
-      (`In Progress | Complete | Paused | Superseded`); new optional `**Integration:**` field
+    - **State + Integration field rollout.** `**State:**` enum:
+      `Planning | In Progress | Complete | Paused | Superseded` (`Planning` introduced upstream in
+      [plan-session-operational-flow][plan-ops] Phase 1; this WU operates on the post-introduction
+      enum); new optional `**Integration:**` field
       (`PR review | Review fixes | Ready to merge | Merged`) added to template-status. Workflow
       updates: `clean-work-unit.md` Mode 2 sets State to Complete (current); `integrate-work-unit.md`
       manages Integration field through PR lifecycle; sweep clears Integration field.

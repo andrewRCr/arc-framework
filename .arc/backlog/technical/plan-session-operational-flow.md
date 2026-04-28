@@ -49,8 +49,33 @@ no dominant industry pattern dictates session/WU mapping. ARC's choice is princi
 principle to configurable default) and § Session Management (status-file timing split, handoff responsibilities
 expansion). New section if needed for autonomy-mode axis description.
 
-**Status-file timing split.** Rule definition; workflow updates (`3_process-task-loop.md`, `session-handoff.md`,
-lifecycle workflows that retain commit-time status updates for shape-changing commits); cascade to strategy docs.
+**Status-file timing rule.** All status-file updates fire at session-handoff commits or workflow-ceremony commits
+(activate / integrate / sweep / deactivate / PRD generation / planning lifecycle operations). Task-completion code
+commits never bundle status-file updates. Supersedes the current [DEV-RULES.ARC][dev-rules-arc] § Commit Discipline
+"Work status accuracy" provision. Workflow updates: `3_process-task-loop.md` (task-completion no longer touches
+status); `session-handoff.md` (status update is the handoff commit); lifecycle workflows bundle status updates
+into their own ceremony commits. Cascade to strategy docs ([`strategy-team-coordination`][strategy-team],
+[`strategy-session-operations`][strategy-session]).
+
+**Planning-session active surface.** Today, `activate-planning-branch.md` creates a branch but no status file —
+planning sessions resolve as `active.resolution: "none"` at session-init, with the project pointer carried only
+in (gitignored) SESSION-NOTES. Fix: `activate-planning-branch.md` creates a status file at activation
+(State: Planning, Task List: [none], optional `**Spec:**` field pointing at plan-doc / external tracker / nothing
+for free-form planning); `integrate-planning-branch.md` handles status-file disposition (graduated → keep and
+transition; shelved → remove); probe sessionType inference reads `State: Planning` for primary planning detection
+with branch-pattern fallback retained for orphan cases.
+
+This work surfaces the `**Spec:**` field introduction here (carved from [plan-agile-wu-lifecycle][plan-awl]
+scope) — generalized pointer with values: `plan-{name}.md` (planning), `prd-{name}.md` (standard WU),
+`tasks-{name}.md#scope` (quick WU under arc-in-git), external URL (external tracker), omitted (atomic /
+free-form). Tier-specific value semantics and validation remain in agile-wu-lifecycle scope.
+
+**Plan-doc location during planning (arc-in-git only).** When the planning branch's focused plan-doc lives in
+`backlog/{category}/plan-{name}.md`, `activate-planning-branch.md` does `git mv` to `active/{category}/`,
+keeping the plan-doc as live reference material throughout planning. `integrate-planning-branch.md` disposition:
+graduated (PRD generated) → `git rm` the plan-doc (subsumed by PRD); shelved (no PRD generated, refinement edits
+preserved) → `git mv` back to `backlog/{category}/`. Under pm.mode: external / none, no automatic plan-doc
+movement — only the status file is universal across modes; user manages plan-doc location ad-hoc.
 
 **Configuration surface.** Autonomy axis naming, value enum, schema validation, default values (matching current
 behavior), per-developer override mechanism. Handoff-interior toggle framework for configurable actions inside handoff.
@@ -60,7 +85,10 @@ behavior), per-developer override mechanism. Handoff-interior toggle framework f
 grammar with strict disambiguation per § Design Decisions.
 
 **Auto-commit mode.** Skill/workflow implementation; interaction with `prepare-commits` (simple-path-only auto-
-commit, complexity bumps to manual-with-prompt); atomicity-preservation under autonomy.
+commit, complexity bumps to manual-with-prompt); atomicity-preservation under autonomy. Contributor role
+auto-commit stages code only — no project-level status-file updates, matching the role-separation rule per
+[DEV-RULES.ARC][dev-rules-arc] § Commit Discipline "Contributor override" (contributor status files are
+gitignored and updated at handoff regardless of mode).
 
 **Auto-push mode.** Distinct-signal handling, push-gate mechanics, prerequisites, interaction with auto-commit mode.
 Push-timing default is handoff-only (with per-commit available as power-user opt-in) per § Design Decisions.
@@ -81,8 +109,9 @@ session-init becomes the load-trigger. Strategy-session-operations updates accor
 **Metadata-state foundation for WU lifecycle.** Constitutional foundation that downstream lifecycle plans
 (particularly [plan-agile-wu-lifecycle][plan-awl]) implement against:
 
-- `**State:**` enum stays semantically narrow: `In Progress | Complete | Paused | Superseded` (existing values,
-  execution-state only)
+- `**State:**` enum: `Planning | In Progress | Complete | Paused | Superseded`. `Planning` introduced by the
+  planning-session active surface work above; remaining values are execution/lifecycle states matching the
+  agile-wu-lifecycle proposal
 - New optional `**Integration:**` field carries transient workflow position during the integration window:
   `PR review | Review fixes | Ready to merge | Merged`. Cleared at sweep
 - Sweep eligibility: `State: Complete + Integration: Merged`. After sweep, file is removed from `active/` —
@@ -104,6 +133,11 @@ point the agent stops and prompts rather than silently invoking complex logic.
 **Strategy doc cascade updates.** [`strategy-team-coordination`][strategy-team] (per-commit status-advance language
 becomes stale); [`strategy-session-operations`][strategy-session] (session-state timing, autonomy-config-aware
 load-set); others as surfaced.
+
+**Test scope.** Each phase ships tests appropriate to its surface: workflow updates verified via self-host
+dogfooding plus structural CHECK additions where applicable; CLI/skill changes via vitest unit tests;
+configuration parsing via unit tests; auto-commit mode via integration tests covering grammar parsing,
+deferred-review interaction, and failure-mode fallback paths.
 
 ### Out of scope — deferred to upstream/sibling plans
 
@@ -177,6 +211,29 @@ Auto-push admits both per-commit and handoff-only cadence. Handoff-only is the r
 Per-commit push remains available as a documented power-user opt-in. PRD finalizes config shape and the warning
 copy that accompanies opt-in.
 
+### Status-file updates at handoff and ceremony commits only
+
+Today's rule ([DEV-RULES.ARC][dev-rules-arc] § Commit Discipline "Work status accuracy") bundles status-file
+updates into every task-completion commit. This violates atomicity (one commit carries code/doc changes plus
+project-pointer state — two logical concerns) and creates per-task token + time churn that compounds under
+multi-task sessions and auto-commit mode.
+
+New rule: status-file updates fire only at (a) session-handoff commits and (b) workflow-ceremony commits
+(activate / integrate / sweep / deactivate / PRD generation / planning lifecycle operations). Task-completion
+code commits never touch the status file.
+
+Tradeoff: handoff produces a dedicated `chore(status): handoff …` commit not bundled with code. This isn't
+"dangling" — it's a clear session-boundary marker, naturally atomic, conventional-commit-friendly, and visible
+in PR history as the explicit handoff point. Reviewers benefit (code commits stay focused on code; status
+commits stay focused on pointer state). Auto-commit benefits (auto-fire scope is code-only, never has to
+maintain status consistency mid-stream). The rule is simpler than the prior "shape-vs-rotation field split"
+framing because it removes the per-commit shape/rotation judgment call — workflow-ceremony commits become the
+only shape-change vector under the gate model.
+
+Workflow-ceremony commits include the status update IN their own commit (not a separate dangling commit), since
+the ceremony operation's "one logical change" includes the metadata transition (e.g., PRD generation = creating
+PRD file + updating status `**Spec:**` to point at it = one logical change).
+
 ### Approval-signal grammar: "approved" with strict disambiguation
 
 Auto-commit mode is triggered by a small canonical token vocabulary (primary: `approved` / `approve`; PRD finalizes
@@ -221,6 +278,18 @@ the cascade in *that* session — it doesn't reach into other sessions' commits 
 each session manages its own reversibility independently. This keeps rollback semantics simple and avoids
 cross-session arbitration complexity.
 
+### Planning-session active surface = status file (not plan-doc)
+
+Plan-docs are reference material subsumed by PRDs and retired at WU graduation; status files are the universal
+project-pointer artifact. The initial impulse to make plan-docs the planning-phase active marker would have
+required pointer-field injection on a doc that exists for different reasons. Cleaner: `activate-planning-branch`
+creates a status file at planning activation, mirroring how `activate-work-unit` creates one at WU activation.
+Plan-doc remains independently optional — free-form planning works identically to plan-doc-driven planning, just
+with no `**Spec:**` value pointing at a plan-doc.
+
+Side benefit: collapses three earlier design candidates (`**Plan:**`, `**External Ref:**`, planning-shaped pointer
+header on plan-docs) into one polymorphic `**Spec:**` field reused across planning / quick / standard / external WUs.
+
 ### arc-commit skill stays user-invocable
 
 The arc-commit skill remains a first-class user-invocable surface in both manual and auto modes. Under auto-commit,
@@ -245,6 +314,21 @@ rather than silent invocation of `prepare-commits`.
 - Exact field/value names for the State + Integration field model — § Scope establishes the conceptual shape; PRD
   finalizes field labels and enum values.
 
+**Migration and validation details (PRD-time resolution):**
+
+- Migration defaults for existing in-flight status files: `State: In Progress` for files with populated Task List;
+  `**Spec:**` populated to `prd-{name}.md` if a co-located PRD exists, otherwise omitted; migration is "as-needed
+  at next status-file touch" (typically next handoff), not mass sweep. Validate at PRD time that this default set
+  doesn't break any in-flight WU shapes during the migration window.
+- Failure-mode taxonomy under auto-commit / auto-push (PRD-detail). Modes to enumerate at PRD: pre-commit hook
+  failure, T1/T2 quality-gate failure post-fire, network failure mid-push, partial multi-commit-cascade failure
+  (some commits land, push fails). Connects to reversibility scope (Phase 4) — failure recovery uses the rollback
+  protocol for the affected cascade.
+- `**Spec:**` field minimal pre-commit validation under this WU: value is one of `.md` filename, URL, or empty.
+  Tier-aware validation (e.g., standard tier requires `.md`, atomic tier forbids non-empty) is
+  [plan-agile-wu-lifecycle][plan-awl] scope. The minimal check prevents drift between upstream introduction and
+  downstream tier semantics.
+
 **Assumptions to validate during PRD:**
 
 - Default `manual-commit` mode preserves current behavior exactly — no behavioral drift acceptable for existing users.
@@ -264,9 +348,11 @@ workflows, multiple strategy docs, configuration schema, skills, and tests.
 ### Phases (provisional)
 
 1. **Constitutional foundation** (doc-level, low-risk) — [ADR-016][adr-016] landing, DEV-RULES.ARC amendments,
-   constitutional reframing language, parallel-session concurrency model framing, minimal-but-necessary cascade to
-   strategy docs to prevent contradiction.
-2. **Status-file timing split** — Rotation-vs-shape field split rules, workflow updates (process-task-loop,
+   constitutional reframing language, parallel-session concurrency model framing, planning-session active
+   surface (`activate-planning-branch` creates status file; `integrate-planning-branch` handles disposition;
+   `template-status.md` adds `**Spec:**` field and `Planning` state value; probe sessionType inference reads
+   `State: Planning`), minimal-but-necessary cascade to strategy docs to prevent contradiction.
+2. **Status-file timing rule** — Handoff-and-ceremony-only update rule, workflow updates (process-task-loop,
    lifecycle workflows, session-handoff), strategy doc prose updates.
 3. **Configuration surface + approval-signal vocabulary** — Axis naming and schema, signal classes per gate,
    "approved" grammar with strict disambiguation, session-init load-set autonomy-config-aware adaptation, default
@@ -318,6 +404,10 @@ independent and could overlap if scoped carefully.
   restructure begins.
 - Phases 4-7 can run alongside downstream plans' early phases — reversibility and auto modes don't block
   consumers of the frame itself, except for the metadata-state foundation dependency above.
+- **Validation gate between WU-A and WU-B (if split).** WU-A (Phases 1-3) lands on base and is dogfooded through
+  self-host's own session-operational flow for a defined validation window — multiple sessions exercising the new
+  status-file timing rule, the planning-session active surface, and the configuration surface — before WU-B
+  begins. If the WU stays unified, the equivalent dogfooding gate sits between Phase 3 and Phase 4.
 
 ### Pre-approved split at PRD-drafting time
 
