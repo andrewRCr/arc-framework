@@ -86,9 +86,12 @@ wherever the consolidation lands.
 ## Open Design Choices
 
 **Field set for archive-phase status file.** Minimum: Pull Request URL, Completed date, Executive
-Summary. Possibly also: a soft retrospective surface (deviations from plan, notable decisions worth
-capturing for future planners), marked optional and fed by the PRD-alignment notes already gathered in
-`integrate-work-unit.md` Step 1. Whether retrospective content is its own optional section or folds
+Summary. Possibly also: a soft retrospective surface (PRD success-criteria status with deviations and
+supersessions noted, plus broader plan-vs-shipped delta and notable decisions worth capturing for future
+planners), marked optional and fed by the PRD-alignment notes already gathered in
+`integrate-work-unit.md` Step 1. The PR body intentionally omits this content — it's archive-reader
+signal (post-merge retrospective), not reviewer signal (pre-merge decision-fork) — so the status doc
+carries it as the canonical record. Whether retrospective content is its own optional section or folds
 into Executive Summary is a PRD decision.
 
 **Authorship-gap mitigation for executive summary.** Post-merge timing means the summary is composed
