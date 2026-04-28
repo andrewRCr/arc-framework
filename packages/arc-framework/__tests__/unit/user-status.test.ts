@@ -396,7 +396,7 @@ describe("runUserSessionInitStatus", () => {
       exec: async (cmd: string, args: string[]) => {
         calls.push({ cmd, args });
         if (args[0] === "rev-parse") {
-          return { stdout: "abc123", stderr: "" };
+          return { stdout: "abc123\n", stderr: "" };
         }
         if (args[0] === "ls-remote") {
           return { stdout: "abc123\trefs/notes/arc/user/andrew\n", stderr: "" };

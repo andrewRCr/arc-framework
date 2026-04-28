@@ -458,9 +458,9 @@ async function inspectUserSyncRefsDetailed(
 
   const remoteHash = remoteProbe.hash;
   if (!localHash && !remoteHash) return { state: "same", comparison: "read-only" };
-  if (!localHash && remoteHash) return { state: "remote-ahead", comparison: "read-only" };
-  if (localHash && !remoteHash) return { state: "local-ahead", comparison: "read-only" };
-  if (!localHash || !remoteHash) return { state: "same", comparison: "read-only" };
+  if (!localHash || !remoteHash) {
+    return { state: localHash ? "local-ahead" : "remote-ahead", comparison: "read-only" };
+  }
   if (localHash === remoteHash) return { state: "same", comparison: "read-only" };
 
   try {
@@ -762,7 +762,7 @@ async function readRefHash(
 ): Promise<string | null> {
   try {
     const { stdout } = await io.exec("git", ["rev-parse", "--verify", ref]);
-    return stdout || null;
+    return stdout.trim() || null;
   } catch {
     return null;
   }
