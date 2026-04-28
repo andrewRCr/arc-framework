@@ -36,6 +36,8 @@ export interface ExtensionsStatusResult {
 export interface ExtensionsSessionInitResult {
   mode: "session-init";
   active: string[];
+  /** Diagnostics from malformed extension frontmatter, keyed by filename. */
+  warnings: string[];
 }
 
 export type ExtensionsResult = ExtensionsStatusResult | ExtensionsSessionInitResult;

@@ -55,19 +55,20 @@ export const AGENT_CONSUMABLE_KEYS = Object.keys(DEFAULTS) as Array<keyof Config
 export interface ReaderResult {
   settings: ConfigSettings;
   defaultsApplied: string[];
-  errors: string[];
+  warnings: string[];
 }
 
 /**
  * Read arc-config.yml and return the agent-consumable settings map with
  * documented defaults filled in for any absent keys.
  *
- * `settings` always resolves to a complete map; `errors` carries
- * file-access diagnostics for the caller to surface.
+ * `settings` always resolves to a complete map; `warnings` carries
+ * non-fatal diagnostics (file-access failures, invalid enum values) for
+ * the caller to surface — both recoverable, since defaults substitute.
  */
 export async function readConfigSettings(cwd: string): Promise<ReaderResult> {
   const configPath = join(cwd, ...ARC_CONFIG_SEGMENTS);
-  const errors: string[] = [];
+  const warnings: string[] = [];
   const defaultsApplied: string[] = [];
 
   let raw: Record<string, string> = {};
@@ -76,7 +77,7 @@ export async function readConfigSettings(cwd: string): Promise<ReaderResult> {
     raw = parseArcConfig(content);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    errors.push(`Unable to read arc-config.yml: ${message}`);
+    warnings.push(`Unable to read arc-config.yml: ${message}`);
   }
 
   const settings = {} as ConfigSettings;
@@ -92,7 +93,7 @@ export async function readConfigSettings(cwd: string): Promise<ReaderResult> {
       // Invalid enum value: substitute the documented default and surface
       // a parse-time diagnostic. We do not record the key as defaulted —
       // `defaultsApplied` means "absent in the file".
-      errors.push(
+      warnings.push(
         `${key}: '${value}' is not valid (expected: ${allowed.join(" | ")})`,
       );
       settings[key] = DEFAULTS[key];
@@ -101,5 +102,5 @@ export async function readConfigSettings(cwd: string): Promise<ReaderResult> {
     settings[key] = value;
   }
 
-  return { settings, defaultsApplied, errors };
+  return { settings, defaultsApplied, warnings };
 }

@@ -77,10 +77,10 @@ describe("readConfigSettings — default fallback", () => {
     }
   });
 
-  it("surfaces the missing-file error in the errors array", async () => {
+  it("surfaces the missing-file diagnostic in the warnings array", async () => {
     const result = await readConfigSettings(fixture.root);
-    expect(result.errors).toHaveLength(1);
-    expect(result.errors[0]).toContain("arc-config.yml");
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0]).toContain("arc-config.yml");
   });
 });
 
@@ -121,7 +121,7 @@ describe("readConfigSettings — user-supplied values", () => {
     expect(result.settings["session.init_pull.worktree"]).toBe("manual");
     expect(result.settings["session.init_pull.notes"]).toBe("always");
     expect(result.defaultsApplied).toHaveLength(0);
-    expect(result.errors).toHaveLength(0);
+    expect(result.warnings).toHaveLength(0);
   });
 
   it("mixes on-disk values with defaults for absent keys", async () => {
@@ -173,7 +173,7 @@ describe("readConfigSettings — session.init_pull channels", () => {
     expect(result.settings["session.init_pull.notes"]).toBe("prompt");
     expect(result.defaultsApplied).toContain("session.init_pull.worktree");
     expect(result.defaultsApplied).toContain("session.init_pull.notes");
-    expect(result.errors).toHaveLength(0);
+    expect(result.warnings).toHaveLength(0);
   });
 
   it("accepts manual | prompt | always for notes", async () => {
@@ -181,7 +181,7 @@ describe("readConfigSettings — session.init_pull channels", () => {
       await writeFile(fixture.configPath, `session.init_pull.notes: ${value}\n`);
       const result = await readConfigSettings(fixture.root);
       expect(result.settings["session.init_pull.notes"]).toBe(value);
-      expect(result.errors).toHaveLength(0);
+      expect(result.warnings).toHaveLength(0);
     }
   });
 
@@ -190,7 +190,7 @@ describe("readConfigSettings — session.init_pull channels", () => {
       await writeFile(fixture.configPath, `session.init_pull.worktree: ${value}\n`);
       const result = await readConfigSettings(fixture.root);
       expect(result.settings["session.init_pull.worktree"]).toBe(value);
-      expect(result.errors).toHaveLength(0);
+      expect(result.warnings).toHaveLength(0);
     }
   });
 
@@ -198,8 +198,8 @@ describe("readConfigSettings — session.init_pull channels", () => {
     await writeFile(fixture.configPath, "session.init_pull.worktree: always\n");
     const result = await readConfigSettings(fixture.root);
     expect(result.settings["session.init_pull.worktree"]).toBe("prompt");
-    expect(result.errors).toHaveLength(1);
-    const message = result.errors[0] ?? "";
+    expect(result.warnings).toHaveLength(1);
+    const message = result.warnings[0] ?? "";
     expect(message).toContain("session.init_pull.worktree");
     expect(message).toContain("'always'");
     expect(message).toContain("manual");
@@ -210,8 +210,8 @@ describe("readConfigSettings — session.init_pull channels", () => {
     await writeFile(fixture.configPath, "session.init_pull.worktree: bogus\n");
     const result = await readConfigSettings(fixture.root);
     expect(result.settings["session.init_pull.worktree"]).toBe("prompt");
-    expect(result.errors).toHaveLength(1);
-    const message = result.errors[0] ?? "";
+    expect(result.warnings).toHaveLength(1);
+    const message = result.warnings[0] ?? "";
     expect(message).toContain("session.init_pull.worktree");
     expect(message).toContain("'bogus'");
     expect(message).toContain("manual");
@@ -223,8 +223,8 @@ describe("readConfigSettings — session.init_pull channels", () => {
     await writeFile(fixture.configPath, "session.init_pull.notes: bogus\n");
     const result = await readConfigSettings(fixture.root);
     expect(result.settings["session.init_pull.notes"]).toBe("prompt");
-    expect(result.errors).toHaveLength(1);
-    const message = result.errors[0] ?? "";
+    expect(result.warnings).toHaveLength(1);
+    const message = result.warnings[0] ?? "";
     expect(message).toContain("session.init_pull.notes");
     expect(message).toContain("'bogus'");
     expect(message).toContain("manual");
@@ -239,7 +239,7 @@ describe("readConfigSettings — session.init_pull channels", () => {
     expect(result.settings["session.init_pull.notes"]).toBe("prompt");
     expect(result.defaultsApplied).not.toContain("session.init_pull.worktree");
     expect(result.defaultsApplied).toContain("session.init_pull.notes");
-    expect(result.errors).toHaveLength(0);
+    expect(result.warnings).toHaveLength(0);
   });
 
   it("parses pre-existing arc-config.yml without the new keys cleanly", async () => {
@@ -258,7 +258,7 @@ describe("readConfigSettings — session.init_pull channels", () => {
     ].join("\n");
     await writeFile(fixture.configPath, legacyContent);
     const result = await readConfigSettings(fixture.root);
-    expect(result.errors).toHaveLength(0);
+    expect(result.warnings).toHaveLength(0);
     expect(result.settings["session.init_pull.worktree"]).toBe("prompt");
     expect(result.settings["session.init_pull.notes"]).toBe("prompt");
     expect(result.defaultsApplied).toContain("session.init_pull.worktree");

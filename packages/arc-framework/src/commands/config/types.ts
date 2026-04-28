@@ -48,8 +48,8 @@ export interface ConfigStatusResult {
   settings: ConfigSettings;
   /** Keys where the on-disk value was absent and a documented default was substituted. */
   defaultsApplied: string[];
-  /** Diagnostics (e.g., arc-config.yml missing). Empty on a clean read. */
-  errors: string[];
+  /** Non-fatal diagnostics (file-access failures, invalid enum values). Empty on a clean read. */
+  warnings: string[];
 }
 
 /** Session-init-scoped result — the init-gating subset only. */
@@ -57,7 +57,7 @@ export interface ConfigSessionInitResult {
   mode: "session-init";
   settings: ConfigSessionInitSettings;
   defaultsApplied: string[];
-  errors: string[];
+  warnings: string[];
 }
 
 export type ConfigResult = ConfigStatusResult | ConfigSessionInitResult;

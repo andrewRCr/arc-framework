@@ -18,10 +18,10 @@ export function buildConfigStatusSummary(result: ConfigStatusResult): string {
     const marker = result.defaultsApplied.includes(key) ? " (default)" : "";
     lines.push(`  ${key}: ${result.settings[key]}${marker}`);
   }
-  if (result.errors.length > 0) {
+  if (result.warnings.length > 0) {
     lines.push("");
-    lines.push("Errors:");
-    for (const err of result.errors) lines.push(`  - ${err}`);
+    lines.push("Warnings:");
+    for (const warn of result.warnings) lines.push(`  - ${warn}`);
   }
   return lines.join("\n");
 }
@@ -35,10 +35,10 @@ export function buildConfigSessionInitSummary(result: ConfigSessionInitResult): 
     const marker = result.defaultsApplied.includes(key) ? " (default)" : "";
     lines.push(`  ${key}: ${result.settings[key]}${marker}`);
   }
-  if (result.errors.length > 0) {
+  if (result.warnings.length > 0) {
     lines.push("");
-    lines.push("Errors:");
-    for (const err of result.errors) lines.push(`  - ${err}`);
+    lines.push("Warnings:");
+    for (const warn of result.warnings) lines.push(`  - ${warn}`);
   }
   return lines.join("\n");
 }

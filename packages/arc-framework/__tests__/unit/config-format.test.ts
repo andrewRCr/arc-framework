@@ -52,7 +52,7 @@ function fullResult(overrides: Partial<ConfigStatusResult> = {}): ConfigStatusRe
     mode: "full",
     settings: { ...FULL_SETTINGS },
     defaultsApplied: [],
-    errors: [],
+    warnings: [],
     ...overrides,
   };
 }
@@ -64,7 +64,7 @@ function sessionInitResult(
     mode: "session-init",
     settings: { ...SESSION_INIT_SETTINGS },
     defaultsApplied: [],
-    errors: [],
+    warnings: [],
     ...overrides,
   };
 }
@@ -97,17 +97,17 @@ describe("buildConfigStatusSummary — counts + keys", () => {
     expect(summary).not.toContain("(default)");
   });
 
-  it("appends an Errors section when errors are present", () => {
+  it("appends a Warnings section when warnings are present", () => {
     const summary = buildConfigStatusSummary(
-      fullResult({ errors: ["Unable to read arc-config.yml: ENOENT"] }),
+      fullResult({ warnings: ["Unable to read arc-config.yml: ENOENT"] }),
     );
-    expect(summary).toContain("Errors:");
+    expect(summary).toContain("Warnings:");
     expect(summary).toContain("Unable to read arc-config.yml: ENOENT");
   });
 
-  it("omits the Errors section when no errors", () => {
+  it("omits the Warnings section when no warnings", () => {
     const summary = buildConfigStatusSummary(fullResult());
-    expect(summary).not.toContain("Errors:");
+    expect(summary).not.toContain("Warnings:");
   });
 });
 
@@ -139,11 +139,11 @@ describe("buildConfigSessionInitSummary — narrow subset", () => {
     expect(summary).not.toContain("pm.mode: arc-in-git (default)");
   });
 
-  it("appends Errors when present", () => {
+  it("appends Warnings when present", () => {
     const summary = buildConfigSessionInitSummary(
-      sessionInitResult({ errors: ["boom"] }),
+      sessionInitResult({ warnings: ["boom"] }),
     );
-    expect(summary).toContain("Errors:");
+    expect(summary).toContain("Warnings:");
     expect(summary).toContain("- boom");
   });
 });
@@ -152,13 +152,13 @@ describe("JSON round-trip — typed result shape is stable", () => {
   it("full-mode result preserves all fields through JSON.stringify/parse", () => {
     const result = fullResult({
       defaultsApplied: ["branch.base"],
-      errors: ["Unable to read arc-config.yml"],
+      warnings: ["Unable to read arc-config.yml"],
     });
     const roundTripped = JSON.parse(JSON.stringify(result)) as ConfigStatusResult;
     expect(roundTripped.mode).toBe("full");
     expect(roundTripped.settings["pm.mode"]).toBe("arc-in-git");
     expect(roundTripped.defaultsApplied).toEqual(["branch.base"]);
-    expect(roundTripped.errors).toEqual(["Unable to read arc-config.yml"]);
+    expect(roundTripped.warnings).toEqual(["Unable to read arc-config.yml"]);
   });
 
   it("session-init result preserves fields through JSON.stringify/parse", () => {

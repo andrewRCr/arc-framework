@@ -122,7 +122,7 @@ describe("buildExtensionsStatusSummary — frontmatter warnings", () => {
 
 describe("buildExtensionsSessionInitSummary", () => {
   function sessionInit(active: string[]): ExtensionsSessionInitResult {
-    return { mode: "session-init", active };
+    return { mode: "session-init", active, warnings: [] };
   }
 
   it("renders one extension per line with a leading count", () => {
@@ -155,6 +155,7 @@ describe("JSON wire contract", () => {
     const result: ExtensionsSessionInitResult = {
       mode: "session-init",
       active: ["pre-merge-review"],
+      warnings: [],
     };
     const parsed = JSON.parse(JSON.stringify(result)) as ExtensionsSessionInitResult;
     expect(parsed).toEqual(result);

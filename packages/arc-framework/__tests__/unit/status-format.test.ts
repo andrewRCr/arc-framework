@@ -89,7 +89,7 @@ function okConfig(): Probe<ConfigStatusResult> {
         "user.sync_push": "always",
       },
       defaultsApplied: [],
-      errors: [],
+      warnings: [],
     },
   };
 }
@@ -131,7 +131,10 @@ function makeSessionInitResult(
       },
     },
     worktree: { ok: true, value: { state: "clean", ahead: 0, behind: 0 } },
-    extensions: { ok: true, value: { mode: "session-init", active: ["pre-merge-review"] } },
+    extensions: {
+      ok: true,
+      value: { mode: "session-init", active: ["pre-merge-review"], warnings: [] },
+    },
     config: {
       ok: true,
       value: {
@@ -146,7 +149,7 @@ function makeSessionInitResult(
           "commit.context_footer": "required",
         },
         defaultsApplied: [],
-        errors: [],
+        warnings: [],
       },
     },
     active: {

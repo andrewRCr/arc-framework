@@ -37,12 +37,12 @@ const SESSION_INIT_KEYS = [
 export async function runConfigStatus(
   options: ConfigStatusOptions,
 ): Promise<ConfigStatusResult> {
-  const { settings, defaultsApplied, errors } = await readConfigSettings(options.cwd);
+  const { settings, defaultsApplied, warnings } = await readConfigSettings(options.cwd);
   return {
     mode: "full",
     settings,
     defaultsApplied,
-    errors,
+    warnings,
   };
 }
 
@@ -56,7 +56,7 @@ export async function runConfigStatus(
 export async function runConfigSessionInitStatus(
   options: ConfigSessionInitOptions,
 ): Promise<ConfigSessionInitResult> {
-  const { settings, defaultsApplied, errors } = await readConfigSettings(options.cwd);
+  const { settings, defaultsApplied, warnings } = await readConfigSettings(options.cwd);
   const scoped = {} as ConfigSessionInitSettings;
   for (const key of SESSION_INIT_KEYS) {
     scoped[key] = settings[key];
@@ -67,6 +67,6 @@ export async function runConfigSessionInitStatus(
     mode: "session-init",
     settings: scoped,
     defaultsApplied: scopedDefaults,
-    errors,
+    warnings,
   };
 }

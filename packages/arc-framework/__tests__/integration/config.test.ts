@@ -64,7 +64,7 @@ describe("runConfigStatus — full mode", () => {
     expect(result.settings["branch.protection"]).toBe("full");
     expect(result.settings["session.init_pull.worktree"]).toBe("prompt");
     expect(result.settings["session.init_pull.notes"]).toBe("prompt");
-    expect(result.errors).toHaveLength(0);
+    expect(result.warnings).toHaveLength(0);
     // Empty values in the file fall through to defaults per shell-aligned parser behavior.
     expect(result.defaultsApplied).toContain("commit.custom_pattern");
     expect(result.defaultsApplied).toContain("commit.context_pattern");
@@ -76,8 +76,8 @@ describe("runConfigStatus — full mode", () => {
     expect(result.settings["pm.mode"]).toBe("none");
     expect(result.settings["branch.protection"]).toBe("partial");
     expect(result.defaultsApplied.length).toBeGreaterThan(0);
-    expect(result.errors).toHaveLength(1);
-    expect(result.errors[0]).toContain("arc-config.yml");
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0]).toContain("arc-config.yml");
   });
 
   it("excludes hooks.* keys from the settings map", async () => {
@@ -152,7 +152,7 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
     expect(result.defaultsApplied).toContain("session.remote_sync");
     expect(result.defaultsApplied).toContain("session.init_pull.worktree");
     expect(result.defaultsApplied).toContain("session.init_pull.notes");
-    expect(result.errors).toHaveLength(1);
+    expect(result.warnings).toHaveLength(1);
   });
 
   it("reports only scoped keys in defaultsApplied when others are missing", async () => {
@@ -195,7 +195,7 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
     );
     const result = await runConfigSessionInitStatus({ cwd: fixture.root });
     expect(result.settings["session.init_pull.worktree"]).toBe("prompt");
-    expect(result.errors.length).toBeGreaterThan(0);
-    expect(result.errors.some((e) => e.includes("session.init_pull.worktree"))).toBe(true);
+    expect(result.warnings.length).toBeGreaterThan(0);
+    expect(result.warnings.some((e) => e.includes("session.init_pull.worktree"))).toBe(true);
   });
 });

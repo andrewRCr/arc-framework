@@ -143,7 +143,7 @@ export async function runExtensionsStatus(
 export async function runExtensionsSessionInitStatus(
   options: ExtensionsSessionInitOptions,
 ): Promise<ExtensionsSessionInitResult> {
-  const { extensions } = await readExtensionsDirectory(extensionsDir(options.cwd));
+  const { extensions, warnings } = await readExtensionsDirectory(extensionsDir(options.cwd));
   const active = extensions.filter((e) => e.active).map((e) => e.name);
-  return { mode: "session-init", active };
+  return { mode: "session-init", active, warnings };
 }

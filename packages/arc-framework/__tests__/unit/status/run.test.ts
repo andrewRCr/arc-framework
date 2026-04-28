@@ -104,7 +104,7 @@ function configResult(overrides: Partial<ConfigStatusResult> = {}): ConfigStatus
       "user.sync_push": "always",
     },
     defaultsApplied: [],
-    errors: [],
+    warnings: [],
     ...overrides,
   };
 }
@@ -136,7 +136,7 @@ function userSessionInit(
 function extensionsSessionInit(
   overrides: Partial<ExtensionsSessionInitResult> = {},
 ): ExtensionsSessionInitResult {
-  return { mode: "session-init", active: [], ...overrides };
+  return { mode: "session-init", active: [], warnings: [], ...overrides };
 }
 
 function worktreeSync(
@@ -160,7 +160,7 @@ function configSessionInit(
       "commit.context_footer": "required",
     },
     defaultsApplied: [],
-    errors: [],
+    warnings: [],
     ...overrides,
   };
 }
