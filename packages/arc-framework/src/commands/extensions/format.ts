@@ -7,6 +7,7 @@
  * (no-`--json`) invocation.
  */
 
+import { appendWarningsTail } from "../../lib/format/warnings.js";
 import type {
   ExtensionsSessionInitResult,
   ExtensionsStatusResult,
@@ -50,11 +51,7 @@ export function buildExtensionsStatusSummary(result: ExtensionsStatusResult): st
     }
   }
 
-  if (result.warnings.length > 0) {
-    lines.push("");
-    lines.push("Warnings:");
-    for (const w of result.warnings) lines.push(`  - ${w}`);
-  }
+  appendWarningsTail(lines, result.warnings);
 
   return lines.join("\n");
 }
@@ -66,12 +63,14 @@ export function buildExtensionsStatusSummary(result: ExtensionsStatusResult): st
  * @returns Multi-line summary for `p.note`
  */
 export function buildExtensionsSessionInitSummary(result: ExtensionsSessionInitResult): string {
-  if (result.active.length === 0) {
-    return "No active extensions.";
-  }
   const lines: string[] = [];
-  lines.push(`${result.active.length} active extensions:`);
-  for (const name of result.active) lines.push(`- ${name}`);
+  if (result.active.length === 0) {
+    lines.push("No active extensions.");
+  } else {
+    lines.push(`${result.active.length} active extensions:`);
+    for (const name of result.active) lines.push(`- ${name}`);
+  }
+  appendWarningsTail(lines, result.warnings);
   return lines.join("\n");
 }
 

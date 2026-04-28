@@ -12,11 +12,12 @@
  * @module
  */
 
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { resolveRepoRoot } from "./repo-root.js";
+import { walkMarkdown } from "../lib/fs/walk-markdown.js";
 import { parseFrontmatter } from "../lib/frontmatter/index.js";
 
 /** Declarations extracted from a single workflow file's frontmatter. */
@@ -106,22 +107,6 @@ function toStringArray(value: unknown): string[] {
 }
 
 /**
- * Recursively collect all `.md` files under `dir`.
- */
-export function walkMarkdownFiles(dir: string): string[] {
-  const out: string[] = [];
-  for (const entry of readdirSync(dir)) {
-    const full = join(dir, entry);
-    if (statSync(full).isDirectory()) {
-      out.push(...walkMarkdownFiles(full));
-    } else if (entry.endsWith(".md")) {
-      out.push(full);
-    }
-  }
-  return out.sort();
-}
-
-/**
  * Build independent coverage maps for methods and extensions.
  *
  * Same-name method+extension would require independent declarations — the
@@ -171,14 +156,14 @@ export function formatExtensionDiagnostic(name: string): string {
  *
  * Exposed as a pure function so tests can point it at a fixture tree.
  */
-export function audit(
+export async function audit(
   methodsDir: string,
   extensionsDir: string,
   workflowsDir: string,
-): AuditResult {
+): Promise<AuditResult> {
   const methodNames = enumerateMethods(methodsDir);
   const extensionNames = enumerateExtensions(extensionsDir);
-  const workflowPaths = walkMarkdownFiles(workflowsDir);
+  const workflowPaths = (await walkMarkdown(workflowsDir)).sort();
   const workflows: WorkflowEntry[] = workflowPaths.map((p) => ({
     path: relative(workflowsDir, p),
     content: readFileSync(p, "utf8"),
@@ -196,10 +181,10 @@ export function audit(
 
 // --- CLI entry ---
 
-function main(): void {
+async function main(): Promise<void> {
   const root = resolveRepoRoot();
   const systemDir = join(root, "packages/arc-framework/arc/system");
-  const result = audit(
+  const result = await audit(
     join(systemDir, "methods"),
     join(systemDir, "extensions"),
     join(systemDir, "workflows"),
@@ -216,5 +201,5 @@ function main(): void {
 }
 
 if (fileURLToPath(import.meta.url) === process.argv[1]) {
-  main();
+  void main();
 }

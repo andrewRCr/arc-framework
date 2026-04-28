@@ -195,35 +195,35 @@ describe("audit", () => {
     writeFile(rel, workflow(methods, extensions));
   }
 
-  it("passes when every method and extension has a declaration", () => {
+  it("passes when every method and extension has a declaration", async () => {
     const methods = writeMethodsDir(["alpha"]);
     const extensions = writeExtensionsDir(["post-x"]);
     const workflows = join(tmp, "workflows");
     mkdirSync(workflows, { recursive: true });
     writeWorkflow("workflows/one.md", ["alpha"], ["post-x"]);
-    const result = audit(methods, extensions, workflows);
+    const result = await audit(methods, extensions, workflows);
     expect(result.pass).toBe(true);
     expect(result.diagnostics).toEqual([]);
   });
 
-  it("fails with a method diagnostic when a method has no declaration", () => {
+  it("fails with a method diagnostic when a method has no declaration", async () => {
     const methods = writeMethodsDir(["alpha", "beta"]);
     const extensions = writeExtensionsDir([]);
     const workflows = join(tmp, "workflows");
     mkdirSync(workflows, { recursive: true });
     writeWorkflow("workflows/one.md", ["alpha"], []);
-    const result = audit(methods, extensions, workflows);
+    const result = await audit(methods, extensions, workflows);
     expect(result.pass).toBe(false);
     expect(result.diagnostics.some((d) => d.includes("\"beta\"") && d.includes("arc.methods"))).toBe(true);
   });
 
-  it("fails with an extension diagnostic when an extension has no declaration", () => {
+  it("fails with an extension diagnostic when an extension has no declaration", async () => {
     const methods = writeMethodsDir([]);
     const extensions = writeExtensionsDir(["post-x"]);
     const workflows = join(tmp, "workflows");
     mkdirSync(workflows, { recursive: true });
     writeWorkflow("workflows/one.md", [], []);
-    const result = audit(methods, extensions, workflows);
+    const result = await audit(methods, extensions, workflows);
     expect(result.pass).toBe(false);
     expect(result.diagnostics.some((d) => d.includes("\"post-x\"") && d.includes("arc.extensions"))).toBe(true);
   });

@@ -16,9 +16,10 @@
  * @module
  */
 
-import { readdir, readFile, stat } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 
+import { walkMarkdown } from "../../lib/fs/walk-markdown.js";
 import { parseExtensionFrontmatter } from "../../lib/frontmatter/index.js";
 import { classifyExtensionRefs } from "../../lib/extensions/orphan-detector.js";
 import { scanExtensionPoints, type ScanInput } from "../../lib/extensions/point-scanner.js";
@@ -75,21 +76,6 @@ async function readExtensionsDirectory(dir: string): Promise<DirectoryScan> {
     }
   }
   return { extensions, knownNames, warnings };
-}
-
-async function walkMarkdown(dir: string): Promise<string[]> {
-  const out: string[] = [];
-  const entries = await readdir(dir);
-  for (const entry of entries) {
-    const full = join(dir, entry);
-    const s = await stat(full);
-    if (s.isDirectory()) {
-      out.push(...(await walkMarkdown(full)));
-    } else if (entry.endsWith(".md")) {
-      out.push(full);
-    }
-  }
-  return out;
 }
 
 async function loadWorkflowInputs(dir: string): Promise<ScanInput[]> {

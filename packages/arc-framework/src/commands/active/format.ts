@@ -6,6 +6,7 @@
  * Clack note body that pairs with the default (no-`--json`) invocation.
  */
 
+import { appendWarningsTail } from "../../lib/format/warnings.js";
 import type {
   ActiveSessionInitResult,
   ActiveStatusResult,
@@ -34,11 +35,7 @@ export function buildActiveStatusSummary(result: ActiveStatusResult): string {
     }
   }
 
-  if (result.warnings.length > 0) {
-    lines.push("");
-    lines.push("Warnings:");
-    for (const w of result.warnings) lines.push(`  - ${w}`);
-  }
+  appendWarningsTail(lines, result.warnings);
 
   return lines.join("\n");
 }
@@ -64,11 +61,7 @@ export function buildActiveSessionInitSummary(result: ActiveSessionInitResult): 
     for (const candidate of result.candidates) lines.push(`  - ${renderCandidate(candidate)}`);
   }
 
-  if (result.warnings.length > 0) {
-    lines.push("");
-    lines.push("Warnings:");
-    for (const w of result.warnings) lines.push(`  - ${w}`);
-  }
+  appendWarningsTail(lines, result.warnings);
 
   return lines.join("\n");
 }

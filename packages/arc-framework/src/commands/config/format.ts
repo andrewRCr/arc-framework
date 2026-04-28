@@ -6,6 +6,7 @@
  * Clack note body that pairs with the default (no-`--json`) invocation.
  */
 
+import { appendWarningsTail } from "../../lib/format/warnings.js";
 import type { ConfigSessionInitResult, ConfigStatusResult } from "./types.js";
 
 /** Build the Clack summary for `arc config status` (full mode). */
@@ -18,11 +19,7 @@ export function buildConfigStatusSummary(result: ConfigStatusResult): string {
     const marker = result.defaultsApplied.includes(key) ? " (default)" : "";
     lines.push(`  ${key}: ${result.settings[key]}${marker}`);
   }
-  if (result.warnings.length > 0) {
-    lines.push("");
-    lines.push("Warnings:");
-    for (const warn of result.warnings) lines.push(`  - ${warn}`);
-  }
+  appendWarningsTail(lines, result.warnings);
   return lines.join("\n");
 }
 
@@ -35,10 +32,6 @@ export function buildConfigSessionInitSummary(result: ConfigSessionInitResult): 
     const marker = result.defaultsApplied.includes(key) ? " (default)" : "";
     lines.push(`  ${key}: ${result.settings[key]}${marker}`);
   }
-  if (result.warnings.length > 0) {
-    lines.push("");
-    lines.push("Warnings:");
-    for (const warn of result.warnings) lines.push(`  - ${warn}`);
-  }
+  appendWarningsTail(lines, result.warnings);
   return lines.join("\n");
 }
