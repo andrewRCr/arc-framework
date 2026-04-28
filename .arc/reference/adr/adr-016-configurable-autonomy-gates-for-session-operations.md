@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
@@ -12,8 +12,8 @@ shared model, and the resulting incoherences surface as design friction.
 
 The visible symptom is the worktree/notes sync gap. The `user.sync_push: always` option pushes git notes but not the
 underlying worktree, so notes can attach to commits that don't exist on origin. The fix requires pairing notes-sync
-with worktree-sync as peer concepts — but ARC has no shared frame in which to do that. Phase 5.0 of the Session-Init
-Optimization WU already captures this gap for a scoped fix; the gap itself is one instance of a broader pattern.
+with worktree-sync as peer concepts — but ARC has no shared frame in which to do that. [plan-user-sync-ux][plan-sync]
+scopes a focused fix; the gap itself is one instance of a broader pattern.
 
 Other instances:
 
@@ -21,10 +21,11 @@ Other instances:
   Intermediate snapshots are churn — produced but never consumed.
 - Commit control is stated in [DEV-RULES.ARC][dev-rules-arc] as a non-negotiable principle, but it functions as a
   sensible default. The real invariant is that the agent doesn't cross the merge-to-main boundary without the human.
-- Three upstream plans ([plan-user-sync-ux][plan-sync], [plan-quality-gate-hooks][plan-hooks],
-  [plan-work-unit-mobility][plan-mobility]) each tackle session-operational facets, but without a shared frame they
-  risk local fixes that don't compose — and mobility amplifies the pressure past what per-commit approval ceremony
-  can absorb without smoothing.
+- Multiple upstream plans ([plan-user-sync-ux][plan-sync], [plan-quality-gate-hooks][plan-hooks],
+  [plan-worktree-foundation][plan-wf], [plan-concurrent-work-conventions][plan-cwc],
+  [plan-agile-wu-lifecycle][plan-awl]) each tackle session-operational facets, but without a shared frame they
+  risk local fixes that don't compose — and worktree mobility amplifies the pressure past what per-commit approval
+  ceremony can absorb without smoothing.
 
 **Core insight:** Review is always human. The design axis is how many follow-on operations a single human approval
 triggers, not whether approval happens. Integration — merge to the integration branch or main — is the invariant
@@ -95,10 +96,10 @@ Adopt a gate model for session-operational flow.
 
 **Cascading rules:**
 
-- *Status-file timing splits.* Rotation fields (Next Task, Last Completed, Next Action) update at handoff. Shape
-  fields (State transitions, lifecycle-commit effects — activate, deactivate, rotate, integrate, archive, PRD
-  creation, task generation) update at commit time. Rotation-at-handoff aligns state-change with the consumer
-  boundary and eliminates per-commit metadata churn.
+- *Status-file timing.* Status-file updates fire only at session-handoff commits and workflow-ceremony commits
+  (activate / integrate / sweep / deactivate / PRD generation / planning lifecycle operations). Task-completion
+  code commits never touch the status file. This aligns state-change with the consumer boundary, eliminates
+  per-commit metadata churn, and removes the per-commit shape/rotation judgment call.
 - *Quality-gate failures always stop* regardless of autonomy level. The user approves the work, not bypassing gates.
 - *Approval signal vocabulary.* Each gate specifies a signal class required to cross it. Specific mechanics (phrases,
   typed confirmations, invocation commands) are scoped to the accompanying [plan-session-operational-flow][plan-ops].
@@ -116,8 +117,9 @@ Adopt a gate model for session-operational flow.
 
 ### Positive
 
-- Three upstream plans ([plan-user-sync-ux][plan-sync], [plan-quality-gate-hooks][plan-hooks],
-  [plan-work-unit-mobility][plan-mobility]) gain a shared frame. Each becomes smaller and internally coherent.
+- Multiple upstream plans ([plan-user-sync-ux][plan-sync], [plan-quality-gate-hooks][plan-hooks],
+  [plan-worktree-foundation][plan-wf], [plan-concurrent-work-conventions][plan-cwc],
+  [plan-agile-wu-lifecycle][plan-awl]) gain a shared frame. Each becomes smaller and internally coherent.
 - Worktree/notes sync consistency becomes expressible — both operations pair at the same gate.
 - Status-file churn is eliminated for task-completion commits; commit atomicity story clarifies.
 - Concurrent-session and multi-worktree ergonomics become configurable to the user's tolerance, without eroding
@@ -162,4 +164,6 @@ guidance. This section is a placeholder for dated amendment annotations if post-
 [plan-ops]: ../../backlog/technical/plan-session-operational-flow.md
 [plan-sync]: ../../backlog/technical/plan-user-sync-ux.md
 [plan-hooks]: ../../backlog/technical/plan-quality-gate-hooks.md
-[plan-mobility]: ../../backlog/feature/plan-work-unit-mobility.md
+[plan-wf]: ../../backlog/technical/plan-worktree-foundation.md
+[plan-cwc]: ../../backlog/feature/plan-concurrent-work-conventions.md
+[plan-awl]: ../../backlog/technical/plan-agile-wu-lifecycle.md
