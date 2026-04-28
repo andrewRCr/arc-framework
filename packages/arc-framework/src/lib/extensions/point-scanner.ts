@@ -53,10 +53,12 @@ export function scanExtensionPoints(inputs: ScanInput[]): ExtensionPointRef[] {
       EXTENSION_POINT_PATTERN.lastIndex = 0;
       let match: RegExpExecArray | null;
       while ((match = EXTENSION_POINT_PATTERN.exec(line)) !== null) {
+        // The pattern's single capture group is required for a successful
+        // match — non-null assertion is correct here, not a cast.
         refs.push({
           workflowPath: path,
           lineNumber: i + 1,
-          extensionName: match[1] as string,
+          extensionName: match[1]!,
         });
       }
     }
