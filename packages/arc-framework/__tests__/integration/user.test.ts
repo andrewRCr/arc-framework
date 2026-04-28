@@ -790,7 +790,9 @@ describe("user push and pull", () => {
   it("merge recovery preserves local disk state and rebases the save onto the remote notes base", async () => {
     mockSelect.mockResolvedValue("merge");
     const originalIsTTY = process.stdin.isTTY;
+    const originalCI = process.env.CI;
     Object.defineProperty(process.stdin, "isTTY", { value: true, configurable: true });
+    delete process.env.CI;
 
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
@@ -849,6 +851,11 @@ describe("user push and pull", () => {
       expect(restoredInClone).toBe("# Version 3 local");
     } finally {
       Object.defineProperty(process.stdin, "isTTY", { value: originalIsTTY, configurable: true });
+      if (originalCI === undefined) {
+        delete process.env.CI;
+      } else {
+        process.env.CI = originalCI;
+      }
     }
   });
 
