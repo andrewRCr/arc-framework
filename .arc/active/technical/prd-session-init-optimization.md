@@ -443,8 +443,9 @@ templates/template-tasks.md (new).
 
 Breaking-for-update changes. `arc update` handles directory restructure and content slim-down
 via three-way merge. Pre-publication breaking changes from this WU (methods/extensions layout,
-constitutional rule, agent-file surface removal, briefs rename, SESSION-NOTES `Working On:`
-type prefix formalization) land before any adopter exists — `plan-arcd-rebrand` republishes
+constitutional rule, agent-file surface removal, briefs rename, probe-side `sessionType`
+inference with optional SESSION-NOTES override) land before any adopter exists —
+`plan-arcd-rebrand` republishes
 under the new package name without a migration path (PRD § "no changelog for the rename, no
 release notes"). User customizations (overrides, extension steps) preserved across per-file
 restructure where adopters exist; for current zero-adopter state, two-copy manual sync handles
@@ -474,8 +475,8 @@ Binary qualitative criteria. MVP ships when all hold:
   blockers, non-default config, freshness, next action) remains accurate
 - Operational-context audit completes across Tier 1–3 + task-list-formatting restructure;
   extractions staged with suggested destinations; link placeholders greppable
-- Session-type conditional loading active; `Working On:` type prefix formalized;
-  auto-inference handles common cases without user prompts
+- Session-type conditional loading active; probe-side `sessionType` inference handles
+  common cases without user prompts, with SESSION-NOTES retaining an optional override
 - CLI (`arc init` / `arc join`) delivers updated SESSION-NOTES template
 - Two-copy sync clean; framework-sync test passing
 
