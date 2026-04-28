@@ -107,6 +107,10 @@ export async function runActiveSessionInitStatus(
   const identity = options.identity ?? null;
 
   if (role === "contributor" && identity === null) {
+    // No scan ran (no identity to resolve the contributor active root),
+    // so layout is indeterminate. Emit `full` as the schema-default; with
+    // `resolution: "none"` and `candidates: []`, downstream consumers do
+    // not read `layout`.
     return {
       mode: "session-init",
       layout: "full",
