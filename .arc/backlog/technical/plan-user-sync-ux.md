@@ -123,7 +123,7 @@ Remaining plan-level design choices (for PRD):
   (rebase in progress, upstream hook failure, detached HEAD), does the toggle skip silently, prompt,
   or error?
 - **Paired-operation failure semantics.** If worktree push succeeds but notes push fails (or vice
-  versa), how is the user surfaced to? Retry, rollback, report-and-continue?
+  versa), how is the failure surfaced to the user? Retry, rollback, report-and-continue?
 - **Backward compatibility with `user.sync_push`.** Does the existing key deprecate, get absorbed
   into the new toggle schema, or continue to coexist during transition?
 

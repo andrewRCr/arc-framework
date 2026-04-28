@@ -1,7 +1,7 @@
 # PRD: ARCd Rebrand
 
 - **Type:** Technical
-- **Updated:** 2026-04-14
+- **Updated:** 2026-04-22
 
 ---
 

@@ -6,7 +6,7 @@ and a local mode that enables ARC in repositories the developer doesn't control.
 
 - **State:** Draft (design phase complete — Lite, Local, and shift lifecycle resolved; Audits A + B drained; PRD-ready)
 - **Created:** 2026-04-01
-- **Last Updated:** 2026-04-14
+- **Last Updated:** 2026-04-28
 - **Origin:** Developer experience gaps at both ends of the adoption spectrum — small projects need less ceremony, and
   constrained environments need ARC without repo footprint.
 
