@@ -98,6 +98,25 @@ pre-checks (protected branches, unpushable states, rebase in progress), failure 
 remote-unavailable handling. Config axis shape is provided by the frame; this plan picks up the
 worktree/notes-specific instantiation.
 
+**Push-timing default — handoff-only.** Per [plan-session-operational-flow][plan-ops] § Design Decisions,
+the recommended default is handoff-only push (with per-commit available as a power-user opt-in). This plan's
+worktree+notes pairing is the canonical instantiation of that default. Rationales relevant here:
+
+- **Pairing.** Worktree-push and notes-push must land at the same gate; handoff is the natural pairing
+  point. Per-commit push of either side without the other re-creates the `user.sync_push: always`
+  incoherence this plan exists to fix.
+- **Concurrent-session safety.** Under ARC's parallel-session concurrency model (per
+  [plan-session-operational-flow][plan-ops] § Concurrency Model), multiple sessions may write to the
+  shared `refs/notes/arc/user/{identity}` ref. Handoff-only concentrates ref writes into deliberate
+  single events, dramatically reducing race surface compared to per-commit push from multiple sessions.
+
+**Shared-ref sync-state inference under parallel sessions.** Each session computes sync state independently
+from its worktree's HEAD. The notes ref is shared across the identity; sync-state inference must handle the
+case where another session pushed notes that this session hasn't fetched. Surface as part of the state-machine
+unification design — distinguish "your local is behind because you haven't fetched" from "your local is
+behind because work happened on another machine," and from "your local is behind because a sibling session
+on this machine pushed."
+
 ### Out of scope
 
 - Full reimplementation of the notes storage model (e.g., moving off git notes).

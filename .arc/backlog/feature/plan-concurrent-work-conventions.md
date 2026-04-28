@@ -72,6 +72,26 @@ framework that implicitly assumes linear single-WU progression. Shipping first-c
 - Extends ARC's attention-discipline principles into the multi-WU regime with guardrails, instead
   of ceding the ground entirely
 
+### ARC's concurrency model — parallel sessions, not in-session juggling
+
+Per [plan-session-operational-flow][plan-ops] § Concurrency Model: ARC's concurrency model is
+**parallel sessions, one WU per session, with shift as the in-session escape hatch for short
+detours.** Multi-WU work means multiple sessions, each scoped to one WU/worktree/branch with
+isolated SESSION-NOTES; sessions don't interact internally except at boundaries (spawning new WUs,
+sweep ceremonies, planning).
+
+This framing has direct implications for conventions in this WU:
+
+- "Developers pivot between WUs" means alt-tab between separate sessions, not in-session WU
+  switching. The metadata-only shift remains available for the niche atomic-detour case (brief
+  in-session pivots for atomic-tier work) but is not the dominant pattern.
+- Focus-role declarations (primary/companion/awaiting-external/parked) annotate WUs *across*
+  sessions; a session's role declaration changes when the developer deliberately re-annotates,
+  not as a side-effect of mid-session shifts.
+- Swap discipline ("swap primary ↔ companion only at review-increment boundaries") applies to
+  the *role annotation change*, not to in-session WU swapping — the annotation change is a
+  deliberate act in whichever session owns the affected WU.
+
 ---
 
 ## Relationship to Gate Model Frame
