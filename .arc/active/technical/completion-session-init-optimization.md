@@ -3,7 +3,7 @@
 - **Started**: 2026-04-18
 - **Completed**: 2026-04-27
 - **Branch**: technical/session-init-optimization
-- **Pull Request**: {URL — added in integrate-work-unit Step 7}
+- **Pull Request**: <https://github.com/andrewRCr/arc-framework/pull/21>
 
 - **Context**: Roadmap initiative — bring session-init token cost back below the architectural
   floor (~75–80k → ≤60k at orientation) ahead of broader dogfooding and public release.
