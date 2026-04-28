@@ -90,6 +90,14 @@ as a conditional hint line in `arc status`) to orient users who haven't internal
 terminology. Keep git notes vocabulary — supplement, don't abstract; devs need the terms to reason
 about `arc user *` commands, which are thin wrappers over `git notes` operations.
 
+**Worktree qualifier — surface `failureReason`.** When `worktree.state === "remote-unavailable"`,
+`formatWorktreeQualifierLine` (`sync-status.ts:354`) emits a single message regardless of whether
+the bounded fetch hit its 3 s timeout or errored outright. The `failureReason: "timeout" | "error"`
+field is captured by `runWorktreeSyncStatus` (`worktree-sync.ts:53`) but never reaches the user, so
+a transient blip and a hard auth/config failure render identically. Fold the field into the
+rendered line — timeout reads as "likely transient, retry or use `--offline`"; error reads as
+"investigate auth/network".
+
 **Auto-push implementation within the gate-model frame.** Consumes the handoff-interior toggle framework
 from [plan-session-operational-flow][plan-ops] (Phase 6). This plan instantiates paired worktree-push +
 notes-push as configurable handoff-interior actions — solving the `user.sync_push: always` incoherence
