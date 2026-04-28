@@ -163,7 +163,7 @@ validate_file() {
         [ -z "$match" ] && continue
         local ref
         ref=$(echo "$match" | sed -E 's/.*\[([^]]+)\]$/\1/')
-        if ! echo "$defs" | grep -qE "^\[${ref}\]:"; then
+        if ! echo "$defs" | grep -qiE "^\[${ref}\]:"; then
             diagnostic "$source_file: undefined reference -> [$ref]"
         fi
     done < <(echo "$sanitized" | grep -v '^\[[^]]*\]:' | grep -oE '\[[^]]*\]\[[^]]+\]' || true)

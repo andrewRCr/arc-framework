@@ -14,6 +14,12 @@ import { join } from "node:path";
 import { describe, it, expect, afterEach } from "vitest";
 import { runArc, createTempRepo, cleanupTempDir } from "./helpers.js";
 
+async function runHealthCheck(cwd: string): Promise<string> {
+  const result = await runArc(["health"], cwd);
+  expect(result.exitCode).toBe(0);
+  return result.stdout + result.stderr;
+}
+
 describe("lifecycle", () => {
   let tmpDir: string;
 
@@ -42,9 +48,7 @@ describe("lifecycle", () => {
     expect(statusTemplate).toContain("Status: [Work Name]");
 
     // --- Health after clean init ---
-    const cleanHealth = await runArc(["health"], tmpDir);
-    expect(cleanHealth.exitCode).toBe(0);
-    const cleanOutput = cleanHealth.stdout + cleanHealth.stderr;
+    const cleanOutput = await runHealthCheck(tmpDir);
     expect(cleanOutput).toContain("unmodified");
     expect(cleanOutput).not.toMatch(/\d+ modified/);
 
@@ -61,9 +65,7 @@ describe("lifecycle", () => {
     await writeFile(rulesPath, customized, "utf-8");
 
     // --- Health shows modification ---
-    const modifiedHealth = await runArc(["health"], tmpDir);
-    expect(modifiedHealth.exitCode).toBe(0);
-    const modOutput = modifiedHealth.stdout + modifiedHealth.stderr;
+    const modOutput = await runHealthCheck(tmpDir);
     expect(modOutput).toMatch(/\d+ modified/);
 
     // --- Diff shows the change ---
@@ -85,9 +87,7 @@ describe("lifecycle", () => {
     // The file differs from its pristine copy because the user customized it.
     // Update preserved the customization (three-way merge), but doesn't reset
     // the pristine to match the customized version.
-    const postUpdateHealth = await runArc(["health"], tmpDir);
-    expect(postUpdateHealth.exitCode).toBe(0);
-    const postOutput = postUpdateHealth.stdout + postUpdateHealth.stderr;
+    const postOutput = await runHealthCheck(tmpDir);
     expect(postOutput).toMatch(/\d+ modified/);
   });
 });

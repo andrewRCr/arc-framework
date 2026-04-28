@@ -25,6 +25,18 @@ async function pathExists(p: string): Promise<boolean> {
   }
 }
 
+async function readInstallManifest(cwd: string): Promise<{
+  files: Record<string, { classification: string }>;
+}> {
+  const manifestRaw = await readFile(
+    join(cwd, ".arc", "system", ".internal", "manifest.json"),
+    "utf-8",
+  );
+  return JSON.parse(manifestRaw) as {
+    files: Record<string, { classification: string }>;
+  };
+}
+
 describe("arc init --reconfigure", () => {
   let tmpDir: string;
 
@@ -126,16 +138,15 @@ describe("arc init --reconfigure", () => {
   });
 
   it("reconfigure leaves per-file methods and extensions directories untouched", async () => {
-    const methodNames = [
-      "commit-context-format", "commit-format", "diff-review",
-      "issue-triage", "quality-gate-commands", "review-triage",
-      "session-state", "test-first",
-    ];
-    const extensionNames = [
-      "post-context-load", "post-task-completion", "post-task-quality",
-      "post-unit-quality", "post-work-unit-activate",
-      "post-work-unit-archive", "pre-merge-review", "pre-stage-review",
-    ];
+    const baselineManifest = await readInstallManifest(tmpDir);
+    const methodNames = Object.keys(baselineManifest.files)
+      .map((key) => key.match(/^system\/methods\/(.+)\.md$/)?.[1])
+      .filter((name): name is string => name !== undefined && name !== "README")
+      .sort();
+    const extensionNames = Object.keys(baselineManifest.files)
+      .map((key) => key.match(/^system\/extensions\/(.+)\.md$/)?.[1])
+      .filter((name): name is string => name !== undefined && name !== "README")
+      .sort();
 
     // Snapshot per-file content before reconfigure (fresh init baseline).
     const before: Record<string, string> = {};
@@ -168,13 +179,7 @@ describe("arc init --reconfigure", () => {
     }
 
     // Manifest still has all 18 entries with unchanged classification.
-    const manifestRaw = await readFile(
-      join(tmpDir, ".arc/system/.internal/manifest.json"),
-      "utf-8",
-    );
-    const manifest = JSON.parse(manifestRaw) as {
-      files: Record<string, { classification: string }>;
-    };
+    const manifest = await readInstallManifest(tmpDir);
     for (const name of methodNames) {
       const key = `system/methods/${name}.md`;
       expect(manifest.files[key]!.classification).toBe("Configurable");

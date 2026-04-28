@@ -222,25 +222,25 @@ git --no-pager diff --stat
 npm install -g @arc-framework/cli
 
 # Initialize ARC in a new project
-arc init
+npx arc init
 
 # Initialize with non-interactive defaults
-arc init --yes --name "My Project" --pm-mode arc-in-git --tools claude,cursor
+npx arc init --yes --name "My Project" --pm-mode arc-in-git --tools claude,cursor
 
 # Change structural settings on an existing installation (pm.mode, team.mode, project name)
-arc init --reconfigure
+npx arc init --reconfigure
 
 # Preview reconfigure changes without applying
-arc init --reconfigure --dry-run
+npx arc init --reconfigure --dry-run
 
 # Join an existing ARC project (personal workspace: role, identity, skills)
-arc join
+npx arc join
 
 # Change personal workspace settings (role, tools)
-arc join --reconfigure
+npx arc join --reconfigure
 
 # Update framework files to the latest version
-arc update
+npx arc update
 ```
 
 ### Session State Portability

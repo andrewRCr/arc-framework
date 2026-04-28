@@ -188,7 +188,7 @@ arc-in-git files are annotated explicitly.
 - `system/workflows/project/README.md`
 - `user/README.md`
 
-### Configurable files (project sections expected to differ)
+### Configurable files (project sections expected to differ) — 22
 
 - `reference/archive/README.md`
 - `reference/constitution/DEV-RULES.PROJECT.md`

@@ -302,7 +302,7 @@ branch. They share one `status-{name}.md`. Coordination mechanisms:
 **`user.sync_push` and team mode:** When `arc init` sets `team.mode: true`, it defaults
 `user.sync_push` to `prompt` (ask before pushing session notes). If you toggle `team.mode`
 after init by editing `arc-config.yml`, `user.sync_push` is not automatically updated — check
-and adjust it manually. Per-developer override: `git config arc.syncPush`.
+and adjust it manually. Per-developer override: `git config arc.syncPush <always|prompt|manual>`.
 
 ---
 

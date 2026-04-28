@@ -71,7 +71,9 @@ git checkout -b {category}/plan-{name}
   `technical/plan-{new-work-name}`, `feature/plan-{new-work-name}`
 + **Standalone planning** follows the same pattern, or use `planning/{working-name}` when the
   final category or name isn't known yet
-+ **If scope shifts significantly during planning:** `git branch -m {old} {new}` and update the remote
++ **If scope shifts significantly during planning:** rename locally with `git branch -m {old} {new}`,
+  push the renamed branch with `git push --set-upstream origin {new}`, then remove the old remote branch
+  with `git push --delete origin {old}`
 
 ### 4) Proceed to Next Step
 
