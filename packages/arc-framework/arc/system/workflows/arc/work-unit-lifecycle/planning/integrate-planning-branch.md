@@ -75,7 +75,10 @@ gh pr create --base {base-branch} --head {planning-branch}
 > **Platform:** Commands use GitHub CLI (`gh`). For other platforms, see QUICK-REFERENCE
 > § Platform Commands for equivalent tools and commands.
 
-**PR description** — planning branches don't have completion docs, so the PR description stands alone:
+**PR description** — Use [template-pull-request][template-pull-request] for body structure. Planning
+branches don't have completion docs, so the PR description stands alone — and they typically need only
+`**Spec:**` (PRD or task list path) and `## Summary`; Test Plan, Out of Scope, and Follow-Up Work
+sections don't apply to planning artifacts.
 
 - **Simple planning branch:** Summarize the planned work unit — name, category, scope overview.
   Reference the PRD for details.
@@ -133,3 +136,4 @@ yet — `activate-work-unit.md` Step 5 creates it at activation time.
 [arc-ext-post-archive]: ../../../../extensions/post-work-unit-archive.md
 [session-handoff]: ../../session-lifecycle/session-handoff.md
 [dev-rules-arc]: ../../../../../reference/constitution/DEV-RULES.ARC.md
+[template-pull-request]: ../../../../../reference/templates/template-pull-request.md
