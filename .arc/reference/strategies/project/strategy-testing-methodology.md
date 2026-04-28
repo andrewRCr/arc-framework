@@ -169,11 +169,11 @@ than observable outcomes.
   instead. Without this, a test can't reset the mock's state because it holds no reference.
 - **Use `vi.resetAllMocks()` in `beforeEach`, not `vi.clearAllMocks()`.** `clearAllMocks` wipes
   call history but preserves `.mockResolvedValue` / `.mockImplementation` across tests, silently
-  leaking state. `resetAllMocks` blanks both.
-- **Re-establish defaults after reset.** `vi.resetAllMocks()` also wipes construction-time
-  defaults passed to `vi.fn(impl)` (Vitest 3.x behavior). Every mock with a default must have it
-  re-established in `beforeEach` — preferably via a single `resetMockDefaults()` helper at the
-  top of the file.
+  leaking state. `resetAllMocks` clears both call state and runtime overrides.
+- **Re-establish per-test overrides after reset.** `vi.resetAllMocks()` restores `vi.fn(impl)` to
+  its original implementation rather than losing construction-time defaults. Re-apply any per-test
+  behavior in `beforeEach` — preferably via a single `resetMockDefaults()` helper at the top of the
+  file.
 
 Why this matters: mock bleed across tests produces order-dependent failures that are hard to
 diagnose and easy to paper over with ad-hoc resets. The uniform rule eliminates the footgun

@@ -17,7 +17,7 @@ active: false
 Use for: AI review tool integration (CodeRabbit, Copilot, etc.), multi-pass review strategies, structured
 human review protocols, or any additional ceremony beyond the method's review. When processing findings from
 any review source, use the [review-triage method][review-triage] for classification
-(fix/defer/reject/silent-fix).
+(fix-now/defer/reject/silent-fix).
 
 ## pre-merge-review.actions
 

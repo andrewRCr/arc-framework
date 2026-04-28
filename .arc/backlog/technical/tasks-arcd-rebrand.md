@@ -107,7 +107,7 @@ _Branch:_ `technical/arcd-rebrand` (created from `main` via
         - `pm.mode:` → `pm.layer:`; value `arc-in-git` → `arc-pm`
         - `team.mode:` → `team.enabled:`
         - Add one-line header comment per R27:
-          "ARCd installation config — see `arc-methods.md` for behavioral overrides."
+          "ARCd installation config — see `system/methods/` for behavioral overrides."
         - Leave other defaults unchanged
 
     - `[ ]` **1.3.c Update CLI code that hardcodes the config filename**
@@ -253,8 +253,8 @@ For squashed delivery, use `merge.strategy: squash` on this PR only.
         - `QUICK-REFERENCE.md` — commands and environment context (path references + brand sweep)
         - `TECHNICAL-OVERVIEW.md`, `PROJECT-STATUS.md` — prose sweep
 
-    - `[ ]` **2.1.f `.arc/system/workflows/` (arc-methods, arc-extensions, workflow files)**
-        - `arc-methods.md`, `arc-extensions.md` — prose sweep (methodology vocabulary stays ARC)
+    - `[ ]` **2.1.f `.arc/system/` methods, extensions, and workflow files**
+        - `system/methods/`, `system/extensions/` — prose sweep (methodology vocabulary stays ARC)
         - Individual workflow files under `workflows/arc/` — prose sweep with attention to
           agent-facing output language vs. CLI output chrome
         - Hook message prose per guardrail F
@@ -370,12 +370,12 @@ For squashed delivery, use `merge.strategy: squash` on this PR only.
 - _Note:_ **Follow [`rotate-branch.md`][rotate-branch] Steps 1–3** (verify, prep, merge). Step 4 (create
   next branch) is deferred to Phase 3 after session boundary ①.
 
-    - `[ ]` **2.9.a Pre-merge review (method: pre-merge-review)**
+    - `[ ]` **2.9.a Pre-merge review (method: diff-review)**
         - Run aggregate diff review against `main` — check for scope creep, inconsistencies, dead
           code, documentation drift, and unresolved TODO markers
-        - Process findings via review-triage (fix/defer/reject/silent-fix)
+        - Process findings via review-triage (fix-now/defer/reject/silent-fix)
         - If `pre-merge-review` extension is configured (CodeRabbit), run it as a second pass per
-          `arc-extensions.md` § pre-merge-review
+          `system/extensions/pre-merge-review.md`
 
     - `[ ]` **2.9.b Push branch, create PR, merge to main**
         - `git push -u origin technical/arcd-rebrand`

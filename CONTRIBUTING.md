@@ -10,7 +10,7 @@ by `npm run lint:sh` from the system PATH; it is not bundled as an npm dependenc
 
 1. Fork and clone the repository
 2. Install dependencies: `npm install`
-3. Join as a contributor: `npx @arc-framework/cli join`
+3. Join as a contributor: `npx arc join`
 4. Verify your setup — all checks should pass on a clean checkout:
 
 ```bash

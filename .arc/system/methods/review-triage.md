@@ -10,7 +10,8 @@ override-active: false
 > - **When:** Agent processes findings from any code review (self-review, AI tool, human reviewer)
 >
 > - **Contract:** Every review finding gets an explicit disposition. No finding is silently ignored.
->   Dispositions are documented in the commit message that addresses them.
+>   `FIX NOW`, `DEFER`, and `REJECT` are documented in the commit message that addresses them;
+>   `SILENT FIX` may be omitted when the change is self-evident.
 
 ## review-triage.override
 
@@ -41,7 +42,7 @@ documented deferrals? code scheduled for replacement?), and impact (functionalit
 - Out of scope for current work
 - Reviewer misunderstands the context
 
-**SILENT FIX** (minor findings — no explicit documentation needed) if:
+**SILENT FIX** (minor findings — explicit per-finding documentation optional) if:
 
 - Typo corrections, formatting improvements
 - Minor code quality enhancements

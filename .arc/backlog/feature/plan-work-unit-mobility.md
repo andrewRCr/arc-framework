@@ -6,19 +6,19 @@ shift), and across attention (focus-role model). Closes a current blind spot whe
 no awareness of git worktrees and where same-dev parallel-WU usage is only accidentally
 supported as a byproduct of team-mode structural design.
 
-**State:** Draft — pre-PRD exploration captured; iteration expected before PRD promotion.
-One material open question (pause-pointer reconciliation) must resolve before PRD-readiness.
+- **State:** Draft — pre-PRD exploration captured; iteration expected before PRD promotion.
+  One material open question (pause-pointer reconciliation) must resolve before PRD-readiness.
 
-**Created:** 2026-04-17
+- **Created:** 2026-04-17
 
-**Origin:** Surfaced during a pre-PRD exploratory session on the Session-Init Optimization
-planning branch. Worktree support had been noted as a blind spot but not formally captured;
-the `/arc-shift` skill was embedded in `plan-arc-modes.md` as a Local-mode mechanism without
-treatment for how it composes with worktrees or same-dev parallel-WU use. Exploration
-confirmed: (a) shift is structurally extractable from the modes plan, (b) worktrees and
-shift together form a coherent "mobility" capability larger than either alone, (c)
-first-class same-dev support for concurrent WUs is a distinct gap from team-mode's
-multi-developer coordination.
+- **Origin:** Surfaced during a pre-PRD exploratory session on the Session-Init Optimization
+  planning branch. Worktree support had been noted as a blind spot but not formally captured;
+  the `/arc-shift` skill was embedded in `plan-arc-modes.md` as a Local-mode mechanism without
+  treatment for how it composes with worktrees or same-dev parallel-WU use. Exploration
+  confirmed: (a) shift is structurally extractable from the modes plan, (b) worktrees and
+  shift together form a coherent "mobility" capability larger than either alone, (c)
+  first-class same-dev support for concurrent WUs is a distinct gap from team-mode's
+  multi-developer coordination.
 
 ---
 

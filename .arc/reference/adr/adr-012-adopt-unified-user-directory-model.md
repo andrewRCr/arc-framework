@@ -257,7 +257,7 @@ tasks section — unchanged), ADR-009 Part 1 (three PM modes — unchanged).
 - `integrate-work-unit.md` — Add pre-merge inbox review step (arc-in-git mode).
 - `process-task-loop.md` — Update incidental work routing: `ATOMIC-TASKS.md` → `ATOMIC-INBOX.md`, path update to
   `user/{identity}/`.
-- `arc-methods.md` — Update session-state method references. Add or update `user.sync_push` config reference.
+- `session-state` method — Update session-state references. Add or update `user.sync_push` config reference.
 
 **Template files:**
 
@@ -358,7 +358,7 @@ unified `user/{identity}/` directory plus git-notes portability.
 - `arc user load`, `arc user pull`, and the pull direction of `arc sync` walk reachable
   ancestors with a bounded default search and expose `--max-walk <n>` for deeper scans.
 - Overwrite confirmations are on by default; `--yes` bypasses those prompts on `arc sync`,
-  `arc user pull`, `arc user fetch`, and `arc user load`.
+  `arc user pull`, and `arc user load`. `arc user fetch` is transport-only and non-destructive.
 
 **Documentation consequence:** Reader-oriented command references should describe fetch/pull/sync
 with these amended semantics. QUICK-REFERENCE points here for the durable model; archive docs

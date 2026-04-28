@@ -39,7 +39,7 @@ for immediate evaluation rather than saved to a tracking file.
 ### 2) Process Findings
 
 Work through findings sequentially using the [review-triage method][arc-methods-rt]
-(fix/defer/reject/silent-fix classification).
+(fix-now/defer/reject/silent-fix classification).
 
 **Workflow**: Review finding -> evaluate -> fix or decide disposition -> repeat.
 

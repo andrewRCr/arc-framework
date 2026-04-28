@@ -17,14 +17,14 @@ active: true
 Use for: AI review tool integration (CodeRabbit, Copilot, etc.), multi-pass review strategies, structured
 human review protocols, or any additional ceremony beyond the method's review. When processing findings from
 any review source, use the [review-triage method][review-triage] for classification
-(fix/defer/reject/silent-fix).
+(fix-now/defer/reject/silent-fix).
 
 ## pre-merge-review.actions
 
 **CodeRabbit AI code review** — at least one pass, optionally more based on findings.
 
 1. Run CodeRabbit review on the aggregate diff against the parent branch
-2. Process findings using the [review-triage method][review-triage] (fix/defer/reject/silent-fix)
+2. Process findings using the [review-triage method][review-triage] (fix-now/defer/reject/silent-fix)
 3. If fixes were made, optionally run a second pass to verify — use judgment based on fix scope
 
 **Invocation options (choose one):**

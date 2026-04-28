@@ -365,7 +365,7 @@ directory contents as a note attached to HEAD at handoff time.
 Session workflows integrate these automatically: session handoff triggers save + push; session
 init triggers `arc user pull` when remote notes are ahead and `arc user load` when local files
 are missing or stale. Overwrite prompts default to confirm and accept `--yes` on `arc sync`,
-`arc user pull`, `arc user fetch`, and `arc user load`.
+`arc user pull`, and `arc user load`; `arc user fetch` is transport-only and non-destructive.
 
 **Push policy** (`user.sync_push` in `arc-config.yml`):
 
