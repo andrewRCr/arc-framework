@@ -79,10 +79,24 @@ and CI machinery in place to prevent drift recurrence.
   checked-out branch on session start; categorically larger risk surface than notes auto-pull
   (hook triggers, CI webhooks, working-tree dirt). Notes auto-pull retains `always` mode.
 
+- _Shared utility extractions during pre-merge review_ —
+  `validateFrontmatterShape` + `isStringArray` (`lib/frontmatter/generic`),
+  `runPathListScript` + `resolveRepoRoot` (`src/scripts/`), async `walkMarkdown` (`lib/fs/`),
+  `appendWarningsTail` (`lib/format/`). Collapses near-clones across method/extension/dev-rules
+  schema parsers, five pre-commit/audit script skeletons, and four formatter "Warnings:" tails.
+
 ## Verification
 
 - _Quality gates:_ md lint, ts/sh lint, typecheck (source + tests), unit + integration + E2E
   suites, build — all passed.
+
+- _Pre-merge review (two passes):_ pass 1 (correctness lens — 8 `(code review)` commits);
+  pass 2 (structural lens — 9 `(code review)` commits). Pass 2 surfaced one correctness leak
+  (`readRefHash` returned untrimmed `git rev-parse` stdout, breaking ref equality in
+  `inspectUserSyncRefsDetailed` and reporting equal refs as `diverged`; masked by a test
+  fixture that omitted the trailing `\n`). Trim fix landed with a regression-pinning fixture
+  update. Other pass-2 commits factored shared utilities and tightened mock fidelity / test
+  meaningfulness without behavior change.
 
 - _Success criteria:_ 16 of 16 met. Three deviations annotated inline:
 
