@@ -164,48 +164,119 @@ Atlantis, Terraform autonomy tiers, Conventional Changelog boundary-consolidatio
 **User Sync UX Polish** — After Session-Operational Flow Phase 6 (handoff-interior toggles)
 
 State-machine unification (collapse full-mode and session-init notes-sync probes to one spine),
-directional copy audit across `arc status` output, and `user.sync_push` scope expansion — design
-plus external research for coupled commit + notes push semantics. Surfaced 2026-04-24 during
-cross-machine resume: full-mode recommended `arc user save` when the user actually needed
-`arc user pull` — same root cause as divergent state machines, with ambiguous copy compounding
-the confusion. Landing before ARCd Rebrand means the rename pass picks up a consolidated state
-machine and directional copy, rather than re-touching churned output. Sibling atomic fix for the
-`arc user fetch` prompt removal lands in the Session-Init Optimization WU; this WU handles the
-architectural work.
+directional copy audit across `arc status` output, notes-discovery fix (HEAD-independent walk so
+cross-machine resumes find latest notes regardless of worktree HEAD), and `user.sync_push` scope
+expansion — design plus external research for coupled commit + notes push semantics. Surfaced
+2026-04-24 during cross-machine resume; notes-discovery scope addition surfaced 2026-04-28 when
+the same chicken-and-egg problem (notes ride with HEAD) became a concrete blocker for branch-gone
+detection's cross-machine signal. Landing before ARCd Rebrand means the rename pass picks up a
+consolidated state machine and directional copy, rather than re-touching churned output. Sibling
+atomic fix for the `arc user fetch` prompt removal lands in the Session-Init Optimization WU;
+this WU handles the architectural work.
 
 - Plan: `technical/plan-user-sync-ux.md`
 - Upstream: Session-Init Optimization (atomic fetch-prompt fix, lean session-init substrate),
   Session-Operational Flow Phase 6 (handoff-interior toggle framework — substrate for auto-push
   implementation)
+- Sibling: Coord Probe (parallelizable; consumes the notes-discovery fix as one signal source
+  for branch-gone detection)
 - Downstream: Work-Unit Mobility (clean sync UX before worktree-aware detection lands),
   ARCd Rebrand (terminology surface stabilized before rename), Dogfooding (beta-ready
   user-sync surface)
 - **Scope note:** Natural split aligned with frame dependency: WU-A (state-machine unification +
-  copy audit — independent of gate-model frame) can ship as soon as Session-Init Optimization
-  lands; WU-B (auto-push instantiation against handoff-interior toggles) waits for
-  Session-Operational Flow Phase 6. Unified if sequencing allows.
+  copy audit + notes-discovery fix — independent of gate-model frame) can ship as soon as
+  Session-Init Optimization lands; WU-B (auto-push instantiation against handoff-interior
+  toggles) waits for Session-Operational Flow Phase 6. Unified if sequencing allows.
 
-**Work-Unit Mobility** — After User Sync UX Polish
+**Worktree Foundation** — Parallel with User Sync UX Polish and Coord Probe (after Session-Operational Flow lands)
 
-First-class same-developer support for moving between work units — across time (shift
-lifecycle: pause / resume / rotate), across filesystem (worktree-aware session-init and
-status surfaces), and across attention (focus-role model). Closes a blind spot where ARC has
-no awareness of git worktrees and where same-dev parallel-WU usage is only accidentally
-supported as a byproduct of team-mode structural design. Extracts shift lifecycle from the
-original ARC Operating Modes scope so modes can focus on mode architecture without also
-landing a cross-cutting lifecycle subsystem. One material open question (pause-pointer
-reconciliation) must resolve before PRD promotion.
+Mechanism layer for parallel and mobile work — extracts shift lifecycle from arc-modes (mode-universal
+infrastructure), adds worktree-aware shift, gives session-init worktree context awareness including
+branch-gone detection, resolves cross-WU file sync semantics, and migrates `manage-incidental-work` off
+the four pause-pointer fields (`Interrupts:`, `Paused At:`, `Paused To:`, `Spawned:`) onto shift state.
+Carved out from former Work-Unit Mobility WU as the mechanism-only piece — conventions land in
+Concurrent Work Conventions; tier model in Agile WU Lifecycle. Resolves the long-standing concern that
+ROADMAP claims "parallelizable" downstream WUs without ARC actually having parallelism infrastructure.
 
-- Plan: `feature/plan-work-unit-mobility.md` (pre-PRD draft, iteration expected)
-- Upstream: Session-Init Optimization (stable session-init substrate to extend),
-  User Sync UX Polish (clean sync state machine before worktree axis joins it),
-  Session-Operational Flow Phases 3/5/6 (configurable autonomy modes — reduce approval ceremony
-  under multi-session load; async-merge integration-surface audit added to mobility scope per
-  ADR-016 discussion)
-- Downstream: ARCd Rebrand (stable mobility terminology absorbed into rename pass),
-  ARC Operating Modes (shift lifecycle available as prerequisite, not bundled into modes)
+- Plan: `technical/plan-worktree-foundation.md` (pre-PRD draft, iteration expected)
+- Upstream: Session-Init Optimization (lean session-init substrate to extend),
+  Session-Operational Flow (avoid session-init workflow surface conflicts)
+- Sibling: User Sync UX Polish, Coord Probe (parallelizable; SESSION-NOTES per-worktree handling
+  interacts with sync semantics, either order works)
+- Downstream: Agile WU Lifecycle (clean activate/integrate workflows), Concurrent Work Conventions
+  (mechanism layer entirely), Coord Probe (consumes branch-gone fire point), ARC Operating Modes
+  (extracted shift lifecycle as prerequisite, not bundled), ARCd Rebrand (terminology absorbed)
 
-**Quality Gate Tiers and Hook Integration** — After Work-Unit Mobility
+**Coord Probe** — Parallel with User Sync UX Polish and Worktree Foundation (after Session-Operational Flow lands)
+
+Establishes ARC's first external-coordination integration surface — a `coord-probe` method backed
+by a CLI subcommand (`arc coord probe`) and pluggable adapters. Answers "where should I be working"
+at session-init's branch-gone fire point and other discovery moments where in-git state alone is
+insufficient. Ships in-git default and bundled GitHub adapter (`gh pr/issue list --assignee @me`);
+documents custom-adapter contract for Linear / Jira / etc. Surfaced 2026-04-28 during cross-machine
+resume — primary machine returned to a merged-and-deleted feature branch, worktree probe correctly
+reported `remote-unavailable` but couldn't identify the right target. Discussion confirmed
+detection is straightforward but target resolution at team scale needs a pluggable signal source
+beyond `.arc/active/` walks. Fills the no-behavioral-hook gap on `pm.mode: external`.
+
+- Plan: `technical/plan-coord-probe.md` (pre-PRD draft, iteration expected)
+- Upstream: Session-Init Optimization (lean session-init substrate to extend),
+  Session-Operational Flow (avoid session-init workflow surface conflicts; coord-probe's
+  session-init consumption shouldn't churn the same edits)
+- Sibling: User Sync UX Polish (parallelizable; coord-probe consumes notes-discovery fix from
+  User Sync UX as one signal source — graceful degradation when not yet available),
+  Worktree Foundation (parallelizable; Worktree Foundation's branch-gone detection consumes the
+  probe as one cascade signal)
+- Downstream: Agile WU Lifecycle (downstream of all three first-wave WUs via Worktree Foundation),
+  Concurrent Work Conventions (further downstream), ARCd Rebrand (terminology surface stabilized
+  before rename)
+
+**Agile WU Lifecycle** — After Worktree Foundation
+
+Three-tier work-unit model (atomic / quick / standard) with structurally differentiated artifact
+requirements and invariant execution discipline. Closes the agility gap where ARC's uniform ceremony
+costs more than the work for short-lived WUs. Atomic tier: no task list, single concern, PR
+description as archive. Quick tier: flat task list with required Scope section, no PRD, single
+deliverable. Standard tier: full plan/PRD/phased-tasks/completion-doc lifecycle. Adds `**Tier:**` and
+`**Spec:**` fields to status template, `arc start` command for fast WU activation, ceremony scaling
+for activate/integrate/archive workflows. Retires atomic-companion file (PRD-time decision) and
+incidental category (subsumed by tier model + shift lifecycle). Constitutional amendment to
+DEV-RULES.ARC: tiered artifact requirements with invariant execution discipline — explicitly answers
+plan-arc-modes' "Required vs Available" rejection by preserving execution discipline at every tier.
+Companion ADR drafted at PRD time (parallel scale to ADR-016).
+
+- Plan: `technical/plan-agile-wu-lifecycle.md` (pre-PRD draft, iteration expected)
+- Upstream: Worktree Foundation (clean activate/integrate workflows post-pointer-field retirement;
+  the tier model's `arc start` operates on worktree-aware activation substrate),
+  Session-Operational Flow (no direct dependency, but avoids surface conflicts on
+  activation/integration workflow edits)
+- Downstream: Concurrent Work Conventions (tier model informs concurrency conventions; focus-role
+  model interacts with tier),
+  Quality Gate Tiers and Hook Integration (gate-tier mapping per WU tier),
+  ARCd Rebrand (tier vocabulary absorbed into rename pass)
+
+**Concurrent Work Conventions** — After Agile WU Lifecycle
+
+Conventions layer for principled multi-WU work — focus-role model (`primary | companion |
+awaiting-external | parked`), blessed pairings, swap discipline at review-increment boundaries,
+async-merge integration-surface audit, `strategy-concurrent-work.md` (new strategy doc as sibling to
+strategy-team-coordination), main-worktree-under-full-protection convention ("your main worktree is
+not always on main"), ROADMAP parallelism format research and redesign. Renamed from former Work-Unit
+Mobility WU as part of the agile/mobility split (mechanism → Worktree Foundation; tier model →
+Agile WU Lifecycle; conventions → this WU). Composes with mechanism + tier-model layers to deliver
+"agile, principled, multi-WU work."
+
+- Plan: `feature/plan-concurrent-work-conventions.md` (pre-PRD draft, iteration expected)
+- Upstream: Worktree Foundation (mechanism layer; pause-pointer migration), Agile WU Lifecycle (tier
+  model; focus-role applies to quick + standard, not atomic),
+  User Sync UX Polish (clean sync state machine before worktree-axis-plus-focus-role conventions
+  land), Session-Operational Flow Phases 3/5/6 (configurable autonomy reduces approval ceremony
+  under multi-session load; async-merge audit captured here per ADR-016 discussion)
+- Downstream: ARCd Rebrand (concurrent-work terminology absorbed into rename pass),
+  ARC Operating Modes (shift lifecycle delivered by Worktree Foundation as prerequisite;
+  concurrent-work conventions inform mode-specific guidance)
+
+**Quality Gate Tiers and Hook Integration** — After Concurrent Work Conventions
 
 Align ARC's tier model (Tier 1/2/3) with standard git hook stages (pre-commit / pre-push / CI),
 likely via rename to gate-stage naming (commit-gate / push-gate / pr-gate — final shape TBD).
@@ -223,7 +294,8 @@ already ships).
   Session-Operational Flow Phases 1-3 (canonical gate vocabulary + config surface — supersedes
   this plan's independent convergence on commit-gate / push-gate / pr-gate naming; adds
   handoff-gate as fourth hook stage), User Sync UX Polish (shared polish surfaces),
-  Work-Unit Mobility (session-init orientation overlap),
+  Worktree Foundation (session-init orientation overlap),
+  Agile WU Lifecycle (tier model — gate-tier mapping per WU tier is this WU's PRD work),
   ADR-014 (hook-manager detection prerequisite)
 - Downstream: ARCd Rebrand (new tier naming absorbed in rename pass),
   Dogfooding (beta-ready quality gate surface)
@@ -245,7 +317,10 @@ before Operating Modes and public release.
 - Plan: `technical/plan-arcd-rebrand.md`
 - Upstream: Session-Init Optimization (lean session-init surface for terminology sweep),
   Methodology Maturation (same-surface churn avoidance), User Sync UX Polish (consolidated
-  sync copy to rename), Work-Unit Mobility (mobility surfaces to rename in one pass),
+  sync copy to rename), Coord Probe (coord-probe terminology absorbed),
+  Worktree Foundation (mobility mechanism surfaces to rename in one pass),
+  Agile WU Lifecycle (tier vocabulary absorbed),
+  Concurrent Work Conventions (focus-role and concurrent-work terminology absorbed),
   Quality Gate Tiers and Hook Integration (gate-stage terminology absorbed in rename pass)
 - Downstream: Expanded Planning Path, Operating Modes, WU5
 
@@ -273,7 +348,8 @@ bundled scope — modes composes with the lifecycle subsystem to make Local Full
 
 - Plan: `feature/plan-arc-modes.md` (PRD-ready, 59-item deliverables inventory)
 - Upstream: ARCd Rebrand (settled naming and key renames), Expanded Planning Path (planning
-  workflow tooling for PRD drafting), Work-Unit Mobility (shift lifecycle available)
+  workflow tooling for PRD drafting), Worktree Foundation (shift lifecycle available),
+  Concurrent Work Conventions (concurrent-work conventions inform mode-specific guidance)
 - Downstream: Dogfooding, WU5
 - **Scope note:** Single WU by default. Pre-approved split at PRD-drafting time if scope proves
   unmanageable: foundation (installation-type mechanism + strategy audit) → Lite+Local
@@ -328,11 +404,19 @@ Phase A ──► Phase B ──► Phase C (Work Units):
    │     │     │     │     │     │     │     │     │
    │     │     │     │     │     │     │     │     ├──► Session-Operational Flow (ADR-016 frame)
    │     │     │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     │     │     ├──► User Sync UX Polish      ─┐
-   │     │     │     │     │     │     │     │     │     ├──► Work-Unit Mobility        ├──► ARCd Rebrand
-   │     │     │     │     │     │     │     │     │     ├──► Quality Gate Tiers + Hooks┘    (downstream of all three;
-   │     │     │     │     │     │     │     │     │     │                                    three can parallelize
-   │     │     │     │     │     │     │     │     │     │                                    after frame lands)
+   │     │     │     │     │     │     │     │     │     ├──► User Sync UX Polish       ─┐    (first wave: three
+   │     │     │     │     │     │     │     │     │     ├──► Coord Probe                 │     parallelize after frame)
+   │     │     │     │     │     │     │     │     │     ├──► Worktree Foundation        ─┤
+   │     │     │     │     │     │     │     │     │     │                                │
+   │     │     │     │     │     │     │     │     │     ├──► Agile WU Lifecycle          ├──► ARCd Rebrand
+   │     │     │     │     │     │     │     │     │     │      (after Worktree Foundation)│
+   │     │     │     │     │     │     │     │     │     │                                │
+   │     │     │     │     │     │     │     │     │     ├──► Concurrent Work Conventions │
+   │     │     │     │     │     │     │     │     │     │      (after Agile WU Lifecycle)│
+   │     │     │     │     │     │     │     │     │     │                                │
+   │     │     │     │     │     │     │     │     │     ├──► Quality Gate Tiers + Hooks ─┘
+   │     │     │     │     │     │     │     │     │     │      (after Concurrent Work Conventions;
+   │     │     │     │     │     │     │     │     │     │       gate-tier mapping per WU tier)
    │     │     │     │     │     │     │     │     │     │     │
    │     │     │     │     │     │     │     │     │     │     ├──► Expanded Planning Path
    │     │     │     │     │     │     │     │     │     │     │     │

@@ -5617,10 +5617,57 @@ Session-init Local-axis pre-check.
 
 ---
 
+## Open Questions Surfaced During Upstream Plan Iteration
+
+### Lite mode value proposition under the tier model (PRD-time refinement)
+
+Surfaced 2026-04-28 during the agile/mobility design discussion that produced [Worktree
+Foundation][wf-plan], [Agile WU Lifecycle][awl-plan], and [Concurrent Work Conventions][cwc-plan].
+Agile WU Lifecycle introduces a three-tier WU model (atomic / quick / standard) with structurally
+differentiated artifact requirements — quick tier in particular has reduced ceremony comparable to
+some of what makes Lite mode distinct.
+
+**The question:** does Lite mode's value proposition need refinement now that quick tier exists in
+Full mode?
+
+**Where Lite mode's distinctness still holds:**
+
+- File-level workflow exclusion (Lite installs fewer workflow files; Full installs all even if some
+  go unused for one-WU projects)
+- Reduced PRD template (Lite's compact template targets 5-10 minute writeable; Full's PRD is heavier)
+- "The project IS the WU" pedagogical framing (clean entry point for small-project adopters)
+- Phased task list at project scope (quick tier is flat; standard tier is phased but adds full
+  ceremony)
+
+**Where the tier model narrows the gap:**
+
+- Quick tier's reduced ceremony approximates some of what Lite's stripped lifecycle delivers (per-WU,
+  not per-project)
+- Standard tier with single-WU-as-project approximates Lite's "project IS the WU" shape with heavier
+  ceremony
+- The "graduation event" still has real cost (workflow installation, vocabulary expansion) so
+  remains a meaningful inflection — but the conceptual jump is smaller
+
+**What the PRD owes:**
+
+- Reaffirm or refine Lite's value proposition statement against the tier model
+- Decide whether Lite's PRD template should align with quick tier's spec artifact (cross-mode
+  parallelism — see Agile WU Lifecycle's open question on quick-tier spec shape)
+- Decide whether Lite's "Ship" sequence step gains explicit bridge to quick / standard tier
+  vocabulary on graduation
+- Confirm that file-level workflow exclusion remains the load-bearing structural difference (vs
+  vocabulary, template, or pedagogy alone)
+
+**What this question does NOT propose:** subsuming Lite into Full. Per agile/mobility design
+discussion, keeping Lite as distinct mode (Path 1) was selected over absorption paths (2 and 3).
+This question refines Lite's framing within the kept-distinct model.
+
+---
+
 ## Activation Audit
 
 When this WU activates, audit plan content against current framework state for drift accumulated
-during dormancy. Known drift items as of 2026-04-24:
+during dormancy. Known drift items as of 2026-04-28:
 
 - **Stale Step 1 Status-header reference** (~L4369-4370): the plan references "the existing
   Step 1 Status-header checkbox line" in `session-init.md` as a landing spot for future matrix
@@ -5630,10 +5677,13 @@ during dormancy. Known drift items as of 2026-04-24:
   Optimization WU): Task 3.R.k.f+g restructured `session-init.md` into an 8-step linear workflow.
   Any references here to older step numbers, Batch 1 / Batch 2 naming, or the standalone "Check
   Active Configuration" step are now stale.
-- **Shift lifecycle extraction** (2026-04-24): shift lifecycle was extracted from Operating Modes
-  scope and moved to the new Work-Unit Mobility WU (sequenced before Modes). Internal references
-  to shift lifecycle as Modes-bundled scope need to be redirected to
-  `plan-work-unit-mobility.md` or dropped as already-shipped prerequisites.
+- **Shift lifecycle extraction and three-WU split** (2026-04-24, refined 2026-04-28): shift
+  lifecycle was extracted from Operating Modes scope; original Work-Unit Mobility WU was further
+  split into [Worktree Foundation][wf-plan] (mechanism, including shift), [Agile WU Lifecycle][
+  awl-plan] (tier model), and [Concurrent Work Conventions][cwc-plan] (focus-role and async-merge).
+  Internal references to shift lifecycle as Modes-bundled scope redirect to
+  `plan-worktree-foundation.md`; references to mobility's conventions layer redirect to
+  `plan-concurrent-work-conventions.md`.
 - **Redirected `BACKLOG-FEATURE.md` reference** (Task 3.11 of Session-Init Optimization): the
   backlog entry was redirected from `plan-arc-lite.md` → `plan-arc-modes.md`, but this plan's
   internal stale refs were not touched — activation reconciliation completes the redirect.
@@ -5660,4 +5710,7 @@ during dormancy. Known drift items as of 2026-04-24:
 [obsidian-enc]: https://forum.obsidian.md/t/can-i-encrypt-a-vault/33645
 [git-crypt]: https://github.com/AGWA/git-crypt
 [chezmoi-encryption]: https://www.chezmoi.io/user-guide/encryption/
-[mobility-plan]: plan-work-unit-mobility.md
+[wf-plan]: ../technical/plan-worktree-foundation.md
+[awl-plan]: ../technical/plan-agile-wu-lifecycle.md
+[cwc-plan]: plan-concurrent-work-conventions.md
+[mobility-plan]: plan-concurrent-work-conventions.md

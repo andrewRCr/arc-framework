@@ -67,6 +67,17 @@ and directional copy audit (the other two scope items) are unaffected — they s
 
 ### In scope
 
+**Notes-discovery fix (HEAD-independent walk).** `arc user load` and `arc user pull` currently walk
+HEAD ancestry to find notes (`git rev-list --max-count N HEAD` in
+`packages/arc-framework/src/commands/user/save-load.ts`), failing when notes are attached to commits
+that aren't ancestors of the current HEAD — the canonical scenario being a stale local branch where
+work continued elsewhere. The fix adds a HEAD-independent discovery mode that walks the notes ref's
+own commit history (`git log refs/notes/arc/user/{identity}`) to find the most recent attachment
+regardless of worktree HEAD position. Surfaced 2026-04-28 during cross-machine resume when the
+existing HEAD-walk semantics blocked the notes-as-breadcrumb signal for branch-gone detection.
+**Sequencing within this WU:** notes-discovery design precedes state-machine unification — unification
+builds on the new load semantic and would need rework if added later.
+
 **State-machine unification.** Collapse full-mode and session-init to a single state computation.
 Session-init's 5-state surface becomes the spine; full-mode adds diskStatus and saved-when detail as
 secondary axes but never disagrees with the spine. Action hints become deterministic from the spine —
@@ -175,8 +186,17 @@ Rough breakdown:
 - Landing before ARCd Rebrand (not after) means the rename pass picks up a consolidated state
   machine and directional copy in one pass, rather than re-touching strings that churned during this
   work. Rebrand is a bulk-rename editorial pass; doing this WU first keeps its scope mechanical.
-- Work-Unit Mobility is immediately downstream and benefits from a clean sync state machine before
-  worktree awareness adds an axis to it.
+- **[plan-worktree-foundation][plan-wf]** is sibling (parallelizable). Worktree Foundation's
+  SESSION-NOTES per-worktree handling interacts with sync semantics; either order works (this WU
+  first → Worktree Foundation incorporates worktree-aware sync from clean substrate; Worktree
+  Foundation first → this WU retrofits worktree axis cleanly).
+- **[plan-coord-probe][plan-coord]** is sibling (parallelizable). Coord-probe consumes the
+  notes-discovery fix as one signal source for branch-gone detection. Coord-probe ships v1 with in-git
+  and gh signals; notes-as-breadcrumb signal joins when the notes-discovery fix lands. Coordinated
+  parallel work, not strict ordering.
+- **[plan-agile-wu-lifecycle][plan-awl]** and **[plan-concurrent-work-conventions][plan-cwc]** are
+  downstream — both benefit from a clean sync state machine before tier model and concurrency
+  conventions add their own axes.
 
 **Scheduling:** After Session-Init Optimization and plan-session-operational-flow Phase 6 (handoff-interior
 toggles). State-machine + copy work can start once Session-Init Optimization lands; auto-push work
@@ -197,3 +217,7 @@ likely path.
 
 [adr-016]: ../../reference/adr/adr-016-configurable-autonomy-gates-for-session-operations.md
 [plan-ops]: plan-session-operational-flow.md
+[plan-coord]: plan-coord-probe.md
+[plan-wf]: plan-worktree-foundation.md
+[plan-awl]: plan-agile-wu-lifecycle.md
+[plan-cwc]: ../feature/plan-concurrent-work-conventions.md
