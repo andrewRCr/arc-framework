@@ -143,48 +143,49 @@ function resolveReaderOptions(
   return undefined;
 }
 
+interface ResolutionFields {
+  resolution: ActiveSessionInitResolution;
+  path: string | null;
+  candidates: StatusFileCandidate[];
+  sessionType: SessionType | null;
+}
+
+function classifyResolution(input: StatusFileCandidate[]): ResolutionFields {
+  const [only] = input;
+  if (only === undefined) {
+    return { resolution: "none", path: null, candidates: [], sessionType: "planning" };
+  }
+  if (input.length === 1) {
+    return {
+      resolution: "single",
+      path: only.path,
+      candidates: [],
+      sessionType: inferSessionType(only.taskList, only.nextAction),
+    };
+  }
+  return { resolution: "multiple", path: null, candidates: input, sessionType: null };
+}
+
 async function resolveSessionInit(
   cwd: string,
   layout: ActiveLayout,
   candidates: StatusFileCandidate[],
   warnings: string[],
 ): Promise<ActiveSessionInitResult> {
-  let resolution: ActiveSessionInitResolution;
-  let path: string | null;
-  let emittedCandidates: StatusFileCandidate[];
-  let sessionType: SessionType | null;
-
-  const [only] = candidates;
-  if (only === undefined) {
-    resolution = "none";
-    path = null;
-    emittedCandidates = [];
-    sessionType = "planning";
-  } else if (candidates.length === 1) {
-    resolution = "single";
-    path = only.path;
-    emittedCandidates = [];
-    sessionType = inferSessionType(only.taskList, only.nextAction);
-  } else {
-    resolution = "multiple";
-    path = null;
-    emittedCandidates = candidates;
-    sessionType = null;
-  }
-
+  const fields = classifyResolution(candidates);
   const result: ActiveSessionInitResult = {
     mode: "session-init",
     layout,
-    resolution,
-    path,
-    candidates: emittedCandidates,
-    sessionType,
+    ...fields,
     warnings,
   };
 
-  if (resolution === "single" && only !== undefined) {
-    const companions = await deriveCompanions(cwd, only.taskList);
-    if (companions !== undefined) result.companions = companions;
+  if (fields.resolution === "single") {
+    const only = candidates[0];
+    if (only !== undefined) {
+      const companions = await deriveCompanions(cwd, only.taskList);
+      if (companions !== undefined) result.companions = companions;
+    }
   }
 
   return result;
