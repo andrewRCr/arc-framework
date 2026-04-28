@@ -620,7 +620,9 @@ describe("runUserStatus worktree probe orchestration", () => {
   }
 
   // Minimal fake exec covering the calls runUserStatus / inspectDiskVsLocalSnapshot make.
-  // Returns empty stdout for every probe call: no local note, no remote note, clean ref state.
+  // No local note, no remote note, clean ref state. Unmatched git calls throw so
+  // production growing a new invocation surfaces as a test failure rather than
+  // being silently absorbed.
   function fakeNoNotesExec(record: Array<{ cmd: string; args: string[] }>) {
     return async (cmd: string, args: string[]) => {
       record.push({ cmd, args });
@@ -637,6 +639,14 @@ describe("runUserStatus worktree probe orchestration", () => {
       if (args[0] === "rev-list" && args.includes("--count")) {
         return { stdout: "0\t0\n", stderr: "" };
       }
+      // findNearestUserNote: HEAD lookup and notes list
+      if (args[0] === "rev-parse" && args.length === 2 && args[1] === "HEAD") {
+        return { stdout: "abc1234\n", stderr: "" };
+      }
+      if (args[0] === "notes") {
+        // No notes exist for any ref the test wires up.
+        return { stdout: "", stderr: "" };
+      }
       // Sync-status probes (notes refs)
       if (args[0] === "rev-parse" && args[1] === "--verify") {
         throw new Error("ref not found");
@@ -644,19 +654,7 @@ describe("runUserStatus worktree probe orchestration", () => {
       if (args[0] === "ls-remote") {
         return { stdout: "", stderr: "" };
       }
-      if (args[0] === "merge-base") {
-        return { stdout: "", stderr: "" };
-      }
-      if (args[0] === "show") {
-        return { stdout: "", stderr: "" };
-      }
-      if (args[0] === "update-ref") {
-        return { stdout: "", stderr: "" };
-      }
-      if (args[0] === "remote") {
-        return { stdout: "", stderr: "" };
-      }
-      return { stdout: "", stderr: "" };
+      throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
     };
   }
 
