@@ -194,6 +194,24 @@ describe("arc init --reconfigure", () => {
     expect(manifest.files["system/extensions/README.md"]!.classification).toBe(
       "Framework",
     );
+
+    // No unexpected entries — reconfigure must not add files to these dirs.
+    const expectedMethodKeys = [
+      ...methodNames.map((n) => `system/methods/${n}.md`),
+      "system/methods/README.md",
+    ].sort();
+    const expectedExtensionKeys = [
+      ...extensionNames.map((n) => `system/extensions/${n}.md`),
+      "system/extensions/README.md",
+    ].sort();
+    const actualMethodKeys = Object.keys(manifest.files)
+      .filter((k) => k.startsWith("system/methods/"))
+      .sort();
+    const actualExtensionKeys = Object.keys(manifest.files)
+      .filter((k) => k.startsWith("system/extensions/"))
+      .sort();
+    expect(actualMethodKeys).toEqual(expectedMethodKeys);
+    expect(actualExtensionKeys).toEqual(expectedExtensionKeys);
   });
 
   it("reconfigure with same values is a no-op", async () => {

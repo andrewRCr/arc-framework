@@ -228,11 +228,12 @@ For squashed delivery, use `merge.strategy: squash` on this PR only.
 
     - `[ ]` **2.1.a `.arc/README.md` + agent briefings**
         - `.arc/README.md` — prose sweep
-        - `.arc/system/agent/AGENT-BRIEFING.ARC.md` per guardrail E:
+        - `.arc/system/briefs/AGENT-BRIEF.ARC.md` per guardrail E:
           "The ARC Framework implements this methodology..." → "The ARCd Framework implements..."
-        - `.arc/system/agent/AGENT-BRIEFING.PROJECT.md` careful read-through for tier-correct prose
-        - `.arc/system/agent/CLAUDE.ARC.md` and any other agent files — prose only, `.ARC.md` suffix
-          stays (methodology tier marker)
+          The `.ARC.md` suffix stays (methodology tier marker)
+        - `.arc/system/briefs/AGENT-BRIEF.PROJECT.md` careful read-through for tier-correct prose
+        - `.arc/system/briefs/AGENT-BRIEF.CONTRIBUTOR.md` and `.arc/system/briefs/README.md` —
+          prose only
 
     - `[ ]` **2.1.b `.arc/reference/constitution/` files**
         - `DEV-RULES.ARC.md`, `DEV-RULES.PROJECT.md`

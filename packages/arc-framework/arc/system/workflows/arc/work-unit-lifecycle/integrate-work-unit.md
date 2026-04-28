@@ -136,7 +136,7 @@ based on work complexity.
 
 - [ ] _Pull Request URL:_ added after `gh pr create` in Step 7
 
-- [ ] _Phase count:_ matches actual phases in task file — `grep -c "^## \*\*Phase" tasks-*.md`
+- [ ] _Phase count:_ matches actual phases in task file — `grep -c "^## \*\*Phase" tasks-{name}.md`
 
 - [ ] _Quantitative claims:_ each number verified in task file (note where verified —
       e.g., "7 themes" → Phase X, line Y). Avoid file/test counts in Verification — pre-merge
