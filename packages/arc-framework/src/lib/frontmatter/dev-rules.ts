@@ -23,7 +23,7 @@
  * @module
  */
 
-import { parseFrontmatter } from "./generic.js";
+import { validateFrontmatterShape } from "./generic.js";
 
 /** Validated DEV-RULES domain-file frontmatter. */
 export interface DevRulesFrontmatter {
@@ -50,17 +50,9 @@ export function parseDevRulesFrontmatter(
   content: string,
   basename: string,
 ): DevRulesParseResult {
-  const parsed = parseFrontmatter(content);
-  if (parsed.parseError !== undefined) {
-    return { errors: [`malformed YAML: ${parsed.parseError}`] };
-  }
-  if (parsed.data === null) {
-    return { errors: ["missing frontmatter block"] };
-  }
-  if (typeof parsed.data !== "object" || Array.isArray(parsed.data)) {
-    return { errors: ["frontmatter must be a YAML mapping"] };
-  }
-  const data = parsed.data as Record<string, unknown>;
+  const shape = validateFrontmatterShape(content);
+  if (!shape.ok) return { errors: shape.errors };
+  const data = shape.data;
   const errors: string[] = [];
 
   const domain = data.domain;

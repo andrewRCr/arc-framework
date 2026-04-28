@@ -1,9 +1,10 @@
 /**
- * Generic triple-dash YAML frontmatter extractor.
+ * Generic triple-dash YAML frontmatter extractor and shared shape validator.
  *
  * Schema-neutral: returns the raw parsed YAML for schema-specific parsers
- * (method, extension) to validate. Files without a triple-dash block return
- * `data: null` with no error; malformed YAML surfaces via `parseError`.
+ * (method, extension, dev-rules) to validate. Files without a triple-dash
+ * block return `data: null` with no error; malformed YAML surfaces via
+ * `parseError`.
  *
  * @module
  */
@@ -17,6 +18,11 @@ export interface ParsedFrontmatter {
   /** YAML parse error message; set only on failure. */
   parseError?: string;
 }
+
+/** Discriminated result of {@link validateFrontmatterShape}. */
+export type FrontmatterShape =
+  | { ok: true; data: Record<string, unknown> }
+  | { ok: false; errors: string[] };
 
 /**
  * Extract and parse a leading triple-dash YAML frontmatter block.
@@ -37,4 +43,32 @@ export function parseFrontmatter(content: string): ParsedFrontmatter {
       parseError: err instanceof Error ? err.message : String(err),
     };
   }
+}
+
+/**
+ * Validate the four shape preconditions every schema parser shares: parse
+ * success, presence of a frontmatter block, mapping (not scalar/array) root.
+ * On success returns the unknown-keyed mapping for per-schema field checks.
+ *
+ * @param content - Full file contents
+ * @returns Discriminated result — `ok: true` with `data` mapping, or `ok: false`
+ *   with one of the four shape diagnostics.
+ */
+export function validateFrontmatterShape(content: string): FrontmatterShape {
+  const parsed = parseFrontmatter(content);
+  if (parsed.parseError !== undefined) {
+    return { ok: false, errors: [`malformed YAML: ${parsed.parseError}`] };
+  }
+  if (parsed.data === null) {
+    return { ok: false, errors: ["missing frontmatter block"] };
+  }
+  if (typeof parsed.data !== "object" || Array.isArray(parsed.data)) {
+    return { ok: false, errors: ["frontmatter must be a YAML mapping"] };
+  }
+  return { ok: true, data: parsed.data as Record<string, unknown> };
+}
+
+/** Type guard for `string[]` values inside parsed YAML. */
+export function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((x) => typeof x === "string");
 }
