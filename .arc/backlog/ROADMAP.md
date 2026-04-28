@@ -4,7 +4,7 @@ Planning and reasoning — the sequencing strategy for remaining work, what gets
 and why. This is a working document, subject to change as you learn. For project state
 and record (achievements, current status), see `PROJECT-STATUS.md`.
 
-**Last Updated:** 2026-04-24
+**Last Updated:** 2026-04-27
 
 ---
 
@@ -114,22 +114,26 @@ the Phase 3 live-migration cutover point.
 - Downstream: Session-Init Optimization (stable session-init substrate to optimize),
   ARCd Rebrand (first real exercise of the per-WU status file model across rotating branches)
 
-**Session-Init Optimization** — In Progress (activated 2026-04-18)
+**Session-Init Optimization** — ✅ Complete (April 2026)
 
-Reduce session-init token cost (~40k loadset, ~75–80k observed at orientation completion)
-toward a ≤60k observation target (≥25% reduction). Per-file methods/extensions with YAML
-frontmatter index replace single-file full-reads; a new "Method and extension loading" rule
-in DEV-RULES.ARC anchors compliance; operational-context audit trims always-loaded docs
-(DEV-RULES, briefings, QUICK-REFERENCE, session-init.md); session-type conditional loading
-formalizes the `Working On:` prefix for planning/execution/integration differentiation.
+Per-file methods/extensions architecture with workflow frontmatter triggers replaced
+single-file full-reads; probe-computed `sessionType` inference (planning/execution/integration/
+null) drives conditional item-9 / item-10 loadsets via composite probe; partial-read narrowing
+across QUICK-REFERENCE, status file, and task list (strategic partial read with triple-anchor
+task references); worktree-sync completion in the probe; operational-context audit and
+template extractions trim always-loaded surface area. Constitutional rule pair (DEV-RULES.ARC
+§ Verification and Discovery + strategy-workflow-authoring § Author-side Declaration Rule) and
+pre-commit + CI enforcement (CHECK 12/14/16, lint:arc:*) anchor drift resistance. Realized
+~24–28% reduction at orientation (~57–61k vs ~75–80k baseline) and session-init wall-clock
+~2+ min → ~1 min.
 
-- PRD: `technical/prd-session-init-optimization.md`
+- Archive: `archive/2026-q2/technical/04_session-init-optimization/`
 - Upstream: Work-Status Restructure (overlapping edits on session-init.md would conflict;
   session-init substrate must stabilize first)
 - Downstream: Session-Operational Flow (shared session-init / session-handoff / DEV-RULES surface),
   ARCd Rebrand (lean session-init surface for rebrand terminology sweep)
 
-**Session-Operational Flow** — After Session-Init Optimization (unblocks frame consumers)
+**Session-Operational Flow** — Planning (activated 2026-04-27)
 
 Lands the gate model (ADR-016, Proposed): configurable autonomy gates for session-operational flow
 with task → commit → push → integrate as the linear stack (invariant endpoints, configurable middle
@@ -394,6 +398,10 @@ site structure.
 
 ## Change Log
 
+- **2026-04-27**: Session-Init Optimization complete and archived to
+  `archive/2026-q2/technical/04_session-init-optimization/`. Session-Operational Flow
+  activated to planning on `technical/plan-session-operational-flow` (batch branch carrying
+  archival + planning together).
 - **2026-04-24**: Session-Operational Flow WU added as `technical/plan-session-operational-flow.md`,
   anchored by ADR-016 (Adopt Configurable Autonomy Gates for Session Operations, Proposed).
   Surfaced during pre-PRD exploration of User Sync UX Polish — the `user.sync_push: always`
