@@ -19,9 +19,10 @@
  * @module
  */
 
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
+import { runPathListScript } from "./cli-runner.js";
 import { classifyExtensionRefs } from "../lib/extensions/orphan-detector.js";
 import { scanExtensionPoints, type ScanInput } from "../lib/extensions/point-scanner.js";
 
@@ -122,26 +123,12 @@ function listExtensionBasenames(dir: string): string[] {
   }
 }
 
-function main(): void {
-  const paths = process.argv.slice(2);
-  if (paths.length === 0) process.exit(0);
-  const result = validateFiles(
-    paths,
-    (p) => readFileSync(p, "utf8"),
-    (copy) =>
+if (fileURLToPath(import.meta.url) === process.argv[1]) {
+  runPathListScript((paths, readFile) =>
+    validateFiles(paths, readFile, (copy) =>
       listExtensionBasenames(
         copy === "arc" ? ARC_EXTENSIONS_DIR : PACKAGE_EXTENSIONS_DIR,
       ),
+    ),
   );
-  if (!result.pass) {
-    for (const d of result.diagnostics) {
-      process.stderr.write(`${d}\n`);
-    }
-    process.exit(1);
-  }
-  process.exit(0);
-}
-
-if (fileURLToPath(import.meta.url) === process.argv[1]) {
-  main();
 }

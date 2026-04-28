@@ -18,9 +18,10 @@
  */
 
 import { readFileSync, readdirSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { resolveRepoRoot } from "./repo-root.js";
 import { parseDevRulesFrontmatter } from "../lib/frontmatter/index.js";
 
 /** Audit outcome — same shape as the method-triggers audit. */
@@ -76,12 +77,6 @@ export function audit(constitutionDir: string): AuditResult {
 }
 
 // --- CLI entry ---
-
-function resolveRepoRoot(): string {
-  // script at: <root>/packages/arc-framework/src/scripts/audit-domain-rules.ts
-  const scriptDir = dirname(fileURLToPath(import.meta.url));
-  return resolve(scriptDir, "..", "..", "..", "..");
-}
 
 function main(): void {
   const root = resolveRepoRoot();

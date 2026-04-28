@@ -13,9 +13,10 @@
  */
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { resolveRepoRoot } from "./repo-root.js";
 import { parseFrontmatter } from "../lib/frontmatter/index.js";
 
 /** Declarations extracted from a single workflow file's frontmatter. */
@@ -194,12 +195,6 @@ export function audit(
 }
 
 // --- CLI entry ---
-
-function resolveRepoRoot(): string {
-  // script at: <root>/packages/arc-framework/src/scripts/audit-method-triggers.ts
-  const scriptDir = dirname(fileURLToPath(import.meta.url));
-  return resolve(scriptDir, "..", "..", "..", "..");
-}
 
 function main(): void {
   const root = resolveRepoRoot();

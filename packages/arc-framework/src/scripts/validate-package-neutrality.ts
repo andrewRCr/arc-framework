@@ -18,10 +18,10 @@
  * @module
  */
 
-import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { runPathListScript } from "./cli-runner.js";
 import {
   parseExtensionFrontmatter,
   parseMethodFrontmatter,
@@ -155,19 +155,6 @@ export function validateFiles(
 
 // --- CLI entry ---
 
-function main(): void {
-  const paths = process.argv.slice(2);
-  if (paths.length === 0) process.exit(0);
-  const result = validateFiles(paths, (p) => readFileSync(p, "utf8"));
-  if (!result.pass) {
-    for (const d of result.diagnostics) {
-      process.stderr.write(`${d}\n`);
-    }
-    process.exit(1);
-  }
-  process.exit(0);
-}
-
 if (fileURLToPath(import.meta.url) === process.argv[1]) {
-  main();
+  runPathListScript(validateFiles);
 }
