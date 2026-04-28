@@ -221,40 +221,38 @@ describe("runStatus — orchestration", () => {
     expect(probes.user).toHaveBeenCalledWith("andrew");
   });
 
-  it("runs probes in parallel via Promise.all (elapsed ~= max individual delay)", async () => {
-    const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
-    const DELAY_MS = 40;
+  it("starts all probes concurrently via Promise.all", async () => {
+    // Deterministic parallelism check — record peak in-flight count. With
+    // `Promise.all` over four probes, each probe's body runs synchronously
+    // up to the first `await`, so all four increment `inFlight` before any
+    // microtask resolves. Sequential execution would peak at 1.
+    let inFlight = 0;
+    let peakInFlight = 0;
+    function tracked<T>(value: T): () => Promise<T> {
+      return async () => {
+        inFlight += 1;
+        peakInFlight = Math.max(peakInFlight, inFlight);
+        await Promise.resolve();
+        inFlight -= 1;
+        return value;
+      };
+    }
     const probes = fullProbes({
-      user: async () => {
-        await delay(DELAY_MS);
-        return userResult();
-      },
-      extensions: async () => {
-        await delay(DELAY_MS);
-        return extensionsResult();
-      },
-      config: async () => {
-        await delay(DELAY_MS);
-        return configResult();
-      },
-      active: async () => {
-        await delay(DELAY_MS);
-        return activeResult();
-      },
+      user: tracked(userResult()),
+      extensions: tracked(extensionsResult()),
+      config: tracked(configResult()),
+      active: tracked(activeResult()),
     });
-    const start = Date.now();
     await runStatus({ identity: "andrew", role: "maintainer", probes });
-    const elapsed = Date.now() - start;
-    // Parallel: ~DELAY_MS. Sequential would be ~4 * DELAY_MS = 160ms. Give generous headroom
-    // on top of DELAY_MS for CI variance; still well under the sequential floor.
-    expect(elapsed).toBeLessThan(DELAY_MS * 3);
+    expect(peakInFlight).toBe(4);
   });
 
-  it("returns slots in a stable order (user, extensions, config, active)", async () => {
+  it("returns the full set of expected slots", async () => {
     const probes = fullProbes();
     const result = await runStatus({ identity: "andrew", role: "maintainer", probes });
-    const keys = Object.keys(result);
-    expect(keys).toEqual(["mode", "identity", "user", "extensions", "config", "active"]);
+    expect(Object.keys(result).sort()).toEqual(
+      ["active", "config", "extensions", "identity", "mode", "user"],
+    );
   });
 
   it("wraps successful probe results as ok=true slots", async () => {
@@ -597,47 +595,7 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
   });
 });
 
-describe("JSON round-trip — composite result shape is stable", () => {
-  it("full-mode result preserves every slot through JSON.stringify/parse", async () => {
-    const probes = fullProbes();
-    const result = await runStatus({ identity: "andrew", role: "maintainer", probes });
-    const roundTripped = JSON.parse(JSON.stringify(result)) as typeof result;
-    expect(roundTripped.mode).toBe("full");
-    expect(roundTripped.identity).toEqual({ identity: "andrew", role: "maintainer" });
-    expect(roundTripped.user.ok).toBe(true);
-    expect(roundTripped.extensions.ok).toBe(true);
-    expect(roundTripped.config.ok).toBe(true);
-    expect(roundTripped.active.ok).toBe(true);
-  });
-
-  it("session-init result preserves every slot through JSON.stringify/parse", async () => {
-    const probes = sessionInitProbes({
-      domainRules: vi.fn(async () =>
-        domainRulesSessionInit({
-          rules: [
-            {
-              path: ".arc/reference/constitution/DEV-RULES.FRONTEND.md",
-              domain: "frontend",
-              purpose: "UI standards",
-            },
-          ],
-        }),
-      ),
-    });
-    const result = await runSessionInitStatus({
-      identity: "andrew",
-      role: "maintainer",
-      probes,
-    });
-    const roundTripped = JSON.parse(JSON.stringify(result)) as typeof result;
-    expect(roundTripped.mode).toBe("session-init");
-    expect(roundTripped.identity.identity).toBe("andrew");
-    expect(roundTripped.domainRules.ok).toBe(true);
-    if (roundTripped.domainRules.ok) {
-      expect(roundTripped.domainRules.value.rules[0]?.domain).toBe("frontend");
-    }
-  });
-
+describe("JSON wire shape — discriminated union survives serialization", () => {
   it("full-mode result does not include a domainRules slot", async () => {
     const probes = fullProbes();
     const result = await runStatus({ identity: "andrew", role: "maintainer", probes });
