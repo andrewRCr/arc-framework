@@ -178,8 +178,6 @@ get promoted: add the plan-*/PRD, restructure the task list into phases, continu
     - **CodeRabbit-flagged contradictoriness fix.** `State: Complete` + integration-step
       `Next Action` no longer reads as contradictory; `Integration:` field carries the in-flight
       workflow position cleanly separated from execution-state.
-    - **Resolves inbox concerns:** "Reconsider when integration updates tracking docs" (now: at
-      integration time) and "Consider separate integration-state field" (now: implemented).
 
 8. **Atomic companion file retirement (or repurposing).** With cheap atomic-WU spin-up, the
    companion's "holding area before decision" role largely evaporates — noticed → fold into commit

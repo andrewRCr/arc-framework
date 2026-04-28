@@ -90,8 +90,9 @@ auto-commit stages code only — no project-level status-file updates, matching 
 [DEV-RULES.ARC][dev-rules-arc] § Commit Discipline "Contributor override" (contributor status files are
 gitignored and updated at handoff regardless of mode).
 
-**Auto-push mode.** Distinct-signal handling, push-gate mechanics, prerequisites, interaction with auto-commit mode.
-Push-timing default is handoff-only (with per-commit available as power-user opt-in) per § Design Decisions.
+**Auto-push mode.** Auto-push-at-handoff configurability — push fires inside the handoff ceremony when configured.
+Mid-session push remains explicit-ask only (natural language, no canonical phrase or skill required); push is never
+auto-fired per commit. Push-gate mechanics, prerequisites, interaction with auto-commit mode per § Design Decisions.
 
 **Reversibility/rollback protocol.** Design and implementation. Mechanism shape (dev-rule vs. skill vs. workflow vs.
 combination) resolves during PRD drafting. Rollback scope is session-local (not identity-global) — rollback in one
@@ -119,10 +120,10 @@ session-init becomes the load-trigger. Strategy-session-operations updates accor
 - Sweep cadence is configurable: default sweep-as-you-go (archive ops in integration PR as separate commit per
   multi-commit-PR norms), opt-in deferred (archive batched with next-WU planning or standalone). Config key TBD
   (likely `archive.cadence: with-integration | deferred | manual`)
-
-This model resolves the inbox concern about stale tracking docs (ROADMAP/PROJECT-STATUS update at integration
-time, not post-merge) and the CodeRabbit-flagged contradictoriness of `State: Complete` coexisting with
-integration-step `Next Action` fields.
+- Session-init orientation surfaces `**Integration:**` when present. The field slots naturally into the existing
+  `## Active Work` partial-read pattern of "optional fields when present" (alongside Interrupts / Paused At /
+  Superseded By); orientation summary highlights it for active-work WUs in the integration window. Implementation
+  detail for [plan-agile-wu-lifecycle][plan-awl] item 7a, captured here so it doesn't get lost.
 
 **arc-commit skill preservation policy.** Skill remains user-invocable in both manual and auto modes. Under auto
 mode, the skill provides ad-hoc commit capability for non-task work mid-session and for recovery after auto-commit
@@ -155,10 +156,10 @@ deferred-review interaction, and failure-mode fallback paths.
   outside the gate-model's "approval triggers cascade" because no preceding review attaches to the proposed action.
   Coord-probe / branch-gone resolution stays manual under all autonomy levels.
 
-## Alternatives
+## Open Design Choices
 
-Most alternatives were resolved at the [ADR-016][adr-016] level (see that ADR's Alternatives Considered). Plan-level
-open design choices:
+Multi-option design forks awaiting PRD-time resolution. Most alternatives were resolved at the [ADR-016][adr-016]
+level (see that ADR's Alternatives Considered).
 
 **Autonomy axis shape:**
 
@@ -181,24 +182,18 @@ Current lean: Option A. PRD decision.
 
 Current lean: Option B. PRD decision, informed by how complex the rollback protocol turns out to be.
 
-**Approval signal granularity for push-gate:**
-
-- **A — Typed confirmation command.** `/arc-push` or similar explicit skill invocation. Maximum clarity.
-- **B — Distinct approval phrase.** "ship it" / "push it" parsed by the agent as push-scope approval. Lower friction,
-  relies on phrase discipline.
-- **C — Both.** Skill preferred; phrase accepted. Most permissive.
-
-Current lean: Option C, with skill as the primary surface and phrase as ergonomic fallback. PRD decision.
-
-**Push timing (resolved):** handoff-only as recommended default; per-commit available as power-user opt-in with
-documented warning. See § Design Decisions for full rationale. Config likely `push.timing: manual | on-handoff |
-on-commit`; PRD finalizes shape and warning copy.
-
 ## Design Decisions
 
-### Push timing: handoff-only default, per-commit available
+### Push timing: explicit ask, with auto-at-handoff opt-in
 
-Auto-push admits both per-commit and handoff-only cadence. Handoff-only is the recommended default for three reasons:
+Push always requires explicit user request — natural-language ("push this", "push to origin") in mid-session, or
+the handoff invocation when auto-push-at-handoff is configured. There is no per-commit auto-push mode and no
+canonical push phrase or skill. The "distinct signal" requirement from [ADR-016][adr-016] is satisfied by
+natural-language explicitness: a push request is lexically distinct from `approved` and unambiguously scoped to
+push intent.
+
+Auto-push-at-handoff is the only "automatic" path. When configured, push fires inside the handoff ceremony when
+handoff is invoked. Three reasons this is the right shape for automated push:
 
 - **Pairing.** Worktree-push and notes-push need to land at the same gate; handoff is the natural pairing point per
   the handoff-interior toggle framework.
@@ -206,10 +201,9 @@ Auto-push admits both per-commit and handoff-only cadence. Handoff-only is the r
   concentrating into deliberate ceremony reduces accidental cascade surface.
 - **Concurrent-session safety.** Under parallel sessions (per § Concurrency Model), multiple sessions writing to
   shared `refs/notes/arc/user/{identity}` near-simultaneously creates ref-update races. Handoff-only concentrates
-  writes into deliberate single events; per-commit push compounds race surface linearly with commit cadence.
+  writes into deliberate single events; per-commit auto-push would compound race surface linearly with commit cadence.
 
-Per-commit push remains available as a documented power-user opt-in. PRD finalizes config shape and the warning
-copy that accompanies opt-in.
+Config likely `push.timing: manual | on-handoff` (or equivalent boolean toggle). PRD finalizes shape.
 
 ### Status-file updates at handoff and ceremony commits only
 
@@ -301,18 +295,24 @@ rather than silent invocation of `prepare-commits`.
 
 **Open design decisions (PRD-time resolution):**
 
-- Final autonomy axis naming and value enum (see Alternatives).
-- Reversibility mechanism shape (see Alternatives).
-- Specific approval-signal mechanics per gate (see Alternatives) — the "approved" grammar shape is settled per
-  § Design Decisions; remaining is final token catalog and the exact disambiguation regex/heuristic.
+- "Approved" grammar finalization — the shape is settled per § Design Decisions; remaining is the final token
+  catalog and the exact disambiguation regex/heuristic.
 - Handoff-interior toggle enumeration — exact list of configurable handoff actions (status rotation, worktree push,
   notes push, quality-gate finalization, others TBD).
 - Whether constitutional reframing warrants a new DEV-RULES.ARC section or fits within existing § Commit Discipline
   and § Session Management amendments.
-- Final config keys for push timing (`push.timing` shape) and sweep cadence (`archive.cadence` shape) — § Design
-  Decisions establishes the conceptual shape; PRD finalizes naming and value enums.
+- Final config keys: `push.timing` shape (likely `manual | on-handoff` or boolean toggle per § Design Decisions),
+  `archive.cadence` shape (`with-integration | deferred | manual` per § Scope). PRD finalizes naming and enums.
 - Exact field/value names for the State + Integration field model — § Scope establishes the conceptual shape; PRD
   finalizes field labels and enum values.
+- **Gate terminology collision.** This plan introduces "gate" vocabulary (task-gate, commit-gate, push-gate,
+  integration-gate) for the autonomy stack. ARC already uses "quality gates" for the tiered T1/T2/T3 check system
+  ([strategy-quality-gates][strategy-qg], [DEV-RULES.PROJECT][dev-rules-project] § Quality Gates). The two
+  meanings overlap lexically but are disjoint conceptually (autonomy gates = approval boundaries; quality gates =
+  validation checks). Resolution options: (a) accept dual meaning with disambiguating qualifier in prose
+  ("autonomy-gate" / "quality-gate") wherever ambiguity could arise; (b) rename one of the two — autonomy "gates"
+  to "checkpoints" or "boundaries", or quality "gates" to "checks" or "tiers". PRD evaluates before settling
+  vocabulary across DEV-RULES.ARC, strategy docs, and workflow text.
 
 **Migration and validation details (PRD-time resolution):**
 
@@ -362,9 +362,9 @@ workflows, multiple strategy docs, configuration schema, skills, and tests.
 5. **Auto-commit mode** — Skill/workflow implementation, `prepare-commits` simple-path-only integration with
    complexity-bumps-to-manual fallback, deferred-review × auto-commit safe-accumulate resolution, arc-commit skill
    preservation as user-invocable surface, tests.
-6. **Auto-push mode + handoff-interior toggles** — Push-gate signal handling, handoff-only push as recommended
-   default with per-commit power-user opt-in, handoff ceremony configurability, workflow integration points,
-   defaults.
+6. **Auto-push mode + handoff-interior toggles** — Auto-push-at-handoff configurability (push fires inside the
+   handoff ceremony when configured); mid-session push remains explicit-ask only. Handoff ceremony
+   configurability, workflow integration points, defaults.
 7. **Strategy cascade + metadata-state foundation + integration specs** — Comprehensive cascade update;
    metadata-state foundation (State + Integration field model + sweep cadence config) for downstream lifecycle
    plans to consume; integration specs for upstream plans; verification.
@@ -375,9 +375,8 @@ independent and could overlap if scoped carefully.
 ### Dependencies
 
 - **[ADR-016][adr-016] in Accepted state** — framing must be settled before execution.
-- **Session-Init Optimization WU completion** — in-progress; ideally completes and merges before this plan's
-  implementation phases begin, since it touches overlapping surface area (session-init, session-handoff,
-  DEV-RULES.ARC edits). Phase 1 can start once session-init-optimization closes.
+- **Session-Init Optimization WU completion** — shipped (PR #21 merged); overlapping surface area
+  (session-init, session-handoff, DEV-RULES.ARC edits) is cleared. No longer a blocker for Phase 1.
 - **No dependency on downstream consumer plans** — they consume this frame, not the reverse.
 
 ### Downstream consumption
@@ -424,8 +423,10 @@ Both halves are independently valuable; WU-A unblocks upstream plans even if WU-
 
 [adr-016]: ../../reference/adr/adr-016-configurable-autonomy-gates-for-session-operations.md
 [dev-rules-arc]: ../../reference/constitution/DEV-RULES.ARC.md
+[dev-rules-project]: ../../reference/constitution/DEV-RULES.PROJECT.md
 [strategy-team]: ../../reference/strategies/arc/strategy-team-coordination.md
 [strategy-session]: ../../reference/strategies/arc/strategy-session-operations.md
+[strategy-qg]: ../../reference/strategies/arc/strategy-quality-gates.md
 [plan-sync]: plan-user-sync-ux.md
 [plan-hooks]: plan-quality-gate-hooks.md
 [plan-wf]: plan-worktree-foundation.md
