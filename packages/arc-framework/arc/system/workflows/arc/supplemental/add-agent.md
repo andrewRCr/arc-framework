@@ -1,11 +1,9 @@
+---
+purpose: Add a new AI agent to a project that already has ARC installed and configured.
+audience: collaborative (human and agent)
+---
+
 # Workflow: Add Agent to Existing ARC Project
-
-**Audience:** Dual — a developer reading this for guidance, and a new AI agent following these
-steps to bootstrap itself into an ARC project.
-
-**Purpose:** Add a new AI agent to a project that already has ARC installed. This covers the case
-where the agent wasn't selected during `arc init` — the project works, but this agent has no
-skill files, no agent-specific configuration, and no way to discover ARC workflows automatically.
 
 **When to use:**
 
@@ -24,25 +22,10 @@ project (use `arc join`).
 If you are an AI agent reading this, start by reading these two documents in full — they explain
 what ARC is and how this project uses it:
 
-1. `.arc/system/agent/AGENT-BRIEFING.ARC.md` — ARC framework orientation
-2. `.arc/system/agent/AGENT-BRIEFING.PROJECT.md` — Project-specific context
+1. `.arc/system/briefs/AGENT-BRIEF.ARC.md` — ARC framework orientation
+2. `.arc/system/briefs/AGENT-BRIEF.PROJECT.md` — Project-specific context
 
-### Step 2: Check for Agent-Specific Configuration
-
-Look for an existing agent-specific file:
-
-```text
-.arc/system/agent/{AGENT}.ARC.md
-```
-
-Where `{AGENT}` is your agent name in uppercase (e.g., `GEMINI.ARC.md`, `CURSOR.ARC.md`).
-
-- **If it exists:** Read it — the project maintainer may have added agent-specific guidance.
-- **If it doesn't exist:** Create one from the template at
-  `.arc/reference/templates/template-agent.md`. Follow the instructions in the template
-  comments to fill in agent name and relevant details.
-
-### Step 3: Generate Skill Files
+### Step 2: Generate Skill Files
 
 ARC uses skills to trigger key workflows — session resume, commit, handoff, etc. Canonical
 skill definitions live in `.arc/system/skills/`. Each subdirectory contains a `SKILL.md` with
@@ -74,7 +57,7 @@ specific ARC skill subdirectories you created:
 
 This ignores only the ARC-generated skills, not other content in your agent's directory.
 
-### Step 4: Restart and Resume
+### Step 3: Restart and Resume
 
 Skill files are typically loaded when the agent's harness starts. After creating skill files:
 
@@ -85,5 +68,5 @@ Skill files are typically loaded when the agent's harness starts. After creating
 
 ---
 
-**After this workflow:** The agent has full ARC integration — agent-specific config, skill files,
-and access to all ARC workflows. Subsequent sessions use `arc-resume` normally.
+**After this workflow:** The agent has full ARC integration — skill files and access to all ARC
+workflows. Subsequent sessions use `arc-resume` normally.

@@ -1,8 +1,9 @@
+---
+purpose: Execute the task list's verification phase — Tier 3 gates, success criteria, completion notes.
+audience: agent
+---
+
 # Workflow: Verify Completion
-
-**Audience:** Agent-executed — your agent follows this when reaching the verification phase.
-
-## Purpose
 
 Every task list ends with a verification phase containing a single task that points here.
 The task description is intentionally thin — this workflow is the authoritative protocol.
@@ -59,17 +60,28 @@ If unresolved atomic tasks are found, address them before considering verificati
 If the companion file is empty (no checkbox items), it will be deleted during integration —
 no action needed.
 
+## Step 4 — Pre-align Status File for Integration Handoff
+
+Before marking the verification task `[x]`, update the active status file's `**Next Action:**`
+to `integrate-work-unit Step 1 — verify completion` per the workflow-step-pointer convention
+([session-handoff][session-handoff] § _Workflow step pointer_). This closes the inference gap
+between verification close and integrate-entry — the session-init probe relies on this prefix
+to set `sessionType: integration`. Stage with the verification commit.
+
 ## Completion Notes
 
 When marking the verification task `[x]`, include completion notes that make the task
 self-documenting — a reader of the archived task list should understand what was verified
-without loading this workflow. Cover all three steps:
+without loading this workflow. The verification task uses three italic descriptor bullets in
+lieu of the single `_Outcome:_` rule (per
+[strategy-task-list-formatting § Goal/Note Lines][task-list-formatting] —
+verification-task exception). Cover all three steps:
 
-- **Quality gates**: What ran and the outcome (e.g., "md lint, code lint, typecheck,
+- _Quality gates:_ what ran and the outcome (e.g., "md lint, code lint, typecheck,
   42 tests, build — all passed")
-- **Success criteria**: Summary disposition (e.g., "8 criteria: 7 met, 1 superseded
+- _Success criteria:_ summary disposition (e.g., "8 criteria: 7 met, 1 superseded
   with annotation")
-- **Atomic tasks**: Disposition (e.g., "companion file empty" or "3 completed, 1 deferred
+- _Atomic tasks:_ disposition (e.g., "companion file empty" or "3 completed, 1 deferred
   to backlog")
 
 ---
@@ -77,3 +89,4 @@ without loading this workflow. Cover all three steps:
 [quality-gates]: ../../../../reference/strategies/arc/strategy-quality-gates.md
 [task-list-formatting]: ../../../../reference/strategies/arc/strategy-task-list-formatting.md
 [integrate-work-unit]: integrate-work-unit.md
+[session-handoff]: ../session-lifecycle/session-handoff.md

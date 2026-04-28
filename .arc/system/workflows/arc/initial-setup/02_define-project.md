@@ -1,9 +1,11 @@
+---
+purpose: Establish the project documents that guide development and orient your agent.
+audience: collaborative (human and agent)
+---
+
 # Workflow: Define Project
 
-**Audience:** Collaborative — developer and agent work through this together.
-
-**Purpose**: Establish the project documents that guide development and orient your agent.
-Some of these are loaded every session — the agent operates on whatever they say. Others
+Some of these documents are loaded every session — the agent operates on whatever they say. Others
 are reference material consulted during planning and architecture decisions.
 
 **When to use**:
@@ -52,14 +54,14 @@ the project.
 - What are the critical performance and infrastructure requirements?
 - What testing and build infrastructure exists?
 
-### Step 3: Define AGENT-BRIEFING.PROJECT
+### Step 3: Define AGENT-BRIEF.PROJECT
 
 Your project's executive summary for the agent — loaded every session. This distills
 META-PRD (what the project is) and TECHNICAL-OVERVIEW (how it's built) into a concise
 briefing: project type, primary goal, technology stack, repository layout, and common
 friction points.
 
-**Template**: [AGENT-BRIEFING.PROJECT.md][agents-project] → stays in `system/agent/`
+**Template**: [AGENT-BRIEF.PROJECT.md][agents-project] → stays in `system/briefs/`
 
 **Think through**:
 
@@ -144,7 +146,7 @@ say. When they drift from reality, the agent works from wrong assumptions.
 
 **Session-loaded documents — keep current:**
 
-- **AGENT-BRIEFING.PROJECT** — when the project's scope, stack, or friction points change. Stale
+- **AGENT-BRIEF.PROJECT** — when the project's scope, stack, or friction points change. Stale
   content here directly degrades every session's starting context.
 - **QUICK-REFERENCE** — when commands, paths, or environment requirements change. Wrong
   commands here mean the agent fails quality gates or uses outdated tooling.
@@ -167,24 +169,24 @@ decisions are made, not on a schedule.
 
 ## Next Step
 
-Project definition is complete. Three of these documents — AGENT-BRIEFING.PROJECT,
+Project definition is complete. Three of these documents — AGENT-BRIEF.PROJECT,
 QUICK-REFERENCE, and DEV-RULES.PROJECT — are loaded by the agent at the start of every
 session.
 The rest (META-PRD, TECHNICAL-OVERVIEW, ROADMAP, PROJECT-STATUS) are reference
 material for consulting during planning and architecture decisions.
 
-Clear your context and start a fresh session with `/arc-resume`. With no active work unit
-yet, session initialization enters discovery mode: the agent checks your ROADMAP for the
-next queued item and helps you create a PRD and task list for your first work unit. From
-there, the normal session rhythm — `/arc-resume`, task execution,
-`/arc-commit`, `/arc-handoff` — takes over.
+Clear your context and start a fresh session by invoking the `arc-resume` skill (invocation
+syntax is agent-specific). With no active work unit yet, session initialization enters
+discovery mode: the agent checks your ROADMAP for the next queued item and helps you create
+a PRD and task list for your first work unit. From there, the normal session rhythm —
+`arc-resume`, task execution, `arc-commit`, `arc-handoff` — takes over.
 
 ---
 
 [init-arc]: 01_verify-and-configure.md
 [meta-prd]: ../../../../reference/META-PRD.md
 [tech-overview]: ../../../../reference/TECHNICAL-OVERVIEW.md
-[agents-project]: ../../../agent/AGENT-BRIEFING.PROJECT.md
+[agents-project]: ../../../briefs/AGENT-BRIEF.PROJECT.md
 [quick-ref]: ../../../../reference/QUICK-REFERENCE.md
 [dev-rules]: ../../../../reference/constitution/DEV-RULES.PROJECT.md
 [dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md

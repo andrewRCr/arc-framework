@@ -1,6 +1,15 @@
-# Workflow: Integrate Work Unit
+---
+purpose: Prepare completed work for integration — docs cleanup, completion metadata, code review, and merge.
+audience: agent
+arc:
+  methods:
+    - diff-review
+    - review-triage
+  extensions:
+    - pre-merge-review
+---
 
-**Audience:** Agent-executed — your agent follows this to prepare completed work for integration.
+# Workflow: Integrate Work Unit
 
 After all tasks are marked complete and verification passes, this workflow prepares the work for integration:
 documentation cleanup, completion metadata, code review, and merge. The work unit's branch becomes a clean,
@@ -21,17 +30,9 @@ delete the per-WU status file.
    [archive-work-unit][archive-work-unit].
 
 Rotation may happen multiple times during a work unit; integration and archival each happen exactly once at the
-end. The per-WU status file travels with the task list across rotations via normal merge flow — no
-mid-lifecycle resets or absorbs.
+end.
 
 See [Work Organization Strategy][work-org] for the complete task list and branch relationship model.
-
-**Method dependencies (load on first reference):** This workflow references two arc-methods. When first
-encountered, load the relevant section of [`arc-methods.md`][arc-methods] — check `.override` first; use
-`.default` if no override is configured.
-
-- [pre-merge-review][arc-methods-pmr] — aggregate diff review before push
-- [review-triage][arc-methods-rt] — classifying and acting on review findings
 
 ## Workflow Overview
 
@@ -48,6 +49,11 @@ not a post-merge activity. This ensures PR reviewers see clean, well-organized d
 ## Phase 1: On Child Branch (Before PR)
 
 **Context:** You're on the child branch where work was completed (e.g., `incidental/fix-auth-edge-cases`).
+
+**On workflow entry:** if the active status file's `**Next Action:**` doesn't already point at this workflow,
+update it to `integrate-work-unit Step 1 — verify completion` before proceeding. This keeps the integration-
+signal convention consistent across handoffs that fall between verification and Step 6c (per
+[session-handoff][session-handoff] § _Workflow step pointer_; consumed by session-init `sessionType` inference).
 
 ### 1) Verify Work Completion
 
@@ -111,7 +117,40 @@ and the status file `**State:**` field set to `Complete`.
 
 Create `completion-{name}.md` in the same directory as the task list. Follow the templates and
 guidance in [template-completion-doc.md][template-completion-doc] — choose standard or lightweight
-based on work complexity. Complete the verification checklist (standard template) before proceeding.
+based on work complexity.
+
+**Before drafting, gather:**
+
+- Task list overview (first ~100 lines) — Scope, context, what was planned
+- Final phase(s) of task list — actual completion state, follow-up work status
+- CLEANUP-PROGRESS data (for large files) — metrics collected during cleanup
+- Git log for the final commit hash: `git log -1 --oneline`
+- Activation commit for the `**Started:**` date:
+  `git log --diff-filter=A -- .arc/active/{category}/status-{name}.md` (the commit that
+  created the status file is the activation event; use its date)
+
+**After drafting (standard template only), verify every claim:**
+
+- [ ] _Started / Completed dates:_ Started = activation commit date; Completed = integration
+      prep date
+
+- [ ] _Pull Request URL:_ added after `gh pr create` in Step 7
+
+- [ ] _Phase count:_ matches actual phases in task file — `grep -c "^## \*\*Phase" tasks-{name}.md`
+
+- [ ] _Quantitative claims:_ each number verified in task file (note where verified —
+      e.g., "7 themes" → Phase X, line Y). Avoid file/test counts in Verification — pre-merge
+      review routinely shifts those numbers, leaving the doc stale at archive time.
+
+- [ ] _Follow-up work:_ reflects FINAL phase state; only list items ACTUALLY still deferred
+      at task end
+
+- [ ] _No stale references:_ no mentions of deleted notes files, completed deferred items, etc.
+
+- [ ] _All major phases represented:_ check CLEANUP-PROGRESS data includes all phases
+
+Lightweight template: verify the summary against the task list by inspection (no structured
+checklist).
 
 ### 4) Commit Documentation Changes
 
@@ -145,7 +184,7 @@ task list.
 **Commit message format:** Follow DEV-RULES.ARC.md § Commit format.
 Documentation prep commits use type/scope `docs(arc)` or `docs({category})` with the `(integration)`
 context footer pattern — e.g., `Context: tasks-{name}.md (integration)`. Review-fix commits during
-integration use the `(code review)` footer instead — see `arc-methods.md` § commit-context-format.
+integration use the `(code review)` footer instead — see the [commit-context-format method][arc-methods-ccf].
 
 **⛔ CHECKPOINT:** Phase 1 complete. Proceed to Phase 2 for code review before creating the PR.
 
@@ -161,7 +200,7 @@ it only for phase-boundary events (Step 6c below; substantive deliverable change
 review, rare; archival). Cycle-level review context — findings in flight, drafted replies,
 pass numbers — belongs in SESSION-NOTES and the PR itself, not in the status file.
 
-### 5) Pre-Merge Inbox Review · `#pre-merge-inbox-review`
+### 5) Pre-Merge Inbox Review
 
 **arc-in-git mode only** (`pm.mode: arc-in-git`). Skip if inbox is empty or PM mode is `none`/`external`.
 
@@ -183,9 +222,10 @@ transfer routes through backlog, not into another person's inbox.
 
 If `review.pre_merge` is enabled (default) in [`arc-config.yml`][arc-config]:
 
-1. Execute the [pre-merge-review method][arc-methods-pmr] — review the aggregate diff, classify
-   findings using the [review-triage method][arc-methods-rt] (fix/defer/reject/silent-fix)
-2. If [pre-merge-review extensions][arc-ext-pre-merge-review] are configured, execute them
+1. Execute the [diff-review method][arc-methods-diff-review] — review the aggregate diff, classify
+   findings using the [review-triage method][arc-methods-rt] (fix-now/defer/reject/silent-fix)
+2. If `pre-merge-review` appears in the active-extensions list (established at session init), load and
+   execute its [`.actions`][arc-ext-pre-merge-review]. Otherwise, skip this sub-step.
 3. Commit any fixes with the `(code review)` context footer
 
 When disabled, proceed directly to push and PR creation.
@@ -202,8 +242,8 @@ delivered state:
 - **Key Deliverables**: Do new tests or capabilities change the deliverable summary?
 - **Follow-Up Work**: Were new deferrals captured during review?
 
-Update and commit with the `(integration)` context footer. The completion doc doubles as the PR
-description — stale metadata in the PR undermines the review it's meant to support.
+Update and commit with the `(integration)` context footer — the completion doc doubles as the
+PR description.
 
 ### 6c) Update Status File
 
@@ -289,7 +329,7 @@ git pull origin {parent-branch}
 **When to use:** Work where significant progress was made before an architectural decision changed direction.
 Earlier phases remain valid (will be used by new approach), but later phases are obsolete.
 
-**State value:** `Superseded (partial)` on the status file (see [`template-status.md`][template-status] State enum).
+**State value:** `Superseded (partial)` on the status file (see [Work Unit State][work-org-state] for the enum).
 
 **Required elements:**
 
@@ -300,7 +340,7 @@ Earlier phases remain valid (will be used by new approach), but later phases are
    **Superseded By:** `tasks-{new-approach}.md` (YYYY-MM-DD)
    ```
 
-   `Superseded By:` is an optional status-file field documented in [`template-status.md`][template-status].
+   `Superseded By:` is an optional status-file field documented in [Work Unit State][work-org-state].
 
 2. **Completion doc** (archival record):
 
@@ -332,26 +372,21 @@ Earlier phases remain valid (will be used by new approach), but later phases are
    - [~] **4.1 Task description** *(superseded by infinite scroll)*
    ```
 
-   The `[~]` marker means "intentionally not done" — distinct from `[ ]` (pending) and `[x]`
-   (complete). Same convention used in [success criteria][task-list-formatting] for superseded
-   criteria.
-
-**Key principle:** The `[~]` marker + decision point note creates a clear audit trail showing intentional
-architectural pivot, not abandoned work. Header metadata (State, Superseded By) lives in the status file
-and completion doc — not on the task list header.
+   Same `[~]` convention used in [success criteria][task-list-formatting] for superseded criteria.
 
 ---
 
 [work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md
 [task-list-formatting]: ../../../../reference/strategies/arc/strategy-task-list-formatting.md
-[arc-methods]: ../../arc-methods.md
-[arc-methods-rt]: ../../arc-methods.md#review-triage
-[arc-methods-pmr]: ../../arc-methods.md#pre-merge-review
-[arc-ext-pre-merge-review]: ../../arc-extensions.md#pre-merge-review
+[arc-methods-rt]: ../../../methods/review-triage.md
+[arc-methods-diff-review]: ../../../methods/diff-review.md
+[arc-methods-ccf]: ../../../methods/commit-context-format.md
+[arc-ext-pre-merge-review]: ../../../extensions/pre-merge-review.md
 [arc-config]: ../../../arc-config.yml
 [template-completion-doc]: ../../../../reference/templates/template-completion-doc.md
-[template-status]: ../../../../reference/templates/template-status.md
+[work-org-state]: ../../../../reference/strategies/arc/strategy-work-organization.md#work-unit-state
 [rotate-branch]: rotate-branch.md
 [activate-planning-branch]: planning/activate-planning-branch.md
 [archive-work-unit]: archive-work-unit.md
 [dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md
+[session-handoff]: ../session-lifecycle/session-handoff.md

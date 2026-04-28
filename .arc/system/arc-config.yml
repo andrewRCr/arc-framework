@@ -117,8 +117,8 @@ hooks.contributor_protected_paths: active/|backlog/
 
 # Pre-merge diff review before push.
 # Controls whether the agent reviews the aggregate diff before pushing.
-# The pre-merge-review method (arc-methods.md) defines the review activity;
-# this setting controls whether it runs.
+# The diff-review method (system/methods/diff-review.md) defines the review activity;
+# this setting gates the integrate-work-unit invocation of it.
 #   enabled  - Agent reviews aggregate diff before pushing (default)
 #   disabled - Skip local review; rely on PR-time review only
 review.pre_merge: enabled
@@ -153,6 +153,30 @@ pm.mode: arc-in-git
 # See strategy-team-coordination.md for the full coordination protocol.
 team.mode: false
 
+# --- Session Initialization ---
+
+# Automatic remote notes probe during session initialization.
+# Controls whether session-init may fetch/probe remote note state automatically.
+# Pulling user directory content into local files remains explicitly user-confirmed.
+#   enabled  - Session-init may inspect remote notes state automatically. (default)
+#   disabled - Skip remote notes probing during session-init.
+session.remote_sync: enabled
+
+# Worktree pull policy at session init when the local branch is behind origin.
+#   manual - Surface the drift in orientation; user pulls when ready.
+#   prompt - Prompt before pulling. (default)
+# `always` is rejected for this channel — auto-pulling tracked working-tree
+# state silently is too invasive even on clean trees.
+# See session-init.md § Conditional Sync Pulls for dirty-tree precheck and prompt behavior.
+session.init_pull.worktree: prompt
+
+# Notes pull policy at session init when the remote notes ref is ahead.
+#   manual - Surface the drift in orientation; user runs `arc user pull` when ready.
+#   prompt - Prompt before pulling. (default)
+#   always - Pull automatically (notes are gitignored personal context only).
+# See session-init.md § Conditional Sync Pulls for combined-prompt and post-pull re-probe behavior.
+session.init_pull.notes: prompt
+
 # --- User Directory ---
 
 # Automatic push of user/{identity}/ directory via git notes.
@@ -160,5 +184,5 @@ team.mode: false
 #   always - Push session state automatically after every handoff. (default)
 #   prompt - Ask whether to push after handoff.
 #   manual - Never auto-push; user runs `arc session push` explicitly.
-# Per-developer override: `git config arc.sync_push <value>`
+# Per-developer override: `git config arc.syncPush <value>`
 user.sync_push: always

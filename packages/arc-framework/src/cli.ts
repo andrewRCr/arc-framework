@@ -12,8 +12,14 @@ import { getFrameworkVersion } from "./lib/version.js";
 import { formatUnexpectedError } from "./lib/errors.js";
 import { handleInit } from "./handlers/init.js";
 import { handleJoin } from "./handlers/join.js";
-import { handleUpdate, handleStatus, handleDiff } from "./handlers/lifecycle.js";
-import { handleUserAdd, handleUserSave, handleUserLoad, handleUserPush, handleUserPull } from "./handlers/user.js";
+import { handleUpdate, handleHealth, handleDiff } from "./handlers/lifecycle.js";
+import {
+  handleUserAdd, handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
+} from "./handlers/user.js";
+import { handleExtensionsStatus } from "./handlers/extensions.js";
+import { handleConfigStatus } from "./handlers/config.js";
+import { handleActiveStatus } from "./handlers/active.js";
+import { handleStatus } from "./handlers/status.js";
 import { handleSync } from "./handlers/sync.js";
 import { handleLogAtomic } from "./handlers/log.js";
 
@@ -56,9 +62,9 @@ program
   .action(handleUpdate);
 
 program
-  .command("status")
-  .description("Show status of installed ARC framework files")
-  .action(handleStatus);
+  .command("health")
+  .description("Show health of installed ARC framework files")
+  .action(handleHealth);
 
 program
   .command("diff")
@@ -84,26 +90,95 @@ userCmd
 userCmd
   .command("load")
   .description("Restore user directory from a git note")
+  .option("-y, --yes", "Skip overwrite confirmation prompts")
+  .option("--max-walk <n>", "Max ancestors to walk when searching for a note (default: 1000)", parseInt)
   .action(handleUserLoad);
 
 userCmd
   .command("push")
   .description("Push user notes to remote")
-  .option("--force", "Force-push even when remote has diverged")
+  .option("--force", "Force-push even when remote and local notes conflict")
   .action(handleUserPush);
 
 userCmd
-  .command("pull")
+  .command("fetch")
   .description("Fetch user notes from remote")
   .option("--identity <name>", "Pull another developer's notes instead of your own")
+  .action(handleUserFetch);
+
+userCmd
+  .command("pull")
+  .description("Fetch user notes from remote and restore them to disk")
+  .option("--identity <name>", "Pull another developer's notes instead of your own")
+  .option("-y, --yes", "Skip overwrite confirmation prompts")
+  .option("--max-walk <n>", "Max ancestors to walk when searching for a note (default: 1000)", parseInt)
   .action(handleUserPull);
+
+userCmd
+  .command("status")
+  .description("Inspect local, remote, and on-disk user sync state (includes worktree-drift qualifier)")
+  .option("--offline", "Skip remote and worktree probes; inspect only local snapshot vs disk")
+  .option("--all", "List all remote user-note identities when a remote is available")
+  .option("--session-init", "Render a non-destructive remote probe summary for session-init")
+  .option("--json", "Emit the typed result as JSON")
+  .action(handleUserStatus);
+
+// --- Extensions ---
+
+const extensionsCmd = program
+  .command("extensions")
+  .description("Inspect ARC extensions state");
+
+extensionsCmd
+  .command("status")
+  .description("Show active/inactive extensions and orphaned references")
+  .option("--session-init", "Emit the active-extensions list consumed by session-init")
+  .option("--all", "Include the full orphan-reference detail list")
+  .option("--json", "Emit the typed result as JSON")
+  .action(handleExtensionsStatus);
+
+// --- Config ---
+
+const configCmd = program
+  .command("config")
+  .description("Inspect ARC configuration state");
+
+configCmd
+  .command("status")
+  .description("Show arc-config.yml settings (agent-consumable; hooks.* excluded)")
+  .option("--session-init", "Emit the init-gating subset consumed by session-init")
+  .option("--json", "Emit the typed result as JSON")
+  .action(handleConfigStatus);
+
+// --- Active ---
+
+const activeCmd = program
+  .command("active")
+  .description("Inspect ARC active work state");
+
+activeCmd
+  .command("status")
+  .description("Enumerate in-flight work units and their status-file fields")
+  .option("--session-init", "Emit resolved path / null / candidate list for session-init")
+  .option("--json", "Emit the typed result as JSON")
+  .action(handleActiveStatus);
+
+// --- Status (composite) ---
+
+program
+  .command("status")
+  .description("Composite probe: identity + user-sync + extensions + config + active state")
+  .option("--session-init", "Emit the session-init-scoped subset for harness consumption")
+  .option("--json", "Emit the typed result as JSON")
+  .action(handleStatus);
 
 // --- Sync ---
 
 program
   .command("sync")
-  .description("Save and push user directory (or --load to pull and restore)")
-  .option("--load", "Pull and load instead of save and push")
+  .description("Synchronize user directory with remote notes")
+  .option("-y, --yes", "Skip overwrite confirmation prompts")
+  .option("--max-walk <n>", "Max ancestors to walk when searching for a note (default: 1000)", parseInt)
   .action(handleSync);
 
 // --- Log ---

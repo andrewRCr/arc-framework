@@ -28,6 +28,12 @@ Markers:
 
 **Commit at Handoff:** `{{short-hash}}`
 <!-- Record via: git rev-parse --short HEAD. Session-init uses this to detect staleness. -->
+<!--
+  **Session Type:** {planning | execution | integration}
+  Optional override; absent → inferred from tracked state. Set only when the next session's
+  intent diverges from what the active status file implies. Case-insensitive. Invalid value →
+  ignored + warning at session-init.
+-->
 
 ## Completed Work
 

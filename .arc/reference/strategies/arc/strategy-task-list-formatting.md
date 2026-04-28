@@ -4,699 +4,422 @@
 > on the docs site covers the structural vs style distinction, design reasoning, annotated
 > examples, and common pitfalls.
 
-Authoritative formatting specification for task list structure, style, and organization across
-all work types (feature, technical, incidental). Agent reference for task list generation and
-maintenance.
+Authoritative formatting rules for task lists across all work types (feature, technical,
+incidental). Agent reference for task list generation and maintenance. For skeletons, see
+[`template-tasks.md`][template-tasks]. For the pre-save format checklist, see
+[2_generate-tasks.md § Step 4][generate-tasks].
 
 **Referenced by:**
 
-- [2_generate-tasks.md][generate-tasks] - Planned feature/technical work
-- [manage-incidental-work.md][manage-incidental] - Reactive incidental work
+- [2_generate-tasks.md][generate-tasks] — planned feature/technical work
+- [manage-incidental-work.md][manage-incidental] — reactive incidental work
 
 ## Contents
 
-1. [Quick Format Checklist](#quick-format-checklist)
-2. [Task List Headers](#task-list-headers)
-3. [Format Elements Reference](#format-elements-reference)
-4. [Task Ownership Markers](#task-ownership-markers)
-5. [Test-First Task Structure](#test-first-task-structure)
-6. [Verification Phase](#verification-phase)
-7. [Atomic Companion File](#atomic-companion-file)
-8. [Success Criteria Section](#success-criteria-section)
-
----
-
-## Quick Format Checklist
-
-Before finalizing any task list, verify:
-
-- [ ] Phase headers use `### **Phase X:** Description` format
-- [ ] Parent tasks have checkboxes and bold: `- [ ] **X.Y Description**`
-- [ ] Subtasks use letter numbering: `- [ ] **X.Y.a Description**` (bold when detail bullets follow)
-- [ ] Third level uses letters (`X.Y.a`, `X.Y.b`), not numbers (`X.Y.1`, `X.Y.2`) - letters signal depth
-- [ ] Blank lines between subtasks when they have detail bullets beneath
-- [ ] Unnumbered bullets for implementation details (no checkboxes, no numbers)
-- [ ] Goal/Note lines indented 4 spaces from margin (same level as subtasks)
-- [ ] Test-first tasks group test + implementation together (by concern, not activity)
-- [ ] Test-first tasks use `Build \`test-first\` (one behavior at a time):` marker line before behavior list
-- [ ] 4-space indentation per hierarchy level
-- [ ] Backticks for all technical terms: `field_name`, `ClassName`, `/api/endpoint/`
-- [ ] No time estimates anywhere (no duration emojis, minute counts)
-- [ ] Verification phase as final phase (single task pointing to `verify-work-unit.md`)
-- [ ] Atomic companion file created alongside task list (`atomic-{name}.md`, same directory)
-- [ ] Success Criteria section at bottom with checkboxes (checked during verification phase)
+1. [Task List Headers](#task-list-headers)
+2. [Format Elements Reference](#format-elements-reference)
+3. [Task Ownership Markers](#task-ownership-markers)
+4. [Test-First Task Structure](#test-first-task-structure)
+5. [Verification Phase](#verification-phase)
+6. [Atomic Companion File](#atomic-companion-file)
+7. [Success Criteria Section](#success-criteria-section)
 
 ---
 
 ## Task List Headers
 
-Task list headers provide essential metadata and context. Format varies by task list type.
+Two variants. See [`template-tasks.md`][template-tasks] for skeletons.
 
-### Feature/Technical Task Lists
+**Feature/Technical** (`# Task List: {Name}`) — planned work with PRD and dedicated branch:
 
-**Use when:** Planned work with dedicated branch and PRD (feature development, technical improvements)
-
-**Required fields:**
-
-```markdown
-# Task List: [Feature/Technical Name]
-
-**PRD:** `.arc/active/{feature|technical}/prd-[name].md`
-**Branch(es):** `{feature|technical}/[branch-name]`
-**Base Branch:** base branch (typically `main` — see `.arc/system/arc-config.yml`)
-
-## Overview
-
-**Purpose:** One-sentence description of what this accomplishes.
-
-## Scope
-
-### Will Do
-
-- What's included in this task list
-
-### Won't Do
-
-- What's deferred or out of scope
-
----
-
-## Tasks
-
-### **Phase 1:** ...
-```
-
-**Rules:**
-
-- Title uses `Task List:` (not "Incidental:")
-- PRD reference is absolute path from repo root
-- `Branch(es)` lists the primary implementation branch; add additional branches comma-separated
-  when using stacked PRs or team sub-branches (see
-  [Task Lists and Branches](strategy-work-organization.md#task-lists-and-branches))
-- Base Branch references the project's configured base branch, not a hardcoded name
-- Overview section includes Purpose
-- Scope section defines boundaries (Will Do / Won't Do)
-- Optional sections (Architecture Patterns, Current State, Testing Strategy, etc.) only when needed
+- Title uses `Task List:` prefix
+- PRD reference is repo-root-relative; updates when work activates (arc-in-git mode)
+- `Branch(es)` lists the primary implementation branch; comma-separated additions for stacked
+  PRs or team sub-branches (see [Task Lists and Branches][work-org-task-branches])
+- `Base Branch` references the project's configured base per [`arc-config.yml`][arc-config],
+  not a hardcoded name
+- `**Purpose:**` is a one-line summary in the header; full Scope (Will Do / Won't Do) lives
+  in the PRD — the task list does not mirror it
 - Horizontal rule (`---`) separates header from tasks
-- Success Criteria section goes at bottom (see [Success Criteria Section](#success-criteria-section))
 
-### Incidental Task Lists
-
-**Use when:** Reactive work discovered during implementation (bug fixes, quality improvements, tech debt)
-
-**Required fields:**
-
-```markdown
-# Incidental: [Descriptive Title]
-
-**Branch(es):** `incidental/[name]`
-**Base Branch:** `[parent-branch-this-branched-from]`
-
-## Context
-
-**Discovered:** [Where/how found] - Brief description
-
-**Problem:** One-sentence problem statement
-
-**Why Now:** Brief rationale for immediate work
-
-## Scope
-
-### Will Do
-
-- What's included in this task list
-
-### Won't Do
-
-- What's deferred or out of scope
-
----
-
-## Tasks
-
-### **Phase 1:** ...
-```
-
-**Rules:**
+**Incidental** (`# Incidental: {Title}`) — reactive work discovered during implementation:
 
 - Title uses `Incidental:` prefix
-- `Branch(es)` lists this task list's own branch; add additional branches comma-separated if needed
-- Base Branch is the parent branch this branched from (enables grep-based discovery of related work)
-- Scope section separates included vs deferred work
-- Horizontal rule (`---`) separates header from tasks
-- Success Criteria section goes at bottom (see [Success Criteria Section](#success-criteria-section))
-- Lifecycle state (`State`, `Interrupts`, `Paused At`, `Paused To`) lives in the status file, not the task list
-  — see [manage-incidental-work.md][manage-incidental] § Coordinated Pause/Resume for the protocol
+- `Base Branch` is the parent branch this branched from (enables grep-based discovery of
+  related work)
+- `## Context` replaces the Feature/Technical Purpose field —
+  `**Discovered:**` / `**Problem:**` / `**Why Now:**`
+- `## Scope` (`### Will Do` / `### Won't Do`) is retained — no PRD to canonicalize from
+- Lifecycle state (`State`, `Interrupts`, `Paused At`, `Paused To`) lives in the status file,
+  not the task list header — see
+  [manage-incidental-work.md § Coordinated Pause/Resume][manage-incidental]
 
-**Example:**
-
-```markdown
-# Incidental: CLI Output Encoding on Windows
-
-**Branch(es):** `incidental/cli-output-encoding`
-**Base Branch:** `feature/multi-format-export`
-
-## Context
-
-**Discovered:** Manual testing during Phase 3.6 (CSV export implementation)
-
-**Problem:** CLI output garbles non-ASCII characters on Windows terminals.
-
-**Why Now:** Blocks manual testing confidence and affects newly implemented export features.
-
-## Scope
-
-### Will Do
-
-- Fix encoding for all output formats (table, CSV, JSON)
-- Add comprehensive encoding tests
-
-### Won't Do
-
-- Performance optimization (separate enhancement)
-
----
-
-## Tasks
-```
+Both variants: Success Criteria section at the bottom; optional sections (Architecture Patterns,
+Current State, Testing Strategy) only when the work needs them.
 
 ---
 
 ## Format Elements Reference
 
+### Bold and Italic Conventions
+
+Convention tracks document role, not a single global rule:
+
+- **File-header metadata** uses `**Bold:**` field labels — task list `**PRD:**`, `**Branch(es):**`,
+  `**Purpose:**`; atomic file `**Purpose:**`, `**Ordering:**`. These describe the file.
+
+- **Work descriptors** use `_Italic:_` field labels — phase preamble `_Purpose:_`, parent-task
+  `_Goal:_` / `_Note:_` / `_Outcome:_`, atomic-item `_Observation:_` / `_Scope:_` / `_Files:_`.
+  These describe the work.
+
+- **Actionable titles** use `**Bold**` (no colon) — parent task `**X.Y Title**`, subtask
+  `**X.Y.a Title**`, atomic item `**Title**`. These are the work.
+
+Bold signals "structural piece" (file metadata, task titles); italic signals "describing the
+work" (descriptors, rationale, outcomes). The layered split is what keeps the visual hierarchy
+readable across document types.
+
 ### Phase Headers
 
-**Format:** `### **Phase X:** Description`
+`## **Phase X:** Description` — level 2, phase number bold within heading, name plain after
+colon. Blank line before and after. No time estimates. Phases are the document's section
+headings; the document title (`# Task List: ...`) is the only H1. No intermediate `## Tasks`
+wrapper between H1 and phase H2s — phases are the H2 layer.
 
-**Rules:**
+### Phase Preamble
 
-- Level 3 heading (`###`)
-- Phase number in bold within heading: `**Phase X:**`
-- Descriptive name after colon (not in bold)
-- No time estimates
-- Blank line before and after (visual separation)
-
-```markdown
-✅ ### **Phase 1:** Backend Tests and Data Models
-
-❌ ### Phase 1: Backend Tests and Data Models  # Missing bold on "Phase 1:"
-❌ ### **Phase 1: Backend Tests**  # Colon inside bold
-❌ ### **Phase 1:** Backend Tests (2 hours)  # Time estimate (prohibited)
-```
+Lines between the phase heading and its first parent task heading. Required: `_Purpose:_` line
+(italic) — what the phase delivers and why this granularity. Optional: `_Design decisions:_`
+block summarizing the key calls (one or two short paragraphs; link to `notes-{name}.md` for
+full rationale, alternatives considered, and risks). Soft cap ~12 lines per preamble —
+anything longer belongs in the notes file.
 
 ### Parent Tasks
 
-**Format:** `- [ ] **X.Y Description**`
-
-**Rules:**
-
-- Checkbox with space: `- [ ]`
-- Task number AND description both bold: `**X.Y Description**`
-- Numbers follow pattern: `1.1`, `1.2`, `2.1`, etc. (not `1.1.0`)
-- Description is concise but complete (what, not how)
-- Indented 0 spaces from margin (top level within phase)
-
-```markdown
-✅ - [ ] **1.1 Write tests for data models**
-
-❌ - [ ] 1.1 Write tests for data models  # Not bold
-❌ - [ ] **1.1** Write tests for data models  # Only number bold
-❌ - [x] **1.1 Write tests for data models**  # Pre-checked (starts unchecked)
+```text
+### `[ ]` **X.Y Description**
 ```
+
+Level 3 heading; status marker (`` `[ ]` `` / `` `[x]` `` / `` `[~]` ``) wrapped in inline
+code (backticks); X.Y number and description both bold. The marker is text in the heading,
+toggled at completion as a one-character edit. Backticks distinguish the marker from
+incidentally-bracketed prose in titles. Subtasks use the same backtick-wrapped marker
+(§ Subtasks) for rendered-view consistency.
+
+Numbers follow `1.1`, `1.2`, `2.1` (not `1.1.0`). Description is concise but complete — what,
+not how.
+
+Phase headings (H2) and parent task headings (H3) provide the outline-pane navigation surface
+in editors. Subtasks remain bullets — promoting them to H4 would crowd outline panes without
+navigation benefit.
 
 ### Subtasks (Third Level)
 
-**Format:** `- [ ] **X.Y.a Description**` (bold when detail bullets follow)
-
-**When to use:** Parent task requires 2+ distinct, independently completable steps
-
-**Rules:**
-
-- **Letter format: `X.Y.a`, `X.Y.b`, `X.Y.c`** (letters at third level for visual clarity)
-- **Bold description when subtask has detail bullets beneath** (creates visual hierarchy)
-- Indented 4 spaces from parent task
-- Each subtask should be completable/testable independently
-- For test-first work, group by concern — subtask covers both test and implementation
-- **Blank lines between subtasks when they have detail bullets** (improves readability)
-
-```markdown
-✅ Subtasks with detail bullets:
-
-- [ ] **1.1 `User` model (`models.py`)**
-
-    - [ ] **1.1.a Field validation**
-
-        Build `test-first` (one behavior at a time):
-        - Email format validation
-        - Username uniqueness constraint
-
-    - [ ] **1.1.b Password hashing**
-
-        Build `test-first` (one behavior at a time):
-        - Password stored as hash, not plaintext
-
-✅ Simple single-line subtasks:
-
-- [ ] **1.2 Run quality gates**
-    - [ ] 1.2.a Run linting checks
-    - [ ] 1.2.b Run type checking
-
-❌ - [ ] **1.1.1 Create test for User model**  # Numeric third level (use letters)
-❌ - [ ] 1.1.a Create test with details  # Not bold but has details below
+```text
+- `[ ]` **X.Y.a Description**
 ```
 
-### Letter Numbering (Third Level and Beyond)
+Checkbox bullet with backtick-wrapped marker (matching parent task heading style); letter
+numbering at third level. Bold when detail bullets follow (creates visual hierarchy); plain
+when simple single-line. Indented 4 spaces from the parent task heading's content (under the
+parent's `_Goal:_` bullet — see § Goal/Note Lines for the structural anchor mechanic).
 
-**Format:** `X.Y.a`, `X.Y.b` for third level; `X.Y.a.1`, `X.Y.a.2` for fourth level (rare)
+The backtick wrapping prevents GFM from rendering the marker as an actual checkbox UI element
+in preview/rendered views. Without backticks, parent tasks (in headings — where GFM doesn't
+render task lists) and subtasks (in bullets — where GFM does) would render inconsistently.
+Backticks on both keeps the marker as literal monospace text in all renderers.
 
-After two number levels, use letters for visual differentiation. `7.3.a` is instantly clearer
-than `7.3.1` — letters signal deeper nesting and break up number sequences.
+**Use when:** Parent task requires 2+ distinct, independently completable steps. For test-first
+work, group by concern — one subtask covers both test and implementation.
 
-**Numbering hierarchy:**
+### Numbering Hierarchy
 
+```text
+Phase:         ## **Phase X:**                       (H2 heading)
+Parent task:   ### `[x]` **X.Y Title**               (H3 heading, backtick marker)
+Subtask:       - `[x]` **X.Y.a Title**               (bullet, backtick marker)
+Fourth level:  X.Y.a.1                               (rare — resume numbers after letters)
 ```
-Phase: ### **Phase X:**
-Parent task: X.Y (e.g., 1.1, 2.3)
-Subtask: X.Y.a, X.Y.b (letters at third level)
-Fourth level (rare): X.Y.a.1, X.Y.a.2
-```
 
-**Guidelines:**
-
-- Use letters after two number levels for visual differentiation
-- If fourth level needed, resume numbers after letters
-- Maintain 4-space indentation per level regardless of numbering scheme
+Letters after two number levels provide visual differentiation — `7.3.a` is instantly clearer
+than `7.3.1`. Maintain 4-space indentation per level regardless of numbering scheme.
 
 ### Unnumbered Implementation Bullets
 
-**Format:** `- Detail or guidance (no checkbox, no number)`
+`- Detail or guidance` (no checkbox, no number). Two purposes:
 
-Detail bullets serve two distinct purposes:
+1. **Implementation guidance** (non-actionable) — file locations, architecture notes, expected
+   behaviors (tests FAIL initially, tests should PASS), context, rationale
+2. **Grouped sub-actions** (actionable but coupled) — tests in the same file, manual scenarios
+   done together, config items changed together — too granular or coupled for numbered subtasks
 
-1. **Implementation guidance (non-actionable):** File locations, architecture notes, expected
-   behaviors ("tests FAIL initially", "tests should PASS"), context or rationale
-2. **Grouped sub-actions (actionable but coupled):** Multiple tests in same file, manual testing
-   scenarios done together, configuration items changed together — too granular/coupled to track
-   separately as numbered subtasks
+Indented 4 spaces from the task they support; can nest further (8 / 12 spaces). Keep concise
+(1-2 lines per bullet). Use backticks for technical terms.
 
-**Rules:**
-
-- No checkbox, no numbers
-- Indented 4 spaces from the task they support
-- Can nest further (8 spaces for sub-bullets)
-- Use backticks for technical terms
-- Keep concise (1-2 lines per bullet)
+At task completion, per-subtask description bullets shift from plan-content to outcome-content
+in place — same shape, no label change. See [process-task-loop § Completion notes content
+discipline][process-task-loop] for the content bound and replace-don't-accumulate rule.
 
 ### Goal/Note Lines
 
-**Format:** `**Goal:** One-line clarification` or `**Note:** Important context`
+Italic-prefixed bullets at root level under a parent task heading: `- _Goal:_ {one line}`,
+`- _Note:_`, `- _Rationale:_`, `- _Approach:_`, `- _Context:_`. Italics signal non-actionable
+descriptor; bold (`**X.Y Title**`) is reserved for actionable task titles.
 
-**When to use:** Parent task title is technical/terse and needs purpose/rationale clarification
+**Goal as structural anchor.** When a parent task has subtasks, `_Goal:_` is the bullet that
+owns them via 4-space indent — semantically, subtasks serve the Goal. Goal must come last
+among descriptor bullets so subtasks indent under it; other descriptors (Context, Rationale,
+Approach) appear as flat peer bullets BEFORE Goal.
 
-**Rules:**
+**Subtaskless parents — no descriptor bullets pre-completion.** A parent task without subtasks
+must not carry `_Goal:_`, `_Note:_`, `_Rationale:_`, `_Approach:_`, or `_Context:_` bullets.
+The title carries the task; supporting bullets without indented children look orphaned. If a
+descriptor seems necessary, that's a signal to subtask the work — surface the Goal as the
+structural anchor and break the work into 2+ subtasks.
 
-- Indented 4 spaces from margin (same level as subtasks)
-- First word bold (`**Goal:**`, `**Note:**`, `**Rationale:**`, `**Purpose:**`, `**Approach:**`)
-- Single line only (not a paragraph)
-- Must illuminate purpose/impact, NOT repeat title
-- Blank line after (before first subtask)
+**Post-completion: outcomes replace descriptors.** At `[x]` time, all pre-completion
+descriptor bullets are REPLACED by a single `_Outcome:_` bullet at root level (per
+[process-task-loop § Completion notes content discipline][process-task-loop]). This applies to
+subtaskless parents too — `_Outcome:_` is allowed when warranted, and is the only descriptor
+a subtaskless parent ever carries. Don't accumulate plan AND outcome.
 
-```markdown
-✅ - [ ] **1.1 `User` model (`models.py`)**
-
-       **Goal:** Validated user model with email, username, and password constraints.
-
-       - [ ] **1.1.a Field validation**
-
-❌     **Goal:** Create the User model.  # Repeats title, adds no value
-❌     **Goal:** This task involves building a comprehensive user model
-       with field validation, password hashing, and relationship setup
-       to ensure data integrity across the application.  # Too long, should be 1 line
-```
+**Verification-task exception.** The verification phase's single task (per
+[verify-work-unit.md][verify-work-unit]) carries three required completion-note categories —
+quality gates, success criteria, atomic tasks. These appear as three italic descriptor bullets
+at root level (`_Quality gates:_`, `_Success criteria:_`, `_Atomic tasks:_`) in lieu of a
+single `_Outcome:_`. Same italic convention; structured layout reflects the verification
+workflow's required coverage.
 
 ### Revision Numbering (R Scheme)
 
-**Format:** `X.Y.R`, `X.Y.R.Z` for discovered/remaining work
+Expanding a previously-complete subtask without destroying existing numbering:
 
-**When to use:** Expanding a previously-complete subtask without destroying existing numbering.
-Documents mid-implementation discoveries, preserves original numbering, maintains audit trail.
+- `X.Y.R` — subtask-level discovered/remaining work
+- `X.R` — phase-level follow-on that cuts across a whole phase (e.g., post-Phase-3 quality-gate
+  close)
+- `X.Y.R.a`, `X.R.a` — children when the revision item itself needs subtasks
 
-```markdown
-- [x] **3.1 Implement pagination metadata**
-    - [x] 3.1.1 Update hook to extract metadata
-
-    - [ ] **3.1.R Additional integration tests discovered**
-        - [ ] **3.1.R.1 `PaginatedQuery` handler tests**
-
-            Build `test-first` (one behavior at a time):
-            - Correct metadata extraction from paginated response
-
-        - [ ] **3.1.R.2 `ResultsList` stability tests**
-
-            Build `test-first` (one behavior at a time):
-            - Handles empty result set without error
-```
+Preserves original numbering and audit trail. Documents mid-implementation discoveries.
 
 ### Emoji Usage
 
-**Policy:** Discourage emojis in task planning; acceptable in completion details.
-
-- **Discouraged** in task descriptions, phase headers, and Goal/Note lines — prefer plain text
-- **Acceptable** in completion details (when marking tasks `[x]`): ❌ for explaining deviations
-  from plan with rationale
-- Green checkmarks (✅) discouraged as redundant — task already marked `[x]`
+Discouraged in task descriptions, phase headers, and Goal/Note lines — prefer plain text.
+Acceptable in completion notes (`❌` for explaining deviations from plan with rationale).
+Green checkmarks (`✅`) redundant with the `[x]` marker.
 
 ### Technical Terms
 
-**Format:** Backticks for all technical identifiers
+Backticks for all identifiers: field names (`field_name`), class names (`ClassName`), function
+names (`method_name()`), file names (`models.py`), API endpoints (`/api/users/`), constants
+(`MAX_LENGTH`), variables (`response_data`).
 
-**Apply to:** Field names (`field_name`), class names (`ClassName`), function names
-(`method_name()`), file names (`models.py`), API endpoints (`/api/users/`), constants
-(`MAX_LENGTH`), variables (`response_data`)
+### Indentation
 
-```markdown
-✅ - [ ] 1.2.1 Create `User` model in `src/models/user.py`
-       - Add fields: `username`, `email`, `date_joined`
+4 spaces per hierarchy level:
 
-❌ - [ ] 1.2.1 Create User model in src/models/user.py  # No backticks
-```
+- Phase heading (H2) → col 1
+- Parent task heading (H3) → col 1
+- Root-level descriptor bullets (`_Goal:_`, peers) → col 1 (bullet marker; content starts col 3)
+- Subtasks under `_Goal:_` → col 5 (4-space indent + bullet)
+- Per-subtask description bullets → col 9 (8-space indent + bullet)
+- Sub-bullets within description → col 13 (12-space indent + bullet)
 
-### Indentation Rules
+### Blank-Line Discipline
 
-**Standard:** 4 spaces per hierarchy level
+Blank lines required:
 
-```
-Phase Header (### **Phase X:**)
-↓
-Phase-level notes (0 spaces) **Purpose:** Optional context
-↓
-Parent Task (0 spaces) - [ ] **X.Y Description**
-    ↓
-    Goal/Note Line (4 spaces) **Goal:** Clarification
-    ↓
-    Numbered Subtask (4 spaces) - [ ] **X.Y.Z Description** (bold if details follow)
-        ↓
-        Detail Bullet (8 spaces) - Implementation detail
-            ↓
-            Sub-bullet (12 spaces) - Nested detail
-```
+- Before and after every phase heading (H2)
 
-**Visual example:**
+- Before and after every parent task heading (H3)
 
-```markdown
-### **Phase 1:** Backend Implementation
+- Between every subtask (whether or not it carries detail bullets)
 
-**Purpose:** Establish data models with test-first approach.
+- Loose-list rendering for any list containing multi-line items — when at least one item spans
+  2+ lines, every item in that list separates from its neighbors with a blank line. Lists
+  where every item is single-line stay tight. Applies uniformly to atomic-file items,
+  ATOMIC-INBOX entries, success criteria items, item-level descriptor sub-bullets, and any
+  other list content where multi-line entries appear.
 
-- [ ] **1.1 `User` model (`models.py`)**
+- Before and after multi-paragraph descriptor blocks within a phase preamble
 
-    **Goal:** Validated user model with email and username constraints.
+**File-header metadata blocks follow a different rule** from content lists. The bullet block
+at the top of a task list, completion doc, or similar metadata cluster is shape-mixed:
+key/value and enum-shaped fields (PRD, Branch, Started, Completed, Category, etc.) describe
+the doc; descriptive-prose fields (Purpose, Context) describe what the work is. The two
+shapes get different visual treatment:
 
-    - [ ] **1.1.a Field validation**
-        - Fields: `username`, `email`, `password_hash`
-        - Add `clean()` method for validation
+- Key/value and enum fields stay tight to each other — the cluster keeps its scan rhythm
+- Descriptive-prose fields (Purpose, Context, etc.) separate from neighbors with a blank
+  line — the prose trailer is visually demarcated from the metadata cluster
 
-        Build `test-first` (one behavior at a time):
-        - Email format validation
-        - Username uniqueness constraint
+The test is field shape, not line count: a key/value that happens to wrap (e.g., long path)
+stays tight; a one-sentence Context that fits on one line still gets the separator because
+it's prose by role. By convention descriptive fields land at the end of the block, but the
+rule is shape-based — a descriptive field anywhere separates from its neighbors.
 
-    - [ ] **1.1.b Password hashing**
-
-        Build `test-first` (one behavior at a time):
-        - Password stored as hash, not plaintext
-        - Hash verification succeeds with correct password
-
-- [ ] **1.2 `Profile` model (`models.py`)**
-
-    Build `test-first` (one behavior at a time):
-    - Foreign key to `User`
-    - Cascade delete when `User` removed
-```
+Markdownlint MD022 enforces heading spacing; the "between every subtask", loose-list, and
+file-header-metadata-block rules are project convention beyond MD022 and are verified at the
+pre-save checklist.
 
 ---
 
 ## Task Ownership Markers
 
-**Applies when:** `team.mode: true` — multiple developers collaborate on the same task list.
+**Applies when** `team.mode: true` — multiple developers collaborate on the same task list.
 Optional in solo mode.
 
-### The `(@name)` Convention
-
-Mark task ownership by appending `(@name)` at the end of the checkbox line:
+Format: `(@name)` at end of the checkbox line or phase header:
 
 ```markdown
 - [ ] **1.1 Implement authentication flow** (@alice)
-- [ ] **1.2 Set up CI pipeline** (@bob)
-- [ ] **1.3 Write API documentation** (@alice)
-```
-
-Phase headers can carry area-level ownership:
-
-```markdown
 ### **Phase 3:** Auth Layer (@alice)
 ```
 
-**Placement:** Always at the end of the line, after the task description (and after any trailing
-parenthetical if present). Uses the developer's `arc.identity` value.
+Uses the developer's `arc.identity` value. Markers are optional — unowned tasks can be claimed
+during execution. Reassignment is a text edit (change the marker, no ceremony). Identifies the
+human developer, not the AI agent. Does not appear in commit messages or branch names.
 
-**Rules:**
-
-- Markers are optional — unowned tasks can be claimed during execution
-- Reassignment is a text edit (change the marker, no ceremony)
-- `(@name)` appears in task lists only, not in commit messages or branch names
-- `(@name)` identifies the human developer, not the AI agent
-
-See [Team Coordination Strategy][team-coordination] § Task Ownership for the full convention,
-including reassignment and person-to-person handoff.
+See [Team Coordination Strategy § Task Ownership][team-coordination] for reassignment protocols
+and person-to-person handoff.
 
 ---
 
 ## Test-First Task Structure
 
-**Applies when:** The [test-first method][arc-methods-tf] assessment says test-first for this work.
-If your team has overridden test-first to test-after, this section's patterns don't apply — structure
-tasks however suits your workflow.
+**Applies when** the [test-first method][arc-methods-tf] assessment selects test-first for this
+work. If your team has overridden test-first to test-after, this section's patterns don't apply
+— structure tasks however suits your workflow.
 
-**Core principle:** Test-first is an execution discipline within a task, not a task-ordering
-convention. Group test and implementation together — by module or concern, not by activity.
+**Core rule:** Group test and implementation together — by module or concern, not by activity.
+Name tasks for the module (`` `User` model ``), not the activity ("Write tests for User
+model"). A `` Build `test-first` (one behavior at a time): `` marker introduces the behavior
+list; the marker signals red-green-refactor discipline. Its absence means test-after is
+acceptable.
 
-### Standard Pattern
+Behavior bullets are coverage targets, not an execution sequence — each RED→GREEN cycle informs
+the next. Implementation detail bullets (fields, file locations, architectural notes) precede
+the marker. No separate "implement" task — test and implementation form one vertical unit.
 
-```markdown
-### **Phase 1:** User Model
+**Multiple related components:** one task per component within a phase, each with its own
+behavior list and marker. **Multi-layer projects** (backend + frontend, API + CLI): separate
+phases per layer with the same grouped pattern in each, plus a cross-layer validation phase.
 
-- [ ] **1.1 `User` model (`models.py`)**
-
-    - [ ] **1.1.a Field validation**
-        - Fields: `username`, `email`, `password_hash`
-        - Add validation in `clean()` method
-
-        Build `test-first` (one behavior at a time):
-        - Email format validation
-        - Username uniqueness constraint
-
-    - [ ] **1.1.b Password hashing**
-
-        Build `test-first` (one behavior at a time):
-        - Password stored as hash, not plaintext
-        - Hash verification succeeds with correct password
-
-    - [ ] **1.1.c Run quality gates (linting, type checking)**
-```
-
-**Key elements:**
-
-- **Task named for the module**, not the activity — "`User` model", not "Write tests for User model"
-- **`Build \`test-first\` (one behavior at a time):`** is the execution marker — a leading line that signals
-  red-green-refactor discipline and introduces the behavior list beneath it (see
-  [process-task-loop][process-task-loop] for the execution loop). Its absence means test-after is acceptable.
-- **Behavior bullets are a discovery guide, not a batch spec** — each is a behavior to verify, not a test to
-  write upfront. The agent picks one, writes a failing test, makes it pass, then picks the next. The list
-  informs what to cover; the execution order emerges from each RED→GREEN cycle.
-- **Implementation detail bullets precede the marker** — context about what you're building (fields,
-  file locations, architectural notes) comes before the behavioral spec
-- **No separate "implement" task** — test and implementation are one vertical unit
-
-**For multiple related components:** One task per component within the phase, each with its own
-behavior list and `Build \`test-first\`:` marker. For multi-layer projects (backend + frontend,
-API + CLI), use separate phases per layer with the same grouped pattern in each, plus a
-cross-layer validation phase.
+See [3_process-task-loop.md][process-task-loop] for the red-green-refactor execution loop.
 
 ---
 
 ## Verification Phase
 
-**Required for all task lists.** Every task list ends with a verification phase as its final
-phase. This phase marks the boundary between "doing the work" and "confirming the work is done."
-
-**Standard format:**
+Required final phase of every task list — a single task pointing to
+[`verify-work-unit.md`][verify-work-unit]:
 
 ```markdown
-### **Phase N:** Verification
+## **Phase N:** Verification
 
-- [ ] **N.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+### `[ ]` **N.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
 ```
 
-A single task that points to the workflow. The task description is intentionally thin — the
-workflow is the authoritative protocol (Tier 3 quality gates, success criteria validation,
-atomic task resolution). The `[verify-work-unit]` link reference is part of the template —
-include it in every generated task list.
-
-**Why a single task:** Verification is one review increment — three read-only validation
-activities that produce a single coherent outcome. Breaking them into separate tasks created
-self-contained descriptions that agents could execute without loading the workflow, causing
-protocol details (immutable criteria text, three-state model) to be missed. A thin pointer
-forces the workflow load.
-
-**Completion notes as record:** The workflow instructs the agent to include completion notes
-covering what was verified. This makes the archived task list self-documenting — a reader
-sees the verification outcome without needing to find the workflow.
+Include the `[verify-work-unit]` reference-link definition with other reference links at the
+task list's end.
 
 ---
 
 ## Atomic Companion File
 
-**Created alongside every task list.** A standalone file (`atomic-{name}.md`) in the same directory
-as `tasks-{name}.md`. Empty by default — populated during execution as off-plan work is discovered.
+Created alongside every task list: `atomic-{name}.md` in the same directory as
+`tasks-{name}.md`. No phases or numbering hierarchy; items are flat parent-level entries under
+a single `## Tasks` wrapper. Empty by default; populated during execution as off-plan work
+surfaces.
 
-**Purpose:** Tracks indivisible one-off tasks you elect to do in parallel to the planned work —
-discovered during execution, not required for the work unit's success criteria. Unlike the phased
-task list, these tasks have no position in the dependency sequence and are accessed at
-unpredictable times throughout execution.
+See [`template-tasks.md`][template-tasks] for the skeleton and
+[3_process-task-loop.md § Atomic Task Completion][process-task-loop] for the completion
+protocol.
 
-**Companion file format:**
+**Shape parity with task lists.** Atomic items follow Format C parent-task conventions:
 
-```markdown
-# Atomic Tasks — {Work Unit Name}
+- Items are H3 headings with backtick-wrapped markers: `` ### `[ ]` **{Title}** `` /
+  `` ### `[x]` **{Title}** `` / `` ### `[~]` **{Title}** ``
 
-**Purpose:** Tracking of indivisible one-off tasks you elect to do in parallel to the
-planned work — discovered during execution, not required for the work unit's success
-criteria. Flat checkbox list, no numbering hierarchy.
+- A single `## Tasks` wrapper sits between the file-header preamble and the items, demoting
+  items to H3 (the parent-task layer) so visual level matches task-list parent tasks
 
-**Ordering:** Incomplete tasks (`[ ]`) stay at the top. Completed tasks (`[x]`) sink
-below them in completion order (oldest completed first). See process-task-loop §
-Atomic Task Completion for the full protocol.
+- File-header preamble field labels stay bold (`**Purpose:**`, `**Ordering:**`) per § Bold
+  and Italic Conventions — file-header metadata, not work descriptors
 
-> Multi-step work required for the WU belongs in the task list as a new phase.
-> For multi-step work outside the WU's concern, see `manage-incidental-work.md`.
+- Item-level descriptor sub-bullets use italic when needed (`_Observation:_`, `_Scope:_`,
+  `_Files:_`, `_Approach:_`)
 
----
+- At completion, planning content is replaced by outcome content — single `_Outcome:_`
+  bullet, or outcome prose under the heading
 
-- [ ] Clarify error message in config loader (noticed during Task 5.3, deferred)
+What atomic files don't carry: phases, subtask layer, letter numbering. Each item is
+indivisible by definition — that's the contract.
 
-- [x] Fixed broken cross-reference in session-init.md (discovered during Task 3.2)
-- [x] Updated .gitignore for new build artifacts (discovered during Task 4.1)
+**ATOMIC-INBOX parallel** (arc-in-git mode, `user/{identity}/`): same shape — `## Inbox`
+wrapper in lieu of `## Tasks`, H3 items with backtick markers, italic descriptor sub-bullets.
+File-header preamble fields stay bold. The wrapper name reflects the file's queue-of-deferred
+semantics; the structural shape (H1 → H2 wrapper → H3 items) matches the companion file.
 
----
-```
+**Scope guards** (each item must satisfy all three):
 
-**Naming convention:** `atomic-{name}.md` where `{name}` matches the task list's `tasks-{name}.md`.
-The `atomic-` prefix sorts before `tasks-` in directory listings, bookending the other work unit
-artifacts for easy visual identification.
+- **Size** — if an item needs subtasks, phases, or more than ~30 minutes of work, it is
+  multi-step. Required-for-WU multi-step goes in the task list as a new phase; outside-WU
+  multi-step routes via [manage-incidental-work][manage-incidental]
+- **Relationship** — elective, not required for the work unit's success criteria. If required
+  for the WU to succeed but doesn't fit existing phases, add to the task list
+- **Timing** — during this WU's lifecycle. For later work, use ATOMIC-INBOX (arc-in-git) or
+  your PM mechanism. The [issue-triage method][arc-methods-it] applies for trivial fixes in
+  files already being touched
 
-**Rules:**
+**Ordering:** incomplete (`[ ]`) at top; completed (`[x]`) sink below in completion order
+(oldest first). Parenthetical context ("discovered during Task X.Y") preserves traceability
+without formal numbering.
 
-- **Flat checkbox list** — no phase headers, no numbered tasks, no subtask hierarchy. Each item
-  is a single checkbox with a brief description. This is deliberately simpler than the main task
-  structure. Bold headers and grouped sub-bullets are acceptable for larger items.
-- **Ordering** — incomplete tasks (`[ ]`) stay at the top; completed tasks (`[x]`) sink below
-  them in completion order (most recently completed last). This keeps pending work immediately
-  visible when the file is opened. A blank line between the two groups is optional but aids
-  scannability.
-- **Parenthetical context** — note where/when the item was discovered (e.g., "discovered during
-  Task 3.2") to preserve traceability without formal numbering
-- **Scope guard — size** — if an item needs subtasks, phases, or more than ~30 minutes of work, it
-  is multi-step. Multi-step work required for the WU goes in the task list as a new phase.
-  Multi-step work outside the WU's concern goes through [manage-incidental-work][manage-incidental].
-- **Scope guard — relationship to WU** — items belong here if they are **elective, not required
-  for the work unit's success criteria**. If something is required for the WU to succeed but
-  doesn't fit existing phases, add it to the task list (new phase or subtask) — not here.
-  The companion file is for parallel work you choose to do because you have context.
-- **Scope guard — timing** — items belong here if you intend to do them **during this work unit's
-  lifecycle**. "Will I do this during this WU?" → companion file. "Is this for later?" →
-  ATOMIC-INBOX (arc-in-git) or your PM mechanism. The [issue-triage method][arc-methods-it]
-  applies if the fix is trivial and in a file you're already touching.
-- **Empty by default** — the file is created alongside every task list from generation but starts
-  with only the guidance comment. Don't remove an empty companion file — its presence signals that
-  off-plan work has a home.
-- **All work unit types** — feature, technical, and incidental task lists all get companion files.
-- **Commit context** — `Context: atomic-{name}.md` (no task number, no special suffix). The commit
-  message body describes the work.
-- **Archival** — archives alongside the task list if it contains any items. Deleted (not archived)
-  if empty at integration time.
+**Naming:** `atomic-{name}.md` where `{name}` matches the task list's `tasks-{name}.md`. The
+`atomic-` prefix sorts before `tasks-` in directory listings, bookending the other work-unit
+artifacts.
+
+**Lifecycle:** Don't delete an empty companion file — its presence signals off-plan work has a
+home. Feature, technical, and incidental task lists all get companion files.
+
+**Commit context:** `Context: atomic-{name}.md` (no task number, no special suffix). The commit
+message body describes the work. **Archival:** alongside the task list if it contains any
+items; deleted if empty at integration time.
 
 ---
 
 ## Success Criteria Section
 
-**Required for all task lists.** Placed at the bottom of the task list, serves as outcome
-verification checklist.
+Required final section of every task list. Each Scope "Will Do" item maps to a verifiable
+criterion — the checkable operationalization of the PRD's success criteria. See
+[`template-tasks.md`][template-tasks] for the block.
 
-**Purpose:** Checkable operationalization of the PRD's success criteria. Each "Will Do" item
-should map to a verifiable criterion. These checkboxes are checked during the
-[verification phase](#verification-phase), not during implementation.
+Checked during the [verification phase](#verification-phase), not during implementation or
+archival. Markers backtick-wrapped (matching parent + subtask convention — see
+[§ Subtasks](#subtasks-third-level) for rationale). Always include "All quality gates pass"
+and "Ready for integration" as standard items. Criterion text is immutable — never rewrite
+to match actual implementation. Do not duplicate the PRD's criteria verbatim — operationalize
+them into checkable items.
 
-**Format:**
-
-```markdown
----
-
-## Success Criteria
-
-- [ ] [Verifiable outcome derived from Scope "Will Do"]
-- [ ] [Another verifiable outcome]
-- [ ] [Functional requirement that can be tested]
-- [ ] All quality gates pass (tests, linting, type checking)
-- [ ] Ready for [archival | next phase | merge]
-```
-
-**Rules:**
-
-- Checkboxes required (actionable verification items)
-- Derived from Scope "Will Do" items and PRD success criteria
-- Always include "All quality gates pass" and "Ready for X" as standard items
-- **Marked during verification phase** — not during implementation, not during archival
-- Do not duplicate the PRD's criteria verbatim — operationalize them into checkable items
-- **Criterion text is immutable** — never rewrite to match actual implementation
-- All items must be `[x]` or `[~]` (with annotations) before running archive workflow.
-  Any remaining `[ ]` items represent genuine gaps requiring resolution.
-- No time estimates
-
-**Three states** (see [verify-work-unit.md][verify-work-unit] for the execution protocol):
+**Three states** (applied during [`verify-work-unit.md`][verify-work-unit]):
 
 | Marker | Meaning    | Annotation                                                   |
 |--------|------------|--------------------------------------------------------------|
 | `[x]`  | Met        | None needed, or **Deviation** note if addressed differently  |
-| `[~]`  | Superseded | **Superseded** note required - why dropped/deferred          |
-| `[ ]`  | Not met    | Genuine gap - resolve before work is considered complete     |
+| `[~]`  | Superseded | **Superseded** note required — why dropped/deferred          |
+| `[ ]`  | Not met    | Genuine gap — resolve before work is considered complete     |
 
-**Example:**
-
-```markdown
-## Success Criteria
-
-- [x] Required-field validation reports all missing fields with paths
-- [x] Type-mismatch validation reports expected vs actual types
-- [x] Multiple errors collected and reported in single pass
-- [x] `getting-started.md` exists with adoption story and "what to customize" guidance
-    - **Deviation:** Content redirected to external docs site (MkDocs Material +
-      GitHub Pages). In-repo file is a lightweight pointer, not the full adoption
-      story originally planned. Decided during Task 5.1.
-- [~] Widget supports offline mode
-    - **Superseded:** Descoped to Phase D after discovering API dependency requires
-      always-online for initial sync. See `plan-public-release.md`.
-- [x] All quality gates pass (tests, linting, type checking — 0 violations)
-- [x] Ready to resume interrupted work at Task 3.3
-```
+All items must be `[x]` or `[~]` (with annotations) before running archive. Any remaining
+`[ ]` represent genuine gaps requiring resolution.
 
 ---
 
 ## Related Documentation
 
-- [DEV-RULES.ARC](../../constitution/DEV-RULES.ARC.md) — Test-first assessment
-- [2_generate-tasks.md][generate-tasks] — Planned work task generation
-- [manage-incidental-work.md][manage-incidental] — Incidental work lifecycle
-- [3_process-task-loop.md][process-task-loop] — Task execution workflow
+- [DEV-RULES.ARC](../../constitution/DEV-RULES.ARC.md) — test-first assessment
+- [2_generate-tasks.md][generate-tasks] — planned work + pre-save format checklist
+- [manage-incidental-work.md][manage-incidental] — incidental work lifecycle
+- [3_process-task-loop.md][process-task-loop] — task execution workflow
 
 ---
 
@@ -704,6 +427,9 @@ should map to a verifiable criterion. These checkboxes are checked during the
 [manage-incidental]: ../../../system/workflows/arc/supplemental/manage-incidental-work.md
 [process-task-loop]: ../../../system/workflows/arc/3_process-task-loop.md
 [verify-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md
-[arc-methods-it]: ../../../system/workflows/arc-methods.md#issue-triage
-[arc-methods-tf]: ../../../system/workflows/arc-methods.md#test-first
+[arc-methods-it]: ../../../system/methods/issue-triage.md
+[arc-methods-tf]: ../../../system/methods/test-first.md
+[template-tasks]: ../../templates/template-tasks.md
 [team-coordination]: strategy-team-coordination.md
+[arc-config]: ../../../system/arc-config.yml
+[work-org-task-branches]: strategy-work-organization.md#task-lists-and-branches

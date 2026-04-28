@@ -1,9 +1,9 @@
+---
+purpose: Keep project documentation accurate, consistent, and free of contradictions as the project evolves.
+audience: agent
+---
+
 # Workflow: Maintain Project Docs
-
-**Audience:** Agent-executed — your agent follows this when updating project documentation.
-
-**Purpose**: Keep project documentation (constitutional docs, strategies, agent files) accurate, consistent, and free
-of contradictions as the project evolves.
 
 **When to use**: When making changes to constitutional documents or discovering documentation issues during active work.
 
@@ -15,7 +15,7 @@ When constitutional documents change, update related files to keep documentation
 
 **Update these files:**
 
-- `agent/AGENT-BRIEFING.PROJECT.md` - Project overview and features section
+- `briefs/AGENT-BRIEF.PROJECT.md` - Project overview and features section
 - `PROJECT-STATUS.md` - If scope or priorities change
 
 **Why**: META-PRD is the source of truth for project vision. Changes here ripple to reference docs that summarize that vision.
@@ -25,7 +25,7 @@ When constitutional documents change, update related files to keep documentation
 **Update these files:**
 
 - Version number in DEV-RULES.PROJECT.md header (increment version, update hash)
-- All `agent/*.md` files - If protocols or quality standards change
+- All `briefs/*.md` files - If protocols or quality standards change
 - Team communication about rule changes (if applicable)
 
 **Why**: Development rules govern AI behavior. Version tracking helps identify when behavioral issues stem from rule
@@ -35,7 +35,7 @@ changes versus AI interpretation.
 
 **Update these files:**
 
-- `agent/AGENT-BRIEFING.PROJECT.md` - Technology stack and patterns section
+- `briefs/AGENT-BRIEF.PROJECT.md` - Technology stack and patterns section
 - `PROJECT-STATUS.md` - If architectural decisions affect roadmap
 
 **Why**: Technical architecture decisions cascade to implementation patterns and project timelines.
@@ -57,9 +57,6 @@ changes versus AI interpretation.
 - Other documents can reference it, but shouldn't duplicate it
 - Contradictions emerge when same instruction exists in multiple places with slight variations
 
-**Example**: Task completion protocol belongs in `3_process-task-loop.md`.
-Other documents should reference it, not duplicate it.
-
 ### Cross-References Over Duplication
 
 When tempted to duplicate content:
@@ -72,7 +69,7 @@ When tempted to duplicate content:
 
 ### Keep AI Instructions Lean
 
-When updating `agent/` docs:
+When updating `briefs/` docs:
 
 - **Do**: Reference other docs for details
 - **Do**: Provide quick lookup/navigation guides
@@ -122,29 +119,5 @@ framework version — use any versioning scheme that works for your team.
 - Could this live in a separate reference doc and be read on-demand?
 
 **Remember**: Every line added to session-init docs is read every session. Optimize for signal-to-noise ratio.
-
-## Document Hierarchy
-
-### Always Read (Session Init)
-
-- `AGENT-BRIEFING.ARC.md` + `AGENT-BRIEFING.PROJECT.md` - ARC orientation and project context
-- Active status file (`active/{category}/status-{name}.md`) - Active work state
-- `SESSION-NOTES.md` - Personal session context (if exists)
-- `DEV-RULES.ARC.md` - Framework development methodology (commit, verification, session/task rules)
-- `DEV-RULES.PROJECT.md` - Quality gates and project-specific rules
-- `3_process-task-loop.md` - Task execution workflow
-- `QUICK-REFERENCE.md` - Commands and environment
-
-### Read On-Demand
-
-- `prepare-commits.md` - When committing complex or accumulated changes
-- `manage-incidental-work.md` - When handling discovered issues
-- `session-handoff.md` - When ending sessions
-- `maintain-project-docs.md` (this file) - When updating documentation
-
-### Meta-Documentation (Not for AI Session Init)
-
-- This file (`maintain-project-docs.md`)
-- Any future documentation about documentation
 
 ---

@@ -39,7 +39,7 @@ describe("smoke", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("init");
     expect(result.stdout).toContain("update");
-    expect(result.stdout).toContain("status");
+    expect(result.stdout).toContain("health");
     expect(result.stdout).toContain("diff");
   });
 

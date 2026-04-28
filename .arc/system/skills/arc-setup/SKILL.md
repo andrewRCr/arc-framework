@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 1. Load ARC context.
 
-   - Read `.arc/system/agent/AGENT-BRIEFING.ARC.md` to understand the framework — what ARC is,
+   - Read `.arc/system/briefs/AGENT-BRIEF.ARC.md` to understand the framework — what ARC is,
      how sessions work, key documents, and directory structure.
 
 2. Run the setup workflow.

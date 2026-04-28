@@ -13,7 +13,7 @@
  */
 
 import { fileURLToPath } from "node:url";
-import { resolve, dirname } from "node:path";
+import { resolve, dirname, join } from "node:path";
 import { existsSync } from "node:fs";
 
 /**
@@ -69,4 +69,27 @@ export function getRecipePath(): string {
  */
 export function getChangelogPath(): string {
   return resolve(packageRoot, "changelog", "versions.json");
+}
+
+/**
+ * Walk upward from a starting directory until an ARC project root is found.
+ *
+ * An ARC project root is any directory containing a `.arc/` entry. Returns
+ * `null` when the walk reaches the filesystem root without finding one.
+ *
+ * @param startDir - Directory to begin searching from (defaults to `process.cwd()`)
+ * @returns Absolute path to the ARC project root, or `null` if none exists
+ */
+export function resolveArcRoot(startDir = process.cwd()): string | null {
+  let dir = resolve(startDir);
+  for (;;) {
+    if (existsSync(join(dir, ".arc"))) {
+      return dir;
+    }
+    const parent = dirname(dir);
+    if (parent === dir) {
+      return null;
+    }
+    dir = parent;
+  }
 }

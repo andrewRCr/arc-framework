@@ -47,16 +47,19 @@ export async function runArc(
   options?: { timeout?: number; env?: Record<string, string> },
 ): Promise<RunResult> {
   const timeout = options?.timeout ?? 30_000;
+  const env = { ...process.env, NO_COLOR: "1", ...options?.env };
   try {
-    const { stdout, stderr } = await execFileAsync(
-      "node",
-      [CLI_PATH, ...args],
-      {
-        cwd,
-        timeout,
-        env: { ...process.env, NO_COLOR: "1", ...options?.env },
-      },
-    );
+    const { stdout, stderr } = process.platform === "linux"
+      ? await execFileAsync(
+        "script",
+        ["-qec", buildScriptCommand(args), "/dev/null"],
+        { cwd, timeout, env },
+      )
+      : await execFileAsync(
+        "node",
+        [CLI_PATH, ...args],
+        { cwd, timeout, env },
+      );
     return { stdout, stderr, exitCode: 0 };
   } catch (err: unknown) {
     const e = err as {
@@ -73,6 +76,15 @@ export async function runArc(
       exitCode,
     };
   }
+}
+
+function buildScriptCommand(args: string[]): string {
+  const nodeCommand = ["node", CLI_PATH, ...args].map(shellEscape).join(" ");
+  return `stty cols 120 rows 40; exec ${nodeCommand}`;
+}
+
+function shellEscape(value: string): string {
+  return `'${value.replaceAll("'", "'\"'\"'")}'`;
 }
 
 /**

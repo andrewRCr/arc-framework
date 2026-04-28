@@ -16,9 +16,10 @@ import { getArcTemplatePath, getInternalTemplatePath } from "../lib/paths.js";
 import { getFrameworkVersion } from "../lib/version.js";
 import { createIOContext } from "../lib/io-context.js";
 import { gitExec } from "../lib/io-context.js";
+import { readConfigSettings } from "../lib/config/status-reader.js";
 import {
-  isNonInteractiveEnvironment, requireGitRepo, resolveIdentityWithPrompt,
-  isHandledError, readPmMode,
+  isNonInteractiveEnvironment, requireArcProjectRoot, requireGitRepo, resolveIdentityWithPrompt,
+  isHandledError,
 } from "./shared.js";
 
 export interface JoinOptions {
@@ -44,9 +45,11 @@ export async function handleJoin(opts: JoinOptions): Promise<void> {
 
   if (!(await requireGitRepo())) return;
 
-  const cwd = process.cwd();
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
   const io = createIOContext();
-  const pmMode = await readPmMode(cwd);
+  const { settings } = await readConfigSettings(cwd);
+  const pmMode = settings["pm.mode"];
 
   // Build prompts from flags or interactive prompts
   let prompts: JoinPromptResult;
@@ -130,7 +133,8 @@ async function handleJoinReconfigure(opts: JoinOptions): Promise<void> {
 
   if (!(await requireGitRepo())) return;
 
-  const cwd = process.cwd();
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
   const io = createIOContext();
 
   // Read current role from git config

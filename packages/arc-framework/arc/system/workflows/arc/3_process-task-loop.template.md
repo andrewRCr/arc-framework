@@ -1,26 +1,26 @@
+---
+purpose: Execute tasks from ARC task lists — completion protocol, quality gates, stops, and incidental work routing.
+audience: agent
+arc:
+  methods:
+    - issue-triage
+    - quality-gate-commands
+    - test-first
+  extensions:
+    - post-task-quality
+    - post-unit-quality
+    - post-task-completion
+---
+
 # Workflow: Task Processing Loop
 
-**Audience:** Agent-executed — your agent follows this protocol during task execution.
-
-## Purpose
-
-This workflow defines the detailed process for executing tasks defined in ARC task lists (e.g., `.arc/active/*/tasks-*.md`).
-It ensures consistent execution, quality control, and documentation of work.
-
 ## Task Implementation
-
-**Method dependencies (load on first reference):** This workflow references three arc-methods. When first
-encountered, load the relevant section of [`arc-methods.md`][arc-methods] — check `.override` first; use
-`.default` if no override is configured.
-
-- [issue-triage][arc-methods-it] — severity triage for pre-existing issues (the "leave it cleaner" rule)
-- [quality-gate-commands][arc-methods-qg] — project quality gate definitions
-- [test-first][arc-methods-tf] — decision tree (only when task has `Build \`test-first\`` marker)
 
 - **One task at a time:** Each checkbox in the task list is one review increment — a bounded chunk of
   autonomous execution between human review points. Complete one, mark it `[x]`, report, and **stop**
   for user approval.
-<!-- arc:if team.mode == true -->
+
+  <!-- arc:if team.mode == true -->
 
   In team mode, this applies per developer-agent pair — concurrent pairs may work different tasks.
 
@@ -31,7 +31,8 @@ encountered, load the relevant section of [`arc-methods.md`][arc-methods] — ch
     - If the task is owned by someone else → skip to your next owned or unowned task
 
   See [Team Coordination Strategy][team-coordination] § Task Ownership for the full convention.
-<!-- arc:endif -->
+
+  <!-- arc:endif -->
 
 - **Branch/task list coupling:** A task list may span one or more branches (stacked PRs, team
   sub-branches, phased delivery). Archive when all tasks are marked complete — branch cleanup
@@ -40,11 +41,9 @@ encountered, load the relevant section of [`arc-methods.md`][arc-methods] — ch
   see [rotate-branch][rotate-branch]. See [Work Organization Strategy][work-org] for the full
   relationship model.
 
-- **Co-development awareness:** The developer may be working alongside you — editing files, running
-  commands, or making commits while you execute tasks. This is a normal part of the ARC workflow:
-  single-threaded, small-scope tasks keep the developer close enough to the work to contribute
-  directly. Treat parallel changes as expected context, not interruptions. If changes conflict with
-  your current task, flag the conflict and ask how to proceed.
+- **Co-development awareness:** The developer may be editing files or making commits alongside you.
+  Treat parallel changes as expected context, not interruptions. If changes conflict with your
+  current task, flag the conflict and ask how to proceed.
 
 - **Test-first execution:** When a task has a `Build \`test-first\` (one behavior at a time):` marker
   (per the [test-first method][arc-methods-tf]), execute as vertical slices — one behavior at a time:
@@ -61,8 +60,9 @@ encountered, load the relevant section of [`arc-methods.md`][arc-methods] — ch
   **Batching judgment:** When behaviors are tightly coupled (single function, shared setup, no
   independent discovery value), batching tests before implementing is a pragmatic alternative to
   strict one-at-a-time slicing. When you batch rather than slice, note the rationale briefly in
-  your completion report (e.g., "behaviors tightly coupled, single-pass implementation"). This
-  makes the decision visible — silent compliance and silent deviation should not look identical.
+  your completion report to the user (e.g., "behaviors tightly coupled, single-pass
+  implementation") — not in task list completion notes. This makes the decision visible during
+  review without bloating the persistent record.
 
 - **Issue triage:** When you encounter pre-existing issues in files you're modifying,
   follow the [issue-triage method][arc-methods-it] for severity assessment and fix-vs-defer decisions.
@@ -72,34 +72,54 @@ encountered, load the relevant section of [`arc-methods.md`][arc-methods] — ch
   1. When you finish a **single task** (one checkbox item):
      - **First**: Run incremental quality checks on modified files — **Tier 1** — using the
        [quality-gate-commands method][arc-methods-qg]
-       - **Tier definitions:** Tier 1 (per-task): quality-gate-commands on modified files only ·
-         Tier 2 (coherent unit): full-project Tier 1 + targeted integration/E2E + build ·
-         Tier 3 (phase/pre-PR): all checks, all configurations, full suite.
-         See [Quality Gates Strategy][quality-gates] for boundaries and escalation.
+       - **Tier boundaries:** See [Quality Gates Strategy][quality-gates].
        - Task list may specify additional checkpoints (including E2E) — those are mandatory; otherwise
          use judgment on whether changes warrant extra validation
-     - **Extensions** · `#post-task-quality`: If [post-task-quality extensions][arc-ext-task-quality] are configured,
-       execute them before proceeding. See [`arc-extensions.md` § post-task-quality][arc-ext-task-quality]
+     - **Extensions** · `#post-task-quality`: If `post-task-quality` appears in the active-extensions list
+       (established at session init), load and execute its [`.actions`][arc-ext-task-quality]. Otherwise, skip.
      - **Second**: Mark task as `[x]` in task list file (task list reflects completed work when reporting)
        - Update task description to reflect actual work done (not just original plan)
-       - Add completion notes with key findings/changes if work deviated from plan
        - **No inline dates**: Don't add completion dates to individual tasks (e.g., "Completed: 2025-11-02"). Inline
          dates become temporal noise during archival. WU-level completion date lives on the completion doc's
          `**Completed:**` field; no task list or per-task date stamp is expected.
-       - **Streamline verbose planning details**: When marking complete, keep outcomes (actual changes,
-         key decisions, architectural impact) but trim planning scaffolding (pre-implementation steps,
-         detailed instructions) that no longer serves a purpose.
+       - **Completion notes — content discipline.** At task completion, **replace** pre-completion descriptors
+         (Goal, Note, Rationale, Approach, Context, Design decisions) with a single outcome record. Don't
+         accumulate plan AND outcome — the historical record needs only what was done. Outcome content is
+         optional when the task title carries the work; not every `[x]` requires a notes block.
+
+         **Include:** what changed (key files/symbols when not obvious from the title); decisions worth
+         preserving — only when the choice would surprise a reader; cross-references to the commit, ADR, or
+         `notes-{name}.md` for deeper context.
+
+         **Exclude:** quality-gate outcomes (`[x]` already implies they passed; metrics like "840/840 tests"
+         or "Tier 2 clean" are noise); per-decision rationale already in the commit body or `notes-{name}.md`
+         (link, don't restate); test-batching / sequencing narrative (mention only if deviating from project
+         default); process narration (what was tried, debugging steps, mid-task discoveries); forward planning
+         (belongs in next task entry or Next Action).
+
+         **Soft cap:** ~3 lines for atomic subtasks, ~6 lines for parent tasks summarizing rolled-up scope.
+         Longer content belongs in `notes-{name}.md`.
+
+         **Per-subtask outcome content:** the indented description bullet under each subtask shifts from plan
+         to outcome at `[x]`. Same shape, no label change — the indent under a `[x]` already signals "what
+         got done."
        - **Deferred or superseded tasks**: When a task is intentionally skipped — deferred to a later work
          unit, made irrelevant by a design decision, or superseded by a different approach — mark it `[~]`
-         instead of `[x]`. Add a brief note explaining why (e.g., "Deferred to WU3", "Superseded by
+         instead of `[x]`. Add a brief outcome note explaining why (e.g., "Deferred to WU3", "Superseded by
          ADR-011"). This distinguishes deliberate deferrals from incomplete work (`[ ]`).
-     - **Extensions** · `#post-task-completion`: If [post-task-completion extensions][arc-ext-task-completion] are
-       configured, execute them now. Teams using external trackers (Jira, Linear, GitHub Issues) use this
-       extension to sync task completion status — see [Team Coordination Strategy][team-coordination]
-       § External Tracker Integration. See [`arc-extensions.md` § post-task-completion][arc-ext-task-completion]
+       - **Do not update `status-{name}.md` at this step.** The status file updates at commit prep
+         (step 4, "Await user instructions"), triggered by the user's commit request — not task completion.
+     - **Extensions** · `#post-task-completion`: If `post-task-completion` appears in the active-extensions
+       list (established at session init), load and execute its [`.actions`][arc-ext-task-completion].
+       Otherwise, skip. Teams using external trackers (Jira, Linear, GitHub Issues) use this extension to
+       sync task completion status — see [Team Coordination Strategy][team-coordination] § External Tracker
+       Integration.
      - **Third**: Verify completion before reporting (use pre-report checklist below)
      - **Fourth**: **REPORT** completed work to user with summary of changes
      - **Fifth**: ⛔ **MANDATORY STOP** - Wait for user approval before proceeding
+       - **Implied permission:** User approval ("looks good", "proceed") implies permission to
+         continue to the next task UNLESS explicitly stated otherwise. Address any stated concerns
+         before moving on.
 
      **Pre-Report Checklist** (verify before generating completion report):
 
@@ -114,10 +134,6 @@ encountered, load the relevant section of [`arc-methods.md`][arc-methods] — ch
      If any item is unchecked, complete it before proceeding. For quality gate failures: fix
      obvious issues (lint, type errors) and re-run; report non-obvious failures in your
      completion summary — you're about to stop for review anyway.
-
-     **Note on implied permission:** User approval ("great!", "looks good", "proceed") implies permission to
-     continue to the next task UNLESS explicitly stated otherwise (e.g., "that's done, but before moving on...").
-     In such cases, address the concern before proceeding to the next task.
 
      **Deferred review:** When the user explicitly requests continuation through a specific set
      of tasks (e.g., "work through tasks 5.2-5.4 while I'm away"), the mandatory stop between
@@ -149,8 +165,8 @@ encountered, load the relevant section of [`arc-methods.md`][arc-methods] — ch
       reflect completion)
     - **Second**: Ensure new code has appropriate test coverage for new or modified logic
     - **Third**: Run quality gates — **Tier 2** — using the [quality-gate-commands method][arc-methods-qg]
-    - **Extensions** · `#post-unit-quality`: If [post-unit-quality extensions][arc-ext-unit-quality] are configured,
-      execute them before proceeding. See [`arc-extensions.md` § post-unit-quality][arc-ext-unit-quality]
+    - **Extensions** · `#post-unit-quality`: If `post-unit-quality` appears in the active-extensions list
+      (established at session init), load and execute its [`.actions`][arc-ext-unit-quality]. Otherwise, skip.
     - **Fourth**: Verify completion before reporting (use pre-report checklist below)
 
   3. Report completion to user
@@ -169,26 +185,25 @@ encountered, load the relevant section of [`arc-methods.md`][arc-methods] — ch
 
   4. Await user instructions on how to proceed.
      User may choose to commit changes (AI can execute only if explicitly approved) or request modifications.
-     When committing, follow [Commit Guide](supplemental/prepare-commits.md) guidelines.
+     When committing, follow the [prepare-commits workflow](supplemental/prepare-commits.md).
 
      **Active status file (stage with every task commit):** Before staging, update the active
      status file — advance Next Task, Last Completed, and Next Action to reflect the post-commit
      state. Stage it alongside the task list changes. This is the primary update mechanism; session
      handoff is only a fallback. See [Commit Discipline][dev-rules-arc] § Work status accuracy.
-<!-- arc:if team.mode == true -->
+
+     <!-- arc:if team.mode == true -->
 
      **Shared branch concurrency:** When multiple developers commit to the same branch, pull
      before committing to reduce merge conflicts on the status file and the task list. If a
      conflict occurs, resolve the status file by updating it to reflect the current combined
      state (not either side's version). Task list conflicts are resolved by accepting both
      sides' checkbox changes.
-<!-- arc:endif -->
 
-     **Atomicity check (before staging):** Do all changes serve one logical concern? Common
-     splits to watch for: task work vs. unrelated tooling/config fixes, code changes vs. task
-     list tracking updates (when they can stand alone), multiple completed tasks that touched
-     independent areas. When in doubt, smaller commits are better — split and ask. See
-     [Commit Discipline][dev-rules-arc] for the full atomicity principle.
+     <!-- arc:endif -->
+
+     **Atomicity check (before staging):** Do all changes serve one logical concern? When in
+     doubt, split and ask. See [Commit Discipline][dev-rules-arc].
 
 ## Verification Phase
 
@@ -209,42 +224,18 @@ and merge
 
 ### Quick Decision Guide
 
-While working on tasks, you may discover quality improvements, refactoring, or tech debt that should be fixed
-immediately. **Quick decision tree**:
+When work surfaces that should be fixed, decide atomic vs. task list:
 
-**Suggest incidental task list when:**
+- **Atomic task** (or fix inline): single coherent concern; sequential steps toward one goal; bounded scope.
+- **Incidental task list**: multiple distinct phases with different goals; discovery-heavy scope; 2+ hours.
 
-- ✅ Multiple distinct phases with different goals (not just sequential steps)
-- ✅ Scope likely to expand via discovery (investigation-heavy)
-- ✅ Estimated 2+ hours OR requires research → design → implement cycle
-
-**Suggest keeping as atomic task (or fixing inline) when:**
-
-- ❌ Single coherent concern, even if complex (multiple files, 30-90 min)
-- ❌ Sequential steps all serving one goal
-- ❌ Scope is known/bounded after initial analysis
-
-**Key distinction:** "Sequential steps toward one goal" = atomic. "Distinct phases with different objectives" = task list.
+For the full decision tree, see [manage-incidental-work.md][manage-incidental].
 
 ### Where to Capture Atomic Tasks
 
-Once you've decided something is an atomic task (not an incidental task list), route it based
-on **lifecycle intent** — when you intend to handle it, not what domain it's in:
-
-- **Will do during this work unit** → add to the **atomic companion file** (`atomic-{name}.md`
-  in the same directory as the task list). All task lists have a companion file.
-- **For later** (won't do during this WU) → depends on PM mode:
-    <!-- arc:if pm.mode == arc-in-git -->
-    - `arc-in-git`: add to **ATOMIC-INBOX.md** in `user/{identity}/` (personal, gitignored,
-      branch-agnostic — persists across work unit boundaries)
-    <!-- arc:endif -->
-    <!-- arc:if pm.mode == external -->
-    - `external`: route per **Capture Routing** in [DEV-RULES.PROJECT][dev-rules-project]
-      (typically: create an issue in the external tracker)
-    <!-- arc:endif -->
-    <!-- arc:if pm.mode == none -->
-    - `none`: ask the user where to capture it
-    <!-- arc:endif -->
+Routing depends on lifecycle intent — "during this WU" goes to the atomic companion file
+(`atomic-{name}.md`); "for later" depends on PM mode. See [DEV-RULES.ARC][dev-rules-arc]
+§ Leave it cleaner for the full routing table.
 
 ### Atomic Task Completion
 
@@ -268,9 +259,8 @@ When you complete an atomic task (in the companion file or ATOMIC-INBOX), follow
 
 ### Session-Scoped Tracking vs Task List Files
 
-Ephemeral task tracking tools (e.g., Claude Code's TodoWrite) help organize work within a
-session but are **not a substitute for task list markdown updates**. The task list file is the
-permanent record committed to git — always update it before reporting completion.
+Ephemeral task tracking tools (e.g., TodoWrite) are **not a substitute for task list markdown
+updates**. Always update the task list file before reporting completion.
 
 ### Updating Task Lists
 
@@ -282,15 +272,12 @@ permanent record committed to git — always update it before reporting completi
 [work-org]: ../../../reference/strategies/arc/strategy-work-organization.md
 [quality-gates]: ../../../reference/strategies/arc/strategy-quality-gates.md
 [dev-rules-arc]: ../../../reference/constitution/DEV-RULES.ARC.md
-<!-- arc:if pm.mode == external -->
-[dev-rules-project]: ../../../reference/constitution/DEV-RULES.PROJECT.md
-<!-- arc:endif -->
 [rotate-branch]: work-unit-lifecycle/rotate-branch.md
-[arc-ext-task-quality]: ../arc-extensions.md#post-task-quality
-[arc-ext-task-completion]: ../arc-extensions.md#post-task-completion
-[arc-ext-unit-quality]: ../arc-extensions.md#post-unit-quality
-[arc-methods]: ../arc-methods.md
-[arc-methods-tf]: ../arc-methods.md#test-first
-[arc-methods-it]: ../arc-methods.md#issue-triage
-[arc-methods-qg]: ../arc-methods.md#quality-gate-commands
+[manage-incidental]: supplemental/manage-incidental-work.md
+[arc-ext-task-quality]: ../../extensions/post-task-quality.md
+[arc-ext-task-completion]: ../../extensions/post-task-completion.md
+[arc-ext-unit-quality]: ../../extensions/post-unit-quality.md
+[arc-methods-tf]: ../../methods/test-first.md
+[arc-methods-it]: ../../methods/issue-triage.md
+[arc-methods-qg]: ../../methods/quality-gate-commands.md
 [team-coordination]: ../../../reference/strategies/arc/strategy-team-coordination.md

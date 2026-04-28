@@ -25,6 +25,18 @@ async function pathExists(p: string): Promise<boolean> {
   }
 }
 
+async function readInstallManifest(cwd: string): Promise<{
+  files: Record<string, { classification: string }>;
+}> {
+  const manifestRaw = await readFile(
+    join(cwd, ".arc", "system", ".internal", "manifest.json"),
+    "utf-8",
+  );
+  return JSON.parse(manifestRaw) as {
+    files: Record<string, { classification: string }>;
+  };
+}
+
 describe("arc init --reconfigure", () => {
   let tmpDir: string;
 
@@ -123,6 +135,83 @@ describe("arc init --reconfigure", () => {
     const output = result.stdout + result.stderr;
     expect(output).toContain("ROLE_FORBIDDEN");
     expect(output).toContain("Contributors cannot reconfigure");
+  });
+
+  it("reconfigure leaves per-file methods and extensions directories untouched", async () => {
+    const baselineManifest = await readInstallManifest(tmpDir);
+    const methodNames = Object.keys(baselineManifest.files)
+      .map((key) => key.match(/^system\/methods\/(.+)\.md$/)?.[1])
+      .filter((name): name is string => name !== undefined && name !== "README")
+      .sort();
+    const extensionNames = Object.keys(baselineManifest.files)
+      .map((key) => key.match(/^system\/extensions\/(.+)\.md$/)?.[1])
+      .filter((name): name is string => name !== undefined && name !== "README")
+      .sort();
+
+    // Snapshot per-file content before reconfigure (fresh init baseline).
+    const before: Record<string, string> = {};
+    for (const name of methodNames) {
+      const rel = `system/methods/${name}.md`;
+      before[rel] = await readFile(join(tmpDir, ".arc", rel), "utf-8");
+    }
+    for (const name of extensionNames) {
+      const rel = `system/extensions/${name}.md`;
+      before[rel] = await readFile(join(tmpDir, ".arc", rel), "utf-8");
+    }
+    before["system/methods/README.md"] = await readFile(
+      join(tmpDir, ".arc/system/methods/README.md"), "utf-8",
+    );
+    before["system/extensions/README.md"] = await readFile(
+      join(tmpDir, ".arc/system/extensions/README.md"), "utf-8",
+    );
+
+    // Reconfigure pm.mode — orthogonal to methods/extensions.
+    const reconf = await runArc(
+      ["init", "--reconfigure", "--yes", "--pm-mode", "arc-in-git"],
+      tmpDir,
+    );
+    expect(reconf.exitCode).toBe(0);
+
+    // All 18 files still present and byte-identical.
+    for (const [rel, original] of Object.entries(before)) {
+      const current = await readFile(join(tmpDir, ".arc", rel), "utf-8");
+      expect(current, `${rel} changed during reconfigure`).toBe(original);
+    }
+
+    // Manifest still has all 18 entries with unchanged classification.
+    const manifest = await readInstallManifest(tmpDir);
+    for (const name of methodNames) {
+      const key = `system/methods/${name}.md`;
+      expect(manifest.files[key]!.classification).toBe("Configurable");
+    }
+    for (const name of extensionNames) {
+      const key = `system/extensions/${name}.md`;
+      expect(manifest.files[key]!.classification).toBe("Configurable");
+    }
+    expect(manifest.files["system/methods/README.md"]!.classification).toBe(
+      "Framework",
+    );
+    expect(manifest.files["system/extensions/README.md"]!.classification).toBe(
+      "Framework",
+    );
+
+    // No unexpected entries — reconfigure must not add files to these dirs.
+    const expectedMethodKeys = [
+      ...methodNames.map((n) => `system/methods/${n}.md`),
+      "system/methods/README.md",
+    ].sort();
+    const expectedExtensionKeys = [
+      ...extensionNames.map((n) => `system/extensions/${n}.md`),
+      "system/extensions/README.md",
+    ].sort();
+    const actualMethodKeys = Object.keys(manifest.files)
+      .filter((k) => k.startsWith("system/methods/"))
+      .sort();
+    const actualExtensionKeys = Object.keys(manifest.files)
+      .filter((k) => k.startsWith("system/extensions/"))
+      .sort();
+    expect(actualMethodKeys).toEqual(expectedMethodKeys);
+    expect(actualExtensionKeys).toEqual(expectedExtensionKeys);
   });
 
   it("reconfigure with same values is a no-op", async () => {

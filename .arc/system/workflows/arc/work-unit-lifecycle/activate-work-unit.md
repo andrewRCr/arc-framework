@@ -1,11 +1,12 @@
+---
+purpose: Transition a work unit to active — establish the implementation branch and update all tracking documents.
+audience: collaborative (human and agent)
+arc:
+  extensions:
+    - post-work-unit-activate
+---
+
 # Workflow: Activate Work Unit
-
-**Audience:** Collaborative — developer and agent transition planned work to active status.
-
-## Purpose
-
-Transition a work unit (PRD + task list) to active status, establishing the implementation branch and
-updating all tracking documents. This bridges the gap between task generation and task execution.
 
 **When to use:** After generating a task list (`2_generate-tasks.md`) when ready to begin implementation.
 
@@ -41,14 +42,6 @@ in all modes.
 
 - PRD exists in `.arc/backlog/{category}/prd-{name}.md`
 - Task list exists in `.arc/backlog/{category}/tasks-{name}.md`
-
-> **How artifacts reach the base branch** depends on `branch.protection`:
->
-> - **Full protection:** Planning branch PR merged
->   ([integrate-planning-branch][integrate-planning-branch])
-> - **Partial protection:** Planning branch PR merged, or committed directly to base branch
->   (documented exception for solo developers — see
->   [Branch Protection Modes][work-org-protection])
 
 ## Steps
 
@@ -119,9 +112,7 @@ Leave the optional pointer fields (`Interrupts:`, `Paused At:`, `Paused To:`) co
 this WU is interrupted by an incidental (see [`manage-incidental-work.md`][incidental] § Coordinated Pause/Resume).
 
 **Remove pre-activation PRD metadata:** Remove `**State:**`, `**Related Work:**`, and `**Updated:**` lines from the
-PRD header (see [`template-prd.md`][template-prd]). These fields serve pre-activation staleness/dependency tracking
-only — once the status file is created, its `**State:**` field is the sole source of truth for WU lifecycle, and
-git history tracks post-activation edits. The PRD retains only `**Type:**` going forward.
+PRD header (see [`template-prd.md`][template-prd]). The PRD retains only `**Type:**` going forward.
 
 > **Team mode:** The per-WU status file is tracked in `active/{category}/` — one developer performs the activation,
 > and the file applies to the whole branch. Other developers joining the work unit establish their session context
@@ -150,9 +141,8 @@ Update project management documents to reflect the newly active work unit:
 
 ### Step 6: Post-Activation Extensions · `#post-work-unit-activate`
 
-If [post-work-unit-activate extensions][arc-ext-post-activate] are configured, execute them now.
-
-See: [`arc-extensions.md` § post-work-unit-activate][arc-ext-post-activate]
+If `post-work-unit-activate` appears in the active-extensions list (established at session init), load
+and execute its [`.actions`][arc-ext-post-activate]. Otherwise, skip.
 
 ### Step 7: Commit Activation
 
@@ -221,12 +211,10 @@ With the work unit activated, proceed to task execution:
 
 ---
 
-[work-org-protection]: ../../../../reference/strategies/arc/strategy-work-organization.md#branch-protection-modes
 [work-org-branches]: ../../../../reference/strategies/arc/strategy-work-organization.md#task-lists-and-branches
-[arc-ext-post-activate]: ../../arc-extensions.md#post-work-unit-activate
+[arc-ext-post-activate]: ../../../extensions/post-work-unit-activate.md
 [arc-config]: ../../../arc-config.yml
 [deactivate]: deactivate-work-unit.md
-[integrate-planning-branch]: planning/integrate-planning-branch.md
 [session-init]: ../session-lifecycle/session-init.md
 [team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md
 [template-status]: ../../../../reference/templates/template-status.md

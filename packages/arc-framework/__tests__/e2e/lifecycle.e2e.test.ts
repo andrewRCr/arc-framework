@@ -1,8 +1,8 @@
 /**
  * Lifecycle E2E test.
  *
- * Golden path: init → verify installed → modify files → status shows changes →
- * diff shows correct output → update → customizations preserved → status
+ * Golden path: init → verify installed → modify files → health shows changes →
+ * diff shows correct output → update → customizations preserved → health
  * still shows modified (customized file differs from pristine).
  *
  * This is the "beta is functional enough" success criterion exercised
@@ -14,6 +14,12 @@ import { join } from "node:path";
 import { describe, it, expect, afterEach } from "vitest";
 import { runArc, createTempRepo, cleanupTempDir } from "./helpers.js";
 
+async function runHealthCheck(cwd: string): Promise<string> {
+  const result = await runArc(["health"], cwd);
+  expect(result.exitCode).toBe(0);
+  return result.stdout + result.stderr;
+}
+
 describe("lifecycle", () => {
   let tmpDir: string;
 
@@ -21,7 +27,7 @@ describe("lifecycle", () => {
     await cleanupTempDir(tmpDir);
   });
 
-  it("golden path: init → status → modify → diff → update → customization preserved", async () => {
+  it("golden path: init → health → modify → diff → update → customization preserved", async () => {
     tmpDir = await createTempRepo();
 
     // --- Init ---
@@ -41,10 +47,8 @@ describe("lifecycle", () => {
     );
     expect(statusTemplate).toContain("Status: [Work Name]");
 
-    // --- Status after clean init ---
-    const cleanStatus = await runArc(["status"], tmpDir);
-    expect(cleanStatus.exitCode).toBe(0);
-    const cleanOutput = cleanStatus.stdout + cleanStatus.stderr;
+    // --- Health after clean init ---
+    const cleanOutput = await runHealthCheck(tmpDir);
     expect(cleanOutput).toContain("unmodified");
     expect(cleanOutput).not.toMatch(/\d+ modified/);
 
@@ -60,10 +64,8 @@ describe("lifecycle", () => {
     const customized = original + "\n## My Custom Quality Gate\n\nRun integration tests nightly.\n";
     await writeFile(rulesPath, customized, "utf-8");
 
-    // --- Status shows modification ---
-    const modifiedStatus = await runArc(["status"], tmpDir);
-    expect(modifiedStatus.exitCode).toBe(0);
-    const modOutput = modifiedStatus.stdout + modifiedStatus.stderr;
+    // --- Health shows modification ---
+    const modOutput = await runHealthCheck(tmpDir);
     expect(modOutput).toMatch(/\d+ modified/);
 
     // --- Diff shows the change ---
@@ -81,13 +83,11 @@ describe("lifecycle", () => {
     expect(afterUpdate).toContain("## My Custom Quality Gate");
     expect(afterUpdate).toContain("Run integration tests nightly.");
 
-    // --- Status after update: customization still shows as modified ---
+    // --- Health after update: customization still shows as modified ---
     // The file differs from its pristine copy because the user customized it.
     // Update preserved the customization (three-way merge), but doesn't reset
     // the pristine to match the customized version.
-    const postUpdateStatus = await runArc(["status"], tmpDir);
-    expect(postUpdateStatus.exitCode).toBe(0);
-    const postOutput = postUpdateStatus.stdout + postUpdateStatus.stderr;
+    const postOutput = await runHealthCheck(tmpDir);
     expect(postOutput).toMatch(/\d+ modified/);
   });
 });

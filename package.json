@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "description": "ARC Framework development tooling",
+  "license": "Apache-2.0",
   "workspaces": [
     "packages/arc-framework"
   ],
@@ -20,10 +21,13 @@
     "typecheck:test": "npm run typecheck:test -w packages/arc-framework",
     "lint:ts": "npm run lint:ts -w packages/arc-framework",
     "lint:sh": "npm run lint:sh -w packages/arc-framework",
+    "lint:arc:triggers": "tsx packages/arc-framework/src/scripts/audit-method-triggers.ts",
+    "lint:arc:domain-rules": "tsx packages/arc-framework/src/scripts/audit-domain-rules.ts",
     "prepare": "husky"
   },
   "devDependencies": {
     "husky": "^9.1.7",
-    "markdownlint-cli2": "0.21.0"
+    "markdownlint-cli2": "0.21.0",
+    "tsx": "^4.19.2"
   }
 }

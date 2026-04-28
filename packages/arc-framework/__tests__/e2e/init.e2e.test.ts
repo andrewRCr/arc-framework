@@ -130,16 +130,73 @@ describe("init", () => {
     expect(configContent).toContain("pm.mode: arc-in-git");
   });
 
-  it("init with --tools claude,codex installs agent-specific files", async () => {
-    const result = await runArc(
-      ["init", "--yes", "--name", "test-project", "--tools", "claude,codex"],
-      tmpDir,
-    );
-
+  it("init --yes installs per-file methods and extensions directories", async () => {
+    const result = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
     expect(result.exitCode).toBe(0);
 
-    expect(await pathExists(join(tmpDir, ".arc", "system", "agent", "CLAUDE.ARC.md"))).toBe(true);
-    expect(await pathExists(join(tmpDir, ".arc", "system", "agent", "CODEX.ARC.md"))).toBe(true);
+    const methodNames = [
+      "commit-context-format", "commit-format", "diff-review",
+      "issue-triage", "quality-gate-commands", "review-triage",
+      "session-state", "test-first",
+    ];
+    const extensionNames = [
+      "post-context-load", "post-task-completion", "post-task-quality",
+      "post-unit-quality", "post-work-unit-activate",
+      "post-work-unit-archive", "pre-merge-review", "pre-stage-review",
+    ];
+
+    for (const name of methodNames) {
+      expect(
+        await pathExists(join(tmpDir, ".arc/system/methods", `${name}.md`)),
+        `system/methods/${name}.md`,
+      ).toBe(true);
+    }
+    for (const name of extensionNames) {
+      expect(
+        await pathExists(join(tmpDir, ".arc/system/extensions", `${name}.md`)),
+        `system/extensions/${name}.md`,
+      ).toBe(true);
+    }
+
+    expect(
+      await pathExists(join(tmpDir, ".arc/system/methods/README.md")),
+    ).toBe(true);
+    expect(
+      await pathExists(join(tmpDir, ".arc/system/extensions/README.md")),
+    ).toBe(true);
+
+    // Legacy aggregates must not ship from a fresh install.
+    expect(
+      await pathExists(join(tmpDir, ".arc/system/methods/arc-methods.md")),
+    ).toBe(false);
+    expect(
+      await pathExists(join(tmpDir, ".arc/system/extensions/arc-extensions.md")),
+    ).toBe(false);
+
+    // All 18 registered in manifest with expected classifications.
+    const manifestRaw = await readFile(
+      join(tmpDir, ".arc/system/.internal/manifest.json"),
+      "utf-8",
+    );
+    const manifest = JSON.parse(manifestRaw) as {
+      files: Record<string, { classification: string }>;
+    };
+    for (const name of methodNames) {
+      const key = `system/methods/${name}.md`;
+      expect(manifest.files[key], `manifest[${key}]`).toBeDefined();
+      expect(manifest.files[key]!.classification).toBe("Configurable");
+    }
+    for (const name of extensionNames) {
+      const key = `system/extensions/${name}.md`;
+      expect(manifest.files[key], `manifest[${key}]`).toBeDefined();
+      expect(manifest.files[key]!.classification).toBe("Configurable");
+    }
+    expect(manifest.files["system/methods/README.md"]!.classification).toBe(
+      "Framework",
+    );
+    expect(manifest.files["system/extensions/README.md"]!.classification).toBe(
+      "Framework",
+    );
   });
 
   it("init with --team sets team mode in arc-config.yml", async () => {
@@ -192,15 +249,15 @@ describe("init", () => {
 
     expect(result.exitCode).not.toBe(0);
     const output = result.stdout + result.stderr;
-    expect(output).toContain("arc init");
+    expect(output).toContain("Not inside an ARC project");
   });
 
-  it("arc status before init exits non-zero with user-facing message", async () => {
-    const result = await runArc(["status"], tmpDir);
+  it("arc health before init exits non-zero with user-facing message", async () => {
+    const result = await runArc(["health"], tmpDir);
 
     expect(result.exitCode).not.toBe(0);
     const output = result.stdout + result.stderr;
-    expect(output).toContain("arc init");
+    expect(output).toContain("Not inside an ARC project");
   });
 });
 
@@ -262,8 +319,7 @@ describe("arc join", () => {
       expect(result.exitCode).toBe(1);
 
       const output = result.stdout + result.stderr;
-      expect(output).toContain("No ARC installation found");
-      expect(output).toContain("arc init");
+      expect(output).toContain("Not inside an ARC project");
     } finally {
       await cleanupTempDir(emptyDir);
     }

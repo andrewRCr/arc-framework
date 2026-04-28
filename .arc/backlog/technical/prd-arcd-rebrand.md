@@ -1,7 +1,7 @@
 # PRD: ARCd Rebrand
 
-**Type:** Technical
-**Updated:** 2026-04-14
+- **Type:** Technical
+- **Updated:** 2026-04-22
 
 ---
 
@@ -35,8 +35,10 @@ before them absorbs the churn once, and the public release can ship with a coher
   ARCd brand post-install without forcing a full lowercase migration across every operational surface.
 - Absorb Operating Modes WU's config-key renames (`pm.mode` → `pm.layer`, `team.mode` → `team.enabled`, value
   `arc-in-git` → `arc-pm`) in the same editorial pass so the content sweep runs once.
-- Absorb Operating Modes WU's CLI command cleanup (`arc status` → `arcd health`, explicit `arcd version`
-  subcommand).
+- Absorb Operating Modes WU's CLI command cleanup (explicit `arcd version` subcommand; the `arc status` →
+  `arc health` rename was pulled forward into the Session-Init Optimization WU — see § CLI command surface
+  cleanup below. The follow-on `arc health` → `arcd health` rename is absorbed into this WU's global `arc` →
+  `arcd` binary sweep, not a dedicated subtask).
 - Deprecate `@arc-framework/cli` on npm hygienically without investing in a managed migration path. Zero adoption
   is assumed; passive deprecation is the entire outbound surface.
 - Complete the self-hosted `.arc/` migration by hand from the rebranded package source, bypassing `arc update`'s
@@ -112,15 +114,34 @@ cross this boundary without breaking.
 
 **CLI command surface cleanup:**
 
-14. Rename `arc status` to `arcd health`. The command checks installed framework health (version, local
-    modifications, update availability) rather than work state. The current `status` name also collides with
-    the planned `/arc-status` skill for mid-session work orientation (see `plan-arc-modes.md` § Shift
-    Lifecycle). Prefer `health` over `doctor` — neutral-word naming over medical metaphor.
-15. Add an explicit `arcd version` subcommand alongside the existing `--version` flag. Idiomatic across developer
-    tooling (`git version`, `docker version`, `kubectl version`) and improves discoverability for users who
-    guess `<tool> version` before `<tool> --version`.
-16. Rename the backing handler file `src/commands/status.ts` to `src/commands/health.ts` with corresponding
-    handler and test file renames.
+> **Scope note (2026-04-22):** The `arc status` → `arc health` rename originally scoped here (R14 + R16) was
+> pulled forward into the Session-Init Optimization WU. That WU introduced a composite `arc status` probe that
+> needed the `arc status` name freed, and the rename's underlying motivation (the `/arc-status` skill collision
+> plus "status-command should mean work state, not install health" semantic hygiene) belongs with session-init
+> orientation work, not with the binary rebrand. As a result:
+>
+> - **R14 and R16 are already partially satisfied** when this WU activates. The backing file is
+>   `src/commands/health.ts`; the exposed command is `arc health`.
+> - **This WU's remaining R14/R16 work** reduces to sweeping `arc health` → `arcd health` as part of the
+>   global `arc` → `arcd` binary rename (already covered by Phase 1/2 package-rename work; no dedicated
+>   subtasks needed).
+> - **R15 remains fully scoped here** (the explicit `arcd version` subcommand was not pulled forward — it's
+>   rebrand-era idiom alignment).
+> - **Composite `arc status` expansion slot:** SIO shipped a composite that invokes the individual probe
+>   helpers via `Promise.all`. Future probes (e.g., `arc hooks status`) slot into the composite without
+>   workflow-prose changes. In the post-rebrand world, this becomes `arcd status` via the global sweep —
+>   no special handling required.
+
+14. `arc status` (install health) → `arcd health`. **Pre-rebrand state:** the rename has already been
+    completed in SIO (`arc status` → `arc health`). This WU's responsibility narrows to absorbing
+    `arc health` → `arcd health` as part of the global `arc` → `arcd` binary sweep.
+15. Add an explicit `arcd version` subcommand alongside the existing `--version` flag. Idiomatic across
+    developer tooling (`git version`, `docker version`, `kubectl version`) and improves discoverability for
+    users who guess `<tool> version` before `<tool> --version`.
+16. Backing handler file location. **Pre-rebrand state:** `src/commands/health.ts` exists (renamed in SIO from
+    `status.ts`). This WU's responsibility is the package-directory sweep (`packages/arc-framework/` →
+    `packages/arcd/`), which moves the file to `packages/arcd/src/commands/health.ts` — no file-level
+    rename beyond the package sweep.
 
 **Repository rename:**
 

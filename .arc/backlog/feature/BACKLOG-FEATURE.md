@@ -15,18 +15,42 @@ the standard workflow.
 
 ## Medium Priority
 
-### ARC Lite — Lightweight Project Mode
+### ARC Operating Modes
 
-Lightweight ARC variant for small, bounded projects (hours to days). Preserves execution discipline
-(task lists, commit standards, hooks, session management) while eliminating lifecycle ceremony
-(PRDs, work unit activation/archival, backlog pipeline). Core boundary: projects modeled as a single
-evolving task list rather than a stream of work units.
+Expand ARC's mode architecture beyond the single tracked-Full default. Two modes under one plan:
+**Lite** — lightweight mode for small, bounded projects (preserves execution discipline, drops
+lifecycle ceremony; projects modeled as one evolving task list rather than a stream of work units);
+**Local** — untracked ARC for constrained environments (repos the developer can't modify),
+orthogonal to Lite/Full. Includes the shift-lifecycle mechanism for paused work units and
+mode-aware config template scaffolding.
 
-Plan doc: [`plan-arc-lite.md`](plan-arc-lite.md)
+Plan doc: [`plan-arc-modes.md`](plan-arc-modes.md)
 
 ---
 
 ## Lower Priority / Ideas
+
+### Pi Harness Support
+
+Evaluate first-class support for [Pi](https://github.com/badlogic/pi-mono) — an open-source TypeScript agent harness
+in the Claude Code / Codex CLI category. Categorically orthogonal to ARC (Pi is a runtime agent harness; ARC is a
+process harness in `.arc/`), so coexistence already works today via agent-agnostic defaults. Explicit support is
+ergonomic glue, not architectural change.
+
+What would be required:
+
+- **`PI.ARC.md` harness file** (sibling to `WARP.ARC.md`) — harness-level awareness, distinct from model-identity
+  files like `CLAUDE.ARC.md`. A Pi user running Claude would load both, same pattern as Warp + Claude today.
+  Validate in practice that Pi-hosted models still self-identify and load the model file (expected but unverified).
+- **Skill packaging** — place `/arc-*` skills in Pi's discovery location (`~/.pi/agent/skills/` or `.pi/skills/`)
+  with any format adaptation. If Pi adheres to an open skill standard, compatibility may be largely free.
+- **CLI recognition** — `arc init --tools pi` / `arc join --tools pi` to scaffold the above.
+- **Instruction-file discovery** — Pi concatenates `AGENTS.md` / `CLAUDE.md` from global+parent+CWD; session-init
+  already routes the agent to the agent-specific file, so this likely needs no shim. Confirm in practice.
+
+Out of scope: MCP (Pi excludes by design) and permission-model guidance (orthogonal to ARC, user responsibility).
+Do when a real Pi user asks, or when a neighboring WU (arcd-rebrand, arc-modes) makes the extension cheap. No plan
+doc until we commit to pursuing it.
 
 ### Strategy Documents on Docs Site
 
@@ -59,4 +83,4 @@ Items superseded by active work units or already delivered.
 
 ---
 
-**Last reviewed:** 2026-02-22
+**Last reviewed:** 2026-04-28

@@ -22,7 +22,7 @@ import {
   INTERNAL_DIR_SEGMENTS, MANIFEST_FILENAME,
 } from "../lib/constants.js";
 import {
-  isNonInteractiveEnvironment, requireGitRepo, resolveIdentityWithPrompt,
+  isNonInteractiveEnvironment, requireArcProjectRoot, requireGitRepo, resolveIdentityWithPrompt,
   isHandledError,
 } from "./shared.js";
 
@@ -152,12 +152,14 @@ import {
 
 async function handleReconfigure(
   opts: InitOptions,
-  cwd: string,
+  startDir: string,
   io: IOContext,
 ): Promise<void> {
   p.intro(`ARC Framework v${getFrameworkVersion()} \u2502 Reconfigure${opts.dryRun ? " (dry run)" : ""}`);
 
   if (!(await requireGitRepo())) return;
+  const cwd = requireArcProjectRoot(startDir);
+  if (!cwd) return;
 
   // Require existing installation
   if (!(await isArcInstalled(cwd, io.access))) {

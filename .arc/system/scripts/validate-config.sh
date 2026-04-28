@@ -111,6 +111,11 @@ validate_enum "pm.mode" "none arc-in-git external" "none"
 # Team
 validate_enum "team.mode" "false true" "false"
 
+# Session initialization
+validate_enum "session.remote_sync" "enabled disabled" "enabled"
+validate_enum "session.init_pull.worktree" "manual prompt" "prompt"
+validate_enum "session.init_pull.notes" "manual prompt always" "prompt"
+
 # User directory
 validate_enum "user.sync_push" "always prompt manual" "always"
 
@@ -151,7 +156,7 @@ fi
 # Unknown key detection (typo protection)
 # ============================================================================
 
-known_keys="branch.base branch.protection commit.format commit.context_footer commit.custom_pattern commit.context_pattern merge.strategy hooks.pre_commit hooks.commit_msg hooks.task_numbering hooks.skip_extensions hooks.test_patterns hooks.meta_ref_patterns hooks.contributor_protected_paths review.pre_merge platform.type pm.mode team.mode user.sync_push"
+known_keys="branch.base branch.protection commit.format commit.context_footer commit.custom_pattern commit.context_pattern merge.strategy hooks.pre_commit hooks.commit_msg hooks.task_numbering hooks.skip_extensions hooks.test_patterns hooks.meta_ref_patterns hooks.contributor_protected_paths review.pre_merge platform.type pm.mode team.mode session.remote_sync session.init_pull.worktree session.init_pull.notes user.sync_push"
 
 for key in $(arc_config_keys); do
     found=false

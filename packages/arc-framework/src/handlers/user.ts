@@ -7,17 +7,35 @@
 import * as p from "@clack/prompts";
 
 import {
-  runUserSave, runUserLoad, runUserAdd, runUserPush, runUserPull,
-  buildSaveSummary, buildLoadSummary,
+  runUserSave, runUserLoad, runUserAdd, runUserPush, runUserFetch, runUserPull,
+  runUserSessionInitStatus, runUserStatus,
+  buildSaveSummary, buildLoadSummary, buildUserSessionInitStatusSummary, buildUserStatusSummary,
   hasLocalNotes,
 } from "../commands/user.js";
 import { slugifyIdentity } from "../lib/git/index.js";
 import { formatError, UserFacingError } from "../lib/errors.js";
 import { getInternalTemplatePath } from "../lib/paths.js";
 import { createUserIOContext } from "../lib/io-context.js";
+import { readConfigSettings } from "../lib/config/status-reader.js";
+import { pushWithInteractiveRecovery } from "./push-recovery.js";
 import {
-  runWithSpinner, isHandledError, resolveUserIdentity, isRemoteError, readPmMode,
+  runWithSpinner, isHandledError, isNonInteractiveEnvironment,
+  requireArcProjectRoot, resolveUserIdentity, isRemoteError,
 } from "./shared.js";
+
+/** Uniform overwrite-confirm prompt copy. */
+const OVERWRITE_CONFIRM_MESSAGE = "Local notes will be overwritten by remote. Continue?";
+
+/** Returns true when the overwrite confirm should be skipped (--yes or non-interactive). */
+function shouldSkipOverwriteConfirm(yes: boolean | undefined): boolean {
+  return Boolean(yes) || isNonInteractiveEnvironment();
+}
+
+/** Build the canonical "walked N ancestors" diagnostic line. */
+function walkExhaustedMessage(walked: number): string {
+  return `walked ${walked} ancestors without finding a note; `
+    + "use --max-walk to search deeper or confirm remote state with arc user status";
+}
 
 // --- Add ---
 
@@ -34,9 +52,11 @@ export async function handleUserAdd(rawIdentity: string): Promise<void> {
     p.log.info(`Identity normalized to: ${identity}`);
   }
 
-  const cwd = process.cwd();
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
   const io = createUserIOContext();
-  const pmMode = await readPmMode(cwd);
+  const { settings } = await readConfigSettings(cwd);
+  const pmMode = settings["pm.mode"];
 
   try {
     await runWithSpinner(
@@ -65,11 +85,13 @@ export async function handleUserSave(): Promise<void> {
     throw err;
   }
   const io = createUserIOContext();
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
 
   try {
     const result = await runWithSpinner(
       "Saving user directory...",
-      () => runUserSave({ cwd: process.cwd(), io, identity }),
+      () => runUserSave({ cwd, io, identity }),
       "Save complete.",
     );
     p.note(buildSaveSummary(result), "Saved");
@@ -87,7 +109,12 @@ export async function handleUserSave(): Promise<void> {
 
 // --- Load ---
 
-export async function handleUserLoad(): Promise<void> {
+export interface UserLoadOptions {
+  yes?: boolean;
+  maxWalk?: number;
+}
+
+export async function handleUserLoad(opts: UserLoadOptions = {}): Promise<void> {
   p.intro("arc user load");
 
   let identity: string;
@@ -98,15 +125,18 @@ export async function handleUserLoad(): Promise<void> {
     throw err;
   }
   const io = createUserIOContext();
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
   const spinner = p.spinner();
   spinner.start("Loading user directory...");
 
   let result;
   try {
     result = await runUserLoad({
-      cwd: process.cwd(),
+      cwd,
       io,
       identity,
+      maxAncestorWalk: opts.maxWalk,
     });
   } catch (err) {
     spinner.stop("Load failed.");
@@ -119,7 +149,17 @@ export async function handleUserLoad(): Promise<void> {
 
   if (!result) {
     spinner.stop("No note found.");
-    p.log.warn("No saved user directory found on HEAD or recent ancestors.");
+    p.log.warn("No saved user directory found on HEAD or any reachable ancestor.");
+    return;
+  }
+
+  if (result.kind === "walk-exhausted") {
+    // Walk-exhausted is distinct from plain "no note" — we can't confirm
+    // whether a note exists deeper than the cap. Exit 1 signals the
+    // ambiguity; user can retry with --max-walk.
+    spinner.stop("Walk exhausted.");
+    p.log.warn(walkExhaustedMessage(result.walked));
+    process.exitCode = 1;
     return;
   }
 
@@ -146,94 +186,75 @@ export async function handleUserPush(opts: UserPushOptions): Promise<void> {
     throw err;
   }
   const io = createUserIOContext();
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
 
-  try {
-    await runWithSpinner(
-      "Pushing user notes...",
-      () => runUserPush({ io, identity, force: opts.force }),
-      "Push complete.",
-    );
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+  // Explicit --force: bypass recovery prompt, push forcibly.
+  if (opts.force) {
+    try {
+      await runWithSpinner(
+        "Force-pushing user notes...",
+        () => runUserPush({ io, identity, force: true }),
+        "Force push complete.",
+      );
+      p.outro("Done.");
+    } catch (err) {
+      if (isHandledError(err)) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      if (isRemoteError(msg)) {
+        p.log.error("No remote configured. Push requires a remote repository.");
+        p.log.info("Set up a remote with: git remote add origin <url>");
+        process.exitCode = 1;
+        return;
+      }
+      throw err;
+    }
+    return;
+  }
 
-    // Detect missing remote
-    if (isRemoteError(msg)) {
+  const result = await pushWithInteractiveRecovery(io, identity, cwd);
+  switch (result.kind) {
+    case "ok":
+    case "ok-recovered":
+      p.outro("Done.");
+      return;
+    case "cancelled":
+      p.log.info("Push cancelled.");
+      return;
+    case "no-remote":
       p.log.error("No remote configured. Push requires a remote repository.");
       p.log.info("Set up a remote with: git remote add origin <url>");
       process.exitCode = 1;
       return;
-    }
-
-    // Detect diverged remote (non-fast-forward rejection)
-    if (msg.includes("non-fast-forward") || msg.includes("[rejected]")) {
-      p.log.warn("Push rejected — remote has diverged from local notes.");
-      const action = await p.select({
-        message: "How would you like to resolve this?",
-        options: [
-          { value: "force", label: "Force push (overwrite remote with local)" },
-          { value: "pull", label: "Pull first (overwrite local with remote)" },
-          { value: "cancel", label: "Cancel" },
-        ],
-      });
-
-      if (p.isCancel(action) || action === "cancel") {
-        p.log.info("Push cancelled.");
-        return;
-      }
-
-      if (action === "force") {
-        try {
-          await runWithSpinner(
-            "Force-pushing user notes...",
-            () => runUserPush({ io, identity, force: true }),
-            "Force push complete.",
-          );
-        } catch (forceErr) {
-          if (isHandledError(forceErr)) return;
-          throw forceErr;
-        }
-      } else {
-        // Pull first (force — we know refs have diverged), then retry push
-        try {
-          await runWithSpinner(
-            "Pulling user notes...",
-            () => runUserPull({ io, identity, force: true }),
-            "Pull complete.",
-          );
-          await runWithSpinner(
-            "Pushing user notes...",
-            () => runUserPush({ io, identity }),
-            "Push complete.",
-          );
-        } catch (pullPushErr) {
-          if (isHandledError(pullPushErr)) return;
-          throw pullPushErr;
-        }
-      }
-      p.outro("Done.");
+    case "failed-nontty-conflict":
+      p.log.warn(
+        "Push rejected — local and remote notes conflict (both moved since common ancestor), "
+        + "and the environment is non-interactive.",
+      );
+      p.log.warn(
+        "Local save preserved; push skipped. Re-run `arc user push` in a terminal to resolve.",
+      );
+      process.exitCode = 1;
       return;
-    }
-
-    if (isHandledError(err)) return;
-    throw err;
+    case "failed":
+      if (isHandledError(result.error)) return;
+      throw result.error;
   }
-
-  p.outro("Done.");
 }
 
-// --- Pull ---
+// --- Fetch ---
 
-export interface UserPullOptions {
+export interface UserFetchOptions {
   identity?: string;
 }
 
-export async function handleUserPull(opts: UserPullOptions): Promise<void> {
-  p.intro("arc user pull");
+export async function handleUserFetch(opts: UserFetchOptions): Promise<void> {
+  p.intro("arc user fetch");
 
   let identity: string;
   if (opts.identity) {
     identity = opts.identity;
-    p.log.info(`Pulling notes for identity: ${identity}`);
+    p.log.info(`Fetching notes for identity: ${identity}`);
   } else {
     try {
       identity = await resolveUserIdentity();
@@ -244,32 +265,22 @@ export async function handleUserPull(opts: UserPullOptions): Promise<void> {
   }
   const io = createUserIOContext();
 
-  // Check once — reused for the prompt and the force flag
+  // Force-fetch when a local note exists for this identity so the remote ref
+  // overwrites it. Working files are untouched — pull is the operation that
+  // restores files and prompts before overwriting.
   const hasLocal = await hasLocalNotes(io, identity);
-
-  // Warn if local notes exist that would be overwritten
-  if (hasLocal) {
-    const proceed = await p.confirm({
-      message: "Local notes exist and will be overwritten by remote. Continue?",
-      initialValue: true,
-    });
-    if (p.isCancel(proceed) || !proceed) {
-      p.log.info("Pull cancelled.");
-      return;
-    }
-  }
   try {
     await runWithSpinner(
-      "Pulling user notes...",
-      () => runUserPull({ io, identity, force: hasLocal }),
-      "Pull complete.",
+      "Fetching user notes...",
+      () => runUserFetch({ io, identity, force: hasLocal }),
+      "Fetch complete.",
     );
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
 
     // Detect missing remote
     if (isRemoteError(msg)) {
-      p.log.error("No remote configured. Pull requires a remote repository.");
+      p.log.error("No remote configured. Fetch requires a remote repository.");
       p.log.info("Set up a remote with: git remote add origin <url>");
       process.exitCode = 1;
       return;
@@ -287,5 +298,164 @@ export async function handleUserPull(opts: UserPullOptions): Promise<void> {
     throw err;
   }
 
+  p.outro("Done.");
+}
+
+// --- Pull ---
+
+export interface UserPullOptions {
+  identity?: string;
+  yes?: boolean;
+  maxWalk?: number;
+}
+
+export async function handleUserPull(opts: UserPullOptions): Promise<void> {
+  p.intro("arc user pull");
+
+  let identity: string;
+  if (opts.identity) {
+    identity = opts.identity;
+    p.log.info(`Pulling notes for identity: ${identity}`);
+  } else {
+    try {
+      identity = await resolveUserIdentity();
+    } catch (err) {
+      if (isHandledError(err)) return;
+      throw err;
+    }
+  }
+
+  const io = createUserIOContext();
+  const hasLocal = await hasLocalNotes(io, identity);
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
+
+  if (hasLocal && !shouldSkipOverwriteConfirm(opts.yes)) {
+    const proceed = await p.confirm({
+      message: OVERWRITE_CONFIRM_MESSAGE,
+      initialValue: true,
+    });
+    if (p.isCancel(proceed) || !proceed) {
+      p.log.info("Pull cancelled.");
+      return;
+    }
+  }
+
+  const spinner = p.spinner();
+  spinner.start("Pulling user notes...");
+
+  let result;
+  try {
+    result = await runUserPull({
+      cwd,
+      io,
+      identity,
+      force: hasLocal,
+      maxAncestorWalk: opts.maxWalk,
+    });
+  } catch (err) {
+    spinner.stop("Pull failed.");
+    const msg = err instanceof Error ? err.message : String(err);
+
+    if (isRemoteError(msg)) {
+      p.log.error("No remote configured. Pull requires a remote repository.");
+      p.log.info("Set up a remote with: git remote add origin <url>");
+      process.exitCode = 1;
+      return;
+    }
+
+    if (msg.includes("couldn't find remote ref")) {
+      p.log.warn(`No notes found on remote for identity "${identity}".`);
+      p.log.info("The identity may not have pushed notes, or the name may be incorrect.");
+      process.exitCode = 1;
+      return;
+    }
+
+    if (err instanceof UserFacingError) {
+      p.log.error(formatError(err));
+      return;
+    }
+    throw err;
+  }
+
+  if (!result) {
+    spinner.stop("No note found.");
+    p.log.warn("No saved user directory found on HEAD or any reachable ancestor.");
+    process.exitCode = 1;
+    return;
+  }
+
+  if (result.kind === "walk-exhausted") {
+    spinner.stop("Walk exhausted.");
+    p.log.warn(walkExhaustedMessage(result.walked));
+    process.exitCode = 1;
+    return;
+  }
+
+  spinner.stop("Pull complete.");
+  p.note(buildLoadSummary(result), "Pulled");
+  p.outro("Done.");
+}
+
+// --- Status ---
+
+export interface UserStatusOptions {
+  offline?: boolean;
+  all?: boolean;
+  sessionInit?: boolean;
+  json?: boolean;
+}
+
+export async function handleUserStatus(opts: UserStatusOptions): Promise<void> {
+  const json = Boolean(opts.json);
+  if (!json) p.intro("arc user status");
+
+  let identity: string;
+  try {
+    identity = await resolveUserIdentity();
+  } catch (err) {
+    if (isHandledError(err)) return;
+    throw err;
+  }
+
+  const io = createUserIOContext();
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
+
+  if (opts.sessionInit) {
+    const { settings } = await readConfigSettings(cwd);
+    const remoteSyncEnabled = settings["session.remote_sync"] === "enabled";
+    const result = await runUserSessionInitStatus({
+      cwd,
+      io,
+      identity,
+      remoteSyncEnabled,
+    });
+    if (json) {
+      process.stdout.write(`${JSON.stringify(result)}\n`);
+      return;
+    }
+    p.note(buildUserSessionInitStatusSummary(result), "Session Init");
+    p.outro("Done.");
+    return;
+  }
+
+  const { settings } = await readConfigSettings(cwd);
+  const remoteSyncEnabled = settings["session.remote_sync"] === "enabled";
+  const result = await runUserStatus({
+    cwd,
+    io,
+    identity,
+    offline: opts.offline,
+    all: opts.all,
+    remoteSyncEnabled,
+  });
+
+  if (json) {
+    process.stdout.write(`${JSON.stringify(result)}\n`);
+    return;
+  }
+
+  p.note(buildUserStatusSummary(result), "Status");
   p.outro("Done.");
 }

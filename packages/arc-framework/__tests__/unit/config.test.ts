@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { parseArcConfig } from "../../src/lib/config.js";
+import { parseArcConfig } from "../../src/lib/config/index.js";
 
 describe("parseArcConfig", () => {
   it("parses simple key-value pairs", () => {

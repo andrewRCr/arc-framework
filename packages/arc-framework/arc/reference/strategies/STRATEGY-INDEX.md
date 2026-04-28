@@ -3,13 +3,6 @@
 **Purpose:** Quick reference to codified strategy guidance. Consult relevant strategies before implementing
 work in their domains.
 
-**Location:** `.arc/reference/strategies/` — `arc/` for framework methodology (ships with ARC),
-`project/` for your project-specific patterns (you create these).
-
-**Naming:** All strategy files use the `strategy-` prefix for fuzzy-find grouping — typing
-`@strategy` surfaces all strategies regardless of directory. See
-[File Classification][file-classification] § Why Prefixes Matter.
-
 ## ARC Framework Strategies
 
 These ship with the framework and cover development methodology applicable to any project.
@@ -30,8 +23,11 @@ mode is active (`pm.mode: arc-in-git` in `arc-config.yml`).
     - Consult when: running quality gates beyond Tier 1, identifying integration checkpoints, escalation decisions
 - `arc/strategy-session-operations.md` - Context loading model, monitoring, auto-compaction, session state portability
     - Consult when: adding new guidance content, deciding loading tier, configuring session state, working on session workflows
-- `arc/strategy-task-list-formatting.md` - Task list formatting specification, header templates, element rules
+- `arc/strategy-task-list-formatting.md` - Task list formatting rules — structure, ownership, verification, success criteria
     - Consult when: creating or restructuring task lists, formatting task entries, checking structural requirements
+    - Companion: `template-tasks.md` for skeletons; `2_generate-tasks.md` § Step 4 for the pre-save checklist
+- `arc/strategy-workflow-authoring.md` - Workflow frontmatter schema, author-side declaration rule, body conventions
+    - Consult when: authoring a framework or project workflow file
 - `arc/strategy-team-coordination.md` - Task ownership, team branching patterns, merge conflicts, external trackers
     - Consult when: working in team mode, setting up multi-developer coordination
 - `arc/strategy-work-organization.md` - Work categories, branching model (protection modes, planning branches), archival
@@ -52,25 +48,7 @@ create them):
 - `project/style/strategy-component-styling.md` - Component patterns, design system
 - `project/style/strategy-color-tokens.md` - Color token reference, naming conventions
 
-## Usage Protocol
-
-**Before implementing:**
-
-1. Identify domain (theming, auth, testing, etc.)
-2. Check this index for relevant strategy documents
-3. Read relevant section(s) of the strategy
-4. Implement following guidance
-
-**When uncertain if strategy applies:** Ask. "Does this work touch [domain] where we have strategy guidance?"
-
-**For broad, multi-topic strategies:** Search for the specific topic rather than reading the entire
-doc upfront.
-
 ---
 
 **Maintenance:** Update this index when adding new strategy documents. Keep descriptions to one line;
 add a "Consult when:" sub-item with trigger conditions.
-
----
-
-[file-classification]: arc/strategy-file-classification.md

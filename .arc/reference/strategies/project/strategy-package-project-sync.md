@@ -54,7 +54,7 @@ ambiguous, ask.
 | `session-handoff.template.md`        | team.mode (1 block)           |
 | `2_generate-tasks.template.md`       | team.mode (2 blocks)          |
 | `02_define-project.template.md`      | pm.mode (3 blocks)            |
-| `AGENT-BRIEFING.PROJECT.template.md` | Token substitution only       |
+| `AGENT-BRIEF.PROJECT.template.md`    | Token substitution only       |
 
 **Editing template files:** When editing a workflow that has a `.template.md` counterpart,
 edit the template in the package source. The `.arc/` rendered copy reflects this project's
@@ -143,7 +143,6 @@ arc-in-git files are annotated explicitly.
 - `reference/strategies/project/README.md`
 - `reference/strategies/project/style/README.md`
 - `reference/templates/template-adr.md`
-- `reference/templates/template-agent.md`
 - `reference/templates/template-completion-doc.md`
 - `reference/templates/template-contributing.md`
 - `reference/templates/template-plan.md`
@@ -152,9 +151,9 @@ arc-in-git files are annotated explicitly.
 **System:**
 
 - `system/README.md`
-- `system/agent/AGENT-BRIEFING.ARC.md`
-- `system/agent/AGENT-BRIEFING.CONTRIBUTOR.md`
-- `system/agent/README.md`
+- `system/briefs/AGENT-BRIEF.ARC.md`
+- `system/briefs/AGENT-BRIEF.CONTRIBUTOR.md`
+- `system/briefs/README.md`
 - `system/githooks/README.md`
 - `system/githooks/commit-msg`
 - `system/githooks/pre-commit`
@@ -189,28 +188,32 @@ arc-in-git files are annotated explicitly.
 - `system/workflows/project/README.md`
 - `user/README.md`
 
-### Configurable files (project sections expected to differ)
+### Configurable files (project sections expected to differ) — 22
 
 - `reference/archive/README.md`
 - `reference/constitution/DEV-RULES.PROJECT.md`
 - `reference/QUICK-REFERENCE.md` · template counterpart
 - `reference/strategies/STRATEGY-INDEX.md`
-- `system/agent/AGENT-BRIEFING.PROJECT.md` · template counterpart
-- `system/agent/CLAUDE.ARC.md`
-- `system/agent/CODEX.ARC.md`
+- `system/briefs/AGENT-BRIEF.PROJECT.md` · template counterpart
 - `system/arc-config.yml`
-- `system/workflows/arc-extensions.md`
-- `system/workflows/arc-methods.md`
+- `system/extensions/post-context-load.md`
+- `system/extensions/post-task-completion.md`
+- `system/extensions/post-task-quality.md`
+- `system/extensions/post-unit-quality.md`
+- `system/extensions/post-work-unit-activate.md`
+- `system/extensions/post-work-unit-archive.md`
+- `system/extensions/pre-merge-review.md`
+- `system/extensions/pre-stage-review.md`
+- `system/methods/commit-context-format.md`
+- `system/methods/commit-format.md`
+- `system/methods/diff-review.md`
+- `system/methods/issue-triage.md`
+- `system/methods/quality-gate-commands.md`
+- `system/methods/review-triage.md`
+- `system/methods/session-state.md`
+- `system/methods/test-first.md`
 
 ### Package-only files (not in `.arc/` — expected)
-
-**Init-selected agent files** (this project selected Claude + Codex):
-
-- `system/agent/COPILOT.ARC.md`
-- `system/agent/CURSOR.ARC.md`
-- `system/agent/GEMINI.ARC.md`
-- `system/agent/WARP.ARC.md`
-- `system/agent/WINDSURF.ARC.md`
 
 **Conditionally installed** (`pm.mode: external` only):
 
@@ -225,7 +228,7 @@ arc-in-git files are annotated explicitly.
 - `reference/PROJECT-STATUS.template.md` → `reference/PROJECT-STATUS.md` (Scaffolded · arc-in-git)
 - `reference/QUICK-REFERENCE.template.md` → `reference/QUICK-REFERENCE.md` (Configurable)
 - `reference/TECHNICAL-OVERVIEW.template.md` → `reference/TECHNICAL-OVERVIEW.md` (Scaffolded)
-- `system/agent/AGENT-BRIEFING.PROJECT.template.md` → `system/agent/AGENT-BRIEFING.PROJECT.md` (Configurable)
+- `system/briefs/AGENT-BRIEF.PROJECT.template.md` → `system/briefs/AGENT-BRIEF.PROJECT.md` (Configurable)
 - `system/workflows/arc/2_generate-tasks.template.md` → `system/workflows/arc/2_generate-tasks.md` (Framework)
 - `system/workflows/arc/3_process-task-loop.template.md` → `system/workflows/arc/3_process-task-loop.md` (Framework)
 - `system/workflows/arc/initial-setup/02_define-project.template.md` →

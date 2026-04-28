@@ -40,8 +40,10 @@ If external content needs deeper integration (replacing an ARC method default, a
 extension hook), use the [integrate-external-content][integrate-external] workflow for the full
 classification decision tree and wiring steps.
 
-- **Replaces an ARC default** → Method override (populate `.override` in `arc-methods.md`)
-- **Adds ceremony at an existing hook** → Extension (populate `.steps` in `arc-extensions.md`)
+- **Replaces an ARC default** → Method override (populate `.override` in the method's file
+  under `system/methods/`)
+- **Adds ceremony at an existing hook** → Extension (populate `.actions` in the extension's
+  file under `system/extensions/`)
 - **Standalone domain guidance** → Strategy (place here, add to STRATEGY-INDEX)
 
 ## See Also

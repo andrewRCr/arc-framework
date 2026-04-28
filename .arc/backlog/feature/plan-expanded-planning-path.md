@@ -4,12 +4,11 @@
 more structure than ARC's default freeform `plan-*` exploration, without making ordinary planning
 heavier.
 
-**State:** Draft (problem framed, first-pass design lean captured)
-**Created:** 2026-04-10
-**Origin:** Live pressure from `plan-arc-modes.md` exposed a gap between ARC's intentionally light
-plan stage and the needs of large greenfield shaping work. The existing planning pipeline handled
-normal work well but provided little intermediate structure for turning a vague, far-reaching idea
-into a watertight, PRD-ready plan.
+- **State:** Draft (problem framed, first-pass design lean captured)
+- **Created:** 2026-04-10
+- **Origin:** Live pressure from `plan-arc-modes.md` exposed a gap between ARC's intentionally light plan stage and the
+  needs of large greenfield shaping work. The existing planning pipeline handled normal work well but provided little
+  intermediate structure for turning a vague, far-reaching idea into a watertight, PRD-ready plan.
 
 > **Note:** The session-pointer reference to `WORK-STATUS.md` in § 12 ("Existing session
 > pointers") predates the Work-Status Restructure WU (see

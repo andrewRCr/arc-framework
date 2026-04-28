@@ -18,6 +18,8 @@ jobs:
         cache: 'npm'
     - run: npm ci
     - run: npm run build
+    - run: npm run lint:arc:triggers
+    - run: npm run lint:arc:domain-rules
     - run: npm run -s lint:md
     - run: npm run lint:ts
     - run: npm run lint:sh

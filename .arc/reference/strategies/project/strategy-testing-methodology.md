@@ -77,7 +77,7 @@ Full CLI invocation in temporary git repos. Exercises the complete user-facing p
 
 - `arc init` in a fresh repo → verify complete installed state
 - Init → modify → `arc update` → verify customizations preserved
-- Init → `arc status` / `arc diff` → verify output accuracy
+- Init → `arc health` / `arc diff` → verify output accuracy
 - `arc session save/load/push/pull` round-trips
 - Round-trip: init → customize → update → verify
 
@@ -162,6 +162,23 @@ than observable outcomes.
   without sacrificing testability — tests construct a partial context with only the mocks they
   need.
 
+### Vitest mock mechanics
+
+- **Hoist every `vi.fn()` to an external `const`.** Never inline `vi.fn()` inside a `vi.mock(...)`
+  factory return — the factory returns arrow-function forwarders to externally-declared mocks
+  instead. Without this, a test can't reset the mock's state because it holds no reference.
+- **Use `vi.resetAllMocks()` in `beforeEach`, not `vi.clearAllMocks()`.** `clearAllMocks` wipes
+  call history but preserves `.mockResolvedValue` / `.mockImplementation` across tests, silently
+  leaking state. `resetAllMocks` clears both call state and runtime overrides.
+- **Re-establish per-test overrides after reset.** `vi.resetAllMocks()` restores `vi.fn(impl)` to
+  its original implementation rather than losing construction-time defaults. Re-apply any per-test
+  behavior in `beforeEach` — preferably via a single `resetMockDefaults()` helper at the top of the
+  file.
+
+Why this matters: mock bleed across tests produces order-dependent failures that are hard to
+diagnose and easy to paper over with ad-hoc resets. The uniform rule eliminates the footgun
+class entirely.
+
 ## Test Naming and Organization
 
 ### File naming
@@ -220,4 +237,4 @@ See [QUICK-REFERENCE][quick-ref] for the exact commands at each tier.
 
 ---
 
-[quick-ref]: ../QUICK-REFERENCE.md
+[quick-ref]: ../../QUICK-REFERENCE.md

@@ -1,10 +1,15 @@
+---
+purpose: Two-pass defense-in-depth strategy for AI agent code reviews before merging work.
+audience: agent
+arc:
+  methods:
+    - review-triage
+---
+
 # Workflow: Agent Pre-Merge Review (Project-Specific)
 
-**Audience:** Agent-executed — your agent follows this for pre-merge code review.
-
-**Purpose**: Two-pass defense-in-depth strategy for AI agent code reviews before merging work.
-This is a project-specific workflow that populates the `pre-merge-review` extension point in
-[arc-extensions.md][arc-ext-pre-merge-review]. It supplements the canonical
+This project-specific workflow populates the `.actions` section in the
+[pre-merge-review extension][arc-ext-pre-merge-review]. It supplements the canonical
 [review-triage method][arc-methods-rt], which governs finding classification.
 
 1. **Pass 1 (Local)**: Run agent review locally before creating PR — catch the majority of issues
@@ -34,7 +39,7 @@ for immediate evaluation rather than saved to a tracking file.
 ### 2) Process Findings
 
 Work through findings sequentially using the [review-triage method][arc-methods-rt]
-(fix/defer/reject/silent-fix classification).
+(fix-now/defer/reject/silent-fix classification).
 
 **Workflow**: Review finding -> evaluate -> fix or decide disposition -> repeat.
 
@@ -228,6 +233,6 @@ reply.
 
 ---
 
-[arc-methods-rt]: ../../../../.arc/system/workflows/arc-methods.md#review-triage
-[arc-ext-pre-merge-review]: ../../../../.arc/system/workflows/arc-extensions.md#pre-merge-review
+[arc-methods-rt]: ../../methods/review-triage.md
+[arc-ext-pre-merge-review]: ../../extensions/pre-merge-review.md
 [integrate-work-unit]: ../arc/work-unit-lifecycle/integrate-work-unit.md

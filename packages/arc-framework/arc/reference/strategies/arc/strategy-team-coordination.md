@@ -138,8 +138,8 @@ The incoming developer runs a standard session-init with these additions:
    fetch their namespace and load their context:
 
    ```bash
-   # Fetch and load outgoing developer's user directory via CLI
-   arc user pull --identity {outgoing}
+   # Fetch the outgoing developer's notes ref, then load that identity's user directory
+   arc user fetch --identity {outgoing}
    arc user load --identity {outgoing}
    ```
 
@@ -302,7 +302,7 @@ branch. They share one `status-{name}.md`. Coordination mechanisms:
 **`user.sync_push` and team mode:** When `arc init` sets `team.mode: true`, it defaults
 `user.sync_push` to `prompt` (ask before pushing session notes). If you toggle `team.mode`
 after init by editing `arc-config.yml`, `user.sync_push` is not automatically updated — check
-and adjust it manually. Per-developer override: `git config arc.sync_push`.
+and adjust it manually. Per-developer override: `git config arc.syncPush <always|prompt|manual>`.
 
 ---
 
@@ -323,14 +323,15 @@ Teams using external project trackers (Jira, Linear, GitHub Issues) treat them a
 ### Integration Mechanism
 
 ARC provides extension points at key workflow moments for syncing with external trackers.
-Configure these in [`arc-extensions.md`][arc-extensions]:
+Configure these by populating the `.actions` section in the relevant file under
+[`system/extensions/`][arc-extensions-dir]:
 
-- **`post-task-completion`** — fires after a task is marked `[x]`. Use to sync task status
-  to Jira, Linear, or GitHub Issues.
-- **`post-work-unit-activate`** — fires after a work unit moves from backlog to active. Use
-  to update sprint boards or project status.
-- **`post-work-unit-archive`** — fires after a work unit is archived. Use to close epics or
-  update project dashboards.
+- **[`post-task-completion`][arc-ext-task-completion]** — fires after a task is marked `[x]`.
+  Use to sync task status to Jira, Linear, or GitHub Issues.
+- **[`post-work-unit-activate`][arc-ext-wu-activate]** — fires after a work unit moves from
+  backlog to active. Use to update sprint boards or project status.
+- **[`post-work-unit-archive`][arc-ext-wu-archive]** — fires after a work unit is archived.
+  Use to close epics or update project dashboards.
 
 No extension points are needed for task *assignment* — `(@name)` markers and external tracker
 assignment serve different audiences and don't need real-time sync.
@@ -357,4 +358,7 @@ them if they're useful, skip them if they'd drift from the tracker.
 [process-task-loop]: ../../../system/workflows/arc/3_process-task-loop.md
 [session-handoff]: ../../../system/workflows/arc/session-lifecycle/session-handoff.md
 [session-init]: ../../../system/workflows/arc/session-lifecycle/session-init.md
-[arc-extensions]: ../../../system/workflows/arc-extensions.md
+[arc-extensions-dir]: ../../../system/extensions/
+[arc-ext-task-completion]: ../../../system/extensions/post-task-completion.md
+[arc-ext-wu-activate]: ../../../system/extensions/post-work-unit-activate.md
+[arc-ext-wu-archive]: ../../../system/extensions/post-work-unit-archive.md

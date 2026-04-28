@@ -1,9 +1,12 @@
+---
+purpose: Transform a reviewed PRD into an executable task list with phases, sub-tasks, and test-first ordering.
+audience: collaborative (human and agent)
+arc:
+  methods:
+    - test-first
+---
+
 # Workflow: Generate Task List
-
-**Audience:** Collaborative — developer and agent work through this together.
-
-**Purpose**: Transform a PRD into an executable task list — a step-by-step implementation plan
-with phases, sub-tasks, quality checkpoints, and test-first ordering.
 
 **When to use**: After a PRD has been created and reviewed, when work is ready for implementation
 planning.
@@ -59,11 +62,11 @@ For each phase, define specific, actionable sub-tasks:
   (see [Quality Gates Strategy][quality-gates] for tier guidance)
 - Reference specific files, patterns, or approaches where helpful
 - No time estimates — focus on clear scope and completion criteria
-- **Note relevant strategies** when a phase or task touches a domain with codified guidance.
-  Add a `**Strategies:**` line under the phase header or task description listing applicable
-  strategy filenames (e.g., `**Strategies:** strategy-testing-methodology.md`). This helps the
-  executing agent know what to consult without re-scanning STRATEGY-INDEX. Lightweight
-  convention — use when it adds value, skip when the connection is obvious.
+- **Note relevant strategies** when a task touches a domain with codified guidance. Add a
+  `**Strategies:**` line under the task description listing applicable strategy filenames
+  (e.g., `**Strategies:** strategy-testing-methodology.md`). This helps the executing agent
+  know what to consult without re-scanning STRATEGY-INDEX. Use when the connection isn't
+  obvious from the task title.
 
 <!-- arc:if team.mode == true -->
 **Task ownership:** In team mode, add `(@name)` markers to task checkboxes to assign ownership.
@@ -91,6 +94,35 @@ Combine phases and sub-tasks into the final task list following the format descr
 Implementation notes, technical context, and design rationale belong in the dedicated notes
 file (`notes-{name}.md`), not in the task list.
 
+**Before saving, verify the draft against this checklist:**
+
+- [ ] Header includes `**Purpose:**` field — one-line summary; full Scope lives in the PRD
+      (Feature/Technical only; Incidental retains `## Context` + `## Scope`)
+- [ ] Phase headers use `## **Phase X:** Description` format (H2; no `## Tasks` wrapper)
+- [ ] Phase preambles open with `_Purpose:_` line (italic); optional `_Design decisions:_` block
+      links to `notes-{name}.md` for full rationale; soft cap ~12 lines per preamble
+- [ ] Parent tasks are H3 headings with backtick-wrapped marker — see
+      [strategy-task-list-formatting § Parent Tasks][task-list-formatting] for the canonical form
+- [ ] Subtasks use letter numbering with backtick-wrapped markers (matching parent task heading
+      style — keeps preview rendering consistent across parent and subtask). Bold when detail
+      bullets follow.
+- [ ] Third level uses letters (`X.Y.a`, `X.Y.b`), not numbers (`X.Y.1`, `X.Y.2`) — letters signal depth
+- [ ] Subtaskless parents carry no descriptor bullets pre-completion — title alone (no `_Goal:_` /
+      `_Note:_` / etc.; `_Outcome:_` allowed post-completion)
+- [ ] Blank lines between every subtask (always — see § Blank-Line Discipline in the strategy doc)
+- [ ] Unnumbered bullets for implementation details (no checkboxes, no numbers)
+- [ ] Goal/Note lines as italic root-level bullets (`- _Goal:_`); subtasks indent 4 spaces under Goal
+- [ ] Italic for non-actionable descriptors (`_Purpose:_`, `_Goal:_`, `_Outcome:_`, `_Note:_`,
+      `_Rationale:_`, `_Approach:_`, `_Context:_`); bold for actionable titles (`**X.Y Title**`)
+- [ ] Test-first tasks group test + implementation together (by concern, not activity)
+- [ ] Test-first tasks use `Build \`test-first\` (one behavior at a time):` marker line before behavior list
+- [ ] 4-space indentation per hierarchy level
+- [ ] Backticks for all technical terms: `field_name`, `ClassName`, `/api/endpoint/`
+- [ ] No time estimates anywhere (no duration emojis, minute counts)
+- [ ] Verification phase as final phase (single task pointing to `verify-work-unit.md`)
+- [ ] Atomic companion file created alongside task list (`atomic-{name}.md`, same directory)
+- [ ] Success Criteria section at bottom with checkboxes (checked during verification phase)
+
 **Save to** (location depends on [`arc-config.yml`][arc-config] → `pm.mode`):
 
 - **arc-in-git** (backlog pipeline): `.arc/backlog/{category}/tasks-{{WORK_NAME}}.md`
@@ -114,26 +146,13 @@ See [Task Processing Loop](3_process-task-loop.md) for how task lists are execut
 
 ## Task List Format
 
-### Header
-
-```markdown
-# Task List: [Work Name]
-
-**PRD:** `.arc/[location]/[category]/prd-[name].md`
-**Branch(es):** `feature/[name]` or `technical/[name]` (comma-separated if multiple)
-**Base Branch:** base branch per `arc-config.yml` (typically `main`)
-```
+See [template-tasks.md][template-tasks] for the header and body skeleton (header with Purpose,
+Tasks with phase preambles, Verification Phase, Success Criteria). See
+[strategy-task-list-formatting.md][task-list-formatting] for formatting rules and conventions.
 
 The PRD path should reflect the PRD's current location (matching the task list's save location).
 In arc-in-git mode, [activation][activate-work-unit] updates both paths when documents move to
 `active/`.
-
-### Body
-
-See [strategy-task-list-formatting.md][task-list-formatting] for
-complete body structure (Overview, Scope, Tasks, Verification Phase, Atomic Tasks, Success
-Criteria), formatting rules, test-first patterns, and annotated examples. Use its Quick Format
-Checklist to verify before saving.
 
 ---
 
@@ -158,8 +177,9 @@ Activation can be deferred if planning ahead. Activate when implementation is ab
 [strategy-index]: ../../../reference/strategies/STRATEGY-INDEX.md
 [quality-gates]: ../../../reference/strategies/arc/strategy-quality-gates.md
 [dev-rules-arc]: ../../../reference/constitution/DEV-RULES.ARC.md
-[arc-methods-tf]: ../../workflows/arc-methods.md#test-first
+[arc-methods-tf]: ../../methods/test-first.md
 [task-list-formatting]: ../../../reference/strategies/arc/strategy-task-list-formatting.md
+[template-tasks]: ../../../reference/templates/template-tasks.md
 [activate-planning-branch]: work-unit-lifecycle/planning/activate-planning-branch.md
 [integrate-planning-branch]: work-unit-lifecycle/planning/integrate-planning-branch.md
 [arc-config]: ../../arc-config.yml

@@ -60,8 +60,9 @@ the only paths the framework actively manages; everything else you put here is f
 | `ATOMIC-INBOX.md`  | session-init | Personal task capture queue (arc-in-git only)                   |
 
 That's the whole contract for most users. If you're running a personal planning pipeline as a
-contributor, `status-contributor.md` and `active/tasks-*.md` are additional optional paths — see
-§ Advanced: Personal Planning Pipeline below.
+contributor, `user/{identity}/active/status-{name}.md` (personal work state) and
+`user/{identity}/active/tasks-{name}.md` plus companion files are additional optional paths —
+see § Advanced: Personal Planning Pipeline below.
 
 ## Personal Content
 
@@ -84,7 +85,10 @@ cross-machine or team handoff, ARC uses git notes to attach the entire `user/{id
 directory to commits without creating merge conflicts. See `arc-config.yml` for
 `user.sync_push` behavior (always / prompt / manual).
 
-CLI commands: `arc user save`, `arc user load`, `arc user push`, `arc user pull`, `arc sync`.
+CLI commands: `arc user save`, `arc user load`, `arc user fetch`, `arc user push`,
+`arc user pull`, `arc sync`. Use `arc user fetch --identity <name>` for person-to-person
+bootstrap, `arc user load --max-walk <n>` when the saved note is far back on reachable history,
+and `--yes` on load/pull/sync to skip overwrite prompts when needed.
 
 ## Adding Team Members
 
@@ -104,6 +108,6 @@ personal task lists live in `user/{identity}/active/` and are loaded by session-
 role is `contributor`.
 
 This is an opt-in advanced pattern documented in full by the contributor briefing
-(`system/agent/AGENT-BRIEFING.CONTRIBUTOR.md`, loaded automatically during contributor-role
+(`system/briefs/AGENT-BRIEF.CONTRIBUTOR.md`, loaded automatically during contributor-role
 sessions). Maintainers do not use this path — project planning state belongs in `.arc/active/`
 where the team can see it.

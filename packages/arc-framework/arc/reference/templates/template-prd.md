@@ -1,7 +1,7 @@
 # PRD: [Work Name]
 
-**Type:** Feature | Technical
-**Updated:** YYYY-MM-DD
+- **Type:** Feature | Technical
+- **Updated:** YYYY-MM-DD
 
 <!-- Optional: Add pre-activation lifecycle metadata.
 

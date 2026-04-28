@@ -107,7 +107,7 @@ export function formatError(err: Error): string {
 /**
  * Create a MANIFEST_MISSING error for a command that requires an existing installation.
  *
- * @param command - The command name for the error message (e.g., "status", "diff", "update")
+ * @param command - The command name for the error message (e.g., "health", "diff", "update")
  * @returns A UserFacingError with consistent messaging
  */
 export function manifestMissingError(command: string): UserFacingError {

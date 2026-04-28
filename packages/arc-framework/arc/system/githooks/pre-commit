@@ -344,6 +344,120 @@ if [ "$team_mode" = "true" ]; then
 fi
 
 # ============================================================================
+# CHECK 12: Frontmatter schema validation (methods / extensions)
+# ============================================================================
+# Delegates to validate-frontmatter.ts via tsx — schema logic lives in
+# TypeScript where it is unit-tested; this hook is a thin invoker. Catches
+# missing or malformed frontmatter on staged files under system/methods/
+# and system/extensions/.
+frontmatter_candidates=$(git diff --cached --name-only --diff-filter=ACMR | \
+    grep -E '^(\.arc|packages/arc-framework/arc)/system/(methods|extensions)/' || true)
+
+if [ -n "$frontmatter_candidates" ]; then
+    # shellcheck disable=SC2086 # Intentional word splitting — newline-separated paths
+    if ! frontmatter_output=$(npx tsx packages/arc-framework/src/scripts/validate-frontmatter.ts $frontmatter_candidates 2>&1); then
+        echo -e "${RED}Error: Frontmatter schema validation failed:${NC}"
+        echo "$frontmatter_output" | sed 's/^/   /'
+        echo ""
+        echo "   Fix the frontmatter in the files listed above."
+        errors=$((errors + 1))
+    fi
+fi
+
+# ============================================================================
+# CHECK 13: Domain-rules frontmatter validation (DEV-RULES.{DOMAIN}.md)
+# ============================================================================
+# Delegates to validate-frontmatter.ts — same validator as CHECK 12, scoped
+# to DEV-RULES.{DOMAIN}.md files under reference/constitution/. Reserved
+# filenames (DEV-RULES.ARC.md, DEV-RULES.PROJECT.md) are filtered by the
+# validator's classifier and not checked.
+domain_rules_candidates=$(git diff --cached --name-only --diff-filter=ACMR | \
+    grep -E '^(\.arc|packages/arc-framework/arc)/reference/constitution/DEV-RULES\.[^/]+\.md$' || true)
+
+if [ -n "$domain_rules_candidates" ]; then
+    # shellcheck disable=SC2086 # Intentional word splitting — newline-separated paths
+    if ! domain_rules_output=$(npx tsx packages/arc-framework/src/scripts/validate-frontmatter.ts $domain_rules_candidates 2>&1); then
+        echo -e "${RED}Error: Domain-rules frontmatter validation failed:${NC}"
+        echo "$domain_rules_output" | sed 's/^/   /'
+        echo ""
+        echo "   Fix the frontmatter in the files listed above."
+        errors=$((errors + 1))
+    fi
+fi
+
+# ============================================================================
+# CHECK 14: Markdown link resolution (D7a)
+# ============================================================================
+# Validates that inline and reference-style markdown links in staged .md files
+# resolve to existing files. Skips external links, anchor-only links, and
+# link-like text inside code spans or fenced code blocks. Relative paths
+# resolve from the source file's directory (not cwd).
+link_candidates=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.md$' || true)
+
+if [ -n "$link_candidates" ]; then
+    # shellcheck disable=SC2086 # Intentional word splitting — newline-separated paths
+    if ! link_output=$(bash "$(dirname "$0")/../scripts/validate-links.sh" $link_candidates 2>&1); then
+        echo -e "${RED}Error: Markdown link resolution failed:${NC}"
+        echo "$link_output" | sed 's/^/   /'
+        echo ""
+        echo "   Fix the link targets in the files listed above."
+        errors=$((errors + 1))
+    fi
+fi
+
+# ============================================================================
+# CHECK 15: Package-source neutrality (per-file methods / extensions)
+# ============================================================================
+# Framework package source must ship neutral defaults: per-file methods and
+# extensions under packages/arc-framework/arc/system/{methods,extensions}/
+# must have `override-active: false` / `active: false` frontmatter and
+# `[No override configured]` / `[No extension configured]` placeholder bodies.
+# Local customization belongs only in the .arc/ copy — this hook blocks
+# personal-repo content from leaking into the package. Complements CHECK 12
+# (frontmatter schema) with a semantic gate on values and body content.
+neutrality_candidates=$(git diff --cached --name-only --diff-filter=ACMR | \
+    grep -E '^packages/arc-framework/arc/system/(methods|extensions)/[^/]+\.md$' | \
+    grep -v '/README\.md$' || true)
+
+if [ -n "$neutrality_candidates" ]; then
+    # shellcheck disable=SC2086 # Intentional word splitting — newline-separated paths
+    if ! neutrality_output=$(npx tsx packages/arc-framework/src/scripts/validate-package-neutrality.ts $neutrality_candidates 2>&1); then
+        echo -e "${RED}Error: Package-source neutrality check failed:${NC}"
+        echo "$neutrality_output" | sed 's/^/   /'
+        echo ""
+        echo "   Package source must ship neutral defaults. Local customization"
+        echo "   (active: true, override-active: true, or populated body sections)"
+        echo "   belongs only in the .arc/ copy."
+        errors=$((errors + 1))
+    fi
+fi
+
+# ============================================================================
+# CHECK 16: Extension-point reference resolution (D7b)
+# ============================================================================
+# Every anchor-suffix marker (`· `#<name>``) in a staged workflow file must
+# target an existing `system/extensions/<name>.md` in the same copy — .arc/
+# workflow resolves against .arc/ extensions; package-source workflow
+# resolves against package-source extensions. Complements CHECK 15
+# (neutrality on extension bodies) with a gate on workflow references.
+# Existence is the pass criterion; `active:` and body content are not
+# inspected.
+extension_point_candidates=$(git diff --cached --name-only --diff-filter=ACMR | \
+    grep -E '^(\.arc|packages/arc-framework/arc)/system/workflows/.*\.md$' || true)
+
+if [ -n "$extension_point_candidates" ]; then
+    # shellcheck disable=SC2086 # Intentional word splitting — newline-separated paths
+    if ! extension_point_output=$(npx tsx packages/arc-framework/src/scripts/validate-extension-points.ts $extension_point_candidates 2>&1); then
+        echo -e "${RED}Error: Extension-point reference validation failed:${NC}"
+        echo "$extension_point_output" | sed 's/^/   /'
+        echo ""
+        echo "   Every extension-point marker must target an existing"
+        echo "   system/extensions/<name>.md file in the same copy."
+        errors=$((errors + 1))
+    fi
+fi
+
+# ============================================================================
 # Summary
 # ============================================================================
 echo ""

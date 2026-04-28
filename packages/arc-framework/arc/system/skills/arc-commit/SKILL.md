@@ -9,7 +9,15 @@ disable-model-invocation: false
 1. Assess the pending work first.
 
    - Run `git status` and `git --no-pager diff --stat`.
-   - Confirm whether changes represent one logical task or multiple interleaved tasks.
+   - Determine whether changes are one logical change or multiple. Tests:
+     - **Scope, not volume.** Multiple task IDs sharing a cohesive lens are one
+       commit (one problem solved). Volume of changed lines is not the metric.
+     - **Reversibility.** If reverting one change would force reverting others,
+       they belong together. If they fail or succeed independently, they split.
+     - **Tracking docs ride with content commits.** Task list checkboxes and
+       active status file updates are derived state. Don't put them in a separate
+       meta-commit, and don't hunk-split them across content commits to preserve
+       1:1 task-ID-to-checkbox granularity.
 
 2. Choose the path.
 
@@ -19,9 +27,9 @@ disable-model-invocation: false
 
 3. Load commit format guidance.
 
-   - Read `arc-methods.md` § commit-format and § commit-context-format before composing
-     any commit message. Both paths require this — the format spec includes context footer
-     patterns that are not safe to assume from memory.
+   - Read `system/methods/commit-format.md` and `system/methods/commit-context-format.md`
+     before composing any commit message. Both paths require this — the format spec includes
+     context footer patterns that are not safe to assume from memory.
 
 4. Execute the chosen workflow.
 

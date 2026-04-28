@@ -92,14 +92,12 @@ check_file() {
 # Note: active/ is lazily created at first work unit activation — no core-file
 # check for status files here; the Session State section below handles
 # presence/validation.
-check_file "$ARC_DIR/system/agent/AGENT-BRIEFING.ARC.md" "Agent briefing (ARC)"
-check_file "$ARC_DIR/system/agent/AGENT-BRIEFING.PROJECT.md" "Agent briefing (project)"
+check_file "$ARC_DIR/system/briefs/AGENT-BRIEF.ARC.md" "Agent brief (ARC)"
+check_file "$ARC_DIR/system/briefs/AGENT-BRIEF.PROJECT.md" "Agent brief (project)"
 check_file "$ARC_DIR/reference/constitution/DEV-RULES.ARC.md" "Dev rules (ARC)"
 check_file "$ARC_DIR/reference/constitution/DEV-RULES.PROJECT.md" "Dev rules (project)"
 check_file "$ARC_DIR/reference/QUICK-REFERENCE.md" "Quick reference"
 check_file "$ARC_DIR/system/arc-config.yml" "Config file"
-check_file "$ARC_DIR/system/workflows/arc-methods.md" "Methods file"
-check_file "$ARC_DIR/system/workflows/arc-extensions.md" "Extensions file"
 
 # Strategy index
 check_file "$ARC_DIR/reference/strategies/STRATEGY-INDEX.md" "Strategy index"
@@ -253,12 +251,10 @@ check_refs_in_file() {
 # Capture output to count errors (while loop runs in subshell).
 ref_found_errors=false
 for ref_file in \
-    "$ARC_DIR/system/agent/AGENT-BRIEFING.ARC.md" \
-    "$ARC_DIR/system/agent/AGENT-BRIEFING.PROJECT.md" \
+    "$ARC_DIR/system/briefs/AGENT-BRIEF.ARC.md" \
+    "$ARC_DIR/system/briefs/AGENT-BRIEF.PROJECT.md" \
     "$ARC_DIR/reference/constitution/DEV-RULES.ARC.md" \
     "$ARC_DIR/reference/constitution/DEV-RULES.PROJECT.md" \
-    "$ARC_DIR/system/workflows/arc-methods.md" \
-    "$ARC_DIR/system/workflows/arc-extensions.md" \
     "$ARC_DIR/reference/strategies/STRATEGY-INDEX.md"; do
     output=$(check_refs_in_file "$ref_file")
     if [ -n "$output" ]; then
@@ -276,125 +272,89 @@ fi
 echo ""
 
 # ============================================================================
-# 6. Session state
-# ============================================================================
-
-echo "--- Session State ---"
-
-# Scan for active status files under .arc/active/.
-# Full mode: active/{category}/status-{name}.md (depth 2).
-# Lite mode support can be added here (active/status.md at depth 1) when Lite lands.
-status_files=()
-if [ -d "$ARC_DIR/active" ]; then
-    while IFS= read -r f; do
-        [ -n "$f" ] && status_files+=("$f")
-    done < <(find "$ARC_DIR/active" -mindepth 2 -maxdepth 2 -type f -name 'status-*.md' 2>/dev/null)
-fi
-
-if [ ${#status_files[@]} -eq 0 ]; then
-    info "No active status file (normal between work units)"
-else
-    if [ ${#status_files[@]} -gt 1 ]; then
-        info "Multiple active status files found (${#status_files[@]}) — verifying each; disambiguation is a session-init concern"
-    fi
-    for work_status in "${status_files[@]}"; do
-        status_dir=$(dirname "$work_status")
-        status_rel="${work_status#"$ARC_DIR"/}"
-
-        # Read the Task List field (filename relative to status file's directory)
-        task_list_line=$(grep -E '^\*\*Task List:\*\*' "$work_status" 2>/dev/null | head -1)
-        if [ -z "$task_list_line" ]; then
-            continue
-        fi
-        task_list_name=$(echo "$task_list_line" | sed -E 's/^\*\*Task List:\*\*[[:space:]]*//' | sed 's/[[:space:]]*$//')
-
-        if echo "$task_list_name" | grep -q '\[none\]'; then
-            info "No active task list ($status_rel)"
-            continue
-        fi
-        if [ -z "$task_list_name" ]; then
-            continue
-        fi
-
-        # Resolve the task list path relative to the status file's directory
-        task_list_path="${status_dir}/${task_list_name}"
-        if [ ! -f "$task_list_path" ]; then
-            error "Task list path in $status_rel does not exist: $task_list_path"
-            continue
-        fi
-        pass "Task list exists: $task_list_path"
-
-        # Check that the Next Task reference resolves inside the task list
-        next_task_line=$(grep -E '^\*\*Next Task:\*\*' "$work_status" 2>/dev/null | head -1)
-        if [ -n "$next_task_line" ]; then
-            task_num=$(echo "$next_task_line" | grep -oE 'Task [0-9]+\.[0-9]+' | head -1)
-            if [ -n "$task_num" ]; then
-                num_part="${task_num#Task }"
-                # Anchor on task-list entry shape so e.g. "1.1" doesn't false-match "1.10".
-                if grep -qE "^[[:space:]]*-[[:space:]]*\[[x~ ]\][[:space:]]*\*?\*?${num_part}([[:space:]]|\*|$)" "$task_list_path" 2>/dev/null; then
-                    pass "Next task reference resolves: $task_num"
-                else
-                    warn "Next task reference may be stale: $task_num not found in task list"
-                fi
-            fi
-        fi
-    done
-fi
-
-echo ""
-
-# ============================================================================
-# 7. Method/extension structure
+# 6. Method/extension structure
 # ============================================================================
 
 echo "--- Methods & Extensions ---"
 
-methods_file="$ARC_DIR/system/workflows/arc-methods.md"
-extensions_file="$ARC_DIR/system/workflows/arc-extensions.md"
+methods_dir="$ARC_DIR/system/methods"
+extensions_dir="$ARC_DIR/system/extensions"
 
-check_section() {
+# Structural sanity check: each file under system/methods/ and system/extensions/
+# opens with a YAML frontmatter block containing the required keys. Deep schema
+# validation (name matches basename, type checks, etc.) runs in pre-commit
+# CHECK 12; this is a post-hoc diagnostic, not a replacement.
+check_per_file_frontmatter() {
     local file="$1"
-    local section="$2"
+    local kind="$2"  # "method" or "extension"
     local file_label
     file_label=$(basename "$file")
 
-    if grep -q "^## $section" "$file" 2>/dev/null; then
-        pass "$file_label: ## $section present"
+    local first_line
+    first_line=$(head -n 1 "$file")
+    if [ "$first_line" != "---" ]; then
+        error "$file_label: missing frontmatter (file must start with ---)"
+        return
+    fi
+
+    if ! head -n 20 "$file" | tail -n +2 | grep -qE '^---$'; then
+        error "$file_label: frontmatter block not closed within first 20 lines"
+        return
+    fi
+
+    local required_keys
+    if [ "$kind" = "method" ]; then
+        required_keys="name description override-active"
     else
-        error "$file_label: ## $section section missing"
+        required_keys="name description active"
+    fi
+
+    local missing=""
+    for key in $required_keys; do
+        if ! head -n 20 "$file" | grep -qE "^${key}:"; then
+            missing="${missing} ${key}"
+        fi
+    done
+
+    if [ -n "$missing" ]; then
+        error "$file_label: missing frontmatter key(s):${missing}"
+        return
+    fi
+
+    pass "$file_label: frontmatter present"
+}
+
+check_per_file_dir() {
+    local dir="$1"
+    local kind="$2"  # "method" or "extension"
+    local dir_label
+    dir_label=$(basename "$dir")
+
+    if [ ! -d "$dir" ]; then
+        error "${dir_label^} directory missing: $dir"
+        return
+    fi
+
+    local found=false
+    for file in "$dir"/*.md; do
+        [ -f "$file" ] || continue
+        [ "$(basename "$file")" = "README.md" ] && continue
+        found=true
+        check_per_file_frontmatter "$file" "$kind"
+    done
+
+    if [ "$found" = false ]; then
+        warn "${dir_label^} directory contains no ${kind} files: $dir"
     fi
 }
 
-if [ -f "$methods_file" ]; then
-    # Check for expected method sections
-    for method in commit-format commit-context-format issue-triage test-first session-state \
-                  pre-merge-review review-triage quality-gate-commands; do
-        check_section "$methods_file" "$method"
-    done
-
-    # Check each method has .override and .default subsections
-    for method in commit-format commit-context-format issue-triage test-first session-state \
-                  pre-merge-review review-triage quality-gate-commands; do
-        if ! grep -q "^### ${method}.override" "$methods_file" 2>/dev/null; then
-            error "arc-methods.md: ### ${method}.override subsection missing"
-        fi
-        if ! grep -q "^### ${method}.default" "$methods_file" 2>/dev/null; then
-            error "arc-methods.md: ### ${method}.default subsection missing"
-        fi
-    done
-fi
-
-if [ -f "$extensions_file" ]; then
-    for ext in post-task-quality post-unit-quality post-task-completion post-context-load \
-               pre-stage-review pre-merge-review; do
-        check_section "$extensions_file" "$ext"
-    done
-fi
+check_per_file_dir "$methods_dir" "method"
+check_per_file_dir "$extensions_dir" "extension"
 
 echo ""
 
 # ============================================================================
-# 8. Manifest awareness
+# 7. Manifest awareness
 # ============================================================================
 
 echo "--- Manifest ---"

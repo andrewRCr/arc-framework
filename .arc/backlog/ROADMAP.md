@@ -4,7 +4,7 @@ Planning and reasoning — the sequencing strategy for remaining work, what gets
 and why. This is a working document, subject to change as you learn. For project state
 and record (achievements, current status), see `PROJECT-STATUS.md`.
 
-**Last Updated:** 2026-04-17
+**Last Updated:** 2026-04-24
 
 ---
 
@@ -114,7 +114,7 @@ the Phase 3 live-migration cutover point.
 - Downstream: Session-Init Optimization (stable session-init substrate to optimize),
   ARCd Rebrand (first real exercise of the per-WU status file model across rotating branches)
 
-**Session-Init Optimization** — After Work-Status Restructure
+**Session-Init Optimization** — In Progress (activated 2026-04-18)
 
 Reduce session-init token cost (~40k loadset, ~75–80k observed at orientation completion)
 toward a ≤60k observation target (≥25% reduction). Per-file methods/extensions with YAML
@@ -126,9 +126,108 @@ formalizes the `Working On:` prefix for planning/execution/integration different
 - PRD: `technical/prd-session-init-optimization.md`
 - Upstream: Work-Status Restructure (overlapping edits on session-init.md would conflict;
   session-init substrate must stabilize first)
-- Downstream: ARCd Rebrand (lean session-init surface for rebrand terminology sweep)
+- Downstream: Session-Operational Flow (shared session-init / session-handoff / DEV-RULES surface),
+  ARCd Rebrand (lean session-init surface for rebrand terminology sweep)
 
-**ARCd Rebrand** — After Session-Init Optimization
+**Session-Operational Flow** — After Session-Init Optimization (unblocks frame consumers)
+
+Lands the gate model (ADR-016, Proposed): configurable autonomy gates for session-operational flow
+with task → commit → push → integrate as the linear stack (invariant endpoints, configurable middle
+rungs) and handoff as orthogonal ceremony. Downgrades "AI never initiates commits" from non-negotiable
+principle to configurable default; elevates task-gate review and integration-gate human authority as
+real invariants. Implements status-file timing split (rotation fields at handoff, shape fields at
+commit-time), configuration surface for autonomy modes, approval-signal vocabulary, reversibility
+protocol, auto-commit and auto-push modes with bundled-cascade safety requirements, and
+handoff-interior toggle framework. Shared frame for the three downstream session-operational plans
+(User Sync UX, Work-Unit Mobility, Quality Gate Hooks) — each becomes smaller and internally coherent
+inside the frame. Surfaced 2026-04-24 during pre-PRD exploration of User Sync UX when the
+`user.sync_push: always` incoherence revealed a missing shared frame. External research validated
+gate-model alignment with industrial SWE practice (Spinnaker manual judgment, GitHub Environments,
+Atlantis, Terraform autonomy tiers, Conventional Changelog boundary-consolidation).
+
+- Plan: `technical/plan-session-operational-flow.md`
+- ADR: `reference/adr/adr-016-configurable-autonomy-gates-for-session-operations.md` (Proposed)
+- Upstream: Session-Init Optimization (overlapping session-init / session-handoff / DEV-RULES edits;
+  must stabilize first)
+- Downstream: User Sync UX Polish (handoff-interior toggles for worktree/notes pairing),
+  Work-Unit Mobility (configurable autonomy for multi-session ergonomics),
+  Quality Gate Tiers and Hook Integration (canonical gate vocabulary, per-gate hook placement,
+  handoff-gate stage), ARCd Rebrand (gate-model terminology absorbed into rename pass)
+- **Scope note:** Pre-approved split at PRD-drafting time: WU-A (frame + constitutional foundation —
+  Phases 1-3) unblocks downstream plans earlier; WU-B (autonomy modes + reversibility — Phases 4-7)
+  ships implementation behaviors. Keep unified if scope stays manageable.
+
+**User Sync UX Polish** — After Session-Operational Flow Phase 6 (handoff-interior toggles)
+
+State-machine unification (collapse full-mode and session-init notes-sync probes to one spine),
+directional copy audit across `arc status` output, and `user.sync_push` scope expansion — design
+plus external research for coupled commit + notes push semantics. Surfaced 2026-04-24 during
+cross-machine resume: full-mode recommended `arc user save` when the user actually needed
+`arc user pull` — same root cause as divergent state machines, with ambiguous copy compounding
+the confusion. Landing before ARCd Rebrand means the rename pass picks up a consolidated state
+machine and directional copy, rather than re-touching churned output. Sibling atomic fix for the
+`arc user fetch` prompt removal lands in the Session-Init Optimization WU; this WU handles the
+architectural work.
+
+- Plan: `technical/plan-user-sync-ux.md`
+- Upstream: Session-Init Optimization (atomic fetch-prompt fix, lean session-init substrate),
+  Session-Operational Flow Phase 6 (handoff-interior toggle framework — substrate for auto-push
+  implementation)
+- Downstream: Work-Unit Mobility (clean sync UX before worktree-aware detection lands),
+  ARCd Rebrand (terminology surface stabilized before rename), Dogfooding (beta-ready
+  user-sync surface)
+- **Scope note:** Natural split aligned with frame dependency: WU-A (state-machine unification +
+  copy audit — independent of gate-model frame) can ship as soon as Session-Init Optimization
+  lands; WU-B (auto-push instantiation against handoff-interior toggles) waits for
+  Session-Operational Flow Phase 6. Unified if sequencing allows.
+
+**Work-Unit Mobility** — After User Sync UX Polish
+
+First-class same-developer support for moving between work units — across time (shift
+lifecycle: pause / resume / rotate), across filesystem (worktree-aware session-init and
+status surfaces), and across attention (focus-role model). Closes a blind spot where ARC has
+no awareness of git worktrees and where same-dev parallel-WU usage is only accidentally
+supported as a byproduct of team-mode structural design. Extracts shift lifecycle from the
+original ARC Operating Modes scope so modes can focus on mode architecture without also
+landing a cross-cutting lifecycle subsystem. One material open question (pause-pointer
+reconciliation) must resolve before PRD promotion.
+
+- Plan: `feature/plan-work-unit-mobility.md` (pre-PRD draft, iteration expected)
+- Upstream: Session-Init Optimization (stable session-init substrate to extend),
+  User Sync UX Polish (clean sync state machine before worktree axis joins it),
+  Session-Operational Flow Phases 3/5/6 (configurable autonomy modes — reduce approval ceremony
+  under multi-session load; async-merge integration-surface audit added to mobility scope per
+  ADR-016 discussion)
+- Downstream: ARCd Rebrand (stable mobility terminology absorbed into rename pass),
+  ARC Operating Modes (shift lifecycle available as prerequisite, not bundled into modes)
+
+**Quality Gate Tiers and Hook Integration** — After Work-Unit Mobility
+
+Align ARC's tier model (Tier 1/2/3) with standard git hook stages (pre-commit / pre-push / CI),
+likely via rename to gate-stage naming (commit-gate / push-gate / pr-gate — final shape TBD).
+Adds pre-push as a recognized ARC surface with structural dispatch to adopter-configured push-gate
+commands; extends `quality-gate-commands` method with tier metadata so hooks auto-dispatch the
+right commands at the right stage. Codifies the structural-vs-adopter-impl separation (ARC owns
+tier abstraction + structural CHECKs + dispatch plumbing; adopters bring linters/tests at initial
+setup). Surfaced 2026-04-24 when a CI failure landed on an ARC commit — Tier 2 would have caught
+it but hadn't run under the current manual-discipline model. External research confirmed hook-stage
+alignment is the universal idiom and ARC's gap is real. Builds on ADR-014 (hook-manager detection
+already ships).
+
+- Plan: `technical/plan-quality-gate-hooks.md`
+- Upstream: Session-Init Optimization (DEV-RULES / session-init overlap),
+  Session-Operational Flow Phases 1-3 (canonical gate vocabulary + config surface — supersedes
+  this plan's independent convergence on commit-gate / push-gate / pr-gate naming; adds
+  handoff-gate as fourth hook stage), User Sync UX Polish (shared polish surfaces),
+  Work-Unit Mobility (session-init orientation overlap),
+  ADR-014 (hook-manager detection prerequisite)
+- Downstream: ARCd Rebrand (new tier naming absorbed in rename pass),
+  Dogfooding (beta-ready quality gate surface)
+- **Scope note:** Pre-approved split at PRD-drafting time if tier rename proves too large:
+  (1) hook integration (architectural), (2) tier rename (editorial). Keep unified if rename
+  stays manageable.
+
+**ARCd Rebrand** — After Quality Gate Tiers and Hook Integration
 
 Rebrand ARC → ARCd as the public product brand while preserving ARC as the methodology and
 workflow vocabulary. Split architecture: ARCd names the public implementation surface
@@ -141,7 +240,9 @@ before Operating Modes and public release.
 
 - Plan: `technical/plan-arcd-rebrand.md`
 - Upstream: Session-Init Optimization (lean session-init surface for terminology sweep),
-  Methodology Maturation (same-surface churn avoidance)
+  Methodology Maturation (same-surface churn avoidance), User Sync UX Polish (consolidated
+  sync copy to rename), Work-Unit Mobility (mobility surfaces to rename in one pass),
+  Quality Gate Tiers and Hook Integration (gate-stage terminology absorbed in rename pass)
 - Downstream: Expanded Planning Path, Operating Modes, WU5
 
 **Expanded Planning Path** — After ARCd Rebrand
@@ -162,18 +263,18 @@ proved insufficient.
 
 Establish ARC's mode architecture — a lightweight mode (ARC Lite) for small projects preserving
 execution discipline without lifecycle ceremony, and a local/untracked mode for constrained
-environments where ARC can't be committed to the repo. Shift lifecycle (Paused / Waiting-For
-state transitions) ships as a cross-cutting subsystem enabling multi-WU interleave, filling a
-team-mode gap in Full ARC and making Local Full viable.
+environments where ARC can't be committed to the repo. Shift lifecycle (paused / waiting-for
+state transitions) enters this WU as a prerequisite delivered by Work-Unit Mobility, not as
+bundled scope — modes composes with the lifecycle subsystem to make Local Full viable.
 
 - Plan: `feature/plan-arc-modes.md` (PRD-ready, 59-item deliverables inventory)
 - Upstream: ARCd Rebrand (settled naming and key renames), Expanded Planning Path (planning
-  workflow tooling for PRD drafting)
+  workflow tooling for PRD drafting), Work-Unit Mobility (shift lifecycle available)
 - Downstream: Dogfooding, WU5
 - **Scope note:** Single WU by default. Pre-approved split at PRD-drafting time if scope proves
-  unmanageable: foundation (installation-type mechanism + shift lifecycle + strategy audit) →
-  Lite+Local (mode-specific content, workflows, templates). Splitting Lite from Local is
-  explicitly rejected — shared infrastructure dominates unique per-mode work.
+  unmanageable: foundation (installation-type mechanism + strategy audit) → Lite+Local
+  (mode-specific content, workflows, templates). Splitting Lite from Local is explicitly
+  rejected — shared infrastructure dominates unique per-mode work.
 
 **Dogfooding Phase** — After Operating Modes
 
@@ -221,21 +322,27 @@ Phase A ──► Phase B ──► Phase C (Work Units):
    │     │     │     │     │     │     │     │
    │     │     │     │     │     │     │     ├──► Session-Init Optimization
    │     │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     │     ├──► ARCd Rebrand
+   │     │     │     │     │     │     │     │     ├──► Session-Operational Flow (ADR-016 frame)
    │     │     │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     │     │     ├──► Expanded Planning Path
+   │     │     │     │     │     │     │     │     │     ├──► User Sync UX Polish      ─┐
+   │     │     │     │     │     │     │     │     │     ├──► Work-Unit Mobility        ├──► ARCd Rebrand
+   │     │     │     │     │     │     │     │     │     ├──► Quality Gate Tiers + Hooks┘    (downstream of all three;
+   │     │     │     │     │     │     │     │     │     │                                    three can parallelize
+   │     │     │     │     │     │     │     │     │     │                                    after frame lands)
    │     │     │     │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     │     │     │     ├──► Operating Modes (Lite + Local)
+   │     │     │     │     │     │     │     │     │     │     ├──► Expanded Planning Path
    │     │     │     │     │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     │     │     │     │     ├──► Dogfooding (iterate 0.x.y)
+   │     │     │     │     │     │     │     │     │     │     │     ├──► Operating Modes (Lite + Local)
    │     │     │     │     │     │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     │     │     │     │     │     └──► WU5 (Public Release, 1.0)
-   │     │     │     │     │     │     │     │     │     │     │     │           ▲
-   │     │     └─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────────────┘ (content can start after WU2)
-   │     │                                                                          ▲
-   │     └──────────────────────────────────────────────────────────────────────────┘ (philosophy informs docs + README)
-   │                                                                                ▲
-   └────────────────────────────────────────────────────────────────────────────────┘
+   │     │     │     │     │     │     │     │     │     │     │     │     ├──► Dogfooding (iterate 0.x.y)
+   │     │     │     │     │     │     │     │     │     │     │     │     │     │
+   │     │     │     │     │     │     │     │     │     │     │     │     │     └──► WU5 (Public Release, 1.0)
+   │     │     │     │     │     │     │     │     │     │     │     │     │     │           ▲
+   │     │     └─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┘ (content can start after WU2)
+   │     │                                                                                    ▲
+   │     └──────────────────────────────────────────────────────────────────────────────────┘ (philosophy informs docs + README)
+   │                                                                                          ▲
+   └──────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 **Parallelism:** WU5 docs site content and README drafts can begin after WU1+WU2 without
@@ -287,6 +394,50 @@ site structure.
 
 ## Change Log
 
+- **2026-04-24**: Session-Operational Flow WU added as `technical/plan-session-operational-flow.md`,
+  anchored by ADR-016 (Adopt Configurable Autonomy Gates for Session Operations, Proposed).
+  Surfaced during pre-PRD exploration of User Sync UX Polish — the `user.sync_push: always`
+  incoherence (notes push without commits) revealed a missing shared frame for session-operational
+  flow that was blocking coherent design across User Sync UX, Work-Unit Mobility, and Quality Gate
+  Hooks. ADR-016 establishes the gate model (task → commit → push → integrate linear stack with
+  invariant endpoints; handoff as orthogonal ceremony); `plan-session-operational-flow` executes
+  the frame (constitutional amendments, status-file timing split, configuration surface, autonomy
+  modes, reversibility protocol, handoff-interior toggle framework). Downgrades "AI never
+  initiates commits" from non-negotiable principle to configurable default; elevates task-gate
+  review and integration-gate human authority as real invariants. Reshapes three downstream
+  plans: User Sync UX lightens (auto-push becomes handoff-interior toggle instantiation), Quality
+  Gate Hooks gains canonical gate vocabulary + handoff-gate stage, Work-Unit Mobility adds
+  async-merge integration-surface audit + concurrent-session posture reconciliation +
+  status-field rotation classification. New sequencing: Session-Init Optimization →
+  Session-Operational Flow → {User Sync UX || Work-Unit Mobility || Quality Gate Hooks}
+  (parallelize after frame lands) → ARCd Rebrand → Expanded Planning Path → Operating Modes →
+  Dogfooding → WU5. External research validated gate-model alignment with industrial SWE practice
+  (Spinnaker manual judgment, GitHub Environments, Atlantis, Terraform autonomy tiers,
+  Conventional Changelog boundary-consolidation); three honest-framing points where industry
+  precedent is absent or mixed absorbed into ADR Context.
+- **2026-04-24**: Quality Gate Tiers and Hook Integration added as
+  `technical/plan-quality-gate-hooks.md`. Surfaced same day when a commit with known-deferred
+  markdown lint errors landed in CI — Tier 2 would have caught it under manual discipline but
+  hadn't run because the task wasn't "coherent unit" complete. External research (documented
+  in plan) confirmed the universal idiom is pre-commit → pre-push → CI hook stage alignment,
+  and that ARC's Tier 1/2/3 maps naturally. Plan proposes: tier rename to gate-stage naming
+  (commit-gate / push-gate / pr-gate, final shape TBD), pre-push hook as new ARC-recognized
+  stage, dispatch method extension, initial-setup bootstrap. Sequenced after Work-Unit
+  Mobility, before ARCd Rebrand (gate-stage terminology absorbed in rebrand's rename pass).
+  Sibling atomic for this repo's own lint-staged adoption routed to `user/andrew/ATOMIC-INBOX.md`.
+- **2026-04-24**: Two Phase C insertions. User Sync UX Polish added as
+  `technical/plan-user-sync-ux.md` — surfaced during cross-machine resume when `arc status`
+  full-mode recommended `arc user save` in a scenario requiring `arc user pull` (dual state
+  machines drifting; ambiguous directional copy); atomic sibling fix for `arc user fetch`
+  prompt removal routed to Session-Init Optimization WU. Work-Unit Mobility
+  (`feature/plan-work-unit-mobility.md`, drafted 2026-04-17, previously unsequenced) inserted
+  as next-but-one — extracts shift lifecycle from Operating Modes scope so modes stays focused
+  on mode architecture. Sequencing: Session-Init Optimization → User Sync UX Polish →
+  Work-Unit Mobility → ARCd Rebrand → Expanded Planning Path → Operating Modes → Dogfooding
+  → WU5. Rebrand picks up consolidated sync state and mobility terminology in one rename
+  pass; Operating Modes no longer bundles shift lifecycle.
+- **2026-04-18**: Session-Init Optimization PRD + task list complete; activated on
+  `technical/session-init-optimization` after batch planning branch merge.
 - **2026-04-16**: Session-Init Optimization inserted between Work-Status Restructure and
   ARCd Rebrand. Commissioned mid-WU via the session-init context-load audit captured in
   `atomic-work-status-restructure.md`. Audit surfaced an architectural opportunity

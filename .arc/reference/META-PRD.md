@@ -69,9 +69,9 @@ The full philosophical argument, with research grounding, is in the
 ### Agent architecture
 
 - Agent-agnostic core: methodology defined independently of any specific AI tool
-- Hub-spoke file model: AGENT-BRIEFING.ARC.md (framework orientation) and
-  AGENT-BRIEFING.PROJECT.md (project context) as shared entry points, agent-specific files
-  (CLAUDE.ARC.md, etc.) for tool-specific guidance
+- Hub-spoke file model: AGENT-BRIEF.ARC.md (framework orientation) and
+  AGENT-BRIEF.PROJECT.md (project context) as shared entry points; harness-level files
+  (CLAUDE.md, AGENTS.md) handle tool-specific concerns outside ARC
 - Multi-agent support: different agents can work within the same project, each loading shared
   methodology plus their own guidance
 
@@ -159,4 +159,4 @@ The full philosophical argument, with research grounding, is in the
 
 ---
 
-[core-philosophy]: strategies/arc/strategy-core-philosophy.md
+[core-philosophy]: https://andrewrcr.github.io/arc-framework/philosophy/

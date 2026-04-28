@@ -93,7 +93,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       "reference/strategies/arc",
       "reference/templates",
       "system",
-      "system/agent",
+      "system/briefs",
       "system/githooks",
       "system/scripts",
       "system/skills",
@@ -113,7 +113,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
 
   it("renders init-time tokens in output files", async () => {
     const briefing = await readFile(
-      join(arcDir, "system/agent/AGENT-BRIEFING.PROJECT.md"),
+      join(arcDir, "system/briefs/AGENT-BRIEF.PROJECT.md"),
       "utf-8",
     );
     expect(briefing).toContain("Integration Test Project");
@@ -268,22 +268,94 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
 
   it("installs agent briefing files (ARC + PROJECT split)", async () => {
     const arcBriefing = await stat(
-      join(arcDir, "system/agent/AGENT-BRIEFING.ARC.md"),
+      join(arcDir, "system/briefs/AGENT-BRIEF.ARC.md"),
     );
     expect(arcBriefing.isFile()).toBe(true);
 
     const projectBriefing = await stat(
-      join(arcDir, "system/agent/AGENT-BRIEFING.PROJECT.md"),
+      join(arcDir, "system/briefs/AGENT-BRIEF.PROJECT.md"),
     );
     expect(projectBriefing.isFile()).toBe(true);
   });
 
-  it("installs CLAUDE.ARC.md (tool-conditional file)", async () => {
-    const claudeFile = await stat(
-      join(arcDir, "system/agent/CLAUDE.ARC.md"),
-    );
-    expect(claudeFile.isFile()).toBe(true);
+  // --- Per-File Methods and Extensions ---
+
+  it("installs all 8 per-file methods plus README in system/methods/", async () => {
+    const methodFiles = [
+      "commit-context-format.md",
+      "commit-format.md",
+      "diff-review.md",
+      "issue-triage.md",
+      "quality-gate-commands.md",
+      "review-triage.md",
+      "session-state.md",
+      "test-first.md",
+      "README.md",
+    ];
+    for (const name of methodFiles) {
+      const s = await stat(join(arcDir, "system/methods", name));
+      expect(s.isFile(), `expected system/methods/${name}`).toBe(true);
+    }
   });
+
+  it("installs all 8 per-file extensions plus README in system/extensions/", async () => {
+    const extensionFiles = [
+      "post-context-load.md",
+      "post-task-completion.md",
+      "post-task-quality.md",
+      "post-unit-quality.md",
+      "post-work-unit-activate.md",
+      "post-work-unit-archive.md",
+      "pre-merge-review.md",
+      "pre-stage-review.md",
+      "README.md",
+    ];
+    for (const name of extensionFiles) {
+      const s = await stat(join(arcDir, "system/extensions", name));
+      expect(s.isFile(), `expected system/extensions/${name}`).toBe(true);
+    }
+  });
+
+  it(
+    "registers all 18 per-file methods/extensions in manifest — 16 Configurable, 2 READMEs Framework",
+    async () => {
+      const manifest = await readManifestFile(tempDir);
+
+      const methodNames = [
+        "commit-context-format", "commit-format", "diff-review",
+        "issue-triage", "quality-gate-commands", "review-triage",
+        "session-state", "test-first",
+      ];
+      const extensionNames = [
+        "post-context-load", "post-task-completion", "post-task-quality",
+        "post-unit-quality", "post-work-unit-activate",
+        "post-work-unit-archive", "pre-merge-review", "pre-stage-review",
+      ];
+
+      for (const name of methodNames) {
+        const key = `system/methods/${name}.md`;
+        const entry = manifest.files[key];
+        expect(entry, `manifest missing ${key}`).toBeDefined();
+        expect(entry!.classification, `${key} classification`).toBe("Configurable");
+      }
+
+      for (const name of extensionNames) {
+        const key = `system/extensions/${name}.md`;
+        const entry = manifest.files[key];
+        expect(entry, `manifest missing ${key}`).toBeDefined();
+        expect(entry!.classification, `${key} classification`).toBe("Configurable");
+      }
+
+      // READMEs fall through to Framework — not adopter-customizable
+      const methodsReadme = manifest.files["system/methods/README.md"];
+      expect(methodsReadme).toBeDefined();
+      expect(methodsReadme!.classification).toBe("Framework");
+
+      const extensionsReadme = manifest.files["system/extensions/README.md"];
+      expect(extensionsReadme).toBeDefined();
+      expect(extensionsReadme!.classification).toBe("Framework");
+    },
+  );
 
   it("installs script files", async () => {
     const validateConfig = await stat(
@@ -332,7 +404,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     const checkPaths = [
       "README.md",
       "system/arc-config.yml",
-      "system/agent/AGENT-BRIEFING.ARC.md",
+      "system/briefs/AGENT-BRIEF.ARC.md",
     ];
 
     for (const filePath of checkPaths) {
@@ -360,7 +432,20 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       "utf-8",
     );
     expect(config).toContain("team.mode: false");
+    expect(config).toContain("session.remote_sync: enabled");
     expect(config).toContain("user.sync_push: always");
+  });
+
+  it("renders session.init_pull.* keys with defaults and inline comments", async () => {
+    const config = await readFile(
+      join(arcDir, "system/arc-config.yml"),
+      "utf-8",
+    );
+    expect(config).toContain("session.init_pull.worktree: prompt");
+    expect(config).toContain("session.init_pull.notes: prompt");
+    // Comment block precedes the keys (each key has at least one introductory comment line).
+    expect(config).toMatch(/# Worktree pull policy[\s\S]*?session\.init_pull\.worktree: prompt/);
+    expect(config).toMatch(/# Notes pull policy[\s\S]*?session\.init_pull\.notes: prompt/);
   });
 
   // --- Conditional File Exclusion ---
@@ -369,15 +454,6 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     try {
       await stat(join(arcDir, "backlog/ROADMAP.md"));
       expect.fail("ROADMAP should not exist for pm.mode=none");
-    } catch (err: unknown) {
-      expect((err as NodeJS.ErrnoException).code).toBe("ENOENT");
-    }
-  });
-
-  it("excludes unselected tool agent files", async () => {
-    try {
-      await stat(join(arcDir, "system/agent/CODEX.ARC.md"));
-      expect.fail("CODEX.ARC.md should not exist when codex not selected");
     } catch (err: unknown) {
       expect((err as NodeJS.ErrnoException).code).toBe("ENOENT");
     }
@@ -395,7 +471,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     const message = buildPostInitMessage(result);
     expect(message).toContain(`(${result.filesWritten.length} files)`);
     expect(message).toContain("/arc-setup");
-    expect(message).toContain("AGENT-BRIEFING.ARC.md");
+    expect(message).toContain("AGENT-BRIEF.ARC.md");
     expect(message).toContain("01_verify-and-configure.md");
   });
 });
@@ -527,6 +603,7 @@ describe("init integration (fresh mode, team_mode=true)", () => {
       "utf-8",
     );
     expect(config).toContain("team.mode: true");
+    expect(config).toContain("session.remote_sync: enabled");
     expect(config).toContain("user.sync_push: prompt");
 
     const message = buildPostInitMessage(result!);

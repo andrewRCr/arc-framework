@@ -1,26 +1,20 @@
+---
+purpose: Capture session state so the next session can resume with full context — counterpart to session-init.
+audience: agent
+arc:
+  methods:
+    - session-state
+---
+
 # Workflow: Session Handoff
 
-**Audience:** Agent-executed — your agent follows this to capture session state.
+**Output discipline:** Between tool calls and the final structured summary, generate text only for (a)
+problems, blockers, or detected mismatches; (b) judgment calls the user couldn't infer from the tool
+stream; (c) flow-control pivots the user needs to track. Pure narration of tool calls, workflow branches,
+or "now reading X" is omitted. Scope-limited override of any harness-default narration cadence for the
+duration of this workflow.
 
-**Purpose**: Capture session state so the next session can resume with full context. This is the counterpart to
-[session initialization][session-init] — together they implement P5 (Context Preservation) at session boundaries.
-
-**When to use**: User-triggered at the end of a session, or when transitioning between work contexts.
-
-**Design context**: This workflow is optimized for agents with ephemeral context — capturing state that would
-otherwise be lost when the session ends. Agents with persistent memory may need lighter handoff ceremonies; the
-principle (state must be recoverable by a new session) still applies. The session state mechanism is overridable
-via [`arc-methods.md` § session-state][arc-methods-session].
-
-**Method dependency (load on first reference):** This workflow references one arc-method. Load the relevant
-section of [`arc-methods.md`][arc-methods] — check `.override` first; use `.default` if no override is
-configured.
-
-- [session-state][arc-methods-session] — reading and writing session state
-
-## Handoff Protocol
-
-### Pre-Update Verification
+## Pre-Update Verification
 
 **Before writing the handoff, verify actual state:**
 
@@ -32,13 +26,14 @@ configured.
 5. **Working directory** — if it changed during the session, update paths in the active status file
    if one exists
 
-> **Contributor role (`arc.role = contributor`):** Contributors write SESSION-NOTES.md and save
-> to git notes (same as maintainers), but skip project-level active status-file work — items
-> 4–5 in the pre-handoff checks above, and steps 4–5 in the handoff format below. Contributors
-> don't manage the project work pipeline — proceed directly to the SESSION-NOTES.md update, git
-> notes save, and confirmation.
+> **Contributor role (`arc.role = contributor`):** Contributors write SESSION-NOTES.md and save to
+> git notes (same as maintainers), and update their personal active status file at
+> `.arc/user/{identity}/active/status-{name}.md` during handoff step 4 — that path is gitignored,
+> so commit-time staging doesn't apply; handoff is the natural update trigger, parallel to
+> SESSION-NOTES. Contributors skip pre-handoff check 4 (task-list checkboxes — maintainer-managed)
+> and handoff step 5's safety-check commit (nothing tracked to commit).
 
-### What to Update
+## What to Update
 
 Session state is split across tracked project state and personal session state (per the
 [session-state method][arc-methods-session] default — if your project overrides session-state,
@@ -65,15 +60,11 @@ session context
 **When context changes** — Working directory paths or environment expectations in the active
 status file (if one exists)
 
-**Preserve persistent context** — The `## Persistent Context` section in SESSION-NOTES.md carries
-cross-session constraints that tracked state does not yet carry (forward-looking constraints,
-un-codified meta-conventions, parking references). Each entry has an explicit removal trigger.
-During handoff, rewrite ephemeral sections (Completed Work, Remaining Work, Additional Context)
-but preserve persistent context entries whose triggers haven't been met AND which still satisfy
-the criterion (see **Persistent Context** under "What to include" below). Remove entries whose
-triggers are met OR whose information is now carried in tracked state.
+**Preserve persistent context** — `## Persistent Context` carries cross-session entries with explicit
+removal triggers. See § Comprehensive Handoff Format step 1 and § Persistent Context below for the
+preservation criterion and review cadence.
 
-### Comprehensive Handoff Format
+## Comprehensive Handoff Format
 
 Update session state files before ending session:
 
@@ -105,8 +96,9 @@ Update session state files before ending session:
 
     The new HEAD becomes the `**Commit at Handoff:**` value written in step 6. Most handoffs skip
     this — [DEV-RULES.ARC][dev-rules-arc] § Work status accuracy makes commit-time primary.
-    Contributors (`arc.role = contributor`) skip this step — no project-level status file to
-    commit.
+    Contributors (`arc.role = contributor`) skip this commit — their personal active status file at
+    `.arc/user/{identity}/active/status-{name}.md` is gitignored, so step 4's update lands without
+    staging.
 6. **Write SESSION-NOTES** per the guidance below. Record `**Commit at Handoff:**` from current
    HEAD (post-step-5 if a commit was made).
 
@@ -139,7 +131,8 @@ _Content discipline: the status file is a project pointer, not session narrative
 line (Next Action may span two when it names a multi-file scope). Push longer context elsewhere — commit
 body for what-and-why, SESSION-NOTES for next-session context, task list completion notes for per-task
 detail. If Last Completed or Next Action exceeds ~2 lines, the content likely belongs in one of those
-surfaces instead._
+surfaces instead. When fields do span lines, wrap to the 120-char target — under-wrapping (60-80 chars on
+continuation lines) is the common failure here._
 
 _Workflow step pointer: When the next action resumes a lifecycle workflow (integrate, archive, rotate,
 activate-planning-branch), include the workflow name and step — e.g., "integrate-work-unit Step 7 —
@@ -168,12 +161,6 @@ is a side effect, not a target.
 If any of the three fails, omit. This is the same criterion Persistent Context enforces — it
 applies to every ephemeral section too.
 
-**Long-session bias — resist it.** The pattern this filter exists to catch: long sessions
-accumulate rich context, the agent reaches handoff, and an "I don't want to lose this" impulse
-drives verbose preservation. Re-read the filter. Tracked state catches more than it feels like it
-does at end-of-session. Duplication here adds startup noise for the next session without adding
-signal.
-
 **Template skeleton:**
 
 ```markdown
@@ -189,8 +176,17 @@ Markers:
 -->
 
 **Commit at Handoff:** `{{short-hash}}`
+<!--
+  **Session Type:** {planning | execution | integration}
+  Optional override; absent → inferred from tracked state. Set only when the next session's
+  intent diverges from what the active status file implies. Case-insensitive. Invalid value →
+  ignored + warning at session-init.
+-->
 
 ## Completed Work
+
+<!-- Wrap continuation lines on bullets to the 120-char target. Under-wrapping (60-80 chars)
+     is the common failure here — see DEV-RULES.PROJECT § Documentation Standards. -->
 
 [Committed work — one line per commit: hash + outcome. See "Committed work" below.]
 [Uncommitted work — commit-level detail. See "Uncommitted work" below.]
@@ -213,6 +209,12 @@ _Remove when: [explicit trigger condition]_
 
 - [Context that must persist until trigger is met]
 ```
+
+**Session Type override (optional):** Add `**Session Type:**` to Handoff Metadata only when the
+next session's intent diverges from what the active status file implies — for example, status
+points to an in-progress execution WU but the next session will plan a separate concern. Absent
+(default) → session-init infers from tracked state. Don't write by default; the inference covers
+the 99% case.
 
 **Completed Work — committed work (default):** One line per commit: hash + outcome. Nothing more.
 
@@ -256,6 +258,10 @@ state is authoritative.
 - **Anti-pattern** (common during pre-PRD planning): writing a persistent-context entry for
   every mechanism decision resolved in the plan doc. Persistent context is not a substitute
   for the plan doc's § Resolved Decisions section.
+- **Anti-pattern** (future-WU drift): writing persistent-context entries for stale references
+  or activation-audit reminders inside a backlog `plan-*.md` for a WU that hasn't activated.
+  These don't apply to interim sessions — they apply once, when that WU activates. Write the
+  note into the plan doc itself; the activating session sees it naturally.
 
 Review at each handoff: remove entries whose triggers are met, AND entries whose information
 is now carried in tracked state.
@@ -291,7 +297,7 @@ probably doesn't belong:
 - Observed risks
 - "Currently mid-X with concrete next action Y" when stopping mid-task
 
-### Handoff Examples
+## Handoff Examples
 
 **Example 1: Off-task-list with known path back**
 
@@ -367,7 +373,7 @@ SESSION-NOTES.md:
 2. Token refresh flow has edge case when refresh token expires mid-request
 ```
 
-### Task List Completion & Transition Format
+## Task List Completion & Transition Format
 
 **When work is complete and/or task list has been archived**, use this expanded format:
 
@@ -386,84 +392,75 @@ If the work unit has already been archived, no active status file remains. SESSI
 completion is minimal — accomplishment summary with commit hashes, archive path. Preserve any
 Persistent Context entries that span work units; reset ephemeral sections.
 
-### Post-Update Cleanup
+## Post-Update Cleanup
 
 After updating session state files, verify clean markdown. If SESSION-NOTES.md is gitignored, your linter
 may skip it by default — pass the path explicitly or use an IDE-integrated linter.
 
-### Save to Git Notes
+## Save to Git Notes
 
-After writing SESSION-NOTES.md, save the user directory to git notes and push based on the
-`user.sync_push` setting. **Per-developer override:** `git config arc.sync_push` takes
-precedence over `arc-config.yml` when set — check this first.
+After writing SESSION-NOTES.md, run `arc sync`:
 
-- **`always`** (solo default): save and push in one step:
+```bash
+arc sync
+```
 
-    ```bash
-    arc sync
-    ```
+`arc sync` resolves the effective push policy (`git config arc.syncPush` → `arc-config.yml`
+`user.sync_push` → default `always`) and acts accordingly:
 
-- **`prompt`** (team default): save first, then ask the user whether to push:
+- **`always`**: saves and pushes in one step.
+- **`prompt`**: saves, then asks before pushing. In non-interactive environments (CI, no TTY),
+  degrades to `manual` with a warning rather than hanging on the prompt.
+- **`manual`**: saves only; the user pushes later with `arc user push`.
 
-    ```bash
-    arc user save
-    # then ask — if yes:
-    arc user push
-    ```
+For manual control outside of handoff (ad-hoc save, push, or force-push), `arc user save`,
+`arc user push`, and `arc user push --force` remain available.
+In non-interactive or confirmation-free reruns, `arc sync --yes` skips overwrite prompts.
 
-- **`manual`**: save only — user pushes when ready:
+**Error handling:** The CLI surfaces sync errors interactively — follow its guidance. Common cases:
 
-    ```bash
-    arc user save
-    ```
+- **Push rejected (non-fast-forward)** — CLI offers force-push or merge-rebase; choose per which side is authoritative.
+- **Missing remote** — local save completed; push later when `origin` is configured.
+- **Pull warning (local changes)** — CLI confirms before overwriting unsaved notes.
 
-**Error handling:** The CLI surfaces sync errors interactively — follow its guidance:
-
-- **Push rejected (non-fast-forward):** Remote notes diverged from local. The CLI offers
-  force-push (overwrite remote) or pull-first (overwrite local). Choose based on which
-  version is authoritative. This commonly happens when the same developer works from two
-  machines without syncing, or in team mode when two developers share an identity by mistake.
-- **Missing remote:** No `origin` configured. Session state is saved locally via `arc user
-  save` — push is a convenience for portability. The local save still happened; push later
-  when a remote is available.
-- **Pull warning (local changes):** When pulling would overwrite unsaved local notes, the CLI
-  confirms before proceeding. The pre-load backup (`.pre-load-backup.json`) preserves the
-  prior state if needed.
+**Surface the outcome in the handoff summary.** After `arc sync` returns, the agent must
+report whether the save and push succeeded — check the exit code and include a one-line
+result in the end-of-session summary (e.g., "session state synced to remote" or "sync
+failed, state preserved locally — re-run `arc sync` after resolving"). The CLI's
+interactive output is easy to miss when scrolling or in non-TTY contexts; an explicit
+outcome line prevents the "work didn't land but user thought it did" failure mode.
 
 If save itself fails (empty user directory, filesystem permissions), the session state is
 only in SESSION-NOTES.md on disk. Resolve the issue and re-run `arc user save`.
 
-### Confirm Handoff
+## Confirm Handoff
 
-After updating the active status file (if any) and SESSION-NOTES.md, deliver a verbal summary to
-the user. This is a quick
-confirmation for the human — the session state files are the durable artifacts.
+After updating the active status file (if any) and SESSION-NOTES.md, deliver a verbal summary to the user.
+This is a quick confirmation for the human — the session state files are the durable artifacts.
 
 **ARC session handoff complete** · `{branch-name}` · {clean | uncommitted changes}
 
 **Session summary:**
 
-- [What was accomplished — bullet per logical unit of work]
-- [Include commit hashes for committed work]
+- [`<hash>` — `<outcome>` (one line per logical unit)]
 
 **Uncommitted work:**
 
-- [Files/changes with logical commit grouping]
+- [Files/changes with logical commit grouping; omit section entirely when nothing uncommitted]
 
-**Next session:** [What comes next per the active status file, or next-work discovery when between WUs]
+**Next session:** [Task list pointer (on-task-list) or freeform (off-task-list)]
 
 **Formatting guidance:**
 
-- Mirrors the session-init orientation summary — bookend pattern
-- **Session summary** is accomplishments, not a task list replay — focus on outcomes
-- **Uncommitted work** maps to commits: enough detail for the next session to
-  reconstruct proper atomic commits without re-reading diffs. Omit this section
-  entirely when all work is committed — less noise when there's nothing to report
-- **Next session** is standalone and prominent — same scanning target as init's
-  "Next action"
+- Mirrors the session-init orientation summary — bookend pattern.
+- **Session summary** bullets: one line per logical unit — `<hash> — <outcome>`. Don't restate commit body
+  content; `git log` is the durable record. (Same anti-pattern as SESSION-NOTES § "commit-by-commit
+  retrospective narration".)
+- **Uncommitted work** maps to commits — enough detail for the next session to reconstruct proper atomic
+  commits without re-reading diffs. Omit entirely when all work is committed.
+- **Next session**: one line on-task-list (status file pointer); unbounded only when off-task-list — same
+  bounding as session-init Step 7 Next action.
 
-[session-init]: session-init.md
-[arc-methods]: ../../arc-methods.md
-[arc-methods-session]: ../../arc-methods.md#session-state
+[arc-methods-session]: ../../../methods/session-state.md
 [dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md
 [team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md

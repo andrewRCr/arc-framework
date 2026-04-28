@@ -1,18 +1,13 @@
+---
+purpose: Revert a work unit activation when no task work has started — return to pre-activation state.
+audience: collaborative (human and agent)
+---
+
 # Workflow: Deactivate Work Unit
 
-**Audience:** Collaborative — developer and agent revert the activation of a work unit that never
-meaningfully started.
-
-## Purpose
-
-Revert a work unit activation when no task work has been executed and nothing has merged to the base
-branch. Returns the project to its pre-activation state: implementation branch gone, planning
-artifacts back in their pre-activation location, no status file.
-
-> **Design principle:** _Deactivation means undo-activation of a work unit that didn't meaningfully
-> start._ If work has happened, the correct operation is pause (`arc-shift`, future), completion
-> ([`integrate-work-unit.md`][integrate]), or abandonment ([`clean-work-unit.md`][clean]) — not
-> deactivation.
+Returns the project to its pre-activation state: implementation branch gone, planning artifacts back
+in their pre-activation location, no status file. Applicable only when nothing has merged to the
+base branch.
 
 **When to use:** A WU was activated, but circumstances changed before any task execution — priorities
 shifted, the design needs rework, the feature was cancelled. The activation itself is the only thing
@@ -29,10 +24,6 @@ to undo.
 | ---------------------- | ---------------------------- | --------------------------------- |
 | **Not merged to base** | **Case A** — this workflow   | **Case B** → `arc-shift` (future) |
 | **Merged to base**     | **Case C** — noted edge case | **Case D** → integrate or clean   |
-
-Only Case A is genuine deactivation — the implementation branch is the entire surface area of the
-activation, so deleting it undoes the activation by construction. The other three have work or merged
-state that moves them out of deactivation semantics into pause, integration, or archival lifecycles.
 
 ## Prerequisites (Case A)
 
@@ -64,7 +55,7 @@ deactivation in the closure comment — this leaves a search trail for anyone la
 the branch disappeared.
 
 ```bash
-# GitHub example — adjust for your platform (see QUICK-REFERENCE for alternatives)
+# GitHub example — adjust for your platform (see QUICK-REFERENCE § Platform Commands for alternatives)
 gh pr close {pr-number} --comment "Deactivating work unit; no task work executed."
 ```
 
@@ -205,9 +196,6 @@ rationale for why the case is not deactivation.
 
 ### Case B — Not merged, some work executed → Pause
 
-**Why this isn't deactivation:** Branch deletion discards in-flight task work; preservation via
-state-field flip (pause) is the shift lifecycle's job, not deactivation's.
-
 A WU with partial task work that the developer wants to park is `arc-shift` pause territory. Shift
 uses a metadata-in-place pattern — the `State:` field flips to `Paused`, artifacts stay where they
 are, no file relocation.
@@ -218,9 +206,6 @@ are, no file relocation.
 > attempting manual parking without `arc-shift` protocol support invites state drift.
 
 ### Case C — Merged to base branch, no work executed → Reversal PR (edge case)
-
-**Why this isn't Case A:** Activation's changes are already on the base branch as committed
-history, so branch deletion alone can't restore pre-activation state.
 
 **Procedure (rare):**
 
@@ -236,9 +221,6 @@ This retains Case A's postconditions via explicit inverse commits. No separate w
 Case C — use this section as the reference.
 
 ### Case D — Merged to base branch, some work executed → Integrate or Clean
-
-**Why this isn't deactivation:** Reversing merged history is the opposite of undo-activation; the
-honest path is either finishing the WU or archiving it with abandoned status.
 
 - **Complete and ship the WU**: finish remaining tasks, then [`integrate-work-unit.md`][integrate]
 - **Abandon remaining work**: archive with abandoned status via [`clean-work-unit.md`][clean]

@@ -19,14 +19,16 @@ Current state at a glance. Updated when work is activated, completed, or archive
 
 **Currently Active:**
 
-- [none] — Session-Init Optimization PRD drafted on `technical/plan-session-init-optimization`;
-  pending integration and activation
+- Session-Init Optimization (technical) — Reduce session-init token cost from ~75–80k
+  toward a ≤60k observation target (≥25% reduction). Per-file methods/extensions with YAML
+  frontmatter index replace full-file reads; operational-context audit trims always-loaded
+  docs; session-type conditional loading formalizes the `Working On:` prefix
+    - Task list: `.arc/active/technical/tasks-session-init-optimization.md`
+    - Branch: `technical/session-init-optimization`
 
 **Next Priority:**
 
-- Session-Init Optimization — Reduce session-init token cost toward a defensible ~22–28k floor
-  by shifting front-loaded reference content to JIT loading via reliable workflow triggers
-- Then: ARCd Rebrand — Public product brand split (ARCd for product surface, ARC for methodology),
+- ARCd Rebrand — Public product brand split (ARCd for product surface, ARC for methodology),
   with absorbed config-key renames and CLI command cleanup
 - Then: Expanded Planning Path — Optional pre-PRD planning path for high-novelty, high-coupling work
 - Then: ARC Operating Modes — Lightweight mode (ARC Lite) + local/untracked mode + shift lifecycle
@@ -62,7 +64,7 @@ Settled methodology/implementation boundary, content architecture, and update be
 Prepared the framework for multi-week beta testing on an external project.
 
 - Migrated dev repo from ad-hoc `.arc/` to a real `arc init` installation
-- Contributor role support: ADR-014, AGENT-BRIEFING.CONTRIBUTOR, role-aware hooks and session-init
+- Contributor role support: ADR-014, AGENT-BRIEF.CONTRIBUTOR, role-aware hooks and session-init
 - Docs site skeleton: MkDocs Material + GitHub Pages, navigation structure, CI deployment
 - npm beta publish: `@arc-framework/cli@0.1.0-beta`, granular token auth
 - Public-facing scaffolding: repo rename, README rewrite, license, branding (ARC tagline)
@@ -85,7 +87,7 @@ Resolved all foundational 1.0 design decisions.
 - Core philosophy strategy: 11 principles (P1-P11), philosophical foundation, positioning
 - Configurability architecture strategy: 19 conventions, 3 customization mechanisms
 - 5 research files (agent landscape, context degradation, methodology)
-- Constitutional doc refresh: META-PRD rewrite, AGENT-BRIEFING.PROJECT.md update
+- Constitutional doc refresh: META-PRD rewrite, AGENT-BRIEF.PROJECT.md update
 
 ### Structural Readiness Pass (February 2026)
 
@@ -140,4 +142,4 @@ Initial framework structure and infrastructure.
 
 ---
 
-[roadmap]: ../../backlog/ROADMAP.md
+[roadmap]: ../backlog/ROADMAP.md

@@ -155,7 +155,7 @@ describe("applyChangePlan", () => {
       const plan: FileChangePlan = {
         ...emptyPlan(),
         removals: [{
-          outputPath: "system/arc-methods.md",
+          outputPath: "system/methods/commit-format.md",
           classification: "Configurable",
         }],
       };
@@ -165,7 +165,7 @@ describe("applyChangePlan", () => {
         plan, "/project/.arc", makeManifest(), noopMerge, io, renderCtx,
       );
 
-      expect(result.keptForReview).toEqual(["system/arc-methods.md"]);
+      expect(result.keptForReview).toEqual(["system/methods/commit-format.md"]);
       expect(result.removed).toHaveLength(0);
     });
 

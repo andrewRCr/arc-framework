@@ -71,21 +71,30 @@ const SCAFFOLDED_FILES: ReadonlySet<string> = new Set([
 const CONFIGURABLE_FILES: ReadonlySet<string> = new Set([
   // Rendered (have tokens or programmatic write)
   "system/arc-config.yml",
-  "system/agent/AGENT-BRIEFING.PROJECT.template.md",
+  "system/briefs/AGENT-BRIEF.PROJECT.template.md",
   "reference/QUICK-REFERENCE.template.md",
   // Copied as-is (customized in place by adopters)
-  "system/agent/CLAUDE.ARC.md",
-  "system/agent/CODEX.ARC.md",
-  "system/agent/GEMINI.ARC.md",
-  "system/agent/WARP.ARC.md",
-  "system/agent/COPILOT.ARC.md",
-  "system/agent/CURSOR.ARC.md",
-  "system/agent/WINDSURF.ARC.md",
   "reference/constitution/DEV-RULES.PROJECT.md",
   "reference/strategies/STRATEGY-INDEX.md",
   "reference/archive/README.md",
-  "system/workflows/arc-methods.md",
-  "system/workflows/arc-extensions.md",
+  // Per-file methods — adopters toggle `override-active` and populate `.override` bodies
+  "system/methods/commit-context-format.md",
+  "system/methods/commit-format.md",
+  "system/methods/diff-review.md",
+  "system/methods/issue-triage.md",
+  "system/methods/quality-gate-commands.md",
+  "system/methods/review-triage.md",
+  "system/methods/session-state.md",
+  "system/methods/test-first.md",
+  // Per-file extensions — adopters toggle `active` and populate `.actions` bodies
+  "system/extensions/post-context-load.md",
+  "system/extensions/post-task-completion.md",
+  "system/extensions/post-task-quality.md",
+  "system/extensions/post-unit-quality.md",
+  "system/extensions/post-work-unit-activate.md",
+  "system/extensions/post-work-unit-archive.md",
+  "system/extensions/pre-merge-review.md",
+  "system/extensions/pre-stage-review.md",
 ]);
 
 /**

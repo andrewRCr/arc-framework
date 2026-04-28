@@ -217,6 +217,29 @@ describe("renderConditionals", () => {
     );
   });
 
+  it("collapses trailing newlines to a single newline when stripping a near-EOF block", () => {
+    const input = [
+      "content",
+      "",
+      "<!-- arc:if platform.type != github -->",
+      "",
+      "## Conditional Section",
+      "",
+      "body",
+      "",
+      "<!-- arc:endif -->",
+      "",
+    ].join("\n");
+    const result = renderConditionals(input, { "platform.type": "github" });
+    expect(result).toBe("content\n");
+  });
+
+  it("preserves a single trailing newline when no stripping is needed", () => {
+    const input = "just text\n";
+    const result = renderConditionals(input, {});
+    expect(result).toBe("just text\n");
+  });
+
   it("existing == behavior unchanged alongside !=", () => {
     const input = [
       "start",

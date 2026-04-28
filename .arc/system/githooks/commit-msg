@@ -310,7 +310,7 @@ case "$context_footer_mode" in
             context_line_check=$(echo "$commit_msg" | grep '^Context: ' | head -n1)
             if [ -n "$context_line_check" ] && ! echo "$context_line_check" | grep -qE '^Context: contribution \(.+\)$'; then
                 echo -e "${YELLOW}Warning: Contributors typically use 'Context: contribution (description)'${NC}"
-                echo "   See arc-methods.md § commit-context-format for the contributor pattern"
+                echo "   See .arc/system/methods/commit-context-format.md for the contributor pattern"
                 warnings=$((warnings + 1))
             fi
         fi
@@ -407,8 +407,11 @@ if [ "$arc_role" != "contributor" ] && [ "$context_footer_mode" != "disabled" ] 
             # pre-commit CHECK 10 already surfaces that.
             status_is_staged=$(git diff --cached --name-only | grep -xF "$expected_status" | head -1 || true)
             if [ -n "$status_is_staged" ]; then
+                # Match the Next Task line by its bold-prefixed label anywhere
+                # on the line — tolerant of list markers, backticks, indentation.
+                # Extracts Task X.Y from whatever shape the status file uses.
                 ws_current_num=$(git show ":$expected_status" 2>/dev/null | \
-                    grep -E '^\*\*Next Task:\*\*' | \
+                    grep -E '\*\*Next Task:\*\*' | \
                     grep -oE 'Task [0-9]+\.[0-9]+' | head -1 | \
                     grep -oE '[0-9]+\.[0-9]+' || true)
                 if [ -n "$ws_current_num" ] && [ "$committed_task_num" = "$ws_current_num" ]; then

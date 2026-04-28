@@ -17,6 +17,10 @@
 > - `plan-arc-modes.md` — the Operating Modes plan doc. Gaps identified here feed into its PRD.
 > - `adr-014-support-contributor-role-for-open-source.md` — the ADR that committed to contributors
 >   running their own full ARC pipeline in `user/{identity}/`. Rediscovered during this session.
+>   **Amended 2026-04-27** to retire the singleton `status-contributor.md` convention referenced
+>   throughout this analysis (and the predecessor `WORK-STATUS.md` naming) in favor of mirroring
+>   maintainer structure under `user/{identity}/active/` (`status-{name}.md` per WU). Treat this
+>   document's references to those legacy paths as historical context, not current convention.
 > - `adr-012-adopt-unified-user-directory-model.md` — the unified user directory ADR, amended
 >   during this session to formalize the mirror-structure principle.
 

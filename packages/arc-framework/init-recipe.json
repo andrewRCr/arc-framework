@@ -14,9 +14,9 @@
     "reference/strategies/README.md",
     "reference/strategies/STRATEGY-INDEX.md",
     "reference/templates/template-adr.md",
-    "reference/templates/template-agent.md",
     "reference/templates/template-completion-doc.md",
     "reference/templates/template-contributing.md",
+    "reference/templates/template-dev-rules.md",
     "reference/templates/template-plan.md",
     "reference/templates/template-prd.md",
     "reference/templates/template-status.md",
@@ -30,15 +30,33 @@
     "reference/strategies/arc/strategy-work-planning.md",
     "reference/strategies/project/README.md",
     "reference/strategies/project/style/README.md",
-    "system/agent/AGENT-BRIEFING.ARC.md",
-    "system/agent/AGENT-BRIEFING.CONTRIBUTOR.md",
-    "system/agent/AGENT-BRIEFING.PROJECT.template.md",
-    "system/agent/README.md",
+    "system/briefs/AGENT-BRIEF.ARC.md",
+    "system/briefs/AGENT-BRIEF.CONTRIBUTOR.md",
+    "system/briefs/AGENT-BRIEF.PROJECT.template.md",
+    "system/briefs/README.md",
     "system/arc-config.yml",
     "system/README.md",
+    "system/extensions/post-context-load.md",
+    "system/extensions/post-task-completion.md",
+    "system/extensions/post-task-quality.md",
+    "system/extensions/post-unit-quality.md",
+    "system/extensions/post-work-unit-activate.md",
+    "system/extensions/post-work-unit-archive.md",
+    "system/extensions/pre-merge-review.md",
+    "system/extensions/pre-stage-review.md",
+    "system/extensions/README.md",
     "system/githooks/commit-msg",
     "system/githooks/pre-commit",
     "system/githooks/README.md",
+    "system/methods/commit-context-format.md",
+    "system/methods/commit-format.md",
+    "system/methods/diff-review.md",
+    "system/methods/issue-triage.md",
+    "system/methods/quality-gate-commands.md",
+    "system/methods/review-triage.md",
+    "system/methods/session-state.md",
+    "system/methods/test-first.md",
+    "system/methods/README.md",
     "system/scripts/arc-lib.sh",
     "system/scripts/validate-config.sh",
     "system/scripts/verify-integrity.sh",
@@ -52,14 +70,13 @@
     "system/skills/arc-task-review/SKILL.md",
     "system/skills/arc-verify/SKILL.md",
     "system/skills/README.md",
-    "system/workflows/arc-extensions.md",
-    "system/workflows/arc-methods.md",
     "system/workflows/arc/1_create-prd.md",
     "system/workflows/arc/2_generate-tasks.template.md",
     "system/workflows/arc/3_process-task-loop.template.md",
     "system/workflows/arc/initial-setup/01_verify-and-configure.md",
     "system/workflows/arc/initial-setup/02_define-project.template.md",
     "system/workflows/arc/session-lifecycle/session-handoff.template.md",
+    "system/workflows/arc/session-lifecycle/session-init.contributor.md",
     "system/workflows/arc/session-lifecycle/session-init.template.md",
     "system/workflows/arc/session-lifecycle/session-loop.md",
     "system/workflows/arc/supplemental/integrate-external-content.md",
@@ -127,41 +144,6 @@
         "backlog/technical/BACKLOG-TECHNICAL.template.md",
         "reference/PROJECT-STATUS.template.md",
         "reference/strategies/arc/strategy-planning-module.md"
-      ]
-    },
-    "tools includes claude": {
-      "include_files": [
-        "system/agent/CLAUDE.ARC.md"
-      ]
-    },
-    "tools includes codex": {
-      "include_files": [
-        "system/agent/CODEX.ARC.md"
-      ]
-    },
-    "tools includes gemini": {
-      "include_files": [
-        "system/agent/GEMINI.ARC.md"
-      ]
-    },
-    "tools includes copilot": {
-      "include_files": [
-        "system/agent/COPILOT.ARC.md"
-      ]
-    },
-    "tools includes cursor": {
-      "include_files": [
-        "system/agent/CURSOR.ARC.md"
-      ]
-    },
-    "tools includes windsurf": {
-      "include_files": [
-        "system/agent/WINDSURF.ARC.md"
-      ]
-    },
-    "tools includes warp": {
-      "include_files": [
-        "system/agent/WARP.ARC.md"
       ]
     },
     "team.mode == true": {

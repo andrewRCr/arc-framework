@@ -7,6 +7,9 @@ Command patterns and environment context for {{PROJECT_NAME}}.
 **Repository Root**: `{{REPO_ROOT}}`
 **All commands in this document assume you are at repository root.**
 
+**On-demand sections**: `Command Patterns`, `Quality Gate Commands`, `ARC CLI Commands` —
+load on demand when workflow steps reference them.
+
 ### Critical Path Reference
 
 <!-- List the resources an agent needs to find quickly. Adapt to your project's stack. -->
@@ -16,9 +19,6 @@ Command patterns and environment context for {{PROJECT_NAME}}.
 | [Resource name] | `[path]`                | [brief explanation]       |
 | [Resource name] | `[path]`                | [brief explanation]       |
 | ARC docs        | `.arc/`                 | Development documentation |
-
-**Working Directory Note**: Your working directory may vary. Check the active status file for
-current context and adjusted paths.
 
 ### Runtime Environment
 
@@ -128,6 +128,22 @@ Reference commands for DEV-RULES.PROJECT quality gates. See
 [test_command_single]
 ```
 
+### Integration — Tier 2 (coherent unit)
+
+<!-- Project-scoped checks. Run after completing a parent task or coherent unit. -->
+
+```bash
+# Full markdown lint
+[md_lint_command_all]
+
+# Full code lint + type check
+[lint_command_all]
+[type_check_command_all]
+
+# Full test suite (or relevant subset)
+[test_command_all]
+```
+
 ### Full Suite — Tier 3 (per-phase / pre-PR)
 
 <!-- All checks at full project scope. Run after completing a phase or before creating a PR. -->
@@ -178,19 +194,28 @@ arc update
 # Save user directory to git notes (called automatically at session handoff)
 arc user save
 
-# Load user directory from git notes (called automatically at session init)
-arc user load
+# Load user directory from git notes on HEAD or a reachable ancestor
+arc user load --max-walk 1000
+
+# Skip overwrite prompts when loading/pulling in automation or non-interactive flows
+arc user load --yes
+
+# Fetch another developer's notes ref without overwriting local files
+arc user fetch --identity teammate
+
+# Pull remote notes into the local user directory
+arc user pull --yes --max-walk 1000
 
 # Push/pull user notes to/from remote
 arc user push
-arc user pull
 
-# Save + push in one step
+# Direction-aware save/push or fetch/pull, depending on sync state
 arc sync
 ```
 
-Push behavior is controlled by `user.sync_push` in `arc-config.yml` (`always` / `prompt` /
-`manual`). Per-developer override: `git config arc.sync_push`.
+See [Session Operations Strategy](strategies/arc/strategy-session-operations.md) § Session
+State Portability for the portability model, `arc sync` direction semantics, and
+`user.sync_push` push policy.
 
 ### Atomic Work History
 
@@ -199,33 +224,21 @@ Push behavior is controlled by `user.sync_push` in `arc-config.yml` (`always` / 
 arc log --atomic
 ```
 
----
-
-## Anti-Patterns
-
-### Path Confusion
-
-❌ Assuming you're at repo root without checking
-❌ Mixing repo-root and subdirectory paths in commands
-
-✅ Check `pwd` first
-✅ Use absolute paths or correct relative paths
-✅ Reference the active status file for working directory context
-
-### Command Construction
-
-❌ Using commands from DEV-RULES.PROJECT without checking paths
-❌ Assuming tools are globally available vs. project-local
-
-✅ Use commands from this file (paths correct for repo root)
-✅ Check Runtime Environment section for tool locations
-
-<!-- Add project-specific anti-patterns as you discover them. Examples: -->
-<!-- "Running tests without the database container" -->
-<!-- "Forgetting to activate the virtual environment" -->
-<!-- "Using wrong port for API testing" -->
+<!-- arc:if platform.type != github -->
 
 ---
 
-**Commands assume repo root.** If working from a subdirectory, see the active status file
-for adjusted paths.
+## Platform Commands
+
+<!-- CLI commands for your git hosting platform (e.g., glab for GitLab, tea for Gitea).
+     ARC workflows reference this section for platform-appropriate alternatives to the
+     GitHub defaults (`gh pr create`, `gh pr view`, `gh issue create`). Fill in what
+     your team uses. -->
+
+| Operation    | Command                    |
+|--------------|----------------------------|
+| Create PR/MR | `[platform CLI create]`    |
+| List PRs/MRs | `[platform CLI list]`      |
+| Create issue | `[platform CLI issue new]` |
+
+<!-- arc:endif -->

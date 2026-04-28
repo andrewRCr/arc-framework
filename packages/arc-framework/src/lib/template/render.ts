@@ -27,9 +27,8 @@ export function renderTokens(
  * conditional blocks. Includes the block content when the condition matches,
  * removes it (including the directive lines) when it doesn't.
  *
- * Note: template conditionals use `==` and `!=` operators for simple equality.
- * Recipe conditions (recipe.ts) use `==` and `includes` operators — the
- * `includes` operator supports set-membership checks on multiselect values.
+ * Note: template conditionals support `==` and `!=`; recipe conditions
+ * (recipe.ts) gate on `==` only.
  *
  * @param content - Template string with conditional directives
  * @param config - Map of dotted config keys to their values (e.g., `pm.mode` → `arc-in-git`)
@@ -64,9 +63,11 @@ export function renderConditionals(
     }
   }
 
-  // Collapse multiple consecutive blank lines left behind by stripped blocks.
-  // Template authors shouldn't need to contort formatting around conditionals.
-  return result.join("\n").replace(/\n{3,}/g, "\n\n");
+  // Collapse multiple consecutive blank lines left behind by stripped blocks,
+  // and normalize trailing newlines to exactly one. Template authors shouldn't
+  // need to contort formatting around conditionals, and rendered output must
+  // end with a single newline (MD012/MD047).
+  return result.join("\n").replace(/\n{3,}/g, "\n\n").replace(/\n+$/, "\n");
 }
 
 /**

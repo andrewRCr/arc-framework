@@ -570,7 +570,7 @@ Five principles emerge from the research with sufficient evidence to guide desig
 
 ---
 
-[context-degradation]: ../../../.arc-internal/reference/research/research-context-degradation.md
+[context-degradation]: research-context-degradation.md
 [gloaguen]: https://arxiv.org/abs/2602.11988
 [hn-thread]: https://news.ycombinator.com/item?id=47034087
 [ifscale]: https://arxiv.org/abs/2507.11538

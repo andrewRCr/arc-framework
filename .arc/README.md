@@ -35,7 +35,7 @@ full installation and setup walkthrough.
 ├── user/                      # Personal workspace: per-developer session state and task capture
 └── system/                    # Agent-facing operational files
     ├── arc-config.yml         # Project settings (base branch, protection mode)
-    ├── agent/                 # AI agent configuration (AGENT-BRIEFING.ARC.md, AGENT-BRIEFING.PROJECT.md, tool-specific)
+    ├── briefs/                # Agent briefings loaded at session-init (ARC, PROJECT, CONTRIBUTOR variants)
     ├── skills/                # Canonical skill definitions (arc-setup, arc-resume, arc-commit, arc-handoff)
     ├── githooks/              # Git hook scripts
     └── workflows/             # Development process workflows

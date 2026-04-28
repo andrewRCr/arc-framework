@@ -182,6 +182,9 @@ This provides a smooth gradient: quick fixes need no planning setup, medium cont
 personal task list, and multi-session contributions get the full ARC experience — all without touching
 tracked project files.
 
+> **See [Amendments](#amendments) (2026-04-27)** — the singleton `status-contributor.md` layout described above
+> is retired in favor of mirroring maintainer structure under `user/{identity}/active/`.
+
 ### Defense-in-depth (project-configured, not framework-core)
 
 The framework-level protections (agent behavior, hook warnings) are the primary mechanism. Projects can layer
@@ -270,3 +273,24 @@ preconditions sufficient), all other arc-methods, all strategy documents.
   changes could introduce new maintainer-assumed instructions. Mitigated by the two-interaction-models
   maintenance cost (Negative above) — evaluating role applicability becomes part of the workflow change
   process. The hook warning provides a safety net for any missed paths.
+
+### Amendments
+
+**Amendment (2026-04-27):** § Contributor planning's singleton-at-user-root layout
+(`user/{identity}/status-contributor.md` plus optional `active/tasks-{name}.md`) is retired in favor of a
+mirror-maintainer layout: contributor active state lives at `user/{identity}/active/status-{name}.md` (flat
+full-layout, no category subdir; lite at `user/{identity}/active/status.md`) with optional `notes-{name}.md` /
+`atomic-{name}.md` companions per the same task-list-derived pattern maintainer flow uses.
+
+Motivation: the original two-pattern shape (singleton at root + tree under `active/`) forced session-init's
+active-resolution probe to role-branch on file shape and forced special-case companion-file logic for the
+singleton. Mirroring maintainer under `user/{identity}/` lets the probe parameterize by root prefix, share
+the resolution algorithm, derive companions identically via the parsed `**Task List:**` field, and naturally
+scale 0/1/N WUs without a separate convention. Personal status file remains gitignored (per `.arc/user/*/`) —
+handoff is the natural update trigger (parallel to SESSION-NOTES); maintainer's commit-time staging
+discipline doesn't apply.
+
+Surfaced during pre-implementation audit of contributor-active-resolution work in the session-init-optimization
+WU; canon docs (AGENT-BRIEF.CONTRIBUTOR, user/README, notes-docs-content-sweep, modes-contributor lifecycle
+stress-test) updated alongside this amendment. Probe parameterization and downstream session-workflow +
+DEV-RULES.ARC contributor-override updates follow. The role-mechanism core decision is unchanged.

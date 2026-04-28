@@ -1,6 +1,9 @@
-# Workflow: Clean Work Unit Files
+---
+purpose: Clean task lists and notes files — remove temporal noise while preserving the historical record.
+audience: agent
+---
 
-**Audience:** Agent-executed — your agent follows this to clean up task lists and notes files.
+# Workflow: Clean Work Unit Files
 
 Use this workflow when an active task list has accumulated historical notes or when the companion notes document
 needs pruning. **Execute this workflow before archiving completed work** to ensure files are reference-ready.
@@ -24,15 +27,6 @@ stays even if verbose; the completion doc provides the scannable summary.
 - After task list restructuring (inserted/renumbered tasks → stale references, out-of-order content)
 - Task file is hard to scan quickly during session startup
 
-**What happens:**
-
-- ✅ Fix stale task number references from restructuring
-- ✅ Reorder content to match current task numbering (both task file and notes file)
-- ✅ Clean up task file (migrate verbose blocks to notes file)
-- ✅ Add migrated content to notes file
-- ❌ **DO NOT clean up notes file itself** (it's not loaded every session)
-- ❌ **DO NOT prepare notes file for archival** (work is still in progress)
-
 ### Mode 2: Archival Preparation (All steps including 5)
 
 **Goal:** Prepare both files for long-term reference and archival
@@ -44,14 +38,6 @@ stays even if verbose; the completion doc provides the scannable summary.
 
 **Timing:** After all work complete, BEFORE creating PR. Documentation cleanup commits to child branch
 and becomes part of the work deliverable.
-
-**What happens:**
-
-- ✅ Remove temporal noise from task file (grep-based, not content judgment)
-- ✅ Evaluate notes file (keep for archival or delete if scratchpad)
-- ✅ **If keeping notes:** Clean up notes file (TOC, headers, remove temporal markers)
-- ✅ Collect completion doc data during cleanup (for large files)
-- ✅ Prepare files for archival
 
 ## Inputs
 
@@ -135,12 +121,6 @@ the file may point to wrong numbers. Use the actual task checklist as source of 
   completion notes
 - Verify each reference points to the correct current task
 
-```markdown
-<!-- Example: After inserting Task 7a-7c, old reference needs updating -->
-<!-- BEFORE --> **Manual E2E Validation** (Task 7) - Critical Path Only:
-<!-- AFTER -->  **Manual E2E Validation** (Task 8) - Critical Path Only:
-```
-
 ### 3. Clean Up Task File
 
 #### Mode 1: Mid-Work Cleanup
@@ -157,20 +137,6 @@ guiding future work, active decisions affecting ongoing tasks.
 **What migrates:** Historical explanations with no future dependencies, debugging journeys for
 resolved issues, "why we chose X over Y" rationale (unless it affects remaining tasks), completed
 work details not needed for remaining tasks.
-
-```markdown
-<!-- KEEP: relevant to remaining Tasks 7-9 -->
-- [x] 6.5 Implement auth fallback
-    **IMPORTANT for Tasks 7-9:** All endpoints must check secondary auth after primary.
-    Authentication order: Primary → API Key → Session.
-
-<!-- MIGRATE: historical, no future dependencies -->
-- [x] 3.4 Debug token issue - RESOLVED
-    **Root Cause:** Header missing in form.submit() due to browser security
-    **Solution:** Switched to fetch() API with explicit headers
-    **Investigation:** Tried 5 different approaches... [15 lines]
-    → Migrate to notes file under "Token Issue Investigation (Task 3.4)"
-```
 
 #### Mode 2: Archival Cleanup
 
@@ -266,25 +232,6 @@ Process:
    progression, and investigation journeys all have value. Only remove exact duplicates and
    redundant restatements.
 
-```markdown
-<!-- BEFORE: Same compatibility info repeated across 3 task sections -->
-## Task 4.1: Auth Library Migration Research
-[300 lines about library compatibility]
-
-## Task 4.3: Auth Library Implementation
-[50 lines repeating same compatibility info] + [200 lines implementation]
-
-<!-- AFTER: Consolidated under topic, cross-referenced -->
-## Auth Library Migration (Tasks 4.1-4.8)
-
-### Compatibility Research (Task 4.1)
-[300 lines - kept as comprehensive reference]
-
-### Implementation (Task 4.3)
-[200 lines implementation - kept]
-See "Compatibility Research" above for library evaluation.
-```
-
 **Step 5b: Format for archival.**
 
 - **Add Table of Contents** at top (after metadata). Group by category, use markdown anchor links.
@@ -338,33 +285,6 @@ If less than ~120k tokens remaining, stop here — commit cleanup work and note 
 that completion doc creation requires a fresh session. If sufficient context remains, proceed to
 [integrate-work-unit](integrate-work-unit.md) Phase 1, Step 3 (Create Completion Metadata). Delete
 CLEANUP-PROGRESS after completion doc is created.
-
-## Output
-
-**Three-tier system:**
-
-- **Completion doc** (`completion-{name}.md`): Executive summary — "What was achieved?"
-- **Task file** (`tasks-{name}.md`): Detailed sub-task record — "What was done?" (can be 500-3000+ lines)
-- **Notes file** (`notes-{name}.md`, if kept): Deep-dive reference — "How/why decisions, investigation journeys"
-
-**Task file target:** Historical record with inline outcomes preserved. No temporal noise, no
-completion summary (that's the completion doc's job).
-
-**Notes file target (if kept):** Table of contents, clean headers, rich historical detail organized
-by topic. Find any specific decision or detail in <1 minute.
-
-## Common Pitfalls
-
-❌ **Modifying task descriptions** — task lines are historical records, keep them verbatim
-❌ **Ignoring stale references** — after restructuring, "(Task 7)" might now mean Task 8
-❌ **Cleaning notes file mid-work** — notes cleanup is Mode 2 only, not Mode 1
-❌ **Leaving forward pointers in archived files** — remove pointers to archived task lists
-❌ **Removing backward pointers** — keep pointers to active task lists where work resumes
-❌ **Keeping completion summary in task file** — goes in separate `completion-{name}.md`
-❌ **Leaving temporal markers** — "Pending approval", "To be filled" confuses future readers
-❌ **Skipping TOC for archival** — large notes file without navigation is unusable
-❌ **Deleting instead of migrating** — lost context can't be recovered
-❌ **Over-editing notes** — don't remove the exploration journey, that's valuable context
 
 ---
 

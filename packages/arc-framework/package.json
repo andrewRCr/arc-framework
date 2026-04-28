@@ -16,10 +16,10 @@
     "typecheck": "tsc --noEmit",
     "typecheck:test": "tsc --noEmit --project tsconfig.test.json",
     "lint:ts": "eslint src/ __tests__/",
-    "lint:sh": "shellcheck -x --source-path=SCRIPTDIR arc/system/githooks/pre-commit arc/system/githooks/commit-msg arc/system/scripts/*.sh"
+    "lint:sh": "bash arc/system/scripts/run-shellcheck.sh arc/system/githooks/pre-commit arc/system/githooks/commit-msg arc/system/scripts/*.sh"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=24"
   },
   "dependencies": {
     "@clack/prompts": "^1.1.0",
@@ -33,7 +33,6 @@
     "@types/node": "^22.13.10",
     "@types/semver": "^7.7.1",
     "eslint": "^10.1.0",
-    "shellcheck": "^4.1.0",
     "tsup": "^8.4.0",
     "typescript": "^5.8.2",
     "typescript-eslint": "^8.57.2",
@@ -54,7 +53,12 @@
     "development",
     "methodology"
   ],
+  "author": "Andrew Creekmore",
   "license": "Apache-2.0",
+  "homepage": "https://github.com/andrewRCr/arc-framework#readme",
+  "bugs": {
+    "url": "https://github.com/andrewRCr/arc-framework/issues"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/andrewRCr/arc-framework.git",

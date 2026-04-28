@@ -8,14 +8,11 @@
  */
 
 import * as p from "@clack/prompts";
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 
 import { resolveIdentity, isGitRepo } from "../lib/git/index.js";
+import { resolveArcRoot } from "../lib/paths.js";
 import { formatError, UserFacingError } from "../lib/errors.js";
 import { UserSaveError } from "../commands/user.js";
-import { parseArcConfig } from "../lib/config.js";
-import { ARC_CONFIG_SEGMENTS, CONFIG_KEY_PM_MODE } from "../lib/constants.js";
 import { gitExec } from "../lib/io-context.js";
 
 // --- Spinner ---
@@ -23,6 +20,16 @@ import { gitExec } from "../lib/io-context.js";
 /**
  * Run an async operation with a clack spinner. Stops the spinner on success
  * or failure and re-throws errors for the caller to handle.
+ *
+ * Verb-tense convention for user/sync CLI output:
+ * - `label` (in-progress): present continuous — "Saving user directory...".
+ * - `doneLabel` (success): completed adjective — "Save complete.".
+ * - Failure label emitted here is "Failed."; callers that need a specific
+ *   failure label (e.g., "Pull failed.") manage their own spinner inline.
+ * - `p.note(..., "Label")` result-box labels: past tense matching the caller's
+ *   outer verb, not the internal function called — "Pulled" for `arc sync pull`
+ *   and `arc user pull` even though they consume `buildLoadSummary`; "Loaded"
+ *   only for `arc user load`.
  */
 export async function runWithSpinner<T>(
   label: string,
@@ -113,6 +120,27 @@ export function isNonInteractiveEnvironment(): boolean {
   return process.env.CI === "true" || !process.stdin.isTTY;
 }
 
+/** Canonical error copy when the current directory is outside any ARC project root. */
+export const ARC_PROJECT_ROOT_ERROR =
+  "Not inside an ARC project (no .arc/ directory found walking up from cwd).";
+
+/**
+ * Resolve the nearest ARC project root from the current working directory.
+ *
+ * Logs the canonical error and sets exit code 1 when no `.arc/` directory is
+ * found walking upward.
+ */
+export function requireArcProjectRoot(startDir = process.cwd()): string | null {
+  const root = resolveArcRoot(startDir);
+  if (root) {
+    return root;
+  }
+
+  p.log.error(ARC_PROJECT_ROOT_ERROR);
+  process.exitCode = 1;
+  return null;
+}
+
 /**
  * Guard: require a git repository. Logs a user-facing error and sets exit
  * code if not in a git repo. Returns true if the guard passes.
@@ -127,17 +155,4 @@ export async function requireGitRepo(): Promise<boolean> {
   })));
   process.exitCode = 1;
   return false;
-}
-
-// --- Config ---
-
-/** Read pm.mode from arc-config.yml, returning "none" on any error. */
-export async function readPmMode(cwd: string): Promise<string> {
-  try {
-    const configContent = await readFile(join(cwd, ...ARC_CONFIG_SEGMENTS), "utf-8");
-    const config = parseArcConfig(configContent);
-    return config[CONFIG_KEY_PM_MODE] ?? "none";
-  } catch {
-    return "none";
-  }
 }

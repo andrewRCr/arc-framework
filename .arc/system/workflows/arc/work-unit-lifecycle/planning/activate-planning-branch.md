@@ -1,10 +1,12 @@
+---
+purpose: Create a planning branch for delivering planning artifacts (PRDs, task lists) to the base branch.
+audience: agent
+---
+
 # Workflow: Activate Planning Branch
 
-**Audience:** Agent-executed — your agent follows this to set up a planning branch.
-
 Creates a planning branch for delivering planning artifacts (and optionally archival of a prior work unit)
-to the base branch. This is the planning-side counterpart to [activate-work-unit][activate-work-unit] —
-lighter, because planning branches carry artifacts rather than implementation.
+to the base branch. This is the planning-side counterpart to [activate-work-unit][activate-work-unit].
 
 **When to use:** You need a branch for planning work — either after completing a work unit
 (batch: archival and planning on one branch) or when starting a new planning cycle from the
@@ -69,10 +71,9 @@ git checkout -b {category}/plan-{name}
   `technical/plan-{new-work-name}`, `feature/plan-{new-work-name}`
 + **Standalone planning** follows the same pattern, or use `planning/{working-name}` when the
   final category or name isn't known yet
-+ Name mismatch between planning branch and final work unit is normal — scope may shift
-  during planning review. If the shift is significant (e.g., one work unit becomes two, or
-  the scope changes entirely), rename the branch to match: `git branch -m {old} {new}` and
-  update the remote. Planning branches are short-lived and pre-merge, so renaming is low-risk
++ **If scope shifts significantly during planning:** rename locally with `git branch -m {old} {new}`,
+  push the renamed branch with `git push --set-upstream origin {new}`, then remove the old remote branch
+  with `git push --delete origin {old}`
 
 ### 4) Proceed to Next Step
 
@@ -88,18 +89,6 @@ git checkout -b {category}/plan-{name}
 + If the work needs exploration first: create `plan-*.md` documents
   (see [Work Planning Strategy][work-planning] for conventions)
 + If ready for requirements: proceed to [1_create-prd][create-prd]
-
----
-
-## Common Pitfalls
-
-+ **Forgetting to pull before branching** — The planning branch should fork from the latest base
-  branch, especially after a PR merge. Stale base means the planning branch diverges unnecessarily.
-+ **Skipping implementation branch cleanup** — Stale local branches accumulate and create confusion
-  during future session-init (agent sees branches that no longer exist on remote).
-+ **Creating a planning branch when not needed** — Under partially protected mode (solo), planning
-  artifacts can go directly to the base branch. Don't add process overhead that your protection
-  mode doesn't require.
 
 ---
 

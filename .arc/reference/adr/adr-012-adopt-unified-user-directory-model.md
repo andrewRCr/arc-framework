@@ -142,7 +142,7 @@ Session workflows call these internally: session handoff triggers save + push; s
 - `prompt` — team default. Conscious choice per handoff.
 - `manual` — full control.
 
-Per-developer override via `git config arc.sync_push`.
+Per-developer override via `git config arc.syncPush`.
 
 **Scope benefit.** Any file in the user directory — session notes, inbox items, personal scratch notes — travels with
 the developer across machines through one mechanism. New file types added to the user directory are automatically
@@ -257,7 +257,7 @@ tasks section — unchanged), ADR-009 Part 1 (three PM modes — unchanged).
 - `integrate-work-unit.md` — Add pre-merge inbox review step (arc-in-git mode).
 - `process-task-loop.md` — Update incidental work routing: `ATOMIC-TASKS.md` → `ATOMIC-INBOX.md`, path update to
   `user/{identity}/`.
-- `arc-methods.md` — Update session-state method references. Add or update `user.sync_push` config reference.
+- `session-state` method — Update session-state references. Add or update `user.sync_push` config reference.
 
 **Template files:**
 
@@ -334,6 +334,57 @@ catalogued. This amendment names it and makes the boundary between framework-man
 user-managed content explicit. See
 `analysis-modes-contributor-lifecycle-stress-test.md` for the full derivation and
 `AGENT-BRIEFING.CONTRIBUTOR.md` for the principle applied to contributor workflow.
+
+**Amendment (2026-04-22):** Session portability vocabulary and command semantics were realigned
+in Session-Init Optimization Phase 3.R without changing the underlying ADR decision to use the
+unified `user/{identity}/` directory plus git-notes portability.
+
+**First pass shipped semantics:**
+
+- `arc user fetch` is the transport-only remote-read verb for notes refs.
+- `arc user pull` now means fetch + load, matching the intuitive git-style mental model.
+- `arc sync` is direction-aware porcelain rather than a save+push-only alias.
+- The sync-state matrix remains the durable framing for user-directory portability decisions.
+
+**Second pass shipped semantics:**
+
+- Session-init consumes the composite probe `arc status --session-init --json`; related slot
+  probes include `arc extensions status` and `arc active status`.
+- User-facing vocabulary now prefers `local unsaved` over `disk ahead`, and canonicalizes
+  `conflict` over `divergence`.
+- Push recovery's merge path is labeled `"Merge: rebase my save onto remote, then push"` and
+  preserves the just-saved local state by re-saving on top of the fetched remote base before
+  pushing.
+- `arc user load`, `arc user pull`, and the pull direction of `arc sync` walk reachable
+  ancestors with a bounded default search and expose `--max-walk <n>` for deeper scans.
+- Overwrite confirmations are on by default; `--yes` bypasses those prompts on `arc sync`,
+  `arc user pull`, and `arc user load`. `arc user fetch` is transport-only and non-destructive.
+
+**Documentation consequence:** Reader-oriented command references should describe fetch/pull/sync
+with these amended semantics. QUICK-REFERENCE points here for the durable model; archive docs
+remain historical record.
+
+**Amendment (2026-04-25):** Session-init's pull-decision surface gained a second channel — worktree
+sync vs. `origin/<current-branch>` — distinct from the notes channel ADR-012 originally introduced.
+Both channels are personal-context concerns at session start, but they govern different state:
+
+- **Notes channel** (`user.value`, governed by `session.init_pull.notes`) — identity-scoped notes ref
+  carrying the `user/{identity}/` snapshot. Per-developer; no working-tree implications. Modes:
+  `prompt` (default) / `manual` / `always`.
+- **Worktree channel** (`worktree.value`, governed by `session.init_pull.worktree`) — branch-scoped
+  comparison of local HEAD against `origin/<branch>`. Affects tracked code state shared across all
+  developers on the branch. Modes: `prompt` (default) / `manual` only. `always` is rejected because
+  auto-pulling tracked working-tree state silently is too invasive even on clean trees.
+
+The composite session-init probe (`arc status --session-init --json`) emits both channels as peer
+slots in its JSON envelope; session-init.md § Conditional Sync Pulls handles them with worktree-first
+ordering, a dirty-tree precheck, and a combined prompt when both channels are remote-ahead. The notes
+channel's portability mechanism (git notes ref) is unchanged; worktree sync is plain `git fetch` +
+`git pull --ff-only` and adds no new portability surface.
+
+This extends the user-directory portability model rather than supersedes it: notes portability still
+covers the personal-workspace-across-machines concern; the worktree channel adds visibility into
+tracked-code drift the notes channel was never designed to catch.
 
 ---
 
