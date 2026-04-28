@@ -442,6 +442,39 @@ async function inspectUserSyncRefs(
   return result.state;
 }
 
+type PreFetchClassification =
+  | { kind: "fast-result"; result: UserSyncRefInspection }
+  | { kind: "must-fetch"; localHash: string };
+
+function classifyPreFetch(
+  localHash: string | null,
+  remoteProbe: RemoteRefProbeResult,
+): PreFetchClassification {
+  if (remoteProbe.kind === "remote-unavailable") {
+    return {
+      kind: "fast-result",
+      result: { state: "remote-unavailable", comparison: "remote-unavailable" },
+    };
+  }
+  const remoteHash = remoteProbe.hash;
+  if (!localHash && !remoteHash) {
+    return { kind: "fast-result", result: { state: "same", comparison: "read-only" } };
+  }
+  if (!localHash || !remoteHash) {
+    return {
+      kind: "fast-result",
+      result: {
+        state: localHash ? "local-ahead" : "remote-ahead",
+        comparison: "read-only",
+      },
+    };
+  }
+  if (localHash === remoteHash) {
+    return { kind: "fast-result", result: { state: "same", comparison: "read-only" } };
+  }
+  return { kind: "must-fetch", localHash };
+}
+
 async function inspectUserSyncRefsDetailed(
   io: UserIOContext,
   identity: string,
@@ -451,24 +484,15 @@ async function inspectUserSyncRefsDetailed(
 
   const localHash = await readRefHash(io, localRef);
   const remoteProbe = await readRemoteRefHash(io, localRef);
-
-  if (remoteProbe.kind === "remote-unavailable") {
-    return { state: "remote-unavailable", comparison: "remote-unavailable" };
-  }
-
-  const remoteHash = remoteProbe.hash;
-  if (!localHash && !remoteHash) return { state: "same", comparison: "read-only" };
-  if (!localHash || !remoteHash) {
-    return { state: localHash ? "local-ahead" : "remote-ahead", comparison: "read-only" };
-  }
-  if (localHash === remoteHash) return { state: "same", comparison: "read-only" };
+  const classification = classifyPreFetch(localHash, remoteProbe);
+  if (classification.kind === "fast-result") return classification.result;
 
   try {
     await io.exec("git", ["fetch", "origin", `+${localRef}:${tempRef}`]);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     if (message.includes("couldn't find remote ref")) {
-      return { state: localHash ? "local-ahead" : "same", comparison: "read-only" };
+      return { state: "local-ahead", comparison: "read-only" };
     }
     return { state: "remote-unavailable", comparison: "comparison-unavailable" };
   }
@@ -480,10 +504,10 @@ async function inspectUserSyncRefsDetailed(
       return { state: "remote-unavailable", comparison: "comparison-unavailable" };
     }
 
-    if (await isAncestor(io, localHash, fetchedRemoteHash)) {
+    if (await isAncestor(io, classification.localHash, fetchedRemoteHash)) {
       return { state: "remote-ahead", comparison: "full" };
     }
-    if (await isAncestor(io, fetchedRemoteHash, localHash)) {
+    if (await isAncestor(io, fetchedRemoteHash, classification.localHash)) {
       return { state: "local-ahead", comparison: "full" };
     }
     return { state: "diverged", comparison: "full" };
