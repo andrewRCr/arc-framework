@@ -35,6 +35,15 @@ context, and several mechanisms silently assume one-working-tree-per-repo:
   removal
 - No strategy doc describes how worktrees fit ARC's work-unit model
 
+A concrete instance surfaced 2026-04-29 during this plan's pre-PRD evolution. Planning branch
+`technical/plan-session-operational-flow` was integrated on machine A; a successor WU
+(`technical/interlock-foundation`) started there. On machine B, session-init opened on the now-deleted local
+planning branch and reported `worktree: remote-unavailable / failureReason: error` — masking that upstream had
+been pruned cleanly. Manual recovery (fetch --prune → checkout main → fast-forward → checkout WU branch →
+notes-pull) was straightforward, but the workflow gave no signal that recovery was needed or what shape it should
+take. The cascade specified in scope item 4 resolves this as the simplest pre-worktree single-WU instance of the
+multi-WU branch-gone problem.
+
 Without this WU shipping, ROADMAP's "parallelizable" sibling claims are aspirational for solo work and
 team mode is the only path to actual concurrency. Worktree Foundation makes per-WU-per-worktree
 isolation a first-class capability.
@@ -111,6 +120,20 @@ cross-cutting section rather than inside the Local mode treatment. It's universa
       was merged externally → propose worktree removal + status-file archival cleanup.
       **Detect-stop-prompt as default for ambiguity:** when no high-confidence single signal emerges,
       session-init stops and surfaces candidates rather than guessing.
+    - **Notes-pull ordering rule under branch-gone.** When `branch-gone` fires, align git state (fetch, resolve
+      target branch via cascade, switch) **before** running `arc user pull`. Notes describe context that requires
+      aligned git refs — pulling against a stale branch yields correct content referencing surfaces (status files,
+      atomic companion files) that don't exist on the current branch. The ordering reverses session-init's standard
+      Step 2 → Step 3 sequence for this specific state.
+    - **Trust-hierarchy axis split in [session-init.md][session-init] Step 7.** Refactor the existing single
+      hierarchy (git > task list > status > notes) into two axes per § Roster vs context: (a) *truth of work
+      state* — git authoritative (current hierarchy, narrowed to this question); (b) *which work am I picking up* —
+      identity-filtered status files + worktree list authoritative (new axis). Mismatch examples in Step 7
+      redistribute to the appropriate axis.
+    - **Forward compatibility with pre-worktree single-WU world.** The branch-gone cascade ships value before
+      worktrees are in widespread use. Pre-worktree, the cascade trivializes — `git worktree list` returns one
+      entry, identity-filter on status files yields one match, notes-pull confirms. Shipping isn't gated on
+      worktree adoption; today's single-WU multi-machine recovery is the simplest instance of the same mechanism.
 
 5. **`/arc-status` skill.** Mode-universal core (git delta, current focus, uncommitted files) plus
    Full-only "In flight" block tightly coupled to shift vocabulary. Backed by `mid-session-status.md`
@@ -221,6 +244,26 @@ Risks worth conscious management (per research):
   session-init orientation already includes worktree context per scope item 4.
 - **IDE/LSP coordination across worktrees.** Largely outside our control; document the constraint
   (one worktree per IDE window).
+
+### Roster vs context: dual-axis recovery model
+
+Session-init implicitly answers two questions, not one — and they have different authoritative sources:
+
+- **Roster** — *"Which WUs are mine in flight right now?"* Authoritative source: identity-filtered active status
+  files (via the `**Branch:**` field, with `(@identity)` ownership filtering in team mode). Multi-valued in the
+  multi-WU / multi-worktree world; collapses to a single entry pre-worktree.
+- **Context** — *"What was I doing in WU X last session?"* Authoritative source: SESSION-NOTES, resolved
+  per-worktree via that worktree's HEAD ancestry (notes are commit-anchored).
+
+Notes are deliberately absent from the branch-gone resolution cascade (scope item 4) because notes answer the
+context question, not the roster question. Reaching across all branches' notes refs to find a dev's recent
+activity is a much heavier scan than reading status files filtered by identity. Keeping the two axes separate
+clarifies why the cascade is shaped the way it is.
+
+Consequence for [session-init.md][session-init] Step 7's trust hierarchy: the existing single hierarchy
+(git > task list > status > notes) conflates the two axes — git is authoritative for *truth of work state* (was
+task 3.3 actually committed?) but the hierarchy says nothing about *which work am I picking up*, where status
+files + identity ownership are authoritative. PRD work splits Step 7 into two axes (scope item 4 sub-bullet).
 
 ---
 
@@ -380,3 +423,4 @@ items as of 2026-04-28:
 [strategy-work-org]: ../../reference/strategies/arc/strategy-work-organization.md
 [template-status]: ../../reference/templates/template-status.md
 [clean-work-unit]: ../../system/workflows/arc/work-unit-lifecycle/clean-work-unit.md
+[session-init]: ../../system/workflows/arc/session-lifecycle/session-init.md
