@@ -92,6 +92,11 @@ After the move, update the task list's PRD path reference from `backlog` to `act
 **PRD:** `.arc/active/{category}/prd-{name}.md`
 ```
 
+**Re-anchor backlog-sibling links.** Any relative-path link defs in the PRD, task list, or
+atomic file that pointed at sibling artifacts still in `backlog/{category}/` (sibling plans,
+`notes-*` files, cross-WU references) need a `../../backlog/{category}/` prefix from the
+active location. The pre-commit markdown-link check catches misses.
+
 ### Step 4: Create Status File
 
 Create `.arc/active/{category}/status-{name}.md` from [`template-status.md`][template-status]. This is the per-WU

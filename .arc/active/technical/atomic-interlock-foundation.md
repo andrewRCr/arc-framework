@@ -15,3 +15,11 @@ Atomic Task Completion for the full protocol.
 ---
 
 ## Tasks
+
+### `[x]` **Re-anchor backlog-sibling link note in `activate-work-unit.md` Step 3**
+
+- _Outcome:_ Step 3 amended with a re-anchor note pointing at the pre-commit markdown-link
+  check; package source synced. Discovered when this WU's activation commit hit broken link
+  defs — sibling plan-docs and `notes-docs-content-sweep.md` referenced via short relative
+  paths from PRD/task list resolved against `backlog/technical/`, but the moved files now
+  live in `active/technical/`.
