@@ -139,6 +139,13 @@ Document significant architectural decisions as ADRs in `.arc/reference/adr/`.
 See [ADR Methodology Strategy][adr-methodology] — decision criteria, three-tier stability model,
 amendment vs. supersession.
 
+**ADRs are internal-only.** They live in `.arc/reference/adr/` and don't ship to adopters. Don't
+reference ADRs from strategy docs (packaged via `npx arc update`), docs-site content, or any other
+adopter-facing material — adopters don't have them and following the link goes nowhere. Operational
+rationale that adopters need must stand alone in the adopter-facing source; rationale that doesn't
+pass the operational-usefulness filter routes to `notes-docs-content-sweep.md` for docs-site
+absorption.
+
 ---
 
 [dev-rules-arc]: DEV-RULES.ARC.md
