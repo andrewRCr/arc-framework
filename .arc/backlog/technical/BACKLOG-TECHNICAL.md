@@ -44,6 +44,39 @@ begin the standard workflow.
       winget/irm later as adoption broadened.
     - Effort estimate: M–L (build pipeline, cross-platform testing, install script, docs)
 
+### Planning Methodology Refinements
+
+These two pair naturally as a single atomic-tier WU since both touch planning-time docs
+(template-prd, strategy-work-planning, plan-doc convention, `1_create-prd` workflow).
+
+- **Adopt `## Related Work Units` cross-linking convention**
+    - Problem: ARC has no first-class notation for "these WUs are halves of a logical whole" or for
+      upstream/downstream WU dependencies. Cross-links live ad-hoc in PRD bodies; relationships
+      aren't discoverable from a known location.
+    - Approach: Add a `## Related Work Units` section to both `template-prd.md` and the standard
+      plan-doc format, with three buckets — Upstream/Prerequisite, Downstream/Follow-on, and
+      Sibling/Parallel (same logical whole). Wire population guidance into `1_create-prd.md` and
+      the `arc-plan` skill so the section gets populated at plan time and carried into the PRD.
+      Status files inherit the relationships at activation.
+    - Research: [research-wu-grouping-patterns][research-grouping] — survey of 10 patterns (epics,
+      SAFe capabilities, stacked PRs, sub-issues, naming conventions, etc.) with fit assessment
+      against ARC's grain. Concludes lightweight doc convention is the right shape.
+    - Effort estimate: S (atomic-tier — template + plan-doc convention + workflow + skill edits)
+
+- **Codify PR-sized boundary estimation in `strategy-work-planning.md`**
+    - Problem: Soft 6-7 phase target for WUs lacks codified estimation guidance. Planning works
+      from intuition; size-risk surfaces at integration time rather than at planning time when
+      splitting is cheap.
+    - Approach: Add a "Reviewability and Work-Unit Sizing" section to the discovery checklist with
+      5 estimation cues (file-breadth, test-surface, dependency-direction, explainability test,
+      system-interaction count) and a smell-test checklist (too-big / too-small / right-sized
+      signals). Wire reference into `1_create-prd.md` discovery step and `2_generate-tasks.md`
+      validation. Empirical anchor: 200-400 LOC review-effectiveness sweet spot.
+    - Research: [research-pr-sizing-and-wu-boundary-estimation][research-sizing] — synthesizes
+      SmartBear/Cisco, Google (Sadowski et al.), Microsoft (Bacchelli & Bird), and GitHub-scale
+      studies, plus SPIDR/INVEST methodological frames. Includes draft section text ready to lift.
+    - Effort estimate: S (atomic-tier — strategy edit + workflow cross-references)
+
 ---
 
 ## Lower Priority / Ideas
@@ -101,4 +134,9 @@ Items that have been implemented or superseded by active work units.
 
 ---
 
-**Last reviewed:** 2026-04-06
+**Last reviewed:** 2026-04-28
+
+---
+
+[research-grouping]: ../../reference/research/research-wu-grouping-patterns.md
+[research-sizing]: ../../reference/research/research-pr-sizing-and-wu-boundary-estimation.md
