@@ -881,7 +881,7 @@ pre-trim); template counterpart at the same line range.
 > **Standard:** 4 spaces per hierarchy level
 >
 > ```text
-> Phase Header (### **Phase X:**)
+> Phase Header (## **Phase X:**)
 > ↓
 > Phase-level notes (0 spaces) **Purpose:** Optional context
 > ↓
@@ -899,7 +899,7 @@ pre-trim); template counterpart at the same line range.
 > **Visual example:**
 >
 > ```markdown
-> ### **Phase 1:** Backend Implementation
+> ## **Phase 1:** Backend Implementation
 >
 > **Purpose:** Establish data models with test-first approach.
 >

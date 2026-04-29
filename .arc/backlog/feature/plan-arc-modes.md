@@ -2403,7 +2403,7 @@ in Lite with one pointer change: Lite's phase task points to a dedicated `verify
 **Full (unchanged):**
 
 ```markdown
-### **Phase N:** Verification
+## **Phase N:** Verification
 
 - [ ] **N.1 Complete verification** — load and follow `verify-work-unit.md`
 ```
@@ -2411,7 +2411,7 @@ in Lite with one pointer change: Lite's phase task points to a dedicated `verify
 **Lite:**
 
 ```markdown
-### **Phase N:** Verification
+## **Phase N:** Verification
 
 - [ ] **N.1 Complete verification** — load and follow `verify-work.md`
 ```

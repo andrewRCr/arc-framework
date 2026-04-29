@@ -23,3 +23,20 @@ Atomic Task Completion for the full protocol.
   defs — sibling plan-docs and `notes-docs-content-sweep.md` referenced via short relative
   paths from PRD/task list resolved against `backlog/technical/`, but the moved files now
   live in `active/technical/`.
+
+### `[x]` **Phase-heading shape cascade — `### **Phase` → `## **Phase` across live docs**
+
+- _Outcome:_ Updated all live (non-archive) references to the pre-wrapper-removal phase
+  heading shape. Surfaced when this session's Phase grep returned zero hits during init.
+  Distinct from Task 1.4 (which tracks ADR-016 vocabulary cascade, not heading shape).
+- _Files (live):_
+    - `session-init` (template + `.arc/` copy) — prose reference, regex
+      `^## \*\*Phase {id}:\*\*`, and structural-mapping grep `^## \*\*Phase` (3 hits per copy).
+    - `strategy-quality-gates.md` (both copies) — example phase-header blocks (2 hits per copy).
+    - `strategy-task-list-formatting.md` (both copies) — owner-marker example (1 hit per copy).
+      Notable: this strategy codifies the format, so its own example was internally inconsistent
+      with `template-tasks.md`.
+    - `plan-arc-modes.md` (backlog) — Full/Lite verification skeleton examples (2 hits).
+    - `notes-docs-content-sweep.md` (backlog) — canonical-shape illustrations (2 hits).
+- _Out of scope:_ `.arc/reference/archive/**` left alone (frozen historical record under the
+  old shape). `system/.internal/pristine.json` regenerates via CLI infrastructure.

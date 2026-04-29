@@ -180,10 +180,10 @@ after disambiguation resolves to a single status file.
 
     - Path from the active status file (e.g., `.arc/active/feature/tasks-[name].md`)
     - **Always read** — three sections, nothing else:
-        1. **Header** — bullet list above the first `### **Phase` heading
+        1. **Header** — bullet list above the first `## **Phase` heading
         2. **Current phase preamble** — derive the phase identifier from the current task identifier by
            stripping the leaf segment (`5.3` → Phase `5`, `3.R.e` → Phase `3.R`); locate the heading with
-           `^### \*\*Phase {id}:\*\*`. **Preamble boundary contract:** read from the heading line through
+           `^## \*\*Phase {id}:\*\*`. **Preamble boundary contract:** read from the heading line through
            the line immediately before the first `- [ ]` / `- [x]` bullet under the phase. Multi-paragraph
            framing (Purpose, Design decisions, Rationale per the codified shape) is included; task entries
            themselves are not
@@ -194,7 +194,7 @@ after disambiguation resolves to a single status file.
         3. Search for the title fragment if the task was renumbered
         4. If none resolve, report the mismatch (Step 7)
     - **Structural mapping** for header + phase preamble: when line-precise Reads are needed, issue one
-      grep for `^### \*\*Phase` (or equivalent phase-heading marker) returning all phase positions in a
+      grep for `^## \*\*Phase` (or equivalent phase-heading marker) returning all phase positions in a
       single call — sufficient to compute Read offsets for header (above first phase), current phase
       preamble, and current task section. Don't issue per-section greps.
     - **Companion file awareness**: From `active.value.companions` — note their existence so

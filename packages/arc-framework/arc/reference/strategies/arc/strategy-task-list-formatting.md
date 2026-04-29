@@ -272,7 +272,7 @@ Format: `(@name)` at end of the checkbox line or phase header:
 
 ```markdown
 - [ ] **1.1 Implement authentication flow** (@alice)
-### **Phase 3:** Auth Layer (@alice)
+## **Phase 3:** Auth Layer (@alice)
 ```
 
 Uses the developer's `arc.identity` value. Markers are optional — unowned tasks can be claimed
