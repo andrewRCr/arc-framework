@@ -23,10 +23,10 @@ pre-push stage at all.
 
 **Related concerns surfaced during discussion:**
 
-- **Tier naming.** "Tier 1 / 2 / 3" is generic and requires readers to remember the mapping.
-  Gate-stage-aligned naming ("commit-gate / push-gate / pr-gate" or similar) is self-documenting and
-  idiomatic. Current lean is toward a full rename, but the exact shape (rename vs. dual-naming vs.
-  align-in-doc) is a PRD-time decision.
+- **Tier vocabulary.** "Tier 1 / 2 / 3" is generic and requires readers to remember the mapping. The
+  vocabulary question is more substantive than first framed — see § Relationship to Interlock Model
+  Frame and § Alternatives for the kind-vs-gate-vs-cadence distinction surfaced during cross-plan
+  alignment work. Three viable paths captured under Alternatives; PRD-time decision.
 - **Structural vs. adopter-impl separation.** The line between *what ARC enforces* (commit format,
   frontmatter schemas, task staging — framework-owned) and *what's adopter-configurable* (linters, tests,
   typecheck, build — stack-dependent) is fuzzy in current docs. ARC should define the tier abstraction +
@@ -42,53 +42,79 @@ This matters now because:
   We want the safety net in place first.
 - External research is complete; no blocking unknowns before PRD drafting.
 
-## Relationship to Gate Model Frame
+## Relationship to Interlock Model Frame
 
-[ADR-016][adr-016] establishes configurable autonomy gates for session-operational flow, formalizing
-the commit-gate / push-gate / integration-gate vocabulary this plan was already converging on
-independently. Good alignment — this plan's gate-stage naming becomes the canonical vocabulary,
-not this plan's invention.
+[ADR-016][adr-016] / [plan-session-operational-flow][plan-ops] establishes configurable autonomy
+**interlocks** for session-operational flow at four architectural junctions: task, commit, push,
+integration. The two plans share **junction prefixes** (`commit-`, `push-`, `integration-`) but
+attach different concerns at each junction:
+
+| Junction       | Autonomy concern (session-flow plan) | Validation concern (this plan)                    |
+|----------------|--------------------------------------|---------------------------------------------------|
+| commit         | commit-interlock (approval hold)     | commit-gate (deadline for fast checks)            |
+| push           | push-interlock (approval hold)       | push-gate (deadline for medium checks)            |
+| integration    | integration-interlock (approval hold)| integration-gate (deadline for full suite)        |
+
+This factoring resolved an earlier proposal where both plans converged on identical "gate" naming.
+That convergence collapsed two distinct concepts (validation deadlines vs. approval mechanisms) into
+one term. The current factoring keeps them lexically distinct while preserving the architectural
+relationship.
 
 Impacts on scope:
 
-- **Handoff-gate added to the picture.** The frame introduces handoff as an orthogonal ceremony with
-  its own configurable interior actions. Hook placement gains a fourth stage: pre-handoff validation
-  (session-close checks). This plan picks up handoff-gate hook support alongside the existing
-  commit-gate / push-gate / pr-gate stages.
-- **Interaction with configurable autonomy modes.** When [plan-session-operational-flow][plan-ops]
-  ships auto-commit and auto-push modes, hook invocation timing changes slightly — hooks fire as
-  part of the cascade rather than as standalone gates. The cascade-visibility requirement from
-  ADR-016 means hook output remains visible to the user even under auto modes. Plan needs to confirm
-  hook behavior composes cleanly with cascade semantics.
-- **Integration-gate terminology.** ADR-016 uses "integration-gate" for merge-to-main (human-invariant).
-  This plan's "pr-gate" terminology (at least in scope bullet text) should align — either rename to
-  integration-gate or document that pr-gate and integration-gate refer to the same stage.
+- **Pre-handoff hook placement.** The interlock model treats handoff as an orthogonal ceremony, not
+  a junction in the linear stack. Hook placement still gains a pre-handoff stage for session-close
+  validation (status-file rotation validity, git-notes consistency, worktree cleanliness) —
+  attaching as a hook stage on the ceremony, parallel to commit/push/integration gates.
+- **Interaction with configurable autonomy modes.** When auto-commit / auto-push modes ship, hook
+  invocation timing changes slightly — hooks fire as part of the cascade rather than as standalone
+  gates. The cascade-visibility requirement from ADR-016 means hook output remains visible to the
+  user even under auto modes. Plan needs to confirm hook behavior composes cleanly with cascade
+  semantics.
+- **Tier-rename framing decoupled from autonomy-vocab alignment.** The original motivation for
+  renaming Tier 1/2/3 partly rode on shared "gate" vocabulary with the autonomy plan. With that
+  alignment dissolved, the rename's case stands on its own merits — and on inspection, the rename
+  is more substantive than originally framed. See § Alternatives for the three viable paths.
+- **Integration-gate vs. pr-gate naming.** No longer rides on autonomy-vocab alignment. The case
+  for "integration-gate" now stands on lifecycle-ceremony naming (matches `integrate-work-unit`,
+  `integrate-planning-branch` workflows) rather than vocabulary mirroring. PR-gate remains a
+  platform-specific alternative; current lean stays integration-gate for ceremony-name fit.
 
-Scope impact: lighter overall. The gate-model frame provides vocabulary and semantic home this plan
-was inventing independently; handoff-gate adds a small new scope item; autonomy-mode interaction
-needs a design check but not new mechanics.
+Scope impact: roughly unchanged from prior framing. The relationship to the autonomy plan is
+clarified rather than expanded; tier-vocabulary work becomes more deliberate rather than larger.
 
 ## Scope
 
 ### In scope
 
-**Tier model reshape.** Rename "Tier 1/2/3" to gate-stage-aligned naming, using the canonical vocabulary
-from [ADR-016][adr-016]. Current lean: `commit-gate / push-gate / integration-gate` (aligning with
-ADR-016 terminology — the frame uses "integration-gate" for merge-to-main, and this plan's
-pr-gate referred to the same stage). Rename touches DEV-RULES.ARC, strategy-quality-gates.md,
+**Tier model reshape.** Rework tier vocabulary to surface the kind / cadence / gate distinction more
+clearly. Three viable paths captured under § Alternatives:
+
+- **A — Gate-only.** Replace Tier 1/2/3 with `commit-gate / push-gate / integration-gate` (deadline
+  semantic). Cost-class and opportunistic-cadence guidance becomes advisory convention attached to
+  each gate's documentation.
+- **B — Orthogonal axes (current lean).** Factor kind / cost-class (cheap / medium / heavy or
+  similar) and gate (deadline) as separate concepts. Drop tier numbers; keep cost-class concept;
+  add gate as orthogonal deadline naming. Cadence becomes a third (advisory) axis. Most accurate
+  factoring; higher documentation surface.
+- **C — Status quo with deadline-semantic clarification.** Keep Tier 1/2/3 as-is. Add gate-as-
+  deadline framing as a clarifying overlay. Lightest touch; tier-numeric ambiguity persists.
+
+Whichever path lands, the rename touches DEV-RULES.ARC, strategy-quality-gates.md,
 3_process-task-loop.md, QUICK-REFERENCE.md, session-init.md, and scattered tier references throughout
-the framework. Final naming shape decided at PRD drafting — see Alternatives.
+the framework. PRD finalizes the path.
 
 **Pre-push hook as recognized stage.** New `.arc/system/githooks/pre-push` that dispatches to the
 adopter's push-gate commands. Config-gated via `hooks.pre_push` in `arc-config.yml`. Integrates through
 the existing hook-manager detection layer (ADR-014) — husky / lefthook / pre-commit.com / fallback all
 get the pre-push stage wired up.
 
-**Pre-handoff hook as new stage (ADR-016 integration).** Additional hook placement for handoff-gate:
-session-close validation before handoff artifacts are finalized. Config-gated via `hooks.pre_handoff`
-(naming TBD at PRD, aligned with autonomy-axis naming from [plan-session-operational-flow][plan-ops]).
-Complements commit-gate and push-gate checks with handoff-specific validation — e.g., status-file
-rotation validity, git-notes consistency, worktree cleanliness.
+**Pre-handoff hook as new stage (interlock-model integration).** Additional hook placement for
+handoff ceremony: session-close validation before handoff artifacts are finalized. Config-gated via
+`hooks.pre_handoff` (naming TBD at PRD, aligned with autonomy-axis naming from
+[plan-session-operational-flow][plan-ops]). Complements commit-gate and push-gate checks with
+handoff-specific validation — e.g., status-file rotation validity, git-notes consistency, worktree
+cleanliness.
 
 **Connection points between tiers and hooks.** Extend the `quality-gate-commands` method with tier
 metadata on each command (Option A from decision analysis — tier attached to each command entry, not
@@ -132,16 +158,36 @@ existing husky setup to dogfood the new dispatch method. Not a framework-deliver
 
 ## Alternatives
 
-**Tier naming:**
+**Tier vocabulary:**
 
-- **A — Full rename (current lean).** "Tier 1/2/3" → "commit-gate / push-gate / pr-gate." Self-
-  documenting, idiomatic, aligns with git hook stages. Downside: methodology-wide rename touches many
-  files and breaks mental models for early adopters who've internalized the numeric tiers.
-- **B — Keep numeric tiers, document alignment.** Tier 1/2/3 stays canonical; every surface documents
-  "Tier 1 runs at commit-gate stage." Minimal churn but less discoverable; readers must still learn
-  the mapping.
-- **C — Hybrid / dual naming.** Use gate names as headings/titles; keep tier numbers in parenthetical
-  reference. Verbose, compatible, but neither fully communicative nor minimal.
+Background: traditional SWE practice (external research, 2026-04-28) treats three concepts as
+conceptually orthogonal even when they correlate in convention:
+
+- **Kind / cost class** — inherent expensiveness of a check (cheap-fast lint/types vs. medium unit
+  tests vs. heavy integration/e2e). Property of the check itself.
+- **Gate / deadline** — the must-pass-by point. "Push-gate" universally reads as "must have passed
+  before push," not "runs at push." Industry convention (Google SWE book, Zuul, CI/CD literature).
+- **Cadence** — opportunistic schedule for when checks fire (on-save, on-commit-attempt,
+  on-coherent-unit, etc.). Separate from the gate enforcement.
+
+Today's "Tier 1/2/3 = per-task / per-coherent-unit / pre-PR" bundles all three into one tier name.
+The original "rename to commit-gate/push-gate/pr-gate" framing collapsed kind+cadence into gate
+naming — closer to a category change than a naming swap. Three viable paths:
+
+- **A — Gate-only.** Replace Tier 1/2/3 with `commit-gate / push-gate / integration-gate` (deadline
+  semantic). Cost-class and cadence become advisory convention documented per gate. Self-documenting,
+  idiomatic, aligns with git hook stages. Downside: drops the explicit kind framing the tiers
+  currently provide.
+- **B — Orthogonal axes (current lean).** Factor kind and gate as separate vocabulary. Drop tier
+  numbers; keep cost-class concept (rename it — "cheap / medium / heavy" or similar); add gate as
+  orthogonal deadline naming. Cadence becomes a third (advisory) axis. Most accurate factoring.
+  Highest documentation surface; reader must learn two axes instead of one.
+- **C — Status quo cleanup.** Keep Tier 1/2/3 as canonical. Add gate-as-deadline framing as a
+  clarifying overlay (every surface documents "Tier 1 must have passed by commit-gate"). Minimal
+  churn; tier-numeric ambiguity persists; readers must still learn the mapping.
+
+The earlier-framed Option B (keep numeric, document alignment) collapses into Option C above.
+The earlier-framed Option C (hybrid dual-naming) is dominated by Options A or B and is dropped.
 
 **Pre-push opt-in model:**
 
@@ -155,12 +201,12 @@ existing husky setup to dogfood the new dispatch method. Not a framework-deliver
 
 **Method dispatch shape:**
 
-- **A — Extend `quality-gate-commands` with tier metadata (current lean).** Each command entry
-  includes `tier: commit-gate | push-gate | pr-gate` (or equivalent). Hook filters by stage, runs
-  matching commands. Single method, expressive.
-- **B — Separate method per tier.** `commit-gate-commands.md`, `push-gate-commands.md`,
-  `pr-gate-commands.md`. More files, less flexible, harder to misconfigure but harder to reason about
-  holistically.
+- **A — Extend `quality-gate-commands` with stage metadata (current lean).** Each command entry
+  includes `stage: commit-gate | push-gate | integration-gate` (or equivalent under chosen tier-
+  vocabulary path). Hook filters by stage, runs matching commands. Single method, expressive.
+- **B — Separate method per stage.** `commit-gate-commands.md`, `push-gate-commands.md`,
+  `integration-gate-commands.md`. More files, less flexible, harder to misconfigure but harder to
+  reason about holistically.
 - **C — Flat commands + side-channel stage map.** Commands stay flat; a sibling method maps stages
   to command subsets. More indirection, less cohesion.
 
@@ -187,9 +233,9 @@ No external research blockers remain before PRD drafting.
 
 **Assumptions to validate during PRD:**
 
-- Renaming "Tier 1/2/3" produces net-positive readability despite methodology churn. If PRD
-  discovery finds the rename touches >50 files or disrupts established mental models, fall back to
-  Option B.
+- The chosen tier-vocabulary path (A/B/C per § Alternatives) produces net-positive readability
+  despite methodology churn. If PRD discovery finds the rework touches >50 files or disrupts
+  established mental models, fall back to Path C (status quo cleanup).
 - `hooks.pre_push: auto` default works for both early-stage adopters (no tests yet) and mature ones
   (has tests). If beta dogfooding reveals confusion, fall back to explicit opt-in.
 - Initial-setup is the right configuration point. If the bootstrap step adds material friction to
@@ -205,7 +251,7 @@ No external research blockers remain before PRD drafting.
 
 Rough breakdown:
 
-- Methodology rename + doc sweep (if Option A chosen): 1-2 days.
+- Tier-vocabulary rework + doc sweep (Path A or B per § Alternatives; Path C is lighter): 1-2 days.
 - Pre-push hook + structural CHECK + two-copy sync: 0.5-1 day.
 - Method extension + dispatch logic + tests: 1 day.
 - Initial-setup bootstrap workflow edit + tests: 0.5 day.
@@ -216,9 +262,10 @@ Rough breakdown:
 **Dependencies:**
 
 - **[plan-session-operational-flow][plan-ops] Phase 1 (constitutional foundation) must land first** so
-  the gate vocabulary is formally canonicalized before this plan's rename pass. Phase 3 (config
-  surface) landing first is preferred — the autonomy-axis naming influences `hooks.pre_push` /
-  `hooks.pre_handoff` config shape and avoids retroactive churn.
+  the interlock-model vocabulary and architectural-junction naming are formally canonicalized before
+  this plan's tier-vocabulary rework. Phase 3 (config surface) landing first is preferred — the
+  autonomy-axis naming influences `hooks.pre_push` / `hooks.pre_handoff` config shape and avoids
+  retroactive churn.
 - Session-Init Optimization must land first — overlapping edits on DEV-RULES.ARC, session-init.md, and
   `quality-gate-commands.md` would conflict with ongoing audit work.
 - User Sync UX Polish landing first is preferred — both are pre-1.0 polish; reduces overlap on shared
@@ -226,20 +273,21 @@ Rough breakdown:
 - Work-Unit Mobility landing first is preferred — its session-init orientation and status-file template
   edits overlap with surfaces this WU also touches. Clean separation.
 - ADR-014 (hook-manager detection) is already in place — prerequisite met.
-- Landing before ARCd Rebrand means rebrand picks up the new tier naming in its bulk rename pass,
-  avoiding double-churn (same argument as User Sync UX Polish).
+- Landing before ARCd Rebrand means rebrand picks up the new tier vocabulary in its bulk rename
+  pass, avoiding double-churn (same argument as User Sync UX Polish).
 
 **Scheduling:** After plan-session-operational-flow Phases 1-3 land, after Work-Unit Mobility, before
 ARCd Rebrand. Pre-1.0 polish window.
 
-**Pre-approved split at PRD-drafting time:** If the methodology rename (Option A) proves to touch more
-surface than anticipated, split into:
+**Pre-approved split at PRD-drafting time:** If the chosen tier-vocabulary rework (Path A or B per
+§ Alternatives) proves to touch more surface than anticipated, split into:
 
 - WU-A: Hook integration only (new pre-push hook, method dispatch, bootstrap, repo dogfooding).
   Low-churn, architectural.
-- WU-B: Tier rename across all surfaces. Editorial, mostly find-and-replace with contextual review.
+- WU-B: Tier-vocabulary rework across all surfaces. Editorial, mostly find-and-replace with
+  contextual review.
 
-Both halves are independently valuable. Keep unified if rename stays manageable.
+Both halves are independently valuable. Keep unified if the rework stays manageable.
 
 ---
 

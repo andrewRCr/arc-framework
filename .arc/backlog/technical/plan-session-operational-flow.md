@@ -1,12 +1,16 @@
-# Plan: Session-Operational Flow (Gate Model)
+# Plan: Session-Operational Flow (Interlock Model)
 
 ## Problem / Motivation
 
-[ADR-016][adr-016] establishes the gate model for ARC's session-operational flow — a linear autonomy stack
-(task → commit → push → integrate) with invariant endpoints and configurable middle rungs, plus handoff as an
+[ADR-016][adr-016] establishes the interlock model for ARC's session-operational flow — a linear autonomy stack
+(task → commit → push → integrate) with invariant endpoints and configurable middle interlocks, plus handoff as an
 orthogonal human-invoked ceremony. This plan executes that framing: lands the constitutional amendments, implements
-the core gate-model mechanics (auto-commit, auto-push, handoff-interior configurability), and ships the reversibility
-protocol.
+the core interlock-model mechanics (auto-commit, auto-push, handoff-interior configurability), and ships the
+reversibility protocol.
+
+> ADR-016 currently uses earlier "gate" framing for these autonomy points. The "interlock" rename is a Phase 1
+> deliverable — see § Vocabulary resolution under Design Decisions. References to ADR-016 elsewhere in this plan
+> use the post-rename vocabulary.
 
 Without this plan:
 
@@ -19,7 +23,7 @@ Without this plan:
 - Status-file churn and other per-commit bookkeeping costs persist because the architectural shift to
   handoff-consolidated state has no carrier.
 
-This plan is **framing execution plus core behavior modes**. Domain-specific gate consumers (notes-sync mechanics,
+This plan is **framing execution plus core behavior modes**. Domain-specific consumers (notes-sync mechanics,
 quality-hook placement details, mobility autonomy ergonomics) are out of scope; upstream plans own their facets.
 
 ## Concurrency Model
@@ -80,9 +84,9 @@ movement — only the status file is universal across modes; user manages plan-d
 **Configuration surface.** Autonomy axis naming, value enum, schema validation, default values (matching current
 behavior), per-developer override mechanism. Handoff-interior toggle framework for configurable actions inside handoff.
 
-**Approval-signal vocabulary.** Signal classes per gate, concrete phrase/command catalog, disambiguation rules
-(approval vs. iteration). Formalizes what counts as "approval" at each gate level. Specifies the "approved"
-grammar with strict disambiguation per § Design Decisions.
+**Approval-signal vocabulary.** Signal classes per interlock, concrete phrase/command catalog, disambiguation
+rules (approval vs. iteration). Formalizes what counts as "approval" releasing each interlock. Specifies the
+"approved" grammar with strict disambiguation per § Design Decisions.
 
 **Auto-commit mode.** Skill/workflow implementation; interaction with `prepare-commits` (simple-path-only auto-
 commit, complexity bumps to manual-with-prompt); atomicity-preservation under autonomy. Contributor role
@@ -92,7 +96,8 @@ gitignored and updated at handoff regardless of mode).
 
 **Auto-push mode.** Auto-push-at-handoff configurability — push fires inside the handoff ceremony when configured.
 Mid-session push remains explicit-ask only (natural language, no canonical phrase or skill required); push is never
-auto-fired per commit. Push-gate mechanics, prerequisites, interaction with auto-commit mode per § Design Decisions.
+auto-fired per commit. Push-interlock mechanics, prerequisites, interaction with auto-commit mode per
+§ Design Decisions.
 
 **Reversibility/rollback protocol.** Design and implementation. Mechanism shape (dev-rule vs. skill vs. workflow vs.
 combination) resolves during PRD drafting. Rollback scope is session-local (not identity-global) — rollback in one
@@ -142,19 +147,23 @@ deferred-review interaction, and failure-mode fallback paths.
 
 ### Out of scope — deferred to upstream/sibling plans
 
-- **Worktree push + notes push pairing at push-gate / handoff-gate** — [plan-user-sync-ux][plan-sync] consumes the
-  handoff-interior toggle framework to solve the `user.sync_push: always` incoherence.
-- **Quality-gate hook placement within the gate model** — [plan-quality-gate-hooks][plan-hooks] already uses
-  commit-gate / push-gate / pr-gate vocabulary; this plan establishes the shared model, hooks plan implements
-  hook placement against it.
+- **Worktree push + notes push pairing at the push-interlock and handoff ceremony** —
+  [plan-user-sync-ux][plan-sync] consumes the handoff-interior toggle framework to solve the
+  `user.sync_push: always` incoherence.
+- **Quality-gate hook placement at autonomy-stack junctions** — [plan-quality-gate-hooks][plan-hooks] attaches
+  validation gates to the commit / push / integration junctions this plan formalizes. The two plans share
+  architectural junction prefixes (commit-, push-, integration-) but name different concerns at each junction:
+  this plan names the autonomy interlocks (approval mechanisms); the hooks plan names the validation gates
+  (deadline checkpoints). Hooks plan owns its tier-vocabulary decision independently — see its open-design
+  section for the three viable paths.
 - **Multi-worktree mechanics and spawn-vs-continue semantics** — [plan-worktree-foundation][plan-wf] consumes the
   parallel-session framing here and implements the spawn semantics for new-WU creation.
 - **Concurrent-work conventions consuming configurable autonomy** — [plan-concurrent-work-conventions][plan-cwc].
 - **Integration-workflow rewrites and tier-aware sweep ceremony** — [plan-agile-wu-lifecycle][plan-awl]
   implements the metadata-state foundation against tier-aware lifecycle workflows.
 - **Branch-gone resolution under auto modes** — non-applicable. Branch/worktree removal is high-stakes and falls
-  outside the gate-model's "approval triggers cascade" because no preceding review attaches to the proposed action.
-  Coord-probe / branch-gone resolution stays manual under all autonomy levels.
+  outside the interlock model's "approval triggers cascade" because no preceding review attaches to the proposed
+  action. Coord-probe / branch-gone resolution stays manual under all autonomy levels.
 
 ## Open Design Choices
 
@@ -184,6 +193,24 @@ Current lean: Option B. PRD decision, informed by how complex the rollback proto
 
 ## Design Decisions
 
+### Vocabulary: interlocks (autonomy) vs. gates (validation)
+
+The autonomy stack uses **interlock** vocabulary: `task-interlock`, `commit-interlock`, `push-interlock`,
+`integration-interlock`. Each interlock is an active control mechanism that holds progress until released by an
+approval signal — semantics drawn from safety-engineering / control-systems usage of "interlock" (precise
+hold-until-released framing, rather than `checkpoint`'s save-state connotation or `gate`'s collision with quality
+gates). Verb pairing: interlocks `release` / `engage` / `hold`; auto-commit / auto-push *release* the relevant
+interlocks under configured conditions.
+
+ARC's existing **quality gate** vocabulary (the tiered T1/T2/T3 validation system, with industry precedent in
+SonarQube and CD literature) is unchanged here. Both concepts attach to the same architectural junctions
+(commit, push, integration) — sharing a junction prefix encodes the location; differing suffix encodes the
+concern. `commit-gate` (validation deadline) and `commit-interlock` (approval mechanism) are different facets of
+the same junction and coexist cleanly.
+
+This rename cascades into [ADR-016][adr-016] (filename and body) and downstream constitutional/strategy text as
+part of Phase 1.
+
 ### Push timing: explicit ask, with auto-at-handoff opt-in
 
 Push always requires explicit user request — natural-language ("push this", "push to origin") in mid-session, or
@@ -195,8 +222,8 @@ push intent.
 Auto-push-at-handoff is the only "automatic" path. When configured, push fires inside the handoff ceremony when
 handoff is invoked. Three reasons this is the right shape for automated push:
 
-- **Pairing.** Worktree-push and notes-push need to land at the same gate; handoff is the natural pairing point per
-  the handoff-interior toggle framework.
+- **Pairing.** Worktree-push and notes-push need to land at the same release event; handoff is the natural pairing
+  point per the handoff-interior toggle framework.
 - **Stakes asymmetry per [ADR-016][adr-016].** Push is external-visible and less reversible than commit;
   concentrating into deliberate ceremony reduces accidental cascade surface.
 - **Concurrent-session safety.** Under parallel sessions (per § Concurrency Model), multiple sessions writing to
@@ -222,7 +249,7 @@ in PR history as the explicit handoff point. Reviewers benefit (code commits sta
 commits stay focused on pointer state). Auto-commit benefits (auto-fire scope is code-only, never has to
 maintain status consistency mid-stream). The rule is simpler than the prior "shape-vs-rotation field split"
 framing because it removes the per-commit shape/rotation judgment call — workflow-ceremony commits become the
-only shape-change vector under the gate model.
+only shape-change vector under the interlock model.
 
 Workflow-ceremony commits include the status update IN their own commit (not a separate dangling commit), since
 the ceremony operation's "one logical change" includes the metadata transition (e.g., PRD generation = creating
@@ -253,7 +280,7 @@ session-end intent.
 When a user defers review for a range of tasks (e.g., "work through tasks 5.2-5.4 while I'm away"), auto-commit
 does NOT fire per task within the range. Tasks accumulate; user reviews and approves the accumulated work as a
 unit when they return. This preserves the spirit of deferred review — user is away, no per-task approval available,
-autonomous commits without review violate the gate model.
+autonomous commits without review violate the interlock model.
 
 Per-task auto-commit inside a deferred range is available only via explicit instruction at deferral time
 (e.g., "work through 5.2-5.4 with auto-commit per task while I'm away"). Default is safe-accumulate.
@@ -305,14 +332,6 @@ rather than silent invocation of `prepare-commits`.
   `archive.cadence` shape (`with-integration | deferred | manual` per § Scope). PRD finalizes naming and enums.
 - Exact field/value names for the State + Integration field model — § Scope establishes the conceptual shape; PRD
   finalizes field labels and enum values.
-- **Gate terminology collision.** This plan introduces "gate" vocabulary (task-gate, commit-gate, push-gate,
-  integration-gate) for the autonomy stack. ARC already uses "quality gates" for the tiered T1/T2/T3 check system
-  ([strategy-quality-gates][strategy-qg], [DEV-RULES.PROJECT][dev-rules-project] § Quality Gates). The two
-  meanings overlap lexically but are disjoint conceptually (autonomy gates = approval boundaries; quality gates =
-  validation checks). Resolution options: (a) accept dual meaning with disambiguating qualifier in prose
-  ("autonomy-gate" / "quality-gate") wherever ambiguity could arise; (b) rename one of the two — autonomy "gates"
-  to "checkpoints" or "boundaries", or quality "gates" to "checks" or "tiers". PRD evaluates before settling
-  vocabulary across DEV-RULES.ARC, strategy docs, and workflow text.
 
 **Migration and validation details (PRD-time resolution):**
 
@@ -332,8 +351,8 @@ rather than silent invocation of `prepare-commits`.
 **Assumptions to validate during PRD:**
 
 - Default `manual-commit` mode preserves current behavior exactly — no behavioral drift acceptable for existing users.
-- The gate model's four gates are the right decomposition — no fifth gate emerges during implementation (e.g.,
-  "stage-gate" between task and commit).
+- The interlock model's four interlocks are the right decomposition — no fifth interlock emerges during
+  implementation (e.g., a "stage-interlock" between task and commit).
 - Handoff-as-orthogonal composes cleanly with all lifecycle workflows (activate, deactivate, rotate, integrate,
   archive). If any workflow reads poorly under the new timing rules, the split needs refinement.
 - The downstream consumer plans (sync UX, hooks, worktree-foundation, concurrent-work-conventions, agile-WU-
@@ -354,7 +373,7 @@ workflows, multiple strategy docs, configuration schema, skills, and tests.
    `State: Planning`), minimal-but-necessary cascade to strategy docs to prevent contradiction.
 2. **Status-file timing rule** — Handoff-and-ceremony-only update rule, workflow updates (process-task-loop,
    lifecycle workflows, session-handoff), strategy doc prose updates.
-3. **Configuration surface + approval-signal vocabulary** — Axis naming and schema, signal classes per gate,
+3. **Configuration surface + approval-signal vocabulary** — Axis naming and schema, signal classes per interlock,
    "approved" grammar with strict disambiguation, session-init load-set autonomy-config-aware adaptation, default
    values matching current behavior.
 4. **Reversibility / rollback protocol** — Mechanism design and implementation, session-local scope (prerequisite
@@ -369,8 +388,8 @@ workflows, multiple strategy docs, configuration schema, skills, and tests.
    metadata-state foundation (State + Integration field model + sweep cadence config) for downstream lifecycle
    plans to consume; integration specs for upstream plans; verification.
 
-Phase 4 gates Phases 5-6 (reversibility must land before auto-cascade modes ship). Phases 1-3 are relatively
-independent and could overlap if scoped carefully.
+Phase 4 must land before Phases 5-6 (reversibility prerequisite for auto-cascade modes). Phases 1-3 are
+relatively independent and could overlap if scoped carefully.
 
 ### Dependencies
 
@@ -383,8 +402,8 @@ independent and could overlap if scoped carefully.
 
 - **[plan-user-sync-ux][plan-sync]** — smallest consumer; reshapes to consume the handoff-interior toggle framework
   (Phase 6). Could ship immediately after that phase lands.
-- **[plan-quality-gate-hooks][plan-hooks]** — already uses gate vocabulary; consumes the configuration surface
-  (Phase 3) for per-gate hook configuration.
+- **[plan-quality-gate-hooks][plan-hooks]** — attaches validation gates to the same architectural junctions
+  this plan formalizes; consumes the configuration surface (Phase 3) for per-junction hook configuration.
 - **[plan-worktree-foundation][plan-wf]** — consumes the parallel-session concurrency model framing (Phase 1) and
   the metadata-state foundation (Phase 7). Spawn-vs-continue semantics build on the framing.
 - **[plan-concurrent-work-conventions][plan-cwc]** — consumes configurable autonomy (Phases 3, 5, 6) as the
@@ -403,10 +422,10 @@ independent and could overlap if scoped carefully.
   restructure begins.
 - Phases 4-7 can run alongside downstream plans' early phases — reversibility and auto modes don't block
   consumers of the frame itself, except for the metadata-state foundation dependency above.
-- **Validation gate between WU-A and WU-B (if split).** WU-A (Phases 1-3) lands on base and is dogfooded through
-  self-host's own session-operational flow for a defined validation window — multiple sessions exercising the new
-  status-file timing rule, the planning-session active surface, and the configuration surface — before WU-B
-  begins. If the WU stays unified, the equivalent dogfooding gate sits between Phase 3 and Phase 4.
+- **Validation window between WU-A and WU-B (if split).** WU-A (Phases 1-3) lands on base and is dogfooded
+  through self-host's own session-operational flow for a defined validation window — multiple sessions exercising
+  the new status-file timing rule, the planning-session active surface, and the configuration surface — before
+  WU-B begins. If the WU stays unified, the equivalent dogfooding window sits between Phase 3 and Phase 4.
 
 ### Pre-approved split at PRD-drafting time
 
@@ -423,10 +442,8 @@ Both halves are independently valuable; WU-A unblocks upstream plans even if WU-
 
 [adr-016]: ../../reference/adr/adr-016-configurable-autonomy-gates-for-session-operations.md
 [dev-rules-arc]: ../../reference/constitution/DEV-RULES.ARC.md
-[dev-rules-project]: ../../reference/constitution/DEV-RULES.PROJECT.md
 [strategy-team]: ../../reference/strategies/arc/strategy-team-coordination.md
 [strategy-session]: ../../reference/strategies/arc/strategy-session-operations.md
-[strategy-qg]: ../../reference/strategies/arc/strategy-quality-gates.md
 [plan-sync]: plan-user-sync-ux.md
 [plan-hooks]: plan-quality-gate-hooks.md
 [plan-wf]: plan-worktree-foundation.md
