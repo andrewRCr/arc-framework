@@ -23,8 +23,10 @@
 
 import type {
   ProbeError,
+  RunSessionHandoffStatusOptions,
   RunSessionInitStatusOptions,
   RunStatusOptions,
+  SessionHandoffResult,
   SessionInitProbeResult,
   StatusIdentity,
   StatusResult,
@@ -138,5 +140,49 @@ export async function runSessionInitStatus(
     config,
     active,
     domainRules,
+  };
+}
+
+/**
+ * Run the session-handoff composite probe.
+ *
+ * Self-contained envelope for the arc-handoff workflow. Fans out to six
+ * slots in parallel; per-slot failures wrap into `Probe` errors so the
+ * envelope itself never rejects. Identity is resolved in the handler and
+ * passed in as pointers; when `identity` is `null` the user (notes-sync)
+ * slot short-circuits without invoking its probe.
+ */
+export async function runSessionHandoffStatus(
+  options: RunSessionHandoffStatusOptions,
+): Promise<SessionHandoffResult> {
+  const { identity, role, probes } = options;
+
+  const dirtyTask = probes.dirty().then(ok, fromRejection);
+  const worktreeTask = probes.worktree().then(ok, fromRejection);
+  const userTask: Promise<SessionHandoffResult["user"]> = identity === null
+    ? Promise.resolve(identityMissing())
+    : probes.user(identity).then(ok, fromRejection);
+  const autonomyTask = probes.autonomy().then(ok, fromRejection);
+  const syncPushTask = probes.syncPush().then(ok, fromRejection);
+  const activeTask = probes.active(identity, role).then(ok, fromRejection);
+
+  const [dirty, worktree, user, autonomy, syncPush, active] = await Promise.all([
+    dirtyTask,
+    worktreeTask,
+    userTask,
+    autonomyTask,
+    syncPushTask,
+    activeTask,
+  ]);
+
+  return {
+    mode: "session-handoff",
+    identity: buildIdentity(identity, role),
+    dirty,
+    worktree,
+    user,
+    autonomy,
+    syncPush,
+    active,
   };
 }

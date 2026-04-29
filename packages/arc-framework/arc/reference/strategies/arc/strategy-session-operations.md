@@ -93,6 +93,24 @@ composite.
 The same machinery underlies the session-handoff probe (`arc status --session-handoff --json`); see
 § Handoff-Interior Toggle Pattern for the handoff envelope's role in workflow consumption.
 
+#### Handoff envelope fields
+
+The `arc status --session-handoff --json` envelope carries six probe slots plus identity. Each slot wraps in
+the same `Probe<T>` discriminated union as session-init; per-slot failures surface in the error branch
+rather than rejecting the composite. Mirrors the session-init field table in `session-init.md`.
+
+| Field      | Contents                                                                                                                                                                                       |
+|------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `identity` | `{identity, role}` — either may be `null`                                                                                                                                                      |
+| `dirty`    | Working-tree porcelain check (`value.state`: clean / dirty; `value.fileCount` carries the entry count, 0 when clean)                                                                           |
+| `worktree` | Worktree sync state vs. `origin/<current-branch>` — same shape as session-init's `worktree` slot                                                                                               |
+| `user`     | Notes-sync state — same shape as session-init's `user` slot; identity-missing short-circuit applies when `arc.identity` is absent                                                              |
+| `autonomy` | `{value, source}` — resolved `session.autonomy` policy with provenance (`git-config` / `yaml` / `default`). Surfaced top-level so handoff doesn't pull the broader session-init settings map   |
+| `syncPush` | `{policy, source}` — resolved `user.sync_push` policy with provenance. Handoff-interior toggle slot; future toggles (e.g., worktree push) register as named siblings here                      |
+| `active`   | Active status file resolution — same shape as session-init's `active` slot                                                                                                                     |
+
+Consumer plans reference this table from their plan docs when defining handoff-time workflow behavior.
+
 #### Extension contract
 
 Consumer plans extending the probe envelope add a field by registering a slot. The contract:

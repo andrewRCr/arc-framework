@@ -19,10 +19,12 @@ import * as p from "@clack/prompts";
 import {
   buildSessionInitStatusSummary,
   buildStatusSummary,
+  runSessionHandoffStatus,
   runSessionInitStatus,
   runStatus,
 } from "../commands/status.js";
 import type {
+  SessionHandoffProbes,
   SessionInitProbes,
   StatusProbes,
 } from "../commands/status.js";
@@ -44,13 +46,16 @@ import {
   runUserStatus,
 } from "../commands/user.js";
 import { gitConfigGet } from "../lib/git/index.js";
+import { runDirtyStateStatus } from "../lib/git/dirty-state.js";
 import { runWorktreeSyncStatus } from "../lib/git/worktree-sync.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { createUserIOContext, gitExec } from "../lib/io-context.js";
+import { resolveSyncPushPolicy } from "../lib/sync-policy.js";
 import { requireArcProjectRoot } from "./shared.js";
 
 export interface StatusCliOptions {
   sessionInit?: boolean;
+  sessionHandoff?: boolean;
   json?: boolean;
 }
 
@@ -76,11 +81,43 @@ async function readIdentityPointers(): Promise<{
 }
 
 export async function handleStatus(opts: StatusCliOptions): Promise<void> {
+  if (opts.sessionInit && opts.sessionHandoff) {
+    process.stderr.write(
+      "Error: --session-init and --session-handoff are mutually exclusive.\n",
+    );
+    process.exitCode = 1;
+    return;
+  }
+
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
   const json = Boolean(opts.json);
   const io = createUserIOContext();
   const { identity, role } = await readIdentityPointers();
+
+  if (opts.sessionHandoff) {
+    const { settings } = await readConfigSettings(cwd);
+    const remoteSyncEnabled = settings["session.remote_sync"] === "enabled";
+    const probes: SessionHandoffProbes = {
+      dirty: () => runDirtyStateStatus({ exec: gitExec }),
+      worktree: () => runWorktreeSyncStatus({ exec: gitExec, remoteSyncEnabled }),
+      user: (id) => runUserSessionInitStatus({ cwd, io, identity: id, remoteSyncEnabled }),
+      autonomy: async () => {
+        const result = await runConfigSessionInitStatus({ cwd, exec: gitExec });
+        return result.autonomy;
+      },
+      syncPush: () => resolveSyncPushPolicy({
+        exec: gitExec,
+        readFile: io.readFile,
+        cwd,
+      }),
+      active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r }),
+    };
+    const result = await runSessionHandoffStatus({ identity, role, probes });
+    // Interactive rendering not yet implemented — emit JSON regardless of the flag.
+    process.stdout.write(`${JSON.stringify(result)}\n`);
+    return;
+  }
 
   if (opts.sessionInit) {
     const { settings } = await readConfigSettings(cwd);

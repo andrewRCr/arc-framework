@@ -169,6 +169,7 @@ program
   .command("status")
   .description("Composite probe: identity + user-sync + extensions + config + active state")
   .option("--session-init", "Emit the session-init-scoped subset for harness consumption")
+  .option("--session-handoff", "Emit the session-handoff envelope for arc-handoff (mutually exclusive with --session-init)")
   .option("--json", "Emit the typed result as JSON")
   .action(handleStatus);
 

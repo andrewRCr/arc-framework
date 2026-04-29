@@ -213,41 +213,43 @@ lists, regression-prone surfaces.
           a no-override exec stub or `makeGitExec(fixture.root)` against the fixture repo. Tests batched
           single-pass per the test-first batching exception (single function, established wiring pattern).
 
-### `[ ]` **2.3 New mode: `arc status --session-handoff --json`**
+### `[x]` **2.3 New mode: `arc status --session-handoff --json`**
 
 - **Strategies:** `strategy-testing-methodology.md`
 
-- _Goal:_ Self-contained composite probe returning the handoff envelope — six slots: dirty state, worktree
-  sync, notes sync, autonomy with provenance, handoff-interior toggle values (`user.sync_push` today;
-  future siblings as named), resolved active status file path. Reuses field-resolver machinery from
-  session-init.
+- `arc status --session-handoff --json` ships as a self-contained composite probe — six slots (dirty,
+  worktree, user, autonomy, syncPush, active) plus identity. Reuses session-init's `Probe<T>` machinery and
+  most slot resolvers; the new dirty-state probe (`lib/git/dirty-state.ts`) is the only added resolver.
+  CLI mutual exclusion with `--session-init` enforced in the handler.
 
-    - `[ ]` **2.3.a CLI flag plumbing**
-        - Add `--session-handoff` to `arc status` in `cli.ts` and branch in `handlers/status.ts`. JSON-only
-          initially (interactive surface deferred). Mutually exclusive with `--session-init` — both passed
-          → error, non-zero exit, message naming the conflict.
+    - `[x]` **2.3.a CLI flag plumbing**
+        - Added `--session-handoff` flag to `arc status` (`cli.ts`) and a `sessionHandoff` branch in
+          `handlers/status.ts`. Mutual exclusion with `--session-init` checked at the top of the handler:
+          both passed → stderr message, `process.exitCode = 1`, return without further work. JSON-only
+          surface (interactive deferred); JSON emits regardless of the `--json` flag.
 
-    - `[ ]` **2.3.b Field-set wiring for handoff scope**
-        - New `runSessionHandoffStatus` in `commands/status/run.ts` paralleling `runSessionInitStatus`;
-          new types in `commands/status/types.ts` (`SessionHandoffProbes`, `SessionHandoffResult`); export
-          binding via `commands/status.ts`. Reuses `runWorktreeSyncStatus`, `runUserSessionInitStatus`,
-          `runActiveSessionInitStatus`, `runConfigSessionInitStatus` (autonomy slot), and adds a new
-          dirty-state resolver (porcelain check). Sync-push policy comes from `resolveSyncPushPolicy`
-          (existing) wired as a handoff-interior-toggle slot.
-        - Build `test-first` (one behavior at a time):
-            - returns dirty-state probe (porcelain check — clean / dirty + file-count detail)
-            - returns worktree sync state (reuse `runWorktreeSyncStatus`)
-            - returns notes sync state (reuse `runUserSessionInitStatus`)
-            - returns autonomy with provenance (reuse `runConfigSessionInitStatus`)
-            - returns sync-push policy with provenance (`resolveSyncPushPolicy`)
-            - returns resolved active status file path (reuse `runActiveSessionInitStatus`)
-            - per-slot errors carried in the envelope (no non-zero exit on per-probe failure)
+    - `[x]` **2.3.b Field-set wiring for handoff scope**
+        - `runSessionHandoffStatus` in `commands/status/run.ts` parallels `runSessionInitStatus` — six
+          probe slots fanned out via `Promise.all`, identity-missing short-circuit on the user slot, and
+          per-slot `Probe<T>` error wrapping. New types in `commands/status/types.ts`
+          (`SessionHandoffProbes`, `SessionHandoffResult`, `RunSessionHandoffStatusOptions`,
+          `HandoffAutonomy`); `commands/status.ts` re-exports.
+        - Handler wires the slots: dirty (new `runDirtyStateStatus`), worktree (reuse), user (reuse
+          `runUserSessionInitStatus`), autonomy (extracts `result.autonomy` from
+          `runConfigSessionInitStatus`), syncPush (reuse `resolveSyncPushPolicy`), active (reuse
+          `runActiveSessionInitStatus`).
+        - Tests: 4 unit tests for `runDirtyStateStatus` (clean / whitespace-only / single entry / mixed
+          staged-unstaged-untracked); 11 unit tests for `runSessionHandoffStatus` orchestration covering
+          all six listed behaviors plus identity-missing, parallelism (Promise.all peak-in-flight),
+          and per-slot error isolation. Tests batched single-pass per the test-first batching exception
+          (single orchestrator, established `runSessionInitStatus` pattern).
 
-    - `[ ]` **2.3.c Document the handoff envelope field table**
-        - Additive edit to `strategy-session-operations.md` § Probe pattern: append a handoff envelope field
-          table mirroring the existing session-init field table (in `session-init.md`). The conceptual
-          framing of the probe-extension contract already exists in that section; this task adds the field
-          inventory specific to `--session-handoff`. Consumer plans reference this from their plan docs.
+    - `[x]` **2.3.c Document the handoff envelope field table**
+        - Added `#### Handoff envelope fields` subsection under § Probe pattern in
+          `strategy-session-operations.md` (project + package source). Two-column field table mirroring
+          the session-init field table in `session-init.md`; entries cross-reference shared shapes
+          (worktree/user/active "same shape as session-init's slot") to avoid duplication. Two-copy edit
+          per package-project-sync; diff confirms identical content.
 
 ---
 

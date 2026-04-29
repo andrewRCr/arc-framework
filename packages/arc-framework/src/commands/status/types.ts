@@ -29,7 +29,10 @@ import type {
   UserSessionInitStatusResult,
   UserStatusResult,
 } from "../user/types.js";
+import type { AutonomyPolicy } from "../../lib/autonomy-policy.js";
+import type { DirtyStateResult } from "../../lib/git/dirty-state.js";
 import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
+import type { ResolvedSyncPush } from "../../lib/sync-policy.js";
 
 /** Git-config pointers resolved in the composite handler (not a probe). */
 export interface StatusIdentity {
@@ -92,6 +95,36 @@ export interface StatusProbes {
   active: () => Promise<ActiveStatusResult>;
 }
 
+/**
+ * Autonomy slot in the session-handoff envelope — narrow projection of
+ * `ConfigSessionInitResult.autonomy`. Distinct shape so the handoff envelope
+ * doesn't leak unrelated session-init settings.
+ */
+export interface HandoffAutonomy {
+  value: AutonomyPolicy;
+  source: "git-config" | "yaml" | "default";
+}
+
+/**
+ * Session-handoff composite result — `--session-handoff` consumer shape.
+ *
+ * Self-contained: arc-handoff is skill-invoked and shouldn't depend on
+ * session-init context still being intact. Six slots: dirty-state probe,
+ * worktree sync, notes sync (user), autonomy with provenance, the
+ * handoff-interior toggle set (`syncPush` today; future toggles named as
+ * sibling slots), and the resolved active status file.
+ */
+export interface SessionHandoffResult {
+  mode: "session-handoff";
+  identity: StatusIdentity;
+  dirty: Probe<DirtyStateResult>;
+  worktree: Probe<WorktreeSyncStatusResult>;
+  user: Probe<UserSessionInitStatusResult>;
+  autonomy: Probe<HandoffAutonomy>;
+  syncPush: Probe<ResolvedSyncPush>;
+  active: Probe<ActiveSessionInitResult>;
+}
+
 /** Probe functions in session-init mode — bound to cwd and any required I/O. */
 export interface SessionInitProbes {
   user: (identity: string) => Promise<UserSessionInitStatusResult>;
@@ -111,6 +144,19 @@ export interface SessionInitProbes {
   domainRules: () => Promise<DomainRulesSessionInitResult>;
 }
 
+/** Probe functions in session-handoff mode — bound to cwd and any required I/O. */
+export interface SessionHandoffProbes {
+  dirty: () => Promise<DirtyStateResult>;
+  worktree: () => Promise<WorktreeSyncStatusResult>;
+  user: (identity: string) => Promise<UserSessionInitStatusResult>;
+  autonomy: () => Promise<HandoffAutonomy>;
+  syncPush: () => Promise<ResolvedSyncPush>;
+  active: (
+    identity: string | null,
+    role: string | null,
+  ) => Promise<ActiveSessionInitResult>;
+}
+
 export interface RunStatusOptions {
   identity: string | null;
   role: string | null;
@@ -121,4 +167,10 @@ export interface RunSessionInitStatusOptions {
   identity: string | null;
   role: string | null;
   probes: SessionInitProbes;
+}
+
+export interface RunSessionHandoffStatusOptions {
+  identity: string | null;
+  role: string | null;
+  probes: SessionHandoffProbes;
 }

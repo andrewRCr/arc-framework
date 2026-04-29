@@ -25,6 +25,13 @@ export {
 } from "./worktree-sync.js";
 
 export {
+  runDirtyStateStatus,
+  type DirtyState,
+  type DirtyStateResult,
+  type RunDirtyStateStatusOptions,
+} from "./dirty-state.js";
+
+export {
   slugifyIdentity,
   resolveIdentity,
   type IdentityOptions,

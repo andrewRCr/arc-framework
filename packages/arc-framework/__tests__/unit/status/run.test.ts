@@ -18,10 +18,13 @@
 import { describe, it, expect, vi } from "vitest";
 
 import {
+  runSessionHandoffStatus,
   runSessionInitStatus,
   runStatus,
 } from "../../../src/commands/status.js";
 import type {
+  HandoffAutonomy,
+  SessionHandoffProbes,
   SessionInitProbes,
   StatusProbes,
 } from "../../../src/commands/status.js";
@@ -42,7 +45,9 @@ import type {
   UserSessionInitStatusResult,
   UserStatusResult,
 } from "../../../src/commands/user/types.js";
+import type { DirtyStateResult } from "../../../src/lib/git/dirty-state.js";
 import type { WorktreeSyncStatusResult } from "../../../src/lib/git/worktree-sync.js";
+import type { ResolvedSyncPush } from "../../../src/lib/sync-policy.js";
 
 // --- Fixtures ---
 
@@ -205,6 +210,32 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
     config: vi.fn(async () => configSessionInit()),
     active: vi.fn(async () => activeSessionInit()),
     domainRules: vi.fn(async () => domainRulesSessionInit()),
+    ...overrides,
+  };
+}
+
+function dirtyState(overrides: Partial<DirtyStateResult> = {}): DirtyStateResult {
+  return { state: "clean", fileCount: 0, ...overrides };
+}
+
+function handoffAutonomy(overrides: Partial<HandoffAutonomy> = {}): HandoffAutonomy {
+  return { value: "manual-commit", source: "default", ...overrides };
+}
+
+function resolvedSyncPush(overrides: Partial<ResolvedSyncPush> = {}): ResolvedSyncPush {
+  return { policy: "always", source: "default", ...overrides };
+}
+
+function sessionHandoffProbes(
+  overrides: Partial<SessionHandoffProbes> = {},
+): SessionHandoffProbes {
+  return {
+    dirty: vi.fn(async () => dirtyState()),
+    worktree: vi.fn(async () => worktreeSync()),
+    user: vi.fn(async () => userSessionInit()),
+    autonomy: vi.fn(async () => handoffAutonomy()),
+    syncPush: vi.fn(async () => resolvedSyncPush()),
+    active: vi.fn(async () => activeSessionInit()),
     ...overrides,
   };
 }
@@ -614,5 +645,204 @@ describe("JSON wire shape — discriminated union survives serialization", () =>
       expect(roundTripped.extensions.error.kind).toBe("runtime");
       expect(roundTripped.extensions.error.message).toBe("boom");
     }
+  });
+});
+
+describe("runSessionHandoffStatus — orchestration", () => {
+  it("invokes every probe helper exactly once", async () => {
+    const probes = sessionHandoffProbes();
+    await runSessionHandoffStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(probes.dirty).toHaveBeenCalledTimes(1);
+    expect(probes.worktree).toHaveBeenCalledTimes(1);
+    expect(probes.user).toHaveBeenCalledTimes(1);
+    expect(probes.autonomy).toHaveBeenCalledTimes(1);
+    expect(probes.syncPush).toHaveBeenCalledTimes(1);
+    expect(probes.active).toHaveBeenCalledTimes(1);
+    expect(probes.user).toHaveBeenCalledWith("andrew");
+    expect(probes.active).toHaveBeenCalledWith("andrew", "maintainer");
+  });
+
+  it("returns the full set of expected slots", async () => {
+    const probes = sessionHandoffProbes();
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(Object.keys(result).sort()).toEqual([
+      "active",
+      "autonomy",
+      "dirty",
+      "identity",
+      "mode",
+      "syncPush",
+      "user",
+      "worktree",
+    ]);
+    expect(result.mode).toBe("session-handoff");
+  });
+
+  it("returns dirty-state probe (clean / dirty + file-count detail)", async () => {
+    const probes = sessionHandoffProbes({
+      dirty: vi.fn(async () => dirtyState({ state: "dirty", fileCount: 3 })),
+    });
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.dirty.ok).toBe(true);
+    if (result.dirty.ok) {
+      expect(result.dirty.value).toEqual({ state: "dirty", fileCount: 3 });
+    }
+  });
+
+  it("returns worktree sync state from the worktree probe", async () => {
+    const probes = sessionHandoffProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "local-ahead", ahead: 2, behind: 0 })),
+    });
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.worktree.ok).toBe(true);
+    if (result.worktree.ok) {
+      expect(result.worktree.value.state).toBe("local-ahead");
+      expect(result.worktree.value.ahead).toBe(2);
+    }
+  });
+
+  it("returns notes sync state from the user probe", async () => {
+    const probes = sessionHandoffProbes({
+      user: vi.fn(async () => userSessionInit({ state: "remote-ahead" })),
+    });
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.user.ok).toBe(true);
+    if (result.user.ok) expect(result.user.value.state).toBe("remote-ahead");
+  });
+
+  it("returns autonomy with provenance from the autonomy probe", async () => {
+    const probes = sessionHandoffProbes({
+      autonomy: vi.fn(async () => handoffAutonomy({ value: "auto-push", source: "git-config" })),
+    });
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.autonomy.ok).toBe(true);
+    if (result.autonomy.ok) {
+      expect(result.autonomy.value).toEqual({ value: "auto-push", source: "git-config" });
+    }
+  });
+
+  it("returns sync-push policy with provenance from the syncPush probe", async () => {
+    const probes = sessionHandoffProbes({
+      syncPush: vi.fn(async () => resolvedSyncPush({ policy: "prompt", source: "yaml" })),
+    });
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.syncPush.ok).toBe(true);
+    if (result.syncPush.ok) {
+      expect(result.syncPush.value).toEqual({ policy: "prompt", source: "yaml" });
+    }
+  });
+
+  it("returns the resolved active status file path from the active probe", async () => {
+    const probes = sessionHandoffProbes({
+      active: vi.fn(async () =>
+        activeSessionInit({
+          resolution: "single",
+          path: ".arc/active/technical/status-foo.md",
+        }),
+      ),
+    });
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.active.ok).toBe(true);
+    if (result.active.ok) {
+      expect(result.active.value.resolution).toBe("single");
+      expect(result.active.value.path).toBe(".arc/active/technical/status-foo.md");
+    }
+  });
+
+  it("carries per-slot errors in the envelope without rejecting the composite", async () => {
+    const probes = sessionHandoffProbes({
+      dirty: vi.fn(async () => { throw new Error("porcelain failed"); }),
+      autonomy: vi.fn(async () => { throw new Error("config unreadable"); }),
+    });
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.dirty.ok).toBe(false);
+    expect(result.autonomy.ok).toBe(false);
+    if (!result.dirty.ok) {
+      expect(result.dirty.error.kind).toBe("runtime");
+      expect(result.dirty.error.message).toBe("porcelain failed");
+    }
+    if (!result.autonomy.ok) {
+      expect(result.autonomy.error.kind).toBe("runtime");
+      expect(result.autonomy.error.message).toBe("config unreadable");
+    }
+    // Sibling slots resolve normally.
+    expect(result.worktree.ok).toBe(true);
+    expect(result.user.ok).toBe(true);
+    expect(result.syncPush.ok).toBe(true);
+    expect(result.active.ok).toBe(true);
+  });
+
+  it("short-circuits the user slot when identity is null", async () => {
+    const probes = sessionHandoffProbes();
+    const result = await runSessionHandoffStatus({
+      identity: null,
+      role: null,
+      probes,
+    });
+    expect(probes.user).not.toHaveBeenCalled();
+    expect(result.user.ok).toBe(false);
+    if (!result.user.ok) expect(result.user.error.kind).toBe("identity-missing");
+    // Other slots still fire.
+    expect(probes.dirty).toHaveBeenCalledTimes(1);
+    expect(probes.worktree).toHaveBeenCalledTimes(1);
+    expect(probes.autonomy).toHaveBeenCalledTimes(1);
+    expect(probes.syncPush).toHaveBeenCalledTimes(1);
+    expect(probes.active).toHaveBeenCalledTimes(1);
+  });
+
+  it("starts all probes concurrently via Promise.all", async () => {
+    let inFlight = 0;
+    let peakInFlight = 0;
+    function tracked<T>(value: T): () => Promise<T> {
+      return async () => {
+        inFlight += 1;
+        peakInFlight = Math.max(peakInFlight, inFlight);
+        await Promise.resolve();
+        inFlight -= 1;
+        return value;
+      };
+    }
+    const probes = sessionHandoffProbes({
+      dirty: tracked(dirtyState()),
+      worktree: tracked(worktreeSync()),
+      user: tracked(userSessionInit()),
+      autonomy: tracked(handoffAutonomy()),
+      syncPush: tracked(resolvedSyncPush()),
+      active: tracked(activeSessionInit()),
+    });
+    await runSessionHandoffStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(peakInFlight).toBe(6);
   });
 });
