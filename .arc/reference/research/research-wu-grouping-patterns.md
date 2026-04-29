@@ -147,7 +147,7 @@ QUICK-REFERENCE as optional convention (omit if WU is independent).
 
 ```
 **Upstream / Prerequisite WUs:**
-- `prd-interlock-foundation.md` — establishes ADR-016 gate model and constitutional amendments;
+- `prd-interlock-foundation.md` — establishes ADR-016 interlock model and constitutional amendments;
   this WU implements core behavioral modes downstream of that frame
 
 **Sibling / Parallel WUs (same logical whole):**

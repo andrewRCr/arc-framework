@@ -23,18 +23,24 @@ extract any prose crossing operational sufficiency (rationale, precedent, tradeo
 `notes-docs-content-sweep.md` entry with a `[TODO-docs-site]` placeholder at the source site. Extended
 operational context (worth having on hand, not preload-needed) routes to `strategy-session-operations.md`.
 
-### `[ ]` **1.1 ADR-016 vocabulary cascade across remaining `.arc/` references**
+### `[x]` **1.1 ADR-016 vocabulary cascade across remaining `.arc/` references**
 
-- _Goal:_ Every "gate" reference where "interlock" is meant resolves to the new vocabulary; ADR-016 reads
-  consistently after rename.
+- _Outcome:_ Autonomy-model "gate" usages renamed to "interlock" across 6 backlog/research
+  files (~19 substitutions). Quality-gate vocabulary and ADR-016's validation-deadline
+  gate-suffix parallel (commit-gate/push-gate/integration-gate) preserved per § Decision.
+  Triage of 714 raw hits captured in 1.1.a; rename inventory in 1.1.b.
 
-    - `[ ]` **1.1.a Inventory remaining "gate" references**
-        - `grep -rn "gate" .arc/reference .arc/system .arc/backlog --include="*.md"` and triage hits.
-          Autonomy-model references rename to `interlock`; quality-gates terminology stays.
+    - `[x]` **1.1.a Inventory remaining "gate" references**
+        - _Outcome:_ 714 hits triaged: quality-gate vocabulary stays; ADR-016 validation-
+          deadline gate-suffixes (commit-gate/push-gate/integration-gate) stay per § Decision;
+          metaphorical uses stay. Rename surface = ~19 hits across 6 files identified for 1.1.b.
 
-    - `[ ]` **1.1.b Update incoming references**
-        - DEV-RULES.ARC existing prose, strategy docs that reference ADR-016, plan-doc cross-references
-          not yet updated, workflow prose. Stage edits per file.
+    - `[x]` **1.1.b Update incoming references**
+        - _Outcome:_ Renamed autonomy-model "gate" → "interlock" across 6 files
+          (`plan-user-sync-ux.md`, `plan-concurrent-work-conventions.md` incl. § heading,
+          `plan-agile-wu-lifecycle.md`, `ROADMAP.md`, `plan-coord-probe.md`,
+          `research-wu-grouping-patterns.md`). DEV-RULES.ARC and workflow prose had no
+          autonomy-model "gate" usage; strategy docs referencing ADR-016 had none either.
 
 ### `[ ]` **1.2 DEV-RULES.ARC § Autonomy Stack new top-level section**
 

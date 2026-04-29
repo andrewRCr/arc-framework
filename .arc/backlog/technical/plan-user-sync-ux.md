@@ -53,7 +53,7 @@ This matters now because:
 
 ## Relationship to Gate Model Frame
 
-[ADR-016][adr-016] establishes configurable autonomy gates for session-operational flow, with
+[ADR-016][adr-016] establishes configurable autonomy interlocks for session-operational flow, with
 [plan-session-operational-flow][plan-ops] implementing the core mechanics — including the
 handoff-interior toggle framework for configuring actions inside `arc handoff`. This plan consumes
 that framework: the auto-push design below becomes an instantiation of handoff-interior toggles
@@ -98,10 +98,10 @@ a transient blip and a hard auth/config failure render identically. Fold the fie
 rendered line — timeout reads as "likely transient, retry or use `--offline`"; error reads as
 "investigate auth/network".
 
-**Auto-push implementation within the gate-model frame.** Consumes the handoff-interior toggle framework
+**Auto-push implementation within the interlock-model frame.** Consumes the handoff-interior toggle framework
 from [plan-session-operational-flow][plan-ops] (Phase 6). This plan instantiates paired worktree-push +
 notes-push as configurable handoff-interior actions — solving the `user.sync_push: always` incoherence
-(notes pushed without commits) by pairing both operations at the same gate. Includes pushability
+(notes pushed without commits) by pairing both operations at the same interlock. Includes pushability
 pre-checks (protected branches, unpushable states, rebase in progress), failure semantics, and
 remote-unavailable handling. Config axis shape is provided by the frame; this plan picks up the
 worktree/notes-specific instantiation.
@@ -110,7 +110,7 @@ worktree/notes-specific instantiation.
 the recommended default is handoff-only push (with per-commit available as a power-user opt-in). This plan's
 worktree+notes pairing is the canonical instantiation of that default. Rationales relevant here:
 
-- **Pairing.** Worktree-push and notes-push must land at the same gate; handoff is the natural pairing
+- **Pairing.** Worktree-push and notes-push must land at the same interlock; handoff is the natural pairing
   point. Per-commit push of either side without the other re-creates the `user.sync_push: always`
   incoherence this plan exists to fix.
 - **Concurrent-session safety.** Under ARC's parallel-session concurrency model (per
@@ -150,7 +150,7 @@ on this machine pushed."
     - *Con:* Doesn't fix underlying architecture. Copy inconsistency remains. Full-mode stays hard to
       reason about.
 
-**Auto-push config shape** is now provided by the gate-model frame's handoff-interior toggle framework
+**Auto-push config shape** is now provided by the interlock-model frame's handoff-interior toggle framework
 (see [plan-session-operational-flow][plan-ops] Phase 6). The three axes previously enumerated here
 (new `handoff.push` key, extended `user.sync_push`, smart coupling) are superseded — worktree push
 and notes push become paired handoff-interior toggles under the frame's configuration schema.
@@ -168,8 +168,8 @@ Remaining plan-level design choices (for PRD):
 ## Unknowns and Assumptions
 
 **External research status update.** The coupled-push semantics research ("is pairing branch + metadata
-push idiomatic?") is partially obviated by the gate-model frame — the frame's architectural decision
-is that pairing-at-same-gate is the right shape, validated by industrial precedent in
+push idiomatic?") is partially obviated by the interlock-model frame — the frame's architectural decision
+is that pairing-at-same-interlock is the right shape, validated by industrial precedent in
 [ADR-016][adr-016]. Remaining research value at PRD drafting:
 
 - Pushability pre-check conventions in modern VCS tooling (protected branches, unpushable states) —
@@ -227,12 +227,12 @@ Rough breakdown:
 
 **Scheduling:** After Session-Init Optimization and plan-session-operational-flow Phase 6 (handoff-interior
 toggles). State-machine + copy work can start once Session-Init Optimization lands; auto-push work
-waits for the gate-model frame. Before Work-Unit Mobility and ARCd Rebrand. Pre-1.0 polish window
+waits for the interlock-model frame. Before Work-Unit Mobility and ARCd Rebrand. Pre-1.0 polish window
 where fixing sync UX produces maximum leverage for downstream work.
 
 **Pre-approved split at PRD-drafting time:** Natural split aligns with the frame dependency:
 
-- WU-A: State-machine unification + copy audit (small–medium; independent of gate-model frame; can
+- WU-A: State-machine unification + copy audit (small–medium; independent of interlock-model frame; can
   ship as soon as Session-Init Optimization lands).
 - WU-B: Auto-push instantiation against handoff-interior toggle framework (medium; waits for
   [plan-session-operational-flow][plan-ops] Phase 6).

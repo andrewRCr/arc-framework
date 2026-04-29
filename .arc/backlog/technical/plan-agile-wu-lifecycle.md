@@ -57,7 +57,7 @@ What scales with WU size is **artifact ceremony**: planning artifacts (plan-*, P
 
 This framing **explicitly answers the [plan-arc-modes.md][arc-modes] § Mode 1 rejection** of the
 "Required vs Available" model. That rejection was about making *execution discipline* optional — task
-gates removed, quality gates skipped, "trust the dev." This WU does none of that: execution
+interlocks removed, quality gates skipped, "trust the dev." This WU does none of that: execution
 discipline is enforced at every tier. What varies is where the spec lives, how tasks are organized,
 and how the work is archived. Those are scaling-dependent ceremony, not discipline.
 

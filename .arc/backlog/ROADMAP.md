@@ -195,7 +195,7 @@ this WU handles the architectural work.
   ARCd Rebrand (terminology surface stabilized before rename), Dogfooding (beta-ready
   user-sync surface)
 - **Scope note:** Natural split aligned with frame dependency: WU-A (state-machine unification +
-  copy audit + notes-discovery fix — independent of gate-model frame) can ship as soon as
+  copy audit + notes-discovery fix — independent of interlock-model frame) can ship as soon as
   Session-Init Optimization lands; WU-B (auto-push instantiation against handoff-interior
   toggles) waits for Session-Operational Flow Phase 6. Unified if sequencing allows.
 
@@ -506,19 +506,19 @@ site structure.
   Surfaced during pre-PRD exploration of User Sync UX Polish — the `user.sync_push: always`
   incoherence (notes push without commits) revealed a missing shared frame for session-operational
   flow that was blocking coherent design across User Sync UX, Work-Unit Mobility, and Quality Gate
-  Hooks. ADR-016 establishes the gate model (task → commit → push → integrate linear stack with
+  Hooks. ADR-016 establishes the interlock model (task → commit → push → integrate linear stack with
   invariant endpoints; handoff as orthogonal ceremony); `plan-session-operational-flow` executes
   the frame (constitutional amendments, status-file timing split, configuration surface, autonomy
   modes, reversibility protocol, handoff-interior toggle framework). Downgrades "AI never
-  initiates commits" from non-negotiable principle to configurable default; elevates task-gate
-  review and integration-gate human authority as real invariants. Reshapes three downstream
+  initiates commits" from non-negotiable principle to configurable default; elevates task-interlock
+  review and integration-interlock human authority as real invariants. Reshapes three downstream
   plans: User Sync UX lightens (auto-push becomes handoff-interior toggle instantiation), Quality
   Gate Hooks gains canonical gate vocabulary + handoff-gate stage, Work-Unit Mobility adds
   async-merge integration-surface audit + concurrent-session posture reconciliation +
   status-field rotation classification. New sequencing: Session-Init Optimization →
   Session-Operational Flow → {User Sync UX || Work-Unit Mobility || Quality Gate Hooks}
   (parallelize after frame lands) → ARCd Rebrand → Expanded Planning Path → Operating Modes →
-  Dogfooding → WU5. External research validated gate-model alignment with industrial SWE practice
+  Dogfooding → WU5. External research validated interlock-model alignment with industrial SWE practice
   (Spinnaker manual judgment, GitHub Environments, Atlantis, Terraform autonomy tiers,
   Conventional Changelog boundary-consolidation); three honest-framing points where industry
   precedent is absent or mixed absorbed into ADR Context.

@@ -94,9 +94,9 @@ This framing has direct implications for conventions in this WU:
 
 ---
 
-## Relationship to Gate Model Frame
+## Relationship to Interlock Model Frame
 
-[ADR-016][adr-016] establishes configurable autonomy gates for session-operational flow, with
+[ADR-016][adr-016] establishes configurable autonomy interlocks for session-operational flow, with
 [plan-session-operational-flow][plan-ops] implementing the core mechanics. This WU consumes the
 frame as an enabler — configurable autonomy modes reduce approval ceremony under multi-session
 load, which is exactly the ergonomic gap multi-worktree introduces.
@@ -108,7 +108,7 @@ load, which is exactly the ergonomic gap multi-worktree introduces.
   commit / auto-push toggles, making the bandwidth cost tractable. PRD should resolve whether the
   posture shifts from "tolerated" to "principled at modest scale" or stays unchanged.
 - **Swap discipline alignment.** This plan's "swap primary ↔ companion only at review-increment
-  boundaries" is exactly the task-gate invariance ADR-016 establishes. They compose perfectly.
+  boundaries" is exactly the task-interlock invariance ADR-016 establishes. They compose perfectly.
 - **Status-file rotation for new fields.** New fields introduced by this plan (`**Focus Role:**`,
   `**Focus Since:**`) need rotation-vs-shape classification per ADR-016's status-file timing split.
   `Focus Role` is shape-changing (deliberate transition) → commit-time. `Focus Since` is rotation-
