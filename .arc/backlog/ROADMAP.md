@@ -133,7 +133,7 @@ pre-commit + CI enforcement (CHECK 12/14/16, lint:arc:*) anchor drift resistance
 - Downstream: Session-Operational Flow (shared session-init / session-handoff / DEV-RULES surface),
   ARCd Rebrand (lean session-init surface for rebrand terminology sweep)
 
-**Interlock Foundation** — Planning (PRD drafted 2026-04-28)
+**Interlock Foundation** — In Progress (activated 2026-04-29)
 
 Lands ADR-016's interlock model (Accepted): the constitutional frame for session-operational flow
 with task → commit → push → integrate as the linear autonomy stack (invariant endpoints, configurable

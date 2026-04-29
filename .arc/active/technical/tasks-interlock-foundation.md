@@ -1,6 +1,6 @@
 # Task List: Interlock Foundation
 
-- **PRD:** `.arc/backlog/technical/prd-interlock-foundation.md`
+- **PRD:** `.arc/active/technical/prd-interlock-foundation.md`
 - **Branch(es):** `technical/interlock-foundation`
 - **Base Branch:** `main`
 
@@ -455,4 +455,4 @@ once they land. Captured as supplemental evidence, not a substitute.
 ---
 
 [verify-work-unit]: ../../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md
-[notes-sweep]: notes-docs-content-sweep.md
+[notes-sweep]: ../../backlog/technical/notes-docs-content-sweep.md
