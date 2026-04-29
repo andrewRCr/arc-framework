@@ -6,7 +6,15 @@
  * consumers interpret against the enum semantics documented in
  * arc-config.yml. `hooks.*` keys are intentionally excluded from both
  * shapes: they are shell-consumed by git hooks, never by the agent.
+ *
+ * The session-init result also carries a top-level `autonomy` field with
+ * resolved-with-provenance shape — agent-consumed at session-init time
+ * (the agent renders the structured task-completion prompt against it).
+ * Distinct from the raw `settings` map, which stays string-valued.
  */
+
+import type { AutonomyPolicy } from "../../lib/autonomy-policy.js";
+import type { GitExec } from "../../lib/git/index.js";
 
 /** All agent-consumable arc-config settings. Raw string values. */
 export interface ConfigSettings {
@@ -52,12 +60,16 @@ export interface ConfigStatusResult {
   warnings: string[];
 }
 
-/** Session-init-scoped result — the init-gating subset only. */
+/** Session-init-scoped result — the init-gating subset plus resolved autonomy. */
 export interface ConfigSessionInitResult {
   mode: "session-init";
   settings: ConfigSessionInitSettings;
   defaultsApplied: string[];
   warnings: string[];
+  autonomy: {
+    value: AutonomyPolicy;
+    source: "git-config" | "yaml" | "default";
+  };
 }
 
 export type ConfigResult = ConfigStatusResult | ConfigSessionInitResult;
@@ -68,4 +80,6 @@ export interface ConfigStatusOptions {
 
 export interface ConfigSessionInitOptions {
   cwd: string;
+  /** Required for `git config arc.autonomy` lookup at the resolver's git-config tier. */
+  exec: GitExec;
 }

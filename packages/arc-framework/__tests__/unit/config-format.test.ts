@@ -65,6 +65,7 @@ function sessionInitResult(
     settings: { ...SESSION_INIT_SETTINGS },
     defaultsApplied: [],
     warnings: [],
+    autonomy: { value: "manual-commit", source: "default" },
     ...overrides,
   };
 }

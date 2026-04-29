@@ -150,6 +150,7 @@ function makeSessionInitResult(
         },
         defaultsApplied: [],
         warnings: [],
+        autonomy: { value: "manual-commit", source: "default" },
       },
     },
     active: {

@@ -194,22 +194,24 @@ lists, regression-prone surfaces.
         - Two-copy edit per package-project-sync discipline; only pre-existing project-specific overrides
           (branch.protection, hooks.test_patterns, hooks.meta_ref_patterns) differ between the copies.
 
-### `[ ]` **2.2 Session-init probe surfaces resolved autonomy**
+### `[x]` **2.2 Session-init probe surfaces resolved autonomy**
 
 - **Strategies:** `strategy-testing-methodology.md`
 
-    - `[ ]` **2.2.a Wire autonomy into `config.value`**
-        - Extend `runConfigSessionInitStatus` (`commands/config/status.ts`) to call `resolveAutonomyPolicy`
-          and surface the resolved-with-provenance shape as a new top-level field. Signature change:
-          `ConfigSessionInitOptions` gains `exec: GitExec`; bulk `settings` map stays raw yaml (autonomy
-          isn't added to `ConfigSettings`). `ConfigSessionInitResult` gains
-          `autonomy: { value: "manual-commit" | "auto-commit" | "auto-push", source: "git-config" | "yaml" | "default" }`.
-          Caller in `handlers/status.ts` passes `gitExec` through.
-        - Build `test-first` (one behavior at a time):
-            - returns `{ value: "manual-commit", source: "default" }` when both sources absent
-            - returns `{ value: <yaml>, source: "yaml" }` when only yaml provides
-            - returns `{ value: <git-config>, source: "git-config" }` when override applies
-            - resolver warnings propagate into `warnings` array unchanged
+- `runConfigSessionInitStatus` calls `resolveAutonomyPolicy` and surfaces `autonomy: { value, source }` as a
+  top-level field on `ConfigSessionInitResult`. Resolver warnings merge into the existing `warnings` array.
+  `ConfigSettings` and `ConfigSessionInitSettings` stay unchanged (autonomy lives outside the raw yaml map).
+
+    - `[x]` **2.2.a Wire autonomy into `config.value`**
+        - `ConfigSessionInitOptions` gains required `exec: GitExec`; `ConfigSessionInitResult` gains
+          `autonomy: { value: AutonomyPolicy, source: "git-config" | "yaml" | "default" }` (vocabulary
+          maps `policy` → `value` at the envelope boundary). Implementation reads `arc-config.yml` via
+          `node:fs/promises` and routes resolver warnings into the result `warnings`.
+        - Both `handlers/status.ts` (session-init composite probe) and `handlers/config.ts` (`arc config
+          status --session-init`) pass `gitExec` through. Existing test fixtures gained a default
+          `autonomy: { value: "manual-commit", source: "default" }` slot; existing call sites adopt either
+          a no-override exec stub or `makeGitExec(fixture.root)` against the fixture repo. Tests batched
+          single-pass per the test-first batching exception (single function, established wiring pattern).
 
 ### `[ ]` **2.3 New mode: `arc status --session-handoff --json`**
 

@@ -190,7 +190,7 @@ function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
     user: async (identity) => stubUserSessionInit(identity),
     worktree: async () => ({ state: "skipped", ahead: 0, behind: 0 }),
     extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
-    config: () => runConfigSessionInitStatus({ cwd: fixture.root }),
+    config: () => runConfigSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
     active: () => runActiveSessionInitStatus({ cwd: fixture.root }),
     domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
   };
@@ -363,7 +363,7 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
       user: async (id) => stubUserSessionInit(id),
       worktree: async () => ({ state: "skipped", ahead: 0, behind: 0 }),
       extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
-      config: () => runConfigSessionInitStatus({ cwd: fixture.root }),
+      config: () => runConfigSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
       active: (identity, role) =>
         runActiveSessionInitStatus({ cwd: fixture.root, identity, role }),
       domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
@@ -513,7 +513,7 @@ function makeRealWorktreeProbes(
         remoteSyncEnabled,
       }),
     extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
-    config: () => runConfigSessionInitStatus({ cwd: fixture.root }),
+    config: () => runConfigSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
     active: () => runActiveSessionInitStatus({ cwd: fixture.root }),
     domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
   };

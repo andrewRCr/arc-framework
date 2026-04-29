@@ -161,6 +161,7 @@ function configSessionInit(
     },
     defaultsApplied: [],
     warnings: [],
+    autonomy: { value: "manual-commit", source: "default" },
     ...overrides,
   };
 }
