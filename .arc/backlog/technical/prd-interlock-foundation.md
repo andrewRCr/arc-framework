@@ -1,7 +1,8 @@
 # PRD: Interlock Foundation
 
-- **Type:** Technical
-- **Updated:** 2026-04-28
+**Purpose:** Establish ARC's interlock-model constitutional foundation — vocabulary, configuration axis,
+planning-session active surface, structured task-completion prompt, rollback protocol — so downstream
+auto-mode behaviors (sibling WU) and consumer plans build on a stable frame.
 
 ---
 
@@ -38,8 +39,9 @@ quarter; both consume this frame.
    commits, never at task-completion code commits.
 3. Establish the structured task-completion prompt (`Proceed to Task X.Y?` / `Commit and proceed to Task
    X.Y?`) as base ARC behavior — manual mode benefits regardless of autonomy configuration.
-4. Provide the planning-session active surface — status file at planning activation, `**Spec:**` field for
-   polymorphic pointer, `State: Planning` value, sessionType inference from State.
+4. Provide the planning-session active surface — status file at planning activation, `**Spec:**` and
+   `**Sibling Work Unit(s):**` fields, `State: Planning` value, sessionType inference from State, and
+   idempotent ensure-status-file fallback at WU activation for paths that bypass planning-branch ceremony.
 5. Ship the configuration surface — `session.autonomy` axis with per-developer override, composite handoff
    probe, handoff-interior toggle config-key pattern documented for downstream consumers.
 6. Document the rollback protocol — session-local, manual-confirmation, dev-rule-based — with no skill or
@@ -64,9 +66,12 @@ pointer state.
 Today: planning sessions resolve as `active.resolution: "none"`; project pointer lives only in gitignored
 SESSION-NOTES; orientation can't surface planning context cleanly.
 After: `activate-planning-branch.md` creates a status file at planning activation with
-`State: Planning` and (optionally) `**Spec:**` pointing at the plan-doc. `integrate-planning-branch.md`
-disposes of the file on integration (graduated → convert State; shelved → remove). Probe
-sessionType inference reads `State: Planning` as primary signal; orientation surfaces planning context.
+`State: Planning`, optional `**Spec:**` pointing at the plan-doc, and optional `**Sibling Work Unit(s):**`
+when known. `integrate-planning-branch.md` disposes of the file on integration (graduated → convert State;
+shelved → remove). Probe sessionType inference reads `State: Planning` as primary signal; orientation
+surfaces planning context. For paths that bypass planning-branch ceremony (partial protection or other
+entry routes), `activate-work-unit.md` Step 4 acts as the safety net — idempotent ensure-status-file
+behavior creates the file at WU activation if absent.
 
 **Scenario 4: Handoff workflow restructured around composite probe.**
 Today: handoff workflow performs ad-hoc checks across multiple commands.
@@ -118,59 +123,73 @@ no auto-migration logic. The repo has zero adopters; mass-migration infrastructu
 
 **Planning-session active surface:**
 
-9. `template-status.md` adds `**Spec:**` field — polymorphic pointer accepting `.md` filename, URL, or empty.
+9. `template-status.md` adds `**Spec:**` field — polymorphic pointer accepting `.md` filename, URL, or
+   empty — and `**Sibling Work Unit(s):**` field — comma-separated list of `prd-{name}.md` references to
+   tightly-coupled WUs (same logical whole, split for sizing or sequencing). Both optional. Lives on the
+   status file rather than the PRD because the status file is the unified WU pointer artifact (read at
+   every session-init via Active Work, persisting into archive under
+   [plan-completion-status-consolidation][plan-csc]).
 10. `template-status.md` adds `State: Planning` value to the State enum (other enum values introduced in
     sibling WU; `In Progress` retained as today's default for non-planning WUs).
 11. `activate-planning-branch.md` creates a status file at planning activation
-    (State: Planning, optional Spec, no Task List).
-12. `integrate-planning-branch.md` handles status-file disposition on integration — graduated path converts
+    (State: Planning, optional Spec, optional Sibling Work Unit(s), no Task List).
+12. `activate-work-unit.md` Step 4 becomes idempotent ensure-status-file — if a status file already exists
+    from planning, transition it (State: Planning → In Progress, fill Task List, etc.); if absent, create
+    from template. Acts as the universal safety net for paths that bypass planning-branch ceremony.
+    Forward-compat foundation for the [arc-plan conductor][plan-conductor] reframe, which adds a third
+    converging entry route (arc-plan invocation creates the status file when absent).
+13. `integrate-planning-branch.md` handles status-file disposition on integration — graduated path converts
     State and retains the file; shelved path removes the file.
-13. Plan-doc location during planning (arc-in-git only) — `activate-planning-branch.md` does
+14. Plan-doc location during planning (arc-in-git only) — `activate-planning-branch.md` does
     `git mv backlog/{category}/plan-{name}.md → active/{category}/`; `integrate-planning-branch.md`
     disposes per outcome (graduated → `git rm`; shelved → `git mv` back to backlog). Other pm.modes leave
     plan-doc location user-managed.
-14. Probe sessionType inference reads `State: Planning` as primary signal, with branch-pattern fallback
+15. Probe sessionType inference reads `State: Planning` as primary signal, with branch-pattern fallback
     retained for orphan cases.
+16. Status-file creation contract documented in [strategy-session-operations][strategy-session]: routes
+    converge on the same template with idempotent semantics (planning-branch ceremony / activate-work-unit
+    fallback today; arc-plan conductor invocation in the future). Cross-referenced from
+    [plan-arc-plan-conductor][plan-conductor] as the foundation it consumes.
 
 **Configuration surface:**
 
-15. `arc-config.yml` adds `session.autonomy: manual-commit | auto-commit | auto-push` (default
+17. `arc-config.yml` adds `session.autonomy: manual-commit | auto-commit | auto-push` (default
     `manual-commit`). Per-developer override via `git config arc.autonomy <value>` (mirrors the
     `user.sync_push` / `arc.syncPush` pattern).
-16. CLI schema validation — `session.autonomy` value is one of the enum options or absent (default applies).
-17. Session-init probe (`arc status --session-init --json`) extends `config.value.settings` to surface
+18. CLI schema validation — `session.autonomy` value is one of the enum options or absent (default applies).
+19. Session-init probe (`arc status --session-init --json`) extends `config.value.settings` to surface
     `session.autonomy` (alongside existing keys). Init-time consumers (load-set adaptation in sibling WU)
     read the value from there.
-18. New CLI mode: `arc status --session-handoff --json`. Composite probe returning the handoff envelope
+20. New CLI mode: `arc status --session-handoff --json`. Composite probe returning the handoff envelope
     (dirty state, worktree sync, notes sync, autonomy, handoff-interior toggle values, active extensions
     filtered to handoff fire points, resolved active status file). Reuses existing field-resolver
     machinery from session-init.
 
 **Structured task-completion prompt (base behavior):**
 
-19. `3_process-task-loop.md` task-completion step appends a structured prompt:
+21. `3_process-task-loop.md` task-completion step appends a structured prompt:
     - Default (manual-commit): `Proceed to Task X.Y?`
     - Auto-commit configured: `Commit and proceed to Task X.Y?`
     - Boundary-aware variants: `Proceed to Phase N+1, Task N+1.1?` at phase end; `Proceed to handoff?` at
       WU end.
     - User responses: any short affirmative as first word of the response (`y`/`yes`/`yeah`) advances; any
       other response falls to manual handling. Redirect syntax preserved: `y, also <X>` / `y; <redirect>`.
-20. DEV-RULES.ARC § Autonomy Stack documents the prompt format as base ARC behavior (not auto-commit
+22. DEV-RULES.ARC § Autonomy Stack documents the prompt format as base ARC behavior (not auto-commit
     exclusive).
 
 **Handoff-interior toggle pattern:**
 
-21. Strategy-session-operations documents the pattern: handoff-interior actions get config keys under their
+23. Strategy-session-operations documents the pattern: handoff-interior actions get config keys under their
     primary domain (`user.sync_push`, future `worktree.sync_push`, future `handoff.<action>`). Standard
     value enum: `auto / prompt / manual` (or context-appropriate boolean variant). No new infrastructure;
     consumers add keys following the documented pattern.
-22. **Push ordering invariant.** When both worktree-push and notes-push fire during handoff, worktree-push
+24. **Push ordering invariant.** When both worktree-push and notes-push fire during handoff, worktree-push
     MUST land before notes-push. Documented in DEV-RULES.ARC § Autonomy Stack and enforced by the
     handoff workflow's per-action checklist ordering. Not a config; not optional.
 
 **Reversibility / rollback protocol:**
 
-23. DEV-RULES.ARC § Autonomy Stack subsection — protocol paragraph: when the user signals regret over an
+25. DEV-RULES.ARC § Autonomy Stack subsection — protocol paragraph: when the user signals regret over an
     auto-cascade (sibling WU territory; the rule lives here for completeness), agent reads recent git log
     and conversation context, identifies cascade boundary, presents undo plan (commits to reset, push
     retraction status if applicable), awaits explicit user confirmation before destructive operations.
@@ -178,15 +197,15 @@ no auto-migration logic. The repo has zero adopters; mass-migration infrastructu
 
 **Validation and migration:**
 
-24. Pre-commit hook validates `**Spec:**` field shape — value matches `.md` filename, URL, or empty. Block
+26. Pre-commit hook validates `**Spec:**` field shape — value matches `.md` filename, URL, or empty. Block
     commits on mismatch. Tier-aware validation (e.g., "atomic tier forbids non-empty") deferred to
     [plan-agile-wu-lifecycle][plan-awl].
-25. The two existing in-flight status files in the self-host repo are migrated in-place during Phase 1.
+27. The two existing in-flight status files in the self-host repo are migrated in-place during Phase 1.
     No protocol, no auto-migration code.
 
 **Tests:**
 
-26. Workflow updates verified via self-host dogfooding plus structural CHECK additions where applicable.
+28. Workflow updates verified via self-host dogfooding plus structural CHECK additions where applicable.
     CLI changes (`session.autonomy` reading, schema validation, composite handoff probe) verified via
     vitest unit tests. Pre-commit hook addition (Spec field validation) verified via shell test.
 
@@ -232,6 +251,11 @@ The following are explicitly out of scope for this WU. They live in the sibling 
   commit footers + git log cover the rollback use case for v1.
 - **Canonical token grammar for `approved`.** Replaced by the structured-prompt pattern. The approval
   signal is anchored by the agent's prompt, not parsed by a global regex.
+- **arc-plan conductor reframe.** [plan-arc-plan-conductor][plan-conductor]. This WU lands the
+  status-file plumbing the conductor builds on (template additions including `**Sibling Work Unit(s):**`,
+  lifecycle disposition, activate-work-unit ensure-status-file fallback); the conductor's depth selection,
+  downstream orchestration (planning-branch invocation, worktree spawn coordination), and tier-aware
+  behavior are the conductor WU's scope.
 
 ## Technical Considerations
 
@@ -288,6 +312,19 @@ shape-check prevents drift between this WU's introduction of the field and downs
 planning sessions. WU-A's own planning session uses the pre-existing flow (no planning-active-surface).
 That's expected; the bootstrap doesn't create a circular dependency.
 
+**Status file as unified WU pointer artifact.** The `**Sibling Work Unit(s):**` field lives on the status
+file (req #9) rather than the PRD because the status file is the unified pointer artifact across the WU
+lifecycle: read at every session-init via `## Active Work` for orientation; persisting into archive under
+[plan-completion-status-consolidation][plan-csc] as the WU's terminal record. The PRD template is not
+extended with sibling-WU metadata; this keeps requirements artifacts focused on requirements and pointer
+artifacts focused on pointer state.
+
+**Activate-work-unit Step 4 idempotent transition.** Small extension of the current step: precondition
+check + transition path when the status file already exists (from planning-branch ceremony or future
+arc-plan conductor invocation), creation path when absent. Existing creation logic stays. The transition
+path clears planning-state fields (Spec narrows or reformats per WU type) and populates execution-state
+fields (Task List, Next Task, Last Completed: "Work unit activated").
+
 ## Success Criteria
 
 - All quality gates pass at WU completion: markdown lint (zero violations), TypeScript typecheck (zero
@@ -309,14 +346,6 @@ That's expected; the bootstrap doesn't create a circular dependency.
 
 ## Open Questions
 
-**Resolve before starting:**
-
-- **Plan-doc retirement timing.** Workflow Step 5 says retire `plan-session-operational-flow.md` at PRD
-  commit. But the plan also feeds into the sibling WU (`session-operational-flow`). Two options:
-  (a) retire now, audit for sibling-WU reference content and migrate to a notes file alongside this PRD
-  or in `backlog/technical/`; (b) leave the plan-doc in place until the sibling WU's PRD is drafted, then
-  retire. Decision: surface for user resolution at workflow Step 5 execution, before the PRD commit.
-
 **Resolve during work:**
 
 - **Validation window length.** Three sessions is a soft target; final count decided at task-list-generation
@@ -329,40 +358,6 @@ That's expected; the bootstrap doesn't create a circular dependency.
   is the default. Switch to terse form considered if dogfooding surfaces clear UX wins; otherwise
   verbose ships.
 
-## Related Work Units
-
-> Dogfooding the convention proposed in [research-wu-grouping-patterns][research-grouping]. Same shape
-> proposed for adoption into `template-prd.md` and the standard plan-doc format as a future WU
-> (`BACKLOG-TECHNICAL.md` § Planning Methodology Refinements).
-
-**Sibling / Parallel WUs (same logical whole):**
-
-- `prd-session-operational-flow.md` (future, sibling WU) — implements the autonomy-mode behavior
-  (auto-commit, auto-push), handoff-interior toggle consumers, metadata-state foundation, and tier-aware
-  sweep cadence against the frame this WU establishes. Both halves are independently valuable;
-  WU-A unblocks downstream consumer plans even if WU-B takes longer to ship.
-
-**Downstream / Follow-on WUs:**
-
-- [plan-user-sync-ux][plan-sync] — consumes the handoff-interior toggle pattern + composite handoff
-  probe + push-ordering invariant to resolve the `user.sync_push: always` incoherence.
-- [plan-quality-gate-hooks][plan-hooks] — attaches validation gates to the architectural junctions
-  formalized here. Hooks plan owns its tier-vocabulary decision independently.
-- [plan-worktree-foundation][plan-wf] — consumes the parallel-session concurrency framing (Phase 1) and
-  later the metadata-state foundation (sibling WU). Spawn-vs-continue semantics build on the framing.
-- [plan-concurrent-work-conventions][plan-cwc] — consumes configurable autonomy as the mechanism for
-  reducing approval ceremony under multi-session load.
-- [plan-agile-wu-lifecycle][plan-awl] — consumes the status-file timing split (Phase 2) and later the
-  metadata-state foundation (sibling WU) for tier-aware lifecycle workflow rewrites.
-
-## Document History
-
-<!-- Update as understanding evolves during planning and implementation. -->
-
-| Date       | Change                                                                                  |
-| ---------- | --------------------------------------------------------------------------------------- |
-| 2026-04-28 | Initial draft — derived from plan-session-operational-flow with WU-A scope (Phases 1-3) |
-
 ---
 
 [adr-016]: ../../reference/adr/adr-016-configurable-autonomy-interlocks-for-session-operations.md
@@ -374,5 +369,6 @@ That's expected; the bootstrap doesn't create a circular dependency.
 [plan-wf]: plan-worktree-foundation.md
 [plan-cwc]: ../feature/plan-concurrent-work-conventions.md
 [plan-awl]: plan-agile-wu-lifecycle.md
-[research-grouping]: ../../reference/research/research-wu-grouping-patterns.md
+[plan-csc]: plan-completion-status-consolidation.md
+[plan-conductor]: ../feature/plan-arc-plan-conductor.md
 [notes-sweep]: notes-docs-content-sweep.md
