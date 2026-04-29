@@ -93,21 +93,38 @@ strategy doc, workflow).
   had from the start); per-commit status-advance prose in `strategy-team-coordination.md` aligns with the new
   timing rule; `session.autonomy` lands in the configurability inventory.
 
-    - `[ ]` **1.3.a Update `strategy-team-coordination.md` per-commit status-advance language**
-        - Match the new timing rule. No semantic change beyond aligning prose with status-file-not-touched-
-          per-task behavior.
+    - `[x]` **1.3.a Update `strategy-team-coordination.md` per-commit status-advance language**
+        - _Outcome:_ Replaced "typical pattern is one developer advancing `Next Task` per commit" framing in
+          § Session State Merge Behavior with a timing-rule-anchored explanation — `(@name)` discipline
+          narrows field overlap; the status-file timing rule (DEV-RULES.ARC § Commit Discipline) limits
+          writes to handoff / workflow-ceremony commits. Package source + `.arc/` synced.
 
     - `[ ]` **1.3.b Update `strategy-session-operations.md` — interlock model home + timing split + toggle
       pattern + probe-extension contract**
-        - Adds the conceptual interlock model home: vocabulary (four-interlock stack, invariant vs.
-          configurable), configurability architecture (`session.autonomy` enum, override pattern),
-          structured-prompt rationale, push-ordering reasoning, rollback design — content the original 1.2
-          plan would have packed into DEV-RULES.
-        - Status-file timing split documented in detail.
-        - Handoff-interior toggle pattern (config keys under primary domain; standard `auto / prompt / manual`
-          enum).
-        - Probe-extension contract for consumer plans — concrete pattern for adding fields without
-          restructuring (P1.a folded here).
+        - _Scope:_ Land four concerns — conceptual interlock model home (vocabulary, four-interlock stack,
+          configurability architecture, structured-prompt rationale, push-ordering reasoning, rollback
+          design; content the original 1.2 plan would have packed into DEV-RULES); status-file timing split
+          documented in detail; handoff-interior toggle pattern (config keys under primary domain; standard
+          `auto / prompt / manual` enum); probe-extension contract for consumer plans (P1.a folded here).
+          Audit-first execution to ensure coherent weave with existing prose rather than stapled-on
+          additions.
+
+        - `[ ]` **1.3.b.i Audit & report**
+            - Cold-read the full doc against the four new concerns. Output: written plan covering (1)
+              revised ToC + section ordering, (2) placement of each new concept, (3) existing prose that
+              needs to update or get absorbed (e.g., § Probe pattern under Context Loading Model; § Session
+              State Portability push-policy bullet may already partially cover toggle territory), (4) dedup
+              risks, (5) intro / framing-paragraph adjustments. No file edits — plan only, for user review
+              before drafting.
+
+        - `[ ]` **1.3.b.ii Draft changes**
+            - Apply the approved audit plan to `strategy-session-operations.md` in a single coherent pass.
+              Package source + `.arc/` synced.
+
+        - `[ ]` **1.3.b.iii Re-audit**
+            - Cold-read the resulting doc for flow, transitions, orphaned references, residual redundancy,
+              and cross-doc consistency (DEV-RULES.ARC ↔ ADR-016 ↔ PRD ↔ this strategy). Note any tweaks
+              needed; apply or surface for direction.
 
     - `[ ]` **1.3.c Update `strategy-configurability-architecture.md` — `session.autonomy` inventory**
         - Add `session.autonomy` to the convention inventory under operational-discipline tier. Brief note on
