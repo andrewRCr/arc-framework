@@ -20,14 +20,19 @@ Current state at a glance. Updated when work is activated, completed, or archive
 
 **Currently Active:**
 
-- Session-Operational Flow (technical) — Planning phase. Gate model from ADR-016: configurable
-  autonomy gates for the task → commit → push → integrate stack with handoff as orthogonal
-  ceremony. Constitutional amendments (commit control downgraded from non-negotiable to
-  configurable default), status-file timing split, autonomy modes, reversibility protocol,
-  handoff-interior toggle framework
-    - Plan: `.arc/backlog/technical/plan-session-operational-flow.md`
-    - ADR: `.arc/reference/adr/adr-016-configurable-autonomy-gates-for-session-operations.md` (Proposed)
-    - Branch: `technical/plan-session-operational-flow`
+- Interlock Foundation (technical) — Planning phase, PRD drafted. Constitutional foundation for
+  ADR-016's interlock model: configurable autonomy stack (task → commit → push → integrate) with
+  invariant endpoints and configurable middle interlocks, plus handoff as orthogonal ceremony.
+  Lands DEV-RULES amendments (commit control downgraded to configurable default), status-file
+  timing split, planning-session active surface, structured task-completion prompt as base
+  behavior, configuration surface (`session.autonomy` axis + composite handoff probe +
+  handoff-interior toggle pattern), and rollback dev-rule. Sibling WU `Session-Operational Flow`
+  implements autonomy-mode behavior + metadata-state foundation against this frame after a
+  dogfooding validation window.
+    - PRD: `.arc/backlog/technical/prd-interlock-foundation.md`
+    - ADR: `.arc/reference/adr/adr-016-configurable-autonomy-interlocks-for-session-operations.md` (Accepted)
+    - Sibling WU plan: `.arc/backlog/technical/plan-session-operational-flow.md`
+    - Branch: `technical/plan-session-operational-flow` (planning branch — WU activation will create the WU branch)
 
 **Next Priority:**
 

@@ -408,7 +408,7 @@ The PRD should explicitly address:
 
 ---
 
-[adr-016]: ../../reference/adr/adr-016-configurable-autonomy-gates-for-session-operations.md
+[adr-016]: ../../reference/adr/adr-016-configurable-autonomy-interlocks-for-session-operations.md
 [plan-ops]: ../technical/plan-session-operational-flow.md
 [wf]: ../technical/plan-worktree-foundation.md
 [awl]: ../technical/plan-agile-wu-lifecycle.md

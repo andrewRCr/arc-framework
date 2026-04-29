@@ -291,5 +291,5 @@ Both halves are independently valuable. Keep unified if the rework stays managea
 
 ---
 
-[adr-016]: ../../reference/adr/adr-016-configurable-autonomy-gates-for-session-operations.md
+[adr-016]: ../../reference/adr/adr-016-configurable-autonomy-interlocks-for-session-operations.md
 [plan-ops]: plan-session-operational-flow.md

@@ -242,7 +242,7 @@ likely path.
 
 ---
 
-[adr-016]: ../../reference/adr/adr-016-configurable-autonomy-gates-for-session-operations.md
+[adr-016]: ../../reference/adr/adr-016-configurable-autonomy-interlocks-for-session-operations.md
 [plan-ops]: plan-session-operational-flow.md
 [plan-coord]: plan-coord-probe.md
 [plan-wf]: plan-worktree-foundation.md
