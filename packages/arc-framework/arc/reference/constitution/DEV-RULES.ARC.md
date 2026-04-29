@@ -4,14 +4,12 @@ Behavioral rules for human-AI collaboration under the ARC methodology. These rul
 ARC project regardless of technology stack.
 
 Your project-specific standards — quality gate commands, testing requirements, architecture rules,
-documentation style — live in [DEV-RULES.PROJECT][dev-rules-project].
+documentation style — live in [DEV-RULES.PROJECT][dev-rules-project]. Contributors
+(`arc.role = contributor`) work within different boundaries throughout — see
+[AGENT-BRIEF.CONTRIBUTOR][contributor-briefing].
 
-> **How configurable rules work**
->
-> Rules marked `[configurable]` point to a specific override mechanism in [`arc-config.yml`][arc-config]
-> or a file in [`system/methods/`][arc-methods-dir] — ARC ships a default, your team can replace it.
-> See [Configurability Architecture Strategy][config-arch] for the full model. For how rules trace to
-> ARC's 11 principles, see [rule → principle mapping][TODO-docs-site].
+> Rules marked `[configurable]` follow the project's configured override; see [Configurability
+> Architecture Strategy][config-arch] for the override model.
 
 ---
 
@@ -19,7 +17,7 @@ documentation style — live in [DEV-RULES.PROJECT][dev-rules-project].
 
 - [Commit Discipline](#commit-discipline) — control, format, atomicity
 - [Task Execution](#task-execution) — one at a time, sub-agent scope, quality gates, leave-it-cleaner, test-first
-- [Session Management](#session-management) — state control, context quality
+- [Session Management](#session-management) — state control, handoff, context quality
 - [Verification and Discovery](#verification-and-discovery) — verify, consult strategies, load methods/extensions
 - [Documentation Boundaries](#documentation-boundaries) — code and methodology separation
 - [When to Load Additional Guidance](#when-to-load-additional-guidance) — on-demand reference
@@ -30,39 +28,42 @@ documentation style — live in [DEV-RULES.PROJECT][dev-rules-project].
 
 ### Commit control
 
-- **AI never initiates commits** without explicit user approval or instruction; AI reports
-  completion and awaits instructions. User controls all git operations.
-- **Never use `--no-verify`** to bypass commit hooks — hooks exist to catch errors
-- **Check before reverting files:** Before `git checkout -- <file>`, review
-  `git diff <file>` — other tasks may have uncommitted work in the same file
+- **Commit triggering** · `[configurable]`:
+    - Follows `session.autonomy` (the *commit-interlock*). Default `manual-commit` requires explicit user
+      approval before each commit.
+    - Per-mode behavior lives in the [process-task-loop workflow][process-task-loop].
+
+- **Push triggering** · `[configurable]`:
+    - Follows `session.autonomy` (the *push-interlock*). Default `manual-commit` requires explicit user
+      invocation; `auto-push` mode fires push at handoff only — never per commit.
+    - Per-mode behavior lives in the [session-handoff workflow][session-handoff].
+
+- **Merge to integration / main is human-only** (the *integration-interlock*). Agents do not initiate
+  merges regardless of autonomy mode.
+
+- **Never use `--no-verify`** to bypass commit hooks — hooks exist to catch errors.
+
+- **Check before reverting files:** Before `git checkout -- <file>`, review `git diff <file>` —
+  other tasks may have uncommitted work in the same file.
+
+- **Cascade-undo:** Before destructive cascade operations (resetting commits, retracting pushes),
+  present an undo plan (commits to reset, push-retraction status if applicable) and await explicit
+  user confirmation.
+
 - **Task list accuracy:** Before committing, verify task documentation reflects completed work
-  (parent task marked `[x]` if all subtasks complete). Stage task list updates with the commit
-- **Work status accuracy:** When committing work that changes project state, update the active
-  WU's `status-{name}.md` (at `active/{category}/`) to reflect the post-commit state and stage
-  it alongside the other changes. This applies to task completion (advance Next Task, Last
-  Completed, Next Action), but also to planning-phase commits (PRD creation, task generation,
-  activation, archival) that change the branch, next action, or active work unit. Session
-  handoff catches missed updates as a fallback, but commit-time is primary.
-  **Contributor override:** Contributors (`arc.role = contributor`) do not update project-level
-  status files at commit-time — those are maintainer-managed. Contributors maintain their own
-  personal active status file at `.arc/user/{identity}/active/status-{name}.md`, which is
-  gitignored; the update trigger is session handoff (parallel to SESSION-NOTES), not commit-time.
-  See [AGENT-BRIEF.CONTRIBUTOR][contributor-briefing] for contributor boundaries.
+  (parent task marked `[x]` if all subtasks complete). Stage task list updates with the commit.
+
+- **Status-file timing:** Status file updates fire only at handoff commits and workflow-ceremony
+  commits (activate / integrate / sweep / deactivate / PRD generation / planning-lifecycle ops).
+  Task-completion code commits never touch the status file.
 
 **For complex commits** (multi-session accumulated work, interleaved concerns), load the
 [prepare-commits workflow][prepare-commits].
 
 ### Commit format · `[configurable]`
 
-Commits must follow a consistent, communicative format with a context footer linking each commit
-to its task or work context.
-
-ARC ships conventional commit format — `type(scope): description` — with a structured
-`Context:` footer. The full format specification, context footer patterns, and type catalog
-are in the [commit-format][arc-methods-cf] and [commit-context-format][arc-methods-ccf] methods.
-
-Format enforcement is set in [`arc-config.yml`][arc-config] → `commit.format`,
-`commit.context_footer`. Git hooks validate automatically.
+Commits must follow the project's configured format. See the [commit-format][arc-methods-cf] and
+[commit-context-format][arc-methods-ccf] methods for specifications.
 
 ### Atomicity
 
@@ -75,14 +76,12 @@ changes by task; commit shared documentation (task list updates) last.
 
 ### One task at a time
 
-Each checkbox in the task list is one review increment — a bounded chunk of autonomous execution
-between human review points. In team mode, this applies per developer-agent pair — concurrent
-pairs may work on different tasks simultaneously. See [Team Coordination Strategy][team-coordination]
-for task ownership, branching patterns, and handoff conventions.
+Each checkbox in the task list is one *review increment* — a bounded chunk of autonomous execution
+between human review points. Every increment requires explicit user approval (the *task-interlock*)
+before the agent advances; deferred review is a bounded user-scoped convenience, not an autonomy mode.
 
-> **Contributor note:** This section covers maintainer-managed ARC task lists. Contributors
-> (`arc.role = contributor`) work on project code, not ARC task lists — see
-> [AGENT-BRIEF.CONTRIBUTOR][contributor-briefing].
+In team mode, this applies per developer-agent pair — concurrent pairs may work on different tasks simultaneously.
+See [Team Coordination Strategy][team-coordination] for task ownership, branching patterns, and handoff conventions.
 
 **For the full task execution protocol** (completion steps, quality gate checkpoints, mandatory
 stop, implied permission, deferred review), load the [process-task-loop workflow][process-task-loop].
@@ -91,8 +90,7 @@ stop, implied permission, deferred review), load the [process-task-loop workflow
 
 **Task-list work stays in the primary agent's context.** Delegating a task to a sub-agent bypasses
 the co-development loop and the mandatory review stop — the developer can't contribute context,
-judgment, or course correction to work they don't see. See [when sub-agents are
-appropriate][TODO-docs-site] for the broader guidance on supplementary sub-agent work.
+judgment, or course correction to work they don't see.
 
 ### Task granularity
 
@@ -149,10 +147,6 @@ reviewed until integration prep, which is too late for actionable items.
 Before implementing any task, assess whether tests should be written first — see the
 [test-first method][arc-methods-tf] for the decision tree.
 
-During task list creation, group test and implementation together by module or concern. See the
-[test-first method][arc-methods-tf] for execution discipline, [process-task-loop][process-task-loop]
-for the full loop.
-
 ---
 
 ## Session Management
@@ -161,20 +155,23 @@ for the full loop.
 
 Session state uses two files with different update triggers:
 
-- **`status-{name}.md`** (tracked, `active/{category}/`) — the active WU's project pointer,
-  updated at commit time and session handoff only
-    - **Commit time**: The trigger is a user-initiated commit request (not anticipation of one).
-      Advance alongside task list changes (§ Commit Discipline, "Work status accuracy"). Staged
-      as part of the commit — not a separate operation.
-    - **Session handoff**: If dirty with no pending commit, propose a standalone commit.
-    - **Not at other times** — mid-session updates are churn.
+- **`status-{name}.md`** (tracked, `active/{category}/`) — the active WU's project pointer.
+  Updated only at handoff commits and workflow-ceremony commits (activate / integrate / sweep /
+  deactivate / PRD generation / planning-lifecycle ops); task-completion code commits never touch
+  it. Mid-session updates are churn. See § Commit Discipline for the timing rule.
+
 - **SESSION-NOTES.md** (gitignored, `user/{identity}/`) — written only at session handoff.
   Personal working context for the next session. Per-developer directory (`user/{identity}/`);
   see [Session Operations Strategy][session-ops] § Portability for cross-machine portability
   via git notes.
 
-AI reports progress throughout the session; session state files capture the summary at commit
-and handoff boundaries.
+AI reports progress throughout the session; session state files capture the summary at handoff
+and ceremony boundaries.
+
+### Handoff
+
+**Session handoff is human-invoked.** Agents do not initiate handoff — the user signals when to
+hand off (typically via `arc-handoff` skill invocation); the agent then executes the handoff workflow.
 
 ### Context quality
 
@@ -182,16 +179,17 @@ and handoff boundaries.
 specification throughout the session regardless of context window size or utilization.
 
 **Prefer shorter, focused sessions that reset at natural boundaries.** See
-[Session Operations Strategy][session-ops] for [why session length degrades
-quality][TODO-docs-site] and duration guidance.
+[Session Operations Strategy][session-ops] for duration guidance.
 
 **Natural session boundaries:**
 
 - **Mode transitions** — design to implementation, investigation to fix, planning to
   execution. Analysis context carried forward crowds the window without serving the new work.
+
 - **Structural boundaries** — phase or work unit completion, clean commit points. A fresh
   session starts with focused context even when the current session has headroom. At these
   points, note the handoff opportunity if significant context has accumulated.
+
 - **Quality signals** — output becoming less precise, early-session guidance being missed,
   re-deriving decisions already established in this session
 
@@ -279,8 +277,6 @@ not in the artifact body.
 - "Next action after merge: invoke activate-work-unit.md" in a PR description — author-side
   workflow state, not reader-relevant for reviewing the change
 
-See [more reader-hostile patterns][TODO-docs-site] for additional examples.
-
 ---
 
 ## When to Load Additional Guidance
@@ -290,21 +286,25 @@ Load these documents when you reach the relevant work — not during session ini
 - **Before starting task execution:** The [process-task-loop workflow][process-task-loop] loads
   conditionally at session-init when the active `status-{name}.md` shows active task work (see
   session-init item 10). If it wasn't loaded at init, load it before beginning any task
+
 - **Before complex commits:** Load the [prepare-commits workflow][prepare-commits] — multi-session
   work, interleaved concerns, atomicity analysis
+
 - **Before work in a codified domain:** Check [STRATEGY-INDEX][strategy-index] for relevant
   strategy documents
+
 - **Before authoring a workflow:** Consult [Workflow Authoring Strategy][workflow-authoring] —
   frontmatter schema, author-side declaration rule, body conventions
+
 - **For method defaults and overrides:** Workflow documents include method dependencies blocks
   that trigger loading of the relevant [`system/methods/`][arc-methods-dir] files on-demand
+
 - **For quality gate tier definitions:** Load the [Quality Gates Strategy][quality-gates] —
   Tier 1/2/3 boundaries, escalation guidance
 
 ---
 
 [dev-rules-project]: DEV-RULES.PROJECT.md
-[arc-config]: ../../system/arc-config.yml
 [arc-methods-cf]: ../../system/methods/commit-format.md
 [arc-methods-ccf]: ../../system/methods/commit-context-format.md
 [arc-methods-it]: ../../system/methods/issue-triage.md
@@ -320,5 +320,4 @@ Load these documents when you reach the relevant work — not during session ini
 [manage-incidental]: ../../system/workflows/arc/supplemental/manage-incidental-work.md
 [contributor-briefing]: ../../system/briefs/AGENT-BRIEF.CONTRIBUTOR.md
 [team-coordination]: ../strategies/arc/strategy-team-coordination.md
-
-[TODO-docs-site]: # "Placeholder pending docs-content-sweep — see notes-docs-content-sweep.md"
+[session-handoff]: ../../system/workflows/arc/session-lifecycle/session-handoff.md

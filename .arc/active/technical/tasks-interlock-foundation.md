@@ -43,40 +43,49 @@ strategy doc, workflow).
           `research-wu-grouping-patterns.md`). DEV-RULES.ARC and workflow prose had no
           autonomy-model "gate" usage; strategy docs referencing ADR-016 had none either.
 
-### `[ ]` **1.2 DEV-RULES.ARC holistic redraft**
+### `[x]` **1.2 DEV-RULES.ARC holistic redraft**
 
-- **Strategies:** `strategy-session-operations.md` (where the conceptual model relocates — Task 1.3.b)
+- _Outcome:_ DEV-RULES.ARC redrafted under the at-session-relevance filter. All four interlocks named in
+  rule prose (_task-interlock_ in § Task Execution; _commit-interlock_, _push-interlock_, and
+  _integration-interlock_ in § Commit Discipline; handoff-as-human-invoked subsection in § Session
+  Management) with no new top-level § Autonomy Stack section. Two new invariants land:
+  _integration-interlock_ (no agent-initiated merges) and cascade-undo (manual confirmation before
+  destructive cascade ops). Commit / push triggering reframed around configurable autonomy via
+  `session.autonomy`. Status-file timing rule replaces the prior "Work status accuracy" provision.
+  At-session-filter tightening pass applied alongside (commit-format collapse, contributor-qualification
+  consolidation to single intro pointer, test-first tighten, five `[TODO-docs-site]` placeholders +
+  stub def removed, configurability-rules callout collapsed). Typographic convention: vocabulary
+  terms in italics, identifiers / enum values / config keys in code.
 
-- _Goal:_ DEV-RULES.ARC carries only at-session-relevant rules, with interlock vocabulary and new invariants
-  woven into existing sections. No new top-level § Autonomy Stack section. Tightening pass applied alongside
-  the rework — content not pulling its weight at session-time gets collapsed or redirected to its proper home.
+    - `[x]` **1.2.a Tighten existing sections (at-session filter pass)**
+        - _Outcome:_ Collapsed § Commit format to "follow the configured method" + method-pointers.
+          Tightened § Test-first assessment — task-list-creation prose dropped. Consolidated contributor
+          mention to a single intro pointer (AGENT-BRIEF.CONTRIBUTOR); removed the inline "Contributor note"
+          blockquote in § Task Execution. (One contributor parenthetical remains in the Work-status-accuracy
+          bullet — replaced wholesale in 1.2.b.) Removed all five `[TODO-docs-site]` placeholders + stub def.
+          Collapsed the "How configurable rules work" callout to a one-line `[configurable]` legend.
+          Orphaned `[arc-config]` link def removed (no remaining inline references in the trimmed prose).
 
-    - `[ ]` **1.2.a Tighten existing sections (at-session filter pass)**
-        - Collapse § Commit format to "follow the configured method" (~2 lines; method owns the rest).
-        - Tighten § Test-first assessment — drop the task-list-creation prose (workflow concern, not per-session
-          rule).
-        - Consolidate contributor qualifications — single mention + pointer to AGENT-BRIEF.CONTRIBUTOR; remove
-          the parenthetical "Contributor override" inserts inside maintainer rules.
-        - Sweep for other "informing how ARC works" prose surfaced during read-through (e.g., § Sub-agent scope
-          `[TODO-docs-site]` placeholder, the configurability-rules callout).
+    - `[x]` **1.2.b Rework § Commit Discipline around the new model**
+        - _Outcome:_ § Commit control bullets restructured around the new model. "AI never initiates
+          commits" replaced with **Commit triggering** · `[configurable]` naming the _commit-interlock_.
+          Parallel **Push triggering** · `[configurable]` added naming the _push-interlock_ (default
+          requires explicit invocation; `auto-push` fires only at handoff). New invariant
+          **Merge to integration / main is human-only** added naming the _integration-interlock_. New
+          rule **Cascade-undo** added (sibling to "Check before reverting files"). **Work status
+          accuracy** replaced with **Status-file timing** (updates fire only at handoff /
+          workflow-ceremony commits). Contributor override removed inline (covered by the consolidated
+          intro pointer from 1.2.a). Convention: vocabulary terms in italics (_commit-interlock_),
+          identifiers / enum values / config keys in code (`session.autonomy`, `manual-commit`).
 
-    - `[ ]` **1.2.b Rework § Commit Discipline around the new model**
-        - Reframe § Commit control: commit triggering follows `session.autonomy`; default `manual-commit`
-          requires explicit approval; per-mode behavior lives in `3_process-task-loop.md`.
-        - Add integration-interlock invariant rule — agents do not initiate merges to integration / main
-          regardless of autonomy mode.
-        - Add cascade-undo rule — before destructive cascade operations, present an undo plan and await
-          explicit confirmation (sibling to existing "Check before reverting files").
-        - Replace § Work status accuracy provision with the timing rule — status updates fire only at handoff
-          commits and workflow-ceremony commits, never at task-completion code commits.
-
-    - `[ ]` **1.2.c Rework § Task Execution + § Session Management**
-        - Weave task-interlock vocabulary into "One task at a time" — the per-task review rule names the
-          interlock; no new prose mass.
-        - Add handoff-as-human-invoked rule to § Session Management.
-        - Update § Session state control to reflect the timing split (status-file at handoff / ceremony,
-          not per-task-commit).
-        - Other rule-language updates surfaced during read-through.
+    - `[x]` **1.2.c Rework § Task Execution + § Session Management**
+        - _Outcome:_ § One task at a time names the _task-interlock_ parenthetically and makes the
+          per-increment approval rule explicit; _review increment_ as a defined term; deferred-review
+          framed as user-scoped convenience, not an autonomy mode. § Session state control rewritten to
+          reflect the new timing rule (status file updated only at handoff / workflow-ceremony commits;
+          task-completion commits never touch it); stale cross-ref to "Work status accuracy" replaced
+          with pointer to § Commit Discipline. New ### Handoff subsection added between Session state
+          control and Context quality — handoff is always human-invoked.
 
 ### `[ ]` **1.3 Strategy-doc cascade**
 
