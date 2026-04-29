@@ -177,6 +177,17 @@ session.init_pull.worktree: prompt
 # See session-init.md § Conditional Sync Pulls for combined-prompt and post-pull re-probe behavior.
 session.init_pull.notes: prompt
 
+# --- Session Interlocks ---
+
+# Commit and push interlock policy.
+# Each value names which user-initiated event authorizes commits and pushes.
+# See DEV-RULES.ARC § Commit Discipline.
+#   manual-commit - Each commit and push requires its own explicit approval. (default)
+#   auto-commit   - Task approval implicitly authorizes the commit; push stays user-invoked.
+#   auto-push     - Task approval authorizes the commit; handoff authorizes the push.
+# Per-developer override: `git config arc.autonomy <value>`
+session.autonomy: manual-commit
+
 # --- User Directory ---
 
 # Automatic push of user/{identity}/ directory via git notes.

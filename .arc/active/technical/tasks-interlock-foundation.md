@@ -167,36 +167,32 @@ logic in `handlers/status.ts`. Self-contained envelope: `arc-handoff` is skill-i
 workflow shouldn't depend on session-init context still being intact. Test-first applies — clear behavior
 lists, regression-prone surfaces.
 
-### `[ ]` **2.1 `arc-config.yml` adds `session.autonomy` resolver**
+### `[x]` **2.1 `arc-config.yml` adds `session.autonomy` resolver**
 
 - **Strategies:** `strategy-testing-methodology.md`
 
-- _Goal:_ `session.autonomy` ships as `manual-commit | auto-commit | auto-push` (default `manual-commit`);
-  per-developer override reads from `git config arc.autonomy`. Resolver enforces the enum and applies the
-  three-tier precedence with warnings on invalid values at each tier.
+- `lib/autonomy-policy.ts` enforces the `manual-commit | auto-commit | auto-push` enum with three-tier
+  precedence (`git config arc.autonomy` → yaml `session.autonomy` → default) and per-tier invalid-value
+  warnings. Default key shipped in both `arc-config.yml` copies under a new Session Autonomy section.
 
-    - `[ ]` **2.1.a Implement `lib/autonomy-policy.ts`**
-        - New module paralleling `lib/sync-policy.ts` — same shape (constants for git-config + yaml keys,
-          `isValidPolicy`, three-tier `resolveAutonomyPolicy(opts)` returning `{ policy, source }`),
-          different domain. Module-level comment notes the parallel and flags the deferred DRY
-          consolidation when toggle #3 lands in [plan-user-sync-ux][plan-sync].
-        - No changes to `lib/config/status-reader.ts` — autonomy validation lives in the resolver, matching
-          the `user.sync_push` precedent (resolver-side enum check, not in `ENUM_VALIDATORS`).
-        - Test parity reference: `__tests__/unit/sync-policy.test.ts` is the shape to mirror.
-        - Build `test-first` (one behavior at a time):
-            - resolver returns default `manual-commit` when both sources absent
-            - resolver reads valid value from yaml when git-config absent
-            - precedence: valid `arc.autonomy` git-config wins over yaml
-            - invalid `arc.autonomy` git-config → warns, falls back to yaml
-            - invalid yaml `session.autonomy` → warns, falls back to default
-            - both invalid → warns at each tier, falls back to default
+    - `[x]` **2.1.a Implement `lib/autonomy-policy.ts`**
+        - `src/lib/autonomy-policy.ts` mirrors `sync-policy.ts` shape — `AutonomyPolicy` enum
+          (`manual-commit | auto-commit | auto-push`), `AUTONOMY_GIT_CONFIG_KEY` /
+          `AUTONOMY_YAML_KEY` constants, `resolveAutonomyPolicy(opts)` returning
+          `{ policy, source }`. Module-doc flags the deferred DRY consolidation to
+          [plan-user-sync-ux][plan-sync].
+        - `__tests__/unit/autonomy-policy.test.ts` mirrors `sync-policy.test.ts`; covers all six
+          listed behaviors plus override-empty-string and warn-omitted no-throw edge cases (15 tests).
+          Batched single-pass per the test-first batching exception (single function, shared setup,
+          established pattern — no independent discovery value).
 
-    - `[ ]` **2.1.b Add `session.autonomy` to `arc-config.yml` (project + package source)**
-        - Add `session.autonomy: manual-commit` (with comment block matching the `user.sync_push` style —
-          enum values, default, per-developer override key) to both copies:
-            - `.arc/system/arc-config.yml` (project source-of-truth)
-            - `packages/arc-framework/arc/system/arc-config.yml` (package source ships to adopters)
-        - Two-copy edit per package-project-sync discipline.
+    - `[x]` **2.1.b Add `session.autonomy` to `arc-config.yml` (project + package source)**
+        - New `--- Session Interlocks ---` section between Session Initialization and User Directory in
+          both copies, with a comment block mirroring the `user.sync_push` shape. Per-mode descriptions
+          frame each value as "which user-initiated event authorizes commit/push" (rather than agent-side
+          autonomy framing) to avoid out-of-context misread of agent latitude. Default `manual-commit`.
+        - Two-copy edit per package-project-sync discipline; only pre-existing project-specific overrides
+          (branch.protection, hooks.test_patterns, hooks.meta_ref_patterns) differ between the copies.
 
 ### `[ ]` **2.2 Session-init probe surfaces resolved autonomy**
 
