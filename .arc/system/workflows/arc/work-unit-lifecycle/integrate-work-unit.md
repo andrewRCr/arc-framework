@@ -260,6 +260,9 @@ git push -u origin {branch-name}
 gh pr create --base {parent-branch} --head {branch-name}
 ```
 
+**PR title:** follow [template-pull-request § PR Title Format][template-pull-request].
+Implementation PRs use no bracket prefix — Conventional Commits type carries the signal.
+
 Use `completion-{name}.md` as PR description template — copy/adapt sections for the PR body.
 When adapting, do not add new sections describing post-merge workflow continuity or next
 actions — those belong in the status file and SESSION-NOTES, not the PR body. The reader is
@@ -390,3 +393,4 @@ Earlier phases remain valid (will be used by new approach), but later phases are
 [archive-work-unit]: archive-work-unit.md
 [dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md
 [session-handoff]: ../session-lifecycle/session-handoff.md
+[template-pull-request]: ../../../../reference/templates/template-pull-request.md

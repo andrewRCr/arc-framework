@@ -75,6 +75,8 @@ gh pr create --base {base-branch} --head {planning-branch}
 > **Platform:** Commands use GitHub CLI (`gh`). For other platforms, see QUICK-REFERENCE
 > § Platform Commands for equivalent tools and commands.
 
+**PR title:** prefix `[PLAN]` per [template-pull-request § PR Title Format][template-pull-request].
+
 **PR description** — Use [template-pull-request § Planning PR Variant][template-pull-request] for
 body structure (covers simple and batch shapes). Planning branches don't have completion docs, so
 the PR description stands alone.

@@ -15,6 +15,38 @@ delta) belongs in the work unit's durable record (status file) and SESSION-NOTES
 
 ---
 
+## PR Title Format
+
+PR titles follow ARC's [commit-format method][commit-format] (Conventional Commits —
+`type(scope): description`), with an optional bracket prefix signaling PR lifecycle stage:
+
+```text
+[PLAN] type(scope): description       — planning branch PR
+type(scope): description              — implementation, fix, chore, etc.
+```
+
+Implementation is the default activity in a code repository — flagging every implementation
+PR is noise. Planning and other lifecycle deviations get prefixes because they're scannable
+exceptions in a PR list otherwise dominated by code work. Matches Rust (`RFC:` on design PRs
+only) and Kubernetes (`KEP-###:` on enhancement PRs only).
+
+**Smaller-scope PRs ride on the Conventional Commits type alone — no bracket prefix.** A typo
+fix is `docs(scope): fix typo`, a dependency bump is `chore(deps): bump foo`, a one-file
+refactor is `refactor(scope): description`. The type already conveys scope and reviewer
+expectation; adding `[ATOMIC]` / `[TINY]` / etc. has no industry precedent and creates noise.
+
+**Reserved prefixes** — don't introduce until a clear pattern needs filtering:
+
+- `[RFC]` — formal design PR with no associated work unit yet (matches Rust's pattern)
+- `[REL v0.x.y]` — release PRs
+
+**Merge-strategy note:** under squash-merge, the PR title becomes the commit message —
+brackets enter commit history. Under merge-commit strategy (ARC default per
+[`arc-config.yml`][arc-config] `merge.strategy`), brackets appear only in the merge commit;
+underlying commits stay Conventional-Commits-clean.
+
+---
+
 ## Template
 
 ```markdown
@@ -169,3 +201,5 @@ naming for traceability. Summary doesn't need to repeat this — they're complem
 [task-list-formatting]: ../strategies/arc/strategy-task-list-formatting.md
 [dev-rules-arc]: ../constitution/DEV-RULES.ARC.md
 [integrate-planning-branch]: ../../system/workflows/arc/work-unit-lifecycle/planning/integrate-planning-branch.md
+[commit-format]: ../../system/methods/commit-format.md
+[arc-config]: ../../system/arc-config.yml
