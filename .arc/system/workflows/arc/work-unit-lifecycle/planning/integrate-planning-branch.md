@@ -75,15 +75,9 @@ gh pr create --base {base-branch} --head {planning-branch}
 > **Platform:** Commands use GitHub CLI (`gh`). For other platforms, see QUICK-REFERENCE
 > § Platform Commands for equivalent tools and commands.
 
-**PR description** — Use [template-pull-request][template-pull-request] for body structure. Planning
-branches don't have completion docs, so the PR description stands alone — and they typically need only
-`**Spec:**` (PRD or task list path) and `## Summary`; Test Plan, Out of Scope, and Follow-Up Work
-sections don't apply to planning artifacts.
-
-- **Simple planning branch:** Summarize the planned work unit — name, category, scope overview.
-  Reference the PRD for details.
-- **Batch branch:** Summarize both transitions. Archival section: completed WU name, key outcomes.
-  Planning section: new WU name, scope, phase/task count.
+**PR description** — Use [template-pull-request § Planning PR Variant][template-pull-request] for
+body structure (covers simple and batch shapes). Planning branches don't have completion docs, so
+the PR description stands alone.
 
 **PR body scope:** Describe what the PR delivers, not post-merge workflow continuity (see
 [DEV-RULES.ARC][dev-rules-arc] § Write for the reader).
