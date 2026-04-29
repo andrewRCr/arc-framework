@@ -18,9 +18,36 @@ begin the standard workflow.
 
 ### CI/CD Improvements
 
-- **Enhanced link validation**
-    - Problem: Current CI doesn't catch all broken internal links
-    - Approach: Add sophisticated link checking to GitHub Actions
+- **Enhanced link validation — reference-style compliance + hook hardening**
+    - Problem: Two related gaps surfaced when Marksman LSP integration revealed mixed link styles
+      and stale cross-file references the existing `validate-links.sh` pre-commit hook didn't
+      catch:
+        - DEV-RULES.PROJECT § Documentation Standards prefers reference-style for cross-file
+          links, but the codebase is mixed today.
+        - The hook validates only staged files. When a file is moved/renamed (e.g., archival
+          operations), broken outgoing links from un-staged files go undetected — a real example
+          surfaced as a stale `prd-work-status-restructure.md` reference long after archival.
+    - Approach (two lobes; can split into separate WUs if sizing demands):
+        1. Reference-style compliance sweep (one-time content fix). Audit `.arc/` and the
+           `packages/arc-framework/arc/` mirror; convert inline `[text](../path/to/file.md)`
+           cross-file links to reference-style with the `---` + link block at EOF. Same-directory
+           or one-level-up targets may stay inline per the rule.
+        2. Hook hardening (recurring guard) — `validate-links.sh`:
+            - Add `npm run lint:links` for whole-tree scans; wire into Tier 3 quality gates and
+              GitHub Actions.
+            - When a commit deletes or renames a `.md`, expand the candidate set to include any
+              `.md` containing a link to the affected path. Closes the "moved file, broken link
+              from elsewhere" gap.
+            - Optional: anchor validation — for `file.md#section` targets, verify a heading slug
+              matches `section` in the target file.
+            - Optional cleanups: case-sensitive reference-usage matching (today's `grep -qiE`
+              accepts `[Foo][BAR]` against `[bar]:` definitions); detect duplicate `[same-key]:`
+              definitions in the same file.
+    - Notes: Lobe 1 is a clean atomic-tier item. Lobe 2 splits into additive subtasks. The
+      original CI-only framing of this entry expands here because the local pre-commit hook is
+      the better place for fast feedback; CI wiring becomes a natural follow-on once the local
+      command exists.
+    - Effort estimate: M (S for hook hardening; S–M for the sweep depending on link volume)
 
 - **Automated template instantiation testing**
     - Problem: No CI verification that templates work when instantiated
