@@ -50,7 +50,7 @@ underlying commits stay Conventional-Commits-clean.
 ## Template
 
 ```markdown
-**Spec:** {path or URL — PRD, task list, or external tracker; mirrors the WU's status-file Spec field}
+**Spec:** `{filename}` or {URL}
 
 ## Summary
 
@@ -109,13 +109,13 @@ Planning branches deliver planning artifacts (PRDs, task lists, optional prior-W
 not implementation. The template above is implementation-flavored; planning PRs use the same
 body structure with a smaller footprint.
 
-**Required:** `**Spec:**` (PRD or task-list path) and `## Summary` (planned WU name, category,
+**Required:** `**Spec:**` (PRD or task-list filename) and `## Summary` (planned WU name, category,
 scope shape).
 
 **Typical shape — simple planning branch:**
 
 ````markdown
-**Spec:** {path to the planning artifact — PRD or task list}
+**Spec:** `{filename}` — `prd-{name}.md` or `tasks-{name}.md`
 
 ## Summary
 
@@ -138,7 +138,7 @@ Combines archival of a completed WU with planning of the next. Two top-level sec
 the transitions distinct:
 
 ````markdown
-**Spec:** {path to the new WU's planning artifact}
+**Spec:** `{filename of the new WU's planning artifact}`
 
 ## Summary
 
@@ -160,9 +160,18 @@ PR-body shape for planning branches.
 
 ## Section Guidance
 
-**Spec — required.** Mirrors the WU's status-file `**Spec:**` field. For external trackers
-(GitHub issues), use the URL. For in-repo planning artifacts (PRDs, task lists), use the relative
-path. Single value, not a list — the Spec field abstracts over the WU's authoritative scope source.
+**Spec — required.** Mirrors the WU's status-file `**Spec:**` field exactly. Single value, not
+a list — the Spec field abstracts over the WU's authoritative scope source.
+
+- **In-repo artifact** — backtick-wrapped filename, no path: `` `prd-{name}.md` ``,
+  `` `tasks-{name}.md` ``. Filename-only follows
+  [DEV-RULES.ARC § Task references in `.arc/` docs][dev-rules-arc] — files move between
+  `backlog/` → `active/` → `archive/` over the WU lifecycle, and a path locks reviewers and
+  archeologists to a stale location.
+- **External tracker** — bare URL (no backticks). GitHub auto-links bare URLs; backticks
+  suppress the link.
+- **Combined ref** (filename + task pointer) follows the in-`.arc/` convention:
+  `` `tasks-{name}.md` `` (Task X.Y).
 
 **Summary — required.** Frame the change for the reviewer. Long Summaries get skimmed; keep tight.
 Why-it-matters belongs here when non-obvious; otherwise let the diff and the Spec link carry it.
