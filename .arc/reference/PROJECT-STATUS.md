@@ -40,8 +40,8 @@ Current state at a glance. Updated when work is activated, completed, or archive
   User Sync UX Polish, Work-Unit Mobility, Quality Gate Tiers + Hook Integration
 - Then: ARCd Rebrand — Public product brand split (ARCd for product surface, ARC for
   methodology), with absorbed config-key renames and CLI command cleanup
-- Then: Expanded Planning Path — Optional pre-PRD planning path for high-novelty,
-  high-coupling work
+- Then: arc-plan Conductor — Promote arc-plan to canonical planning entry with selectable
+  depth (minimum / standard / expanded)
 - Then: ARC Operating Modes — Lightweight mode (ARC Lite) + local/untracked mode
 
 ## Completed Major Work

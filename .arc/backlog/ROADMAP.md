@@ -333,23 +333,27 @@ before Operating Modes and public release.
   Agile WU Lifecycle (tier vocabulary absorbed),
   Concurrent Work Conventions (focus-role and concurrent-work terminology absorbed),
   Quality Gate Tiers and Hook Integration (gate-stage terminology absorbed in rename pass)
-- Downstream: Expanded Planning Path, Operating Modes, WU5
+- Downstream: arc-plan Conductor, Operating Modes, WU5
 
-**Expanded Planning Path** — After ARCd Rebrand
+**arc-plan Conductor** — After Interlock Foundation; parallelizable with Worktree Foundation and
+Agile WU Lifecycle
 
-Optional pre-PRD planning path for high-novelty, high-coupling work that needs more structure
-than ARC's default freeform plan stage without making ordinary planning heavier. Adds a
-`refine-plan-loop` workflow (planning-side analogue to process-task-loop) conditionally loaded
-by session-init, expanded-planning detection in `arc-plan`, promoted-plan template structure
-for bounded refinement units, and plan-splitting guidance distinct from PRD decomposition.
-Codifies lessons from Operating Modes plan-shaping work where default freeform exploration
-proved insufficient.
+Promote `arc-plan` from facilitation skill to ARC's canonical planning conductor — the entry
+point for any planning ceremony, with selectable depth (minimum / standard / expanded). Closes
+the planning-session status-file creation gap that opens when planning happens without a
+planning-branch ceremony, orchestrates downstream operations (planning-branch activation,
+worktree spawn, status-file creation) for the configuration, and adds the
+`refine-plan-loop` workflow (planning-side analogue to process-task-loop) for the expanded
+depth. Preserves ARC's lightweight default planning experience (minimum depth) while supporting
+deeper shaping when work warrants it.
 
-- Plan: `feature/plan-expanded-planning-path.md`
-- Upstream: ARCd Rebrand (rebrand-ready terminology in new content)
-- Downstream: Operating Modes (planning workflow support available for PRD drafting)
+- Plan: `feature/plan-arc-plan-conductor.md`
+- Upstream: Interlock Foundation (status-file plumbing the conductor consumes); ARCd Rebrand
+  (rebrand-ready terminology in new content)
+- Downstream: Operating Modes (planning workflow support available for PRD drafting); Worktree
+  Foundation and Agile WU Lifecycle integrations land incrementally
 
-**ARC Operating Modes** — After Expanded Planning Path
+**ARC Operating Modes** — After arc-plan Conductor
 
 Establish ARC's mode architecture — a lightweight mode (ARC Lite) for small projects preserving
 execution discipline without lifecycle ceremony, and a local/untracked mode for constrained
@@ -358,7 +362,7 @@ state transitions) enters this WU as a prerequisite delivered by Work-Unit Mobil
 bundled scope — modes composes with the lifecycle subsystem to make Local Full viable.
 
 - Plan: `feature/plan-arc-modes.md` (PRD-ready, 59-item deliverables inventory)
-- Upstream: ARCd Rebrand (settled naming and key renames), Expanded Planning Path (planning
+- Upstream: ARCd Rebrand (settled naming and key renames), arc-plan Conductor (planning
   workflow tooling for PRD drafting), Worktree Foundation (shift lifecycle available),
   Concurrent Work Conventions (concurrent-work conventions inform mode-specific guidance)
 - Downstream: Dogfooding, WU5
@@ -429,7 +433,7 @@ Phase A ──► Phase B ──► Phase C (Work Units):
    │     │     │     │     │     │     │     │     │     │      (after Concurrent Work Conventions;
    │     │     │     │     │     │     │     │     │     │       gate-tier mapping per WU tier)
    │     │     │     │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     │     │     │     ├──► Expanded Planning Path
+   │     │     │     │     │     │     │     │     │     │     ├──► arc-plan Conductor
    │     │     │     │     │     │     │     │     │     │     │     │
    │     │     │     │     │     │     │     │     │     │     │     ├──► Operating Modes (Lite + Local)
    │     │     │     │     │     │     │     │     │     │     │     │     │

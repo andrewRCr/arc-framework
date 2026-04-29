@@ -262,7 +262,7 @@ For squashed delivery, use `merge.strategy: squash` on this PR only.
 
     - `[ ]` **2.1.g `.arc/backlog/` non-rebrand files**
         - `BACKLOG-TECHNICAL.md`, `BACKLOG-FEATURE.md`, `ROADMAP.md` — prose sweep
-        - `plan-wu5-public-release.md`, `plan-arc-modes.md`, `plan-expanded-planning-path.md`,
+        - `plan-wu5-public-release.md`, `plan-arc-modes.md`, `plan-arc-plan-conductor.md`,
           `plan-post-release-methodology.md` — prose sweep (preserve the "ARC" references that
           correctly describe methodology-tier concerns in the plans)
         - **Skip** the rebrand WU's own files: `prd-arcd-rebrand.md`, `prd-arcd-docs-site.md`,
