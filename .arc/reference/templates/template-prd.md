@@ -1,9 +1,11 @@
 # PRD: [Work Name]
 
-- **Type:** Feature | Technical
-- **Updated:** YYYY-MM-DD
+**Purpose:** {One- to three-line north-star summary of the WU's intent. Single sentence preferred;
+keep it bounded so it pairs cleanly with the task list's `**Purpose:**` field for alignment-
+verification at PRD/task-list checkpoints. Distilled "what + why," not framing prose — body sections
+carry the full context.}
 
-<!-- Optional: Add pre-activation lifecycle metadata.
+<!-- Optional: Add pre-activation lifecycle metadata for backlog stubs.
 
 **State:** (e.g., Draft, Stub, Capture, Pending Dependencies, Approved — brief description)
 
@@ -77,17 +79,3 @@ Unresolved questions or areas needing further investigation. Distinguish between
 
 - **Resolve before starting:** Blockers that affect scope or approach
 - **Resolve during work:** Questions that will be answered through implementation
-
-## Document History
-
-<!-- PRDs are living documents — update them as understanding evolves during planning and
-implementation. Use the table below to track significant changes. Typo fixes and minor
-formatting don't need entries.
-
-When implementation completes, add a final row marking the PRD as "Implementation complete"
-and note any material deviations from the original plan. The PRD then serves as a historical
-record of what was planned, how it evolved, and what actually shipped. -->
-
-| Date | Change |
-| ---------- | ------ |
-| YYYY-MM-DD | Initial draft |

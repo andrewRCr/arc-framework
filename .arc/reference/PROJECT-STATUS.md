@@ -11,29 +11,61 @@ Current state at a glance. Updated when work is activated, completed, or archive
 
 **Last Completed:**
 
-- Work-Status Restructure (technical) — Per-WU `active/{category}/status-{name}.md` files
-  replacing the singular `active/WORK-STATUS.md`, disentangling the project pointer from the
-  session pointer and eliminating the parallel-WU concurrency flaw and base-branch staleness
-  dead-ends under full protection
-    - Archive: `archive/2026-q2/technical/03_work-status-restructure/`
+- Session-Init Optimization (technical) — Per-file methods/extensions architecture with
+  workflow frontmatter triggers, probe-computed `sessionType` inference driving conditional
+  loadsets, partial-read narrowing, worktree-sync completion, and constitutional + CI
+  machinery to prevent drift recurrence. ~24–28% reduction at orientation (~57–61k vs
+  ~75–80k baseline)
+    - Archive: `archive/2026-q2/technical/04_session-init-optimization/`
 
 **Currently Active:**
 
-- Session-Init Optimization (technical) — Reduce session-init token cost from ~75–80k
-  toward a ≤60k observation target (≥25% reduction). Per-file methods/extensions with YAML
-  frontmatter index replace full-file reads; operational-context audit trims always-loaded
-  docs; session-type conditional loading formalizes the `Working On:` prefix
-    - Task list: `.arc/active/technical/tasks-session-init-optimization.md`
-    - Branch: `technical/session-init-optimization`
+- Interlock Foundation (technical) — Planning phase, PRD drafted. Constitutional foundation for
+  ADR-016's interlock model: configurable autonomy stack (task → commit → push → integrate) with
+  invariant endpoints and configurable middle interlocks, plus handoff as orthogonal ceremony.
+  Lands DEV-RULES amendments (commit control downgraded to configurable default), status-file
+  timing split, planning-session active surface, structured task-completion prompt as base
+  behavior, configuration surface (`session.autonomy` axis + composite handoff probe +
+  handoff-interior toggle pattern), and rollback dev-rule. Sibling WU `Session-Operational Flow`
+  implements autonomy-mode behavior + metadata-state foundation against this frame after a
+  dogfooding validation window.
+    - PRD: `.arc/backlog/technical/prd-interlock-foundation.md`
+    - ADR: `.arc/reference/adr/adr-016-configurable-autonomy-interlocks-for-session-operations.md` (Accepted)
+    - Sibling WU plan: `.arc/backlog/technical/plan-session-operational-flow.md`
+    - Branch: `technical/plan-session-operational-flow` (planning branch — WU activation will create the WU branch)
 
 **Next Priority:**
 
-- ARCd Rebrand — Public product brand split (ARCd for product surface, ARC for methodology),
-  with absorbed config-key renames and CLI command cleanup
-- Then: Expanded Planning Path — Optional pre-PRD planning path for high-novelty, high-coupling work
-- Then: ARC Operating Modes — Lightweight mode (ARC Lite) + local/untracked mode + shift lifecycle
+- After Session-Operational Flow Phase 6 frame lands, three parallelizable consumers:
+  User Sync UX Polish, Work-Unit Mobility, Quality Gate Tiers + Hook Integration
+- Then: ARCd Rebrand — Public product brand split (ARCd for product surface, ARC for
+  methodology), with absorbed config-key renames and CLI command cleanup
+- Then: arc-plan Conductor — Promote arc-plan to canonical planning entry with selectable
+  depth (minimum / standard / expanded)
+- Then: ARC Operating Modes — Lightweight mode (ARC Lite) + local/untracked mode
 
 ## Completed Major Work
+
+### Session-Init Optimization (April 2026)
+
+Reduced session-init token cost from ~75–80k baseline toward a ≤60k orientation target,
+with constitutional and CI machinery in place to prevent drift recurrence.
+
+- Per-file methods/extensions architecture (`system/methods/*.md`, `system/extensions/*.md`)
+  replacing the legacy aggregate files; method bodies load on workflow trigger, extensions
+  enumerated once at session-init
+- Workflow YAML frontmatter trigger contract (`arc.methods`, `arc.extensions`); constitutional
+  rule pair anchors compliance (DEV-RULES.ARC § Verification + strategy-workflow-authoring
+  § Author-side Declaration Rule); pre-commit + CI enforcement (CHECK 12/14/16, lint:arc:*)
+- Probe-side `sessionType` inference computed from tracked status fields (`planning |
+  execution | integration | null`) drives conditional item-9 / item-10 loadsets in
+  session-init.md; SESSION-NOTES `**Session Type:**` is opt-in personal-layer override
+- Partial-read narrowing: QUICK-REFERENCE scoped to Environment & Path Context; status file
+  to `## Active Work`; task list strategic partial read with triple-anchor task references
+- Worktree-sync completion in composite probe; research-validated rejection of an `always`
+  worktree-pull mode
+- Operational-context audit (Tier 1–3) across constitution, briefs, strategies, workflows;
+  template extractions (template-tasks.md); ADR-013 Tier 2 amendment
 
 ### Work-Status Restructure (April 2026)
 

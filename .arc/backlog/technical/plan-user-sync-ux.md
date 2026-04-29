@@ -67,6 +67,17 @@ and directional copy audit (the other two scope items) are unaffected — they s
 
 ### In scope
 
+**Notes-discovery fix (HEAD-independent walk).** `arc user load` and `arc user pull` currently walk
+HEAD ancestry to find notes (`git rev-list --max-count N HEAD` in
+`packages/arc-framework/src/commands/user/save-load.ts`), failing when notes are attached to commits
+that aren't ancestors of the current HEAD — the canonical scenario being a stale local branch where
+work continued elsewhere. The fix adds a HEAD-independent discovery mode that walks the notes ref's
+own commit history (`git log refs/notes/arc/user/{identity}`) to find the most recent attachment
+regardless of worktree HEAD position. Surfaced 2026-04-28 during cross-machine resume when the
+existing HEAD-walk semantics blocked the notes-as-breadcrumb signal for branch-gone detection.
+**Sequencing within this WU:** notes-discovery design precedes state-machine unification — unification
+builds on the new load semantic and would need rework if added later.
+
 **State-machine unification.** Collapse full-mode and session-init to a single state computation.
 Session-init's 5-state surface becomes the spine; full-mode adds diskStatus and saved-when detail as
 secondary axes but never disagrees with the spine. Action hints become deterministic from the spine —
@@ -79,6 +90,14 @@ as a conditional hint line in `arc status`) to orient users who haven't internal
 terminology. Keep git notes vocabulary — supplement, don't abstract; devs need the terms to reason
 about `arc user *` commands, which are thin wrappers over `git notes` operations.
 
+**Worktree qualifier — surface `failureReason`.** When `worktree.state === "remote-unavailable"`,
+`formatWorktreeQualifierLine` (`sync-status.ts:354`) emits a single message regardless of whether
+the bounded fetch hit its 3 s timeout or errored outright. The `failureReason: "timeout" | "error"`
+field is captured by `runWorktreeSyncStatus` (`worktree-sync.ts:53`) but never reaches the user, so
+a transient blip and a hard auth/config failure render identically. Fold the field into the
+rendered line — timeout reads as "likely transient, retry or use `--offline`"; error reads as
+"investigate auth/network".
+
 **Auto-push implementation within the gate-model frame.** Consumes the handoff-interior toggle framework
 from [plan-session-operational-flow][plan-ops] (Phase 6). This plan instantiates paired worktree-push +
 notes-push as configurable handoff-interior actions — solving the `user.sync_push: always` incoherence
@@ -86,6 +105,25 @@ notes-push as configurable handoff-interior actions — solving the `user.sync_p
 pre-checks (protected branches, unpushable states, rebase in progress), failure semantics, and
 remote-unavailable handling. Config axis shape is provided by the frame; this plan picks up the
 worktree/notes-specific instantiation.
+
+**Push-timing default — handoff-only.** Per [plan-session-operational-flow][plan-ops] § Design Decisions,
+the recommended default is handoff-only push (with per-commit available as a power-user opt-in). This plan's
+worktree+notes pairing is the canonical instantiation of that default. Rationales relevant here:
+
+- **Pairing.** Worktree-push and notes-push must land at the same gate; handoff is the natural pairing
+  point. Per-commit push of either side without the other re-creates the `user.sync_push: always`
+  incoherence this plan exists to fix.
+- **Concurrent-session safety.** Under ARC's parallel-session concurrency model (per
+  [plan-session-operational-flow][plan-ops] § Concurrency Model), multiple sessions may write to the
+  shared `refs/notes/arc/user/{identity}` ref. Handoff-only concentrates ref writes into deliberate
+  single events, dramatically reducing race surface compared to per-commit push from multiple sessions.
+
+**Shared-ref sync-state inference under parallel sessions.** Each session computes sync state independently
+from its worktree's HEAD. The notes ref is shared across the identity; sync-state inference must handle the
+case where another session pushed notes that this session hasn't fetched. Surface as part of the state-machine
+unification design — distinguish "your local is behind because you haven't fetched" from "your local is
+behind because work happened on another machine," and from "your local is behind because a sibling session
+on this machine pushed."
 
 ### Out of scope
 
@@ -175,8 +213,17 @@ Rough breakdown:
 - Landing before ARCd Rebrand (not after) means the rename pass picks up a consolidated state
   machine and directional copy in one pass, rather than re-touching strings that churned during this
   work. Rebrand is a bulk-rename editorial pass; doing this WU first keeps its scope mechanical.
-- Work-Unit Mobility is immediately downstream and benefits from a clean sync state machine before
-  worktree awareness adds an axis to it.
+- **[plan-worktree-foundation][plan-wf]** is sibling (parallelizable). Worktree Foundation's
+  SESSION-NOTES per-worktree handling interacts with sync semantics; either order works (this WU
+  first → Worktree Foundation incorporates worktree-aware sync from clean substrate; Worktree
+  Foundation first → this WU retrofits worktree axis cleanly).
+- **[plan-coord-probe][plan-coord]** is sibling (parallelizable). Coord-probe consumes the
+  notes-discovery fix as one signal source for branch-gone detection. Coord-probe ships v1 with in-git
+  and gh signals; notes-as-breadcrumb signal joins when the notes-discovery fix lands. Coordinated
+  parallel work, not strict ordering.
+- **[plan-agile-wu-lifecycle][plan-awl]** and **[plan-concurrent-work-conventions][plan-cwc]** are
+  downstream — both benefit from a clean sync state machine before tier model and concurrency
+  conventions add their own axes.
 
 **Scheduling:** After Session-Init Optimization and plan-session-operational-flow Phase 6 (handoff-interior
 toggles). State-machine + copy work can start once Session-Init Optimization lands; auto-push work
@@ -195,5 +242,9 @@ likely path.
 
 ---
 
-[adr-016]: ../../reference/adr/adr-016-configurable-autonomy-gates-for-session-operations.md
+[adr-016]: ../../reference/adr/adr-016-configurable-autonomy-interlocks-for-session-operations.md
 [plan-ops]: plan-session-operational-flow.md
+[plan-coord]: plan-coord-probe.md
+[plan-wf]: plan-worktree-foundation.md
+[plan-awl]: plan-agile-wu-lifecycle.md
+[plan-cwc]: ../feature/plan-concurrent-work-conventions.md

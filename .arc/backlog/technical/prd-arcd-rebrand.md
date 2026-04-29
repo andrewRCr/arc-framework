@@ -21,7 +21,7 @@ runs, installs, or represents the project externally. Full exploration history, 
 "why this direction wins" argument live in `plan-arcd-rebrand.md` alongside this PRD.
 
 **Why now:** Methodology Maturation shipped via PR #16 (2026-04-14), so the content-sweep interleave risk that
-previously blocked the rebrand is gone. Downstream work units (Operating Modes, Expanded Planning Path, Public
+previously blocked the rebrand is gone. Downstream work units (Operating Modes, arc-plan Conductor, Public
 Release) all depend on settled naming — running after them would require sweeping the same files twice. Running
 before them absorbs the churn once, and the public release can ship with a coherent name from day one.
 
