@@ -29,6 +29,9 @@ Thumbs.db
 # explicitly temp-flagged internal docs
 .arc/**/temp-*
 
+# Marksman LSP exclusions
+.ignore
+
 # MkDocs build output
 site/
 
