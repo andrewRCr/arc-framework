@@ -12,16 +12,17 @@
 
 ## **Phase 1:** Constitutional Foundation
 
-_Purpose:_ Land the interlock model in normative docs (DEV-RULES.ARC, strategy-* cascades, ADR-016
-vocabulary cascade) so downstream phases write workflow prose against stable vocabulary.
+_Purpose:_ Bring DEV-RULES.ARC up to date with the interlock model — weaving the new vocabulary and
+invariants into existing rule sections — and cascade the conceptual model to strategy docs. ADR-016
+vocabulary cascade (1.1) lands the rename surface; 1.2 redrafts DEV-RULES holistically against the
+at-session-relevance filter; 1.3 carries the cascade to strategy docs.
 
-_Design decisions:_ DEV-RULES.ARC § Autonomy Stack ships as a new top-level section — the interlock model
-is conceptually distinct from § Commit Discipline and § Session Management, and burying it inside either
-would fragment the four-interlock model. **Drafting is operationally lean:** every-session-loaded surface
-is a budget. Apply the [`notes-docs-content-sweep`][notes-sweep] § Source-Side Placeholder Convention to
-extract any prose crossing operational sufficiency (rationale, precedent, tradeoff analysis) into a
-`notes-docs-content-sweep.md` entry with a `[TODO-docs-site]` placeholder at the source site. Extended
-operational context (worth having on hand, not preload-needed) routes to `strategy-session-operations.md`.
+_Design decisions:_ DEV-RULES.ARC is loaded every session and ships to adopters — content earns its place
+by being a rule the agent must respect at session-time. Conceptual model, vocabulary glossary, configuration
+architecture, and design rationale belong in strategy docs (load-on-demand) and ADR-016 (internal). The
+redraft is also an opportunity to apply the at-session filter to existing sections — prose that informs how
+ARC works rather than constrains agent action gets collapsed or pointed to its proper home (method file,
+strategy doc, workflow).
 
 ### `[x]` **1.1 ADR-016 vocabulary cascade across remaining `.arc/` references**
 
@@ -42,67 +43,66 @@ operational context (worth having on hand, not preload-needed) routes to `strate
           `research-wu-grouping-patterns.md`). DEV-RULES.ARC and workflow prose had no
           autonomy-model "gate" usage; strategy docs referencing ADR-016 had none either.
 
-### `[ ]` **1.2 DEV-RULES.ARC § Autonomy Stack new top-level section**
+### `[ ]` **1.2 DEV-RULES.ARC holistic redraft**
 
-- **Strategies:** `strategy-session-operations.md` (extended-operational-context destination for spillover)
+- **Strategies:** `strategy-session-operations.md` (where the conceptual model relocates — Task 1.3.b)
 
-- _Goal:_ Operationally-sufficient framing for the four-interlock model, configurable-default reframing
-  of commit control, structured-prompt format, push-ordering invariant, and rollback subsection — written
-  tight, with rationale extracted to `notes-docs-content-sweep.md` placeholders.
+- _Goal:_ DEV-RULES.ARC carries only at-session-relevant rules, with interlock vocabulary and new invariants
+  woven into existing sections. No new top-level § Autonomy Stack section. Tightening pass applied alongside
+  the rework — content not pulling its weight at session-time gets collapsed or redirected to its proper home.
 
-    - `[ ]` **1.2.a Draft § Autonomy Stack — interlock model + configurable-default reframing**
-        - Four interlocks (`task-interlock`, `commit-interlock`, `push-interlock`, `integration-interlock`);
-          invariant endpoints; configurable middle interlocks; handoff-as-orthogonal framing.
-        - Drafting discipline: write for an agent navigating downstream workflows. No rationale, no
-          precedent. Extract any prose exceeding operational sufficiency to `notes-docs-content-sweep.md`
-          per the placeholder convention.
+    - `[ ]` **1.2.a Tighten existing sections (at-session filter pass)**
+        - Collapse § Commit format to "follow the configured method" (~2 lines; method owns the rest).
+        - Tighten § Test-first assessment — drop the task-list-creation prose (workflow concern, not per-session
+          rule).
+        - Consolidate contributor qualifications — single mention + pointer to AGENT-BRIEF.CONTRIBUTOR; remove
+          the parenthetical "Contributor override" inserts inside maintainer rules.
+        - Sweep for other "informing how ARC works" prose surfaced during read-through (e.g., § Sub-agent scope
+          `[TODO-docs-site]` placeholder, the configurability-rules callout).
 
-    - `[ ]` **1.2.b Document structured task-completion prompt format**
-        - Base ARC behavior (not auto-commit exclusive). Prompt variants, response semantics, redirect
-          syntax. Cross-reference from § Task Execution. Implementation lands in Phase 4.
+    - `[ ]` **1.2.b Rework § Commit Discipline around the new model**
+        - Reframe § Commit control: commit triggering follows `session.autonomy`; default `manual-commit`
+          requires explicit approval; per-mode behavior lives in `3_process-task-loop.md`.
+        - Add integration-interlock invariant rule — agents do not initiate merges to integration / main
+          regardless of autonomy mode.
+        - Add cascade-undo rule — before destructive cascade operations, present an undo plan and await
+          explicit confirmation (sibling to existing "Check before reverting files").
+        - Replace § Work status accuracy provision with the timing rule — status updates fire only at handoff
+          commits and workflow-ceremony commits, never at task-completion code commits.
 
-    - `[ ]` **1.2.c Document push-ordering invariant**
-        - Worktree-push before notes-push when both fire at handoff. Not a config; not optional. Single
-          paragraph; full enforcement framing lives in `session-handoff.md` (Phase 4).
+    - `[ ]` **1.2.c Rework § Task Execution + § Session Management**
+        - Weave task-interlock vocabulary into "One task at a time" — the per-task review rule names the
+          interlock; no new prose mass.
+        - Add handoff-as-human-invoked rule to § Session Management.
+        - Update § Session state control to reflect the timing split (status-file at handoff / ceremony,
+          not per-task-commit).
+        - Other rule-language updates surfaced during read-through.
 
-    - `[ ]` **1.2.d Document rollback protocol subsection**
-        - Session-local, manual-confirmation, dev-rule-based. Agent reads recent git log + conversation
-          context, identifies cascade boundary, presents undo plan, awaits explicit user confirmation.
-          No skill, no log file in v1.
+### `[ ]` **1.3 Strategy-doc cascade**
 
-### `[ ]` **1.3 DEV-RULES.ARC § Commit Discipline + § Session Management amendments**
+- _Goal:_ Conceptual interlock model relocates to `strategy-session-operations.md` (the home it should have
+  had from the start); per-commit status-advance prose in `strategy-team-coordination.md` aligns with the new
+  timing rule; `session.autonomy` lands in the configurability inventory.
 
-- _Goal:_ Existing sections cross-reference § Autonomy Stack; "Work status accuracy" provision superseded
-  by the timing rule; status-file timing split + handoff-as-orthogonal framing land in § Session Management.
-
-    - `[ ]` **1.3.a Update § Commit Discipline**
-        - Replace "Work status accuracy" provision with the timing-rule pointer (status updates fire only
-          at handoff commits and workflow-ceremony commits, never at task-completion code commits).
-          Cross-reference § Autonomy Stack. Operationally tight — no rationale.
-
-    - `[ ]` **1.3.b Update § Session Management**
-        - Status-file timing split, handoff-as-orthogonal framing, parallel-session concurrency model
-          framing. Cross-reference § Autonomy Stack.
-
-### `[ ]` **1.4 Strategy-doc cascade**
-
-- _Goal:_ Prose that becomes inconsistent with the new rules updates here; extended operational context
-  (toggle pattern, probe-extension contract) lives in `strategy-session-operations.md` so DEV-RULES.ARC
-  stays lean.
-
-    - `[ ]` **1.4.a Update `strategy-team-coordination.md` per-commit status-advance language**
+    - `[ ]` **1.3.a Update `strategy-team-coordination.md` per-commit status-advance language**
         - Match the new timing rule. No semantic change beyond aligning prose with status-file-not-touched-
           per-task behavior.
 
-    - `[ ]` **1.4.b Update `strategy-session-operations.md` — timing split, toggle pattern, probe-extension
-      contract**
-        - Status-file timing split documented in detail. Handoff-interior toggle pattern (config keys under
-          primary domain; standard `auto / prompt / manual` enum). Probe-extension contract for consumer
-          plans — concrete pattern for adding fields without restructuring (P1.a folded here).
+    - `[ ]` **1.3.b Update `strategy-session-operations.md` — interlock model home + timing split + toggle
+      pattern + probe-extension contract**
+        - Adds the conceptual interlock model home: vocabulary (four-interlock stack, invariant vs.
+          configurable), configurability architecture (`session.autonomy` enum, override pattern),
+          structured-prompt rationale, push-ordering reasoning, rollback design — content the original 1.2
+          plan would have packed into DEV-RULES.
+        - Status-file timing split documented in detail.
+        - Handoff-interior toggle pattern (config keys under primary domain; standard `auto / prompt / manual`
+          enum).
+        - Probe-extension contract for consumer plans — concrete pattern for adding fields without
+          restructuring (P1.a folded here).
 
-    - `[ ]` **1.4.c Update `strategy-configurability-architecture.md` — `session.autonomy` inventory**
-        - Add `session.autonomy` to the convention inventory under operational-discipline tier. Brief note
-          on the handoff-interior toggle pattern in the Configuration section. Cross-link the
+    - `[ ]` **1.3.c Update `strategy-configurability-architecture.md` — `session.autonomy` inventory**
+        - Add `session.autonomy` to the convention inventory under operational-discipline tier. Brief note on
+          the handoff-interior toggle pattern in the Configuration section. Cross-link the
           strategy-session-operations entry.
 
 ---
@@ -281,7 +281,7 @@ when configured is sibling-WU work.
 
     - `[ ]` **4.1.a Remove status-file update from task-completion step**
         - Strike the "advance Next Task / Last Completed / Next Action" prose. Cross-reference DEV-RULES.ARC
-          § Autonomy Stack timing rule.
+          status-file timing rule.
 
     - `[ ]` **4.1.b Append structured task-completion prompt**
         - Default (manual-commit): `Proceed to Task X.Y?`
@@ -308,12 +308,13 @@ when configured is sibling-WU work.
           consumption pattern inline.
 
     - `[ ]` **4.2.c Push ordering enforcement**
-        - When both worktree-push and notes-push fire, worktree first. Workflow ordering enforces.
-          Cross-reference the DEV-RULES.ARC invariant.
+        - When both worktree-push and notes-push fire, worktree first. Workflow ordering enforces — notes
+          attach to commits that must already exist on origin. Not configurable. Strategy-session-operations
+          (Task 1.3.b) carries the reasoning for cross-reference.
 
     - `[ ]` **4.2.d Status update lands at the handoff commit**
         - Workflow stages status-file changes as part of the handoff commit, not a separate operation.
-          Cross-reference DEV-RULES.ARC § Autonomy Stack timing rule.
+          Cross-reference DEV-RULES.ARC status-file timing rule.
 
 ### `[ ]` **4.3 Lifecycle workflows bundle status updates into ceremony commits**
 
@@ -421,9 +422,10 @@ once they land. Captured as supplemental evidence, not a substitute.
 > by Phase 6 verification before archive.
 
 - `[ ]` ADR-016 reads consistently after rename — no remaining "gate" references where "interlock" is meant
-- `[ ]` DEV-RULES.ARC § Autonomy Stack lands as a new top-level section with operationally-sufficient
-  framing only (rationale extracted to `notes-docs-content-sweep.md` placeholders)
-- `[ ]` DEV-RULES.ARC § Commit Discipline + § Session Management amendments cross-reference § Autonomy Stack
+- `[ ]` DEV-RULES.ARC redrafted: interlock vocabulary woven into existing rule sections; integration-interlock
+  and cascade-undo invariants added; commit-control reframed around configurable autonomy; status-file timing
+  rule replaces "Work status accuracy" provision; tightening pass applied (commit-format collapsed, contributor
+  qualifications consolidated, test-first tightened)
 - `[ ]` Strategy cascade applied: `strategy-team-coordination`, `strategy-session-operations`,
   `strategy-configurability-architecture`
 - `[ ]` `arc-config.yml` `session.autonomy` enum ships with default `manual-commit` and per-developer
@@ -461,4 +463,3 @@ once they land. Captured as supplemental evidence, not a substitute.
 ---
 
 [verify-work-unit]: ../../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md
-[notes-sweep]: ../../backlog/technical/notes-docs-content-sweep.md

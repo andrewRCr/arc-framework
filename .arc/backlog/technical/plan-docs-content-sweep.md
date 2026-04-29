@@ -201,6 +201,21 @@ lowercase `domain:`, exact match after lowercasing the fragment) is a mechanical
 requirement (probe + pre-commit hook enforce it) and should be framed as such — not as
 style convention.
 
+#### 8. Autonomy Stack — interlock model (from Interlock Foundation WU, 2026-04-29)
+
+**What changed:** ADR-016 establishes the interlock model — four interlocks (task → commit → push
+→ integrate; invariant endpoints, configurable middles via `session.autonomy`). DEV-RULES.ARC
+weaves the vocabulary and new invariants (integration-interlock, cascade-undo) into existing rule
+sections; the conceptual model home is `strategy-session-operations.md`. Structured
+task-completion prompt and push-ordering enforcement live in workflow files
+(`3_process-task-loop.md`, `session-handoff.md`).
+
+**Topic flag — no extraction scoped at source.** Sweep WU resolves placement and content at
+sweep time. Authoritative sources: ADR-016, `strategy-session-operations.md` (post-Task 1.3.b
+expansion), `arc-config.yml` (post-Phase 2 `session.autonomy` schema), `3_process-task-loop.md`
+(post-Phase 4.1.b prompt format spec), `session-handoff.md` (post-Phase 4.2.c push-ordering
+enforcement), DEV-RULES.ARC (post-Task 1.2 weave).
+
 ### Content Contributions
 
 #### 3. Operational-context extractions (from Session-Init Optimization WU, pending)
