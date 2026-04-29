@@ -165,6 +165,15 @@ Remaining plan-level design choices (for PRD):
 - **Backward compatibility with `user.sync_push`.** Does the existing key deprecate, get absorbed
   into the new toggle schema, or continue to coexist during transition?
 
+- **Resolver consolidation (deferred from interlock-foundation).** `lib/autonomy-policy.ts` lands in
+  the interlock-foundation WU as a literal parallel of `lib/sync-policy.ts` — same three-tier
+  precedence (git-config → yaml → default), different domain. Generic consolidation
+  (`resolveGitConfigOverride<T>`) was deferred to this plan: when the worktree-push toggle (#3) lands,
+  the resolver pass owns generalizing all three onto a single helper. Rationale: designing the generic
+  API against three real shapes is cheaper than two-and-refactor. If the abstraction doesn't fit
+  cleanly when this plan executes, escalate to the sibling `session-operational-flow` WU or a small
+  dedicated cleanup WU.
+
 ## Unknowns and Assumptions
 
 **External research status update.** The coupled-push semantics research ("is pairing branch + metadata

@@ -75,9 +75,10 @@ behavior creates the file at WU activation if absent.
 
 **Scenario 4: Handoff workflow restructured around composite probe.**
 Today: handoff workflow performs ad-hoc checks across multiple commands.
-After: single `arc status --session-handoff --json` returns the full envelope (dirty state, worktree sync,
-notes sync, autonomy mode, handoff-interior toggle values, active extensions). Workflow consumes the
-envelope; per-action checklist consults each toggle's mode and acts.
+After: single `arc status --session-handoff --json` returns a self-contained envelope (dirty state,
+worktree sync, notes sync, autonomy with provenance, handoff-interior toggle values, resolved active
+status file path). Workflow consumes the envelope; per-action checklist consults each toggle's mode
+and acts.
 
 **Scenario 5: Push ordering at handoff.**
 When both worktree-push and notes-push fire at handoff, worktree-push lands first. Notes attach to commits
@@ -167,13 +168,17 @@ no auto-migration logic. The repo has zero adopters; mass-migration infrastructu
     `manual-commit`). Per-developer override via `git config arc.autonomy <value>` (mirrors the
     `user.sync_push` / `arc.syncPush` pattern).
 18. CLI schema validation — `session.autonomy` value is one of the enum options or absent (default applies).
-19. Session-init probe (`arc status --session-init --json`) extends `config.value.settings` to surface
-    `session.autonomy` (alongside existing keys). Init-time consumers (load-set adaptation in sibling WU)
-    read the value from there.
-20. New CLI mode: `arc status --session-handoff --json`. Composite probe returning the handoff envelope
-    (dirty state, worktree sync, notes sync, autonomy, handoff-interior toggle values, active extensions
-    filtered to handoff fire points, resolved active status file). Reuses existing field-resolver
-    machinery from session-init.
+19. Session-init probe (`arc status --session-init --json`) surfaces resolved autonomy as a separate
+    top-level `config.value.autonomy: { value, source }` field — the agent renders the structured
+    task-completion prompt and needs the effective value (override applied) at session-init. The bulk
+    `config.value.settings` map stays raw yaml; CLI-consumed overrides (`user.sync_push` and future
+    siblings) are resolved at action time as today. Init-time consumers (load-set adaptation in sibling
+    WU) read the agent-consumed value from the autonomy field.
+20. New CLI mode: `arc status --session-handoff --json`. Self-contained composite probe returning the
+    handoff envelope — six slots: dirty state, worktree sync, notes sync, autonomy with provenance,
+    handoff-interior toggle values, resolved active status file path. Reuses existing field-resolver
+    machinery from session-init. Self-containment matters because `arc-handoff` is skill-invoked —
+    skills load fresh and the workflow shouldn't depend on session-init context still being intact.
 
 **Structured task-completion prompt (base behavior):**
 
@@ -299,6 +304,24 @@ toggle "framework" honors the constraint — toggles are flat keys under their p
 field-resolvers. The session-handoff probe reuses these — `--session-handoff` is a new mode passing a
 different field-set to the same composite logic. Not net-new infrastructure; structural extension of an
 existing pattern.
+
+**Agent-consumed vs CLI-consumed overrides.** Configuration overrides split by consumer along a meaningful
+axis. CLI-consumed overrides (`user.sync_push` and its future siblings) are resolved at action time inside
+internal CLI code paths (`arc user push`, etc.) — the agent never sees the resolved value, so raw yaml in
+the session-init probe is sufficient. Agent-consumed overrides (`session.autonomy`) drive agent-rendered
+behavior (the structured task-completion prompt); the agent must see the effective value (override
+applied) at session-init. Surfacing autonomy as a separate top-level probe field with provenance
+(`config.value.autonomy: { value, source }`) makes the resolved-vs-raw distinction explicit at the
+contract level, rather than smuggling resolution into the bulk `settings` map. The split is per-key, not
+a broader pattern shift; new keys classify by their consumer.
+
+**Resolver consolidation deferred.** `lib/autonomy-policy.ts` lands as a literal parallel of
+`lib/sync-policy.ts` — same three-tier precedence, same warning mechanics, different domain. Generic
+consolidation (`resolveGitConfigOverride<T>`) waits for the third concrete toggle in
+[plan-user-sync-ux][plan-sync] (worktree push). Designing the generic API against three real shapes is
+cheaper than two-and-refactor; the consumer plan owns the DRY pass. If the abstraction doesn't fit
+cleanly when that plan lands, the consolidation escalates to the sibling `session-operational-flow` WU
+or a small dedicated cleanup WU.
 
 **Handoff push-ordering invariant.** Reasoning documented in `strategy-session-operations.md`; enforced
 by the handoff workflow's per-action checklist ordering. No automated cross-action ordering test feasible

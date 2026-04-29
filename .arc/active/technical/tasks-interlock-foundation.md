@@ -150,73 +150,106 @@ strategy doc, workflow).
 
 ## **Phase 2:** Configuration Surface
 
-_Purpose:_ Land CLI-side plumbing the workflow updates in Phase 4 will consume — `session.autonomy` enum,
-schema validation, session-init probe surfacing, and the new `--session-handoff --json` composite probe —
-with vitest coverage on each.
+_Purpose:_ Land CLI-side plumbing the workflow updates in Phase 4 will consume — `session.autonomy`
+resolver, session-init probe surfacing with provenance, and the new `--session-handoff --json` composite
+probe — with vitest coverage on each.
 
-_Design decisions:_ Composite-probe machinery reuse — `--session-handoff` is a new mode passing a different
-field-set to the same composite logic in `handlers/status.ts`. Not net-new infrastructure. Per-developer
-override mirrors the existing `user.sync_push` / `arc.syncPush` git-config-override pattern. Test-first
-applies — clear behavior lists, regression-prone surfaces.
+_Design decisions:_ Per-developer override mirrors the existing `user.sync_push` / `arc.syncPush` resolver
+shape — new `lib/autonomy-policy.ts` parallels `lib/sync-policy.ts`. Generic resolver consolidation
+(`resolveGitConfigOverride<T>`) is deferred to [plan-user-sync-ux][plan-sync], which adds the third
+concrete toggle (worktree push) and owns the DRY pass with all three in hand. Probe envelope distinguishes
+**agent-consumed** overrides (autonomy — agent renders the structured task-completion prompt; needs the
+resolved effective value at session-init) from **CLI-consumed** overrides (`user.sync_push` — internal CLI
+code resolves at action time; raw yaml in the probe is sufficient). Autonomy ships as a separate top-level
+probe field with provenance (`{ value, source }`); the bulk `settings` map stays raw yaml. Composite-probe
+machinery reuse — `--session-handoff` is a new mode passing a different field-set to the same composite
+logic in `handlers/status.ts`. Self-contained envelope: `arc-handoff` is skill-invoked, so the handoff
+workflow shouldn't depend on session-init context still being intact. Test-first applies — clear behavior
+lists, regression-prone surfaces.
 
-### `[ ]` **2.1 `arc-config.yml` adds `session.autonomy` enum**
+### `[ ]` **2.1 `arc-config.yml` adds `session.autonomy` resolver**
 
 - **Strategies:** `strategy-testing-methodology.md`
 
 - _Goal:_ `session.autonomy` ships as `manual-commit | auto-commit | auto-push` (default `manual-commit`);
-  per-developer override reads from `git config arc.autonomy`. Schema rejects out-of-enum values.
+  per-developer override reads from `git config arc.autonomy`. Resolver enforces the enum and applies the
+  three-tier precedence with warnings on invalid values at each tier.
 
-    - `[ ]` **2.1.a Extend config schema**
-        - Implementation lands in `packages/arc-framework/src/lib/config/` schema validator + status-reader.
+    - `[ ]` **2.1.a Implement `lib/autonomy-policy.ts`**
+        - New module paralleling `lib/sync-policy.ts` — same shape (constants for git-config + yaml keys,
+          `isValidPolicy`, three-tier `resolveAutonomyPolicy(opts)` returning `{ policy, source }`),
+          different domain. Module-level comment notes the parallel and flags the deferred DRY
+          consolidation when toggle #3 lands in [plan-user-sync-ux][plan-sync].
+        - No changes to `lib/config/status-reader.ts` — autonomy validation lives in the resolver, matching
+          the `user.sync_push` precedent (resolver-side enum check, not in `ENUM_VALIDATORS`).
+        - Test parity reference: `__tests__/unit/sync-policy.test.ts` is the shape to mirror.
         - Build `test-first` (one behavior at a time):
-            - rejects values outside the enum
-            - returns default `manual-commit` when key absent
-            - precedence: `arc.autonomy` git config wins over `arc-config.yml` value
-            - invalid `arc.autonomy` value falls back to config-file value with warning surfaced
+            - resolver returns default `manual-commit` when both sources absent
+            - resolver reads valid value from yaml when git-config absent
+            - precedence: valid `arc.autonomy` git-config wins over yaml
+            - invalid `arc.autonomy` git-config → warns, falls back to yaml
+            - invalid yaml `session.autonomy` → warns, falls back to default
+            - both invalid → warns at each tier, falls back to default
 
-    - `[ ]` **2.1.b Update project `arc-config.yml` and package template**
-        - Add `session.autonomy: manual-commit` to project config (source-of-truth) and package source's
-          template. Sync per package-project-sync discipline.
+    - `[ ]` **2.1.b Add `session.autonomy` to `arc-config.yml` (project + package source)**
+        - Add `session.autonomy: manual-commit` (with comment block matching the `user.sync_push` style —
+          enum values, default, per-developer override key) to both copies:
+            - `.arc/system/arc-config.yml` (project source-of-truth)
+            - `packages/arc-framework/arc/system/arc-config.yml` (package source ships to adopters)
+        - Two-copy edit per package-project-sync discipline.
 
-### `[ ]` **2.2 Session-init probe surfaces `session.autonomy`**
+### `[ ]` **2.2 Session-init probe surfaces resolved autonomy**
 
 - **Strategies:** `strategy-testing-methodology.md`
 
-    - `[ ]` **2.2.a Wire `session.autonomy` into `config.value.settings`**
-        - Implementation extends `commands/config.ts` session-init resolver.
+    - `[ ]` **2.2.a Wire autonomy into `config.value`**
+        - Extend `runConfigSessionInitStatus` (`commands/config/status.ts`) to call `resolveAutonomyPolicy`
+          and surface the resolved-with-provenance shape as a new top-level field. Signature change:
+          `ConfigSessionInitOptions` gains `exec: GitExec`; bulk `settings` map stays raw yaml (autonomy
+          isn't added to `ConfigSettings`). `ConfigSessionInitResult` gains
+          `autonomy: { value: "manual-commit" | "auto-commit" | "auto-push", source: "git-config" | "yaml" | "default" }`.
+          Caller in `handlers/status.ts` passes `gitExec` through.
         - Build `test-first` (one behavior at a time):
-            - `runConfigSessionInitStatus` returns `session.autonomy` alongside existing settings
-            - per-developer override reflected in returned value
-            - default applied when both sources absent
+            - returns `{ value: "manual-commit", source: "default" }` when both sources absent
+            - returns `{ value: <yaml>, source: "yaml" }` when only yaml provides
+            - returns `{ value: <git-config>, source: "git-config" }` when override applies
+            - resolver warnings propagate into `warnings` array unchanged
 
 ### `[ ]` **2.3 New mode: `arc status --session-handoff --json`**
 
 - **Strategies:** `strategy-testing-methodology.md`
 
-- _Goal:_ Composite probe returning the handoff envelope — dirty state, worktree sync, notes sync, autonomy,
-  handoff-interior toggle values, active extensions filtered to handoff fire points, resolved active
-  status file. Reuses field-resolver machinery from session-init.
+- _Goal:_ Self-contained composite probe returning the handoff envelope — six slots: dirty state, worktree
+  sync, notes sync, autonomy with provenance, handoff-interior toggle values (`user.sync_push` today;
+  future siblings as named), resolved active status file path. Reuses field-resolver machinery from
+  session-init.
 
     - `[ ]` **2.3.a CLI flag plumbing**
-        - Add `--session-handoff` to `arc status` in `handlers/status.ts`. JSON-only initially (interactive
-          surface deferred). Mutually exclusive with `--session-init`.
+        - Add `--session-handoff` to `arc status` in `cli.ts` and branch in `handlers/status.ts`. JSON-only
+          initially (interactive surface deferred). Mutually exclusive with `--session-init` — both passed
+          → error, non-zero exit, message naming the conflict.
 
     - `[ ]` **2.3.b Field-set wiring for handoff scope**
-        - New `runSessionHandoffStatus` paralleling `runSessionInitStatus`; reuses existing per-command
-          session-init resolvers where field semantics match; adds handoff-specific dirty-state and
-          extension-filter resolvers.
+        - New `runSessionHandoffStatus` in `commands/status/run.ts` paralleling `runSessionInitStatus`;
+          new types in `commands/status/types.ts` (`SessionHandoffProbes`, `SessionHandoffResult`); export
+          binding via `commands/status.ts`. Reuses `runWorktreeSyncStatus`, `runUserSessionInitStatus`,
+          `runActiveSessionInitStatus`, `runConfigSessionInitStatus` (autonomy slot), and adds a new
+          dirty-state resolver (porcelain check). Sync-push policy comes from `resolveSyncPushPolicy`
+          (existing) wired as a handoff-interior-toggle slot.
         - Build `test-first` (one behavior at a time):
-            - returns dirty-state probe (porcelain check)
+            - returns dirty-state probe (porcelain check — clean / dirty + file-count detail)
             - returns worktree sync state (reuse `runWorktreeSyncStatus`)
-            - returns notes sync state (reuse user-status equivalent for handoff)
-            - returns autonomy mode from config probe
-            - returns active extensions filtered to handoff fire points
-            - returns resolved active status file
+            - returns notes sync state (reuse `runUserSessionInitStatus`)
+            - returns autonomy with provenance (reuse `runConfigSessionInitStatus`)
+            - returns sync-push policy with provenance (`resolveSyncPushPolicy`)
+            - returns resolved active status file path (reuse `runActiveSessionInitStatus`)
             - per-slot errors carried in the envelope (no non-zero exit on per-probe failure)
 
-    - `[ ]` **2.3.c Document the envelope contract**
-        - Add the field table to `strategy-session-operations.md` § probe-extension contract (same style as
-          the session-init envelope table). Consumer plans reference this from their plan docs.
+    - `[ ]` **2.3.c Document the handoff envelope field table**
+        - Additive edit to `strategy-session-operations.md` § Probe pattern: append a handoff envelope field
+          table mirroring the existing session-init field table (in `session-init.md`). The conceptual
+          framing of the probe-extension contract already exists in that section; this task adds the field
+          inventory specific to `--session-handoff`. Consumer plans reference this from their plan docs.
 
 ---
 
@@ -471,8 +504,8 @@ once they land. Captured as supplemental evidence, not a substitute.
   `strategy-configurability-architecture`
 - `[ ]` `arc-config.yml` `session.autonomy` enum ships with default `manual-commit` and per-developer
   git-config override
-- `[ ]` Session-init probe surfaces `session.autonomy` in `config.value.settings`
-- `[ ]` `arc status --session-handoff --json` returns the documented composite envelope
+- `[ ]` Session-init probe surfaces resolved autonomy as `config.value.autonomy: { value, source }`
+- `[ ]` `arc status --session-handoff --json` returns the documented self-contained envelope (six slots)
 - `[ ]` `template-status.md` carries `Spec`, `Sibling Work Unit(s)`, and `State: Planning`
 - `[ ]` `activate-planning-branch.md` creates status file at planning activation
 - `[ ]` `activate-work-unit.md` Step 4 is idempotent — transitions existing or creates
@@ -504,3 +537,4 @@ once they land. Captured as supplemental evidence, not a substitute.
 ---
 
 [verify-work-unit]: ../../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md
+[plan-sync]: ../../backlog/technical/plan-user-sync-ux.md
