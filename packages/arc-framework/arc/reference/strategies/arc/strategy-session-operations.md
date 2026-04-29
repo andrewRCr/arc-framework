@@ -4,10 +4,11 @@
 > on the docs site covers degradation evidence, duration guidance, instruction density concepts,
 > tier rationale, monitoring responsibilities, and auto-compaction reasoning.
 
-Operational specification for context loading and session management in ARC. Covers the tiered
-context model, loading mechanisms, context monitoring, and session state portability. For the
-session lifecycle workflows, see [session-init][session-init], [session-handoff][session-handoff],
-and [session-loop][session-loop].
+Operational specification for context loading and session-operational flow in ARC. Covers the
+tiered context model and loading mechanisms (context); the interlock model, status-file timing,
+and handoff-interior toggle pattern (flow); plus context monitoring and session state portability
+(operational rhythm). For session lifecycle workflows, see [session-init][session-init],
+[session-handoff][session-handoff], and [session-loop][session-loop].
 
 ---
 
@@ -17,6 +18,9 @@ and [session-loop][session-loop].
 - [Classification Criteria](#classification-criteria) — which tier for new content
 - [Loading Mechanisms](#loading-mechanisms) — how each tier enters agent context
 - [Method and Extension Loading](#method-and-extension-loading) — on-demand procedural content
+- [Interlock Model](#interlock-model) — autonomy stack, ceremony, configurability, approval signals
+- [Status-File Timing](#status-file-timing) — when status updates land in commit history
+- [Handoff-Interior Toggle Pattern](#handoff-interior-toggle-pattern) — config-key convention for handoff actions
 - [Context Monitoring](#context-monitoring) — shared responsibility model
 - [Auto-Compaction](#auto-compaction) — operational guidance
 - [Session State Portability](#session-state-portability) — cross-machine and team scenarios
@@ -86,8 +90,27 @@ Standalone probe commands (`arc user status`, `arc config status`, `arc extensio
 status`) share the same implementations and are available for debugging and CI. Session-init uses only the
 composite.
 
-**Extension slot.** New probes add to the composite by registering a slot — no session-init workflow prose
-changes required, since the workflow consumes the envelope uniformly.
+The same machinery underlies the session-handoff probe (`arc status --session-handoff --json`); see
+§ Handoff-Interior Toggle Pattern for the handoff envelope's role in workflow consumption.
+
+#### Extension contract
+
+Consumer plans extending the probe envelope add a field by registering a slot. The contract:
+
+- **Each slot is a typed `Probe<T>` union.** `ok: true` carries `value: T`; `ok: false` carries an error
+  payload. One slot's failure surfaces in that slot only; sibling slots resolve independently.
+- **Slot resolvers are non-destructive.** Read-only, no mutations, no user prompts. Side effects (e.g.,
+  pulling notes) belong in the consuming workflow after the agent reads the probe — not inside the
+  resolver.
+- **Slots fan out via `Promise.all`.** The composite waits for all slots before returning the envelope;
+  individual slot failures don't block the others.
+- **Mode-aware field selection.** A slot may participate in `--session-init`, `--session-handoff`, both,
+  or neither. The mode flag (passed to the composite) selects which slots fire; resolvers themselves
+  remain mode-agnostic.
+
+The same field-resolver machinery serves both modes. Adding a probe is structural extension — register
+the slot and declare the mode(s) it serves — not session-init workflow prose changes. Workflows consume
+the envelope uniformly.
 
 ---
 
@@ -303,6 +326,191 @@ Both avoid unnecessary body reads at init, but they serve different decisions an
 
 ---
 
+## Interlock Model
+
+These sections define ARC's session-operational flow — the interlock model, status-file timing, and
+handoff-interior toggle pattern. For at-session rule statements that constrain agent behavior in this
+domain, see [DEV-RULES.ARC][dev-rules-arc] § Commit Discipline and § Session Management.
+
+### Vocabulary
+
+An **interlock** is an active control mechanism that holds session-operational progress until released
+by an approval signal — semantics drawn from safety-engineering and control-systems usage. ARC names
+four: `task-interlock`, `commit-interlock`, `push-interlock`, `integration-interlock`.
+
+**Verb pairing.** Interlocks `release` (approval lifts the hold), `engage` (the default state — held
+until released), and `hold` (a quality-gate failure or other condition reasserts the engaged state
+regardless of approval).
+
+### Linear Autonomy Stack
+
+The four interlocks attach to the four operational junctions a unit of work passes through, in order
+(task → commit → push → integrate):
+
+| Interlock                 | Configurability |
+|---------------------------|-----------------|
+| `task-interlock`          | Invariant       |
+| `commit-interlock`        | Configurable    |
+| `push-interlock`          | Configurable    |
+| `integration-interlock`   | Invariant       |
+
+All four interlocks are engaged by default. The configurable two release under specific
+`session.autonomy` modes; see § Configurability Architecture for the enum.
+
+**Task-interlock.** Every review increment receives explicit human approval. Deferred review is a
+bounded user-scoped convenience, not an autonomy mode.
+
+**Commit-interlock.** Under `session.autonomy: manual-commit` (the default), the user explicitly
+invokes commit. `auto-commit` mode releases the interlock on task approval.
+
+**Push-interlock.** Under `session.autonomy: manual-commit` or `auto-commit`, the user explicitly
+invokes push. `auto-push` mode releases the interlock at handoff only — never per-commit.
+Mid-session push always requires explicit invocation regardless of mode.
+
+**Integration-interlock.** Merge to integration / main is human-only. Not negotiable, not configurable.
+For ARC, integration means merge-to-base; downstream production deployment is outside ARC's scope.
+
+**Quality-gate failures hold regardless of mode.** Approval releases the work, not the gate. A failed
+quality gate engages the interlock until the failure is resolved.
+
+### Orthogonal Ceremony
+
+Session handoff sits orthogonal to the autonomy stack — always human-invoked, regardless of
+`session.autonomy` mode. Inside handoff, individual actions (status-file rotation, worktree push,
+notes push, quality-gate finalization) follow the configurable handoff-interior toggle pattern (see
+§ Handoff-Interior Toggle Pattern). Handoff is not a rung in the autonomy ladder; it consolidates
+next-session-serving bookkeeping into a single explicit ritual.
+
+### Configurability Architecture
+
+The configurable interlocks (commit + push) share one config axis: `session.autonomy`.
+
+**Enum values:**
+
+- `manual-commit` (default) — both commit-interlock and push-interlock engaged by default; user
+  explicitly invokes commit and push.
+- `auto-commit` — commit-interlock releases on task approval; push-interlock remains manual.
+- `auto-push` — commit-interlock releases on task approval; push-interlock releases at handoff only
+  (never per-commit).
+
+**Override.** Per-developer override via `git config arc.autonomy <value>` — mirrors the
+`user.sync_push` / `arc.syncPush` pattern (see § Session State Portability). Repository default lives
+in `arc-config.yml`; the per-developer override takes precedence.
+
+**Why one axis.** The three modes form a strict ordering of release scope (none → commit → commit-and-push).
+Independent commit and push axes were considered but produce incoherent combinations — choosing
+`manual-commit` while expecting auto-push behavior leaves no release event for push to follow.
+
+### Approval-Signal Architecture
+
+Approval signals release the configurable interlocks. The signal is anchored by an agent-emitted
+structured prompt — not parsed from arbitrary user prose.
+
+**Per-interlock prompt variants:**
+
+- `task-interlock` (manual-commit): `Proceed to Task X.Y?`
+- `task-interlock` + `commit-interlock` bundled (auto-commit / auto-push): `Commit and proceed to Task
+  X.Y?`
+- Boundary-aware variants: `Proceed to Phase N+1, Task N+1.1?` at phase boundaries; `Proceed to
+  handoff?` at WU end.
+- `push-interlock` mid-session: requires explicit natural-language invocation ("push this", "push to
+  origin"). No structured prompt — push is intent-scoped, not boundary-anchored.
+
+**Affirmative grammar.** First-word affirmatives (`y` / `yes` / `yeah`) release the prompted interlock.
+Anything else falls to manual handling. Redirect grammar composes naturally — `y, also <X>` and
+`y; <redirect>` both release the interlock and queue the redirect.
+
+The structured prompt scopes affirmation to a specific boundary; no global parser surface is needed for
+affirmative tokens in arbitrary user prose. Session-init's orientation summary uses the same shape
+(`Awaiting direction — proceed to Next Action?`) — the mental model stays consistent across ARC's
+session lifecycle.
+
+### Push-Timing Reasoning
+
+Auto-push fires at handoff only; per-commit auto-push is not offered. The constraint surfaces in
+operational behavior: worktree-push and notes-push pair at the same release event, with fixed ordering
+(worktree first, then notes — notes attach to commits that must already exist on origin; reverse
+ordering produces dangling notes references).
+
+For deeper rationale on stakes asymmetry and concurrent-session race surface, see
+[push-timing background][TODO-docs-site].
+
+### Cascade Reversibility & Rollback
+
+When a single approval triggers multiple operations (auto-commit; auto-commit + push), the cascade
+must be reversible. ARC v1 ships protocol-level support — a DEV-RULES rule (see
+[DEV-RULES.ARC][dev-rules-arc] § Commit Discipline, *cascade-undo*) requiring agents to present an
+undo plan and await explicit confirmation before destructive cascade reversals (resetting commits,
+retracting pushes).
+
+**Scope.** Session-local. Manual confirmation. No dedicated skill or log-file infrastructure in v1.
+Agent context plus conventional-commit footers cover cascade identification — promotion to a skill
+is a candidate future WU if dogfooding shows demand.
+
+---
+
+## Status-File Timing
+
+Status-file updates fire only at session-handoff commits and workflow-ceremony commits (activate /
+integrate / sweep / deactivate / PRD generation / planning-lifecycle ops). Task-completion code
+commits never touch the status file. See [DEV-RULES.ARC][dev-rules-arc] § Commit Discipline for the
+rule statement.
+
+**Why bound to ceremony commits.** Status-file fields (Next Task, Last Completed, Next Action) are
+state pointers consumed at session-init. Per-task updates produce intermediate snapshots that no
+consumer reads; aligning state-change with the consumer boundary eliminates per-commit metadata churn
+and removes the per-commit shape-vs-rotation judgment call.
+
+**Tradeoff: dedicated handoff status commit.** Handoff produces a `chore(status): handoff …` commit
+that's not bundled with code — a clear session-boundary marker, naturally atomic, conventional-commit-
+friendly, and visible in PR history as the explicit handoff point. Workflow-ceremony commits
+(activate, integrate, etc.) bundle their status updates into the ceremony commit itself.
+
+For deeper context on commit-history readability and what this enables for auto-commit modes, see
+[status-file timing background][TODO-docs-site].
+
+---
+
+## Handoff-Interior Toggle Pattern
+
+Inside the orthogonal handoff ceremony, individual actions are configurable. The pattern: each
+handoff-interior action gets a config key under its primary domain, with a standard value enum.
+
+**Config-key convention.** Toggles live as flat keys under their primary domain — `user.sync_push`
+(notes push), future `worktree.sync_push`, future `handoff.<action>`. Not a nested `handoff.actions`
+map. The flat-key constraint accommodates existing `arc-config.yml` parsing (githooks, line-based
+shell matching require flat keys with dotted grouping); the convention also keeps each toggle
+discoverable from its primary domain rather than centralized in a handoff section.
+
+**Standard value enum.** `auto / prompt / manual`:
+
+- `auto` — fire without prompting.
+- `prompt` — ask the user before firing.
+- `manual` — surface in handoff summary; do not fire automatically.
+
+Boolean toggles (binary on/off actions) accept a context-appropriate variant. The existing
+`user.sync_push: always | prompt | manual` is a grandfathered variant — `always` is semantically
+equivalent to `auto`. New toggles use `auto`.
+
+**Per-developer override.** Mirroring `arc.syncPush` for `user.sync_push`, each toggle defines a
+matching `git config` key for personal override. Document the override in the toggle's primary-domain
+section.
+
+**Composite handoff probe.** `arc status --session-handoff --json` returns the handoff envelope —
+worktree state, notes-sync state, autonomy mode, handoff-interior toggle values, active extensions
+filtered to handoff fire points, resolved active status file. The handoff workflow consumes the
+envelope; per-action checklist consults each toggle's mode and acts. See § Probe pattern §
+Extension contract for how new toggles add slots.
+
+**Push-ordering invariant.** When both worktree-push and notes-push fire during handoff, worktree-push
+MUST land before notes-push (see § Push-Timing Reasoning for the constraint). Not a config; not
+optional. Enforced by the handoff workflow's per-action checklist ordering.
+
+**Canonical instance.** `user.sync_push: always | prompt | manual` — see § Session State Portability
+for operational details. New toggles follow this shape.
+
+---
+
 ## Context Monitoring
 
 Context monitoring is a shared responsibility between user and agent.
@@ -373,7 +581,8 @@ are missing or stale. Overwrite prompts default to confirm and accept `--yes` on
 - `prompt` — team default. Conscious choice per handoff.
 - `manual` — full control. Push only when explicitly requested.
 
-Per-developer override via `git config arc.syncPush`.
+Per-developer override via `git config arc.syncPush`. `user.sync_push` is the canonical instance of
+the [handoff-interior toggle pattern](#handoff-interior-toggle-pattern).
 
 ### Scope
 
@@ -404,3 +613,4 @@ When `arc user load` or session-init's SESSION-NOTES load fails, recover by erro
 [dev-rules-arc]: ../../constitution/DEV-RULES.ARC.md
 [dev-rules-project]: ../../constitution/DEV-RULES.PROJECT.md
 [git-notes]: https://git-scm.com/docs/git-notes
+[TODO-docs-site]: # "Placeholder pending docs-content-sweep — see notes-docs-content-sweep.md"

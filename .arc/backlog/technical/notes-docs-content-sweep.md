@@ -2387,6 +2387,83 @@ context this blockquote provides. Docs absorption should preserve the supported-
 enumeration (Claude Code, Cursor, Gemini CLI, VS Code Copilot) — it signals Skills'
 cross-agent portability.
 
+## Entry 69 — strategy-session-operations.md § Push-Timing Reasoning — stakes & race-surface rationale
+
+**Source:** `.arc/reference/strategies/arc/strategy-session-operations.md` (line 433, the
+`[push-timing background][TODO-docs-site]` placeholder under § Interlock Model § Push-Timing
+Reasoning); package-source copy same line. Full rationale authored during Task 1.3.b drafting but
+not landed in source per operational-sufficiency cuts — the strategy retains only the operationally-
+useful corollary (worktree-then-notes ordering); the supporting design rationale lives here.
+
+**Content:**
+
+> **Why per-commit auto-push is rejected.** Two arguments beyond the pairing constraint shape this
+> decision:
+>
+> - **Stakes asymmetry.** Push is external-visible and less reversible than local commit. Local
+>   commits can be amended, squashed, or reset before they leave the developer's machine; pushed
+>   commits are observable to collaborators and CI, and retraction requires force-push (which
+>   carries its own concurrency hazards). Concentrating push into deliberate ceremony reduces
+>   accidental cascade surface — a single stray approval can't propagate work to origin.
+> - **Concurrent-session safety.** Under parallel sessions (multiple worktrees, multiple machines,
+>   or both), multiple sessions writing to the shared `refs/notes/arc/user/{identity}` ref near-
+>   simultaneously creates ref-update races. Handoff-only push concentrates writes into deliberate
+>   single events bounded by the user's invocation cadence; per-commit auto-push would compound
+>   race surface linearly with commit cadence — a developer making ten commits in a session under
+>   `auto-push` would multiply the race window by ten.
+
+**Suggested destination:** docs site — Sessions & Context § Push timing, alongside operational
+push-at-handoff guidance. Adopter-facing rephrase frames as forward-looking guidance ("how
+push-at-handoff protects you in concurrent-session setups") rather than internal design-decision
+narrative.
+
+**Stylistic integration notes:** Strategy doc retains the operationally-useful pairing constraint
+(worktree-first-then-notes, notes attach to commits) inline; this entry holds the deeper "why" that
+adopters reading docs will want when evaluating their own autonomy configuration. Docs-site output
+must not reference ADRs (internal-only; adopters do not have them). Keep the concurrent-session
+example concrete (the "ten commits multiplies race window by ten" framing) — it's the kind of
+operational concretion that converts an abstract argument into a decision aid.
+
+## Entry 70 — strategy-session-operations.md § Status-File Timing — reviewer & auto-commit benefits
+
+**Source:** `.arc/reference/strategies/arc/strategy-session-operations.md` (line 467, the
+`[status-file timing background][TODO-docs-site]` placeholder under § Status-File Timing);
+package-source copy same line. Full rationale authored during Task 1.3.b drafting but not landed
+in source per operational-sufficiency cuts — the strategy retains the rule, the why-bound-to-
+ceremony framing, and the dedicated handoff commit tradeoff; the additional benefits captured
+here are adopter-interest "why" rather than behavior-shaping.
+
+**Content:**
+
+> **Commit-history readability.** Code commits and status commits serve different review needs.
+> Bundling them — the prior model — meant every code review pass had to mentally filter out
+> status-pointer churn to evaluate the actual code change, and every status-pointer review had to
+> reconstruct timing by stitching together field deltas across many bundled commits. Separating
+> them lets each kind of commit stand alone: a `chore(status): handoff …` commit is read once at
+> the session boundary and ignored during code review; code commits stay focused on what they
+> changed.
+>
+> **Auto-commit safety.** Under `auto-commit` mode, the agent's auto-fire scope is bounded to
+> code-only — the agent never has to maintain status-file consistency mid-stream while also
+> producing atomic code commits. The two responsibilities split cleanly: auto-fire produces code
+> commits at task boundaries; the explicit handoff invocation produces the status commit. This
+> separation removes a category of subtle atomicity errors (auto-commits that bundle code with
+> stale or partial status updates) without requiring the auto-commit logic to understand
+> status-file shape.
+
+**Suggested destination:** docs site — Sessions & Context § Status-file timing or § Auto-commit
+modes, alongside guidance on what commit history will look like under each autonomy configuration.
+Adopters choosing between manual and auto modes need to anticipate what their PR history will
+contain.
+
+**Stylistic integration notes:** Strategy doc retains the operationally-useful tradeoff framing
+(dedicated `chore(status): handoff …` commit appears in history) so adopters know what to expect
+in concrete terms. This entry expands the *why* behind that shape — the reviewer-facing argument
+and the auto-commit-safety argument both motivate the timing rule but don't change agent behavior
+once configured. Docs-site output must not reference ADRs (internal-only; adopters do not have
+them). Keep the framing concrete (what reviewers see, what auto-commit needs to worry about) —
+abstract "separation of concerns" prose loses adopters; specific consequences land.
+
 ---
 
 <!-- Reference link definitions for verbatim quoted content. These mirror reference labels that

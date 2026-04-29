@@ -87,11 +87,14 @@ strategy doc, workflow).
           with pointer to § Commit Discipline. New ### Handoff subsection added between Session state
           control and Context quality — handoff is always human-invoked.
 
-### `[ ]` **1.3 Strategy-doc cascade**
+### `[x]` **1.3 Strategy-doc cascade**
 
-- _Goal:_ Conceptual interlock model relocates to `strategy-session-operations.md` (the home it should have
-  had from the start); per-commit status-advance prose in `strategy-team-coordination.md` aligns with the new
-  timing rule; `session.autonomy` lands in the configurability inventory.
+- _Outcome:_ Three strategy docs cascaded for the interlock model: team-coordination prose re-anchored
+  on the timing rule (1.3.a); session-operations became the conceptual interlock-model home with new
+  sections for the model, status-file timing, handoff-interior toggle pattern, and probe-extension
+  contract (1.3.b); configurability-architecture gained `session.autonomy` inventory + toggle pattern
+  note (1.3.c). Adopter-facing rationale not passing the operational-usefulness filter extracted to
+  notes-docs-content-sweep entries 69-70.
 
     - `[x]` **1.3.a Update `strategy-team-coordination.md` per-commit status-advance language**
         - _Outcome:_ Replaced "typical pattern is one developer advancing `Next Task` per commit" framing in
@@ -99,37 +102,49 @@ strategy doc, workflow).
           narrows field overlap; the status-file timing rule (DEV-RULES.ARC § Commit Discipline) limits
           writes to handoff / workflow-ceremony commits. Package source + `.arc/` synced.
 
-    - `[ ]` **1.3.b Update `strategy-session-operations.md` — interlock model home + timing split + toggle
+    - `[x]` **1.3.b Update `strategy-session-operations.md` — interlock model home + timing split + toggle
       pattern + probe-extension contract**
-        - _Scope:_ Land four concerns — conceptual interlock model home (vocabulary, four-interlock stack,
-          configurability architecture, structured-prompt rationale, push-ordering reasoning, rollback
-          design; content the original 1.2 plan would have packed into DEV-RULES); status-file timing split
-          documented in detail; handoff-interior toggle pattern (config keys under primary domain; standard
-          `auto / prompt / manual` enum); probe-extension contract for consumer plans (P1.a folded here).
-          Audit-first execution to ensure coherent weave with existing prose rather than stapled-on
-          additions.
+        - _Outcome:_ Strategy-doc cascade landed in three new top-level sections (§ Interlock Model,
+          § Status-File Timing, § Handoff-Interior Toggle Pattern) plus extended § Probe pattern with
+          concrete extension contract. Audit-first execution kept the new content woven (intro / Contents
+          updated, push-policy bullet forward-links to canonical toggle instance) rather than stapled-on.
+          Adopter-interest rationale (push-timing stakes & race surface; status-file commit-history &
+          auto-commit benefits) extracted to notes-docs-content-sweep entries 69-70. Net +210 lines
+          across both copies; cross-doc consistency verified at re-audit.
 
-        - `[ ]` **1.3.b.i Audit & report**
-            - Cold-read the full doc against the four new concerns. Output: written plan covering (1)
-              revised ToC + section ordering, (2) placement of each new concept, (3) existing prose that
-              needs to update or get absorbed (e.g., § Probe pattern under Context Loading Model; § Session
-              State Portability push-policy bullet may already partially cover toggle territory), (4) dedup
-              risks, (5) intro / framing-paragraph adjustments. No file edits — plan only, for user review
-              before drafting.
+        - `[x]` **1.3.b.i Audit & report**
+            - _Outcome:_ Placement plan: three new top-level sections (§ Interlock Model, § Status-File
+              Timing, § Handoff-Interior Toggle Pattern) between § Method and Extension Loading and
+              § Context Monitoring; probe-extension contract folded into existing § Probe pattern;
+              push-policy bullet gains forward-link to canonical toggle instance. Audit surfaced the
+              strategy / ADR / DEV-RULES audience split that shaped operational-usefulness cuts —
+              adopter-interest "why" rationale routed to notes-docs-content-sweep rather than landing
+              in strategy.
 
-        - `[ ]` **1.3.b.ii Draft changes**
-            - Apply the approved audit plan to `strategy-session-operations.md` in a single coherent pass.
-              Package source + `.arc/` synced.
+        - `[x]` **1.3.b.ii Draft changes**
+            - _Outcome:_ Three new top-level sections (§ Interlock Model, § Status-File Timing,
+              § Handoff-Interior Toggle Pattern) + #### Extension contract subsection extending
+              § Probe pattern. Intro / Contents updated; § Session State Portability push-policy bullet
+              gains forward-link as canonical toggle instance. +208 lines, both copies synced. Two
+              `[TODO-docs-site]` placeholders captured as entries 69-70 in notes-docs-content-sweep.md
+              (push-timing stakes & race surface; status-file commit-history & auto-commit benefits).
 
-        - `[ ]` **1.3.b.iii Re-audit**
-            - Cold-read the resulting doc for flow, transitions, orphaned references, residual redundancy,
-              and cross-doc consistency (DEV-RULES.ARC ↔ ADR-016 ↔ PRD ↔ this strategy). Note any tweaks
-              needed; apply or surface for direction.
+        - `[x]` **1.3.b.iii Re-audit**
+            - _Outcome:_ Cold-read full doc; flow holds end-to-end with three-axis framing (context / flow
+              / operational rhythm) intact. One minor fix applied — trimmed near-verbatim duplication of
+              push-ordering rationale in § Handoff-Interior Toggle Pattern (now cross-references § Push-
+              Timing Reasoning instead of restating). Cross-doc consistency with DEV-RULES.ARC and PRD
+              verified clean (vocabulary, enum, timing rule, cascade-undo, structured prompts, push-
+              ordering). Subsequent ADR-cleanup pass: removed two ADR-016 mentions + link def from
+              § Interlock Model intro and revised notes-sweep entries 69/70 stylistic guidance —
+              strategies are adopter-facing and cannot reference internal ADRs.
 
-    - `[ ]` **1.3.c Update `strategy-configurability-architecture.md` — `session.autonomy` inventory**
-        - Add `session.autonomy` to the convention inventory under operational-discipline tier. Brief note on
-          the handoff-interior toggle pattern in the Configuration section. Cross-link the
-          strategy-session-operations entry.
+    - `[x]` **1.3.c Update `strategy-configurability-architecture.md` — `session.autonomy` inventory**
+        - _Outcome:_ Added `session.autonomy` row to Operational discipline conventions table (P5, default
+          "Manual commit and push"); added Session autonomy subsection in § Settings with behavioral
+          implications (mode enum + per-developer override); added Handoff-interior toggles subsection.
+          Both subsections cross-link to [session-ops] for the canonical interlock model and toggle
+          pattern. Package source + `.arc/` synced.
 
 ---
 
