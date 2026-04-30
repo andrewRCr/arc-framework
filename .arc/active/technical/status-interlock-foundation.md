@@ -8,15 +8,15 @@
 - **Task List:** `tasks-interlock-foundation.md`
 - **Sibling Work Unit(s):** `plan-session-operational-flow.md`
 
-- **Last Completed:** Task 3.2 — `activate-planning-branch.md` gained Steps 4/5 (plan-doc move +
-  status file creation) with skip-guards and idempotent semantics; strategy-work-planning.md
-  location/lifecycle prose updated in lockstep.
-- **Next Task:** Task 3.3.a — Restructure `activate-work-unit.md` Step 4 with precondition check (line ~321)
+- **Last Completed:** Phase 3 closeout — Tasks 3.3 / 3.4 / 3.5 / 3.6 complete; lifecycle workflows
+  (`activate-work-unit`, `integrate-planning-branch`) carry idempotent status-file plumbing,
+  sessionType inference reads `State: Planning`, and `strategy-session-operations` codifies the
+  creation contract.
+- **Next Task:** Task 4.1.a — Remove status-file update from task-completion step (line ~427)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Phase 3.3 — make `activate-work-unit.md` Step 4 an idempotent ensure-status-file
-  step. Detect existing planning status file → switch to transition path (Planning → In Progress, fill
-  Task List, etc.) vs creation path (instantiate from template when absent). Mirror the structural
-  patterns just applied to `activate-planning-branch.md` Step 5.
+- **Next Action:** Begin Phase 4 — `3_process-task-loop.md` status-file timing rule + structured prompt.
+  Strike the "advance Next Task / Last Completed / Next Action" prose from the task-completion step;
+  cross-reference DEV-RULES.ARC § Status-file timing rule.
 
 ---
