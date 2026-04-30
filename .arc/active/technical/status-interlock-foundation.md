@@ -8,17 +8,15 @@
 - **Task List:** `tasks-interlock-foundation.md`
 - **Sibling Work Unit(s):** `plan-session-operational-flow.md`
 
-- **Last Completed:** Phase 4.1 + 4.2 close — process-task-loop carries the status-file timing
-  rule and structured task-completion prompt (`d1b3f8e`); session-handoff restructured around
-  the composite probe (`20c8549`); follow-up atomics landed a lean pass with auto-push staleness
-  fix (`87a2fa2`) and a HEAD-hash probe slot (`44d31c0`).
-- **Next Task:** Task 4.3.a — Survey lifecycle workflows for current status-update prose (line ~491)
+- **Last Completed:** Phase 4 close — DEV-RULES § Status-file commit shape relaxed to
+  staging-as-test (`8f4e02f0`); cascade applied across lifecycle workflows + dependent surfaces
+  (`8c4ee9aa`); precursor session-handoff unpushed-count formula clarification (`a9408b2c`).
+- **Next Task:** Task 5.1.a — Add Spec shape-check to existing pre-commit infrastructure (line ~574)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Phase 4.3 — survey lifecycle workflows
-  (`activate-work-unit`, `integrate-work-unit`, `clean-work-unit`, `deactivate-work-unit`,
-  `1_create-prd`, `activate-planning-branch`, `integrate-planning-branch`) for current
-  status-update prose; note where each currently updates status before applying the timing +
-  commit-shape rule in 4.3.b.
+- **Next Action:** Begin Phase 5, Task 5.1.a — write the `test-first` shape check (empty value
+  passes, `.md` filename passes, URL passes, any other value fails with a clear error message).
+  Implementation in the existing pre-commit script (locate via `git config core.hooksPath` /
+  `.githooks/`).
 
 ---
