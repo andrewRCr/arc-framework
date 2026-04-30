@@ -86,6 +86,11 @@ colon. Blank line before and after. No time estimates. Phases are the document's
 headings; the document title (`# Task List: ...`) is the only H1. No intermediate `## Tasks`
 wrapper between H1 and phase H2s — phases are the H2 layer.
 
+**Phase numbering.** Phases use single integers (`Phase 1`, `Phase 2`, ...). Tasks within
+a phase use dotted notation (`Task 1.4`, `Task 1.4.a`). When referencing specific work, use
+`Task X.Y` — `Phase X.Y` is always a misnomer since dotted IDs identify tasks. `Phase X`
+remains valid when referring to the entire phase as a unit (e.g., "Phase 4 hasn't started").
+
 ### Phase Preamble
 
 Lines between the phase heading and its first parent task heading. Required: `_Purpose:_` line

@@ -100,3 +100,24 @@ Atomic Task Completion for the full protocol.
   other arc-\* skills do. Likely tied to `disable-model-invocation: true` in its frontmatter, but
   worth confirming the harness behavior.
 - Markdown lint clean (222 files, 0 errors).
+
+### `[x]` **Tighten commit-msg validator + Phase/Task and workflow-step-pointer conventions**
+
+- _Outcome:_ Two soft-warning false-positives from the Phase 6 close commit drove a tightening
+  pass across the validator and its underlying conventions. RULE 6 regex narrowed to
+  `Phase [0-9]+\.[0-9]+($|[^.])` so 3+-segment IDs (e.g., `5.3.a`) no longer false-fire as
+  Phase X.Y misnomers. RULE 7 gained workflow-step-pointer recognition: when the staged status
+  file's `**Next Action:**` matches `<workflow-name> Step <N> — <description>`, the
+  freshness-warning suppresses (handles the verify→integrate transition where Next Task
+  legitimately stays at the just-completed final task because no further task exists).
+- _Convention codified:_ `strategy-task-list-formatting.md` § Phase Headers gained a "Phase
+  numbering" paragraph stating phases are single integers; `Phase X.Y` is always a task
+  misnomer; `Phase X` remains valid for whole-phase references. `session-handoff.md` §
+  Workflow step pointer tightened to specify the literal format
+  (`<workflow-name> Step <N> — <description>`) and call out that the validator and
+  session-init's sessionType inference both key on this prefix.
+- _Files (7):_ 3 changes × 2 mirrors each — `strategy-task-list-formatting.md`,
+  `session-handoff.md` (`.template.md` extension on package source), `commit-msg`. Markdown
+  lint clean; shellcheck exit 0.
+- _Validation:_ The next ARC commit using the new conventions exercises the path; a clean
+  Phase 6 close on a future WU will produce a no-warning commit-msg pass.

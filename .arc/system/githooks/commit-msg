@@ -342,9 +342,10 @@ fi
 # ============================================================================
 
 # Check for "Phase X.Y" instead of "Task X.Y"
-if echo "$commit_msg" | grep -qE 'Phase [0-9]+\.[0-9]+'; then
+# Excludes dotted IDs with 3+ segments (e.g., 5.3.a) — those are unambiguously tasks.
+if echo "$commit_msg" | grep -qE 'Phase [0-9]+\.[0-9]+($|[^.])'; then
     echo -e "${YELLOW}Warning: Found 'Phase X.Y' in commit message${NC}"
-    echo "   Use 'Task X.Y' to reference specific tasks (phases contain tasks)"
+    echo "   Phases use single integers (Phase 1, Phase 2). Use 'Task X.Y' for specific tasks."
     warnings=$((warnings + 1))
 fi
 
@@ -415,7 +416,19 @@ if [ "$arc_role" != "contributor" ] && [ "$context_footer_mode" != "disabled" ] 
                     grep -E '\*\*Next Task:\*\*' | \
                     grep -oE 'Task [0-9]+\.[0-9]+' | head -1 | \
                     grep -oE '[0-9]+\.[0-9]+' || true)
-                if [ -n "$ws_current_num" ] && [ "$committed_task_num" = "$ws_current_num" ]; then
+
+                # Suppress when **Next Action:** carries a workflow-step-pointer —
+                # the workflow has explicitly directed this state (e.g., verify-work-unit
+                # Step 4 pre-aligns Next Action to integrate-work-unit Step 1 without
+                # advancing Next Task because the task list is exhausted). See
+                # session-handoff.md § Workflow step pointer.
+                ws_has_workflow_pointer="no"
+                if git show ":$expected_status" 2>/dev/null | \
+                    grep -qE '\*\*Next Action:\*\* [a-z][a-z0-9-]+ Step [0-9]+ — '; then
+                    ws_has_workflow_pointer="yes"
+                fi
+
+                if [ -n "$ws_current_num" ] && [ "$committed_task_num" = "$ws_current_num" ] && [ "$ws_has_workflow_pointer" = "no" ]; then
                     echo -e "${YELLOW}Warning: ${expected_status} may not be advanced${NC}"
                     echo "   Context references Task $committed_task_num but the status file still shows it as Next Task"
                     echo "   If this task is complete, advance Next Task to the next task"
