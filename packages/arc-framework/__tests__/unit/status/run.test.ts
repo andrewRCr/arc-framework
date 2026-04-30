@@ -46,6 +46,7 @@ import type {
   UserStatusResult,
 } from "../../../src/commands/user/types.js";
 import type { DirtyStateResult } from "../../../src/lib/git/dirty-state.js";
+import type { HeadHashResult } from "../../../src/lib/git/head-hash.js";
 import type { WorktreeSyncStatusResult } from "../../../src/lib/git/worktree-sync.js";
 import type { ResolvedSyncPush } from "../../../src/lib/sync-policy.js";
 
@@ -226,6 +227,10 @@ function resolvedSyncPush(overrides: Partial<ResolvedSyncPush> = {}): ResolvedSy
   return { policy: "always", source: "default", ...overrides };
 }
 
+function headHash(overrides: Partial<HeadHashResult> = {}): HeadHashResult {
+  return { hash: "a1b2c3d", ...overrides };
+}
+
 function sessionHandoffProbes(
   overrides: Partial<SessionHandoffProbes> = {},
 ): SessionHandoffProbes {
@@ -236,6 +241,7 @@ function sessionHandoffProbes(
     autonomy: vi.fn(async () => handoffAutonomy()),
     syncPush: vi.fn(async () => resolvedSyncPush()),
     active: vi.fn(async () => activeSessionInit()),
+    head: vi.fn(async () => headHash()),
     ...overrides,
   };
 }
@@ -658,6 +664,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
     expect(probes.autonomy).toHaveBeenCalledTimes(1);
     expect(probes.syncPush).toHaveBeenCalledTimes(1);
     expect(probes.active).toHaveBeenCalledTimes(1);
+    expect(probes.head).toHaveBeenCalledTimes(1);
     expect(probes.user).toHaveBeenCalledWith("andrew");
     expect(probes.active).toHaveBeenCalledWith("andrew", "maintainer");
   });
@@ -673,6 +680,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       "active",
       "autonomy",
       "dirty",
+      "head",
       "identity",
       "mode",
       "syncPush",
@@ -680,6 +688,51 @@ describe("runSessionHandoffStatus — orchestration", () => {
       "worktree",
     ]);
     expect(result.mode).toBe("session-handoff");
+  });
+
+  it("returns the HEAD short-hash from the head probe", async () => {
+    const probes = sessionHandoffProbes({
+      head: vi.fn(async () => headHash({ hash: "deadbee" })),
+    });
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.head.ok).toBe(true);
+    if (result.head.ok) expect(result.head.value.hash).toBe("deadbee");
+  });
+
+  it("preserves null hash on the head slot when rev-parse returned empty", async () => {
+    const probes = sessionHandoffProbes({
+      head: vi.fn(async () => headHash({ hash: null })),
+    });
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.head.ok).toBe(true);
+    if (result.head.ok) expect(result.head.value.hash).toBeNull();
+  });
+
+  it("wraps a rejecting head probe as ok=false runtime error", async () => {
+    const probes = sessionHandoffProbes({
+      head: vi.fn(async () => { throw new Error("rev-parse failed"); }),
+    });
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.head.ok).toBe(false);
+    if (!result.head.ok) {
+      expect(result.head.error.kind).toBe("runtime");
+      expect(result.head.error.message).toBe("rev-parse failed");
+    }
+    // Sibling slots unaffected
+    expect(result.dirty.ok).toBe(true);
+    expect(result.worktree.ok).toBe(true);
   });
 
   it("returns dirty-state probe (clean / dirty + file-count detail)", async () => {
@@ -841,8 +894,9 @@ describe("runSessionHandoffStatus — orchestration", () => {
       autonomy: tracked(handoffAutonomy()),
       syncPush: tracked(resolvedSyncPush()),
       active: tracked(activeSessionInit()),
+      head: tracked(headHash()),
     });
     await runSessionHandoffStatus({ identity: "andrew", role: "maintainer", probes });
-    expect(peakInFlight).toBe(6);
+    expect(peakInFlight).toBe(7);
   });
 });

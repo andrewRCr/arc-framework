@@ -16,21 +16,6 @@ Atomic Task Completion for the full protocol.
 
 ## Tasks
 
-### `[ ]` **Add HEAD hash slot to session-handoff probe envelope**
-
-- _Goal:_ Probe carries current HEAD short-hash so handoff workflow reads it from the envelope
-  instead of issuing a separate `git rev-parse` call.
-- _Scope:_
-    - `packages/arc-framework/src/commands/status/types.ts`: add `head` slot to
-      `SessionHandoffResult` and `SessionHandoffProbes`.
-    - `packages/arc-framework/src/commands/status/run.ts`: extend the parallel fan-out.
-    - Handler wiring (`src/handlers/status.ts`) + probe binding (likely a small helper in
-      `lib/git/exec.ts` if not already there).
-    - Unit tests for the new slot; integration test verifying `--session-handoff --json` shape.
-    - Workflow consumption: update `session-handoff.md` (both copies) so step 4 reads
-      `head.value.hash` instead of running `git rev-parse`.
-- _Verification:_ Tier 2 — typecheck, lint:ts, full test suite, markdown lint.
-
 ### `[x]` **Re-anchor backlog-sibling link note in `activate-work-unit.md` Step 3**
 
 - _Outcome:_ Step 3 amended with a re-anchor note pointing at the pre-commit markdown-link
@@ -71,3 +56,16 @@ Atomic Task Completion for the full protocol.
   probe-captured worktree state could miss step 3's `chore(status): handoff` commit and skip
   pushing it. Manual-commit summary line uses the same combined signal.
 - Both copies (`.arc/` + package template) in sync; Tier 1 lint clean.
+
+### `[x]` **Add HEAD hash slot to session-handoff probe envelope**
+
+- _Outcome:_ Probe envelope carries the current HEAD short-hash so the handoff workflow reads
+  it inline instead of running a separate `git rev-parse` call. New `lib/git/head-hash.ts` module
+  (`runHeadHashStatus` + `HeadHashResult`) follows the dirty-state probe pattern; soft-null on
+  empty stdout, exec failures propagate to the probe wrapper. `SessionHandoffResult` and
+  `SessionHandoffProbes` gain the `head` slot; `runSessionHandoffStatus` extends the parallel
+  fan-out 6 → 7. Handler wires `runHeadHashStatus({ exec: gitExec })`. Unit tests added for the
+  helper (4 cases) and the orchestrator (3 new tests covering hash, null, and runtime error
+  isolation). Workflow consumption updated in both copies — step 4 reads `head.value.hash` with
+  a single rev-parse refresh when step 3 fired a chore commit (post-commit HEAD is the right
+  anchor). Tier 2 clean: typecheck, lint, 930 unit + 49 e2e tests pass, markdown lint.

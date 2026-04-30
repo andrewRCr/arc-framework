@@ -47,6 +47,7 @@ import {
 } from "../commands/user.js";
 import { gitConfigGet } from "../lib/git/index.js";
 import { runDirtyStateStatus } from "../lib/git/dirty-state.js";
+import { runHeadHashStatus } from "../lib/git/head-hash.js";
 import { runWorktreeSyncStatus } from "../lib/git/worktree-sync.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { createUserIOContext, gitExec } from "../lib/io-context.js";
@@ -112,6 +113,7 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
         cwd,
       }),
       active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec: gitExec }),
+      head: () => runHeadHashStatus({ exec: gitExec }),
     };
     const result = await runSessionHandoffStatus({ identity, role, probes });
     // Interactive rendering not yet implemented — emit JSON regardless of the flag.

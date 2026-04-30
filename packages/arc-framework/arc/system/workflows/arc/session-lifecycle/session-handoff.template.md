@@ -32,6 +32,7 @@ npx arc status --session-handoff --json
 | `autonomy` | `{value, source}` — push-interlock mode (`manual-commit` requires explicit invocation; `auto-push` fires here) |
 | `syncPush` | `{policy, source}` — resolved `user.sync_push` (always / prompt / manual)                                      |
 | `active`   | Active status file resolution + sessionType (same shape as session-init)                                       |
+| `head`     | `{hash: string \| null}` — current HEAD short-hash for the `Commit at Handoff` anchor                          |
 
 **Identity absent** (`identity.identity === null`): Skip the notes-sync slot — notes operations
 depend on identity for path resolution. Surface a warning in the handoff summary. Sessions without
@@ -126,9 +127,9 @@ Update session state files before ending session:
     Contributors (`arc.role = contributor`) skip the commit — their personal active status file at
     `.arc/user/{identity}/active/status-{name}.md` is gitignored, so the field update lands
     without staging.
-4. **Write SESSION-NOTES** per the guidance below. Capture the HEAD anchor with
-   `git rev-parse --short HEAD` (post-step-3 if a commit was made) and record it as
-   `**Commit at Handoff:**`.
+4. **Write SESSION-NOTES** per the guidance below. Record `**Commit at Handoff:**` from
+   `head.value.hash` (the probe captured pre-step-3; if step 3 fired a chore commit, run
+   `git rev-parse --short HEAD` once to refresh — the post-commit HEAD is the right anchor).
 
 **Update the active status file** (tracked project state, if an active WU exists):
 

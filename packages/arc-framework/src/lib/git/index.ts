@@ -33,6 +33,12 @@ export {
 } from "./dirty-state.js";
 
 export {
+  runHeadHashStatus,
+  type HeadHashResult,
+  type RunHeadHashStatusOptions,
+} from "./head-hash.js";
+
+export {
   slugifyIdentity,
   resolveIdentity,
   type IdentityOptions,

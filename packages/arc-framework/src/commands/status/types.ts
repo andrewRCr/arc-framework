@@ -31,6 +31,7 @@ import type {
 } from "../user/types.js";
 import type { AutonomyPolicy } from "../../lib/autonomy-policy.js";
 import type { DirtyStateResult } from "../../lib/git/dirty-state.js";
+import type { HeadHashResult } from "../../lib/git/head-hash.js";
 import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
 import type { ResolvedSyncPush } from "../../lib/sync-policy.js";
 
@@ -109,10 +110,11 @@ export interface HandoffAutonomy {
  * Session-handoff composite result — `--session-handoff` consumer shape.
  *
  * Self-contained: arc-handoff is skill-invoked and shouldn't depend on
- * session-init context still being intact. Six slots: dirty-state probe,
+ * session-init context still being intact. Seven slots: dirty-state probe,
  * worktree sync, notes sync (user), autonomy with provenance, the
  * handoff-interior toggle set (`syncPush` today; future toggles named as
- * sibling slots), and the resolved active status file.
+ * sibling slots), the resolved active status file, and current HEAD
+ * short-hash for the `Commit at Handoff` anchor.
  */
 export interface SessionHandoffResult {
   mode: "session-handoff";
@@ -123,6 +125,7 @@ export interface SessionHandoffResult {
   autonomy: Probe<HandoffAutonomy>;
   syncPush: Probe<ResolvedSyncPush>;
   active: Probe<ActiveSessionInitResult>;
+  head: Probe<HeadHashResult>;
 }
 
 /** Probe functions in session-init mode — bound to cwd and any required I/O. */
@@ -155,6 +158,7 @@ export interface SessionHandoffProbes {
     identity: string | null,
     role: string | null,
   ) => Promise<ActiveSessionInitResult>;
+  head: () => Promise<HeadHashResult>;
 }
 
 export interface RunStatusOptions {

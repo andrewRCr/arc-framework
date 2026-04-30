@@ -146,7 +146,7 @@ export async function runSessionInitStatus(
 /**
  * Run the session-handoff composite probe.
  *
- * Self-contained envelope for the arc-handoff workflow. Fans out to six
+ * Self-contained envelope for the arc-handoff workflow. Fans out to seven
  * slots in parallel; per-slot failures wrap into `Probe` errors so the
  * envelope itself never rejects. Identity is resolved in the handler and
  * passed in as pointers; when `identity` is `null` the user (notes-sync)
@@ -165,14 +165,16 @@ export async function runSessionHandoffStatus(
   const autonomyTask = probes.autonomy().then(ok, fromRejection);
   const syncPushTask = probes.syncPush().then(ok, fromRejection);
   const activeTask = probes.active(identity, role).then(ok, fromRejection);
+  const headTask = probes.head().then(ok, fromRejection);
 
-  const [dirty, worktree, user, autonomy, syncPush, active] = await Promise.all([
+  const [dirty, worktree, user, autonomy, syncPush, active, head] = await Promise.all([
     dirtyTask,
     worktreeTask,
     userTask,
     autonomyTask,
     syncPushTask,
     activeTask,
+    headTask,
   ]);
 
   return {
@@ -184,5 +186,6 @@ export async function runSessionHandoffStatus(
     autonomy,
     syncPush,
     active,
+    head,
   };
 }
