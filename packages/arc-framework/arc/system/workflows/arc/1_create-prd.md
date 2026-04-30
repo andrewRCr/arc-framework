@@ -67,8 +67,8 @@ For interactive sessions, provide numbered options to keep responses quick.
 ### Step 4: Write and Save PRD
 
 Generate the PRD using [template-prd.md][template-prd]. The template includes section guidance,
-dependency tracking, priority levels, and document history conventions. Adapt emphasis based on
-work type — not every section carries equal weight for every PRD.
+dependency tracking, and priority levels. Adapt emphasis based on work type — not every section
+carries equal weight for every PRD.
 
 **Naming:** The `{{WORK_NAME}}` descriptor in the PRD filename becomes the work unit's identifier
 across all artifacts — task list (`tasks-{{WORK_NAME}}.md`), notes (`notes-{{WORK_NAME}}.md`),

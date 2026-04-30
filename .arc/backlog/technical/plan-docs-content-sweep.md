@@ -341,7 +341,6 @@ adopters rely on):
    `prd-arcd-docs-site.md` scope (format migration only)
 2. Add a new numbered item under § Drift Items with the template shape: what
    changed / edit type / touch points / nuance
-3. Update Document History
 
 **Content contributions** — when a WU slims in-repo content and stages extracted prose
 for docs absorption:
@@ -352,7 +351,6 @@ for docs absorption:
 2. Add a numbered item under § Content Contributions here, pointing at the staging
    file and capturing high-level context (what changed / input type / staging
    reference / link placeholders / nuance)
-3. Update Document History
 
 The plan remains in capture state until either (a) `prd-arcd-docs-site.md` is near
 activation and items have accumulated enough to PRD this WU, or (b) an individual
@@ -396,16 +394,3 @@ item is urgent enough to run as an atomic task list before the consolidated swee
   surfacing of the per-WU status file docs drift
 - `prd-session-init-optimization.md` § Requirements P1.1–P1.3 (operational-context audit
   producing content contributions staged here)
-
-## Document History
-
-| Date       | Change                                                                                                |
-|------------|-------------------------------------------------------------------------------------------------------|
-| 2026-04-16 | Initial capture — seeded with per-WU status file model from Work-Status Restructure pre-merge         |
-| 2026-04-17 | Added Content Contributions input type — accommodates Session-Init Optimization staging notes         |
-| 2026-04-17 | Renamed plan file: methodology-sweep → content-sweep (scope broadened beyond methodology drift)       |
-| 2026-04-22 | Added Session-Init Optimization Phase 3.R docs drift capture — public `docs/**` updates deferred here |
-| 2026-04-23 | Added Drift Item #4 — agent-file surface removal + `system/briefs/` rename + harness-layer intro      |
-| 2026-04-23 | Added Content Contribution #5 — agent-native positioning framing note for value-prop copy             |
-| 2026-04-24 | Added Drift Item #6 — DEV-RULES domain-rules pattern + adopter-facing template                        |
-| 2026-04-25 | Added Content Contribution #7 — session-init dual-channel pull config + worktree-drift qualifier      |
