@@ -571,14 +571,37 @@ once they land. Captured as supplemental evidence, not a substitute.
 - _Goal:_ Block commits where `Spec` value is malformed; tier-aware semantics deferred to
   `plan-agile-wu-lifecycle`.
 
-    - `[ ]` **5.1.a Add the shape-check to existing pre-commit infrastructure**
-        - Build `test-first` (one behavior at a time):
-            - empty value passes
-            - `.md` filename passes
-            - URL passes
-            - any other value fails with a clear error message
-        - Implementation in the existing pre-commit script (locate via `git config core.hooksPath` /
-          `.githooks/`). Shell test using the project's existing shell-test convention.
+    - `[ ]` **5.1.a Build `validate-status-spec.ts` shape validator** (test-first)
+        - Implementation: TypeScript validator at
+          `packages/arc-framework/src/scripts/validate-status-spec.ts` — same dispatcher pattern as
+          `validate-frontmatter.ts`. Accepts file paths as args; reads each file, locates the
+          `**Spec:**` line, validates shape; non-zero exit on mismatch with diagnostic to stdout.
+        - Shape rules (pinned):
+            - Pass: literal empty value, `[none]` (template empty-value sentinel), bare-basename
+              `.md` filename (no path separators), `https?://...` URL.
+            - Fail: missing `**Spec:**` line, multiple `**Spec:**` lines, any other value.
+            - Whitespace: trim surrounding whitespace before shape match.
+        - Tests at `packages/arc-framework/__tests__/unit/scripts/validate-status-spec.test.ts`
+          (mirror existing validator-test conventions). Build `test-first` (one behavior at a time):
+            - `[ ]` empty value passes
+            - `[ ]` `[none]` value passes
+            - `[ ]` bare-basename `.md` filename passes (e.g., `prd-foo.md`)
+            - `[ ]` `https://` URL passes
+            - `[ ]` `http://` URL passes
+            - `[ ]` value with surrounding whitespace passes (validator trims)
+            - `[ ]` missing `**Spec:**` line fails
+            - `[ ]` multiple `**Spec:**` lines fails
+            - `[ ]` `.md` path with separators fails (e.g., `subdir/foo.md`)
+            - `[ ]` arbitrary non-matching value fails (e.g., `TBD`, `foo`)
+            - `[ ]` error message includes file path, offending value, and expected shape
+
+    - `[ ]` **5.1.b Wire validator into pre-commit hook**
+        - Add a new CHECK block to `.arc/system/githooks/pre-commit` (and the package-source copy at
+          `packages/arc-framework/arc/system/githooks/pre-commit`) following the CHECK 12 /
+          `validate-frontmatter` delegation pattern (`npx tsx ... $candidates`).
+        - Scope staged candidates to `^\.arc/active/[^/]+/status-[^/]+\.md$` (matches CHECK 10).
+        - Block commits on validator non-zero exit; surface diagnostic output indented under an
+          error banner.
 
 ### `[ ]` **5.2 Migrate existing in-flight self-host status files in place**
 
@@ -601,9 +624,10 @@ once they land. Captured as supplemental evidence, not a substitute.
   execution itself happens post-integration, between WU-A integration and WU-B activation.
 
     - `[ ]` **5.3.a Write the validation-window entry**
-        - Output: a tracked notes file (`notes-interlock-foundation.md` or `notes-validation-window.md`)
-          documenting which sessions exercise which success-criteria, what defines window completion,
-          where observations get captured.
+        - Output: tracked notes file at `.arc/active/technical/notes-validation-window.md` (lives
+          next to status/PRD/tasks; follows the WU through archive). Documents which sessions
+          exercise which success-criteria, what defines window completion, where observations get
+          captured.
         - Concrete shape (≥3 sessions; adjust if surfaces reveal more):
             - Session 1 — planning-branch activation end-to-end via session-operational-flow plan-doc
               refinement: `activate-planning-branch` ceremony, status file created with `State: Planning`,
@@ -621,8 +645,10 @@ once they land. Captured as supplemental evidence, not a substitute.
     - `[ ]` **5.3.b Capture in-flight observations from Phases 1–5 execution**
         - As the new frame lands phase-by-phase, this WU's own remaining task work increasingly uses
           it (Phase 4.1 prompts apply to all subsequent task closes; status timing rule applies once
-          Phase 4.1 lands; etc.). Append findings to the same notes file. Supplemental evidence —
-          does not substitute for the post-integration window.
+          Phase 4.1 lands; etc.). Append findings to the same notes file as 5.3.a. Supplemental
+          evidence — does not substitute for the post-integration window.
+        - _Completion:_ marked `[x]` at Phase 5 close (before Phase 6 verification); observation log
+          seals there. Phases 1–4 entries are retrospective recall — Phase 5 captures land in real time.
 
 ---
 
