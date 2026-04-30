@@ -16,6 +16,21 @@ Atomic Task Completion for the full protocol.
 
 ## Tasks
 
+### `[ ]` **Add HEAD hash slot to session-handoff probe envelope**
+
+- _Goal:_ Probe carries current HEAD short-hash so handoff workflow reads it from the envelope
+  instead of issuing a separate `git rev-parse` call.
+- _Scope:_
+    - `packages/arc-framework/src/commands/status/types.ts`: add `head` slot to
+      `SessionHandoffResult` and `SessionHandoffProbes`.
+    - `packages/arc-framework/src/commands/status/run.ts`: extend the parallel fan-out.
+    - Handler wiring (`src/handlers/status.ts`) + probe binding (likely a small helper in
+      `lib/git/exec.ts` if not already there).
+    - Unit tests for the new slot; integration test verifying `--session-handoff --json` shape.
+    - Workflow consumption: update `session-handoff.md` (both copies) so step 4 reads
+      `head.value.hash` instead of running `git rev-parse`.
+- _Verification:_ Tier 2 — typecheck, lint:ts, full test suite, markdown lint.
+
 ### `[x]` **Re-anchor backlog-sibling link note in `activate-work-unit.md` Step 3**
 
 - _Outcome:_ Step 3 amended with a re-anchor note pointing at the pre-commit markdown-link
@@ -40,3 +55,19 @@ Atomic Task Completion for the full protocol.
     - `notes-docs-content-sweep.md` (backlog) — canonical-shape illustrations (2 hits).
 - _Out of scope:_ `.arc/reference/archive/**` left alone (frozen historical record under the
   old shape). `system/.internal/pristine.json` regenerates via CLI infrastructure.
+
+### `[x]` **Lean pass on `session-handoff.md` (post-4.2 cleanup)**
+
+- _Outcome:_ −73 lines net (552 → 479). Dropped Pre-Update Verification section — probe carries
+  `dirty` / `worktree` / `active`; `git log` and `git rev-parse` fold into the steps that need
+  them. Confirm Handoff lost Session Summary + Uncommitted Work blocks; verbal output is now
+  state · sync · next-session with conditional surfaces (unpushed worktree, diverged worktree,
+  declined status-file commit). SESSION-NOTES `## Completed Work` renamed `## Uncommitted Work`
+  and scoped to uncommitted-only (committed work fails filter criterion #1 — tracked sources
+  carry it). Anti-patterns 7 → 4 (consolidated restate-tracked-content and forward-looking
+  variants). Example 2 dropped; Example 1 SESSION-NOTES updated to match new shape.
+- _Correctness fix folded in:_ Worktree Push under auto-push now reads "anything unpushed"
+  (probe local-ahead OR step 3 chore commit), closing a 4.2-introduced staleness gap where the
+  probe-captured worktree state could miss step 3's `chore(status): handoff` commit and skip
+  pushing it. Manual-commit summary line uses the same combined signal.
+- Both copies (`.arc/` + package template) in sync; Tier 1 lint clean.

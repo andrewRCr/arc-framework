@@ -43,24 +43,6 @@ identity cannot push notes.
 
 Carry slot values forward to the steps that consume them — don't re-probe.
 
-## Pre-Update Verification
-
-**Before writing the handoff, verify actual state:**
-
-1. **Tree state** — read `dirty.value.state` from the probe (`clean` / `dirty`, with `fileCount`).
-   For diff inspection of dirty trees: `git status` and `git diff`.
-2. `git log --oneline -10` — capture committed work
-3. `git rev-parse --short HEAD` — record commit anchor for SESSION-NOTES.md staleness detection
-4. Task list file — verify marked checkboxes reflect actual completion (maintainer only —
-   contributors skip this)
-
-> **Contributor role (`arc.role = contributor`):** Contributors write SESSION-NOTES.md and save to
-> git notes (same as maintainers), and update their personal active status file at
-> `.arc/user/{identity}/active/status-{name}.md` during handoff step 3 — that path is gitignored,
-> so commit-time staging doesn't apply; handoff is the natural update trigger, parallel to
-> SESSION-NOTES. Contributors skip pre-handoff check 4 (task-list checkboxes — maintainer-managed)
-> and the status-file commit in step 3 (nothing tracked to commit).
-
 ## What to Update
 
 Session state is split across tracked project state and personal session state (per the
@@ -144,8 +126,9 @@ Update session state files before ending session:
     Contributors (`arc.role = contributor`) skip the commit — their personal active status file at
     `.arc/user/{identity}/active/status-{name}.md` is gitignored, so the field update lands
     without staging.
-4. **Write SESSION-NOTES** per the guidance below. Record `**Commit at Handoff:**` from current
-   HEAD (post-step-3 if a commit was made).
+4. **Write SESSION-NOTES** per the guidance below. Capture the HEAD anchor with
+   `git rev-parse --short HEAD` (post-step-3 if a commit was made) and record it as
+   `**Commit at Handoff:**`.
 
 **Update the active status file** (tracked project state, if an active WU exists):
 
@@ -228,13 +211,12 @@ Markers:
   ignored + warning at session-init.
 -->
 
-## Completed Work
+## Uncommitted Work
 
 <!-- Wrap continuation lines on bullets to the 120-char target. Under-wrapping (60-80 chars)
      is the common failure here — see DEV-RULES.PROJECT § Documentation Standards. -->
 
-[Committed work — one line per commit: hash + outcome. See "Committed work" below.]
-[Uncommitted work — commit-level detail. See "Uncommitted work" below.]
+[Commit-level detail for any uncommitted work. Otherwise: [none].]
 
 ## Remaining Work Before Returning to Task List
 
@@ -261,18 +243,10 @@ points to an in-progress execution WU but the next session will plan a separate 
 (default) → session-init infers from tracked state. Don't write by default; the inference covers
 the 99% case.
 
-**Completed Work — committed work (default):** One line per commit: hash + outcome. Nothing more.
-
-- ✅ `a1b2c3d` — Task 3.5: Schema validation for input records
-- ✅ `e4f5g6h` — Tasks 3.6–3.7: Batch ingestion error handling
-
-The commit body already documents what changed, why, and the design decisions — that's what
-`git log` is for. Restating it in SESSION-NOTES is the most common noise pattern. Trust the
-commit body.
-
-**Completed Work — uncommitted work (exception):** When documenting uncommitted work, use
-commit-level granularity — the next session needs enough detail to recreate proper atomic
-commits from `git diff`:
+**Uncommitted Work:** Committed work lives in `git log`, task list checkboxes, and the status
+file's `**Last Completed:**` pointer — restating it here fails filter criterion #1 (already in
+tracked sources). Reserve this section for work the next session can only see in `git diff`. Use
+commit-level granularity so the next session can reconstruct proper atomic commits:
 
 - ✅ Task 3.2.1: Added input validation to config parser (src/config.py, src/validators.py) —
   rejects malformed YAML
@@ -280,7 +254,8 @@ commits from `git diff`:
 - ✅ Incidental: Fixed broken cross-reference in workflow doc (session-init.md)
 
 Map accomplishments to logical commits (what changed, which files), include task numbers for
-`Context:` footers, note incidental work separately from task list work.
+`Context:` footers, note incidental work separately from task list work. When everything is
+committed (the common case after a deferred-review scope finishes), write `[none]`.
 
 **Remaining Work Before Returning to Task List:** Only for off-task-list work when the path
 back is known. List all steps, not just the next one. Use triple-anchor format (task number +
@@ -314,25 +289,19 @@ is now carried in tracked state.
 **Anti-patterns — omit by name.** When you notice yourself writing one of these, delete it and
 trust the tracked source:
 
-- ❌ **Commit-by-commit retrospective narration.** "Commit `abc123` delivered Task 1.3 as a
-  full-file sweep because mid-batch discovery surfaced 16 references…" The commit body is
-  exactly this. Leave it there.
-- ❌ **Phase preview describing upcoming tasks.** "Task 2.2 creates the template, 2.3 adds the
-  Working On field, 2.4 removes the Status header…" The task list is exactly this. The next
-  session reads it when they get there, not at step 0.
-- ❌ **Design-decision retrospective already in a commit body or notes file.** If the decision
-  is in a commit or `notes-*.md § Consequences`, cross-reference it at most — don't restate it.
-- ❌ **Session-retrospective incidentals.** "Table-width math was tight; commit body length
-  warnings fired twice; markdown-table-prettify has a stdout gotcha." Process observations,
-  not next-session context. If one becomes a durable lesson, codify it in a strategy or
+- ❌ **Restating tracked content.** Anything already in a commit body, task list, status file,
+  or `notes-*.md` — including commit-by-commit narration, completed-task summaries, and
+  design-decision retrospectives. The next session reads tracked state first; SESSION-NOTES is
+  the delta. Cross-reference at most; don't restate.
+- ❌ **Forward-looking content the next session reads when they get there.** Phase previews,
+  upcoming-task summaries, "things NOT to re-do" lists. The task list and tracked state surface
+  this naturally at step 0 — no need to mirror them.
+- ❌ **Process narration.** "Table-width math was tight; commit-body length warnings fired
+  twice; markdown-table-prettify has a stdout gotcha." Session retrospective, not next-session
+  context. If one observation becomes a durable lesson, codify it in a strategy or
   QUICK-REFERENCE — not SESSION-NOTES.
-- ❌ **"Things NOT to re-do" lists** mirroring decisions already captured elsewhere. Defensive
-  duplication. Tracked state will surface what the next session needs.
 - ❌ **Explanatory paragraphs where the template expects whitespace.** An empty Persistent
   Context section is fine as empty. Don't write prose explaining why it's empty.
-- ❌ **Restating committed content.** If it's in a committed file (WU status file, task list,
-  commit message, `notes-*.md`), don't restate it here. The next session reads tracked state
-  first; SESSION-NOTES is the delta.
 
 **Minimum viable SESSION-NOTES — what belongs here:** If it doesn't fit one of these, it
 probably doesn't belong:
@@ -363,10 +332,9 @@ status-data-pipeline.md:
 SESSION-NOTES.md:
 
 ```markdown
-## Completed Work
+## Uncommitted Work
 
-- ✅ Task 3.5: Added schema validation for input records
-- ⚠️ Discovered connection timeout during integration testing
+[none]
 
 ## Remaining Work Before Returning to Task List
 
@@ -381,41 +349,9 @@ SESSION-NOTES.md:
 
 ## Additional Context
 
-- Timeout occurs when batch size exceeds 1000 records (connection pool default is 10)
-- Tried increasing pool size to 50, but underlying issue is sequential processing blocking connections
-- Best fix: switch to async batch processing with connection pool recycling
-```
-
-**Example 2: Preparatory work before starting task**
-
-status-api-documentation.md:
-
-```markdown
-## Active Work
-
-**State:** In Progress
-**Branch**: technical/api-documentation
-**Task List**: .arc/active/technical/tasks-api-documentation.md
-**Next Task**: Task 3.1 — Document authentication endpoints (line ~203)
-**Last Completed**: Tasks 2.3-2.4 — Query parameter and response format sections
-**Blockers**: [none]
-**Next Action**: Review auth middleware source before documenting Task 3.1 endpoints
-```
-
-SESSION-NOTES.md:
-
-```markdown
-## Completed Work
-
-- ✅ Task 2.3: Query parameter documentation (committed a1b2c3d)
-- ✅ Task 2.4: Response format documentation (committed a1b2c3d)
-
-## Additional Context
-
-**Pre-task review needed:**
-
-1. Auth middleware has undocumented rate limiting behavior — need to read source before documenting
-2. Token refresh flow has edge case when refresh token expires mid-request
+- Discovered timeout when batch size exceeds 1000 records (connection pool default is 10).
+- Tried increasing pool size to 50, but underlying issue is sequential processing blocking connections.
+- Best fix: switch to async batch processing with connection pool recycling.
 ```
 
 ## Task List Completion & Transition Format
@@ -451,16 +387,19 @@ below. See [Session Operations Strategy][session-ops] § Push Toggles for the un
 
 ### Worktree Push
 
-Gated on `autonomy.value` (push-interlock) and `worktree.value.state`:
+Gated on `autonomy.value` (push-interlock) and `worktree.value.state`. Note that the worktree
+slot was captured pre-step-3 — if step 3 fired a `chore(status): handoff` commit, the slot's
+local-ahead count is one short of reality; account for that:
 
-- `auto-push` autonomy + `worktree.value.state === "local-ahead"`: run `git push`. No ask —
-  autonomy is the approval.
-- `auto-push` autonomy + other worktree states (`remote-ahead`, `diverged`): skip the push;
+- `auto-push` autonomy: run `git push` when there's anything unpushed — `worktree.value.state
+  === "local-ahead"` (probe baseline) OR step 3 fired a chore commit. No ask — autonomy is the
+  approval.
+- `auto-push` autonomy + `worktree.value.state` is `remote-ahead` / `diverged`: skip the push;
   surface in the handoff summary as `Reconcile required:` — manual rebase or merge needed before
-  pushing.
+  pushing (step 3's commit, if any, can't fast-forward in this state).
 - `manual-commit` autonomy (default): skip the push action. The user pushes when ready. Surface
   unpushed commits in the handoff summary as a one-line note (`Worktree: N unpushed commit(s) on
-  {branch}`) regardless of autonomy mode whenever `worktree.value.state === "local-ahead"`.
+  {branch}`) whenever there's anything unpushed (probe local-ahead OR step 3 chore commit).
 
 ### Notes Push
 
@@ -503,17 +442,11 @@ This is a quick confirmation for the human — the session state files are the d
 
 **ARC session handoff complete** · `{branch-name}` · {clean | uncommitted changes}
 
-**Session summary:**
-
-- [`<hash>` — `<outcome>` (one line per logical unit)]
-
-**Uncommitted work:**
-
-- [Files/changes with logical commit grouping; omit section entirely when nothing uncommitted]
+**Sync:** {synced to remote | sync failed — re-run `arc sync` after resolving}
 
 **Next session:** [Task list pointer (on-task-list) or freeform (off-task-list)]
 
-**Conditional top-level sections** — prepend above `**Session summary:**` when applicable:
+**Conditional top-level sections** — prepend above `**Sync:**` when applicable:
 
 - `worktree.value.state === "local-ahead"`:
 
@@ -537,14 +470,11 @@ This is a quick confirmation for the human — the session state files are the d
 
 **Formatting guidance:**
 
-- Mirrors the session-init orientation summary — bookend pattern.
-- **Session summary** bullets: one line per logical unit — `<hash> — <outcome>`. Don't restate commit body
-  content; `git log` is the durable record. (Same anti-pattern as SESSION-NOTES § "commit-by-commit
-  retrospective narration".)
-- **Uncommitted work** maps to commits — enough detail for the next session to reconstruct proper atomic
-  commits without re-reading diffs. Omit entirely when all work is committed.
-- **Next session**: one line on-task-list (status file pointer); unbounded only when off-task-list — same
-  bounding as session-init Step 7 Next action.
+- Mirrors the session-init orientation summary — bookend pattern. Confirm Handoff doesn't restate
+  what got done (SESSION-NOTES, git log, task list, and status-file `**Last Completed:**` already
+  carry it); the verbal output is operational confirmation, not a session retrospective.
+- **Next session**: one line on-task-list (status file pointer); unbounded only when off-task-list
+  — same bounding as session-init orientation Next Action.
 
 [arc-methods-session]: ../../../methods/session-state.md
 [dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md
