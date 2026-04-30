@@ -2464,6 +2464,71 @@ once configured. Docs-site output must not reference ADRs (internal-only; adopte
 them). Keep the framing concrete (what reviewers see, what auto-commit needs to worry about) —
 abstract "separation of concerns" prose loses adopters; specific consequences land.
 
+## Entry 71 — strategy-session-operations.md § Status-File Timing — task-list bundling rationale
+
+**Source:** `.arc/reference/strategies/arc/strategy-session-operations.md` (around line 538, the
+`[task-list timing background][TODO-docs-site]` placeholder appearing alongside the existing
+`[status-file timing background][TODO-docs-site]` link in § Status-File Timing); package-source copy
+same line. The strategy doc carries the volatility-vs-derived-state distinction inline as the
+operationally-useful framing; the deeper "what alternatives would cost" rationale lives here for
+adopters evaluating their own commit-shape conventions.
+
+**Content:**
+
+> **Why bundle task-list `[x]` flips with code, when status updates are separated.** A natural
+> question for adopters reading the two rules side-by-side: both are markdown updates that
+> accompany code work, why do they have opposite commit-shape conventions? The answer comes from
+> what happens under each alternative.
+>
+> **If task-list flips were deferred to handoff (the tempting symmetry):**
+>
+> - **Cross-session staleness.** A session that completes Tasks 4.1–4.3 but ends without handoff
+>   leaves the committed task list showing those tasks as `[ ]`. The next session's session-init
+>   reads the task list to find Next Task and resolves wrong. Recovery requires either reading
+>   commit messages to reconstruct what's actually done, or treating task-list state in git as
+>   advisory rather than authoritative — both options erode the task list's role as the work-unit
+>   pointer.
+>
+> - **Crash and interrupt fragility.** If a session dies mid-stream (machine crash, network drop,
+>   accidental terminal close), the deferred-flip model means the git record lags reality. The
+>   bundled-flip model gives crash-safe recovery: the last committed state always reflects work
+>   actually done.
+>
+> - **Reviewability loss.** With bundled flips, a reviewer reads a commit subject like
+>   `feat(arc): close 4.1 — code-only task commits + structured prompt`, sees the `[x] **4.1**`
+>   flip in the same commit's diff, and has full traceability with no cross-reference. Move the
+>   flip to a later "docs(arc): mark Tasks 4.1–4.3 complete" commit and the reviewer must
+>   cross-reference task IDs across commits to answer "what task did this code commit complete?"
+>   The task-list-rides-with-code rule preserves the at-a-glance linkage.
+>
+> - **Rebase / cherry-pick friction.** Picking a code commit means picking a change whose task-list
+>   record is in a different commit. Reverts and bisects become tangled across artificial commit
+>   boundaries.
+>
+> **What's different about status-file fields.** Status-file pointers (`Next Task`, `Last
+> Completed`, `Next Action`) are *volatile* — value at time T is stale by T+10min as the session
+> advances. The next consumer of the field is session-init, which only needs the value at the
+> session boundary. Mid-session updates rewrite state that's about to change again; deferring to
+> ceremony boundaries discards no information. Task-list `[x]` flips are *terminal*: the
+> completion event won't reverse, and a future reader benefits from seeing the flip at the boundary
+> that produced it.
+>
+> **The principle.** Volatile pointer state separates from content commits because separation
+> discards no information. Terminal derived state bundles with content commits because separation
+> would lose information (the linkage between content and its completion record).
+
+**Suggested destination:** docs site — Sessions & Context § Status-file timing or a sibling
+§ Commit-shape conventions. Adopters coming from other workflows (Jira-driven, design-doc-first,
+no-in-repo-tracking) will read the side-by-side rules and want the rationale before adopting the
+ARC convention. Pair this with Entry 70's reviewer / auto-commit framing under the same section.
+
+**Stylistic integration notes:** Strategy doc retains the inline volatility-vs-derived-state
+framing (operationally sufficient — adopters know which rule applies and the basic why); this
+entry holds the alternative-analysis depth that adopters with skeptical priors will want. Docs-site
+output must not reference ADRs. Keep the alternative-analysis framing concrete (specific failure
+modes under deferred flips) rather than abstract — concrete consequences land where principle prose
+slides off.
+
 ---
 
 <!-- Reference link definitions for verbatim quoted content. These mirror reference labels that

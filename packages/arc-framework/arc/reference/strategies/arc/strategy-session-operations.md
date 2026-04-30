@@ -524,8 +524,20 @@ that's not bundled with code — a clear session-boundary marker, naturally atom
 friendly, and visible in PR history as the explicit handoff point. Workflow-ceremony commits
 (activate, integrate, etc.) bundle their status updates into the ceremony commit itself.
 
-For deeper context on commit-history readability and what this enables for auto-commit modes, see
-[status-file timing background][TODO-docs-site].
+**Contrast: task-list checkboxes ride with content commits.** Task-list `[x]` flips bundle with the
+code commit that completes the task — the opposite rule from the status file (see
+[DEV-RULES.ARC][dev-rules-arc] § Atomicity, [prepare-commits.md][prepare-commits] § Granularity).
+The distinction is volatility versus derived state. Status-file fields are pointers whose value at
+time T is stale by T+10min — deferring updates to ceremony boundaries discards no information
+because the next consumer (session-init) reads only the latest pointer. Task-list `[x]` flips are
+*terminal derived state*: a completion event that won't reverse, and one a future reader needs at
+the boundary that produced it. Bundling them with the change that produced them keeps cross-session
+recovery cheap (interrupted sessions leave the git record matching reality) and preserves the
+"what task did this commit complete" linkage in `git log` view.
+
+For deeper context on commit-history readability, auto-commit-mode benefits, and what alternatives
+to task-list bundling would cost, see [status-file timing background][TODO-docs-site] and
+[task-list timing background][TODO-docs-site].
 
 ---
 
@@ -674,5 +686,6 @@ When `arc user load` or session-init's SESSION-NOTES load fails, recover by erro
 [workflow-authoring]: strategy-workflow-authoring.md
 [dev-rules-arc]: ../../constitution/DEV-RULES.ARC.md
 [dev-rules-project]: ../../constitution/DEV-RULES.PROJECT.md
+[prepare-commits]: ../../../system/workflows/arc/supplemental/prepare-commits.md
 [git-notes]: https://git-scm.com/docs/git-notes
 [TODO-docs-site]: # "Placeholder pending docs-content-sweep — see notes-docs-content-sweep.md"
