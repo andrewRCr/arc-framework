@@ -8,15 +8,15 @@
 - **Task List:** `tasks-interlock-foundation.md`
 - **Sibling Work Unit(s):** `plan-session-operational-flow.md`
 
-- **Last Completed:** Phase 4 close — DEV-RULES § Status-file commit shape relaxed to
-  staging-as-test (`8f4e02f0`); cascade applied across lifecycle workflows + dependent surfaces
-  (`8c4ee9aa`); precursor session-handoff unpushed-count formula clarification (`a9408b2c`).
-- **Next Task:** Task 5.1.a — Add Spec shape-check to existing pre-commit infrastructure (line ~574)
+- **Last Completed:** Phase 5 close — Spec shape-check validator + CHECK 17 in pre-commit
+  hook (`7f5d65fc`); migration confirmed as a no-op and validation-window plan with seeded
+  observation log (`ec6371ac`); arc-handoff skill thinned to dispatch and session-handoff
+  workflow autonomy-gating rewritten around skill-invocation-is-approval (`2b5efb79`).
+- **Next Task:** Task 6.1 — Complete verification (line ~673)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Phase 5, Task 5.1.a — write the `test-first` shape check (empty value
-  passes, `.md` filename passes, URL passes, any other value fails with a clear error message).
-  Implementation in the existing pre-commit script (locate via `git config core.hooksPath` /
-  `.githooks/`).
+- **Next Action:** Begin Phase 6 — load `verify-work-unit.md` and apply its verification
+  checks against the WU's success criteria. Items annotated `(validation window)` are
+  deferred to the post-integration window per `notes-validation-window.md`.
 
 ---
