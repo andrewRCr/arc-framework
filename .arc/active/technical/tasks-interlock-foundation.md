@@ -488,15 +488,45 @@ when configured is sibling-WU work.
   ops produce a paired `chore(status):` commit for any status-file change, separate from the ceremony's
   content/structural commit.
 
-    - `[ ]` **4.3.a Survey lifecycle workflows for current status-update prose**
-        - Inventory `activate-work-unit.md`, `integrate-work-unit.md`, `clean-work-unit.md`,
-          `deactivate-work-unit.md`, `1_create-prd.md`, `activate-planning-branch.md`,
-          `integrate-planning-branch.md`. Note where each currently updates status.
+    - `[x]` **4.3.a Survey lifecycle workflows for current status-update prose**
+        - _Outcome:_ Inventory complete. Discussion landed on a relaxed shape rule: status rides
+          with concurrent staging; dedicated `chore(status):` only when staging is status alone.
+          4.3.b restructured around the shift; subtask enumeration carries findings.
 
-    - `[ ]` **4.3.b Apply timing + commit-shape rule across surveyed workflows**
-        - Each workflow produces a dedicated `chore(status):` commit for status-file changes, paired
-          with any concurrent ceremony commit (file moves, completion doc, archival) but never bundled
-          with it. Cross-reference DEV-RULES.ARC § Status-file commit shape.
+    - `[ ]` **4.3.b Apply commit-shape rule (staging-as-test) across lifecycle workflows**
+        - Goal: Status-file changes ride with whatever concurrent ceremony content is staged;
+          dedicated `chore(status):` only when status is the entire staged change. Replaces the
+          earlier "always dedicated" framing — adopter-friction reduction (one less commit per
+          ceremony, especially under manual-commit autonomy).
+
+        - `[x]` **4.3.b.1 Rewrite DEV-RULES.ARC § Status-file commit shape**
+            - _Outcome:_ Replaced "always dedicated" prose with the staging-as-test principle
+              (5 lines, both copies in sync). No fire-point enumeration in DEV-RULES — workflows
+              carry shape inline at their commit steps via the staging instruction itself.
+
+        - `[ ]` **4.3.b.2 Un-convert `integrate-planning-branch.md`**
+            - Bundle status-file `git rm` with plan-doc move/delete into one ceremony commit.
+              Replace the current paired-commits prose (~lines 105–108) with single-stage shape.
+
+        - `[ ]` **4.3.b.3 Verify `activate-planning-branch.md` shape**
+            - Re-read what's staged at the activation commit. If status fires alone, dedicated
+              shape stays correct; if other content is concurrent, bundle.
+
+        - `[ ]` **4.3.b.4 Cross-ref tidy across work-unit-lifecycle workflows**
+            - `activate-work-unit`, `integrate-work-unit` (Phase 1 Step 4 + Phase 2 Step 6c),
+              `deactivate-work-unit` Cases C/E, `clean-work-unit` — verify current bundled
+              shape is correct under the new rule; light cross-references where prose previously
+              named the old rule.
+
+        - `[ ]` **4.3.b.5 Add `1_create-prd.md` Next-Action update under planning-branch mode**
+            - Step 4 currently doesn't update the planning-state status file's Next Action.
+              Add update bundled with PRD save / plan-doc retire (existing single-commit shape).
+
+        - `[ ]` **4.3.b.6 Audit dependent surfaces**
+            - `arc-commit/SKILL.md`, `prepare-commits.md`, `process-task-loop.md`, and the
+              session-handoff prose introduced in this WU's earlier phases — adjust references
+              to the old "always dedicated" wording. Sync canonical + harness copies for
+              arc-commit.
 
 ---
 
