@@ -8,13 +8,14 @@
 - **Task List:** `tasks-interlock-foundation.md`
 - **Sibling Work Unit(s):** `plan-session-operational-flow.md`
 
-- **Last Completed:** Phase 6 close — Tier 3 verification clean, 19/26 success criteria met
-  (2 deviation), 7 deferred to validation window (`55b2a59f`). Atomic: arc-\* skill
-  descriptions tightened (`c18766d0`); commit-msg validator + workflow-pointer convention
-  tightening (`d6f4bf4d`).
+- **Last Completed:** integrate-work-unit Phase 1 — completion doc, task/notes cleanup, status
+  → Complete, notes-validation-window.md → notes-interlock-foundation.md rename (`4b1d1e40`).
+  Atomic: ATOMIC-INBOX #10 — template-tasks `**PRD:**` field migrated to filename-only;
+  activate-work-unit Step 3 path-rewrite sub-step retired (`f519fbda`). Phase 2 Step 5 inbox
+  triage complete (8 items kept; #1 already-done entry removed; #10 executed).
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — verify completion
+- **Next Action:** integrate-work-unit Step 6 — pre-merge review
 
 ---
