@@ -1,6 +1,6 @@
 ---
 name: arc-setup
-description: Run post-install ARC setup — verify installation, walk through configuration, and define project documents. Use after running `arc init` for the first time or joining an existing ARC project.
+description: "Post-install ARC setup: verify installation, configure, and define project documents."
 disable-model-invocation: true
 ---
 

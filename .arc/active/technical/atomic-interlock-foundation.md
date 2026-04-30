@@ -79,3 +79,24 @@ Atomic Task Completion for the full protocol.
   step-3-on-clean-worktree case and rendered probe-stale `{ahead}`). The agent already knows
   whether step 3 committed in-conversation, so the count derives locally — no re-probe. Both
   copies (`.arc/` + package template) in sync; markdown lint clean.
+
+### `[x]` **Tighten arc-\* skill `description` frontmatter — drop "Use when…" clauses**
+
+- _Outcome:_ All 8 canonical arc-\* skill descriptions tightened to drop redundant "Use when…"
+  clauses bloating harness-menu rendering. Semantic gates carrying real disambiguation folded
+  into the main clause: `arc-plan` retains "not for use during task execution"; `arc-task-review`
+  retains "beyond the completion report" and adopts task-interlock vocabulary in place of
+  "mandatory stop". `arc-resume` rephrased to resolve the init-vs-resume tension ("Initialize a
+  new ARC session with full project context — resume work from the prior handoff"). Aggregate
+  description length: ~1696 → ~805 chars across 8 skills, ~52% reduction.
+- _Files:_ All 4 mirrors per skill — `packages/arc-framework/arc/system/skills/<skill>/SKILL.md`
+  (canonical), `.arc/system/skills/<skill>/SKILL.md`, `.claude/skills/<skill>/SKILL.md`,
+  `.codex/skills/<skill>/SKILL.md` — 32 files total. `arc-plan` and `arc-task-review` converted
+  from YAML folded scalar (`>-`) to single-line bare scalars now that the descriptions fit.
+- _Sync state:_ This machine's harness copies (`.claude/`, `.codex/`) updated. Secondary-machine
+  harness copies remain stale — SESSION-NOTES persistent-context entry expanded to cover all 8
+  skills (was previously scoped to `arc-handoff` only).
+- _Follow-up:_ Investigate why `arc-setup` doesn't surface in the Claude Code skill menu while
+  other arc-\* skills do. Likely tied to `disable-model-invocation: true` in its frontmatter, but
+  worth confirming the harness behavior.
+- Markdown lint clean (222 files, 0 errors).

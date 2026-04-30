@@ -1,6 +1,6 @@
 ---
 name: arc-commit
-description: Commit current repository changes with atomic boundaries as per ARC conventions. Use when asked to commit work, prepare a clean commit from pending changes, or triage whether the change set is simple vs multi-task and needs splitting.
+description: Commit pending changes following ARC atomicity discipline, triaging whether to bundle as one commit or split across multiple.
 disable-model-invocation: false
 ---
 

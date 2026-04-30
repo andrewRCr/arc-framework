@@ -1,6 +1,6 @@
 ---
 name: arc-resume
-description: Initialize and resume the active working ARC session with required project context. Use when explicitly asked to initialize a session.
+description: Initialize a new ARC session with full project context, resuming work from the prior handoff.
 disable-model-invocation: false
 ---
 

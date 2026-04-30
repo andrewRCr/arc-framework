@@ -1,6 +1,6 @@
 ---
 name: arc-task-audit
-description: Pre-implementation audit of task list entries — surfaces assumptions, design decisions, scope gaps, and codebase drift before work begins. Use only when the user explicitly requests a task audit or pre-implementation review.
+description: "Pre-implementation audit: surfaces assumptions, design decisions, scope gaps, and codebase drift."
 disable-model-invocation: false
 ---
 

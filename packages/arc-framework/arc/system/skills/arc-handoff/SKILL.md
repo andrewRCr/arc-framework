@@ -1,6 +1,6 @@
 ---
 name: arc-handoff
-description: Update and finalize current ARC session documentation for cross-session continuity. Use when explicitly asked to produce a handoff.
+description: Update ARC session documentation for cross-session continuity.
 disable-model-invocation: false
 ---
 
