@@ -570,7 +570,7 @@ once they land. Captured as supplemental evidence, not a substitute.
 - **Strategies:** `strategy-testing-methodology.md`
 
 - _Outcome:_ Shape-check infrastructure landed end-to-end. `validate-status-spec.ts` validator
-  (14 unit tests, `validate-frontmatter` dispatcher pattern) + CHECK 17 in both pre-commit copies
+  (14 unit tests, `validate-frontmatter` dispatcher pattern) + CHECK 16 in both pre-commit copies
   enforce the pinned shapes (empty / `[none]` / bare-basename `.md` / `https?://` URL) on staged
   `.arc/active/{category}/status-*.md` files. Tier-aware semantics deferred to
   `plan-agile-wu-lifecycle`.
@@ -585,9 +585,9 @@ once they land. Captured as supplemental evidence, not a substitute.
           Tests batched single-pass — behaviors tightly coupled around one regex.
 
     - `[x]` **5.1.b Wire validator into pre-commit hook**
-        - CHECK 17 added to both `.arc/system/githooks/pre-commit` and the package-source copy
-          (identical bodies). Candidate filter scopes to `^\.arc/active/[^/]+/status-[^/]+\.md$`
-          (matches CHECK 10); on validator non-zero exit, surfaces diagnostics indented under a
+        - CHECK 16 added to both `.arc/system/githooks/pre-commit` and the package-source copy
+          (identical bodies). Candidate filter scopes to `^\.arc/active/[^/]+/status-[^/]+\.md$`;
+          on validator non-zero exit, surfaces diagnostics indented under a
           red error banner. Verified clean against the active status file.
 
 ### `[x]` **5.2 Migrate existing in-flight self-host status files in place**
@@ -595,7 +595,7 @@ once they land. Captured as supplemental evidence, not a substitute.
 - _Outcome:_ Migration is a no-op in this repo — the only active status file
   (`status-interlock-foundation.md`) was already populated with `**Spec:**` and
   `**Sibling Work Unit(s):**` during earlier phase commits. No other in-flight planning files
-  exist. CHECK 17 passes against the file at HEAD.
+  exist. CHECK 16 passes against the file at HEAD.
 
     - `[x]` **5.2.a Inventory existing status files**
         - `find .arc/active -name "status-*.md"` returns one file:

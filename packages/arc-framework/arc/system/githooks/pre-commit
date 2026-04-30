@@ -279,50 +279,7 @@ if [ -n "$meta_project_refs" ]; then
 fi
 
 # ============================================================================
-# CHECK 10: Status file co-staging with task lists (maintainer only)
-# ============================================================================
-# If a task list is staged with checkbox completions, its sibling status file
-# (same directory, `status-<name>.md`) should typically be staged too — Next
-# Task should advance. Only warns when the diff contains actual checkbox state
-# changes — not for reference updates, planning restructuring, or other
-# non-completion edits.
-# Skipped for contributors — they don't update project-level status files.
-# Scope is strict: `active/{category}/tasks-{name}.md` only. Backlog task list
-# edits and atomic companion file edits do not trigger this check.
-if [ "$arc_role" != "contributor" ]; then
-    staged_task_lists_for_ws=$(git diff --cached --name-only | grep -E '^\.arc/active/[^/]+/tasks-[^/]+\.md$' || true)
-
-    if [ -n "$staged_task_lists_for_ws" ]; then
-        staged_files=$(git diff --cached --name-only)
-        # shellcheck disable=SC2086 # Intentional word splitting — variable holds newline-separated file paths
-        for task_list in $staged_task_lists_for_ws; do
-            # Derive the expected sibling status file path from the task list's
-            # directory: `active/{category}/tasks-{name}.md` →
-            # `active/{category}/status-{name}.md`.
-            task_list_dir=$(dirname "$task_list")
-            task_list_base=$(basename "$task_list" .md)
-            wu_name=${task_list_base#tasks-}
-            expected_status="${task_list_dir}/status-${wu_name}.md"
-
-            # Check if this task list has checkbox completions (marked [x] or [~])
-            task_list_has_completions=$(git diff --cached -- "$task_list" | grep -E '^\+.*- \[(x|~)\]' || true)
-            if [ -n "$task_list_has_completions" ] && [ -f "$expected_status" ]; then
-                # Only warn when the expected status file actually exists in the
-                # working tree — skip pre-activation, mid-restructure, or early
-                # planning-phase cases where the file is not yet created.
-                if ! printf '%s\n' "$staged_files" | grep -qxF "$expected_status"; then
-                    echo -e "${YELLOW}Warning: ${task_list} staged with completions but ${expected_status} is not${NC}"
-                    echo "   Task list changes often mean the current task has advanced"
-                    echo "   Remember to update and stage ${expected_status}"
-                    warnings=$((warnings + 1))
-                fi
-            fi
-        done
-    fi
-fi
-
-# ============================================================================
-# CHECK 11: Team mode task ownership markers (team.mode: true only)
+# CHECK 10: Team mode task ownership markers (team.mode: true only)
 # ============================================================================
 # When team mode is active, task list changes should include (@name) ownership
 # markers to prevent coordination conflicts. Soft warning only.
@@ -344,7 +301,7 @@ if [ "$team_mode" = "true" ]; then
 fi
 
 # ============================================================================
-# CHECK 12: Frontmatter schema validation (methods / extensions)
+# CHECK 11: Frontmatter schema validation (methods / extensions)
 # ============================================================================
 # Delegates to validate-frontmatter.ts via tsx — schema logic lives in
 # TypeScript where it is unit-tested; this hook is a thin invoker. Catches
@@ -365,9 +322,9 @@ if [ -n "$frontmatter_candidates" ]; then
 fi
 
 # ============================================================================
-# CHECK 13: Domain-rules frontmatter validation (DEV-RULES.{DOMAIN}.md)
+# CHECK 12: Domain-rules frontmatter validation (DEV-RULES.{DOMAIN}.md)
 # ============================================================================
-# Delegates to validate-frontmatter.ts — same validator as CHECK 12, scoped
+# Delegates to validate-frontmatter.ts — same validator as CHECK 11, scoped
 # to DEV-RULES.{DOMAIN}.md files under reference/constitution/. Reserved
 # filenames (DEV-RULES.ARC.md, DEV-RULES.PROJECT.md) are filtered by the
 # validator's classifier and not checked.
@@ -386,7 +343,7 @@ if [ -n "$domain_rules_candidates" ]; then
 fi
 
 # ============================================================================
-# CHECK 14: Markdown link resolution (D7a)
+# CHECK 13: Markdown link resolution (D7a)
 # ============================================================================
 # Validates that inline and reference-style markdown links in staged .md files
 # resolve to existing files. Skips external links, anchor-only links, and
@@ -406,14 +363,14 @@ if [ -n "$link_candidates" ]; then
 fi
 
 # ============================================================================
-# CHECK 15: Package-source neutrality (per-file methods / extensions)
+# CHECK 14: Package-source neutrality (per-file methods / extensions)
 # ============================================================================
 # Framework package source must ship neutral defaults: per-file methods and
 # extensions under packages/arc-framework/arc/system/{methods,extensions}/
 # must have `override-active: false` / `active: false` frontmatter and
 # `[No override configured]` / `[No extension configured]` placeholder bodies.
 # Local customization belongs only in the .arc/ copy — this hook blocks
-# personal-repo content from leaking into the package. Complements CHECK 12
+# personal-repo content from leaking into the package. Complements CHECK 11
 # (frontmatter schema) with a semantic gate on values and body content.
 neutrality_candidates=$(git diff --cached --name-only --diff-filter=ACMR | \
     grep -E '^packages/arc-framework/arc/system/(methods|extensions)/[^/]+\.md$' | \
@@ -433,12 +390,12 @@ if [ -n "$neutrality_candidates" ]; then
 fi
 
 # ============================================================================
-# CHECK 16: Extension-point reference resolution (D7b)
+# CHECK 15: Extension-point reference resolution (D7b)
 # ============================================================================
 # Every anchor-suffix marker (`· `#<name>``) in a staged workflow file must
 # target an existing `system/extensions/<name>.md` in the same copy — .arc/
 # workflow resolves against .arc/ extensions; package-source workflow
-# resolves against package-source extensions. Complements CHECK 15
+# resolves against package-source extensions. Complements CHECK 14
 # (neutrality on extension bodies) with a gate on workflow references.
 # Existence is the pass criterion; `active:` and body content are not
 # inspected.
@@ -458,7 +415,7 @@ if [ -n "$extension_point_candidates" ]; then
 fi
 
 # ============================================================================
-# CHECK 17: Status-file `**Spec:**` field shape validation
+# CHECK 16: Status-file `**Spec:**` field shape validation
 # ============================================================================
 # Validates the shape of the `**Spec:**` field on staged status files under
 # `.arc/active/{category}/`. Allowed values: empty, [none], bare-basename .md

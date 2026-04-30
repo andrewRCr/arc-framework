@@ -58,7 +58,7 @@ post-integration window (between WU-A integration and WU-B activation) per `note
   P1.b QG-failure variant `Quality gates failed: <details>. Investigate? (y / iterate)`. Prefix
   reads `session.autonomy` for forward-compat with auto-commit modes shipping in the sibling WU.
 
-- _Validation surface_ — pre-commit CHECK 17 (`validate-status-spec.ts`) enforces the pinned
+- _Validation surface_ — pre-commit CHECK 16 (`validate-status-spec.ts`) enforces the pinned
   `Spec` shapes (empty / `[none]` / bare-basename `.md` / `https?://`) on staged active status
   files. Validation-window plan and in-flight observation log captured in
   `notes-interlock-foundation.md`.

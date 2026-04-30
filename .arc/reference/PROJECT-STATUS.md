@@ -57,7 +57,7 @@ with constitutional and CI machinery in place to prevent drift recurrence.
   enumerated once at session-init
 - Workflow YAML frontmatter trigger contract (`arc.methods`, `arc.extensions`); constitutional
   rule pair anchors compliance (DEV-RULES.ARC § Verification + strategy-workflow-authoring
-  § Author-side Declaration Rule); pre-commit + CI enforcement (CHECK 12/14/16, lint:arc:*)
+  § Author-side Declaration Rule); pre-commit + CI enforcement (CHECK 11/13/15, lint:arc:*)
 - Probe-side `sessionType` inference computed from tracked status fields (`planning |
   execution | integration | null`) drives conditional item-9 / item-10 loadsets in
   session-init.md; SESSION-NOTES `**Session Type:**` is opt-in personal-layer override

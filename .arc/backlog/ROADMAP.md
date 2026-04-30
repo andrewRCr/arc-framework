@@ -123,7 +123,7 @@ across QUICK-REFERENCE, status file, and task list (strategic partial read with 
 task references); worktree-sync completion in the probe; operational-context audit and
 template extractions trim always-loaded surface area. Constitutional rule pair (DEV-RULES.ARC
 § Verification and Discovery + strategy-workflow-authoring § Author-side Declaration Rule) and
-pre-commit + CI enforcement (CHECK 12/14/16, lint:arc:*) anchor drift resistance. Realized
+pre-commit + CI enforcement (CHECK 11/13/15, lint:arc:*) anchor drift resistance. Realized
 ~24–28% reduction at orientation (~57–61k vs ~75–80k baseline) and session-init wall-clock
 ~2+ min → ~1 min.
 

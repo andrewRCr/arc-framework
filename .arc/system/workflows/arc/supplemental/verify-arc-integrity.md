@@ -107,7 +107,7 @@ Structural sanity check: verifies that `system/methods/` and `system/extensions/
 each file within opens with a YAML frontmatter block containing the required keys (`name`,
 `description`, plus `override-active` for methods / `active` for extensions). `README.md` is
 excluded. Deep schema validation — name-matches-basename, type correctness, related-array
-shape — runs in the pre-commit frontmatter hook (CHECK 12); this check is a post-hoc
+shape — runs in the pre-commit frontmatter hook (CHECK 11); this check is a post-hoc
 diagnostic, not a replacement.
 
 **Severity:**

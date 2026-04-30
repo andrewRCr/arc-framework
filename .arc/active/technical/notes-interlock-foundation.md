@@ -185,11 +185,11 @@ cleanly (identity, user, worktree, extensions, config, active, domainRules). Ori
 this session — the current WU resolved as `In Progress` execution; planning-active-surface
 exercise is deferred to the post-integration window's Session 1.
 
-### Phase 5.1 — CHECK 17 self-test on landing commit
+### Phase 5.1 — CHECK 16 self-test on landing commit
 
-**Observed:** On the 5.1 commit, the pre-commit hook fired CHECK 17 on the staged set. Status file
+**Observed:** On the 5.1 commit, the pre-commit hook fired CHECK 16 on the staged set. Status file
 was not staged, so the candidate filter returned empty and the CHECK silently no-op'd. Hook output:
-`Pre-commit checks PASSED`, no CHECK 17 prose surfaced.
+`Pre-commit checks PASSED`, no CHECK 16 prose surfaced.
 
 **Significance:** Confirms validator inert-on-empty-candidates behavior — non-status commits don't
 pollute output with status-related prose. Failure-path validation (malformed Spec value blocks
