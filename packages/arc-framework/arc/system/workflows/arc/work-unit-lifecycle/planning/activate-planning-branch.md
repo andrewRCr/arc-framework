@@ -78,8 +78,8 @@ git checkout -b {category}/plan-{name}
 ### 4) Move Plan-Doc to Active · `arc-in-git` only
 
 > **Skip this step** if `pm.mode` is `none` or `external` — plan-docs already live in
-> `active/{category}/`. Skip also if no plan-doc exists in `backlog/{category}/` (you may be
-> creating the plan-doc fresh during this session, or going directly to PRD).
+> `.arc/active/{category}/`. Skip also if no plan-doc exists in `.arc/backlog/{category}/` (you
+> may be creating the plan-doc fresh during this session, or going directly to PRD).
 
 If resuming from a plan-doc in the backlog, move it into the active workspace:
 
@@ -90,7 +90,7 @@ git mv .arc/backlog/{category}/plan-{name}.md .arc/active/{category}/
 
 Plan-docs have an active lifespan during planning under `arc-in-git`: they're disposed at
 planning-branch integration (graduated → `git rm`; shelved → moved back to backlog). New
-plan-docs created during this session land in `active/{category}/` directly. See
+plan-docs created during this session land in `.arc/active/{category}/` directly. See
 [Work Planning Strategy][work-planning] for the plan-doc lifecycle.
 
 ### 5) Create Planning Status File
