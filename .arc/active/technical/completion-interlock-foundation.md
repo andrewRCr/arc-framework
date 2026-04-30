@@ -3,7 +3,7 @@
 - **Started**: 2026-04-29
 - **Completed**: 2026-04-30
 - **Branch**: `technical/interlock-foundation`
-- **Pull Request**: _(added after `gh pr create` in integrate-work-unit Step 7)_
+- **Pull Request**: <https://github.com/andrewRCr/arc-framework/pull/23>
 
 - **Context**: Constitutional foundation for ARC's interlock model — five downstream plans
   (`plan-user-sync-ux`, `plan-quality-gate-hooks`, `plan-worktree-foundation`,
