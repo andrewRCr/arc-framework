@@ -223,8 +223,9 @@ that change constantly or miss the actual need. Invest in exploration first.
 **Kitchen-sink PRDs.** PRDs that try to be both requirements and implementation spec. Requirements
 define _what_ and _why_; implementation details belong in task planning.
 
-**Zombie plans.** Plan documents that persist after the PRD is written. Delete them — they've served
-their purpose and will only cause confusion if kept alongside the authoritative PRD.
+**Zombie plans.** Plan documents that persist past planning-branch integration. The graduated path
+disposes them via `git rm` once the PRD is the authoritative artifact; leaving them around will only
+cause confusion alongside the PRD they fed.
 
 **Skipping discovery.** Jumping from "I have an idea" to "here are the requirements" without asking
 the hard questions about scope, alternatives, and risks. The discovery checklist exists to prevent
