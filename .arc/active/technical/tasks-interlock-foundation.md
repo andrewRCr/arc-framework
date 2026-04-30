@@ -266,31 +266,32 @@ bypassing planning-branch ceremony hit the same template. **Single template acro
 states** — no planning variant. **Always-present convention with `[none]` for empty optional fields**
 (parallels existing `Blockers: [none]` shape) — uniform parser surface, no field-omission ambiguity.
 
-### `[ ]` **3.1 `template-status.md` adds Spec, Sibling Work Unit(s), and State: Planning**
+### `[x]` **3.1 `template-status.md` adds Spec, Sibling Work Unit(s), and State: Planning**
 
-- _Goal:_ Planning-session pointer fields land in the canonical template; existing in-flight files pick
-  them up via in-place migration in Phase 5.
+- Template restructured to grouped shape: static identity (State, Branch, Spec, Task List, Sibling
+  Work Unit(s)), progress story (Last Completed, Next Task, Blockers), imperative (Next Action),
+  separated by blank lines with a trailing `---` end-of-section marker. Always-present + `[none]`
+  convention applied across optional fields. New HTML comment block at the top of `## Active Work`
+  documents field semantics using `**Field** —` (em-dash) form to avoid collision with the parser's
+  `**Field:**` regex. Two-copy edit per package-project-sync; diff confirms identical content.
+- Convention shift: artifact-pointer fields use bare filenames (path derived from the status file's
+  directory). Probe `deriveCompanions` updated to thread the status file path and use
+  `dirname(statusFilePath)` when the Task List value has no slash; `session-init.md` Item 9
+  documents the derivation. `template-tasks.md` `**PRD:**` field migration deferred to ATOMIC-INBOX
+  (out of scope for this WU).
 
-- _Design decisions:_ Field ordering groups static identity (State, Branch, Spec, Task List, Sibling
-  Work Unit(s)), progress story (Last Completed, Next Task, Blockers), and imperative (Next Action),
-  separated by blank lines, with a trailing `---` marking definitive end-of-section. **Last Completed
-  precedes Next Task** (flips current order) — reads as "did X; now do Y" narrative. Inline contract
-  uses minimal placeholder shapes inline plus one short HTML comment block at the top of `## Active
-  Work` documenting field semantics — preserves the template's lean visual shape.
+    - `[x]` **3.1.a Add `Spec` field — polymorphic pointer**
+        - Slotted between Branch and Task List in the static-identity group. Default `[none]`;
+          value shapes (`.md` filename / URL / `[none]`) documented in the inline comment block.
 
-    - `[ ]` **3.1.a Add `Spec` field — polymorphic pointer**
-        - Always present per the always-present + `[none]` convention. Value shape: `[none]` (empty) |
-          `.md` filename (e.g., `plan-{name}.md`, `prd-{name}.md`) | URL (external trackers under
-          `pm.mode: external`). Documented in the top-of-section HTML comment.
+    - `[x]` **3.1.b Add `Sibling Work Unit(s)` field**
+        - Slotted at the end of the static-identity group. Default `[none]`; populate when this WU
+          is split from a larger logical whole. Comma-separated `plan-{name}.md` or `prd-{name}.md`
+          references — whichever artifact currently represents the sibling.
 
-    - `[ ]` **3.1.b Add `Sibling Work Unit(s)` field**
-        - Comma-separated list of `prd-{name}.md` references to tightly-coupled WUs (same logical whole,
-          split for sizing/sequencing). Always present; value `[none]` when no siblings. Inline-comment
-          note on when to populate.
-
-    - `[ ]` **3.1.c Add `State: Planning` to the State enum**
-        - Other enum values are sibling-WU territory. `In Progress` retained as today's default for
-          non-planning WUs.
+    - `[x]` **3.1.c Add `State: Planning` to the State enum**
+        - Documented in the inline comment block alongside `In Progress`. No machine enforcement —
+          enum is convention only, consumed by Phase 3.5 inference logic.
 
 ### `[ ]` **3.2 `activate-planning-branch.md` creates status file at planning activation**
 

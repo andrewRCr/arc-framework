@@ -183,7 +183,7 @@ async function resolveSessionInit(
   if (fields.resolution === "single") {
     const only = candidates[0];
     if (only !== undefined) {
-      const companions = await deriveCompanions(cwd, only.taskList);
+      const companions = await deriveCompanions(cwd, only.path, only.taskList);
       if (companions !== undefined) result.companions = companions;
     }
   }
@@ -197,16 +197,22 @@ async function resolveSessionInit(
  * or doesn't match the Full-layout `tasks-{stem}.md` pattern (Lite-shape
  * `tasks.md` and `[none]` both fall here). Otherwise returns paths relative
  * to cwd, with `null` for absent files.
+ *
+ * Task-list value may be a full path or a bare filename. Bare filenames
+ * resolve to the status file's directory — co-location of status + task list
+ * is invariant across full / lite / contributor layouts.
  */
 async function deriveCompanions(
   cwd: string,
+  statusFilePath: string,
   taskListValue: string | null,
 ): Promise<{ notes: string | null; atomic: string | null } | undefined> {
   if (taskListValue === null) return undefined;
   const normalized = taskListValue.split(sep).join("/");
   const lastSlash = normalized.lastIndexOf("/");
   const filename = lastSlash >= 0 ? normalized.slice(lastSlash + 1) : normalized;
-  const dirPrefix = lastSlash >= 0 ? normalized.slice(0, lastSlash + 1) : "";
+  const dirPrefix =
+    lastSlash >= 0 ? normalized.slice(0, lastSlash + 1) : statusFileDirPrefix(statusFilePath);
   const match = TASK_LIST_FULL_PATTERN.exec(filename);
   const stem = match?.[1];
   if (stem === undefined) return undefined;
@@ -229,4 +235,10 @@ async function fileExists(absPath: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+function statusFileDirPrefix(statusFilePath: string): string {
+  const normalized = statusFilePath.split(sep).join("/");
+  const lastSlash = normalized.lastIndexOf("/");
+  return lastSlash >= 0 ? normalized.slice(0, lastSlash + 1) : "";
 }

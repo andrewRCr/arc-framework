@@ -178,7 +178,9 @@ after disambiguation resolves to a single status file.
     shows `**Task List:** [none]` (defense-in-depth shape checks — redundant under inference but kept as
     direct checks).
 
-    - Path from the active status file (e.g., `.arc/active/feature/tasks-[name].md`)
+    - Path: `dirname(active.value.path) + '/' + <Task List value>` — the `**Task List:**` field
+      carries the bare filename (`tasks-[name].md`); the directory is the status file's directory
+      (co-located by convention). Path-form values (legacy) work too, used as-is.
     - **Always read** — three sections, nothing else:
         1. **Header** — bullet list above the first `## **Phase` heading
         2. **Current phase preamble** — derive the phase identifier from the current task identifier by

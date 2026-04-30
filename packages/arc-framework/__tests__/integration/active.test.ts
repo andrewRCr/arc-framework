@@ -324,6 +324,29 @@ describe("runActiveSessionInitStatus — companion-file resolution", () => {
     expect(result.companions).toBeUndefined();
   });
 
+  it("derives companions from status-file directory when Task List value is a bare filename", async () => {
+    const sub = join(fixture.activeDir, "technical");
+    await mkdir(sub, { recursive: true });
+    await writeFile(
+      join(sub, "status-foo.md"),
+      statusBody({
+        state: "In Progress",
+        branch: "technical/foo",
+        taskList: "`tasks-foo.md`",
+      }),
+    );
+    await writeFile(join(sub, "tasks-foo.md"), "# tasks\n");
+    await writeFile(join(sub, "notes-foo.md"), "# notes\n");
+    await writeFile(join(sub, "atomic-foo.md"), "# atomic\n");
+
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root });
+    expect(result.resolution).toBe("single");
+    expect(result.companions).toEqual({
+      notes: ".arc/active/technical/notes-foo.md",
+      atomic: ".arc/active/technical/atomic-foo.md",
+    });
+  });
+
   it("omits companions when Task List value is `[none]`", async () => {
     const sub = join(fixture.activeDir, "technical");
     await mkdir(sub, { recursive: true });
