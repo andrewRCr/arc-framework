@@ -196,4 +196,23 @@ plumbing (Phase 3). The PRD spec held; no design decisions reopened mid-executio
 but doesn't substitute for prospective capture. Real-time observation begins at Phase 4.1 with the
 status-file timing rule and structured prompts going live.
 
+### Phase 5 close — `arc-handoff` skill audit triggered by step-1 staleness
+
+**Observed:** Initial `/arc-handoff` invocation followed the skill's literal step 1 and chained
+`git status && git log -10` ahead of the composite probe — redundant with the envelope. Audit
+surfaced three issues across the arc-handoff skill and session-handoff workflow: (1) skill step-1
+text stale vs Phase 4.2's probe-first restructure; (2) workflow line 23 contaminated with
+self-host `npx arc`; (3) skill structure had pure-duplication AND a silent semantic deviation
+(step 3 encoding a manual-commit prompt override that belongs in the workflow).
+
+**Significance:** First validation-log entry surfacing a real adjustment rather than
+positive-evidence. Confirms the § Failure-Mode Handling routing is workable in practice — workflow
+prose drift is discoverable via use and fixable in-WU. Also surfaced a contract-clarification
+opportunity: skill-invoked workflow commits (arc-commit, arc-handoff) operate under
+skill-invocation approval rather than per-commit prompts; manual-commit's per-commit gate applies
+to agent-discretion commits (process-task-loop), not user-invoked workflow bundles.
+
+**Routing:** Inline to Phase 5 as Task 5.4 (validation-result correction). No post-archive R-task
+needed — the surface touched belongs to Phase 4.2's restructure, naturally folded into the same WU.
+
 ---

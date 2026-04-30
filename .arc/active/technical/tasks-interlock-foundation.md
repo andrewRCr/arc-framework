@@ -625,7 +625,46 @@ once they land. Captured as supplemental evidence, not a substitute.
         - Six entries appended to `notes-validation-window.md` § Observations: structured prompts,
           status-file timing rule, staging-as-test commit shape, composite session-init probe, CHECK
           17 self-test on the landing commit, and a Phases 1–3 retrospective rollup. All "operating
-          as designed" — no routing required, no adjustments surfaced.
+          as designed" — no routing required, no adjustments surfaced during 5.3.b's scope. (A 7th
+          entry capturing a late-discovered workflow-prose adjustment landed under Task 5.4.)
+
+### `[x]` **5.4 Reconcile arc-handoff skill drift surfaced during 5.3 close handoff**
+
+- _Outcome:_ Validation-result correction. Skill audit triggered by drifted step-1 text in
+  arc-handoff surfaced three issues across the skill and the session-handoff workflow, all
+  reconciled inline. Skill thinned to pure dispatch (step 1 was workflow duplication, step 3
+  was semantic deviation); workflow autonomy-gating rewritten around the
+  skill-invocation-is-approval principle (manual-commit gates agent-discretion commits, not
+  user-invoked workflow bundles); npx contamination dropped. Audit of the remaining seven ARC
+  skills confirmed arc-handoff was the sole outlier.
+
+    - `[x]` **5.4.a Audit ARC skills against their target workflows**
+        - Reviewed all eight canonical skills under `.arc/system/skills/` for drift vs their
+          target workflows. Only arc-handoff carried actionable drift; the rest are thin
+          dispatchers (arc-resume, arc-setup, arc-verify), self-contained procedures
+          (arc-task-audit, arc-task-review, arc-plan), or have justified pre-workflow logic
+          (arc-commit's simple/complex triage).
+
+    - `[x]` **5.4.b Thin arc-handoff skill to pure dispatch**
+        - Replaced the 3-step skill body with a single dispatch line pointing at
+          `session-handoff.md`. Eliminated step 1 (duplicated the workflow's § Resolve Handoff
+          Context) and step 3 (encoded manual-commit gating semantics that belong in the
+          workflow). All four `SKILL.md` copies in sync — canonical (`.arc/` + package source)
+          and local harness copies (`.claude/` + `.codex/`).
+
+    - `[x]` **5.4.c Rewrite session-handoff autonomy-gating + drop self-host contamination**
+        - § Comprehensive Handoff Format step 3: dropped the if/else autonomy gating
+          (auto-push commits / manual-commit prompts) for "Skill invocation is the approval" —
+          commit fires unconditionally; `autonomy.value` governs push behavior only. Confirm
+          Handoff conditional surface for "Status file dirty, not committed" dropped (path no
+          longer exists). Self-host `npx arc` contamination on line 23 reverted to
+          adopter-style `arc`. Both copies (`.arc/` + package-source `.template.md`) in sync.
+
+    - `[x]` **5.4.d Append validation-window observation entry**
+        - Added 7th observation entry to `notes-validation-window.md` § Observations capturing
+          the discovery + inline routing to Task 5.4. First log entry surfacing a real
+          adjustment rather than positive-evidence — confirms § Failure-Mode Handling routing
+          is workable in practice.
 
 ---
 

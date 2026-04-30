@@ -20,7 +20,7 @@ Open with the composite probe — single call, slot-wise envelope, per-slot erro
 the session-init pattern:
 
 ```bash
-npx arc status --session-handoff --json
+arc status --session-handoff --json
 ```
 
 | Field      | Contents                                                                                                       |
@@ -107,12 +107,11 @@ Update session state files before ending session:
     Below threshold (skip): minor rephrasing of Last Completed / Next Action with no semantic
     change, cosmetic reorderings, restating the same Next Action in different words.
 
-    **Autonomy gating** — read `autonomy.value` from the probe:
-
-    - `auto-push`: stage and commit. No ask — autonomy is the approval.
-    - `manual-commit` (default): stage, then prompt the user `Commit chore(status): handoff?`. On
-      accept, commit. On decline, leave staged; surface "Status file dirty, not committed" in the
-      handoff summary so next session sees the gap.
+    **Skill invocation is the approval.** `/arc-handoff` is user-initiated; the invocation grants
+    approval for the workflow's bundled actions, including the `chore(status): handoff` commit.
+    No separate per-commit prompt fires under either autonomy mode — the `autonomy.value` axis
+    governs push behavior (see § Push Sequence), where remote-side consequences justify granular
+    gating. Stage and commit unconditionally:
 
     ```bash
     git add <resolved-status-file-path>
@@ -470,13 +469,6 @@ This is a quick confirmation for the human — the session state files are the d
   ```text
   **Reconcile required:** `{branch}` diverged from `origin/{branch}` ({ahead} ahead, {behind}
   behind). Manual rebase or merge needed before pushing.
-  ```
-
-- Status-file commit declined under manual-commit autonomy (step 3 stage-only path):
-
-  ```text
-  **Status file dirty, not committed** — next session will see the gap on first
-  `arc status --session-init --json` read.
   ```
 
 **Formatting guidance:**
