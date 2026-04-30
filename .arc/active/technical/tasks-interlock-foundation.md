@@ -419,32 +419,37 @@ _Design decisions:_ The structured task-completion prompt is base behavior — i
 `Commit and proceed…` variant is wired to read `session.autonomy`, but what auto-commit actually does
 when configured is sibling-WU work.
 
-### `[ ]` **4.1 `3_process-task-loop.md` — status-file timing rule + structured prompt**
+### `[x]` **4.1 `3_process-task-loop.md` — status-file timing rule + structured prompt**
 
-- _Goal:_ Task-completion commits stay code-only; status-rotation moves out. Prompt rhythm appears at
-  every task close.
+- _Outcome:_ Task-completion code commits stay code-only across the workflow + commit-prep surface.
+  `3_process-task-loop.md` lost the contradicting status-file paragraph and gained the structured
+  `<Prefix> <Target>?` prompt + QG-failure variant. `prepare-commits.md` (4 references) and
+  `arc-commit/SKILL.md` (3 references; canonical + harness copies) now route status-file updates
+  exclusively to handoff / workflow-ceremony commits per DEV-RULES.ARC § Status-file timing
+  and § Status-file commit shape.
 
-    - `[ ]` **4.1.a Remove status-file update from task-completion step**
-        - Strike the "advance Next Task / Last Completed / Next Action" prose. Cross-reference DEV-RULES.ARC
-          status-file timing rule.
+    - `[x]` **4.1.a Remove status-file update from task-completion step**
+        - Removed contradictory "Active status file (stage with every task commit)" paragraph from step 4;
+          defensive note in step 1 now cross-references DEV-RULES.ARC § Status-file timing. Edited package
+          template and `.arc/` copy.
 
-    - `[ ]` **4.1.b Append structured task-completion prompt**
-        - Default (manual-commit): `Proceed to Task X.Y?`
-        - Auto-commit configured: `Commit and proceed to Task X.Y?` (read from `session.autonomy`)
-        - Boundary-aware: `Proceed to Phase N+1, Task N+1.1?` at phase end; `Proceed to handoff?` at WU end
-        - Response semantics: short affirmative as first word advances; redirect syntax preserved
-          (`y, also <X>` / `y; <redirect>`).
+    - `[x]` **4.1.b Append structured task-completion prompt**
+        - Added `<Prefix> <Target>?` prompt under MANDATORY STOP. Prefix reads `session.autonomy`
+          (Proceed / Commit and proceed); Target adapts to boundary (Task X.Y / Phase N+1, Task N+1.1
+          / integrate-work-unit). Response semantics + redirect syntax documented; implied-permission
+          preserved.
 
-    - `[ ]` **4.1.c Quality-gate-failure structured-prompt variant (P1.b)**
-        - `Quality gates failed: <details>. Investigate? (y / iterate)`. Defer with `[~]` if Phase 4 grows;
-          folds cleanly into the same workflow file.
+    - `[x]` **4.1.c Quality-gate-failure structured-prompt variant (P1.b)**
+        - Added `Quality gates failed: <details>. Investigate? (y / iterate)` variant inline with
+          the existing QG-failure handling note (post Pre-Report Checklist). `y` enters investigation;
+          `iterate` retries gates.
 
-    - `[ ]` **4.1.d Align `prepare-commits.md` + `arc-commit` skill with status-file timing rule**
-        - Both still carry "stage the active status file with every task commit" prose that contradicts
-          DEV-RULES.ARC § Commit Discipline (status-file updates fire only at handoff / workflow-ceremony
-          commits). Strip the prose; cross-reference the timing rule. `prepare-commits.md` (~4 references)
-          and `.arc/system/skills/arc-commit/SKILL.md` (~3 references; canonical source — harness copies
-          regenerate via `arc update`). Surfaced during Task 3.3 commit prep.
+    - `[x]` **4.1.d Align `prepare-commits.md` + `arc-commit` skill with status-file timing rule**
+        - `prepare-commits.md`: 4 references rewritten to split task list (rides with content) from
+          status-file (handoff / ceremony only, dedicated `chore(status):` commit). `arc-commit/SKILL.md`:
+          removed step 5 (stage status file) + rewrote derived-state bullet; remaining steps renumbered.
+          Synced canonical (`.arc/` + package source) and harness copies (`.claude/`, `.codex/`) on this
+          machine; main-machine harness sync deferred (persistent-context entry in SESSION-NOTES).
 
 ### `[ ]` **4.2 `session-handoff.md` restructured around composite handoff probe**
 

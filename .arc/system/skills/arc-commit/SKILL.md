@@ -14,10 +14,12 @@ disable-model-invocation: false
        commit (one problem solved). Volume of changed lines is not the metric.
      - **Reversibility.** If reverting one change would force reverting others,
        they belong together. If they fail or succeed independently, they split.
-     - **Tracking docs ride with content commits.** Task list checkboxes and
-       active status file updates are derived state. Don't put them in a separate
-       meta-commit, and don't hunk-split them across content commits to preserve
-       1:1 task-ID-to-checkbox granularity.
+     - **Task list checkboxes ride with content commits.** They are derived state —
+       don't put them in a separate meta-commit, and don't hunk-split them across
+       content commits to preserve 1:1 task-ID-to-checkbox granularity.
+     - **Status-file updates do not ride with content commits.** They fire only at
+       handoff or workflow-ceremony boundaries, as dedicated `chore(status):` commits.
+       See DEV-RULES.ARC § Status-file timing and § Status-file commit shape.
 
 2. Choose the path.
 
@@ -39,18 +41,12 @@ disable-model-invocation: false
      `.arc/system/workflows/arc/supplemental/prepare-commits.md` to analyze and split
      changes into atomic commits.
 
-5. Stage the active status file with every task commit.
-
-   - Before staging, update the active status file — advance Next Task, Last Completed,
-     and Next Action to reflect the post-commit state.
-   - Stage it alongside the task list changes. This is the primary update mechanism.
-
-6. Enforce atomicity.
+5. Enforce atomicity.
 
    - Do not include unrelated files in the same commit.
    - If separation is unclear, stop and re-check file-level intent before committing.
 
-7. Verify staging before committing.
+6. Verify staging before committing.
 
    - Run `git diff --cached --stat` after staging. Pre-staged files can silently slip in;
      intended files can be left out. Verify the staging area matches intent.

@@ -107,8 +107,8 @@ arc:
          unit, made irrelevant by a design decision, or superseded by a different approach — mark it `[~]`
          instead of `[x]`. Add a brief outcome note explaining why (e.g., "Deferred to WU3", "Superseded by
          ADR-011"). This distinguishes deliberate deferrals from incomplete work (`[ ]`).
-       - **Do not update `status-{name}.md` at this step.** The status file updates at commit prep
-         (step 4, "Await user instructions"), triggered by the user's commit request — not task completion.
+       - **Do not update `status-{name}.md` at this step.** See [DEV-RULES.ARC][dev-rules-arc]
+         § Status-file timing.
      - **Extensions** · `#post-task-completion`: If `post-task-completion` appears in the active-extensions
        list (established at session init), load and execute its [`.actions`][arc-ext-task-completion].
        Otherwise, skip. Teams using external trackers (Jira, Linear, GitHub Issues) use this extension to
@@ -117,6 +117,14 @@ arc:
      - **Third**: Verify completion before reporting (use pre-report checklist below)
      - **Fourth**: **REPORT** completed work to user with summary of changes
      - **Fifth**: ⛔ **MANDATORY STOP** - Wait for user approval before proceeding
+       - **Structured prompt** — end the completion report with `<Prefix> <Target>?`:
+           - **Prefix:** `Proceed` (default — manual-commit) or `Commit and proceed` (when
+             `session.autonomy` permits auto-commit).
+           - **Target:** `to Task X.Y` (next task in phase) · `to Phase N+1, Task N+1.1` (current
+             task ends the phase) · `to integrate-work-unit` (verification complete — WU end).
+       - **Response semantics:** Short affirmative as first word ("y", "yes", "ok") advances.
+         Redirect syntax preserved — `y, also <X>` and `y; <redirect>` advance while folding in
+         the addendum.
        - **Implied permission:** User approval ("looks good", "proceed") implies permission to
          continue to the next task UNLESS explicitly stated otherwise. Address any stated concerns
          before moving on.
@@ -132,8 +140,10 @@ arc:
      ```
 
      If any item is unchecked, complete it before proceeding. For quality gate failures: fix
-     obvious issues (lint, type errors) and re-run; report non-obvious failures in your
-     completion summary — you're about to stop for review anyway.
+     obvious issues (lint, type errors) and re-run; for non-obvious failures, end the completion
+     report with the structured-prompt variant `Quality gates failed: <details>. Investigate?
+     (y / iterate)` — first-word `y` enters investigation; `iterate` retries the gates after a
+     fix.
 
      **Deferred review:** When the user explicitly requests continuation through a specific set
      of tasks (e.g., "work through tasks 5.2-5.4 while I'm away"), the mandatory stop between
@@ -186,11 +196,6 @@ arc:
   4. Await user instructions on how to proceed.
      User may choose to commit changes (AI can execute only if explicitly approved) or request modifications.
      When committing, follow the [prepare-commits workflow](supplemental/prepare-commits.md).
-
-     **Active status file (stage with every task commit):** Before staging, update the active
-     status file — advance Next Task, Last Completed, and Next Action to reflect the post-commit
-     state. Stage it alongside the task list changes. This is the primary update mechanism; session
-     handoff is only a fallback. See [Commit Discipline][dev-rules-arc] § Work status accuracy.
 
      <!-- arc:if team.mode == true -->
 
