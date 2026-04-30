@@ -51,7 +51,11 @@ post-integration window (between WU-A integration and WU-B activation) per `note
   staging-as-test rule (status rides with concurrent ceremony content; dedicated `chore(status):`
   only when status is the entire staged change). `prepare-commits.md` and `arc-commit/SKILL.md`
   aligned. `session-handoff.md` restructured around the composite probe with the push-ordering
-  invariant (worktree before notes) formalized.
+  invariant (worktree before notes) formalized. Hook cascade closed: pre-commit CHECK 10 and
+  commit-msg Rule 7 (the prior "advance status at commit time" enforcement) retired in
+  pre-merge sweep; volatility-vs-derived-state rationale captured inline in
+  `strategy-session-operations.md` § Status-File Timing with deeper alternative-analysis staged
+  for docs-site sweep (`notes-docs-content-sweep.md` Entry 71).
 
 - _Structured task-completion prompts_ — base behavior across all autonomy modes. Default
   `Proceed to Task X.Y?` (manual-commit), boundary-aware variants at phase/WU end, plus

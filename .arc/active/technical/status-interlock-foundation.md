@@ -8,14 +8,15 @@
 - **Task List:** `tasks-interlock-foundation.md`
 - **Sibling Work Unit(s):** `plan-session-operational-flow.md`
 
-- **Last Completed:** integrate-work-unit Phase 1 — completion doc, task/notes cleanup, status
-  → Complete, notes-validation-window.md → notes-interlock-foundation.md rename (`4b1d1e40`).
-  Atomic: ATOMIC-INBOX #10 — template-tasks `**PRD:**` field migrated to filename-only;
-  activate-work-unit Step 3 path-rewrite sub-step retired (`f519fbda`). Phase 2 Step 5 inbox
-  triage complete (8 items kept; #1 already-done entry removed; #10 executed).
+- **Last Completed:** integrate-work-unit Phase 2 Step 6 — pre-merge CodeRabbit review and
+  triage (4 review-driven commits: CHECK 10 / Rule 7 retirement closing the hook cascade
+  `4ca1e7e4`; task-list bundling rationale in `strategy-session-operations.md` plus
+  `notes-docs-content-sweep.md` Entry 71 `5647cc72`; pre-merge-review extension refreshed for
+  current invocation path `f262b04a`; Rule 7 regression-test retirement `318cca42`).
+  Tier 3 quality gates re-run clean post-fixes.
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 6 — pre-merge review
+- **Next Action:** integrate-work-unit Step 7 — push and create PR
 
 ---
