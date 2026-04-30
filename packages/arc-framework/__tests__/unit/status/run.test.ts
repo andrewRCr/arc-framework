@@ -873,6 +873,32 @@ describe("runSessionHandoffStatus — orchestration", () => {
     expect(probes.autonomy).toHaveBeenCalledTimes(1);
     expect(probes.syncPush).toHaveBeenCalledTimes(1);
     expect(probes.active).toHaveBeenCalledTimes(1);
+    expect(probes.head).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not reject when a probe throws synchronously before returning a promise", async () => {
+    const probes = sessionHandoffProbes({
+      dirty: vi.fn((): Promise<DirtyStateResult> => {
+        throw new Error("synchronous failure");
+      }),
+    });
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.dirty.ok).toBe(false);
+    if (!result.dirty.ok) {
+      expect(result.dirty.error.kind).toBe("runtime");
+      expect(result.dirty.error.message).toBe("synchronous failure");
+    }
+    // Other slots still resolve normally.
+    expect(result.worktree.ok).toBe(true);
+    expect(result.user.ok).toBe(true);
+    expect(result.autonomy.ok).toBe(true);
+    expect(result.syncPush.ok).toBe(true);
+    expect(result.active.ok).toBe(true);
+    expect(result.head.ok).toBe(true);
   });
 
   it("starts all probes concurrently via Promise.all", async () => {

@@ -115,8 +115,14 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
       active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec: gitExec }),
       head: () => runHeadHashStatus({ exec: gitExec }),
     };
+    if (!json) {
+      process.stderr.write(
+        "Error: --session-handoff currently requires --json (interactive rendering not yet implemented).\n",
+      );
+      process.exitCode = 1;
+      return;
+    }
     const result = await runSessionHandoffStatus({ identity, role, probes });
-    // Interactive rendering not yet implemented — emit JSON regardless of the flag.
     process.stdout.write(`${JSON.stringify(result)}\n`);
     return;
   }

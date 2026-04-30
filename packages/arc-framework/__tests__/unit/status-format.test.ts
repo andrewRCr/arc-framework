@@ -264,6 +264,7 @@ describe("buildSessionInitStatusSummary — scoped mode", () => {
     expect(summary).toContain("clean (in sync with origin)");
     expect(summary).toContain("1 active extensions");
     expect(summary).toContain("Init-gating settings");
+    expect(summary).toContain("Autonomy: manual-commit (default)");
     expect(summary).toContain("Resolved: .arc/active/technical/status-foo.md");
   });
 

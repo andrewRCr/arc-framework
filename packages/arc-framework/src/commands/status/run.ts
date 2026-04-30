@@ -52,6 +52,21 @@ function fromRejection(err: unknown): ProbeErrorSlot {
   return { ok: false, error: { kind: "runtime", message } };
 }
 
+/**
+ * Wrap a probe invocation so a synchronous throw during invocation or
+ * parameter validation is caught and converted into a resolved Probe error,
+ * preserving the documented "envelope itself never rejects" contract.
+ *
+ * `Promise.resolve().then(probe)` evaluates `probe()` inside a microtask:
+ * synchronous throws become rejections of the resulting promise, which
+ * `fromRejection` then captures.
+ */
+function safeProbe<T>(
+  probe: () => Promise<T>,
+): Promise<{ ok: true; value: T } | ProbeErrorSlot> {
+  return Promise.resolve().then(probe).then(ok, fromRejection);
+}
+
 function identityMissing(): ProbeErrorSlot {
   return {
     ok: false,
@@ -76,10 +91,10 @@ export async function runStatus(options: RunStatusOptions): Promise<StatusResult
 
   const userTask: Promise<StatusResult["user"]> = identity === null
     ? Promise.resolve(identityMissing())
-    : probes.user(identity).then(ok, fromRejection);
-  const extensionsTask = probes.extensions().then(ok, fromRejection);
-  const configTask = probes.config().then(ok, fromRejection);
-  const activeTask = probes.active().then(ok, fromRejection);
+    : safeProbe(() => probes.user(identity));
+  const extensionsTask = safeProbe(() => probes.extensions());
+  const configTask = safeProbe(() => probes.config());
+  const activeTask = safeProbe(() => probes.active());
 
   const [user, extensions, config, active] = await Promise.all([
     userTask,
@@ -106,12 +121,12 @@ export async function runSessionInitStatus(
 
   const userTask: Promise<SessionInitProbeResult["user"]> = identity === null
     ? Promise.resolve(identityMissing())
-    : probes.user(identity).then(ok, fromRejection);
-  const worktreeTask = probes.worktree().then(ok, fromRejection);
-  const extensionsTask = probes.extensions().then(ok, fromRejection);
-  const configTask = probes.config().then(ok, fromRejection);
-  const activeTask = probes.active(identity, role).then(ok, fromRejection);
-  const domainRulesTask = probes.domainRules().then(ok, fromRejection);
+    : safeProbe(() => probes.user(identity));
+  const worktreeTask = safeProbe(() => probes.worktree());
+  const extensionsTask = safeProbe(() => probes.extensions());
+  const configTask = safeProbe(() => probes.config());
+  const activeTask = safeProbe(() => probes.active(identity, role));
+  const domainRulesTask = safeProbe(() => probes.domainRules());
 
   const [user, worktree, extensions, config, active, domainRules] = await Promise.all([
     userTask,
@@ -157,15 +172,15 @@ export async function runSessionHandoffStatus(
 ): Promise<SessionHandoffResult> {
   const { identity, role, probes } = options;
 
-  const dirtyTask = probes.dirty().then(ok, fromRejection);
-  const worktreeTask = probes.worktree().then(ok, fromRejection);
+  const dirtyTask = safeProbe(() => probes.dirty());
+  const worktreeTask = safeProbe(() => probes.worktree());
   const userTask: Promise<SessionHandoffResult["user"]> = identity === null
     ? Promise.resolve(identityMissing())
-    : probes.user(identity).then(ok, fromRejection);
-  const autonomyTask = probes.autonomy().then(ok, fromRejection);
-  const syncPushTask = probes.syncPush().then(ok, fromRejection);
-  const activeTask = probes.active(identity, role).then(ok, fromRejection);
-  const headTask = probes.head().then(ok, fromRejection);
+    : safeProbe(() => probes.user(identity));
+  const autonomyTask = safeProbe(() => probes.autonomy());
+  const syncPushTask = safeProbe(() => probes.syncPush());
+  const activeTask = safeProbe(() => probes.active(identity, role));
+  const headTask = safeProbe(() => probes.head());
 
   const [dirty, worktree, user, autonomy, syncPush, active, head] = await Promise.all([
     dirtyTask,
