@@ -8,11 +8,11 @@
 - **Task List:** `tasks-interlock-foundation.md`
 - **Sibling Work Unit(s):** `plan-session-operational-flow.md`
 
-- **Last Completed:** Phase 5 close — Spec shape-check validator + CHECK 17 in pre-commit
-  hook (`7f5d65fc`); migration confirmed as a no-op and validation-window plan with seeded
-  observation log (`ec6371ac`); arc-handoff skill thinned to dispatch and session-handoff
-  workflow autonomy-gating rewritten around skill-invocation-is-approval (`2b5efb79`).
-- **Next Task:** Task 6.1 — Complete verification (line ~673)
+- **Last Completed:** Phase 6 close — Tier 3 verification clean, 19/26 success criteria met
+  (2 deviation), 7 deferred to validation window (`55b2a59f`). Atomic: arc-\* skill
+  descriptions tightened (`c18766d0`); commit-msg validator + workflow-pointer convention
+  tightening (`d6f4bf4d`).
+- **Next Task:** [none]
 - **Blockers:** [none]
 
 - **Next Action:** integrate-work-unit Step 1 — verify completion
