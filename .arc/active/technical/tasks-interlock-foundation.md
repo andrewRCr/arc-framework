@@ -589,52 +589,43 @@ once they land. Captured as supplemental evidence, not a substitute.
           (matches CHECK 10); on validator non-zero exit, surfaces diagnostics indented under a
           red error banner. Verified clean against the active status file.
 
-### `[ ]` **5.2 Migrate existing in-flight self-host status files in place**
+### `[x]` **5.2 Migrate existing in-flight self-host status files in place**
 
-- _Goal:_ Add new fields (`Spec`, `Sibling Work Unit(s)`) to any existing status files. No protocol, no
-  auto-migration.
+- _Outcome:_ Migration is a no-op in this repo — the only active status file
+  (`status-interlock-foundation.md`) was already populated with `**Spec:**` and
+  `**Sibling Work Unit(s):**` during earlier phase commits. No other in-flight planning files
+  exist. CHECK 17 passes against the file at HEAD.
 
-    - `[ ]` **5.2.a Inventory existing status files**
-        - `find .arc/active -name "status-*.md"`. Confirm scope before editing — Phase 3's
-          planning-branch ceremony may have created files for in-flight planning work between Phase 3
-          completion and this point.
+    - `[x]` **5.2.a Inventory existing status files**
+        - `find .arc/active -name "status-*.md"` returns one file:
+          `status-interlock-foundation.md`. Phase 3's planning-branch ceremony did not create any
+          additional in-flight status files between Phase 3 completion and now.
 
-    - `[ ]` **5.2.b Apply field additions per file**
-        - Hand-edit each file. Spec value inferred from context (plan-doc filename, if applicable).
-          Sibling WU(s) populated where known.
+    - `[x]` **5.2.b Apply field additions per file**
+        - No-op — `status-interlock-foundation.md` was already migrated in an earlier phase
+          commit. Current values: `**Spec:** \`prd-interlock-foundation.md\``,
+          `**Sibling Work Unit(s):** \`plan-session-operational-flow.md\``.
 
-### `[ ]` **5.3 Define post-integration validation-window plan**
+### `[x]` **5.3 Define post-integration validation-window plan**
 
-- _Goal:_ Capture the concrete plan the validation window executes — sibling-WU planning
-  (session-operational-flow plan → PRD → tasks) as the exercise vehicle. Pre-integration deliverable;
-  execution itself happens post-integration, between WU-A integration and WU-B activation.
+- _Outcome:_ Validation-window plan + in-flight observation log landed together in
+  `notes-validation-window.md`. Three-session exercise plan with criteria mapping, completion
+  definition, and failure-mode routing; observation section seeded with six entries from Phases
+  1–5 execution (all "operating as designed" / no routing required). Supplemental pre-integration
+  evidence; the post-integration window remains the primary validation vehicle.
 
-    - `[ ]` **5.3.a Write the validation-window entry**
-        - Output: tracked notes file at `.arc/active/technical/notes-validation-window.md` (lives
-          next to status/PRD/tasks; follows the WU through archive). Documents which sessions
-          exercise which success-criteria, what defines window completion, where observations get
-          captured.
-        - Concrete shape (≥3 sessions; adjust if surfaces reveal more):
-            - Session 1 — planning-branch activation end-to-end via session-operational-flow plan-doc
-              refinement: `activate-planning-branch` ceremony, status file created with `State: Planning`,
-              `Spec` pointing at `plan-session-operational-flow.md`, `Sibling Work Unit(s)` back-referencing
-              `prd-interlock-foundation.md`, sessionType inference from State.
-            - Session 2 — PRD generation under structured prompts + composite handoff probe across any
-              session boundaries; status-file timing rule observable (no per-task status churn).
-            - Session 3 — task generation + `activate-work-unit` idempotent transition path
-              (State: Planning → In Progress, Task List populated). Push-ordering invariant exercised
-              if a handoff fires both worktree-push and notes-push.
-        - Failure-mode handling: any envelope shape, prompt phrasing, or workflow prose adjustments
-          surfaced during the window route back as post-archive R-tasks against this WU or get folded
-          into the sibling WU as appropriate.
+    - `[x]` **5.3.a Write the validation-window entry**
+        - `notes-validation-window.md` lands at `.arc/active/technical/`. Documents the three-session
+          plan (planning-branch activation, PRD generation, task generation + activate-work-unit
+          transition), maps each session to the success criteria it exercises, defines window
+          completion criteria, and routes adjustments by type. Observation log section template ready
+          for 5.3.b to populate.
 
-    - `[ ]` **5.3.b Capture in-flight observations from Phases 1–5 execution**
-        - As the new frame lands phase-by-phase, this WU's own remaining task work increasingly uses
-          it (Phase 4.1 prompts apply to all subsequent task closes; status timing rule applies once
-          Phase 4.1 lands; etc.). Append findings to the same notes file as 5.3.a. Supplemental
-          evidence — does not substitute for the post-integration window.
-        - _Completion:_ marked `[x]` at Phase 5 close (before Phase 6 verification); observation log
-          seals there. Phases 1–4 entries are retrospective recall — Phase 5 captures land in real time.
+    - `[x]` **5.3.b Capture in-flight observations from Phases 1–5 execution**
+        - Six entries appended to `notes-validation-window.md` § Observations: structured prompts,
+          status-file timing rule, staging-as-test commit shape, composite session-init probe, CHECK
+          17 self-test on the landing commit, and a Phases 1–3 retrospective rollup. All "operating
+          as designed" — no routing required, no adjustments surfaced.
 
 ---
 
