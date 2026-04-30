@@ -5,8 +5,10 @@
 <!--
   Field semantics. All fields always present; `[none]` is the empty-value marker.
 
-  - **State** — `Planning` (planning session) | `In Progress` (executing tasks).
-    Other enum values (e.g., `Paused`) introduced in sibling work units.
+  - **State** — `Planning` (planning session) | `In Progress` (executing tasks)
+    | `Complete` (integration window after work-unit cleanup; coexists with a pending
+    `**Next Action:**` until archival). Other enum values (e.g., `Paused`) introduced in
+    sibling work units.
   - **Branch** — Branch this WU lives on (planning branch during planning,
     implementation branch during execution).
   - **Spec** — `[none]` | `.md` filename (e.g., `plan-{name}.md`, `prd-{name}.md`)

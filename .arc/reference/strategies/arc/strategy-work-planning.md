@@ -180,7 +180,9 @@ formal approval gate.
 - Scope is unbounded or growing with each discussion
 
 **When ready:** Create the PRD using the [create-prd workflow][create-prd] and the [PRD
-template][template-prd]. Delete the plan document once the PRD is stable.
+template][template-prd]. The plan document is disposed at planning-branch integration — graduated
+path `git rm`s it (PRD captures what matters); shelved path moves it back to backlog when
+exploration ended without producing an active WU.
 
 ---
 
@@ -202,9 +204,10 @@ execution. They define _what_ and _why_; task lists define _how_.
   enough to warrant it (P0/P1/P2 or similar)
 
 **Relationship to plans:** The PRD synthesizes and crystallizes what the plan explored. It doesn't
-preserve the exploration — it captures the conclusions. A plan is deleted once all PRDs it feeds are
-stable. One plan may produce multiple PRDs when the explored scope splits into distinct work units
-with different deliverables, dependencies, or review boundaries.
+preserve the exploration — it captures the conclusions. The plan is disposed at planning-branch
+integration via the graduated path (`git rm`) once all the PRDs it feeds are active. One plan may
+produce multiple PRDs when the explored scope splits into distinct work units with different
+deliverables, dependencies, or review boundaries.
 
 ---
 

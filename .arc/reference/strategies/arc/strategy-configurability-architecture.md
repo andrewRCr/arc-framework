@@ -229,10 +229,12 @@ Most config settings are straightforward toggles. Some carry deeper implications
 commit and push interlocks:
 
 - **`manual-commit`** (default) — both commit-interlock and push-interlock engaged. The user explicitly
-  invokes commit and push.
-- **`auto-commit`** — commit-interlock releases on task approval; push-interlock remains manual.
-- **`auto-push`** — commit-interlock releases on task approval; push-interlock releases at handoff only
-  (never per-commit).
+  invokes commit and push. Active runtime mode.
+- **`auto-commit`** — reserved mode. The resolved value surfaces through probes and the structured
+  task-completion prompt today; runtime release of the commit-interlock on task approval ships in the
+  Session-Operational Flow follow-up.
+- **`auto-push`** — reserved mode. The resolved value surfaces through probes today; runtime release
+  of the push-interlock at handoff ships in the Session-Operational Flow follow-up.
 
 Per-developer override via `git config arc.autonomy <value>` (mirrors the `user.sync_push` /
 `arc.syncPush` pattern). The interlock model this setting configures lives in

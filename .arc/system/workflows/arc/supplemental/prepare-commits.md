@@ -65,8 +65,9 @@ updates to a final `docs(...): update [doc] for Tasks X.Y-X.Z` commit after the 
 - **Does NOT apply** to task list updates. These are derived state that rides with the content
   commit that triggered them — see § Granularity guidance.
 - **Does NOT apply** to status-file updates. These fire only at handoff or workflow-ceremony
-  boundaries, as dedicated `chore(status):` commits — see [DEV-RULES.ARC][dev-rules-arc]
-  § Status-file timing and § Status-file commit shape.
+  boundaries; the exact commit shape (dedicated `chore(status):` vs. bundled with concurrent
+  ceremony content) follows [DEV-RULES.ARC][dev-rules-arc] § Status-file timing and § Status-file
+  commit shape.
 
 ### Parent Task Completion
 

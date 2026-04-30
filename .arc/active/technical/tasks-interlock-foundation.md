@@ -625,7 +625,7 @@ once they land. Captured as supplemental evidence, not a substitute.
     - `[x]` **5.3.b Capture in-flight observations from Phases 1–5 execution**
         - Six entries appended to `notes-interlock-foundation.md` § Observations: structured prompts,
           status-file timing rule, staging-as-test commit shape, composite session-init probe, CHECK
-          17 self-test on the landing commit, and a Phases 1–3 retrospective rollup. All "operating
+          16 self-test on the landing commit, and a Phases 1–3 retrospective rollup. All "operating
           as designed" — no routing required, no adjustments surfaced during 5.3.b's scope. (A 7th
           entry capturing a late-discovered workflow-prose adjustment landed under Task 5.4.)
 

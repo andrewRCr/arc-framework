@@ -99,8 +99,11 @@ Create `.arc/active/{category}/status-{name}.md` from [`template-status.md`][tem
 the per-WU project pointer for the planning session — tracked, persists across the WU lifecycle,
 transitions to execution at activation.
 
-**Idempotent.** If a status file already exists on this branch (e.g., resuming a prior planning
-session), leave it in place — skip this step entirely.
+**Idempotent create + reconcile.** If a status file already exists on this branch (e.g., resuming
+a prior planning session), do not recreate it — but reconcile the planning fields below so
+`**Branch:**` and `**Spec:**` reflect the current branch name (renames possible) and the current
+plan-doc filename (a `plan-*` doc may have been created after the first activation). Other field
+values are preserved as-is; only the create vs. reconcile path differs.
 
 Replace the template's title (`# Status: [Work Name]`) with the actual work unit name. Strip the
 HTML comment block at the top of `## Active Work` — that's template scaffolding, not an instance

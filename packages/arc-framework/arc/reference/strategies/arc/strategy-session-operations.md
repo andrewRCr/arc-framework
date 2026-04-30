@@ -95,9 +95,9 @@ The same machinery underlies the session-handoff probe (`arc status --session-ha
 
 #### Handoff envelope fields
 
-The `arc status --session-handoff --json` envelope carries six probe slots plus identity. Each slot wraps in
-the same `Probe<T>` discriminated union as session-init; per-slot failures surface in the error branch
-rather than rejecting the composite. Mirrors the session-init field table in `session-init.md`.
+The `arc status --session-handoff --json` envelope carries seven probe slots plus identity. Each slot
+wraps in the same `Probe<T>` discriminated union as session-init; per-slot failures surface in the error
+branch rather than rejecting the composite. Mirrors the session-init field table in `session-init.md`.
 
 | Field      | Contents                                                                                                                                                                                       |
 |------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -108,6 +108,7 @@ rather than rejecting the composite. Mirrors the session-init field table in `se
 | `autonomy` | `{value, source}` — resolved `session.autonomy` policy with provenance (`git-config` / `yaml` / `default`). Surfaced top-level so handoff doesn't pull the broader session-init settings map   |
 | `syncPush` | `{policy, source}` — resolved `user.sync_push` policy with provenance. Handoff-interior toggle slot; future toggles (e.g., worktree push) register as named siblings here                      |
 | `active`   | Active status file resolution — same shape as session-init's `active` slot                                                                                                                     |
+| `head`     | Current `HEAD` short-hash (`value.shortHash`) — anchors the `Commit at Handoff` field written by the handoff workflow                                                                          |
 
 Consumer plans reference this table from their plan docs when defining handoff-time workflow behavior.
 
@@ -567,10 +568,10 @@ matching `git config` key for personal override. Document the override in the to
 section.
 
 **Composite handoff probe.** `arc status --session-handoff --json` returns the handoff envelope —
-worktree state, notes-sync state, autonomy mode, handoff-interior toggle values, active extensions
-filtered to handoff fire points, resolved active status file. The handoff workflow consumes the
-envelope; per-action checklist consults each toggle's mode and acts. See § Probe pattern §
-Extension contract for how new toggles add slots.
+dirty state, worktree state, notes-sync state, autonomy mode, handoff-interior toggle values, resolved
+active status file, and current HEAD short-hash. The handoff workflow consumes the envelope;
+per-action checklist consults each toggle's mode and acts. See § Probe pattern § Extension contract
+for how new toggles add slots.
 
 **Push-ordering invariant.** When both worktree-push and notes-push fire during handoff, worktree-push
 MUST land before notes-push (see § Push-Timing Reasoning for the constraint). Not a config; not

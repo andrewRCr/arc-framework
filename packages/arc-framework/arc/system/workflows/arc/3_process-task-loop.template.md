@@ -194,7 +194,11 @@ arc:
      If any item is unchecked, complete it before proceeding to report generation.
 
   4. Await user instructions on how to proceed.
-     User may choose to commit changes (AI can execute only if explicitly approved) or request modifications.
+     User may choose to commit changes or request modifications. Commit authority follows
+     `session.autonomy`: under `manual-commit`, the structured prompt's `Commit and proceed`
+     branch is gated behind explicit user approval (the affirmative response IS the approval);
+     under `auto-commit` / `auto-push`, the commit-interlock releases on task approval per
+     [Configurability Architecture Strategy][config-arch] § Session autonomy.
      When committing, follow the [prepare-commits workflow](supplemental/prepare-commits.md).
 
      <!-- arc:if team.mode == true -->
@@ -276,6 +280,7 @@ updates**. Always update the task list file before reporting completion.
 
 [work-org]: ../../../reference/strategies/arc/strategy-work-organization.md
 [quality-gates]: ../../../reference/strategies/arc/strategy-quality-gates.md
+[config-arch]: ../../../reference/strategies/arc/strategy-configurability-architecture.md
 [dev-rules-arc]: ../../../reference/constitution/DEV-RULES.ARC.md
 [rotate-branch]: work-unit-lifecycle/rotate-branch.md
 [manage-incidental]: supplemental/manage-incidental-work.md
