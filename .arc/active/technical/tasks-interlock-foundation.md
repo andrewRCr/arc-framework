@@ -564,44 +564,30 @@ bridge work for the window: planning branch forks cleanly from main, no stacking
 dogfooding we get is incidental — Phase 4 deliverables apply to this WU's own remaining task work
 once they land. Captured as supplemental evidence, not a substitute.
 
-### `[ ]` **5.1 Pre-commit hook validates `Spec` field shape**
+### `[x]` **5.1 Pre-commit hook validates `Spec` field shape**
 
 - **Strategies:** `strategy-testing-methodology.md`
 
-- _Goal:_ Block commits where `Spec` value is malformed; tier-aware semantics deferred to
+- _Outcome:_ Shape-check infrastructure landed end-to-end. `validate-status-spec.ts` validator
+  (14 unit tests, `validate-frontmatter` dispatcher pattern) + CHECK 17 in both pre-commit copies
+  enforce the pinned shapes (empty / `[none]` / bare-basename `.md` / `https?://` URL) on staged
+  `.arc/active/{category}/status-*.md` files. Tier-aware semantics deferred to
   `plan-agile-wu-lifecycle`.
 
-    - `[ ]` **5.1.a Build `validate-status-spec.ts` shape validator** (test-first)
-        - Implementation: TypeScript validator at
-          `packages/arc-framework/src/scripts/validate-status-spec.ts` — same dispatcher pattern as
-          `validate-frontmatter.ts`. Accepts file paths as args; reads each file, locates the
-          `**Spec:**` line, validates shape; non-zero exit on mismatch with diagnostic to stdout.
-        - Shape rules (pinned):
-            - Pass: literal empty value, `[none]` (template empty-value sentinel), bare-basename
-              `.md` filename (no path separators), `https?://...` URL.
-            - Fail: missing `**Spec:**` line, multiple `**Spec:**` lines, any other value.
-            - Whitespace: trim surrounding whitespace before shape match.
-        - Tests at `packages/arc-framework/__tests__/unit/scripts/validate-status-spec.test.ts`
-          (mirror existing validator-test conventions). Build `test-first` (one behavior at a time):
-            - `[ ]` empty value passes
-            - `[ ]` `[none]` value passes
-            - `[ ]` bare-basename `.md` filename passes (e.g., `prd-foo.md`)
-            - `[ ]` `https://` URL passes
-            - `[ ]` `http://` URL passes
-            - `[ ]` value with surrounding whitespace passes (validator trims)
-            - `[ ]` missing `**Spec:**` line fails
-            - `[ ]` multiple `**Spec:**` lines fails
-            - `[ ]` `.md` path with separators fails (e.g., `subdir/foo.md`)
-            - `[ ]` arbitrary non-matching value fails (e.g., `TBD`, `foo`)
-            - `[ ]` error message includes file path, offending value, and expected shape
+    - `[x]` **5.1.a Build `validate-status-spec.ts` shape validator**
+        - Validator at `packages/arc-framework/src/scripts/validate-status-spec.ts` + 14 unit tests
+          at `__tests__/unit/scripts/validate-status-spec.test.ts`. Mirrors the
+          `validate-frontmatter` dispatcher pattern — `classifyPath()` filters to the active
+          status-file scope, `validateSpec()` enforces the pinned shape rules (empty / `[none]` /
+          bare-basename `.md` / `https?://` URL; missing or duplicate `**Spec:**` lines fail;
+          surrounding whitespace and a single wrapping backtick pair are stripped before matching).
+          Tests batched single-pass — behaviors tightly coupled around one regex.
 
-    - `[ ]` **5.1.b Wire validator into pre-commit hook**
-        - Add a new CHECK block to `.arc/system/githooks/pre-commit` (and the package-source copy at
-          `packages/arc-framework/arc/system/githooks/pre-commit`) following the CHECK 12 /
-          `validate-frontmatter` delegation pattern (`npx tsx ... $candidates`).
-        - Scope staged candidates to `^\.arc/active/[^/]+/status-[^/]+\.md$` (matches CHECK 10).
-        - Block commits on validator non-zero exit; surface diagnostic output indented under an
-          error banner.
+    - `[x]` **5.1.b Wire validator into pre-commit hook**
+        - CHECK 17 added to both `.arc/system/githooks/pre-commit` and the package-source copy
+          (identical bodies). Candidate filter scopes to `^\.arc/active/[^/]+/status-[^/]+\.md$`
+          (matches CHECK 10); on validator non-zero exit, surfaces diagnostics indented under a
+          red error banner. Verified clean against the active status file.
 
 ### `[ ]` **5.2 Migrate existing in-flight self-host status files in place**
 

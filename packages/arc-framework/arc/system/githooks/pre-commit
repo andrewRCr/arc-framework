@@ -458,6 +458,28 @@ if [ -n "$extension_point_candidates" ]; then
 fi
 
 # ============================================================================
+# CHECK 17: Status-file `**Spec:**` field shape validation
+# ============================================================================
+# Validates the shape of the `**Spec:**` field on staged status files under
+# `.arc/active/{category}/`. Allowed values: empty, [none], bare-basename .md
+# filename, or https?:// URL. Surrounding whitespace and a single wrapping
+# backtick pair are stripped before matching. Tier-aware semantics (per-WU-type
+# Spec requirements) are deferred to a downstream WU.
+status_spec_candidates=$(git diff --cached --name-only --diff-filter=ACMR | \
+    grep -E '^\.arc/active/[^/]+/status-[^/]+\.md$' || true)
+
+if [ -n "$status_spec_candidates" ]; then
+    # shellcheck disable=SC2086 # Intentional word splitting — newline-separated paths
+    if ! status_spec_output=$(npx tsx packages/arc-framework/src/scripts/validate-status-spec.ts $status_spec_candidates 2>&1); then
+        echo -e "${RED}Error: Status-file Spec field validation failed:${NC}"
+        echo "$status_spec_output" | sed 's/^/   /'
+        echo ""
+        echo "   Fix the \`**Spec:**\` value in the files listed above."
+        errors=$((errors + 1))
+    fi
+fi
+
+# ============================================================================
 # Summary
 # ============================================================================
 echo ""
