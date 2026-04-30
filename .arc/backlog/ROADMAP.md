@@ -145,9 +145,10 @@ planning-session active surface (status file at planning activation; sessionType
 State), structured task-completion prompt as base ARC behavior (`Proceed to Task X.Y?` /
 `Commit and proceed to Task X.Y?`), configuration surface (`session.autonomy` axis with per-developer
 override, composite handoff probe, handoff-interior toggle pattern), and rollback dev-rule. Shared
-frame for the four downstream session-operational plans (User Sync UX, Quality Gate Hooks, Work-Unit
-Mobility, Concurrent-Work Conventions) — each becomes smaller and internally coherent inside the
-frame. Surfaced 2026-04-24 during pre-PRD exploration of User Sync UX when the `user.sync_push: always`
+frame for the downstream session-operational plans (User Sync UX, Quality Gate Hooks, Worktree
+Foundation, Concurrent Work Conventions, Coord Probe) — each becomes smaller and internally
+coherent inside the frame. Surfaced 2026-04-24 during pre-PRD exploration of User Sync UX when
+the `user.sync_push: always`
 incoherence revealed a missing shared frame. External research validated interlock-model alignment
 with industrial SWE practice (Spinnaker manual judgment, GitHub Environments, Atlantis, Terraform
 autonomy tiers, Conventional Changelog boundary-consolidation).
@@ -158,10 +159,12 @@ autonomy tiers, Conventional Changelog boundary-consolidation).
   foundation; ships after Interlock Foundation validation window)
 - Upstream: Session-Init Optimization (shipped — PR #21)
 - Downstream: User Sync UX Polish (handoff-interior toggles for worktree/notes pairing),
-  Work-Unit Mobility (configurable autonomy for multi-session ergonomics),
-  Quality Gate Tiers and Hook Integration (per-junction hook placement; canonical gate vocabulary
-  preserved alongside the new interlock vocabulary), ARCd Rebrand (interlock-model terminology
-  absorbed into rename pass)
+  Worktree Foundation (mechanism layer for multi-session ergonomics; consumes the autonomy frame
+  for shift lifecycle), Concurrent Work Conventions (focus-role conventions composed against the
+  interlock model), Coord Probe (parallelizable; consumes session-init substrate established
+  alongside the frame), Quality Gate Tiers and Hook Integration (per-junction hook placement;
+  canonical gate vocabulary preserved alongside the new interlock vocabulary), ARCd Rebrand
+  (interlock-model terminology absorbed into rename pass)
 
 **Session-Operational Flow** — Sibling WU; backlog (deferred to post-WU-A validation window)
 
