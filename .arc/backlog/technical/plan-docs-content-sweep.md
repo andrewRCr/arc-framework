@@ -210,11 +210,25 @@ sections; the conceptual model home is `strategy-session-operations.md`. Structu
 task-completion prompt and push-ordering enforcement live in workflow files
 (`3_process-task-loop.md`, `session-handoff.md`).
 
-**Topic flag — no extraction scoped at source.** Sweep WU resolves placement and content at
-sweep time. Authoritative sources: ADR-016, `strategy-session-operations.md` (post-Task 1.3.b
+**Edit type:** Additive concept introduction (not drift-fix). The public surface gains a new
+adopter-visible conceptual model (interlock model, autonomy stack, configurable middle interlocks)
+and supporting vocabulary (task-interlock, commit-interlock, push-interlock,
+integration-interlock). Existing methodology prose absorbs the new vocabulary without describing
+a retired model.
+
+**Known touch points** (to be enumerated at sweep time — scan `docs/**` for):
+
+- Session lifecycle / autonomy mode discussion
+- Commit and push authority descriptions ("when does ARC commit?")
+- Handoff ceremony framing
+- Methodology principle pages touching agent-initiated actions
+
+**Nuance:** No extraction scoped at source — sweep WU resolves placement and content at sweep
+time. Authoritative sources: ADR-016, `strategy-session-operations.md` (post-Task 1.3.b
 expansion), `arc-config.yml` (post-Phase 2 `session.autonomy` schema), `3_process-task-loop.md`
 (post-Phase 4.1.b prompt format spec), `session-handoff.md` (post-Phase 4.2.c push-ordering
-enforcement), DEV-RULES.ARC (post-Task 1.2 weave).
+enforcement), DEV-RULES.ARC (post-Task 1.2 weave). Don't pre-author docs prose against
+intermediate task-list intent — wait until sources are at their final post-WU shape.
 
 ### Content Contributions
 
