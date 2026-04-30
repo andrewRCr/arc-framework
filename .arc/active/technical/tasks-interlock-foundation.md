@@ -451,28 +451,36 @@ when configured is sibling-WU work.
           Synced canonical (`.arc/` + package source) and harness copies (`.claude/`, `.codex/`) on this
           machine; main-machine harness sync deferred (persistent-context entry in SESSION-NOTES).
 
-### `[ ]` **4.2 `session-handoff.md` restructured around composite handoff probe**
+### `[x]` **4.2 `session-handoff.md` restructured around composite handoff probe**
 
-- _Goal:_ Single `arc status --session-handoff --json` returns the envelope; per-action checklist consumes
-  each toggle's mode.
+- _Outcome:_ Workflow opens with the composite probe; downstream steps read their slice. Comprehensive
+  Handoff Format compressed 6 → 4 steps: status update + `chore(status): handoff` commit merged into a
+  single autonomy-gated step (auto-push fires; manual-commit prompts) with a skip-threshold rule against
+  churn updates. New "Push Sequence" section formalizes worktree-push (manual-commit skip; auto-push
+  fires) before notes-push (`arc sync`) per the worktree-first invariant. Confirm Handoff gains
+  conditional surfaces for unpushed worktree state and declined status commits. Stripped
+  working-directory-paths cruft (session-init `pwd` handles repo-root invariant).
 
-    - `[ ]` **4.2.a Replace ad-hoc checks with composite-probe consumption**
-        - Workflow opens with the probe call; downstream steps read their slice of the envelope. Per-slot
-          error handling matches session-init pattern.
+    - `[x]` **4.2.a Replace ad-hoc checks with composite-probe consumption**
+        - Added "Resolve Handoff Context" section opening with `npx arc status --session-handoff --json`;
+          slot guide table; identity-absent + probe-failure fallback rules matching session-init pattern.
+          Pre-Update Verification item 1 now consumes `dirty.value.state` from probe.
 
-    - `[ ]` **4.2.b Per-action checklist with toggle reads**
-        - Worktree-push, notes-push, status-update, etc. — each consults its toggle's mode. Document the
-          consumption pattern inline.
+    - `[x]` **4.2.b Per-action checklist with toggle reads**
+        - Per-action gating documented inline — status update + commit reads `autonomy.value` (auto-push:
+          commit; manual-commit: prompt); worktree push reads `autonomy.value` + `worktree.value.state`;
+          notes push reads `syncPush.value.policy` (always / prompt / manual via `arc sync`).
 
-    - `[ ]` **4.2.c Push ordering enforcement**
-        - When both worktree-push and notes-push fire, worktree first. Workflow ordering enforces — notes
-          attach to commits that must already exist on origin. Not configurable. Strategy-session-operations
-          (Task 1.3.b) carries the reasoning for cross-reference.
+    - `[x]` **4.2.c Push ordering enforcement**
+        - "Push Sequence" section opens with the push-ordering invariant: worktree-push lands before
+          notes-push (notes attach to commits that must already exist on origin). Not configurable;
+          enforced by workflow ordering. Cross-references strategy-session-operations § Push Toggles.
 
-    - `[ ]` **4.2.d Status update lands as the handoff commit**
-        - The handoff workflow's `chore(status): handoff` commit IS where status-file changes land —
-          a dedicated commit, not a prep step bundled elsewhere. Cross-reference DEV-RULES.ARC
-          § Status-file commit shape.
+    - `[x]` **4.2.d Status update lands as the handoff commit**
+        - Step 5 "Safety-check commit" replaced by merged step 3's "Update active status file + commit"
+          — `chore(status): handoff` is the canonical landing point per DEV-RULES.ARC § Status-file
+          commit shape, never bundled with content / structural commits. Skip-threshold rule prevents
+          churn updates that don't change next-session orientation.
 
 ### `[ ]` **4.3 Lifecycle workflows produce dedicated status commits at ceremony boundaries**
 
