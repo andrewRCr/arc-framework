@@ -313,23 +313,31 @@ states** — no planning variant. **Always-present convention with `[none]` for 
           backlog/ → active/ rotation at planning activation, disposition at integration. Two-copy
           edit per package-project-sync.
 
-### `[ ]` **3.3 `activate-work-unit.md` Step 4 — idempotent ensure-status-file**
+### `[x]` **3.3 `activate-work-unit.md` Step 4 — idempotent ensure-status-file**
 
-- _Goal:_ One step handles both routes — transition existing planning file (State: Planning → In Progress,
-  fill Task List, etc.) or create from template when absent.
+- Step 4 retitled `Ensure Status File`; opens with idempotency framing and a precondition check
+  (`.arc/active/{category}/status-{name}.md` exists?). Yes → transition path; no → creation path. Both
+  paths converge on `State: In Progress`, task list pointer populated, first task ready. Shared post-path
+  guidance (PRD-metadata cleanup, team-mode block) sits under a `Both paths` heading. Step 7's commit shape
+  unchanged here — Phase 4.3 restructures lifecycle commit shapes across workflows. Two-copy edit per
+  package-project-sync; checklist summary updated; new `[activate-planning-branch]` link def. Reconciled
+  the creation path with the post-3.1 template fields (added Spec, Sibling Work Unit(s); Task List value
+  switched to bare filename; HTML comment-block strip mirrors planning-branch precedent) — necessary for
+  the path to actually produce a valid file.
 
-    - `[ ]` **3.3.a Restructure Step 4 with precondition check**
-        - Detect existing status file from planning-branch ceremony; switch to transition path or creation
-          path. Existing creation logic stays in the creation branch.
+    - `[x]` **3.3.a Restructure Step 4 with precondition check**
+        - Step 4 split into Creation path / Transition path under a precondition check; shared post-path
+          guidance under `Both paths`. Cross-link to `activate-planning-branch.md` Step 5 added at the head.
 
-    - `[ ]` **3.3.b Specify transition-path field handling**
-        - State transition: Planning → In Progress.
-        - Conditional Spec rewrite: if value is a `plan-{name}.md` filename → rewrite to
-          `prd-{name}.md`; otherwise (URL, external ref, non-`plan-` `.md`, `[none]`) leave unchanged.
-          Accommodates `pm.mode: external` external-tracker Specs untouched.
-        - Populate execution-state fields: Task List, Next Task (first task triple-anchor),
-          Last Completed: `Work unit activated`. Sibling Work Unit(s) and Blockers retain their
-          existing values. Document the mapping inline.
+    - `[x]` **3.3.b Specify transition-path field handling**
+        - Transition path enumerates the field deltas inline:
+          State `Planning` → `In Progress`; Branch planning → implementation; Spec conditional rewrite
+          (`plan-{name}.md` → `prd-{name}.md`; URL / external ref / non-`plan-` `.md` / `[none]` unchanged
+          to accommodate `pm.mode: external`); Task List `[none]` → `tasks-{name}.md`; Last Completed
+          `[none]` → `Work unit activated`; Next Task `[none]` → first-task triple-anchor; Next Action
+          → first task action. Sibling Work Unit(s) and Blockers retain. Branch and Next Action updated
+          alongside the explicitly-listed deltas — required because Step 2 has just switched branches and
+          the planning-session prompt no longer applies.
 
 ### `[ ]` **3.4 `integrate-planning-branch.md` handles status-file disposition**
 
