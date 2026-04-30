@@ -417,6 +417,13 @@ when configured is sibling-WU work.
         - `Quality gates failed: <details>. Investigate? (y / iterate)`. Defer with `[~]` if Phase 4 grows;
           folds cleanly into the same workflow file.
 
+    - `[ ]` **4.1.d Align `prepare-commits.md` + `arc-commit` skill with status-file timing rule**
+        - Both still carry "stage the active status file with every task commit" prose that contradicts
+          DEV-RULES.ARC § Commit Discipline (status-file updates fire only at handoff / workflow-ceremony
+          commits). Strip the prose; cross-reference the timing rule. `prepare-commits.md` (~4 references)
+          and `.arc/system/skills/arc-commit/SKILL.md` (~3 references; canonical source — harness copies
+          regenerate via `arc update`). Surfaced during Task 3.3 commit prep.
+
 ### `[ ]` **4.2 `session-handoff.md` restructured around composite handoff probe**
 
 - _Goal:_ Single `arc status --session-handoff --json` returns the envelope; per-action checklist consumes
