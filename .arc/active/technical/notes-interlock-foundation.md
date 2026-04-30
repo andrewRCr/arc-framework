@@ -1,22 +1,32 @@
-# Notes: Validation Window
+# Notes: Interlock Foundation
 
-**Purpose:** Two-fold.
+**Purpose:** Working notes companion to `tasks-interlock-foundation.md`. Primary content to
+date is the post-integration validation-window plan (Phase 5.3 deliverable) and an in-flight
+observation log capturing how the new frame behaved during this WU's own execution. Other
+notes can land here as new top-level sections if any surface during the validation window or
+post-archive review.
 
-1. **Validation-window plan.** Concrete plan for the post-integration validation window — the sequence
-   of self-host sessions that exercise the new frame end-to-end against the success criteria flagged
-   `(validation window)` in `tasks-interlock-foundation.md`. Pre-integration deliverable; the window
-   itself runs between WU-A integration and WU-B (`session-operational-flow`) activation per PRD
-   § Success Criteria.
-2. **Observation log.** Append-only capture surface for in-flight observations during this WU's own
-   execution — Phase 5.3.b draws from this notes file as the WU's task work increasingly uses the new
-   frame. Supplemental evidence — does not substitute for the post-integration window.
-
-**Intended lifespan:** Until the validation window completes and the sibling WU
-(`session-operational-flow`) activates. Findings then route per § Failure-Mode Handling.
+**Completed:** 2026-04-30 _(WU integration prep — validation window itself runs post-archive)_
 
 ---
 
-## Window Definition
+## Contents
+
+- [Validation Window](#validation-window) — plan for the post-integration window: definition,
+  three-session exercise, failure-mode routing
+- [Observations](#observations) — in-flight log from Phases 1–5 execution
+
+---
+
+## Validation Window
+
+The post-integration validation window runs between WU-A (`interlock-foundation`) integration
+and WU-B (`session-operational-flow`) activation, exercising the new frame end-to-end against
+the success criteria flagged `(validation window)` in `tasks-interlock-foundation.md`.
+Pre-integration deliverable; the window itself runs post-archive. Findings route per
+§ Failure-Mode Handling below.
+
+### Window Definition
 
 **When it runs:** Between WU-A (`interlock-foundation`) integration and WU-B
 (`session-operational-flow`) activation. The frame must be on `main` to exercise the dominant
@@ -31,12 +41,12 @@ dogfooding scaffolding. The planning branch forks cleanly from main, no stacking
 `(validation window)` items in `tasks-interlock-foundation.md` § Success Criteria reach `[x]`.
 Adjustments surfaced during the window route per § Failure-Mode Handling.
 
-## Session Plan
+### Session Plan
 
 Three sessions cover the dominant paths. The count is a soft target — extend if the planning work
 surfaces more or if observations remain thin after three.
 
-### Session 1 — Planning-branch activation end-to-end
+#### Session 1 — Planning-branch activation end-to-end
 
 **Vehicle:** `plan-session-operational-flow.md` refinement on a fresh planning branch.
 
@@ -54,7 +64,7 @@ surfaces more or if observations remain thin after three.
 - _Planning-session active surface visible in practice: status file present at planning activation;
   sessionType inference works without branch-pattern fallback in the dominant case._
 
-### Session 2 — PRD generation under structured prompts + composite handoff probe
+#### Session 2 — PRD generation under structured prompts + composite handoff probe
 
 **Vehicle:** `1_create-prd.md` execution producing `prd-session-operational-flow.md`.
 
@@ -76,7 +86,7 @@ surfaces more or if observations remain thin after three.
 - _Status-file timing rule observable in practice: task-completion commits don't touch status files;
   handoff and ceremony commits do._
 
-### Session 3 — Task generation + activate-work-unit idempotent transition
+#### Session 3 — Task generation + activate-work-unit idempotent transition
 
 **Vehicle:** `2_generate-tasks.md` producing `tasks-session-operational-flow.md`, followed by
 `activate-work-unit.md` Step 4 transitioning the existing planning-state status file.
@@ -93,11 +103,11 @@ surfaces more or if observations remain thin after three.
 - _Push-ordering invariant holds in handoffs that fire both worktree and notes pushes._
 - _Planning-session active surface visible in practice (transition path)._
 
-### Across all sessions
+#### Across all sessions
 
 - _≥3 self-host sessions exercise the new frame per the validation-window plan._
 
-### Post-window verification
+#### Post-window verification
 
 After the three sessions:
 
@@ -105,7 +115,7 @@ After the three sessions:
   confirm the frame supports their scope without structural reshape.
     - _Downstream consumer plans confirm the frame supports their scope without structural reshape._
 
-## Failure-Mode Handling
+### Failure-Mode Handling
 
 Adjustments surfaced during the window route by type:
 

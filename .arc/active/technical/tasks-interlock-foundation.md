@@ -3,6 +3,7 @@
 - **PRD:** `.arc/active/technical/prd-interlock-foundation.md`
 - **Branch(es):** `technical/interlock-foundation`
 - **Base Branch:** `main`
+- **Completed:** 2026-04-30
 
 - **Purpose:** Establish ARC's interlock-model constitutional foundation — vocabulary, configuration axis,
   planning-session active surface, structured task-completion prompt, rollback protocol — so downstream
@@ -609,20 +610,20 @@ once they land. Captured as supplemental evidence, not a substitute.
 ### `[x]` **5.3 Define post-integration validation-window plan**
 
 - _Outcome:_ Validation-window plan + in-flight observation log landed together in
-  `notes-validation-window.md`. Three-session exercise plan with criteria mapping, completion
+  `notes-interlock-foundation.md`. Three-session exercise plan with criteria mapping, completion
   definition, and failure-mode routing; observation section seeded with six entries from Phases
   1–5 execution (all "operating as designed" / no routing required). Supplemental pre-integration
   evidence; the post-integration window remains the primary validation vehicle.
 
     - `[x]` **5.3.a Write the validation-window entry**
-        - `notes-validation-window.md` lands at `.arc/active/technical/`. Documents the three-session
+        - `notes-interlock-foundation.md` lands at `.arc/active/technical/`. Documents the three-session
           plan (planning-branch activation, PRD generation, task generation + activate-work-unit
           transition), maps each session to the success criteria it exercises, defines window
           completion criteria, and routes adjustments by type. Observation log section template ready
           for 5.3.b to populate.
 
     - `[x]` **5.3.b Capture in-flight observations from Phases 1–5 execution**
-        - Six entries appended to `notes-validation-window.md` § Observations: structured prompts,
+        - Six entries appended to `notes-interlock-foundation.md` § Observations: structured prompts,
           status-file timing rule, staging-as-test commit shape, composite session-init probe, CHECK
           17 self-test on the landing commit, and a Phases 1–3 retrospective rollup. All "operating
           as designed" — no routing required, no adjustments surfaced during 5.3.b's scope. (A 7th
@@ -661,7 +662,7 @@ once they land. Captured as supplemental evidence, not a substitute.
           adopter-style `arc`. Both copies (`.arc/` + package-source `.template.md`) in sync.
 
     - `[x]` **5.4.d Append validation-window observation entry**
-        - Added 7th observation entry to `notes-validation-window.md` § Observations capturing
+        - Added 7th observation entry to `notes-interlock-foundation.md` § Observations capturing
           the discovery + inline routing to Task 5.4. First log entry surfacing a real
           adjustment rather than positive-evidence — confirms § Failure-Mode Handling routing
           is workable in practice.
