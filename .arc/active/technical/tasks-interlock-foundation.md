@@ -262,19 +262,31 @@ invocation in the future).
 _Design decisions:_ `Sibling Work Unit(s)` lives on the status file (not the PRD) — the status file is the
 unified WU pointer artifact across the lifecycle, read at every session-init and persisting into archive
 per `plan-completion-status-consolidation`. `activate-work-unit.md` Step 4 becomes idempotent so paths
-bypassing planning-branch ceremony hit the same template.
+bypassing planning-branch ceremony hit the same template. **Single template across all WU lifecycle
+states** — no planning variant. **Always-present convention with `[none]` for empty optional fields**
+(parallels existing `Blockers: [none]` shape) — uniform parser surface, no field-omission ambiguity.
 
 ### `[ ]` **3.1 `template-status.md` adds Spec, Sibling Work Unit(s), and State: Planning**
 
 - _Goal:_ Planning-session pointer fields land in the canonical template; existing in-flight files pick
   them up via in-place migration in Phase 5.
 
+- _Design decisions:_ Field ordering groups static identity (State, Branch, Spec, Task List, Sibling
+  Work Unit(s)), progress story (Last Completed, Next Task, Blockers), and imperative (Next Action),
+  separated by blank lines, with a trailing `---` marking definitive end-of-section. **Last Completed
+  precedes Next Task** (flips current order) — reads as "did X; now do Y" narrative. Inline contract
+  uses minimal placeholder shapes inline plus one short HTML comment block at the top of `## Active
+  Work` documenting field semantics — preserves the template's lean visual shape.
+
     - `[ ]` **3.1.a Add `Spec` field — polymorphic pointer**
-        - Value shape: `.md` filename, URL, or empty. Document the contract inline in the template.
+        - Always present per the always-present + `[none]` convention. Value shape: `[none]` (empty) |
+          `.md` filename (e.g., `plan-{name}.md`, `prd-{name}.md`) | URL (external trackers under
+          `pm.mode: external`). Documented in the top-of-section HTML comment.
 
     - `[ ]` **3.1.b Add `Sibling Work Unit(s)` field**
-        - Comma-separated list of `prd-{name}.md` references to tightly-coupled WUs. Optional. Inline note
-          on when to populate (same logical whole, split for sizing/sequencing).
+        - Comma-separated list of `prd-{name}.md` references to tightly-coupled WUs (same logical whole,
+          split for sizing/sequencing). Always present; value `[none]` when no siblings. Inline-comment
+          note on when to populate.
 
     - `[ ]` **3.1.c Add `State: Planning` to the State enum**
         - Other enum values are sibling-WU territory. `In Progress` retained as today's default for
@@ -288,8 +300,12 @@ bypassing planning-branch ceremony hit the same template.
   planning work.
 
     - `[ ]` **3.2.a Insert status-file creation step**
-        - State: Planning, optional Spec (point at plan-doc when known), optional Sibling Work Unit(s),
-          no Task List. Idempotent — if a status file already exists, leave in place.
+        - Single template, always-present fields. Initial values: `State: Planning`,
+          `Branch:` {planning branch}, `Spec:` {plan-doc filename when known, else `[none]`},
+          `Task List: [none]`, `Sibling Work Unit(s):` {populated if known, else `[none]`},
+          `Last Completed: [none]`, `Next Task: [none]`, `Blockers: [none]`,
+          `Next Action:` {freeform planning prompt}. Idempotent — if a status file already exists,
+          leave in place.
 
     - `[ ]` **3.2.b Plan-doc location move (arc-in-git only)**
         - `git mv backlog/{category}/plan-{name}.md → active/{category}/`. Other pm.modes leave plan-doc
@@ -305,9 +321,13 @@ bypassing planning-branch ceremony hit the same template.
           path. Existing creation logic stays in the creation branch.
 
     - `[ ]` **3.3.b Specify transition-path field handling**
-        - Clear planning-state fields (Spec narrows or reformats per WU type), populate execution-state
-          fields (Task List, Next Task, Last Completed: "Work unit activated"). Document the mapping
-          inline.
+        - State transition: Planning → In Progress.
+        - Conditional Spec rewrite: if value is a `plan-{name}.md` filename → rewrite to
+          `prd-{name}.md`; otherwise (URL, external ref, non-`plan-` `.md`, `[none]`) leave unchanged.
+          Accommodates `pm.mode: external` external-tracker Specs untouched.
+        - Populate execution-state fields: Task List, Next Task (first task triple-anchor),
+          Last Completed: `Work unit activated`. Sibling Work Unit(s) and Blockers retain their
+          existing values. Document the mapping inline.
 
 ### `[ ]` **3.4 `integrate-planning-branch.md` handles status-file disposition**
 
@@ -320,6 +340,11 @@ bypassing planning-branch ceremony hit the same template.
     - `[ ]` **3.4.b Disposition under shelved path**
         - Remove the status file. Plan-doc: `git mv` back to backlog.
 
+    - `[ ]` **3.4.c Fix stale step reference**
+        - `integrate-planning-branch.md` Step 5 currently references "activate-work-unit.md Step 5" for
+          downstream status-file creation; the step is and remains Step 4 (Phase 3.3 restructures it
+          in place). Correct the reference.
+
 ### `[ ]` **3.5 Probe sessionType inference reads `State: Planning`**
 
 - **Strategies:** `strategy-testing-methodology.md`
@@ -327,11 +352,25 @@ bypassing planning-branch ceremony hit the same template.
 - _Goal:_ State-based inference becomes primary; branch-pattern fallback retained for orphan cases.
 
     - `[ ]` **3.5.a Update inference logic in `commands/active.ts`**
+        - Thread current branch into the probe via `gitExec`: `ActiveSessionInitOptions` gains
+          `exec: GitExec` (mirrors `ConfigSessionInitOptions` from Task 2.2.a).
+          `runActiveSessionInitStatus` resolves current branch once and passes through to inference.
+          Return type widens to `SessionType | null`.
         - Build `test-first` (one behavior at a time):
-            - `State: Planning` → `sessionType: "planning"`
-            - branch-pattern match used only when status file absent or State unset
-            - other State values map per existing logic
-            - missing/invalid State + non-matching branch → `null`
+            - `State: Planning` (case-exact) → `sessionType: "planning"`
+            - status file absent OR State unset/empty → branch-pattern fallback: regex
+              `^[^/]+/plan-.+$` against current branch → `planning`; non-match → `null`
+            - non-`Planning` State falls through to existing `Task List` / `Next Action` logic
+              (preserves behavior for in-flight pre-migration files; covers parenthetical-suffix
+              States like `Paused (2026-04-12)`)
+            - existing `__tests__/unit/active/session-type.test.ts` migrates call sites to add the
+              new `state` arg
+
+    - `[ ]` **3.5.b Update `session-init.md` workflow doc for orphan null sessionType**
+        - Workflow currently lists `null` only for the `multiple` candidate case (line ~209). Document
+          the second null path: missing/invalid State + non-matching branch under `resolution: "none"`.
+          Update item 10's loadout-switch handling to cover orphan-null (skip lifecycle workflow load;
+          surface in orientation).
 
 ### `[ ]` **3.6 Document status-file creation contract in `strategy-session-operations.md`**
 
