@@ -248,10 +248,11 @@ PR description.
 ### 6c) Update Status File
 
 Update the per-WU status file (`.arc/active/{category}/status-{name}.md`) so `**Next Action:**` reflects the
-current integration step (e.g., "integrate-work-unit Step 7 — push and create PR"). Stage and commit with the
-`(integration)` context footer — bundle with the Step 6b commit if one is being made, or commit standalone if
-no other Phase 2 changes exist. This ensures the status file is committed before the PR is created — a
-standalone status-file commit after push resets automated PR reviews.
+current integration step (e.g., "integrate-work-unit Step 7 — push and create PR"). Commit shape follows
+[DEV-RULES.ARC][dev-rules-arc] § Status-file commit shape: bundle with the Step 6b commit when one is being
+made (parent `docs(arc):` type, `(integration)` context footer); standalone otherwise (`chore(status):` type,
+same footer). Status must be committed before the PR is created — a status-file commit after push resets
+automated PR reviews.
 
 ### 7) Push and Create PR
 

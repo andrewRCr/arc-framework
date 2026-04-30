@@ -102,15 +102,18 @@ Context: tasks-{name}.md (planning)"
   planning-state pointer serves no purpose.
 
 ```bash
-# arc-in-git: paired commits — status removal as a dedicated chore(status):, plan-doc move as a
-# separate ceremony commit (per DEV-RULES.ARC § Commit Discipline status-file commit shape)
+# arc-in-git: status removal + plan-doc move stage together — bundled ceremony commit
+# per DEV-RULES.ARC § Status-file commit shape (staging-as-test).
 git rm .arc/active/{category}/status-{name}.md
-git commit -m "chore(status): retire shelved {name}
+git mv .arc/active/{category}/plan-{name}.md .arc/backlog/{category}/
+git commit -m "docs(arc): shelve plan-{name} back to backlog
 
 Context: planning (no associated task list)"
 
-git mv .arc/active/{category}/plan-{name}.md .arc/backlog/{category}/
-git commit -m "docs(arc): shelve plan-{name} back to backlog
+# none / external: plan-doc stays in active/; status removal is the entire staged
+# change → dedicated chore(status): commit.
+git rm .arc/active/{category}/status-{name}.md
+git commit -m "chore(status): retire shelved {name}
 
 Context: planning (no associated task list)"
 ```

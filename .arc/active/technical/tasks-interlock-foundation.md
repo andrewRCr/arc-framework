@@ -482,51 +482,70 @@ when configured is sibling-WU work.
           commit shape, never bundled with content / structural commits. Skip-threshold rule prevents
           churn updates that don't change next-session orientation.
 
-### `[ ]` **4.3 Lifecycle workflows produce dedicated status commits at ceremony boundaries**
+### `[x]` **4.3 Lifecycle workflows align with status-file commit shape (staging-as-test)**
 
-- _Goal:_ activate-work-unit, integrate-work-unit, sweep, deactivate, PRD generation, planning-lifecycle
-  ops produce a paired `chore(status):` commit for any status-file change, separate from the ceremony's
-  content/structural commit.
+- _Outcome:_ DEV-RULES § Status-file commit shape now uses the staging-as-test rule (status rides
+  with concurrent ceremony content; dedicated `chore(status):` only when status is the entire
+  staged change). Workflow prose, dependent surfaces (`prepare-commits`, `arc-commit/SKILL`,
+  session-handoff addendum), and the `1_create-prd` planning-state Next-Action gap all aligned with
+  the rule. Replaces the prior "always dedicated" framing for adopter-friction reduction —
+  one fewer commit per ceremony, especially under manual-commit autonomy.
 
     - `[x]` **4.3.a Survey lifecycle workflows for current status-update prose**
         - _Outcome:_ Inventory complete. Discussion landed on a relaxed shape rule: status rides
           with concurrent staging; dedicated `chore(status):` only when staging is status alone.
           4.3.b restructured around the shift; subtask enumeration carries findings.
 
-    - `[ ]` **4.3.b Apply commit-shape rule (staging-as-test) across lifecycle workflows**
-        - Goal: Status-file changes ride with whatever concurrent ceremony content is staged;
-          dedicated `chore(status):` only when status is the entire staged change. Replaces the
-          earlier "always dedicated" framing — adopter-friction reduction (one less commit per
-          ceremony, especially under manual-commit autonomy).
+    - `[x]` **4.3.b Apply commit-shape rule (staging-as-test) across lifecycle workflows**
+        - _Outcome:_ Six subtasks landed — DEV-RULES rewrite (4.3.b.1), `integrate-planning-branch`
+          un-convert (4.3.b.2), `activate-planning-branch` shape verification (4.3.b.3), tidy
+          across the four work-unit-lifecycle workflows (4.3.b.4 — only `integrate-work-unit`
+          Phase 2 Step 6c warranted a tighten), `1_create-prd` Next-Action gap closed (4.3.b.5),
+          and dependent-surface audit covering `prepare-commits`, `arc-commit/SKILL`, and the
+          session-handoff "never bundled" addendum (4.3.b.6).
 
         - `[x]` **4.3.b.1 Rewrite DEV-RULES.ARC § Status-file commit shape**
             - _Outcome:_ Replaced "always dedicated" prose with the staging-as-test principle
               (5 lines, both copies in sync). No fire-point enumeration in DEV-RULES — workflows
               carry shape inline at their commit steps via the staging instruction itself.
 
-        - `[ ]` **4.3.b.2 Un-convert `integrate-planning-branch.md`**
-            - Bundle status-file `git rm` with plan-doc move/delete into one ceremony commit.
-              Replace the current paired-commits prose (~lines 105–108) with single-stage shape.
+        - `[x]` **4.3.b.2 Un-convert `integrate-planning-branch.md`**
+            - _Outcome:_ Shelved-path bash block updated in both copies. arc-in-git mode now
+              bundles status `git rm` + plan-doc `git mv` into one `docs(arc):` shelf commit;
+              none/external mode keeps a dedicated `chore(status):` (plan-doc stays in active/,
+              so status is the entire staged change). Cross-reference now points at § Status-file
+              commit shape (staging-as-test) rather than the old paired-commits framing.
 
-        - `[ ]` **4.3.b.3 Verify `activate-planning-branch.md` shape**
-            - Re-read what's staged at the activation commit. If status fires alone, dedicated
-              shape stays correct; if other content is concurrent, bundle.
+        - `[x]` **4.3.b.3 Verify `activate-planning-branch.md` shape**
+            - _Outcome:_ Step 4 (plan-doc move) and Step 5 (status creation) stage together
+              under arc-in-git → bundled `docs(arc):` commit. Under none/external (no plan-doc
+              move), status is the entire staged change → dedicated `chore(status):`. Step 5
+              "Commit shape" callout rewritten in both copies to reflect the per-mode split,
+              with archival in batch flows correctly noted as landing in its own prior commits.
 
-        - `[ ]` **4.3.b.4 Cross-ref tidy across work-unit-lifecycle workflows**
-            - `activate-work-unit`, `integrate-work-unit` (Phase 1 Step 4 + Phase 2 Step 6c),
-              `deactivate-work-unit` Cases C/E, `clean-work-unit` — verify current bundled
-              shape is correct under the new rule; light cross-references where prose previously
-              named the old rule.
+        - `[x]` **4.3.b.4 Cross-ref tidy across work-unit-lifecycle workflows**
+            - _Outcome:_ Grep across all four returned zero hits on old-rule prose — they
+              describe shapes inline and are already correct under (B). Only `integrate-work-unit`
+              Phase 2 Step 6c warranted a tighten: rewritten in both copies to make the
+              type/footer choice explicit (parent `docs(arc):` when bundled with Step 6b;
+              `chore(status):` when standalone) and cross-reference DEV-RULES § Status-file
+              commit shape rather than re-state the rule inline.
 
-        - `[ ]` **4.3.b.5 Add `1_create-prd.md` Next-Action update under planning-branch mode**
-            - Step 4 currently doesn't update the planning-state status file's Next Action.
-              Add update bundled with PRD save / plan-doc retire (existing single-commit shape).
+        - `[x]` **4.3.b.5 Add `1_create-prd.md` Next-Action update under planning-branch mode**
+            - _Outcome:_ Step 5 gained a sub-step 4 (both copies) — when a planning-state status
+              file exists, advance its `**Next Action:**` after PRD lands and stage with the
+              PRD commit. Bundles naturally with PRD save + plan-doc retire under (B); skipped
+              when no planning-state status file exists (pre-activation under non-planning-branch
+              flows).
 
-        - `[ ]` **4.3.b.6 Audit dependent surfaces**
-            - `arc-commit/SKILL.md`, `prepare-commits.md`, `process-task-loop.md`, and the
-              session-handoff prose introduced in this WU's earlier phases — adjust references
-              to the old "always dedicated" wording. Sync canonical + harness copies for
-              arc-commit.
+        - `[x]` **4.3.b.6 Audit dependent surfaces**
+            - _Outcome:_ Updated 3 surfaces — `prepare-commits.md`, `arc-commit/SKILL.md`,
+              `session-handoff.md` "never bundled" addendum (all in both copies; SKILL.md
+              also synced to `.claude/` + `.codex/` harness copies). Old "do not ride with
+              content commits / always dedicated" wording rephrased to "do not ride with code
+              commits; shape follows DEV-RULES § Status-file commit shape." `process-task-loop`
+              had no hits. Handoff/strategy/ADR references to `chore(status): handoff` are
+              correct under (B) (status alone at handoff) and were left as-is.
 
 ---
 

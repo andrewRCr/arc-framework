@@ -130,9 +130,9 @@ guidance below.
 - **Task list checkboxes ride with content commits.** They are derived state that belongs with
   the commit that produced the content change — not a separate meta-commit and not hunk-split to
   keep 1:1 task-ID-to-checkbox granularity.
-- **Status-file updates do not ride with content commits.** They fire only at handoff or
-  workflow-ceremony boundaries, as dedicated `chore(status):` commits — see
-  [DEV-RULES.ARC][dev-rules-arc] § Status-file timing and § Status-file commit shape.
+- **Status-file updates do not ride with code commits.** They fire only at handoff or
+  workflow-ceremony boundaries; shape (dedicated vs bundled with concurrent ceremony content)
+  follows [DEV-RULES.ARC][dev-rules-arc] § Status-file timing and § Status-file commit shape.
 
 ### 6. Execute and Verify
 

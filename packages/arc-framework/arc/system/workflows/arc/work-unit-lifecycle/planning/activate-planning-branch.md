@@ -119,9 +119,11 @@ carry-over (mirrors `template-prd.md` precedent). Then populate the planning fie
 9. **Next Action** — freeform planning-session prompt (e.g., "Run `1_create-prd.md`" or
    "Continue `plan-*` exploration")
 
-> **Commit shape.** Status-file creation produces a dedicated `chore(status):` commit, paired with
-> any concurrent ceremony commit on this branch (archival, plan-doc move, etc.) but never bundled
-> with it. See [DEV-RULES.ARC][dev-rules-arc] § Commit Discipline.
+> **Commit shape.** Stage Step 4's plan-doc move (arc-in-git, when present) with the new
+> status file for a bundled `docs(arc):` activate-planning commit. Under none/external (no
+> plan-doc move), the status file is the entire staged change → dedicated `chore(status):`.
+> Archival in batch flows lands in its own prior commits via [archive-work-unit][archive-work-unit]
+> — it doesn't co-stage here. See [DEV-RULES.ARC][dev-rules-arc] § Status-file commit shape.
 
 ### 6) Proceed to Next Step
 

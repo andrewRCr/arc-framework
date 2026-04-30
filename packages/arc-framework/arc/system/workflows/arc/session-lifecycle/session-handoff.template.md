@@ -92,8 +92,8 @@ Update session state files before ending session:
 3. **Update the active status file + commit** (if an active WU exists) — advance
    `**Last Completed:**`, `**Next Task:**`, `**Next Action:**`, and any other load-bearing fields.
    Status-file changes land as a dedicated `chore(status): handoff` commit per
-   [DEV-RULES.ARC][dev-rules-arc] § Status-file commit shape — never bundled with content or
-   structural commits.
+   [DEV-RULES.ARC][dev-rules-arc] § Status-file commit shape — at handoff, status is the
+   entire staged change.
 
     **Skip threshold.** Update fields only when changes are materially relevant to next-session
     orientation. Test: "Would the next session do anything different at step 0 with this change?"
