@@ -293,24 +293,25 @@ states** — no planning variant. **Always-present convention with `[none]` for 
         - Documented in the inline comment block alongside `In Progress`. No machine enforcement —
           enum is convention only, consumed by Phase 3.5 inference logic.
 
-### `[ ]` **3.2 `activate-planning-branch.md` creates status file at planning activation**
+### `[x]` **3.2 `activate-planning-branch.md` creates status file at planning activation**
 
-- **Strategies:** `strategy-session-operations.md`
-
-- _Goal:_ Planning sessions resolve cleanly at session-init — no more `active.resolution: "none"` for
-  planning work.
+- **Strategies:** `strategy-session-operations.md`, `strategy-work-planning.md`
 
     - `[x]` **3.2.a Insert status-file creation step**
-        - New Step 4 (`Create Planning Status File`) inserted between branch creation and
-          `Proceed to Next Step` (renumbered to Step 5). Specifies title replacement, comment-block
-          stripping (mirrors `template-prd.md` precedent), and the full planning field set.
-          Idempotent guard at the top — existing status file → skip. Forward-cross-reference to
-          DEV-RULES.ARC § Commit Discipline pins the timing rule (status file rides next ceremony
-          commit, not standalone). Two-copy edit per package-project-sync.
+        - New Step 5 (`Create Planning Status File`) — slotted after the new Step 4 (plan-doc move).
+          Specifies title replacement, comment-block stripping (mirrors `template-prd.md` precedent),
+          full planning field set with always-present `[none]` defaults, and idempotent guard at the
+          top (existing status file → skip). Commit-shape callout cross-references DEV-RULES.ARC
+          § Commit Discipline (dedicated `chore(status):` commit, paired but never bundled).
+          Two-copy edit per package-project-sync.
 
-    - `[ ]` **3.2.b Plan-doc location move (arc-in-git only)**
-        - `git mv backlog/{category}/plan-{name}.md → active/{category}/`. Other pm.modes leave plan-doc
-          location user-managed.
+    - `[x]` **3.2.b Plan-doc location move (arc-in-git only)**
+        - New Step 4 (`Move Plan-Doc to Active`) — `arc-in-git` only, runs before status file creation
+          so the Spec field's filename-only value resolves into the active workspace from the start.
+          Skip-step guards for non-arc-in-git modes (plans already in active/) and for the no-existing-
+          plan-doc case. Strategy-work-planning.md location/lifecycle prose updated in lockstep —
+          backlog/ → active/ rotation at planning activation, disposition at integration. Two-copy
+          edit per package-project-sync.
 
 ### `[ ]` **3.3 `activate-work-unit.md` Step 4 — idempotent ensure-status-file**
 

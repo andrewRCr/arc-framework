@@ -75,7 +75,25 @@ git checkout -b {category}/plan-{name}
   push the renamed branch with `git push --set-upstream origin {new}`, then remove the old remote branch
   with `git push --delete origin {old}`
 
-### 4) Create Planning Status File
+### 4) Move Plan-Doc to Active · `arc-in-git` only
+
+> **Skip this step** if `pm.mode` is `none` or `external` — plan-docs already live in
+> `active/{category}/`. Skip also if no plan-doc exists in `backlog/{category}/` (you may be
+> creating the plan-doc fresh during this session, or going directly to PRD).
+
+If resuming from a plan-doc in the backlog, move it into the active workspace:
+
+```bash
+mkdir -p .arc/active/{category}/
+git mv .arc/backlog/{category}/plan-{name}.md .arc/active/{category}/
+```
+
+Plan-docs have an active lifespan during planning under `arc-in-git`: they're disposed at
+planning-branch integration (graduated → `git rm`; shelved → moved back to backlog). New
+plan-docs created during this session land in `active/{category}/` directly. See
+[Work Planning Strategy][work-planning] for the plan-doc lifecycle.
+
+### 5) Create Planning Status File
 
 Create `.arc/active/{category}/status-{name}.md` from [`template-status.md`][template-status]. This is
 the per-WU project pointer for the planning session — tracked, persists across the WU lifecycle,
@@ -105,7 +123,7 @@ carry-over (mirrors `template-prd.md` precedent). Then populate the planning fie
 > any concurrent ceremony commit on this branch (archival, plan-doc move, etc.) but never bundled
 > with it. See [DEV-RULES.ARC][dev-rules-arc] § Commit Discipline.
 
-### 5) Proceed to Next Step
+### 6) Proceed to Next Step
 
 **Batch** (archival + planning on one branch):
 

@@ -74,17 +74,19 @@ permanent records.
 
 **Location** (depends on [`arc-config.yml`][arc-config] → `pm.mode`):
 
-- **arc-in-git**: `.arc/backlog/{category}/` — plans live in the backlog and graduate to PRDs
-  through the [planning module graduation flow][planning-module]
-- **none / external**: `.arc/active/{category}/` — plans are co-located with the PRDs they feed
-  into (no backlog directory)
+- **arc-in-git**: `.arc/backlog/{category}/` while incubating; moves to `.arc/active/{category}/`
+  when a planning branch activates (see [`activate-planning-branch.md`][activate-plan]) and stays
+  there for the duration of the planning session. Disposed at planning-branch integration —
+  graduated path `git rm`s the plan-doc; shelved path moves it back to `backlog/{category}/`.
+- **none / external**: `.arc/active/{category}/` throughout — plans are co-located with the PRDs
+  they feed into (no backlog directory).
 
 **Lifecycle:**
 
 - Created when work needs exploration before it can become a PRD
 - Evolved iteratively as understanding deepens — expect messiness, dead ends, revisions
-- Deleted after the PRD is written and stable (the PRD captures what matters; the plan has served
-  its purpose)
+- Disposed at planning-branch integration — graduated → `git rm` (the PRD captures what matters);
+  shelved → moved back to backlog (arc-in-git) or left in active for follow-up (other modes)
 - Multiple plans can feed a single PRD (many-to-one), and a single plan can produce multiple PRDs
   (one-to-many) when exploration reveals natural scope boundaries within the problem space
 
@@ -241,6 +243,7 @@ this.
 
 [planning-module]: strategy-planning-module.md
 [work-org]: strategy-work-organization.md
+[activate-plan]: ../../../system/workflows/arc/work-unit-lifecycle/planning/activate-planning-branch.md
 [create-prd]: ../../../system/workflows/arc/1_create-prd.md
 [template-prd]: ../../templates/template-prd.md
 [template-plan]: ../../templates/template-plan.md
