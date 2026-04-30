@@ -300,13 +300,13 @@ states** — no planning variant. **Always-present convention with `[none]` for 
 - _Goal:_ Planning sessions resolve cleanly at session-init — no more `active.resolution: "none"` for
   planning work.
 
-    - `[ ]` **3.2.a Insert status-file creation step**
-        - Single template, always-present fields. Initial values: `State: Planning`,
-          `Branch:` {planning branch}, `Spec:` {plan-doc filename when known, else `[none]`},
-          `Task List: [none]`, `Sibling Work Unit(s):` {populated if known, else `[none]`},
-          `Last Completed: [none]`, `Next Task: [none]`, `Blockers: [none]`,
-          `Next Action:` {freeform planning prompt}. Idempotent — if a status file already exists,
-          leave in place.
+    - `[x]` **3.2.a Insert status-file creation step**
+        - New Step 4 (`Create Planning Status File`) inserted between branch creation and
+          `Proceed to Next Step` (renumbered to Step 5). Specifies title replacement, comment-block
+          stripping (mirrors `template-prd.md` precedent), and the full planning field set.
+          Idempotent guard at the top — existing status file → skip. Forward-cross-reference to
+          DEV-RULES.ARC § Commit Discipline pins the timing rule (status file rides next ceremony
+          commit, not standalone). Two-copy edit per package-project-sync.
 
     - `[ ]` **3.2.b Plan-doc location move (arc-in-git only)**
         - `git mv backlog/{category}/plan-{name}.md → active/{category}/`. Other pm.modes leave plan-doc
@@ -380,8 +380,8 @@ states** — no planning variant. **Always-present convention with `[none]` for 
 ## **Phase 4:** Status-File Timing & Workflow Restructuring
 
 _Purpose:_ Consume Phases 1–3 in the workflows that fire daily. Process-task-loop drops status-file
-rotation; session-handoff restructures around the composite probe; lifecycle workflows bundle status
-updates into ceremony commits.
+rotation; session-handoff restructures around the composite probe; lifecycle workflows produce
+dedicated `chore(status):` commits at ceremony boundaries.
 
 _Design decisions:_ The structured task-completion prompt is base behavior — it ships even in
 `manual-commit` (the default). This phase implements `Proceed to Task X.Y?` everywhere; the
@@ -426,23 +426,26 @@ when configured is sibling-WU work.
           attach to commits that must already exist on origin. Not configurable. Strategy-session-operations
           (Task 1.3.b) carries the reasoning for cross-reference.
 
-    - `[ ]` **4.2.d Status update lands at the handoff commit**
-        - Workflow stages status-file changes as part of the handoff commit, not a separate operation.
-          Cross-reference DEV-RULES.ARC status-file timing rule.
+    - `[ ]` **4.2.d Status update lands as the handoff commit**
+        - The handoff workflow's `chore(status): handoff` commit IS where status-file changes land —
+          a dedicated commit, not a prep step bundled elsewhere. Cross-reference DEV-RULES.ARC
+          § Status-file commit shape.
 
-### `[ ]` **4.3 Lifecycle workflows bundle status updates into ceremony commits**
+### `[ ]` **4.3 Lifecycle workflows produce dedicated status commits at ceremony boundaries**
 
 - _Goal:_ activate-work-unit, integrate-work-unit, sweep, deactivate, PRD generation, planning-lifecycle
-  ops all stage their status updates with their ceremony commits.
+  ops produce a paired `chore(status):` commit for any status-file change, separate from the ceremony's
+  content/structural commit.
 
     - `[ ]` **4.3.a Survey lifecycle workflows for current status-update prose**
         - Inventory `activate-work-unit.md`, `integrate-work-unit.md`, `clean-work-unit.md`,
           `deactivate-work-unit.md`, `1_create-prd.md`, `activate-planning-branch.md`,
           `integrate-planning-branch.md`. Note where each currently updates status.
 
-    - `[ ]` **4.3.b Apply timing rule across surveyed workflows**
-        - Each workflow stages status updates as part of its ceremony commit (not a separate commit, not
-          deferred to handoff). Cross-reference DEV-RULES.ARC.
+    - `[ ]` **4.3.b Apply timing + commit-shape rule across surveyed workflows**
+        - Each workflow produces a dedicated `chore(status):` commit for status-file changes, paired
+          with any concurrent ceremony commit (file moves, completion doc, archival) but never bundled
+          with it. Cross-reference DEV-RULES.ARC § Status-file commit shape.
 
 ---
 

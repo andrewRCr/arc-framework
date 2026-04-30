@@ -75,7 +75,37 @@ git checkout -b {category}/plan-{name}
   push the renamed branch with `git push --set-upstream origin {new}`, then remove the old remote branch
   with `git push --delete origin {old}`
 
-### 4) Proceed to Next Step
+### 4) Create Planning Status File
+
+Create `.arc/active/{category}/status-{name}.md` from [`template-status.md`][template-status]. This is
+the per-WU project pointer for the planning session — tracked, persists across the WU lifecycle,
+transitions to execution at activation.
+
+**Idempotent.** If a status file already exists on this branch (e.g., resuming a prior planning
+session), leave it in place — skip this step entirely.
+
+Replace the template's title (`# Status: [Work Name]`) with the actual work unit name. Strip the
+HTML comment block at the top of `## Active Work` — that's template scaffolding, not an instance
+carry-over (mirrors `template-prd.md` precedent). Then populate the planning field set:
+
+1. **State** — `Planning`
+2. **Branch** — current planning branch (e.g., `{category}/plan-{name}`)
+3. **Spec** — plan-doc filename (e.g., `plan-{name}.md`) when one exists; otherwise `[none]`
+4. **Task List** — `[none]` (task list generated downstream by `2_generate-tasks.md`; populated at
+   activation)
+5. **Sibling Work Unit(s)** — `plan-{name}.md` or `prd-{name}.md` references when this WU is part of
+   a larger logical whole split for sizing or sequencing; otherwise `[none]`
+6. **Last Completed** — `[none]`
+7. **Next Task** — `[none]`
+8. **Blockers** — `[none]`
+9. **Next Action** — freeform planning-session prompt (e.g., "Run `1_create-prd.md`" or
+   "Continue `plan-*` exploration")
+
+> **Commit shape.** Status-file creation produces a dedicated `chore(status):` commit, paired with
+> any concurrent ceremony commit on this branch (archival, plan-doc move, etc.) but never bundled
+> with it. See [DEV-RULES.ARC][dev-rules-arc] § Commit Discipline.
+
+### 5) Proceed to Next Step
 
 **Batch** (archival + planning on one branch):
 
@@ -97,5 +127,7 @@ git checkout -b {category}/plan-{name}
 [integrate-planning-branch]: integrate-planning-branch.md
 [create-prd]: ../../1_create-prd.md
 [generate-tasks]: ../../2_generate-tasks.md
+[template-status]: ../../../../../reference/templates/template-status.md
+[dev-rules-arc]: ../../../../../reference/constitution/DEV-RULES.ARC.md
 [work-org-protection]: ../../../../../reference/strategies/arc/strategy-work-organization.md#branch-protection-modes
 [work-planning]: ../../../../../reference/strategies/arc/strategy-work-planning.md

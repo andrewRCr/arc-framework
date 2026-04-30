@@ -57,6 +57,12 @@ documentation style — live in [DEV-RULES.PROJECT][dev-rules-project]. Contribu
   commits (activate / integrate / sweep / deactivate / PRD generation / planning-lifecycle ops).
   Task-completion code commits never touch the status file.
 
+- **Status-file commit shape:** Status-file changes always produce a dedicated `chore(status):`
+  commit — paired with any concurrent ceremony commit (file moves, completion doc, archival) but
+  never bundled with it. Uniform shape across all triggers (creation, transition, rotation,
+  retirement). Bundling would mix WU-pointer-state with content/structural changes; splitting keeps
+  each commit semantically focused and makes status history grep-friendly.
+
 **For complex commits** (multi-session accumulated work, interleaved concerns), load the
 [prepare-commits workflow][prepare-commits].
 
