@@ -339,21 +339,31 @@ states** — no planning variant. **Always-present convention with `[none]` for 
           alongside the explicitly-listed deltas — required because Step 2 has just switched branches and
           the planning-session prompt no longer applies.
 
-### `[ ]` **3.4 `integrate-planning-branch.md` handles status-file disposition**
+### `[x]` **3.4 `integrate-planning-branch.md` handles status-file disposition**
 
-- _Goal:_ Graduated path converts State and retains the file; shelved path removes it.
+- New Step 2 `Apply Disposition` between `Verify Readiness` and `Push and Create PR`; subsequent steps
+  renumbered (3 Push/PR → 4 Review → 5 Merge → 6 Transition). Step 6 retitled `Transition to Activation
+  · graduated path only` with skip-step guard for shelved disposition. `What comes after`, Mode Detection,
+  Scope Boundaries, and Step 1 readiness checklist updated to reflect graduated/shelved branching and
+  post-3.2 reality (status file lives on planning branch; plan-doc in `active/` post-planning activation).
+  Two-copy edit per package-project-sync.
 
-    - `[ ]` **3.4.a Disposition under graduated path**
-        - State transitions per the downstream `activate-work-unit` invocation. Plan-doc disposition:
-          `git rm` from active.
+    - `[x]` **3.4.a Disposition under graduated path**
+        - Step 2 graduated branch: plan-doc `git rm` from active (arc-in-git only; skipped under
+          `none / external`). Status file left in place; transitioned by downstream `activate-work-unit`
+          Step 4. Example `docs(arc):` commit shape inline.
 
-    - `[ ]` **3.4.b Disposition under shelved path**
-        - Remove the status file. Plan-doc: `git mv` back to backlog.
+    - `[x]` **3.4.b Disposition under shelved path**
+        - Step 2 shelved branch: status file `git rm`; plan-doc `git mv` back to backlog (arc-in-git) or
+          left in place (`none / external` — no backlog directory). Paired commits — `chore(status):
+          retire …` (status removal, dedicated per DEV-RULES.ARC § Status-file commit shape) and
+          `docs(arc): shelve …` (plan-doc rotation). Examples inline.
 
-    - `[ ]` **3.4.c Fix stale step reference**
-        - `integrate-planning-branch.md` Step 5 currently references "activate-work-unit.md Step 5" for
-          downstream status-file creation; the step is and remains Step 4 (Phase 3.3 restructures it
-          in place). Correct the reference.
+    - `[x]` **3.4.c Fix stale step reference**
+        - Two stale references corrected — Scope Boundaries entry "Status file creation … (Step 5)"
+          (now obsolete framing entirely: status file IS created on the planning branch per 3.2.a; the
+          residual concern is the transition, which references Step 4) and Session boundary blurb
+          (Step 5 → Step 4; rewrote to reflect the graduated-path status-file state on base branch).
 
 ### `[ ]` **3.5 Probe sessionType inference reads `State: Planning`**
 

@@ -18,14 +18,17 @@ no pre-merge review, no task verification.
 - Batch branch (fully protected): activate-planning-branch → [archive-work-unit][archive-work-unit]
   → create-prd → generate-tasks
 
-**What comes after:** [activate-work-unit][activate-work-unit] (from base branch, after merge)
+**What comes after:** Graduated → [activate-work-unit][activate-work-unit] (from base branch, after merge).
+Shelved → planning ends here; no activation.
 
 ## Mode Detection
 
 Check [`arc-config.yml`][arc-config] → `pm.mode` to determine where planning artifacts live:
 
-- **arc-in-git**: Artifacts are in `backlog/{category}/`. Activation moves them to `active/`.
-- **none / external**: Artifacts are already in `active/{category}/` (saved there by `2_generate-tasks`).
+- **arc-in-git**: PRD and task list are in `backlog/{category}/`; plan-doc and status file are in
+  `active/{category}/` (plan-doc moved at planning activation by `activate-planning-branch` Step 4).
+  WU activation moves PRD and task list to `active/`.
+- **none / external**: All artifacts are already in `active/{category}/` (saved there by `2_generate-tasks`).
   Activation skips the file move.
 
 The workflow steps below apply in all modes — only the artifact paths differ.
@@ -37,8 +40,11 @@ delivered" and "implementation started" is the PR merge.
 
 **Belongs on the planning branch:**
 
-- Planning artifacts (PRD, task list, notes) in `backlog/{category}/` (arc-in-git) or
-  `active/{category}/` (none/external)
+- Planning artifacts: PRD and task list in `backlog/{category}/` (arc-in-git) or `active/{category}/`
+  (none / external); plan-doc in `active/{category}/` (after planning activation in arc-in-git mode)
+- Status file (`active/{category}/status-{name}.md`) — created at planning activation by
+  [`activate-planning-branch`][activate-planning-branch] Step 5
+- Plan-doc and status-file disposition at integration (graduated / shelved — see Step 2)
 - Archival of completed work unit (batch branches — via [archive-work-unit][archive-work-unit])
 - Archival-triggered PM updates (ROADMAP marking completed WU, PROJECT-STATUS reflecting archival —
   via [post-work-unit-archive extensions][arc-ext-post-archive])
@@ -47,9 +53,9 @@ delivered" and "implementation started" is the PR merge.
 
 **Does NOT belong on the planning branch:**
 
-- Moving files from `backlog/` to `active/` (arc-in-git — [activate-work-unit][activate-work-unit]
+- Moving PRD and task list from `backlog/` to `active/` (arc-in-git — [activate-work-unit][activate-work-unit]
   Step 3)
-- Status file creation for the new work unit (activate-work-unit Step 5)
+- Status file transition `Planning → In Progress` (activate-work-unit Step 4)
 - Activation-triggered PM updates (ROADMAP marking new WU in-progress, PROJECT-STATUS reflecting new
   active work — activate-work-unit extensions)
 - Implementation work of any kind
@@ -60,12 +66,56 @@ delivered" and "implementation started" is the PR merge.
 
 ### 1) Verify Readiness
 
-- [ ] Planning artifacts committed (PRD and task list — see [Mode Detection](#mode-detection) for path)
+- [ ] Planning work committed: PRD and task list (graduated path) or plan-doc evolution (shelved path)
 - [ ] If batch: archival complete and committed ([archive-work-unit][archive-work-unit] steps 1–7)
 - [ ] Quality gates pass on new/modified files
 - [ ] Working tree is clean
 
-### 2) Push and Create PR
+### 2) Apply Disposition
+
+Choose the disposition path based on planning outcome and apply it on the planning branch — the
+disposition lands on the base branch via merge.
+
+#### Graduated path · planning yielded PRD + task list ready for activation
+
+- **Plan-doc** (arc-in-git only): `git rm .arc/active/{category}/plan-{name}.md` — the PRD is now the
+  canonical Spec. Skip in `none / external` modes (plan-doc co-located with PRD; no rotation needed).
+- **Status file**: leave in place. Downstream [`activate-work-unit.md`][activate-work-unit] Step 4
+  transition path handles `State: Planning → In Progress` and the field deltas.
+
+```bash
+# arc-in-git only
+git rm .arc/active/{category}/plan-{name}.md
+git commit -m "docs(arc): graduate plan-{name} to PRD
+
+Context: tasks-{name}.md (planning)"
+```
+
+#### Shelved path · planning did not graduate
+
+- **Plan-doc**:
+    - **arc-in-git**: `git mv .arc/active/{category}/plan-{name}.md .arc/backlog/{category}/` —
+      return for future incubation.
+    - **none / external**: leave in place (no backlog directory exists; plan-doc remains in
+      `active/{category}/` for follow-up).
+- **Status file**: `git rm .arc/active/{category}/status-{name}.md` — no WU follows; the
+  planning-state pointer serves no purpose.
+
+```bash
+# arc-in-git: paired commits — status removal as a dedicated chore(status):, plan-doc move as a
+# separate ceremony commit (per DEV-RULES.ARC § Commit Discipline status-file commit shape)
+git rm .arc/active/{category}/status-{name}.md
+git commit -m "chore(status): retire shelved {name}
+
+Context: planning (no associated task list)"
+
+git mv .arc/active/{category}/plan-{name}.md .arc/backlog/{category}/
+git commit -m "docs(arc): shelve plan-{name} back to backlog
+
+Context: planning (no associated task list)"
+```
+
+### 3) Push and Create PR
 
 ```bash
 git push -u origin {planning-branch}
@@ -84,14 +134,14 @@ the PR description stands alone.
 **PR body scope:** Describe what the PR delivers, not post-merge workflow continuity (see
 [DEV-RULES.ARC][dev-rules-arc] § Write for the reader).
 
-### 3) Address Review Feedback
+### 4) Address Review Feedback
 
 If reviewers raise concerns about scope, requirements, or task breakdown:
 
 1. Fix on the planning branch, commit
 2. Re-run quality gates on modified files after fixes
 
-### 4) Merge and Clean Up
+### 5) Merge and Clean Up
 
 ```bash
 # Merge — use flag matching merge.strategy in arc-config.yml
@@ -106,19 +156,22 @@ git branch -d {planning-branch}
 git push origin --delete {planning-branch}  # if not auto-deleted by platform
 ```
 
-### 5) Transition to Activation
+### 6) Transition to Activation · graduated path only
+
+> **Skip this step** if Step 2's disposition was shelved — there is no activation.
 
 Planning artifacts are now on the base branch. When ready to begin implementation:
 
 **→ [activate-work-unit.md](../activate-work-unit.md)** — creates the implementation branch, moves
-artifacts from backlog to active (arc-in-git), updates tracking state.
+PRD and task list from backlog to active (arc-in-git), transitions the existing status file from
+`Planning` to `In Progress`.
 
 Activation may happen immediately or in a later session. The artifacts are stable on the base branch.
 
 **Session boundary:** If activation does not follow immediately in this session, run
 [session-handoff][session-handoff] before ending. Capture in SESSION-NOTES that the planning branch
-is merged and the work unit is ready for activation. The base branch has no status file for this WU
-yet — `activate-work-unit.md` Step 5 creates it at activation time.
+is merged and the work unit is ready for activation. The status file is on the base branch in
+`State: Planning`; [`activate-work-unit.md`][activate-work-unit] Step 4 transitions it at activation time.
 
 ---
 
