@@ -670,7 +670,13 @@ once they land. Captured as supplemental evidence, not a substitute.
 
 ## **Phase 6:** Verification
 
-### `[ ]` **6.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+### `[x]` **6.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+
+- _Quality gates:_ Tier 3 clean — md lint (222 files, 0 errors), code lint (TS + shellcheck), typecheck
+  (source + test), 1165 unit + 49 e2e tests pass, build succeeds.
+- _Success criteria:_ 26 criteria — 19 met (2 with deviation notes); 7 marked `[~]` deferred to
+  post-integration validation window per Phase 5.3.
+- _Atomic tasks:_ 6 entries in `atomic-interlock-foundation.md`, all `[x]` with completion notes.
 
 ---
 
@@ -680,44 +686,48 @@ once they land. Captured as supplemental evidence, not a substitute.
 > defined in Phase 5.3 — they gate WU-B activation, not WU-A archive. Unannotated items are verified
 > by Phase 6 verification before archive.
 
-- `[ ]` ADR-016 reads consistently after rename — no remaining "gate" references where "interlock" is meant
-- `[ ]` DEV-RULES.ARC redrafted: interlock vocabulary woven into existing rule sections; integration-interlock
+- `[x]` ADR-016 reads consistently after rename — no remaining "gate" references where "interlock" is meant
+- `[x]` DEV-RULES.ARC redrafted: interlock vocabulary woven into existing rule sections; integration-interlock
   and cascade-undo invariants added; commit-control reframed around configurable autonomy; status-file timing
   rule replaces "Work status accuracy" provision; tightening pass applied (commit-format collapsed, contributor
   qualifications consolidated, test-first tightened)
-- `[ ]` Strategy cascade applied: `strategy-team-coordination`, `strategy-session-operations`,
+- `[x]` Strategy cascade applied: `strategy-team-coordination`, `strategy-session-operations`,
   `strategy-configurability-architecture`
-- `[ ]` `arc-config.yml` `session.autonomy` enum ships with default `manual-commit` and per-developer
+- `[x]` `arc-config.yml` `session.autonomy` enum ships with default `manual-commit` and per-developer
   git-config override
-- `[ ]` Session-init probe surfaces resolved autonomy as `config.value.autonomy: { value, source }`
-- `[ ]` `arc status --session-handoff --json` returns the documented self-contained envelope (six slots)
-- `[ ]` `template-status.md` carries `Spec`, `Sibling Work Unit(s)`, and `State: Planning`
-- `[ ]` `activate-planning-branch.md` creates status file at planning activation
-- `[ ]` `activate-work-unit.md` Step 4 is idempotent — transitions existing or creates
-- `[ ]` `integrate-planning-branch.md` handles status-file disposition (graduated retains, shelved removes)
-- `[ ]` Probe sessionType inference reads `State: Planning` as primary signal
-- `[ ]` `3_process-task-loop.md` no longer touches the status file at task completion
-- `[ ]` `session-handoff.md` consumes the composite probe and enforces push-ordering invariant
-- `[ ]` Lifecycle workflows stage status updates with their ceremony commits
-- `[ ]` Pre-commit hook blocks commits where `Spec` value is malformed
-- `[ ]` Existing self-host status files migrated in place (zero or more, per Phase 5.2.a inventory)
-- `[ ]` Validation-window plan committed (Phase 5.3 deliverable)
-- `[ ]` Structured task-completion prompts appear at every task close in manual mode (boundary-aware
+- `[x]` Session-init probe surfaces resolved autonomy as `config.value.autonomy: { value, source }`
+- `[x]` `arc status --session-handoff --json` returns the documented self-contained envelope (six slots) —
+  _Deviation: returns 8 slots — the spec'd 6 (dirty, worktree, user, autonomy, syncPush, active) plus
+  `identity` (session-init shape consistency) and `head` (added by atomic task to fold rev-parse into the
+  probe)._
+- `[x]` `template-status.md` carries `Spec`, `Sibling Work Unit(s)`, and `State: Planning`
+- `[x]` `activate-planning-branch.md` creates status file at planning activation
+- `[x]` `activate-work-unit.md` Step 4 is idempotent — transitions existing or creates
+- `[x]` `integrate-planning-branch.md` handles status-file disposition (graduated retains, shelved removes)
+- `[x]` Probe sessionType inference reads `State: Planning` as primary signal
+- `[x]` `3_process-task-loop.md` no longer touches the status file at task completion
+- `[x]` `session-handoff.md` consumes the composite probe and enforces push-ordering invariant
+- `[x]` Lifecycle workflows stage status updates with their ceremony commits
+- `[x]` Pre-commit hook blocks commits where `Spec` value is malformed
+- `[x]` Existing self-host status files migrated in place (zero or more, per Phase 5.2.a inventory) —
+  _Deviation: 1 file (`status-interlock-foundation`); migrated in place to add Spec + Sibling fields._
+- `[x]` Validation-window plan committed (Phase 5.3 deliverable)
+- `[~]` Structured task-completion prompts appear at every task close in manual mode (boundary-aware
   variants at phase/WU end) — _(validation window)_
-- `[ ]` Manual-mode preserves current behavior exactly — no drift acceptable for existing users —
+- `[~]` Manual-mode preserves current behavior exactly — no drift acceptable for existing users —
   _(validation window)_
-- `[ ]` Status-file timing rule observable in practice: task-completion commits don't touch status files;
+- `[~]` Status-file timing rule observable in practice: task-completion commits don't touch status files;
   handoff and ceremony commits do — _(validation window)_
-- `[ ]` Planning-session active surface visible in practice: status file present at planning activation;
+- `[~]` Planning-session active surface visible in practice: status file present at planning activation;
   sessionType inference works without branch-pattern fallback in the dominant case — _(validation window)_
-- `[ ]` Push-ordering invariant holds in handoffs that fire both worktree and notes pushes —
+- `[~]` Push-ordering invariant holds in handoffs that fire both worktree and notes pushes —
   _(validation window)_
-- `[ ]` ≥3 self-host sessions exercise the new frame per the validation-window plan —
+- `[~]` ≥3 self-host sessions exercise the new frame per the validation-window plan —
   _(validation window)_
-- `[ ]` Downstream consumer plans confirm the frame supports their scope without structural reshape —
+- `[~]` Downstream consumer plans confirm the frame supports their scope without structural reshape —
   _(validation window)_
-- `[ ]` All quality gates pass (markdown lint, TypeScript typecheck, vitest, build)
-- `[ ]` Ready for integration
+- `[x]` All quality gates pass (markdown lint, TypeScript typecheck, vitest, build)
+- `[x]` Ready for integration
 
 ---
 

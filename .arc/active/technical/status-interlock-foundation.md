@@ -15,8 +15,6 @@
 - **Next Task:** Task 6.1 — Complete verification (line ~673)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Phase 6 — load `verify-work-unit.md` and apply its verification
-  checks against the WU's success criteria. Items annotated `(validation window)` are
-  deferred to the post-integration window per `notes-validation-window.md`.
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 ---
