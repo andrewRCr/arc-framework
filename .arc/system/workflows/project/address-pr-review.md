@@ -49,7 +49,7 @@ query($owner: String!, $repo: String!, $pr: Int!) {
           path
           line
           comments(first: 10) {
-            nodes { id body author { login } }
+            nodes { id databaseId body author { login } }
           }
         }
       }
@@ -98,8 +98,12 @@ push so CR sees the resolved state and doesn't re-raise the finding on its next 
 
 **Reply** (REST API):
 
+The REST replies endpoint expects the numeric comment `databaseId`, not the GraphQL global node
+`id`. Capture both in the GraphQL fetch above (`nodes { id databaseId ... }`); use `databaseId`
+here and `id` for the resolve mutation in the next block.
+
 ```bash
-gh api repos/{OWNER}/{REPO}/pulls/{PR_NUMBER}/comments/{COMMENT_ID}/replies \
+gh api repos/{OWNER}/{REPO}/pulls/{PR_NUMBER}/comments/{COMMENT_DATABASE_ID}/replies \
   -F body='Deferred — code is scheduled for removal in [Phase X]. Brief rationale.'
 ```
 
