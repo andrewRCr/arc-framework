@@ -173,6 +173,7 @@ case "$context_footer_mode" in
             echo "   Context: tasks-auth-system.md (integration)"
             echo "   Context: tasks-auth-system.md (code review)"
             echo "   Context: tasks-auth-system.md (archival)"
+            echo "   Context: tasks-auth-system.md (handoff)"
             echo "   Context: atomic-auth-system.md"
             echo "   Context: maintenance (atomic / no associated task list)"
             echo "   Context: refactor (no associated task list)"
@@ -234,8 +235,8 @@ case "$context_footer_mode" in
                 # (incidental - discovered during Phase 5 planning), etc. Freeform context after prefix.
                 elif echo "$context_line" | grep -qE '\(incidental - discovered during .+\)$'; then
                     :
-                # Matches: (planning), (activation), (integration), (code review), (maintenance), (archival)
-                elif echo "$context_line" | grep -qE '\((planning|activation|integration|code review|maintenance|archival)\)$'; then
+                # Matches: (planning), (activation), (integration), (code review), (maintenance), (archival), (handoff)
+                elif echo "$context_line" | grep -qE '\((planning|activation|integration|code review|maintenance|archival|handoff)\)$'; then
                     :
                 else
                     context_issue "Invalid task reference format in Context: line"
@@ -249,7 +250,7 @@ case "$context_footer_mode" in
                     echo "   - (Task X.Y; planning) or (Task X.Y; maintenance) - single task with extra work"
                     echo "   - (Tasks X.Y, A.B; planning) - multiple tasks with extra work"
                     echo "   - (incidental - discovered during <context>) - freeform discovery context"
-                    echo "   - (planning), (activation), (integration), (code review), (maintenance), or (archival) - task list lifecycle"
+                    echo "   - (planning), (activation), (integration), (code review), (maintenance), (archival), or (handoff) - task list lifecycle"
                     echo ""
                     echo "   Note: Parenthetical is REQUIRED for all commits"
                     echo ""
@@ -290,7 +291,7 @@ case "$context_footer_mode" in
                 echo "   - Context: tasks-[name].md (Task X.Y)"
                 echo "   - Context: tasks-[name].md (Tasks X.Y-X.Z)"
                 echo "   - Context: tasks-[name].md (incidental - discovered during <context>)"
-                echo "   - Context: tasks-[name].md (planning), (activation), (integration), (code review), (maintenance), or (archival)"
+                echo "   - Context: tasks-[name].md (planning), (activation), (integration), (code review), (maintenance), (archival), or (handoff)"
                 echo "   - Context: atomic-[name].md"
                 echo "   - Context: [category] (no associated task list)"
                 echo "   - Context: [category] (atomic / no associated task list)"
