@@ -110,6 +110,16 @@ post-integration window (between WU-A integration and WU-B activation) per `note
   `user.sync_push: always` incoherence the sync-UX plan exists to fix. Documented in
   `strategy-session-operations.md` and enforced by workflow ordering, not config.
 
+- _Review-driven contract hardening_ — Pre-merge review surfaced three small contract gaps in the
+  composite probe surface: probe invocations could escape the documented "envelope never rejects"
+  guarantee on synchronous throws (closed via `safeProbe` helper applied to all three composite
+  paths, with a sync-throw regression test); the `--session-handoff` handler emitted JSON
+  unconditionally rather than gating on `--json` (restored to standard `arc status` flag contract);
+  Commander-level `.conflicts()` declarations on `--session-init` / `--session-handoff` reject
+  conflicting combinations at parse time (handler runtime check stays as defense-in-depth). The
+  resolved autonomy now also renders in the human-readable session-init summary alongside the JSON
+  contract.
+
 - _PRD Open Questions resolved_ — (1) Validation window length: 3 sessions (Phase 5.3,
   `notes-interlock-foundation.md`). (2) Probe envelope shape: 8 slots final (6 spec'd + `identity` +
   `head`); deviation captured against the original 6-slot spec. (3) QG-failure prompt phrasing:
