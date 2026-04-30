@@ -86,11 +86,10 @@ git mv .arc/backlog/{category}/tasks-{name}.md .arc/active/{category}/
 git mv .arc/backlog/{category}/atomic-{name}.md .arc/active/{category}/
 ```
 
-After the move, update the task list's PRD path reference from `backlog` to `active`:
-
-```text
-**PRD:** `.arc/active/{category}/prd-{name}.md`
-```
+The task list's `**PRD:**` field carries a bare filename — its path is derived from the task
+list's directory, so the backlog → active rotation needs no field edit. (Existing task lists
+authored under the prior path-form convention may still carry `.arc/{active|backlog}/...` values;
+update those to bare filenames if encountered, otherwise leave the human-reference as-is.)
 
 **Re-anchor backlog-sibling links.** Any relative-path link defs in the PRD, task list, or
 atomic file that pointed at sibling artifacts still in `backlog/{category}/` (sibling plans,
