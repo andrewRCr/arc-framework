@@ -69,3 +69,13 @@ Atomic Task Completion for the full protocol.
   isolation). Workflow consumption updated in both copies — step 4 reads `head.value.hash` with
   a single rev-parse refresh when step 3 fired a chore commit (post-commit HEAD is the right
   anchor). Tier 2 clean: typecheck, lint, 930 unit + 49 e2e tests pass, markdown lint.
+
+### `[x]` **Define unpushed-count formula in `session-handoff.md` Push Sequence**
+
+- _Outcome:_ Push Sequence § Worktree Push gained an explicit count formula
+  (`N = worktree.value.ahead + 1 if step 3 committed`) used by both the auto-push gate and the
+  manual-commit surface message. Confirm Handoff conditional surface retriggered on `N > 0` and
+  push-did-not-fire (was `worktree.value.state === "local-ahead"`, which missed the
+  step-3-on-clean-worktree case and rendered probe-stale `{ahead}`). The agent already knows
+  whether step 3 committed in-conversation, so the count derives locally — no re-probe. Both
+  copies (`.arc/` + package template) in sync; markdown lint clean.

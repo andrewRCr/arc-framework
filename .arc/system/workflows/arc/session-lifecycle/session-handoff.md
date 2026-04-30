@@ -388,19 +388,19 @@ below. See [Session Operations Strategy][session-ops] § Push Toggles for the un
 
 ### Worktree Push
 
-Gated on `autonomy.value` (push-interlock) and `worktree.value.state`. Note that the worktree
-slot was captured pre-step-3 — if step 3 fired a `chore(status): handoff` commit, the slot's
-local-ahead count is one short of reality; account for that:
+Gated on `autonomy.value` (push-interlock) and `worktree.value.state`. The probe captured the
+worktree slot pre-step-3, so derive the unpushed count locally:
+`N = worktree.value.ahead + (1 if step 3 fired a chore commit, else 0)`. The agent knows whether
+step 3 committed — no re-probe needed. `N` is the source of truth for both the push gate and the
+surface message.
 
-- `auto-push` autonomy: run `git push` when there's anything unpushed — `worktree.value.state
-  === "local-ahead"` (probe baseline) OR step 3 fired a chore commit. No ask — autonomy is the
-  approval.
+- `auto-push` autonomy: run `git push` when `N > 0`. No ask — autonomy is the approval.
 - `auto-push` autonomy + `worktree.value.state` is `remote-ahead` / `diverged`: skip the push;
   surface in the handoff summary as `Reconcile required:` — manual rebase or merge needed before
   pushing (step 3's commit, if any, can't fast-forward in this state).
 - `manual-commit` autonomy (default): skip the push action. The user pushes when ready. Surface
   unpushed commits in the handoff summary as a one-line note (`Worktree: N unpushed commit(s) on
-  {branch}`) whenever there's anything unpushed (probe local-ahead OR step 3 chore commit).
+  {branch}`) whenever `N > 0`.
 
 ### Notes Push
 
@@ -449,10 +449,10 @@ This is a quick confirmation for the human — the session state files are the d
 
 **Conditional top-level sections** — prepend above `**Sync:**` when applicable:
 
-- `worktree.value.state === "local-ahead"`:
+- `N > 0` per Push Sequence formula and push did not fire (manual-commit, or auto-push skipped):
 
   ```text
-  **Worktree:** {ahead} unpushed commit(s) on `{branch}`.
+  **Worktree:** N unpushed commit(s) on `{branch}`.
   ```
 
 - `worktree.value.state === "diverged"`:
