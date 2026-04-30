@@ -4,8 +4,6 @@ Planning and reasoning — the sequencing strategy for remaining work, what gets
 and why. This is a working document, subject to change as you learn. For project state
 and record (achievements, current status), see `PROJECT-STATUS.md`.
 
-**Last Updated:** [DATE]
-
 ---
 
 ## Current Sequencing Strategy
