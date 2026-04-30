@@ -467,6 +467,46 @@ is a candidate future WU if dogfooding shows demand.
 
 ---
 
+## Status-File Creation Contract
+
+Each work unit gets exactly one status file (`active/{category}/status-{name}.md`) tracked from creation
+through archival. Two convergent creation paths produce the same artifact shape; both apply idempotent
+guards so re-entry is safe.
+
+**Convergent paths:**
+
+- **Planning activation** ([`activate-planning-branch.md`][activate-plan] Step 5) creates the file when a
+  planning branch starts, with `**State:** Planning` and the plan-doc filename in `**Spec:**`.
+  Idempotent: existing file → skip.
+- **WU activation without planning ceremony** ([`activate-work-unit.md`][activate-wu] Step 4 creation
+  path) creates the file at WU activation when no planning branch preceded (e.g., partial-protection
+  direct activation), with `**State:** In Progress`. Idempotent: existing file → take the transition
+  path (Planning → In Progress, populate execution fields).
+
+**Single template, single shape.** [`template-status.md`][template-status] is the canonical source for
+both paths — no planning-variant template. The `**State:**` field carries the lifecycle phase.
+
+**Always-present fields with `[none]` markers.** All fields in the template's `## Active Work` section
+are always present; empty optional fields use the `[none]` literal. Consumers (the probe, session-init,
+handoff workflow) get a uniform parse surface — no field-omission ambiguity, no per-state shape
+branching.
+
+**Filename-pointer convention.** Artifact-pointer fields (`**Task List:**`, `**Spec:**`) carry bare
+filenames. Path resolution derives from `dirname(status-file)` — co-location of status, task list, and
+PRD is invariant across the WU lifecycle. The probe's `deriveCompanions` consumes this directly.
+
+**State enum.** `Planning` (planning session) and `In Progress` (executing tasks) are the documented
+values; sibling work units may introduce others (e.g., `Paused`). The probe's session-type inference
+treats `Planning` as case-exact (drives `sessionType: "planning"`); other values fall through to Task
+List / Next Action signals — preserving behavior for parenthetical-suffix variants like `Paused
+(2026-04-12)`.
+
+**Disposition at integration.** [`integrate-planning-branch.md`][integrate-plan] Step 2 routes by
+graduated / shelved: graduated leaves the file in place for `activate-work-unit` Step 4 to transition;
+shelved removes the file (no WU follows; no pointer needed).
+
+---
+
 ## Status-File Timing
 
 Status-file updates fire only at session-handoff commits and workflow-ceremony commits (activate /
@@ -626,6 +666,10 @@ When `arc user load` or session-init's SESSION-NOTES load fails, recover by erro
 [session-loop]: ../../../system/workflows/arc/session-lifecycle/session-loop.md
 [session-init]: ../../../system/workflows/arc/session-lifecycle/session-init.md
 [session-handoff]: ../../../system/workflows/arc/session-lifecycle/session-handoff.md
+[activate-plan]: ../../../system/workflows/arc/work-unit-lifecycle/planning/activate-planning-branch.md
+[activate-wu]: ../../../system/workflows/arc/work-unit-lifecycle/activate-work-unit.md
+[integrate-plan]: ../../../system/workflows/arc/work-unit-lifecycle/planning/integrate-planning-branch.md
+[template-status]: ../../templates/template-status.md
 [strategy-index]: ../STRATEGY-INDEX.md
 [workflow-authoring]: strategy-workflow-authoring.md
 [dev-rules-arc]: ../../constitution/DEV-RULES.ARC.md

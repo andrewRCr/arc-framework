@@ -111,7 +111,7 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
         readFile: io.readFile,
         cwd,
       }),
-      active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r }),
+      active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec: gitExec }),
     };
     const result = await runSessionHandoffStatus({ identity, role, probes });
     // Interactive rendering not yet implemented — emit JSON regardless of the flag.
@@ -127,7 +127,7 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
       worktree: () => runWorktreeSyncStatus({ exec: gitExec, remoteSyncEnabled }),
       extensions: () => runExtensionsSessionInitStatus({ cwd }),
       config: () => runConfigSessionInitStatus({ cwd, exec: gitExec }),
-      active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r }),
+      active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec: gitExec }),
       domainRules: () => runDomainRulesSessionInitStatus({ cwd }),
     };
     const result = await runSessionInitStatus({ identity, role, probes });

@@ -10,6 +10,7 @@ export {
   gitConfigGet,
   gitConfigSet,
   configureNotesRefspec,
+  getCurrentBranch,
   gitMergeFile,
   type ExecResult,
   type GitExec,

@@ -16,6 +16,7 @@ import {
   runActiveSessionInitStatus,
   runActiveStatus,
 } from "../commands/active.js";
+import { gitExec } from "../lib/io-context.js";
 import { requireArcProjectRoot } from "./shared.js";
 
 export interface ActiveStatusCliOptions {
@@ -28,7 +29,7 @@ export async function handleActiveStatus(opts: ActiveStatusCliOptions): Promise<
   if (!cwd) return;
 
   if (opts.sessionInit) {
-    const result = await runActiveSessionInitStatus({ cwd });
+    const result = await runActiveSessionInitStatus({ cwd, exec: gitExec });
     if (opts.json) {
       process.stdout.write(`${JSON.stringify(result)}\n`);
       return;

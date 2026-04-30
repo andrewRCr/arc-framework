@@ -40,6 +40,16 @@ export function makeGitExec(cwd: string): GitExec {
   };
 }
 
+/**
+ * Stub GitExec returning a fixed `git rev-parse --abbrev-ref HEAD` value
+ * for tests that need branch-pattern fallback behavior without a real
+ * git repo. Pass `null` for detached HEAD (emits the literal `HEAD`).
+ */
+export function stubGitExec(branch: string | null): GitExec {
+  const stdout = branch ?? "HEAD";
+  return async () => ({ stdout, stderr: "" });
+}
+
 /** Create a real IOContext for a given cwd. */
 export function makeIOContext(cwd: string): IOContext {
   return {

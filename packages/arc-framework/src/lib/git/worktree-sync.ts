@@ -11,7 +11,7 @@
  * @module
  */
 
-import type { GitExec } from "./exec.js";
+import { getCurrentBranch, type GitExec } from "./exec.js";
 
 /**
  * Worktree sync state.
@@ -128,17 +128,6 @@ async function boundedFetch(
     return isAbortError ? "timeout" : "error";
   } finally {
     clearTimeout(timer);
-  }
-}
-
-async function getCurrentBranch(exec: GitExec): Promise<string | null> {
-  try {
-    const { stdout } = await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"]);
-    const branch = stdout.trim();
-    if (branch === "HEAD" || branch === "") return null;
-    return branch;
-  } catch {
-    return null;
   }
 }
 

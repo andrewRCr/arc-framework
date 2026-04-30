@@ -165,11 +165,18 @@ session-state, follow the override instead.
 
 **Resolve session type** — after the parallel batch and item 8 resolve, settle the session type that gates
 items 9–10. The probe envelope carries `active.value.sessionType` ∈
-`{"planning", "execution", "integration", null}` inferred from the resolved status file's tracked fields.
+`{"planning", "execution", "integration", null}` inferred from the resolved status file's `**State:**`
+(primary, case-exact `Planning`) with branch-pattern fallback (`{category}/plan-{name}`) when State is
+unset/empty or no candidate is resolved. `null` covers two distinct cases:
+
+- **Multiple-candidate defer:** `resolution === "multiple"` — recompute from the chosen candidate's fields
+  after disambiguation.
+- **Orphan:** `resolution === "none"` (or empty State) and the current branch does not match the
+  planning-branch pattern. No active work, no planning signal — surface in orientation; skip item 10.
+
 SESSION-NOTES `**Session Type:**`, when present and matching `planning | execution | integration`
 (case-insensitive), supersedes the envelope value for this session. Invalid override → ignore + emit a
-warning in orientation. When `resolution === "multiple"`, recompute from the chosen candidate's fields
-after disambiguation resolves to a single status file.
+warning in orientation.
 
 9. **Active task list** — **strategic partial read**. Reference material too large to internalize upfront;
     read other sections on-demand during work.
@@ -208,7 +215,12 @@ after disambiguation resolves to a single status file.
     - `integration` → `.arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md`
     - `planning` → none today (forward-compatible with `refine-plan-loop.md` if the Expanded Planning
        Path WU lands)
-    - `null` (multiple unresolved candidates) → defer until disambiguation completes
+    - `null` — two paths:
+        - **Multiple-candidate defer:** skip lifecycle workflow load until disambiguation completes;
+          recompute `sessionType` from the chosen candidate and load the matching workflow then.
+        - **Orphan** (`resolution === "none"` + non-matching branch, or single candidate with empty
+          State + non-matching branch): skip lifecycle workflow load; surface the orphan state in
+          orientation. Step 5's next-work-unit discovery handles direction-finding.
 
     Load later if the session pivots to a different lifecycle phase.
 

@@ -365,34 +365,46 @@ states** — no planning variant. **Always-present convention with `[none]` for 
           residual concern is the transition, which references Step 4) and Session boundary blurb
           (Step 5 → Step 4; rewrote to reflect the graduated-path status-file state on base branch).
 
-### `[ ]` **3.5 Probe sessionType inference reads `State: Planning`**
+### `[x]` **3.5 Probe sessionType inference reads `State: Planning`**
 
 - **Strategies:** `strategy-testing-methodology.md`
 
-- _Goal:_ State-based inference becomes primary; branch-pattern fallback retained for orphan cases.
+- `inferSessionType` widened to `(state, taskList, nextAction, currentBranch) → SessionType | null`.
+  State-based primary (`State === "Planning"` case-exact → `planning`); orphan fallback when State is
+  null/empty/whitespace via branch-pattern regex (`^[^/]+/plan-.+$`). Non-Planning State falls through
+  to the existing Task List / Next Action logic, preserving behavior for in-flight pre-migration files
+  and parenthetical-suffix States. `ActiveSessionInitOptions` gains required `exec: GitExec` mirroring
+  Task 2.2.a; `runActiveSessionInitStatus` resolves current branch once via the new shared
+  `getCurrentBranch` helper (extracted from `worktree-sync.ts` to `lib/git/exec.ts` — second consumer
+  justified the move). Tests batched single-pass per the test-first batching exception (single function,
+  established pattern).
 
-    - `[ ]` **3.5.a Update inference logic in `commands/active.ts`**
-        - Thread current branch into the probe via `gitExec`: `ActiveSessionInitOptions` gains
-          `exec: GitExec` (mirrors `ConfigSessionInitOptions` from Task 2.2.a).
-          `runActiveSessionInitStatus` resolves current branch once and passes through to inference.
-          Return type widens to `SessionType | null`.
-        - Build `test-first` (one behavior at a time):
-            - `State: Planning` (case-exact) → `sessionType: "planning"`
-            - status file absent OR State unset/empty → branch-pattern fallback: regex
-              `^[^/]+/plan-.+$` against current branch → `planning`; non-match → `null`
-            - non-`Planning` State falls through to existing `Task List` / `Next Action` logic
-              (preserves behavior for in-flight pre-migration files; covers parenthetical-suffix
-              States like `Paused (2026-04-12)`)
-            - existing `__tests__/unit/active/session-type.test.ts` migrates call sites to add the
-              new `state` arg
+    - `[x]` **3.5.a Update inference logic in `commands/active.ts`**
+        - Wired `exec: GitExec` through `ActiveSessionInitOptions`, both handlers
+          (`handlers/active.ts`, `handlers/status.ts` × 2 call sites — composite + handoff probes), and
+          all integration / E2E test fixtures via the new `stubGitExec` helper. Logic precedence per
+          the spec: State-based primary → empty-State branch-pattern fallback → non-Planning fall-through
+          to Task List / Next Action. 22 unit tests in `session-type.test.ts` (migrated existing 12 +
+          added 10 covering State-primary, branch-fallback edges, parenthetical State); integration
+          tests in `active.test.ts` updated for the new sessionType behavior at `resolution=none` (split
+          into matching/non-matching branch); 2 new E2E tests in `session-init.e2e.test.ts` covering the
+          orphan paths against a real git repo.
 
-    - `[ ]` **3.5.b Update `session-init.md` workflow doc for orphan null sessionType**
-        - Workflow currently lists `null` only for the `multiple` candidate case (line ~209). Document
-          the second null path: missing/invalid State + non-matching branch under `resolution: "none"`.
-          Update item 10's loadout-switch handling to cover orphan-null (skip lifecycle workflow load;
-          surface in orientation).
+    - `[x]` **3.5.b Update `session-init.md` workflow doc for orphan null sessionType**
+        - § Resolve session type rewritten to document the two `null` cases (multiple-candidate defer
+          and orphan). Item 10's `null` branch split into named sub-paths with explicit handling
+          (multiple → defer load; orphan → skip load + surface in orientation, hand off to Step 5
+          next-work-unit discovery). Two-copy edit per package-project-sync.
 
-### `[ ]` **3.6 Document status-file creation contract in `strategy-session-operations.md`**
+### `[x]` **3.6 Document status-file creation contract in `strategy-session-operations.md`**
+
+- New § Status-File Creation Contract added before § Status-File Timing. Documents the convergent
+  creation paths (planning activation Step 5 / WU activation Step 4 creation path), idempotency on
+  both, single-template invariant, always-present + `[none]` field convention, filename-pointer
+  resolution, State enum (`Planning` case-exact + fall-through for parenthetical-suffix variants),
+  and disposition routing at `integrate-planning-branch.md` Step 2. Four new link defs added
+  ([activate-plan], [activate-wu], [integrate-plan], [template-status]). Two-copy edit per
+  package-project-sync — strategy file has no template tokens, direct copy.
 
 ---
 

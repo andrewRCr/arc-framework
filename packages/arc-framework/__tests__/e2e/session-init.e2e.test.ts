@@ -13,10 +13,14 @@
  * deliberate spot-checks.
  */
 
+import { execFile } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { runArc, createTempRepo, cleanupTempDir } from "./helpers.js";
+
+const execFileAsync = promisify(execFile);
 
 interface SessionInitEnvelope {
   mode: string;
@@ -71,7 +75,22 @@ describe("session-init E2E — sessionType across type variants", () => {
     await cleanupTempDir(tmpDir);
   });
 
-  it("emits sessionType=planning when no active status file exists (resolution=none)", async () => {
+  it("emits sessionType=planning when resolution=none + branch matches plan-pattern", async () => {
+    // Seed a commit and check out a planning branch so `git rev-parse --abbrev-ref HEAD`
+    // can resolve. `--no-verify` skips the project pre-commit hooks (installed by
+    // `arc init`) which validate the project's own files, not test fixtures.
+    await execFileAsync("git", ["add", "-A"], { cwd: tmpDir });
+    await execFileAsync(
+      "git",
+      ["commit", "--no-verify", "-m", "init"],
+      { cwd: tmpDir },
+    );
+    await execFileAsync(
+      "git",
+      ["checkout", "-b", "technical/plan-foo"],
+      { cwd: tmpDir },
+    );
+
     const result = await runArc(["status", "--session-init", "--json"], tmpDir);
     expect(result.exitCode).toBe(0);
 
@@ -80,6 +99,19 @@ describe("session-init E2E — sessionType across type variants", () => {
     expect(envelope.active.ok).toBe(true);
     expect(envelope.active.value?.resolution).toBe("none");
     expect(envelope.active.value?.sessionType).toBe("planning");
+  });
+
+  it("emits sessionType=null when resolution=none + branch does not match plan-pattern (orphan)", async () => {
+    // Default branch from `git init` does not match `{category}/plan-{name}` —
+    // no candidate, no planning branch → null per the orphan-fallback rule.
+    const result = await runArc(["status", "--session-init", "--json"], tmpDir);
+    expect(result.exitCode).toBe(0);
+
+    const envelope = parseJsonEnvelope(result.stdout);
+    expect(envelope.mode).toBe("session-init");
+    expect(envelope.active.ok).toBe(true);
+    expect(envelope.active.value?.resolution).toBe("none");
+    expect(envelope.active.value?.sessionType).toBeNull();
   });
 
   it("emits sessionType=execution for a single-WU + Start-Task fixture", async () => {
