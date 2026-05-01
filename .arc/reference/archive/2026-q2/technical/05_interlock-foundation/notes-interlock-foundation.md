@@ -225,4 +225,53 @@ to agent-discretion commits (process-task-loop), not user-invoked workflow bundl
 **Routing:** Inline to Phase 5 as Task 5.4 (validation-result correction). No post-archive R-task
 needed — the surface touched belongs to Phase 4.2's restructure, naturally folded into the same WU.
 
+### Validation Window Session 1 — Session-init next-work discovery fired in planning session
+
+**Observed:** Session-init resolved the active status file `status-session-operational-flow.md` with
+`**Task List:** [none]` (planning state). Step 5 next-work-unit discovery read this as "between work
+units" and triggered ROADMAP.md inventory — even though the planning WU itself is the active work.
+
+**Significance:** Planning sessions don't have a task list yet by definition; the discovery gate
+needs to recognize them as active rather than between-units. Surfaced at session-init of the SOF
+planning branch — exactly the dominant Validation Window Session 1 path.
+
+**Routing:** Workflow prose adjustment per § Failure-Mode Handling. Fixed inline (commit `ebad242`)
+rather than post-archive R-task — small, self-contained edit; deferring would have left the bug live
+across additional planning sessions.
+
+### Validation Window Session 1 — ROADMAP / backlog paths unspecified in session-init prose
+
+**Observed:** Step 5 next-work-unit discovery referenced "ROADMAP.md" and "the backlog" without
+spelling the paths. Agent had to infer locations during the same session that surfaced the
+discovery-gate bug above.
+
+**Significance:** Verification rule (DEV-RULES.ARC § Verification and Discovery) places the burden
+on agents not to fabricate paths — but workflow prose was forcing the guess. Same friction the
+composite probe was designed to remove for active-file resolution.
+
+**Routing:** Workflow prose adjustment per § Failure-Mode Handling. Fixed inline (commit `ebad242`,
+same change set as the discovery-gate fix) rather than post-archive R-task.
+
+### Validation Window Session 2 — Spec field backtick-wrapping convention unspecified
+
+**Observed:** During SOF PRD generation, the `**Spec:**` value on the SOF status file was updated
+from `plan-session-operational-flow.md` to `prd-session-operational-flow.md` without backtick
+wrapping — matching the un-wrapped form `activate-planning-branch.md` Step 5 produced at planning
+activation. User caught the drift; the established convention (visible in IF's own status file:
+`` `prd-interlock-foundation.md` ``) is that `.md` filename values are wrapped in code spans.
+CHECK 16's validator explicitly strips a single wrapping pair (`validate-status-spec.ts:64`),
+suggesting the implementer anticipated both forms in practice — but the workflow and template
+prose didn't pin the authoring convention.
+
+**Significance:** Convention exists de facto and matches markdown norms (filenames render as code
+spans for visual distinction and to dodge autolink/punctuation interpretation). Workflow gap rather
+than validator bug — the field-shape contract accepts both forms; the authoring guidance was silent.
+Same friction class as the prior Validation Window Session 1 entries: workflow prose forcing the
+agent to infer convention from sibling artifacts rather than reading it directly.
+
+**Routing:** Workflow prose adjustment per § Failure-Mode Handling. Fixed inline:
+`template-status.md` field-semantics preamble gains the wrapping rule covering `.md` and URL values;
+`activate-planning-branch.md` Step 5 item 3 (Spec instruction) specifies the backticked code span
+form. Both edits applied to package source and `.arc/` instance copies.
+
 ---

@@ -11,41 +11,65 @@ Current state at a glance. Updated when work is activated, completed, or archive
 
 **Last Completed:**
 
-- Session-Init Optimization (technical) — Per-file methods/extensions architecture with
-  workflow frontmatter triggers, probe-computed `sessionType` inference driving conditional
-  loadsets, partial-read narrowing, worktree-sync completion, and constitutional + CI
-  machinery to prevent drift recurrence. ~24–28% reduction at orientation (~57–61k vs
-  ~75–80k baseline)
-    - Archive: `archive/2026-q2/technical/04_session-init-optimization/`
+- Interlock Foundation (technical) — Constitutional frame for ADR-016's interlock model:
+  configurable autonomy stack (task → commit → push → integrate) with invariant endpoints
+  and configurable middle interlocks, plus handoff as orthogonal ceremony. Lands DEV-RULES
+  redraft, `session.autonomy` configuration axis, composite handoff probe, planning-session
+  active surface, structured task-completion prompts as base behavior, status-file timing
+  rule, and rollback protocol. Validation window runs in the gap between WU-A integration
+  and the sibling WU's activation.
+    - Archive: `archive/2026-q2/technical/05_interlock-foundation/`
 
 **Currently Active:**
 
-- Interlock Foundation (technical) — In Progress, Phase 1 (Constitutional Foundation).
-  Constitutional foundation for ADR-016's interlock model: configurable autonomy stack
-  (task → commit → push → integrate) with invariant endpoints and configurable middle interlocks,
-  plus handoff as orthogonal ceremony. Lands DEV-RULES amendments (commit control downgraded to
-  configurable default), status-file timing split, planning-session active surface, structured
-  task-completion prompt as base behavior, configuration surface (`session.autonomy` axis +
-  composite handoff probe + handoff-interior toggle pattern), and rollback dev-rule. Sibling WU
-  `Session-Operational Flow` implements autonomy-mode behavior + metadata-state foundation against
-  this frame after a dogfooding validation window.
-    - PRD: `.arc/active/technical/prd-interlock-foundation.md`
-    - Task list: `.arc/active/technical/tasks-interlock-foundation.md` (6 phases / 18 parent tasks / 38 subtasks)
-    - ADR: `.arc/reference/adr/adr-016-configurable-autonomy-interlocks-for-session-operations.md` (Accepted)
-    - Sibling WU plan: `.arc/backlog/technical/plan-session-operational-flow.md`
-    - Branch: `technical/interlock-foundation`
+- Session-Operational Flow (technical) — Planning. Sibling WU to Interlock Foundation,
+  WU-B in the pre-approved split. Implements the autonomy-mode behavior (auto-commit,
+  auto-push), handoff-interior toggle consumers, deferred-review × auto-commit
+  safe-accumulate, arc-commit skill preservation, and metadata-state foundation
+  (State + Integration field model + sweep cadence config) against the frame Interlock
+  Foundation just shipped.
+    - Plan: `.arc/active/technical/plan-session-operational-flow.md`
+    - Branch: `technical/plan-session-operational-flow` (batch branch — also carries
+      Interlock Foundation archival)
 
 **Next Priority:**
 
-- After Session-Operational Flow Phase 6 frame lands, three parallelizable consumers:
-  User Sync UX Polish, Work-Unit Mobility, Quality Gate Tiers + Hook Integration
-- Then: ARCd Rebrand — Public product brand split (ARCd for product surface, ARC for
-  methodology), with absorbed config-key renames and CLI command cleanup
-- Then: arc-plan Conductor — Promote arc-plan to canonical planning entry with selectable
-  depth (minimum / standard / expanded)
-- Then: ARC Operating Modes — Lightweight mode (ARC Lite) + local/untracked mode
+- After Session-Operational Flow lands: User Sync UX Polish, Coord Probe, and Worktree
+  Foundation parallelize on the new frame
+- Then: Agile WU Lifecycle (after Worktree Foundation), Concurrent Work Conventions
+  (after Agile WU Lifecycle), Quality Gate Tiers + Hook Integration (after Concurrent
+  Work Conventions)
+- Then: ARCd Rebrand — Public product brand split (ARCd for product, ARC for
+  methodology) with absorbed config-key renames and CLI command cleanup
+- Then: arc-plan Conductor (parallelizable with Worktree Foundation and Agile WU
+  Lifecycle), ARC Operating Modes (ARC Lite + local/untracked)
 
 ## Completed Major Work
+
+### Interlock Foundation (April 2026)
+
+Constitutional frame for ARC's interlock model — vocabulary, configuration axis, probe
+surface, structured prompts, and timing rules — that downstream session-operational
+plans build on.
+
+- DEV-RULES.ARC redrafted under at-session-relevance filter; interlock vocabulary woven
+  into existing rule sections; new invariants (integration-interlock, cascade-undo);
+  commit/push triggering reframed around configurable autonomy
+- `session.autonomy: manual-commit | auto-commit | auto-push` configuration axis
+  (`arc-config.yml` + per-developer `git config arc.autonomy` override); resolver
+  surfaces on session-init probe with provenance
+- Composite handoff probe (`arc status --session-handoff --json`) — self-contained
+  envelope (8 slots) so `arc-handoff` is fresh-load safe; new `lib/git/dirty-state.ts`
+  and `lib/git/head-hash.ts` resolvers
+- Planning-session active surface — `template-status.md` adds Spec, Sibling Work
+  Unit(s), and `State: Planning`; `activate-planning-branch.md` creates status file at
+  planning activation; probe `sessionType` inference reads `Planning` as primary signal
+- Status-file timing rule — task completion no longer touches the status file; lifecycle
+  workflows stage status updates with their ceremony commits per the staging-as-test rule
+- Structured task-completion prompts as base behavior across all autonomy modes; prefix
+  reads `session.autonomy` for forward-compat with auto-commit modes
+- Pre-commit CHECK 16 (`validate-status-spec.ts`) enforces pinned Spec shapes on staged
+  active status files
 
 ### Session-Init Optimization (April 2026)
 

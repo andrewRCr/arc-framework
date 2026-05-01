@@ -111,7 +111,8 @@ carry-over (mirrors `template-prd.md` precedent). Then populate the planning fie
 
 1. **State** — `Planning`
 2. **Branch** — current planning branch (e.g., `{category}/plan-{name}`)
-3. **Spec** — plan-doc filename (e.g., `plan-{name}.md`) when one exists; otherwise `[none]`
+3. **Spec** — plan-doc filename in a backticked code span (e.g., `` `plan-{name}.md` ``)
+   when one exists; otherwise `[none]`
 4. **Task List** — `[none]` (task list generated downstream by `2_generate-tasks.md`; populated at
    activation)
 5. **Sibling Work Unit(s)** — `plan-{name}.md` or `prd-{name}.md` references when this WU is part of
