@@ -252,4 +252,26 @@ composite probe was designed to remove for active-file resolution.
 **Routing:** Workflow prose adjustment per § Failure-Mode Handling. Fixed inline (commit `ebad242`,
 same change set as the discovery-gate fix) rather than post-archive R-task.
 
+### Validation Window Session 2 — Spec field backtick-wrapping convention unspecified
+
+**Observed:** During SOF PRD generation, the `**Spec:**` value on the SOF status file was updated
+from `plan-session-operational-flow.md` to `prd-session-operational-flow.md` without backtick
+wrapping — matching the un-wrapped form `activate-planning-branch.md` Step 5 produced at planning
+activation. User caught the drift; the established convention (visible in IF's own status file:
+`` `prd-interlock-foundation.md` ``) is that `.md` filename values are wrapped in code spans.
+CHECK 16's validator explicitly strips a single wrapping pair (`validate-status-spec.ts:64`),
+suggesting the implementer anticipated both forms in practice — but the workflow and template
+prose didn't pin the authoring convention.
+
+**Significance:** Convention exists de facto and matches markdown norms (filenames render as code
+spans for visual distinction and to dodge autolink/punctuation interpretation). Workflow gap rather
+than validator bug — the field-shape contract accepts both forms; the authoring guidance was silent.
+Same friction class as the prior Validation Window Session 1 entries: workflow prose forcing the
+agent to infer convention from sibling artifacts rather than reading it directly.
+
+**Routing:** Workflow prose adjustment per § Failure-Mode Handling. Fixed inline:
+`template-status.md` field-semantics preamble gains the wrapping rule covering `.md` and URL values;
+`activate-planning-branch.md` Step 5 item 3 (Spec instruction) specifies the backticked code span
+form. Both edits applied to package source and `.arc/` instance copies.
+
 ---

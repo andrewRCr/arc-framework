@@ -4,7 +4,7 @@
 
 - **State:** Planning
 - **Branch:** technical/plan-session-operational-flow
-- **Spec:** prd-session-operational-flow.md
+- **Spec:** `prd-session-operational-flow.md`
 - **Task List:** [none]
 - **Sibling Work Unit(s):** [none]
 

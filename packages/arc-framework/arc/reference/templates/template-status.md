@@ -4,6 +4,8 @@
 
 <!--
   Field semantics. All fields always present; `[none]` is the empty-value marker.
+  Wrap `.md` filename and URL values in backticks for code-span rendering;
+  sentinels like `[none]` stay as-is. CHECK 16 strips a wrapping pair on Spec.
 
   - **State** — `Planning` (planning session) | `In Progress` (executing tasks)
     | `Complete` (integration window after work-unit cleanup; coexists with a pending
