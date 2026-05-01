@@ -271,7 +271,7 @@ likely path.
 ---
 
 [adr-016]: ../../reference/adr/adr-016-configurable-autonomy-interlocks-for-session-operations.md
-[plan-ops]: ../../active/technical/prd-session-operational-flow.md
+[plan-ops]: ../../reference/archive/2026-q2/technical/06_session-operational-flow/prd-session-operational-flow.md
 [plan-coord]: ../../backlog/technical/plan-coord-probe.md
 [plan-wf]: ../../backlog/technical/plan-worktree-foundation.md
 [plan-awl]: ../../backlog/technical/plan-agile-wu-lifecycle.md

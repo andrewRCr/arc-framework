@@ -3,7 +3,7 @@
 - **Started**: 2026-04-30
 - **Completed**: 2026-05-01
 - **Branch**: technical/session-operational-flow
-- **Pull Request**: {pending until archival}
+- **Pull Request**: https://github.com/andrewRCr/arc-framework/pull/25
 
 - **Context**: Completes the configurable interlock-release behavior and metadata-state foundation
   established by Interlock Foundation.

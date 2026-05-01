@@ -11,31 +11,24 @@ Current state at a glance. Updated when work is activated, completed, or archive
 
 **Last Completed:**
 
-- Interlock Foundation (technical) — Constitutional frame for ADR-016's interlock model:
-  configurable autonomy stack (task → commit → push → integrate) with invariant endpoints
-  and configurable middle interlocks, plus handoff as orthogonal ceremony. Lands DEV-RULES
-  redraft, `session.autonomy` configuration axis, composite handoff probe, planning-session
-  active surface, structured task-completion prompts as base behavior, status-file timing
-  rule, and rollback protocol. Validation window runs in the gap between WU-A integration
-  and the sibling WU's activation.
-    - Archive: `archive/2026-q2/technical/05_interlock-foundation/`
+- Session-Operational Flow (technical) — Operationalizes the Interlock Foundation frame with
+  independent commit/push interlock settings, handoff-interior toggle consumers, deferred-review
+  safe-accumulation, status Integration metadata, and recovery guidance for configured release
+  cascades.
+    - Archive: `archive/2026-q2/technical/06_session-operational-flow/`
 
 **Currently Active:**
 
-- Session-Operational Flow (technical) — In Progress. Sibling WU to Interlock Foundation,
-  WU-B in the pre-approved split. Implements the autonomy-mode behavior (auto-commit,
-  auto-push), handoff-interior toggle consumers, deferred-review × auto-commit
-  safe-accumulate, arc-commit skill preservation, and metadata-state foundation
-  (State + Integration field model + sweep cadence config) against the frame Interlock
-  Foundation just shipped.
-    - PRD: `.arc/active/technical/prd-session-operational-flow.md`
-    - Task list: `.arc/active/technical/tasks-session-operational-flow.md` (5 phases, 16 parent tasks)
-    - Branch: `technical/session-operational-flow`
+- User Sync UX Polish (technical) — Planning. State-machine unification, directional copy audit,
+  HEAD-independent notes discovery, and scoped auto-push design against the handoff-interior toggle
+  framework.
+    - Plan: `.arc/active/technical/plan-user-sync-ux.md`
+    - Branch: `technical/plan-user-sync-ux`
 
 **Next Priority:**
 
-- After Session-Operational Flow lands: User Sync UX Polish, Coord Probe, and Worktree
-  Foundation parallelize on the new frame
+- Continue User Sync UX Polish planning; Coord Probe and Worktree Foundation remain parallelizable
+  siblings on the new session-operational frame
 - Then: Agile WU Lifecycle (after Worktree Foundation), Concurrent Work Conventions
   (after Agile WU Lifecycle), Quality Gate Tiers + Hook Integration (after Concurrent
   Work Conventions)
