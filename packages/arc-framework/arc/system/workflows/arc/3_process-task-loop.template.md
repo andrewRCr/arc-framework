@@ -197,11 +197,10 @@ arc:
      If any item is unchecked, complete it before proceeding to report generation.
 
   4. Await user instructions on how to proceed.
-     User may choose to commit changes or request modifications. Commit authority follows
-     `session.commit_interlock`: under `manual`, the structured prompt's `Commit and proceed`
-     branch is gated behind explicit user approval (the affirmative response IS the approval);
-     under `on-task-approval`, the commit-interlock releases on task approval per
-     [Configurability Architecture Strategy][config-arch] § Session interlocks.
+     User may choose to commit changes or request modifications. Under
+     `session.commit_interlock: manual`, task approval advances work only; committing remains an
+     explicit user-invoked action. Under `on-task-approval`, the commit-interlock releases on task
+     approval per [Configurability Architecture Strategy][config-arch] § Session interlocks.
      Under `session.commit_interlock: on-task-approval`, on approval signal, release the
      commit-interlock per [arc-commit § Step 2-6][arc-commit-skill]. Complexity criteria from
      § Step 2 bump to manual-with-prompt rather than invoking prepare-commits silently.

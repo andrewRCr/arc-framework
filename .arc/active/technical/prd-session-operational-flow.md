@@ -63,8 +63,7 @@ validating the behaviors against real-use cycles.
 
 **Scenario 1: Commit-interlock releases on task approval.**
 Today (`session.commit_interlock: manual`, default): agent reports task completion; structured prompt fires
-(`Commit and proceed to Task X.Y?`); user types `y`; agent commits and advances. Two events from the
-user perspective.
+(`Proceed to Task X.Y?`); user types `y`; agent advances. Commit remains an explicit user-invoked action.
 After (`session.commit_interlock: on-task-approval`): agent reports task completion; structured prompt fires;
 user types `y`; the same approval releases the commit-interlock and the agent advances. Same prompt rhythm,
 bounded release on approval. The arc-commit skill's simple-path logic runs internally; complexity bumps

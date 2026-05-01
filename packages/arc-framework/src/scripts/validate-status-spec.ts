@@ -129,8 +129,10 @@ export function validateLifecycleFields(content: string, path: string): string[]
     );
   }
 
-  const state = stateCaptures.length === 1 ? stateCaptures[0] ?? "" : null;
-  const integration = integrationCaptures.length === 1
+  const hasSingleState = stateCaptures.length === 1;
+  const hasSingleIntegration = integrationCaptures.length === 1;
+  const state = hasSingleState ? stateCaptures[0] ?? "" : null;
+  const integration = hasSingleIntegration
     ? integrationCaptures[0] ?? ""
     : null;
 
@@ -140,17 +142,20 @@ export function validateLifecycleFields(content: string, path: string): string[]
     );
   }
 
-  if (state === "Complete") {
-    if (integration === null) {
+  if (hasSingleState && state === "Complete") {
+    if (integrationCaptures.length === 0) {
       diagnostics.push(`${path}: missing \`**Integration:**\` line for \`State: Complete\``);
-    } else if (integration === "") {
-      diagnostics.push(`${path}: empty \`**Integration:**\` value for \`State: Complete\``);
-    } else if (!VALID_INTEGRATION_STATES.has(integration)) {
-      diagnostics.push(
-        `${path}: invalid \`**Integration:**\` value "${integration}"; ${EXPECTED_INTEGRATION}`,
-      );
+    } else if (hasSingleIntegration) {
+      const integrationValue = integrationCaptures[0] ?? "";
+      if (integrationValue === "") {
+        diagnostics.push(`${path}: empty \`**Integration:**\` value for \`State: Complete\``);
+      } else if (!VALID_INTEGRATION_STATES.has(integrationValue)) {
+        diagnostics.push(
+          `${path}: invalid \`**Integration:**\` value "${integrationValue}"; ${EXPECTED_INTEGRATION}`,
+        );
+      }
     }
-  } else if (integration !== null) {
+  } else if (hasSingleState && hasSingleIntegration && integration !== null) {
     diagnostics.push(
       `${path}: \`**Integration:**\` is only valid when \`**State:**\` is \`Complete\``,
     );

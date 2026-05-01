@@ -92,7 +92,11 @@ git branch --show-current
 Before deleting the child branch, resolve the merged PR URL and update `completion-{name}.md`:
 
 ```bash
-pr_url=$(gh pr list --state merged --head {child-branch-name} --json url --jq '.[0].url')
+pr_url=$(gh pr list --state merged --head {child-branch-name} --base {parent-branch} --json url --jq '.[0].url')
+if [ -z "$pr_url" ] || [ "$pr_url" = "null" ]; then
+  echo "No merged PR found for {child-branch-name} into {parent-branch}; resolve completion-doc PR field explicitly."
+  exit 1
+fi
 ```
 
 Replace the completion doc's `**Pull Request:** {pending until archival}` value with the URL. This lands the

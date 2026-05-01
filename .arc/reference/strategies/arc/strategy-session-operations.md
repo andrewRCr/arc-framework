@@ -109,7 +109,7 @@ branch rather than rejecting the composite. Mirrors the session-init field table
 | `pushInterlock`   | `{value, source}` — resolved `session.push_interlock` policy. Surfaced top-level so handoff doesn't pull the broader session-init settings map                            |
 | `syncPush`        | `{policy, source}` — resolved `user.sync_push` policy with provenance. Handoff-interior toggle slot; future toggles register as named siblings here                       |
 | `active`          | Active status file resolution — same shape as session-init's `active` slot                                                                                                |
-| `head`            | Current `HEAD` short-hash (`value.shortHash`) — anchors the `Commit at Handoff` field written by the handoff workflow                                                     |
+| `head`            | Current `HEAD` short-hash (`value.hash`) — anchors the `Commit at Handoff` field written by the handoff workflow                                                          |
 
 Consumer plans reference this table from their plan docs when defining handoff-time workflow behavior.
 

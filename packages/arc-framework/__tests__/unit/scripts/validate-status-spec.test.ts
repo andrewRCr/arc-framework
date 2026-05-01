@@ -220,6 +220,27 @@ describe("validateFiles", () => {
     expect(diag).toContain("Draft");
   });
 
+  it("does not emit dependent Integration diagnostics when Integration appears multiple times", () => {
+    const content = [
+      "# Status: Foo",
+      "",
+      "## Active Work",
+      "",
+      "- **State:** Complete",
+      "- **Spec:** [none]",
+      "- **Integration:** Awaiting PR",
+      "- **Integration:** Changes requested",
+      "- **Task List:** tasks-foo.md",
+      "",
+    ].join("\n");
+    const files = { [STATUS_PATH]: content };
+    const result = validateFiles(Object.keys(files), fakeReader(files));
+    expect(result.pass).toBe(false);
+    expect(result.diagnostics).toEqual([
+      `${STATUS_PATH}: multiple \`**Integration:**\` lines (found 2)`,
+    ]);
+  });
+
   it("fails when non-Complete State has Integration", () => {
     const files = {
       [STATUS_PATH]: statusFile("- **Spec:** [none]", {
