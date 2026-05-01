@@ -5,14 +5,14 @@
 - **State:** Planning
 - **Branch:** technical/plan-user-sync-ux
 
-- **Spec:** `plan-user-sync-ux.md`
+- **Spec:** `prd-user-sync-ux.md`
 - **Task List:** [none]
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Plan iteration complete; `plan-user-sync-ux.md` PRD-ready
+- **Last Completed:** Generated `prd-user-sync-ux.md`; retired plan doc
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run `1_create-prd.md` against `plan-user-sync-ux.md`
+- **Next Action:** Run `2_generate-tasks.md` against `prd-user-sync-ux.md`
 
 ---
