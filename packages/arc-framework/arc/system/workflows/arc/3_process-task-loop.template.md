@@ -199,6 +199,9 @@ arc:
      branch is gated behind explicit user approval (the affirmative response IS the approval);
      under `on-task-approval`, the commit-interlock releases on task approval per
      [Configurability Architecture Strategy][config-arch] § Session interlocks.
+     Under `session.commit_interlock: on-task-approval`, on approval signal, release the
+     commit-interlock per [arc-commit § Step 2-6][arc-commit-skill]. Complexity criteria from
+     § Step 2 bump to manual-with-prompt rather than invoking prepare-commits silently.
      When committing, follow the [prepare-commits workflow](supplemental/prepare-commits.md).
 
      <!-- arc:if team.mode == true -->
@@ -291,3 +294,4 @@ updates**. Always update the task list file before reporting completion.
 [arc-methods-it]: ../../methods/issue-triage.md
 [arc-methods-qg]: ../../methods/quality-gate-commands.md
 [team-coordination]: ../../../reference/strategies/arc/strategy-team-coordination.md
+[arc-commit-skill]: ../../skills/arc-commit/SKILL.md

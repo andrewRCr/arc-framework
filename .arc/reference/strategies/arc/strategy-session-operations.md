@@ -438,6 +438,24 @@ affirmative tokens in arbitrary user prose. Session-init's orientation summary u
 (`Awaiting direction — proceed to Next Action?`) — the mental model stays consistent across ARC's
 session lifecycle.
 
+### Commit-Interlock Release
+
+Under `session.commit_interlock: on-task-approval`, the approval signal that advances the task
+also releases the commit-interlock. First-word affirmatives (`y` / `yes` / `yeah`) release the
+interlock; redirect grammar is preserved (`y, also <X>` / `y; <redirect>`) and queues the
+redirect after the commit path completes.
+
+The released commit path follows [arc-commit § Step 2-6][arc-commit-skill]: assess atomicity,
+load commit-format methods, stage the single logical change, verify staged diff, and commit with
+the required context footer. If the Step 2 complexity criteria identify multiple concerns,
+accumulated multi-session work, or ambiguous interleaving, stop at manual-with-prompt instead of
+silently invoking prepare-commits. That avoids converting a task-approval signal into a broader
+cascade the user did not explicitly sanction.
+
+The `arc-commit` skill remains directly invokable under all interlock settings. It is still the
+ad-hoc commit path for non-task work and the recovery path when commit-on-task-approval falls back
+to manual-with-prompt.
+
 ### Push-Timing Reasoning
 
 Push-on-handoff fires at handoff only; per-commit push release is not offered. The constraint surfaces in
@@ -687,5 +705,6 @@ When `arc user load` or session-init's SESSION-NOTES load fails, recover by erro
 [dev-rules-arc]: ../../constitution/DEV-RULES.ARC.md
 [dev-rules-project]: ../../constitution/DEV-RULES.PROJECT.md
 [prepare-commits]: ../../../system/workflows/arc/supplemental/prepare-commits.md
+[arc-commit-skill]: ../../../system/skills/arc-commit/SKILL.md
 [git-notes]: https://git-scm.com/docs/git-notes
 [TODO-docs-site]: # "Placeholder pending docs-content-sweep — see notes-docs-content-sweep.md"

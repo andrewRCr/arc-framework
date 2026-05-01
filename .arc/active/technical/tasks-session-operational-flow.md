@@ -169,27 +169,20 @@ condition; depth lives in strategy-session-operations. See [`notes-session-opera
         - Removed live code/tests for `session.autonomy` and updated package/source workflow references to the
           two-key interlock model. No compatibility ladder was retained.
 
-### `[ ]` **2.2 Commit-on-task-approval fire path (process-task-loop trigger + strategy-session-operations semantics)**
+### `[x]` **2.2 Commit-on-task-approval fire path (process-task-loop trigger + strategy-session-operations semantics)**
 
-- _Goal:_ Land the trigger condition in process-task-loop (terse, session-loaded surface) and the full
-  semantics in strategy-session-operations (loaded on-demand). Procedure shared-by-reference with arc-commit;
-  complexity bumps to manual-with-prompt rather than silent prepare-commits invocation.
+- _Outcome:_ Added the terse process-task-loop trigger for `session.commit_interlock: on-task-approval`
+  and documented full commit-interlock release semantics in `strategy-session-operations.md`. The release path
+  references `arc-commit` Step 2-6, preserves redirect grammar, and falls back to manual-with-prompt when
+  atomicity complexity would require broader commit preparation.
 
-    - `[ ]` **2.2.a Process-task-loop fire trigger (terse)**
-        - Add one short paragraph after the existing commit-interlock prose: "Under
-          `session.commit_interlock: on-task-approval`, on approval signal, release the commit-interlock per
-          [arc-commit § Step 2-6][arc-commit-skill]. Complexity criteria from § Step 2 bump to
-          manual-with-prompt rather than invoking prepare-commits silently."
-        - Token discipline: keep to one paragraph; full semantics belong in the strategy doc.
+    - `[x]` **2.2.a Process-task-loop fire trigger (terse)**
+        - Added one short trigger paragraph and an `arc-commit` skill reference in both package template and
+          rendered workflow copies.
 
-    - `[ ]` **2.2.b Strategy-session-operations § Commit-Interlock Release — full semantics**
-        - Document approval-signal grammar (first-word affirmative `y` / `yes` / `yeah`; redirect syntax
-          preserved as `y, also <X>` / `y; <redirect>`).
-        - Document complexity-detection criteria with explicit reference back to arc-commit § Step 2.
-        - Document why complexity bumps to manual-with-prompt rather than silent prepare-commits (avoids
-          surprising the user with cascade behavior they didn't sanction).
-        - Document arc-commit skill's continued user-invocability under all interlock settings (ad-hoc commit
-          path for non-task work; recovery path after commit-on-task-approval fallback).
+    - `[x]` **2.2.b Strategy-session-operations § Commit-Interlock Release — full semantics**
+        - Added the strategy section covering affirmative grammar, redirect handling, complexity fallback,
+          and continued direct `arc-commit` invocability under all interlock settings.
 
 ### `[ ]` **2.3 Deferred-review × commit-on-task-approval safe-accumulate**
 
@@ -393,7 +386,6 @@ downstream plan currently references the pre-advance pattern. See [`notes-sessio
 
 [notes]: notes-session-operational-flow.md
 [verify-work-unit]: ../../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md
-[arc-commit-skill]: ../../system/skills/arc-commit/SKILL.md
 [strategy-session]: ../../reference/strategies/arc/strategy-session-operations.md
 [process-task-loop]: ../../system/workflows/arc/3_process-task-loop.md
 [package-sync]: ../../reference/strategies/project/strategy-package-project-sync.md
