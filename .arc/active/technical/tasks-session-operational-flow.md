@@ -4,9 +4,9 @@
 - **Branch(es):** `technical/session-operational-flow`
 - **Base Branch:** `main`
 
-- **Purpose:** Implement autonomy-mode behaviors (auto-commit, auto-push) and the metadata-state foundation
+- **Purpose:** Implement interlock-release behaviors (commit-on-task-approval, push-on-handoff) and the metadata-state foundation
   (State enum extension, Integration field, sweep cadence, integration-window cadence refinements) against the
-  Interlock Foundation constitutional frame — turning the configurable autonomy axis from scaffolding into a
+  Interlock Foundation constitutional frame — turning the configurable interlock-release surface from scaffolding into a
   live operational surface.
 
 > **Two-copy sync discipline:** All framework-file edits in this WU sync to `packages/arc-framework/arc/` package source
@@ -23,7 +23,7 @@
 ## **Phase 1:** Metadata-State Foundation + Cadence Refinements
 
 _Purpose:_ Land the schema and validator additions plus the integration-window cadence refinements before
-auto-mode behaviors layer on top. SOF's own integration window benefits from these refinements landing
+configurable interlock-release behaviors layer on top. SOF's own integration window benefits from these refinements landing
 early.
 
 _Design decisions:_ Phase ordering flipped from PRD — metadata-state foundation lands first so SOF's own
@@ -134,114 +134,137 @@ migration; no helper command. See [`notes-session-operational-flow.md`][notes] �
 
 ---
 
-## **Phase 2:** Auto-Commit Mode
+## **Phase 2:** Commit-Interlock Release
 
-_Purpose:_ Layer auto-commit fire behavior onto the IF structured-prompt + autonomy-config foundations.
-Procedure shared-by-reference with the arc-commit skill (post-IF skill thinning made the skill markdown
-procedure; no code to extract).
+_Purpose:_ Replace the inert single autonomy enum with `session.commit_interlock` /
+`session.push_interlock`, then layer commit-on-task-approval behavior onto the IF structured-prompt +
+interlock-config foundations. Procedure shared-by-reference with the arc-commit skill (post-IF skill thinning
+made the skill markdown procedure; no code to extract).
 
-_Design decisions:_ Auto-commit fires by following arc-commit § Step 2-6 procedure on approval signal under
-`auto-commit | auto-push`. Complexity criteria from arc-commit § Step 2 bump to manual-with-prompt — single
-source of truth, no duplication. Deferred-review default is safe-accumulate; per-task fire requires explicit
-opt-in at deferral. Token economy: process-task-loop gets the minimum trigger condition; depth lives in
-strategy-session-operations. See [`notes-session-operational-flow.md`][notes] § Phase 2 Rationale.
+_Design decisions:_ Config uses independent interlock release settings:
+`session.commit_interlock: manual | on-task-approval` and `session.push_interlock: manual | on-handoff`.
+Commit-on-task-approval fires by following arc-commit § Step 2-6 procedure on approval signal when
+`session.commit_interlock: on-task-approval`. Complexity criteria from arc-commit § Step 2 bump to
+manual-with-prompt — single source of truth, no duplication. Deferred-review default is safe-accumulate;
+per-task fire requires explicit opt-in at deferral. Token economy: process-task-loop gets the minimum trigger
+condition; depth lives in strategy-session-operations. See [`notes-session-operational-flow.md`][notes]
+§ Phase 2 Rationale.
 
-### `[ ]` **2.1 Auto-commit fire path (process-task-loop trigger + strategy-session-operations semantics)**
+### `[ ]` **2.1 Config schema migration for commit/push interlocks**
+
+- _Goal:_ Replace `session.autonomy` with independent commit and push interlock release settings across config
+  defaults, validation, probes, and tests.
+
+    - `[ ]` **2.1.a Add `session.commit_interlock` config support**
+        - Add enum `manual | on-task-approval`; default `manual`.
+        - Update config reader, shell validator, status probe settings surface, and unit/integration tests.
+
+    - `[ ]` **2.1.b Add `session.push_interlock` config support**
+        - Add enum `manual | on-handoff`; default `manual`.
+        - Update config reader, shell validator, status probe settings surface, and unit/integration tests.
+
+    - `[ ]` **2.1.c Remove/deprecate `session.autonomy` references**
+        - Replace project/package `arc-config.yml` docs and any probe/workflow references with the two new keys.
+        - If compatibility handling is needed, keep it explicit and documented; no hidden ladder semantics.
+
+### `[ ]` **2.2 Commit-on-task-approval fire path (process-task-loop trigger + strategy-session-operations semantics)**
 
 - _Goal:_ Land the trigger condition in process-task-loop (terse, session-loaded surface) and the full
   semantics in strategy-session-operations (loaded on-demand). Procedure shared-by-reference with arc-commit;
   complexity bumps to manual-with-prompt rather than silent prepare-commits invocation.
 
-    - `[ ]` **2.1.a Process-task-loop fire trigger (terse)**
+    - `[ ]` **2.2.a Process-task-loop fire trigger (terse)**
         - Add one short paragraph after the existing commit-interlock prose: "Under
-          `session.autonomy: auto-commit | auto-push`, on approval signal, fire commit per
+          `session.commit_interlock: on-task-approval`, on approval signal, release the commit-interlock per
           [arc-commit § Step 2-6][arc-commit-skill]. Complexity criteria from § Step 2 bump to
           manual-with-prompt rather than invoking prepare-commits silently."
         - Token discipline: keep to one paragraph; full semantics belong in the strategy doc.
 
-    - `[ ]` **2.1.b Strategy-session-operations § Auto-Commit Mode — full semantics**
+    - `[ ]` **2.2.b Strategy-session-operations § Commit-Interlock Release — full semantics**
         - Document approval-signal grammar (first-word affirmative `y` / `yes` / `yeah`; redirect syntax
           preserved as `y, also <X>` / `y; <redirect>`).
         - Document complexity-detection criteria with explicit reference back to arc-commit § Step 2.
         - Document why complexity bumps to manual-with-prompt rather than silent prepare-commits (avoids
           surprising the user with cascade behavior they didn't sanction).
-        - Document arc-commit skill's continued user-invocability in both manual and auto modes (ad-hoc commit
-          path for non-task work; recovery path after auto-commit fallback).
+        - Document arc-commit skill's continued user-invocability under all interlock settings (ad-hoc commit
+          path for non-task work; recovery path after commit-on-task-approval fallback).
 
-### `[ ]` **2.2 Deferred-review × auto-commit safe-accumulate**
+### `[ ]` **2.3 Deferred-review × commit-on-task-approval safe-accumulate**
 
 - _Goal:_ Default to safe-accumulate within a deferred range; per-task fire only via explicit opt-in at
   deferral time.
 
-    - `[ ]` **2.2.a Process-task-loop deferred-review section — one-sentence reference**
-        - Add: "Under auto-commit, deferred review safe-accumulates by default — no per-task fire within the
-          deferred range. See strategy-session-operations § Deferred-Review × Auto-Commit for the explicit
+    - `[ ]` **2.3.a Process-task-loop deferred-review section — one-sentence reference**
+        - Add: "Under `session.commit_interlock: on-task-approval`, deferred review safe-accumulates by
+          default — no per-task commit release within the deferred range. See strategy-session-operations
+          § Deferred-Review × Commit-Interlock Release for the explicit
           opt-in syntax."
 
-    - `[ ]` **2.2.b Strategy-session-operations § Deferred-Review × Auto-Commit**
+    - `[ ]` **2.3.b Strategy-session-operations § Deferred-Review × Commit-Interlock Release**
         - Document safe-accumulate default and rationale (deferred review exists because user is unavailable
           for per-task approval; firing per task would commit work without review, violating the interlock
           model).
         - Document the explicit per-task opt-in syntax: deferral-time instruction such as "work through 5.2-5.4
-          with auto-commit per task while I'm away".
+          with commit on each task approval while I'm away".
         - Document the unit-review-on-return behavior (accumulated work surfaces for batch review and approval).
 
-### `[ ]` **2.3 Session-init auto-mode load-set adaptation**
+### `[ ]` **2.4 Session-init commit-interlock load-set adaptation**
 
-- _Goal:_ When autonomy resolves to `auto-commit | auto-push`, eagerly load `commit-format.md` and
-  `commit-context-format.md` methods at session-init. Today these load via the arc-commit skill; auto-commit
+- _Goal:_ When `session.commit_interlock` resolves to `on-task-approval`, eagerly load `commit-format.md` and
+  `commit-context-format.md` methods at session-init. Today these load via the arc-commit skill; commit-on-task-approval
   fires between tasks without skill invocation, so session-init becomes the load trigger.
 
-    - `[ ]` **2.3.a Add conditional load logic to session-init.md Step 3**
-        - Add a brief instruction reading the resolved autonomy value (`config.value.autonomy.value` from the
-          probe) and conditionally loading the two methods when the value is `auto-commit | auto-push`. Keep
-          terse.
+    - `[ ]` **2.4.a Add conditional load logic to session-init.md Step 3**
+        - Add a brief instruction reading `config.value.settings["session.commit_interlock"]` from the probe and
+          conditionally loading the two methods when the value is `on-task-approval`. Keep terse.
 
-    - `[ ]` **2.3.b Mirror in `session-init.contributor.md`**
+    - `[ ]` **2.4.b Mirror in `session-init.contributor.md`**
         - Same conditional load in the contributor variant.
 
-    - `[ ]` **2.3.c Document load-set rationale in strategy-session-operations.md § Auto-Mode Load-Set**
-        - Cover why the methods load eagerly under auto modes (auto-commit fires without skill invocation;
-          session-init is the load point) and why they don't load under manual-commit (status quo — arc-commit
-          skill loads them on-demand).
+    - `[ ]` **2.4.c Document load-set rationale in strategy-session-operations.md § Commit-Interlock Load-Set**
+        - Cover why the methods load eagerly under `session.commit_interlock: on-task-approval`
+          (commit-on-task-approval fires without skill invocation; session-init is the load point) and why they
+          don't load under `manual` (status quo — arc-commit skill loads them on-demand).
 
-### `[ ]` **2.4 Contributor-role auto-commit staging boundary**
+### `[ ]` **2.5 Contributor-role commit-on-task-approval staging boundary**
 
-- _Goal:_ Verify and document that contributor under auto-commit stages code only — no project-level
+- _Goal:_ Verify and document that contributor under commit-on-task-approval stages code only — no project-level
   status-file updates, matching DEV-RULES.ARC § Commit Discipline role-separation. Contributor status files
   are gitignored and update at handoff regardless of mode.
 
-    - `[ ]` **2.4.a Add bullet to DEV-RULES.ARC § Commit Discipline (one bullet, terse)**
-        - Add: "Under `auto-commit`, contributor-role auto-commit stages code only — project-level status-file
-          updates remain a maintainer responsibility. Contributor status files (gitignored,
-          `user/{identity}/active/`) update at handoff regardless of autonomy mode."
+    - `[ ]` **2.5.a Add bullet to DEV-RULES.ARC § Commit Discipline (one bullet, terse)**
+        - Add: "Under `session.commit_interlock: on-task-approval`, contributor-role commit release stages code
+          only — project-level status-file updates remain a maintainer responsibility. Contributor status files
+          (gitignored, `user/{identity}/active/`) update at handoff regardless of interlock settings."
         - Token discipline: single bullet; full semantics in strategy doc.
 
-    - `[ ]` **2.4.b Document full semantics in strategy-session-operations.md**
+    - `[ ]` **2.5.b Document full semantics in strategy-session-operations.md**
         - Cover the role-separation rule, the gitignored contributor status file, and why the handoff cadence
           stays mode-independent.
 
 ---
 
-## **Phase 3:** Auto-Push Mode
+## **Phase 3:** Push-Interlock Release
 
-_Purpose:_ Layer auto-push fire behavior into the session-handoff ceremony when autonomy resolves to
-`auto-push`. Mid-session push semantics unchanged. Push-ordering invariant (worktree-push before notes-push)
-enforced by per-action-checklist ordering.
+_Purpose:_ Layer push-on-handoff behavior into the session-handoff ceremony when
+`session.push_interlock: on-handoff`. Mid-session push semantics unchanged. Push-ordering invariant
+(worktree-push before notes-push) enforced by per-action-checklist ordering.
 
-_Design decisions:_ No new handoff-interior toggle keys — autonomy enum value is the toggle. session-handoff
-consumes `config.value.autonomy.value` from the composite handoff probe. See
-[`notes-session-operational-flow.md`][notes] § Phase 3 Rationale.
+_Design decisions:_ Push release is independent from commit release. `session.push_interlock: on-handoff` does
+not imply `session.commit_interlock: on-task-approval`; adopters can choose handoff push while keeping commit
+manual. session-handoff consumes `config.value.settings["session.push_interlock"]` from the composite handoff
+probe. See [`notes-session-operational-flow.md`][notes] § Phase 3 Rationale.
 
-### `[ ]` **3.1 Auto-push fire path in session-handoff**
+### `[ ]` **3.1 Push-on-handoff fire path in session-handoff**
 
 - _Goal:_ Fire push inside the handoff ceremony when configured; preserve mid-session-explicit-ask semantics;
   enforce push-ordering invariant.
 
     - `[ ]` **3.1.a Session-handoff.md fire trigger (terse)**
         - Add the trigger condition to the per-action-checklist section: "Under
-          `session.autonomy: auto-push`, fire push as part of the handoff ceremony's per-action checklist.
-          Mid-session push remains explicit-ask in all modes — auto-push does not change non-handoff push
+          `session.push_interlock: on-handoff`, release the push-interlock as part of the handoff ceremony's
+          per-action checklist.
+          Mid-session push remains explicit-ask in all modes — push-on-handoff does not change non-handoff push
           semantics."
         - Token discipline: keep to a couple of lines inline; full semantics in strategy doc.
 
@@ -250,23 +273,22 @@ consumes `config.value.autonomy.value` from the composite handoff probe. See
           handoff (push-ordering invariant from IF). Add a brief comment in the workflow if not already
           present.
 
-    - `[ ]` **3.1.c Strategy-session-operations § Auto-Push Mode — full semantics**
-        - Document fire-at-handoff-only (not mid-session), the push-ordering invariant, and that the autonomy
-          enum value is the sole toggle (no separate `push.timing` or `handoff.push` config key — design
-          constraint).
+    - `[ ]` **3.1.c Strategy-session-operations § Push-Interlock Release — full semantics**
+        - Document fire-at-handoff-only (not mid-session), the push-ordering invariant, and the independence
+          from `session.commit_interlock`.
 
-### `[ ]` **3.2 Verify no new handoff-interior toggle keys introduced (autonomy enum is sole push toggle)**
+### `[ ]` **3.2 Verify independent interlock settings**
 
-- Confirm arc-config schema additions in this WU stop at `archive.cadence` (Phase 1.3) — no `push.timing`,
-  `handoff.push`, or analogous keys introduced. Outcome captured at task completion (no separate deliverable
-  beyond verification).
+- Confirm tests and docs allow all four combinations of `session.commit_interlock` and `session.push_interlock`.
+  The key case is `session.commit_interlock: manual` with `session.push_interlock: on-handoff`: push-on-handoff
+  must not imply commit-on-task-approval.
 
 ---
 
 ## **Phase 4:** Failure-Mode Handling + Strategy Cascade
 
 _Purpose:_ Land the failure-mode taxonomy + per-mode recovery paths and the strategy-doc cascade
-(autonomy-mode-aware coordination, autonomy-config-aware load-set). All documentation work; recovery routines
+(interlock-release-aware coordination, interlock-config-aware load-set). All documentation work; recovery routines
 reference existing pointers (no new checkpointing infrastructure).
 
 _Design decisions:_ Five failure modes split into three categories (bad-state, transit, process). Crash
@@ -305,12 +327,12 @@ downstream plan currently references the pre-advance pattern. See [`notes-sessio
           ([process-task-loop § Crash Recovery][process-task-loop])."
         - Mirror in `session-init.contributor.md`.
 
-### `[ ]` **4.2 strategy-team-coordination autonomy-mode-aware coordination guidance**
+### `[ ]` **4.2 strategy-team-coordination interlock-release-aware coordination guidance**
 
 - Add a section covering how task ownership, handoff conventions, and concurrent-pair coordination interact
-  with auto-commit vs manual-commit. Concurrent pairs under auto-commit have different commit-rate dynamics
-  than under manual-commit; document the distinction. P2.a (concurrent-pair commit-rate guidance beyond basic
-  awareness) deferred — surfaces during dogfooding if patterns emerge worth codifying.
+  with commit-on-task-approval vs manual commit. Concurrent pairs under commit-on-task-approval have different
+  commit-rate dynamics than under manual commit; document the distinction. P2.a (concurrent-pair commit-rate
+  guidance beyond basic awareness) deferred — surfaces during dogfooding if patterns emerge worth codifying.
 
 ---
 
@@ -335,24 +357,28 @@ downstream plan currently references the pre-advance pattern. See [`notes-sessio
 - `[ ]` Step 6c → Step 8 pre-advance eliminates one metadata commit per integration cycle
 - `[ ]` Post-PR-creation eddy guidance referenced in handoff decisions during integration sessions
 - `[ ]` PR URL archival rule fills the durable link during archive without a post-PR metadata-only commit
-- `[ ]` Auto-commit fires under task completion when `session.autonomy: auto-commit | auto-push` configured;
+- `[ ]` `session.commit_interlock: manual | on-task-approval` and
+  `session.push_interlock: manual | on-handoff` replace the old `session.autonomy` ladder
+- `[ ]` Commit-on-task-approval fires under task completion when
+  `session.commit_interlock: on-task-approval` is configured;
   follows arc-commit § Step 2-6 procedure
 - `[ ]` Complexity bumps to manual-with-prompt; never silent invocation of prepare-commits
 - `[ ]` Safe-accumulate operates correctly under deferred review (no per-task fire by default)
-- `[ ]` arc-commit skill remains user-invocable in both manual and auto modes
-- `[ ]` Contributor role under auto-commit stages code only — no project-level status-file updates
-- `[ ]` Auto-push fires inside the handoff ceremony when `session.autonomy: auto-push` configured
+- `[ ]` arc-commit skill remains user-invocable under all interlock settings
+- `[ ]` Contributor role under commit-on-task-approval stages code only — no project-level status-file updates
+- `[ ]` Push-on-handoff fires inside the handoff ceremony when
+  `session.push_interlock: on-handoff` is configured
+- `[ ]` Push-on-handoff does not require `session.commit_interlock: on-task-approval`
 - `[ ]` Mid-session push remains explicit-ask only in all modes
 - `[ ]` Push-ordering invariant holds when both worktree-push and notes-push fire at handoff
-- `[ ]` No new handoff-interior toggle keys introduced
 - `[ ]` Each of the five failure modes that fires recovers per the documented path
 - `[ ]` Rollback dev-rule applies cleanly to bad-state failures; not invoked for transit failures
 - `[ ]` Agent-crash mid-cascade surfaces correctly on session-resume with continue/rollback prompt
-- `[ ]` `strategy-team-coordination` updated with autonomy-mode-aware coordination guidance
-- `[ ]` `strategy-session-operations` updated with autonomy-config-aware load-set, deferred-review ×
-  auto-commit interaction, and failure-mode taxonomy
-- `[ ]` Validation window (1-2 self-host sessions exercising auto modes between SOF integration and
-  plan-user-sync-ux activation) — observation log in `notes-session-operational-flow.md`
+- `[ ]` `strategy-team-coordination` updated with interlock-release-aware coordination guidance
+- `[ ]` `strategy-session-operations` updated with interlock-config-aware load-set, deferred-review ×
+  commit-on-task-approval interaction, and failure-mode taxonomy
+- `[ ]` Validation window (1-2 self-host sessions exercising configured interlock release settings between SOF
+  integration and plan-user-sync-ux activation) — observation log in `notes-session-operational-flow.md`
 - `[ ]` Downstream consumer plans (plan-agile-wu-lifecycle, plan-quality-gate-hooks, plan-worktree-foundation,
   plan-concurrent-work-conventions, plan-user-sync-ux) confirm metadata-state foundation supports their scope
   without structural reshape — verified via "Relationship" section reads before WU integration
