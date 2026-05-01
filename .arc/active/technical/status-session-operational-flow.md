@@ -8,10 +8,10 @@
 - **Task List:** `tasks-session-operational-flow.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Work unit activated
-- **Next Task:** Task 1.1 — Extend template-status.md State enum and Integration field (line ~33)
+- **Last Completed:** Task 1.3 — Add archive.cadence to config schema
+- **Next Task:** Task 1.4 — Update integrate-work-unit.md cadence refinements (line ~82)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Phase 1
+- **Next Action:** Start Task 1.4 — Update integrate-work-unit.md cadence refinements
 
 ---
