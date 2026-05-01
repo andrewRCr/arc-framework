@@ -581,6 +581,7 @@ interrupted. Run the crash-recovery scan:
 ```bash
 git status --porcelain
 git diff --cached --stat
+git log --oneline -n 10
 ```
 
 Read the active status file's `**Next Action:**` workflow-step pointer and compare it to the git
