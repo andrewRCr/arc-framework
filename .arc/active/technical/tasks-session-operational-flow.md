@@ -79,30 +79,24 @@ migration; no helper command. See [`notes-session-operational-flow.md`][notes] �
     - `[x]` Schema docs in `arc-config.yml` (project + package source) describe both values plus the rationale
       for dropping `deferred` (one-line pointer to strategy doc; no inline rationale — token economy)
 
-### `[ ]` **1.4 Update `integrate-work-unit.md` cadence refinements**
+### `[x]` **1.4 Update `integrate-work-unit.md` cadence refinements**
 
-- _Goal:_ Land the three integration-window refinements per PRD reqs #19-21. Single workflow file with three
-  coordinated changes; commit as one ceremony.
+- Updated `integrate-work-unit.md` in package source and self-hosting copy with the three integration-window
+  cadence refinements from PRD reqs #19-21: Step 6c pre-advance, post-PR handoff guidance, and PR URL archival.
 
-    - `[ ]` **1.4.a Step 6c → Step 8 pre-advance with three-criteria rationale**
-        - Step 6c sets `**Next Action:**` to `integrate-work-unit Step 8 — …` (skipping Step 7), eliminating
-          the metadata commit between Step 6c and Step 8.
-        - Three criteria documented inline as the rationale for the pre-advance: mechanical (no judgment),
-          idempotent or absence-detectable (`gh pr create` errors on existing PR; `gh pr list` confirms), low
-          redo cost.
-        - Crash-recovery note: post-resume agent verifies PR existence via `gh pr list`; if absent, run Step 7
-          first; if present, proceed to Step 8.
+    - `[x]` **1.4.a Step 6c → Step 8 pre-advance with three-criteria rationale**
+        - Step 6c now sets `**Next Action:**` to `integrate-work-unit Step 8 — address PR review findings`,
+          documents the mechanical / idempotent-or-detectable / low-redo-cost rationale, and gives
+          crash-recovery instructions using `gh pr list`.
 
-    - `[ ]` **1.4.b Post-PR-creation eddy guidance (Phase 2 prose)**
-        - Recommend handoff at the Step 6c boundary before PR creation, OR continuing into review work after.
-          Discourage handoff in the awkward `gh pr create` → reviewer's first-pass window — both would
-          re-trigger CR review on subsequent metadata commits.
+    - `[x]` **1.4.b Post-PR-creation eddy guidance (Phase 2 prose)**
+        - Phase 2 now recommends handoff either before PR creation or after continuing into Step 8, and
+          discourages handoff between `gh pr create` and the reviewer's first pass.
 
-    - `[ ]` **1.4.c PR-URL bundle workflow-ordering rule**
-        - Step 7 (or wherever PR creation lands in the workflow) records the PR URL into `completion-{name}.md`
-          and stages it as part of the same step. If handoff fires same-session, staging-as-test bundles the
-          PR-URL edit into the handoff commit naturally. Workflow-ordering rule, not runtime detection of
-          "just-created-PR" state.
+    - `[x]` **1.4.c PR URL archival rule**
+        - Completion docs now keep `**Pull Request:** {pending until archival}` through review, and
+          `archive-work-unit.md` fills the merged PR URL into `completion-{name}.md` as part of the archival
+          commit.
 
 ### `[ ]` **1.5 Sweep eligibility logic in `archive-work-unit.md` + `archive.cadence` consumption**
 
@@ -340,7 +334,7 @@ downstream plan currently references the pre-advance pattern. See [`notes-sessio
 - `[ ]` Existing active status files are valid under the tightened hook; no migration helper is introduced
 - `[ ]` Step 6c → Step 8 pre-advance eliminates one metadata commit per integration cycle
 - `[ ]` Post-PR-creation eddy guidance referenced in handoff decisions during integration sessions
-- `[ ]` PR-URL bundle workflow-ordering rule fires correctly; bundles into handoff commit when same-session
+- `[ ]` PR URL archival rule fills the durable link during archive without a post-PR metadata-only commit
 - `[ ]` Auto-commit fires under task completion when `session.autonomy: auto-commit | auto-push` configured;
   follows arc-commit § Step 2-6 procedure
 - `[ ]` Complexity bumps to manual-with-prompt; never silent invocation of prepare-commits

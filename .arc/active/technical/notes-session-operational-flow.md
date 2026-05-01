@@ -12,7 +12,7 @@ discussions, plus working observations as implementation surfaces.
 
 **Phase ordering flip.** PRD listed metadata-state as Phase 3; task generation flipped it to Phase 1.
 Reasoning: metadata-state has no dependency on auto-modes, and SOF's own integration window benefits from the
-cadence refinements (Step 6c pre-advance, post-PR eddy guidance, PR-URL bundle workflow-ordering) landing
+cadence refinements (Step 6c pre-advance, post-PR eddy guidance, PR URL archival timing) landing
 first. Self-host's own SOF integration uses the new cadence; auto-modes activate post-SOF as the dogfooding
 next step.
 

@@ -16,7 +16,7 @@ no pre-merge review, no task verification.
 - Simple planning branch: [activate-planning-branch][activate-planning-branch] → [1_create-prd][create-prd]
   → [2_generate-tasks][generate-tasks]
 - Batch branch (fully protected): activate-planning-branch → [archive-work-unit][archive-work-unit]
-  → create-prd → generate-tasks
+  (including completion-doc PR URL archival) → create-prd → generate-tasks
 
 **What comes after:** Graduated → [activate-work-unit][activate-work-unit] (from base branch, after merge).
 Shelved → planning ends here; no activation.

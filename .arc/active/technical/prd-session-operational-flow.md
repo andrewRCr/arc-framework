@@ -21,7 +21,7 @@ What's missing: behavior. The `session.autonomy` axis exists with three enum val
 other two are inert. The status-file template carries `**State:** Planning` but no other lifecycle states
 are defined, so workflows that need to track WU progression past planning have no schema to pin against.
 Cadence refinements observed during IF integration (Step 6c pre-advance, post-PR-creation eddy guidance,
-PR-URL bundle ordering) were captured for this WU but not yet implemented.
+PR URL archival timing) were captured for this WU but not yet implemented.
 
 This work unit lands the **autonomy-mode behaviors** and the **metadata-state foundation** — turning the
 frame's surface area into operational reality. Auto-commit fires under task completion when configured;
@@ -50,7 +50,7 @@ natural next dogfooding step, validating the behaviors against real-use cycles.
    configurable via `archive.cadence`; CHECK 16 extended to validate both fields.
 4. Operationalize integration-window cadence refinements — Step 6c pre-advance eliminating one
    metadata-commit per integration cycle; post-PR-creation eddy guidance discouraging awkward-window
-   handoffs; PR-URL bundle workflow-ordering rule cooperating with staging-as-test.
+   handoffs; PR URL archival timing avoiding post-PR metadata commits.
 5. Define failure-mode taxonomy and per-mode recovery paths — five failure modes (pre-commit hook,
    T1/T2 QG post-commit, network mid-push, partial multi-commit cascade, agent crash mid-cascade)
    across three categories (bad-state, transit, process) with documented recovery semantics.
@@ -102,13 +102,12 @@ Recovery on agent crash between Step 6c and Step 7: post-resume agent verifies "
 `gh pr list`; if no, runs Step 7 first; if yes, proceeds to Step 8. The pre-advance is safe because Step 7
 is mechanical, idempotent (`gh pr create` errors on existing PR), and detectable.
 
-**Scenario 6: PR-URL bundle via workflow-ordering.**
+**Scenario 6: PR URL lands during archival.**
 Today: PR creation produces a URL; recording it into the completion-doc and committing happens as a
 separate step; if handoff fires the same session, the handoff commit creates a second metadata commit.
-After: integrate-work-unit Step 7 (or wherever PR creation lands) records the PR URL into the
-completion-doc and stages it as part of the same step. If handoff fires the same session, staging-as-test
-bundles the PR-URL edit into the handoff commit naturally. No runtime detection of "just-created-PR"
-state needed; the workflow ordering rule handles the bundle deterministically.
+After: the completion doc carries `{pending until archival}` during review, and archive-work-unit fills the
+merged PR URL before moving the completion doc into the archive. No post-PR metadata commit or runtime
+detection of "just-created-PR" state is needed.
 
 **Scenario 7: Failure-mode recovery — partial cascade under auto-push.**
 Auto-push fires at handoff; first commit pushes successfully; network fails before second commit
@@ -202,10 +201,10 @@ automatically under auto-push). No rollback — the cascade was correct, infra h
     Step 6c boundary before PR creation, or (b) continuing into review work after. Discourages handoff
     in the awkward window between `gh pr create` and reviewer's first pass — both would re-trigger CR
     review on subsequent metadata commits.
-21. PR-URL bundle workflow-ordering rule: integrate-work-unit Step 7 (or wherever PR creation lands)
-    records the PR URL into the completion-doc and stages it as part of the same step. If handoff fires
-    the same session, staging-as-test (per IF) bundles the PR-URL edit into the handoff commit
-    naturally. Workflow-ordering rule rather than runtime detection of "just-created-PR" state.
+21. PR URL archival rule: completion docs carry `{pending until archival}` through PR review.
+    `archive-work-unit.md` resolves the merged PR URL before deleting the child branch and records it in
+    `completion-{name}.md` as part of the archival commit. This preserves the durable archive link without a
+    post-PR metadata-only commit or runtime detection of "just-created-PR" state during handoff.
 
 **Failure-mode handling (cross-phase):**
 
@@ -339,12 +338,10 @@ the pattern around one validated case risks over-fitting. If concrete cases meet
 surface in downstream plans (`arc user save` post-handoff, file moves during sweep ceremony, etc.), the
 pattern can be applied case-by-case at that time.
 
-**PR-URL bundle: workflow-ordering over runtime detection.** Workflow-ordering rule (the integrate-work-unit
-step that creates the PR also stages the URL recording) cooperates with IF's staging-as-test rule —
-staging is the test, and putting the right thing in staging at the right time lets staging-as-test do its
-job. Runtime detection ("at handoff, agent inspects PR state and decides what to stage") is exactly the
-inferred-staging surprise pattern that staging-as-test was designed to replace. Workflow-ordering is
-explicit, deterministic, discoverable in the workflow text, and requires no detection signal to maintain.
+**PR URL archival timing.** The completion doc keeps `**Pull Request:** {pending until archival}` during
+review because the PR URL is active context for authors and reviewers in the PR UI. `archive-work-unit.md`
+fills the durable link after merge, before deleting the child branch, so future archive readers get the link
+without a metadata-only post-PR commit that restarts CI.
 
 **Migration approach: update active status files with no helper.** Status files in flight at SOF activation
 must have a valid `**State:**`; `**Integration:**` is absent unless the file is already in `State: Complete`.
@@ -413,7 +410,7 @@ routing for behavior tweaks vs schema tweaks vs workflow prose.
 - Cadence refinements observable in practice:
     - Step 6c → 8 pre-advance eliminates one metadata commit per integration cycle
     - Post-PR-creation eddy guidance referenced in handoff decisions during integration sessions
-    - PR-URL bundle workflow-ordering rule fires correctly; bundles into handoff commit when same-session
+    - PR URL archival rule fills the durable link during archive without a post-PR metadata-only commit
 - Failure-mode handling operates correctly:
     - Each of the five modes that fires recovers per the documented path (taxonomy in
       strategy-session-operations.md)

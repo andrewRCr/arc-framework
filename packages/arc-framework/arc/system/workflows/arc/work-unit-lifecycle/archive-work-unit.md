@@ -62,7 +62,18 @@ git branch --show-current
   This branch carries only the archival commit. After Step 7, push and create a PR to merge it
   to the base branch.
 
-### 1) Delete Child Branch
+### 1) Record Pull Request URL
+
+Before deleting the child branch, resolve the merged PR URL and update `completion-{name}.md`:
+
+```bash
+pr_url=$(gh pr list --state merged --head {child-branch-name} --json url --jq '.[0].url')
+```
+
+Replace the completion doc's `**Pull Request:** {pending until archival}` value with the URL. This lands the
+durable review link in the archival commit instead of creating a metadata-only commit during PR review.
+
+### 1b) Delete Child Branch
 
 Skip if the implementation branch was already cleaned up (e.g., by
 [activate-planning-branch][activate-planning-branch] in the batch path).
