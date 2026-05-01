@@ -126,23 +126,26 @@ describe("validateFiles", () => {
   });
 
   it("passes when Complete State has a supported Integration value", () => {
-    for (const integration of [
-      "Awaiting PR",
-      "Awaiting review",
-      "Changes requested",
-      "Ready to merge",
-      "Merged",
-    ]) {
-      const files = {
-        [STATUS_PATH]: statusFile("- **Spec:** [none]", {
-          stateLine: "- **State:** Complete",
-          integrationLine: `- **Integration:** ${integration}`,
-        }),
-      };
-      const result = validateFiles(Object.keys(files), fakeReader(files));
-      expect(result.pass).toBe(true);
-      expect(result.diagnostics).toEqual([]);
-    }
+    const files = {
+      [STATUS_PATH]: statusFile("- **Spec:** [none]", {
+        stateLine: "- **State:** Complete",
+        integrationLine: "- **Integration:** Merged",
+      }),
+    };
+    const result = validateFiles(Object.keys(files), fakeReader(files));
+    expect(result.pass).toBe(true);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("passes when Complete State has no Integration value before merge", () => {
+    const files = {
+      [STATUS_PATH]: statusFile("- **Spec:** [none]", {
+        stateLine: "- **State:** Complete",
+      }),
+    };
+    const result = validateFiles(Object.keys(files), fakeReader(files));
+    expect(result.pass).toBe(true);
+    expect(result.diagnostics).toEqual([]);
   });
 
   it("fails when State value is unsupported", () => {
@@ -170,21 +173,6 @@ describe("validateFiles", () => {
     expect(
       result.diagnostics.some(
         (d) => d.includes(STATUS_PATH) && d.includes("State") && d.includes("missing"),
-      ),
-    ).toBe(true);
-  });
-
-  it("fails when Complete State is missing Integration", () => {
-    const files = {
-      [STATUS_PATH]: statusFile("- **Spec:** [none]", {
-        stateLine: "- **State:** Complete",
-      }),
-    };
-    const result = validateFiles(Object.keys(files), fakeReader(files));
-    expect(result.pass).toBe(false);
-    expect(
-      result.diagnostics.some(
-        (d) => d.includes(STATUS_PATH) && d.includes("Integration") && d.includes("missing"),
       ),
     ).toBe(true);
   });
@@ -228,8 +216,8 @@ describe("validateFiles", () => {
       "",
       "- **State:** Complete",
       "- **Spec:** [none]",
-      "- **Integration:** Awaiting PR",
-      "- **Integration:** Changes requested",
+      "- **Integration:** Merged",
+      "- **Integration:** Merged",
       "- **Task List:** tasks-foo.md",
       "",
     ].join("\n");
@@ -245,7 +233,7 @@ describe("validateFiles", () => {
     const files = {
       [STATUS_PATH]: statusFile("- **Spec:** [none]", {
         stateLine: "- **State:** In Progress",
-        integrationLine: "- **Integration:** Awaiting PR",
+        integrationLine: "- **Integration:** Merged",
       }),
     };
     const result = validateFiles(Object.keys(files), fakeReader(files));

@@ -99,8 +99,9 @@ is *engaged* by default until the user explicitly releases it.
   (approval implicitly triggers atomic commit with ARC standards).
 - **Push-interlock** — configurable. Default: manual. Optional: auto-at-handoff (push fires inside the handoff
   ceremony when configured). Mid-session push remains explicit-ask only; there is no per-commit auto-push.
-- **Integration-interlock** — invariant. Human-only. Non-negotiable floor. For ARC, integration means merge to the
-  integration branch or main. Downstream production deployment is outside ARC's scope.
+- **Integration-interlock** — invariant. Explicit human approval required. Non-negotiable floor.
+  For ARC, integration means merge to the integration branch or main. Downstream production deployment is outside
+  ARC's scope.
 
 **Orthogonal ceremony:**
 
@@ -241,7 +242,7 @@ approval prompts, handoff-only push release, and invariant integration-interlock
 ---
 
 [dev-rules-arc]: ../constitution/DEV-RULES.ARC.md
-[plan-sync]: ../../backlog/technical/plan-user-sync-ux.md
+[plan-sync]: ../../active/technical/plan-user-sync-ux.md
 [plan-hooks]: ../../backlog/technical/plan-quality-gate-hooks.md
 [plan-wf]: ../../backlog/technical/plan-worktree-foundation.md
 [plan-cwc]: ../../backlog/feature/plan-concurrent-work-conventions.md

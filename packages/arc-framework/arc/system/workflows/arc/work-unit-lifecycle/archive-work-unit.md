@@ -15,8 +15,8 @@ the substantive work (doc prep, review, merge) happens in [integrate-work-unit][
 **When to use:** The work unit's PR is merged and you're on the parent branch.
 
 **Prerequisite:** [integrate-work-unit][integrate-work-unit] completed — docs are clean, completion
-metadata exists (`completion-{name}.md` created, status file `**State:** Complete` and
-`**Integration:** Merged`), code review is done, PR is merged.
+metadata exists (`completion-{name}.md` created, status file `**State:** Complete`), code review is
+done, PR is merged.
 
 > **Full protection mode (`branch.protection: full`):** Archival commits cannot go directly to the
 > base branch. Two approaches:
@@ -48,7 +48,7 @@ Read the active status file before moving files:
 grep -E '^\- \*\*(State|Integration):\*\*' .arc/active/{category}/status-{name}.md
 ```
 
-Archive only when the status file shows:
+Archive only after the status file shows:
 
 ```text
 - **State:** Complete
@@ -57,6 +57,9 @@ Archive only when the status file shows:
 
 If either field is missing or has a different value, stop and surface the mismatch. The work unit is not
 eligible for archival until integration has completed.
+
+If `**State:** Complete` is present and the PR is merged but `**Integration:** Merged` is absent, add the
+Integration line below `**Branch:**` as part of the archival ceremony before moving files.
 
 Then check `archive.cadence` in `.arc/system/arc-config.yml`:
 

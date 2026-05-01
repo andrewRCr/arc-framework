@@ -13,10 +13,8 @@
     (replaced by another work unit).
   - **Branch** — Branch this WU lives on (planning branch during planning,
     implementation branch during execution).
-  - **Integration** — Present only when `State` is `Complete`; required and non-empty in that
-    state. Enum: `Awaiting PR` (work complete, PR not yet created) | `Awaiting review` |
-    `Changes requested` | `Ready to merge` | `Merged`. Review cycles move bidirectionally
-    between `Changes requested` and `Awaiting review`.
+  - **Integration** — Optional; present only when `State` is `Complete` and the WU has merged.
+    Enum: `Merged`. Review-cycle state lives in the PR, not the status file.
   - **Spec** — `[none]` | `.md` filename (e.g., `plan-{name}.md`, `prd-{name}.md`)
     | URL (external tracker link under `pm.mode: external`).
   - **Task List** — `[none]` during planning; `tasks-{name}.md` filename during execution
