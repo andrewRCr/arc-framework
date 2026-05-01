@@ -8,10 +8,10 @@
 - **Task List:** [none]
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** PRD generated; plan retired
+- **Last Completed:** Task list and companion files generated
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run `2_generate-tasks.md` — PRD complete; task generation next
+- **Next Action:** Run `integrate-planning-branch.md` — PR planning branch to base, then activate from base
 
 ---
