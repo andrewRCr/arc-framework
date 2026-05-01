@@ -151,6 +151,16 @@ interlock vocabulary so all three release-mode keys speak the same language:
 - Migration: pre-1.0 break is acceptable. Adopters with `user.sync_push: always` get a one-time
   rewrite during `arc update` (or equivalent migration helper) that translates key + values.
 
+**Command-shape alignment.** Rename `arc sync` → `arc user sync` so the user-notes porcelain shares the
+namespace with the rest of the family (`arc user save / load / push / pull / fetch`). The current
+top-level `arc sync` reads as broader than its scope — collides with the mental model of "sync the
+project" or "sync framework files" — and is the one verb that doesn't surface under `arc user --help`,
+where developers discovering the user-notes flow would expect to find it. Rename preserves the existing
+direction-aware porcelain semantic intact (per ADR-012's 2026-04-22 amendment); only the invocation
+path moves. Hard rename, pre-1.0 — no transitional alias. No broader cross-domain `arc sync` is on the
+pre-1.0 roadmap; revisit the namespace question only if an outside-repo / non-git sync mechanism
+enters scope.
+
 **Per-developer overrides for interlock keys.** Add `git config arc.commitInterlock` and
 `arc.pushInterlock` as per-dev overrides for the IF interlocks. Both keys move to **3-tier resolution**
 (git config → yaml → default), matching `user.notes_push` and the broader handoff-interior toggle
@@ -300,6 +310,17 @@ state-machine drift is the root pathology behind the symptoms.
 **Decision: A.** Pre-1.0; clean break is cheaper than a dual-key window. C is not really an option in a
 polish window.
 
+**Command-rename migration (committed: A).**
+
+- **A — Hard rename, pre-1.0.** `arc sync` is removed; `arc user sync` becomes the only invocation. No
+  transitional alias.
+- **B — Accept both invocations for one release; deprecate.** Both `arc sync` and `arc user sync` work;
+  old invocation emits a deprecation warning. Hard remove next release.
+- **C — Coexist forever.** Two invocations, permanent vocabulary asymmetry.
+
+**Decision: A.** Same logic as config-rename: pre-1.0; clean break is cheaper than a dual-invocation
+window. C is not really an option in a polish window.
+
 **First-use framing surface (deferred to PRD).**
 
 - **A — Conditional hint line in `arc status`.** When the user's first-touch state suggests confusion
@@ -340,8 +361,8 @@ Rough breakdown:
 
 - Notes-discovery fix: ~0.5 day.
 - State-machine unification + directional copy audit: 2–3 days (refactor + tests).
-- Config-shape alignment (rename, value migration, strategy doc updates, `arc update` migration): 1
-  day.
+- Config and command-shape alignment (key + value rename, verb rename, strategy doc updates,
+  `arc update` migration): 1 day.
 - Per-dev overrides for interlocks + resolver consolidation: 1 day (extend status-reader; extract
   generic helper; migrate `sync-policy.ts` onto it).
 - Residual auto-push edge cases (pushability pre-checks, paired-push failure, unpushed-HEAD,
@@ -382,8 +403,9 @@ axis is **diagnostic vs. behavior**:
 
 - Diagnostic: notes-discovery + state-machine unification + directional copy audit + shared-ref
   inference + worktree qualifier `failureReason`.
-- Behavior: config-shape alignment + per-dev overrides + resolver consolidation + pushability
-  pre-checks + paired-push failure + unpushed-HEAD + notes-under-manual-worktree.
+- Behavior: config-shape alignment + command-shape alignment + per-dev overrides + resolver
+  consolidation + pushability pre-checks + paired-push failure + unpushed-HEAD +
+  notes-under-manual-worktree.
 
 Each track is independently shippable and either order works.
 
