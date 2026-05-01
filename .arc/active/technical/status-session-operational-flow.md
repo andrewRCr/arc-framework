@@ -8,10 +8,10 @@
 - **Task List:** `tasks-session-operational-flow.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task 1.3 — Add archive.cadence to config schema
-- **Next Task:** Task 1.4 — Update integrate-work-unit.md cadence refinements (line ~82)
+- **Last Completed:** Task 1.7 — Document status-field migration approach
+- **Next Task:** Task 2.1 — Config schema migration for commit/push interlocks (line ~153)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 1.4 — Update integrate-work-unit.md cadence refinements
+- **Next Action:** Start Task 2.1 — Config schema migration for commit/push interlocks
 
 ---
