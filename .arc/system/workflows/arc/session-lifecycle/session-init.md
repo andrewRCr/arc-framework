@@ -254,14 +254,15 @@ mention gaps in orientation if they exist.** A clean check produces no output.
 
 ### Next work unit discovery
 
-**Skip if** an active status file was resolved and its `**Task List:**` is not `[none]` — discovery only
-applies between work units.
+**Skip if** an active status file was resolved AND (`sessionType === "planning"` OR `**Task List:**` is not
+`[none]`) — discovery only applies between work units. A planning session is an active WU even with no task
+list yet; the status file's Next Action carries direction.
 
-When no active status file was resolved, or the resolved file shows `**Task List:** [none]`, assess readiness
-for the next unit:
+When no active status file was resolved, or the resolved file shows `**Task List:** [none]` outside a
+planning session, assess readiness for the next unit:
 
-1. Read ROADMAP.md — identify the next queued or suggested item
-2. Check the backlog directory for existing artifacts (PRDs, `plan-*` docs) matching that item
+1. Read `.arc/backlog/ROADMAP.md` — identify the next queued or suggested item
+2. Check `.arc/backlog/` for existing artifacts (PRDs, `plan-*` docs) matching that item
 3. Report what exists and its readiness state in orientation
 4. Propose next steps; ask for confirmation before proceeding
 
