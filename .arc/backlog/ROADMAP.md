@@ -164,7 +164,7 @@ autonomy tiers, Conventional Changelog boundary-consolidation).
   canonical gate vocabulary preserved alongside the new interlock vocabulary), ARCd Rebrand
   (interlock-model terminology absorbed into rename pass)
 
-**Session-Operational Flow** — Planning (activated 2026-04-30)
+**Session-Operational Flow** — In Progress (activated 2026-04-30)
 
 Implements the autonomy-mode behavior (auto-commit, auto-push), handoff-interior toggle consumers,
 deferred-review × auto-commit safe-accumulate, arc-commit skill preservation, and metadata-state
@@ -172,8 +172,9 @@ foundation (State + Integration field model + sweep cadence config) against the 
 frame. WU-B in the pre-approved split. Validation window between WU-A archive and WU-B execution
 runs per `notes-interlock-foundation.md` (archived).
 
-- Plan: `active/technical/plan-session-operational-flow.md`
-- Branch: `technical/plan-session-operational-flow` (batch — also carrying Interlock Foundation archival)
+- PRD: `active/technical/prd-session-operational-flow.md`
+- Task list: `active/technical/tasks-session-operational-flow.md` (5 phases, 16 parent tasks)
+- Branch: `technical/session-operational-flow`
 - Upstream: Interlock Foundation (shipped — PR #23)
 
 **User Sync UX Polish** — After Session-Operational Flow Phase 6 (handoff-interior toggles)
@@ -501,6 +502,10 @@ site structure.
 
 ## Change Log
 
+- **2026-04-30**: Session-Operational Flow PRD + task list complete and merged via PR #24;
+  activated on `technical/session-operational-flow`. Implementation begins with Phase 1
+  (metadata-state foundation + cadence refinements — flipped from PRD's Phase 3 ordering so
+  SOF's own integration window uses the new cadence refinements as they land).
 - **2026-04-30**: Interlock Foundation complete (merged via PR #23) and archived to
   `archive/2026-q2/technical/05_interlock-foundation/`. Session-Operational Flow
   re-activated to planning on `technical/plan-session-operational-flow` (batch branch

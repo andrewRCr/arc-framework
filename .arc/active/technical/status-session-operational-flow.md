@@ -2,16 +2,16 @@
 
 ## Active Work
 
-- **State:** Planning
-- **Branch:** technical/plan-session-operational-flow
+- **State:** In Progress
+- **Branch:** technical/session-operational-flow
 - **Spec:** `prd-session-operational-flow.md`
-- **Task List:** [none]
+- **Task List:** `tasks-session-operational-flow.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task list and companion files generated
-- **Next Task:** [none]
+- **Last Completed:** Work unit activated
+- **Next Task:** Task 1.1 — Extend template-status.md State enum and Integration field (line ~33)
 - **Blockers:** [none]
 
-- **Next Action:** Run `integrate-planning-branch.md` — PR planning branch to base, then activate from base
+- **Next Action:** Begin Phase 1
 
 ---
