@@ -8,10 +8,10 @@
 - **Task List:** `tasks-session-operational-flow.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task 1.7 — Document status-field migration approach
-- **Next Task:** Task 2.1 — Config schema migration for commit/push interlocks (line ~153)
+- **Last Completed:** Task 2.2 — Commit-on-task-approval fire path
+- **Next Task:** Task 2.3 — Deferred-review × commit-on-task-approval safe-accumulate (line ~187)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 2.1 — Config schema migration for commit/push interlocks
+- **Next Action:** Start Task 2.3 — Deferred-review × commit-on-task-approval safe-accumulate
 
 ---
