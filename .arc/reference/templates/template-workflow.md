@@ -25,6 +25,16 @@ Body. Structure this however fits the workflow — numbered `## Steps`, named ph
 sections as needed. In-step markdown links to methods and extensions remain for reader
 navigation; the frontmatter is the load contract.
 
+<!--
+Interlock markers — for workflows that gate progress at a stop point. Drop into the step or
+section that the gate governs:
+
+    > [!IMPORTANT]
+    > `{type}-interlock`: Stop {trigger}. Surface {what}; await direction before {next-action}.
+
+See strategy-workflow-authoring.md § Interlock markers for types and placement.
+-->
+
 ---
 
 <!-- Collect reference-style link definitions here. -->
