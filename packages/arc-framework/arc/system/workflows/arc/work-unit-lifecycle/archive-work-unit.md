@@ -243,6 +243,10 @@ work unit.
 Activation ([activate-work-unit][activate-work-unit]) happens from the base branch after
 that PR merges.
 
+> [!IMPORTANT]
+> `workflow-interlock`: Stop before leaving archival for PRD creation. Surface archived work,
+> active planning state, and await direction before proceeding to the next workflow.
+
 **Full protection (standalone archival):** If no next work unit is planned, the housekeeping
 branch carries only archival. Push, create a PR, and merge directly — no planning workflows
 needed.
