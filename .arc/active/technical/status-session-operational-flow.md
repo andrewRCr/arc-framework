@@ -2,7 +2,8 @@
 
 ## Active Work
 
-- **State:** In Progress
+- **State:** Complete
+- **Integration:** Awaiting PR
 - **Branch:** technical/session-operational-flow
 - **Spec:** `prd-session-operational-flow.md`
 - **Task List:** `tasks-session-operational-flow.md`
@@ -12,6 +13,6 @@
 - **Next Task:** Task 5.1 — Complete verification (line ~315)
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — verify completion
+- **Next Action:** integrate-work-unit Step 3 — create completion metadata
 
 ---

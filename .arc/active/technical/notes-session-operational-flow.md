@@ -4,11 +4,24 @@
 rationale extracted from `prd-session-operational-flow.md` § Technical Considerations and task-generation
 discussions, plus working observations as implementation surfaces.
 
+**Completed:** 2026-05-01
+
 **Intended lifespan:** Until SOF is archived.
 
 ---
 
-## Phase 1 Rationale — Metadata-State Foundation + Cadence Refinements
+## Contents
+
+- [Metadata-State Foundation and Cadence Refinements](#metadata-state-foundation-and-cadence-refinements)
+- [Commit-Interlock Release](#commit-interlock-release)
+- [Push-Interlock Release](#push-interlock-release)
+- [Failure-Mode Handling and Strategy Cascade](#failure-mode-handling-and-strategy-cascade)
+- [Verification](#verification)
+- [Test Surface](#test-surface)
+- [Open Questions Resolved at Task Generation](#open-questions-resolved-at-task-generation)
+- [Observations](#observations)
+
+## Metadata-State Foundation and Cadence Refinements
 
 **Phase ordering flip.** PRD listed metadata-state as Phase 3; task generation flipped it to Phase 1.
 Reasoning: metadata-state has no dependency on configurable interlock release, and SOF's own integration
@@ -53,7 +66,7 @@ This matches the existing pattern for optional status-file fields (Interrupts / 
 
 ---
 
-## Phase 2 Rationale — Commit-Interlock Release
+## Commit-Interlock Release
 
 **Config shape shifted from ladder to independent interlocks.** Planning originally carried a single
 `session.autonomy: manual-commit | auto-commit | auto-push` ladder. ADR-016's vocabulary is sharper than that:
@@ -93,7 +106,7 @@ unrelated tasks, accumulated multi-session work — all from arc-commit § Step 
 
 ---
 
-## Phase 3 Rationale — Push-Interlock Release
+## Push-Interlock Release
 
 **Push release is independent.** `session.push_interlock: on-handoff` releases the push-interlock during
 handoff only. It does not imply `session.commit_interlock: on-task-approval`; all four setting combinations are
@@ -108,7 +121,7 @@ non-handoff push semantics. Mid-session push is the user's call regardless of in
 
 ---
 
-## Phase 4 Rationale — Failure-Mode Handling + Strategy Cascade
+## Failure-Mode Handling and Strategy Cascade
 
 **Failure-mode #5 detection signal: existing pointers, no new infra.** Open Question resolved at task
 generation. The composite of (a) `**Next Action:**` workflow-step pointer (from session-handoff §
@@ -134,7 +147,7 @@ the user wants for the partial work. Rollback dev-rule from IF applies to bad-st
 
 ---
 
-## Phase 5 Rationale — Verification
+## Verification
 
 **Validation-window vehicle: plan-user-sync-ux confirmed.** Open Question resolved at task generation.
 plan-user-sync-ux is the leading downstream-consumer plan (small, in-scope for parallel, consumes IF's
@@ -152,7 +165,7 @@ Technical Considerations § Validation window for this WU (per-decision routing 
 
 ---
 
-## Test-Surface Note (Phases 2-4)
+## Test Surface
 
 PRD reqs #25-27 call for vitest unit/integration tests covering commit-on-task-approval fire path, complexity-detection
 bump-to-manual, deferred-review safe-accumulate, and failure-mode fallback. Most of these are agent-procedure

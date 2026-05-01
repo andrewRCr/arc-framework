@@ -1,6 +1,7 @@
 # Task List: Session-Operational Flow
 
 - **PRD:** `prd-session-operational-flow.md`
+- **Completed:** 2026-05-01
 - **Branch(es):** `technical/session-operational-flow`
 - **Base Branch:** `main`
 
@@ -28,7 +29,8 @@ early.
 
 _Design decisions:_ Phase ordering flipped from PRD — metadata-state foundation lands first so SOF's own
 integration uses the new cadence. Phase 3 split contingency resolved as bundled (medium surface). Lazy
-migration; no helper command. See [`notes-session-operational-flow.md`][notes] § Phase 1 Rationale.
+migration; no helper command. See [`notes-session-operational-flow.md`][notes] § Metadata-State Foundation
+and Cadence Refinements.
 
 ### `[x]` **1.1 Extend `template-status.md` — `**State:**` enum + `**Integration:**` field**
 
@@ -148,7 +150,7 @@ Commit-on-task-approval fires by following arc-commit § Step 2-6 procedure on a
 manual-with-prompt — single source of truth, no duplication. Deferred-review default is safe-accumulate;
 per-task fire requires explicit opt-in at deferral. Token economy: process-task-loop gets the minimum trigger
 condition; depth lives in strategy-session-operations. See [`notes-session-operational-flow.md`][notes]
-§ Phase 2 Rationale.
+§ Commit-Interlock Release.
 
 ### `[x]` **2.1 Config schema migration for commit/push interlocks**
 
@@ -238,7 +240,7 @@ _Purpose:_ Layer push-on-handoff behavior into the session-handoff ceremony when
 _Design decisions:_ Push release is independent from commit release. `session.push_interlock: on-handoff` does
 not imply `session.commit_interlock: on-task-approval`; adopters can choose handoff push while keeping commit
 manual. session-handoff consumes `config.value.settings["session.push_interlock"]` from the composite handoff
-probe. See [`notes-session-operational-flow.md`][notes] § Phase 3 Rationale.
+probe. See [`notes-session-operational-flow.md`][notes] § Push-Interlock Release.
 
 ### `[x]` **3.1 Push-on-handoff fire path in session-handoff**
 
@@ -278,7 +280,7 @@ _Design decisions:_ Five failure modes split into three categories (bad-state, t
 recovery uses existing `**Next Action:**` workflow-step pointer + `git status --porcelain` /
 `git diff --cached --stat` — no new infra. P1.b (criteria in strategy-session-operations) deferred — no
 downstream plan currently references the pre-advance pattern. See [`notes-session-operational-flow.md`][notes]
-§ Phase 4 Rationale.
+§ Failure-Mode Handling and Strategy Cascade.
 
 ### `[x]` **4.1 Failure-mode taxonomy + crash-recovery routine**
 
