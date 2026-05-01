@@ -119,6 +119,10 @@ session-state, follow the override instead.
 6. `.arc/reference/QUICK-REFERENCE.md` — **section-level partial read**: `## Environment & Path Context`
     only (subsumes `### Runtime Environment`)
 
+**Commit-interlock load set:** If `config.value.settings["session.commit_interlock"]` is
+`on-task-approval`, also load `.arc/system/methods/commit-format.md` and
+`.arc/system/methods/commit-context-format.md` during session-init.
+
 **Active work context:**
 
 7. **Active status file** — resolve from `active.value` and partial-read the `## Active Work`

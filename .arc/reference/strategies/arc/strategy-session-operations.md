@@ -456,6 +456,17 @@ The `arc-commit` skill remains directly invokable under all interlock settings. 
 ad-hoc commit path for non-task work and the recovery path when commit-on-task-approval falls back
 to manual-with-prompt.
 
+### Commit-Interlock Load-Set
+
+When `session.commit_interlock` resolves to `on-task-approval`, session-init eagerly loads
+`commit-format.md` and `commit-context-format.md`. Commit-on-task-approval fires between tasks
+without an explicit `arc-commit` skill invocation, so session-init is the reliable point to load
+the commit-message and context-footer contracts before the release can occur.
+
+Under `session.commit_interlock: manual`, those methods stay T3 and load on demand through the
+`arc-commit` skill or prepare-commits workflow. The manual path keeps the default session-init
+load set smaller because no commit release can occur without the user invoking the commit path.
+
 ### Deferred-Review × Commit-Interlock Release
 
 Deferred review safe-accumulates by default under `session.commit_interlock: on-task-approval`.

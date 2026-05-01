@@ -198,23 +198,21 @@ condition; depth lives in strategy-session-operations. See [`notes-session-opera
         - Added the strategy section covering rationale, explicit deferral-time opt-in syntax, ambiguous
           phrasing fallback, and batch review of accumulated work on return.
 
-### `[ ]` **2.4 Session-init commit-interlock load-set adaptation**
+### `[x]` **2.4 Session-init commit-interlock load-set adaptation**
 
-- _Goal:_ When `session.commit_interlock` resolves to `on-task-approval`, eagerly load `commit-format.md` and
-  `commit-context-format.md` methods at session-init. Today these load via the arc-commit skill; commit-on-task-approval
-  fires between tasks without skill invocation, so session-init becomes the load trigger.
+- _Outcome:_ Added the conditional session-init load set for `session.commit_interlock:
+  on-task-approval` and documented why commit-format methods stay on-demand under `manual`.
 
-    - `[ ]` **2.4.a Add conditional load logic to session-init.md Step 3**
-        - Add a brief instruction reading `config.value.settings["session.commit_interlock"]` from the probe and
-          conditionally loading the two methods when the value is `on-task-approval`. Keep terse.
+    - `[x]` **2.4.a Add conditional load logic to session-init.md Step 3**
+        - Added the terse conditional load instruction to the package template and rendered maintainer
+          session-init workflow copies.
 
-    - `[ ]` **2.4.b Mirror in `session-init.contributor.md`**
-        - Same conditional load in the contributor variant.
+    - `[x]` **2.4.b Mirror in `session-init.contributor.md`**
+        - Mirrored the universal load-set note in both contributor workflow copies.
 
-    - `[ ]` **2.4.c Document load-set rationale in strategy-session-operations.md § Commit-Interlock Load-Set**
-        - Cover why the methods load eagerly under `session.commit_interlock: on-task-approval`
-          (commit-on-task-approval fires without skill invocation; session-init is the load point) and why they
-          don't load under `manual` (status quo — arc-commit skill loads them on-demand).
+    - `[x]` **2.4.c Document load-set rationale in strategy-session-operations.md § Commit-Interlock Load-Set**
+        - Added the rationale section covering eager load under `on-task-approval` and on-demand loading
+          through `arc-commit` / prepare-commits under `manual`.
 
 ### `[ ]` **2.5 Contributor-role commit-on-task-approval staging boundary**
 
