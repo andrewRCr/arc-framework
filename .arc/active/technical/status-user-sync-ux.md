@@ -13,6 +13,6 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run `integrate-planning-branch.md` to PR planning branch to `main`
+- **Next Action:** integrate-planning-branch Step 1 — verify readiness for graduated-path PR
 
 ---
