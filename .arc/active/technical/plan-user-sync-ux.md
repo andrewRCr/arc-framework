@@ -16,6 +16,12 @@ The user actually needed `arc user pull` to bring remote notes down. `arc user s
 direction — and `arc user fetch` (tried next) prompted with copy identical to `arc user pull`, approved
 the prompt, and left state in an intermediate shape the user could not interpret.
 
+A second handoff bug surfaced 2026-05-01: with the worktree branch ahead of origin, `arc user save`
+reported "Saved 2 file(s) to git note on 7190a8f" and `arc user push` reported success while the worktree
+branch was still ahead of origin. Direct `git notes show 7190a8f` found no note. Recovery succeeded only
+after pushing the worktree branch first, then re-running save+push. The CLI claimed remote sync success
+against an unpushed commit.
+
 Root causes across `packages/arc-framework/src/commands/user/sync-status.ts` and related handlers:
 
 1. **Dual state machines.** Full-mode (`inspectUserSyncRefsDetailed`) and session-init
@@ -29,18 +35,29 @@ Root causes across `packages/arc-framework/src/commands/user/sync-status.ts` and
    omit the object of comparison. Other lines in the same module are directional ("Your local git note
    is newer than remote"). The inconsistency forces users to decode which side is the reference.
 
-3. **`arc user fetch` breaks git convention.** `git fetch` is universally read-only and never prompts.
-   `arc user fetch` prompts with copy identical to `arc user pull` ("Local notes will be overwritten by
-   remote. Continue?"), implying a file overwrite when only the ref is updated. (Atomic fix routed to
-   the Session-Init Optimization WU's `atomic-session-init-optimization.md` — this plan assumes it
-   lands first.)
+3. **`arc user fetch` broke git convention.** `git fetch` is universally read-only and never prompts.
+   `arc user fetch` prompted with copy identical to `arc user pull` ("Local notes will be overwritten by
+   remote. Continue?"), implying a file overwrite when only the ref is updated. *(Atomic fix shipped in
+   the Session-Init Optimization WU's `atomic-session-init-optimization.md`.)*
 
-4. **`user.sync_push` covers notes only, not commits.** Pushing `refs/notes/arc/user/{identity}`
-   without pushing the commits it annotates produces a remote state where notes reference unknown
-   commits for fresh clones or sibling machines. `arc user load --max-walk` partly mitigates via
-   ancestor search within a walk depth, but the semantic coherence is broken. Session handoff never
-   pushes the worktree — users do it manually, making `user.sync_push: always` partly meaningless when
-   the commits the notes annotate haven't been pushed.
+4. **`user.sync_push` covers notes only — without coherence guarantees in mixed-config cases.** Pushing
+   `refs/notes/arc/user/{identity}` without pushing the commits it annotates produces a remote state
+   where notes reference unknown commits for fresh clones or sibling machines. Interlock Foundation
+   shipped the **push-ordering invariant** (worktree before notes when both fire at handoff) which
+   solves the case where both auto-push. But when `user.sync_push: always` runs alongside
+   `session.push_interlock: manual` — or against an unpushed HEAD generally — the coherence guarantee
+   doesn't hold, and the CLI publishes notes that reference unknown commits.
+
+5. **Three competing config-shape standards.** `user.sync_push: always | prompt | manual` predates
+   Interlock Foundation. IF shipped `session.{commit,push}_interlock: manual | on-X`. The
+   session-operations strategy doc documents a third "canonical" handoff-interior-toggle shape
+   (`auto / prompt / manual`) that nothing actually uses. Three shapes is one too many for a polish
+   window.
+
+6. **Per-developer overrides missing on the IF interlocks.** `user.sync_push` has `arc.syncPush` as a
+   per-dev override; `session.commit_interlock` and `session.push_interlock` shipped without
+   equivalents. This was an oversight during IF — per-dev override is a meaningful primitive (e.g., a
+   contributor running `manual` while the project default is `on-task-approval`).
 
 This matters now because:
 
@@ -51,17 +68,24 @@ This matters now because:
   copy issues persist; notes-vs-commits push coherence is the kind of friction that only surfaces
   across machines and will dominate dogfooding time if not addressed beforehand.
 
-## Relationship to Gate Model Frame
+## Relationship to Upstream Work
 
-[ADR-016][adr-016] establishes configurable autonomy interlocks for session-operational flow, with
-[plan-session-operational-flow][plan-ops] implementing the core mechanics — including the
-handoff-interior toggle framework for configuring actions inside `arc handoff`. This plan consumes
-that framework: the auto-push design below becomes an instantiation of handoff-interior toggles
-(worktree push + notes push as paired configurable actions) rather than a standalone `user.sync_push`
-expansion.
+The Interlock Foundation WU ([prd-foundation][prd-foundation]) and Session-Operational-Flow WU
+([prd-ops][prd-ops]) shipped the substrate this plan operates on:
 
-Scope impact: the auto-push portion of this plan gets lighter post-frame. State-machine unification
-and directional copy audit (the other two scope items) are unaffected — they stand on their own.
+- **Handoff-interior toggle pattern** (IF Phases 1–2): flat-key configuration shape for actions that
+  fire inside the handoff ceremony, with config-key precedence chain (git config → yaml → default).
+  Documented in [strategy-session-operations][strategy-ops] § Handoff-Interior Toggle Pattern.
+- **Push-ordering invariant** (IF, constitutional): worktree-push lands before notes-push when both
+  fire at handoff. Enforced by handoff-workflow per-action checklist ordering.
+- **`session.push_interlock: on-handoff`** (SOF): worktree push at handoff. This *is* the worktree-push
+  toggle this plan was originally going to introduce; no sibling toggle is needed.
+- **`user.sync_push: always | prompt | manual`** (predates IF; formalized as a handoff-interior toggle
+  by IF): notes save+push at handoff.
+
+What's left for this plan: **finish the polish work the framework enables** (state machine, copy,
+residual edge cases, the unpushed-HEAD bug) and **align the legacy config shape** with IF's interlock
+vocabulary while adding the per-dev overrides we forgot during IF.
 
 ## Scope
 
@@ -85,64 +109,99 @@ no path to "run `arc user save`" when the user actually needs `arc user pull`. C
 string permutations to a documented matrix.
 
 **Directional copy audit.** Every headline and detail line in `sync-status.ts` names both sides of the
-comparison it makes. One first-use "About user notes" framing surface (likely in `arc join` output or
-as a conditional hint line in `arc status`) to orient users who haven't internalized the git notes
-terminology. Keep git notes vocabulary — supplement, don't abstract; devs need the terms to reason
-about `arc user *` commands, which are thin wrappers over `git notes` operations.
+comparison it makes. One first-use "About user notes" framing surface (location decision deferred to
+PRD — see § Alternatives) to orient users who haven't internalized the git notes terminology. Keep git
+notes vocabulary — supplement, don't abstract; devs need the terms to reason about `arc user *`
+commands, which are thin wrappers over `git notes` operations.
 
 **Worktree qualifier — surface `failureReason`.** When `worktree.state === "remote-unavailable"`,
 `formatWorktreeQualifierLine` (`sync-status.ts:354`) emits a single message regardless of whether
 the bounded fetch hit its 3 s timeout or errored outright. The `failureReason: "timeout" | "error"`
-field is captured by `runWorktreeSyncStatus` (`worktree-sync.ts:53`) but never reaches the user, so
-a transient blip and a hard auth/config failure render identically. Fold the field into the
-rendered line — timeout reads as "likely transient, retry or use `--offline`"; error reads as
-"investigate auth/network".
+field is captured by `runWorktreeSyncStatus` but never reaches the user, so a transient blip and a
+hard auth/config failure render identically. Fold the field into the rendered line — timeout reads as
+"likely transient, retry or use `--offline`"; error reads as "investigate auth/network".
 
-**Auto-push implementation within the interlock-model frame.** Consumes the handoff-interior toggle framework
-from [plan-session-operational-flow][plan-ops] (Phase 6). This plan instantiates paired worktree-push +
-notes-push as configurable handoff-interior actions — solving the `user.sync_push: always` incoherence
-(notes pushed without commits) by pairing both operations at the same interlock. Includes pushability
-pre-checks (protected branches, unpushable states, rebase in progress), failure semantics, and
-remote-unavailable handling. Config axis shape is provided by the frame; this plan picks up the
-worktree/notes-specific instantiation.
+**Config-shape alignment.** Rename and align the legacy `user.sync_push` config shape with IF's
+interlock vocabulary so all three release-mode keys speak the same language:
 
-**Push-timing default — handoff-only.** Per [plan-session-operational-flow][plan-ops] § Design Decisions,
-the recommended default is handoff-only push (with per-commit available as a power-user opt-in). This plan's
-worktree+notes pairing is the canonical instantiation of that default. Rationales relevant here:
+- Yaml key: `user.sync_push` → `user.notes_push`. Current name is opaque; `notes_push` says what it does.
+- Value enum: `always | prompt | manual` → `manual | prompt | on-handoff`. `always` becomes
+  `on-handoff` (semantically identical, vocabulary-aligned with `session.push_interlock: on-handoff`).
+  `prompt` stays — team-mode rationale (notes are personal context; review-before-share for shared
+  remotes) is real and team-specific. Worktree pushes don't get a `prompt` mode for the symmetric
+  reason: commits already had review, so mid-handoff prompting adds friction without justification.
+- Git-config override: `arc.syncPush` → `arc.notesPush`.
+- Strategy doc § Standard value enum (session-operations § Handoff-Interior Toggle Pattern): retire the
+  documented-but-unused `auto / prompt / manual` standard. Canonical shape becomes `manual | on-X` with
+  `prompt` available as opt-in for toggles where review-before-fire makes sense (notes; future
+  similar cases).
+- Migration: pre-1.0 break is acceptable. Adopters with `user.sync_push: always` get a one-time
+  rewrite during `arc update` (or equivalent migration helper) that translates key + values.
 
-- **Pairing.** Worktree-push and notes-push must land at the same interlock; handoff is the natural pairing
-  point. Per-commit push of either side without the other re-creates the `user.sync_push: always`
-  incoherence this plan exists to fix.
-- **Concurrent-session safety.** Under ARC's parallel-session concurrency model (per
-  [plan-session-operational-flow][plan-ops] § Concurrency Model), multiple sessions may write to the
-  shared `refs/notes/arc/user/{identity}` ref. Handoff-only concentrates ref writes into deliberate
-  single events, dramatically reducing race surface compared to per-commit push from multiple sessions.
+**Per-developer overrides for interlock keys.** Add `git config arc.commitInterlock` and
+`arc.pushInterlock` as per-dev overrides for the IF interlocks. Both keys move to **3-tier resolution**
+(git config → yaml → default), matching `user.notes_push` and the broader handoff-interior toggle
+shape. Validation in `lib/config/status-reader.ts` extends to read the git-config override before
+falling through to yaml + default.
 
-**`user.sync_push: always` under manual push-interlock.** Do not require
-`session.push_interlock: on-handoff` as a hard dependency for `user.sync_push: always`. The settings can
-coexist, but the workflow must preserve commit/note coherence: when the worktree has no unpushed commits,
-auto-save and push notes; when the worktree is local-ahead and `session.push_interlock: manual`, save notes
-locally but block notes push with clear guidance to push the worktree first. Only
-`session.push_interlock: on-handoff` can make "always" fully automatic for sessions that create new commits,
-because the workflow pushes the worktree before notes. Diverged / remote-ahead states should block notes push
-and surface reconciliation rather than publishing notes against unavailable commits.
+**Resolver consolidation.** With all three release-mode keys (`session.commit_interlock`,
+`session.push_interlock`, `user.notes_push`) sharing the 3-tier resolution shape, extract the
+precedence logic into a generic helper (`resolveGitConfigOverride<T>` or similar) and migrate
+`lib/sync-policy.ts` plus the new interlock resolutions onto it. Original "deferred to plan-user-sync-ux
+when third toggle lands" rationale survives — just retargeted: the third toggle was always going to be
+the interlocks once we noticed they needed per-dev overrides, not a worktree-push sibling. *(Note:
+`lib/autonomy-policy.ts` shipped briefly during IF as a 3-tier parallel of `sync-policy.ts`, then was
+deleted during SOF Task 2.1 when `session.autonomy` split into the two separate flat keys; validation
+moved inline to `status-reader.ts` and lost the 3-tier shape. This scope item restores it.)*
 
-**Shared-ref sync-state inference under parallel sessions.** Each session computes sync state independently
-from its worktree's HEAD. The notes ref is shared across the identity; sync-state inference must handle the
-case where another session pushed notes that this session hasn't fetched. Surface as part of the state-machine
-unification design — distinguish "your local is behind because you haven't fetched" from "your local is
-behind because work happened on another machine," and from "your local is behind because a sibling session
-on this machine pushed."
+**Pushability pre-checks for handoff-interior pushes.** When a configured handoff-interior push fires
+against an unpushable state (protected branch, rebase in progress, detached HEAD, upstream hook
+failure), behavior:
 
-**Unpushed-HEAD handoff save/push verification.** During SOF handoff on 2026-05-01, `arc user save`
-reported "Saved 2 file(s) to git note on 7190a8f" and `arc user push` reported success while the worktree
-branch was still ahead of origin. Immediate `arc user status --json` reported the older
-`savedCommit: 4e0679a`, `diskStatus: different`, and "latest local git note is from 4e0679a." Direct
-`git notes show 7190a8fb` found no note. Recovery succeeded only after pushing the worktree branch first,
-then running `arc user save` + `arc user push`; after that, status reported `savedCommit: bad1b9b` and
-`diskStatus: same`. The plan should explicitly test notes-save/push behavior when HEAD is ahead of origin
-and verify the CLI either pushes the annotated commit first, blocks with clear guidance, or preserves a
-recoverable local note without claiming remote sync success.
+- For `session.push_interlock: on-handoff`: report the unpushable condition, surface the underlying
+  reason, do not mask as success. Skip-vs-error decision per condition (e.g., detached HEAD: skip with
+  notice; protected branch: error with guidance).
+- For `user.notes_push: on-handoff`: same pattern; protected-branch is less likely for the notes ref
+  but possible (e.g., team server policy).
+
+Concrete per-condition table finalized at PRD time.
+
+**Paired-push failure semantics.** When both worktree and notes push fire at handoff and one fails:
+push-ordering invariant guarantees worktree lands first, so the failure mode is "worktree pushed,
+notes failed" (not the reverse). User-facing: surface clearly which side succeeded, give the recovery
+command (`arc user push`), do not retry automatically (network errors compound on retry; user decides).
+
+**`user.notes_push: on-handoff` under `session.push_interlock: manual`.** When notes are configured to
+auto-push but worktree is manual:
+
+- Worktree has no unpushed commits → save and push notes.
+- Worktree is local-ahead → save notes locally; **block** notes push with clear guidance ("push the
+  worktree first, then `arc user push`").
+- Worktree is diverged / remote-ahead → block notes push; surface reconciliation guidance.
+
+The block-with-guidance pattern preserves coherence (no notes against unknown commits) without forcing
+users into `session.push_interlock: on-handoff` when they want manual control of worktree pushes.
+
+**Shared-ref sync-state inference under parallel sessions.** Each session computes sync state from its
+worktree's HEAD. The notes ref is shared across the identity. Sync-state inference must distinguish:
+
+- "your local is behind because you haven't fetched" — local hasn't pulled yet
+- "your local is behind because work happened on another machine" — different machine pushed
+- "your local is behind because a sibling session on this machine pushed" — same machine, different
+  worktree/session
+
+Without a remote probe, only the third can be detected directly (notes-ref distance from local working
+files vs. saved-when timestamp). The first two require a fetch to disambiguate. **Mechanism (committed,
+final shape at PRD):** extend the existing bounded-fetch pattern (already in place for the worktree-sync
+probe) to the notes ref on full-mode `arc status` invocation. Session-init probe stays remote-aware via
+the existing pull mechanism. The `--offline` flag suppresses both fetches.
+
+**Unpushed-HEAD save/push behavior.** Pin the CLI behavior for the 2026-05-01 bug: `arc user save`
+saves the local note regardless of HEAD push state (preserves the dev's working state). `arc user push`
+checks the annotated commits' push status before pushing the notes ref; blocks on unpushed commits
+with clear guidance to push the worktree first. The same coherence rule applied to the
+`user.notes_push: on-handoff` + `session.push_interlock: manual` case above generalizes here — notes
+push is gated on commit pushability regardless of trigger (handoff, manual, or future modes).
 
 ### Out of scope
 
@@ -150,128 +209,141 @@ recoverable local note without claiming remote sync success.
 - Docs-site deep dive on git notes concepts — that's `plan-docs-content-sweep.md` territory.
 - Changes to the per-identity notes ref path or namespace.
 - Changes to the session-init probe's 5-state enum (the target; not a new state).
+- Adding `prompt` mode to `session.commit_interlock` / `session.push_interlock`. Worktree pushes go
+  through reviewed commits and commit work is reviewed at the task-interlock; mid-session prompts add
+  friction without team-scenario justification. The notes-prompt rationale is unique to notes (see
+  § Config-shape alignment).
 
 ## Alternatives
 
-**State-machine unification approaches:**
+**State-machine unification (committed: A).**
 
-- **A — Session-init spine + full-mode detail axis (recommended direction).** Single state computation
-  returns the 5-state spine plus a detail object (diskStatus, savedWhen, refDistance). Full-mode
-  renders spine + detail; session-init renders spine only. Action hints come from the spine.
+- **A — Session-init spine + full-mode detail axis.** Single state computation returns the 5-state
+  spine plus a detail object (diskStatus, savedWhen, refDistance). Full-mode renders spine + detail;
+  session-init renders spine only. Action hints come from the spine.
     - *Pro:* Keeps session-init surface stable. Eliminates state-machine drift. Produces a documented
       state matrix.
     - *Con:* Non-trivial refactor of `inspectUserSyncRefsDetailed`. Full-mode output shape changes
       (version-gate or accept the break — CLI is pre-1.0).
-
 - **B — Keep two state machines, add cross-validation assertion.** In dev builds, assert full-mode and
   session-init agree about the same underlying git state; surface mismatches as warnings.
-    - *Pro:* Smaller change. Catches the specific bug that hit this morning.
+    - *Pro:* Smaller change.
     - *Con:* Doesn't fix underlying architecture. Copy inconsistency remains. Full-mode stays hard to
       reason about.
 
-**Auto-push config shape** is now provided by the interlock-model frame's handoff-interior toggle framework
-(see [plan-session-operational-flow][plan-ops] Phase 6). The three axes previously enumerated here
-(new `handoff.push` key, extended `user.sync_push`, smart coupling) are superseded — worktree push
-and notes push become paired handoff-interior toggles under the frame's configuration schema.
+**Decision: A.** B trades a real fix for a smaller change, which doesn't earn the deferral when
+state-machine drift is the root pathology behind the symptoms.
 
-Remaining plan-level design choices (for PRD):
+**Config-rename migration (committed: A).**
 
-- **Pushability pre-check behavior.** When push is enabled and the branch is protected or unpushable
-  (rebase in progress, upstream hook failure, detached HEAD), does the toggle skip silently, prompt,
-  or error?
-- **Paired-operation failure semantics.** If worktree push succeeds but notes push fails (or vice
-  versa), how is the failure surfaced to the user? Retry, rollback, report-and-continue?
-- **Backward compatibility with `user.sync_push`.** Does the existing key deprecate, get absorbed
-  into the new toggle schema, or continue to coexist during transition?
+- **A — Hard rename in `arc update`.** `arc update` rewrites `user.sync_push: always` →
+  `user.notes_push: on-handoff` (and `prompt`/`manual` values renamed equivalently). Single migration;
+  old key removed.
+- **B — Accept both keys for one release; deprecate.** Both `user.sync_push` and `user.notes_push`
+  work; old key emits a warning. Hard remove in next release.
+- **C — Coexist forever.** Two keys, two names, permanent vocabulary asymmetry.
 
-- **Resolver consolidation (deferred from interlock-foundation).** `lib/autonomy-policy.ts` lands in
-  the interlock-foundation WU as a literal parallel of `lib/sync-policy.ts` — same three-tier
-  precedence (git-config → yaml → default), different domain. Generic consolidation
-  (`resolveGitConfigOverride<T>`) was deferred to this plan: when the worktree-push toggle (#3) lands,
-  the resolver pass owns generalizing all three onto a single helper. Rationale: designing the generic
-  API against three real shapes is cheaper than two-and-refactor. If the abstraction doesn't fit
-  cleanly when this plan executes, escalate to the sibling `session-operational-flow` WU or a small
-  dedicated cleanup WU.
+**Decision: A.** Pre-1.0; clean break is cheaper than a dual-key window. C is not really an option in a
+polish window.
+
+**First-use framing surface (deferred to PRD).**
+
+- **A — Conditional hint line in `arc status`.** When the user's first-touch state suggests confusion
+  (e.g., session-init detects no local notes yet), append a single-line "About user notes:
+  see `arc user --help`" pointer.
+- **B — Add to `arc join` post-init message.** First-time setup includes a paragraph orienting to the
+  user-notes flow.
+- **C — Both** (belt-and-suspenders).
+
+**Decision deferred to PRD** — both have merit; want to gauge volume of confusion against signal value.
+Likely answer is C with the `arc status` hint conditional on a suppression flag the user can toggle off.
 
 ## Unknowns and Assumptions
 
-**External research status update.** The coupled-push semantics research ("is pairing branch + metadata
-push idiomatic?") is partially obviated by the interlock-model frame — the frame's architectural decision
-is that pairing-at-same-interlock is the right shape, validated by industrial precedent in
-[ADR-016][adr-016]. Remaining research value at PRD drafting:
+**External research at PRD drafting:**
 
-- Pushability pre-check conventions in modern VCS tooling (protected branches, unpushable states) —
-  narrower than the original coupled-push question; specific to this plan's mechanics.
-- Failure semantics for paired remote operations — how do tools surface partial-failure of composite
-  push operations? (Conventional patterns in `git push --all`, `git push --atomic`, monorepo tooling.)
-- Terminology research for the "ref snapshot of local config/state" concept ("snapshot", "state ref",
-  "note", "metadata", "pin") — still relevant for copy audit regardless of the frame.
+- Pushability pre-check conventions in modern VCS tooling (protected branches, unpushable states,
+  rebase-in-progress detection).
+- Failure-surfacing conventions for paired remote operations (`git push --all`, `git push --atomic`,
+  monorepo tooling). How do these report "first succeeded, second failed"?
+- Terminology for the "ref snapshot of local config/state" concept ("snapshot", "state ref", "note",
+  "metadata", "pin") — relevant for the directional copy audit.
 
 **Assumptions to validate during PRD:**
 
-- Session-init probe remains the canonical remote-state surface; full-mode consumes it. If this is
-  wrong (e.g., full-mode needs independent semantics for some CI path), the unification direction
-  changes.
+- Session-init probe remains the canonical remote-state surface; full-mode consumes it. If wrong
+  (e.g., full-mode needs independent semantics for some CI path), the unification direction changes.
 - Users reading `arc status` are devs familiar with git notes *concept* (even if rarely used) —
   terminology supplementation, not abstraction. If beta feedback shows this is wrong, revisit the
   abstraction question.
-- `arc user fetch` without a prompt is universally safer than with prompt. If the prompt was
-  protecting against a failure mode not yet identified, the atomic fix in Session-Init Optimization
-  needs revisiting — this plan assumes no such failure mode exists.
+- `user.notes_push: prompt` rationale (review-before-share for team mode) is the only non-`manual|on-X`
+  mode worth keeping. If beta feedback surfaces other prompt-worthy cases, revisit the canonical shape.
+- The push-ordering invariant from IF holds for all paired-push scenarios this plan introduces — no
+  new orderings needed.
+- `lib/autonomy-policy.ts` deletion during SOF Task 2.1 was clean — no orphan references in workflows
+  or strategies. Verify during PRD-drafting; any stragglers route into the resolver-consolidation
+  scope item.
 
 ## Scope Estimate
 
-**Medium** (days–week).
+**Medium** (week-ish).
 
 Rough breakdown:
 
-- State-machine unification + copy audit: 2–3 days (refactor + tests + two-copy sync where applicable).
-- Auto-push: 1–2 days external research + 1–2 days PRD drafting + implementation TBD (depends on axis
-  chosen — Axis C is smallest, Axis A is largest).
+- Notes-discovery fix: ~0.5 day.
+- State-machine unification + directional copy audit: 2–3 days (refactor + tests).
+- Config-shape alignment (rename, value migration, strategy doc updates, `arc update` migration): 1
+  day.
+- Per-dev overrides for interlocks + resolver consolidation: 1 day (extend status-reader; extract
+  generic helper; migrate `sync-policy.ts` onto it).
+- Residual auto-push edge cases (pushability pre-checks, paired-push failure, unpushed-HEAD,
+  notes-push under manual worktree push): 1–2 days.
+- Worktree qualifier `failureReason`: ~0.5 day.
+- Shared-ref inference: scoped during state-machine unification (uses the same probe).
 
-**Dependencies:**
+**Dependencies:** All upstream prerequisites have landed.
 
-- **[plan-session-operational-flow][plan-ops] Phase 6 (handoff-interior toggles) must land first** for
-  the auto-push portion of this plan — the toggle framework is the substrate this plan instantiates
-  worktree-push + notes-push against. State-machine unification and copy audit (the other two scope
-  items) have no such dependency and could ship earlier if scoped independently.
-- Session-Init Optimization must land first (atomic fix for `arc user fetch` prompt ships there; the
-  state-machine refactor would conflict with the ongoing context-audit edits touching neighboring
-  surfaces).
-- Landing before ARCd Rebrand (not after) means the rename pass picks up a consolidated state
-  machine and directional copy in one pass, rather than re-touching strings that churned during this
-  work. Rebrand is a bulk-rename editorial pass; doing this WU first keeps its scope mechanical.
-- **[plan-worktree-foundation][plan-wf]** is sibling (parallelizable). Worktree Foundation's
-  SESSION-NOTES per-worktree handling interacts with sync semantics; either order works (this WU
-  first → Worktree Foundation incorporates worktree-aware sync from clean substrate; Worktree
-  Foundation first → this WU retrofits worktree axis cleanly).
-- **[plan-coord-probe][plan-coord]** is sibling (parallelizable). Coord-probe consumes the
-  notes-discovery fix as one signal source for branch-gone detection. Coord-probe ships v1 with in-git
-  and gh signals; notes-as-breadcrumb signal joins when the notes-discovery fix lands. Coordinated
-  parallel work, not strict ordering.
-- **[plan-agile-wu-lifecycle][plan-awl]** and **[plan-concurrent-work-conventions][plan-cwc]** are
-  downstream — both benefit from a clean sync state machine before tier model and concurrency
+- Session-Init Optimization (`arc user fetch` atomic fix + neighboring context refactor) — 04, archived.
+- Interlock Foundation (handoff-interior toggle pattern, push-ordering invariant, configuration
+  surface) — 05, archived.
+- Session-Operational-Flow (`session.push_interlock: on-handoff` worktree push, structured
+  task-completion prompt, parallel-session concurrency model framing) — 06, archived.
+
+**Sibling plans (parallelizable):**
+
+- [plan-worktree-foundation][plan-wf]: Worktree Foundation's per-worktree SESSION-NOTES handling
+  interacts with sync semantics; either order works (this WU first → Worktree Foundation incorporates
+  worktree-aware sync from clean substrate; Worktree Foundation first → this WU retrofits worktree
+  axis cleanly).
+- [plan-coord-probe][plan-coord]: Coord-probe consumes the notes-discovery fix as one signal source
+  for branch-gone detection. Coordinated parallel work, not strict ordering.
+
+**Downstream (benefit from this WU's exits):**
+
+- [plan-agile-wu-lifecycle][plan-awl] and [plan-concurrent-work-conventions][plan-cwc]: both benefit
+  from a clean sync state machine and aligned config vocabulary before tier model and concurrency
   conventions add their own axes.
 
-**Scheduling:** After Session-Init Optimization and plan-session-operational-flow Phase 6 (handoff-interior
-toggles). State-machine + copy work can start once Session-Init Optimization lands; auto-push work
-waits for the interlock-model frame. Before Work-Unit Mobility and ARCd Rebrand. Pre-1.0 polish window
-where fixing sync UX produces maximum leverage for downstream work.
+**Scheduling:** Pre-1.0 polish window. Before ARCd Rebrand (rename pass picks up consolidated state
+machine + aligned config in one pass rather than re-touching strings that churned during this work).
 
-**Pre-approved split at PRD-drafting time:** Natural split aligns with the frame dependency:
+**WU split:** Default unified. Internal coupling between state-machine unification, directional copy
+audit, and config-shape alignment (all touch `sync-status.ts` adjacent surfaces or its rendering layer)
+makes a split awkward. Split-trigger is task-generation scope blowout; if invoked, the natural split
+axis is **diagnostic vs. behavior**:
 
-- WU-A: State-machine unification + copy audit (small–medium; independent of interlock-model frame; can
-  ship as soon as Session-Init Optimization lands).
-- WU-B: Auto-push instantiation against handoff-interior toggle framework (medium; waits for
-  [plan-session-operational-flow][plan-ops] Phase 6).
+- Diagnostic: notes-discovery + state-machine unification + directional copy audit + shared-ref
+  inference + worktree qualifier `failureReason`.
+- Behavior: config-shape alignment + per-dev overrides + resolver consolidation + pushability
+  pre-checks + paired-push failure + unpushed-HEAD + notes-under-manual-worktree.
 
-Unified scope is acceptable if sequencing works out, but the frame dependency makes split the more
-likely path.
+Each track is independently shippable and either order works.
 
 ---
 
-[adr-016]: ../../reference/adr/adr-016-configurable-autonomy-interlocks-for-session-operations.md
-[plan-ops]: ../../reference/archive/2026-q2/technical/06_session-operational-flow/prd-session-operational-flow.md
+[prd-foundation]: ../../reference/archive/2026-q2/technical/05_interlock-foundation/prd-interlock-foundation.md
+[prd-ops]: ../../reference/archive/2026-q2/technical/06_session-operational-flow/prd-session-operational-flow.md
+[strategy-ops]: ../../reference/strategies/arc/strategy-session-operations.md
 [plan-coord]: ../../backlog/technical/plan-coord-probe.md
 [plan-wf]: ../../backlog/technical/plan-worktree-foundation.md
 [plan-awl]: ../../backlog/technical/plan-agile-wu-lifecycle.md
