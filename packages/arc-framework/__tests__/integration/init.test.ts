@@ -448,6 +448,15 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     expect(config).toMatch(/# Notes pull policy[\s\S]*?session\.init_pull\.notes: prompt/);
   });
 
+  it("renders archive.cadence with default and inline comments", async () => {
+    const config = await readFile(
+      join(arcDir, "system/arc-config.yml"),
+      "utf-8",
+    );
+    expect(config).toContain("archive.cadence: with-integration");
+    expect(config).toMatch(/# Work-unit archival cadence[\s\S]*?archive\.cadence: with-integration/);
+  });
+
   // --- Conditional File Exclusion ---
 
   it("excludes arc-in-git files when pm.mode=none", async () => {

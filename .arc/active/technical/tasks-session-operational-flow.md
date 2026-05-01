@@ -64,19 +64,20 @@ migration; no helper command. See [`notes-session-operational-flow.md`][notes] �
     - `[x]` `**Integration:**` is required and non-empty for `State: Complete`, and rejected for non-Complete
       states
 
-### `[ ]` **1.3 Add `archive.cadence` to config schema**
+### `[x]` **1.3 Add `archive.cadence` to config schema**
 
-- _Goal:_ Land the config key with `with-integration | manual` enum and `with-integration` default. v1 drops
-  `deferred` per PRD § Technical Considerations.
+- Added `archive.cadence` with `with-integration | manual` validation and `with-integration` default across
+  the config reader, shell validator, and project/package `arc-config.yml` copies. Also updated config/status
+  tests and cleared stale `validate-config.sh` unknown-key warnings for existing config keys.
 - **Strategies:** `strategy-testing-methodology.md`, `strategy-configurability-architecture.md`
 
 - Build `test-first` (one behavior at a time):
 
-    - Config validation accepts `with-integration` and `manual` as valid enum values
-    - Config validation rejects bogus values (e.g., `deferred`, `auto`) with a clear error naming the key
-    - Default resolves to `with-integration` when the key is absent
-    - Schema docs in `arc-config.yml` (project + package source) describe both values plus the rationale for
-      dropping `deferred` (one-line pointer to strategy doc; no inline rationale — token economy)
+    - `[x]` Config validation accepts `with-integration` and `manual` as valid enum values
+    - `[x]` Config validation rejects bogus values (e.g., `deferred`, `auto`) with a clear error naming the key
+    - `[x]` Default resolves to `with-integration` when the key is absent
+    - `[x]` Schema docs in `arc-config.yml` (project + package source) describe both values plus the rationale
+      for dropping `deferred` (one-line pointer to strategy doc; no inline rationale — token economy)
 
 ### `[ ]` **1.4 Update `integrate-work-unit.md` cadence refinements**
 

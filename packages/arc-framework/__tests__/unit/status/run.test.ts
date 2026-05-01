@@ -107,6 +107,7 @@ function configResult(overrides: Partial<ConfigStatusResult> = {}): ConfigStatus
       "session.remote_sync": "enabled",
       "session.init_pull.worktree": "prompt",
       "session.init_pull.notes": "prompt",
+      "archive.cadence": "with-integration",
       "user.sync_push": "always",
     },
     defaultsApplied: [],

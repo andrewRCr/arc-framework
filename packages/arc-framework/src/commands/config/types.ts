@@ -32,6 +32,7 @@ export interface ConfigSettings {
   "session.remote_sync": string;
   "session.init_pull.worktree": string;
   "session.init_pull.notes": string;
+  "archive.cadence": string;
   "user.sync_push": string;
 }
 

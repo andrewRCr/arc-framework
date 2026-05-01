@@ -29,8 +29,8 @@ async function createFixture(): Promise<Fixture> {
 }
 
 describe("readConfigSettings — AGENT_CONSUMABLE_KEYS", () => {
-  it("enumerates the 15 agent-consumable keys", () => {
-    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(15);
+  it("enumerates the 16 agent-consumable keys", () => {
+    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(16);
   });
 
   it("excludes all hooks.* keys", () => {
@@ -42,6 +42,10 @@ describe("readConfigSettings — AGENT_CONSUMABLE_KEYS", () => {
   it("includes the session.init_pull.* channel keys", () => {
     expect(AGENT_CONSUMABLE_KEYS).toContain("session.init_pull.worktree");
     expect(AGENT_CONSUMABLE_KEYS).toContain("session.init_pull.notes");
+  });
+
+  it("includes archive.cadence", () => {
+    expect(AGENT_CONSUMABLE_KEYS).toContain("archive.cadence");
   });
 });
 
@@ -66,6 +70,7 @@ describe("readConfigSettings — default fallback", () => {
     expect(result.settings["platform.type"]).toBe("github");
     expect(result.settings["team.mode"]).toBe("false");
     expect(result.settings["session.remote_sync"]).toBe("enabled");
+    expect(result.settings["archive.cadence"]).toBe("with-integration");
     expect(result.settings["user.sync_push"]).toBe("always");
   });
 
@@ -109,6 +114,7 @@ describe("readConfigSettings — user-supplied values", () => {
       "session.remote_sync: disabled",
       "session.init_pull.worktree: manual",
       "session.init_pull.notes: always",
+      "archive.cadence: manual",
       "user.sync_push: manual",
     ].join("\n");
     await writeFile(fixture.configPath, content);
@@ -120,6 +126,7 @@ describe("readConfigSettings — user-supplied values", () => {
     expect(result.settings["user.sync_push"]).toBe("manual");
     expect(result.settings["session.init_pull.worktree"]).toBe("manual");
     expect(result.settings["session.init_pull.notes"]).toBe("always");
+    expect(result.settings["archive.cadence"]).toBe("manual");
     expect(result.defaultsApplied).toHaveLength(0);
     expect(result.warnings).toHaveLength(0);
   });
@@ -264,5 +271,44 @@ describe("readConfigSettings — session.init_pull channels", () => {
     expect(result.defaultsApplied).toContain("session.init_pull.worktree");
     expect(result.defaultsApplied).toContain("session.init_pull.notes");
     expect(result.defaultsApplied).not.toContain("pm.mode");
+  });
+});
+
+describe("readConfigSettings — archive.cadence", () => {
+  let fixture: Fixture;
+  beforeEach(async () => {
+    fixture = await createFixture();
+  });
+  afterEach(async () => {
+    await rm(fixture.root, { recursive: true, force: true });
+  });
+
+  it("applies 'with-integration' default when absent", async () => {
+    await writeFile(fixture.configPath, "pm.mode: arc-in-git\n");
+    const result = await readConfigSettings(fixture.root);
+    expect(result.settings["archive.cadence"]).toBe("with-integration");
+    expect(result.defaultsApplied).toContain("archive.cadence");
+    expect(result.warnings).toHaveLength(0);
+  });
+
+  it("accepts with-integration and manual", async () => {
+    for (const value of ["with-integration", "manual"]) {
+      await writeFile(fixture.configPath, `archive.cadence: ${value}\n`);
+      const result = await readConfigSettings(fixture.root);
+      expect(result.settings["archive.cadence"]).toBe(value);
+      expect(result.warnings).toHaveLength(0);
+    }
+  });
+
+  it("rejects unknown values with an error naming the valid set", async () => {
+    await writeFile(fixture.configPath, "archive.cadence: deferred\n");
+    const result = await readConfigSettings(fixture.root);
+    expect(result.settings["archive.cadence"]).toBe("with-integration");
+    expect(result.warnings).toHaveLength(1);
+    const message = result.warnings[0] ?? "";
+    expect(message).toContain("archive.cadence");
+    expect(message).toContain("'deferred'");
+    expect(message).toContain("with-integration");
+    expect(message).toContain("manual");
   });
 });

@@ -34,6 +34,7 @@ const FULL_SETTINGS: ConfigSettings = {
   "session.remote_sync": "enabled",
   "session.init_pull.worktree": "prompt",
   "session.init_pull.notes": "prompt",
+  "archive.cadence": "with-integration",
   "user.sync_push": "always",
 };
 
@@ -71,15 +72,16 @@ function sessionInitResult(
 }
 
 describe("buildConfigStatusSummary — counts + keys", () => {
-  it("renders the agent-consumable headline with 15 settings", () => {
+  it("renders the agent-consumable headline with 16 settings", () => {
     const summary = buildConfigStatusSummary(fullResult());
-    expect(summary.split("\n")[0]).toBe("15 agent-consumable settings (hooks.* excluded):");
+    expect(summary.split("\n")[0]).toBe("16 agent-consumable settings (hooks.* excluded):");
   });
 
   it("lists every setting key with its value", () => {
     const summary = buildConfigStatusSummary(fullResult());
     expect(summary).toContain("pm.mode: arc-in-git");
     expect(summary).toContain("branch.protection: full");
+    expect(summary).toContain("archive.cadence: with-integration");
     expect(summary).toContain("user.sync_push: always");
   });
 
