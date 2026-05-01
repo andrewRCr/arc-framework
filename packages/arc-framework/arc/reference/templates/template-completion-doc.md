@@ -43,7 +43,7 @@ the archive.
 - **Started**: YYYY-MM-DD
 - **Completed**: YYYY-MM-DD
 - **Branch**: {branch-name — category prefix already carries the work type}
-- **Pull Request**: {URL — add once PR is created in integrate-work-unit Step 7}
+- **Pull Request**: {pending until archival}
 
 - **Context**: {One-liner: "Discovered during X" or "Part of roadmap initiative Y"}
 
@@ -129,7 +129,7 @@ detailed record.
 - **Started**: YYYY-MM-DD
 - **Completed**: YYYY-MM-DD
 - **Branch**: {branch-name — `incidental/` prefix carries the work type}
-- **Pull Request**: {URL — add once PR is created}
+- **Pull Request**: {pending until archival}
 
 - **Context**: {One-liner: "Discovered during X"}
 

@@ -16,7 +16,6 @@ import {
   runConfigSessionInitStatus,
   runConfigStatus,
 } from "../commands/config.js";
-import { gitExec } from "../lib/io-context.js";
 import { requireArcProjectRoot } from "./shared.js";
 
 export interface ConfigStatusCliOptions {
@@ -29,7 +28,7 @@ export async function handleConfigStatus(opts: ConfigStatusCliOptions): Promise<
   if (!cwd) return;
 
   if (opts.sessionInit) {
-    const result = await runConfigSessionInitStatus({ cwd, exec: gitExec });
+    const result = await runConfigSessionInitStatus({ cwd });
     if (opts.json) {
       process.stdout.write(`${JSON.stringify(result)}\n`);
       return;

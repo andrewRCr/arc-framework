@@ -14,7 +14,7 @@ export {
   buildSessionInitStatusSummary,
 } from "./status/format.js";
 export type {
-  HandoffAutonomy,
+  HandoffPushInterlock,
   Probe,
   ProbeError,
   RunSessionHandoffStatusOptions,

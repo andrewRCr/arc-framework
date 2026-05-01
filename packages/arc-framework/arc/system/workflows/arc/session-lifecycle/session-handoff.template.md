@@ -23,16 +23,16 @@ the session-init pattern:
 arc status --session-handoff --json
 ```
 
-| Field      | Contents                                                                                                       |
-|------------|----------------------------------------------------------------------------------------------------------------|
-| `identity` | `{identity, role}` — either may be `null`. `identity === null` short-circuits the notes-sync slot              |
-| `dirty`    | `{state: clean / dirty, fileCount}`. Consumed by Pre-Update Verification                                       |
-| `worktree` | Worktree sync vs `origin/<branch>` — same state vocabulary as session-init                                     |
-| `user`     | Notes sync state (`value.state`: clean / remote-ahead / conflict / disabled / remote-unavailable)              |
-| `autonomy` | `{value, source}` — push-interlock mode (`manual-commit` requires explicit invocation; `auto-push` fires here) |
-| `syncPush` | `{policy, source}` — resolved `user.sync_push` (always / prompt / manual)                                      |
-| `active`   | Active status file resolution + sessionType (same shape as session-init)                                       |
-| `head`     | `{hash: string \| null}` — current HEAD short-hash for the `Commit at Handoff` anchor                          |
+| Field             | Contents                                                                                                      |
+|-------------------|---------------------------------------------------------------------------------------------------------------|
+| `identity`        | `{identity, role}` — either may be `null`. `identity === null` short-circuits the notes-sync slot             |
+| `dirty`           | `{state: clean / dirty, fileCount}`. Consumed by Pre-Update Verification                                      |
+| `worktree`        | Worktree sync vs `origin/<branch>` — same state vocabulary as session-init                                    |
+| `user`            | Notes sync state (`value.state`: clean / remote-ahead / conflict / disabled / remote-unavailable)             |
+| `pushInterlock`   | `{value, source}` — push-interlock mode (`manual` requires explicit invocation; `on-handoff` fires here)      |
+| `syncPush`        | `{policy, source}` — resolved `user.sync_push` (always / prompt / manual)                                     |
+| `active`          | Active status file resolution + sessionType (same shape as session-init)                                      |
+| `head`            | `{hash: string \| null}` — current HEAD short-hash for the `Commit at Handoff` anchor                         |
 
 **Identity absent** (`identity.identity === null`): Skip the notes-sync slot — notes operations
 depend on identity for path resolution. Surface a warning in the handoff summary. Sessions without
@@ -109,7 +109,7 @@ Update session state files before ending session:
 
     **Skill invocation is the approval.** `/arc-handoff` is user-initiated; the invocation grants
     approval for the workflow's bundled actions, including the `chore(status): handoff` commit.
-    No separate per-commit prompt fires under either autonomy mode — the `autonomy.value` axis
+    No separate per-commit prompt fires under either push-interlock mode — the `pushInterlock.value` axis
     governs push behavior (see § Push Sequence), where remote-side consequences justify granular
     gating. Stage and commit unconditionally:
 
@@ -399,17 +399,17 @@ below. See [Session Operations Strategy][session-ops] § Push Toggles for the un
 
 ### Worktree Push
 
-Gated on `autonomy.value` (push-interlock) and `worktree.value.state`. The probe captured the
+Gated on `pushInterlock.value` and `worktree.value.state`. The probe captured the
 worktree slot pre-step-3, so derive the unpushed count locally:
 `N = worktree.value.ahead + (1 if step 3 fired a chore commit, else 0)`. The agent knows whether
 step 3 committed — no re-probe needed. `N` is the source of truth for both the push gate and the
 surface message.
 
-- `auto-push` autonomy: run `git push` when `N > 0`. No ask — autonomy is the approval.
-- `auto-push` autonomy + `worktree.value.state` is `remote-ahead` / `diverged`: skip the push;
+- `on-handoff`: run `git push` when `N > 0`. No ask — handoff invocation is the approval.
+- `on-handoff` + `worktree.value.state` is `remote-ahead` / `diverged`: skip the push;
   surface in the handoff summary as `Reconcile required:` — manual rebase or merge needed before
   pushing (step 3's commit, if any, can't fast-forward in this state).
-- `manual-commit` autonomy (default): skip the push action. The user pushes when ready. Surface
+- `manual` (default): skip the push action. The user pushes when ready. Surface
   unpushed commits in the handoff summary as a one-line note (`Worktree: N unpushed commit(s) on
   {branch}`) whenever `N > 0`.
 
@@ -460,7 +460,7 @@ This is a quick confirmation for the human — the session state files are the d
 
 **Conditional top-level sections** — prepend above `**Sync:**` when applicable:
 
-- `N > 0` per Push Sequence formula and push did not fire (manual-commit, or auto-push skipped):
+- `N > 0` per Push Sequence formula and push did not fire (`manual`, or `on-handoff` skipped):
 
   ```text
   **Worktree:** N unpushed commit(s) on `{branch}`.

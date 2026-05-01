@@ -225,8 +225,18 @@ is *engaged* by default until the user explicitly releases it.
 
 ## Amending This Document
 
-<!-- This ADR follows the three-tier amendment model from strategy-adr-methodology.md. See the template for the full
-guidance. This section is a placeholder for dated amendment annotations if post-implementation learnings surface. -->
+**2026-05-01 — Configuration shape refinement.** SOF planning kept this ADR's interlock model but refined the
+config surface from a single ladder-shaped `session.autonomy` enum to two independent interlock-release settings:
+`session.commit_interlock: manual | on-task-approval` and `session.push_interlock: manual | on-handoff`.
+
+Rationale: the task-interlock remains invariant and is not configurable; the configurable mechanisms are the
+commit-interlock and push-interlock. The single ladder incorrectly implied `auto-push` required `auto-commit`
+and made it hard to express the valid adopter preference "push at handoff, but keep commits manually invoked."
+The independent settings preserve ARC interlock vocabulary, avoid "auto" terminology that suggests agent-chosen
+timing, and keep session handoff as an orthogonal ceremony rather than introducing a fifth handoff interlock.
+
+This is a configuration-shape amendment, not a reversal of the decision. The interlock stack, structured
+approval prompts, handoff-only push release, and invariant integration-interlock remain unchanged.
 
 ---
 

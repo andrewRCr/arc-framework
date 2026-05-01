@@ -118,12 +118,31 @@ worktree+notes pairing is the canonical instantiation of that default. Rationale
   shared `refs/notes/arc/user/{identity}` ref. Handoff-only concentrates ref writes into deliberate
   single events, dramatically reducing race surface compared to per-commit push from multiple sessions.
 
+**`user.sync_push: always` under manual push-interlock.** Do not require
+`session.push_interlock: on-handoff` as a hard dependency for `user.sync_push: always`. The settings can
+coexist, but the workflow must preserve commit/note coherence: when the worktree has no unpushed commits,
+auto-save and push notes; when the worktree is local-ahead and `session.push_interlock: manual`, save notes
+locally but block notes push with clear guidance to push the worktree first. Only
+`session.push_interlock: on-handoff` can make "always" fully automatic for sessions that create new commits,
+because the workflow pushes the worktree before notes. Diverged / remote-ahead states should block notes push
+and surface reconciliation rather than publishing notes against unavailable commits.
+
 **Shared-ref sync-state inference under parallel sessions.** Each session computes sync state independently
 from its worktree's HEAD. The notes ref is shared across the identity; sync-state inference must handle the
 case where another session pushed notes that this session hasn't fetched. Surface as part of the state-machine
 unification design — distinguish "your local is behind because you haven't fetched" from "your local is
 behind because work happened on another machine," and from "your local is behind because a sibling session
 on this machine pushed."
+
+**Unpushed-HEAD handoff save/push verification.** During SOF handoff on 2026-05-01, `arc user save`
+reported "Saved 2 file(s) to git note on 7190a8f" and `arc user push` reported success while the worktree
+branch was still ahead of origin. Immediate `arc user status --json` reported the older
+`savedCommit: 4e0679a`, `diskStatus: different`, and "latest local git note is from 4e0679a." Direct
+`git notes show 7190a8fb` found no note. Recovery succeeded only after pushing the worktree branch first,
+then running `arc user save` + `arc user push`; after that, status reported `savedCommit: bad1b9b` and
+`diskStatus: same`. The plan should explicitly test notes-save/push behavior when HEAD is ahead of origin
+and verify the CLI either pushes the annotated commit first, blocks with clear guidance, or preserves a
+recoverable local note without claiming remote sync success.
 
 ### Out of scope
 
@@ -252,7 +271,7 @@ likely path.
 ---
 
 [adr-016]: ../../reference/adr/adr-016-configurable-autonomy-interlocks-for-session-operations.md
-[plan-ops]: plan-session-operational-flow.md
+[plan-ops]: ../../active/technical/prd-session-operational-flow.md
 [plan-coord]: plan-coord-probe.md
 [plan-wf]: plan-worktree-foundation.md
 [plan-awl]: plan-agile-wu-lifecycle.md

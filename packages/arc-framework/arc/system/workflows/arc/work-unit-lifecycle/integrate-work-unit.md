@@ -134,7 +134,7 @@ based on work complexity.
 - [ ] _Started / Completed dates:_ Started = activation commit date; Completed = integration
       prep date
 
-- [ ] _Pull Request URL:_ added after `gh pr create` in Step 7
+- [ ] _Pull Request URL:_ field remains `{pending until archival}` — archive fills the durable link after merge
 
 - [ ] _Phase count:_ matches actual phases in task file — `grep -c "^## \*\*Phase" tasks-{name}.md`
 
@@ -248,11 +248,34 @@ PR description.
 ### 6c) Update Status File
 
 Update the per-WU status file (`.arc/active/{category}/status-{name}.md`) so `**Next Action:**` reflects the
-current integration step (e.g., "integrate-work-unit Step 7 — push and create PR"). Commit shape follows
-[DEV-RULES.ARC][dev-rules-arc] § Status-file commit shape: bundle with the Step 6b commit when one is being
-made (parent `docs(arc):` type, `(integration)` context footer); standalone otherwise (`chore(status):` type,
-same footer). Status must be committed before the PR is created — a status-file commit after push resets
-automated PR reviews.
+next judgment-bearing integration step: `integrate-work-unit Step 8 — address PR review findings`.
+
+This intentionally pre-advances over Step 7. Step 7 is safe to bridge without an intermediate metadata commit
+because it meets three criteria:
+
+- **Mechanical** — push and PR creation require no workflow judgment after Step 6c.
+- **Idempotent or absence-detectable** — `gh pr create` errors if the PR already exists; `gh pr list`
+  confirms whether PR creation happened after a crash.
+- **Low redo cost** — re-running Step 7 after a false-negative absence check is cheap.
+
+**Crash recovery:** If a session resumes with `**Next Action:**` already pointing at Step 8, verify whether the
+PR exists before starting review work:
+
+```bash
+gh pr list --head {branch-name} --base {parent-branch}
+```
+
+If no PR exists, run Step 7 first. If the PR exists, continue to Step 8.
+
+Commit shape follows [DEV-RULES.ARC][dev-rules-arc] § Status-file commit shape: bundle with the Step 6b commit
+when one is being made (parent `docs(arc):` type, `(integration)` context footer); standalone otherwise
+(`chore(status):` type, same footer). Status must be committed before the PR is created — a status-file commit
+after push resets automated PR reviews.
+
+**Handoff guidance:** Prefer handoff here, before PR creation, or after continuing into Step 8 review work. Avoid
+handoff in the awkward window between `gh pr create` and the reviewer's first pass: the handoff commit itself
+would re-trigger automated review, and the first review response commonly produces another commit immediately
+afterward.
 
 ### 7) Push and Create PR
 
@@ -269,9 +292,8 @@ When adapting, do not add new sections describing post-merge workflow continuity
 actions — those belong in the status file and SESSION-NOTES, not the PR body. The reader is
 reviewing a change set. See [DEV-RULES.ARC][dev-rules-arc] § Write for the reader.
 
-**After the PR is created:** Update the completion doc's `**Pull Request:**` field with the PR URL
-returned by `gh pr create`. Commit alongside any Step 8 review-driven fixes, or standalone if
-none (with `(integration)` context footer).
+Leave the completion doc's `**Pull Request:**` field as `{pending until archival}`. The PR URL is active
+context during review, and [archive-work-unit][archive-work-unit] fills the durable archive link after merge.
 
 ### 8) Address PR Review Findings
 

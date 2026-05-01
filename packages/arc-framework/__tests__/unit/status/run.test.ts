@@ -23,7 +23,7 @@ import {
   runStatus,
 } from "../../../src/commands/status.js";
 import type {
-  HandoffAutonomy,
+  HandoffPushInterlock,
   SessionHandoffProbes,
   SessionInitProbes,
   StatusProbes,
@@ -107,6 +107,9 @@ function configResult(overrides: Partial<ConfigStatusResult> = {}): ConfigStatus
       "session.remote_sync": "enabled",
       "session.init_pull.worktree": "prompt",
       "session.init_pull.notes": "prompt",
+      "session.commit_interlock": "manual",
+      "session.push_interlock": "manual",
+      "archive.cadence": "with-integration",
       "user.sync_push": "always",
     },
     defaultsApplied: [],
@@ -160,6 +163,8 @@ function configSessionInit(
       "session.remote_sync": "enabled",
       "session.init_pull.worktree": "prompt",
       "session.init_pull.notes": "prompt",
+      "session.commit_interlock": "manual",
+      "session.push_interlock": "manual",
       "branch.protection": "partial",
       "pm.mode": "none",
       "commit.format": "conventional",
@@ -167,7 +172,6 @@ function configSessionInit(
     },
     defaultsApplied: [],
     warnings: [],
-    autonomy: { value: "manual-commit", source: "default" },
     ...overrides,
   };
 }
@@ -219,8 +223,10 @@ function dirtyState(overrides: Partial<DirtyStateResult> = {}): DirtyStateResult
   return { state: "clean", fileCount: 0, ...overrides };
 }
 
-function handoffAutonomy(overrides: Partial<HandoffAutonomy> = {}): HandoffAutonomy {
-  return { value: "manual-commit", source: "default", ...overrides };
+function handoffPushInterlock(
+  overrides: Partial<HandoffPushInterlock> = {},
+): HandoffPushInterlock {
+  return { value: "manual", source: "default", ...overrides };
 }
 
 function resolvedSyncPush(overrides: Partial<ResolvedSyncPush> = {}): ResolvedSyncPush {
@@ -238,7 +244,7 @@ function sessionHandoffProbes(
     dirty: vi.fn(async () => dirtyState()),
     worktree: vi.fn(async () => worktreeSync()),
     user: vi.fn(async () => userSessionInit()),
-    autonomy: vi.fn(async () => handoffAutonomy()),
+    pushInterlock: vi.fn(async () => handoffPushInterlock()),
     syncPush: vi.fn(async () => resolvedSyncPush()),
     active: vi.fn(async () => activeSessionInit()),
     head: vi.fn(async () => headHash()),
@@ -457,14 +463,16 @@ describe("runSessionInitStatus — orchestration", () => {
     if (result.user.ok) expect(result.user.value.state).toBe("clean");
     if (result.active.ok) expect(result.active.value.resolution).toBe("none");
     if (result.config.ok) {
-      // Session-init settings object has exactly 7 keys.
+      // Session-init settings object has exactly 9 keys.
       expect(Object.keys(result.config.value.settings).sort()).toEqual([
         "branch.protection",
         "commit.context_footer",
         "commit.format",
         "pm.mode",
+        "session.commit_interlock",
         "session.init_pull.notes",
         "session.init_pull.worktree",
+        "session.push_interlock",
         "session.remote_sync",
       ]);
     }
@@ -661,7 +669,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
     expect(probes.dirty).toHaveBeenCalledTimes(1);
     expect(probes.worktree).toHaveBeenCalledTimes(1);
     expect(probes.user).toHaveBeenCalledTimes(1);
-    expect(probes.autonomy).toHaveBeenCalledTimes(1);
+    expect(probes.pushInterlock).toHaveBeenCalledTimes(1);
     expect(probes.syncPush).toHaveBeenCalledTimes(1);
     expect(probes.active).toHaveBeenCalledTimes(1);
     expect(probes.head).toHaveBeenCalledTimes(1);
@@ -678,11 +686,11 @@ describe("runSessionHandoffStatus — orchestration", () => {
     });
     expect(Object.keys(result).sort()).toEqual([
       "active",
-      "autonomy",
       "dirty",
       "head",
       "identity",
       "mode",
+      "pushInterlock",
       "syncPush",
       "user",
       "worktree",
@@ -779,18 +787,19 @@ describe("runSessionHandoffStatus — orchestration", () => {
     if (result.user.ok) expect(result.user.value.state).toBe("remote-ahead");
   });
 
-  it("returns autonomy with provenance from the autonomy probe", async () => {
+  it("returns push interlock with provenance from the pushInterlock probe", async () => {
     const probes = sessionHandoffProbes({
-      autonomy: vi.fn(async () => handoffAutonomy({ value: "auto-push", source: "git-config" })),
+      pushInterlock: vi.fn(async () =>
+        handoffPushInterlock({ value: "on-handoff", source: "yaml" })),
     });
     const result = await runSessionHandoffStatus({
       identity: "andrew",
       role: "maintainer",
       probes,
     });
-    expect(result.autonomy.ok).toBe(true);
-    if (result.autonomy.ok) {
-      expect(result.autonomy.value).toEqual({ value: "auto-push", source: "git-config" });
+    expect(result.pushInterlock.ok).toBe(true);
+    if (result.pushInterlock.ok) {
+      expect(result.pushInterlock.value).toEqual({ value: "on-handoff", source: "yaml" });
     }
   });
 
@@ -833,7 +842,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
   it("carries per-slot errors in the envelope without rejecting the composite", async () => {
     const probes = sessionHandoffProbes({
       dirty: vi.fn(async () => { throw new Error("porcelain failed"); }),
-      autonomy: vi.fn(async () => { throw new Error("config unreadable"); }),
+      pushInterlock: vi.fn(async () => { throw new Error("config unreadable"); }),
     });
     const result = await runSessionHandoffStatus({
       identity: "andrew",
@@ -841,14 +850,14 @@ describe("runSessionHandoffStatus — orchestration", () => {
       probes,
     });
     expect(result.dirty.ok).toBe(false);
-    expect(result.autonomy.ok).toBe(false);
+    expect(result.pushInterlock.ok).toBe(false);
     if (!result.dirty.ok) {
       expect(result.dirty.error.kind).toBe("runtime");
       expect(result.dirty.error.message).toBe("porcelain failed");
     }
-    if (!result.autonomy.ok) {
-      expect(result.autonomy.error.kind).toBe("runtime");
-      expect(result.autonomy.error.message).toBe("config unreadable");
+    if (!result.pushInterlock.ok) {
+      expect(result.pushInterlock.error.kind).toBe("runtime");
+      expect(result.pushInterlock.error.message).toBe("config unreadable");
     }
     // Sibling slots resolve normally.
     expect(result.worktree.ok).toBe(true);
@@ -870,7 +879,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
     // Other slots still fire.
     expect(probes.dirty).toHaveBeenCalledTimes(1);
     expect(probes.worktree).toHaveBeenCalledTimes(1);
-    expect(probes.autonomy).toHaveBeenCalledTimes(1);
+    expect(probes.pushInterlock).toHaveBeenCalledTimes(1);
     expect(probes.syncPush).toHaveBeenCalledTimes(1);
     expect(probes.active).toHaveBeenCalledTimes(1);
     expect(probes.head).toHaveBeenCalledTimes(1);
@@ -895,7 +904,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
     // Other slots still resolve normally.
     expect(result.worktree.ok).toBe(true);
     expect(result.user.ok).toBe(true);
-    expect(result.autonomy.ok).toBe(true);
+    expect(result.pushInterlock.ok).toBe(true);
     expect(result.syncPush.ok).toBe(true);
     expect(result.active.ok).toBe(true);
     expect(result.head.ok).toBe(true);
@@ -917,7 +926,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       dirty: tracked(dirtyState()),
       worktree: tracked(worktreeSync()),
       user: tracked(userSessionInit()),
-      autonomy: tracked(handoffAutonomy()),
+      pushInterlock: tracked(handoffPushInterlock()),
       syncPush: tracked(resolvedSyncPush()),
       active: tracked(activeSessionInit()),
       head: tracked(headHash()),

@@ -3,14 +3,18 @@
 ## Active Work
 
 <!--
-  Field semantics. All fields always present; `[none]` is the empty-value marker.
+  Field semantics. Core fields always present; `[none]` is the empty-value marker.
   Wrap `.md` filename and URL values in backticks for code-span rendering;
   sentinels like `[none]` stay as-is. CHECK 16 strips a wrapping pair on Spec.
 
   - **State** — `Planning` (planning session) | `In Progress` (executing tasks)
     | `Complete` (integration window after work-unit cleanup; coexists with a pending
-    `**Next Action:**` until archival). Other enum values (e.g., `Paused`) introduced in
-    sibling work units.
+    `**Next Action:**` until archival) | `Paused` (temporarily stopped) | `Superseded`
+    (replaced by another work unit).
+  - **Integration** — Present only when `State` is `Complete`; required and non-empty in that
+    state. Enum: `Awaiting PR` (work complete, PR not yet created) | `Awaiting review` |
+    `Changes requested` | `Ready to merge` | `Merged`. Review cycles move bidirectionally
+    between `Changes requested` and `Awaiting review`.
   - **Branch** — Branch this WU lives on (planning branch during planning,
     implementation branch during execution).
   - **Spec** — `[none]` | `.md` filename (e.g., `plan-{name}.md`, `prd-{name}.md`)

@@ -10,6 +10,10 @@ Loaded from `session-init.md` Step 3 when `identity.role === "contributor"`. Ste
 also universal — return to `session-init.md` for those. This file covers only the divergent surface:
 Step 3 item 7+ load shape, Step 5 freshness, and Step 6 orientation format.
 
+The universal commit-interlock load set from `session-init.md` also applies before this contributor
+branch: when `session.commit_interlock` is `on-task-approval`, load `commit-format.md` and
+`commit-context-format.md` during session-init.
+
 ## Step 3 (item 7+) — Active load set
 
 After items 1–6 load, run items 7–10 with the contributor adjustments below. The composite probe's
@@ -18,9 +22,10 @@ After items 1–6 load, run items 7–10 with the contributor adjustments below.
 contributor active state directly. No singleton file lookup.
 
 **Item 7 — Active status file.** Same shape as maintainer Step 3 item 7 — partial-read the
-`## Active Work` section of `active.value.path` when `resolution === "single"`. `resolution: "none"`
-skips items 9–10. `resolution: "multiple"` applies the documented precedence (SESSION-NOTES
-`**Working On:**`, branch match, `**State:** In Progress`, prompt) over `active.value.candidates`.
+`## Active Work` section of `active.value.path` when `resolution === "single"`, including optional fields
+such as `**Integration:**` when present. `resolution: "none"` skips items 9–10. `resolution: "multiple"`
+applies the documented precedence (SESSION-NOTES `**Working On:**`, branch match, `**State:** In Progress`,
+prompt) over `active.value.candidates`.
 
 **Item 8 — SESSION-NOTES + contributor briefing.** Read `.arc/user/{identity}/SESSION-NOTES.md` (item
 8 universal) plus `.arc/system/briefs/AGENT-BRIEF.CONTRIBUTOR.md`. Both join the parallel batch with
@@ -40,7 +45,8 @@ Maintainer's `session-init.md` § 5 covers freshness (universal) and next-work-u
 (maintainer-only). Contributors keep freshness, drop discovery:
 
 - **Freshness:** Skip if SESSION-NOTES `Commit at Handoff` hash matches current HEAD. Otherwise
-  surface the gap in orientation.
+  surface the gap in orientation. If the gap suggests an interrupted session, run
+  [process-task-loop § Crash Recovery](../3_process-task-loop.md#crash-recovery).
 - **Active status file freshness:** The contributor active file lives under
   `.arc/user/{identity}/active/` and is gitignored — git-history-based freshness doesn't apply.
   The handoff-hash check above is the freshness signal.

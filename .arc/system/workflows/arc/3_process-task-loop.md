@@ -104,8 +104,8 @@ arc:
      - **Fourth**: **REPORT** completed work to user with summary of changes
      - **Fifth**: ⛔ **MANDATORY STOP** - Wait for user approval before proceeding
        - **Structured prompt** — end the completion report with `<Prefix> <Target>?`:
-           - **Prefix:** `Proceed` (default — manual-commit) or `Commit and proceed` (when
-             `session.autonomy` permits auto-commit).
+           - **Prefix:** `Proceed` (default — `session.commit_interlock: manual`) or
+             `Commit and proceed` (when `session.commit_interlock: on-task-approval`).
            - **Target:** `to Task X.Y` (next task in phase) · `to Phase N+1, Task N+1.1` (current
              task ends the phase) · `to integrate-work-unit` (verification complete — WU end).
        - **Response semantics:** Short affirmative as first word ("y", "yes", "ok") advances.
@@ -137,7 +137,10 @@ arc:
      Complete only the specified work — update the task list and run quality gates after each
      task, but continue to the next without waiting for approval. Leave the task list updated,
      quality gates passing, and changes uncommitted (user decides commit boundaries when they
-     return).
+     return). Under `session.commit_interlock: on-task-approval`, deferred review safe-accumulates by
+     default — no per-task commit release within the deferred range. See
+     [strategy-session-operations][session-ops] § Deferred-Review × Commit-Interlock Release for the explicit
+     opt-in syntax.
 
      Stop when the specified scope is complete, or earlier if a stop condition is met:
 
@@ -180,15 +183,26 @@ arc:
      If any item is unchecked, complete it before proceeding to report generation.
 
   4. Await user instructions on how to proceed.
-     User may choose to commit changes or request modifications. Commit authority follows
-     `session.autonomy`: under `manual-commit`, the structured prompt's `Commit and proceed`
-     branch is gated behind explicit user approval (the affirmative response IS the approval);
-     under `auto-commit` / `auto-push`, the commit-interlock releases on task approval per
-     [Configurability Architecture Strategy][config-arch] § Session autonomy.
+     User may choose to commit changes or request modifications. Under
+     `session.commit_interlock: manual`, task approval advances work only; committing remains an
+     explicit user-invoked action. Under `on-task-approval`, the commit-interlock releases on task
+     approval per [Configurability Architecture Strategy][config-arch] § Session interlocks.
+     Under `session.commit_interlock: on-task-approval`, on approval signal, release the
+     commit-interlock per [arc-commit § Step 2-6][arc-commit-skill]. Complexity criteria from
+     § Step 2 bump to manual-with-prompt rather than invoking prepare-commits silently.
      When committing, follow the [prepare-commits workflow](supplemental/prepare-commits.md).
 
      **Atomicity check (before staging):** Do all changes serve one logical concern? When in
      doubt, split and ask. See [Commit Discipline][dev-rules-arc].
+
+## Crash Recovery
+
+On session resume after a suspected agent crash mid-cascade, run the recovery scan: read the active
+status file's `**Next Action:**` workflow-step pointer, then inspect `git status --porcelain`,
+`git diff --cached --stat`, and recent commits (`git log --oneline -n 10`). Surface any mismatch between
+the workflow pointer, staged changes, and commit history; prompt the user to continue the interrupted
+cascade or roll it back. Full per-mode recovery procedures live in [Session Operations Strategy][session-ops]
+§ Failure-Mode Recovery.
 
 ## Verification Phase
 
@@ -267,3 +281,5 @@ updates**. Always update the task list file before reporting completion.
 [arc-methods-it]: ../../methods/issue-triage.md
 [arc-methods-qg]: ../../methods/quality-gate-commands.md
 [team-coordination]: ../../../reference/strategies/arc/strategy-team-coordination.md
+[arc-commit-skill]: ../../skills/arc-commit/SKILL.md
+[session-ops]: ../../../reference/strategies/arc/strategy-session-operations.md

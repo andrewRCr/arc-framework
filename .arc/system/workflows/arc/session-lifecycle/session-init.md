@@ -119,6 +119,10 @@ session-state, follow the override instead.
 6. `.arc/reference/QUICK-REFERENCE.md` — **section-level partial read**: `## Environment & Path Context`
     only (subsumes `### Runtime Environment`)
 
+**Commit-interlock load set:** If `config.value.settings["session.commit_interlock"]` is
+`on-task-approval`, also load `.arc/system/methods/commit-format.md` and
+`.arc/system/methods/commit-context-format.md` during session-init.
+
 **Active work context:**
 
 7. **Active status file** — resolve from `active.value` and partial-read the `## Active Work`
@@ -141,8 +145,8 @@ session-state, follow the override instead.
             Include an abort option (`[q]`). If the user aborts, surface the candidate list and halt
             session-init.
     - **Read scope:** `## Active Work` carries the load-bearing fields (State, Branch, Task List,
-      Next Task, Last Completed, Blockers, Next Action) plus optional fields when present (Interrupts,
-      Paused At, Paused To, Superseded By). The "About this file" blockquote and any other surrounding
+      Next Task, Last Completed, Blockers, Next Action) plus optional fields when present (Integration,
+      Interrupts, Paused At, Paused To, Superseded By). The "About this file" blockquote and any other surrounding
       content are not read at init. **Contract boundary:** any content an agent needs at session-init
       must live inside `## Active Work`.
     - **Task reference format**: `**Next Task:**` uses triple-anchor format —
@@ -251,6 +255,9 @@ git log -1 --format=%h -- <status-file-path>
 
 A gap doesn't mean state is wrong — it means verify more carefully before trusting session documents. **Only
 mention gaps in orientation if they exist.** A clean check produces no output.
+
+If the freshness gap suggests an interrupted session, run the crash-recovery routine
+([process-task-loop § Crash Recovery][process-task-loop]).
 
 ### Next work unit discovery
 
@@ -362,3 +369,4 @@ Examples:
 [team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md
 [session-ops-load-errors]: ../../../../reference/strategies/arc/strategy-session-operations.md#session-notes-load-error-recovery
 [session-init-contributor]: session-init.contributor.md
+[process-task-loop]: ../3_process-task-loop.md

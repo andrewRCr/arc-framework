@@ -18,7 +18,8 @@ and handoff-interior toggle pattern (flow); plus context monitoring and session 
 - [Classification Criteria](#classification-criteria) — which tier for new content
 - [Loading Mechanisms](#loading-mechanisms) — how each tier enters agent context
 - [Method and Extension Loading](#method-and-extension-loading) — on-demand procedural content
-- [Interlock Model](#interlock-model) — autonomy stack, ceremony, configurability, approval signals
+- [Interlock Model](#interlock-model) — interlock stack, ceremony, configurability, approval signals
+- [Failure-Mode Recovery](#failure-mode-recovery) — taxonomy and recovery paths for interlock cascades
 - [Status-File Timing](#status-file-timing) — when status updates land in commit history
 - [Handoff-Interior Toggle Pattern](#handoff-interior-toggle-pattern) — config-key convention for handoff actions
 - [Context Monitoring](#context-monitoring) — shared responsibility model
@@ -99,16 +100,16 @@ The `arc status --session-handoff --json` envelope carries seven probe slots plu
 wraps in the same `Probe<T>` discriminated union as session-init; per-slot failures surface in the error
 branch rather than rejecting the composite. Mirrors the session-init field table in `session-init.md`.
 
-| Field      | Contents                                                                                                                                                                                       |
-|------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `identity` | `{identity, role}` — either may be `null`                                                                                                                                                      |
-| `dirty`    | Working-tree porcelain check (`value.state`: clean / dirty; `value.fileCount` carries the entry count, 0 when clean)                                                                           |
-| `worktree` | Worktree sync state vs. `origin/<current-branch>` — same shape as session-init's `worktree` slot                                                                                               |
-| `user`     | Notes-sync state — same shape as session-init's `user` slot; identity-missing short-circuit applies when `arc.identity` is absent                                                              |
-| `autonomy` | `{value, source}` — resolved `session.autonomy` policy with provenance (`git-config` / `yaml` / `default`). Surfaced top-level so handoff doesn't pull the broader session-init settings map   |
-| `syncPush` | `{policy, source}` — resolved `user.sync_push` policy with provenance. Handoff-interior toggle slot; future toggles (e.g., worktree push) register as named siblings here                      |
-| `active`   | Active status file resolution — same shape as session-init's `active` slot                                                                                                                     |
-| `head`     | Current `HEAD` short-hash (`value.shortHash`) — anchors the `Commit at Handoff` field written by the handoff workflow                                                                          |
+| Field             | Contents                                                                                                                                                                  |
+|-------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `identity`        | `{identity, role}` — either may be `null`                                                                                                                                 |
+| `dirty`           | Working-tree porcelain check (`value.state`: clean / dirty; `value.fileCount` carries the entry count, 0 when clean)                                                      |
+| `worktree`        | Worktree sync state vs. `origin/<current-branch>` — same shape as session-init's `worktree` slot                                                                          |
+| `user`            | Notes-sync state — same shape as session-init's `user` slot; identity-missing short-circuit applies when `arc.identity` is absent                                         |
+| `pushInterlock`   | `{value, source}` — resolved `session.push_interlock` policy. Surfaced top-level so handoff doesn't pull the broader session-init settings map                            |
+| `syncPush`        | `{policy, source}` — resolved `user.sync_push` policy with provenance. Handoff-interior toggle slot; future toggles register as named siblings here                       |
+| `active`          | Active status file resolution — same shape as session-init's `active` slot                                                                                                |
+| `head`            | Current `HEAD` short-hash (`value.hash`) — anchors the `Commit at Handoff` field written by the handoff workflow                                                          |
 
 Consumer plans reference this table from their plan docs when defining handoff-time workflow behavior.
 
@@ -361,7 +362,7 @@ four: `task-interlock`, `commit-interlock`, `push-interlock`, `integration-inter
 until released), and `hold` (a quality-gate failure or other condition reasserts the engaged state
 regardless of approval).
 
-### Linear Autonomy Stack
+### Linear Interlock Stack
 
 The four interlocks attach to the four operational junctions a unit of work passes through, in order
 (task → commit → push → integrate):
@@ -373,17 +374,18 @@ The four interlocks attach to the four operational junctions a unit of work pass
 | `push-interlock`          | Configurable    |
 | `integration-interlock`   | Invariant       |
 
-All four interlocks are engaged by default. The configurable two release under specific
-`session.autonomy` modes; see § Configurability Architecture for the enum.
+All four interlocks are engaged by default. The configurable two release under explicit
+`session.commit_interlock` and `session.push_interlock` settings; see § Configurability
+Architecture for the enums.
 
 **Task-interlock.** Every review increment receives explicit human approval. Deferred review is a
 bounded user-scoped convenience, not an autonomy mode.
 
-**Commit-interlock.** Under `session.autonomy: manual-commit` (the default), the user explicitly
-invokes commit. `auto-commit` mode releases the interlock on task approval.
+**Commit-interlock.** Under `session.commit_interlock: manual` (the default), the user explicitly
+invokes commit. `on-task-approval` releases the interlock on task approval.
 
-**Push-interlock.** Under `session.autonomy: manual-commit` or `auto-commit`, the user explicitly
-invokes push. `auto-push` mode releases the interlock at handoff only — never per-commit.
+**Push-interlock.** Under `session.push_interlock: manual` (the default), the user explicitly
+invokes push. `on-handoff` releases the interlock at handoff only — never per-commit.
 Mid-session push always requires explicit invocation regardless of mode.
 
 **Integration-interlock.** Merge to integration / main is human-only. Not negotiable, not configurable.
@@ -394,31 +396,24 @@ quality gate engages the interlock until the failure is resolved.
 
 ### Orthogonal Ceremony
 
-Session handoff sits orthogonal to the autonomy stack — always human-invoked, regardless of
-`session.autonomy` mode. Inside handoff, individual actions (status-file rotation, worktree push,
+Session handoff sits orthogonal to the interlock stack — always human-invoked, regardless of
+interlock settings. Inside handoff, individual actions (status-file rotation, worktree push,
 notes push, quality-gate finalization) follow the configurable handoff-interior toggle pattern (see
-§ Handoff-Interior Toggle Pattern). Handoff is not a rung in the autonomy ladder; it consolidates
+§ Handoff-Interior Toggle Pattern). Handoff is not a rung in the interlock stack; it consolidates
 next-session-serving bookkeeping into a single explicit ritual.
 
 ### Configurability Architecture
 
-The configurable interlocks (commit + push) share one config axis: `session.autonomy`.
+The configurable interlocks use independent config axes.
 
 **Enum values:**
 
-- `manual-commit` (default) — both commit-interlock and push-interlock engaged by default; user
-  explicitly invokes commit and push.
-- `auto-commit` — commit-interlock releases on task approval; push-interlock remains manual.
-- `auto-push` — commit-interlock releases on task approval; push-interlock releases at handoff only
-  (never per-commit).
-
-**Override.** Per-developer override via `git config arc.autonomy <value>` — mirrors the
-`user.sync_push` / `arc.syncPush` pattern (see § Session State Portability). Repository default lives
-in `arc-config.yml`; the per-developer override takes precedence.
-
-**Why one axis.** The three modes form a strict ordering of release scope (none → commit → commit-and-push).
-Independent commit and push axes were considered but produce incoherent combinations — choosing
-`manual-commit` while expecting auto-push behavior leaves no release event for push to follow.
+- `session.commit_interlock: manual` (default) — commit-interlock engaged by default; user explicitly
+  invokes commit.
+- `session.commit_interlock: on-task-approval` — commit-interlock releases on task approval.
+- `session.push_interlock: manual` (default) — push-interlock engaged by default; user explicitly
+  invokes push.
+- `session.push_interlock: on-handoff` — push-interlock releases at handoff only (never per-commit).
 
 ### Approval-Signal Architecture
 
@@ -427,8 +422,8 @@ structured prompt — not parsed from arbitrary user prose.
 
 **Per-interlock prompt variants:**
 
-- `task-interlock` (manual-commit): `Proceed to Task X.Y?`
-- `task-interlock` + `commit-interlock` bundled (auto-commit / auto-push): `Commit and proceed to Task
+- `task-interlock` (`session.commit_interlock: manual`): `Proceed to Task X.Y?`
+- `task-interlock` + `commit-interlock` bundled (`on-task-approval`): `Commit and proceed to Task
   X.Y?`
 - Boundary-aware variants: `Proceed to Phase N+1, Task N+1.1?` at phase boundaries; `Proceed to
   handoff?` at WU end.
@@ -444,9 +439,66 @@ affirmative tokens in arbitrary user prose. Session-init's orientation summary u
 (`Awaiting direction — proceed to Next Action?`) — the mental model stays consistent across ARC's
 session lifecycle.
 
+### Commit-Interlock Release
+
+Under `session.commit_interlock: on-task-approval`, the approval signal that advances the task
+also releases the commit-interlock. First-word affirmatives (`y` / `yes` / `yeah`) release the
+interlock; redirect grammar is preserved (`y, also <X>` / `y; <redirect>`) and queues the
+redirect after the commit path completes.
+
+The released commit path follows [arc-commit § Step 2-6][arc-commit-skill]: assess atomicity,
+load commit-format methods, stage the single logical change, verify staged diff, and commit with
+the required context footer. If the Step 2 complexity criteria identify multiple concerns,
+accumulated multi-session work, or ambiguous interleaving, stop at manual-with-prompt instead of
+silently invoking prepare-commits. That avoids converting a task-approval signal into a broader
+cascade the user did not explicitly sanction.
+
+The `arc-commit` skill remains directly invokable under all interlock settings. It is still the
+ad-hoc commit path for non-task work and the recovery path when commit-on-task-approval falls back
+to manual-with-prompt.
+
+### Contributor Commit Release Boundary
+
+Contributor-role commit-on-task-approval stages project code and task-list documentation only.
+Project-level status files stay maintainer-owned because they represent shared work-unit state
+and lifecycle ceremony, not contributor-local progress. Contributor status files live under
+`user/{identity}/active/`, are gitignored, and remain local session state.
+
+The contributor handoff cadence is mode-independent: contributor status files update at handoff
+whether `session.commit_interlock` is `manual` or `on-task-approval`. This keeps commit release
+focused on reviewed code changes while preserving the session-state contract that handoff is the
+single update point for contributor-local active status.
+
+### Commit-Interlock Load-Set
+
+When `session.commit_interlock` resolves to `on-task-approval`, session-init eagerly loads
+`commit-format.md` and `commit-context-format.md`. Commit-on-task-approval fires between tasks
+without an explicit `arc-commit` skill invocation, so session-init is the reliable point to load
+the commit-message and context-footer contracts before the release can occur.
+
+Under `session.commit_interlock: manual`, those methods stay T3 and load on demand through the
+`arc-commit` skill or prepare-commits workflow. The manual path keeps the default session-init
+load set smaller because no commit release can occur without the user invoking the commit path.
+
+### Deferred-Review × Commit-Interlock Release
+
+Deferred review safe-accumulates by default under `session.commit_interlock: on-task-approval`.
+Within a deferred range, per-task completion still updates the task list and runs quality gates,
+but it does not release the commit-interlock after each task. Deferred review exists because the
+user is unavailable for per-task approval; committing each task without that approval would turn
+the deferral into an unreviewed commit cascade and violate the interlock model.
+
+Per-task commit release within a deferred range requires explicit opt-in at deferral time, using
+language such as "work through 5.2-5.4 with commit on each task approval while I'm away." The
+opt-in is scoped to the named deferred range only. Ambiguous phrasing falls back to safe-accumulate.
+
+When safe-accumulated work returns for review, report the completed range as a coherent batch and
+surface the accumulated diff for approval. The user then chooses the commit boundary: one batch
+commit, multiple atomic commits, or iteration before committing.
+
 ### Push-Timing Reasoning
 
-Auto-push fires at handoff only; per-commit auto-push is not offered. The constraint surfaces in
+Push-on-handoff fires at handoff only; per-commit push release is not offered. The constraint surfaces in
 operational behavior: worktree-push and notes-push pair at the same release event, with fixed ordering
 (worktree first, then notes — notes attach to commits that must already exist on origin; reverse
 ordering produces dangling notes references).
@@ -456,7 +508,7 @@ For deeper rationale on stakes asymmetry and concurrent-session race surface, se
 
 ### Cascade Reversibility & Rollback
 
-When a single approval triggers multiple operations (auto-commit; auto-commit + push), the cascade
+When a single approval triggers multiple operations (commit-on-task-approval; push-on-handoff), the cascade
 must be reversible. ARC v1 ships protocol-level support — a DEV-RULES rule (see
 [DEV-RULES.ARC][dev-rules-arc] § Commit Discipline, *cascade-undo*) requiring agents to present an
 undo plan and await explicit confirmation before destructive cascade reversals (resetting commits,
@@ -465,6 +517,78 @@ retracting pushes).
 **Scope.** Session-local. Manual confirmation. No dedicated skill or log-file infrastructure in v1.
 Agent context plus conventional-commit footers cover cascade identification — promotion to a skill
 is a candidate future WU if dogfooding shows demand.
+
+---
+
+## Failure-Mode Recovery
+
+Configurable interlock release creates cascades that can fail after the user has already approved
+the boundary. Classify failures by the state they leave behind before choosing a recovery path:
+
+| Mode | Category | Trigger | Recovery path |
+| ---- | -------- | ------- | ------------- |
+| 1 | Bad state | Pre-commit hook fails during commit-on-task-approval | Fix obvious issues; otherwise fall back to manual-with-prompt |
+| 2 | Bad state | Tier 1/Tier 2 quality gate fails after an auto-released commit | Apply cascade-undo rule before destructive rollback |
+| 3 | Transit | Network failure during push-on-handoff | Preserve local state, surface in summary, retry when reachable |
+| 4 | Transit | Partial multi-commit or multi-push cascade | Preserve landed work, surface exact partial state, retry remaining transit |
+| 5 | Process | Agent/session crash mid-cascade | Run crash-recovery scan; prompt continue or rollback |
+
+**Bad-state failures** mean ARC produced or nearly produced local history that may be wrong.
+The correct response is repair when obvious, or explicit user choice before rollback/destructive
+recovery. The [cascade-undo rule][dev-rules-arc] applies here.
+
+**Transit failures** mean the local state is valid but transport did not complete. Do not roll
+back correct local work just because the remote update failed. Surface the state and retry when
+the remote path is available.
+
+**Process failures** mean the agent stopped before the workflow could finish or report. Detect
+what landed, compare it to the active workflow pointer, and ask whether to continue the cascade
+or roll it back.
+
+### Recovery Procedures
+
+**Mode 1 — pre-commit hook fail during commit-on-task-approval.** Detection: `git commit` exits
+non-zero while releasing the commit-interlock from process-task-loop approval. If the failure is
+obvious and in-scope (formatting, lint, type error), fix and retry the same commit. If the cause
+is non-obvious, staged content spans multiple concerns, or the hook failure implies a design
+choice, stop and report that commit-on-task-approval fell back to manual-with-prompt. Ask whether
+to investigate, revise staging, or defer the commit.
+
+**Mode 2 — quality gate fails after an auto-released commit.** Detection: Tier 1/Tier 2 gates fail
+after a commit produced by commit-on-task-approval. Do not continue to the next task. If the fix is
+obvious and local, apply a follow-up fix commit under the same task context. If reverting the
+auto-released commit is the proposed remedy, present a cascade-undo plan first: identify commits to
+reset or revert, whether anything was pushed, and the exact recovery command shape. Await explicit
+confirmation before destructive rollback.
+
+**Mode 3 — network failure during push-on-handoff.** Detection: worktree push or notes push exits
+non-zero for remote/network reasons during handoff. Keep local commits and session files intact.
+Surface the failure in the handoff summary, including whether the worktree push, notes push, or
+both failed. Retry the failed transport when connectivity or remote permissions recover; if the
+remote rejected a non-fast-forward update, switch to the handoff workflow's reconcile path.
+
+**Mode 4 — partial multi-commit or multi-push cascade.** Detection: a cascade has multiple
+transport or commit operations and only some complete. Preserve the completed operations; do not
+rewrite them automatically. Inspect `git status --short`, `git log --oneline <baseline>..HEAD`,
+and remote/ahead-behind state as needed to identify what landed. Report the exact partial state
+and retry only the remaining transit operation unless the user chooses rollback under the
+cascade-undo rule.
+
+**Mode 5 — agent crash mid-cascade.** Detection on resume: freshness gap, dirty tree, staged
+changes, or active `**Next Action:**` still pointing into a workflow boundary that may have been
+interrupted. Run the crash-recovery scan:
+
+```bash
+git status --porcelain
+git diff --cached --stat
+git log --oneline -n 10
+```
+
+Read the active status file's `**Next Action:**` workflow-step pointer and compare it to the git
+state. If the pointer, staged diff, and commit history agree on the next operation, continue from
+that operation. If they disagree or the user may prefer rollback, surface the mismatch and prompt:
+continue the interrupted cascade, roll back with an explicit cascade-undo plan, or stop for manual
+inspection.
 
 ---
 
@@ -502,6 +626,11 @@ treats `Planning` as case-exact (drives `sessionType: "planning"`); other values
 List / Next Action signals — preserving behavior for parenthetical-suffix variants like `Paused
 (2026-04-12)`.
 
+**Status-field migration.** When lifecycle fields become stricter, update existing active status files directly
+as part of the work unit that introduces the rule. Keep structural validation strict for new commits instead of
+allowing legacy absence, and avoid one-off migration helpers until repeated adopter demand justifies the
+maintenance surface.
+
 **Disposition at integration.** [`integrate-planning-branch.md`][integrate-plan] Step 2 routes by
 graduated / shelved: graduated leaves the file in place for `activate-work-unit` Step 4 to transition;
 shelved removes the file (no WU follows; no pointer needed).
@@ -536,7 +665,7 @@ the boundary that produced it. Bundling them with the change that produced them 
 recovery cheap (interrupted sessions leave the git record matching reality) and preserves the
 "what task did this commit complete" linkage in `git log` view.
 
-For deeper context on commit-history readability, auto-commit-mode benefits, and what alternatives
+For deeper context on commit-history readability, commit-on-task-approval benefits, and what alternatives
 to task-list bundling would cost, see [status-file timing background][TODO-docs-site] and
 [task-list timing background][TODO-docs-site].
 
@@ -568,7 +697,7 @@ matching `git config` key for personal override. Document the override in the to
 section.
 
 **Composite handoff probe.** `arc status --session-handoff --json` returns the handoff envelope —
-dirty state, worktree state, notes-sync state, autonomy mode, handoff-interior toggle values, resolved
+dirty state, worktree state, notes-sync state, push-interlock mode, handoff-interior toggle values, resolved
 active status file, and current HEAD short-hash. The handoff workflow consumes the envelope;
 per-action checklist consults each toggle's mode and acts. See § Probe pattern § Extension contract
 for how new toggles add slots.
@@ -688,5 +817,6 @@ When `arc user load` or session-init's SESSION-NOTES load fails, recover by erro
 [dev-rules-arc]: ../../constitution/DEV-RULES.ARC.md
 [dev-rules-project]: ../../constitution/DEV-RULES.PROJECT.md
 [prepare-commits]: ../../../system/workflows/arc/supplemental/prepare-commits.md
+[arc-commit-skill]: ../../../system/skills/arc-commit/SKILL.md
 [git-notes]: https://git-scm.com/docs/git-notes
 [TODO-docs-site]: # "Placeholder pending docs-content-sweep — see notes-docs-content-sweep.md"

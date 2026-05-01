@@ -22,15 +22,15 @@ Current state at a glance. Updated when work is activated, completed, or archive
 
 **Currently Active:**
 
-- Session-Operational Flow (technical) — Planning. Sibling WU to Interlock Foundation,
+- Session-Operational Flow (technical) — In Progress. Sibling WU to Interlock Foundation,
   WU-B in the pre-approved split. Implements the autonomy-mode behavior (auto-commit,
   auto-push), handoff-interior toggle consumers, deferred-review × auto-commit
   safe-accumulate, arc-commit skill preservation, and metadata-state foundation
   (State + Integration field model + sweep cadence config) against the frame Interlock
   Foundation just shipped.
-    - Plan: `.arc/active/technical/plan-session-operational-flow.md`
-    - Branch: `technical/plan-session-operational-flow` (batch branch — also carries
-      Interlock Foundation archival)
+    - PRD: `.arc/active/technical/prd-session-operational-flow.md`
+    - Task list: `.arc/active/technical/tasks-session-operational-flow.md` (5 phases, 16 parent tasks)
+    - Branch: `technical/session-operational-flow`
 
 **Next Priority:**
 

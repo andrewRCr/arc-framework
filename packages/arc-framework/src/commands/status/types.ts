@@ -29,7 +29,6 @@ import type {
   UserSessionInitStatusResult,
   UserStatusResult,
 } from "../user/types.js";
-import type { AutonomyPolicy } from "../../lib/autonomy-policy.js";
 import type { DirtyStateResult } from "../../lib/git/dirty-state.js";
 import type { HeadHashResult } from "../../lib/git/head-hash.js";
 import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
@@ -97,13 +96,13 @@ export interface StatusProbes {
 }
 
 /**
- * Autonomy slot in the session-handoff envelope — narrow projection of
- * `ConfigSessionInitResult.autonomy`. Distinct shape so the handoff envelope
- * doesn't leak unrelated session-init settings.
+ * Push-interlock slot in the session-handoff envelope — narrow projection of
+ * `ConfigSessionInitResult.settings["session.push_interlock"]`. Distinct shape
+ * so the handoff envelope doesn't leak unrelated session-init settings.
  */
-export interface HandoffAutonomy {
-  value: AutonomyPolicy;
-  source: "git-config" | "yaml" | "default";
+export interface HandoffPushInterlock {
+  value: "manual" | "on-handoff";
+  source: "yaml" | "default";
 }
 
 /**
@@ -111,7 +110,7 @@ export interface HandoffAutonomy {
  *
  * Self-contained: arc-handoff is skill-invoked and shouldn't depend on
  * session-init context still being intact. Seven slots: dirty-state probe,
- * worktree sync, notes sync (user), autonomy with provenance, the
+ * worktree sync, notes sync (user), push interlock with provenance, the
  * handoff-interior toggle set (`syncPush` today; future toggles named as
  * sibling slots), the resolved active status file, and current HEAD
  * short-hash for the `Commit at Handoff` anchor.
@@ -122,7 +121,7 @@ export interface SessionHandoffResult {
   dirty: Probe<DirtyStateResult>;
   worktree: Probe<WorktreeSyncStatusResult>;
   user: Probe<UserSessionInitStatusResult>;
-  autonomy: Probe<HandoffAutonomy>;
+  pushInterlock: Probe<HandoffPushInterlock>;
   syncPush: Probe<ResolvedSyncPush>;
   active: Probe<ActiveSessionInitResult>;
   head: Probe<HeadHashResult>;
@@ -152,7 +151,7 @@ export interface SessionHandoffProbes {
   dirty: () => Promise<DirtyStateResult>;
   worktree: () => Promise<WorktreeSyncStatusResult>;
   user: (identity: string) => Promise<UserSessionInitStatusResult>;
-  autonomy: () => Promise<HandoffAutonomy>;
+  pushInterlock: () => Promise<HandoffPushInterlock>;
   syncPush: () => Promise<ResolvedSyncPush>;
   active: (
     identity: string | null,
