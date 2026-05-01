@@ -4,14 +4,14 @@
 
 - **State:** Planning
 - **Branch:** technical/plan-session-operational-flow
-- **Spec:** plan-session-operational-flow.md
+- **Spec:** prd-session-operational-flow.md
 - **Task List:** [none]
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Plan aligned with shipped IF frame; cadence refinements bundled into Phase 3
+- **Last Completed:** PRD generated; plan retired
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Proceed to `1_create-prd.md` — plan is PRD-ready post-IF-alignment
+- **Next Action:** Run `2_generate-tasks.md` — PRD complete; task generation next
 
 ---
