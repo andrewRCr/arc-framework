@@ -184,24 +184,19 @@ condition; depth lives in strategy-session-operations. See [`notes-session-opera
         - Added the strategy section covering affirmative grammar, redirect handling, complexity fallback,
           and continued direct `arc-commit` invocability under all interlock settings.
 
-### `[ ]` **2.3 Deferred-review × commit-on-task-approval safe-accumulate**
+### `[x]` **2.3 Deferred-review × commit-on-task-approval safe-accumulate**
 
-- _Goal:_ Default to safe-accumulate within a deferred range; per-task fire only via explicit opt-in at
-  deferral time.
+- _Outcome:_ Documented safe-accumulate as the default deferred-review behavior under
+  `session.commit_interlock: on-task-approval`, with explicit per-task commit opt-in syntax and batch
+  review-on-return semantics.
 
-    - `[ ]` **2.3.a Process-task-loop deferred-review section — one-sentence reference**
-        - Add: "Under `session.commit_interlock: on-task-approval`, deferred review safe-accumulates by
-          default — no per-task commit release within the deferred range. See strategy-session-operations
-          § Deferred-Review × Commit-Interlock Release for the explicit
-          opt-in syntax."
+    - `[x]` **2.3.a Process-task-loop deferred-review section — one-sentence reference**
+        - Added the safe-accumulate default and strategy cross-reference to the package template and rendered
+          process-task-loop workflow copies.
 
-    - `[ ]` **2.3.b Strategy-session-operations § Deferred-Review × Commit-Interlock Release**
-        - Document safe-accumulate default and rationale (deferred review exists because user is unavailable
-          for per-task approval; firing per task would commit work without review, violating the interlock
-          model).
-        - Document the explicit per-task opt-in syntax: deferral-time instruction such as "work through 5.2-5.4
-          with commit on each task approval while I'm away".
-        - Document the unit-review-on-return behavior (accumulated work surfaces for batch review and approval).
+    - `[x]` **2.3.b Strategy-session-operations § Deferred-Review × Commit-Interlock Release**
+        - Added the strategy section covering rationale, explicit deferral-time opt-in syntax, ambiguous
+          phrasing fallback, and batch review of accumulated work on return.
 
 ### `[ ]` **2.4 Session-init commit-interlock load-set adaptation**
 

@@ -151,7 +151,10 @@ arc:
      Complete only the specified work — update the task list and run quality gates after each
      task, but continue to the next without waiting for approval. Leave the task list updated,
      quality gates passing, and changes uncommitted (user decides commit boundaries when they
-     return).
+     return). Under `session.commit_interlock: on-task-approval`, deferred review safe-accumulates by
+     default — no per-task commit release within the deferred range. See
+     [strategy-session-operations][session-ops] § Deferred-Review × Commit-Interlock Release for the explicit
+     opt-in syntax.
 
      Stop when the specified scope is complete, or earlier if a stop condition is met:
 
@@ -295,3 +298,4 @@ updates**. Always update the task list file before reporting completion.
 [arc-methods-qg]: ../../methods/quality-gate-commands.md
 [team-coordination]: ../../../reference/strategies/arc/strategy-team-coordination.md
 [arc-commit-skill]: ../../skills/arc-commit/SKILL.md
+[session-ops]: ../../../reference/strategies/arc/strategy-session-operations.md

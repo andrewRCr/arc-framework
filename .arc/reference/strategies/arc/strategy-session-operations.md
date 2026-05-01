@@ -456,6 +456,22 @@ The `arc-commit` skill remains directly invokable under all interlock settings. 
 ad-hoc commit path for non-task work and the recovery path when commit-on-task-approval falls back
 to manual-with-prompt.
 
+### Deferred-Review × Commit-Interlock Release
+
+Deferred review safe-accumulates by default under `session.commit_interlock: on-task-approval`.
+Within a deferred range, per-task completion still updates the task list and runs quality gates,
+but it does not release the commit-interlock after each task. Deferred review exists because the
+user is unavailable for per-task approval; committing each task without that approval would turn
+the deferral into an unreviewed commit cascade and violate the interlock model.
+
+Per-task commit release within a deferred range requires explicit opt-in at deferral time, using
+language such as "work through 5.2-5.4 with commit on each task approval while I'm away." The
+opt-in is scoped to the named deferred range only. Ambiguous phrasing falls back to safe-accumulate.
+
+When safe-accumulated work returns for review, report the completed range as a coherent batch and
+surface the accumulated diff for approval. The user then chooses the commit boundary: one batch
+commit, multiple atomic commits, or iteration before committing.
+
 ### Push-Timing Reasoning
 
 Push-on-handoff fires at handoff only; per-commit push release is not offered. The constraint surfaces in
