@@ -201,7 +201,7 @@ git commit -m "docs(arc): activate {work-name} work unit
 - Create status file with State: In Progress
 - Move planning artifacts to active/ (arc-in-git)
 
-Context: tasks-{name}.md (activation)"
+Context: status-{name}.md (activation)"
 ```
 
 **Note:** Stage only the files actually modified. With `arc-in-git`, also stage PROJECT-STATUS.md and

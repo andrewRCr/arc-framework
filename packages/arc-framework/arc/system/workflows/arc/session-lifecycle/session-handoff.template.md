@@ -117,7 +117,7 @@ Update session state files before ending session:
     git add <resolved-status-file-path>
     git commit -m "chore(status): handoff
 
-    Context: <task-list>.md (handoff)"
+    Context: <status-file>.md (handoff)"
     ```
 
     The new HEAD becomes the `**Commit at Handoff:**` value written in step 4. If no field

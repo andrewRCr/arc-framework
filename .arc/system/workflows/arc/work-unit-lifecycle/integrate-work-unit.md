@@ -183,8 +183,9 @@ task list.
 
 **Commit message format:** Follow DEV-RULES.ARC.md § Commit format.
 Documentation prep commits use type/scope `docs(arc)` or `docs({category})` with the `(integration)`
-context footer pattern — e.g., `Context: tasks-{name}.md (integration)`. Review-fix commits during
-integration use the `(code review)` footer instead — see the [commit-context-format method][arc-methods-ccf].
+context footer pattern — e.g., `Context: status-{name}.md (integration)`. Review-fix commits during
+integration use the `(code review)` footer on `tasks-{name}.md` or `plan-{name}.md` instead — see the
+[commit-context-format method][arc-methods-ccf].
 
 > [!IMPORTANT]
 > `workflow-interlock`: Stop after integration-prep documentation is committed. Surface Phase 1

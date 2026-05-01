@@ -169,11 +169,13 @@ case "$context_footer_mode" in
             echo "   Context: tasks-design-system.md (incidental - discovered during code review)"
             echo "   Context: tasks-data-pipeline.md (planning)"
             echo "   Context: tasks-theme-system.md (maintenance)"
-            echo "   Context: tasks-structural-pass.md (activation)"
-            echo "   Context: tasks-auth-system.md (integration)"
             echo "   Context: tasks-auth-system.md (code review)"
-            echo "   Context: tasks-auth-system.md (archival)"
-            echo "   Context: tasks-auth-system.md (handoff)"
+            echo "   Context: plan-user-sync-ux.md (planning)"
+            echo "   Context: status-auth-system.md (handoff)"
+            echo "   Context: status-structural-pass.md (activation)"
+            echo "   Context: status-auth-system.md (integration)"
+            echo "   Context: status-auth-system.md (archival)"
+            echo "   Context: status-user-sync-ux.md (planning)"
             echo "   Context: atomic-auth-system.md"
             echo "   Context: maintenance (atomic / no associated task list)"
             echo "   Context: refactor (no associated task list)"
@@ -235,8 +237,9 @@ case "$context_footer_mode" in
                 # (incidental - discovered during Phase 5 planning), etc. Freeform context after prefix.
                 elif echo "$context_line" | grep -qE '\(incidental - discovered during .+\)$'; then
                     :
-                # Matches: (planning), (activation), (integration), (code review), (maintenance), (archival), (handoff)
-                elif echo "$context_line" | grep -qE '\((planning|activation|integration|code review|maintenance|archival|handoff)\)$'; then
+                # Matches: (planning), (maintenance), (code review) — task-list metadata or review-driven
+                # Lifecycle ceremony markers (handoff, activation, integration, archival) attach to status-*.md.
+                elif echo "$context_line" | grep -qE '\((planning|maintenance|code review)\)$'; then
                     :
                 else
                     context_issue "Invalid task reference format in Context: line"
@@ -250,11 +253,49 @@ case "$context_footer_mode" in
                     echo "   - (Task X.Y; planning) or (Task X.Y; maintenance) - single task with extra work"
                     echo "   - (Tasks X.Y, A.B; planning) - multiple tasks with extra work"
                     echo "   - (incidental - discovered during <context>) - freeform discovery context"
-                    echo "   - (planning), (activation), (integration), (code review), (maintenance), (archival), or (handoff) - task list lifecycle"
+                    echo "   - (planning), (maintenance), or (code review) - task list metadata or review-driven changes"
+                    echo "   Note: lifecycle ceremonies (handoff, activation, integration, archival) attach to status-*.md, not tasks-*.md"
                     echo ""
                     echo "   Note: Parenthetical is REQUIRED for all commits"
                     echo ""
                     echo "   Your Context line: $context_line"
+                fi
+
+            # Matches: Context: plan-[name].md (planning|code review)
+            elif echo "$context_line" | grep -qE '^Context: plan-[a-zA-Z0-9-]+\.md \((planning|code review)\)$'; then
+                plan_file=$(echo "$context_line" | sed -E 's/Context: (plan-[a-zA-Z0-9-]+\.md).*/\1/')
+
+                plan_found=false
+                for dir in .arc/active/*/; do
+                    if [ -f "$dir$plan_file" ]; then
+                        plan_found=true
+                        break
+                    fi
+                done
+
+                if [ "$plan_found" = false ]; then
+                    echo -e "${YELLOW}Warning: Plan file '$plan_file' not found in active directories${NC}"
+                    echo "   This may be intentional if the file was just created or archived"
+                    warnings=$((warnings + 1))
+                fi
+
+            # Matches: Context: status-[name].md (handoff|activation|integration|archival|planning)
+            # Also accepts: (incidental - discovered during <context>) for fixes folded into ceremony commits
+            elif echo "$context_line" | grep -qE '^Context: status-[a-zA-Z0-9-]+\.md \((handoff|activation|integration|archival|planning|incidental - discovered during .+)\)$'; then
+                status_file=$(echo "$context_line" | sed -E 's/Context: (status-[a-zA-Z0-9-]+\.md).*/\1/')
+
+                status_found=false
+                for dir in .arc/active/*/; do
+                    if [ -f "$dir$status_file" ]; then
+                        status_found=true
+                        break
+                    fi
+                done
+
+                if [ "$status_found" = false ]; then
+                    echo -e "${YELLOW}Warning: Status file '$status_file' not found in active directories${NC}"
+                    echo "   This may be intentional if the file was just created or archived"
+                    warnings=$((warnings + 1))
                 fi
 
             # Matches: Context: atomic-[name].md (work-unit-scoped atomic task)
@@ -287,11 +328,14 @@ case "$context_footer_mode" in
                 :
             else
                 context_issue "Invalid Context: format"
-                echo "   Expected formats:"
+                echo "   Expected formats — name the most specific spec-shaped artifact under edit:"
                 echo "   - Context: tasks-[name].md (Task X.Y)"
                 echo "   - Context: tasks-[name].md (Tasks X.Y-X.Z)"
                 echo "   - Context: tasks-[name].md (incidental - discovered during <context>)"
-                echo "   - Context: tasks-[name].md (planning), (activation), (integration), (code review), (maintenance), (archival), or (handoff)"
+                echo "   - Context: tasks-[name].md (planning), (maintenance), or (code review)"
+                echo "   - Context: plan-[name].md (planning) or (code review)"
+                echo "   - Context: status-[name].md (handoff), (activation), (integration), (archival), or (planning)"
+                echo "   - Context: status-[name].md (incidental - discovered during <context>)"
                 echo "   - Context: atomic-[name].md"
                 echo "   - Context: [category] (no associated task list)"
                 echo "   - Context: [category] (atomic / no associated task list)"

@@ -216,7 +216,7 @@ those as well.
 
 **Commit message format:** Follow DEV-RULES.ARC.md § Commit format.
 Archival commits use type/scope `docs(arc)` or `docs(archive)` with Context footer
-`tasks-{name}.md (archival)`.
+`status-{name}.md (archival)`.
 
 > **Batch branch note:** When archiving on a batch branch (full protection), the commit lands on
 > that branch instead of the base branch. The steps are identical — only the branch context differs.
@@ -231,7 +231,7 @@ Archival of completed incidental work:
 - Added retry logic for intermittent auth failures
 - All quality gates passed
 
-Context: tasks-auth-edge-cases.md (archival)"
+Context: status-auth-edge-cases.md (archival)"
 ```
 
 ### 8) Next Step
