@@ -285,6 +285,43 @@ describe("readConfigSettings — session.init_pull channels", () => {
   });
 });
 
+describe("readConfigSettings — session interlock independence", () => {
+  let fixture: Fixture;
+  beforeEach(async () => {
+    fixture = await createFixture();
+  });
+  afterEach(async () => {
+    await rm(fixture.root, { recursive: true, force: true });
+  });
+
+  it("accepts every commit/push interlock combination without coupling the axes", async () => {
+    const combinations = [
+      ["manual", "manual"],
+      ["manual", "on-handoff"],
+      ["on-task-approval", "manual"],
+      ["on-task-approval", "on-handoff"],
+    ] as const;
+
+    for (const [commitInterlock, pushInterlock] of combinations) {
+      await writeFile(
+        fixture.configPath,
+        [
+          `session.commit_interlock: ${commitInterlock}`,
+          `session.push_interlock: ${pushInterlock}`,
+        ].join("\n"),
+      );
+
+      const result = await readConfigSettings(fixture.root);
+
+      expect(result.settings["session.commit_interlock"]).toBe(commitInterlock);
+      expect(result.settings["session.push_interlock"]).toBe(pushInterlock);
+      expect(result.defaultsApplied).not.toContain("session.commit_interlock");
+      expect(result.defaultsApplied).not.toContain("session.push_interlock");
+      expect(result.warnings).toHaveLength(0);
+    }
+  });
+});
+
 describe("readConfigSettings — archive.cadence", () => {
   let fixture: Fixture;
   beforeEach(async () => {

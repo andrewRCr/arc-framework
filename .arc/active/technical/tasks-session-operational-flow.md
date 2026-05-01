@@ -240,33 +240,31 @@ not imply `session.commit_interlock: on-task-approval`; adopters can choose hand
 manual. session-handoff consumes `config.value.settings["session.push_interlock"]` from the composite handoff
 probe. See [`notes-session-operational-flow.md`][notes] § Phase 3 Rationale.
 
-### `[ ]` **3.1 Push-on-handoff fire path in session-handoff**
+### `[x]` **3.1 Push-on-handoff fire path in session-handoff**
 
-- _Goal:_ Fire push inside the handoff ceremony when configured; preserve mid-session-explicit-ask semantics;
-  enforce push-ordering invariant.
+- _Outcome:_ Verified the handoff fire path is already codified in both workflow copies: handoff invocation
+  releases worktree push when `pushInterlock.value` is `on-handoff`, skips on non-fast-forward states, and
+  orders worktree push before notes sync. Kept mid-session push semantics out of the handoff checklist; the
+  explicit-invocation rule already lives in constitution/strategy guidance.
 
-    - `[ ]` **3.1.a Session-handoff.md fire trigger (terse)**
-        - Add the trigger condition to the per-action-checklist section: "Under
-          `session.push_interlock: on-handoff`, release the push-interlock as part of the handoff ceremony's
-          per-action checklist.
-          Mid-session push remains explicit-ask in all modes — push-on-handoff does not change non-handoff push
-          semantics."
-        - Token discipline: keep to a couple of lines inline; full semantics in strategy doc.
+    - `[x]` **3.1.a Session-handoff.md fire trigger (terse)**
+        - Verified the `on-handoff` worktree-push trigger is present in both `.arc/` and package workflow
+          copies, scoped to the handoff sequence.
 
-    - `[ ]` **3.1.b Push-ordering invariant enforced via per-action-checklist ordering**
-        - Update or verify the per-action-checklist orders worktree-push before notes-push when both fire at
-          handoff (push-ordering invariant from IF). Add a brief comment in the workflow if not already
-          present.
+    - `[x]` **3.1.b Push-ordering invariant enforced via per-action-checklist ordering**
+        - Verified `session-handoff` orders worktree push before notes sync and documents the invariant at the
+          top of the Push Sequence.
 
-    - `[ ]` **3.1.c Strategy-session-operations § Push-Interlock Release — full semantics**
-        - Document fire-at-handoff-only (not mid-session), the push-ordering invariant, and the independence
-          from `session.commit_interlock`.
+    - `[x]` **3.1.c Strategy-session-operations § Push-Interlock Release — full semantics**
+        - Verified strategy guidance covers handoff-only release, no per-commit push release, worktree-before-
+          notes ordering, and independence from `session.commit_interlock`.
 
-### `[ ]` **3.2 Verify independent interlock settings**
+### `[x]` **3.2 Verify independent interlock settings**
 
-- Confirm tests and docs allow all four combinations of `session.commit_interlock` and `session.push_interlock`.
-  The key case is `session.commit_interlock: manual` with `session.push_interlock: on-handoff`: push-on-handoff
-  must not imply commit-on-task-approval.
+- _Outcome:_ Added unit coverage for all four `session.commit_interlock` × `session.push_interlock`
+  combinations, including `manual` + `on-handoff`, to verify the config reader accepts each axis independently
+  without warnings or default fallback. Updated the status-format fixture so test typecheck sees both interlock
+  keys. Confirmed docs state push-on-handoff does not imply commit-on-task-approval.
 
 ---
 
