@@ -8,10 +8,10 @@
 - **Task List:** `tasks-session-operational-flow.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task 2.5 — Contributor-role commit-on-task-approval staging boundary
-- **Next Task:** Task 3.1 — Push-on-handoff fire path in session-handoff (line ~243)
+- **Last Completed:** Task 4.2 — strategy-team-coordination interlock-release-aware coordination guidance
+- **Next Task:** Task 5.1 — Complete verification (line ~315)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 3.1 — Push-on-handoff fire path in session-handoff
+- **Next Action:** Start Task 5.1 — Complete verification
 
 ---
