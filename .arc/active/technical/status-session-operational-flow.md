@@ -8,10 +8,10 @@
 - **Task List:** `tasks-session-operational-flow.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task 2.2 — Commit-on-task-approval fire path
-- **Next Task:** Task 2.3 — Deferred-review × commit-on-task-approval safe-accumulate (line ~187)
+- **Last Completed:** Task 2.5 — Contributor-role commit-on-task-approval staging boundary
+- **Next Task:** Task 3.1 — Push-on-handoff fire path in session-handoff (line ~243)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 2.3 — Deferred-review × commit-on-task-approval safe-accumulate
+- **Next Action:** Start Task 3.1 — Push-on-handoff fire path in session-handoff
 
 ---
