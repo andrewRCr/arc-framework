@@ -108,11 +108,24 @@ secondary axes but never disagrees with the spine. Action hints become determini
 no path to "run `arc user save`" when the user actually needs `arc user pull`. Consolidate the ~20
 string permutations to a documented matrix.
 
+**Partial-push state surfacing.** The state spine must distinguish "worktree pushed, notes ref lagging"
+from generic `local-ahead`. After a partial-push failure (worktree push succeeded, notes push failed at
+handoff or on `arc user push`), subsequent `arc status` invocations report the partial state with
+recovery guidance — not report clean. Folds into the documented matrix as a recognized condition.
+
 **Directional copy audit.** Every headline and detail line in `sync-status.ts` names both sides of the
 comparison it makes. One first-use "About user notes" framing surface (location decision deferred to
 PRD — see § Alternatives) to orient users who haven't internalized the git notes terminology. Keep git
 notes vocabulary — supplement, don't abstract; devs need the terms to reason about `arc user *`
 commands, which are thin wrappers over `git notes` operations.
+
+**Layered vocabulary rule.** "User notes" is the workhorse noun for the concept (headlines, action
+hints, status summaries). "Git notes ref" or "git notes" surfaces only when storage mechanism is
+relevant (debugging, ref state, error messages mentioning `refs/notes/...`). The first-use framing
+surface introduces the connection once — e.g., *"ARC stores your gitignored personal context
+(SESSION-NOTES.md, ATOMIC-INBOX.md) as a git notes ref attached to commits. Travels via push/pull."* —
+then never repeated. This avoids both the bare-"notes" generic (collides with git's optional-annotation
+meaning) and the "user git notes" verbose compound.
 
 **Worktree qualifier — surface `failureReason`.** When `worktree.state === "remote-unavailable"`,
 `formatWorktreeQualifierLine` (`sync-status.ts:354`) emits a single message regardless of whether
@@ -154,22 +167,47 @@ the interlocks once we noticed they needed per-dev overrides, not a worktree-pus
 deleted during SOF Task 2.1 when `session.autonomy` split into the two separate flat keys; validation
 moved inline to `status-reader.ts` and lost the 3-tier shape. This scope item restores it.)*
 
-**Pushability pre-checks for handoff-interior pushes.** When a configured handoff-interior push fires
-against an unpushable state (protected branch, rebase in progress, detached HEAD, upstream hook
-failure), behavior:
+**Pushability pre-checks for handoff-interior pushes.** Detect what's detectable client-side; surface
+the condition; never silently skip. Per-condition behavior (informed by external research on mature
+VCS-tooling conventions):
 
-- For `session.push_interlock: on-handoff`: report the unpushable condition, surface the underlying
-  reason, do not mask as success. Skip-vs-error decision per condition (e.g., detached HEAD: skip with
-  notice; protected branch: error with guidance).
-- For `user.notes_push: on-handoff`: same pattern; protected-branch is less likely for the notes ref
-  but possible (e.g., team server policy).
+- **Rebase in progress** — block both refs + guide ("Complete or abort rebase first").
+- **Detached HEAD** — block both refs + guide ("Push requires a branch").
+- **No upstream tracking** — for the worktree branch: block + guide ("Set upstream first:
+  `git push -u origin <branch>`"). For the notes ref: auto-configure (internal ref; no user-visible
+  config implication).
+- **Protected branch (server policy)** — bubble server error verbatim. Cannot detect client-side
+  without API access; let the server reject and surface the underlying message.
+- **Pre-receive hook failure** — bubble server output verbatim. Server-side; not predictable.
+- **Permission denied (auth/authz)** — bubble error + suggest token/credentials refresh.
+- **Force-push required** — error. Never force-push from handoff or `arc user push`. User invokes
+  raw git if rewriting history is intended.
 
-Concrete per-condition table finalized at PRD time.
+Concrete copy strings finalized at PRD/implementation time; the matrix above pins behavior per
+condition.
 
 **Paired-push failure semantics.** When both worktree and notes push fire at handoff and one fails:
 push-ordering invariant guarantees worktree lands first, so the failure mode is "worktree pushed,
-notes failed" (not the reverse). User-facing: surface clearly which side succeeded, give the recovery
-command (`arc user push`), do not retry automatically (network errors compound on retry; user decides).
+notes failed" (not the reverse). Behavior:
+
+- **Exit 1 on partial success.** Never exit 0 with partial publish. Exit code reflects the worst
+  outcome across the paired operation.
+- **Itemized output** showing both legs:
+
+    ```text
+    ✗ User sync failed at step 2 of 2
+      ✓ Worktree push succeeded: refs/heads/<branch>
+      ✗ Notes push failed: refs/notes/arc/user/{identity}
+        Error: <reason>
+        Recovery: arc user push
+    ```
+
+- **No automatic retry.** User invokes recovery via `arc user push`. Network errors compound on
+  retry; observability matters more than convenience.
+- **Idempotent recovery.** `arc user push` checks remote ref state via
+  `git ls-remote refs/notes/arc/user/{identity}` before pushing; if remote already matches local,
+  the command is a no-op with confirmation. Makes recovery safe to invoke arbitrarily and supports
+  re-running after transient failure.
 
 **`user.notes_push: on-handoff` under `session.push_interlock: manual`.** When notes are configured to
 auto-push but worktree is manual:
@@ -202,6 +240,22 @@ checks the annotated commits' push status before pushing the notes ref; blocks o
 with clear guidance to push the worktree first. The same coherence rule applied to the
 `user.notes_push: on-handoff` + `session.push_interlock: manual` case above generalizes here — notes
 push is gated on commit pushability regardless of trigger (handoff, manual, or future modes).
+
+**Anti-patterns to avoid.** External research surfaced concrete failure modes in mature tooling that
+this plan's implementation must guard against:
+
+- **Silent skip on missing auth or scope** (`semantic-release`, `lerna publish`) — when credentials
+  lack push permission, fail loudly with the server message; never skip silently and exit 0.
+- **Exit 0 on partial publish** (`lerna publish`, `npm publish` in workspaces) — exit code must
+  reflect the worst outcome across paired operations. Partial success is failure.
+- **Create-then-fail-mid-asset that can't be re-run** (`gh release create` historical behavior) —
+  composite operations must support idempotent re-invocation. The recovery command detects
+  already-succeeded work and skips it cleanly.
+- **Single-line error buried in success output** — failure is visually distinct from progress text.
+  Itemized two-line summaries (per the paired-push failure shape above) make state scannable.
+
+These constraints inform implementation across the pushability, paired-push, state-machine, and
+CLI-output scope items above.
 
 ### Out of scope
 
