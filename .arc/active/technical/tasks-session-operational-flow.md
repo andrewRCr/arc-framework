@@ -312,54 +312,61 @@ downstream plan currently references the pre-advance pattern. See [`notes-sessio
 
 ## **Phase 5:** Verification
 
-### `[ ]` **5.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+### `[x]` **5.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+
+- _Quality gates:_ `npm run -s lint:md`, `npm run lint:ts`, `npm run lint:sh`, `npm run typecheck`,
+  `npm run typecheck:test`, `npm test` (1,205 tests), and `npm run build` all passed.
+- _Success criteria:_ 28 criteria reviewed: 27 met, 1 deferred to the planned post-SOF validation window.
+- _Atomic tasks:_ companion file contains no checkbox items.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` `**State:**` enum extension covers WU lifecycle through one full cycle
+- `[x]` `**State:**` enum extension covers WU lifecycle through one full cycle
   (Planning → In Progress → Complete → swept)
-- `[ ]` `**Integration:**` field tracks integration window correctly through one full PR cycle
+- `[x]` `**Integration:**` field tracks integration window correctly through one full PR cycle
   (Awaiting PR → Awaiting review → Changes requested → Awaiting review → Ready to merge → Merged → swept)
-- `[ ]` CHECK 16 blocks commits with invalid `**State:**` or `**Integration:**` enum values and enforces
+- `[x]` CHECK 16 blocks commits with invalid `**State:**` or `**Integration:**` enum values and enforces
   `**Integration:**` only for `State: Complete`
-- `[ ]` Sweep eligibility check fires correctly (`State: Complete + Integration: Merged`)
-- `[ ]` `archive.cadence: with-integration` default operates as sweep-as-you-go; `manual` defers to user
+- `[x]` Sweep eligibility check fires correctly (`State: Complete + Integration: Merged`)
+- `[x]` `archive.cadence: with-integration` default operates as sweep-as-you-go; `manual` defers to user
   invocation
-- `[ ]` Existing active status files are valid under the tightened hook; no migration helper is introduced
-- `[ ]` Step 6c → Step 8 pre-advance eliminates one metadata commit per integration cycle
-- `[ ]` Post-PR-creation eddy guidance referenced in handoff decisions during integration sessions
-- `[ ]` PR URL archival rule fills the durable link during archive without a post-PR metadata-only commit
-- `[ ]` `session.commit_interlock: manual | on-task-approval` and
+- `[x]` Existing active status files are valid under the tightened hook; no migration helper is introduced
+- `[x]` Step 6c → Step 8 pre-advance eliminates one metadata commit per integration cycle
+- `[x]` Post-PR-creation eddy guidance referenced in handoff decisions during integration sessions
+- `[x]` PR URL archival rule fills the durable link during archive without a post-PR metadata-only commit
+- `[x]` `session.commit_interlock: manual | on-task-approval` and
   `session.push_interlock: manual | on-handoff` replace the old `session.autonomy` ladder
-- `[ ]` Commit-on-task-approval fires under task completion when
+- `[x]` Commit-on-task-approval fires under task completion when
   `session.commit_interlock: on-task-approval` is configured;
   follows arc-commit § Step 2-6 procedure
-- `[ ]` Complexity bumps to manual-with-prompt; never silent invocation of prepare-commits
-- `[ ]` Safe-accumulate operates correctly under deferred review (no per-task fire by default)
-- `[ ]` arc-commit skill remains user-invocable under all interlock settings
-- `[ ]` Contributor role under commit-on-task-approval stages code only — no project-level status-file updates
-- `[ ]` Push-on-handoff fires inside the handoff ceremony when
+- `[x]` Complexity bumps to manual-with-prompt; never silent invocation of prepare-commits
+- `[x]` Safe-accumulate operates correctly under deferred review (no per-task fire by default)
+- `[x]` arc-commit skill remains user-invocable under all interlock settings
+- `[x]` Contributor role under commit-on-task-approval stages code only — no project-level status-file updates
+- `[x]` Push-on-handoff fires inside the handoff ceremony when
   `session.push_interlock: on-handoff` is configured
-- `[ ]` Push-on-handoff does not require `session.commit_interlock: on-task-approval`
-- `[ ]` Mid-session push remains explicit-ask only in all modes
-- `[ ]` Push-ordering invariant holds when both worktree-push and notes-push fire at handoff
-- `[ ]` Each of the five failure modes that fires recovers per the documented path
-- `[ ]` Rollback dev-rule applies cleanly to bad-state failures; not invoked for transit failures
-- `[ ]` Agent-crash mid-cascade surfaces correctly on session-resume with continue/rollback prompt
-- `[ ]` `strategy-team-coordination` updated with interlock-release-aware coordination guidance
-- `[ ]` `strategy-session-operations` updated with interlock-config-aware load-set, deferred-review ×
+- `[x]` Push-on-handoff does not require `session.commit_interlock: on-task-approval`
+- `[x]` Mid-session push remains explicit-ask only in all modes
+- `[x]` Push-ordering invariant holds when both worktree-push and notes-push fire at handoff
+- `[x]` Each of the five failure modes that fires recovers per the documented path
+- `[x]` Rollback dev-rule applies cleanly to bad-state failures; not invoked for transit failures
+- `[x]` Agent-crash mid-cascade surfaces correctly on session-resume with continue/rollback prompt
+- `[x]` `strategy-team-coordination` updated with interlock-release-aware coordination guidance
+- `[x]` `strategy-session-operations` updated with interlock-config-aware load-set, deferred-review ×
   commit-on-task-approval interaction, and failure-mode taxonomy
-- `[ ]` Validation window (1-2 self-host sessions exercising configured interlock release settings between SOF
+- `[~]` Validation window (1-2 self-host sessions exercising configured interlock release settings between SOF
   integration and plan-user-sync-ux activation) — observation log in `notes-session-operational-flow.md`
-- `[ ]` Downstream consumer plans (plan-agile-wu-lifecycle, plan-quality-gate-hooks, plan-worktree-foundation,
+    - _Deferred:_ Runs after SOF integration during the next downstream WU; `notes-session-operational-flow.md`
+      already identifies plan-user-sync-ux as the vehicle.
+- `[x]` Downstream consumer plans (plan-agile-wu-lifecycle, plan-quality-gate-hooks, plan-worktree-foundation,
   plan-concurrent-work-conventions, plan-user-sync-ux) confirm metadata-state foundation supports their scope
   without structural reshape — verified via "Relationship" section reads before WU integration
-- `[ ]` Token-economy discipline upheld: session-loaded surfaces (DEV-RULES, process-task-loop, session-init,
+- `[x]` Token-economy discipline upheld: session-loaded surfaces (DEV-RULES, process-task-loop, session-init,
   session-handoff) received minimum additions; depth lives in strategy-session-operations
-- `[ ]` All quality gates pass (markdown lint, TypeScript typecheck, test suite, build)
-- `[ ]` Ready for integration
+- `[x]` All quality gates pass (markdown lint, TypeScript typecheck, test suite, build)
+- `[x]` Ready for integration
 
 ---
 

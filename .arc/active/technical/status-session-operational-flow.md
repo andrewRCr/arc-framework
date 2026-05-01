@@ -12,6 +12,6 @@
 - **Next Task:** Task 5.1 — Complete verification (line ~315)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 5.1 — Complete verification
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 ---
