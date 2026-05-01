@@ -314,14 +314,8 @@ Likely answer is C with the `arc status` hint conditional on a suppression flag 
 
 ## Unknowns and Assumptions
 
-**External research at PRD drafting:**
-
-- Pushability pre-check conventions in modern VCS tooling (protected branches, unpushable states,
-  rebase-in-progress detection).
-- Failure-surfacing conventions for paired remote operations (`git push --all`, `git push --atomic`,
-  monorepo tooling). How do these report "first succeeded, second failed"?
-- Terminology for the "ref snapshot of local config/state" concept ("snapshot", "state ref", "note",
-  "metadata", "pin") — relevant for the directional copy audit.
+**External research completed during planning** — findings folded into the relevant scope items
+above (pushability matrix, paired-push failure shape, layered vocabulary rule).
 
 **Assumptions to validate during PRD:**
 
