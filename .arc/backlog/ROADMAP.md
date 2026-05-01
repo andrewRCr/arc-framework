@@ -131,7 +131,7 @@ pre-commit + CI enforcement (CHECK 11/13/15, lint:arc:*) anchor drift resistance
 - Downstream: Session-Operational Flow (shared session-init / session-handoff / DEV-RULES surface),
   ARCd Rebrand (lean session-init surface for rebrand terminology sweep)
 
-**Interlock Foundation** — In Progress (activated 2026-04-29)
+**Interlock Foundation** — ✅ Complete (April 2026)
 
 Lands ADR-016's interlock model (Accepted): the constitutional frame for session-operational flow
 with task → commit → push → integrate as the linear autonomy stack (invariant endpoints, configurable
@@ -151,7 +151,7 @@ incoherence revealed a missing shared frame. External research validated interlo
 with industrial SWE practice (Spinnaker manual judgment, GitHub Environments, Atlantis, Terraform
 autonomy tiers, Conventional Changelog boundary-consolidation).
 
-- PRD: `technical/prd-interlock-foundation.md`
+- Archive: `archive/2026-q2/technical/05_interlock-foundation/`
 - ADR: `reference/adr/adr-016-configurable-autonomy-interlocks-for-session-operations.md` (Accepted)
 - Sibling WU plan: `technical/plan-session-operational-flow.md` (autonomy-mode behavior + metadata-state
   foundation; ships after Interlock Foundation validation window)
@@ -164,14 +164,17 @@ autonomy tiers, Conventional Changelog boundary-consolidation).
   canonical gate vocabulary preserved alongside the new interlock vocabulary), ARCd Rebrand
   (interlock-model terminology absorbed into rename pass)
 
-**Session-Operational Flow** — Sibling WU; backlog (deferred to post-WU-A validation window)
+**Session-Operational Flow** — Planning (activated 2026-04-30)
 
 Implements the autonomy-mode behavior (auto-commit, auto-push), handoff-interior toggle consumers,
 deferred-review × auto-commit safe-accumulate, arc-commit skill preservation, and metadata-state
 foundation (State + Integration field model + sweep cadence config) against the Interlock Foundation
-frame. WU-B in the pre-approved split.
+frame. WU-B in the pre-approved split. Validation window between WU-A archive and WU-B execution
+runs per `notes-interlock-foundation.md` (archived).
 
-- Plan: `technical/plan-session-operational-flow.md`
+- Plan: `active/technical/plan-session-operational-flow.md`
+- Branch: `technical/plan-session-operational-flow` (batch — also carrying Interlock Foundation archival)
+- Upstream: Interlock Foundation (shipped — PR #23)
 
 **User Sync UX Polish** — After Session-Operational Flow Phase 6 (handoff-interior toggles)
 
@@ -498,6 +501,11 @@ site structure.
 
 ## Change Log
 
+- **2026-04-30**: Interlock Foundation complete (merged via PR #23) and archived to
+  `archive/2026-q2/technical/05_interlock-foundation/`. Session-Operational Flow
+  re-activated to planning on `technical/plan-session-operational-flow` (batch branch
+  carrying archival + WU-B planning together) for sibling implementation against the
+  shipped frame.
 - **2026-04-27**: Session-Init Optimization complete and archived to
   `archive/2026-q2/technical/04_session-init-optimization/`. Session-Operational Flow
   activated to planning on `technical/plan-session-operational-flow` (batch branch carrying
