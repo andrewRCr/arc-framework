@@ -302,12 +302,11 @@ downstream plan currently references the pre-advance pattern. See [`notes-sessio
         - Linked maintainer and contributor freshness gaps to `process-task-loop` crash recovery in both
           project and package workflow copies.
 
-### `[ ]` **4.2 strategy-team-coordination interlock-release-aware coordination guidance**
+### `[x]` **4.2 strategy-team-coordination interlock-release-aware coordination guidance**
 
-- Add a section covering how task ownership, handoff conventions, and concurrent-pair coordination interact
-  with commit-on-task-approval vs manual commit. Concurrent pairs under commit-on-task-approval have different
-  commit-rate dynamics than under manual commit; document the distinction. P2.a (concurrent-pair commit-rate
-  guidance beyond basic awareness) deferred — surfaces during dogfooding if patterns emerge worth codifying.
+- _Outcome:_ Added an Interlock-Release Coordination section to both `strategy-team-coordination.md` copies,
+  covering task ownership before approval, manual-commit handoff risk, commit-on-task-approval's higher
+  task-sized commit cadence, and the fact that push remains a separate team-visibility boundary.
 
 ---
 

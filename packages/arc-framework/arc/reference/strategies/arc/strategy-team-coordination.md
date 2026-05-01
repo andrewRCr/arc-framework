@@ -25,9 +25,10 @@ protection modes). This strategy layers team-specific patterns on top of that fo
 1. [Workflow Adaptations](#workflow-adaptations) — what changes in team mode
 2. [Task Ownership](#task-ownership) — `(@name)` convention
 3. [Person-to-Person Task Handoff](#person-to-person-task-handoff) — transferring work between developers
-4. [Team Branching Patterns](#team-branching-patterns) — common multi-developer workflows
-5. [Merge Conflict Expectations](#merge-conflict-expectations) — shared file conventions, concurrent sessions
-6. [External Tracker Integration](#external-tracker-integration) — Jira, Linear, GitHub Issues
+4. [Interlock-Release Coordination](#interlock-release-coordination) — commit/push settings in team mode
+5. [Team Branching Patterns](#team-branching-patterns) — common multi-developer workflows
+6. [Merge Conflict Expectations](#merge-conflict-expectations) — shared file conventions, concurrent sessions
+7. [External Tracker Integration](#external-tracker-integration) — Jira, Linear, GitHub Issues
 
 ---
 
@@ -168,6 +169,37 @@ when the incoming developer starts.
   task list + git log.
 - **Questions are expected.** The incoming developer may leave questions in commit messages,
   PR comments, or team channels.
+
+---
+
+## Interlock-Release Coordination
+
+Team mode does not change the interlock model: task approval, commit approval, push approval,
+and integration approval keep the same meanings. It changes the coordination consequences because
+other developers may be waiting on the branch or task list state.
+
+**Task ownership before approval.** Before reporting a task complete, verify the task's `(@name)`
+marker still names the current developer. Under `session.commit_interlock: on-task-approval`,
+approval may immediately produce a commit, so a stale ownership marker becomes committed shared
+state instead of a local note. Reassignment remains a task-list edit; make it before the completion
+report when ownership changed during the work.
+
+**Manual commit mode.** With `session.commit_interlock: manual`, task completion can leave code
+and task-list checkbox updates uncommitted until the user explicitly asks for a commit. In team
+mode, that state is local only. Handoffs should either commit the reviewed work first or describe
+the uncommitted state clearly in SESSION-NOTES so the next developer does not assume the branch
+already carries it.
+
+**Commit-on-task-approval mode.** With `session.commit_interlock: on-task-approval`, approved tasks
+usually land as task-sized commits immediately after review. This reduces invisible local state
+but increases commit frequency on shared branches. Concurrent pairs should pull before starting
+or committing nearby task-list edits, and should expect straightforward checkbox/completion-note
+conflicts when two owned tasks complete close together.
+
+**Push remains separate.** A local commit is not team-visible until pushed. `session.push_interlock:
+on-handoff` releases push at session handoff only; mid-session push still requires explicit user
+invocation. Teams that depend on a shared integration branch should agree when mid-session pushes
+are expected versus when handoff push is sufficient.
 
 ---
 
