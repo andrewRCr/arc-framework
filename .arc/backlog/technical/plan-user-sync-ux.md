@@ -118,6 +118,15 @@ worktree+notes pairing is the canonical instantiation of that default. Rationale
   shared `refs/notes/arc/user/{identity}` ref. Handoff-only concentrates ref writes into deliberate
   single events, dramatically reducing race surface compared to per-commit push from multiple sessions.
 
+**`user.sync_push: always` under manual push-interlock.** Do not require
+`session.push_interlock: on-handoff` as a hard dependency for `user.sync_push: always`. The settings can
+coexist, but the workflow must preserve commit/note coherence: when the worktree has no unpushed commits,
+auto-save and push notes; when the worktree is local-ahead and `session.push_interlock: manual`, save notes
+locally but block notes push with clear guidance to push the worktree first. Only
+`session.push_interlock: on-handoff` can make "always" fully automatic for sessions that create new commits,
+because the workflow pushes the worktree before notes. Diverged / remote-ahead states should block notes push
+and surface reconciliation rather than publishing notes against unavailable commits.
+
 **Shared-ref sync-state inference under parallel sessions.** Each session computes sync state independently
 from its worktree's HEAD. The notes ref is shared across the identity; sync-state inference must handle the
 case where another session pushed notes that this session hasn't fetched. Surface as part of the state-machine
