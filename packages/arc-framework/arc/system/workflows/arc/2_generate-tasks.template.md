@@ -140,6 +140,11 @@ Create an empty file with a header:
 # Atomic Tasks: [Work Name]
 ```
 
+> [!IMPORTANT]
+> `workflow-interlock`: Stop after the task list and atomic companion are saved. Surface the
+> task list location for review; await direction before updating the status file and bundling
+> the commit.
+
 See [Task Processing Loop](3_process-task-loop.md) for how task lists are executed.
 
 ---
