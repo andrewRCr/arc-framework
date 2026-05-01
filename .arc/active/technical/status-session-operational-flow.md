@@ -13,6 +13,6 @@
 - **Next Task:** Task 5.1 — Complete verification (line ~315)
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 3 — create completion metadata
+- **Next Action:** integrate-work-unit Step 8 — address PR review findings
 
 ---
