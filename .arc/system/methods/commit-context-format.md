@@ -37,6 +37,8 @@ override-active: false
 - `Context: tasks-[filename].md (code review)` — commits responding to code review findings
   (local pre-merge or PR-stage)
 - `Context: tasks-[filename].md (archival)` — active to archive transition
+- `Context: tasks-[filename].md (handoff)` — status-file rotation at session boundary
+  (dedicated `chore(status):` commit per [DEV-RULES.ARC][dev-rules-arc] § Commit Discipline)
 
 **With atomic companion file:**
 
@@ -71,3 +73,4 @@ in [`arc-config.yml`][arc-config].
 
 [prepare-commits]: ../workflows/arc/supplemental/prepare-commits.md
 [arc-config]: ../arc-config.yml
+[dev-rules-arc]: ../../reference/constitution/DEV-RULES.ARC.md

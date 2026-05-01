@@ -50,6 +50,28 @@ ARC is a hybrid project:
 All commands run from the repository root — npm workspaces delegates to the CLI package
 automatically.
 
+## Self-Hosting Notes
+
+This repo develops the same framework it uses. One structural consequence: the methodology
+docs live in two places — `.arc/` (this project's working instance) and
+`packages/arc-framework/arc/` (the package source that ships to adopters). The two trees
+mirror each other, with some intentional configuration differences; pre-commit hooks warn
+when only one copy of a Framework file is staged.
+
+**Implication for editor tooling.** Some tools index a workspace by file basename (Markdown
+LSPs, fuzzy file pickers, repo-wide search). Identical filenames in both trees can surface
+duplicate matches or false-ambiguity warnings. Common workaround: a gitignored `.ignore`
+file at the repo root excluding the package mirror:
+
+```text
+# .ignore (used by ripgrep, fd, Marksman, and similar tools that respect ignore-style files)
+packages/arc-framework/arc/
+```
+
+This is per-developer tooling preference, not project policy — set it up if your toolchain
+benefits, skip if not. Adopters of `@arc-framework/cli` don't encounter this; their package
+source lives under `node_modules`, gitignored automatically.
+
 ## Commit Convention
 
 Git hooks enforce a commit message format and a `Context:` footer. Contributors use the

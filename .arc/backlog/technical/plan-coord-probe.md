@@ -184,7 +184,7 @@ current benefit.
 - **[Session-Operational Flow][session-operational-flow]** (current planning branch). No frame
   dependency, but landing after avoids surface conflicts on session-init workflow edits.
   Coord-probe's session-init fire point is the new branch-gone resolution step (introduced by
-  Work-Unit Mobility), not a gate-model gate.
+  Work-Unit Mobility), not an interlock.
 
 ### Sibling (parallelizable)
 

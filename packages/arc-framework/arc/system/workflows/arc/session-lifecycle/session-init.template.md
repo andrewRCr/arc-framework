@@ -178,11 +178,18 @@ See [Team Coordination Strategy][team-coordination] § Task Ownership for the `(
 
 **Resolve session type** — after the parallel batch and item 8 resolve, settle the session type that gates
 items 9–10. The probe envelope carries `active.value.sessionType` ∈
-`{"planning", "execution", "integration", null}` inferred from the resolved status file's tracked fields.
+`{"planning", "execution", "integration", null}` inferred from the resolved status file's `**State:**`
+(primary, case-exact `Planning`) with branch-pattern fallback (`{category}/plan-{name}`) when State is
+unset/empty or no candidate is resolved. `null` covers two distinct cases:
+
+- **Multiple-candidate defer:** `resolution === "multiple"` — recompute from the chosen candidate's fields
+  after disambiguation.
+- **Orphan:** `resolution === "none"` (or empty State) and the current branch does not match the
+  planning-branch pattern. No active work, no planning signal — surface in orientation; skip item 10.
+
 SESSION-NOTES `**Session Type:**`, when present and matching `planning | execution | integration`
 (case-insensitive), supersedes the envelope value for this session. Invalid override → ignore + emit a
-warning in orientation. When `resolution === "multiple"`, recompute from the chosen candidate's fields
-after disambiguation resolves to a single status file.
+warning in orientation.
 
 9. **Active task list** — **strategic partial read**. Reference material too large to internalize upfront;
     read other sections on-demand during work.
@@ -191,12 +198,14 @@ after disambiguation resolves to a single status file.
     shows `**Task List:** [none]` (defense-in-depth shape checks — redundant under inference but kept as
     direct checks).
 
-    - Path from the active status file (e.g., `.arc/active/feature/tasks-[name].md`)
+    - Path: `dirname(active.value.path) + '/' + <Task List value>` — the `**Task List:**` field
+      carries the bare filename (`tasks-[name].md`); the directory is the status file's directory
+      (co-located by convention). Path-form values (legacy) work too, used as-is.
     - **Always read** — three sections, nothing else:
-        1. **Header** — bullet list above the first `### **Phase` heading
+        1. **Header** — bullet list above the first `## **Phase` heading
         2. **Current phase preamble** — derive the phase identifier from the current task identifier by
            stripping the leaf segment (`5.3` → Phase `5`, `3.R.e` → Phase `3.R`); locate the heading with
-           `^### \*\*Phase {id}:\*\*`. **Preamble boundary contract:** read from the heading line through
+           `^## \*\*Phase {id}:\*\*`. **Preamble boundary contract:** read from the heading line through
            the line immediately before the first `- [ ]` / `- [x]` bullet under the phase. Multi-paragraph
            framing (Purpose, Design decisions, Rationale per the codified shape) is included; task entries
            themselves are not
@@ -207,7 +216,7 @@ after disambiguation resolves to a single status file.
         3. Search for the title fragment if the task was renumbered
         4. If none resolve, report the mismatch (Step 7)
     - **Structural mapping** for header + phase preamble: when line-precise Reads are needed, issue one
-      grep for `^### \*\*Phase` (or equivalent phase-heading marker) returning all phase positions in a
+      grep for `^## \*\*Phase` (or equivalent phase-heading marker) returning all phase positions in a
       single call — sufficient to compute Read offsets for header (above first phase), current phase
       preamble, and current task section. Don't issue per-section greps.
     - **Companion file awareness**: From `active.value.companions` — note their existence so
@@ -219,7 +228,12 @@ after disambiguation resolves to a single status file.
     - `integration` → `.arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md`
     - `planning` → none today (forward-compatible with `refine-plan-loop.md` if the Expanded Planning
        Path WU lands)
-    - `null` (multiple unresolved candidates) → defer until disambiguation completes
+    - `null` — two paths:
+        - **Multiple-candidate defer:** skip lifecycle workflow load until disambiguation completes;
+          recompute `sessionType` from the chosen candidate and load the matching workflow then.
+        - **Orphan** (`resolution === "none"` + non-matching branch, or single candidate with empty
+          State + non-matching branch): skip lifecycle workflow load; surface the orphan state in
+          orientation. Step 5's next-work-unit discovery handles direction-finding.
 
     Load later if the session pivots to a different lifecycle phase.
 

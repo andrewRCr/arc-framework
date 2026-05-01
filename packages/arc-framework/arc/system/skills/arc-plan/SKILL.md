@@ -1,11 +1,6 @@
 ---
 name: arc-plan
-description: >-
-  Collaborative elicitation for pre-PRD planning exploration — helps when
-  no plan-* document exists yet, or one exists but is still being refined
-  toward formalization. Iterative facilitation, not plan generation. Not
-  for use during task execution; invoke only when the user explicitly
-  requests planning help.
+description: Pre-PRD planning elicitation. Iterative facilitation, not plan generation. Not for use during task execution.
 disable-model-invocation: false
 ---
 

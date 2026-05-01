@@ -201,6 +201,35 @@ lowercase `domain:`, exact match after lowercasing the fragment) is a mechanical
 requirement (probe + pre-commit hook enforce it) and should be framed as such — not as
 style convention.
 
+#### 8. Autonomy Stack — interlock model (from Interlock Foundation WU, 2026-04-29)
+
+**What changed:** ADR-016 establishes the interlock model — four interlocks (task → commit → push
+→ integrate; invariant endpoints, configurable middles via `session.autonomy`). DEV-RULES.ARC
+weaves the vocabulary and new invariants (integration-interlock, cascade-undo) into existing rule
+sections; the conceptual model home is `strategy-session-operations.md`. Structured
+task-completion prompt and push-ordering enforcement live in workflow files
+(`3_process-task-loop.md`, `session-handoff.md`).
+
+**Edit type:** Additive concept introduction (not drift-fix). The public surface gains a new
+adopter-visible conceptual model (interlock model, autonomy stack, configurable middle interlocks)
+and supporting vocabulary (task-interlock, commit-interlock, push-interlock,
+integration-interlock). Existing methodology prose absorbs the new vocabulary without describing
+a retired model.
+
+**Known touch points** (to be enumerated at sweep time — scan `docs/**` for):
+
+- Session lifecycle / autonomy mode discussion
+- Commit and push authority descriptions ("when does ARC commit?")
+- Handoff ceremony framing
+- Methodology principle pages touching agent-initiated actions
+
+**Nuance:** No extraction scoped at source — sweep WU resolves placement and content at sweep
+time. Authoritative sources: ADR-016, `strategy-session-operations.md` (post-Task 1.3.b
+expansion), `arc-config.yml` (post-Phase 2 `session.autonomy` schema), `3_process-task-loop.md`
+(post-Phase 4.1.b prompt format spec), `session-handoff.md` (post-Phase 4.2.c push-ordering
+enforcement), DEV-RULES.ARC (post-Task 1.2 weave). Don't pre-author docs prose against
+intermediate task-list intent — wait until sources are at their final post-WU shape.
+
 ### Content Contributions
 
 #### 3. Operational-context extractions (from Session-Init Optimization WU, pending)
@@ -326,7 +355,6 @@ adopters rely on):
    `prd-arcd-docs-site.md` scope (format migration only)
 2. Add a new numbered item under § Drift Items with the template shape: what
    changed / edit type / touch points / nuance
-3. Update Document History
 
 **Content contributions** — when a WU slims in-repo content and stages extracted prose
 for docs absorption:
@@ -337,7 +365,6 @@ for docs absorption:
 2. Add a numbered item under § Content Contributions here, pointing at the staging
    file and capturing high-level context (what changed / input type / staging
    reference / link placeholders / nuance)
-3. Update Document History
 
 The plan remains in capture state until either (a) `prd-arcd-docs-site.md` is near
 activation and items have accumulated enough to PRD this WU, or (b) an individual
@@ -381,16 +408,3 @@ item is urgent enough to run as an atomic task list before the consolidated swee
   surfacing of the per-WU status file docs drift
 - `prd-session-init-optimization.md` § Requirements P1.1–P1.3 (operational-context audit
   producing content contributions staged here)
-
-## Document History
-
-| Date       | Change                                                                                                |
-|------------|-------------------------------------------------------------------------------------------------------|
-| 2026-04-16 | Initial capture — seeded with per-WU status file model from Work-Status Restructure pre-merge         |
-| 2026-04-17 | Added Content Contributions input type — accommodates Session-Init Optimization staging notes         |
-| 2026-04-17 | Renamed plan file: methodology-sweep → content-sweep (scope broadened beyond methodology drift)       |
-| 2026-04-22 | Added Session-Init Optimization Phase 3.R docs drift capture — public `docs/**` updates deferred here |
-| 2026-04-23 | Added Drift Item #4 — agent-file surface removal + `system/briefs/` rename + harness-layer intro      |
-| 2026-04-23 | Added Content Contribution #5 — agent-native positioning framing note for value-prop copy             |
-| 2026-04-24 | Added Drift Item #6 — DEV-RULES domain-rules pattern + adopter-facing template                        |
-| 2026-04-25 | Added Content Contribution #7 — session-init dual-channel pull config + worktree-drift qualifier      |

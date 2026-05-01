@@ -29,8 +29,8 @@ For simple, single-concern commits where you know what changed:
 
 1. `git status` — review pending changes
 2. `git --no-pager diff --stat` — overview of scope
-3. Update task list and the active status file if committing completed task work (see
-   [DEV-RULES.ARC][dev-rules-arc] § Work status accuracy) — stage with the commit
+3. Update task list if committing completed task work — stage with the commit. (Status file
+   stays untouched here — see [DEV-RULES.ARC][dev-rules-arc] § Status-file timing.)
 4. Stage files for one logical change
 5. Pre-stage review extensions · `#pre-stage-review`: If `pre-stage-review` appears in the active-extensions
    list (established at session init), load and execute its [`.actions`][arc-ext-pre-stage]. Otherwise, skip.
@@ -62,9 +62,12 @@ updates to a final `docs(...): update [doc] for Tasks X.Y-X.Z` commit after the 
   would otherwise tangle across the code commits.
 - **Does NOT apply** to pure-docs WUs where the docs ARE the work (audits, restructures, writing
   sweeps). Commit groupings follow § Granularity guidance below.
-- **Does NOT apply** to task list or active status file updates. These are derived state that
-  rides with the content commit that triggered them — see § Granularity guidance and
-  [DEV-RULES.ARC][dev-rules-arc] § Work status accuracy.
+- **Does NOT apply** to task list updates. These are derived state that rides with the content
+  commit that triggered them — see § Granularity guidance.
+- **Does NOT apply** to status-file updates. These fire only at handoff or workflow-ceremony
+  boundaries; the exact commit shape (dedicated `chore(status):` vs. bundled with concurrent
+  ceremony content) follows [DEV-RULES.ARC][dev-rules-arc] § Status-file timing and § Status-file
+  commit shape.
 
 ### Parent Task Completion
 
@@ -108,8 +111,9 @@ Examine changes that might not be immediately obvious — config files, document
 - Mark completed subtasks as `[x]` in task files
 - Mark parent tasks `[x]` ONLY if ALL subtasks are complete
 - Update progress notes and add any discovered tasks
-- **Update the active status file** — advance Next Task, Last Completed, and Next Action to
-  reflect the post-commit state (see [DEV-RULES.ARC][dev-rules-arc] § Work status accuracy)
+
+The active status file is **not** updated here — see [DEV-RULES.ARC][dev-rules-arc]
+§ Status-file timing.
 
 ### 5. Plan Commit Sequence
 
@@ -124,9 +128,12 @@ guidance below.
   belong together. If they fail or succeed independently, they split.
 - **Pragmatic exception for intermingled code:** Changes tangled in the same file/function
   commit together; note the overlap in the body.
-- **Tracking docs ride with content commits.** Task list checkboxes and active status file
-  updates are derived state — they belong with the commit that produced the content change,
-  not in a separate meta-commit and not hunk-split to keep 1:1 task-ID-to-checkbox granularity.
+- **Task list checkboxes ride with content commits.** They are derived state that belongs with
+  the commit that produced the content change — not a separate meta-commit and not hunk-split to
+  keep 1:1 task-ID-to-checkbox granularity.
+- **Status-file updates do not ride with code commits.** They fire only at handoff or
+  workflow-ceremony boundaries; shape (dedicated vs bundled with concurrent ceremony content)
+  follows [DEV-RULES.ARC][dev-rules-arc] § Status-file timing and § Status-file commit shape.
 
 ### 6. Execute and Verify
 

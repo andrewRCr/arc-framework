@@ -65,6 +65,7 @@ function sessionInitResult(
     settings: { ...SESSION_INIT_SETTINGS },
     defaultsApplied: [],
     warnings: [],
+    autonomy: { value: "manual-commit", source: "default" },
     ...overrides,
   };
 }
@@ -167,5 +168,6 @@ describe("JSON round-trip — typed result shape is stable", () => {
     expect(roundTripped.mode).toBe("session-init");
     expect(roundTripped.settings["pm.mode"]).toBe("arc-in-git");
     expect(roundTripped.defaultsApplied).toEqual(["pm.mode"]);
+    expect(roundTripped.autonomy).toEqual({ value: "manual-commit", source: "default" });
   });
 });

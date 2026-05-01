@@ -86,30 +86,65 @@ git mv .arc/backlog/{category}/tasks-{name}.md .arc/active/{category}/
 git mv .arc/backlog/{category}/atomic-{name}.md .arc/active/{category}/
 ```
 
-After the move, update the task list's PRD path reference from `backlog` to `active`:
+The task list's `**PRD:**` field carries a bare filename — its path is derived from the task
+list's directory, so the backlog → active rotation needs no field edit. (Existing task lists
+authored under the prior path-form convention may still carry `.arc/{active|backlog}/...` values;
+update those to bare filenames if encountered, otherwise leave the human-reference as-is.)
 
-```text
-**PRD:** `.arc/active/{category}/prd-{name}.md`
-```
+**Re-anchor backlog-sibling links.** Any relative-path link defs in the PRD, task list, or
+atomic file that pointed at sibling artifacts still in `backlog/{category}/` (sibling plans,
+`notes-*` files, cross-WU references) need a `../../backlog/{category}/` prefix from the
+active location. The pre-commit markdown-link check catches misses.
 
-### Step 4: Create Status File
+### Step 4: Ensure Status File
+
+The active status file may already exist when this workflow runs — [`activate-planning-branch.md`][activate-planning-branch]
+Step 5 creates it during the planning-branch ceremony. Step 4 is idempotent: detect the existing file and
+transition it, or create from template when absent. Both paths converge on the same end state: `State: In Progress`,
+the task list pointer populated, and the first task ready to execute.
+
+**Precondition check.** If `.arc/active/{category}/status-{name}.md` already exists, take the **transition path**
+below; otherwise, take the **creation path**.
+
+#### Creation path · no existing status file
 
 Create `.arc/active/{category}/status-{name}.md` from [`template-status.md`][template-status]. This is the per-WU
 project pointer — it travels with the branch and carries state until the work unit is archived.
 
-Replace the template's title (`# Status: [Work Name]`) with the actual work unit name, then fill in the initial
-field set:
+Replace the template's title (`# Status: [Work Name]`) with the actual work unit name. Strip the HTML comment block
+at the top of `## Active Work` — that's template scaffolding, not an instance carry-over (mirrors `template-prd.md`
+precedent). Then fill in the initial field set:
 
 1. **State** — `In Progress`
-2. **Branch** — feature branch name (e.g., `feature/{name}` or `technical/{name}`)
-3. **Task List** — active path (e.g., `.arc/active/{category}/tasks-{name}.md`)
-4. **Next Task** — first task in triple-anchor format (e.g., "Task 1.1 — Setup scaffolding (line ~XX)")
-5. **Last Completed** — `Work unit activated`
-6. **Blockers** — `[none]` (standard empty-state marker)
-7. **Next Action** — describe first task action (e.g., "Begin Phase 1")
+2. **Branch** — implementation branch name (e.g., `feature/{name}` or `technical/{name}`)
+3. **Spec** — `prd-{name}.md` (PRD filename); URL under `pm.mode: external`
+4. **Task List** — `tasks-{name}.md` (bare filename; path derives from this status file's directory)
+5. **Sibling Work Unit(s)** — comma-separated `plan-{name}.md` or `prd-{name}.md` references when this WU is part
+   of a larger logical whole split for sizing or sequencing; otherwise `[none]`
+6. **Last Completed** — `Work unit activated`
+7. **Next Task** — first task in triple-anchor format (e.g., "Task 1.1 — Setup scaffolding (line ~XX)")
+8. **Blockers** — `[none]`
+9. **Next Action** — describe first task action (e.g., "Begin Phase 1")
 
-Leave the optional pointer fields (`Interrupts:`, `Paused At:`, `Paused To:`) commented out — they apply only when
-this WU is interrupted by an incidental (see [`manage-incidental-work.md`][incidental] § Coordinated Pause/Resume).
+#### Transition path · status file exists from planning ceremony
+
+The status file already carries planning-state field values from [`activate-planning-branch.md`][activate-planning-branch]
+Step 5. Update the fields that change at activation:
+
+1. **State** — `Planning` → `In Progress`
+2. **Branch** — planning branch → implementation branch (e.g., `feature/{name}` or `technical/{name}`)
+3. **Spec** — conditional rewrite:
+    - `plan-{name}.md` filename → `prd-{name}.md` (the now-canonical artifact)
+    - URL, external tracker reference, non-`plan-` `.md` filename, or `[none]` → leave unchanged (accommodates
+      `pm.mode: external` Specs untouched)
+4. **Task List** — `[none]` → `tasks-{name}.md` (bare filename)
+5. **Last Completed** — `[none]` → `Work unit activated`
+6. **Next Task** — `[none]` → first task in triple-anchor format (e.g., "Task 1.1 — Setup scaffolding (line ~XX)")
+7. **Next Action** — replace planning-session prompt with first task action (e.g., "Begin Phase 1")
+
+**Sibling Work Unit(s)** and **Blockers** retain their existing values from the planning session.
+
+#### Both paths
 
 **Remove pre-activation PRD metadata:** Remove `**State:**`, `**Related Work:**`, and `**Updated:**` lines from the
 PRD header (see [`template-prd.md`][template-prd]). The PRD retains only `**Type:**` going forward.
@@ -191,7 +226,8 @@ Before proceeding to task execution, verify:
 
 - [ ] Implementation branch created and checked out
 - [ ] PRD, task list, and atomic companion file in `.arc/active/{category}/` (moved from backlog if arc-in-git)
-- [ ] Status file created in `active/{category}/` (State, Branch, Task List, Next Task)
+- [ ] Status file ensured in `active/{category}/` — `State: In Progress` with Branch, Spec, Task List,
+      Next Task populated (created from template, or transitioned from `Planning`)
 - [ ] PRD `**State:**` / `**Related Work:**` / `**Updated:**` pre-activation metadata removed (if present)
 - [ ] PROJECT-STATUS.md and ROADMAP.md updated (arc-in-git only)
 - [ ] All changes committed on feature branch
@@ -220,3 +256,4 @@ With the work unit activated, proceed to task execution:
 [template-status]: ../../../../reference/templates/template-status.md
 [template-prd]: ../../../../reference/templates/template-prd.md
 [incidental]: ../supplemental/manage-incidental-work.md
+[activate-planning-branch]: planning/activate-planning-branch.md

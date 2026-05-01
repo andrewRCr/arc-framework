@@ -67,8 +67,8 @@ For interactive sessions, provide numbered options to keep responses quick.
 ### Step 4: Write and Save PRD
 
 Generate the PRD using [template-prd.md][template-prd]. The template includes section guidance,
-dependency tracking, priority levels, and document history conventions. Adapt emphasis based on
-work type — not every section carries equal weight for every PRD.
+dependency tracking, and priority levels. Adapt emphasis based on work type — not every section
+carries equal weight for every PRD.
 
 **Naming:** The `{{WORK_NAME}}` descriptor in the PRD filename becomes the work unit's identifier
 across all artifacts — task list (`tasks-{{WORK_NAME}}.md`), notes (`notes-{{WORK_NAME}}.md`),
@@ -99,6 +99,12 @@ serve exploration and are deleted once the PRD captures the conclusions (see
    `reference/research/`).
 3. **Stage with the PRD commit**: The plan deletion and any `notes-*` creation should be part of the
    same commit as the PRD.
+4. **Update planning-state status file** (when present): If
+   `.arc/active/{category}/status-{name}.md` exists with `**State:** Planning` (planning-branch
+   sessions), advance its `**Next Action:**` to reflect the post-PRD step (e.g., "Run
+   `2_generate-tasks.md`"). Stage with the PRD commit — bundles per
+   [DEV-RULES.ARC][dev-rules-arc] § Status-file commit shape. Skip otherwise (no status file
+   exists pre-activation under non-planning-branch flows).
 
 **Stop here** — do not proceed to task generation. The PRD should be reviewed first. When ready,
 continue with [2_generate-tasks.md](2_generate-tasks.md).

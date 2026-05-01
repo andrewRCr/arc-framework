@@ -881,7 +881,7 @@ pre-trim); template counterpart at the same line range.
 > **Standard:** 4 spaces per hierarchy level
 >
 > ```text
-> Phase Header (### **Phase X:**)
+> Phase Header (## **Phase X:**)
 > ↓
 > Phase-level notes (0 spaces) **Purpose:** Optional context
 > ↓
@@ -899,7 +899,7 @@ pre-trim); template counterpart at the same line range.
 > **Visual example:**
 >
 > ```markdown
-> ### **Phase 1:** Backend Implementation
+> ## **Phase 1:** Backend Implementation
 >
 > **Purpose:** Establish data models with test-first approach.
 >
@@ -2386,6 +2386,148 @@ Adopters evaluating whether to wire a Skill into ARC vs. leave it standalone ben
 context this blockquote provides. Docs absorption should preserve the supported-tool
 enumeration (Claude Code, Cursor, Gemini CLI, VS Code Copilot) — it signals Skills'
 cross-agent portability.
+
+## Entry 69 — strategy-session-operations.md § Push-Timing Reasoning — stakes & race-surface rationale
+
+**Source:** `.arc/reference/strategies/arc/strategy-session-operations.md` (line 433, the
+`[push-timing background][TODO-docs-site]` placeholder under § Interlock Model § Push-Timing
+Reasoning); package-source copy same line. Full rationale authored during Task 1.3.b drafting but
+not landed in source per operational-sufficiency cuts — the strategy retains only the operationally-
+useful corollary (worktree-then-notes ordering); the supporting design rationale lives here.
+
+**Content:**
+
+> **Why per-commit auto-push is rejected.** Two arguments beyond the pairing constraint shape this
+> decision:
+>
+> - **Stakes asymmetry.** Push is external-visible and less reversible than local commit. Local
+>   commits can be amended, squashed, or reset before they leave the developer's machine; pushed
+>   commits are observable to collaborators and CI, and retraction requires force-push (which
+>   carries its own concurrency hazards). Concentrating push into deliberate ceremony reduces
+>   accidental cascade surface — a single stray approval can't propagate work to origin.
+> - **Concurrent-session safety.** Under parallel sessions (multiple worktrees, multiple machines,
+>   or both), multiple sessions writing to the shared `refs/notes/arc/user/{identity}` ref near-
+>   simultaneously creates ref-update races. Handoff-only push concentrates writes into deliberate
+>   single events bounded by the user's invocation cadence; per-commit auto-push would compound
+>   race surface linearly with commit cadence — a developer making ten commits in a session under
+>   `auto-push` would multiply the race window by ten.
+
+**Suggested destination:** docs site — Sessions & Context § Push timing, alongside operational
+push-at-handoff guidance. Adopter-facing rephrase frames as forward-looking guidance ("how
+push-at-handoff protects you in concurrent-session setups") rather than internal design-decision
+narrative.
+
+**Stylistic integration notes:** Strategy doc retains the operationally-useful pairing constraint
+(worktree-first-then-notes, notes attach to commits) inline; this entry holds the deeper "why" that
+adopters reading docs will want when evaluating their own autonomy configuration. Docs-site output
+must not reference ADRs (internal-only; adopters do not have them). Keep the concurrent-session
+example concrete (the "ten commits multiplies race window by ten" framing) — it's the kind of
+operational concretion that converts an abstract argument into a decision aid.
+
+## Entry 70 — strategy-session-operations.md § Status-File Timing — reviewer & auto-commit benefits
+
+**Source:** `.arc/reference/strategies/arc/strategy-session-operations.md` (line 467, the
+`[status-file timing background][TODO-docs-site]` placeholder under § Status-File Timing);
+package-source copy same line. Full rationale authored during Task 1.3.b drafting but not landed
+in source per operational-sufficiency cuts — the strategy retains the rule, the why-bound-to-
+ceremony framing, and the dedicated handoff commit tradeoff; the additional benefits captured
+here are adopter-interest "why" rather than behavior-shaping.
+
+**Content:**
+
+> **Commit-history readability.** Code commits and status commits serve different review needs.
+> Bundling them — the prior model — meant every code review pass had to mentally filter out
+> status-pointer churn to evaluate the actual code change, and every status-pointer review had to
+> reconstruct timing by stitching together field deltas across many bundled commits. Separating
+> them lets each kind of commit stand alone: a `chore(status): handoff …` commit is read once at
+> the session boundary and ignored during code review; code commits stay focused on what they
+> changed.
+>
+> **Auto-commit safety.** Under `auto-commit` mode, the agent's auto-fire scope is bounded to
+> code-only — the agent never has to maintain status-file consistency mid-stream while also
+> producing atomic code commits. The two responsibilities split cleanly: auto-fire produces code
+> commits at task boundaries; the explicit handoff invocation produces the status commit. This
+> separation removes a category of subtle atomicity errors (auto-commits that bundle code with
+> stale or partial status updates) without requiring the auto-commit logic to understand
+> status-file shape.
+
+**Suggested destination:** docs site — Sessions & Context § Status-file timing or § Auto-commit
+modes, alongside guidance on what commit history will look like under each autonomy configuration.
+Adopters choosing between manual and auto modes need to anticipate what their PR history will
+contain.
+
+**Stylistic integration notes:** Strategy doc retains the operationally-useful tradeoff framing
+(dedicated `chore(status): handoff …` commit appears in history) so adopters know what to expect
+in concrete terms. This entry expands the *why* behind that shape — the reviewer-facing argument
+and the auto-commit-safety argument both motivate the timing rule but don't change agent behavior
+once configured. Docs-site output must not reference ADRs (internal-only; adopters do not have
+them). Keep the framing concrete (what reviewers see, what auto-commit needs to worry about) —
+abstract "separation of concerns" prose loses adopters; specific consequences land.
+
+## Entry 71 — strategy-session-operations.md § Status-File Timing — task-list bundling rationale
+
+**Source:** `.arc/reference/strategies/arc/strategy-session-operations.md` (around line 538, the
+`[task-list timing background][TODO-docs-site]` placeholder appearing alongside the existing
+`[status-file timing background][TODO-docs-site]` link in § Status-File Timing); package-source copy
+same line. The strategy doc carries the volatility-vs-derived-state distinction inline as the
+operationally-useful framing; the deeper "what alternatives would cost" rationale lives here for
+adopters evaluating their own commit-shape conventions.
+
+**Content:**
+
+> **Why bundle task-list `[x]` flips with code, when status updates are separated.** A natural
+> question for adopters reading the two rules side-by-side: both are markdown updates that
+> accompany code work, why do they have opposite commit-shape conventions? The answer comes from
+> what happens under each alternative.
+>
+> **If task-list flips were deferred to handoff (the tempting symmetry):**
+>
+> - **Cross-session staleness.** A session that completes Tasks 4.1–4.3 but ends without handoff
+>   leaves the committed task list showing those tasks as `[ ]`. The next session's session-init
+>   reads the task list to find Next Task and resolves wrong. Recovery requires either reading
+>   commit messages to reconstruct what's actually done, or treating task-list state in git as
+>   advisory rather than authoritative — both options erode the task list's role as the work-unit
+>   pointer.
+>
+> - **Crash and interrupt fragility.** If a session dies mid-stream (machine crash, network drop,
+>   accidental terminal close), the deferred-flip model means the git record lags reality. The
+>   bundled-flip model gives crash-safe recovery: the last committed state always reflects work
+>   actually done.
+>
+> - **Reviewability loss.** With bundled flips, a reviewer reads a commit subject like
+>   `feat(arc): close 4.1 — code-only task commits + structured prompt`, sees the `[x] **4.1**`
+>   flip in the same commit's diff, and has full traceability with no cross-reference. Move the
+>   flip to a later "docs(arc): mark Tasks 4.1–4.3 complete" commit and the reviewer must
+>   cross-reference task IDs across commits to answer "what task did this code commit complete?"
+>   The task-list-rides-with-code rule preserves the at-a-glance linkage.
+>
+> - **Rebase / cherry-pick friction.** Picking a code commit means picking a change whose task-list
+>   record is in a different commit. Reverts and bisects become tangled across artificial commit
+>   boundaries.
+>
+> **What's different about status-file fields.** Status-file pointers (`Next Task`, `Last
+> Completed`, `Next Action`) are *volatile* — value at time T is stale by T+10min as the session
+> advances. The next consumer of the field is session-init, which only needs the value at the
+> session boundary. Mid-session updates rewrite state that's about to change again; deferring to
+> ceremony boundaries discards no information. Task-list `[x]` flips are *terminal*: the
+> completion event won't reverse, and a future reader benefits from seeing the flip at the boundary
+> that produced it.
+>
+> **The principle.** Volatile pointer state separates from content commits because separation
+> discards no information. Terminal derived state bundles with content commits because separation
+> would lose information (the linkage between content and its completion record).
+
+**Suggested destination:** docs site — Sessions & Context § Status-file timing or a sibling
+§ Commit-shape conventions. Adopters coming from other workflows (Jira-driven, design-doc-first,
+no-in-repo-tracking) will read the side-by-side rules and want the rationale before adopting the
+ARC convention. Pair this with Entry 70's reviewer / auto-commit framing under the same section.
+
+**Stylistic integration notes:** Strategy doc retains the inline volatility-vs-derived-state
+framing (operationally sufficient — adopters know which rule applies and the basic why); this
+entry holds the alternative-analysis depth that adopters with skeptical priors will want. Docs-site
+output must not reference ADRs. Keep the alternative-analysis framing concrete (specific failure
+modes under deferred flips) rather than abstract — concrete consequences land where principle prose
+slides off.
 
 ---
 

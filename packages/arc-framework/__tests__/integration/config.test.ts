@@ -7,7 +7,7 @@
  * defaults fallback on missing keys, and hooks.* exclusion.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdir, mkdtemp, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -16,11 +16,27 @@ import {
   runConfigSessionInitStatus,
   runConfigStatus,
 } from "../../src/commands/config.js";
+import { AUTONOMY_GIT_CONFIG_KEY } from "../../src/lib/autonomy-policy.js";
+import type { GitExec } from "../../src/lib/git/index.js";
 
 interface Fixture {
   root: string;
   configPath: string;
 }
+
+/** Build a mock git exec that returns the given value for `git config --get arc.autonomy`. */
+function execWithAutonomy(value: string | undefined): GitExec {
+  return vi.fn().mockImplementation((cmd: string, args: string[]) => {
+    if (cmd === "git" && args[0] === "config" && args[1] === "--get" && args[2] === AUTONOMY_GIT_CONFIG_KEY) {
+      if (value === undefined) return Promise.reject(new Error("exit 1"));
+      return Promise.resolve({ stdout: `${value}\n` });
+    }
+    return Promise.reject(new Error(`unexpected: ${cmd} ${args.join(" ")}`));
+  }) as unknown as GitExec;
+}
+
+/** Convenience: exec stub with no override (override absent). */
+const noOverride = (): GitExec => execWithAutonomy(undefined);
 
 async function createFixture(): Promise<Fixture> {
   const root = await mkdtemp(join(tmpdir(), "arc-config-probe-"));
@@ -124,7 +140,7 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
         "user.sync_push: prompt",
       ].join("\n"),
     );
-    const result = await runConfigSessionInitStatus({ cwd: fixture.root });
+    const result = await runConfigSessionInitStatus({ cwd: fixture.root, exec: noOverride() });
     expect(result.mode).toBe("session-init");
     const keys = Object.keys(result.settings).sort();
     expect(keys).toEqual([
@@ -143,7 +159,7 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
   });
 
   it("falls back to documented defaults when arc-config.yml is missing", async () => {
-    const result = await runConfigSessionInitStatus({ cwd: fixture.root });
+    const result = await runConfigSessionInitStatus({ cwd: fixture.root, exec: noOverride() });
     expect(result.settings["session.remote_sync"]).toBe("enabled");
     expect(result.settings["session.init_pull.worktree"]).toBe("prompt");
     expect(result.settings["session.init_pull.notes"]).toBe("prompt");
@@ -168,7 +184,7 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
         "session.init_pull.notes: prompt",
       ].join("\n"),
     );
-    const result = await runConfigSessionInitStatus({ cwd: fixture.root });
+    const result = await runConfigSessionInitStatus({ cwd: fixture.root, exec: noOverride() });
     // Non-scoped keys may be defaulted under the hood, but scoped defaults list excludes them.
     expect(result.defaultsApplied).toHaveLength(0);
     const scopedKeys = [
@@ -193,9 +209,57 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
         "session.init_pull.worktree: always",
       ].join("\n"),
     );
-    const result = await runConfigSessionInitStatus({ cwd: fixture.root });
+    const result = await runConfigSessionInitStatus({ cwd: fixture.root, exec: noOverride() });
     expect(result.settings["session.init_pull.worktree"]).toBe("prompt");
     expect(result.warnings.length).toBeGreaterThan(0);
     expect(result.warnings.some((e) => e.includes("session.init_pull.worktree"))).toBe(true);
+  });
+
+  describe("autonomy field", () => {
+    it("returns { value: 'manual-commit', source: 'default' } when both sources absent", async () => {
+      await writeFile(fixture.configPath, "pm.mode: arc-in-git\n");
+      const result = await runConfigSessionInitStatus({ cwd: fixture.root, exec: noOverride() });
+      expect(result.autonomy).toEqual({ value: "manual-commit", source: "default" });
+    });
+
+    it("returns { value: <yaml>, source: 'yaml' } when only yaml provides", async () => {
+      await writeFile(
+        fixture.configPath,
+        ["pm.mode: arc-in-git", "session.autonomy: auto-commit"].join("\n"),
+      );
+      const result = await runConfigSessionInitStatus({ cwd: fixture.root, exec: noOverride() });
+      expect(result.autonomy).toEqual({ value: "auto-commit", source: "yaml" });
+    });
+
+    it("returns { value: <git-config>, source: 'git-config' } when override applies", async () => {
+      await writeFile(
+        fixture.configPath,
+        ["pm.mode: arc-in-git", "session.autonomy: manual-commit"].join("\n"),
+      );
+      const result = await runConfigSessionInitStatus({
+        cwd: fixture.root,
+        exec: execWithAutonomy("auto-push"),
+      });
+      expect(result.autonomy).toEqual({ value: "auto-push", source: "git-config" });
+    });
+
+    it("propagates resolver warnings into the warnings array unchanged", async () => {
+      await writeFile(
+        fixture.configPath,
+        ["pm.mode: arc-in-git", "session.autonomy: bogus"].join("\n"),
+      );
+      const result = await runConfigSessionInitStatus({
+        cwd: fixture.root,
+        exec: execWithAutonomy("alsowrong"),
+      });
+      // Both tiers invalid → falls back to default; both warnings surface verbatim.
+      expect(result.autonomy).toEqual({ value: "manual-commit", source: "default" });
+      const autonomyWarnings = result.warnings.filter((w) =>
+        w.includes(AUTONOMY_GIT_CONFIG_KEY) || w.includes("session.autonomy"),
+      );
+      expect(autonomyWarnings).toHaveLength(2);
+      expect(autonomyWarnings.some((w) => w.includes("alsowrong"))).toBe(true);
+      expect(autonomyWarnings.some((w) => w.includes("bogus"))).toBe(true);
+    });
   });
 });

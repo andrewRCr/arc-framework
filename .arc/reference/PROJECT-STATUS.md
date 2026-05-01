@@ -20,19 +20,20 @@ Current state at a glance. Updated when work is activated, completed, or archive
 
 **Currently Active:**
 
-- Interlock Foundation (technical) — Planning phase, PRD drafted. Constitutional foundation for
-  ADR-016's interlock model: configurable autonomy stack (task → commit → push → integrate) with
-  invariant endpoints and configurable middle interlocks, plus handoff as orthogonal ceremony.
-  Lands DEV-RULES amendments (commit control downgraded to configurable default), status-file
-  timing split, planning-session active surface, structured task-completion prompt as base
-  behavior, configuration surface (`session.autonomy` axis + composite handoff probe +
-  handoff-interior toggle pattern), and rollback dev-rule. Sibling WU `Session-Operational Flow`
-  implements autonomy-mode behavior + metadata-state foundation against this frame after a
-  dogfooding validation window.
-    - PRD: `.arc/backlog/technical/prd-interlock-foundation.md`
+- Interlock Foundation (technical) — In Progress, Phase 1 (Constitutional Foundation).
+  Constitutional foundation for ADR-016's interlock model: configurable autonomy stack
+  (task → commit → push → integrate) with invariant endpoints and configurable middle interlocks,
+  plus handoff as orthogonal ceremony. Lands DEV-RULES amendments (commit control downgraded to
+  configurable default), status-file timing split, planning-session active surface, structured
+  task-completion prompt as base behavior, configuration surface (`session.autonomy` axis +
+  composite handoff probe + handoff-interior toggle pattern), and rollback dev-rule. Sibling WU
+  `Session-Operational Flow` implements autonomy-mode behavior + metadata-state foundation against
+  this frame after a dogfooding validation window.
+    - PRD: `.arc/active/technical/prd-interlock-foundation.md`
+    - Task list: `.arc/active/technical/tasks-interlock-foundation.md` (6 phases / 18 parent tasks / 38 subtasks)
     - ADR: `.arc/reference/adr/adr-016-configurable-autonomy-interlocks-for-session-operations.md` (Accepted)
     - Sibling WU plan: `.arc/backlog/technical/plan-session-operational-flow.md`
-    - Branch: `technical/plan-session-operational-flow` (planning branch — WU activation will create the WU branch)
+    - Branch: `technical/interlock-foundation`
 
 **Next Priority:**
 
@@ -56,7 +57,7 @@ with constitutional and CI machinery in place to prevent drift recurrence.
   enumerated once at session-init
 - Workflow YAML frontmatter trigger contract (`arc.methods`, `arc.extensions`); constitutional
   rule pair anchors compliance (DEV-RULES.ARC § Verification + strategy-workflow-authoring
-  § Author-side Declaration Rule); pre-commit + CI enforcement (CHECK 12/14/16, lint:arc:*)
+  § Author-side Declaration Rule); pre-commit + CI enforcement (CHECK 11/13/15, lint:arc:*)
 - Probe-side `sessionType` inference computed from tracked status fields (`planning |
   execution | integration | null`) drives conditional item-9 / item-10 loadsets in
   session-init.md; SESSION-NOTES `**Session Type:**` is opt-in personal-layer override

@@ -75,9 +75,10 @@ behavior creates the file at WU activation if absent.
 
 **Scenario 4: Handoff workflow restructured around composite probe.**
 Today: handoff workflow performs ad-hoc checks across multiple commands.
-After: single `arc status --session-handoff --json` returns the full envelope (dirty state, worktree sync,
-notes sync, autonomy mode, handoff-interior toggle values, active extensions). Workflow consumes the
-envelope; per-action checklist consults each toggle's mode and acts.
+After: single `arc status --session-handoff --json` returns a self-contained envelope (dirty state,
+worktree sync, notes sync, autonomy with provenance, handoff-interior toggle values, resolved active
+status file path). Workflow consumes the envelope; per-action checklist consults each toggle's mode
+and acts.
 
 **Scenario 5: Push ordering at handoff.**
 When both worktree-push and notes-push fire at handoff, worktree-push lands first. Notes attach to commits
@@ -100,18 +101,28 @@ no auto-migration logic. The repo has zero adopters; mass-migration infrastructu
    `push-interlock`, `integration-interlock`) to all incoming `.arc/` references — DEV-RULES.ARC, strategy
    docs, plan-doc cross-references not yet updated, and any workflow prose that references the old "gate"
    framing.
-2. DEV-RULES.ARC gains a new top-level § Autonomy Stack section covering: the four interlocks, the
-   configurable-default reframing of commit control (downgraded from non-negotiable principle), structured
-   task-completion prompt format (base behavior), and rollback protocol (subsection).
+2. DEV-RULES.ARC redrafted to weave interlock vocabulary into existing rule sections — § Task Execution
+   names task-interlock; § Commit Discipline names commit/push/integration interlocks and reframes
+   commit control around configurable autonomy; § Session Management adds the handoff-as-human-invoked
+   rule. Two new invariants land: integration-interlock (agents do not initiate merges to integration /
+   main regardless of autonomy mode) and cascade-undo (before destructive cascade operations, present an
+   undo plan and await explicit confirmation). No new top-level § Autonomy Stack section — DEV-RULES is
+   loaded every session and ships to adopters; conceptual model and configurability architecture live in
+   `strategy-session-operations.md` (load-on-demand) and ADR-016 (internal). The redraft also tightens
+   existing sections under the at-session-relevance filter (commit-format collapsed to method-pointer,
+   contributor qualifications consolidated, test-first task-list-creation prose dropped, residual
+   `[TODO-docs-site]` placeholders cleaned up).
 3. DEV-RULES.ARC § Commit Discipline updated — "Work status accuracy" provision superseded by the
-   status-file timing rule; cross-reference to § Autonomy Stack added.
-4. DEV-RULES.ARC § Session Management updated — status-file timing split, handoff-as-orthogonal framing,
+   status-file timing rule.
+4. DEV-RULES.ARC § Session Management updated — status-file timing split, handoff-as-human-invoked rule,
    parallel-session concurrency model framing.
 5. Cascade prose updates to [strategy-team-coordination][strategy-team] (per-commit status-advance language),
-   [strategy-session-operations][strategy-session] (timing split, handoff-interior toggle pattern,
-   probe-extension contract for consumer plans), and [strategy-configurability-architecture][strategy-config]
-   (add `session.autonomy` to convention inventory under operational-discipline tier; brief note on the
-   handoff-interior toggle pattern in the Configuration section).
+   [strategy-session-operations][strategy-session] (conceptual interlock model home — vocabulary,
+   four-interlock stack, configurability architecture, structured-prompt rationale, push-ordering reasoning,
+   rollback design — plus timing split, handoff-interior toggle pattern, probe-extension contract for
+   consumer plans), and [strategy-configurability-architecture][strategy-config] (add `session.autonomy` to
+   convention inventory under operational-discipline tier; brief note on the handoff-interior toggle
+   pattern in the Configuration section).
 
 **Status-file timing rule:**
 
@@ -157,13 +168,17 @@ no auto-migration logic. The repo has zero adopters; mass-migration infrastructu
     `manual-commit`). Per-developer override via `git config arc.autonomy <value>` (mirrors the
     `user.sync_push` / `arc.syncPush` pattern).
 18. CLI schema validation — `session.autonomy` value is one of the enum options or absent (default applies).
-19. Session-init probe (`arc status --session-init --json`) extends `config.value.settings` to surface
-    `session.autonomy` (alongside existing keys). Init-time consumers (load-set adaptation in sibling WU)
-    read the value from there.
-20. New CLI mode: `arc status --session-handoff --json`. Composite probe returning the handoff envelope
-    (dirty state, worktree sync, notes sync, autonomy, handoff-interior toggle values, active extensions
-    filtered to handoff fire points, resolved active status file). Reuses existing field-resolver
-    machinery from session-init.
+19. Session-init probe (`arc status --session-init --json`) surfaces resolved autonomy as a separate
+    top-level `config.value.autonomy: { value, source }` field — the agent renders the structured
+    task-completion prompt and needs the effective value (override applied) at session-init. The bulk
+    `config.value.settings` map stays raw yaml; CLI-consumed overrides (`user.sync_push` and future
+    siblings) are resolved at action time as today. Init-time consumers (load-set adaptation in sibling
+    WU) read the agent-consumed value from the autonomy field.
+20. New CLI mode: `arc status --session-handoff --json`. Self-contained composite probe returning the
+    handoff envelope — six slots: dirty state, worktree sync, notes sync, autonomy with provenance,
+    handoff-interior toggle values, resolved active status file path. Reuses existing field-resolver
+    machinery from session-init. Self-containment matters because `arc-handoff` is skill-invoked —
+    skills load fresh and the workflow shouldn't depend on session-init context still being intact.
 
 **Structured task-completion prompt (base behavior):**
 
@@ -174,8 +189,8 @@ no auto-migration logic. The repo has zero adopters; mass-migration infrastructu
       WU end.
     - User responses: any short affirmative as first word of the response (`y`/`yes`/`yeah`) advances; any
       other response falls to manual handling. Redirect syntax preserved: `y, also <X>` / `y; <redirect>`.
-22. DEV-RULES.ARC § Autonomy Stack documents the prompt format as base ARC behavior (not auto-commit
-    exclusive).
+22. Prompt format documented in `3_process-task-loop.md` as base ARC behavior (not auto-commit
+    exclusive — fires in every autonomy mode, with the variant selected from `session.autonomy`).
 
 **Handoff-interior toggle pattern:**
 
@@ -184,16 +199,16 @@ no auto-migration logic. The repo has zero adopters; mass-migration infrastructu
     value enum: `auto / prompt / manual` (or context-appropriate boolean variant). No new infrastructure;
     consumers add keys following the documented pattern.
 24. **Push ordering invariant.** When both worktree-push and notes-push fire during handoff, worktree-push
-    MUST land before notes-push. Documented in DEV-RULES.ARC § Autonomy Stack and enforced by the
+    MUST land before notes-push. Reasoning documented in `strategy-session-operations.md`; enforced by the
     handoff workflow's per-action checklist ordering. Not a config; not optional.
 
 **Reversibility / rollback protocol:**
 
-25. DEV-RULES.ARC § Autonomy Stack subsection — protocol paragraph: when the user signals regret over an
-    auto-cascade (sibling WU territory; the rule lives here for completeness), agent reads recent git log
-    and conversation context, identifies cascade boundary, presents undo plan (commits to reset, push
-    retraction status if applicable), awaits explicit user confirmation before destructive operations.
-    Session-local scope. No skill, no log file in v1.
+25. DEV-RULES.ARC § Commit Discipline gains a cascade-undo rule (sibling to existing "Check before reverting
+    files"): before destructive cascade operations (resetting commits, retracting pushes), agent presents
+    an undo plan and awaits explicit user confirmation. Session-local scope. No skill, no log file in v1 —
+    the agent's own context plus conventional commit footers cover cascade identification. Auto-cascade is
+    sibling-WU territory; the rule lives here for completeness.
 
 **Validation and migration:**
 
@@ -290,19 +305,42 @@ field-resolvers. The session-handoff probe reuses these — `--session-handoff` 
 different field-set to the same composite logic. Not net-new infrastructure; structural extension of an
 existing pattern.
 
-**Handoff push-ordering invariant.** Documented in DEV-RULES.ARC and enforced by workflow ordering. No
-automated cross-action ordering test feasible without a live remote — verified via dogfooding during
-Phase 3 + sibling WU validation.
+**Agent-consumed vs CLI-consumed overrides.** Configuration overrides split by consumer along a meaningful
+axis. CLI-consumed overrides (`user.sync_push` and its future siblings) are resolved at action time inside
+internal CLI code paths (`arc user push`, etc.) — the agent never sees the resolved value, so raw yaml in
+the session-init probe is sufficient. Agent-consumed overrides (`session.autonomy`) drive agent-rendered
+behavior (the structured task-completion prompt); the agent must see the effective value (override
+applied) at session-init. Surfacing autonomy as a separate top-level probe field with provenance
+(`config.value.autonomy: { value, source }`) makes the resolved-vs-raw distinction explicit at the
+contract level, rather than smuggling resolution into the bulk `settings` map. The split is per-key, not
+a broader pattern shift; new keys classify by their consumer.
 
-**Strategy-doc cascade scope.** Minimal in this WU — only the language that becomes inconsistent with the
-new rules (per-commit status-advance prose in strategy-team-coordination; timing split + handoff-interior
-pattern in strategy-session-operations). Comprehensive cascade is sibling WU Phase 7.
+**Resolver consolidation deferred.** `lib/autonomy-policy.ts` lands as a literal parallel of
+`lib/sync-policy.ts` — same three-tier precedence, same warning mechanics, different domain. Generic
+consolidation (`resolveGitConfigOverride<T>`) waits for the third concrete toggle in
+[plan-user-sync-ux][plan-sync] (worktree push). Designing the generic API against three real shapes is
+cheaper than two-and-refactor; the consumer plan owns the DRY pass. If the abstraction doesn't fit
+cleanly when that plan lands, the consolidation escalates to the sibling `session-operational-flow` WU
+or a small dedicated cleanup WU.
 
-**DEV-RULES.ARC § Autonomy Stack as a new top-level section.** Chosen over amending § Commit Discipline +
-§ Session Management because the interlock model is conceptually distinct from both — both inherit from
-it. Burying the model inside existing sections would fragment it. The new section consolidates the
-four-interlock model, autonomy axis, structured-prompt format, and rollback protocol; cross-references
-land in the existing sections.
+**Handoff push-ordering invariant.** Reasoning documented in `strategy-session-operations.md`; enforced
+by the handoff workflow's per-action checklist ordering. No automated cross-action ordering test feasible
+without a live remote — verified via dogfooding during Phase 3 + sibling WU validation.
+
+**Strategy-doc cascade scope.** Wider in this WU than initially scoped. `strategy-session-operations.md`
+absorbs the conceptual interlock model home (vocabulary, four-interlock stack, configurability
+architecture, structured-prompt rationale, push-ordering reasoning, rollback design) in addition to the
+timing split, handoff-interior toggle pattern, and probe-extension contract. `strategy-team-coordination`
+and `strategy-configurability-architecture` updates remain narrow. Comprehensive cascade is sibling WU
+Phase 7.
+
+**DEV-RULES.ARC holistic redraft (no new top-level section).** The interlock vocabulary and new invariants
+weave into existing rule sections rather than landing as a standalone § Autonomy Stack. DEV-RULES.ARC is
+loaded every session and ships to adopters — content earns its place by being a rule the agent must
+respect at session-time. The conceptual model, configuration architecture, and rationale relocate to
+`strategy-session-operations.md` (load-on-demand) and ADR-016 (internal). The redraft also tightens
+existing sections under the at-session-relevance filter (commit-format collapse, contributor-qualification
+consolidation, test-first tighten, residual `[TODO-docs-site]` placeholder cleanup).
 
 **Pre-commit hook for `**Spec:**` validation.** Extends existing pre-commit infrastructure with a new
 shape-check (regex against `.md` filename or URL or empty). Tier-aware semantics deferred — the minimal
@@ -364,11 +402,11 @@ fields (Task List, Next Task, Last Completed: "Work unit activated").
 [strategy-team]: ../../reference/strategies/arc/strategy-team-coordination.md
 [strategy-session]: ../../reference/strategies/arc/strategy-session-operations.md
 [strategy-config]: ../../reference/strategies/arc/strategy-configurability-architecture.md
-[plan-sync]: plan-user-sync-ux.md
-[plan-hooks]: plan-quality-gate-hooks.md
-[plan-wf]: plan-worktree-foundation.md
-[plan-cwc]: ../feature/plan-concurrent-work-conventions.md
-[plan-awl]: plan-agile-wu-lifecycle.md
-[plan-csc]: plan-completion-status-consolidation.md
-[plan-conductor]: ../feature/plan-arc-plan-conductor.md
-[notes-sweep]: notes-docs-content-sweep.md
+[plan-sync]: ../../backlog/technical/plan-user-sync-ux.md
+[plan-hooks]: ../../backlog/technical/plan-quality-gate-hooks.md
+[plan-wf]: ../../backlog/technical/plan-worktree-foundation.md
+[plan-cwc]: ../../backlog/feature/plan-concurrent-work-conventions.md
+[plan-awl]: ../../backlog/technical/plan-agile-wu-lifecycle.md
+[plan-csc]: ../../backlog/technical/plan-completion-status-consolidation.md
+[plan-conductor]: ../../backlog/feature/plan-arc-plan-conductor.md
+[notes-sweep]: ../../backlog/technical/notes-docs-content-sweep.md

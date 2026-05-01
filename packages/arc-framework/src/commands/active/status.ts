@@ -20,6 +20,7 @@ import {
   readActiveStatusCandidates,
   type ActiveScanShape,
 } from "../../lib/active/status-reader.js";
+import { getCurrentBranch } from "../../lib/git/index.js";
 import type {
   ActiveLayout,
   ActiveSessionInitOptions,
@@ -47,21 +48,39 @@ const TASK_LIST_PLANNING_VALUES = new Set(["[none]", "[none associated]"]);
 const INTEGRATION_WORKFLOW_PREFIX = /^(integrate-work-unit|archive-work-unit)\b(?!-)/i;
 
 /**
+ * Branch-name pattern signaling a planning session: `{category}/plan-{name}`.
+ * Used as the fallback signal when no status file is present (orphan case)
+ * or its `**State:**` is unset/empty (in-flight pre-migration files).
+ */
+const PLANNING_BRANCH_PATTERN = /^[^/]+\/plan-.+$/;
+
+/**
  * Infer session type from a resolved candidate's status fields.
  *
  * Rules (precedence top-down):
  *
- * - `**Task List:**` is `[none]` / `[none associated]` / missing → `planning`
- * - `**Next Action:**` matches `^(integrate-work-unit|archive-work-unit)\b` → `integration`
- * - Otherwise → `execution`
+ * - `**State:**` is exactly `Planning` (case-exact) → `planning`
+ * - `**State:**` is unset/empty (whitespace-only) → branch-pattern fallback:
+ *   `currentBranch` matches `{category}/plan-{name}` → `planning`; otherwise `null`
+ * - Non-`Planning` `**State:**` falls through to existing Task List / Next Action logic:
+ *     - `**Task List:**` is `[none]` / `[none associated]` / missing → `planning`
+ *     - `**Next Action:**` matches `^(integrate-work-unit|archive-work-unit)\b` → `integration`
+ *     - Otherwise → `execution`
  *
- * Caller handles the `none` (no candidate → planning) and `multiple`
- * (deferred → null) cases.
+ * The State-based primary preserves behavior for in-flight pre-migration files (covers
+ * parenthetical-suffix States like `Paused (2026-04-12)` via the fall-through). Caller
+ * handles the `multiple` (deferred → null) case at `classifyResolution`.
  */
 export function inferSessionType(
+  state: string | null,
   taskList: string | null,
   nextAction: string | null,
-): SessionType {
+  currentBranch: string | null,
+): SessionType | null {
+  if (state === "Planning") return "planning";
+  if (state === null || state.trim() === "") {
+    return inferFromBranchPattern(currentBranch);
+  }
   if (taskList === null || TASK_LIST_PLANNING_VALUES.has(taskList)) {
     return "planning";
   }
@@ -69,6 +88,11 @@ export function inferSessionType(
     return "integration";
   }
   return "execution";
+}
+
+function inferFromBranchPattern(currentBranch: string | null): SessionType | null {
+  if (currentBranch === null) return null;
+  return PLANNING_BRANCH_PATTERN.test(currentBranch) ? "planning" : null;
 }
 
 /** Produce the full per-WU enumeration for `arc active status` (default mode). */
@@ -110,24 +134,26 @@ export async function runActiveSessionInitStatus(
     // No scan ran (no identity to resolve the contributor active root),
     // so layout is indeterminate. Emit `full` as the schema-default; with
     // `resolution: "none"` and `candidates: []`, downstream consumers do
-    // not read `layout`.
+    // not read `layout`. sessionType still applies the branch-pattern
+    // fallback so an orphan planning branch resolves correctly.
+    const currentBranch = await getCurrentBranch(options.exec);
     return {
       mode: "session-init",
       layout: "full",
       resolution: "none",
       path: null,
       candidates: [],
-      sessionType: "planning",
+      sessionType: inferFromBranchPattern(currentBranch),
       warnings: [CONTRIBUTOR_IDENTITY_MISSING_WARNING],
     };
   }
 
   const readerOptions = resolveReaderOptions(role, identity);
-  const { layout, candidates, warnings } = await readActiveStatusCandidates(
-    options.cwd,
-    readerOptions,
-  );
-  return resolveSessionInit(options.cwd, layout, candidates, warnings);
+  const [scan, currentBranch] = await Promise.all([
+    readActiveStatusCandidates(options.cwd, readerOptions),
+    getCurrentBranch(options.exec),
+  ]);
+  return resolveSessionInit(options.cwd, scan.layout, scan.candidates, scan.warnings, currentBranch);
 }
 
 function resolveReaderOptions(
@@ -150,17 +176,25 @@ interface ResolutionFields {
   sessionType: SessionType | null;
 }
 
-function classifyResolution(input: StatusFileCandidate[]): ResolutionFields {
+function classifyResolution(
+  input: StatusFileCandidate[],
+  currentBranch: string | null,
+): ResolutionFields {
   const [only] = input;
   if (only === undefined) {
-    return { resolution: "none", path: null, candidates: [], sessionType: "planning" };
+    return {
+      resolution: "none",
+      path: null,
+      candidates: [],
+      sessionType: inferFromBranchPattern(currentBranch),
+    };
   }
   if (input.length === 1) {
     return {
       resolution: "single",
       path: only.path,
       candidates: [],
-      sessionType: inferSessionType(only.taskList, only.nextAction),
+      sessionType: inferSessionType(only.state, only.taskList, only.nextAction, currentBranch),
     };
   }
   return { resolution: "multiple", path: null, candidates: input, sessionType: null };
@@ -171,8 +205,9 @@ async function resolveSessionInit(
   layout: ActiveLayout,
   candidates: StatusFileCandidate[],
   warnings: string[],
+  currentBranch: string | null,
 ): Promise<ActiveSessionInitResult> {
-  const fields = classifyResolution(candidates);
+  const fields = classifyResolution(candidates, currentBranch);
   const result: ActiveSessionInitResult = {
     mode: "session-init",
     layout,
@@ -183,7 +218,7 @@ async function resolveSessionInit(
   if (fields.resolution === "single") {
     const only = candidates[0];
     if (only !== undefined) {
-      const companions = await deriveCompanions(cwd, only.taskList);
+      const companions = await deriveCompanions(cwd, only.path, only.taskList);
       if (companions !== undefined) result.companions = companions;
     }
   }
@@ -197,16 +232,22 @@ async function resolveSessionInit(
  * or doesn't match the Full-layout `tasks-{stem}.md` pattern (Lite-shape
  * `tasks.md` and `[none]` both fall here). Otherwise returns paths relative
  * to cwd, with `null` for absent files.
+ *
+ * Task-list value may be a full path or a bare filename. Bare filenames
+ * resolve to the status file's directory — co-location of status + task list
+ * is invariant across full / lite / contributor layouts.
  */
 async function deriveCompanions(
   cwd: string,
+  statusFilePath: string,
   taskListValue: string | null,
 ): Promise<{ notes: string | null; atomic: string | null } | undefined> {
   if (taskListValue === null) return undefined;
   const normalized = taskListValue.split(sep).join("/");
   const lastSlash = normalized.lastIndexOf("/");
   const filename = lastSlash >= 0 ? normalized.slice(lastSlash + 1) : normalized;
-  const dirPrefix = lastSlash >= 0 ? normalized.slice(0, lastSlash + 1) : "";
+  const dirPrefix =
+    lastSlash >= 0 ? normalized.slice(0, lastSlash + 1) : statusFileDirPrefix(statusFilePath);
   const match = TASK_LIST_FULL_PATTERN.exec(filename);
   const stem = match?.[1];
   if (stem === undefined) return undefined;
@@ -229,4 +270,10 @@ async function fileExists(absPath: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+function statusFileDirPrefix(statusFilePath: string): string {
+  const normalized = statusFilePath.split(sep).join("/");
+  const lastSlash = normalized.lastIndexOf("/");
+  return lastSlash >= 0 ? normalized.slice(0, lastSlash + 1) : "";
 }

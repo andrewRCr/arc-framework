@@ -94,9 +94,9 @@ This framing has direct implications for conventions in this WU:
 
 ---
 
-## Relationship to Gate Model Frame
+## Relationship to Interlock Model Frame
 
-[ADR-016][adr-016] establishes configurable autonomy gates for session-operational flow, with
+[ADR-016][adr-016] establishes configurable autonomy interlocks for session-operational flow, with
 [plan-session-operational-flow][plan-ops] implementing the core mechanics. This WU consumes the
 frame as an enabler — configurable autonomy modes reduce approval ceremony under multi-session
 load, which is exactly the ergonomic gap multi-worktree introduces.
@@ -108,7 +108,7 @@ load, which is exactly the ergonomic gap multi-worktree introduces.
   commit / auto-push toggles, making the bandwidth cost tractable. PRD should resolve whether the
   posture shifts from "tolerated" to "principled at modest scale" or stays unchanged.
 - **Swap discipline alignment.** This plan's "swap primary ↔ companion only at review-increment
-  boundaries" is exactly the task-gate invariance ADR-016 establishes. They compose perfectly.
+  boundaries" is exactly the task-interlock invariance ADR-016 establishes. They compose perfectly.
 - **Status-file rotation for new fields.** New fields introduced by this plan (`**Focus Role:**`,
   `**Focus Since:**`) need rotation-vs-shape classification per ADR-016's status-file timing split.
   `Focus Role` is shape-changing (deliberate transition) → commit-time. `Focus Since` is rotation-
@@ -158,13 +158,6 @@ load, which is exactly the ergonomic gap multi-worktree introduces.
    this specialization explicitly in `strategy-concurrent-work.md` as "Your main worktree is not
    always on main."
 
-5. **ROADMAP parallelism format.** Current ROADMAP shows sibling/parallel WUs in flat sequence with
-   inline status markers, not as a true DAG with explicit parallel branches. Research-informed
-   refresh: visualization patterns for parallel WU streams (DAG, swimlanes, dependency-only
-   ordering, Mermaid graphs). Likely extends beyond ROADMAP to other planning docs that assume
-   sequential WU progression. Surfaced 2026-04-28 during agile/mobility design discussion. Research
-   pass at PRD time.
-
 ### Out of scope
 
 - **Worktree mechanism, shift lifecycle, session-init worktree detection, branch-gone detection,
@@ -173,6 +166,8 @@ load, which is exactly the ergonomic gap multi-worktree introduces.
   category retirement** — [Agile WU Lifecycle][awl].
 - **External tracker integration for "what's @teammate working on"** — [plan-coord-probe][
   plan-coord].
+- **ROADMAP form-factor evolution (parallel/multi-stream visualization, sequencing-artifact
+  brittleness, horizon tiers)** — [plan-roadmap-evolution][roadmap-evolution].
 - **Blessing concurrent agent sessions.** Framework won't block two simultaneous agent sessions in
   different worktrees, but documentation is explicit: this potentially violates P2 (co-development
   bandwidth). Adopter's call, not ARC's recommendation.
@@ -377,15 +372,12 @@ Phases (provisional):
 2. **Strategy doc creation** — `strategy-concurrent-work.md` covering all conventions.
 3. **Async-merge integration audit** — option B implementation; identify and additive-treat each
    touchpoint in integration-adjacent workflows.
-4. **ROADMAP visualization research and redesign** — research pass, format selection,
-   implementation.
-5. **Main-worktree convention documentation** — "your main worktree is not always on main"
+4. **Main-worktree convention documentation** — "your main worktree is not always on main"
    framing, integration with strategy-concurrent-work and strategy-work-organization.
-6. **Documentation cascade and tests** — ensure all references and examples align with new
+5. **Documentation cascade and tests** — ensure all references and examples align with new
    conventions.
 
-Phases 1-2 sequential (model precedes doc); 3 independent (workflow audit); 4 independent
-(research); 5-6 closing.
+Phases 1-2 sequential (model precedes doc); 3 independent (workflow audit); 4-5 closing.
 
 ---
 
@@ -414,5 +406,6 @@ The PRD should explicitly address:
 [awl]: ../technical/plan-agile-wu-lifecycle.md
 [plan-coord]: ../technical/plan-coord-probe.md
 [user-sync-ux]: ../technical/plan-user-sync-ux.md
+[roadmap-evolution]: ../technical/plan-roadmap-evolution.md
 [team-coord]: ../../reference/strategies/arc/strategy-team-coordination.md
 [integrate-wu]: ../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md

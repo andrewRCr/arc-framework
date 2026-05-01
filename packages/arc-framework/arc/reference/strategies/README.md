@@ -27,5 +27,5 @@ Naming Conventions for the full rationale.
 
 ## Project Strategies (Your Domain)
 
-Create strategies in `project/` for your project-specific patterns. See [project/README](project/README.md)
+Create strategies in `project/` for your project-specific patterns. See [project/README](./project/README.md)
 for guidance on what to document.

@@ -173,6 +173,7 @@ case "$context_footer_mode" in
             echo "   Context: tasks-auth-system.md (integration)"
             echo "   Context: tasks-auth-system.md (code review)"
             echo "   Context: tasks-auth-system.md (archival)"
+            echo "   Context: tasks-auth-system.md (handoff)"
             echo "   Context: atomic-auth-system.md"
             echo "   Context: maintenance (atomic / no associated task list)"
             echo "   Context: refactor (no associated task list)"
@@ -234,8 +235,8 @@ case "$context_footer_mode" in
                 # (incidental - discovered during Phase 5 planning), etc. Freeform context after prefix.
                 elif echo "$context_line" | grep -qE '\(incidental - discovered during .+\)$'; then
                     :
-                # Matches: (planning), (activation), (integration), (code review), (maintenance), (archival)
-                elif echo "$context_line" | grep -qE '\((planning|activation|integration|code review|maintenance|archival)\)$'; then
+                # Matches: (planning), (activation), (integration), (code review), (maintenance), (archival), (handoff)
+                elif echo "$context_line" | grep -qE '\((planning|activation|integration|code review|maintenance|archival|handoff)\)$'; then
                     :
                 else
                     context_issue "Invalid task reference format in Context: line"
@@ -249,7 +250,7 @@ case "$context_footer_mode" in
                     echo "   - (Task X.Y; planning) or (Task X.Y; maintenance) - single task with extra work"
                     echo "   - (Tasks X.Y, A.B; planning) - multiple tasks with extra work"
                     echo "   - (incidental - discovered during <context>) - freeform discovery context"
-                    echo "   - (planning), (activation), (integration), (code review), (maintenance), or (archival) - task list lifecycle"
+                    echo "   - (planning), (activation), (integration), (code review), (maintenance), (archival), or (handoff) - task list lifecycle"
                     echo ""
                     echo "   Note: Parenthetical is REQUIRED for all commits"
                     echo ""
@@ -290,7 +291,7 @@ case "$context_footer_mode" in
                 echo "   - Context: tasks-[name].md (Task X.Y)"
                 echo "   - Context: tasks-[name].md (Tasks X.Y-X.Z)"
                 echo "   - Context: tasks-[name].md (incidental - discovered during <context>)"
-                echo "   - Context: tasks-[name].md (planning), (activation), (integration), (code review), (maintenance), or (archival)"
+                echo "   - Context: tasks-[name].md (planning), (activation), (integration), (code review), (maintenance), (archival), or (handoff)"
                 echo "   - Context: atomic-[name].md"
                 echo "   - Context: [category] (no associated task list)"
                 echo "   - Context: [category] (atomic / no associated task list)"
@@ -341,9 +342,10 @@ fi
 # ============================================================================
 
 # Check for "Phase X.Y" instead of "Task X.Y"
-if echo "$commit_msg" | grep -qE 'Phase [0-9]+\.[0-9]+'; then
+# Excludes dotted IDs with 3+ segments (e.g., 5.3.a) — those are unambiguously tasks.
+if echo "$commit_msg" | grep -qE 'Phase [0-9]+\.[0-9]+($|[^.])'; then
     echo -e "${YELLOW}Warning: Found 'Phase X.Y' in commit message${NC}"
-    echo "   Use 'Task X.Y' to reference specific tasks (phases contain tasks)"
+    echo "   Phases use single integers (Phase 1, Phase 2). Use 'Task X.Y' for specific tasks."
     warnings=$((warnings + 1))
 fi
 
@@ -352,77 +354,6 @@ if echo "$commit_msg" | grep -qE 'Related to:.*PRD'; then
     echo -e "${YELLOW}Warning: Found 'Related to: ... PRD' in commit message${NC}"
     echo "   Use 'Context: tasks-[name].md' instead to reference task list"
     warnings=$((warnings + 1))
-fi
-
-# ============================================================================
-# RULE 7: Status file freshness (task not advanced) (maintainer only)
-# ============================================================================
-# When committing a completed parent task (Context: "Task X.Y"), verify that
-# the staged sibling status file has been advanced past that task.
-# The expected status file is derived from the task list named in the Context
-# footer (preferred — unambiguous even when multiple task lists are staged),
-# falling back to the first staged task list if Context extraction fails:
-# `active/{category}/tasks-{name}.md` → `active/{category}/status-{name}.md`.
-# Only checks parent-level tasks (X.Y) — subtask commits (X.Y.z) don't
-# advance Next Task, so no warning needed.
-# Skipped when context footer is disabled or custom (no ARC context to parse).
-# Skipped for contributors — they don't update project-level status files.
-if [ "$arc_role" != "contributor" ] && [ "$context_footer_mode" != "disabled" ] && [ "$context_footer_mode" != "custom" ]; then
-    context_for_ws=$(echo "$commit_msg" | grep '^Context: ' | head -n1)
-    committed_task_num=$(echo "$context_for_ws" | grep -oE '\(Task [0-9]+\.[0-9]+(; (planning|maintenance))?\)$' | grep -oE '[0-9]+\.[0-9]+' || true)
-
-    if [ -n "$committed_task_num" ]; then
-        # Prefer the task list named in the Context footer — resolves the path
-        # on disk so multiple staged task lists don't cause a wrong match.
-        context_task_file=$(echo "$context_for_ws" | grep -oE 'tasks-[a-zA-Z0-9-]+\.md' | head -1 || true)
-        task_list_path=""
-        if [ -n "$context_task_file" ]; then
-            for dir in .arc/active/*/; do
-                if [ -f "${dir}${context_task_file}" ]; then
-                    task_list_path="${dir}${context_task_file}"
-                    break
-                fi
-            done
-        fi
-        # Fall back to the first staged task list — but only when Context didn't
-        # name a task list (no explicit intent to match) or exactly one task list
-        # is staged (unambiguous even if Context's named file couldn't be resolved
-        # on disk — likely a typo). When Context named a file AND multiple lists
-        # are staged, skip the check rather than misattribute committed_task_num
-        # against a sibling WU's status file.
-        if [ -z "$task_list_path" ]; then
-            staged_count=$(git diff --cached --name-only | grep -cE '^\.arc/active/[^/]+/tasks-[^/]+\.md$' || true)
-            if [ -z "$context_task_file" ] || [ "$staged_count" -eq 1 ]; then
-                task_list_path=$(git diff --cached --name-only | grep -E '^\.arc/active/[^/]+/tasks-[^/]+\.md$' | head -1 || true)
-            fi
-        fi
-
-        if [ -n "$task_list_path" ]; then
-            task_list_dir=$(dirname "$task_list_path")
-            task_list_base=$(basename "$task_list_path" .md)
-            wu_name=${task_list_base#tasks-}
-            expected_status="${task_list_dir}/status-${wu_name}.md"
-
-            # Only check when the status file is itself staged — if it isn't,
-            # pre-commit CHECK 10 already surfaces that.
-            status_is_staged=$(git diff --cached --name-only | grep -xF "$expected_status" | head -1 || true)
-            if [ -n "$status_is_staged" ]; then
-                # Match the Next Task line by its bold-prefixed label anywhere
-                # on the line — tolerant of list markers, backticks, indentation.
-                # Extracts Task X.Y from whatever shape the status file uses.
-                ws_current_num=$(git show ":$expected_status" 2>/dev/null | \
-                    grep -E '\*\*Next Task:\*\*' | \
-                    grep -oE 'Task [0-9]+\.[0-9]+' | head -1 | \
-                    grep -oE '[0-9]+\.[0-9]+' || true)
-                if [ -n "$ws_current_num" ] && [ "$committed_task_num" = "$ws_current_num" ]; then
-                    echo -e "${YELLOW}Warning: ${expected_status} may not be advanced${NC}"
-                    echo "   Context references Task $committed_task_num but the status file still shows it as Next Task"
-                    echo "   If this task is complete, advance Next Task to the next task"
-                    warnings=$((warnings + 1))
-                fi
-            fi
-        fi
-    fi
 fi
 
 # ============================================================================

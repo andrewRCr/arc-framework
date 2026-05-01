@@ -6,7 +6,7 @@
  * and I/O adapters in `src/lib/io-context.ts`.
  */
 
-import { Command } from "commander";
+import { Command, Option } from "commander";
 
 import { getFrameworkVersion } from "./lib/version.js";
 import { formatUnexpectedError } from "./lib/errors.js";
@@ -168,7 +168,18 @@ activeCmd
 program
   .command("status")
   .description("Composite probe: identity + user-sync + extensions + config + active state")
-  .option("--session-init", "Emit the session-init-scoped subset for harness consumption")
+  .addOption(
+    new Option(
+      "--session-init",
+      "Emit the session-init-scoped subset for harness consumption",
+    ).conflicts("session-handoff"),
+  )
+  .addOption(
+    new Option(
+      "--session-handoff",
+      "Emit the session-handoff envelope for arc-handoff",
+    ).conflicts("session-init"),
+  )
   .option("--json", "Emit the typed result as JSON")
   .action(handleStatus);
 

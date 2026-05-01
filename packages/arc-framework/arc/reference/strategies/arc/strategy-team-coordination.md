@@ -261,8 +261,9 @@ touch the same path from both sides. Within-WU coordination (team sub-branches s
 status file) resolves through normal git merge behavior: non-overlapping field edits merge
 cleanly, field-level collisions surface as merge conflicts that the integration branch owner
 resolves manually. `(@name)` marker discipline on task lists minimizes status-file field
-overlap in practice — the typical pattern is one developer advancing `Next Task` per commit,
-not concurrent writes to the same field.
+overlap in practice, and the status-file timing rule (see [DEV-RULES.ARC][dev-methodology]
+§ Commit Discipline) narrows the write surface further — the file is touched only at
+handoff and workflow-ceremony commits, so concurrent same-field writes are rare.
 
 See [Work Organization Strategy][work-org] § Task Lists and Branches for the full merge
 convention.

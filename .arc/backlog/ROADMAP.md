@@ -4,8 +4,6 @@ Planning and reasoning — the sequencing strategy for remaining work, what gets
 and why. This is a working document, subject to change as you learn. For project state
 and record (achievements, current status), see `PROJECT-STATUS.md`.
 
-**Last Updated:** 2026-04-27
-
 ---
 
 ## Current Sequencing Strategy
@@ -123,7 +121,7 @@ across QUICK-REFERENCE, status file, and task list (strategic partial read with 
 task references); worktree-sync completion in the probe; operational-context audit and
 template extractions trim always-loaded surface area. Constitutional rule pair (DEV-RULES.ARC
 § Verification and Discovery + strategy-workflow-authoring § Author-side Declaration Rule) and
-pre-commit + CI enforcement (CHECK 12/14/16, lint:arc:*) anchor drift resistance. Realized
+pre-commit + CI enforcement (CHECK 11/13/15, lint:arc:*) anchor drift resistance. Realized
 ~24–28% reduction at orientation (~57–61k vs ~75–80k baseline) and session-init wall-clock
 ~2+ min → ~1 min.
 
@@ -133,7 +131,7 @@ pre-commit + CI enforcement (CHECK 12/14/16, lint:arc:*) anchor drift resistance
 - Downstream: Session-Operational Flow (shared session-init / session-handoff / DEV-RULES surface),
   ARCd Rebrand (lean session-init surface for rebrand terminology sweep)
 
-**Interlock Foundation** — Planning (PRD drafted 2026-04-28)
+**Interlock Foundation** — In Progress (activated 2026-04-29)
 
 Lands ADR-016's interlock model (Accepted): the constitutional frame for session-operational flow
 with task → commit → push → integrate as the linear autonomy stack (invariant endpoints, configurable
@@ -145,9 +143,10 @@ planning-session active surface (status file at planning activation; sessionType
 State), structured task-completion prompt as base ARC behavior (`Proceed to Task X.Y?` /
 `Commit and proceed to Task X.Y?`), configuration surface (`session.autonomy` axis with per-developer
 override, composite handoff probe, handoff-interior toggle pattern), and rollback dev-rule. Shared
-frame for the four downstream session-operational plans (User Sync UX, Quality Gate Hooks, Work-Unit
-Mobility, Concurrent-Work Conventions) — each becomes smaller and internally coherent inside the
-frame. Surfaced 2026-04-24 during pre-PRD exploration of User Sync UX when the `user.sync_push: always`
+frame for the downstream session-operational plans (User Sync UX, Quality Gate Hooks, Worktree
+Foundation, Concurrent Work Conventions, Coord Probe) — each becomes smaller and internally
+coherent inside the frame. Surfaced 2026-04-24 during pre-PRD exploration of User Sync UX when
+the `user.sync_push: always`
 incoherence revealed a missing shared frame. External research validated interlock-model alignment
 with industrial SWE practice (Spinnaker manual judgment, GitHub Environments, Atlantis, Terraform
 autonomy tiers, Conventional Changelog boundary-consolidation).
@@ -158,10 +157,12 @@ autonomy tiers, Conventional Changelog boundary-consolidation).
   foundation; ships after Interlock Foundation validation window)
 - Upstream: Session-Init Optimization (shipped — PR #21)
 - Downstream: User Sync UX Polish (handoff-interior toggles for worktree/notes pairing),
-  Work-Unit Mobility (configurable autonomy for multi-session ergonomics),
-  Quality Gate Tiers and Hook Integration (per-junction hook placement; canonical gate vocabulary
-  preserved alongside the new interlock vocabulary), ARCd Rebrand (interlock-model terminology
-  absorbed into rename pass)
+  Worktree Foundation (mechanism layer for multi-session ergonomics; consumes the autonomy frame
+  for shift lifecycle), Concurrent Work Conventions (focus-role conventions composed against the
+  interlock model), Coord Probe (parallelizable; consumes session-init substrate established
+  alongside the frame), Quality Gate Tiers and Hook Integration (per-junction hook placement;
+  canonical gate vocabulary preserved alongside the new interlock vocabulary), ARCd Rebrand
+  (interlock-model terminology absorbed into rename pass)
 
 **Session-Operational Flow** — Sibling WU; backlog (deferred to post-WU-A validation window)
 
@@ -195,7 +196,7 @@ this WU handles the architectural work.
   ARCd Rebrand (terminology surface stabilized before rename), Dogfooding (beta-ready
   user-sync surface)
 - **Scope note:** Natural split aligned with frame dependency: WU-A (state-machine unification +
-  copy audit + notes-discovery fix — independent of gate-model frame) can ship as soon as
+  copy audit + notes-discovery fix — independent of interlock-model frame) can ship as soon as
   Session-Init Optimization lands; WU-B (auto-push instantiation against handoff-interior
   toggles) waits for Session-Operational Flow Phase 6. Unified if sequencing allows.
 
@@ -506,19 +507,19 @@ site structure.
   Surfaced during pre-PRD exploration of User Sync UX Polish — the `user.sync_push: always`
   incoherence (notes push without commits) revealed a missing shared frame for session-operational
   flow that was blocking coherent design across User Sync UX, Work-Unit Mobility, and Quality Gate
-  Hooks. ADR-016 establishes the gate model (task → commit → push → integrate linear stack with
+  Hooks. ADR-016 establishes the interlock model (task → commit → push → integrate linear stack with
   invariant endpoints; handoff as orthogonal ceremony); `plan-session-operational-flow` executes
   the frame (constitutional amendments, status-file timing split, configuration surface, autonomy
   modes, reversibility protocol, handoff-interior toggle framework). Downgrades "AI never
-  initiates commits" from non-negotiable principle to configurable default; elevates task-gate
-  review and integration-gate human authority as real invariants. Reshapes three downstream
+  initiates commits" from non-negotiable principle to configurable default; elevates task-interlock
+  review and integration-interlock human authority as real invariants. Reshapes three downstream
   plans: User Sync UX lightens (auto-push becomes handoff-interior toggle instantiation), Quality
   Gate Hooks gains canonical gate vocabulary + handoff-gate stage, Work-Unit Mobility adds
   async-merge integration-surface audit + concurrent-session posture reconciliation +
   status-field rotation classification. New sequencing: Session-Init Optimization →
   Session-Operational Flow → {User Sync UX || Work-Unit Mobility || Quality Gate Hooks}
   (parallelize after frame lands) → ARCd Rebrand → Expanded Planning Path → Operating Modes →
-  Dogfooding → WU5. External research validated gate-model alignment with industrial SWE practice
+  Dogfooding → WU5. External research validated interlock-model alignment with industrial SWE practice
   (Spinnaker manual judgment, GitHub Environments, Atlantis, Terraform autonomy tiers,
   Conventional Changelog boundary-consolidation); three honest-framing points where industry
   precedent is absent or mixed absorbed into ADR Context.

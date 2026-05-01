@@ -61,6 +61,27 @@ export async function isGitRepo(exec: GitExec): Promise<boolean> {
 }
 
 /**
+ * Resolves the current git branch name via `git rev-parse --abbrev-ref HEAD`.
+ *
+ * Returns `null` for detached HEAD (`HEAD` literal), empty output, or any
+ * exec failure (e.g., not inside a git repo). Callers receive a uniform
+ * "no branch resolvable" signal regardless of root cause.
+ *
+ * @param exec - Injectable command executor
+ * @returns The current branch name, or `null` if not resolvable
+ */
+export async function getCurrentBranch(exec: GitExec): Promise<string | null> {
+  try {
+    const { stdout } = await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"]);
+    const branch = stdout.trim();
+    if (branch === "HEAD" || branch === "") return null;
+    return branch;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Retrieves a git config value by key.
  *
  * @param exec - Injectable command executor

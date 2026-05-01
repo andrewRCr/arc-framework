@@ -52,6 +52,38 @@ Out of scope: MCP (Pi excludes by design) and permission-model guidance (orthogo
 Do when a real Pi user asks, or when a neighboring WU (arcd-rebrand, arc-modes) makes the extension cheap. No plan
 doc until we commit to pursuing it.
 
+### Post-Integration Extension Fire Point
+
+ARC's interlock model terminates at the integration-interlock — merge to integration / main is the human-only
+floor, and downstream production deployment is explicitly outside scope. This boundary is defensible: most
+teams have CI/CD systems with their own approval gates, observability, and rollback machinery; ARC inserting
+itself there would duplicate or compete with established tooling.
+
+But teams who want ARC-style governance over deploy approvals — configurable autonomy, structured-prompt
+approvals, audit-trail consistency with the rest of the session lifecycle — currently have no discoverable
+hook. A `post-integration` (or `post-merge`) extension fire point would let adopters graft their deploy
+approval ceremony onto ARC without ARC core taking on deploy mechanics. The extension model is the right
+shape — opt-in per project, declarative `.actions`, no scope creep into deploy-system specifics.
+
+What would be required:
+
+- Define fire-point semantics — when does it fire (at merge commit, PR merge event, manual post-merge
+  invocation)?
+- Document a reference pattern for wiring deploy approvals via the structured-prompt model.
+- Decide whether `deploy-interlock` belongs in the autonomy stack vocabulary. Probably not — it implies
+  ARC owns the deploy-floor decision; better to keep extensions as the loose coupling so ARC stays out of
+  deploy-system specifics.
+
+Out of scope: deploy-system specifics (Spinnaker, ArgoCD, GitHub Actions, etc.), observability contracts,
+rollback semantics — adopters wire their own.
+
+Scope-creep risk to anticipate: data migrations, schema rollouts, feature-flag toggles all want similar
+hooks. The fire-point design should treat this as one of several possible `post-*` extension points, not a
+unique deploy-specific addition. Drawing the line on what gets a dedicated fire point vs. what adopters
+compose from generic post-integration is the design call.
+
+Do when a real adopter asks, or when the auto-modes WU's dogfooding shows demand. No plan doc until pursued.
+
 ### Strategy Documents on Docs Site
 
 Consider hosting ARC strategy documents on the docs site as deep-dive wiki entries. Currently,

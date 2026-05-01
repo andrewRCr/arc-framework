@@ -142,7 +142,7 @@ or a standalone task that touches integration-tested code. This is documented in
 Include explicit E2E/integration checkpoint tasks when a phase modifies E2E-tested code:
 
 ```markdown
-### **Phase 3:** API Endpoint Changes
+## **Phase 3:** API Endpoint Changes
 
 - [ ] **3.1 Modify authentication endpoint**
     - [implementation details]
@@ -159,7 +159,7 @@ Include explicit E2E/integration checkpoint tasks when a phase modifies E2E-test
 Task lists typically include a final "Testing & Quality" phase for Tier 3:
 
 ```markdown
-### **Phase N:** Testing & Quality Gates
+## **Phase N:** Testing & Quality Gates
 
 - [ ] **N.1 Run full test suite**
 - [ ] **N.2 Run full integration/E2E suite**

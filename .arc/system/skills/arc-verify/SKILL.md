@@ -1,6 +1,6 @@
 ---
 name: arc-verify
-description: Run ARC installation health checks — config validation, file structure, reference integrity, hook status, and session state. Use when asked to verify or check the ARC installation.
+description: "Run ARC installation health checks: config validation, file structure, reference integrity, hook status, and session state."
 disable-model-invocation: false
 ---
 

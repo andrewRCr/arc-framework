@@ -74,17 +74,19 @@ permanent records.
 
 **Location** (depends on [`arc-config.yml`][arc-config] → `pm.mode`):
 
-- **arc-in-git**: `.arc/backlog/{category}/` — plans live in the backlog and graduate to PRDs
-  through the [planning module graduation flow][planning-module]
-- **none / external**: `.arc/active/{category}/` — plans are co-located with the PRDs they feed
-  into (no backlog directory)
+- **arc-in-git**: `.arc/backlog/{category}/` while incubating; moves to `.arc/active/{category}/`
+  when a planning branch activates (see [`activate-planning-branch.md`][activate-plan]) and stays
+  there for the duration of the planning session. Disposed at planning-branch integration —
+  graduated path `git rm`s the plan-doc; shelved path moves it back to `backlog/{category}/`.
+- **none / external**: `.arc/active/{category}/` throughout — plans are co-located with the PRDs
+  they feed into (no backlog directory).
 
 **Lifecycle:**
 
 - Created when work needs exploration before it can become a PRD
 - Evolved iteratively as understanding deepens — expect messiness, dead ends, revisions
-- Deleted after the PRD is written and stable (the PRD captures what matters; the plan has served
-  its purpose)
+- Disposed at planning-branch integration — graduated → `git rm` (the PRD captures what matters);
+  shelved → moved back to backlog (arc-in-git) or left in active for follow-up (other modes)
 - Multiple plans can feed a single PRD (many-to-one), and a single plan can produce multiple PRDs
   (one-to-many) when exploration reveals natural scope boundaries within the problem space
 
@@ -178,7 +180,9 @@ formal approval gate.
 - Scope is unbounded or growing with each discussion
 
 **When ready:** Create the PRD using the [create-prd workflow][create-prd] and the [PRD
-template][template-prd]. Delete the plan document once the PRD is stable.
+template][template-prd]. The plan document is disposed at planning-branch integration — graduated
+path `git rm`s it (PRD captures what matters); shelved path moves it back to backlog when
+exploration ended without producing an active WU.
 
 ---
 
@@ -200,9 +204,10 @@ execution. They define _what_ and _why_; task lists define _how_.
   enough to warrant it (P0/P1/P2 or similar)
 
 **Relationship to plans:** The PRD synthesizes and crystallizes what the plan explored. It doesn't
-preserve the exploration — it captures the conclusions. A plan is deleted once all PRDs it feeds are
-stable. One plan may produce multiple PRDs when the explored scope splits into distinct work units
-with different deliverables, dependencies, or review boundaries.
+preserve the exploration — it captures the conclusions. The plan is disposed at planning-branch
+integration via the graduated path (`git rm`) once all the PRDs it feeds are active. One plan may
+produce multiple PRDs when the explored scope splits into distinct work units with different
+deliverables, dependencies, or review boundaries.
 
 ---
 
@@ -218,8 +223,9 @@ that change constantly or miss the actual need. Invest in exploration first.
 **Kitchen-sink PRDs.** PRDs that try to be both requirements and implementation spec. Requirements
 define _what_ and _why_; implementation details belong in task planning.
 
-**Zombie plans.** Plan documents that persist after the PRD is written. Delete them — they've served
-their purpose and will only cause confusion if kept alongside the authoritative PRD.
+**Zombie plans.** Plan documents that persist past planning-branch integration. The graduated path
+disposes them via `git rm` once the PRD is the authoritative artifact; leaving them around will only
+cause confusion alongside the PRD they fed.
 
 **Skipping discovery.** Jumping from "I have an idea" to "here are the requirements" without asking
 the hard questions about scope, alternatives, and risks. The discovery checklist exists to prevent
@@ -241,6 +247,7 @@ this.
 
 [planning-module]: strategy-planning-module.md
 [work-org]: strategy-work-organization.md
+[activate-plan]: ../../../system/workflows/arc/work-unit-lifecycle/planning/activate-planning-branch.md
 [create-prd]: ../../../system/workflows/arc/1_create-prd.md
 [template-prd]: ../../templates/template-prd.md
 [template-plan]: ../../templates/template-plan.md

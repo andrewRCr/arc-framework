@@ -23,17 +23,13 @@ any review source, use the [review-triage method][review-triage] for classificat
 
 **CodeRabbit AI code review** — at least one pass, optionally more based on findings.
 
-1. Run CodeRabbit review on the aggregate diff against the parent branch
+1. Launch the `coderabbit:code-reviewer` subagent against the aggregate diff vs parent branch
 2. Process findings using the [review-triage method][review-triage] (fix-now/defer/reject/silent-fix)
 3. If fixes were made, optionally run a second pass to verify — use judgment based on fix scope
 
-**Invocation options (choose one):**
-
-- **IDE extension** (preferred for smaller diffs): Run CodeRabbit review from VS Code extension
-- **Agent subagent** (preferred for larger diffs or headless): Launch the `coderabbit:code-reviewer`
-  subagent directly — do NOT use the CodeRabbit CLI plugin, which fails on WSL auth
-
-The agent should propose which invocation path based on diff size, but the user decides.
+**Auth prerequisite.** The subagent invokes the CodeRabbit CLI underneath, which requires a one-time
+`coderabbit auth login` (browser flow). If a run fails on authentication, verify with
+`coderabbit auth status` and re-login if needed.
 
 ---
 

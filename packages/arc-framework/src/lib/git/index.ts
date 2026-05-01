@@ -10,6 +10,7 @@ export {
   gitConfigGet,
   gitConfigSet,
   configureNotesRefspec,
+  getCurrentBranch,
   gitMergeFile,
   type ExecResult,
   type GitExec,
@@ -23,6 +24,19 @@ export {
   type WorktreeSyncStatusResult,
   type RunWorktreeSyncStatusOptions,
 } from "./worktree-sync.js";
+
+export {
+  runDirtyStateStatus,
+  type DirtyState,
+  type DirtyStateResult,
+  type RunDirtyStateStatusOptions,
+} from "./dirty-state.js";
+
+export {
+  runHeadHashStatus,
+  type HeadHashResult,
+  type RunHeadHashStatusOptions,
+} from "./head-hash.js";
 
 export {
   slugifyIdentity,

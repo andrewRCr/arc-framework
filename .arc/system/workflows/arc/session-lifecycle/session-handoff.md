@@ -14,24 +14,35 @@ stream; (c) flow-control pivots the user needs to track. Pure narration of tool 
 or "now reading X" is omitted. Scope-limited override of any harness-default narration cadence for the
 duration of this workflow.
 
-## Pre-Update Verification
+## Resolve Handoff Context
 
-**Before writing the handoff, verify actual state:**
+Open with the composite probe — single call, slot-wise envelope, per-slot error handling matching
+the session-init pattern:
 
-1. `git status` — clean vs uncommitted changes
-2. `git log --oneline -10` — capture committed work
-3. `git rev-parse --short HEAD` — record commit anchor for SESSION-NOTES.md staleness detection
-4. Task list file — verify marked checkboxes reflect actual completion (maintainer only — contributors
-   skip this)
-5. **Working directory** — if it changed during the session, update paths in the active status file
-   if one exists
+```bash
+arc status --session-handoff --json
+```
 
-> **Contributor role (`arc.role = contributor`):** Contributors write SESSION-NOTES.md and save to
-> git notes (same as maintainers), and update their personal active status file at
-> `.arc/user/{identity}/active/status-{name}.md` during handoff step 4 — that path is gitignored,
-> so commit-time staging doesn't apply; handoff is the natural update trigger, parallel to
-> SESSION-NOTES. Contributors skip pre-handoff check 4 (task-list checkboxes — maintainer-managed)
-> and handoff step 5's safety-check commit (nothing tracked to commit).
+| Field      | Contents                                                                                                       |
+|------------|----------------------------------------------------------------------------------------------------------------|
+| `identity` | `{identity, role}` — either may be `null`. `identity === null` short-circuits the notes-sync slot              |
+| `dirty`    | `{state: clean / dirty, fileCount}`. Consumed by Pre-Update Verification                                       |
+| `worktree` | Worktree sync vs `origin/<branch>` — same state vocabulary as session-init                                     |
+| `user`     | Notes sync state (`value.state`: clean / remote-ahead / conflict / disabled / remote-unavailable)              |
+| `autonomy` | `{value, source}` — push-interlock mode (`manual-commit` requires explicit invocation; `auto-push` fires here) |
+| `syncPush` | `{policy, source}` — resolved `user.sync_push` (always / prompt / manual)                                      |
+| `active`   | Active status file resolution + sessionType (same shape as session-init)                                       |
+| `head`     | `{hash: string \| null}` — current HEAD short-hash for the `Commit at Handoff` anchor                          |
+
+**Identity absent** (`identity.identity === null`): Skip the notes-sync slot — notes operations
+depend on identity for path resolution. Surface a warning in the handoff summary. Sessions without
+identity cannot push notes.
+
+**Probe failure fallback**: If the composite call fails, fall back to direct commands:
+`git status --porcelain`, `git status -sb` (or `git rev-list --count`), `git config arc.identity`
+/ `arc.role`. Note the degradation in the handoff summary.
+
+Carry slot values forward to the steps that consume them — don't re-probe.
 
 ## What to Update
 
@@ -72,35 +83,52 @@ Update session state files before ending session:
    below. Remove entries whose triggers are met, AND entries whose information is now carried in
    tracked state (the criterion catches drift introduced by earlier sessions). Surface removals in
    the handoff summary; do not silently rewrite.
-2. **Check working directory context** — if it changed during the session, update paths in the
-   active status file if one exists.
-3. **Write SESSION-NOTES `**Working On:**`** using the marker vocabulary established in the
+2. **Write SESSION-NOTES `**Working On:**`** using the marker vocabulary established in the
    SESSION-NOTES template:
     - `status-{name}.md` — normal case, file reference
     - `[none]` — no active work
     - `[planning: {category}/{name}]` — planning cycle, no WU yet
     - `[between work units]` — between activation and archive of adjacent WUs
-4. **Update the active status file** (if an active WU exists) — advance `**Last Completed:**`,
-   `**Next Task:**`, `**Next Action:**`, and any other fields to reflect post-commit state. See
-   the template block below.
-5. **Safety-check commit** — if the active status file is dirty at this point (either the
-   task-commit path missed staging a prior update, or step 4 produced handoff-time edits), commit
-   it now as a standalone maintenance commit. No ask — handoff invocation is the approval:
+3. **Update the active status file + commit** (if an active WU exists) — advance
+   `**Last Completed:**`, `**Next Task:**`, `**Next Action:**`, and any other load-bearing fields.
+   Status-file changes land as a dedicated `chore(status): handoff` commit per
+   [DEV-RULES.ARC][dev-rules-arc] § Status-file commit shape — at handoff, status is the
+   entire staged change.
+
+    **Skip threshold.** Update fields only when changes are materially relevant to next-session
+    orientation. Test: "Would the next session do anything different at step 0 with this change?"
+    If no, skip — even when a field is technically different. Concrete signals to update:
+
+    - Task advanced (Last Completed / Next Task changed)
+    - Blockers added or resolved
+    - Branch / Spec / Task List field changed
+    - Next Action describes work that didn't exist before
+
+    Below threshold (skip): minor rephrasing of Last Completed / Next Action with no semantic
+    change, cosmetic reorderings, restating the same Next Action in different words.
+
+    **Skill invocation is the approval.** `/arc-handoff` is user-initiated; the invocation grants
+    approval for the workflow's bundled actions, including the `chore(status): handoff` commit.
+    No separate per-commit prompt fires under either autonomy mode — the `autonomy.value` axis
+    governs push behavior (see § Push Sequence), where remote-side consequences justify granular
+    gating. Stage and commit unconditionally:
 
     ```bash
     git add <resolved-status-file-path>
-    git commit -m "docs(arc): update work-unit status
+    git commit -m "chore(status): handoff
 
-    Context: maintenance (atomic / no associated task list)"
+    Context: <task-list>.md (handoff)"
     ```
 
-    The new HEAD becomes the `**Commit at Handoff:**` value written in step 6. Most handoffs skip
-    this — [DEV-RULES.ARC][dev-rules-arc] § Work status accuracy makes commit-time primary.
-    Contributors (`arc.role = contributor`) skip this commit — their personal active status file at
-    `.arc/user/{identity}/active/status-{name}.md` is gitignored, so step 4's update lands without
-    staging.
-6. **Write SESSION-NOTES** per the guidance below. Record `**Commit at Handoff:**` from current
-   HEAD (post-step-5 if a commit was made).
+    The new HEAD becomes the `**Commit at Handoff:**` value written in step 4. If no field
+    cleared the skip threshold, the file is clean and no commit fires.
+
+    Contributors (`arc.role = contributor`) skip the commit — their personal active status file at
+    `.arc/user/{identity}/active/status-{name}.md` is gitignored, so the field update lands
+    without staging.
+4. **Write SESSION-NOTES** per the guidance below. Record `**Commit at Handoff:**` from
+   `head.value.hash` (the probe captured pre-step-3; if step 3 fired a chore commit, run
+   `git rev-parse --short HEAD` once to refresh — the post-commit HEAD is the right anchor).
 
 **Update the active status file** (tracked project state, if an active WU exists):
 
@@ -134,10 +162,12 @@ detail. If Last Completed or Next Action exceeds ~2 lines, the content likely be
 surfaces instead. When fields do span lines, wrap to the 120-char target — under-wrapping (60-80 chars on
 continuation lines) is the common failure here._
 
-_Workflow step pointer: When the next action resumes a lifecycle workflow (integrate, archive, rotate,
-activate-planning-branch), include the workflow name and step — e.g., "integrate-work-unit Step 7 —
-push and create PR". Task-list-driven workflows (process-task-loop) don't need this; the task list
-checkbox state is the pointer._
+_Workflow step pointer: When the next action resumes a lifecycle workflow (integrate, archive,
+rotate, activate-planning-branch), use the literal format `<workflow-name> Step <N> — <description>`
+— e.g., "integrate-work-unit Step 7 — push and create PR". The kebab-case workflow name matches the
+workflow filename without `.md`. Both the pre-commit validator (RULE 7 freshness check) and
+session-init's sessionType inference key on this prefix. Task-list-driven workflows
+(process-task-loop) don't need this; the task list checkbox state is the pointer._
 ```
 
 **Update `.arc/user/{identity}/SESSION-NOTES.md`** (personal session context — gitignored):
@@ -183,13 +213,12 @@ Markers:
   ignored + warning at session-init.
 -->
 
-## Completed Work
+## Uncommitted Work
 
 <!-- Wrap continuation lines on bullets to the 120-char target. Under-wrapping (60-80 chars)
      is the common failure here — see DEV-RULES.PROJECT § Documentation Standards. -->
 
-[Committed work — one line per commit: hash + outcome. See "Committed work" below.]
-[Uncommitted work — commit-level detail. See "Uncommitted work" below.]
+[Commit-level detail for any uncommitted work. Otherwise: [none].]
 
 ## Remaining Work Before Returning to Task List
 
@@ -216,18 +245,10 @@ points to an in-progress execution WU but the next session will plan a separate 
 (default) → session-init infers from tracked state. Don't write by default; the inference covers
 the 99% case.
 
-**Completed Work — committed work (default):** One line per commit: hash + outcome. Nothing more.
-
-- ✅ `a1b2c3d` — Task 3.5: Schema validation for input records
-- ✅ `e4f5g6h` — Tasks 3.6–3.7: Batch ingestion error handling
-
-The commit body already documents what changed, why, and the design decisions — that's what
-`git log` is for. Restating it in SESSION-NOTES is the most common noise pattern. Trust the
-commit body.
-
-**Completed Work — uncommitted work (exception):** When documenting uncommitted work, use
-commit-level granularity — the next session needs enough detail to recreate proper atomic
-commits from `git diff`:
+**Uncommitted Work:** Committed work lives in `git log`, task list checkboxes, and the status
+file's `**Last Completed:**` pointer — restating it here fails filter criterion #1 (already in
+tracked sources). Reserve this section for work the next session can only see in `git diff`. Use
+commit-level granularity so the next session can reconstruct proper atomic commits:
 
 - ✅ Task 3.2.1: Added input validation to config parser (src/config.py, src/validators.py) —
   rejects malformed YAML
@@ -235,7 +256,8 @@ commits from `git diff`:
 - ✅ Incidental: Fixed broken cross-reference in workflow doc (session-init.md)
 
 Map accomplishments to logical commits (what changed, which files), include task numbers for
-`Context:` footers, note incidental work separately from task list work.
+`Context:` footers, note incidental work separately from task list work. When everything is
+committed (the common case after a deferred-review scope finishes), write `[none]`.
 
 **Remaining Work Before Returning to Task List:** Only for off-task-list work when the path
 back is known. List all steps, not just the next one. Use triple-anchor format (task number +
@@ -269,25 +291,19 @@ is now carried in tracked state.
 **Anti-patterns — omit by name.** When you notice yourself writing one of these, delete it and
 trust the tracked source:
 
-- ❌ **Commit-by-commit retrospective narration.** "Commit `abc123` delivered Task 1.3 as a
-  full-file sweep because mid-batch discovery surfaced 16 references…" The commit body is
-  exactly this. Leave it there.
-- ❌ **Phase preview describing upcoming tasks.** "Task 2.2 creates the template, 2.3 adds the
-  Working On field, 2.4 removes the Status header…" The task list is exactly this. The next
-  session reads it when they get there, not at step 0.
-- ❌ **Design-decision retrospective already in a commit body or notes file.** If the decision
-  is in a commit or `notes-*.md § Consequences`, cross-reference it at most — don't restate it.
-- ❌ **Session-retrospective incidentals.** "Table-width math was tight; commit body length
-  warnings fired twice; markdown-table-prettify has a stdout gotcha." Process observations,
-  not next-session context. If one becomes a durable lesson, codify it in a strategy or
+- ❌ **Restating tracked content.** Anything already in a commit body, task list, status file,
+  or `notes-*.md` — including commit-by-commit narration, completed-task summaries, and
+  design-decision retrospectives. The next session reads tracked state first; SESSION-NOTES is
+  the delta. Cross-reference at most; don't restate.
+- ❌ **Forward-looking content the next session reads when they get there.** Phase previews,
+  upcoming-task summaries, "things NOT to re-do" lists. The task list and tracked state surface
+  this naturally at step 0 — no need to mirror them.
+- ❌ **Process narration.** "Table-width math was tight; commit-body length warnings fired
+  twice; markdown-table-prettify has a stdout gotcha." Session retrospective, not next-session
+  context. If one observation becomes a durable lesson, codify it in a strategy or
   QUICK-REFERENCE — not SESSION-NOTES.
-- ❌ **"Things NOT to re-do" lists** mirroring decisions already captured elsewhere. Defensive
-  duplication. Tracked state will surface what the next session needs.
 - ❌ **Explanatory paragraphs where the template expects whitespace.** An empty Persistent
   Context section is fine as empty. Don't write prose explaining why it's empty.
-- ❌ **Restating committed content.** If it's in a committed file (WU status file, task list,
-  commit message, `notes-*.md`), don't restate it here. The next session reads tracked state
-  first; SESSION-NOTES is the delta.
 
 **Minimum viable SESSION-NOTES — what belongs here:** If it doesn't fit one of these, it
 probably doesn't belong:
@@ -318,10 +334,9 @@ status-data-pipeline.md:
 SESSION-NOTES.md:
 
 ```markdown
-## Completed Work
+## Uncommitted Work
 
-- ✅ Task 3.5: Added schema validation for input records
-- ⚠️ Discovered connection timeout during integration testing
+[none]
 
 ## Remaining Work Before Returning to Task List
 
@@ -336,41 +351,9 @@ SESSION-NOTES.md:
 
 ## Additional Context
 
-- Timeout occurs when batch size exceeds 1000 records (connection pool default is 10)
-- Tried increasing pool size to 50, but underlying issue is sequential processing blocking connections
-- Best fix: switch to async batch processing with connection pool recycling
-```
-
-**Example 2: Preparatory work before starting task**
-
-status-api-documentation.md:
-
-```markdown
-## Active Work
-
-**State:** In Progress
-**Branch**: technical/api-documentation
-**Task List**: .arc/active/technical/tasks-api-documentation.md
-**Next Task**: Task 3.1 — Document authentication endpoints (line ~203)
-**Last Completed**: Tasks 2.3-2.4 — Query parameter and response format sections
-**Blockers**: [none]
-**Next Action**: Review auth middleware source before documenting Task 3.1 endpoints
-```
-
-SESSION-NOTES.md:
-
-```markdown
-## Completed Work
-
-- ✅ Task 2.3: Query parameter documentation (committed a1b2c3d)
-- ✅ Task 2.4: Response format documentation (committed a1b2c3d)
-
-## Additional Context
-
-**Pre-task review needed:**
-
-1. Auth middleware has undocumented rate limiting behavior — need to read source before documenting
-2. Token refresh flow has edge case when refresh token expires mid-request
+- Discovered timeout when batch size exceeds 1000 records (connection pool default is 10).
+- Tried increasing pool size to 50, but underlying issue is sequential processing blocking connections.
+- Best fix: switch to async batch processing with connection pool recycling.
 ```
 
 ## Task List Completion & Transition Format
@@ -397,16 +380,36 @@ Persistent Context entries that span work units; reset ephemeral sections.
 After updating session state files, verify clean markdown. If SESSION-NOTES.md is gitignored, your linter
 may skip it by default — pass the path explicitly or use an IDE-integrated linter.
 
-## Save to Git Notes
+## Push Sequence
 
-After writing SESSION-NOTES.md, run `arc sync`:
+**Push-ordering invariant.** When both worktree-push and notes-push fire, **worktree-push lands
+first**. Notes attach to commits that must already exist on origin — reversing the order causes
+notes-push to reference unpublished commits. Not configurable; enforced by the workflow ordering
+below. See [Session Operations Strategy][session-ops] § Push Toggles for the underlying constraint.
+
+### Worktree Push
+
+Gated on `autonomy.value` (push-interlock) and `worktree.value.state`. The probe captured the
+worktree slot pre-step-3, so derive the unpushed count locally:
+`N = worktree.value.ahead + (1 if step 3 fired a chore commit, else 0)`. The agent knows whether
+step 3 committed — no re-probe needed. `N` is the source of truth for both the push gate and the
+surface message.
+
+- `auto-push` autonomy: run `git push` when `N > 0`. No ask — autonomy is the approval.
+- `auto-push` autonomy + `worktree.value.state` is `remote-ahead` / `diverged`: skip the push;
+  surface in the handoff summary as `Reconcile required:` — manual rebase or merge needed before
+  pushing (step 3's commit, if any, can't fast-forward in this state).
+- `manual-commit` autonomy (default): skip the push action. The user pushes when ready. Surface
+  unpushed commits in the handoff summary as a one-line note (`Worktree: N unpushed commit(s) on
+  {branch}`) whenever `N > 0`.
+
+### Notes Push
+
+After worktree push (whether fired or skipped), run `arc sync` — resolves `syncPush.value.policy`:
 
 ```bash
 arc sync
 ```
-
-`arc sync` resolves the effective push policy (`git config arc.syncPush` → `arc-config.yml`
-`user.sync_push` → default `always`) and acts accordingly:
 
 - **`always`**: saves and pushes in one step.
 - **`prompt`**: saves, then asks before pushing. In non-interactive environments (CI, no TTY),
@@ -414,24 +417,25 @@ arc sync
 - **`manual`**: saves only; the user pushes later with `arc user push`.
 
 For manual control outside of handoff (ad-hoc save, push, or force-push), `arc user save`,
-`arc user push`, and `arc user push --force` remain available.
-In non-interactive or confirmation-free reruns, `arc sync --yes` skips overwrite prompts.
+`arc user push`, and `arc user push --force` remain available. In non-interactive or
+confirmation-free reruns, `arc sync --yes` skips overwrite prompts.
 
 **Error handling:** The CLI surfaces sync errors interactively — follow its guidance. Common cases:
 
-- **Push rejected (non-fast-forward)** — CLI offers force-push or merge-rebase; choose per which side is authoritative.
+- **Push rejected (non-fast-forward)** — CLI offers force-push or merge-rebase; choose per which
+  side is authoritative.
 - **Missing remote** — local save completed; push later when `origin` is configured.
 - **Pull warning (local changes)** — CLI confirms before overwriting unsaved notes.
 
-**Surface the outcome in the handoff summary.** After `arc sync` returns, the agent must
-report whether the save and push succeeded — check the exit code and include a one-line
-result in the end-of-session summary (e.g., "session state synced to remote" or "sync
-failed, state preserved locally — re-run `arc sync` after resolving"). The CLI's
-interactive output is easy to miss when scrolling or in non-TTY contexts; an explicit
-outcome line prevents the "work didn't land but user thought it did" failure mode.
+**Surface the outcome in the handoff summary.** After `arc sync` returns, the agent must report
+whether the save and push succeeded — check the exit code and include a one-line result in the
+end-of-session summary (e.g., "session state synced to remote" or "sync failed, state preserved
+locally — re-run `arc sync` after resolving"). The CLI's interactive output is easy to miss when
+scrolling or in non-TTY contexts; an explicit outcome line prevents the "work didn't land but
+user thought it did" failure mode.
 
-If save itself fails (empty user directory, filesystem permissions), the session state is
-only in SESSION-NOTES.md on disk. Resolve the issue and re-run `arc user save`.
+If save itself fails (empty user directory, filesystem permissions), the session state is only in
+SESSION-NOTES.md on disk. Resolve the issue and re-run `arc user save`.
 
 ## Confirm Handoff
 
@@ -440,27 +444,34 @@ This is a quick confirmation for the human — the session state files are the d
 
 **ARC session handoff complete** · `{branch-name}` · {clean | uncommitted changes}
 
-**Session summary:**
-
-- [`<hash>` — `<outcome>` (one line per logical unit)]
-
-**Uncommitted work:**
-
-- [Files/changes with logical commit grouping; omit section entirely when nothing uncommitted]
+**Sync:** {synced to remote | sync failed — re-run `arc sync` after resolving}
 
 **Next session:** [Task list pointer (on-task-list) or freeform (off-task-list)]
 
+**Conditional top-level sections** — prepend above `**Sync:**` when applicable:
+
+- `N > 0` per Push Sequence formula and push did not fire (manual-commit, or auto-push skipped):
+
+  ```text
+  **Worktree:** N unpushed commit(s) on `{branch}`.
+  ```
+
+- `worktree.value.state === "diverged"`:
+
+  ```text
+  **Reconcile required:** `{branch}` diverged from `origin/{branch}` ({ahead} ahead, {behind}
+  behind). Manual rebase or merge needed before pushing.
+  ```
+
 **Formatting guidance:**
 
-- Mirrors the session-init orientation summary — bookend pattern.
-- **Session summary** bullets: one line per logical unit — `<hash> — <outcome>`. Don't restate commit body
-  content; `git log` is the durable record. (Same anti-pattern as SESSION-NOTES § "commit-by-commit
-  retrospective narration".)
-- **Uncommitted work** maps to commits — enough detail for the next session to reconstruct proper atomic
-  commits without re-reading diffs. Omit entirely when all work is committed.
-- **Next session**: one line on-task-list (status file pointer); unbounded only when off-task-list — same
-  bounding as session-init Step 7 Next action.
+- Mirrors the session-init orientation summary — bookend pattern. Confirm Handoff doesn't restate
+  what got done (SESSION-NOTES, git log, task list, and status-file `**Last Completed:**` already
+  carry it); the verbal output is operational confirmation, not a session retrospective.
+- **Next session**: one line on-task-list (status file pointer); unbounded only when off-task-list
+  — same bounding as session-init orientation Next Action.
 
 [arc-methods-session]: ../../../methods/session-state.md
 [dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md
 [team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md
+[session-ops]: ../../../../reference/strategies/arc/strategy-session-operations.md

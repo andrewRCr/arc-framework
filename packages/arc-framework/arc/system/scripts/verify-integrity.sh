@@ -283,7 +283,7 @@ extensions_dir="$ARC_DIR/system/extensions"
 # Structural sanity check: each file under system/methods/ and system/extensions/
 # opens with a YAML frontmatter block containing the required keys. Deep schema
 # validation (name matches basename, type checks, etc.) runs in pre-commit
-# CHECK 12; this is a post-hoc diagnostic, not a replacement.
+# CHECK 11; this is a post-hoc diagnostic, not a replacement.
 check_per_file_frontmatter() {
     local file="$1"
     local kind="$2"  # "method" or "extension"

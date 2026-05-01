@@ -1,10 +1,6 @@
 ---
 name: arc-task-review
-description: >-
-  Post-implementation review at the mandatory stop — surfaces spec deviations,
-  unexpected changes, ambiguity interpretations, and judgment calls for
-  independent human assessment. Use when the user wants structured review
-  information beyond the completion report.
+description: "Review at the task-interlock: surfaces spec deviations, ambiguity interpretations, and judgment calls beyond the completion report."
 disable-model-invocation: false
 ---
 

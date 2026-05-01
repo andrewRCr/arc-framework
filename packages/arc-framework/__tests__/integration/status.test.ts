@@ -190,8 +190,8 @@ function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
     user: async (identity) => stubUserSessionInit(identity),
     worktree: async () => ({ state: "skipped", ahead: 0, behind: 0 }),
     extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
-    config: () => runConfigSessionInitStatus({ cwd: fixture.root }),
-    active: () => runActiveSessionInitStatus({ cwd: fixture.root }),
+    config: () => runConfigSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
+    active: () => runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
     domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
   };
 }
@@ -363,9 +363,9 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
       user: async (id) => stubUserSessionInit(id),
       worktree: async () => ({ state: "skipped", ahead: 0, behind: 0 }),
       extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
-      config: () => runConfigSessionInitStatus({ cwd: fixture.root }),
+      config: () => runConfigSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
       active: (identity, role) =>
-        runActiveSessionInitStatus({ cwd: fixture.root, identity, role }),
+        runActiveSessionInitStatus({ cwd: fixture.root, identity, role, exec: makeGitExec(fixture.root) }),
       domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
     };
     const result = await runSessionInitStatus({
@@ -513,8 +513,8 @@ function makeRealWorktreeProbes(
         remoteSyncEnabled,
       }),
     extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
-    config: () => runConfigSessionInitStatus({ cwd: fixture.root }),
-    active: () => runActiveSessionInitStatus({ cwd: fixture.root }),
+    config: () => runConfigSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
+    active: () => runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
     domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
   };
 }

@@ -14,6 +14,9 @@
  * @module
  */
 
+import { readFile } from "node:fs/promises";
+
+import { resolveAutonomyPolicy } from "../../lib/autonomy-policy.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import type {
   ConfigSessionInitOptions,
@@ -52,6 +55,11 @@ export async function runConfigStatus(
  * Narrow slice of settings that gate session-init decisions before a
  * dedicated workflow or method loads: sync probe gate, planning-branch
  * routing under full protection, capture routing, and first-commit format.
+ *
+ * Also resolves the effective autonomy policy with provenance and surfaces
+ * it as a top-level `autonomy` field — agent-consumed at session-init time
+ * (the agent uses `value` to render the structured task-completion prompt).
+ * Resolver warnings (invalid override or yaml value) merge into `warnings`.
  */
 export async function runConfigSessionInitStatus(
   options: ConfigSessionInitOptions,
@@ -63,10 +71,19 @@ export async function runConfigSessionInitStatus(
   }
   const scopedKeys: readonly string[] = SESSION_INIT_KEYS;
   const scopedDefaults = defaultsApplied.filter((k) => scopedKeys.includes(k));
+
+  const resolved = await resolveAutonomyPolicy({
+    exec: options.exec,
+    readFile: (path) => readFile(path, "utf8"),
+    cwd: options.cwd,
+    warn: (message) => warnings.push(message),
+  });
+
   return {
     mode: "session-init",
     settings: scoped,
     defaultsApplied: scopedDefaults,
     warnings,
+    autonomy: { value: resolved.policy, source: resolved.source },
   };
 }

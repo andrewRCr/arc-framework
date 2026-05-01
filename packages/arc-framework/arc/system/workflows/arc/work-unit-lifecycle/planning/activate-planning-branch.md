@@ -75,7 +75,60 @@ git checkout -b {category}/plan-{name}
   push the renamed branch with `git push --set-upstream origin {new}`, then remove the old remote branch
   with `git push --delete origin {old}`
 
-### 4) Proceed to Next Step
+### 4) Move Plan-Doc to Active · `arc-in-git` only
+
+> **Skip this step** if `pm.mode` is `none` or `external` — plan-docs already live in
+> `.arc/active/{category}/`. Skip also if no plan-doc exists in `.arc/backlog/{category}/` (you
+> may be creating the plan-doc fresh during this session, or going directly to PRD).
+
+If resuming from a plan-doc in the backlog, move it into the active workspace:
+
+```bash
+mkdir -p .arc/active/{category}/
+git mv .arc/backlog/{category}/plan-{name}.md .arc/active/{category}/
+```
+
+Plan-docs have an active lifespan during planning under `arc-in-git`: they're disposed at
+planning-branch integration (graduated → `git rm`; shelved → moved back to backlog). New
+plan-docs created during this session land in `.arc/active/{category}/` directly. See
+[Work Planning Strategy][work-planning] for the plan-doc lifecycle.
+
+### 5) Create Planning Status File
+
+Create `.arc/active/{category}/status-{name}.md` from [`template-status.md`][template-status]. This is
+the per-WU project pointer for the planning session — tracked, persists across the WU lifecycle,
+transitions to execution at activation.
+
+**Idempotent create + reconcile.** If a status file already exists on this branch (e.g., resuming
+a prior planning session), do not recreate it — but reconcile the planning fields below so
+`**Branch:**` and `**Spec:**` reflect the current branch name (renames possible) and the current
+plan-doc filename (a `plan-*` doc may have been created after the first activation). Other field
+values are preserved as-is; only the create vs. reconcile path differs.
+
+Replace the template's title (`# Status: [Work Name]`) with the actual work unit name. Strip the
+HTML comment block at the top of `## Active Work` — that's template scaffolding, not an instance
+carry-over (mirrors `template-prd.md` precedent). Then populate the planning field set:
+
+1. **State** — `Planning`
+2. **Branch** — current planning branch (e.g., `{category}/plan-{name}`)
+3. **Spec** — plan-doc filename (e.g., `plan-{name}.md`) when one exists; otherwise `[none]`
+4. **Task List** — `[none]` (task list generated downstream by `2_generate-tasks.md`; populated at
+   activation)
+5. **Sibling Work Unit(s)** — `plan-{name}.md` or `prd-{name}.md` references when this WU is part of
+   a larger logical whole split for sizing or sequencing; otherwise `[none]`
+6. **Last Completed** — `[none]`
+7. **Next Task** — `[none]`
+8. **Blockers** — `[none]`
+9. **Next Action** — freeform planning-session prompt (e.g., "Run `1_create-prd.md`" or
+   "Continue `plan-*` exploration")
+
+> **Commit shape.** Stage Step 4's plan-doc move (arc-in-git, when present) with the new
+> status file for a bundled `docs(arc):` activate-planning commit. Under none/external (no
+> plan-doc move), the status file is the entire staged change → dedicated `chore(status):`.
+> Archival in batch flows lands in its own prior commits via [archive-work-unit][archive-work-unit]
+> — it doesn't co-stage here. See [DEV-RULES.ARC][dev-rules-arc] § Status-file commit shape.
+
+### 6) Proceed to Next Step
 
 **Batch** (archival + planning on one branch):
 
@@ -97,5 +150,7 @@ git checkout -b {category}/plan-{name}
 [integrate-planning-branch]: integrate-planning-branch.md
 [create-prd]: ../../1_create-prd.md
 [generate-tasks]: ../../2_generate-tasks.md
+[template-status]: ../../../../../reference/templates/template-status.md
+[dev-rules-arc]: ../../../../../reference/constitution/DEV-RULES.ARC.md
 [work-org-protection]: ../../../../../reference/strategies/arc/strategy-work-organization.md#branch-protection-modes
 [work-planning]: ../../../../../reference/strategies/arc/strategy-work-planning.md

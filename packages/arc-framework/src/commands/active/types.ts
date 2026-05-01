@@ -7,6 +7,8 @@
  * harness to populate session-init.md Step 2 Item 8.
  */
 
+import type { GitExec } from "../../lib/git/index.js";
+
 /**
  * Directory layout discovered on disk.
  *
@@ -23,13 +25,18 @@ export type ActiveSessionInitResolution = "none" | "single" | "multiple";
 
 /**
  * Resolved session type — drives session-init's per-type loadset (Step 3
- * items 9–10). Inferred from active state; null when resolution is
- * `multiple` and the agent must recompute after disambiguation.
+ * items 9–10). Inferred from active state.
  *
  * - `planning` — between work units, or no task list yet.
  * - `execution` — task list present, regular task work.
  * - `integration` — `**Next Action:**` matches an integration-lifecycle
  *   workflow (`integrate-work-unit` / `archive-work-unit`).
+ *
+ * `null` is reserved for two cases at the envelope:
+ *
+ * - `resolution: "multiple"` — agent must disambiguate before computing type.
+ * - Orphan: no candidate (or candidate has empty State) and the current
+ *   branch does not match the planning-branch pattern.
  */
 export type SessionType = "planning" | "execution" | "integration";
 
@@ -123,4 +130,9 @@ export interface ActiveSessionInitOptions {
   cwd: string;
   identity?: string | null;
   role?: string | null;
+  /**
+   * Required for `git rev-parse --abbrev-ref HEAD` lookup at the
+   * branch-pattern fallback tier of session-type inference (orphan case).
+   */
+  exec: GitExec;
 }
