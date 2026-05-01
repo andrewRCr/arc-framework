@@ -611,7 +611,7 @@ guards so re-entry is safe.
 **Single template, single shape.** [`template-status.md`][template-status] is the canonical source for
 both paths — no planning-variant template. The `**State:**` field carries the lifecycle phase.
 
-**Always-present fields with `[none]` markers.** All fields in the template's `## Active Work` section
+**Always-present fields with `[none]` markers.** All fields in the template's `## Work Unit Metadata` section
 are always present; empty optional fields use the `[none]` literal. Consumers (the probe, session-init,
 handoff workflow) get a uniform parse surface — no field-omission ambiguity, no per-state shape
 branching.

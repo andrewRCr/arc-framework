@@ -32,7 +32,7 @@ function statusFile(
   const lines = [
     "# Status: Foo",
     "",
-    "## Active Work",
+    "## Work Unit Metadata",
     "",
   ];
   if (fields.stateLine !== null) {
@@ -224,7 +224,7 @@ describe("validateFiles", () => {
     const content = [
       "# Status: Foo",
       "",
-      "## Active Work",
+      "## Work Unit Metadata",
       "",
       "- **State:** Complete",
       "- **Spec:** [none]",
@@ -281,7 +281,7 @@ describe("validateFiles", () => {
     const content = [
       "# Status: Foo",
       "",
-      "## Active Work",
+      "## Work Unit Metadata",
       "",
       "- **State:** In Progress",
       "- **Spec:** `prd-foo.md`",

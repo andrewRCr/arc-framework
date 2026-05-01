@@ -127,7 +127,7 @@ async function writeStatusFile(
   const lines: string[] = [
     "# Status: fixture",
     "",
-    "## Active Work",
+    "## Work Unit Metadata",
     "",
     `- **State:** ${body.state}`,
     `- **Branch:** ${body.branch}`,
@@ -297,7 +297,7 @@ describe("runSessionInitStatus — companion-file resolution carry-through", () 
       [
         "# Status: fixture",
         "",
-        "## Active Work",
+        "## Work Unit Metadata",
         "",
         "- **State:** In Progress",
         "- **Branch:** technical/foo",
@@ -344,7 +344,7 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
       [
         "# Status: fixture",
         "",
-        "## Active Work",
+        "## Work Unit Metadata",
         "",
         "- **State:** In Progress",
         "- **Branch:** user/alice/foo",

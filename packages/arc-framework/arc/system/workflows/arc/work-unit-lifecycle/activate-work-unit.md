@@ -112,7 +112,7 @@ Create `.arc/active/{category}/status-{name}.md` from [`template-status.md`][tem
 project pointer — it travels with the branch and carries state until the work unit is archived.
 
 Replace the template's title (`# Status: [Work Name]`) with the actual work unit name. Strip the HTML comment block
-at the top of `## Active Work` — that's template scaffolding, not an instance carry-over (mirrors `template-prd.md`
+at the top of `## Work Unit Metadata` — that's template scaffolding, not an instance carry-over (mirrors `template-prd.md`
 precedent). Then fill in the initial field set:
 
 1. **State** — `In Progress`

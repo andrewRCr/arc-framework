@@ -79,7 +79,7 @@ with constitutional and CI machinery in place to prevent drift recurrence.
   execution | integration | null`) drives conditional item-9 / item-10 loadsets in
   session-init.md; SESSION-NOTES `**Session Type:**` is opt-in personal-layer override
 - Partial-read narrowing: QUICK-REFERENCE scoped to Environment & Path Context; status file
-  to `## Active Work`; task list strategic partial read with triple-anchor task references
+  to `## Work Unit Metadata`; task list strategic partial read with triple-anchor task references
 - Worktree-sync completion in composite probe; research-validated rejection of an `always`
   worktree-pull mode
 - Operational-context audit (Tier 1–3) across constitution, briefs, strategies, workflows;

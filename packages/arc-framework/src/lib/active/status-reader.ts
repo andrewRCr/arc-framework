@@ -203,11 +203,11 @@ export interface ParsedStatusFields {
 /**
  * Parse the five session-init-relevant fields from a status-file body.
  *
- * Field extraction is bounded to the `## Active Work` section per the
+ * Field extraction is bounded to the `## Work Unit Metadata` section per the
  * session-init contract (see `session-init.md` Step 4 item 7) — content
  * outside that section (e.g., the "About this file" blockquote, trailing
- * notes) cannot leak into parsed fields. When `## Active Work` is absent,
- * all fields return `null`.
+ * notes) cannot leak into parsed fields. When `## Work Unit Metadata` is
+ * absent, all fields return `null`.
  *
  * Within the section, accepts both list-item (`- **Field:** value`) and
  * bare (`**Field:** value`) forms; bullets and leading whitespace are
@@ -219,7 +219,7 @@ export interface ParsedStatusFields {
  * rendering decides how to surface missing fields.
  */
 export function parseStatusFile(content: string): ParsedStatusFields {
-  const section = extractActiveWorkSection(content) ?? "";
+  const section = extractMetadataSection(content) ?? "";
   return {
     branch: extractField(section, "Branch"),
     state: extractField(section, "State"),
@@ -230,12 +230,12 @@ export function parseStatusFile(content: string): ParsedStatusFields {
 }
 
 /**
- * Extract the `## Active Work` section body — heading line through the
- * line before the next `## ` heading (or end of file). Returns `null`
- * when the heading is absent.
+ * Extract the status metadata section body — heading line through the line
+ * before the next `## ` heading (or end of file). Returns `null` when the
+ * heading is absent.
  */
-function extractActiveWorkSection(content: string): string | null {
-  const headingRe = /^## Active Work\s*$/m;
+function extractMetadataSection(content: string): string | null {
+  const headingRe = /^## Work Unit Metadata\s*$/m;
   const headingMatch = headingRe.exec(content);
   if (!headingMatch) return null;
   const sectionStart = headingMatch.index + headingMatch[0].length;

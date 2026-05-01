@@ -143,7 +143,7 @@ Update session state files before ending session:
 <!-- arc:endif -->
 
 ```markdown
-## Active Work
+## Work Unit Metadata
 
 **State:** In Progress
 **Branch**: [current branch name, e.g., feature/config-parser]
@@ -330,7 +330,7 @@ probably doesn't belong:
 status-data-pipeline.md:
 
 ```markdown
-## Active Work
+## Work Unit Metadata
 
 **State:** In Progress
 **Branch**: feature/data-pipeline
@@ -373,7 +373,7 @@ SESSION-NOTES.md:
 status-{name}.md while the WU is still active:
 
 ```markdown
-## Active Work
+## Work Unit Metadata
 
 **State:** Complete
 **Last Completed**: [Task list name] (Tasks X-Y, archived)
