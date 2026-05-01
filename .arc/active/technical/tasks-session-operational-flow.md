@@ -214,21 +214,18 @@ condition; depth lives in strategy-session-operations. See [`notes-session-opera
         - Added the rationale section covering eager load under `on-task-approval` and on-demand loading
           through `arc-commit` / prepare-commits under `manual`.
 
-### `[ ]` **2.5 Contributor-role commit-on-task-approval staging boundary**
+### `[x]` **2.5 Contributor-role commit-on-task-approval staging boundary**
 
-- _Goal:_ Verify and document that contributor under commit-on-task-approval stages code only — no project-level
-  status-file updates, matching DEV-RULES.ARC § Commit Discipline role-separation. Contributor status files
-  are gitignored and update at handoff regardless of mode.
+- _Outcome:_ Documented that contributor commit-on-task-approval stages project code and task-list
+  documentation only; project status remains maintainer-owned, and contributor-local active status updates
+  at handoff regardless of commit-interlock mode.
 
-    - `[ ]` **2.5.a Add bullet to DEV-RULES.ARC § Commit Discipline (one bullet, terse)**
-        - Add: "Under `session.commit_interlock: on-task-approval`, contributor-role commit release stages code
-          only — project-level status-file updates remain a maintainer responsibility. Contributor status files
-          (gitignored, `user/{identity}/active/`) update at handoff regardless of interlock settings."
-        - Token discipline: single bullet; full semantics in strategy doc.
+    - `[x]` **2.5.a Add bullet to DEV-RULES.ARC § Commit Discipline (one bullet, terse)**
+        - Added the contributor commit-release boundary to package and rendered constitution copies.
 
-    - `[ ]` **2.5.b Document full semantics in strategy-session-operations.md**
-        - Cover the role-separation rule, the gitignored contributor status file, and why the handoff cadence
-          stays mode-independent.
+    - `[x]` **2.5.b Document full semantics in strategy-session-operations.md**
+        - Added the strategy section covering role separation, gitignored contributor status files, and
+          mode-independent handoff cadence.
 
 ---
 

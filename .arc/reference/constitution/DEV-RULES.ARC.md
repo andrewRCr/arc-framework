@@ -63,6 +63,11 @@ documentation style — live in [DEV-RULES.PROJECT][dev-rules-project]. Contribu
   staging area is the test: anything else staged → bundled; status alone → dedicated. Never
   bundled with code commits (already enforced by status-file timing above).
 
+- **Contributor commit release:** Under `session.commit_interlock: on-task-approval`, contributor-role
+  commit release stages code only — project-level status-file updates remain a maintainer responsibility.
+  Contributor status files (gitignored, `user/{identity}/active/`) update at handoff regardless of
+  interlock settings.
+
 **For complex commits** (multi-session accumulated work, interleaved concerns), load the
 [prepare-commits workflow][prepare-commits].
 

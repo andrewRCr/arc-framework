@@ -456,6 +456,18 @@ The `arc-commit` skill remains directly invokable under all interlock settings. 
 ad-hoc commit path for non-task work and the recovery path when commit-on-task-approval falls back
 to manual-with-prompt.
 
+### Contributor Commit Release Boundary
+
+Contributor-role commit-on-task-approval stages project code and task-list documentation only.
+Project-level status files stay maintainer-owned because they represent shared work-unit state
+and lifecycle ceremony, not contributor-local progress. Contributor status files live under
+`user/{identity}/active/`, are gitignored, and remain local session state.
+
+The contributor handoff cadence is mode-independent: contributor status files update at handoff
+whether `session.commit_interlock` is `manual` or `on-task-approval`. This keeps commit release
+focused on reviewed code changes while preserving the session-state contract that handoff is the
+single update point for contributor-local active status.
+
 ### Commit-Interlock Load-Set
 
 When `session.commit_interlock` resolves to `on-task-approval`, session-init eagerly loads
