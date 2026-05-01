@@ -85,6 +85,10 @@ compound names.
 
 ### Step 5: Retire Plan Documents
 
+> [!IMPORTANT]
+> `workflow-interlock`: Stop after the PRD is saved. Surface the PRD location for review;
+> await direction before retiring the plan, updating the status file, and bundling the commit.
+
 If a `plan-*.md` document fed into this PRD, retire it now. Plan documents are ephemeral — they
 serve exploration and are deleted once the PRD captures the conclusions (see
 [Work Planning Strategy][work-planning] § Plan Documents).
