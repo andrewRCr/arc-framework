@@ -6,13 +6,13 @@
 - **Branch:** technical/plan-user-sync-ux
 
 - **Spec:** `prd-user-sync-ux.md`
-- **Task List:** [none]
+- **Task List:** `tasks-user-sync-ux.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Generated `prd-user-sync-ux.md`; retired plan doc
+- **Last Completed:** Generated `tasks-user-sync-ux.md` and `atomic-user-sync-ux.md`
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run `2_generate-tasks.md` against `prd-user-sync-ux.md`
+- **Next Action:** Run `integrate-planning-branch.md` to PR planning branch to `main`
 
 ---
