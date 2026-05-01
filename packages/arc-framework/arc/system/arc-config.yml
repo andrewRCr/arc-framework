@@ -179,14 +179,17 @@ session.init_pull.notes: prompt
 
 # --- Session Interlocks ---
 
-# Commit and push interlock policy.
-# Each value names which user-initiated event authorizes commits and pushes.
+# Commit interlock release policy.
 # See DEV-RULES.ARC § Commit Discipline.
-#   manual-commit - Each commit and push requires its own explicit approval. (default)
-#   auto-commit   - Task approval implicitly authorizes the commit; push stays user-invoked.
-#   auto-push     - Task approval authorizes the commit; handoff authorizes the push.
-# Per-developer override: `git config arc.autonomy <value>`
-session.autonomy: manual-commit
+#   manual           - Each commit requires explicit approval. (default)
+#   on-task-approval - Task approval implicitly authorizes the task commit.
+session.commit_interlock: manual
+
+# Push interlock release policy.
+# See DEV-RULES.ARC § Commit Discipline.
+#   manual     - Each push requires explicit approval. (default)
+#   on-handoff - Handoff implicitly authorizes the push.
+session.push_interlock: manual
 
 # --- User Directory ---
 

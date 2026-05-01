@@ -103,9 +103,13 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
       dirty: () => runDirtyStateStatus({ exec: gitExec }),
       worktree: () => runWorktreeSyncStatus({ exec: gitExec, remoteSyncEnabled }),
       user: (id) => runUserSessionInitStatus({ cwd, io, identity: id, remoteSyncEnabled }),
-      autonomy: async () => {
-        const result = await runConfigSessionInitStatus({ cwd, exec: gitExec });
-        return result.autonomy;
+      pushInterlock: async () => {
+        const result = await runConfigSessionInitStatus({ cwd });
+        const key = "session.push_interlock";
+        return {
+          value: result.settings[key] as "manual" | "on-handoff",
+          source: result.defaultsApplied.includes(key) ? "default" : "yaml",
+        };
       },
       syncPush: () => resolveSyncPushPolicy({
         exec: gitExec,
@@ -134,7 +138,7 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
       user: (id) => runUserSessionInitStatus({ cwd, io, identity: id, remoteSyncEnabled }),
       worktree: () => runWorktreeSyncStatus({ exec: gitExec, remoteSyncEnabled }),
       extensions: () => runExtensionsSessionInitStatus({ cwd }),
-      config: () => runConfigSessionInitStatus({ cwd, exec: gitExec }),
+      config: () => runConfigSessionInitStatus({ cwd }),
       active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec: gitExec }),
       domainRules: () => runDomainRulesSessionInitStatus({ cwd }),
     };

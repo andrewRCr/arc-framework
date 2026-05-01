@@ -144,6 +144,8 @@ function makeSessionInitResult(
           "session.remote_sync": "enabled",
           "session.init_pull.worktree": "prompt",
           "session.init_pull.notes": "prompt",
+          "session.commit_interlock": "manual",
+          "session.push_interlock": "manual",
           "branch.protection": "partial",
           "pm.mode": "none",
           "commit.format": "conventional",
@@ -151,7 +153,6 @@ function makeSessionInitResult(
         },
         defaultsApplied: [],
         warnings: [],
-        autonomy: { value: "manual-commit", source: "default" },
       },
     },
     active: {
@@ -265,7 +266,8 @@ describe("buildSessionInitStatusSummary — scoped mode", () => {
     expect(summary).toContain("clean (in sync with origin)");
     expect(summary).toContain("1 active extensions");
     expect(summary).toContain("Init-gating settings");
-    expect(summary).toContain("Autonomy: manual-commit (default)");
+    expect(summary).toContain("session.commit_interlock: manual");
+    expect(summary).toContain("session.push_interlock: manual");
     expect(summary).toContain("Resolved: .arc/active/technical/status-foo.md");
   });
 

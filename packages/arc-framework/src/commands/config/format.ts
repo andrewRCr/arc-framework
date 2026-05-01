@@ -32,7 +32,6 @@ export function buildConfigSessionInitSummary(result: ConfigSessionInitResult): 
     const marker = result.defaultsApplied.includes(key) ? " (default)" : "";
     lines.push(`  ${key}: ${result.settings[key]}${marker}`);
   }
-  lines.push(`Autonomy: ${result.autonomy.value} (${result.autonomy.source})`);
   appendWarningsTail(lines, result.warnings);
   return lines.join("\n");
 }

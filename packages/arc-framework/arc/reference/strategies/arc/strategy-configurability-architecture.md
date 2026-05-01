@@ -111,7 +111,8 @@ a configurability path (how teams adapt it).
 | Branch naming conventions               | P6        | `feature/`, `technical/`, etc.      | Behavioral guidance — any consistent scheme           |
 | Per-WU status + user/{identity}/ state  | P5        | Two-file session state in user dir  | Method override — substitute session mechanism        |
 | Session init/handoff ceremonies         | P5        | Structured document loading         | Behavioral guidance — ceremony adapted to agent type  |
-| Session autonomy mode                   | P5        | Manual commit and push              | Config setting — `session.autonomy`                   |
+| Commit interlock release                | P5        | Manual commit                       | Config setting — `session.commit_interlock`           |
+| Push interlock release                  | P5        | Manual push                         | Config setting — `session.push_interlock`             |
 
 #### Design commitment conventions
 
@@ -225,20 +226,15 @@ Most config settings are straightforward toggles. Some carry deeper implications
 - **`squash`** (escape hatch, tier 3) — Individual commits collapse into one per branch. Traceability shifts:
   PR descriptions must carry the traceability that individual commits would normally provide.
 
-**Session autonomy** (`session.autonomy`) governs how task-completion approval propagates through the
-commit and push interlocks:
+**Session interlocks** govern how approval propagates through the commit and push interlocks:
 
-- **`manual-commit`** (default) — both commit-interlock and push-interlock engaged. The user explicitly
-  invokes commit and push. Active runtime mode.
-- **`auto-commit`** — reserved mode. The resolved value surfaces through probes and the structured
-  task-completion prompt today; runtime release of the commit-interlock on task approval ships in the
-  Session-Operational Flow follow-up.
-- **`auto-push`** — reserved mode. The resolved value surfaces through probes today; runtime release
-  of the push-interlock at handoff ships in the Session-Operational Flow follow-up.
+- **`session.commit_interlock: manual`** (default) — commit requires explicit user invocation.
+- **`session.commit_interlock: on-task-approval`** — task approval releases the commit interlock.
+- **`session.push_interlock: manual`** (default) — push requires explicit user invocation.
+- **`session.push_interlock: on-handoff`** — handoff invocation releases the push interlock.
 
-Per-developer override via `git config arc.autonomy <value>` (mirrors the `user.sync_push` /
-`arc.syncPush` pattern). The interlock model this setting configures lives in
-[Session Operations Strategy][session-ops] § Interlock Model.
+The interlock model these settings configure lives in [Session Operations Strategy][session-ops]
+§ Interlock Model.
 
 ### Handoff-interior toggles
 

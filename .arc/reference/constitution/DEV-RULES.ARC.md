@@ -29,17 +29,17 @@ documentation style — live in [DEV-RULES.PROJECT][dev-rules-project]. Contribu
 ### Commit control
 
 - **Commit triggering** · `[configurable]`:
-    - Follows `session.autonomy` (the *commit-interlock*). Default `manual-commit` requires explicit user
+    - Follows `session.commit_interlock` (the *commit-interlock*). Default `manual` requires explicit user
       approval before each commit.
     - Per-mode behavior lives in the [process-task-loop workflow][process-task-loop].
 
 - **Push triggering** · `[configurable]`:
-    - Follows `session.autonomy` (the *push-interlock*). Default `manual-commit` requires explicit user
-      invocation; `auto-push` mode fires push at handoff only — never per commit.
+    - Follows `session.push_interlock` (the *push-interlock*). Default `manual` requires explicit user
+      invocation; `on-handoff` mode fires push at handoff only — never per commit.
     - Per-mode behavior lives in the [session-handoff workflow][session-handoff].
 
 - **Merge to integration / main is human-only** (the *integration-interlock*). Agents do not initiate
-  merges regardless of autonomy mode.
+  merges regardless of interlock settings.
 
 - **Never use `--no-verify`** to bypass commit hooks — hooks exist to catch errors.
 

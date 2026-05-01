@@ -7,7 +7,7 @@
  * defaults fallback on missing keys, and hooks.* exclusion.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdir, mkdtemp, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -16,27 +16,11 @@ import {
   runConfigSessionInitStatus,
   runConfigStatus,
 } from "../../src/commands/config.js";
-import { AUTONOMY_GIT_CONFIG_KEY } from "../../src/lib/autonomy-policy.js";
-import type { GitExec } from "../../src/lib/git/index.js";
 
 interface Fixture {
   root: string;
   configPath: string;
 }
-
-/** Build a mock git exec that returns the given value for `git config --get arc.autonomy`. */
-function execWithAutonomy(value: string | undefined): GitExec {
-  return vi.fn().mockImplementation((cmd: string, args: string[]) => {
-    if (cmd === "git" && args[0] === "config" && args[1] === "--get" && args[2] === AUTONOMY_GIT_CONFIG_KEY) {
-      if (value === undefined) return Promise.reject(new Error("exit 1"));
-      return Promise.resolve({ stdout: `${value}\n` });
-    }
-    return Promise.reject(new Error(`unexpected: ${cmd} ${args.join(" ")}`));
-  }) as unknown as GitExec;
-}
-
-/** Convenience: exec stub with no override (override absent). */
-const noOverride = (): GitExec => execWithAutonomy(undefined);
 
 async function createFixture(): Promise<Fixture> {
   const root = await mkdtemp(join(tmpdir(), "arc-config-probe-"));
@@ -70,6 +54,8 @@ describe("runConfigStatus — full mode", () => {
       "session.remote_sync: enabled",
       "session.init_pull.worktree: prompt",
       "session.init_pull.notes: prompt",
+      "session.commit_interlock: manual",
+      "session.push_interlock: manual",
       "archive.cadence: manual",
       "user.sync_push: always",
     ].join("\n");
@@ -81,6 +67,8 @@ describe("runConfigStatus — full mode", () => {
     expect(result.settings["branch.protection"]).toBe("full");
     expect(result.settings["session.init_pull.worktree"]).toBe("prompt");
     expect(result.settings["session.init_pull.notes"]).toBe("prompt");
+    expect(result.settings["session.commit_interlock"]).toBe("manual");
+    expect(result.settings["session.push_interlock"]).toBe("manual");
     expect(result.settings["archive.cadence"]).toBe("manual");
     expect(result.warnings).toHaveLength(0);
     // Empty values in the file fall through to defaults per shell-aligned parser behavior.
@@ -128,7 +116,7 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
     await rm(fixture.root, { recursive: true, force: true });
   });
 
-  it("returns only the 7 init-gating keys", async () => {
+  it("returns only the 9 init-gating keys", async () => {
     await writeFile(
       fixture.configPath,
       [
@@ -140,10 +128,12 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
         "session.remote_sync: disabled",
         "session.init_pull.worktree: manual",
         "session.init_pull.notes: always",
+        "session.commit_interlock: on-task-approval",
+        "session.push_interlock: on-handoff",
         "user.sync_push: prompt",
       ].join("\n"),
     );
-    const result = await runConfigSessionInitStatus({ cwd: fixture.root, exec: noOverride() });
+    const result = await runConfigSessionInitStatus({ cwd: fixture.root });
     expect(result.mode).toBe("session-init");
     const keys = Object.keys(result.settings).sort();
     expect(keys).toEqual([
@@ -151,26 +141,34 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
       "commit.context_footer",
       "commit.format",
       "pm.mode",
+      "session.commit_interlock",
       "session.init_pull.notes",
       "session.init_pull.worktree",
+      "session.push_interlock",
       "session.remote_sync",
     ]);
     expect(result.settings["session.remote_sync"]).toBe("disabled");
     expect(result.settings["pm.mode"]).toBe("arc-in-git");
     expect(result.settings["session.init_pull.worktree"]).toBe("manual");
     expect(result.settings["session.init_pull.notes"]).toBe("always");
+    expect(result.settings["session.commit_interlock"]).toBe("on-task-approval");
+    expect(result.settings["session.push_interlock"]).toBe("on-handoff");
   });
 
   it("falls back to documented defaults when arc-config.yml is missing", async () => {
-    const result = await runConfigSessionInitStatus({ cwd: fixture.root, exec: noOverride() });
+    const result = await runConfigSessionInitStatus({ cwd: fixture.root });
     expect(result.settings["session.remote_sync"]).toBe("enabled");
     expect(result.settings["session.init_pull.worktree"]).toBe("prompt");
     expect(result.settings["session.init_pull.notes"]).toBe("prompt");
+    expect(result.settings["session.commit_interlock"]).toBe("manual");
+    expect(result.settings["session.push_interlock"]).toBe("manual");
     expect(result.settings["pm.mode"]).toBe("none");
     expect(result.settings["branch.protection"]).toBe("partial");
     expect(result.defaultsApplied).toContain("session.remote_sync");
     expect(result.defaultsApplied).toContain("session.init_pull.worktree");
     expect(result.defaultsApplied).toContain("session.init_pull.notes");
+    expect(result.defaultsApplied).toContain("session.commit_interlock");
+    expect(result.defaultsApplied).toContain("session.push_interlock");
     expect(result.warnings).toHaveLength(1);
   });
 
@@ -185,15 +183,19 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
         "session.remote_sync: enabled",
         "session.init_pull.worktree: prompt",
         "session.init_pull.notes: prompt",
+        "session.commit_interlock: manual",
+        "session.push_interlock: manual",
       ].join("\n"),
     );
-    const result = await runConfigSessionInitStatus({ cwd: fixture.root, exec: noOverride() });
+    const result = await runConfigSessionInitStatus({ cwd: fixture.root });
     // Non-scoped keys may be defaulted under the hood, but scoped defaults list excludes them.
     expect(result.defaultsApplied).toHaveLength(0);
     const scopedKeys = [
       "session.remote_sync",
       "session.init_pull.worktree",
       "session.init_pull.notes",
+      "session.commit_interlock",
+      "session.push_interlock",
       "branch.protection",
       "pm.mode",
       "commit.format",
@@ -212,57 +214,27 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
         "session.init_pull.worktree: always",
       ].join("\n"),
     );
-    const result = await runConfigSessionInitStatus({ cwd: fixture.root, exec: noOverride() });
+    const result = await runConfigSessionInitStatus({ cwd: fixture.root });
     expect(result.settings["session.init_pull.worktree"]).toBe("prompt");
     expect(result.warnings.length).toBeGreaterThan(0);
     expect(result.warnings.some((e) => e.includes("session.init_pull.worktree"))).toBe(true);
   });
 
-  describe("autonomy field", () => {
-    it("returns { value: 'manual-commit', source: 'default' } when both sources absent", async () => {
-      await writeFile(fixture.configPath, "pm.mode: arc-in-git\n");
-      const result = await runConfigSessionInitStatus({ cwd: fixture.root, exec: noOverride() });
-      expect(result.autonomy).toEqual({ value: "manual-commit", source: "default" });
-    });
-
-    it("returns { value: <yaml>, source: 'yaml' } when only yaml provides", async () => {
+  describe("session interlock settings", () => {
+    it("validates commit and push interlock enum values", async () => {
       await writeFile(
         fixture.configPath,
-        ["pm.mode: arc-in-git", "session.autonomy: auto-commit"].join("\n"),
+        [
+          "pm.mode: arc-in-git",
+          "session.commit_interlock: automatic",
+          "session.push_interlock: auto",
+        ].join("\n"),
       );
-      const result = await runConfigSessionInitStatus({ cwd: fixture.root, exec: noOverride() });
-      expect(result.autonomy).toEqual({ value: "auto-commit", source: "yaml" });
-    });
-
-    it("returns { value: <git-config>, source: 'git-config' } when override applies", async () => {
-      await writeFile(
-        fixture.configPath,
-        ["pm.mode: arc-in-git", "session.autonomy: manual-commit"].join("\n"),
-      );
-      const result = await runConfigSessionInitStatus({
-        cwd: fixture.root,
-        exec: execWithAutonomy("auto-push"),
-      });
-      expect(result.autonomy).toEqual({ value: "auto-push", source: "git-config" });
-    });
-
-    it("propagates resolver warnings into the warnings array unchanged", async () => {
-      await writeFile(
-        fixture.configPath,
-        ["pm.mode: arc-in-git", "session.autonomy: bogus"].join("\n"),
-      );
-      const result = await runConfigSessionInitStatus({
-        cwd: fixture.root,
-        exec: execWithAutonomy("alsowrong"),
-      });
-      // Both tiers invalid → falls back to default; both warnings surface verbatim.
-      expect(result.autonomy).toEqual({ value: "manual-commit", source: "default" });
-      const autonomyWarnings = result.warnings.filter((w) =>
-        w.includes(AUTONOMY_GIT_CONFIG_KEY) || w.includes("session.autonomy"),
-      );
-      expect(autonomyWarnings).toHaveLength(2);
-      expect(autonomyWarnings.some((w) => w.includes("alsowrong"))).toBe(true);
-      expect(autonomyWarnings.some((w) => w.includes("bogus"))).toBe(true);
+      const result = await runConfigSessionInitStatus({ cwd: fixture.root });
+      expect(result.settings["session.commit_interlock"]).toBe("manual");
+      expect(result.settings["session.push_interlock"]).toBe("manual");
+      expect(result.warnings.some((w) => w.includes("session.commit_interlock"))).toBe(true);
+      expect(result.warnings.some((w) => w.includes("session.push_interlock"))).toBe(true);
     });
   });
 });

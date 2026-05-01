@@ -36,6 +36,8 @@ const DEFAULTS: ConfigSettings = {
   "session.remote_sync": "enabled",
   "session.init_pull.worktree": "prompt",
   "session.init_pull.notes": "prompt",
+  "session.commit_interlock": "manual",
+  "session.push_interlock": "manual",
   "archive.cadence": "with-integration",
   "user.sync_push": "always",
 };
@@ -48,6 +50,8 @@ const DEFAULTS: ConfigSettings = {
 const ENUM_VALIDATORS: Partial<Record<keyof ConfigSettings, readonly string[]>> = {
   "session.init_pull.worktree": ["manual", "prompt"],
   "session.init_pull.notes": ["manual", "prompt", "always"],
+  "session.commit_interlock": ["manual", "on-task-approval"],
+  "session.push_interlock": ["manual", "on-handoff"],
   "archive.cadence": ["with-integration", "manual"],
 };
 

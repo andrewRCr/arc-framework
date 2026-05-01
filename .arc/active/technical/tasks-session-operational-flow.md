@@ -150,22 +150,24 @@ per-task fire requires explicit opt-in at deferral. Token economy: process-task-
 condition; depth lives in strategy-session-operations. See [`notes-session-operational-flow.md`][notes]
 § Phase 2 Rationale.
 
-### `[ ]` **2.1 Config schema migration for commit/push interlocks**
+### `[x]` **2.1 Config schema migration for commit/push interlocks**
 
-- _Goal:_ Replace `session.autonomy` with independent commit and push interlock release settings across config
-  defaults, validation, probes, and tests.
+- _Outcome:_ Replaced the single `session.autonomy` probe/config surface with independent
+  `session.commit_interlock` and `session.push_interlock` settings across package and rendered config,
+  shell validation, session-init / handoff probe shapes, tests, and current framework docs. Removed the
+  obsolete autonomy resolver and unit suite; handoff now consumes `pushInterlock`.
 
-    - `[ ]` **2.1.a Add `session.commit_interlock` config support**
-        - Add enum `manual | on-task-approval`; default `manual`.
-        - Update config reader, shell validator, status probe settings surface, and unit/integration tests.
+    - `[x]` **2.1.a Add `session.commit_interlock` config support**
+        - Added enum `manual | on-task-approval` with default `manual` in the TypeScript config reader,
+          shell validator, session-init settings surface, config defaults, and tests.
 
-    - `[ ]` **2.1.b Add `session.push_interlock` config support**
-        - Add enum `manual | on-handoff`; default `manual`.
-        - Update config reader, shell validator, status probe settings surface, and unit/integration tests.
+    - `[x]` **2.1.b Add `session.push_interlock` config support**
+        - Added enum `manual | on-handoff` with default `manual`; session handoff now receives a narrow
+          `pushInterlock` slot derived from the config settings surface.
 
-    - `[ ]` **2.1.c Remove/deprecate `session.autonomy` references**
-        - Replace project/package `arc-config.yml` docs and any probe/workflow references with the two new keys.
-        - If compatibility handling is needed, keep it explicit and documented; no hidden ladder semantics.
+    - `[x]` **2.1.c Remove/deprecate `session.autonomy` references**
+        - Removed live code/tests for `session.autonomy` and updated package/source workflow references to the
+          two-key interlock model. No compatibility ladder was retained.
 
 ### `[ ]` **2.2 Commit-on-task-approval fire path (process-task-loop trigger + strategy-session-operations semantics)**
 

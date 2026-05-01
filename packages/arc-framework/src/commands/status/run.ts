@@ -177,16 +177,16 @@ export async function runSessionHandoffStatus(
   const userTask: Promise<SessionHandoffResult["user"]> = identity === null
     ? Promise.resolve(identityMissing())
     : safeProbe(() => probes.user(identity));
-  const autonomyTask = safeProbe(() => probes.autonomy());
+  const pushInterlockTask = safeProbe(() => probes.pushInterlock());
   const syncPushTask = safeProbe(() => probes.syncPush());
   const activeTask = safeProbe(() => probes.active(identity, role));
   const headTask = safeProbe(() => probes.head());
 
-  const [dirty, worktree, user, autonomy, syncPush, active, head] = await Promise.all([
+  const [dirty, worktree, user, pushInterlock, syncPush, active, head] = await Promise.all([
     dirtyTask,
     worktreeTask,
     userTask,
-    autonomyTask,
+    pushInterlockTask,
     syncPushTask,
     activeTask,
     headTask,
@@ -198,7 +198,7 @@ export async function runSessionHandoffStatus(
     dirty,
     worktree,
     user,
-    autonomy,
+    pushInterlock,
     syncPush,
     active,
     head,

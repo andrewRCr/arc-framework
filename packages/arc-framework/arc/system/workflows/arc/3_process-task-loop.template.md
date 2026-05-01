@@ -118,8 +118,8 @@ arc:
      - **Fourth**: **REPORT** completed work to user with summary of changes
      - **Fifth**: ⛔ **MANDATORY STOP** - Wait for user approval before proceeding
        - **Structured prompt** — end the completion report with `<Prefix> <Target>?`:
-           - **Prefix:** `Proceed` (default — manual-commit) or `Commit and proceed` (when
-             `session.autonomy` permits auto-commit).
+           - **Prefix:** `Proceed` (default — `session.commit_interlock: manual`) or
+             `Commit and proceed` (when `session.commit_interlock: on-task-approval`).
            - **Target:** `to Task X.Y` (next task in phase) · `to Phase N+1, Task N+1.1` (current
              task ends the phase) · `to integrate-work-unit` (verification complete — WU end).
        - **Response semantics:** Short affirmative as first word ("y", "yes", "ok") advances.
@@ -195,10 +195,10 @@ arc:
 
   4. Await user instructions on how to proceed.
      User may choose to commit changes or request modifications. Commit authority follows
-     `session.autonomy`: under `manual-commit`, the structured prompt's `Commit and proceed`
+     `session.commit_interlock`: under `manual`, the structured prompt's `Commit and proceed`
      branch is gated behind explicit user approval (the affirmative response IS the approval);
-     under `auto-commit` / `auto-push`, the commit-interlock releases on task approval per
-     [Configurability Architecture Strategy][config-arch] § Session autonomy.
+     under `on-task-approval`, the commit-interlock releases on task approval per
+     [Configurability Architecture Strategy][config-arch] § Session interlocks.
      When committing, follow the [prepare-commits workflow](supplemental/prepare-commits.md).
 
      <!-- arc:if team.mode == true -->

@@ -29,8 +29,8 @@ async function createFixture(): Promise<Fixture> {
 }
 
 describe("readConfigSettings — AGENT_CONSUMABLE_KEYS", () => {
-  it("enumerates the 16 agent-consumable keys", () => {
-    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(16);
+  it("enumerates the 18 agent-consumable keys", () => {
+    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(18);
   });
 
   it("excludes all hooks.* keys", () => {
@@ -42,6 +42,11 @@ describe("readConfigSettings — AGENT_CONSUMABLE_KEYS", () => {
   it("includes the session.init_pull.* channel keys", () => {
     expect(AGENT_CONSUMABLE_KEYS).toContain("session.init_pull.worktree");
     expect(AGENT_CONSUMABLE_KEYS).toContain("session.init_pull.notes");
+  });
+
+  it("includes the session interlock keys", () => {
+    expect(AGENT_CONSUMABLE_KEYS).toContain("session.commit_interlock");
+    expect(AGENT_CONSUMABLE_KEYS).toContain("session.push_interlock");
   });
 
   it("includes archive.cadence", () => {
@@ -70,6 +75,8 @@ describe("readConfigSettings — default fallback", () => {
     expect(result.settings["platform.type"]).toBe("github");
     expect(result.settings["team.mode"]).toBe("false");
     expect(result.settings["session.remote_sync"]).toBe("enabled");
+    expect(result.settings["session.commit_interlock"]).toBe("manual");
+    expect(result.settings["session.push_interlock"]).toBe("manual");
     expect(result.settings["archive.cadence"]).toBe("with-integration");
     expect(result.settings["user.sync_push"]).toBe("always");
   });
@@ -114,6 +121,8 @@ describe("readConfigSettings — user-supplied values", () => {
       "session.remote_sync: disabled",
       "session.init_pull.worktree: manual",
       "session.init_pull.notes: always",
+      "session.commit_interlock: on-task-approval",
+      "session.push_interlock: on-handoff",
       "archive.cadence: manual",
       "user.sync_push: manual",
     ].join("\n");
@@ -126,6 +135,8 @@ describe("readConfigSettings — user-supplied values", () => {
     expect(result.settings["user.sync_push"]).toBe("manual");
     expect(result.settings["session.init_pull.worktree"]).toBe("manual");
     expect(result.settings["session.init_pull.notes"]).toBe("always");
+    expect(result.settings["session.commit_interlock"]).toBe("on-task-approval");
+    expect(result.settings["session.push_interlock"]).toBe("on-handoff");
     expect(result.settings["archive.cadence"]).toBe("manual");
     expect(result.defaultsApplied).toHaveLength(0);
     expect(result.warnings).toHaveLength(0);
