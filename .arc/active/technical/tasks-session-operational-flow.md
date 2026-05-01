@@ -9,7 +9,7 @@
   Interlock Foundation constitutional frame — turning the configurable autonomy axis from scaffolding into a
   live operational surface.
 
-> **Two-copy sync discipline:** All framework-file edits in this WU sync to `packages/arcd/arc/` package source
+> **Two-copy sync discipline:** All framework-file edits in this WU sync to `packages/arc-framework/arc/` package source
 > per [strategy-package-project-sync][package-sync]. Sync as part of each task's commit; the pre-commit hook
 > warns on missed pairings.
 >
@@ -30,43 +30,39 @@ _Design decisions:_ Phase ordering flipped from PRD — metadata-state foundatio
 integration uses the new cadence. Phase 3 split contingency resolved as bundled (medium surface). Lazy
 migration; no helper command. See [`notes-session-operational-flow.md`][notes] § Phase 1 Rationale.
 
-### `[ ]` **1.1 Extend `template-status.md` — `**State:**` enum + `**Integration:**` field**
+### `[x]` **1.1 Extend `template-status.md` — `**State:**` enum + `**Integration:**` field**
 
-- _Goal:_ Add the new field surface to the canonical status template; zero behavioral change at this task's
-  completion (validators land in 1.2, runtime consumers in 1.5+).
+- Added the expanded `State` enum and conditional `Integration` field semantics to the status template,
+  synchronized across `.arc/` and `packages/arc-framework/arc/`.
 
-    - `[ ]` **1.1.a Extend `**State:**` field-semantics comment with full enum**
-        - Comment block currently lists `Planning | In Progress | Complete` with "other enum values (e.g.,
-          `Paused`) introduced in sibling work units" — replace with full
-          `Planning | In Progress | Complete | Paused | Superseded` enumeration and remove the forward-looking
-          note.
+    - `[x]` **1.1.a Extend `**State:**` field-semantics comment with full enum**
+        - Replaced the forward-looking note with the full `Planning | In Progress | Complete | Paused |
+          Superseded` enumeration.
 
-    - `[ ]` **1.1.b Add `**Integration:**` field semantics + default**
-        - Slot between `**State:**` and `**Branch:**` in the template body and comment block.
-        - Comment describes enum (`Awaiting review | Changes requested | Ready to merge | Merged`), default
-          empty (present-but-blank), bidirectional `Changes requested ↔ Awaiting review` transitions, and the
-          presence-distinguishes-new-from-pre-migration semantic.
-        - Default body line: `- **Integration:**` (empty after the colon).
+    - `[x]` **1.1.b Add `**Integration:**` field semantics + default**
+        - Documented `Integration` as present only for `State: Complete`, required and non-empty in that state,
+          with `Awaiting PR` as the pre-PR integration value.
 
-    - `[ ]` **1.1.c Two-copy sync to package source**
-        - Mirror the same edits in `packages/arcd/arc/reference/templates/template-status.md`.
+    - `[x]` **1.1.c Two-copy sync to package source**
+        - Mirrored the edit in `packages/arc-framework/arc/reference/templates/template-status.md`.
 
-### `[ ]` **1.2 Extend CHECK 16 (`validate-status-spec.ts`) for `**State:**` + `**Integration:**` enum validation**
+### `[x]` **1.2 Extend CHECK 16 (`validate-status-spec.ts`) for `**State:**` + `**Integration:**` enum validation**
 
-- _Goal:_ Block commits with invalid State or Integration enum values; remain inert on field absence (legacy
-  behavior preserved). Structural-only — no cross-field semantic checks.
+- Extended CHECK 16 to require valid `State` values on status files and enforce `Integration` only for
+  `State: Complete`, including `Awaiting PR` for the committed pre-PR window.
 - **Strategies:** `strategy-testing-methodology.md`
 
 - Build `test-first` (one behavior at a time):
 
-    - `**State:**` enum validation accepts `Planning | In Progress | Complete | Paused | Superseded`; rejects
-      anything else with a clear error message naming the file and the offending value
-    - `**Integration:**` enum validation accepts `Awaiting review | Changes requested | Ready to merge | Merged`;
-      empty value (present-but-blank) accepted; absent field accepted (legacy file behavior)
-    - `**Integration:**` enum validation rejects bogus values with a clear error
-    - Validator inert when both fields missing entirely (legacy file passes — migration is lazy)
-    - No cross-field semantic checks performed (e.g., no "State: Complete requires Integration non-empty"
-      coupling — that lives in workflow ordering, not the hook)
+    - `[x]` `**State:**` enum validation accepts
+      `Planning | In Progress | Complete | Paused | Superseded`; rejects anything else with a diagnostic
+      naming the file and offending value
+    - `[x]` `**Integration:**` enum validation accepts
+      `Awaiting PR | Awaiting review | Changes requested | Ready to merge | Merged`
+    - `[x]` `**Integration:**` enum validation rejects bogus values with a clear error
+    - `[x]` `**State:**` is required on status files
+    - `[x]` `**Integration:**` is required and non-empty for `State: Complete`, and rejected for non-Complete
+      states
 
 ### `[ ]` **1.3 Add `archive.cadence` to config schema**
 
@@ -135,12 +131,11 @@ migration; no helper command. See [`notes-session-operational-flow.md`][notes] �
     - `[ ]` **1.6.b Mirror in `session-init.contributor.md`**
         - Same edit in the contributor variant for parity.
 
-### `[ ]` **1.7 Document lazy migration approach in `strategy-session-operations.md`**
+### `[ ]` **1.7 Document status-field migration approach in `strategy-session-operations.md`**
 
-- Add brief subsection covering migration intent: lazy on next status-file touch (agent or workflow); CHECK 16
-  inert-on-absence keeps legacy unblocked; no `arc migrate-status-states` helper (YAGNI for v1; PRD § Non-Goals
-  documents the stance). No DEV-RULES.* additions — strategy-doc placement keeps token load off session-loaded
-  surfaces.
+- Add brief subsection covering migration intent: update existing active status files directly, keep CHECK 16
+  strict, and avoid an `arc migrate-status-states` helper (YAGNI for v1; PRD § Non-Goals documents the stance).
+  No DEV-RULES.* additions — strategy-doc placement keeps token load off session-loaded surfaces.
 
 ---
 
@@ -335,13 +330,13 @@ downstream plan currently references the pre-advance pattern. See [`notes-sessio
 - `[ ]` `**State:**` enum extension covers WU lifecycle through one full cycle
   (Planning → In Progress → Complete → swept)
 - `[ ]` `**Integration:**` field tracks integration window correctly through one full PR cycle
-  (empty → Awaiting review → Changes requested → Awaiting review → Ready to merge → Merged → swept)
-- `[ ]` CHECK 16 blocks commits with invalid `**State:**` or `**Integration:**` enum values; remains inert on
-  field absence
+  (Awaiting PR → Awaiting review → Changes requested → Awaiting review → Ready to merge → Merged → swept)
+- `[ ]` CHECK 16 blocks commits with invalid `**State:**` or `**Integration:**` enum values and enforces
+  `**Integration:**` only for `State: Complete`
 - `[ ]` Sweep eligibility check fires correctly (`State: Complete + Integration: Merged`)
 - `[ ]` `archive.cadence: with-integration` default operates as sweep-as-you-go; `manual` defers to user
   invocation
-- `[ ]` Lazy migration: no mass-sweep commit; legacy status files remain editable post-SOF activation
+- `[ ]` Existing active status files are valid under the tightened hook; no migration helper is introduced
 - `[ ]` Step 6c → Step 8 pre-advance eliminates one metadata commit per integration cycle
 - `[ ]` Post-PR-creation eddy guidance referenced in handoff decisions during integration sessions
 - `[ ]` PR-URL bundle workflow-ordering rule fires correctly; bundles into handoff commit when same-session

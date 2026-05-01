@@ -162,12 +162,12 @@ automatically under auto-push). No rollback — the cascade was correct, infra h
     `Complete` (terminal pre-sweep state for implementation work), `Paused` (work temporarily halted),
     `Superseded` (work abandoned and replaced by another WU).
 12. `template-status.md` adds optional `**Integration:**` field — transient workflow position during the
-    integration window. Enum: `Awaiting review | Changes requested | Ready to merge | Merged`. Default:
-    empty (present-but-blank). Bidirectional `Changes requested ↔ Awaiting review` transitions allowed
-    (push fixes after change-request → back to awaiting re-review).
-13. `**Integration:**` initialized empty (present-but-blank) at WU activation. The field's *presence*
-    distinguishes new-schema status files from pre-migration files; the empty value indicates "WU uses
-    the new schema, not in integration yet." Cleared at sweep.
+    integration window. Enum: `Awaiting PR | Awaiting review | Changes requested | Ready to merge | Merged`.
+    Bidirectional `Changes requested ↔ Awaiting review` transitions allowed (push fixes after
+    change-request → back to awaiting re-review).
+13. `**Integration:**` is absent before integration prep. When `**State:**` becomes `Complete`,
+    `**Integration:**` is required and initialized to `Awaiting PR` until the PR exists. Cleared at sweep
+    when the status file is removed.
 14. Sweep eligibility: `State: Complete + Integration: Merged`. After sweep, status file is removed from
     `active/` — location reflects state without an `Archived` enum value.
 15. `arc-config.yml` adds `archive.cadence: with-integration | manual`. Default `with-integration`
@@ -175,13 +175,11 @@ automatically under auto-push). No rollback — the cascade was correct, infra h
     `manual` covers the "batch archival opportunistically" use case via user invocation. A `deferred`
     value with an explicit automatic trigger (e.g., "at next planning-branch activation") may land later
     if a clear adopter need surfaces; not in v1 (avoiding enum bloat without a defined trigger).
-16. Pre-commit CHECK 16 (`validate-status-spec.ts`) extended to validate `**State:**` enum values and
-    `**Integration:**` enum values when present. Inert on absence (CHECK 16's existing behavior); blocks
-    commit on enum-value mismatch.
-17. Migration: lazy on next status-file touch. No CLI helper command (no `arc migrate-status-states`) —
-    YAGNI for v1. Whoever next edits a legacy status file (agent or workflow) sets State to whatever's
-    accurate given current WU context. CHECK 16's inert-on-absence behavior keeps legacy files unblocked
-    until natural editing rotates them forward.
+16. Pre-commit CHECK 16 (`validate-status-spec.ts`) extended to require a valid `**State:**` value, require
+    valid non-empty `**Integration:**` only when `State: Complete`, and reject `**Integration:**` on other
+    states.
+17. Migration: existing status files are updated in-place as part of this WU instead of allowing legacy
+    absence. No CLI helper command (no `arc migrate-status-states`) — YAGNI for v1.
 18. Session-init orientation surfaces `**Integration:**` when present. Slots into the existing
     `## Active Work` partial-read pattern of "optional fields when present" (alongside Interrupts /
     Paused At / Superseded By). No probe extension needed — orientation reads the field directly from
@@ -328,11 +326,11 @@ generic `deferred` that re-creates the original ambiguity.
 
 **`**Integration:**` field labels: GitHub-style vocabulary.** Plan originally proposed
 `PR review | Review fixes | Ready to merge | Merged` (author-perspective framing). Discovery settled on
-`Awaiting review | Changes requested | Ready to merge | Merged` — GitHub PR vocabulary, more familiar to
-adopters, platform-portable (GitLab MRs, Bitbucket PRs use similar concepts; vocabulary is generic
-English). The `Changes requested → Awaiting review` bidirectional transition handles the push-fixes →
-re-review cycle. WUs in draft-PR state leave the field empty; no `Draft` value (would muddy queue
-semantics).
+`Awaiting PR | Awaiting review | Changes requested | Ready to merge | Merged` — GitHub PR vocabulary, more
+familiar to adopters, platform-portable (GitLab MRs, Bitbucket PRs use similar concepts; vocabulary is
+generic English). `Awaiting PR` covers the committed post-cleanup window before PR creation. The
+`Changes requested → Awaiting review` bidirectional transition handles the push-fixes → re-review cycle.
+WUs in draft-PR state stay at `Awaiting PR`; no `Draft` value (would muddy queue semantics).
 
 **Pre-advance pattern criteria documented in workflow, not pre-applied.** The Step 6c → 7 pre-advance
 ships in `integrate-work-unit.md` with the three criteria (mechanical + idempotent/detectable + low
@@ -348,12 +346,11 @@ job. Runtime detection ("at handoff, agent inspects PR state and decides what to
 inferred-staging surprise pattern that staging-as-test was designed to replace. Workflow-ordering is
 explicit, deterministic, discoverable in the workflow text, and requires no detection signal to maintain.
 
-**Migration approach: lazy with no helper.** Status files in flight at SOF activation may be missing the
-new fields (`**State:**` value or `**Integration:**` field entirely). CHECK 16's inert-on-absence behavior
-keeps these unblocked until natural editing rotates them forward. Whoever next edits a legacy status file
-sets State to whatever's accurate; `**Integration:**` is initialized empty at the next WU activation. No
-mass-sweep migration commit; no `arc migrate-status-states` helper command. The self-host repo has a
-small number of in-flight status files; adopters will encounter the migration gradually through normal
+**Migration approach: update active status files with no helper.** Status files in flight at SOF activation
+must have a valid `**State:**`; `**Integration:**` is absent unless the file is already in `State: Complete`.
+The self-host repo has a small number of in-flight status files, so this WU updates them directly instead of
+weakening hook coverage. No mass-sweep migration helper command; no `arc migrate-status-states`. Adopters will
+encounter the field through normal
 work. If demand for a one-shot migration surfaces post-ship, the helper can land later.
 
 **Failure-mode taxonomy split: bad-state vs transit vs process.** The five failure modes split into three
@@ -366,10 +363,9 @@ strategy-session-operations.md; per-mode recovery is mechanically referenceable 
 adopter rederiving.
 
 **CHECK 16 extension scope.** The existing CHECK 16 (`validate-status-spec.ts` from IF) validates
-`**Spec:**` field shape. Extension adds `**State:**` enum-membership validation and `**Integration:**`
-enum-membership validation. Structural-only — no semantic validation (e.g., "State: Complete requires
-Integration: empty or non-empty"). Cross-field semantic checks live in workflow ordering, not the hook.
-Hook stays inert on field absence (legacy file behavior preserved).
+`**Spec:**` field shape. Extension adds `**State:**` enum-membership validation plus `**Integration:**`
+validation tied to `State: Complete`: required and non-empty for `Complete`, rejected otherwise. Workflow
+ordering still owns the state transitions; the hook enforces the file shape.
 
 **Bootstrap consideration: SOF's own session uses pre-existing flow.** This WU implements auto-commit
 and auto-push behaviors, but its own implementation sessions run under `manual-commit` (the default).
@@ -406,13 +402,14 @@ routing for behavior tweaks vs schema tweaks vs workflow prose.
 - Metadata-state foundation operates correctly:
     - `**State:**` enum extension covers WU lifecycle through one full cycle (Planning → In Progress →
       Complete → swept)
-    - `**Integration:**` field tracks integration window correctly through one full PR cycle (empty →
+    - `**Integration:**` field tracks integration window correctly through one full PR cycle (Awaiting PR →
       Awaiting review → Changes requested → Awaiting review → Ready to merge → Merged → swept)
-    - CHECK 16 blocks commits with invalid State or Integration enum values; inert on field absence
+    - CHECK 16 blocks commits with invalid State or Integration enum values and enforces Integration only for
+      `State: Complete`
     - Sweep eligibility check fires correctly (`State: Complete + Integration: Merged`)
     - `archive.cadence: with-integration` default operates as sweep-as-you-go; `manual` defers to user
       invocation
-    - Migration is lazy; no mass-sweep commit; legacy status files remain editable post-SOF activation
+    - Existing active status files are valid under the tightened hook; no migration helper is introduced
 - Cadence refinements observable in practice:
     - Step 6c → 8 pre-advance eliminates one metadata commit per integration cycle
     - Post-PR-creation eddy guidance referenced in handoff decisions during integration sessions

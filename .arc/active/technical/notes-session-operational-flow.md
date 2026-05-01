@@ -27,11 +27,10 @@ dogfooding reveals a clear automatic-trigger semantic; the trigger should bake i
 (`at-planning-activation`, `prompt-on-threshold`) rather than re-creating the original ambiguity with a
 generic `deferred`.
 
-**Migration: lazy with no helper.** PRD § Technical Considerations covers this fully. Documentation lives in
-`strategy-session-operations.md` (loaded on-demand, not session-init). No DEV-RULES.* additions — keeps token
-load off session-loaded surfaces. CHECK 16's inert-on-absence behavior keeps legacy files unblocked until
-natural editing rotates them forward. Self-host's small in-flight status-file count and adopters' gradual
-encounter pattern make the lazy approach gentle enough to ship without tooling support.
+**Migration: direct active-file update with no helper.** PRD § Technical Considerations covers this fully.
+Documentation lives in `strategy-session-operations.md` (loaded on-demand, not session-init). No DEV-RULES.*
+additions — keeps token load off session-loaded surfaces. Self-host's small in-flight status-file count makes
+direct update preferable to weakening CHECK 16 coverage for legacy absence.
 
 **Sweep-eligibility check location.** `archive-work-unit.md` workflow gains a precondition prose check
 (Phase 1.5.a). Could be elevated to CLI code if dogfooding shows the check needs structural enforcement; v1
@@ -40,9 +39,10 @@ values it reads.
 
 **`**Integration:**` field labels: GitHub-style vocabulary.** Plan originally proposed
 `PR review | Review fixes | Ready to merge | Merged` (author-perspective framing). Discovery settled on
-`Awaiting review | Changes requested | Ready to merge | Merged` — GitHub PR vocabulary, more familiar to
-adopters, platform-portable. The `Changes requested ↔ Awaiting review` bidirectional transition handles
-push-fixes → re-review cycles. WUs in draft-PR state leave the field empty; no `Draft` value (would muddy
+`Awaiting PR | Awaiting review | Changes requested | Ready to merge | Merged` — GitHub PR vocabulary, more
+familiar to adopters, platform-portable. `Awaiting PR` covers the committed post-cleanup window before PR
+creation. The `Changes requested ↔ Awaiting review` bidirectional transition handles push-fixes → re-review
+cycles. WUs in draft-PR state stay at `Awaiting PR`; no `Draft` value (would muddy
 queue semantics).
 
 **No probe extension needed.** PRD § Technical Considerations: the metadata-state foundation extends

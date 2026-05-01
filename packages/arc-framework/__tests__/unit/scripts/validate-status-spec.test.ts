@@ -25,15 +25,23 @@ function fakeReader(files: Record<string, string>) {
   };
 }
 
-function statusFile(specLine: string | null): string {
+function statusFile(
+  specLine: string | null,
+  fields: { stateLine?: string | null; integrationLine?: string | null } = {},
+): string {
   const lines = [
     "# Status: Foo",
     "",
     "## Active Work",
     "",
-    "- **State:** In Progress",
   ];
+  if (fields.stateLine !== null) {
+    lines.push(fields.stateLine ?? "- **State:** In Progress");
+  }
   if (specLine !== null) lines.push(specLine);
+  if (fields.integrationLine !== undefined && fields.integrationLine !== null) {
+    lines.push(fields.integrationLine);
+  }
   lines.push("- **Task List:** tasks-foo.md", "");
   return lines.join("\n");
 }
@@ -97,6 +105,135 @@ describe("validateFiles", () => {
     const result = validateFiles(Object.keys(files), fakeReader(files));
     expect(result.pass).toBe(true);
     expect(result.diagnostics).toEqual([]);
+  });
+
+  it("passes when non-Complete State value is a supported enum value and Integration is absent", () => {
+    for (const state of [
+      "Planning",
+      "In Progress",
+      "Paused",
+      "Superseded",
+    ]) {
+      const files = {
+        [STATUS_PATH]: statusFile("- **Spec:** [none]", {
+          stateLine: `- **State:** ${state}`,
+        }),
+      };
+      const result = validateFiles(Object.keys(files), fakeReader(files));
+      expect(result.pass).toBe(true);
+      expect(result.diagnostics).toEqual([]);
+    }
+  });
+
+  it("passes when Complete State has a supported Integration value", () => {
+    for (const integration of [
+      "Awaiting PR",
+      "Awaiting review",
+      "Changes requested",
+      "Ready to merge",
+      "Merged",
+    ]) {
+      const files = {
+        [STATUS_PATH]: statusFile("- **Spec:** [none]", {
+          stateLine: "- **State:** Complete",
+          integrationLine: `- **Integration:** ${integration}`,
+        }),
+      };
+      const result = validateFiles(Object.keys(files), fakeReader(files));
+      expect(result.pass).toBe(true);
+      expect(result.diagnostics).toEqual([]);
+    }
+  });
+
+  it("fails when State value is unsupported", () => {
+    const files = {
+      [STATUS_PATH]: statusFile("- **Spec:** [none]", {
+        stateLine: "- **State:** Waiting",
+      }),
+    };
+    const result = validateFiles(Object.keys(files), fakeReader(files));
+    expect(result.pass).toBe(false);
+    const diag = result.diagnostics.find((d) => d.includes(STATUS_PATH));
+    expect(diag).toBeDefined();
+    expect(diag).toContain("State");
+    expect(diag).toContain("Waiting");
+  });
+
+  it("fails when State line is missing", () => {
+    const files = {
+      [STATUS_PATH]: statusFile("- **Spec:** [none]", {
+        stateLine: null,
+      }),
+    };
+    const result = validateFiles(Object.keys(files), fakeReader(files));
+    expect(result.pass).toBe(false);
+    expect(
+      result.diagnostics.some(
+        (d) => d.includes(STATUS_PATH) && d.includes("State") && d.includes("missing"),
+      ),
+    ).toBe(true);
+  });
+
+  it("fails when Complete State is missing Integration", () => {
+    const files = {
+      [STATUS_PATH]: statusFile("- **Spec:** [none]", {
+        stateLine: "- **State:** Complete",
+      }),
+    };
+    const result = validateFiles(Object.keys(files), fakeReader(files));
+    expect(result.pass).toBe(false);
+    expect(
+      result.diagnostics.some(
+        (d) => d.includes(STATUS_PATH) && d.includes("Integration") && d.includes("missing"),
+      ),
+    ).toBe(true);
+  });
+
+  it("fails when Complete State has blank Integration", () => {
+    const files = {
+      [STATUS_PATH]: statusFile("- **Spec:** [none]", {
+        stateLine: "- **State:** Complete",
+        integrationLine: "- **Integration:**",
+      }),
+    };
+    const result = validateFiles(Object.keys(files), fakeReader(files));
+    expect(result.pass).toBe(false);
+    expect(
+      result.diagnostics.some(
+        (d) => d.includes(STATUS_PATH) && d.includes("Integration") && d.includes("empty"),
+      ),
+    ).toBe(true);
+  });
+
+  it("fails when Integration value is unsupported", () => {
+    const files = {
+      [STATUS_PATH]: statusFile("- **Spec:** [none]", {
+        stateLine: "- **State:** Complete",
+        integrationLine: "- **Integration:** Draft",
+      }),
+    };
+    const result = validateFiles(Object.keys(files), fakeReader(files));
+    expect(result.pass).toBe(false);
+    const diag = result.diagnostics.find((d) => d.includes(STATUS_PATH));
+    expect(diag).toBeDefined();
+    expect(diag).toContain("Integration");
+    expect(diag).toContain("Draft");
+  });
+
+  it("fails when non-Complete State has Integration", () => {
+    const files = {
+      [STATUS_PATH]: statusFile("- **Spec:** [none]", {
+        stateLine: "- **State:** In Progress",
+        integrationLine: "- **Integration:** Awaiting PR",
+      }),
+    };
+    const result = validateFiles(Object.keys(files), fakeReader(files));
+    expect(result.pass).toBe(false);
+    expect(
+      result.diagnostics.some(
+        (d) => d.includes(STATUS_PATH) && d.includes("Integration") && d.includes("Complete"),
+      ),
+    ).toBe(true);
   });
 
   it("passes when Spec value has surrounding whitespace (validator trims)", () => {
