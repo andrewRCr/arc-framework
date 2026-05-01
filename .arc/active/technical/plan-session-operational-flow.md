@@ -24,29 +24,31 @@ auto-commit stages code only — no project-level status-file updates, matching 
 [DEV-RULES.ARC][dev-rules-arc] § Commit Discipline "Contributor override" (contributor status files are
 gitignored and updated at handoff regardless of mode).
 
-**Auto-push mode.** Auto-push-at-handoff implementation — push fires inside the handoff ceremony when configured.
-Mid-session push remains explicit-ask only. Push ordering invariant from [Interlock Foundation][prd-foundation]
-applies: worktree-push lands before notes-push.
+**Auto-push mode.** Implementation of `session.autonomy: auto-push` behavior — push fires inside the handoff
+ceremony when this mode is configured. Mid-session push remains explicit-ask only. Push ordering invariant
+from [Interlock Foundation][prd-foundation] applies: worktree-push lands before notes-push.
 
 **Deferred-review × auto-commit interaction.** Resolved per § Design Decisions: safe-accumulate (auto-commit does
 not fire per task within a deferred range; tasks accumulate for user review on return). Per-task auto-commit
 inside a deferred range available only via explicit instruction at deferral time.
 
-**Session-init load-set adapts to autonomy config.** When auto-commit is configured, session-init eagerly loads
-commit-format and commit-context-format methods to prevent per-cycle method-load overhead in a hot path. These
-methods today load via the arc-commit skill; auto-commit fires between tasks without invoking the skill, so
-session-init becomes the load-trigger.
+**Session-init load-set adapts to autonomy config.** When `config.value.autonomy.value` on the session-init
+probe resolves to `auto-commit` or `auto-push`, eagerly load commit-format and commit-context-format methods
+to prevent per-cycle method-load overhead in a hot path. These methods today load via the arc-commit skill;
+auto-commit fires between tasks without invoking the skill, so session-init becomes the load-trigger.
 
-**Handoff-interior toggle consumers.** Whatever toggle keys this WU's auto-push behavior introduces (likely
-`push.timing: manual | on-handoff` or equivalent) follow the handoff-interior toggle pattern documented in
-Interlock Foundation. Consumer-plan toggles ([plan-user-sync-ux][plan-sync] etc.) are not in this WU's scope —
-they ship in those plans.
+**No new handoff-interior toggles introduced.** Auto-push is governed by the `session.autonomy: auto-push`
+enum value Interlock Foundation shipped — the autonomy axis is the toggle, no separate `push.timing` key
+needed. Future handoff-interior toggles (worktree-push, QG-finalization) ship in their respective consumer
+plans ([plan-user-sync-ux][plan-sync], [plan-hooks][plan-hooks]) and consume the pattern documented in
+Interlock Foundation rather than originating here.
 
-**Metadata-state foundation for WU lifecycle.** Constitutional foundation that downstream lifecycle plans
-(particularly [plan-agile-wu-lifecycle][plan-awl]) implement against:
+**Metadata-state foundation for WU lifecycle.** Extends the status-file template Interlock Foundation shipped
+(which already carries `Spec`, `Sibling Work Unit(s)`, and `State: Planning`). Constitutional foundation that
+downstream lifecycle plans (particularly [plan-agile-wu-lifecycle][plan-awl]) implement against:
 
-- `**State:**` enum: `Planning | In Progress | Complete | Paused | Superseded`. `Planning` was introduced by
-  Interlock Foundation; remaining values land here as the execution/lifecycle states matching the
+- `**State:**` enum extended: `Planning | In Progress | Complete | Paused | Superseded`. `Planning` shipped
+  with Interlock Foundation; this WU adds the remaining execution/lifecycle states matching the
   agile-wu-lifecycle proposal
 - New optional `**Integration:**` field carries transient workflow position during the integration window:
   `PR review | Review fixes | Ready to merge | Merged`. Cleared at sweep
@@ -57,8 +59,29 @@ they ship in those plans.
   (likely `archive.cadence: with-integration | deferred | manual`)
 - Session-init orientation surfaces `**Integration:**` when present. The field slots naturally into the existing
   `## Active Work` partial-read pattern of "optional fields when present" (alongside Interrupts / Paused At /
-  Superseded By); orientation summary highlights it for active-work WUs in the integration window. Implementation
-  detail for [plan-agile-wu-lifecycle][plan-awl] item 7a, captured here so it doesn't get lost.
+  Superseded By); no session-init probe extension needed — orientation reads the field directly from the
+  partial-read. Implementation detail for [plan-agile-wu-lifecycle][plan-awl] item 7a, captured here so it
+  doesn't get lost
+- Validation: extend pre-commit CHECK 16 (`validate-status-spec.ts`) — currently validates `Spec` field shapes
+  per Interlock Foundation — to also validate `State` enum values and `Integration` enum values when present
+
+**Integration-window cadence refinements.** Operational refinements to the session ceremony surrounding the
+integration-window state machine the metadata-state foundation introduces. Three refinements observed during
+Interlock Foundation integration (PR #23):
+
+- **Pre-advance Step 6c status pointer to Step 8.** `integrate-work-unit.md` Step 7 is mechanical (`push +
+  gh pr create`); routing the pointer past it eliminates one metadata commit per integration cycle. Open scope:
+  whether pre-advance generalizes beyond Step 6c → 7 to other Step-N mechanical-next-step pointers.
+- **Discourage handoff in the post-PR-creation eddy.** Add guidance to integrate-work-unit Phase 2 recommending
+  either (a) handoff at Step 6c boundary before PR creation, or (b) continuing into review work after — the
+  awkward window between `gh pr create` and CR's first review pass is an avoidable handoff site.
+- **Workflow-ordering rule for PR-URL bundle.** When handoff fires in the same session as PR creation, the
+  PR-URL recording (completion-doc edit) bundles into the `chore(status): handoff` commit per the staging-as-
+  test rule. Preferred shape over runtime "just-created-PR" detection — explicit ordering rule rather than
+  heuristic detection of staged content.
+
+Surfaced concretely during Interlock Foundation PR #23 (commits `5b55c254` completion-doc PR-URL + `7aff66fa`
+handoff status update landed back-to-back, both pure-metadata, both would re-trigger CR review).
 
 **arc-commit skill preservation policy.** Skill remains user-invocable in both manual and auto modes. Under auto
 mode, the skill provides ad-hoc commit capability for non-task work mid-session and for recovery after auto-commit
@@ -133,11 +156,15 @@ rather than silent invocation of `prepare-commits`.
 
 **Open design decisions (PRD-time resolution):**
 
-- Final config keys for auto-push: `push.timing` shape (likely `manual | on-handoff` or boolean toggle) and
-  default value. PRD finalizes naming and enum.
 - Final field/value names for the State + Integration field model — § Scope establishes the conceptual shape;
   PRD finalizes field labels and enum values.
 - `archive.cadence` key shape (`with-integration | deferred | manual` per § Scope). PRD finalizes naming.
+- Whether the cadence refinement "pre-advance Step 6c status pointer to Step 8" generalizes beyond
+  integrate-work-unit. Other Step-N status pointers may have similar mechanical-next-step characteristics;
+  PRD scopes the generalization or limits to this one case.
+- Workflow-ordering rule vs runtime detection for the PR-URL bundle (alternative considered: detect
+  "just-created-PR" state at handoff via completion-doc staging signature, bundle PR-URL recording into
+  handoff commit). Workflow-ordering is the preferred shape per § Scope; PRD confirms or revisits.
 
 **Migration and validation details (PRD-time resolution):**
 
@@ -169,14 +196,15 @@ changes, integration tests).
    complexity-bumps-to-manual fallback, deferred-review × auto-commit safe-accumulate resolution, arc-commit
    skill preservation as user-invocable surface, session-init load-set autonomy-config-aware adaptation
    (eager-load commit-format and commit-context-format methods when auto-commit configured), tests.
-2. **Auto-push mode + handoff-interior toggle keys** — auto-push-at-handoff configurability (push fires inside
-   the handoff ceremony when configured); mid-session push remains explicit-ask only. Whatever new
-   handoff-interior toggle keys this WU's auto-push behavior introduces follow the pattern from Interlock
-   Foundation. Workflow integration points, defaults, tests.
-3. **Strategy cascade + metadata-state foundation + integration specs** — Comprehensive cascade update (autonomy-
-   mode-aware coordination guidance, autonomy-config-aware load-set documentation); metadata-state foundation
-   (State enum extension + Integration field model + sweep cadence config) for downstream lifecycle plans to
-   consume; integration specs for upstream plans; verification.
+2. **Auto-push mode** — implementation of `session.autonomy: auto-push` behavior (push fires inside the
+   handoff ceremony when this mode is configured); mid-session push remains explicit-ask only. Workflow
+   integration points (handoff ceremony hook), push-ordering enforcement (worktree before notes), tests. No
+   new handoff-interior toggle keys — the autonomy enum value is the toggle.
+3. **Integration-window operationalization** — metadata-state foundation (State enum extension + Integration
+   field model + sweep cadence config + CHECK 16 extension) for downstream lifecycle plans to consume; cadence
+   refinements (Step 6c pointer pre-advance, post-PR-creation eddy guidance, PR-URL bundle workflow-ordering
+   rule); strategy cascade (autonomy-mode-aware coordination guidance, autonomy-config-aware load-set
+   documentation); integration specs for upstream plans; verification.
 
 Phases 1 and 2 are relatively independent (auto-commit and auto-push touch different operational surfaces);
 Phase 3 lands after both.
@@ -184,8 +212,10 @@ Phase 3 lands after both.
 ### Dependencies
 
 - **[Interlock Foundation][prd-foundation] integrated and validated** — the constitutional frame, configuration
-  surface, structured-prompt format, composite handoff probe, handoff-interior toggle pattern, and rollback
-  dev-rule must all be live and dogfooded before this WU activates.
+  surface (`session.autonomy` enum surfaced with provenance via `config.value.autonomy: { value, source }` on
+  the session-init probe), structured-prompt format, composite handoff probe (`arc status --session-handoff
+  --json`, 8-slot envelope), handoff-interior toggle pattern, and rollback dev-rule must all be live and
+  dogfooded before this WU activates.
 - **No dependency on downstream consumer plans** — they consume this frame, not the reverse.
 
 ### Downstream consumption
@@ -220,7 +250,7 @@ Phase 3 lands after both.
 ---
 
 [adr-016]: ../../reference/adr/adr-016-configurable-autonomy-interlocks-for-session-operations.md
-[prd-foundation]: prd-interlock-foundation.md
+[prd-foundation]: ../../reference/archive/2026-q2/technical/05_interlock-foundation/prd-interlock-foundation.md
 [dev-rules-arc]: ../../reference/constitution/DEV-RULES.ARC.md
 [strategy-team]: ../../reference/strategies/arc/strategy-team-coordination.md
 [strategy-session]: ../../reference/strategies/arc/strategy-session-operations.md
