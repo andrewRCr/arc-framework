@@ -280,35 +280,27 @@ recovery uses existing `**Next Action:**` workflow-step pointer + `git status --
 downstream plan currently references the pre-advance pattern. See [`notes-session-operational-flow.md`][notes]
 § Phase 4 Rationale.
 
-### `[ ]` **4.1 Failure-mode taxonomy + crash-recovery routine**
+### `[x]` **4.1 Failure-mode taxonomy + crash-recovery routine**
 
-- _Goal:_ Document the five-mode taxonomy in strategy-session-operations and add the crash-recovery detection
-  routine to process-task-loop (referenced from session-init's resume path).
+- _Outcome:_ Added the five-mode failure taxonomy and recovery procedures to both copies of
+  `strategy-session-operations.md`, with bad-state / transit / process recovery categories. Added the terse
+  crash-recovery scan pointer to both `process-task-loop` copies and linked it from maintainer and contributor
+  session-init freshness checks.
 
-    - `[ ]` **4.1.a Document failure-mode taxonomy in strategy-session-operations.md**
-        - Five modes × three categories (bad-state, transit, process) with the table from PRD req #22.
-        - Per-mode recovery paths: rollback dev-rule for bad-state; retry for transit; user decision for
-          process.
+    - `[x]` **4.1.a Document failure-mode taxonomy in strategy-session-operations.md**
+        - Added the five-mode table and recovery-category framing for bad-state, transit, and process failures.
 
-    - `[ ]` **4.1.b Document per-mode recovery procedures**
-        - For each of the five modes, write the agent-procedure for detection + recovery in
-          strategy-session-operations.md. Pre-commit hook fail (mode 1) → fall back to manual-with-prompt;
-          T1/T2 QG fail post-commit (mode 2) → apply rollback dev-rule; network mid-push (mode 3) → surface in
-          handoff summary, retry; partial multi-commit cascade (mode 4) → same as mode 3; agent crash
-          mid-cascade (mode 5) → continue/rollback prompt with detection scan.
+    - `[x]` **4.1.b Document per-mode recovery procedures**
+        - Documented detection and recovery procedures for pre-commit hook failure, post-commit quality-gate
+          failure, network push failure, partial cascade completion, and agent crash mid-cascade.
 
-    - `[ ]` **4.1.c Add crash-recovery routine pointer to process-task-loop.md**
-        - One-paragraph addition: "On session resume after a suspected agent crash mid-cascade, run the
-          recovery scan: read `**Next Action:**` workflow-step pointer; read `git status --porcelain` and
-          `git diff --cached --stat`; surface mismatch and prompt continue/rollback. Full per-mode recovery
-          procedures in [strategy-session-operations § Failure-Mode Recovery][strategy-session]."
-        - Token discipline: paragraph in process-task-loop; details stay in strategy doc.
+    - `[x]` **4.1.c Add crash-recovery routine pointer to process-task-loop.md**
+        - Added the one-paragraph `## Crash Recovery` pointer with `**Next Action:**`, `git status
+          --porcelain`, and `git diff --cached --stat` scan inputs.
 
-    - `[ ]` **4.1.d Reference recovery routine from session-init resume path**
-        - Add a one-line note in session-init.md Step 5 (Assess Readiness) freshness check: "If the freshness
-          gap suggests an interrupted session, run the crash-recovery routine
-          ([process-task-loop § Crash Recovery][process-task-loop])."
-        - Mirror in `session-init.contributor.md`.
+    - `[x]` **4.1.d Reference recovery routine from session-init resume path**
+        - Linked maintainer and contributor freshness gaps to `process-task-loop` crash recovery in both
+          project and package workflow copies.
 
 ### `[ ]` **4.2 strategy-team-coordination interlock-release-aware coordination guidance**
 
@@ -374,6 +366,4 @@ downstream plan currently references the pre-advance pattern. See [`notes-sessio
 
 [notes]: notes-session-operational-flow.md
 [verify-work-unit]: ../../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md
-[strategy-session]: ../../reference/strategies/arc/strategy-session-operations.md
-[process-task-loop]: ../../system/workflows/arc/3_process-task-loop.md
 [package-sync]: ../../reference/strategies/project/strategy-package-project-sync.md

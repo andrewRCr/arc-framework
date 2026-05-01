@@ -256,6 +256,9 @@ git log -1 --format=%h -- <status-file-path>
 A gap doesn't mean state is wrong — it means verify more carefully before trusting session documents. **Only
 mention gaps in orientation if they exist.** A clean check produces no output.
 
+If the freshness gap suggests an interrupted session, run the crash-recovery routine
+([process-task-loop § Crash Recovery][process-task-loop]).
+
 ### Next work unit discovery
 
 **Skip if** an active status file was resolved AND (`sessionType === "planning"` OR `**Task List:**` is not
@@ -366,3 +369,4 @@ Examples:
 [team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md
 [session-ops-load-errors]: ../../../../reference/strategies/arc/strategy-session-operations.md#session-notes-load-error-recovery
 [session-init-contributor]: session-init.contributor.md
+[process-task-loop]: ../3_process-task-loop.md

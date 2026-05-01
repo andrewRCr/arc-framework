@@ -19,6 +19,7 @@ and handoff-interior toggle pattern (flow); plus context monitoring and session 
 - [Loading Mechanisms](#loading-mechanisms) — how each tier enters agent context
 - [Method and Extension Loading](#method-and-extension-loading) — on-demand procedural content
 - [Interlock Model](#interlock-model) — interlock stack, ceremony, configurability, approval signals
+- [Failure-Mode Recovery](#failure-mode-recovery) — taxonomy and recovery paths for interlock cascades
 - [Status-File Timing](#status-file-timing) — when status updates land in commit history
 - [Handoff-Interior Toggle Pattern](#handoff-interior-toggle-pattern) — config-key convention for handoff actions
 - [Context Monitoring](#context-monitoring) — shared responsibility model
@@ -516,6 +517,77 @@ retracting pushes).
 **Scope.** Session-local. Manual confirmation. No dedicated skill or log-file infrastructure in v1.
 Agent context plus conventional-commit footers cover cascade identification — promotion to a skill
 is a candidate future WU if dogfooding shows demand.
+
+---
+
+## Failure-Mode Recovery
+
+Configurable interlock release creates cascades that can fail after the user has already approved
+the boundary. Classify failures by the state they leave behind before choosing a recovery path:
+
+| Mode | Category | Trigger | Recovery path |
+| ---- | -------- | ------- | ------------- |
+| 1 | Bad state | Pre-commit hook fails during commit-on-task-approval | Fix obvious issues; otherwise fall back to manual-with-prompt |
+| 2 | Bad state | Tier 1/Tier 2 quality gate fails after an auto-released commit | Apply cascade-undo rule before destructive rollback |
+| 3 | Transit | Network failure during push-on-handoff | Preserve local state, surface in summary, retry when reachable |
+| 4 | Transit | Partial multi-commit or multi-push cascade | Preserve landed work, surface exact partial state, retry remaining transit |
+| 5 | Process | Agent/session crash mid-cascade | Run crash-recovery scan; prompt continue or rollback |
+
+**Bad-state failures** mean ARC produced or nearly produced local history that may be wrong.
+The correct response is repair when obvious, or explicit user choice before rollback/destructive
+recovery. The [cascade-undo rule][dev-rules-arc] applies here.
+
+**Transit failures** mean the local state is valid but transport did not complete. Do not roll
+back correct local work just because the remote update failed. Surface the state and retry when
+the remote path is available.
+
+**Process failures** mean the agent stopped before the workflow could finish or report. Detect
+what landed, compare it to the active workflow pointer, and ask whether to continue the cascade
+or roll it back.
+
+### Recovery Procedures
+
+**Mode 1 — pre-commit hook fail during commit-on-task-approval.** Detection: `git commit` exits
+non-zero while releasing the commit-interlock from process-task-loop approval. If the failure is
+obvious and in-scope (formatting, lint, type error), fix and retry the same commit. If the cause
+is non-obvious, staged content spans multiple concerns, or the hook failure implies a design
+choice, stop and report that commit-on-task-approval fell back to manual-with-prompt. Ask whether
+to investigate, revise staging, or defer the commit.
+
+**Mode 2 — quality gate fails after an auto-released commit.** Detection: Tier 1/Tier 2 gates fail
+after a commit produced by commit-on-task-approval. Do not continue to the next task. If the fix is
+obvious and local, apply a follow-up fix commit under the same task context. If reverting the
+auto-released commit is the proposed remedy, present a cascade-undo plan first: identify commits to
+reset or revert, whether anything was pushed, and the exact recovery command shape. Await explicit
+confirmation before destructive rollback.
+
+**Mode 3 — network failure during push-on-handoff.** Detection: worktree push or notes push exits
+non-zero for remote/network reasons during handoff. Keep local commits and session files intact.
+Surface the failure in the handoff summary, including whether the worktree push, notes push, or
+both failed. Retry the failed transport when connectivity or remote permissions recover; if the
+remote rejected a non-fast-forward update, switch to the handoff workflow's reconcile path.
+
+**Mode 4 — partial multi-commit or multi-push cascade.** Detection: a cascade has multiple
+transport or commit operations and only some complete. Preserve the completed operations; do not
+rewrite them automatically. Inspect `git status --short`, `git log --oneline <baseline>..HEAD`,
+and remote/ahead-behind state as needed to identify what landed. Report the exact partial state
+and retry only the remaining transit operation unless the user chooses rollback under the
+cascade-undo rule.
+
+**Mode 5 — agent crash mid-cascade.** Detection on resume: freshness gap, dirty tree, staged
+changes, or active `**Next Action:**` still pointing into a workflow boundary that may have been
+interrupted. Run the crash-recovery scan:
+
+```bash
+git status --porcelain
+git diff --cached --stat
+```
+
+Read the active status file's `**Next Action:**` workflow-step pointer and compare it to the git
+state. If the pointer, staged diff, and commit history agree on the next operation, continue from
+that operation. If they disagree or the user may prefer rollback, surface the mismatch and prompt:
+continue the interrupted cascade, roll back with an explicit cascade-undo plan, or stop for manual
+inspection.
 
 ---
 

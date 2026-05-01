@@ -269,6 +269,9 @@ git log -1 --format=%h -- <status-file-path>
 A gap doesn't mean state is wrong — it means verify more carefully before trusting session documents. **Only
 mention gaps in orientation if they exist.** A clean check produces no output.
 
+If the freshness gap suggests an interrupted session, run the crash-recovery routine
+([process-task-loop § Crash Recovery][process-task-loop]).
+
 <!-- arc:if team.mode == true -->
 **Concurrent activity:** In team mode, freshness gaps may also indicate concurrent developer activity rather
 than stale session state. If the active status file was updated by a different author since your last
@@ -394,3 +397,4 @@ Examples:
 [team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md
 [session-ops-load-errors]: ../../../../reference/strategies/arc/strategy-session-operations.md#session-notes-load-error-recovery
 [session-init-contributor]: session-init.contributor.md
+[process-task-loop]: ../3_process-task-loop.md

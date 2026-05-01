@@ -45,7 +45,8 @@ Maintainer's `session-init.md` § 5 covers freshness (universal) and next-work-u
 (maintainer-only). Contributors keep freshness, drop discovery:
 
 - **Freshness:** Skip if SESSION-NOTES `Commit at Handoff` hash matches current HEAD. Otherwise
-  surface the gap in orientation.
+  surface the gap in orientation. If the gap suggests an interrupted session, run
+  [process-task-loop § Crash Recovery](../3_process-task-loop.md#crash-recovery).
 - **Active status file freshness:** The contributor active file lives under
   `.arc/user/{identity}/active/` and is gitignored — git-history-based freshness doesn't apply.
   The handoff-hash check above is the freshness signal.

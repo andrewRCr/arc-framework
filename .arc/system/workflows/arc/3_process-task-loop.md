@@ -196,6 +196,14 @@ arc:
      **Atomicity check (before staging):** Do all changes serve one logical concern? When in
      doubt, split and ask. See [Commit Discipline][dev-rules-arc].
 
+## Crash Recovery
+
+On session resume after a suspected agent crash mid-cascade, run the recovery scan: read the active
+status file's `**Next Action:**` workflow-step pointer, then inspect `git status --porcelain` and
+`git diff --cached --stat`. Surface any mismatch between the workflow pointer, staged changes, and
+commit history; prompt the user to continue the interrupted cascade or roll it back. Full per-mode
+recovery procedures live in [Session Operations Strategy][session-ops] § Failure-Mode Recovery.
+
 ## Verification Phase
 
 Every task list ends with a verification phase — a single task that points to the
