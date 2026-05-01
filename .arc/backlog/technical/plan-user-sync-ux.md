@@ -125,13 +125,15 @@ unification design — distinguish "your local is behind because you haven't fet
 behind because work happened on another machine," and from "your local is behind because a sibling session
 on this machine pushed."
 
-**Amended-HEAD handoff save/push verification.** During SOF handoff on 2026-05-01, `arc user save`
-reported "Saved 2 file(s) to git note on 7190a8f" and `arc user push` reported success, but immediate
-`arc user status --json` still reported `savedCommit: 4e0679a`, `diskStatus: different`, and "latest local
-git note is from 4e0679a, 4 commit(s) back." Direct `git notes show 7190a8fb` found no note. This appears
-to be the same state-machine/coherence class, but the plan should explicitly test the amended-handoff case:
-save after a handoff commit amend, push notes, then verify both local and remote notes resolve to the amended
-HEAD and `SESSION-NOTES.md` disk content is current.
+**Unpushed-HEAD handoff save/push verification.** During SOF handoff on 2026-05-01, `arc user save`
+reported "Saved 2 file(s) to git note on 7190a8f" and `arc user push` reported success while the worktree
+branch was still ahead of origin. Immediate `arc user status --json` reported the older
+`savedCommit: 4e0679a`, `diskStatus: different`, and "latest local git note is from 4e0679a." Direct
+`git notes show 7190a8fb` found no note. Recovery succeeded only after pushing the worktree branch first,
+then running `arc user save` + `arc user push`; after that, status reported `savedCommit: bad1b9b` and
+`diskStatus: same`. The plan should explicitly test notes-save/push behavior when HEAD is ahead of origin
+and verify the CLI either pushes the annotated commit first, blocks with clear guidance, or preserves a
+recoverable local note without claiming remote sync success.
 
 ### Out of scope
 
