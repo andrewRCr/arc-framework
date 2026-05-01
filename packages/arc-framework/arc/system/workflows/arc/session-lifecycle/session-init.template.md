@@ -141,8 +141,8 @@ session-state, follow the override instead.
             Include an abort option (`[q]`). If the user aborts, surface the candidate list and halt
             session-init.
     - **Read scope:** `## Active Work` carries the load-bearing fields (State, Branch, Task List,
-      Next Task, Last Completed, Blockers, Next Action) plus optional fields when present (Interrupts,
-      Paused At, Paused To, Superseded By). The "About this file" blockquote and any other surrounding
+      Next Task, Last Completed, Blockers, Next Action) plus optional fields when present (Integration,
+      Interrupts, Paused At, Paused To, Superseded By). The "About this file" blockquote and any other surrounding
       content are not read at init. **Contract boundary:** any content an agent needs at session-init
       must live inside `## Active Work`.
     - **Task reference format**: `**Next Task:**` uses triple-anchor format —

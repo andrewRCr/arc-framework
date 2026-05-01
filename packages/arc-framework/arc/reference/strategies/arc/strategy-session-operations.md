@@ -502,6 +502,11 @@ treats `Planning` as case-exact (drives `sessionType: "planning"`); other values
 List / Next Action signals — preserving behavior for parenthetical-suffix variants like `Paused
 (2026-04-12)`.
 
+**Status-field migration.** When lifecycle fields become stricter, update existing active status files directly
+as part of the work unit that introduces the rule. Keep structural validation strict for new commits instead of
+allowing legacy absence, and avoid one-off migration helpers until repeated adopter demand justifies the
+maintenance surface.
+
 **Disposition at integration.** [`integrate-planning-branch.md`][integrate-plan] Step 2 routes by
 graduated / shelved: graduated leaves the file in place for `activate-work-unit` Step 4 to transition;
 shelved removes the file (no WU follows; no pointer needed).

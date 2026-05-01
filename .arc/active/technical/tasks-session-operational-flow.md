@@ -98,39 +98,39 @@ migration; no helper command. See [`notes-session-operational-flow.md`][notes] �
           `archive-work-unit.md` fills the merged PR URL into `completion-{name}.md` as part of the archival
           commit.
 
-### `[ ]` **1.5 Sweep eligibility logic in `archive-work-unit.md` + `archive.cadence` consumption**
+### `[x]` **1.5 Sweep eligibility logic in `archive-work-unit.md` + `archive.cadence` consumption**
 
-- _Goal:_ Wire archive eligibility to `State: Complete + Integration: Merged`; document `archive.cadence`
-  consumption in the workflow.
+- Updated `archive-work-unit.md` in package source and self-hosting copy so archival requires
+  `State: Complete + Integration: Merged` and documents how `archive.cadence` gates automatic vs manual archive
+  execution.
 
-    - `[ ]` **1.5.a Eligibility precondition prose**
-        - Add precondition check at archive-work-unit entry: status file must show
-          `State: Complete + Integration: Merged`. Block (or prompt user) on mismatch with a clear surface of
-          which field is off.
+    - `[x]` **1.5.a Eligibility precondition prose**
+        - Workflow entry now reads the active status file, requires `**State:** Complete` and
+          `**Integration:** Merged`, and stops with the mismatched field surfaced when either value is missing
+          or different.
 
-    - `[ ]` **1.5.b `archive.cadence` consumption documented**
-        - `with-integration` (default): archive ops fire as a separate commit in the integration PR per
-          multi-commit-PR norms.
-        - `manual`: defer archival to user invocation; workflow exits after the eligibility check is logged.
+    - `[x]` **1.5.b `archive.cadence` consumption documented**
+        - `with-integration` proceeds by default as a separate archival commit in the integration / batch branch;
+          `manual` stops after the eligibility result unless archive was explicitly user-invoked.
 
-### `[ ]` **1.6 Surface `**Integration:**` in session-init orientation**
+### `[x]` **1.6 Surface `**Integration:**` in session-init orientation**
 
-- _Goal:_ Slot `**Integration:**` into the existing "optional fields when present" pattern (alongside
-  Interrupts / Paused At / Superseded By). No probe extension — orientation reads the field directly from the
-  partial read.
+- Added `**Integration:**` to the session-init active-status read scope in maintainer and contributor paths;
+  no probe extension needed because orientation consumes the existing `## Active Work` partial read.
 
-    - `[ ]` **1.6.a Add Integration to session-init.md Step 3 read-scope notes**
-        - Update the "optional fields when present" enumeration in session-init.md Step 3 item 7 to include
-          `**Integration:**`. One-line addition.
+    - `[x]` **1.6.a Add Integration to session-init.md Step 3 read-scope notes**
+        - `session-init.template.md` and the rendered `.arc` copy now include `Integration` in the optional
+          `## Active Work` field enumeration.
 
-    - `[ ]` **1.6.b Mirror in `session-init.contributor.md`**
-        - Same edit in the contributor variant for parity.
+    - `[x]` **1.6.b Mirror in `session-init.contributor.md`**
+        - Contributor session-init now explicitly preserves optional fields such as `**Integration:**` when
+          partial-reading active work.
 
-### `[ ]` **1.7 Document status-field migration approach in `strategy-session-operations.md`**
+### `[x]` **1.7 Document status-field migration approach in `strategy-session-operations.md`**
 
-- Add brief subsection covering migration intent: update existing active status files directly, keep CHECK 16
-  strict, and avoid an `arc migrate-status-states` helper (YAGNI for v1; PRD § Non-Goals documents the stance).
-  No DEV-RULES.* additions — strategy-doc placement keeps token load off session-loaded surfaces.
+- Added a status-field migration note to `strategy-session-operations.md`: lifecycle-field tightening updates
+  existing active status files directly, keeps structural validation strict, and defers one-off migration helpers
+  until repeated adopter demand justifies the maintenance surface.
 
 ---
 

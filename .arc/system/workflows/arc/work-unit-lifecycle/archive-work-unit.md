@@ -15,8 +15,8 @@ the substantive work (doc prep, review, merge) happens in [integrate-work-unit][
 **When to use:** The work unit's PR is merged and you're on the parent branch.
 
 **Prerequisite:** [integrate-work-unit][integrate-work-unit] completed — docs are clean, completion
-metadata exists (`completion-{name}.md` created, status file `**State:** Complete`), code review is
-done, PR is merged.
+metadata exists (`completion-{name}.md` created, status file `**State:** Complete` and
+`**Integration:** Merged`), code review is done, PR is merged.
 
 > **Full protection mode (`branch.protection: full`):** Archival commits cannot go directly to the
 > base branch. Two approaches:
@@ -40,7 +40,32 @@ done, PR is merged.
 
 ## Steps
 
-### 0) Set Up Branch (Full Protection Only)
+### 0) Verify Archive Eligibility and Cadence
+
+Read the active status file before moving files:
+
+```bash
+grep -E '^\- \*\*(State|Integration):\*\*' .arc/active/{category}/status-{name}.md
+```
+
+Archive only when the status file shows:
+
+```text
+- **State:** Complete
+- **Integration:** Merged
+```
+
+If either field is missing or has a different value, stop and surface the mismatch. The work unit is not
+eligible for archival until integration has completed.
+
+Then check `archive.cadence` in `.arc/system/arc-config.yml`:
+
+- **`with-integration`** (default): proceed. Archival lands as its own commit in the integration PR / batch
+  branch after the implementation PR merges.
+- **`manual`**: if this workflow was reached automatically from integration, log the eligibility result and
+  stop. Continue only when the user explicitly invokes archive.
+
+### 0b) Set Up Branch (Full Protection Only)
 
 **Skip if** `branch.protection` is `partial` — archive directly on the base branch.
 
