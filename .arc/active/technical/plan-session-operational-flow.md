@@ -224,8 +224,8 @@ Phase 3 lands after both.
 [dev-rules-arc]: ../../reference/constitution/DEV-RULES.ARC.md
 [strategy-team]: ../../reference/strategies/arc/strategy-team-coordination.md
 [strategy-session]: ../../reference/strategies/arc/strategy-session-operations.md
-[plan-sync]: plan-user-sync-ux.md
-[plan-hooks]: plan-quality-gate-hooks.md
-[plan-wf]: plan-worktree-foundation.md
-[plan-awl]: plan-agile-wu-lifecycle.md
-[plan-cwc]: ../feature/plan-concurrent-work-conventions.md
+[plan-sync]: ../../backlog/technical/plan-user-sync-ux.md
+[plan-hooks]: ../../backlog/technical/plan-quality-gate-hooks.md
+[plan-wf]: ../../backlog/technical/plan-worktree-foundation.md
+[plan-awl]: ../../backlog/technical/plan-agile-wu-lifecycle.md
+[plan-cwc]: ../../backlog/feature/plan-concurrent-work-conventions.md
