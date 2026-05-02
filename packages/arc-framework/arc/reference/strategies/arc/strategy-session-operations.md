@@ -388,7 +388,8 @@ invokes commit. `on-task-approval` releases the interlock on task approval.
 invokes push. `on-handoff` releases the interlock at handoff only — never per-commit.
 Mid-session push always requires explicit invocation regardless of mode.
 
-**Integration-interlock.** Merge to integration / main is human-only. Not negotiable, not configurable.
+**Integration-interlock.** Merge to integration / main requires explicit human approval. Agents must not
+infer merge approval from task approval, review completion, passing checks, or general "proceed" language.
 For ARC, integration means merge-to-base; downstream production deployment is outside ARC's scope.
 
 **Quality-gate failures hold regardless of mode.** Approval releases the work, not the gate. A failed
@@ -611,7 +612,7 @@ guards so re-entry is safe.
 **Single template, single shape.** [`template-status.md`][template-status] is the canonical source for
 both paths — no planning-variant template. The `**State:**` field carries the lifecycle phase.
 
-**Always-present fields with `[none]` markers.** All fields in the template's `## Active Work` section
+**Always-present fields with `[none]` markers.** All fields in the template's `## Work Unit Metadata` section
 are always present; empty optional fields use the `[none]` literal. Consumers (the probe, session-init,
 handoff workflow) get a uniform parse surface — no field-omission ambiguity, no per-state shape
 branching.

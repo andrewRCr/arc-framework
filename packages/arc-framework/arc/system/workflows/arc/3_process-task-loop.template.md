@@ -196,6 +196,10 @@ arc:
 
      If any item is unchecked, complete it before proceeding to report generation.
 
+> [!IMPORTANT]
+> `task-interlock`: Stop after reporting task completion. Surface verification status and await
+> approval before advancing.
+
   4. Await user instructions on how to proceed.
      User may choose to commit changes or request modifications. Under
      `session.commit_interlock: manual`, task approval advances work only; committing remains an

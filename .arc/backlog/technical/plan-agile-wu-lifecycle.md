@@ -158,10 +158,9 @@ get promoted: add the plan-*/PRD, restructure the task list into phases, continu
     - **State + Integration field rollout.** `**State:**` enum:
       `Planning | In Progress | Complete | Paused | Superseded` (`Planning` introduced upstream in
       [plan-session-operational-flow][plan-ops] Phase 1; this WU operates on the post-introduction
-      enum); new optional `**Integration:**` field
-      (`PR review | Review fixes | Ready to merge | Merged`) added to template-status. Workflow
-      updates: `clean-work-unit.md` Mode 2 sets State to Complete (current); `integrate-work-unit.md`
-      manages Integration field through PR lifecycle; sweep clears Integration field.
+      enum); optional `**Integration:** Merged` marker added to template-status. Workflow updates:
+      `clean-work-unit.md` Mode 2 sets State to Complete (current); PR review state remains in the
+      PR; archival marks Integration as Merged before moving files.
     - **Sweep cadence configuration.** Default sweep-as-you-go (sweep ops bundled in integration PR
       as separate commit per multi-commit-PR norms); opt-in deferred (sweep batched with next-WU
       planning or standalone). Config key `archive.cadence: with-integration | deferred | manual`
@@ -470,7 +469,7 @@ concrete examples for the strategy doc.
 [arc-modes]: ../feature/plan-arc-modes.md
 [wf]: plan-worktree-foundation.md
 [cwc]: ../feature/plan-concurrent-work-conventions.md
-[plan-ops]: plan-session-operational-flow.md
+[plan-ops]: ../../reference/archive/2026-q2/technical/06_session-operational-flow/prd-session-operational-flow.md
 [qg-hooks]: plan-quality-gate-hooks.md
 [dev-rules]: ../../reference/constitution/DEV-RULES.ARC.md
 [strategy-work-org]: ../../reference/strategies/arc/strategy-work-organization.md

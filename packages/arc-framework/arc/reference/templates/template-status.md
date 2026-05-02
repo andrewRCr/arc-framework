@@ -1,6 +1,6 @@
 # Status: [Work Name]
 
-## Active Work
+## Work Unit Metadata
 
 <!--
   Field semantics. Core fields always present; `[none]` is the empty-value marker.
@@ -11,12 +11,10 @@
     | `Complete` (integration window after work-unit cleanup; coexists with a pending
     `**Next Action:**` until archival) | `Paused` (temporarily stopped) | `Superseded`
     (replaced by another work unit).
-  - **Integration** — Present only when `State` is `Complete`; required and non-empty in that
-    state. Enum: `Awaiting PR` (work complete, PR not yet created) | `Awaiting review` |
-    `Changes requested` | `Ready to merge` | `Merged`. Review cycles move bidirectionally
-    between `Changes requested` and `Awaiting review`.
   - **Branch** — Branch this WU lives on (planning branch during planning,
     implementation branch during execution).
+  - **Integration** — Optional; present only when `State` is `Complete` and the WU has merged.
+    Enum: `Merged`. Review-cycle state lives in the PR, not the status file.
   - **Spec** — `[none]` | `.md` filename (e.g., `plan-{name}.md`, `prd-{name}.md`)
     | URL (external tracker link under `pm.mode: external`).
   - **Task List** — `[none]` during planning; `tasks-{name}.md` filename during execution
@@ -34,6 +32,7 @@
 
 - **State:** —
 - **Branch:** —
+
 - **Spec:** [none]
 - **Task List:** [none]
 - **Sibling Work Unit(s):** [none]

@@ -183,10 +183,13 @@ task list.
 
 **Commit message format:** Follow DEV-RULES.ARC.md § Commit format.
 Documentation prep commits use type/scope `docs(arc)` or `docs({category})` with the `(integration)`
-context footer pattern — e.g., `Context: tasks-{name}.md (integration)`. Review-fix commits during
-integration use the `(code review)` footer instead — see the [commit-context-format method][arc-methods-ccf].
+context footer pattern — e.g., `Context: status-{name}.md (integration)`. Review-fix commits during
+integration use the `(code review)` footer on `tasks-{name}.md` or `plan-{name}.md` instead — see the
+[commit-context-format method][arc-methods-ccf].
 
-**⛔ CHECKPOINT:** Phase 1 complete. Proceed to Phase 2 for code review before creating the PR.
+> [!IMPORTANT]
+> `workflow-interlock`: Stop after integration-prep documentation is committed. Surface Phase 1
+> completion and await direction before proceeding to pre-merge review and PR creation.
 
 ---
 
@@ -279,6 +282,10 @@ afterward.
 
 ### 7) Push and Create PR
 
+> [!IMPORTANT]
+> `workflow-interlock`: Stop before creating the PR. Surface PR title/body readiness, branch state,
+> and review plan; await direction before pushing or opening the PR.
+
 ```bash
 git push -u origin {branch-name}
 gh pr create --base {parent-branch} --head {branch-name}
@@ -307,6 +314,10 @@ Process findings from PR reviewers (human or automated) using the
 - Commit fixes with the `(code review)` context footer
 
 ### 9) Merge Pull Request
+
+> [!IMPORTANT]
+> `integration-interlock`: Stop before merging. Surface PR review status, checks, unresolved
+> threads, and merge method; await explicit integration approval before merging.
 
 ```bash
 # Via GitHub CLI — use flag matching merge.strategy in arc-config.yml

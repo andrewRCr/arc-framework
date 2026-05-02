@@ -183,13 +183,13 @@ session.init_pull.notes: prompt
 # See DEV-RULES.ARC § Commit Discipline.
 #   manual           - Each commit requires explicit approval. (default)
 #   on-task-approval - Task approval implicitly authorizes the task commit.
-session.commit_interlock: manual
+session.commit_interlock: on-task-approval
 
 # Push interlock release policy.
 # See DEV-RULES.ARC § Commit Discipline.
 #   manual     - Each push requires explicit approval. (default)
 #   on-handoff - Handoff implicitly authorizes the push.
-session.push_interlock: manual
+session.push_interlock: on-handoff
 
 # --- User Directory ---
 

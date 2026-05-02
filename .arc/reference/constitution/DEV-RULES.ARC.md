@@ -38,8 +38,9 @@ documentation style — live in [DEV-RULES.PROJECT][dev-rules-project]. Contribu
       invocation; `on-handoff` mode fires push at handoff only — never per commit.
     - Per-mode behavior lives in the [session-handoff workflow][session-handoff].
 
-- **Merge to integration / main is human-only** (the *integration-interlock*). Agents do not initiate
-  merges regardless of interlock settings.
+- **Merge to integration / main requires explicit approval** (the *integration-interlock*). Agents
+  must not infer merge approval from task approval, review completion, passing checks, or general
+  "proceed" language. Integration may happen only when the user explicitly authorizes it.
 
 - **Never use `--no-verify`** to bypass commit hooks — hooks exist to catch errors.
 
@@ -90,6 +91,10 @@ changes by task; commit shared documentation (task list updates) last.
 Each checkbox in the task list is one *review increment* — a bounded chunk of autonomous execution
 between human review points. Every increment requires explicit user approval (the *task-interlock*)
 before the agent advances; deferred review is a bounded user-scoped convenience, not an autonomy mode.
+
+> [!IMPORTANT]
+> `task-interlock`: Stop after reporting task completion. Surface verification status and await
+> approval before advancing.
 
 In team mode, this applies per developer-agent pair — concurrent pairs may work on different tasks simultaneously.
 See [Team Coordination Strategy][team-coordination] for task ownership, branching patterns, and handoff conventions.

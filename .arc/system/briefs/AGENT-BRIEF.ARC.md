@@ -18,6 +18,22 @@ loaded when workflow YAML frontmatter declares them.
 **Quality gates:** Per-project — defined in DEV-RULES.PROJECT, referenced via the
 `quality-gate-commands` method.
 
+## Vocabulary
+
+Precise meanings — assume the technical sense.
+
+- **Work unit (WU):** Bounded work plus its artifact group — `status-{name}.md` plus any present
+  `plan-*`, `tasks-*`, `atomic-*` companions. Typically branch-scoped (1 WU : 1 branch by default);
+  multi-branch patterns exist (stacked PRs, team mode). Not "any chunk of work".
+- **Interlock:** Configurable control point gating an action — fires automatically, on user approval, or
+  only on explicit invocation, per type and config. Always-stop: `task-`, `workflow-`, `integration-`.
+  Configurable: `commit-`, `push-`.
+- **Review increment:** One leaf task = one autonomous chunk. Default stop after each leaf.
+  **Deferred review** = user-scoped batch ("proceed to 3.4", "do 3.4.a-c") that suspends per-leaf stops
+  within scope; commit-interlock auto-fire also suspends when `on-task-approval`.
+- **Atomic:** Small, indivisible-by-design work — atomic tasks (`atomic-{name}.md` companions),
+  `ATOMIC-INBOX.md`, future atomic work units. Not "atomic" in the concurrency sense.
+
 ## Key Documents
 
 | Document                    | Purpose                                       | Location                  |

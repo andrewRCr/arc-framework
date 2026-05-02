@@ -36,7 +36,7 @@ function statusFileBody(fields: {
   taskList?: string;
   extra?: string;
 }): string {
-  const lines: string[] = ["# Status: fixture", "", "## Active Work", ""];
+  const lines: string[] = ["# Status: fixture", "", "## Work Unit Metadata", ""];
   if (fields.state !== undefined) lines.push(`- **State:** ${fields.state}`);
   if (fields.branch !== undefined) lines.push(`- **Branch:** ${fields.branch}`);
   if (fields.taskList !== undefined) lines.push(`- **Task List:** ${fields.taskList}`);
@@ -77,7 +77,7 @@ describe("parseStatusFile — happy path", () => {
 
 describe("parseStatusFile — missing fields", () => {
   it("returns null for any field whose marker is absent", () => {
-    const parsed = parseStatusFile("# Status: fixture\n\n## Active Work\n\nJust prose.\n");
+    const parsed = parseStatusFile("# Status: fixture\n\n## Work Unit Metadata\n\nJust prose.\n");
     expect(parsed.state).toBeNull();
     expect(parsed.branch).toBeNull();
     expect(parsed.nextTask).toBeNull();
@@ -85,43 +85,49 @@ describe("parseStatusFile — missing fields", () => {
   });
 
   it("returns null for a field whose value is empty after the marker", () => {
-    const content = "## Active Work\n\n- **Branch:** \n- **State:** In Progress\n";
+    const content = "## Work Unit Metadata\n\n- **Branch:** \n- **State:** In Progress\n";
     const parsed = parseStatusFile(content);
     expect(parsed.branch).toBeNull();
     expect(parsed.state).toBe("In Progress");
   });
 
-  it("returns null for every field when `## Active Work` heading is absent", () => {
+  it("returns null for every field when `## Work Unit Metadata` heading is absent", () => {
     const content = "# Status: fixture\n\n- **Branch:** main\n- **State:** In Progress\n";
     const parsed = parseStatusFile(content);
     expect(parsed.branch).toBeNull();
+    expect(parsed.state).toBeNull();
+  });
+
+  it("does not parse fields from legacy `## Active Work` sections", () => {
+    const content = "# Status: fixture\n\n## Active Work\n\n- **State:** In Progress\n";
+    const parsed = parseStatusFile(content);
     expect(parsed.state).toBeNull();
   });
 });
 
 describe("parseStatusFile — formatting tolerance", () => {
   it("parses the bare `**Field:** value` form without a list bullet", () => {
-    const content = "## Active Work\n\n**State:** In Progress\n**Branch:** main\n";
+    const content = "## Work Unit Metadata\n\n**State:** In Progress\n**Branch:** main\n";
     const parsed = parseStatusFile(content);
     expect(parsed.state).toBe("In Progress");
     expect(parsed.branch).toBe("main");
   });
 
   it("tolerates blockquote prefixes (e.g., `> - **State:**`)", () => {
-    const content = "## Active Work\n\n> - **State:** Paused\n> - **Branch:** feature/x\n";
+    const content = "## Work Unit Metadata\n\n> - **State:** Paused\n> - **Branch:** feature/x\n";
     const parsed = parseStatusFile(content);
     expect(parsed.state).toBe("Paused");
     expect(parsed.branch).toBe("feature/x");
   });
 
   it("takes the first match when a field is repeated (stable behavior)", () => {
-    const content = "## Active Work\n\n- **Branch:** first\n- **Branch:** second\n";
+    const content = "## Work Unit Metadata\n\n- **Branch:** first\n- **Branch:** second\n";
     const parsed = parseStatusFile(content);
     expect(parsed.branch).toBe("first");
   });
 
   it("handles `[none]` Task List value verbatim", () => {
-    const parsed = parseStatusFile("## Active Work\n\n- **Task List:** [none]\n");
+    const parsed = parseStatusFile("## Work Unit Metadata\n\n- **Task List:** [none]\n");
     expect(parsed.taskList).toBe("[none]");
   });
 
@@ -137,13 +143,13 @@ describe("parseStatusFile — formatting tolerance", () => {
 });
 
 describe("parseStatusFile — section boundary", () => {
-  it("ignores field markers that appear above `## Active Work`", () => {
+  it("ignores field markers that appear above `## Work Unit Metadata`", () => {
     const content = [
       "# Status: fixture",
       "",
       "> About this file: example uses `- **Branch:** decoy`",
       "",
-      "## Active Work",
+      "## Work Unit Metadata",
       "",
       "- **Branch:** real",
       "",
@@ -154,7 +160,7 @@ describe("parseStatusFile — section boundary", () => {
 
   it("ignores field markers that appear below the next `## ` heading", () => {
     const content = [
-      "## Active Work",
+      "## Work Unit Metadata",
       "",
       "- **State:** In Progress",
       "",

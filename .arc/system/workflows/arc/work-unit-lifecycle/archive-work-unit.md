@@ -15,8 +15,8 @@ the substantive work (doc prep, review, merge) happens in [integrate-work-unit][
 **When to use:** The work unit's PR is merged and you're on the parent branch.
 
 **Prerequisite:** [integrate-work-unit][integrate-work-unit] completed — docs are clean, completion
-metadata exists (`completion-{name}.md` created, status file `**State:** Complete` and
-`**Integration:** Merged`), code review is done, PR is merged.
+metadata exists (`completion-{name}.md` created, status file `**State:** Complete`), code review is
+done, PR is merged.
 
 > **Full protection mode (`branch.protection: full`):** Archival commits cannot go directly to the
 > base branch. Two approaches:
@@ -48,7 +48,7 @@ Read the active status file before moving files:
 grep -E '^\- \*\*(State|Integration):\*\*' .arc/active/{category}/status-{name}.md
 ```
 
-Archive only when the status file shows:
+Archive only after the status file shows:
 
 ```text
 - **State:** Complete
@@ -57,6 +57,9 @@ Archive only when the status file shows:
 
 If either field is missing or has a different value, stop and surface the mismatch. The work unit is not
 eligible for archival until integration has completed.
+
+If `**State:** Complete` is present and the PR is merged but `**Integration:** Merged` is absent, add the
+Integration line below `**Branch:**` as part of the archival ceremony before moving files.
 
 Then check `archive.cadence` in `.arc/system/arc-config.yml`:
 
@@ -213,7 +216,7 @@ those as well.
 
 **Commit message format:** Follow DEV-RULES.ARC.md § Commit format.
 Archival commits use type/scope `docs(arc)` or `docs(archive)` with Context footer
-`tasks-{name}.md (archival)`.
+`status-{name}.md (archival)`.
 
 > **Batch branch note:** When archiving on a batch branch (full protection), the commit lands on
 > that branch instead of the base branch. The steps are identical — only the branch context differs.
@@ -228,7 +231,7 @@ Archival of completed incidental work:
 - Added retry logic for intermittent auth failures
 - All quality gates passed
 
-Context: tasks-auth-edge-cases.md (archival)"
+Context: status-auth-edge-cases.md (archival)"
 ```
 
 ### 8) Next Step
@@ -242,6 +245,10 @@ work unit.
 [integrate-planning-branch][integrate-planning-branch] to PR the batch to the base branch.
 Activation ([activate-work-unit][activate-work-unit]) happens from the base branch after
 that PR merges.
+
+> [!IMPORTANT]
+> `workflow-interlock`: Stop before leaving archival for PRD creation. Surface archived work,
+> active planning state, and await direction before proceeding to the next workflow.
 
 **Full protection (standalone archival):** If no next work unit is planned, the housekeeping
 branch carries only archival. Push, create a PR, and merge directly — no planning workflows

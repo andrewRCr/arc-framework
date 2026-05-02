@@ -44,7 +44,7 @@ function statusBody(fields: {
   const lines: string[] = [
     "# Status: fixture",
     "",
-    "## Active Work",
+    "## Work Unit Metadata",
     "",
     `- **State:** ${fields.state}`,
     `- **Branch:** ${fields.branch}`,

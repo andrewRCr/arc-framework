@@ -5,7 +5,7 @@
  * `.arc/active/{category}/status-{name}.md` and validates the `**Spec:**` field
  * value against the allowed shapes: empty, `[none]`, bare-basename `.md`
  * filename, or `https?://` URL; requires a valid `**State:**` value; and
- * requires `**Integration:**` only for `State: Complete`. Surrounding
+ * permits `**Integration:** Merged` only for `State: Complete`. Surrounding
  * whitespace and a single pair of wrapping backticks are stripped before
  * matching.
  *
@@ -39,10 +39,6 @@ const VALID_STATES = new Set([
 ]);
 
 const VALID_INTEGRATION_STATES = new Set([
-  "Awaiting PR",
-  "Awaiting review",
-  "Changes requested",
-  "Ready to merge",
   "Merged",
 ]);
 
@@ -51,7 +47,7 @@ const EXPECTED_SHAPE =
 const EXPECTED_STATE =
   "expected: Planning, In Progress, Complete, Paused, or Superseded";
 const EXPECTED_INTEGRATION =
-  "expected: Awaiting PR, Awaiting review, Changes requested, Ready to merge, or Merged";
+  "expected: Merged";
 
 /**
  * Classify a path — `status` when it matches
@@ -107,8 +103,8 @@ export function validateSpec(content: string, path: string): string[] {
 
 /**
  * Validate status lifecycle fields. `State` is mandatory for status files.
- * `Integration` is mandatory only for `State: Complete`, where it records the
- * review/merge window position.
+ * `Integration` is optional and valid only for `State: Complete`, where it
+ * records that the work unit has merged and is eligible for archival.
  */
 export function validateLifecycleFields(content: string, path: string): string[] {
   const diagnostics: string[] = [];
@@ -143,9 +139,7 @@ export function validateLifecycleFields(content: string, path: string): string[]
   }
 
   if (hasSingleState && state === "Complete") {
-    if (integrationCaptures.length === 0) {
-      diagnostics.push(`${path}: missing \`**Integration:**\` line for \`State: Complete\``);
-    } else if (hasSingleIntegration) {
+    if (hasSingleIntegration) {
       const integrationValue = integrationCaptures[0] ?? "";
       if (integrationValue === "") {
         diagnostics.push(`${path}: empty \`**Integration:**\` value for \`State: Complete\``);

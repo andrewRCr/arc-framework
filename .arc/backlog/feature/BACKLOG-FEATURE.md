@@ -54,8 +54,8 @@ doc until we commit to pursuing it.
 
 ### Post-Integration Extension Fire Point
 
-ARC's interlock model terminates at the integration-interlock — merge to integration / main is the human-only
-floor, and downstream production deployment is explicitly outside scope. This boundary is defensible: most
+ARC's interlock model terminates at the integration-interlock — merge to integration / main requires explicit
+human approval, and downstream production deployment is explicitly outside scope. This boundary is defensible: most
 teams have CI/CD systems with their own approval gates, observability, and rollback machinery; ARC inserting
 itself there would duplicate or compete with established tooling.
 

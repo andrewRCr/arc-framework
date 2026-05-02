@@ -164,7 +164,7 @@ autonomy tiers, Conventional Changelog boundary-consolidation).
   canonical gate vocabulary preserved alongside the new interlock vocabulary), ARCd Rebrand
   (interlock-model terminology absorbed into rename pass)
 
-**Session-Operational Flow** — In Progress (activated 2026-04-30)
+**Session-Operational Flow** — ✅ Complete (May 2026)
 
 Implements the autonomy-mode behavior (auto-commit, auto-push), handoff-interior toggle consumers,
 deferred-review × auto-commit safe-accumulate, arc-commit skill preservation, and metadata-state
@@ -172,12 +172,11 @@ foundation (State + Integration field model + sweep cadence config) against the 
 frame. WU-B in the pre-approved split. Validation window between WU-A archive and WU-B execution
 runs per `notes-interlock-foundation.md` (archived).
 
-- PRD: `active/technical/prd-session-operational-flow.md`
-- Task list: `active/technical/tasks-session-operational-flow.md` (5 phases, 16 parent tasks)
-- Branch: `technical/session-operational-flow`
+- Archive: `archive/2026-q2/technical/06_session-operational-flow/`
+- PR: <https://github.com/andrewRCr/arc-framework/pull/25>
 - Upstream: Interlock Foundation (shipped — PR #23)
 
-**User Sync UX Polish** — After Session-Operational Flow Phase 6 (handoff-interior toggles)
+**User Sync UX Polish** — Planning (activated 2026-05-01)
 
 State-machine unification (collapse full-mode and session-init notes-sync probes to one spine),
 directional copy audit across `arc status` output, notes-discovery fix (HEAD-independent walk so
@@ -190,7 +189,7 @@ consolidated state machine and directional copy, rather than re-touching churned
 atomic fix for the `arc user fetch` prompt removal lands in the Session-Init Optimization WU;
 this WU handles the architectural work.
 
-- Plan: `technical/plan-user-sync-ux.md`
+- Plan: `active/technical/plan-user-sync-ux.md`
 - Upstream: Session-Init Optimization (atomic fetch-prompt fix, lean session-init substrate),
   Session-Operational Flow Phase 6 (handoff-interior toggle framework — substrate for auto-push
   implementation)

@@ -45,7 +45,7 @@ async function writeStatusFixture(
   const lines: string[] = [
     `# Status: ${stem}`,
     "",
-    "## Active Work",
+    "## Work Unit Metadata",
     "",
     "- **State:** In Progress",
     `- **Branch:** ${category}/${stem}`,

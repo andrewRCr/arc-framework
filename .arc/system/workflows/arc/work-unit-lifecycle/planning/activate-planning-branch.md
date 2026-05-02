@@ -106,7 +106,7 @@ plan-doc filename (a `plan-*` doc may have been created after the first activati
 values are preserved as-is; only the create vs. reconcile path differs.
 
 Replace the template's title (`# Status: [Work Name]`) with the actual work unit name. Strip the
-HTML comment block at the top of `## Active Work` — that's template scaffolding, not an instance
+HTML comment block at the top of `## Work Unit Metadata` — that's template scaffolding, not an instance
 carry-over (mirrors `template-prd.md` precedent). Then populate the planning field set:
 
 1. **State** — `Planning`
