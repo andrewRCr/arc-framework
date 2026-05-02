@@ -2,17 +2,17 @@
 
 ## Work Unit Metadata
 
-- **State:** Planning
-- **Branch:** technical/plan-user-sync-ux
+- **State:** In Progress
+- **Branch:** technical/user-sync-ux
 
 - **Spec:** `prd-user-sync-ux.md`
 - **Task List:** `tasks-user-sync-ux.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Generated `tasks-user-sync-ux.md` and `atomic-user-sync-ux.md`
-- **Next Task:** [none]
+- **Last Completed:** Work unit activated
+- **Next Task:** Task 1.1 — Notes-ref-history discovery walk (line ~20)
 - **Blockers:** [none]
 
-- **Next Action:** integrate-planning-branch Step 1 — verify readiness for graduated-path PR
+- **Next Action:** Begin Task 1.1 — refactor `arc user load` and `arc user pull` notes discovery
 
 ---

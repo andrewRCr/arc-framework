@@ -19,15 +19,16 @@ Current state at a glance. Updated when work is activated, completed, or archive
 
 **Currently Active:**
 
-- User Sync UX Polish (technical) — Planning. State-machine unification, directional copy audit,
+- User Sync UX Polish (technical) — In Progress. State-machine unification, directional copy audit,
   HEAD-independent notes discovery, and scoped auto-push design against the handoff-interior toggle
   framework.
-    - Plan: `.arc/active/technical/plan-user-sync-ux.md`
-    - Branch: `technical/plan-user-sync-ux`
+    - PRD: `.arc/active/technical/prd-user-sync-ux.md`
+    - Task List: `.arc/active/technical/tasks-user-sync-ux.md`
+    - Branch: `technical/user-sync-ux`
 
 **Next Priority:**
 
-- Continue User Sync UX Polish planning; Coord Probe and Worktree Foundation remain parallelizable
+- Execute User Sync UX Polish; Coord Probe and Worktree Foundation remain parallelizable
   siblings on the new session-operational frame
 - Then: Agile WU Lifecycle (after Worktree Foundation), Concurrent Work Conventions
   (after Agile WU Lifecycle), Quality Gate Tiers + Hook Integration (after Concurrent

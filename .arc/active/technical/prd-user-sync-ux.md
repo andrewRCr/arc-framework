@@ -362,7 +362,7 @@ during implementation:
 
 ---
 
-[plan-coord]: plan-coord-probe.md
-[plan-wf]: plan-worktree-foundation.md
-[plan-awl]: plan-agile-wu-lifecycle.md
-[plan-cwc]: ../feature/plan-concurrent-work-conventions.md
+[plan-coord]: ../../backlog/technical/plan-coord-probe.md
+[plan-wf]: ../../backlog/technical/plan-worktree-foundation.md
+[plan-awl]: ../../backlog/technical/plan-agile-wu-lifecycle.md
+[plan-cwc]: ../../backlog/feature/plan-concurrent-work-conventions.md
