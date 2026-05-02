@@ -43,7 +43,7 @@ I" detection. Adopters using other trackers get a documented custom-command cont
 
 ### Why now, why bounded
 
-- **Branch-gone detection** ([Worktree Foundation][worktree-foundation] item 3) needs target-
+- **Branch-gone detection** (`plan-worktree-foundation.md` item 3) needs target-
   resolution signals to be useful for team-scale adopters. Without coord-probe, branch-gone
   detection works for solo and small teams via status-file walks, then degrades to "stop and ask"
   for larger teams.
@@ -67,7 +67,7 @@ This framing keeps the probe principled:
 - **No autonomous resolution.** The probe never auto-switches branches or modifies state. Even with
   `coord.adapter: gh`, session-init surfaces suggestions and waits for confirm.
 - **Composable with existing signals.** Probe results merge with status-file walks, `git worktree
-  list`, and the notes-discovery breadcrumb (when [User Sync UX Polish][user-sync-ux] lands
+  list`, and the notes-discovery breadcrumb (when `prd-user-sync-ux.md` lands
   HEAD-independent notes load). All sources contribute candidates; recency and confidence drive
   ordering.
 - **Adapter is escape hatch, not replacement.** In-git remains the durable coordination substrate
@@ -109,7 +109,7 @@ This framing keeps the probe principled:
     - `coord.recency_days: <int>` (default: `14`; filters stale candidates)
 
 7. **Session-init consumption point.** Branch-gone fire point in session-init invokes the probe.
-   Cascade logic itself lives in [Worktree Foundation][worktree-foundation]'s branch-gone detection
+   Cascade logic itself lives in `plan-worktree-foundation.md`'s branch-gone detection
    scope; probe output is one signal among several into that cascade.
 
 8. **Documentation.** Method file documents the contract. Config keys documented in `arc-config.yml`
@@ -155,7 +155,7 @@ integrations to maintain).
 
 ### Probe as cascade input, not cascade driver
 
-Branch-gone detection's cascade (per [Worktree Foundation][worktree-foundation]) is: `git worktree list`
+Branch-gone detection's cascade (per `plan-worktree-foundation.md`) is: `git worktree list`
 → status files → recent remote branches → coord probe → fall back. Probe is one signal among several.
 Keeps probe results from over-driving session-init when in-git signals are clear, and from
 under-driving when probe is unavailable.
@@ -164,7 +164,7 @@ under-driving when probe is unavailable.
 
 Probe never writes. Session-init never auto-acts on probe results — always proposes, always waits for
 confirm. Higher-autonomy modes (auto-commit, auto-push from
-[plan-session-operational-flow][session-operational-flow]) don't extend to coord-probe-driven branch
+`plan-session-operational-flow.md`) don't extend to coord-probe-driven branch
 switching. Branch-switching is too consequential to gate on a probe.
 
 ### Flat config preserved
@@ -181,30 +181,30 @@ current benefit.
 ### Upstream
 
 - **Session-Init Optimization** (shipped): lean session-init substrate to extend.
-- **[Session-Operational Flow][session-operational-flow]** (current planning branch). No frame
+- **Session-Operational Flow** (`plan-session-operational-flow.md`). No frame
   dependency, but landing after avoids surface conflicts on session-init workflow edits.
   Coord-probe's session-init fire point is the new branch-gone resolution step (introduced by
   Work-Unit Mobility), not an interlock.
 
 ### Sibling (parallelizable)
 
-- **[User Sync UX Polish][user-sync-ux].** Notes-discovery fix lives there; coord-probe consumes
+- **User Sync UX Polish** (`prd-user-sync-ux.md`). Notes-discovery fix lives there; coord-probe consumes
   notes-as-signal once that fix lands. Coord-probe ships v1 with in-git + gh signals; notes signal
   joins later. Plans touch different files (CLI subcommand + adapter modules vs sync state machine +
   load semantics) and can ship in either order.
 
 ### Downstream
 
-- **[Worktree Foundation][worktree-foundation].** Consumes coord-probe at branch-gone detection.
+- **Worktree Foundation** (`plan-worktree-foundation.md`). Consumes coord-probe at branch-gone detection.
   Worktree Foundation's session-init worktree-awareness scope absorbs the cascade design that
   includes coord-probe as one input; Worktree Foundation can ship without coord-probe but degrades
   to status-file-walk + remote-recency only (loses team-scale signal).
 
 ### Recommended sequencing
 
-[Session-Operational Flow][session-operational-flow] (frame) → **Coord Probe** ‖ [User Sync UX
-Polish][user-sync-ux] ‖ [Worktree Foundation][worktree-foundation] (three parallel) → [Agile WU
-Lifecycle][awl] → [Concurrent Work Conventions][cwc].
+`plan-session-operational-flow.md` (frame) → **Coord Probe** ‖ `prd-user-sync-ux.md` ‖
+`plan-worktree-foundation.md` (three parallel) → `plan-agile-wu-lifecycle.md` →
+`plan-concurrent-work-conventions.md`.
 
 ---
 
@@ -292,7 +292,7 @@ Phases (provisional):
    unavailable.
 5. **Custom adapter.** Shell exec, JSON parsing, timeout handling.
 6. **Session-init integration.** Branch-gone fire point invokes the probe; cascade itself lives in
-   [Worktree Foundation][worktree-foundation], but the consumption-shape land here.
+   `plan-worktree-foundation.md`, but the consumption-shape land here.
 7. **Documentation + tests.** Method doc, config doc, strategy doc addition, integration tests (mocked
    `gh`, real-tracker tests skipped in CI).
 
@@ -300,9 +300,4 @@ Phases 3–5 can parallelize (independent adapters). Phase 6 depends on Phase 2.
 
 ---
 
-[worktree-foundation]: plan-worktree-foundation.md
-[awl]: plan-agile-wu-lifecycle.md
-[cwc]: ../feature/plan-concurrent-work-conventions.md
-[user-sync-ux]: plan-user-sync-ux.md
-[session-operational-flow]: plan-session-operational-flow.md
 [strategy-team]: ../../reference/strategies/arc/strategy-team-coordination.md

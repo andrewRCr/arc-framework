@@ -18,6 +18,24 @@ begin the standard workflow.
 
 ### CI/CD Improvements
 
+- **Lifecycle-aware link reanchoring for movable ARC artifacts**
+    - Problem: In `pm.mode: arc-in-git`, lifecycle workflows move PRDs, task lists, atomic
+      companions, plan docs, and archives between `backlog/`, `active/`, and
+      `reference/archive/`. Markdown links inside moved files can go stale because relative paths
+      are anchored to the source file's old directory. The pre-commit link validator catches the
+      failure, but recovery is manual and interrupts activation/archive flow.
+    - Approach: Explore a combined helper + lifecycle command improvement:
+        1. Add a constrained link-reanchor helper that accepts explicit move pairs (or reads them
+           from staged `git mv` state), parses Markdown links/reference definitions, and rewrites
+           only targets that resolve to moved ARC artifacts.
+        2. Integrate that helper into future lifecycle CLI commands for activation/archive so
+           `npx arc` can perform `git mv`, status/PM updates, and link reanchoring as one
+           operation.
+    - Notes: Keep this structural, not a broad grep/replace. The helper should support `--check`
+      and `--write`, preserve filename-only references, and remain scoped to arc-in-git lifecycle
+      moves. This complements, rather than replaces, the markdown link validator guardrail.
+    - Effort estimate: M (helper + tests); L if bundled with full activation/archive CLI commands
+
 - **Enhanced link validation — reference-style compliance + hook hardening**
     - Problem: Two related gaps surfaced when Marksman LSP integration revealed mixed link styles
       and stale cross-file references the existing `validate-links.sh` pre-commit hook didn't

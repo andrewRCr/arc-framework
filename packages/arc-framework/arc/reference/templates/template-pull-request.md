@@ -165,9 +165,7 @@ a list — the Spec field abstracts over the WU's authoritative scope source.
 
 - **In-repo artifact** — backtick-wrapped filename, no path: `` `prd-{name}.md` ``,
   `` `tasks-{name}.md` ``. Filename-only follows
-  [DEV-RULES.ARC § Task references in `.arc/` docs][dev-rules-arc] — files move between
-  `backlog/` → `active/` → `archive/` over the WU lifecycle, and a path locks reviewers and
-  archeologists to a stale location.
+  [DEV-RULES.ARC § `.arc` artifact references][dev-rules-arc] — files move over the WU lifecycle.
 - **External tracker** — bare URL (no backticks). GitHub auto-links bare URLs; backticks
   suppress the link.
 - **Combined ref** (filename + task pointer) follows the in-`.arc/` convention:

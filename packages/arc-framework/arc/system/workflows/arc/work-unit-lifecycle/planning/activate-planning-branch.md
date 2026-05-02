@@ -115,8 +115,8 @@ carry-over (mirrors `template-prd.md` precedent). Then populate the planning fie
    when one exists; otherwise `[none]`
 4. **Task List** — `[none]` (task list generated downstream by `2_generate-tasks.md`; populated at
    activation)
-5. **Sibling Work Unit(s)** — `plan-{name}.md` or `prd-{name}.md` references when this WU is part of
-   a larger logical whole split for sizing or sequencing; otherwise `[none]`
+5. **Sibling Work Unit(s)** — backticked `plan-{name}.md` or `prd-{name}.md` filenames when this WU is
+   part of a larger logical whole split for sizing or sequencing; otherwise `[none]`
 6. **Last Completed** — `[none]`
 7. **Next Task** — `[none]`
 8. **Blockers** — `[none]`

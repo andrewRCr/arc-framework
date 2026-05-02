@@ -268,11 +268,11 @@ Never reference task IDs, phase numbers, or `.arc/` documentation in production 
 docstrings, or variable names. Code should explain "what" and "why" independently of project
 management context.
 
-### Task references in `.arc/` docs
+### `.arc/` artifact references
 
-When referencing tasks in `.arc/` documentation, include both the task identifier and the task
-list filename: "Task X.Y - `tasks-name.md`" or "Phase X - `tasks-name.md`". Use only the
-filename (no path) since task lists move between active/, backlog/, and archive/ directories.
+For movable WU artifacts (`plan-*`, `prd-*`, `tasks-*`, `status-*`, companions), use backticked
+filenames only; no Markdown links or paths. For tasks, include task ID + task-list filename:
+"Task X.Y - `tasks-name.md`". Paths are for current-location metadata, commands, and stable docs.
 
 ### Write for the reader, not the author
 

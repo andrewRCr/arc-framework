@@ -91,10 +91,8 @@ list's directory, so the backlog → active rotation needs no field edit. (Exist
 authored under the prior path-form convention may still carry `.arc/{active|backlog}/...` values;
 update those to bare filenames if encountered, otherwise leave the human-reference as-is.)
 
-**Re-anchor backlog-sibling links.** Any relative-path link defs in the PRD, task list, or
-atomic file that pointed at sibling artifacts still in `backlog/{category}/` (sibling plans,
-`notes-*` files, cross-WU references) need a `../../backlog/{category}/` prefix from the
-active location. The pre-commit markdown-link check catches misses.
+**Movable artifact references.** If the moved files reference sibling WU artifacts, use
+backticked filenames only (for example, `plan-{name}.md`), not Markdown links or paths.
 
 ### Step 4: Ensure Status File
 

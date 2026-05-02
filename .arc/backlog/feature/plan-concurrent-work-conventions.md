@@ -2,8 +2,8 @@
 
 **Purpose:** Codify the conventions layer for principled multi-WU work — focus-role model, blessed
 pairings, swap discipline, async-merge integration accommodation, and `strategy-concurrent-work.md`
-as the canonical home for same-identity concurrent usage. Composes with [Worktree Foundation][wf]
-(mechanism) and [Agile WU Lifecycle][awl] (tier model) to deliver "agile, principled, multi-WU work."
+as the canonical home for same-identity concurrent usage. Composes with `plan-worktree-foundation.md`
+(mechanism) and `plan-agile-wu-lifecycle.md` (tier model) to deliver "agile, principled, multi-WU work."
 
 - **State:** Draft — pre-PRD exploration captured. Renamed from former Work-Unit Mobility WU as part
   of the agile/mobility split (mechanism → Worktree Foundation; tier model → Agile WU Lifecycle;
@@ -14,16 +14,17 @@ as the canonical home for same-identity concurrent usage. Composes with [Worktre
 - **Origin:** Surfaced during a pre-PRD exploratory session on the Session-Init Optimization
   planning branch as the conventions layer of mobility. Carved out from the original Work-Unit
   Mobility plan during the agile/mobility design discussion when three-layer scope (mechanism +
-  conventions + agile lifecycle) proved too large for one WU. Mechanism extracted to [Worktree
-  Foundation][wf]; agile-lifecycle scope newly identified and split to [Agile WU Lifecycle][awl];
+  conventions + agile lifecycle) proved too large for one WU. Mechanism extracted to
+  `plan-worktree-foundation.md`; agile-lifecycle scope newly identified and split to
+  `plan-agile-wu-lifecycle.md`;
   this WU retains the conventions layer.
 
 ---
 
 ## Problem / Motivation
 
-[Worktree Foundation][wf] ships the mechanism for parallel work — worktrees, shift, session-init
-worktree-awareness, branch-gone detection. [Agile WU Lifecycle][awl] ships the tier model for
+`plan-worktree-foundation.md` ships the mechanism for parallel work — worktrees, shift, session-init
+worktree-awareness, branch-gone detection. `plan-agile-wu-lifecycle.md` ships the tier model for
 fast WU spin-up. But mechanism and tier model alone leave the **patterns of multi-WU usage**
 unaddressed:
 
@@ -74,7 +75,7 @@ framework that implicitly assumes linear single-WU progression. Shipping first-c
 
 ### ARC's concurrency model — parallel sessions, not in-session juggling
 
-Per [plan-session-operational-flow][plan-ops] § Concurrency Model: ARC's concurrency model is
+Per `plan-session-operational-flow.md` § Concurrency Model: ARC's concurrency model is
 **parallel sessions, one WU per session, with shift as the in-session escape hatch for short
 detours.** Multi-WU work means multiple sessions, each scoped to one WU/worktree/branch with
 isolated SESSION-NOTES; sessions don't interact internally except at boundaries (spawning new WUs,
@@ -97,7 +98,7 @@ This framing has direct implications for conventions in this WU:
 ## Relationship to Interlock Model Frame
 
 [ADR-016][adr-016] establishes configurable autonomy interlocks for session-operational flow, with
-[plan-session-operational-flow][plan-ops] implementing the core mechanics. This WU consumes the
+`plan-session-operational-flow.md` implementing the core mechanics. This WU consumes the
 frame as an enabler — configurable autonomy modes reduce approval ceremony under multi-session
 load, which is exactly the ergonomic gap multi-worktree introduces.
 
@@ -131,13 +132,13 @@ load, which is exactly the ergonomic gap multi-worktree introduces.
       same-domain concurrents)
     - Swap discipline: swap primary ↔ companion only at review-increment boundaries
     - Tier interaction: focus-role model applies to quick and standard tiers; atomic tier WUs are
-      short-lived enough that focus designation is less meaningful (per [Agile WU Lifecycle][awl])
+      short-lived enough that focus designation is less meaningful (per `plan-agile-wu-lifecycle.md`)
 
 2. **`strategy-concurrent-work.md` (new strategy doc).** Sibling to
    [strategy-team-coordination.md][team-coord], not extending it. Same-identity concurrency is
    structurally different from multi-developer coordination. Covers:
     - Blessed pairings and swap discipline
-    - Worktree pattern usage (composing with [Worktree Foundation][wf] mechanics)
+    - Worktree pattern usage (composing with `plan-worktree-foundation.md` mechanics)
     - Relationship to team mode
     - Main-worktree-under-full-protection framing ("your main worktree is not always on main")
     - When concurrent WUs make sense vs when they don't
@@ -161,13 +162,12 @@ load, which is exactly the ergonomic gap multi-worktree introduces.
 ### Out of scope
 
 - **Worktree mechanism, shift lifecycle, session-init worktree detection, branch-gone detection,
-  inbox sync** — [Worktree Foundation][wf].
+  inbox sync** — `plan-worktree-foundation.md`.
 - **Tier model, `arc start` command, ceremony scaling, atomic-companion retirement, incidental
-  category retirement** — [Agile WU Lifecycle][awl].
-- **External tracker integration for "what's @teammate working on"** — [plan-coord-probe][
-  plan-coord].
+  category retirement** — `plan-agile-wu-lifecycle.md`.
+- **External tracker integration for "what's @teammate working on"** — `plan-coord-probe.md`.
 - **ROADMAP form-factor evolution (parallel/multi-stream visualization, sequencing-artifact
-  brittleness, horizon tiers)** — [plan-roadmap-evolution][roadmap-evolution].
+  brittleness, horizon tiers)** — `plan-roadmap-evolution.md`.
 - **Blessing concurrent agent sessions.** Framework won't block two simultaneous agent sessions in
   different worktrees, but documentation is explicit: this potentially violates P2 (co-development
   bandwidth). Adopter's call, not ARC's recommendation.
@@ -195,8 +195,8 @@ they want team conventions, but concurrent-work patterns are structurally distin
 
 Focus roles could be a follow-on WU (mechanisms now, conventions later). Rejected — shipping
 worktree parallelism without any ARC-principled guardrails leaves a values-vs-mechanisms gap. This
-WU delivers the conventions that make the mechanism ARC-shaped. (The mechanism itself is [Worktree
-Foundation][wf]'s scope; this WU layers conventions on top.)
+WU delivers the conventions that make the mechanism ARC-shaped. (The mechanism itself is
+`plan-worktree-foundation.md`'s scope; this WU layers conventions on top.)
 
 ### Async-merge audit scope: option B (additive)
 
@@ -232,12 +232,12 @@ template change, not a CLI/lint addition. Research-informed redesign at PRD time
 
 ### Upstream
 
-- **[Worktree Foundation][wf]:** mechanism layer — worktrees, shift, branch-gone detection,
+- **Worktree Foundation** (`plan-worktree-foundation.md`): mechanism layer — worktrees, shift, branch-gone detection,
   pause-pointer migration. This WU's conventions layer is built on top.
-- **[Agile WU Lifecycle][awl]:** tier model. Focus-role model applies to quick and standard tiers;
+- **Agile WU Lifecycle** (`plan-agile-wu-lifecycle.md`): tier model. Focus-role model applies to quick and standard tiers;
   atomic tier WUs bypass focus designation. Async-merge audit interacts with tier-aware archival
   flows.
-- **[plan-user-sync-ux][user-sync-ux]:** clean sync state machine before worktree-axis-plus-focus-
+- **User Sync UX Polish** (`prd-user-sync-ux.md`): clean sync state machine before worktree-axis-plus-focus-
   role conventions land on it.
 - **Session-Operational Flow Phases 3/5/6:** configurable autonomy modes — reduce approval
   ceremony under multi-session load. Async-merge integration-surface audit was originally captured
@@ -246,12 +246,12 @@ template change, not a CLI/lint addition. Research-informed redesign at PRD time
 ### Downstream
 
 - **ARCd Rebrand:** stable concurrent-work terminology absorbed into rename pass.
-- **ARC Operating Modes:** consumes shift lifecycle (delivered by [Worktree Foundation][wf]) as
+- **ARC Operating Modes:** consumes shift lifecycle (delivered by `plan-worktree-foundation.md`) as
   prerequisite; concurrent-work conventions inform mode-specific guidance.
 
 ### Recommended sequencing
 
-[Worktree Foundation][wf] → [Agile WU Lifecycle][awl] → **Concurrent Work Conventions**.
+`plan-worktree-foundation.md` → `plan-agile-wu-lifecycle.md` → **Concurrent Work Conventions**.
 
 ---
 
@@ -259,7 +259,7 @@ template change, not a CLI/lint addition. Research-informed redesign at PRD time
 
 ### SESSION-NOTES divergence per worktree (resolved upstream)
 
-[Worktree Foundation][wf] resolves this by establishing per-worktree SESSION-NOTES semantics. This
+`plan-worktree-foundation.md` resolves this by establishing per-worktree SESSION-NOTES semantics. This
 WU's conventions consume that resolution; no new pressure here.
 
 ### Team-mode relationship clarity
@@ -271,7 +271,7 @@ multi-WU-single-human; both can coexist; neither requires the other.
 
 ### Async-merge scope boundary
 
-[integrate-work-unit.md][integrate-wu] is shared with [Agile WU Lifecycle][awl] (which adds tier-
+[integrate-work-unit.md][integrate-wu] is shared with `plan-agile-wu-lifecycle.md` (which adds tier-
 aware branches). Coordination required: async-merge audit lands additive accommodation atop the
 tier-aware flow, not via independent rewrite. PRD-time sequencing care.
 
@@ -363,7 +363,7 @@ deferred to a later hooks-completeness pass — but flagged here for explicit PR
 
 **Medium.** Conventions-layer work is doc-heavy — strategy doc creation, ROADMAP redesign,
 template-status field additions, async-merge audit and additive workflow accommodation. Less
-mechanism-heavy than [Worktree Foundation][wf] or [Agile WU Lifecycle][awl].
+mechanism-heavy than `plan-worktree-foundation.md` or `plan-agile-wu-lifecycle.md`.
 
 Phases (provisional):
 
@@ -389,7 +389,7 @@ The PRD should explicitly address:
   each WU. Parallelism is between WUs, not within. The single-human-as-continuity-thread principle
   is maintained by the focus-role singleton (one primary at a time).
 - **P5 (Context Preservation):** Conventions improve context preservation — worktree-local
-  SESSION-NOTES (mechanism via [Worktree Foundation][wf]) is correct WU-scoped context, not
+  SESSION-NOTES (mechanism via `plan-worktree-foundation.md`) is correct WU-scoped context, not
   degradation. Focus-role tracking surfaces "what was I doing before" more reliably than ad-hoc
   branch-switching.
 - **P7 (Discrete Steps):** One task at a time stays within-WU, not cross-WU. Swap discipline (swap
@@ -401,11 +401,5 @@ The PRD should explicitly address:
 ---
 
 [adr-016]: ../../reference/adr/adr-016-configurable-autonomy-interlocks-for-session-operations.md
-[plan-ops]: ../technical/plan-session-operational-flow.md
-[wf]: ../technical/plan-worktree-foundation.md
-[awl]: ../technical/plan-agile-wu-lifecycle.md
-[plan-coord]: ../technical/plan-coord-probe.md
-[user-sync-ux]: ../technical/plan-user-sync-ux.md
-[roadmap-evolution]: ../technical/plan-roadmap-evolution.md
 [team-coord]: ../../reference/strategies/arc/strategy-team-coordination.md
 [integrate-wu]: ../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md

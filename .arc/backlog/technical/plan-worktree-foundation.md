@@ -3,7 +3,7 @@
 **Purpose:** Land the mechanism layer for parallel and mobile work — extract shift lifecycle as
 mode-universal infrastructure, add worktree-aware shift, give session-init worktree context awareness
 including branch-gone detection, and resolve cross-WU file sync semantics. Mechanism only; conventions
-land in [Concurrent Work Conventions][cwc].
+land in `plan-concurrent-work-conventions.md`.
 
 - **State:** Draft — pre-PRD exploration captured during agile/mobility expansion discussion 2026-04-28.
   Split from former Work-Unit Mobility WU; the conventions layer became Concurrent Work Conventions and
@@ -50,7 +50,7 @@ isolation a first-class capability.
 
 The shift lifecycle (`plan-arc-modes.md` § Shift Lifecycle, ~478 lines) was designed as mode-universal
 infrastructure that arc-modes calls into. Extracting it is the natural form of what the architecture
-already anticipates ([plan-arc-modes.md][arc-modes] L4378-4387: *"This is why shift lives in its own
+already anticipates (`plan-arc-modes.md` L4378-4387: *"This is why shift lives in its own
 cross-cutting section rather than inside the Local mode treatment. It's universal."*).
 
 ---
@@ -70,7 +70,7 @@ cross-cutting section rather than inside the Local mode treatment. It's universa
       worktree intact with uncommitted state preserved
     - Metadata-only shift remains available for the niche atomic-detour case (in-session pivot for atomic-tier
       work or brief metadata-only changes); under the parallel-session concurrency model from
-      [plan-session-operational-flow][plan-ops] § Concurrency Model, sustained multi-WU work uses parallel
+      `plan-session-operational-flow.md` § Concurrency Model, sustained multi-WU work uses parallel
       sessions in separate worktrees rather than in-session shifts
     - Decision heuristic documented: detour duration + uncommitted-state importance + whether sustained work
       is intended (sustained → parallel session, brief → metadata shift)
@@ -99,7 +99,7 @@ cross-cutting section rather than inside the Local mode treatment. It's universa
      is almost never the working session.
 
    **Naming TBD:** the spawn operation may be `/arc-spawn`, `/arc-shift --detach`, or extend
-   [plan-agile-wu-lifecycle][awl]'s proposed `arc start` command with an `--into-worktree` flag. Resolves at PRD.
+   `plan-agile-wu-lifecycle.md`'s proposed `arc start` command with an `--into-worktree` flag. Resolves at PRD.
 
    **Auto-mode boundary:** spawn never fires under auto-cascade. Always an explicit user act.
 
@@ -114,7 +114,7 @@ cross-cutting section rather than inside the Local mode treatment. It's universa
       genuine network failures. Resolution cascade: `git worktree list` (other active worktrees) →
       `.arc/active/{category}/status-*.md` (active WU branches via `**Branch:**` field, filtered by
       `(@identity)` ownership when team mode) → recently-active remote branches (post-fetch, within
-      `coord.recency_days`) → coord-probe (per [plan-coord-probe][plan-coord]) → fall back to `main`
+      `coord.recency_days`) → coord-probe (per `plan-coord-probe.md`) → fall back to `main`
       with explicit confirmation. Per-worktree action varies: stranded in main / administrative
       worktree → propose switch to next admin or feature branch; stranded in WU worktree whose branch
       was merged externally → propose worktree removal + status-file archival cleanup.
@@ -160,19 +160,19 @@ cross-cutting section rather than inside the Local mode treatment. It's universa
    role. Document this as ARC's stance: the main worktree stays on `main` as a stable reference and serves as
    the launchpad for admin operations (planning sessions, sweep ceremonies, occasional global edits). Admin
    work under `branch.protection: full` runs in short-lived branches from main worktree. Forward-references
-   tier-aware archive ceremony from [plan-agile-wu-lifecycle][awl] which inherits this convention.
+   tier-aware archive ceremony from `plan-agile-wu-lifecycle.md` which inherits this convention.
 
 9. **arc-modes cross-reference sweep.** Content migration plus shift references in
    `plan-arc-modes.md` converted to cross-WU links. Applies before modes advances to PRD.
 
 ### Out of scope
 
-- **Focus-role model** (primary/companion/awaiting-external/parked) — landed by [Concurrent Work
-  Conventions][cwc].
-- **Async-merge integration-surface audit** — landed by [Concurrent Work Conventions][cwc].
-- **`strategy-concurrent-work.md`** — landed by [Concurrent Work Conventions][cwc] (depends on
+- **Focus-role model** (primary/companion/awaiting-external/parked) — landed by
+  `plan-concurrent-work-conventions.md`.
+- **Async-merge integration-surface audit** — landed by `plan-concurrent-work-conventions.md`.
+- **`strategy-concurrent-work.md`** — landed by `plan-concurrent-work-conventions.md` (depends on
   mechanism + agile lifecycle landing first).
-- **Tier model and `arc start` command** — landed by [Agile WU Lifecycle][awl].
+- **Tier model and `arc start` command** — landed by `plan-agile-wu-lifecycle.md`.
 - **Automated worktree lifecycle CLI (`arc worktree create/remove`).** Advisory workflow integration
   only — `/arc-shift --worktree` invokes `git worktree add` under the hood, but no standalone
   `arc worktree` command. Worktree cleanup after merge is documented in `integrate-work-unit.md` as
@@ -182,8 +182,8 @@ cross-cutting section rather than inside the Local mode treatment. It's universa
   integrations.
 - **Blessing concurrent agent sessions.** Framework won't block two simultaneous agent sessions in
   different worktrees, but documentation is explicit: this violates P2 (co-development bandwidth).
-  This WU ships the mechanism; the conventions on usage pattern land in [Concurrent Work
-  Conventions][cwc].
+  This WU ships the mechanism; the conventions on usage pattern land in
+  `plan-concurrent-work-conventions.md`.
 
 ---
 
@@ -201,8 +201,8 @@ once mechanism is in flight and patterns are observable.
 Three options had been on the table (formalize / deprecate / keep alongside). The agile/mobility
 design discussion determined that **incidental as a category is a solo-dev artifact** — its function
 ("unplanned, interrupts another WU") is shift-lifecycle territory. Migrating manage-incidental-work
-to use shift state retires the pointer fields cleanly. The category retirement itself is [Agile WU
-Lifecycle][awl] scope; the field retirement (workflow-mechanics) lands here.
+to use shift state retires the pointer fields cleanly. The category retirement itself is
+`plan-agile-wu-lifecycle.md` scope; the field retirement (workflow-mechanics) lands here.
 
 ### `/arc-status` bundled with shift
 
@@ -272,24 +272,24 @@ files + identity ownership are authoritative. PRD work splits Step 7 into two ax
 ### Upstream
 
 - **Session-Init Optimization** (shipped): clean session-init substrate to extend.
-- **[Session-Operational Flow][plan-ops]** (current planning): consumes the parallel-session
+- **Session-Operational Flow** (`plan-session-operational-flow.md`): consumes the parallel-session
   concurrency model framing (Phase 1) for spawn-vs-continue semantics; consumes the metadata-state
-  foundation (Phase 7) indirectly via [Agile WU Lifecycle][awl] for tier-aware archive ceremony
+  foundation (Phase 7) indirectly via `plan-agile-wu-lifecycle.md` for tier-aware archive ceremony
   forward-references. Surface-conflict avoidance on session-init workflow edits also applies.
 
 ### Sibling (parallelizable)
 
-- **[User Sync UX Polish][user-sync-ux]:** SESSION-NOTES per-worktree handling interacts with sync
+- **User Sync UX Polish** (`prd-user-sync-ux.md`): SESSION-NOTES per-worktree handling interacts with sync
   semantics; either order works.
-- **[plan-coord-probe][plan-coord]:** Worktree Foundation's branch-gone fire point invokes the probe;
+- **Coord Probe** (`plan-coord-probe.md`): Worktree Foundation's branch-gone fire point invokes the probe;
   coord-probe is consumed downstream from this WU's session-init integration.
 
 ### Downstream
 
-- **[Agile WU Lifecycle][awl]:** consumes clean activate/integrate workflows post-pointer-field
+- **Agile WU Lifecycle** (`plan-agile-wu-lifecycle.md`): consumes clean activate/integrate workflows post-pointer-field
   retirement; the tier model's `arc start` command operates on the worktree-aware activation
   substrate.
-- **[Concurrent Work Conventions][cwc]:** consumes mechanism layer entirely.
+- **Concurrent Work Conventions** (`plan-concurrent-work-conventions.md`): consumes mechanism layer entirely.
 - **ARC Operating Modes:** consumes extracted shift lifecycle as prerequisite, no longer bundled.
 
 ### Recommended sequencing
@@ -413,12 +413,6 @@ items as of 2026-04-28:
 
 ---
 
-[arc-modes]: ../feature/plan-arc-modes.md
-[awl]: plan-agile-wu-lifecycle.md
-[cwc]: ../feature/plan-concurrent-work-conventions.md
-[plan-coord]: plan-coord-probe.md
-[plan-ops]: plan-session-operational-flow.md
-[user-sync-ux]: plan-user-sync-ux.md
 [team-coord]: ../../reference/strategies/arc/strategy-team-coordination.md
 [strategy-work-org]: ../../reference/strategies/arc/strategy-work-organization.md
 [template-status]: ../../reference/templates/template-status.md

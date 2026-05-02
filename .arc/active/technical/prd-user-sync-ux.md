@@ -284,11 +284,11 @@ All upstream prerequisites have landed (archived under
 
 ### Sibling and downstream work
 
-- **Sibling plans (parallelizable):** [plan-worktree-foundation][plan-wf] (worktree-aware sync
-  semantics — either order works); [plan-coord-probe][plan-coord] (consumes the notes-discovery
+- **Sibling plans (parallelizable):** `plan-worktree-foundation.md` (worktree-aware sync
+  semantics — either order works); `plan-coord-probe.md` (consumes the notes-discovery
   fix as a branch-gone signal source).
-- **Downstream (benefit from this WU's exits):** [plan-agile-wu-lifecycle][plan-awl] and
-  [plan-concurrent-work-conventions][plan-cwc] benefit from a clean sync state machine and
+- **Downstream (benefit from this WU's exits):** `plan-agile-wu-lifecycle.md` and
+  `plan-concurrent-work-conventions.md` benefit from a clean sync state machine and
   aligned config vocabulary before adding their own axes.
 
 ### Scheduling
@@ -361,8 +361,3 @@ during implementation:
   scope estimate at task-generation review crosses the split-trigger threshold.
 
 ---
-
-[plan-coord]: ../../backlog/technical/plan-coord-probe.md
-[plan-wf]: ../../backlog/technical/plan-worktree-foundation.md
-[plan-awl]: ../../backlog/technical/plan-agile-wu-lifecycle.md
-[plan-cwc]: ../../backlog/feature/plan-concurrent-work-conventions.md
