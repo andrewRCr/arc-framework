@@ -55,6 +55,7 @@ import type { ResolvedSyncPush } from "../../../src/lib/sync-policy.js";
 function userResult(overrides: Partial<UserStatusResult> = {}): UserStatusResult {
   return {
     identity: "andrew",
+    spineState: "clean",
     headline: "git note up to date",
     remoteStatus: "in sync",
     diskStatus: "current",

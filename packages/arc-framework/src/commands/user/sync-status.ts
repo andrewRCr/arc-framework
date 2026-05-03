@@ -21,6 +21,7 @@ import type {
   UserStatusOptions,
   UserStatusRemoteIdentity,
   UserStatusResult,
+  UserSyncSpine,
   UserSyncDiskState,
   UserSyncRefState,
   UserSyncState,
@@ -39,15 +40,20 @@ export async function inspectUserSyncState(
   options: InspectUserSyncOptions,
 ): Promise<UserSyncState> {
   const { cwd, io, identity } = options;
-  const [refState, diskInspection] = await Promise.all([
-    inspectUserSyncRefs(io, identity),
+  const [refInspection, diskInspection] = await Promise.all([
+    inspectUserSyncRefsDetailed(io, identity),
     inspectDiskVsLocalSnapshot(cwd, io, identity),
   ]);
+  const spine = computeUserSyncSpine({
+    remoteSyncEnabled: true,
+    refState: refInspection.state,
+  });
 
   return {
-    refState,
+    spineState: spine.state,
+    refState: refInspection.state,
     diskState: diskInspection.state,
-    remoteStatus: deriveRemoteStatus(refState),
+    remoteStatus: spine.remoteStatus,
     diskStatus: diskInspection.diskStatus,
     unsavedDirection: diskInspection.direction,
   };
@@ -75,15 +81,20 @@ export async function runUserStatus(
         ? runWorktreeSyncStatus({ exec: io.exec, remoteSyncEnabled: true })
         : Promise.resolve(null),
     ]);
+  const spine = computeUserSyncSpine({
+    remoteSyncEnabled: !offline,
+    refState: refInspection?.state ?? null,
+  });
 
   const note = search.note;
   const savedAtRelative = note ? await readCommitRelativeAge(io, note.commit) : null;
 
   return buildUserStatusResult({
+    spine,
     identity,
     diskState: diskInspection.state,
     diskStatus: diskInspection.diskStatus,
-    refState: refInspection?.state ?? null,
+    refState: spine.refState,
     remoteChecked: !offline,
     savedCommit: note ? note.commit.slice(0, 7) : null,
     savedFromAncestor: note ? note.fromAncestor : false,
@@ -129,91 +140,21 @@ export async function runUserSessionInitStatus(
   const { io, identity, remoteSyncEnabled } = options;
 
   if (!remoteSyncEnabled) {
-    return {
+    return buildUserSessionInitStatusResult({
       identity,
-      state: "disabled",
-      summary: `${identity}: session-init remote sync disabled`,
-      detailLines: [
-        "Config: `session.remote_sync: disabled`.",
-        "Next step: skip the remote probe and continue with local tracked state.",
-      ],
-      actionHint: null,
-      shouldPromptToPull: false,
-    };
+      spine: computeUserSyncSpine({ remoteSyncEnabled: false, refState: null }),
+    });
   }
 
   const refInspection = await inspectUserSyncRefsDetailed(io, identity);
-  switch (refInspection.state) {
-    case "same":
-      return {
-        identity,
-        state: "clean",
-        summary: `${identity}: session-init remote state clean`,
-        detailLines: ["Remote notes match local notes."],
-        actionHint: null,
-        shouldPromptToPull: false,
-      };
-    case "local-ahead":
-      return {
-        identity,
-        state: "clean",
-        summary: `${identity}: session-init remote state clean`,
-        detailLines: [
-          "Local notes are newer than remote, but no pull is needed before continuing.",
-        ],
-        actionHint: null,
-        shouldPromptToPull: false,
-      };
-    case "remote-ahead":
-      return {
-        identity,
-        state: "remote-ahead",
-        summary: `${identity}: session-init remote notes ahead`,
-        detailLines: [
-          "Remote notes are newer than local notes.",
-          "Next step: ask whether to run `arc user pull` before continuing session-init.",
-        ],
-        actionHint: "run `arc user pull` before continuing session-init",
-        shouldPromptToPull: true,
-      };
-    case "diverged":
-      return {
-        identity,
-        state: "conflict",
-        summary: `${identity}: session-init remote notes conflict`,
-        detailLines: [
-          "Local and remote notes conflict (both moved since common ancestor).",
-          "Next step: ask whether to run `arc user pull` and replace local notes before continuing.",
-        ],
-        actionHint: "run `arc user pull` to replace local notes before continuing session-init",
-        shouldPromptToPull: true,
-      };
-    case "remote-unavailable":
-      if (refInspection.comparison === "comparison-unavailable") {
-        return {
-          identity,
-          state: "remote-unavailable",
-          summary: `${identity}: session-init remote comparison unavailable here`,
-          detailLines: [
-            "Remote notes are reachable, but this environment blocks the fetch-based ancestry comparison.",
-            "Next step: continue with local tracked state, or retry session-init where git fetch/write access is allowed.",
-          ],
-          actionHint: "continue locally or retry session-init where git fetch/write access is allowed",
-          shouldPromptToPull: false,
-        };
-      }
-      return {
-        identity,
-        state: "remote-unavailable",
-        summary: `${identity}: session-init remote probe unavailable`,
-        detailLines: [
-          "Remote notes could not be reached.",
-          "Next step: continue with local tracked state, or retry once the remote is reachable.",
-        ],
-        actionHint: "continue locally or retry once the remote is reachable",
-        shouldPromptToPull: false,
-      };
-  }
+  return buildUserSessionInitStatusResult({
+    identity,
+    spine: computeUserSyncSpine({
+      remoteSyncEnabled: true,
+      refState: refInspection.state,
+    }),
+    comparison: refInspection.comparison,
+  });
 }
 
 interface UserSyncRefInspection {
@@ -221,7 +162,132 @@ interface UserSyncRefInspection {
   comparison: "full" | "read-only" | "comparison-unavailable" | "remote-unavailable";
 }
 
+/**
+ * Compute the shared user-sync decision spine from remote-sync availability
+ * and raw notes-ref topology.
+ *
+ * @param input - Remote-sync enablement plus the inspected notes-ref state
+ * @returns Session-init-compatible spine plus full-mode remote projection
+ */
+export function computeUserSyncSpine(input: {
+  remoteSyncEnabled: boolean;
+  refState: UserSyncRefState | null;
+}): UserSyncSpine {
+  const refState = input.remoteSyncEnabled ? input.refState : null;
+  const state = computeUserSyncSpineState(input.remoteSyncEnabled, refState);
+  return {
+    state,
+    refState,
+    remoteStatus: deriveRemoteStatus(refState),
+    shouldPromptToPull: state === "remote-ahead" || state === "conflict",
+  };
+}
+
+function computeUserSyncSpineState(
+  remoteSyncEnabled: boolean,
+  refState: UserSyncRefState | null,
+): UserSyncSpine["state"] {
+  if (!remoteSyncEnabled) return "disabled";
+
+  switch (refState) {
+    case "remote-ahead":
+      return "remote-ahead";
+    case "diverged":
+      return "conflict";
+    case "remote-unavailable":
+      return "remote-unavailable";
+    case "same":
+    case "local-ahead":
+    case null:
+      return "clean";
+  }
+}
+
+function buildUserSessionInitStatusResult(input: {
+  identity: string;
+  spine: UserSyncSpine;
+  comparison?: UserSyncRefInspection["comparison"];
+}): UserSessionInitStatusResult {
+  const { identity, spine } = input;
+
+  switch (spine.state) {
+    case "disabled":
+      return {
+        identity,
+        state: spine.state,
+        summary: `${identity}: session-init remote sync disabled`,
+        detailLines: [
+          "Config: `session.remote_sync: disabled`.",
+          "Next step: skip the remote probe and continue with local tracked state.",
+        ],
+        actionHint: null,
+        shouldPromptToPull: spine.shouldPromptToPull,
+      };
+    case "clean":
+      return {
+        identity,
+        state: spine.state,
+        summary: `${identity}: session-init remote state clean`,
+        detailLines: spine.refState === "local-ahead"
+          ? ["Local notes are newer than remote, but no pull is needed before continuing."]
+          : ["Remote notes match local notes."],
+        actionHint: null,
+        shouldPromptToPull: spine.shouldPromptToPull,
+      };
+    case "remote-ahead":
+      return {
+        identity,
+        state: spine.state,
+        summary: `${identity}: session-init remote notes ahead`,
+        detailLines: [
+          "Remote notes are newer than local notes.",
+          "Next step: ask whether to run `arc user pull` before continuing session-init.",
+        ],
+        actionHint: "run `arc user pull` before continuing session-init",
+        shouldPromptToPull: spine.shouldPromptToPull,
+      };
+    case "conflict":
+      return {
+        identity,
+        state: spine.state,
+        summary: `${identity}: session-init remote notes conflict`,
+        detailLines: [
+          "Local and remote notes conflict (both moved since common ancestor).",
+          "Next step: ask whether to run `arc user pull` and replace local notes before continuing.",
+        ],
+        actionHint: "run `arc user pull` to replace local notes before continuing session-init",
+        shouldPromptToPull: spine.shouldPromptToPull,
+      };
+    case "remote-unavailable":
+      if (input.comparison === "comparison-unavailable") {
+        return {
+          identity,
+          state: spine.state,
+          summary: `${identity}: session-init remote comparison unavailable here`,
+          detailLines: [
+            "Remote notes are reachable, but this environment blocks the fetch-based ancestry comparison.",
+            "Next step: continue with local tracked state, or retry session-init where git fetch/write access is allowed.",
+          ],
+          actionHint: "continue locally or retry session-init where git fetch/write access is allowed",
+          shouldPromptToPull: spine.shouldPromptToPull,
+        };
+      }
+      return {
+        identity,
+        state: spine.state,
+        summary: `${identity}: session-init remote probe unavailable`,
+        detailLines: [
+          "Remote notes could not be reached.",
+          "Next step: continue with local tracked state, or retry once the remote is reachable.",
+        ],
+        actionHint: "continue locally or retry once the remote is reachable",
+        shouldPromptToPull: spine.shouldPromptToPull,
+      };
+  }
+}
+
 interface BuildUserStatusInput {
+  spine?: UserSyncSpine;
   identity: string;
   diskState: UserSyncDiskState;
   diskStatus?: UserDiskStatus;
@@ -267,7 +333,11 @@ export function buildUserStatusResult(
   const savedAtRelative = input.savedAtRelative ?? null;
   const unsavedDirection = input.unsavedDirection ?? null;
 
-  const remoteStatus = deriveRemoteStatus(refState);
+  const spine = input.spine ?? computeUserSyncSpine({
+    remoteSyncEnabled: remoteChecked,
+    refState,
+  });
+  const remoteStatus = spine.remoteStatus;
   const diskStatus = input.diskStatus ?? deriveDiskStatus(diskState, unsavedDirection);
   const headline = determineUserStatusHeadline(remoteStatus, diskStatus);
   const summary = remoteChecked
@@ -276,7 +346,7 @@ export function buildUserStatusResult(
 
   const detailLines: string[] = [];
   const actionHint = determineUserStatusAction(
-    headline,
+    spine,
     diskState,
     diskStatus,
     remoteChecked,
@@ -338,6 +408,7 @@ export function buildUserStatusResult(
 
   return {
     identity,
+    spineState: spine.state,
     headline,
     remoteStatus,
     diskStatus,
@@ -345,7 +416,7 @@ export function buildUserStatusResult(
     actionHint,
     detailLines,
     remoteChecked,
-    refState,
+    refState: spine.refState,
     diskState,
     savedCommit,
     savedFromAncestor,
@@ -447,14 +518,6 @@ function renderRemoteStatus(remoteStatus: UserRemoteStatus): string {
     case "remote unavailable":
       return "unavailable";
   }
-}
-
-async function inspectUserSyncRefs(
-  io: UserIOContext,
-  identity: string,
-): Promise<UserSyncRefState> {
-  const result = await inspectUserSyncRefsDetailed(io, identity);
-  return result.state;
 }
 
 type PreFetchClassification =
@@ -762,18 +825,18 @@ function determineUserStatusHeadline(
 }
 
 function determineUserStatusAction(
-  headline: UserStatusHeadline,
+  spine: UserSyncSpine,
   diskState: UserSyncDiskState,
   diskStatus: UserDiskStatus,
   remoteChecked: boolean,
   unsavedDirection: UserUnsavedDirection | null,
 ): string | null {
-  switch (headline) {
-    case "remote note ahead":
+  switch (spine.state) {
+    case "remote-ahead":
       return "run `arc user pull`";
-    case "notes conflict":
+    case "conflict":
       return "run `arc user fetch` for non-destructive inspection";
-    case "remote unavailable":
+    case "remote-unavailable":
       if (diskState === "same") return "retry online to confirm remote status";
       if (unsavedDirection === "edits") {
         return "run `arc user save`, then retry online when the remote is reachable";
@@ -782,16 +845,17 @@ function determineUserStatusAction(
         return "inspect local disk state before retrying online";
       }
       return "run `arc user load`, or retry online to confirm remote status";
-    case "git note up to date":
-      return remoteChecked ? null : "rerun without `--offline` to confirm remote status";
-    case "local note ahead":
-      return "run `arc user push` (or `arc sync`)";
-    case "git note out of date":
+    case "disabled":
+    case "clean":
       if (diskStatus === "stale") return "run `arc user load`";
       if (diskStatus === "mixed") {
         return "inspect local working files, then run `arc user load` or `arc user save`";
       }
-      return "run `arc user save`";
+      if (diskStatus === "local unsaved") return "run `arc user save`";
+      if (spine.state === "clean" && spine.remoteStatus === "local ahead") {
+        return "run `arc user push` (or `arc sync`)";
+      }
+      return remoteChecked ? null : "rerun without `--offline` to confirm remote status";
   }
 }
 

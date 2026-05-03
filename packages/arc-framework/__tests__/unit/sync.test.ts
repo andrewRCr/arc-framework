@@ -104,7 +104,15 @@ function setSyncState(
           : "remote unavailable";
   const diskStatus = options.diskStatus
     ?? (diskState === "same" ? "current" : "local unsaved");
+  const spineState = refState === "remote-ahead"
+    ? "remote-ahead"
+    : refState === "diverged"
+      ? "conflict"
+      : refState === "remote-unavailable"
+        ? "remote-unavailable"
+        : "clean";
   mockInspectUserSyncState.mockResolvedValue({
+    spineState,
     refState,
     diskState,
     remoteStatus,
@@ -135,6 +143,7 @@ function resetMockDefaults() {
 describe("decideSyncAction", () => {
   it("maps the shared sync model to noop/push/pull/load/conflict", () => {
     expect(decideSyncAction({
+      spineState: "clean",
       refState: "same",
       diskState: "same",
       remoteStatus: "in sync",
@@ -142,6 +151,7 @@ describe("decideSyncAction", () => {
       unsavedDirection: null,
     })).toBe("noop");
     expect(decideSyncAction({
+      spineState: "clean",
       refState: "same",
       diskState: "different",
       remoteStatus: "in sync",
@@ -149,6 +159,7 @@ describe("decideSyncAction", () => {
       unsavedDirection: "edits",
     })).toBe("push");
     expect(decideSyncAction({
+      spineState: "clean",
       refState: "same",
       diskState: "different",
       remoteStatus: "in sync",
@@ -156,6 +167,7 @@ describe("decideSyncAction", () => {
       unsavedDirection: "modified",
     })).toBe("load");
     expect(decideSyncAction({
+      spineState: "clean",
       refState: "local-ahead",
       diskState: "same",
       remoteStatus: "local ahead",
@@ -163,6 +175,7 @@ describe("decideSyncAction", () => {
       unsavedDirection: null,
     })).toBe("push");
     expect(decideSyncAction({
+      spineState: "clean",
       refState: "local-ahead",
       diskState: "different",
       remoteStatus: "local ahead",
@@ -170,6 +183,7 @@ describe("decideSyncAction", () => {
       unsavedDirection: "modified",
     })).toBe("push-load");
     expect(decideSyncAction({
+      spineState: "remote-ahead",
       refState: "remote-ahead",
       diskState: "same",
       remoteStatus: "remote ahead",
@@ -177,6 +191,7 @@ describe("decideSyncAction", () => {
       unsavedDirection: null,
     })).toBe("pull");
     expect(decideSyncAction({
+      spineState: "remote-ahead",
       refState: "remote-ahead",
       diskState: "different",
       remoteStatus: "remote ahead",
@@ -184,6 +199,7 @@ describe("decideSyncAction", () => {
       unsavedDirection: "edits",
     })).toBe("conflict");
     expect(decideSyncAction({
+      spineState: "conflict",
       refState: "diverged",
       diskState: "same",
       remoteStatus: "conflict",

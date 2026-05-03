@@ -27,27 +27,15 @@ unification (1.2) — unification builds on the new load semantic.
 - Coverage added for outside-HEAD ancestry, branch-gone local refs, shallow clones, deleted latest note entries,
   empty note refs, and note-ref-history walk caps.
 
-### `[ ]` **1.2 State-machine spine unification**
+### `[x]` **1.2 State-machine spine unification**
 
-- Collapse `inspectUserSyncRefsDetailed` and `runUserSessionInitStatus` onto a single
-  state-computation spine.
-- Full-mode and session-init render from the shared spine result; neither keeps an independent
-  state-to-action switch path.
-- Session-init's 5-state surface (`clean | remote-ahead | conflict | disabled |
-  remote-unavailable`) is the spine for both modes; full-mode adds `diskStatus`, `savedWhen`,
-  `refDistance` as detail axes that never disagree with the spine.
-- Action hints derive deterministically from the spine — eliminate the path that recommended
-  `arc user save` when `arc user pull` was needed (the 2026-04-24 bug).
-- Affected file: `packages/arc-framework/src/commands/user/sync-status.ts`.
-- Build `test-first` (one behavior at a time):
-    - Same git state → both modes return same spine value (paired-call fixture)
-    - Action hint determinism: spine value `remote-ahead` always recommends pull-direction
-      recovery, never push-direction
-    - Detail axes layered correctly: full-mode includes `savedWhen` / `refDistance` while
-      session-init does not, but both agree on spine
-    - 5-state spine exhaustiveness: every input combination resolves to exactly one spine state
-    - Cross-machine resume scenario (the 2026-04-24 reproduction) produces directionally-correct
-      hint
+- `sync-status.ts` now computes a shared `UserSyncSpine` from remote-sync enablement and
+  notes-ref topology; full status, session-init, and `inspectUserSyncState` consume the same
+  spine instead of maintaining separate state/action switch paths.
+- Full `UserStatusResult` carries `spineState`, with disk status, saved age, and note-history
+  distance layered as detail axes that do not change the underlying five-state spine.
+- Unit coverage pins five-state exhaustiveness, paired full/session-init agreement, layered
+  detail axes, and pull-directed `remote-ahead` recovery when local disk edits are present.
 
 ### `[ ]` **1.3 Partial-push state on the spine**
 

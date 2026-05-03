@@ -24,6 +24,7 @@ export {
 export {
   runUserSessionInitStatus,
   buildUserStatusResult,
+  computeUserSyncSpine,
   computeUnsavedDirection,
   formatWorktreeQualifierLine,
   inspectUserSyncState,
@@ -59,6 +60,7 @@ export {
   type UserStatusResult,
   type UserSyncDiskState,
   type UserSyncRefState,
+  type UserSyncSpine,
   type UserSyncState,
   type UserUnsavedDirection,
 } from "./user/types.js";

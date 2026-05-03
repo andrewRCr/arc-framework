@@ -159,7 +159,31 @@ export type UserDiskStatus =
   | "local unsaved"
   | "mixed";
 
+export type UserSessionInitState =
+  | "disabled"
+  | "clean"
+  | "remote-ahead"
+  | "conflict"
+  | "remote-unavailable";
+
+/**
+ * Shared remote-sync decision spine used by full status, session-init status,
+ * and direction-aware sync orchestration.
+ */
+export interface UserSyncSpine {
+  /** Session-init-compatible five-state verdict. */
+  state: UserSessionInitState;
+  /** Raw notes-ref topology feeding the spine, or `null` when remote probing is disabled. */
+  refState: UserSyncRefState | null;
+  /** Full-mode remote-status projection derived from the same ref topology. */
+  remoteStatus: UserRemoteStatus;
+  /** Whether session init should ask before pulling user notes. */
+  shouldPromptToPull: boolean;
+}
+
 export interface UserSyncState {
+  /** Session-init-compatible five-state verdict for the inspected refs. */
+  spineState: UserSessionInitState;
   refState: UserSyncRefState;
   diskState: UserSyncDiskState;
   remoteStatus: UserRemoteStatus;
@@ -214,6 +238,8 @@ export type UserUnsavedDirection = "edits" | "missing" | "modified" | "mixed";
 
 export interface UserStatusResult {
   identity: string;
+  /** Session-init-compatible five-state verdict shared with `runUserSessionInitStatus`. */
+  spineState: UserSessionInitState;
   headline: UserStatusHeadline;
   remoteStatus: UserRemoteStatus;
   diskStatus: UserDiskStatus;
@@ -256,13 +282,6 @@ export interface UserStatusOptions {
    */
   remoteSyncEnabled?: boolean;
 }
-
-export type UserSessionInitState =
-  | "disabled"
-  | "clean"
-  | "remote-ahead"
-  | "conflict"
-  | "remote-unavailable";
 
 /**
  * Optional qualifier on `UserSessionInitStatusResult.qualifier`.

@@ -30,6 +30,7 @@ function okUser(): Probe<UserStatusResult> {
     ok: true,
     value: {
       identity: "andrew",
+      spineState: "clean",
       headline: "git note up to date",
       remoteStatus: "in sync",
       diskStatus: "current",

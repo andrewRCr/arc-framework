@@ -142,6 +142,7 @@ async function writeStatusFile(
 function stubUserResult(identity: string): UserStatusResult {
   return {
     identity,
+    spineState: "clean",
     headline: "git note up to date",
     remoteStatus: "in sync",
     diskStatus: "current",

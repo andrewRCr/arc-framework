@@ -10,6 +10,7 @@ import {
   buildLoadSummary,
   buildUserSessionInitStatusSummary,
   buildUserStatusResult,
+  computeUserSyncSpine,
   buildUserStatusSummary,
   computeUnsavedDirection,
   runUserSessionInitStatus,
@@ -383,6 +384,107 @@ describe("computeUnsavedDirection", () => {
     const note = manifest({ "SESSION-NOTES.md": "aaa" });
 
     expect(computeUnsavedDirection(disk, note)).toBe("mixed");
+  });
+});
+
+describe("user sync spine", () => {
+  it("maps every ref/topology input onto exactly one session-init spine state", () => {
+    const cases = [
+      { remoteSyncEnabled: false, refState: null, expected: "disabled" },
+      { remoteSyncEnabled: true, refState: "same", expected: "clean" },
+      { remoteSyncEnabled: true, refState: "local-ahead", expected: "clean" },
+      { remoteSyncEnabled: true, refState: "remote-ahead", expected: "remote-ahead" },
+      { remoteSyncEnabled: true, refState: "diverged", expected: "conflict" },
+      { remoteSyncEnabled: true, refState: "remote-unavailable", expected: "remote-unavailable" },
+    ] as const;
+
+    const states = new Set(cases.map((entry) => computeUserSyncSpine(entry).state));
+
+    expect(states).toEqual(new Set(["disabled", "clean", "remote-ahead", "conflict", "remote-unavailable"]));
+    for (const entry of cases) {
+      expect(computeUserSyncSpine(entry).state).toBe(entry.expected);
+    }
+  });
+
+  it("keeps remote-ahead recovery pull-directed even when working files have local edits", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "different",
+      refState: "remote-ahead",
+      remoteChecked: true,
+      savedCommit: "abc1234",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      unsavedDirection: "edits",
+      backupFiles: [],
+      remoteIdentities: [],
+    });
+
+    expect(result.spineState).toBe("remote-ahead");
+    expect(result.actionHint).toBe("run `arc user pull`");
+    expect(result.actionHint).not.toContain("save");
+    expect(result.actionHint).not.toContain("push");
+  });
+
+  it("layers full-mode detail axes without changing the shared spine state", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "same",
+      refState: "remote-ahead",
+      remoteChecked: true,
+      savedCommit: "abc1234",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      noteHistoryDistance: 2,
+      savedReachableFromHead: false,
+      savedAtRelative: "11 hours ago",
+      backupFiles: [],
+      remoteIdentities: [],
+    });
+
+    expect(result.spineState).toBe("remote-ahead");
+    expect(result.detailLines).toContain("Saved 11 hours ago.");
+    expect(result.detailLines).toContain(
+      "Latest local git note is from abc1234, outside current HEAD ancestry (2 note update(s) back).",
+    );
+  });
+
+  it("returns the same spine state for full-mode and session-init probes on the same refs", async () => {
+    const io = {
+      exec: async (_cmd: string, args: string[]) => {
+        if (args[0] === "rev-parse" && args[1] === "--verify") {
+          throw new Error("local note ref missing");
+        }
+        if (args[0] === "ls-remote") {
+          return { stdout: "remote456\trefs/notes/arc/user/andrew\n", stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "HEAD") {
+          return { stdout: "head123\n", stderr: "" };
+        }
+        if (args[0] === "log") {
+          return { stdout: "", stderr: "" };
+        }
+        throw new Error(`unexpected command: git ${args.join(" ")}`);
+      },
+      readDir: async () => [],
+      readFile: async () => "",
+      writeFile: async () => {},
+      mkdir: async () => undefined,
+      writeNote: async () => {},
+      readNote: async () => null,
+    };
+
+    const full = await runUserStatus({ cwd: "/repo", io, identity: "andrew" });
+    const sessionInit = await runUserSessionInitStatus({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      remoteSyncEnabled: true,
+    });
+
+    expect(full.spineState).toBe(sessionInit.state);
+    expect(full.actionHint).toBe("run `arc user pull`");
+    expect(sessionInit.actionHint).toContain("arc user pull");
   });
 });
 
