@@ -1,16 +1,17 @@
 # Notes: ARCd Rebrand
 
-**Purpose:** Factual reference material preserved across the WU's lifecycle. Originally extracted from a
-retired `plan-arcd-rebrand.md` to support PRD + task list execution; preserved through the 2026-05-03
-demotion of `prd-arcd-rebrand.md` + `tasks-arcd-rebrand.md` back to `plan-arcd-rebrand.md`. The plan doc
-re-takes spec ownership; this file remains the home for durable factual reference (secured namespaces,
-deprecation publish sequence, repo-name-variant rationale, self-hosted migration rationale) and for any
-pre-re-graduation working notes.
+**Purpose:** Two-fold.
 
-**Intended lifespan:** Until the rebrand work unit is archived (post-execution).
+1. **Reference material.** Execution-useful content extracted from `plan-arcd-rebrand.md` before the plan
+   retired — preserves context that didn't fit naturally into `prd-arcd-rebrand.md`'s spec shape but is
+   valuable during task generation and execution.
+2. **Scratch space.** Durable capture surface for implementation observations, open questions, in-flight
+   decision notes, and working context discovered during the rebrand WU's execution that doesn't belong in
+   task completion notes or the PRD itself. Use freely during implementation — the notes file is the right
+   home for "I noticed X while working on task Y" content that would otherwise bloat task descriptions or
+   session notes.
 
-**Note:** Spec content lives in `plan-arcd-rebrand.md` (see § Why preserved as plan rather than executed
-for the demotion rationale). This file is reference and scratch only.
+**Intended lifespan:** Until the rebrand work unit is archived.
 
 ---
 
