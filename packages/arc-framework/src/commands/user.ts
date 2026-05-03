@@ -58,6 +58,7 @@ export {
   type UserStatusOptions,
   type UserStatusRemoteIdentity,
   type UserStatusResult,
+  type UserSyncCoherenceState,
   type UserSyncDiskState,
   type UserSyncRefState,
   type UserSyncSpine,

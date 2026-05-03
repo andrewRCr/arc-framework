@@ -21,6 +21,7 @@ import type {
   UserStatusOptions,
   UserStatusRemoteIdentity,
   UserStatusResult,
+  UserSyncCoherenceState,
   UserSyncSpine,
   UserSyncDiskState,
   UserSyncRefState,
@@ -52,6 +53,7 @@ export async function inspectUserSyncState(
   return {
     spineState: spine.state,
     refState: refInspection.state,
+    ...(spine.coherenceState ? { coherenceState: spine.coherenceState } : {}),
     diskState: diskInspection.state,
     remoteStatus: spine.remoteStatus,
     diskStatus: diskInspection.diskStatus,
@@ -172,12 +174,15 @@ interface UserSyncRefInspection {
 export function computeUserSyncSpine(input: {
   remoteSyncEnabled: boolean;
   refState: UserSyncRefState | null;
+  coherenceState?: UserSyncCoherenceState;
 }): UserSyncSpine {
   const refState = input.remoteSyncEnabled ? input.refState : null;
+  const coherenceState = refState === "local-ahead" ? input.coherenceState : undefined;
   const state = computeUserSyncSpineState(input.remoteSyncEnabled, refState);
   return {
     state,
     refState,
+    ...(coherenceState ? { coherenceState } : {}),
     remoteStatus: deriveRemoteStatus(refState),
     shouldPromptToPull: state === "remote-ahead" || state === "conflict",
   };
@@ -215,6 +220,7 @@ function buildUserSessionInitStatusResult(input: {
       return {
         identity,
         state: spine.state,
+        ...(spine.coherenceState ? { coherenceState: spine.coherenceState } : {}),
         summary: `${identity}: session-init remote sync disabled`,
         detailLines: [
           "Config: `session.remote_sync: disabled`.",
@@ -227,6 +233,7 @@ function buildUserSessionInitStatusResult(input: {
       return {
         identity,
         state: spine.state,
+        ...(spine.coherenceState ? { coherenceState: spine.coherenceState } : {}),
         summary: `${identity}: session-init remote state clean`,
         detailLines: spine.refState === "local-ahead"
           ? ["Local notes are newer than remote, but no pull is needed before continuing."]
@@ -238,6 +245,7 @@ function buildUserSessionInitStatusResult(input: {
       return {
         identity,
         state: spine.state,
+        ...(spine.coherenceState ? { coherenceState: spine.coherenceState } : {}),
         summary: `${identity}: session-init remote notes ahead`,
         detailLines: [
           "Remote notes are newer than local notes.",
@@ -250,6 +258,7 @@ function buildUserSessionInitStatusResult(input: {
       return {
         identity,
         state: spine.state,
+        ...(spine.coherenceState ? { coherenceState: spine.coherenceState } : {}),
         summary: `${identity}: session-init remote notes conflict`,
         detailLines: [
           "Local and remote notes conflict (both moved since common ancestor).",
@@ -263,6 +272,7 @@ function buildUserSessionInitStatusResult(input: {
         return {
           identity,
           state: spine.state,
+          ...(spine.coherenceState ? { coherenceState: spine.coherenceState } : {}),
           summary: `${identity}: session-init remote comparison unavailable here`,
           detailLines: [
             "Remote notes are reachable, but this environment blocks the fetch-based ancestry comparison.",
@@ -275,6 +285,7 @@ function buildUserSessionInitStatusResult(input: {
       return {
         identity,
         state: spine.state,
+        ...(spine.coherenceState ? { coherenceState: spine.coherenceState } : {}),
         summary: `${identity}: session-init remote probe unavailable`,
         detailLines: [
           "Remote notes could not be reached.",
@@ -292,6 +303,7 @@ interface BuildUserStatusInput {
   diskState: UserSyncDiskState;
   diskStatus?: UserDiskStatus;
   refState: UserSyncRefState | null;
+  coherenceState?: UserSyncCoherenceState;
   remoteChecked: boolean;
   savedCommit: string | null;
   savedFromAncestor: boolean;
@@ -336,6 +348,7 @@ export function buildUserStatusResult(
   const spine = input.spine ?? computeUserSyncSpine({
     remoteSyncEnabled: remoteChecked,
     refState,
+    coherenceState: input.coherenceState,
   });
   const remoteStatus = spine.remoteStatus;
   const diskStatus = input.diskStatus ?? deriveDiskStatus(diskState, unsavedDirection);
@@ -360,6 +373,12 @@ export function buildUserStatusResult(
   detailLines.push(renderHeadlineExplanation(headline, diskStatus));
   detailLines.push(renderWorkingFilesLine(diskStatus));
   detailLines.push(`Remote notes: ${renderRemoteStatus(remoteStatus)}.`);
+
+  if (spine.coherenceState === "partial-push") {
+    detailLines.push(
+      "Partial push recovery: remote notes are still behind local notes after a prior publish attempt.",
+    );
+  }
 
   const worktreeQualifier = formatWorktreeQualifierLine({
     worktree: input.worktree,
@@ -409,6 +428,7 @@ export function buildUserStatusResult(
   return {
     identity,
     spineState: spine.state,
+    ...(spine.coherenceState ? { coherenceState: spine.coherenceState } : {}),
     headline,
     remoteStatus,
     diskStatus,
@@ -852,6 +872,9 @@ function determineUserStatusAction(
         return "inspect local working files, then run `arc user load` or `arc user save`";
       }
       if (diskStatus === "local unsaved") return "run `arc user save`";
+      if (spine.coherenceState === "partial-push") {
+        return "run `arc user push` to retry the notes push";
+      }
       if (spine.state === "clean" && spine.remoteStatus === "local ahead") {
         return "run `arc user push` (or `arc sync`)";
       }

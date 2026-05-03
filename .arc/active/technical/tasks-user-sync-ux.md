@@ -42,19 +42,11 @@ unification (1.2) — unification builds on the new load semantic.
 - _Goal:_ Surface "worktree pushed, notes ref lagging" as a validated recovery condition without
   changing the pure notes-ref topology or session-init's 5-state contract.
 
-    - `[ ]` **1.3.a Coherence-condition interface**
-        - Model partial-push as a separate coherence/detail axis layered on the spine, not as a new
-          `UserSyncRefState` value and not as a sixth `UserSessionInitState`.
-        - The notes ref topology remains `local-ahead`; session-init keeps
-          `clean | remote-ahead | conflict | disabled | remote-unavailable`.
-        - Full-mode status must surface the partial-push condition explicitly and use `arc user push`
-          recovery guidance instead of generic `local-ahead` copy.
-        - Affected files: `packages/arc-framework/src/commands/user/types.ts`,
-          `packages/arc-framework/src/commands/user/sync-status.ts`.
-        - Build `test-first` (one behavior at a time):
-            - Partial-push condition layers on a `local-ahead` ref topology
-            - Session-init state union remains 5-state while preserving the condition detail
-            - Action hint surfaces recovery guidance (`arc user push` to retry)
+    - `[x]` **1.3.a Coherence-condition interface**
+        - Added `UserSyncCoherenceState` / `coherenceState` as a detail axis layered on the shared spine.
+          `partial-push` survives only with `local-ahead` notes topology, while the session-init spine state
+          remains `clean`. Full-mode status now emits explicit partial-push recovery copy and points at
+          `arc user push` retry guidance instead of the generic local-ahead hint.
 
     - `[ ]` **1.3.b Partial-push marker persistence**
         - Persist a recovery marker in the user internal sync state (or equivalent internal notes-sync

@@ -488,6 +488,63 @@ describe("user sync spine", () => {
   });
 });
 
+describe("partial-push coherence condition", () => {
+  it("layers partial-push coherence on local-ahead topology without adding a spine state", () => {
+    const spine = computeUserSyncSpine({
+      remoteSyncEnabled: true,
+      refState: "local-ahead",
+      coherenceState: "partial-push",
+    });
+
+    expect(spine.state).toBe("clean");
+    expect(spine.refState).toBe("local-ahead");
+    expect(spine.remoteStatus).toBe("local ahead");
+    expect(spine.coherenceState).toBe("partial-push");
+  });
+
+  it("keeps the session-init spine state five-state while preserving partial-push detail", () => {
+    const spine = computeUserSyncSpine({
+      remoteSyncEnabled: true,
+      refState: "local-ahead",
+      coherenceState: "partial-push",
+    });
+    const sessionInitStates = new Set([
+      "disabled",
+      "clean",
+      "remote-ahead",
+      "conflict",
+      "remote-unavailable",
+    ]);
+
+    expect(sessionInitStates.has(spine.state)).toBe(true);
+    expect(spine.state).toBe("clean");
+    expect(spine.coherenceState).toBe("partial-push");
+  });
+
+  it("surfaces partial-push recovery explicitly in full-mode status", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "same",
+      refState: "local-ahead",
+      coherenceState: "partial-push",
+      remoteChecked: true,
+      savedCommit: "abc1234",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      backupFiles: [],
+      remoteIdentities: [],
+    });
+
+    expect(result.spineState).toBe("clean");
+    expect(result.refState).toBe("local-ahead");
+    expect(result.coherenceState).toBe("partial-push");
+    expect(result.detailLines).toContain(
+      "Partial push recovery: remote notes are still behind local notes after a prior publish attempt.",
+    );
+    expect(result.actionHint).toBe("run `arc user push` to retry the notes push");
+  });
+});
+
 describe("runUserSessionInitStatus", () => {
   const io = {
     exec: async () => ({ stdout: "", stderr: "" }),

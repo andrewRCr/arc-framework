@@ -159,6 +159,14 @@ export type UserDiskStatus =
   | "local unsaved"
   | "mixed";
 
+/**
+ * Coherence conditions layered on top of raw notes-ref topology.
+ *
+ * These are not additional `UserSyncRefState` or `UserSessionInitState`
+ * values; they explain recovery context for an existing spine verdict.
+ */
+export type UserSyncCoherenceState = "partial-push";
+
 export type UserSessionInitState =
   | "disabled"
   | "clean"
@@ -175,6 +183,8 @@ export interface UserSyncSpine {
   state: UserSessionInitState;
   /** Raw notes-ref topology feeding the spine, or `null` when remote probing is disabled. */
   refState: UserSyncRefState | null;
+  /** Coherence condition layered on the ref topology, when recovery context exists. */
+  coherenceState?: UserSyncCoherenceState;
   /** Full-mode remote-status projection derived from the same ref topology. */
   remoteStatus: UserRemoteStatus;
   /** Whether session init should ask before pulling user notes. */
@@ -185,6 +195,7 @@ export interface UserSyncState {
   /** Session-init-compatible five-state verdict for the inspected refs. */
   spineState: UserSessionInitState;
   refState: UserSyncRefState;
+  coherenceState?: UserSyncCoherenceState;
   diskState: UserSyncDiskState;
   remoteStatus: UserRemoteStatus;
   diskStatus: UserDiskStatus;
@@ -240,6 +251,7 @@ export interface UserStatusResult {
   identity: string;
   /** Session-init-compatible five-state verdict shared with `runUserSessionInitStatus`. */
   spineState: UserSessionInitState;
+  coherenceState?: UserSyncCoherenceState;
   headline: UserStatusHeadline;
   remoteStatus: UserRemoteStatus;
   diskStatus: UserDiskStatus;
@@ -296,6 +308,8 @@ export type UserSessionInitQualifier = "clean-at-current-head";
 export interface UserSessionInitStatusResult {
   identity: string;
   state: UserSessionInitState;
+  /** Coherence detail preserved without expanding the five-state session-init surface. */
+  coherenceState?: UserSyncCoherenceState;
   summary: string;
   detailLines: string[];
   actionHint: string | null;
