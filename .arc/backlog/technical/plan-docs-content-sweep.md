@@ -344,6 +344,49 @@ prompting); worktree probe is additive. `always` mode rejected for worktree per 
 amendment rationale (auto-pulling tracked working-tree state silently is too invasive even on
 clean trees).
 
+#### 9. Methodology-identity differentiation in public-facing copy (framing note, 2026-05-03)
+
+**Input type:** Framing note — directional guidance for public-facing onboarding copy.
+Captured during a 2026-05-03 rebrand-exploration session that concluded ARC's distinctive
+identity is under-emphasized in current onboarding relative to its load-bearing role.
+
+**The framing:** Current docs (README, getting-started, the-framework, methodology landing)
+cover the right concepts — co-development, bounded sessions, sequential focus,
+attention-as-design-constraint, the harness model — but present them as a list of design
+commitments rather than as ARC's load-bearing identity. The reframe surfaces **task-cadence
+discipline** (the task-interlock as the fundamental review increment; controlled-burst
+execution; "human cognitive attention as a feature, not a bottleneck") as the leading
+concept; the rest reads as supporting structure.
+
+**Candidate positioning phrases** (test against actual hero copy at execution time, don't
+lock in at planning time):
+
+- *task-cadence development*
+- *controlled-burst co-development*
+- *deliberate AI development*
+- *bounded human-AI co-development*
+
+**Suggested approach:** lean *into* the differentiation, don't rewrite away from current
+framing. The existing material is correct; the goal is to make the load-bearing
+differentiator the leading concept upfront so newcomers grasp what makes ARC distinct in
+the agentic-tooling landscape *before* working through the supporting structure.
+
+**Suggested destinations:**
+
+- README hero
+- Landing-page hero / subhead (Starlight IA)
+- `methodology/index.md` and `the-framework.md` opening paragraphs
+- Onboarding surfaces where ARC's stance vs. autonomous-agent / PR-review workflows
+  benefits from explicit framing
+
+**Pairs with item #5** (agent-native positioning) — both sharpen the value prop, hit
+different facets of "why this design."
+
+**Nuance — don't over-claim:** frame as *deliberate design stance* grounded in current
+agent-collaboration evidence (cognitive-load research, code-review-size studies cited in
+`methodology/rationale.md`), not as universal truth. Same principle as item #5's
+non-over-claim guidance.
+
 ## Adding Items
 
 **Drift items** — when a methodology change lands in `.arc/` or
