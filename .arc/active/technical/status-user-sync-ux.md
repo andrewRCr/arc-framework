@@ -9,10 +9,10 @@
 - **Task List:** `tasks-user-sync-ux.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Work unit activated
-- **Next Task:** Task 1.1 — Notes-ref-history discovery walk (line ~20)
+- **Last Completed:** Task 1.1 — Notes-ref-history discovery walk
+- **Next Task:** Task 1.2 — State-machine spine unification (line ~30)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — refactor `arc user load` and `arc user pull` notes discovery
+- **Next Action:** Begin Task 1.2 — collapse full-mode and session-init user-sync state onto a shared spine
 
 ---
