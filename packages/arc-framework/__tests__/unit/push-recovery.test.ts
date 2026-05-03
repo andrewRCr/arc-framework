@@ -67,6 +67,7 @@ describe("pushWithInteractiveRecovery", () => {
     const result = await pushWithInteractiveRecovery(io, identity, cwd);
     expect(result).toEqual({ kind: "ok" });
     expect(mockRunUserPush).toHaveBeenCalledTimes(1);
+    expect(mockRunUserPush).toHaveBeenCalledWith(expect.objectContaining({ cwd }));
     expect(mockSelect).not.toHaveBeenCalled();
   });
 

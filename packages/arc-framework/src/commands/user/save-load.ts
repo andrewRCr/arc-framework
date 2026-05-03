@@ -27,6 +27,12 @@ interface LocalSyncState {
   materializedManifestHash: string;
   sourceCommit: string;
   sourceOperation: "save" | "load";
+  partialPush?: PartialPushMarker;
+}
+
+interface PartialPushMarker {
+  localRefHash: string;
+  sourceCommit: string;
 }
 
 /** Default ancestor-walk cap. Aligns with common shallow-clone depth conventions. */
@@ -200,11 +206,13 @@ export async function readLocalSyncState(
         && record.sourceCommit.length > 0
         && (record.sourceOperation === "save" || record.sourceOperation === "load")
       ) {
+        const partialPush = parsePartialPushMarker(record.partialPush);
         return {
           version: 2,
           materializedManifestHash: record.materializedManifestHash,
           sourceCommit: record.sourceCommit,
           sourceOperation: record.sourceOperation,
+          ...(partialPush ? { partialPush } : {}),
         };
       }
 
@@ -228,6 +236,23 @@ export async function readLocalSyncState(
   return null;
 }
 
+function parsePartialPushMarker(value: unknown): PartialPushMarker | null {
+  if (typeof value !== "object" || value === null) return null;
+  const record = value as Record<string, unknown>;
+  if (
+    typeof record.localRefHash !== "string" ||
+    record.localRefHash.length === 0 ||
+    typeof record.sourceCommit !== "string" ||
+    record.sourceCommit.length === 0
+  ) {
+    return null;
+  }
+  return {
+    localRefHash: record.localRefHash,
+    sourceCommit: record.sourceCommit,
+  };
+}
+
 async function writeLocalSyncState(
   cwd: string,
   io: UserIOContext,
@@ -246,6 +271,82 @@ async function writeLocalSyncState(
     sourceOperation,
   };
   await io.writeFile(syncStatePath, `${JSON.stringify(state, null, 2)}\n`);
+}
+
+async function writeLocalSyncStateRecord(
+  cwd: string,
+  io: UserIOContext,
+  identity: string,
+  state: LocalSyncState,
+): Promise<void> {
+  const internalDir = getUserInternalDir(cwd, identity);
+  const syncStatePath = join(internalDir, LOCAL_SYNC_STATE_FILENAME);
+  await ensureDir(internalDir, io.mkdir);
+  await io.writeFile(syncStatePath, `${JSON.stringify(state, null, 2)}\n`);
+}
+
+export async function recordPartialPushMarker(
+  cwd: string,
+  io: UserIOContext,
+  identity: string,
+): Promise<boolean> {
+  const state = await readLocalSyncState(cwd, io, identity);
+  if (!state) return false;
+
+  const localRefHash = await readLocalNotesRefHash(io, identity);
+  if (!localRefHash) return false;
+
+  const sourceCommit = state.sourceCommit.length > 0
+    ? state.sourceCommit
+    : await readHeadHash(io);
+  if (sourceCommit.length === 0) return false;
+
+  await writeLocalSyncStateRecord(cwd, io, identity, {
+    ...state,
+    partialPush: { localRefHash, sourceCommit },
+  });
+  return true;
+}
+
+export async function clearPartialPushMarker(
+  cwd: string,
+  io: UserIOContext,
+  identity: string,
+): Promise<void> {
+  const state = await readLocalSyncState(cwd, io, identity);
+  if (!state?.partialPush) return;
+
+  await writeLocalSyncStateRecord(cwd, io, identity, {
+    version: state.version,
+    materializedManifestHash: state.materializedManifestHash,
+    sourceCommit: state.sourceCommit,
+    sourceOperation: state.sourceOperation,
+  });
+}
+
+async function readLocalNotesRefHash(
+  io: UserIOContext,
+  identity: string,
+): Promise<string | null> {
+  try {
+    const { stdout } = await io.exec("git", [
+      "rev-parse",
+      "--verify",
+      `refs/notes/${notesRef(identity)}`,
+    ]);
+    return stdout.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+async function readHeadHash(io: UserIOContext): Promise<string> {
+  try {
+    const { stdout } = await io.exec("git", ["rev-parse", "HEAD"]);
+    return stdout.trim();
+  } catch {
+    return "";
+  }
 }
 
 function normalizeManifest(

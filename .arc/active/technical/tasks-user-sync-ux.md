@@ -37,10 +37,13 @@ unification (1.2) — unification builds on the new load semantic.
 - Unit coverage pins five-state exhaustiveness, paired full/session-init agreement, layered
   detail axes, and pull-directed `remote-ahead` recovery when local disk edits are present.
 
-### `[ ]` **1.3 Partial-push state on the spine**
+### `[x]` **1.3 Partial-push state on the spine**
 
-- _Goal:_ Surface "worktree pushed, notes ref lagging" as a validated recovery condition without
-  changing the pure notes-ref topology or session-init's 5-state contract.
+- Partial-push recovery is now a validated coherence axis on the shared spine. Markers persist in
+  `.internal/.sync-state.json`, are validated against the current local notes ref hash, clear when stale or
+  already recovered, and surface an unverified recovery condition when the remote cannot be checked.
+- Sync records the marker when notes push fails after a clean worktree publish state; `arc user push` clears it
+  on successful recovery or idempotent already-matching pushes.
 
     - `[x]` **1.3.a Coherence-condition interface**
         - Added `UserSyncCoherenceState` / `coherenceState` as a detail axis layered on the shared spine.
@@ -48,30 +51,16 @@ unification (1.2) — unification builds on the new load semantic.
           remains `clean`. Full-mode status now emits explicit partial-push recovery copy and points at
           `arc user push` retry guidance instead of the generic local-ahead hint.
 
-    - `[ ]` **1.3.b Partial-push marker persistence**
-        - Persist a recovery marker in the user internal sync state (or equivalent internal notes-sync
-          state), including local notes ref hash and annotated/source commit.
-        - Validate marker before surfacing: ignore or clear stale markers when local notes no longer match;
-          clear when remote already matches local; when remote is unavailable, report that recovery cannot be
-          verified rather than reporting clean.
-        - Affected file: `packages/arc-framework/src/commands/user/save-load.ts`.
-        - Build `test-first` (one behavior at a time):
-            - Valid marker + remote mismatch → `arc status` reports partial-push, not clean
-            - Stale marker ignored or cleared
-            - Remote already matches local → marker clears and spine returns clean
-            - Remote unavailable with marker → status reports recovery-verification uncertainty
+    - `[x]` **1.3.b Partial-push marker persistence**
+        - `.sync-state.json` now stores `partialPush.localRefHash` plus `sourceCommit`. Status validates the
+          marker against the current local notes ref before surfacing it, clears stale or already-recovered
+          markers, and reports `partial-push-unverified` when the marker matches locally but remote comparison
+          is unavailable.
 
-    - `[ ]` **1.3.c Push-flow marker lifecycle**
-        - Record the marker when a notes push fails after the worktree-side publish step has succeeded
-          (handoff or manual paired-push path).
-        - Clear the marker when `arc user push` succeeds or no-ops because remote already matches local.
-        - Affected files: `packages/arc-framework/src/commands/user/push-fetch.ts`,
-          `packages/arc-framework/src/handlers/push-recovery.ts`,
-          `packages/arc-framework/src/handlers/sync.ts`.
-        - Build `test-first` (one behavior at a time):
-            - Failed notes-push after successful worktree-side publish records marker
-            - Recovery via `arc user push` clears marker
-            - Re-running recovery is idempotent when remote already matches local
+    - `[x]` **1.3.c Push-flow marker lifecycle**
+        - Sync records a partial-push marker when a notes push fails after the worktree is clean against remote.
+          `arc user push` passes repository context through the push-recovery path and clears the marker after a
+          successful push, including no-op pushes where the remote already matches local notes.
 
 ### `[ ]` **1.4 Rendering surface pass**
 

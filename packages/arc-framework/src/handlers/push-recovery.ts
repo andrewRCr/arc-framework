@@ -46,7 +46,7 @@ export async function pushWithInteractiveRecovery(
   try {
     await runWithSpinner(
       "Pushing user notes...",
-      () => runUserPush({ io, identity }),
+      () => runUserPush({ cwd, io, identity }),
       "Push complete.",
     );
     return { kind: "ok" };
@@ -80,7 +80,7 @@ export async function pushWithInteractiveRecovery(
       if (action === "force") {
         await runWithSpinner(
           "Force-pushing user notes...",
-          () => runUserPush({ io, identity, force: true }),
+          () => runUserPush({ cwd, io, identity, force: true }),
           "Force push complete.",
         );
         return { kind: "ok-recovered", via: "force" };
@@ -102,7 +102,7 @@ export async function pushWithInteractiveRecovery(
       );
       await runWithSpinner(
         "Pushing user notes...",
-        () => runUserPush({ io, identity }),
+        () => runUserPush({ cwd, io, identity }),
         "Push complete.",
       );
       return { kind: "ok-recovered", via: "merge" };

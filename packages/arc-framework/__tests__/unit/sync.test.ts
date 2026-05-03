@@ -31,6 +31,7 @@ const mockInspectUserSyncState = vi.fn();
 const mockRunUserLoad = vi.fn();
 const mockRunUserSave = vi.fn();
 const mockRunUserPull = vi.fn();
+const mockRecordPartialPushMarker = vi.fn();
 const mockHasLocalNotes: Mock<(...args: unknown[]) => Promise<boolean>> = vi.fn();
 const mockBuildSaveSummary: Mock<(result: unknown) => string> = vi.fn(() => "save summary");
 const mockBuildLoadSummary: Mock<(result: unknown) => string> = vi.fn(() => "load summary");
@@ -45,6 +46,8 @@ vi.mock("../../src/commands/user.js", async () => {
     runUserLoad: (opts: unknown) => mockRunUserLoad(opts),
     runUserSave: (opts: unknown) => mockRunUserSave(opts),
     runUserPull: (opts: unknown) => mockRunUserPull(opts),
+    recordPartialPushMarker: (cwd: unknown, io: unknown, identity: unknown) =>
+      mockRecordPartialPushMarker(cwd, io, identity),
     hasLocalNotes: (...args: unknown[]) => mockHasLocalNotes(...args),
     buildSaveSummary: (result: unknown) => mockBuildSaveSummary(result),
     buildLoadSummary: (result: unknown) => mockBuildLoadSummary(result),
@@ -135,6 +138,7 @@ function resetMockDefaults() {
   mockSpinner.mockImplementation(() => ({ start: vi.fn(), stop: vi.fn() }));
   mockBuildSaveSummary.mockReturnValue("save summary");
   mockBuildLoadSummary.mockReturnValue("load summary");
+  mockRecordPartialPushMarker.mockResolvedValue(true);
   // Default: remote_sync enabled, worktree clean — qualifier silent.
   mockReadConfigSettings.mockResolvedValue({ settings: { "session.remote_sync": "enabled" } });
   mockRunWorktreeSyncStatus.mockResolvedValue({ state: "clean", ahead: 0, behind: 0 });
@@ -537,6 +541,22 @@ describe("handleSync push policy", () => {
     expect(mockLog.warn).toHaveBeenCalledWith(expect.stringContaining("non-interactive"));
     expect(mockLog.warn).toHaveBeenCalledWith(expect.stringContaining("save preserved"));
     expect(mockLog.error).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("records a partial-push marker when notes push fails after clean worktree publish state", async () => {
+    setSyncState("local-ahead", "same");
+    setPolicy("always");
+    mockRunUserSave.mockResolvedValue({ warnings: [] });
+    mockPushWithRecovery.mockResolvedValue({ kind: "failed", error: new Error("network timeout") });
+
+    await handleSync();
+
+    expect(mockRecordPartialPushMarker).toHaveBeenCalledWith(
+      process.cwd(),
+      expect.anything(),
+      "andrew",
+    );
     expect(process.exitCode).toBe(1);
   });
 });

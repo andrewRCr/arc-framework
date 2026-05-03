@@ -194,7 +194,7 @@ export async function handleUserPush(opts: UserPushOptions): Promise<void> {
     try {
       await runWithSpinner(
         "Force-pushing user notes...",
-        () => runUserPush({ io, identity, force: true }),
+        () => runUserPush({ cwd, io, identity, force: true }),
         "Force push complete.",
       );
       p.outro("Done.");

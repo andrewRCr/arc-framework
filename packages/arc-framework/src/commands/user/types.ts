@@ -110,6 +110,8 @@ export interface UserAddOptions {
 export interface UserPushOptions {
   io: UserIOContext;
   identity: string;
+  /** Repository root, used to clear local recovery markers after a successful push. */
+  cwd?: string;
   /** Force-push even when remote and local notes conflict. */
   force?: boolean;
 }
@@ -165,7 +167,7 @@ export type UserDiskStatus =
  * These are not additional `UserSyncRefState` or `UserSessionInitState`
  * values; they explain recovery context for an existing spine verdict.
  */
-export type UserSyncCoherenceState = "partial-push";
+export type UserSyncCoherenceState = "partial-push" | "partial-push-unverified";
 
 export type UserSessionInitState =
   | "disabled"

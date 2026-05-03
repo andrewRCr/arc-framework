@@ -4,6 +4,7 @@ import { serialize, type SyncManifest } from "../../lib/git/index.js";
 import { runWorktreeSyncStatus, type WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
 import { formatRelativeTime } from "./relative-time.js";
 import {
+  clearPartialPushMarker,
   findNearestUserNote,
   hashSyncManifest,
   listBackupFiles,
@@ -45,9 +46,16 @@ export async function inspectUserSyncState(
     inspectUserSyncRefsDetailed(io, identity),
     inspectDiskVsLocalSnapshot(cwd, io, identity),
   ]);
+  const coherenceState = await resolveUserSyncCoherenceState({
+    cwd,
+    io,
+    identity,
+    refInspection,
+  });
   const spine = computeUserSyncSpine({
     remoteSyncEnabled: true,
     refState: refInspection.state,
+    coherenceState,
   });
 
   return {
@@ -86,6 +94,9 @@ export async function runUserStatus(
   const spine = computeUserSyncSpine({
     remoteSyncEnabled: !offline,
     refState: refInspection?.state ?? null,
+    coherenceState: refInspection
+      ? await resolveUserSyncCoherenceState({ cwd, io, identity, refInspection })
+      : undefined,
   });
 
   const note = search.note;
@@ -162,6 +173,8 @@ export async function runUserSessionInitStatus(
 interface UserSyncRefInspection {
   state: UserSyncRefState;
   comparison: "full" | "read-only" | "comparison-unavailable" | "remote-unavailable";
+  localHash: string | null;
+  remoteHash: string | null;
 }
 
 /**
@@ -177,7 +190,7 @@ export function computeUserSyncSpine(input: {
   coherenceState?: UserSyncCoherenceState;
 }): UserSyncSpine {
   const refState = input.remoteSyncEnabled ? input.refState : null;
-  const coherenceState = refState === "local-ahead" ? input.coherenceState : undefined;
+  const coherenceState = normalizeCoherenceState(refState, input.coherenceState);
   const state = computeUserSyncSpineState(input.remoteSyncEnabled, refState);
   return {
     state,
@@ -186,6 +199,42 @@ export function computeUserSyncSpine(input: {
     remoteStatus: deriveRemoteStatus(refState),
     shouldPromptToPull: state === "remote-ahead" || state === "conflict",
   };
+}
+
+function normalizeCoherenceState(
+  refState: UserSyncRefState | null,
+  coherenceState: UserSyncCoherenceState | undefined,
+): UserSyncCoherenceState | undefined {
+  if (refState === "local-ahead" && coherenceState === "partial-push") {
+    return coherenceState;
+  }
+  if (refState === "remote-unavailable" && coherenceState === "partial-push-unverified") {
+    return coherenceState;
+  }
+  return undefined;
+}
+
+async function resolveUserSyncCoherenceState(input: {
+  cwd: string;
+  io: UserIOContext;
+  identity: string;
+  refInspection: UserSyncRefInspection;
+}): Promise<UserSyncCoherenceState | undefined> {
+  const { cwd, io, identity, refInspection } = input;
+  const syncState = await readLocalSyncState(cwd, io, identity);
+  const marker = syncState?.partialPush;
+  if (!marker) return undefined;
+
+  if (!refInspection.localHash || marker.localRefHash !== refInspection.localHash) {
+    await clearPartialPushMarker(cwd, io, identity);
+    return undefined;
+  }
+
+  if (refInspection.state === "local-ahead") return "partial-push";
+  if (refInspection.state === "remote-unavailable") return "partial-push-unverified";
+
+  await clearPartialPushMarker(cwd, io, identity);
+  return undefined;
 }
 
 function computeUserSyncSpineState(
@@ -378,6 +427,10 @@ export function buildUserStatusResult(
     detailLines.push(
       "Partial push recovery: remote notes are still behind local notes after a prior publish attempt.",
     );
+  } else if (spine.coherenceState === "partial-push-unverified") {
+    detailLines.push(
+      "Partial push recovery cannot be verified because remote notes are unavailable.",
+    );
   }
 
   const worktreeQualifier = formatWorktreeQualifierLine({
@@ -542,7 +595,7 @@ function renderRemoteStatus(remoteStatus: UserRemoteStatus): string {
 
 type PreFetchClassification =
   | { kind: "fast-result"; result: UserSyncRefInspection }
-  | { kind: "must-fetch"; localHash: string };
+  | { kind: "must-fetch"; localHash: string; remoteHash: string };
 
 function classifyPreFetch(
   localHash: string | null,
@@ -551,12 +604,20 @@ function classifyPreFetch(
   if (remoteProbe.kind === "remote-unavailable") {
     return {
       kind: "fast-result",
-      result: { state: "remote-unavailable", comparison: "remote-unavailable" },
+      result: {
+        state: "remote-unavailable",
+        comparison: "remote-unavailable",
+        localHash,
+        remoteHash: null,
+      },
     };
   }
   const remoteHash = remoteProbe.hash;
   if (!localHash && !remoteHash) {
-    return { kind: "fast-result", result: { state: "same", comparison: "read-only" } };
+    return {
+      kind: "fast-result",
+      result: { state: "same", comparison: "read-only", localHash, remoteHash },
+    };
   }
   if (!localHash || !remoteHash) {
     return {
@@ -564,13 +625,18 @@ function classifyPreFetch(
       result: {
         state: localHash ? "local-ahead" : "remote-ahead",
         comparison: "read-only",
+        localHash,
+        remoteHash,
       },
     };
   }
   if (localHash === remoteHash) {
-    return { kind: "fast-result", result: { state: "same", comparison: "read-only" } };
+    return {
+      kind: "fast-result",
+      result: { state: "same", comparison: "read-only", localHash, remoteHash },
+    };
   }
-  return { kind: "must-fetch", localHash };
+  return { kind: "must-fetch", localHash, remoteHash };
 }
 
 async function inspectUserSyncRefsDetailed(
@@ -590,25 +656,55 @@ async function inspectUserSyncRefsDetailed(
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     if (message.includes("couldn't find remote ref")) {
-      return { state: "local-ahead", comparison: "read-only" };
+      return {
+        state: "local-ahead",
+        comparison: "read-only",
+        localHash: classification.localHash,
+        remoteHash: null,
+      };
     }
-    return { state: "remote-unavailable", comparison: "comparison-unavailable" };
+    return {
+      state: "remote-unavailable",
+      comparison: "comparison-unavailable",
+      localHash: classification.localHash,
+      remoteHash: classification.remoteHash,
+    };
   }
 
   try {
     const fetchedRemoteHash = await readRefHash(io, tempRef);
 
     if (!fetchedRemoteHash) {
-      return { state: "remote-unavailable", comparison: "comparison-unavailable" };
+      return {
+        state: "remote-unavailable",
+        comparison: "comparison-unavailable",
+        localHash: classification.localHash,
+        remoteHash: null,
+      };
     }
 
     if (await isAncestor(io, classification.localHash, fetchedRemoteHash)) {
-      return { state: "remote-ahead", comparison: "full" };
+      return {
+        state: "remote-ahead",
+        comparison: "full",
+        localHash: classification.localHash,
+        remoteHash: fetchedRemoteHash,
+      };
     }
     if (await isAncestor(io, fetchedRemoteHash, classification.localHash)) {
-      return { state: "local-ahead", comparison: "full" };
+      return {
+        state: "local-ahead",
+        comparison: "full",
+        localHash: classification.localHash,
+        remoteHash: fetchedRemoteHash,
+      };
     }
-    return { state: "diverged", comparison: "full" };
+    return {
+      state: "diverged",
+      comparison: "full",
+      localHash: classification.localHash,
+      remoteHash: fetchedRemoteHash,
+    };
   } finally {
     await deleteRef(io, tempRef);
   }
@@ -857,6 +953,9 @@ function determineUserStatusAction(
     case "conflict":
       return "run `arc user fetch` for non-destructive inspection";
     case "remote-unavailable":
+      if (spine.coherenceState === "partial-push-unverified") {
+        return "retry online to verify partial-push recovery";
+      }
       if (diskState === "same") return "retry online to confirm remote status";
       if (unsavedDirection === "edits") {
         return "run `arc user save`, then retry online when the remote is reachable";

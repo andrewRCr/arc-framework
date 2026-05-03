@@ -7,10 +7,12 @@
 
 export { runUserAdd } from "./user/add.js";
 export {
+  clearPartialPushMarker,
   findNearestUserNote,
   hashSyncManifest,
   listBackupFiles,
   readLocalSyncState,
+  recordPartialPushMarker,
   runUserLoad,
   runUserSave,
 } from "./user/save-load.js";

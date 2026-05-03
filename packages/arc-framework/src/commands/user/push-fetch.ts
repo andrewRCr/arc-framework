@@ -1,5 +1,5 @@
 import { notesRef } from "./shared.js";
-import { runUserLoad } from "./save-load.js";
+import { clearPartialPushMarker, runUserLoad } from "./save-load.js";
 import type {
   UserFetchOptions,
   UserIOContext,
@@ -13,10 +13,13 @@ import type {
  * @param options - Push options
  */
 export async function runUserPush(options: UserPushOptions): Promise<void> {
-  const { io, identity, force } = options;
+  const { cwd, io, identity, force } = options;
   const ref = `refs/notes/${notesRef(identity)}`;
   const args = force ? ["push", "--force", "origin", ref] : ["push", "origin", ref];
   await io.exec("git", args);
+  if (cwd) {
+    await clearPartialPushMarker(cwd, io, identity);
+  }
 }
 
 /**

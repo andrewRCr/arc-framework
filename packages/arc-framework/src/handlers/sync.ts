@@ -16,6 +16,7 @@ import {
   runUserLoad,
   runUserSave,
   runUserPull,
+  recordPartialPushMarker,
   buildSaveSummary,
   buildLoadSummary,
   formatWorktreeQualifierLine,
@@ -48,6 +49,7 @@ type DirectionParams = {
   yes: boolean;
   maxWalk?: number;
   restoreAfterPush?: boolean;
+  recordPartialPushOnFailure?: boolean;
 };
 
 function walkExhaustedMessage(walked: number): string {
@@ -100,7 +102,14 @@ export async function handleSync(opts: SyncOptions = {}): Promise<void> {
       return;
     case "push":
       p.log.info("→ Saving working-file changes and pushing the local git note to remote.");
-      await handlePushDirection({ cwd, io, identity, yes, maxWalk });
+      await handlePushDirection({
+        cwd,
+        io,
+        identity,
+        yes,
+        maxWalk,
+        recordPartialPushOnFailure: worktree?.state === "clean",
+      });
       return;
     case "pull":
       p.log.info("→ Pulling the newer remote git note and restoring it to working files.");
@@ -112,7 +121,15 @@ export async function handleSync(opts: SyncOptions = {}): Promise<void> {
       return;
     case "push-load":
       p.log.info("→ Pushing the newer local git note, then restoring it to working files.");
-      await handlePushDirection({ cwd, io, identity, yes, maxWalk, restoreAfterPush: true });
+      await handlePushDirection({
+        cwd,
+        io,
+        identity,
+        yes,
+        maxWalk,
+        restoreAfterPush: true,
+        recordPartialPushOnFailure: worktree?.state === "clean",
+      });
       return;
     case "conflict":
       await handleConflict({ cwd, io, identity, yes, maxWalk });
@@ -367,12 +384,14 @@ async function handlePushDirection(params: DirectionParams): Promise<void> {
       p.log.info("Push cancelled. Run `arc user push` when ready.");
       return;
     case "no-remote":
+      await recordPartialPushMarkerAfterFailedPush(params);
       p.log.error("No remote configured. Push requires a remote repository.");
       p.log.info("Set up a remote with: git remote add origin <url>");
       p.log.warn("User directory was saved locally — push manually with `arc user push`.");
       process.exitCode = 1;
       return;
     case "failed-nontty-conflict":
+      await recordPartialPushMarkerAfterFailedPush(params);
       p.log.warn(
         "Push rejected — local and remote notes conflict (both moved since common ancestor), "
         + "and the environment is non-interactive.",
@@ -383,6 +402,7 @@ async function handlePushDirection(params: DirectionParams): Promise<void> {
       process.exitCode = 1;
       return;
     case "failed": {
+      await recordPartialPushMarkerAfterFailedPush(params);
       if (!isHandledError(pushResult.error)) {
         const msg = pushResult.error instanceof Error
           ? pushResult.error.message
@@ -394,4 +414,9 @@ async function handlePushDirection(params: DirectionParams): Promise<void> {
       return;
     }
   }
+}
+
+async function recordPartialPushMarkerAfterFailedPush(params: DirectionParams): Promise<void> {
+  if (!params.recordPartialPushOnFailure) return;
+  await recordPartialPushMarker(params.cwd, params.io, params.identity);
 }
