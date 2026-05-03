@@ -13,6 +13,11 @@
 
 **Intended lifespan:** Until the rebrand work unit is archived.
 
+> **2026-05-03 demotion note:** `tasks-arcd-rebrand.md` and `atomic-arcd-rebrand.md`
+> retired; `prd-arcd-rebrand.md` preserved as stale-spec home (see PRD § Status).
+> This file's reference content survives the demotion as-is and remains the home for
+> any pre-re-graduation working notes.
+
 ---
 
 ## Secured Namespaces
