@@ -21,19 +21,28 @@ unification (1.2) — unification builds on the new load semantic.
 
 - Refactor `arc user load` and `arc user pull` to walk `git log refs/notes/arc/user/{identity}`
   rather than HEAD ancestry.
+- Notes-ref-history walk contract:
+    - Walk note-ref commits newest to oldest, inspect changed note entries, and return the newest valid ARC
+      user manifest.
+    - Returned metadata distinguishes the annotated commit from the note-history position and reports whether
+      the annotated commit is reachable from current HEAD.
 - Affected file: `packages/arc-framework/src/commands/user/save-load.ts`.
-- Existing `--max-walk N` flag continues to bound depth.
+- Existing `--max-walk N` flag continues to bound depth; after this change it bounds note-ref history commits,
+  not HEAD ancestors.
 - Build `test-first` (one behavior at a time):
     - HEAD-ancestry-stale scenario (notes attached to commit not in HEAD's ancestry) → walk via
       notes-ref history succeeds
     - Branch-gone scenario (local branch deleted but notes ref intact) → notes still discoverable
     - Empty notes ref → returns no-notes signal cleanly
-    - `--max-walk N` bounds notes-ref-history walk depth equivalently to legacy mode
+    - Deleted or rewritten latest note state falls through to the newest valid manifest or no-notes cleanly
+    - `--max-walk N` bounds notes-ref-history walk depth
 
 ### `[ ]` **1.2 State-machine spine unification**
 
 - Collapse `inspectUserSyncRefsDetailed` and `runUserSessionInitStatus` onto a single
   state-computation spine.
+- Full-mode and session-init render from the shared spine result; neither keeps an independent
+  state-to-action switch path.
 - Session-init's 5-state surface (`clean | remote-ahead | conflict | disabled |
   remote-unavailable`) is the spine for both modes; full-mode adds `diskStatus`, `savedWhen`,
   `refDistance` as detail axes that never disagree with the spine.
@@ -52,17 +61,47 @@ unification (1.2) — unification builds on the new load semantic.
 
 ### `[ ]` **1.3 Partial-push state on the spine**
 
-- Add "worktree pushed, notes ref lagging" as a recognized condition distinguishable from generic
-  `local-ahead` on the spine.
-- Persist enough state across invocations that a partial-push failure (handoff or manual) is
-  detectable on subsequent `arc status` invocations — never reports `clean` after partial publish.
-- Affected file: `packages/arc-framework/src/commands/user/sync-status.ts`.
-- Build `test-first` (one behavior at a time):
-    - After partial-push (worktree succeeded, notes failed) → `arc status` reports partial-push,
-      not clean
-    - Recovery via `arc user push` succeeds → spine returns to `clean`
-    - Discrimination: partial-push state distinguishable from generic `local-ahead`
-    - Action hint surfaces recovery guidance (`arc user push` to retry)
+- _Goal:_ Surface "worktree pushed, notes ref lagging" as a validated recovery condition without
+  changing the pure notes-ref topology or session-init's 5-state contract.
+
+    - `[ ]` **1.3.a Coherence-condition interface**
+        - Model partial-push as a separate coherence/detail axis layered on the spine, not as a new
+          `UserSyncRefState` value and not as a sixth `UserSessionInitState`.
+        - The notes ref topology remains `local-ahead`; session-init keeps
+          `clean | remote-ahead | conflict | disabled | remote-unavailable`.
+        - Full-mode status must surface the partial-push condition explicitly and use `arc user push`
+          recovery guidance instead of generic `local-ahead` copy.
+        - Affected files: `packages/arc-framework/src/commands/user/types.ts`,
+          `packages/arc-framework/src/commands/user/sync-status.ts`.
+        - Build `test-first` (one behavior at a time):
+            - Partial-push condition layers on a `local-ahead` ref topology
+            - Session-init state union remains 5-state while preserving the condition detail
+            - Action hint surfaces recovery guidance (`arc user push` to retry)
+
+    - `[ ]` **1.3.b Partial-push marker persistence**
+        - Persist a recovery marker in the user internal sync state (or equivalent internal notes-sync
+          state), including local notes ref hash and annotated/source commit.
+        - Validate marker before surfacing: ignore or clear stale markers when local notes no longer match;
+          clear when remote already matches local; when remote is unavailable, report that recovery cannot be
+          verified rather than reporting clean.
+        - Affected file: `packages/arc-framework/src/commands/user/save-load.ts`.
+        - Build `test-first` (one behavior at a time):
+            - Valid marker + remote mismatch → `arc status` reports partial-push, not clean
+            - Stale marker ignored or cleared
+            - Remote already matches local → marker clears and spine returns clean
+            - Remote unavailable with marker → status reports recovery-verification uncertainty
+
+    - `[ ]` **1.3.c Push-flow marker lifecycle**
+        - Record the marker when a notes push fails after the worktree-side publish step has succeeded
+          (handoff or manual paired-push path).
+        - Clear the marker when `arc user push` succeeds or no-ops because remote already matches local.
+        - Affected files: `packages/arc-framework/src/commands/user/push-fetch.ts`,
+          `packages/arc-framework/src/handlers/push-recovery.ts`,
+          `packages/arc-framework/src/handlers/sync.ts`.
+        - Build `test-first` (one behavior at a time):
+            - Failed notes-push after successful worktree-side publish records marker
+            - Recovery via `arc user push` clears marker
+            - Re-running recovery is idempotent when remote already matches local
 
 ### `[ ]` **1.4 Rendering surface pass**
 
@@ -292,6 +331,12 @@ Phase 3's vocabulary alignment for first-use copy strings.
 - Extend the bounded-fetch pattern (already in place for the worktree-sync probe) to the notes
   ref on full-mode `arc status` invocation. Session-init probe stays remote-aware via the
   existing pull mechanism.
+- Boundary: this task classifies why the notes-sync state differs; it does not decide which branch
+  or work unit the identity should work on. Branch-gone recovery and target selection remain
+  Worktree Foundation + Coord Probe scope.
+- Downstream signal contract: preserve enough metadata from notes discovery for later routing work
+  to consume (annotated commit, note-history distance, current-HEAD reachability, and inferred
+  local / sibling-session / cross-machine cause).
 - Sync-state inference distinguishes:
     - Local-behind-because-haven't-fetched (single-machine, single-session)
     - Local-behind-because-other-machine (cross-machine work)
