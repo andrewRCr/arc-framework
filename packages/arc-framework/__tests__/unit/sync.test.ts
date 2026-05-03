@@ -627,7 +627,9 @@ describe("handleSync worktree qualifier", () => {
 
     await handleSync();
 
-    expect(mockLog.info).toHaveBeenCalledWith("Worktree is behind origin by 3 commit(s).");
+    expect(mockLog.info).toHaveBeenCalledWith(
+      "Local worktree HEAD is behind its origin upstream by 3 commit(s).",
+    );
   });
 
   it("emits a divergence qualifier when worktree has diverged", async () => {
@@ -636,10 +638,12 @@ describe("handleSync worktree qualifier", () => {
 
     await handleSync();
 
-    expect(mockLog.info).toHaveBeenCalledWith("Worktree has diverged from origin (1 ahead, 2 behind).");
+    expect(mockLog.info).toHaveBeenCalledWith(
+      "Local worktree HEAD and its origin upstream have diverged (1 local ahead, 2 remote ahead).",
+    );
   });
 
-  it("emits a soft 'comparison unavailable' qualifier when the worktree probe failed", async () => {
+  it("emits a timeout-specific qualifier when the worktree probe times out", async () => {
     setSyncState("same", "same");
     mockRunWorktreeSyncStatus.mockResolvedValue({
       state: "remote-unavailable",
@@ -651,7 +655,7 @@ describe("handleSync worktree qualifier", () => {
     await handleSync();
 
     expect(mockLog.info).toHaveBeenCalledWith(
-      "Worktree remote comparison unavailable; reported state may not reflect unreachable remote commits.",
+      "Worktree local-to-origin comparison timed out; retry or use `--offline` to report local worktree refs only.",
     );
   });
 

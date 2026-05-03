@@ -283,9 +283,9 @@ function buildUserSessionInitStatusResult(input: {
         identity,
         state: spine.state,
         ...(spine.coherenceState ? { coherenceState: spine.coherenceState } : {}),
-        summary: `${identity}: session-init remote state clean`,
+        summary: `${identity}: session-init local notes match remote notes`,
         detailLines: spine.refState === "local-ahead"
-          ? ["Local notes are newer than remote, but no pull is needed before continuing."]
+          ? ["Local notes are newer than remote notes, but no pull is needed before continuing."]
           : ["Remote notes match local notes."],
         actionHint: null,
         shouldPromptToPull: spine.shouldPromptToPull,
@@ -295,7 +295,7 @@ function buildUserSessionInitStatusResult(input: {
         identity,
         state: spine.state,
         ...(spine.coherenceState ? { coherenceState: spine.coherenceState } : {}),
-        summary: `${identity}: session-init remote notes ahead`,
+        summary: `${identity}: session-init remote notes ahead of local notes`,
         detailLines: [
           "Remote notes are newer than local notes.",
           "Next step: ask whether to run `arc user pull` before continuing session-init.",
@@ -308,7 +308,7 @@ function buildUserSessionInitStatusResult(input: {
         identity,
         state: spine.state,
         ...(spine.coherenceState ? { coherenceState: spine.coherenceState } : {}),
-        summary: `${identity}: session-init remote notes conflict`,
+        summary: `${identity}: session-init local and remote notes conflict`,
         detailLines: [
           "Local and remote notes conflict (both moved since common ancestor).",
           "Next step: ask whether to run `arc user pull` and replace local notes before continuing.",
@@ -322,9 +322,9 @@ function buildUserSessionInitStatusResult(input: {
           identity,
           state: spine.state,
           ...(spine.coherenceState ? { coherenceState: spine.coherenceState } : {}),
-          summary: `${identity}: session-init remote comparison unavailable here`,
+          summary: `${identity}: session-init local-to-remote notes comparison unavailable here`,
           detailLines: [
-            "Remote notes are reachable, but this environment blocks the fetch-based ancestry comparison.",
+            "Remote notes are reachable, but this environment blocks the local-to-remote notes ancestry comparison.",
             "Next step: continue with local tracked state, or retry session-init where git fetch/write access is allowed.",
           ],
           actionHint: "continue locally or retry session-init where git fetch/write access is allowed",
@@ -335,9 +335,9 @@ function buildUserSessionInitStatusResult(input: {
         identity,
         state: spine.state,
         ...(spine.coherenceState ? { coherenceState: spine.coherenceState } : {}),
-        summary: `${identity}: session-init remote probe unavailable`,
+        summary: `${identity}: session-init remote notes unavailable for comparison with local notes`,
         detailLines: [
-          "Remote notes could not be reached.",
+          "Remote notes could not be reached for comparison with local notes.",
           "Next step: continue with local tracked state, or retry once the remote is reachable.",
         ],
         actionHint: "continue locally or retry once the remote is reachable",
@@ -402,9 +402,10 @@ export function buildUserStatusResult(
   const remoteStatus = spine.remoteStatus;
   const diskStatus = input.diskStatus ?? deriveDiskStatus(diskState, unsavedDirection);
   const headline = determineUserStatusHeadline(remoteStatus, diskStatus);
+  const summaryHeadline = renderSummaryHeadline(headline, remoteChecked);
   const summary = remoteChecked
-    ? `${identity}: ${headline}`
-    : `${identity}: ${headline} (offline)`;
+    ? `${identity}: ${summaryHeadline}`
+    : `${identity}: ${summaryHeadline} (offline)`;
 
   const detailLines: string[] = [];
   const actionHint = determineUserStatusAction(
@@ -416,7 +417,7 @@ export function buildUserStatusResult(
   );
 
   if (!remoteChecked) {
-    detailLines.push("Remote check skipped (`--offline`).");
+    detailLines.push("Remote notes check skipped (`--offline`); local notes were not compared with remote notes.");
   }
 
   detailLines.push(renderHeadlineExplanation(headline, diskStatus));
@@ -429,7 +430,7 @@ export function buildUserStatusResult(
     );
   } else if (spine.coherenceState === "partial-push-unverified") {
     detailLines.push(
-      "Partial push recovery cannot be verified because remote notes are unavailable.",
+      "Partial push recovery cannot be verified because remote notes are unavailable for comparison with local notes.",
     );
   }
 
@@ -448,7 +449,7 @@ export function buildUserStatusResult(
 
   if (savedCommit && savedReachableFromHead && ancestorDistance > 0) {
     detailLines.push(
-      `Latest local git note is from ${savedCommit}, ${ancestorDistance} commit(s) back.`,
+      `Latest local git note is from ${savedCommit}, ${ancestorDistance} commit(s) back from HEAD.`,
     );
   } else if (savedCommit && savedReachableFromHead && ancestorDistance === 0) {
     detailLines.push("Latest local git note is current with HEAD.");
@@ -521,7 +522,7 @@ export function formatWorktreeQualifierLine(input: {
     // Skip-note belongs to the case where remote sync is wired but the user
     // opted out for this invocation. Disabled config stays silent.
     return remoteSyncEnabled
-      ? "Worktree remote comparison skipped (`--offline`); reported state reflects local refs only."
+      ? "Worktree remote comparison skipped (`--offline`); reported state reflects local worktree refs only."
       : null;
   }
 
@@ -529,13 +530,47 @@ export function formatWorktreeQualifierLine(input: {
 
   switch (worktree.state) {
     case "remote-ahead":
-      return `Worktree is behind origin by ${worktree.behind} commit(s).`;
+      return `Local worktree HEAD is behind its origin upstream by ${worktree.behind} commit(s).`;
     case "diverged":
-      return `Worktree has diverged from origin (${worktree.ahead} ahead, ${worktree.behind} behind).`;
+      return `Local worktree HEAD and its origin upstream have diverged (${worktree.ahead} local ahead, ${worktree.behind} remote ahead).`;
     case "remote-unavailable":
-      return "Worktree remote comparison unavailable; reported state may not reflect unreachable remote commits.";
+      return formatRemoteUnavailableWorktreeLine(worktree.failureReason);
     default:
       return null;
+  }
+}
+
+function formatRemoteUnavailableWorktreeLine(
+  failureReason: WorktreeSyncStatusResult["failureReason"],
+): string {
+  if (failureReason === "timeout") {
+    return "Worktree local-to-origin comparison timed out; retry or use `--offline` to report local worktree refs only.";
+  }
+  if (failureReason === "error") {
+    return "Worktree local-to-origin comparison failed; investigate auth/network access before trusting remote worktree state.";
+  }
+  return "Worktree local-to-origin comparison unavailable; reported state may not reflect remote commits.";
+}
+
+function renderSummaryHeadline(
+  headline: UserStatusHeadline,
+  remoteChecked: boolean,
+): string {
+  switch (headline) {
+    case "git note up to date":
+      return remoteChecked
+        ? "local notes match working files and remote notes"
+        : "local notes match working files";
+    case "remote note ahead":
+      return "remote notes are ahead of local notes";
+    case "local note ahead":
+      return "local notes are ahead of remote notes";
+    case "git note out of date":
+      return "working files differ from local notes";
+    case "notes conflict":
+      return "local and remote notes conflict";
+    case "remote unavailable":
+      return "remote notes unavailable for comparison with local notes";
   }
 }
 
@@ -547,9 +582,9 @@ function renderHeadlineExplanation(
     case "git note up to date":
       return "Local git note and working files are current.";
     case "remote note ahead":
-      return "A newer remote git note exists.";
+      return "Remote git note is newer than the local git note.";
     case "local note ahead":
-      return "Your local git note is newer than remote.";
+      return "Local git note is newer than the remote git note.";
     case "git note out of date":
       if (diskStatus === "stale") {
         return "Latest local git note is not current with the working files.";
@@ -561,7 +596,7 @@ function renderHeadlineExplanation(
     case "notes conflict":
       return "Local and remote git notes both moved since common ancestor.";
     case "remote unavailable":
-      return "Remote git-note status could not be checked.";
+      return "Remote git-note status could not be checked against the local git note.";
   }
 }
 
@@ -581,15 +616,15 @@ function renderWorkingFilesLine(diskStatus: UserDiskStatus): string {
 function renderRemoteStatus(remoteStatus: UserRemoteStatus): string {
   switch (remoteStatus) {
     case "in sync":
-      return "in sync";
+      return "match local notes";
     case "local ahead":
-      return "local note ahead";
+      return "behind local notes";
     case "remote ahead":
-      return "remote note ahead";
+      return "ahead of local notes";
     case "conflict":
-      return "notes conflict";
+      return "conflict with local notes";
     case "remote unavailable":
-      return "unavailable";
+      return "unavailable for comparison with local notes";
   }
 }
 

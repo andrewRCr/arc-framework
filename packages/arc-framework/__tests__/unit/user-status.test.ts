@@ -40,7 +40,9 @@ describe("buildUserStatusResult", () => {
     expect(result.remoteStatus).toBe("in sync");
     expect(result.diskStatus).toBe("current");
     expect(result.actionHint).toBeNull();
-    expect(buildUserStatusSummary(result)).toContain("andrew: git note up to date");
+    expect(buildUserStatusSummary(result)).toContain(
+      "andrew: local notes match working files and remote notes",
+    );
   });
 
   it("reports remote-ahead state with a pull hint", () => {
@@ -77,12 +79,14 @@ describe("buildUserStatusResult", () => {
     });
 
     expect(result.headline).toBe("git note out of date");
-    expect(result.summary).toBe("andrew: git note out of date (offline)");
-    expect(result.detailLines).toContain("Remote check skipped (`--offline`).");
+    expect(result.summary).toBe("andrew: working files differ from local notes (offline)");
+    expect(result.detailLines).toContain(
+      "Remote notes check skipped (`--offline`); local notes were not compared with remote notes.",
+    );
     expect(result.detailLines).toContain("Latest local git note is not current with the working files.");
     expect(result.detailLines).toContain("Working files reflect an older local git note.");
-    expect(result.detailLines).toContain("Remote notes: in sync.");
-    expect(result.detailLines).toContain("Latest local git note is from abc1234, 3 commit(s) back.");
+    expect(result.detailLines).toContain("Remote notes: match local notes.");
+    expect(result.detailLines).toContain("Latest local git note is from abc1234, 3 commit(s) back from HEAD.");
     expect(result.detailLines).toContain("Pre-load backup present: .pre-load-backup.json");
   });
 
@@ -272,7 +276,7 @@ describe("buildUserStatusResult", () => {
     });
 
     expect(result.detailLines).toContain("Working files match the latest local git note.");
-    expect(result.detailLines).toContain("Remote notes: remote note ahead.");
+    expect(result.detailLines).toContain("Remote notes: ahead of local notes.");
   });
 
   it("picks 'arc user save' hint for local-unsaved when disk has local-only files", () => {
@@ -624,9 +628,9 @@ describe("runUserSessionInitStatus", () => {
     });
 
     expect(result.state).toBe("remote-unavailable");
-    expect(result.summary).toBe("andrew: session-init remote comparison unavailable here");
+    expect(result.summary).toBe("andrew: session-init local-to-remote notes comparison unavailable here");
     expect(result.detailLines).toContain(
-      "Remote notes are reachable, but this environment blocks the fetch-based ancestry comparison.",
+      "Remote notes are reachable, but this environment blocks the local-to-remote notes ancestry comparison.",
     );
     expect(result.detailLines).toContain(
       "Next step: continue with local tracked state, or retry session-init where git fetch/write access is allowed.",
@@ -640,7 +644,7 @@ describe("buildUserSessionInitStatusSummary", () => {
     const summary = buildUserSessionInitStatusSummary({
       identity: "andrew",
       state: "remote-ahead",
-      summary: "andrew: session-init remote notes ahead",
+      summary: "andrew: session-init remote notes ahead of local notes",
       detailLines: [
         "Remote notes are newer than local notes.",
         "Next step: ask whether to run `arc user pull` before continuing session-init.",
@@ -649,7 +653,7 @@ describe("buildUserSessionInitStatusSummary", () => {
       shouldPromptToPull: true,
     });
 
-    expect(summary).toContain("andrew: session-init remote notes ahead");
+    expect(summary).toContain("andrew: session-init remote notes ahead of local notes");
     expect(summary).toContain("Next step: ask whether to run `arc user pull`");
   });
 });
@@ -699,13 +703,15 @@ describe("buildUserStatusResult worktree qualifier", () => {
   it("appends a behind-by-N qualifier when worktree is remote-ahead", () => {
     const result = withWorktree({ state: "remote-ahead", ahead: 0, behind: 3 });
 
-    expect(result.detailLines).toContain("Worktree is behind origin by 3 commit(s).");
+    expect(result.detailLines).toContain("Local worktree HEAD is behind its origin upstream by 3 commit(s).");
   });
 
   it("appends a divergence qualifier with both counts when worktree is diverged", () => {
     const result = withWorktree({ state: "diverged", ahead: 2, behind: 5 });
 
-    expect(result.detailLines).toContain("Worktree has diverged from origin (2 ahead, 5 behind).");
+    expect(result.detailLines).toContain(
+      "Local worktree HEAD and its origin upstream have diverged (2 local ahead, 5 remote ahead).",
+    );
   });
 
   it("keeps the qualifier when notes already report remote-ahead", () => {
@@ -715,7 +721,7 @@ describe("buildUserStatusResult worktree qualifier", () => {
     );
 
     expect(result.headline).toBe("remote note ahead");
-    expect(result.detailLines).toContain("Worktree is behind origin by 1 commit(s).");
+    expect(result.detailLines).toContain("Local worktree HEAD is behind its origin upstream by 1 commit(s).");
   });
 
   it("keeps the qualifier when notes are in conflict", () => {
@@ -725,10 +731,10 @@ describe("buildUserStatusResult worktree qualifier", () => {
     );
 
     expect(result.headline).toBe("notes conflict");
-    expect(result.detailLines).toContain("Worktree is behind origin by 4 commit(s).");
+    expect(result.detailLines).toContain("Local worktree HEAD is behind its origin upstream by 4 commit(s).");
   });
 
-  it("emits a soft 'comparison unavailable' qualifier when the worktree probe failed", () => {
+  it("emits a timeout-specific qualifier when the worktree probe times out", () => {
     const result = withWorktree({
       state: "remote-unavailable",
       ahead: 0,
@@ -737,7 +743,20 @@ describe("buildUserStatusResult worktree qualifier", () => {
     });
 
     expect(result.detailLines).toContain(
-      "Worktree remote comparison unavailable; reported state may not reflect unreachable remote commits.",
+      "Worktree local-to-origin comparison timed out; retry or use `--offline` to report local worktree refs only.",
+    );
+  });
+
+  it("emits an auth/network qualifier when the worktree probe fails without timing out", () => {
+    const result = withWorktree({
+      state: "remote-unavailable",
+      ahead: 0,
+      behind: 0,
+      failureReason: "error",
+    });
+
+    expect(result.detailLines).toContain(
+      "Worktree local-to-origin comparison failed; investigate auth/network access before trusting remote worktree state.",
     );
   });
 
@@ -756,10 +775,10 @@ describe("buildUserStatusResult worktree qualifier", () => {
     });
 
     expect(result.detailLines).toContain(
-      "Worktree remote comparison skipped (`--offline`); reported state reflects local refs only.",
+      "Worktree remote comparison skipped (`--offline`); reported state reflects local worktree refs only.",
     );
-    expect(result.detailLines.some((line) => line.startsWith("Worktree is behind"))).toBe(false);
-    expect(result.detailLines.some((line) => line.startsWith("Worktree has diverged"))).toBe(false);
+    expect(result.detailLines.some((line) => line.startsWith("Local worktree HEAD is behind"))).toBe(false);
+    expect(result.detailLines.some((line) => line.startsWith("Local worktree HEAD and"))).toBe(false);
   });
 
   it("emits no qualifier and no offline note when remote_sync is disabled", () => {

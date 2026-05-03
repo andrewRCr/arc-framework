@@ -62,27 +62,20 @@ unification (1.2) — unification builds on the new load semantic.
           `arc user push` passes repository context through the push-recovery path and clears the marker after a
           successful push, including no-op pushes where the remote already matches local notes.
 
-### `[ ]` **1.4 Rendering surface pass**
+### `[x]` **1.4 Rendering surface pass**
 
-- _Goal:_ Pass over `sync-status.ts` rendering so every line names its comparison reference and
-  all captured detail reaches the user.
+- Completed the `sync-status.ts` rendering pass so comparison copy names both sides and worktree
+  remote-unavailable qualifiers surface timeout vs. auth/network failure detail.
 
-    - `[ ]` **1.4.a Directional copy audit**
-        - Every headline and detail line in `sync-status.ts` names both sides of the comparison
-          it makes.
-        - No line allows the user to wonder "newer than what" or "synced with what."
-        - Test-after — output formatting per project testing methodology.
-        - Affected file: `packages/arc-framework/src/commands/user/sync-status.ts`.
+    - `[x]` **1.4.a Directional copy audit**
+        - Updated `sync-status.ts` rendering so summaries and detail lines explicitly name local
+          notes, remote notes, working files, and origin upstream where comparisons are reported.
+          Shared status and sync tests now pin the directional copy.
 
-    - `[ ]` **1.4.b Worktree qualifier `failureReason` surfacing**
-        - When `worktree.state === "remote-unavailable"`, the rendered line distinguishes timeout
-          (transient — suggest retry or `--offline`) from error (suggest investigating
-          auth/network).
-        - The `failureReason: "timeout" | "error"` field captured by `runWorktreeSyncStatus`
-          reaches the rendered surface.
-        - Test-after — rendering, not detection logic (detection already exists).
-        - Affected file: `packages/arc-framework/src/commands/user/sync-status.ts` (specifically
-          `formatWorktreeQualifierLine`).
+    - `[x]` **1.4.b Worktree qualifier `failureReason` surfacing**
+        - `formatWorktreeQualifierLine` now renders timeout-specific retry/`--offline` copy and
+          error-specific auth/network investigation copy for `remote-unavailable` worktree probes.
+          Status and sync tests cover the rendered failure-reason surface.
 
 ## **Phase 2:** Coherence guarantees
 

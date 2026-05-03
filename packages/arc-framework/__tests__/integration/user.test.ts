@@ -1079,8 +1079,8 @@ describe("user status", () => {
     const summary = buildUserStatusSummary(result);
 
     expect(result.headline).toBe("remote note ahead");
-    expect(summary).toContain("test-user: remote note ahead");
-    expect(summary).toContain("Remote notes: remote note ahead.");
+    expect(summary).toContain("test-user: remote notes are ahead of local notes");
+    expect(summary).toContain("Remote notes: ahead of local notes.");
     expect(summary).toContain("Working files match the latest local git note.");
     expect(summary).toContain("Next step: run `arc user pull`");
   });
@@ -1100,8 +1100,8 @@ describe("user status", () => {
     const summary = buildUserStatusSummary(result);
 
     expect(result.headline).toBe("git note out of date");
-    expect(summary).toContain("test-user: git note out of date (offline)");
-    expect(summary).toContain("Remote notes: in sync.");
+    expect(summary).toContain("test-user: working files differ from local notes (offline)");
+    expect(summary).toContain("Remote notes: match local notes.");
     expect(summary).toContain("Working files reflect an older local git note.");
     expect(summary).toContain("Pre-load backup present: .pre-load-backup-");
     expect(summary).toContain("Next step: run `arc user load`");
@@ -1123,8 +1123,8 @@ describe("user status", () => {
     const summary = buildUserStatusSummary(result);
 
     expect(result.headline).toBe("git note out of date");
-    expect(summary).toContain("test-user: git note out of date (offline)");
-    expect(summary).toContain("Remote notes: in sync.");
+    expect(summary).toContain("test-user: working files differ from local notes (offline)");
+    expect(summary).toContain("Remote notes: match local notes.");
     expect(summary).toContain("Working files have changed since the latest local git note.");
     expect(summary).toContain("Next step: run `arc user save`");
     expect(result.unsavedDirection).toBe("modified");
@@ -1142,8 +1142,8 @@ describe("user status", () => {
     const summary = buildUserStatusSummary(result);
 
     expect(result.headline).toBe("git note out of date");
-    expect(summary).toContain("test-user: git note out of date (offline)");
-    expect(summary).toContain("Remote notes: in sync.");
+    expect(summary).toContain("test-user: working files differ from local notes (offline)");
+    expect(summary).toContain("Remote notes: match local notes.");
     expect(summary).toContain("Working files have changed since the latest local git note.");
     expect(summary).toContain("Next step: run `arc user save`");
     expect(result.unsavedDirection).toBe("edits");
@@ -1379,7 +1379,7 @@ describe("user status", () => {
     });
 
     expect(result.detailLines).toContain(
-      "Worktree is behind origin by 1 commit(s).",
+      "Local worktree HEAD is behind its origin upstream by 1 commit(s).",
     );
     expect(result.worktree?.state).toBe("remote-ahead");
     expect(result.worktree?.behind).toBe(1);
@@ -1403,10 +1403,10 @@ describe("user status", () => {
     });
 
     expect(result.detailLines).toContain(
-      "Worktree remote comparison skipped (`--offline`); reported state reflects local refs only.",
+      "Worktree remote comparison skipped (`--offline`); reported state reflects local worktree refs only.",
     );
     expect(
-      result.detailLines.some((line) => line.startsWith("Worktree is behind")),
+      result.detailLines.some((line) => line.startsWith("Local worktree HEAD is behind")),
     ).toBe(false);
     // No worktree probe was invoked, so the field is omitted.
     expect(result.worktree).toBeUndefined();
