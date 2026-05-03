@@ -222,6 +222,51 @@ describe("user save and load", () => {
     expect(restored).toBe("# Deep reachable note");
   });
 
+  it("load finds a note attached outside current HEAD ancestry", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await execFileAsync("git", ["-C", tempDir, "checkout", "-b", "side-session"]);
+    await makeCommit(tempDir, "side session work");
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Side session note", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    await execFileAsync("git", ["-C", tempDir, "checkout", "main"]);
+    const loadResult = await runUserLoad({
+      cwd: tempDir, io, identity: "test-user",
+    });
+
+    const loadedResult = expectLoaded(loadResult);
+    expect(loadedResult.reachableFromHead).toBe(false);
+    expect(loadedResult.noteHistoryDistance).toBe(0);
+
+    const restored = await readFile(join(userDir, "SESSION-NOTES.md"), "utf-8");
+    expect(restored).toBe("# Side session note");
+  });
+
+  it("load finds a note when the annotated local branch is gone", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await execFileAsync("git", ["-C", tempDir, "checkout", "-b", "finished-elsewhere"]);
+    await makeCommit(tempDir, "finished elsewhere work");
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Branch gone note", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    await execFileAsync("git", ["-C", tempDir, "checkout", "main"]);
+    await execFileAsync("git", ["-C", tempDir, "branch", "-D", "finished-elsewhere"]);
+
+    const loadResult = await runUserLoad({
+      cwd: tempDir, io, identity: "test-user",
+    });
+
+    const loadedResult = expectLoaded(loadResult);
+    expect(loadedResult.reachableFromHead).toBe(false);
+
+    const restored = await readFile(join(userDir, "SESSION-NOTES.md"), "utf-8");
+    expect(restored).toBe("# Branch gone note");
+  });
+
   it("returns null when no note found anywhere", async () => {
     const io = makeUserIO(tempDir);
 
@@ -362,7 +407,7 @@ describe("user save and load", () => {
     await cleanupTempDir(remoteDir);
   });
 
-  it("load returns null in shallow clone when note is beyond boundary", async () => {
+  it("load finds note-ref history in a shallow clone when annotated commit is beyond boundary", async () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
@@ -391,14 +436,16 @@ describe("user save and load", () => {
     const shallowUserDir = join(shallowDir, ".arc", "user", "test-user");
     await mkdir(shallowUserDir, { recursive: true });
 
-    // Load with maxWalk=1 to ensure we don't search beyond shallow boundary
     const loadResult = await runUserLoad({
       cwd: shallowDir, io: shallowIO, identity: "test-user", maxAncestorWalk: 1,
     });
 
-    // Note is beyond the shallow boundary — load distinguishes this from
-    // "no notes exist" via the walk-exhausted outcome.
-    expect(loadResult).toEqual({ kind: "walk-exhausted", walked: 1, maxWalk: 1 });
+    const loadedResult = expectLoaded(loadResult);
+    expect(loadedResult.reachableFromHead).toBe(false);
+    expect(loadedResult.noteHistoryDistance).toBe(0);
+
+    const restored = await readFile(join(shallowUserDir, "SESSION-NOTES.md"), "utf-8");
+    expect(restored).toBe("# Deep note");
 
     await cleanupTempDir(shallowDir);
     await cleanupTempDir(remoteDir);

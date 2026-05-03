@@ -43,4 +43,17 @@ describe("buildLoadSummary — ancestor distance reporting", () => {
     expect(summary).not.toContain("loaded from a reachable ancestor");
     expect(summary).not.toContain("behind HEAD");
   });
+
+  it("surfaces note-history loads outside current HEAD ancestry", () => {
+    const summary = buildLoadSummary(baseResult({
+      ancestorDistance: 0,
+      fromAncestor: false,
+      reachableFromHead: false,
+      noteHistoryDistance: 0,
+    }));
+
+    expect(summary).toContain("Loaded from user-notes history");
+    expect(summary).toContain("outside current HEAD ancestry");
+    expect(summary).not.toContain("Loaded from 0 commit(s) back");
+  });
 });

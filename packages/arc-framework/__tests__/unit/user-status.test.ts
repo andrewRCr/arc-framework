@@ -102,6 +102,27 @@ describe("buildUserStatusResult", () => {
     expect(result.detailLines).toContain("Latest local git note is current with HEAD.");
   });
 
+  it("renders note-history reachability when the local git note is outside HEAD ancestry", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "same",
+      refState: "same",
+      remoteChecked: true,
+      savedCommit: "abc1234",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      noteHistoryDistance: 2,
+      savedReachableFromHead: false,
+      backupFiles: [],
+      remoteIdentities: [],
+    });
+
+    expect(result.detailLines).toContain(
+      "Latest local git note is from abc1234, outside current HEAD ancestry (2 note update(s) back).",
+    );
+    expect(result.detailLines).not.toContain("Latest local git note is current with HEAD.");
+  });
+
   it("reports conflicts with a fetch hint", () => {
     const result = buildUserStatusResult({
       identity: "andrew",

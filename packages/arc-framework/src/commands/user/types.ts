@@ -48,6 +48,10 @@ export interface UserLoadResult {
   fromAncestor: boolean;
   /** Number of commits between HEAD and the loaded ancestor note (0 when on HEAD). */
   ancestorDistance: number;
+  /** Number of note-ref history entries walked before finding this note. */
+  noteHistoryDistance?: number;
+  /** Whether the annotated commit is reachable from current HEAD. */
+  reachableFromHead?: boolean;
   /** Warnings about local files not present in the loaded manifest. */
   warnings: string[];
 }
@@ -79,12 +83,18 @@ export interface NearestNoteSearch {
   capped: boolean;
 }
 
-/** A reachable note discovered by the ancestor walk. */
+/** A note discovered by walking the notes ref's own history. */
 export interface NearestUserNoteRef {
   content: string;
+  /** Commit annotated by the user note. */
   commit: string;
+  /** Whether the annotated commit is reachable from current HEAD. */
+  reachableFromHead: boolean;
   fromAncestor: boolean;
+  /** Number of commits between HEAD and the annotated commit when reachable. */
   ancestorDistance: number;
+  /** Number of note-ref history entries walked before finding this note. */
+  noteHistoryDistance: number;
 }
 
 /** Options for the add operation. */
@@ -217,6 +227,10 @@ export interface UserStatusResult {
   savedFromAncestor: boolean;
   /** Commits between HEAD and the saved note (0 when the note is at HEAD). */
   ancestorDistance: number;
+  /** Number of note-ref history entries walked before finding this note, when known. */
+  noteHistoryDistance?: number;
+  /** Whether the saved note's annotated commit is reachable from current HEAD, when known. */
+  savedReachableFromHead?: boolean;
   /** Human-readable "N ago" phrasing for the note commit's author date, when known. */
   savedAtRelative: string | null;
   /** Direction hint for `local unsaved`; null when not applicable. */

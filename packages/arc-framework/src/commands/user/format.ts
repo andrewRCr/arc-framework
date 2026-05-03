@@ -38,7 +38,9 @@ export function buildLoadSummary(result: UserLoadResult): string {
   lines.push(`Restored ${result.fileCount} file(s) from git note on ${result.commit}`);
   lines.push(`Identity: ${result.identity}`);
 
-  if (result.ancestorDistance > 0) {
+  if (result.reachableFromHead === false) {
+    lines.push("Loaded from user-notes history; annotated commit is outside current HEAD ancestry.");
+  } else if (result.ancestorDistance > 0) {
     lines.push(`Loaded from ${result.ancestorDistance} commit(s) back.`);
   }
 

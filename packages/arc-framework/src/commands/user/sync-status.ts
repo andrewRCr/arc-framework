@@ -88,6 +88,8 @@ export async function runUserStatus(
     savedCommit: note ? note.commit.slice(0, 7) : null,
     savedFromAncestor: note ? note.fromAncestor : false,
     ancestorDistance: note?.ancestorDistance ?? 0,
+    noteHistoryDistance: note?.noteHistoryDistance,
+    savedReachableFromHead: note?.reachableFromHead,
     savedAtRelative,
     unsavedDirection: diskInspection.direction,
     backupFiles,
@@ -228,6 +230,8 @@ interface BuildUserStatusInput {
   savedCommit: string | null;
   savedFromAncestor: boolean;
   ancestorDistance?: number;
+  noteHistoryDistance?: number;
+  savedReachableFromHead?: boolean;
   savedAtRelative?: string | null;
   unsavedDirection?: UserUnsavedDirection | null;
   backupFiles: string[];
@@ -258,6 +262,8 @@ export function buildUserStatusResult(
     remoteIdentities,
   } = input;
   const ancestorDistance = input.ancestorDistance ?? 0;
+  const noteHistoryDistance = input.noteHistoryDistance;
+  const savedReachableFromHead = input.savedReachableFromHead ?? true;
   const savedAtRelative = input.savedAtRelative ?? null;
   const unsavedDirection = input.unsavedDirection ?? null;
 
@@ -298,12 +304,19 @@ export function buildUserStatusResult(
     detailLines.push(`Saved ${savedAtRelative}.`);
   }
 
-  if (savedCommit && ancestorDistance > 0) {
+  if (savedCommit && savedReachableFromHead && ancestorDistance > 0) {
     detailLines.push(
       `Latest local git note is from ${savedCommit}, ${ancestorDistance} commit(s) back.`,
     );
-  } else if (savedCommit && ancestorDistance === 0) {
+  } else if (savedCommit && savedReachableFromHead && ancestorDistance === 0) {
     detailLines.push("Latest local git note is current with HEAD.");
+  } else if (savedCommit) {
+    const historyDetail = noteHistoryDistance === undefined
+      ? ""
+      : ` (${noteHistoryDistance} note update(s) back)`;
+    detailLines.push(
+      `Latest local git note is from ${savedCommit}, outside current HEAD ancestry${historyDetail}.`,
+    );
   } else if (!savedCommit && diskState === "different") {
     detailLines.push("No local git note exists yet for this identity.");
   }
@@ -337,6 +350,8 @@ export function buildUserStatusResult(
     savedCommit,
     savedFromAncestor,
     ancestorDistance,
+    ...(noteHistoryDistance !== undefined ? { noteHistoryDistance } : {}),
+    savedReachableFromHead,
     savedAtRelative,
     unsavedDirection,
     backupFiles,

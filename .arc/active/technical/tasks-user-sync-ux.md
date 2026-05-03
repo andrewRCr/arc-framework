@@ -17,25 +17,15 @@ R3 partial-push state, R6 directional copy audit, R7 worktree qualifier `failure
 that Phase 2's coherence work builds on. PRD-pinned ordering: notes-discovery (1.1) precedes spine
 unification (1.2) — unification builds on the new load semantic.
 
-### `[ ]` **1.1 Notes-ref-history discovery walk**
+### `[x]` **1.1 Notes-ref-history discovery walk**
 
-- Refactor `arc user load` and `arc user pull` to walk `git log refs/notes/arc/user/{identity}`
-  rather than HEAD ancestry.
-- Notes-ref-history walk contract:
-    - Walk note-ref commits newest to oldest, inspect changed note entries, and return the newest valid ARC
-      user manifest.
-    - Returned metadata distinguishes the annotated commit from the note-history position and reports whether
-      the annotated commit is reachable from current HEAD.
-- Affected file: `packages/arc-framework/src/commands/user/save-load.ts`.
-- Existing `--max-walk N` flag continues to bound depth; after this change it bounds note-ref history commits,
-  not HEAD ancestors.
-- Build `test-first` (one behavior at a time):
-    - HEAD-ancestry-stale scenario (notes attached to commit not in HEAD's ancestry) → walk via
-      notes-ref history succeeds
-    - Branch-gone scenario (local branch deleted but notes ref intact) → notes still discoverable
-    - Empty notes ref → returns no-notes signal cleanly
-    - Deleted or rewritten latest note state falls through to the newest valid manifest or no-notes cleanly
-    - `--max-walk N` bounds notes-ref-history walk depth
+- `arc user load` and `arc user pull` now discover the newest readable user-note attachment by walking
+  `refs/notes/arc/user/{identity}` history instead of HEAD ancestry.
+- `--max-walk N` bounds note-ref history commits. Load/search results carry annotated-commit reachability and
+  note-history distance for downstream routing work.
+- Status and load summary copy no longer treats notes attached outside current HEAD ancestry as current with HEAD.
+- Coverage added for outside-HEAD ancestry, branch-gone local refs, shallow clones, deleted latest note entries,
+  empty note refs, and note-ref-history walk caps.
 
 ### `[ ]` **1.2 State-machine spine unification**
 
