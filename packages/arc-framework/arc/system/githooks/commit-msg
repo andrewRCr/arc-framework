@@ -260,20 +260,20 @@ case "$context_footer_mode" in
                     echo "   Your Context line: $context_line"
                 fi
 
-            # Matches: Context: plan-[name].md (planning|code review)
-            elif echo "$context_line" | grep -qE '^Context: plan-[a-zA-Z0-9-]+\.md \((planning|code review)\)$'; then
-                plan_file=$(echo "$context_line" | sed -E 's/Context: (plan-[a-zA-Z0-9-]+\.md).*/\1/')
+            # Matches: Context: (plan|prd)-[name].md (planning|code review)
+            elif echo "$context_line" | grep -qE '^Context: (plan|prd)-[a-zA-Z0-9-]+\.md \((planning|code review)\)$'; then
+                spec_file=$(echo "$context_line" | sed -E 's/Context: ((plan|prd)-[a-zA-Z0-9-]+\.md).*/\1/')
 
-                plan_found=false
+                spec_found=false
                 for dir in .arc/active/*/; do
-                    if [ -f "$dir$plan_file" ]; then
-                        plan_found=true
+                    if [ -f "$dir$spec_file" ]; then
+                        spec_found=true
                         break
                     fi
                 done
 
-                if [ "$plan_found" = false ]; then
-                    echo -e "${YELLOW}Warning: Plan file '$plan_file' not found in active directories${NC}"
+                if [ "$spec_found" = false ]; then
+                    echo -e "${YELLOW}Warning: Plan/PRD file '$spec_file' not found in active directories${NC}"
                     echo "   This may be intentional if the file was just created or archived"
                     warnings=$((warnings + 1))
                 fi
@@ -333,6 +333,7 @@ case "$context_footer_mode" in
                 echo "   - Context: tasks-[name].md (incidental - discovered during <context>)"
                 echo "   - Context: tasks-[name].md (planning), (maintenance), or (code review)"
                 echo "   - Context: plan-[name].md (planning) or (code review)"
+                echo "   - Context: prd-[name].md (planning) or (code review)"
                 echo "   - Context: status-[name].md (handoff), (activation), (integration), (archival), or (planning)"
                 echo "   - Context: status-[name].md (incidental - discovered during <context>)"
                 echo "   - Context: atomic-[name].md"
