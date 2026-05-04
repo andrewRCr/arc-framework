@@ -367,10 +367,7 @@ async function executeSingleLeg(ctx: ExecuteContext): Promise<SyncOutcome> {
 
   if (decision.notes.kind === "save+notes-blocked") {
     const saveOk = await performSave(ctx);
-    p.log.warn(
-      "Notes push blocked: push the worktree first, then `arc user push`. "
-      + `(worktree state: ${decision.notes.reason})`,
-    );
+    p.log.warn(reconcileGuidance(decision.notes.reason));
     return {
       cell: decision.cellName,
       worktree: worktreeRecord,
@@ -538,6 +535,28 @@ function describeWorktreeAction(action: WorktreeAction): string {
       return "skip (push_interlock: manual)";
     case "skip-blocked-diverged":
       return `skip (diverged: ${action.ahead} ahead, ${action.behind} behind)`;
+  }
+}
+
+function reconcileGuidance(state: WorktreeSyncState): string {
+  switch (state) {
+    case "diverged":
+      return (
+        "Notes push blocked: worktree diverged from origin. "
+        + "Manual rebase or merge needed before pushing notes. "
+        + "(worktree state: diverged)"
+      );
+    case "remote-ahead":
+      return (
+        "Notes push blocked: origin is ahead of worktree. "
+        + "Fast-forward (`git pull --ff-only`) before pushing notes. "
+        + "(worktree state: remote-ahead)"
+      );
+    default:
+      return (
+        "Notes push blocked: push the worktree first, then `arc user push`. "
+        + `(worktree state: ${state})`
+      );
   }
 }
 

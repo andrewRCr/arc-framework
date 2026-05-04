@@ -250,6 +250,73 @@ describe("handleSync orchestrator matrix dispatch", () => {
     expect(process.exitCode).toBe(1);
   });
 
+  it("diverged worktree + push_interlock: manual + notes_push: always → save fires; notes push blocked with diverged guidance", async () => {
+    setConfig("manual");
+    setNotesPolicy("always");
+    setWorktree("diverged", 1, 2);
+    mockRunUserSave.mockResolvedValue({
+      identity: "andrew",
+      commit: "abc1234",
+      fileCount: 1,
+      warnings: [],
+    });
+
+    await handleSync();
+
+    expect(mockRunUserSave).toHaveBeenCalledTimes(1);
+    expect(mockPushWithRecovery).not.toHaveBeenCalled();
+    expect(mockRunPairedPush).not.toHaveBeenCalled();
+    expect(pushedBranchInvocations()).toEqual([]);
+    const warnings = mockLog.warn.mock.calls.map((c) => String(c[0] ?? ""));
+    expect(warnings.some((line) => /diverged/i.test(line) && /rebase|merge/i.test(line))).toBe(true);
+    expect(warnings.some((line) => line.includes("push the worktree first"))).toBe(false);
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("remote-ahead worktree + push_interlock: manual + notes_push: always → save fires; notes push blocked with remote-ahead guidance", async () => {
+    setConfig("manual");
+    setNotesPolicy("always");
+    setWorktree("remote-ahead", 0, 3);
+    mockRunUserSave.mockResolvedValue({
+      identity: "andrew",
+      commit: "abc1234",
+      fileCount: 1,
+      warnings: [],
+    });
+
+    await handleSync();
+
+    expect(mockRunUserSave).toHaveBeenCalledTimes(1);
+    expect(mockPushWithRecovery).not.toHaveBeenCalled();
+    expect(mockRunPairedPush).not.toHaveBeenCalled();
+    expect(pushedBranchInvocations()).toEqual([]);
+    const warnings = mockLog.warn.mock.calls.map((c) => String(c[0] ?? ""));
+    expect(warnings.some((line) => /remote-ahead/i.test(line) && /pull|fast-forward/i.test(line))).toBe(true);
+    expect(warnings.some((line) => line.includes("push the worktree first"))).toBe(false);
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("clean worktree + push_interlock: manual + notes_push: always → notes-only cell fires save and push", async () => {
+    setConfig("manual");
+    setNotesPolicy("always");
+    setWorktree("clean");
+    mockRunUserSave.mockResolvedValue({
+      identity: "andrew",
+      commit: "abc1234",
+      fileCount: 1,
+      warnings: [],
+    });
+    mockPushWithRecovery.mockResolvedValue({ kind: "ok" });
+
+    await handleSync();
+
+    expect(mockRunUserSave).toHaveBeenCalledTimes(1);
+    expect(mockPushWithRecovery).toHaveBeenCalledTimes(1);
+    expect(mockRunPairedPush).not.toHaveBeenCalled();
+    expect(pushedBranchInvocations()).toEqual([]);
+    expect(process.exitCode).toBeUndefined();
+  });
+
   it("--dry-run → no pushes fire; matrix decision printed", async () => {
     setConfig("on-sync");
     setNotesPolicy("always");

@@ -256,41 +256,17 @@ and an exported paired-push helper are the load-bearing shape decisions.
   updated for the options-object signature. Save-side regression-fence (B1, B2) covered by
   unchanged save behavior — `runUserSave` does no remote/worktree probing.
 
-### `[ ]` **2.4 R15 cell coverage + reconciliation guidance polish**
+### `[x]` **2.4 R15 cell coverage + reconciliation guidance polish**
 
-R15 (notes auto-push gated on worktree state under manual worktree-push interlock) was
-delivered structurally in 2.2.c.ii via the orchestrator's `decideNotes`. The pre-impl audit
-closed two gaps that remain after that delivery:
-
-- **Test coverage.** `sync-orchestrator.test.ts` covers the local-ahead block (test 2) and
-  the both-manual cell (test 4) but not:
-    - clean worktree + `push_interlock: manual` + notes auto-push → orchestrator's
-      `notes-only` cell fires save + push. Confirms notes auto-push works under manual
-      worktree interlock when the worktree is coherent.
-    - diverged worktree + `push_interlock: manual` + notes auto-push → block surfaces with
-      diverged-specific guidance.
-    - remote-ahead worktree + `push_interlock: manual` + notes auto-push → block surfaces
-      with remote-ahead-specific guidance.
-- **Reconciliation guidance copy.** `executeSingleLeg`'s `save+notes-blocked` branch
-  (`handlers/sync.ts:368-384`) emits a single message ("push the worktree first, then
-  `arc user push`") for all three blocked states. Correct for `local-ahead` but misleading
-  for `diverged` (force-push needed; "push first" doesn't work) and `remote-ahead` (needs
-  pull / fast-forward, not push). Replace with state-specific guidance — concrete copy
-  finalizes at implementation time, but the three states each get their own message; only
-  `local-ahead` retains the existing wording.
-- **Naming note (corrects prior task body).** Implementation reads the current key
-  `user.sync_push` (values `always | prompt | manual`). Per PRD R9, the rename target is
-  `user.notes_push` with semantic identity `always` ⇄ `on-sync` (NOT `on-handoff`). Rename
-  lands in 3.3.b; no dual-key window.
-- Affected file: `packages/arc-framework/src/handlers/sync.ts` (state-specific copy in the
-  `save+notes-blocked` branch).
-- Build `test-first` (one behavior at a time):
-    - Clean worktree + `push_interlock: manual` + `notes_push: always` → save + push fires
-      (notes-only cell).
-    - Diverged worktree + `push_interlock: manual` + `notes_push: always` → save fires;
-      notes push blocked with diverged-specific reconciliation guidance.
-    - Remote-ahead worktree + `push_interlock: manual` + `notes_push: always` → save fires;
-      notes push blocked with remote-ahead-specific reconciliation guidance.
+- Three new cells in `__tests__/unit/sync-orchestrator.test.ts` cover
+  `push_interlock: manual × notes_push: always × worktree-state` for clean (notes-only
+  cell fires save + push), diverged (save fires, notes push blocked), and remote-ahead
+  (save fires, notes push blocked). 10 tests total in the file.
+- New `reconcileGuidance(state)` helper in `handlers/sync.ts` replaces the single-message
+  warning in `executeSingleLeg`'s `save+notes-blocked` branch. Diverged emits
+  "Manual rebase or merge needed"; remote-ahead emits "Fast-forward
+  (`git pull --ff-only`)"; `local-ahead` retains the existing
+  "push the worktree first" wording.
 
 ## **Phase 3:** Vocabulary and config alignment
 
