@@ -83,25 +83,59 @@ _Purpose:_ Prevent notes-against-unpushed-commits and partial-publish bugs. R4 u
 save/push, R5 paired-push failure semantics, R13 pushability pre-check matrix, R14 notes-push
 under manual worktree-push interlock. Builds on Phase 1's unified spine for partial-push surfacing.
 
+_Forward-compat:_ Pushability matrix (R13) and paired-push helper (R5) are extracted as reusable
+library APIs under `lib/git/` so the planned interlock-release wrappers
+(`plan-interlock-release-wrappers.md`) call the same probes without re-litigating Phase 2's
+choices. Ref-scope discrimination on the matrix and an exported paired-push helper are the
+load-bearing shape decisions.
+
 ### `[ ]` **2.1 Pushability pre-check matrix**
 
 - Detect what's detectable client-side; surface the condition; never silently skip.
-- Per-condition behavior: rebase in progress → block both refs + guide; detached HEAD → block +
-  guide; no upstream tracking on worktree branch → block + guide; no upstream tracking on notes
-  ref → auto-configure; protected branch / pre-receive hook failure / permission denied → bubble
-  server output verbatim; force-push required → error (never force-push from handoff or
-  `arc user push`).
-- Affected files: `packages/arc-framework/src/commands/user/save-load.ts`, the git-wrapper module
-  used for push (`packages/arc-framework/src/lib/git.ts` or equivalent).
+- Client-side pre-checks (matrix detects):
+    - Rebase in progress (either `.git/rebase-merge/` or `.git/rebase-apply/` present) → block
+      both targets + guide.
+    - Detached HEAD → block both targets + guide.
+    - No upstream tracking on worktree branch → block worktree target + guide.
+    - Notes-ref fetch refspec missing from `remote.origin.fetch` → auto-configure via existing
+      `configureNotesRefspec` (`lib/git/exec.ts:129`). Notes refs aren't branch-upstream-tracked;
+      missing fetch refspec is the actual condition the matrix detects.
+    - Force-push required (worktree-sync state `diverged` → fold via caller-supplied sync state
+      input, or matrix re-probes if absent) → surface as a condition. Refusal policy lives at
+      the call site (handoff and default `arc user push` refuse; explicit `arc user push --force`
+      allows).
+- Server-side failure classes (not pre-checkable; surface at push time):
+    - Protected branch / pre-receive hook failure / permission denied → bubble server output
+      verbatim. Wrapping (if any) lives in the user-facing handler layer; preserve the original
+      server message inside any handler-layer prefix. Don't add sanitizing layers between
+      `runUserPush` and the handler.
+- API shape: exported as `runPushabilityStatus({ exec, target, worktreeSyncState? })` with
+  `target: "worktree" | "notes" | "both"`, returning a discriminated result enumerating each
+  detected condition with guidance text. Conditions split: global (rebase, detached HEAD) apply
+  to every target; ref-specific (no-upstream branch, missing notes refspec) apply per target.
+  `both` evaluates the union for paired-push gating. Result-type shape feeds Task 2.2's itemized
+  output directly.
+- Affected files: new `packages/arc-framework/src/lib/git/pushability.ts` (probe);
+  `packages/arc-framework/src/lib/git/index.ts` (export);
+  `packages/arc-framework/src/commands/user/push-fetch.ts` (consume before notes push);
+  `packages/arc-framework/src/handlers/status.ts` and
+  `packages/arc-framework/src/commands/status/types.ts` (carry the probe in the session-handoff
+  envelope so the handoff workflow gates worktree push on it).
 - Concrete copy strings finalize at implementation time alongside the emitting code.
 - Build `test-first` (one behavior at a time):
-    - Rebase-in-progress → both refs blocked; correct guidance returned
-    - Detached HEAD → both refs blocked; correct guidance returned
-    - Worktree branch with no upstream → blocked; guidance points at
+    - Happy path: no blocking conditions, `target: "both"` → result allows both targets to
+      proceed
+    - Rebase-in-progress (`.git/rebase-merge/` form) → both targets blocked; guidance returned
+    - Rebase-in-progress (`.git/rebase-apply/` form, e.g. `git am`) → both targets blocked
+    - Detached HEAD → both targets blocked; guidance returned
+    - Worktree branch with no upstream, `target: "worktree"` → blocked; guidance points at
       `git push -u origin <branch>`
-    - Notes ref with no upstream → auto-configures via `git push --set-upstream`
-    - Server protected-branch error → bubbles verbatim; no client-side mangling
-    - Force-push refused → exits error; no automatic retry
+    - Worktree branch with no upstream, `target: "notes"` → not blocked (condition doesn't apply
+      to notes target)
+    - Notes-ref fetch refspec missing, `target: "notes"` → auto-configures via
+      `configureNotesRefspec`; subsequent re-probe shows refspec installed
+    - Force-push required (worktree-sync state `diverged`, `target: "worktree"`) → surfaces
+      condition; caller decides refusal vs. allow
 
 ### `[ ]` **2.2 Paired-push failure semantics**
 
@@ -110,17 +144,29 @@ under manual worktree-push interlock. Builds on Phase 1's unified spine for part
   `arc user push` is idempotent.
 - `arc user push` checks remote ref state via `git ls-remote refs/notes/arc/user/{identity}`;
   no-ops with confirmation when remote already matches local.
-- Affected files: `packages/arc-framework/src/commands/user/save-load.ts`, handoff-workflow's
-  push-action integration.
+- API shape: exported as `runPairedPush({ exec, identity, ... })` returning a discriminated
+  `PairedPushResult` carrying both leg outcomes (success/failure + underlying error per leg) and
+  a worst-outcome exit code. Pre-check input drawn from `runPushabilityStatus({ target: "both"
+  })` per Task 2.1. The handoff workflow invokes via the CLI surface (existing `arc sync`,
+  post-3.4 `arc user sync`, or equivalent) rather than orchestrating both legs as separate steps
+  in workflow markdown — keeps the logic callable from non-handoff contexts (e.g., the planned
+  interlock-release wrappers).
+- Affected files: `packages/arc-framework/src/commands/user/push-fetch.ts` (or new
+  `packages/arc-framework/src/commands/user/paired-push.ts` if scope warrants);
+  `packages/arc-framework/src/handlers/sync.ts` (handler integration);
+  `.arc/system/workflows/arc/session-lifecycle/session-handoff.md` (push-action integration).
 - Concrete itemized-output copy strings finalize at implementation time.
 - Build `test-first` (one behavior at a time):
     - Both legs succeed → exit 0; both lines marked succeeded
     - Worktree succeeds, notes fails → exit non-zero; itemized output marks each; recovery
-      command surfaced
+      command surfaced; partial-push marker recorded (per 1.3.c wiring)
     - `arc user push` invoked when remote already matches local → no-ops with confirmation
       (not error)
-    - `arc user push` invoked after transient failure → re-attempts notes push successfully
+    - `arc user push` invoked after transient failure → re-attempts notes push successfully;
+      partial-push marker cleared on success
     - Push-ordering invariant respected: worktree always lands before notes
+    - Pre-check failure (e.g., rebase in progress) → neither leg fires; result surfaces the
+      condition without attempting either push
 
 ### `[ ]` **2.3 Unpushed-HEAD save/push behavior**
 
@@ -139,6 +185,10 @@ under manual worktree-push interlock. Builds on Phase 1's unified spine for part
 
 ### `[ ]` **2.4 Notes-push under manual worktree-push interlock**
 
+- Naming note: this task body uses `user.notes_push` to anticipate the Phase 3.3 rename.
+  Implementation reads `user.sync_push` (with `always` carrying the same semantic as the
+  post-rename `on-handoff`) until 3.3.b's migration lands. No dual-key window — the rename is
+  the migration's job.
 - When `user.notes_push: on-handoff` and `session.push_interlock: manual`:
 - Worktree has no unpushed commits → save and push notes.
 - Worktree is local-ahead → save notes locally; block notes push with guidance ("push the
@@ -166,11 +216,13 @@ final-shape strings).
 ### `[ ]` **3.1 Resolver consolidation**
 
 - Extract the precedence logic shared by `user.notes_push` (and the new interlock keys in 3.2)
-  into a generic helper — e.g., `resolveGitConfigOverride<T>`.
+  into a generic helper — `resolveGitConfigOverride<T>`.
 - Migrate `lib/sync-policy.ts` onto it. The helper resolves git-config override → yaml → default
   in 3-tier order.
-- Affected files: `packages/arc-framework/src/lib/sync-policy.ts`, new
-  `packages/arc-framework/src/lib/config/resolve-override.ts` (or similar).
+- Affected files: `packages/arc-framework/src/lib/sync-policy.ts`; new
+  `packages/arc-framework/src/lib/config/resolve-override.ts` (export path pinned — downstream
+  consumers, including the planned interlock-release wrappers' validation library, depend on
+  the location).
 - Build `test-first` (one behavior at a time):
     - Git-config value present → returns git-config value
     - Git-config absent + yaml present → returns yaml value
@@ -183,6 +235,9 @@ final-shape strings).
 - Extend `lib/config/status-reader.ts` validation to read `arc.commitInterlock` and
   `arc.pushInterlock` git-config overrides before falling through to yaml + default.
 - Both keys resolve via the helper from 3.1; no shape divergence.
+- Additive — no breaking changes to existing call signatures. Existing callers continue to read
+  the same fields; new resolution paths feed the same field shapes. Forward-compat for the
+  interlock-release wrappers' enforcement layer, which calls the same reader.
 - Affected file: `packages/arc-framework/src/lib/config/status-reader.ts`.
 - Build `test-first` (one behavior at a time):
     - `arc.commitInterlock` git-config set → status-reader returns git-config value
