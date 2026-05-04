@@ -57,19 +57,23 @@ while IFS= read -r arc_file; do
             ;;
         Configurable)
             # Configurable files diverge by design when project overrides exist.
-            # Flag only when THIS commit makes the .arc/ copy byte-identical to
-            # the package source — i.e., overrides existed at HEAD but are gone
-            # in the staged version. Files already identical at HEAD are
-            # legitimate (project inherits the template default, no overrides
-            # to clobber).
+            # Blind-cp signature: overrides existed at HEAD (HEAD-.arc/ differed
+            # from HEAD-packages/), and the staged .arc/ is now byte-identical
+            # to the package working tree. Compare HEAD-to-HEAD for the
+            # "overrides existed" check — comparing HEAD-.arc/ against the
+            # package working tree conflates "overrides existed" with "package
+            # was edited in this commit," producing false positives when the
+            # framework author legitimately edits both copies of a file that
+            # had no project-specific override at HEAD.
             pkg_file="$pkg_arc/$rel_path"
             if [ -f "$pkg_file" ]; then
                 staged_content=$(git show ":$arc_file" 2>/dev/null || true)
-                head_content=$(git show "HEAD:$arc_file" 2>/dev/null || true)
+                head_arc=$(git show "HEAD:$arc_file" 2>/dev/null || true)
+                head_pkg=$(git show "HEAD:$pkg_file" 2>/dev/null || true)
                 pkg_content=$(cat "$pkg_file")
                 if [ -n "$staged_content" ] \
                     && [ "$staged_content" = "$pkg_content" ] \
-                    && [ "$head_content" != "$pkg_content" ]; then
+                    && [ "$head_arc" != "$head_pkg" ]; then
                     clobbered_configurable="${clobbered_configurable}${arc_file}\n"
                 fi
             fi
