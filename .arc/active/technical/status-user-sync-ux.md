@@ -17,6 +17,6 @@
   `arc user sync`; register new top-level `arc sync` against an orchestrator handler stub;
   add `session.sync_interlock: manual | on-handoff` to config schema (default `on-handoff`);
   migrate `session.push_interlock: on-handoff` → `on-sync` value rename. Tests after schema
-  + reader changes.
+  and reader changes.
 
 ---
