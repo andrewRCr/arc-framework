@@ -9,13 +9,14 @@
 - **Task List:** `tasks-user-sync-ux.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task 2.2 — Paired-push failure semantics (parent; all subtasks closed
-  including 2.2.c.i / c.ii / c.iii)
-- **Next Task:** Task 2.3 — Unpushed-HEAD save/push behavior (line ~238)
+- **Last Completed:** Task 2.3 — Unpushed-HEAD save/push behavior
+- **Next Task:** Task 2.4 — R15 cell coverage + reconciliation guidance polish (line ~284)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 2.3 — extend pushability matrix with notes-target
-  worktree-coherence check via local-only `git rev-list --left-right --count` probe; thread
-  branch name through `runUserPush` callers. Test-first per behaviors B1-B6 in the task list.
+- **Next Action:** Begin Task 2.4 — extend `sync-orchestrator.test.ts` with the three
+  notes-vs-worktree cells under manual worktree-push interlock (clean / diverged /
+  remote-ahead) and replace the single-message reconciliation copy in `handlers/sync.ts`
+  `save+notes-blocked` branch with state-specific guidance. Test-first per the three behaviors
+  in the task body.
 
 ---
