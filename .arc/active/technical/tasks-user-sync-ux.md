@@ -235,51 +235,26 @@ and an exported paired-push helper are the load-bearing shape decisions.
                   unit + integration + e2e — 1203 + 49). Manual handoff dry-run deferred to first
                   real handoff session.
 
-### `[ ]` **2.3 Unpushed-HEAD save/push behavior**
+### `[x]` **2.3 Unpushed-HEAD save/push behavior**
 
-- `arc user save` already saves regardless of HEAD push state — verified in pre-impl audit, no
-  save-side change needed. Bullet preserved as regression-fence behavior (B1, B2).
-- Pushability matrix extension: notes target evaluates worktree-vs-origin coherence via
-  local-only `git rev-list --left-right --count HEAD...origin/<branch>`. No remote round-trip.
-  New condition kind `worktree-not-aligned-with-origin` (disposition `block`) with per-state
-  guidance for `local-ahead`, `behind`, and `diverged` (concrete copy strings finalize at
-  implementation time per PRD precedent). Probe failure (rare; malformed repo state) → allow
-  with advisory log; pre-2.3 behavior is no-gate, so falling through is the no-regression
-  direction. `no-upstream-branch` and `detached-head` already covered by existing matrix
-  conditions.
-- Scope: condition is notes-target-only. `target: "worktree"` matrix evaluations (e.g., the
-  planned `arc release push` worktree wrapper from `plan-interlock-release-wrappers.md`) see
-  no surface change from this task — coherence between worktree and notes is a notes-side
-  concern.
-- Coherence rule generalizes via the matrix to all push triggers — `arc user push`,
-  `arc user sync` push direction, and `arc sync`'s notes-only / notes-prompt cells all consult
-  the matrix through `runUserPush({ access })`. Plumbing: callers thread the resolved branch
-  name into `runPushabilityStatus` so the matrix computes the rev-list comparison locally.
-- `force: true` does NOT bypass the worktree-coherence gate. Force flag stays scoped to
-  notes-ref divergence recovery; force-push doesn't resolve unpushed worktree commits.
-- PRD R5 reconciliation (sibling action on the PRD; not blocking 2.3): "primitives enforce
-  shape" extends to include matrix-detectable coherence conditions. Orchestrator owns _routing_
-  across single-leg and paired flows; the matrix is the single source of "can this push fire
-  coherently" for shape-detectable conditions.
-- Affected files:
-  `packages/arc-framework/src/lib/git/pushability.ts` (matrix + new condition kind);
-  `packages/arc-framework/src/commands/user/push-fetch.ts` (forward branch to matrix);
-  `packages/arc-framework/src/commands/user/types.ts` (`UserPushOptions.worktreeBranch`);
-  `packages/arc-framework/src/handlers/{user,user-sync,push-recovery}.ts` (resolve branch
-  name before delegating to push primitives).
-- Build `test-first` (one behavior at a time):
-    - **B1.** Worktree clean + `arc user save` → succeeds and creates local note
-      (regression-fence; current behavior).
-    - **B2.** Worktree ahead + `arc user save` → succeeds locally, no push attempted
-      (regression-fence; current behavior).
-    - **B3.** Worktree local-ahead + `arc user push` → matrix surfaces
-      `worktree-not-aligned-with-origin` with ahead-count guidance; push leg blocked.
-    - **B4.** Worktree pushed + `arc user push` retried → succeeds (gate transient, keyed on
-      probe-time state; recovery works without `--force`).
-    - **B5.** 2026-05-01 reproduction (`arc user push` against local-ahead worktree) → notes
-      ref no longer publishes against an unpushed commit; gate fires before the push leg.
-    - **B6.** `arc user sync` push direction with local-ahead worktree → blocks via the same
-      matrix gate (confirms generalization per R4's "all push triggers").
+- New `worktree-not-aligned-with-origin` condition kind in `lib/git/pushability.ts`
+  (disposition `block`) probes HEAD vs. `origin/<branch>` via local-only
+  `git rev-list --left-right --count` — no remote round-trip. State-specific guidance for
+  `local-ahead` / `behind` / `diverged`; probe failure silently skips the gate
+  (no-regression direction). Gate fires only on `target: "notes"`; `target: "both"` suppresses
+  since the paired-push flow commits to pushing the worktree leg first.
+- `UserPushOptions.worktreeBranch` threads the resolved branch through `runUserPush`. New
+  `resolveCurrentBranchName` helper in `handlers/shared.ts` centralizes
+  `git rev-parse --abbrev-ref HEAD` resolution; consumed by `handlers/user.ts` and
+  `handlers/user-sync.ts`. `pushWithInteractiveRecovery` signature switched from positional
+  args to an options object so callers can attach the branch alongside `access` without
+  extending the parameter list further; `handlers/sync.ts` reuses the existing `ctx.branch`.
+- `force: true` doesn't bypass the alignment gate — force is scoped to notes-ref divergence.
+- Tests: 7 new in `__tests__/unit/git/pushability.test.ts` (clean / local-ahead / behind /
+  diverged / paired-suppression / no-branch / probe-failure); 1 in `sync.test.ts` (B6);
+  2 in `user-handlers.test.ts` (B3, B4). `push-recovery.test.ts` and `integration/user.test.ts`
+  updated for the options-object signature. Save-side regression-fence (B1, B2) covered by
+  unchanged save behavior — `runUserSave` does no remote/worktree probing.
 
 ### `[ ]` **2.4 R15 cell coverage + reconciliation guidance polish**
 

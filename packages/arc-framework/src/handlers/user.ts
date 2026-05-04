@@ -24,6 +24,7 @@ import { pushWithInteractiveRecovery } from "./push-recovery.js";
 import {
   runWithSpinner, isHandledError, isNonInteractiveEnvironment,
   requireArcProjectRoot, resolveUserIdentity, isRemoteError,
+  resolveCurrentBranchName,
 } from "./shared.js";
 
 /** Uniform overwrite-confirm prompt copy. */
@@ -192,12 +193,14 @@ export async function handleUserPush(opts: UserPushOptions): Promise<void> {
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
 
+  const worktreeBranch = await resolveCurrentBranchName(io.exec) ?? undefined;
+
   // Explicit --force: bypass recovery prompt, push forcibly.
   if (opts.force) {
     try {
       await runWithSpinner(
         "Force-pushing user notes...",
-        () => runUserPush({ cwd, io, identity, force: true, access }),
+        () => runUserPush({ cwd, io, identity, force: true, access, worktreeBranch }),
         "Force push complete.",
       );
       p.outro("Done.");
@@ -220,7 +223,7 @@ export async function handleUserPush(opts: UserPushOptions): Promise<void> {
     return;
   }
 
-  const result = await pushWithInteractiveRecovery(io, identity, cwd, access);
+  const result = await pushWithInteractiveRecovery({ io, identity, cwd, access, worktreeBranch });
   switch (result.kind) {
     case "ok":
     case "ok-recovered":

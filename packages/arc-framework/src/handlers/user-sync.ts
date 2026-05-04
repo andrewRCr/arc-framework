@@ -33,6 +33,7 @@ import { resolveSyncPushPolicy } from "../lib/sync-policy.js";
 import { pushWithInteractiveRecovery } from "./push-recovery.js";
 import {
   isHandledError, isNonInteractiveEnvironment, requireArcProjectRoot, resolveUserIdentity,
+  resolveCurrentBranchName,
 } from "./shared.js";
 
 /** Uniform overwrite-confirm prompt copy shared with the user handlers. */
@@ -53,6 +54,8 @@ type DirectionParams = {
   maxWalk?: number;
   restoreAfterPush?: boolean;
   recordPartialPushOnFailure?: boolean;
+  /** Threaded into the pushability matrix for the notes-vs-worktree alignment probe. */
+  worktreeBranch?: string;
 };
 
 function walkExhaustedMessage(walked: number): string {
@@ -76,12 +79,14 @@ export async function handleUserSync(opts: UserSyncOptions = {}): Promise<void> 
   if (!cwd) return;
   const { settings } = await readConfigSettings(cwd);
   const remoteSyncEnabled = settings["session.remote_sync"] === "enabled";
-  const [state, worktree] = await Promise.all([
+  const [state, worktree, branch] = await Promise.all([
     inspectUserSyncState({ cwd, io, identity }),
     remoteSyncEnabled
       ? runWorktreeSyncStatus({ exec: io.exec, remoteSyncEnabled: true })
       : Promise.resolve(undefined),
+    resolveCurrentBranchName(io.exec),
   ]);
+  const worktreeBranch = branch ?? undefined;
   const worktreeQualifier = formatWorktreeQualifierLine({
     worktree,
     offline: false,
@@ -112,6 +117,7 @@ export async function handleUserSync(opts: UserSyncOptions = {}): Promise<void> 
         yes,
         maxWalk,
         recordPartialPushOnFailure: worktree?.state === "clean",
+        worktreeBranch,
       });
       return;
     case "pull":
@@ -132,10 +138,11 @@ export async function handleUserSync(opts: UserSyncOptions = {}): Promise<void> 
         maxWalk,
         restoreAfterPush: true,
         recordPartialPushOnFailure: worktree?.state === "clean",
+        worktreeBranch,
       });
       return;
     case "conflict":
-      await handleConflict({ cwd, io, identity, yes, maxWalk });
+      await handleConflict({ cwd, io, identity, yes, maxWalk, worktreeBranch });
       return;
   }
 }
@@ -373,7 +380,13 @@ async function handlePushDirection(params: DirectionParams): Promise<void> {
     }
   }
 
-  const pushResult = await pushWithInteractiveRecovery(io, identity, cwd, access);
+  const pushResult = await pushWithInteractiveRecovery({
+    io,
+    identity,
+    cwd,
+    access,
+    worktreeBranch: params.worktreeBranch,
+  });
   switch (pushResult.kind) {
     case "ok":
     case "ok-recovered":

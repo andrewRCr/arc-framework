@@ -9,7 +9,7 @@
 
 import * as p from "@clack/prompts";
 
-import { resolveIdentity, isGitRepo } from "../lib/git/index.js";
+import { resolveIdentity, isGitRepo, type GitExec } from "../lib/git/index.js";
 import { resolveArcRoot } from "../lib/paths.js";
 import { formatError, UserFacingError } from "../lib/errors.js";
 import { UserSaveError } from "../commands/user.js";
@@ -139,6 +139,22 @@ export function requireArcProjectRoot(startDir = process.cwd()): string | null {
   p.log.error(ARC_PROJECT_ROOT_ERROR);
   process.exitCode = 1;
   return null;
+}
+
+/**
+ * Resolve the current branch name via `git rev-parse --abbrev-ref HEAD`.
+ * Returns `null` for detached HEAD or when the probe fails — the pushability
+ * matrix's alignment probe expects a branch name; absence falls through to no
+ * gate (existing matrix conditions cover detached-head separately).
+ */
+export async function resolveCurrentBranchName(exec: GitExec): Promise<string | null> {
+  try {
+    const { stdout } = await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"]);
+    const trimmed = stdout.trim();
+    return trimmed === "" || trimmed === "HEAD" ? null : trimmed;
+  } catch {
+    return null;
+  }
 }
 
 /**

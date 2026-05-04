@@ -891,7 +891,7 @@ describe("user push and pull", () => {
     ).rejects.toThrow(/rejected/);
 
     try {
-      const result = await pushWithInteractiveRecovery(io, "test-user", tempDir);
+      const result = await pushWithInteractiveRecovery({ io, identity: "test-user", cwd: tempDir });
       expect(result).toEqual({ kind: "ok-recovered", via: "merge" });
 
       const diskContent = await readFile(join(userDir, "SESSION-NOTES.md"), "utf-8");

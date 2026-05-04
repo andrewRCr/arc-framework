@@ -26,7 +26,15 @@ export type PushabilityConditionKind =
   | "detached-head"
   | "no-upstream-branch"
   | "missing-notes-refspec"
-  | "force-push-required";
+  | "force-push-required"
+  | "worktree-not-aligned-with-origin";
+
+/** Worktree-vs-origin alignment for the notes-target coherence check. */
+export interface WorktreeAlignmentDetail {
+  state: "local-ahead" | "behind" | "diverged";
+  ahead: number;
+  behind: number;
+}
 
 /**
  * Disposition the caller should treat the condition with.
@@ -46,6 +54,8 @@ export interface PushabilityCondition {
   rebaseForm?: "rebase-merge" | "rebase-apply";
   /** Set when `kind === "no-upstream-branch"`. */
   branch?: string;
+  /** Set when `kind === "worktree-not-aligned-with-origin"`. */
+  worktreeAlignment?: WorktreeAlignmentDetail;
 }
 
 export interface PushabilityResult {
@@ -66,6 +76,15 @@ export interface RunPushabilityStatusOptions {
    * force-push detection is skipped (caller can re-probe themselves).
    */
   worktreeSyncState?: WorktreeSyncState;
+  /**
+   * Worktree branch name for the notes-target alignment probe. When provided
+   * with `target: "notes"`, the matrix runs a local-only
+   * `git rev-list --left-right --count HEAD...origin/<branch>` to detect
+   * notes-vs-worktree coherence violations (notes would otherwise reference
+   * an unpushed or stale base commit). Suppressed on `target: "both"` since
+   * paired-push commits to push the worktree first, resolving alignment.
+   */
+  worktreeBranch?: string;
 }
 
 /** Notes refspec that must be present in `remote.origin.fetch` for round-tripping ARC user notes. */
@@ -81,7 +100,7 @@ const NOTES_REFSPEC = "+refs/notes/arc/user/*:refs/notes/arc/user/*";
 export async function runPushabilityStatus(
   options: RunPushabilityStatusOptions,
 ): Promise<PushabilityResult> {
-  const { exec, access, target, worktreeSyncState } = options;
+  const { exec, access, target, worktreeSyncState, worktreeBranch } = options;
   const conditions: PushabilityCondition[] = [];
 
   const rebaseConditions = await detectRebaseInProgress(exec, access);
@@ -121,6 +140,21 @@ export async function runPushabilityStatus(
     const refspecCondition = await detectNotesRefspec(exec);
     if (refspecCondition !== null) {
       conditions.push(refspecCondition);
+    }
+  }
+
+  // Notes-target-only: gate notes push on worktree-vs-origin alignment.
+  // Paired-push (`target: "both"`) suppresses since the paired flow pushes
+  // the worktree leg first, resolving alignment by virtue of the flow.
+  if (target === "notes" && typeof worktreeBranch === "string" && worktreeBranch !== "") {
+    const alignment = await probeWorktreeAlignment(exec, worktreeBranch);
+    if (alignment !== null) {
+      conditions.push({
+        kind: "worktree-not-aligned-with-origin",
+        disposition: "block",
+        worktreeAlignment: alignment,
+        guidance: buildAlignmentGuidance(alignment, worktreeBranch),
+      });
     }
   }
 
@@ -196,6 +230,55 @@ async function detectBranchState(
   } catch {
     return { kind: "no-upstream", branch };
   }
+}
+
+/**
+ * Probe HEAD vs. `origin/<branch>` via local-only `git rev-list`. Returns
+ * the alignment detail when the worktree is not aligned, `null` when aligned
+ * (counts both 0) or the probe failed (no-regression direction; matrix
+ * defaults to no-gate when state is indeterminate).
+ */
+async function probeWorktreeAlignment(
+  exec: GitExec,
+  branch: string,
+): Promise<WorktreeAlignmentDetail | null> {
+  let stdout: string;
+  try {
+    const result = await exec("git", [
+      "rev-list",
+      "--left-right",
+      "--count",
+      `HEAD...origin/${branch}`,
+    ]);
+    stdout = result.stdout;
+  } catch {
+    return null;
+  }
+  const [aheadStr, behindStr] = stdout.trim().split(/\s+/u);
+  const ahead = Number.parseInt(aheadStr ?? "", 10);
+  const behind = Number.parseInt(behindStr ?? "", 10);
+  if (!Number.isFinite(ahead) || !Number.isFinite(behind)) return null;
+  if (ahead === 0 && behind === 0) return null;
+  if (ahead > 0 && behind === 0) return { state: "local-ahead", ahead, behind };
+  if (ahead === 0 && behind > 0) return { state: "behind", ahead, behind };
+  return { state: "diverged", ahead, behind };
+}
+
+function buildAlignmentGuidance(
+  alignment: WorktreeAlignmentDetail,
+  branch: string,
+): string {
+  const { state, ahead, behind } = alignment;
+  if (state === "local-ahead") {
+    return `Worktree has ${ahead} unpushed commit(s) on \`${branch}\` — `
+      + `push the worktree first (\`git push origin ${branch}\`), then retry the notes push.`;
+  }
+  if (state === "behind") {
+    return `Worktree is ${behind} commit(s) behind \`origin/${branch}\` — `
+      + "fast-forward or pull before pushing notes (notes would otherwise reference a stale base).";
+  }
+  return `Worktree has diverged from \`origin/${branch}\` (${ahead} ahead, ${behind} behind) — `
+    + "reconcile via rebase or merge before pushing notes.";
 }
 
 async function detectNotesRefspec(exec: GitExec): Promise<PushabilityCondition | null> {

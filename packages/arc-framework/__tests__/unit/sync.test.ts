@@ -71,8 +71,7 @@ vi.mock("../../src/lib/git/worktree-sync.js", () => ({
 
 const mockPushWithRecovery = vi.fn();
 vi.mock("../../src/handlers/push-recovery.js", () => ({
-  pushWithInteractiveRecovery: (io: unknown, identity: unknown, cwd: unknown) =>
-    mockPushWithRecovery(io, identity, cwd),
+  pushWithInteractiveRecovery: (opts: unknown) => mockPushWithRecovery(opts),
 }));
 
 const mockResolveUserIdentity = vi.fn();
@@ -82,6 +81,7 @@ vi.mock("../../src/handlers/shared.js", () => ({
   isHandledError: () => false,
   isNonInteractiveEnvironment: () => mockIsNonInteractive(),
   requireArcProjectRoot: () => process.cwd(),
+  resolveCurrentBranchName: async () => "feature/x",
 }));
 
 vi.mock("../../src/lib/io-context.js", () => ({
@@ -556,6 +556,39 @@ describe("handleUserSync push policy", () => {
       process.cwd(),
       expect.anything(),
       "andrew",
+    );
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("threads worktreeBranch into pushWithInteractiveRecovery; surfaces matrix-blocked notes push", async () => {
+    setSyncState("local-ahead", "same");
+    setPolicy("always");
+    mockRunUserSave.mockResolvedValue({ warnings: [] });
+    // Worktree-not-aligned-with-origin would surface from the matrix; the
+    // user-sync handler renders the blocked-condition guidance and preserves
+    // the local save. Simulate by returning the blocked discriminant.
+    mockPushWithRecovery.mockResolvedValue({
+      kind: "blocked",
+      conditions: [
+        {
+          kind: "worktree-not-aligned-with-origin",
+          disposition: "block",
+          guidance: "Worktree has 2 unpushed commit(s) on `feature/x` — push the worktree first, then retry the notes push.",
+          worktreeAlignment: { state: "local-ahead", ahead: 2, behind: 0 },
+        },
+      ],
+    });
+
+    await handleUserSync();
+
+    expect(mockPushWithRecovery).toHaveBeenCalledWith(
+      expect.objectContaining({ worktreeBranch: "feature/x" }),
+    );
+    expect(mockLog.error).toHaveBeenCalledWith(
+      expect.stringContaining("push the worktree first"),
+    );
+    expect(mockLog.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Local save preserved"),
     );
     expect(process.exitCode).toBe(1);
   });

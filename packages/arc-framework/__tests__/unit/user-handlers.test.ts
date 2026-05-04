@@ -87,6 +87,7 @@ vi.mock("../../src/handlers/shared.js", () => ({
     msg.includes("No configured push destination") || msg.includes("does not appear to be a git repository"),
   isNonInteractiveEnvironment: () => mockIsNonInteractive(),
   requireArcProjectRoot: () => process.cwd(),
+  resolveCurrentBranchName: async () => "feature/x",
 }));
 
 vi.mock("../../src/lib/config/status-reader.js", () => ({
@@ -231,6 +232,45 @@ describe("handleUserPush divergence resolution", () => {
       expect.stringContaining("git remote add origin"),
     );
     expect(process.exitCode).toBe(1);
+  });
+
+  it("threads worktreeBranch into runUserPush; surfaces matrix-blocked guidance and exits 1", async () => {
+    const blocked = new MockUserPushBlockedError([
+      {
+        kind: "worktree-not-aligned-with-origin",
+        disposition: "block",
+        guidance: "Worktree has 2 unpushed commit(s) on `feature/x` — push the worktree first.",
+        worktreeAlignment: { state: "local-ahead", ahead: 2, behind: 0 },
+      },
+    ]);
+    mockRunUserPush.mockRejectedValueOnce(blocked);
+
+    await handleUserPush({});
+
+    expect(mockRunUserPush).toHaveBeenCalledWith(
+      expect.objectContaining({ worktreeBranch: "feature/x" }),
+    );
+    expect(mockLog.error).toHaveBeenCalledWith(
+      expect.stringContaining("push the worktree first"),
+    );
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("re-attempt after worktree push succeeds without --force: gate is transient", async () => {
+    // The alignment gate is keyed on probe-time worktree state — once the
+    // worktree leg lands, retrying succeeds via the normal idempotent path.
+    mockRunUserPush.mockResolvedValueOnce({ kind: "pushed" });
+
+    await handleUserPush({});
+
+    expect(mockRunUserPush).toHaveBeenCalledTimes(1);
+    expect(mockRunUserPush).toHaveBeenCalledWith(
+      expect.objectContaining({ worktreeBranch: "feature/x" }),
+    );
+    expect(mockRunUserPush).toHaveBeenCalledWith(
+      expect.not.objectContaining({ force: true }),
+    );
+    expect(mockOutro).toHaveBeenCalledWith("Done.");
   });
 
   it("renders failed-nontty-conflict banner without prompting when non-interactive", async () => {

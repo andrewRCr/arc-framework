@@ -469,7 +469,13 @@ async function performSave(ctx: ExecuteContext): Promise<boolean> {
 }
 
 async function pushNotesLeg(ctx: ExecuteContext): Promise<LegOutcomeRecord> {
-  const result = await pushWithInteractiveRecovery(ctx.io, ctx.identity, ctx.cwd, access);
+  const result = await pushWithInteractiveRecovery({
+    io: ctx.io,
+    identity: ctx.identity,
+    cwd: ctx.cwd,
+    access,
+    worktreeBranch: ctx.branch ?? undefined,
+  });
   switch (result.kind) {
     case "ok":
       return { action: "push", result: "success" };

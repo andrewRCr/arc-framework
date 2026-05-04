@@ -31,6 +31,15 @@ function isDivergentPushError(msg: string): boolean {
   return msg.includes("non-fast-forward") || msg.includes("[rejected]");
 }
 
+export interface PushWithInteractiveRecoveryOptions {
+  io: UserIOContext;
+  identity: string;
+  cwd: string;
+  access?: AccessFn;
+  /** Current worktree branch — threaded into the pushability matrix. */
+  worktreeBranch?: string;
+}
+
 /**
  * Push user notes with interactive recovery on conflict.
  *
@@ -42,15 +51,13 @@ function isDivergentPushError(msg: string): boolean {
  * `{ kind: "no-remote" }` for the caller to render.
  */
 export async function pushWithInteractiveRecovery(
-  io: UserIOContext,
-  identity: string,
-  cwd: string,
-  access?: AccessFn,
+  options: PushWithInteractiveRecoveryOptions,
 ): Promise<PushResult> {
+  const { io, identity, cwd, access, worktreeBranch } = options;
   const spinner = p.spinner();
   spinner.start("Pushing user notes...");
   try {
-    const pushResult = await runUserPush({ cwd, io, identity, access });
+    const pushResult = await runUserPush({ cwd, io, identity, access, worktreeBranch });
     spinner.stop(pushResult.kind === "noop" ? "Already up to date." : "Push complete.");
     return { kind: pushResult.kind === "noop" ? "noop" : "ok" };
   } catch (err) {
@@ -88,7 +95,7 @@ export async function pushWithInteractiveRecovery(
       if (action === "force") {
         await runWithSpinner(
           "Force-pushing user notes...",
-          () => runUserPush({ cwd, io, identity, force: true, access }),
+          () => runUserPush({ cwd, io, identity, force: true, access, worktreeBranch }),
           "Force push complete.",
         );
         return { kind: "ok-recovered", via: "force" };
@@ -110,7 +117,7 @@ export async function pushWithInteractiveRecovery(
       );
       await runWithSpinner(
         "Pushing user notes...",
-        () => runUserPush({ cwd, io, identity, access }),
+        () => runUserPush({ cwd, io, identity, access, worktreeBranch }),
         "Push complete.",
       );
       return { kind: "ok-recovered", via: "merge" };

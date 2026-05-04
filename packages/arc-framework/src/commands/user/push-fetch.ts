@@ -31,13 +31,14 @@ import {
  * @throws {UserPushBlockedError} when a block-disposition condition is detected.
  */
 export async function runUserPush(options: UserPushOptions): Promise<UserPushResult> {
-  const { cwd, io, identity, force, access } = options;
+  const { cwd, io, identity, force, access, worktreeBranch } = options;
 
   if (access) {
     const pushability = await runPushabilityStatus({
       exec: io.exec,
       access,
       target: "notes",
+      worktreeBranch,
     });
     if (!pushability.allowed) {
       throw new UserPushBlockedError(pushability.conditions);

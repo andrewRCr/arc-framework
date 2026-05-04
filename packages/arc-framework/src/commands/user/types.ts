@@ -126,6 +126,13 @@ export interface UserPushOptions {
    * to work). Real wirings inject `fs.access` from `node:fs/promises`.
    */
   access?: AccessFn;
+  /**
+   * Current worktree branch name. When provided, the pushability matrix runs
+   * the notes-vs-worktree alignment probe (HEAD vs. `origin/<branch>`) so
+   * notes push refuses to publish against an unpushed or stale base. `force`
+   * does not bypass — force is scoped to notes-ref divergence recovery.
+   */
+  worktreeBranch?: string;
 }
 
 /**

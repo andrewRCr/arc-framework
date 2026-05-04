@@ -212,4 +212,174 @@ describe("runPushabilityStatus", () => {
     expect(force?.disposition).toBe("advisory");
     expect(force?.guidance).toContain("diverged");
   });
+
+  describe("worktree-vs-origin alignment (notes target)", () => {
+    const REV_LIST_LEFT_RIGHT_PREFIX = "rev-list --left-right --count";
+
+    function notesResponses(): Record<string, ExecResult | ResponseFn> {
+      return {
+        [REBASE_MERGE_PATH]: { stdout: "/repo/.git/rebase-merge", stderr: "" },
+        [REBASE_APPLY_PATH]: { stdout: "/repo/.git/rebase-apply", stderr: "" },
+        [CONFIG_GET_FETCH]: {
+          stdout: "+refs/heads/*:refs/remotes/origin/*\n+refs/notes/arc/user/*:refs/notes/arc/user/*",
+          stderr: "",
+        },
+      };
+    }
+
+    it("clean worktree (ahead=0, behind=0) → no alignment condition", async () => {
+      const responses = notesResponses();
+      responses[`${REV_LIST_LEFT_RIGHT_PREFIX} HEAD...origin/feature/x`] = {
+        stdout: "0\t0\n",
+        stderr: "",
+      };
+      const { exec } = buildExec(responses);
+      const access = buildAccess([]);
+
+      const result = await runPushabilityStatus({
+        exec,
+        access,
+        target: "notes",
+        worktreeBranch: "feature/x",
+      });
+
+      expect(result.allowed).toBe(true);
+      expect(
+        result.conditions.find((c) => c.kind === "worktree-not-aligned-with-origin"),
+      ).toBeUndefined();
+    });
+
+    it("local-ahead → blocks with ahead-count guidance", async () => {
+      const responses = notesResponses();
+      responses[`${REV_LIST_LEFT_RIGHT_PREFIX} HEAD...origin/feature/x`] = {
+        stdout: "2\t0\n",
+        stderr: "",
+      };
+      const { exec } = buildExec(responses);
+      const access = buildAccess([]);
+
+      const result = await runPushabilityStatus({
+        exec,
+        access,
+        target: "notes",
+        worktreeBranch: "feature/x",
+      });
+
+      expect(result.allowed).toBe(false);
+      const cond = result.conditions.find((c) => c.kind === "worktree-not-aligned-with-origin");
+      expect(cond?.disposition).toBe("block");
+      expect(cond?.worktreeAlignment).toEqual({ state: "local-ahead", ahead: 2, behind: 0 });
+      expect(cond?.guidance).toContain("2");
+      expect(cond?.guidance).toContain("feature/x");
+      expect(cond?.guidance).toContain("push the worktree first");
+    });
+
+    it("behind → blocks with behind-specific guidance", async () => {
+      const responses = notesResponses();
+      responses[`${REV_LIST_LEFT_RIGHT_PREFIX} HEAD...origin/feature/x`] = {
+        stdout: "0\t3\n",
+        stderr: "",
+      };
+      const { exec } = buildExec(responses);
+      const access = buildAccess([]);
+
+      const result = await runPushabilityStatus({
+        exec,
+        access,
+        target: "notes",
+        worktreeBranch: "feature/x",
+      });
+
+      expect(result.allowed).toBe(false);
+      const cond = result.conditions.find((c) => c.kind === "worktree-not-aligned-with-origin");
+      expect(cond?.disposition).toBe("block");
+      expect(cond?.worktreeAlignment).toEqual({ state: "behind", ahead: 0, behind: 3 });
+      expect(cond?.guidance).toContain("3");
+      expect(cond?.guidance).toContain("behind");
+    });
+
+    it("diverged → blocks with diverged-specific guidance", async () => {
+      const responses = notesResponses();
+      responses[`${REV_LIST_LEFT_RIGHT_PREFIX} HEAD...origin/feature/x`] = {
+        stdout: "2\t3\n",
+        stderr: "",
+      };
+      const { exec } = buildExec(responses);
+      const access = buildAccess([]);
+
+      const result = await runPushabilityStatus({
+        exec,
+        access,
+        target: "notes",
+        worktreeBranch: "feature/x",
+      });
+
+      expect(result.allowed).toBe(false);
+      const cond = result.conditions.find((c) => c.kind === "worktree-not-aligned-with-origin");
+      expect(cond?.disposition).toBe("block");
+      expect(cond?.worktreeAlignment).toEqual({ state: "diverged", ahead: 2, behind: 3 });
+      expect(cond?.guidance).toContain("diverged");
+      expect(cond?.guidance).toMatch(/rebase|merge/);
+    });
+
+    it("target='both' suppresses the alignment condition (paired-push owns worktree leg)", async () => {
+      const responses = notesResponses();
+      responses[REV_PARSE_HEAD] = { stdout: "feature/x", stderr: "" };
+      responses[REV_PARSE_UPSTREAM] = { stdout: "origin/feature/x", stderr: "" };
+      responses[`${REV_LIST_LEFT_RIGHT_PREFIX} HEAD...origin/feature/x`] = () => {
+        throw new Error("rev-list should not run on target=both");
+      };
+      const { exec } = buildExec(responses);
+      const access = buildAccess([]);
+
+      const result = await runPushabilityStatus({
+        exec,
+        access,
+        target: "both",
+        worktreeBranch: "feature/x",
+      });
+
+      expect(result.allowed).toBe(true);
+      expect(
+        result.conditions.find((c) => c.kind === "worktree-not-aligned-with-origin"),
+      ).toBeUndefined();
+    });
+
+    it("worktreeBranch omitted on target='notes' → no probe, no condition", async () => {
+      const responses = notesResponses();
+      responses[`${REV_LIST_LEFT_RIGHT_PREFIX} HEAD...origin/feature/x`] = () => {
+        throw new Error("rev-list should not run when worktreeBranch is omitted");
+      };
+      const { exec } = buildExec(responses);
+      const access = buildAccess([]);
+
+      const result = await runPushabilityStatus({ exec, access, target: "notes" });
+
+      expect(result.allowed).toBe(true);
+      expect(
+        result.conditions.find((c) => c.kind === "worktree-not-aligned-with-origin"),
+      ).toBeUndefined();
+    });
+
+    it("probe failure (rev-list throws) → no condition; allow with no regression", async () => {
+      const responses = notesResponses();
+      responses[`${REV_LIST_LEFT_RIGHT_PREFIX} HEAD...origin/feature/x`] = () => {
+        throw new Error("fatal: ambiguous argument 'origin/feature/x': unknown revision");
+      };
+      const { exec } = buildExec(responses);
+      const access = buildAccess([]);
+
+      const result = await runPushabilityStatus({
+        exec,
+        access,
+        target: "notes",
+        worktreeBranch: "feature/x",
+      });
+
+      expect(result.allowed).toBe(true);
+      expect(
+        result.conditions.find((c) => c.kind === "worktree-not-aligned-with-origin"),
+      ).toBeUndefined();
+    });
+  });
 });
