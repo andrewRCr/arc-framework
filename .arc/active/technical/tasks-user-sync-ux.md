@@ -279,25 +279,30 @@ then renames, then vocabulary pass (so the vocabulary pass operates on final-sha
 
 ### `[ ]` **3.1 Resolver consolidation**
 
-- Extract the precedence logic shared by `user.notes_push` (and the new interlock keys in 3.2)
-  into a generic helper — `resolveGitConfigOverride<T>`.
-- Return shape (stable downstream-consumer contract):
-  `{ value: T, source: "git-config" | "yaml" | "default" }`. Source-tracking is **required**,
-  not optional — the planned interlock-release wrappers' audit log carries "interlock state at
-  decision time" with provenance, and the authorization footer's `abbreviated | full` modes
-  surface source per `plan-interlock-release-wrappers.md` § Audit log / § Authorization footer.
-- Migrate `lib/sync-policy.ts` onto it. The helper resolves git-config override → yaml →
-  default in 3-tier order.
-- Affected files: `packages/arc-framework/src/lib/sync-policy.ts`; new
-  `packages/arc-framework/src/lib/config/resolve-override.ts`. Export path, return shape, and
-  generic signature are pinned as a stable downstream-consumer API — the planned
-  interlock-release wrappers' validation library builds on this contract.
-- Build `test-first` (one behavior at a time):
-    - Git-config value present → returns `{ value, source: "git-config" }`
-    - Git-config absent + yaml present → returns `{ value, source: "yaml" }`
-    - Both absent → returns `{ value: default, source: "default" }`
-    - Type validation: invalid value at any tier rejected with appropriate error
-    - `sync-policy.ts` migrated → all existing sync-policy tests pass with no behavior change
+- _Goal:_ One 3-tier resolver helper handles `user.notes_push` and the three interlock keys,
+  returning `{ value, source }` so downstream consumers can audit precedence.
+
+    - Extract the precedence logic shared by `user.notes_push` (and the new interlock keys
+      in 3.2) into a generic helper — `resolveGitConfigOverride<T>`.
+    - Return shape (stable downstream-consumer contract):
+      `{ value: T, source: "git-config" | "yaml" | "default" }`. Source-tracking is
+      **required**, not optional — the planned interlock-release wrappers' audit log carries
+      "interlock state at decision time" with provenance, and the authorization footer's
+      `abbreviated | full` modes surface source per `plan-interlock-release-wrappers.md`
+      § Audit log / § Authorization footer.
+    - Migrate `lib/sync-policy.ts` onto it. The helper resolves git-config override → yaml →
+      default in 3-tier order.
+    - Affected files: `packages/arc-framework/src/lib/sync-policy.ts`; new
+      `packages/arc-framework/src/lib/config/resolve-override.ts`. Export path, return shape,
+      and generic signature are pinned as a stable downstream-consumer API — the planned
+      interlock-release wrappers' validation library builds on this contract.
+    - Build `test-first` (one behavior at a time):
+        - Git-config value present → returns `{ value, source: "git-config" }`
+        - Git-config absent + yaml present → returns `{ value, source: "yaml" }`
+        - Both absent → returns `{ value: default, source: "default" }`
+        - Type validation: invalid value at any tier rejected with appropriate error
+        - `sync-policy.ts` migrated → all existing sync-policy tests pass with no behavior
+          change
 
 ### `[ ]` **3.2 Per-developer overrides for interlock keys**
 
@@ -306,34 +311,37 @@ then renames, then vocabulary pass (so the vocabulary pass operates on final-sha
   (`session.commit_interlock`, `session.push_interlock`, `session.sync_interlock`,
   `user.notes_push`). (`session.sync_interlock` schema entry itself lands in 2.2.c.i; this
   task adds the per-dev override surface.)
+
 - _Shape:_ per-dev resolution layers **on top of** `readConfigSettings` via the 3.1 helper,
   not by mutating the status-reader's signature. `readConfigSettings` stays yaml-only (no
   `exec` dependency); a thin wrapper composes the yaml read with per-key
   `resolveGitConfigOverride<T>` calls. Callers that need the resolved values (handlers, sync
   orchestrator, status command) move to the wrapper; pure-yaml callers (config-status report)
   stay on the reader directly.
-- Companion `sourceMap: Record<key, "git-config" | "yaml" | "default">` returned alongside the
-  resolved settings. Diagnostic surfaces (orchestrator `--json` envelope, status output)
-  consume it.
-- This per-dev resolution layer is the **validation read path** for the planned
-  interlock-release wrappers' validation library (per `plan-interlock-release-wrappers.md` §
-  Interlock-validation library). The wrappers call `resolveGitConfigOverride<T>` per key
-  directly; 3.2 ensures the full release-mode key surface is consistently resolvable.
-- Additive — no breaking changes to existing yaml-only callers.
-- Affected files: `packages/arc-framework/src/lib/config/status-reader.ts` (no signature
-  change; module-comment notes the layering boundary); new wrapper in
-  `packages/arc-framework/src/lib/config/` composing the 3.1 helper + status-reader; handler
-  call-site migrations as needed.
-- Build `test-first` (one behavior at a time):
-    - `arc.commitInterlock` git-config set → wrapper returns git-config value with
-      `sourceMap[commit_interlock] === "git-config"`
-    - `arc.pushInterlock` git-config set → likewise for push interlock
-    - `arc.syncInterlock` git-config set → likewise for sync interlock
-    - `arc.notesPush` git-config set → likewise for notes push
-    - Git-config absent + yaml present → falls through to yaml; sourceMap reflects "yaml"
-    - All absent → defaults; sourceMap reflects "default"
-    - Invalid git-config value → falls through to yaml with warning (matches yaml-validation
-      shape)
+
+    - Companion `sourceMap: Record<key, "git-config" | "yaml" | "default">` returned alongside
+      the resolved settings. Diagnostic surfaces (orchestrator `--json` envelope, status
+      output) consume it.
+    - This per-dev resolution layer is the **validation read path** for the planned
+      interlock-release wrappers' validation library (per
+      `plan-interlock-release-wrappers.md` § Interlock-validation library). The wrappers call
+      `resolveGitConfigOverride<T>` per key directly; 3.2 ensures the full release-mode key
+      surface is consistently resolvable.
+    - Additive — no breaking changes to existing yaml-only callers.
+    - Affected files: `packages/arc-framework/src/lib/config/status-reader.ts` (no signature
+      change; module-comment notes the layering boundary); new wrapper in
+      `packages/arc-framework/src/lib/config/` composing the 3.1 helper + status-reader;
+      handler call-site migrations as needed.
+    - Build `test-first` (one behavior at a time):
+        - `arc.commitInterlock` git-config set → wrapper returns git-config value with
+          `sourceMap[commit_interlock] === "git-config"`
+        - `arc.pushInterlock` git-config set → likewise for push interlock
+        - `arc.syncInterlock` git-config set → likewise for sync interlock
+        - `arc.notesPush` git-config set → likewise for notes push
+        - Git-config absent + yaml present → falls through to yaml; sourceMap reflects "yaml"
+        - All absent → defaults; sourceMap reflects "default"
+        - Invalid git-config value → falls through to yaml with warning (matches yaml-
+          validation shape)
 
 ### `[ ]` **3.3 Config-shape alignment**
 
@@ -366,13 +374,13 @@ then renames, then vocabulary pass (so the vocabulary pass operates on final-sha
             - Shell validator accepts new key+values; rejects old key+values
 
     - `[ ]` **3.3.b `arc update` migration logic**
-        - _Architecture:_ Versioned migrator infrastructure in `update.ts`. Each migration is
+        - Architecture: versioned migrator infrastructure in `update.ts`. Each migration is
           `{ fromFrameworkVersion, migrate(yamlContent: string): string }`. `update` runs
           applicable migrations (selected by stored `manifest.framework_version` vs. current)
           before three-way merging the template against the migrated yaml. Pays for itself
           across future renames; framework currently has no other adopters, so the cost
           lands ahead of demand.
-        - _Migrations registered by this task:_
+        - Migrations registered by this task:
             - `user.sync_push: {value}` → `user.notes_push: {translated}` (key rename + value
               translation: `always` → `on-sync`; `prompt` / `manual` carry forward).
             - `session.push_interlock: on-handoff` → `on-sync` (value rename; key unchanged).
@@ -419,23 +427,29 @@ then renames, then vocabulary pass (so the vocabulary pass operates on final-sha
 
 ### `[ ]` **3.4 Layered vocabulary rule application**
 
-- Sweep user-facing strings so "user notes" is the workhorse noun in headlines, action hints,
-  and status summaries.
-- "Git notes ref" or "git notes" surfaces only when storage mechanism is relevant (debugging,
-  ref state, error messages mentioning `refs/notes/...`).
-- Affected files (audit-enumerated):
-    - `packages/arc-framework/src/commands/user/sync-status.ts` (primary rendering surface)
-    - `packages/arc-framework/src/commands/user/format.ts` (summary builders)
-    - `packages/arc-framework/src/commands/user/save-load.ts` (error messages)
-    - `packages/arc-framework/src/commands/user/push-fetch.ts` (status / handler messaging)
-    - `packages/arc-framework/src/commands/user/types.ts` (any user-facing copy in error
-      classes / type defaults)
-    - `packages/arc-framework/src/handlers/user.ts` (UX strings + prompts)
-    - `packages/arc-framework/src/handlers/user-sync.ts` (direction-aware UX strings)
-    - `packages/arc-framework/src/handlers/sync.ts` (orchestrator messages)
-    - `packages/arc-framework/src/handlers/push-recovery.ts` (recovery-prompt copy)
-    - `packages/arc-framework/src/cli.ts` (subcommand help text)
-- Test-after — rendering and string-content audit, not logic change.
+- _Goal:_ User-facing surfaces use "user notes" as the workhorse noun; storage-mechanism
+  terminology ("git notes ref", `refs/notes/...`) appears only when the storage layer is
+  relevant.
+
+    - Sweep user-facing strings so "user notes" is the workhorse noun in headlines, action
+      hints, and status summaries.
+    - "Git notes ref" or "git notes" surfaces only when storage mechanism is relevant
+      (debugging, ref state, error messages mentioning `refs/notes/...`).
+    - Affected files (audit-enumerated):
+        - `packages/arc-framework/src/commands/user/sync-status.ts` (primary rendering
+          surface)
+        - `packages/arc-framework/src/commands/user/format.ts` (summary builders)
+        - `packages/arc-framework/src/commands/user/save-load.ts` (error messages)
+        - `packages/arc-framework/src/commands/user/push-fetch.ts` (status / handler
+          messaging)
+        - `packages/arc-framework/src/commands/user/types.ts` (any user-facing copy in error
+          classes / type defaults)
+        - `packages/arc-framework/src/handlers/user.ts` (UX strings + prompts)
+        - `packages/arc-framework/src/handlers/user-sync.ts` (direction-aware UX strings)
+        - `packages/arc-framework/src/handlers/sync.ts` (orchestrator messages)
+        - `packages/arc-framework/src/handlers/push-recovery.ts` (recovery-prompt copy)
+        - `packages/arc-framework/src/cli.ts` (subcommand help text)
+    - Test-after — rendering and string-content audit, not logic change.
 
 ## **Phase 4:** DX polish
 
@@ -472,49 +486,56 @@ Phase 3's vocabulary alignment for first-use copy strings.
 
 ### `[ ]` **4.2 Shared-ref sync-state inference**
 
-- Extend the bounded-fetch pattern (already in place for the worktree-sync probe) to the notes
-  ref on full-mode `arc status` invocation. Session-init probe stays remote-aware via the
-  existing pull mechanism.
-- Boundary: this task classifies why the notes-sync state differs; it does not decide which
-  branch or work unit the identity should work on. Branch-gone recovery and target selection
-  remain Worktree Foundation + Coord Probe scope.
-- Downstream signal contract: preserve enough metadata from notes discovery for later routing
-  work to consume (annotated commit, note-history distance, current-HEAD reachability, and
-  inferred local / sibling-session / cross-machine cause).
-- Sync-state inference distinguishes:
-    - Local-behind-because-haven't-fetched (single-machine, single-session)
-    - Local-behind-because-other-machine (cross-machine work)
-    - Local-behind-because-sibling-session (same machine, different worktree/session)
-- _Sibling-session heuristic:_ compare `LocalSyncState.sourceCommit` (from
-  `.sync-state.json`) against the latest entry in `refs/notes/arc/user/{identity}` history.
-  Divergence + both-local-only (no remote-ahead path) → sibling session. Cross-machine causes
-  flow from remote ref differing from local ref state.
-- _Schema extension:_ extend `LocalSyncState` (currently v2 — `version`,
-  `materializedManifestHash`, `sourceCommit`, `sourceOperation`, optional `partialPush`) with
-  `savedAt: ISO-string`. Bump to v3; readers parse v1 / v2 (existing forward-read pattern in
-  `readLocalSyncState`) and write v3. Required for heuristics that need recency to compare
-  timestamps.
-- _`--offline` mode behavior:_ both worktree and notes fetches suppressed. Cross-machine vs.
-  unfetched-local distinction collapses (no remote read available); surface a degraded
-  classification ("offline — local state only; cross-machine signals unavailable") rather
-  than asserting a cause heuristically.
-- Affected files:
-  `packages/arc-framework/src/commands/user/sync-status.ts` (rendering + bounded-fetch);
-  `packages/arc-framework/src/commands/user/save-load.ts` (`LocalSyncState` schema bump,
-  read-with-forward-compat, write at v3).
-- Build `test-first` (one behavior at a time):
-    - Bounded-fetch on notes ref fires by default in full-mode `arc status`
-    - `--offline` suppresses both worktree and notes fetches; classification degrades with
-      explicit guidance line
-    - Sibling-session detection: `sourceCommit` divergent from notes-ref head, both
-      local-only → state-machine resolves to "sibling session"
-    - Cross-machine vs. unfetched-local distinction surfaced when remote ref differs
-    - `LocalSyncState` v2 → v3 read forward-compat: existing v2 files load without error and
-      get `savedAt = null` until the next save
+- _Goal:_ `arc status` distinguishes single-session, sibling-session, and cross-machine
+  causes for notes-ref divergence — actionable guidance over generic "remote ahead" framing,
+  with `--offline` degrading classification explicitly.
+
+    - Extend the bounded-fetch pattern (already in place for the worktree-sync probe) to the
+      notes ref on full-mode `arc status` invocation. Session-init probe stays remote-aware
+      via the existing pull mechanism.
+    - Boundary: this task classifies why the notes-sync state differs; it does not decide
+      which branch or work unit the identity should work on. Branch-gone recovery and target
+      selection remain Worktree Foundation + Coord Probe scope.
+    - Downstream signal contract: preserve enough metadata from notes discovery for later
+      routing work to consume (annotated commit, note-history distance, current-HEAD
+      reachability, and inferred local / sibling-session / cross-machine cause).
+    - Sync-state inference distinguishes:
+        - Local-behind-because-haven't-fetched (single-machine, single-session)
+        - Local-behind-because-other-machine (cross-machine work)
+        - Local-behind-because-sibling-session (same machine, different worktree/session)
+    - Sibling-session heuristic: compare `LocalSyncState.sourceCommit` (from
+      `.sync-state.json`) against the latest entry in `refs/notes/arc/user/{identity}`
+      history. Divergence + both-local-only (no remote-ahead path) → sibling session.
+      Cross-machine causes flow from remote ref differing from local ref state.
+    - Schema extension: extend `LocalSyncState` (currently v2 — `version`,
+      `materializedManifestHash`, `sourceCommit`, `sourceOperation`, optional `partialPush`)
+      with `savedAt: ISO-string`. Bump to v3; readers parse v1 / v2 (existing forward-read
+      pattern in `readLocalSyncState`) and write v3. Required for heuristics that need
+      recency to compare timestamps.
+    - `--offline` mode behavior: both worktree and notes fetches suppressed. Cross-machine
+      vs. unfetched-local distinction collapses (no remote read available); surface a
+      degraded classification ("offline — local state only; cross-machine signals
+      unavailable") rather than asserting a cause heuristically.
+    - Affected files:
+      `packages/arc-framework/src/commands/user/sync-status.ts` (rendering + bounded-fetch);
+      `packages/arc-framework/src/commands/user/save-load.ts` (`LocalSyncState` schema bump,
+      read-with-forward-compat, write at v3).
+    - Build `test-first` (one behavior at a time):
+        - Bounded-fetch on notes ref fires by default in full-mode `arc status`
+        - `--offline` suppresses both worktree and notes fetches; classification degrades
+          with explicit guidance line
+        - Sibling-session detection: `sourceCommit` divergent from notes-ref head, both
+          local-only → state-machine resolves to "sibling session"
+        - Cross-machine vs. unfetched-local distinction surfaced when remote ref differs
+        - `LocalSyncState` v2 → v3 read forward-compat: existing v2 files load without error
+          and get `savedAt = null` until the next save
 
 ## **Phase 5:** Verification
 
 ### `[ ]` **5.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+
+- _Goal:_ WU success criteria verified through the verification workflow; quality gates pass
+  at Tier 3; atomic-task companion drained.
 
 ---
 
