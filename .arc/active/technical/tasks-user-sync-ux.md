@@ -180,38 +180,35 @@ and an exported paired-push helper are the load-bearing shape decisions.
                 - Help text: `arc --help`, `arc user --help`, and `arc sync --help` now
                   cross-reference per spec.
 
-            - `[ ]` **2.2.c.ii Orchestrator dispatch + matrix routing**
-                - New orchestrator handler probes worktree state, notes state, and config
-                  (`push_interlock`, `notes_push`); dispatches over the matrix:
-                    - Both `on-sync` → `runPairedPush` (the paired cell).
-                    - Worktree `on-sync` only → push worktree, save notes, no notes push.
-                    - Notes `on-sync` only → R15 gating (worktree-state-aware); save +
-                      conditionally push notes.
-                    - Both `manual` → save only, surface unpushed-state report.
-                    - Notes `prompt` cells → save, ask before pushing notes.
-                - Coherence gates layered on top of the matrix: worktree=diverged + push
-                  configured → skip + surface "Reconcile required:"; force-push refused
-                  per R5 (matrix advisory disposition treated as block at handoff).
-                - `--dry-run` flag prints the matrix decision and what would fire without
-                  invoking either leg.
-                - Structured output for parser consumption (JSON-mode optional via `--json`)
-                  so the handoff workflow can surface itemized leg outcomes in the handoff
-                  summary.
+            - `[x]` **2.2.c.ii Orchestrator dispatch + matrix routing**
+                - `handleSync` (`handlers/sync.ts`) rewritten from c.i stub. Probes identity,
+                  config (`push_interlock`, `remote_sync`), worktree sync state, notes-push
+                  policy (`resolveSyncPushPolicy`), and current branch in parallel; routes
+                  through pure `decideMatrix` returning per-leg actions + cell name. Paired
+                  cell (`on-sync × always`) calls `runPairedPush`; worktree-only,
+                  notes-only-with-R15, save-only, and prompt cells dispatch single-leg via
+                  direct `git push origin <branch>` + `runUserSave` + `pushWithInteractiveRecovery`.
+                - Coherence overlays: `worktree-state === "diverged"` + `push_interlock: on-sync`
+                  short-circuits to "Reconcile required:" surface with both legs reported as
+                  `blocked`. R15 (notes auto-push or prompt under manual worktree push)
+                  treats local-ahead/diverged/remote-ahead worktree as a block reason —
+                  notes save fires, push surfaces guidance, exitCode 1. Force-push refusal
+                  lives in `runPairedPush`'s pre-check (matrix advisory at handoff).
+                - `--dry-run` prints cell name + per-leg action descriptions
+                  (`describeWorktreeAction` / `describeNotesAction`) without invoking save
+                  or push. `--json` emits structured envelope (cell, worktree leg, notes leg,
+                  exitCode, optional reconcile block) for handoff-workflow consumption;
+                  human-readable path remains the default.
+                - Non-interactive prompt-policy degrades to `manual` before matrix dispatch
+                  (parity with `arc user sync`).
                 - Affected files: `packages/arc-framework/src/handlers/sync.ts` (rewrite);
-                  `packages/arc-framework/src/commands/sync/orchestrator.ts` (new, if scope
-                  warrants extraction).
-                - Build `test-first` (one behavior at a time):
-                    - Both interlocks `on-sync` + clean worktree → `runPairedPush` invoked;
-                      both legs reported.
-                    - `push_interlock: manual` + `notes_push: on-sync` + worktree local-ahead
-                      → R15 block; notes save fires; notes push blocked with guidance.
-                    - `push_interlock: on-sync` + `notes_push: manual` + clean worktree →
-                      worktree push fires; notes save only.
-                    - Both `manual` → save only; no pushes; unpushed state surfaced in output.
-                    - `notes_push: prompt` → save + interactive confirm before notes push.
-                    - Diverged worktree + `push_interlock: on-sync` → both legs skip;
-                      "Reconcile required:" surfaced.
-                    - `--dry-run` → no pushes fire; matrix decision printed.
+                  `__tests__/unit/sync-orchestrator.test.ts` (new — 7 tests). Extraction
+                  to `commands/sync/orchestrator.ts` deferred — matrix logic stayed inline
+                  at ~60 LOC of pure decision; not enough surface to warrant a separate
+                  module.
+                - Tests: 7 new in `__tests__/unit/sync-orchestrator.test.ts` covering all
+                  seven listed behaviors. Behaviors batched per test-first batching judgment
+                  (single handler, shared mock setup).
 
             - `[ ]` **2.2.c.iii Workflow markdown rewrite**
                 - `session-handoff.md` Push Sequence section collapses to: probe consults
