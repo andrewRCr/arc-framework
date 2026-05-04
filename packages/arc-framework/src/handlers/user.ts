@@ -4,6 +4,8 @@
  * @module
  */
 
+import { access } from "node:fs/promises";
+
 import * as p from "@clack/prompts";
 
 import {
@@ -11,6 +13,7 @@ import {
   runUserSessionInitStatus, runUserStatus,
   buildSaveSummary, buildLoadSummary, buildUserSessionInitStatusSummary, buildUserStatusSummary,
   hasLocalNotes,
+  UserPushBlockedError,
 } from "../commands/user.js";
 import { slugifyIdentity } from "../lib/git/index.js";
 import { formatError, UserFacingError } from "../lib/errors.js";
@@ -194,12 +197,17 @@ export async function handleUserPush(opts: UserPushOptions): Promise<void> {
     try {
       await runWithSpinner(
         "Force-pushing user notes...",
-        () => runUserPush({ cwd, io, identity, force: true }),
+        () => runUserPush({ cwd, io, identity, force: true, access }),
         "Force push complete.",
       );
       p.outro("Done.");
     } catch (err) {
       if (isHandledError(err)) return;
+      if (err instanceof UserPushBlockedError) {
+        p.log.error(err.message);
+        process.exitCode = 1;
+        return;
+      }
       const msg = err instanceof Error ? err.message : String(err);
       if (isRemoteError(msg)) {
         p.log.error("No remote configured. Push requires a remote repository.");
@@ -212,7 +220,7 @@ export async function handleUserPush(opts: UserPushOptions): Promise<void> {
     return;
   }
 
-  const result = await pushWithInteractiveRecovery(io, identity, cwd);
+  const result = await pushWithInteractiveRecovery(io, identity, cwd, access);
   switch (result.kind) {
     case "ok":
     case "ok-recovered":
@@ -234,6 +242,12 @@ export async function handleUserPush(opts: UserPushOptions): Promise<void> {
       p.log.warn(
         "Local save preserved; push skipped. Re-run `arc user push` in a terminal to resolve.",
       );
+      process.exitCode = 1;
+      return;
+    case "blocked":
+      for (const condition of result.conditions.filter((c) => c.disposition === "block")) {
+        p.log.error(condition.guidance);
+      }
       process.exitCode = 1;
       return;
     case "failed":

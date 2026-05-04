@@ -47,6 +47,7 @@ import type {
 } from "../../../src/commands/user/types.js";
 import type { DirtyStateResult } from "../../../src/lib/git/dirty-state.js";
 import type { HeadHashResult } from "../../../src/lib/git/head-hash.js";
+import type { PushabilityResult } from "../../../src/lib/git/pushability.js";
 import type { WorktreeSyncStatusResult } from "../../../src/lib/git/worktree-sync.js";
 import type { ResolvedSyncPush } from "../../../src/lib/sync-policy.js";
 
@@ -249,6 +250,7 @@ function sessionHandoffProbes(
     syncPush: vi.fn(async () => resolvedSyncPush()),
     active: vi.fn(async () => activeSessionInit()),
     head: vi.fn(async () => headHash()),
+    pushability: vi.fn(async () => ({ allowed: true, conditions: [] })),
     ...overrides,
   };
 }
@@ -674,6 +676,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
     expect(probes.syncPush).toHaveBeenCalledTimes(1);
     expect(probes.active).toHaveBeenCalledTimes(1);
     expect(probes.head).toHaveBeenCalledTimes(1);
+    expect(probes.pushability).toHaveBeenCalledTimes(1);
     expect(probes.user).toHaveBeenCalledWith("andrew");
     expect(probes.active).toHaveBeenCalledWith("andrew", "maintainer");
   });
@@ -692,11 +695,39 @@ describe("runSessionHandoffStatus — orchestration", () => {
       "identity",
       "mode",
       "pushInterlock",
+      "pushability",
       "syncPush",
       "user",
       "worktree",
     ]);
     expect(result.mode).toBe("session-handoff");
+  });
+
+  it("returns pushability matrix from the pushability probe", async () => {
+    const blockedResult: PushabilityResult = {
+      allowed: false,
+      conditions: [
+        {
+          kind: "rebase-in-progress",
+          disposition: "block",
+          rebaseForm: "rebase-merge",
+          guidance: "Rebase in progress — complete or abort before pushing.",
+        },
+      ],
+    };
+    const probes = sessionHandoffProbes({
+      pushability: vi.fn(async () => blockedResult),
+    });
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.pushability.ok).toBe(true);
+    if (result.pushability.ok) {
+      expect(result.pushability.value.allowed).toBe(false);
+      expect(result.pushability.value.conditions[0]?.kind).toBe("rebase-in-progress");
+    }
   });
 
   it("returns the HEAD short-hash from the head probe", async () => {

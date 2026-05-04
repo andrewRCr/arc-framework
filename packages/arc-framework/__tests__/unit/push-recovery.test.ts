@@ -32,11 +32,21 @@ class MockUserSaveError extends Error {
   }
 }
 
+class MockUserPushBlockedError extends Error {
+  readonly conditions: unknown[];
+  constructor(conditions: unknown[]) {
+    super("blocked");
+    this.name = "UserPushBlockedError";
+    this.conditions = conditions;
+  }
+}
+
 vi.mock("../../src/commands/user.js", () => ({
   runUserPush: (...args: unknown[]) => mockRunUserPush(...args),
   runUserFetch: (...args: unknown[]) => mockRunUserFetch(...args),
   runUserSave: (...args: unknown[]) => mockRunUserSave(...args),
   UserSaveError: MockUserSaveError,
+  UserPushBlockedError: MockUserPushBlockedError,
 }));
 
 const mockIsNonInteractive = vi.fn(() => false);

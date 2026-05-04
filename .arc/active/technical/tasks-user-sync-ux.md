@@ -89,53 +89,34 @@ library APIs under `lib/git/` so the planned interlock-release wrappers
 choices. Ref-scope discrimination on the matrix and an exported paired-push helper are the
 load-bearing shape decisions.
 
-### `[ ]` **2.1 Pushability pre-check matrix**
+### `[x]` **2.1 Pushability pre-check matrix**
 
-- Detect what's detectable client-side; surface the condition; never silently skip.
-- Client-side pre-checks (matrix detects):
-    - Rebase in progress (either `.git/rebase-merge/` or `.git/rebase-apply/` present) → block
-      both targets + guide.
-    - Detached HEAD → block both targets + guide.
-    - No upstream tracking on worktree branch → block worktree target + guide.
-    - Notes-ref fetch refspec missing from `remote.origin.fetch` → auto-configure via existing
-      `configureNotesRefspec` (`lib/git/exec.ts:129`). Notes refs aren't branch-upstream-tracked;
-      missing fetch refspec is the actual condition the matrix detects.
-    - Force-push required (worktree-sync state `diverged` → fold via caller-supplied sync state
-      input, or matrix re-probes if absent) → surface as a condition. Refusal policy lives at
-      the call site (handoff and default `arc user push` refuse; explicit `arc user push --force`
-      allows).
-- Server-side failure classes (not pre-checkable; surface at push time):
-    - Protected branch / pre-receive hook failure / permission denied → bubble server output
-      verbatim. Wrapping (if any) lives in the user-facing handler layer; preserve the original
-      server message inside any handler-layer prefix. Don't add sanitizing layers between
-      `runUserPush` and the handler.
-- API shape: exported as `runPushabilityStatus({ exec, target, worktreeSyncState? })` with
-  `target: "worktree" | "notes" | "both"`, returning a discriminated result enumerating each
-  detected condition with guidance text. Conditions split: global (rebase, detached HEAD) apply
-  to every target; ref-specific (no-upstream branch, missing notes refspec) apply per target.
-  `both` evaluates the union for paired-push gating. Result-type shape feeds Task 2.2's itemized
-  output directly.
-- Affected files: new `packages/arc-framework/src/lib/git/pushability.ts` (probe);
-  `packages/arc-framework/src/lib/git/index.ts` (export);
-  `packages/arc-framework/src/commands/user/push-fetch.ts` (consume before notes push);
-  `packages/arc-framework/src/handlers/status.ts` and
-  `packages/arc-framework/src/commands/status/types.ts` (carry the probe in the session-handoff
-  envelope so the handoff workflow gates worktree push on it).
-- Concrete copy strings finalize at implementation time alongside the emitting code.
-- Build `test-first` (one behavior at a time):
-    - Happy path: no blocking conditions, `target: "both"` → result allows both targets to
-      proceed
-    - Rebase-in-progress (`.git/rebase-merge/` form) → both targets blocked; guidance returned
-    - Rebase-in-progress (`.git/rebase-apply/` form, e.g. `git am`) → both targets blocked
-    - Detached HEAD → both targets blocked; guidance returned
-    - Worktree branch with no upstream, `target: "worktree"` → blocked; guidance points at
-      `git push -u origin <branch>`
-    - Worktree branch with no upstream, `target: "notes"` → not blocked (condition doesn't apply
-      to notes target)
-    - Notes-ref fetch refspec missing, `target: "notes"` → auto-configures via
-      `configureNotesRefspec`; subsequent re-probe shows refspec installed
-    - Force-push required (worktree-sync state `diverged`, `target: "worktree"`) → surfaces
-      condition; caller decides refusal vs. allow
+- New `lib/git/pushability.ts` exports `runPushabilityStatus({ exec, access, target,
+  worktreeSyncState? })` with `target: "worktree" | "notes" | "both"`. Conditions split global
+  (rebase-in-progress in either `rebase-merge` or `rebase-apply` form, detached HEAD) from
+  ref-specific (no-upstream branch on worktree target; missing notes refspec on notes target).
+  `force-push-required` derives from caller-supplied `worktreeSyncState === "diverged"` and
+  surfaces with `disposition: "advisory"` so refusal policy lives at the call site.
+- Notes-refspec condition auto-fixes via existing `configureNotesRefspec`; disposition
+  `auto-fixed` lets the push proceed without caller action. Server-side classes (protected
+  branch / pre-receive / permission denied) are not pre-checkable — left as verbatim push-time
+  errors; handlers preserve the original server message.
+- `runUserPush` now accepts an optional `access` seam; when provided, runs the matrix
+  (`target: "notes"`) before the push and throws new `UserPushBlockedError` on block
+  conditions. Handlers (`handlers/{user,sync,push-recovery}.ts`) inject `fs.access` from
+  `node:fs/promises` and surface a new `blocked` discriminant on `PushResult` with guidance
+  output. Force-flag bypass refused on environmental blocks (rebase/detached) since force
+  doesn't resolve them.
+- Session-handoff probe envelope carries a new `pushability` slot
+  (`commands/status/{types,run}.ts` + `handlers/status.ts`) probed with `target: "worktree"`
+  for handoff-time worktree push gating. Workflow-doc consumer wiring lands in Task 2.2.
+- Pushability matrix exports re-extracted under `lib/git/index.ts` as the load-bearing reusable
+  surface for the planned interlock-release wrappers.
+- Tests: 8 new in `__tests__/unit/git/pushability.test.ts` covering all behaviors (happy path,
+  both rebase forms, detached HEAD, both target-scope cases for no-upstream, refspec
+  auto-configure with re-probe, force-push advisory). 1 new envelope test in
+  `__tests__/unit/status/run.test.ts`. Mocks updated in `push-recovery.test.ts` and
+  `user-handlers.test.ts` for the new `UserPushBlockedError` export.
 
 ### `[ ]` **2.2 Paired-push failure semantics**
 

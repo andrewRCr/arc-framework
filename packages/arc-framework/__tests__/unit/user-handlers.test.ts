@@ -43,6 +43,15 @@ const mockBuildLoadSummary: Mock<(result: unknown) => string> = vi.fn(() => "");
 const mockBuildUserStatusSummary = vi.fn((result: { summary?: string }) => result.summary ?? "");
 const mockBuildUserSessionInitStatusSummary = vi.fn((result: { summary?: string }) => result.summary ?? "");
 
+class MockUserPushBlockedError extends Error {
+  readonly conditions: unknown[];
+  constructor(conditions: unknown[]) {
+    super("blocked");
+    this.name = "UserPushBlockedError";
+    this.conditions = conditions;
+  }
+}
+
 vi.mock("../../src/commands/user.js", () => ({
   runUserSave: (...args: unknown[]) => mockRunUserSave(...args),
   runUserLoad: (...args: unknown[]) => mockRunUserLoad(...args),
@@ -57,6 +66,7 @@ vi.mock("../../src/commands/user.js", () => ({
   buildLoadSummary: (result: unknown) => mockBuildLoadSummary(result),
   buildUserSessionInitStatusSummary: (result: { summary?: string }) => mockBuildUserSessionInitStatusSummary(result),
   buildUserStatusSummary: (result: { summary?: string }) => mockBuildUserStatusSummary(result),
+  UserPushBlockedError: MockUserPushBlockedError,
 }));
 
 const mockResolveUserIdentity = vi.fn();

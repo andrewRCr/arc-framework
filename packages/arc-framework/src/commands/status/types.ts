@@ -31,6 +31,7 @@ import type {
 } from "../user/types.js";
 import type { DirtyStateResult } from "../../lib/git/dirty-state.js";
 import type { HeadHashResult } from "../../lib/git/head-hash.js";
+import type { PushabilityResult } from "../../lib/git/pushability.js";
 import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
 import type { ResolvedSyncPush } from "../../lib/sync-policy.js";
 
@@ -109,11 +110,12 @@ export interface HandoffPushInterlock {
  * Session-handoff composite result — `--session-handoff` consumer shape.
  *
  * Self-contained: arc-handoff is skill-invoked and shouldn't depend on
- * session-init context still being intact. Seven slots: dirty-state probe,
+ * session-init context still being intact. Eight slots: dirty-state probe,
  * worktree sync, notes sync (user), push interlock with provenance, the
  * handoff-interior toggle set (`syncPush` today; future toggles named as
- * sibling slots), the resolved active status file, and current HEAD
- * short-hash for the `Commit at Handoff` anchor.
+ * sibling slots), the resolved active status file, current HEAD short-hash
+ * for the `Commit at Handoff` anchor, and pushability pre-checks gating
+ * the worktree push.
  */
 export interface SessionHandoffResult {
   mode: "session-handoff";
@@ -125,6 +127,14 @@ export interface SessionHandoffResult {
   syncPush: Probe<ResolvedSyncPush>;
   active: Probe<ActiveSessionInitResult>;
   head: Probe<HeadHashResult>;
+  /**
+   * Pushability pre-check matrix for the worktree push leg. Probed with
+   * `target: "worktree"` (the worktree push is what the handoff workflow
+   * gates on this slot). Worktree-vs-origin divergence is conveyed by the
+   * `worktree` slot; the consumer cross-references both for the full
+   * picture.
+   */
+  pushability: Probe<PushabilityResult>;
 }
 
 /** Probe functions in session-init mode — bound to cwd and any required I/O. */
@@ -158,6 +168,7 @@ export interface SessionHandoffProbes {
     role: string | null,
   ) => Promise<ActiveSessionInitResult>;
   head: () => Promise<HeadHashResult>;
+  pushability: () => Promise<PushabilityResult>;
 }
 
 export interface RunStatusOptions {

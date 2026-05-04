@@ -11,8 +11,9 @@
 
 import * as p from "@clack/prompts";
 
-import { runUserPush, runUserFetch, runUserSave } from "../commands/user.js";
+import { runUserPush, runUserFetch, runUserSave, UserPushBlockedError } from "../commands/user.js";
 import type { UserIOContext } from "../commands/user.js";
+import type { AccessFn, PushabilityCondition } from "../lib/git/index.js";
 import { isNonInteractiveEnvironment, isRemoteError, runWithSpinner } from "./shared.js";
 
 /** Outcome of an interactive push attempt. */
@@ -22,6 +23,7 @@ export type PushResult =
   | { kind: "cancelled" }
   | { kind: "no-remote" }
   | { kind: "failed-nontty-conflict" }
+  | { kind: "blocked"; conditions: PushabilityCondition[] }
   | { kind: "failed"; error: unknown };
 
 function isDivergentPushError(msg: string): boolean {
@@ -42,15 +44,20 @@ export async function pushWithInteractiveRecovery(
   io: UserIOContext,
   identity: string,
   cwd: string,
+  access?: AccessFn,
 ): Promise<PushResult> {
   try {
     await runWithSpinner(
       "Pushing user notes...",
-      () => runUserPush({ cwd, io, identity }),
+      () => runUserPush({ cwd, io, identity, access }),
       "Push complete.",
     );
     return { kind: "ok" };
   } catch (err) {
+    if (err instanceof UserPushBlockedError) {
+      return { kind: "blocked", conditions: err.conditions };
+    }
+
     const msg = err instanceof Error ? err.message : String(err);
 
     if (isRemoteError(msg)) return { kind: "no-remote" };
@@ -80,7 +87,7 @@ export async function pushWithInteractiveRecovery(
       if (action === "force") {
         await runWithSpinner(
           "Force-pushing user notes...",
-          () => runUserPush({ cwd, io, identity, force: true }),
+          () => runUserPush({ cwd, io, identity, force: true, access }),
           "Force push complete.",
         );
         return { kind: "ok-recovered", via: "force" };
@@ -102,11 +109,14 @@ export async function pushWithInteractiveRecovery(
       );
       await runWithSpinner(
         "Pushing user notes...",
-        () => runUserPush({ cwd, io, identity }),
+        () => runUserPush({ cwd, io, identity, access }),
         "Push complete.",
       );
       return { kind: "ok-recovered", via: "merge" };
     } catch (recoveryErr) {
+      if (recoveryErr instanceof UserPushBlockedError) {
+        return { kind: "blocked", conditions: recoveryErr.conditions };
+      }
       return { kind: "failed", error: recoveryErr };
     }
   }

@@ -14,6 +14,8 @@
  * @module
  */
 
+import { access } from "node:fs/promises";
+
 import * as p from "@clack/prompts";
 
 import {
@@ -48,6 +50,7 @@ import {
 import { gitConfigGet } from "../lib/git/index.js";
 import { runDirtyStateStatus } from "../lib/git/dirty-state.js";
 import { runHeadHashStatus } from "../lib/git/head-hash.js";
+import { runPushabilityStatus } from "../lib/git/pushability.js";
 import { runWorktreeSyncStatus } from "../lib/git/worktree-sync.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { createUserIOContext, gitExec } from "../lib/io-context.js";
@@ -118,6 +121,11 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
       }),
       active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec: gitExec }),
       head: () => runHeadHashStatus({ exec: gitExec }),
+      pushability: () => runPushabilityStatus({
+        exec: gitExec,
+        access,
+        target: "worktree",
+      }),
     };
     if (!json) {
       process.stderr.write(

@@ -1,4 +1,9 @@
-import type { DirEntry, SkipWarning } from "../../lib/git/index.js";
+import type {
+  AccessFn,
+  DirEntry,
+  PushabilityCondition,
+  SkipWarning,
+} from "../../lib/git/index.js";
 import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
 import type { CoreIO } from "../../lib/types.js";
 
@@ -114,6 +119,35 @@ export interface UserPushOptions {
   cwd?: string;
   /** Force-push even when remote and local notes conflict. */
   force?: boolean;
+  /**
+   * Path-existence check for the pushability pre-check matrix. When omitted,
+   * the pre-check is skipped (legacy callers without an access seam continue
+   * to work). Real wirings inject `fs.access` from `node:fs/promises`.
+   */
+  access?: AccessFn;
+}
+
+/**
+ * Thrown by `runUserPush` when the pushability pre-check matrix detects one
+ * or more `block`-disposition conditions. Carries the conditions so callers
+ * can render structured guidance.
+ */
+export class UserPushBlockedError extends Error {
+  readonly conditions: PushabilityCondition[];
+  constructor(conditions: PushabilityCondition[]) {
+    super(buildBlockedMessage(conditions));
+    this.name = "UserPushBlockedError";
+    this.conditions = conditions;
+  }
+}
+
+function buildBlockedMessage(conditions: PushabilityCondition[]): string {
+  const blocking = conditions.filter((c) => c.disposition === "block");
+  if (blocking.length === 0) {
+    return "Push blocked by pre-check matrix.";
+  }
+  const lines = blocking.map((c) => `- ${c.guidance}`);
+  return `Push blocked — resolve before retrying:\n${lines.join("\n")}`;
 }
 
 /** Options for the fetch operation. */

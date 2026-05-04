@@ -40,6 +40,7 @@ export {
 } from "./user/format.js";
 export {
   BACKUP_FILENAME,
+  UserPushBlockedError,
   UserSaveError,
   type InspectUserSyncOptions,
   type UserAddOptions,

@@ -1,19 +1,40 @@
+import { runPushabilityStatus } from "../../lib/git/index.js";
 import { notesRef } from "./shared.js";
 import { clearPartialPushMarker, runUserLoad } from "./save-load.js";
-import type {
-  UserFetchOptions,
-  UserIOContext,
-  UserPullOptions,
-  UserPushOptions,
+import {
+  UserPushBlockedError,
+  type UserFetchOptions,
+  type UserIOContext,
+  type UserPullOptions,
+  type UserPushOptions,
 } from "./types.js";
 
 /**
  * Push user notes ref to remote origin.
  *
- * @param options - Push options
+ * Runs the pushability pre-check matrix first when an `access` seam is
+ * provided. Block-disposition conditions (rebase in progress, detached HEAD)
+ * refuse the push regardless of `force` — these are environmental issues, not
+ * divergence; force-push doesn't resolve them. Auto-fixed conditions (missing
+ * notes refspec) proceed silently after fix.
+ *
+ * @param options - Push options. Provide `access` to enable the pre-check.
+ * @throws {UserPushBlockedError} when a block-disposition condition is detected.
  */
 export async function runUserPush(options: UserPushOptions): Promise<void> {
-  const { cwd, io, identity, force } = options;
+  const { cwd, io, identity, force, access } = options;
+
+  if (access) {
+    const pushability = await runPushabilityStatus({
+      exec: io.exec,
+      access,
+      target: "notes",
+    });
+    if (!pushability.allowed) {
+      throw new UserPushBlockedError(pushability.conditions);
+    }
+  }
+
   const ref = `refs/notes/${notesRef(identity)}`;
   const args = force ? ["push", "--force", "origin", ref] : ["push", "origin", ref];
   await io.exec("git", args);

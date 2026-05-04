@@ -181,8 +181,9 @@ export async function runSessionHandoffStatus(
   const syncPushTask = safeProbe(() => probes.syncPush());
   const activeTask = safeProbe(() => probes.active(identity, role));
   const headTask = safeProbe(() => probes.head());
+  const pushabilityTask = safeProbe(() => probes.pushability());
 
-  const [dirty, worktree, user, pushInterlock, syncPush, active, head] = await Promise.all([
+  const [dirty, worktree, user, pushInterlock, syncPush, active, head, pushability] = await Promise.all([
     dirtyTask,
     worktreeTask,
     userTask,
@@ -190,6 +191,7 @@ export async function runSessionHandoffStatus(
     syncPushTask,
     activeTask,
     headTask,
+    pushabilityTask,
   ]);
 
   return {
@@ -202,5 +204,6 @@ export async function runSessionHandoffStatus(
     syncPush,
     active,
     head,
+    pushability,
   };
 }

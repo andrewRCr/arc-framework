@@ -8,6 +8,8 @@
  * @module
  */
 
+import { access } from "node:fs/promises";
+
 import * as p from "@clack/prompts";
 
 import {
@@ -370,7 +372,7 @@ async function handlePushDirection(params: DirectionParams): Promise<void> {
     }
   }
 
-  const pushResult = await pushWithInteractiveRecovery(io, identity, cwd);
+  const pushResult = await pushWithInteractiveRecovery(io, identity, cwd, access);
   switch (pushResult.kind) {
     case "ok":
     case "ok-recovered":
@@ -399,6 +401,13 @@ async function handlePushDirection(params: DirectionParams): Promise<void> {
       p.log.warn(
         "Local save preserved; push skipped. Re-run `arc sync` in a terminal to resolve.",
       );
+      process.exitCode = 1;
+      return;
+    case "blocked":
+      for (const condition of pushResult.conditions.filter((c) => c.disposition === "block")) {
+        p.log.error(condition.guidance);
+      }
+      p.log.warn("Local save preserved; notes push blocked by pre-check. Resolve and re-run `arc user push`.");
       process.exitCode = 1;
       return;
     case "failed": {
