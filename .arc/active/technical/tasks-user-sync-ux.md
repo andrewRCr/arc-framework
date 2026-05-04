@@ -77,17 +77,20 @@ unification (1.2) — unification builds on the new load semantic.
           error-specific auth/network investigation copy for `remote-unavailable` worktree probes.
           Status and sync tests cover the rendered failure-reason surface.
 
-## **Phase 2:** Coherence guarantees
+## **Phase 2:** Coherence guarantees + orchestrator surface
 
-_Purpose:_ Prevent notes-against-unpushed-commits and partial-publish bugs. R4 unpushed-HEAD
-save/push, R5 paired-push failure semantics, R13 pushability pre-check matrix, R14 notes-push
-under manual worktree-push interlock. Builds on Phase 1's unified spine for partial-push surfacing.
+_Purpose:_ Prevent notes-against-unpushed-commits and partial-publish bugs; introduce the
+`arc sync` orchestrator that owns cross-cutting coherence routing. R4 unpushed-HEAD save/push,
+R5 paired-push failure semantics, R10 command-shape rename + orchestrator, R11 sync-interlock,
+R14 pushability pre-check matrix, R15 notes-push under manual worktree-push interlock. Builds
+on Phase 1's unified spine for partial-push surfacing.
 
-_Forward-compat:_ Pushability matrix (R13) and paired-push helper (R5) are extracted as reusable
+_Forward-compat:_ Pushability matrix (R14) and paired-push helper (R5) are extracted as reusable
 library APIs under `lib/git/` so the planned interlock-release wrappers
 (`plan-interlock-release-wrappers.md`) call the same probes without re-litigating Phase 2's
-choices. Ref-scope discrimination on the matrix and an exported paired-push helper are the
-load-bearing shape decisions.
+choices. The orchestrator (`arc sync`, R10) becomes the single home for paired-push routing;
+wrappers stay single-leg per the realigned wrappers plan. Ref-scope discrimination on the matrix
+and an exported paired-push helper are the load-bearing shape decisions.
 
 ### `[x]` **2.1 Pushability pre-check matrix**
 
@@ -155,19 +158,87 @@ load-bearing shape decisions.
           re-attempt after transient failure pushes and clears marker; force skips the
           probe). Existing `push-recovery.test.ts` updated for the new return shape.
 
-    - `[ ]` **2.2.c Handler + workflow integration**
-        - `handlers/sync.ts` calls `runPairedPush` for the paired-push direction (replaces
-          inline dual orchestration). Surfaces worst-outcome exit code and itemized output to
-          the user.
-        - `session-handoff.md` consumes the new `pushability` envelope slot from Task 2.1 to
-          gate worktree push on rebase / detached HEAD / no-upstream conditions; invokes the
-          paired-push helper via the CLI surface rather than coordinating both legs in
-          workflow markdown.
-        - Affected files: `packages/arc-framework/src/handlers/sync.ts`;
-          `.arc/system/workflows/arc/session-lifecycle/session-handoff.md`.
-        - Test-after — handler wiring covered by existing sync-flow integration tests
-          (extended for the paired-push entry point); workflow markdown changes pass markdown
-          lint and a manual handoff dry-run.
+    - `[ ]` **2.2.c Orchestrator + workflow integration**
+        - Introduces the `arc sync` orchestrator (R10) that consumes the 6-cell matrix
+          (`push_interlock × notes_push × worktree-state`), routes the paired cell through
+          `runPairedPush`, and owns cross-cutting coherence rules (R5 partial-push, R4
+          unpushed-HEAD, R15 notes-vs-worktree blocking, force-push refusal at handoff).
+          Authorize-by-invocation: config honored as-is whether invoked by workflow or user.
+        - Three subtasks split by surface:
+
+            - `[ ]` **2.2.c.i Command-surface restructure**
+                - Rename today's `arc sync` (notes-only direction-aware) → `arc user sync` per
+                  R10 (CLI re-registration; existing `handleSync` migrates under the
+                  `arc user` namespace). Introduce new top-level `arc sync` registered against
+                  a new orchestrator handler stub.
+                - Add `session.sync_interlock: manual | on-handoff` (default `on-handoff`) to
+                  config schema + `lib/config/status-reader.ts` validation. Per-dev override
+                  `arc.syncInterlock` lands in 3.2 (R12 expansion); this task uses 2-tier
+                  resolution (yaml → default) until the resolver helper is consolidated.
+                - Migrate value rename `session.push_interlock: on-handoff` → `on-sync` in
+                  schema + reader + any in-tree YAML. Old enum value rejected.
+                - Update `arc --help` and `arc user --help` so both surfaces cross-reference;
+                  `arc sync --help` frames the command as "synchronize the configured
+                  concerns — worktree push, user-notes push, per `push_interlock` and
+                  `notes_push` config."
+                - Affected files: `packages/arc-framework/src/cli.ts`;
+                  `packages/arc-framework/src/lib/config/status-reader.ts`;
+                  `packages/arc-framework/arc/system/arc-config.yml`; existing `handleSync`
+                  re-import paths in dependent handlers.
+                - Test-after — CLI registration wiring (config schema validation gets unit
+                  coverage with the dispatch logic in 2.2.c.ii).
+
+            - `[ ]` **2.2.c.ii Orchestrator dispatch + matrix routing**
+                - New orchestrator handler probes worktree state, notes state, and config
+                  (`push_interlock`, `notes_push`); dispatches over the matrix:
+                    - Both `on-sync` → `runPairedPush` (the paired cell).
+                    - Worktree `on-sync` only → push worktree, save notes, no notes push.
+                    - Notes `on-sync` only → R15 gating (worktree-state-aware); save +
+                      conditionally push notes.
+                    - Both `manual` → save only, surface unpushed-state report.
+                    - Notes `prompt` cells → save, ask before pushing notes.
+                - Coherence gates layered on top of the matrix: worktree=diverged + push
+                  configured → skip + surface "Reconcile required:"; force-push refused
+                  per R5 (matrix advisory disposition treated as block at handoff).
+                - `--dry-run` flag prints the matrix decision and what would fire without
+                  invoking either leg.
+                - Structured output for parser consumption (JSON-mode optional via `--json`)
+                  so the handoff workflow can surface itemized leg outcomes in the handoff
+                  summary.
+                - Affected files: `packages/arc-framework/src/handlers/sync.ts` (rewrite);
+                  `packages/arc-framework/src/commands/sync/orchestrator.ts` (new, if scope
+                  warrants extraction).
+                - Build `test-first` (one behavior at a time):
+                    - Both interlocks `on-sync` + clean worktree → `runPairedPush` invoked;
+                      both legs reported.
+                    - `push_interlock: manual` + `notes_push: on-sync` + worktree local-ahead
+                      → R15 block; notes save fires; notes push blocked with guidance.
+                    - `push_interlock: on-sync` + `notes_push: manual` + clean worktree →
+                      worktree push fires; notes save only.
+                    - Both `manual` → save only; no pushes; unpushed state surfaced in output.
+                    - `notes_push: prompt` → save + interactive confirm before notes push.
+                    - Diverged worktree + `push_interlock: on-sync` → both legs skip;
+                      "Reconcile required:" surfaced.
+                    - `--dry-run` → no pushes fire; matrix decision printed.
+
+            - `[ ]` **2.2.c.iii Workflow markdown rewrite**
+                - `session-handoff.md` Push Sequence section collapses to: probe consults
+                  `sync_interlock`; if `on-handoff`, run `arc sync` and interpret the
+                  structured output; if `manual`, surface unpushed state in the handoff
+                  summary without firing.
+                - Worktree-push and Notes-push sub-sections retire — both responsibilities
+                  move into `arc sync`'s matrix dispatch. Push-ordering invariant note moves
+                  from workflow narrative to a one-line reference (the orchestrator enforces
+                  it via `runPairedPush`).
+                - Confirm Handoff section's conditional surfaces (`Reconcile required:`,
+                  `Worktree: N unpushed commit(s)`, `Sync:` outcome line) read from `arc
+                  sync`'s structured output rather than separate probe data.
+                - New conditional surface: `**Sync:** skipped (sync_interlock: manual). Run
+                  \`arc sync\` when ready.` when the workflow skips sync per config.
+                - Affected files:
+                  `.arc/system/workflows/arc/session-lifecycle/session-handoff.md`.
+                - Test-after — markdown lint clean; manual handoff dry-run validates each
+                  matrix cell renders the expected summary lines.
 
 ### `[ ]` **2.3 Unpushed-HEAD save/push behavior**
 
@@ -208,11 +279,12 @@ load-bearing shape decisions.
 
 ## **Phase 3:** Vocabulary and config alignment
 
-_Purpose:_ Align user-notes vocabulary across config keys, CLI commands, and rendering surfaces.
-R12 resolver consolidation, R11 per-dev interlock overrides, R9 config-shape rename +
-`arc update` migration, R10 command rename, R8 layered vocabulary rule. Sequencing: resolver first
-(R11 needs it), then renames, then vocabulary pass (so the vocabulary pass operates on
-final-shape strings).
+_Purpose:_ Align user-notes vocabulary across config keys and rendering surfaces. R13 resolver
+consolidation, R12 per-dev interlock overrides (incl. new `arc.syncInterlock`), R9 config-shape
+rename + `arc update` migration (covers `user.sync_push` rename + `push_interlock` value rename),
+R8 layered vocabulary rule. The R10 command rename + orchestrator surface lands in Phase 2
+(2.2.c.i) since 2.2.c's matrix dispatch depends on it. Sequencing: resolver first (R12 needs it),
+then renames, then vocabulary pass (so the vocabulary pass operates on final-shape strings).
 
 ### `[ ]` **3.1 Resolver consolidation**
 
@@ -233,9 +305,11 @@ final-shape strings).
 
 ### `[ ]` **3.2 Per-developer overrides for interlock keys**
 
-- Extend `lib/config/status-reader.ts` validation to read `arc.commitInterlock` and
-  `arc.pushInterlock` git-config overrides before falling through to yaml + default.
-- Both keys resolve via the helper from 3.1; no shape divergence.
+- Extend `lib/config/status-reader.ts` validation to read `arc.commitInterlock`,
+  `arc.pushInterlock`, and `arc.syncInterlock` git-config overrides before falling through to
+  yaml + default. (`session.sync_interlock` schema entry itself lands in 2.2.c.i; this task adds
+  the per-dev override surface.)
+- All three keys resolve via the helper from 3.1; no shape divergence.
 - Additive — no breaking changes to existing call signatures. Existing callers continue to read
   the same fields; new resolution paths feed the same field shapes. Forward-compat for the
   interlock-release wrappers' enforcement layer, which calls the same reader.
@@ -243,9 +317,10 @@ final-shape strings).
 - Build `test-first` (one behavior at a time):
     - `arc.commitInterlock` git-config set → status-reader returns git-config value
     - `arc.pushInterlock` git-config set → status-reader returns git-config value
+    - `arc.syncInterlock` git-config set → status-reader returns git-config value
     - Git-config absent → falls through to yaml; absent yaml → falls through to default
     - Invalid git-config value → rejected with same shape as yaml validation
-    - 3-tier resolution applied uniformly across all three release-mode keys
+    - 3-tier resolution applied uniformly across all four release-mode keys
 
 ### `[ ]` **3.3 Config-shape alignment**
 
@@ -254,47 +329,43 @@ final-shape strings).
     - `[ ]` **3.3.a Yaml schema and value enum**
         - Rename key in config schema/validation; rename git-config override
           (`arc.syncPush` → `arc.notesPush`).
-        - Value enum: `manual | prompt | on-handoff` (semantic identity: `always` ⇄
-          `on-handoff`).
+        - Value enum: `manual | prompt | on-sync` (semantic identity: `always` ⇄ `on-sync`).
+          Each interlock value names its own trigger event per R9.
         - Affected files: `packages/arc-framework/src/lib/config/status-reader.ts`,
           `packages/arc-framework/src/lib/sync-policy.ts`,
           `packages/arc-framework/arc/system/arc-config.yml` (template default).
         - Build `test-first` (one behavior at a time):
             - Schema validates new key+values; rejects old key
-            - `on-handoff` value resolves equivalently to legacy `always`
+            - `on-sync` value resolves equivalently to legacy `always`
             - Git-config override reads from `arc.notesPush`
 
     - `[ ]` **3.3.b `arc update` migration logic**
         - Rewrite legacy `user.sync_push: {value}` → `user.notes_push: {translated}` once.
           Old key removed; no dual-key window.
+        - Migrate `session.push_interlock: on-handoff` → `on-sync` in adopter configs (value
+          rename; key unchanged). Idempotent.
         - Affected file: `packages/arc-framework/src/commands/update.ts` (or wherever migration
           logic lives).
         - Build `test-first` (one behavior at a time):
-            - `always` → `on-handoff` translation
+            - `user.sync_push: always` → `user.notes_push: on-sync` translation
             - `prompt` and `manual` carry forward unchanged
-            - Old key absent post-migration
+            - `session.push_interlock: on-handoff` → `on-sync` translation
+            - Old `user.sync_push` key absent post-migration
             - Idempotent: re-running migration on already-migrated config is a no-op
 
     - `[ ]` **3.3.c Strategy and reference doc updates**
         - Retire the documented-but-unused `auto / prompt / manual` standard from
           `strategy-session-operations.md` § Handoff-Interior Toggle Pattern. Canonical shape
-          becomes `manual | on-X` with `prompt` opt-in for review-before-fire toggles.
+          becomes `manual | on-X` where `X` names the operation's trigger event; `prompt` stays
+          opt-in for review-before-fire toggles.
+        - Document the three-layer cascade (handoff event → sync; sync event → push and
+          notes-push) explicitly. Each interlock's `on-X` value names its own trigger.
+          Authorize-by-invocation: `arc sync` running mid-session is an explicit sync event.
         - Update QUICK-REFERENCE, AGENT-BRIEF.ARC, and any other reference docs that surface the
-          old key name.
+          old key name or the legacy `on-handoff` value on `push_interlock` / `notes_push`.
         - Test-after — documentation only.
 
-### `[ ]` **3.4 Command-shape alignment**
-
-- Rename `arc sync` → `arc user sync` so the user-notes porcelain shares the namespace with the
-  rest of the family. Hard rename, pre-1.0 — no transitional alias.
-- Existing direction-aware porcelain semantic preserved; only the invocation path moves.
-- `arc user --help` output reflects the new placement.
-- Affected files: `packages/arc-framework/src/cli.ts`,
-  `packages/arc-framework/src/commands/user/index.ts` (or wherever subcommand registration
-  lives).
-- Test-after — CLI command wiring per project testing methodology.
-
-### `[ ]` **3.5 Layered vocabulary rule application**
+### `[ ]` **3.4 Layered vocabulary rule application**
 
 - Sweep `sync-status.ts` rendering and adjacent help text so "user notes" is the workhorse noun
   in headlines, action hints, and status summaries.
@@ -306,7 +377,7 @@ final-shape strings).
 
 ## **Phase 4:** DX polish
 
-_Purpose:_ Round out the developer experience. R15 first-use framing surface, R16 shared-ref
+_Purpose:_ Round out the developer experience. R16 first-use framing surface, R17 shared-ref
 sync-state inference. Builds on Phase 1's unified spine for the bounded-fetch extension and on
 Phase 3's vocabulary alignment for first-use copy strings.
 
@@ -379,12 +450,17 @@ Phase 3's vocabulary alignment for first-use copy strings.
   spine states + partial-push condition (verified by paired-call test fixtures)
 - `[ ]` Pushability pre-checks block or surface server errors per the documented matrix
   (rebase, detached HEAD, no-upstream, protected branch, hook failure, auth, force-push)
-- `[ ]` All three release-mode keys (`session.commit_interlock`, `session.push_interlock`,
-  `user.notes_push`) support 3-tier resolution via per-dev `arc.*` overrides
-- `[ ]` `arc update` migrates legacy `user.sync_push` config; old key removed; no dual-key
-  window; strategy docs reflect canonical shape
-- `[ ]` `arc user --help` lists `save / load / push / pull / fetch / sync`; bare `arc sync`
-  removed
+- `[ ]` All four release-mode keys (`session.commit_interlock`, `session.push_interlock`,
+  `session.sync_interlock`, `user.notes_push`) support 3-tier resolution via per-dev `arc.*`
+  overrides
+- `[ ]` `arc update` migrates legacy `user.sync_push` and `push_interlock: on-handoff` configs;
+  old keys/values removed; no dual-key window; strategy docs reflect canonical shape with the
+  three-layer cascade documented
+- `[ ]` `arc sync` (top-level orchestrator) dispatches over the 6-cell matrix; `arc user sync`
+  (former `arc sync`) remains the notes-only direction-aware command. `arc user --help` lists
+  `save / load / push / pull / fetch / sync`; both surfaces cross-reference
+- `[ ]` `session.sync_interlock: manual` opts handoff out of automatic sync; handoff summary
+  surfaces unpushed state without firing pushes
 - `[ ]` First-use framing surfaces operational: `arc join` install paragraph, `arc status` hint
   with notes-ref-existence trigger
 - `[ ]` Layered vocabulary rule applied: "user notes" workhorse noun across
