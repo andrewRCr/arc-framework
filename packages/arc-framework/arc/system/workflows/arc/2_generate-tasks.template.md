@@ -26,7 +26,16 @@ confirm with the user before proceeding — generating tasks against unresolved 
 can't execute. Pre-activation metadata is removed at activation (see `activate-work-unit.md` Step 4), not here —
 leave the fields in place during task generation.
 
-### Step 1: Assess Codebase and Relevant Strategies
+**Three passes with explicit stops.** Generation runs structural decomposition (Pass 1), content
+fill (Pass 2), and grounding audit (Pass 3) — each pass has a deliverable the user reviews before
+the next begins. This prevents the one-shot-to-impl-ready pattern that masks design decisions and
+ungrounded assumptions until impl time.
+
+### Pass 1: Structural decomposition
+
+Identify phases and parent-task skeletons. Boundaries first; no content fill yet.
+
+#### Step 1.1: Assess codebase and relevant strategies
 
 Review the existing codebase to understand what you're working with:
 
@@ -39,23 +48,62 @@ Check [STRATEGY-INDEX.md][strategy-index] for project-level strategies relevant 
 this work (e.g., testing methodology, component patterns, service layer conventions). Read applicable
 strategies before designing phases — they directly influence task structure and approach.
 
-### Step 2: Design Phases
+#### Step 1.2: Design phases and parent-task skeletons
 
-Identify 3-7 major phases that organize the work into logical, testable milestones. Present these
-to the user for review before breaking down into sub-tasks.
+Identify 3-7 major phases that organize the work into logical, testable milestones. For each phase,
+draft parent-task skeletons — titles only, with R-ID anchors citing which PRD requirements each
+parent satisfies.
 
 **Principles:**
 
 - Each phase should produce testable, verifiable progress
 - Order phases to minimize dependencies and enable incremental delivery
 - When test-first applies, group test and implementation together by module or concern
-- **Always end with a verification phase** — two tasks: (1) run Tier 3 quality gates,
-  (2) validate success criteria against PRD. See
+- **Always end with a verification phase** — single task pointing to `verify-work-unit.md`. See
   [task-list-formatting strategy][task-list-formatting] § Verification Phase for conventions
 
-### Step 3: Break Down into Sub-Tasks
+**Pass 1 deliverable:**
 
-For each phase, define specific, actionable sub-tasks:
+- Phase shapes: `## **Phase X:**` headings with `_Purpose:_` line; optional `_Design decisions:_`
+  block stating key calls
+- Parent-task skeletons (titles only — H3 headings with backtick-wrapped marker per
+  [strategy-task-list-formatting § Parent Tasks][task-list-formatting]), each citing R-ID
+  anchors (which PRD requirements does this parent satisfy?)
+- Rough subtask-count signal per parent (1 / 2-3 / many) — flags decomposition asymmetry
+- No task bodies, no descriptions, no Goals yet
+
+> [!IMPORTANT]
+> `workflow-interlock`: Stop after the Pass 1 deliverable is drafted. Surface the phase
+> decomposition for review; await direction before proceeding to Pass 2.
+
+User reviews boundaries:
+
+- Is every PRD requirement covered by some task?
+- Does any single parent overcommit? (subtask-count signal flags asymmetry)
+- Is the phase ordering right?
+
+### Pass 2: Content fill
+
+For each parent task: write the body. Goal first (required); peer descriptors only when genuinely
+load-bearing; subtasks if decomposing; Build test-first lists where applicable.
+
+#### Step 2.1: Write Goals (required on every parent)
+
+Goal articulates the outcome the task targets — not the change being made. Title describes the
+change ("Wire validation into save handler"); Goal describes the outcome ("Save handler rejects
+malformed input before disk write"). Goal opens the task body — first bullet at root.
+
+**Diagnostic test for each Goal:** would removing it make verification harder? If yes, keep it.
+If no, rewrite (title-restating Goal is noise) or drop (subtask-only).
+
+For subtasks, Goal is opt-in. Default: no Goal on subtasks. Opt in when the subtask carries
+separable sub-intent that doesn't reduce to "slice of parent Goal."
+
+See [strategy-task-list-formatting § Goal/Note Lines][task-list-formatting] for the full rule.
+
+#### Step 2.2: Write task bodies and subtasks
+
+For each parent task, fill in the body:
 
 - Small enough to complete in a single work session (typically < 3 files modified)
 - Include quality checkpoints at appropriate stages
@@ -88,6 +136,61 @@ Structure for the full pattern.
 **If your project has a testing methodology strategy** (e.g., `strategy-testing-methodology.md`),
 consult it for project-specific test patterns and coverage expectations.
 
+**Pass 2 deliverable:**
+
+- Full task bodies with `_Goal:_` first on every parent
+- Peer descriptors (`_Context:_`, `_Rationale:_`, `_Approach:_`, `_Shape:_`, `_Note:_`) where
+  framing is genuinely load-bearing — siblings of Goal at root, after Goal
+- Subtasks with description bullets where work warrants decomposition
+- Test-first lists where applicable
+
+> [!IMPORTANT]
+> `workflow-interlock`: Stop after the Pass 2 draft is written. Surface for review; await
+> direction before proceeding to Pass 3.
+
+User reviews content:
+
+- Does each Goal articulate outcome (not change)?
+- Does each task have meaningful intent, not just step-shape?
+- Do peer descriptors (when present) carry framing the Goal can't?
+
+### Pass 3: Grounding audit
+
+Phase-by-phase pre-impl-readiness gate. Catches assumptions, codebase drift, and masked design
+decisions before they become impl-time surprises.
+
+#### Step 3.1: Invoke arc-task-audit per phase
+
+For each phase in the Pass 2 draft, invoke the [arc-task-audit][arc-task-audit] skill scoped to
+that phase. The skill is the meat of Pass 3 — it surfaces the eight categories of issues
+(unexposed assumptions, masked design decisions, codebase drift, ordering risks, scope ambiguity,
+interface contracts, test strategy gaps, missing acceptance criteria).
+
+Generation-time framing differs from the skill's typical pre-impl use:
+
+- **Greenfield:** the task list was just authored. Codebase drift is unlikely; file-path /
+  symbol assumptions are common. Focus on grounding (verifying named files and symbols exist).
+- **Phase-by-phase:** audit one phase at a time, top-down. Phase-internal ordering risks
+  surface naturally; cross-phase dependencies appear at boundaries.
+- **Pre-impl-ready gate:** the phase isn't ready until "fix before starting" findings are
+  addressed. "Carry as context" findings can ride.
+
+#### Step 3.2: Apply corrections
+
+For each "fix before starting" finding, edit the task body in place — update file paths,
+clarify scope, add subtasks for masked design decisions, etc. "Carry as context" findings get
+captured (in the task body or in `notes-{name}.md` per scope) but don't block.
+
+> [!IMPORTANT]
+> `workflow-interlock`: Stop after the audit findings and corrections are applied per phase.
+> Surface for review; await direction before declaring the task list impl-ready.
+
+User reviews readiness:
+
+- Are all "fix before starting" findings addressed?
+- Are "carry as context" findings appropriately captured?
+- Is the task list genuinely impl-ready, or does another Pass 2 / Pass 3 cycle help?
+
 ### Step 4: Write and Save Task List
 
 Combine phases and sub-tasks into the final task list following the format described below.
@@ -107,13 +210,17 @@ file (`notes-{name}.md`), not in the task list.
       style — keeps preview rendering consistent across parent and subtask). Bold when detail
       bullets follow.
 - [ ] Third level uses letters (`X.Y.a`, `X.Y.b`), not numbers (`X.Y.1`, `X.Y.2`) — letters signal depth
-- [ ] Subtaskless parents carry no descriptor bullets pre-completion — title alone (no `_Goal:_` /
-      `_Note:_` / etc.; `_Outcome:_` allowed post-completion)
+- [ ] Every parent task has `_Goal:_` first at root, articulating outcome (not restating title);
+      diagnostic test passes (would removing the Goal make verification harder?)
+- [ ] Subtask Goals (when present) carry separable sub-intent — diagnostic test passes
+- [ ] Peer descriptors (`_Context:_`, `_Rationale:_`, `_Approach:_`, `_Shape:_`, `_Note:_`) at
+      root as siblings of Goal, after Goal — only when framing is genuinely load-bearing
+- [ ] Subtasks and description bullets indent 4 spaces under the root-level descriptor block
 - [ ] Blank lines between every subtask (always — see § Blank-Line Discipline in the strategy doc)
 - [ ] Unnumbered bullets for implementation details (no checkboxes, no numbers)
-- [ ] Goal/Note lines as italic root-level bullets (`- _Goal:_`); subtasks indent 4 spaces under Goal
 - [ ] Italic for non-actionable descriptors (`_Purpose:_`, `_Goal:_`, `_Outcome:_`, `_Note:_`,
-      `_Rationale:_`, `_Approach:_`, `_Context:_`); bold for actionable titles (`**X.Y Title**`)
+      `_Rationale:_`, `_Approach:_`, `_Context:_`, `_Shape:_`); bold for actionable titles
+      (`**X.Y Title**`)
 - [ ] Test-first tasks group test + implementation together (by concern, not activity)
 - [ ] Test-first tasks use `Build \`test-first\` (one behavior at a time):` marker line before behavior list
 - [ ] 4-space indentation per hierarchy level
@@ -184,6 +291,7 @@ Activation can be deferred if planning ahead. Activate when implementation is ab
 [dev-rules-arc]: ../../../reference/constitution/DEV-RULES.ARC.md
 [arc-methods-tf]: ../../methods/test-first.md
 [task-list-formatting]: ../../../reference/strategies/arc/strategy-task-list-formatting.md
+[arc-task-audit]: ../../skills/arc-task-audit/SKILL.md
 [template-tasks]: ../../../reference/templates/template-tasks.md
 [activate-planning-branch]: work-unit-lifecycle/planning/activate-planning-branch.md
 [integrate-planning-branch]: work-unit-lifecycle/planning/integrate-planning-branch.md
