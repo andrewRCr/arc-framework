@@ -108,9 +108,11 @@ arc:
              `Commit and proceed` (when `session.commit_interlock: on-task-approval`).
            - **Target:** `to Task X.Y` (next task in phase) · `to Phase N+1, Task N+1.1` (current
              task ends the phase) · `to integrate-work-unit` (verification complete — WU end).
-       - **Response semantics:** Short affirmative as first word ("y", "yes", "ok") advances.
-         Redirect syntax preserved — `y, also <X>` and `y; <redirect>` advance while folding in
-         the addendum.
+       - **Response semantics:** Short affirmative ("y", "yes", "ok") as first word advances.
+         Under `Commit and proceed`, the affirmative covers both halves; `y; <redirect>` keeps
+         the commit and replaces only the advancement target (handoff, deferred range, and
+         integrate are all valid retargets). A redirect that questions just-finished work
+         (`y; hold the commit`, `y; revisit X first`) breaks the bundle — pause and ask.
        - **Implied permission:** User approval ("looks good", "proceed") implies permission to
          continue to the next task UNLESS explicitly stated otherwise. Address any stated concerns
          before moving on.
@@ -192,7 +194,8 @@ arc:
      explicit user-invoked action. Under `on-task-approval`, the commit-interlock releases on task
      approval per [Configurability Architecture Strategy][config-arch] § Session interlocks.
      Under `session.commit_interlock: on-task-approval`, on approval signal, release the
-     commit-interlock per [arc-commit § Step 2-6][arc-commit-skill]. Complexity criteria from
+     commit-interlock per [arc-commit § Step 2-6][arc-commit-skill]; after the commit lands,
+     start the bundle's named target immediately without re-prompting. Complexity criteria from
      § Step 2 bump to manual-with-prompt rather than invoking prepare-commits silently.
      When committing, follow the [prepare-commits workflow](supplemental/prepare-commits.md).
 
