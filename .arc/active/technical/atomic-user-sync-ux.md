@@ -15,3 +15,9 @@ the full protocol.
 ---
 
 ## Tasks
+
+- [x] **Broaden DEV-RULES.ARC § No meta-project references in code**
+    - Expanded planning-ID enumeration (added behavior IDs, requirement IDs, spec citations)
+      and broadened scope from "production code" to code, tests, and durable documentation.
+      Added a positive complement naming the sanctioned homes for the IDs.
+    - Edited both copies (package source + `.arc/` instance).

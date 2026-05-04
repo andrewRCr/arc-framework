@@ -264,9 +264,16 @@ Don't proceed from intuition when the declared content is one read away.
 
 ### No meta-project references in code
 
-Never reference task IDs, phase numbers, or `.arc/` documentation in production code — comments,
-docstrings, or variable names. Code should explain "what" and "why" independently of project
-management context.
+Never reference planning IDs — task IDs (`Task X.Y`), phase numbers (`Phase 3`), behavior IDs
+(`B5`), requirement IDs (`R12`), spec citations (`§ Goals`) — or `.arc/` documentation paths in
+code, tests, or durable documentation (strategies, methods, workflows, READMEs). This applies to
+comments, docstrings, identifiers, test names, and prose. Content outside planning artifacts
+reads standalone — explain "what" and "why" independently of the planning record that produced
+it.
+
+Planning vocabulary belongs inside planning artifacts: PRDs, plans, task lists, status files,
+ADRs, completion docs, work-unit notes, and commit `Context:` footers. The IDs aid organization
+there; outside those surfaces, they rot as the planning record evolves.
 
 ### `.arc/` artifact references
 
