@@ -123,31 +123,56 @@ load-bearing shape decisions.
 - When worktree and notes pushes fire together at handoff: exit code reflects worst outcome
   across paired operation; output itemizes both legs; no automatic retry; recovery via
   `arc user push` is idempotent.
-- `arc user push` checks remote ref state via `git ls-remote refs/notes/arc/user/{identity}`;
-  no-ops with confirmation when remote already matches local.
-- API shape: exported as `runPairedPush({ exec, identity, ... })` returning a discriminated
-  `PairedPushResult` carrying both leg outcomes (success/failure + underlying error per leg) and
-  a worst-outcome exit code. Pre-check input drawn from `runPushabilityStatus({ target: "both"
-  })` per Task 2.1. The handoff workflow invokes via the CLI surface (existing `arc sync`,
-  post-3.4 `arc user sync`, or equivalent) rather than orchestrating both legs as separate steps
-  in workflow markdown — keeps the logic callable from non-handoff contexts (e.g., the planned
-  interlock-release wrappers).
-- Affected files: `packages/arc-framework/src/commands/user/push-fetch.ts` (or new
-  `packages/arc-framework/src/commands/user/paired-push.ts` if scope warrants);
-  `packages/arc-framework/src/handlers/sync.ts` (handler integration);
-  `.arc/system/workflows/arc/session-lifecycle/session-handoff.md` (push-action integration).
-- Concrete itemized-output copy strings finalize at implementation time.
-- Build `test-first` (one behavior at a time):
-    - Both legs succeed → exit 0; both lines marked succeeded
-    - Worktree succeeds, notes fails → exit non-zero; itemized output marks each; recovery
-      command surfaced; partial-push marker recorded (per 1.3.c wiring)
-    - `arc user push` invoked when remote already matches local → no-ops with confirmation
-      (not error)
-    - `arc user push` invoked after transient failure → re-attempts notes push successfully;
-      partial-push marker cleared on success
-    - Push-ordering invariant respected: worktree always lands before notes
-    - Pre-check failure (e.g., rebase in progress) → neither leg fires; result surfaces the
-      condition without attempting either push
+- Exported `runPairedPush` helper carries the orchestration logic so the handoff workflow
+  invokes via the CLI surface rather than coordinating both legs in workflow markdown — keeps
+  the logic callable from non-handoff contexts (e.g., the planned interlock-release wrappers).
+
+    - `[ ]` **2.2.a Exported `runPairedPush` helper**
+        - New helper returning a discriminated `PairedPushResult` with per-leg outcomes
+          (success/failure + underlying error per leg) and a worst-outcome exit code.
+          Pre-check input drawn from `runPushabilityStatus({ target: "both" })` per Task 2.1;
+          pre-check block prevents either leg from firing. Push-ordering invariant: worktree
+          always lands before notes. Records partial-push marker when worktree succeeds and
+          notes fails (per 1.3.c wiring). No automatic retry — recovery is the caller's
+          responsibility via 2.2.b's idempotent path.
+        - Affected files: `packages/arc-framework/src/commands/user/push-fetch.ts` (or new
+          `packages/arc-framework/src/commands/user/paired-push.ts` if scope warrants);
+          `packages/arc-framework/src/commands/user/types.ts` (result type).
+        - Concrete itemized-output copy strings finalize at implementation time.
+        - Build `test-first` (one behavior at a time):
+            - Both legs succeed → result reports both succeeded; worst-outcome exit 0
+            - Worktree succeeds, notes fails → mixed result; itemized output marks each;
+              partial-push marker recorded (per 1.3.c wiring)
+            - Push-ordering invariant respected: worktree always lands before notes
+            - Pre-check failure (e.g., rebase in progress) → neither leg fires; result surfaces
+              the condition without attempting either push
+
+    - `[ ]` **2.2.b `arc user push` idempotent no-op**
+        - `arc user push` checks remote ref state via
+          `git ls-remote refs/notes/arc/user/{identity}` before the push leg; no-ops with
+          confirmation when remote already matches local. Successful no-op clears the
+          partial-push marker (recovery path). Generalizes the recovery semantic so the
+          handoff workflow's "re-run `arc user push`" guidance is reliably idempotent.
+        - Affected files: `packages/arc-framework/src/commands/user/push-fetch.ts`;
+          `packages/arc-framework/src/handlers/{user,sync}.ts` (surface the no-op outcome).
+        - Build `test-first` (one behavior at a time):
+            - Remote already matches local → no-ops with confirmation (not error)
+            - Re-attempt after transient failure → re-attempts notes push successfully;
+              partial-push marker cleared on success
+
+    - `[ ]` **2.2.c Handler + workflow integration**
+        - `handlers/sync.ts` calls `runPairedPush` for the paired-push direction (replaces
+          inline dual orchestration). Surfaces worst-outcome exit code and itemized output to
+          the user.
+        - `session-handoff.md` consumes the new `pushability` envelope slot from Task 2.1 to
+          gate worktree push on rebase / detached HEAD / no-upstream conditions; invokes the
+          paired-push helper via the CLI surface rather than coordinating both legs in
+          workflow markdown.
+        - Affected files: `packages/arc-framework/src/handlers/sync.ts`;
+          `.arc/system/workflows/arc/session-lifecycle/session-handoff.md`.
+        - Test-after — handler wiring covered by existing sync-flow integration tests
+          (extended for the paired-push entry point); workflow markdown changes pass markdown
+          lint and a manual handoff dry-run.
 
 ### `[ ]` **2.3 Unpushed-HEAD save/push behavior**
 
