@@ -50,6 +50,11 @@ Enforces the commit message standard defined in
 - Custom format pattern match (when `commit.format: custom`)
 - Subject line length: 10–`hooks.subject_max_length` characters (default 72; skipped when
   `commit.format: any`)
+- Body line count over `hooks.body_max_lines` (default 100 — runaway backstop)
+- Body per-line length over `hooks.body_max_line_length` (default 100 — runaway backstop;
+  authorial wrap target is ~72 per the commit-format method)
+- "Phase X.Y" usage in commit message (should be "Task X.Y" — phases are bare integers,
+  tasks are dotted; preserves grep-ability of commit history)
 - `Context:` footer present with valid format (when `commit.context_footer: required`)
 - Task reference format (parenthetical required)
 - Invalid regex in `commit.custom_pattern` or `commit.context_pattern`
@@ -57,10 +62,6 @@ Enforces the commit message standard defined in
 
 **Warnings (allows commit):**
 
-- Subject line over `hooks.subject_warn_length` characters (default 60, accounts for conventional
-  commit prefix overhead)
-- Body over 15 lines (warns at 15; warns again at 25 for milestones)
-- "Phase X.Y" usage (should be "Task X.Y")
 - Task list file not found in active directories
 - Context footer issues when `commit.context_footer: recommended`
 - Contributor using non-`contribution` context footer pattern
@@ -116,7 +117,8 @@ Hook behavior is controlled by settings in `.arc/system/arc-config.yml`. Key set
 | `commit.format` | `conventional` | Format validation (`conventional` / `custom` / `any`) |
 | `commit.context_footer` | `required` | Footer validation (`required` / `recommended` / `custom` / `disabled`) |
 | `hooks.subject_max_length` | `72` | Hard limit for subject line length |
-| `hooks.subject_warn_length` | `60` | Warning threshold for subject line length |
+| `hooks.body_max_lines` | `100` | Hard limit for commit body line count (runaway backstop) |
+| `hooks.body_max_line_length` | `100` | Hard limit for body per-line length (runaway backstop) |
 | `hooks.task_numbering` | `error` | Task numbering format (`error` / `warning` / `off`) |
 | `hooks.meta_ref_patterns` | `[Tt]ask...` | Meta-project reference patterns |
 | `hooks.skip_extensions` | `md\|yml...` | Extensions skipped in meta-reference check |

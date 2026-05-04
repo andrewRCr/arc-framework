@@ -20,7 +20,7 @@ branch.base: main
 #             capture may commit directly to the base branch. (default)
 #   full    - All changes require branches and PR review.
 # See strategy-work-organization.md § Branch Protection Modes.
-branch.protection: full
+branch.protection: partial
 
 # --- Commit Discipline ---
 
@@ -88,7 +88,7 @@ hooks.skip_extensions: md|yml|yaml|json|toml|txt|csv|lock|conf|cfg|ini|env|licen
 # Files matching these patterns are not production code and may legitimately
 # reference tasks, phases, or .arc/ paths. Pipe-separated regex alternation.
 #   default: __tests__/|\.test\.|\.spec\.|/test/|/tests/
-hooks.test_patterns: __tests__/|\.test\.|\.spec\.|/test/|/tests/|docs/demos/
+hooks.test_patterns: __tests__/|\.test\.|\.spec\.|/test/|/tests/
 
 # Patterns scanned in production code for meta-project references.
 # The pre-commit hook flags files matching these patterns as errors.
@@ -96,15 +96,20 @@ hooks.test_patterns: __tests__/|\.test\.|\.spec\.|/test/|/tests/|docs/demos/
 # (e.g., tooling that legitimately operates on .arc/ paths).
 # Pipe-separated regex alternation.
 #   default: '[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+|\.arc/'
-hooks.meta_ref_patterns: '[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+'
+hooks.meta_ref_patterns: '[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+|\.arc/'
 
-# Subject line length thresholds for commit-msg hook.
-# Defaults account for conventional commit prefix overhead (8-15 chars).
-# Max aligns with GitHub's truncation point (72 chars).
+# Subject line hard limit for commit-msg hook.
+# Aligns with GitHub's truncation point and `git log --oneline` width.
 # Skipped entirely when commit.format: any.
-#   default max: 72, default warn: 60
+#   default: 72
 hooks.subject_max_length: 72
-hooks.subject_warn_length: 60
+
+# Body runaway backstops for commit-msg hook. Authorial discipline aims at
+# ~72-char wrap; these limits catch accidental paste / forgotten wrap, not
+# style. Past either, the commit is usually better split or moved to a doc.
+#   defaults: 100 lines, 100 chars per line
+hooks.body_max_lines: 100
+hooks.body_max_line_length: 100
 
 # Directories under .arc/ that trigger a warning when staged by contributors.
 # Contributors typically work on project code, not maintainer-managed ARC
@@ -183,13 +188,13 @@ session.init_pull.notes: prompt
 # See DEV-RULES.ARC § Commit Discipline.
 #   manual           - Each commit requires explicit approval. (default)
 #   on-task-approval - Task approval implicitly authorizes the task commit.
-session.commit_interlock: on-task-approval
+session.commit_interlock: manual
 
 # Push interlock release policy.
 # See DEV-RULES.ARC § Commit Discipline.
 #   manual     - Each push requires explicit approval. (default)
 #   on-handoff - Handoff implicitly authorizes the push.
-session.push_interlock: on-handoff
+session.push_interlock: manual
 
 # --- User Directory ---
 

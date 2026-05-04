@@ -219,7 +219,8 @@ Every setting in `arc-config.yml`, with its options and default.
 | `hooks.commit_msg`                  | `enabled`, `disabled`     | `enabled`            | Commit message format validation              |
 | `hooks.task_numbering`              | `error`, `warning`, `off` | `error`              | Task numbering format check (1.1.a not 1.1.1) |
 | `hooks.subject_max_length`          | Integer                   | `72`                 | Maximum commit subject line length            |
-| `hooks.subject_warn_length`         | Integer                   | `60`                 | Warning threshold for subject line length     |
+| `hooks.body_max_lines`              | Integer                   | `100`                | Maximum commit body line count (runaway cap)  |
+| `hooks.body_max_line_length`        | Integer                   | `100`                | Maximum commit body per-line length           |
 | `hooks.skip_extensions`             | Pipe-separated patterns   | `md\|yml\|yaml\|...` | File extensions skipped during meta-ref check |
 | `hooks.test_patterns`               | Pipe-separated patterns   | `__tests__/\|...`    | Test paths excluded from meta-ref checking    |
 | `hooks.meta_ref_patterns`           | Pipe-separated patterns   | *(see below)*        | Patterns flagged as meta-project references   |
