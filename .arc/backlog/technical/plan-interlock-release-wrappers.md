@@ -51,18 +51,22 @@ This matters now because:
 
 ### In scope
 
-**Wrapper commands.** Two new CLI commands under a `release` namespace:
+**Wrapper commands.** Two new CLI commands under a `release` namespace, both **single-leg**:
 
 - `arc release commit` — wraps `git commit`. Validates active WU is resolved; validates
   `commit_interlock` state authorizes (interlock-specific rules per current ARC config); refuses
   destructive flags; passes through standard git args; bubbles git output verbatim on success.
-- `arc release push` — wraps `git push`. Validates active WU is resolved; validates `push_interlock`
-  state authorizes; validates pushability pre-check (per current WU's R13 work) — branch upstream,
-  no rebase in progress, etc.; refuses force-push variants; pairs cleanly with notes-push when in
-  handoff mode (per current WU's R5 work); bubbles server errors verbatim.
+- `arc release push` — wraps `git push` (worktree-leg only). Validates active WU is resolved;
+  validates `push_interlock` state authorizes; validates pushability pre-check (per `user-sync-ux`
+  R14 work) — branch upstream, no rebase in progress, etc.; refuses force-push variants; bubbles
+  server errors verbatim.
 
 Both wrappers honor the same interlock semantics the agent already follows — they enforce, not
-augment.
+augment. Cross-leg orchestration (paired worktree+notes push at handoff per `user-sync-ux` R5)
+is **not** the wrappers' concern — that lives in the `arc sync` orchestrator (`user-sync-ux`
+R10), which calls `arc release push` for the worktree leg and `arc user push` for the notes leg
+based on the configured matrix. Wrappers stay scope-narrow: shape enforcement and authorization
+validation for a single git operation.
 
 **Interlock-validation library.** Shared logic both wrappers call. Builds on the resolver
 consolidation work in `user-sync-ux` Phase 3.1 (`resolveGitConfigOverride<T>`) for interlock-state
@@ -99,9 +103,13 @@ line — composes with existing `Context:` trailer; queryable via `git log --pre
   allowlist patterns rather than auto-writing; user pastes into their own script.
 
 **Workflow integration.** Updates to `process-task-loop.md` and `session-handoff.md` so the agent
-prefers `arc release commit` / `arc release push` over raw git when wrapper is active. Behavior
-adapts to `commit_interlock` / `push_interlock` state per existing rules — wrapper invocation is
-the *how*, interlock state remains the *whether*.
+prefers `arc release commit` / `arc release push` over raw git when wrapper is active. The
+`arc sync` orchestrator (post-`user-sync-ux` integration) invokes `arc release push` for the
+worktree leg internally when wrapper is active — the orchestrator owns the
+push_interlock × notes_push × sync_interlock matrix decisions; wrappers execute the leg.
+Behavior adapts to `commit_interlock` / `push_interlock` / `sync_interlock` state per existing
+rules — wrapper invocation is the *how*, interlock state remains the *whether*, orchestrator
+decides *what fires together*.
 
 **Status integration.** `arc status` surfaces wrapper-active state when allowlist is detected.
 Session-init orientation includes a one-line note when wrapper is the sole authorization layer
@@ -279,9 +287,10 @@ and get the friction-reduction benefit. No setup helper yet.
 
 **Dependencies.**
 
-- Current `user-sync-ux` WU integrated first. Phase 2 (R5 paired-push, R13 pushability pre-check)
-  is needed for the push wrapper's validation logic; Phase 3.1 (resolver consolidation) is the
-  base layer the validation library builds on.
+- Current `user-sync-ux` WU integrated first. Phase 2 (R5 paired-push, R10 orchestrator surface,
+  R14 pushability pre-check) is needed for the push wrapper's validation logic and orchestration
+  boundary; Phase 3.1 (resolver consolidation) is the base layer the validation library builds
+  on.
 - ADR-016 / interlock-model framing is canonicalized.
 
 **Approximate size.** Medium-large. ~12-15 sessions ballpark.
