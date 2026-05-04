@@ -15,6 +15,7 @@ export {
 } from "./status/format.js";
 export type {
   HandoffPushInterlock,
+  HandoffSyncInterlock,
   Probe,
   ProbeError,
   RunSessionHandoffStatusOptions,

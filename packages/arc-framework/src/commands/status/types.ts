@@ -107,6 +107,17 @@ export interface HandoffPushInterlock {
 }
 
 /**
+ * Sync-interlock slot in the session-handoff envelope — narrow projection of
+ * `session.sync_interlock`. Gates whether the handoff workflow auto-invokes
+ * `arc sync` (`on-handoff`) or surfaces unpushed state without firing
+ * (`manual`).
+ */
+export interface HandoffSyncInterlock {
+  value: "manual" | "on-handoff";
+  source: "yaml" | "default";
+}
+
+/**
  * Session-handoff composite result — `--session-handoff` consumer shape.
  *
  * Self-contained: arc-handoff is skill-invoked and shouldn't depend on
@@ -124,6 +135,7 @@ export interface SessionHandoffResult {
   worktree: Probe<WorktreeSyncStatusResult>;
   user: Probe<UserSessionInitStatusResult>;
   pushInterlock: Probe<HandoffPushInterlock>;
+  syncInterlock: Probe<HandoffSyncInterlock>;
   syncPush: Probe<ResolvedSyncPush>;
   active: Probe<ActiveSessionInitResult>;
   head: Probe<HeadHashResult>;
@@ -162,6 +174,7 @@ export interface SessionHandoffProbes {
   worktree: () => Promise<WorktreeSyncStatusResult>;
   user: (identity: string) => Promise<UserSessionInitStatusResult>;
   pushInterlock: () => Promise<HandoffPushInterlock>;
+  syncInterlock: () => Promise<HandoffSyncInterlock>;
   syncPush: () => Promise<ResolvedSyncPush>;
   active: (
     identity: string | null,

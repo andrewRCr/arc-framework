@@ -121,14 +121,11 @@ and an exported paired-push helper are the load-bearing shape decisions.
   `__tests__/unit/status/run.test.ts`. Mocks updated in `push-recovery.test.ts` and
   `user-handlers.test.ts` for the new `UserPushBlockedError` export.
 
-### `[ ]` **2.2 Paired-push failure semantics**
+### `[x]` **2.2 Paired-push failure semantics**
 
-- When worktree and notes pushes fire together at handoff: exit code reflects worst outcome
-  across paired operation; output itemizes both legs; no automatic retry; recovery via
-  `arc user push` is idempotent.
-- Exported `runPairedPush` helper carries the orchestration logic so the handoff workflow
-  invokes via the CLI surface rather than coordinating both legs in workflow markdown — keeps
-  the logic callable from non-handoff contexts (e.g., the planned interlock-release wrappers).
+- Worst-outcome exit code, itemized leg output, no auto-retry, idempotent recovery — all
+  delivered via `runPairedPush` (2.2.a) + `arc user push` no-op (2.2.b) + the `arc sync`
+  orchestrator (2.2.c) that owns the cross-cutting coherence rules.
 
     - `[x]` **2.2.a Exported `runPairedPush` helper**
         - New `commands/user/paired-push.ts` exports `runPairedPush` returning a
@@ -158,13 +155,13 @@ and an exported paired-push helper are the load-bearing shape decisions.
           re-attempt after transient failure pushes and clears marker; force skips the
           probe). Existing `push-recovery.test.ts` updated for the new return shape.
 
-    - `[ ]` **2.2.c Orchestrator + workflow integration**
-        - Introduces the `arc sync` orchestrator (R10) that consumes the 6-cell matrix
+    - `[x]` **2.2.c Orchestrator + workflow integration**
+        - The `arc sync` orchestrator (R10) consumes the 6-cell matrix
           (`push_interlock × notes_push × worktree-state`), routes the paired cell through
-          `runPairedPush`, and owns cross-cutting coherence rules (R5 partial-push, R4
-          unpushed-HEAD, R15 notes-vs-worktree blocking, force-push refusal at handoff).
-          Authorize-by-invocation: config honored as-is whether invoked by workflow or user.
-        - Three subtasks split by surface:
+          `runPairedPush`, and owns cross-cutting coherence (R5 partial-push, R4 unpushed-HEAD,
+          R15 notes-vs-worktree, diverged-worktree skip). The session-handoff workflow consults
+          the new `syncInterlock` envelope slot to decide whether to auto-invoke. Three subtasks
+          delivered the change:
 
             - `[x]` **2.2.c.i Command-surface restructure**
                 - Renamed `arc sync` (notes-only) → `arc user sync`; `handleSync` migrated to
@@ -210,24 +207,33 @@ and an exported paired-push helper are the load-bearing shape decisions.
                   seven listed behaviors. Behaviors batched per test-first batching judgment
                   (single handler, shared mock setup).
 
-            - `[ ]` **2.2.c.iii Workflow markdown rewrite**
-                - `session-handoff.md` Push Sequence section collapses to: probe consults
-                  `sync_interlock`; if `on-handoff`, run `arc sync` and interpret the
-                  structured output; if `manual`, surface unpushed state in the handoff
-                  summary without firing.
-                - Worktree-push and Notes-push sub-sections retire — both responsibilities
-                  move into `arc sync`'s matrix dispatch. Push-ordering invariant note moves
-                  from workflow narrative to a one-line reference (the orchestrator enforces
-                  it via `runPairedPush`).
-                - Confirm Handoff section's conditional surfaces (`Reconcile required:`,
-                  `Worktree: N unpushed commit(s)`, `Sync:` outcome line) read from `arc
-                  sync`'s structured output rather than separate probe data.
-                - New conditional surface: `**Sync:** skipped (sync_interlock: manual). Run
-                  \`arc sync\` when ready.` when the workflow skips sync per config.
-                - Affected files:
-                  `.arc/system/workflows/arc/session-lifecycle/session-handoff.md`.
-                - Test-after — markdown lint clean; manual handoff dry-run validates each
-                  matrix cell renders the expected summary lines.
+            - `[x]` **2.2.c.iii Workflow markdown rewrite**
+                - `session-handoff.md` Push Sequence section collapsed to a single Sync section
+                  gated on `syncInterlock.value`: `on-handoff` invokes `arc sync --json` and
+                  consumes the structured output; `manual` skips and surfaces unpushed state
+                  from the envelope. Worktree-push and Notes-push subsections retired —
+                  matrix dispatch lives in the orchestrator. Push-ordering invariant collapsed
+                  to a one-line strategy-doc reference.
+                - Confirm Handoff section split into two read paths: `arc sync` ran
+                  (read JSON envelope's `cell` / `reconcile`) vs. `arc sync` skipped
+                  (read `worktree` slot from probe envelope). New `**Sync:**` outcomes:
+                  `synced to remote`, `sync failed`, `skipped (sync_interlock: manual)`,
+                  `skipped (no identity)`. Identity-absent fallback added explicitly.
+                - Resolve Handoff Context table updated: `syncInterlock` row added; existing
+                  `pushInterlock` / `syncPush` rows reframed as `arc sync`-internal diagnostics
+                  (no longer consulted by the workflow itself).
+                - **Scope expansion (in-scope per design):** Added `syncInterlock` slot to the
+                  session-handoff envelope to make the workflow gate read coherently. Touches
+                  `commands/status/types.ts`, `commands/status.ts` (barrel), `handlers/status.ts`,
+                  `commands/status/run.ts`, plus updates to `__tests__/unit/status/run.test.ts`
+                  (slot list, parallelism count → 8, sibling-error coverage, dedicated probe test).
+                - Affected files (this task):
+                  `.arc/system/workflows/arc/session-lifecycle/session-handoff.md` +
+                  `packages/arc-framework/arc/.../session-handoff.template.md` (mirror);
+                  envelope expansion files listed above.
+                - Tests passed: full Tier 2 (markdown lint, ts/sh lint, typecheck, typecheck:test,
+                  unit + integration + e2e — 1203 + 49). Manual handoff dry-run deferred to first
+                  real handoff session.
 
 ### `[ ]` **2.3 Unpushed-HEAD save/push behavior**
 

@@ -24,6 +24,7 @@ import {
 } from "../../../src/commands/status.js";
 import type {
   HandoffPushInterlock,
+  HandoffSyncInterlock,
   SessionHandoffProbes,
   SessionInitProbes,
   StatusProbes,
@@ -233,6 +234,12 @@ function handoffPushInterlock(
   return { value: "manual", source: "default", ...overrides };
 }
 
+function handoffSyncInterlock(
+  overrides: Partial<HandoffSyncInterlock> = {},
+): HandoffSyncInterlock {
+  return { value: "on-handoff", source: "default", ...overrides };
+}
+
 function resolvedSyncPush(overrides: Partial<ResolvedSyncPush> = {}): ResolvedSyncPush {
   return { policy: "always", source: "default", ...overrides };
 }
@@ -249,6 +256,7 @@ function sessionHandoffProbes(
     worktree: vi.fn(async () => worktreeSync()),
     user: vi.fn(async () => userSessionInit()),
     pushInterlock: vi.fn(async () => handoffPushInterlock()),
+    syncInterlock: vi.fn(async () => handoffSyncInterlock()),
     syncPush: vi.fn(async () => resolvedSyncPush()),
     active: vi.fn(async () => activeSessionInit()),
     head: vi.fn(async () => headHash()),
@@ -676,6 +684,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
     expect(probes.worktree).toHaveBeenCalledTimes(1);
     expect(probes.user).toHaveBeenCalledTimes(1);
     expect(probes.pushInterlock).toHaveBeenCalledTimes(1);
+    expect(probes.syncInterlock).toHaveBeenCalledTimes(1);
     expect(probes.syncPush).toHaveBeenCalledTimes(1);
     expect(probes.active).toHaveBeenCalledTimes(1);
     expect(probes.head).toHaveBeenCalledTimes(1);
@@ -699,6 +708,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       "mode",
       "pushInterlock",
       "pushability",
+      "syncInterlock",
       "syncPush",
       "user",
       "worktree",
@@ -838,6 +848,22 @@ describe("runSessionHandoffStatus — orchestration", () => {
     }
   });
 
+  it("returns sync interlock with provenance from the syncInterlock probe", async () => {
+    const probes = sessionHandoffProbes({
+      syncInterlock: vi.fn(async () =>
+        handoffSyncInterlock({ value: "manual", source: "yaml" })),
+    });
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.syncInterlock.ok).toBe(true);
+    if (result.syncInterlock.ok) {
+      expect(result.syncInterlock.value).toEqual({ value: "manual", source: "yaml" });
+    }
+  });
+
   it("returns sync-push policy with provenance from the syncPush probe", async () => {
     const probes = sessionHandoffProbes({
       syncPush: vi.fn(async () => resolvedSyncPush({ policy: "prompt", source: "yaml" })),
@@ -897,6 +923,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
     // Sibling slots resolve normally.
     expect(result.worktree.ok).toBe(true);
     expect(result.user.ok).toBe(true);
+    expect(result.syncInterlock.ok).toBe(true);
     expect(result.syncPush.ok).toBe(true);
     expect(result.active.ok).toBe(true);
   });
@@ -915,6 +942,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
     expect(probes.dirty).toHaveBeenCalledTimes(1);
     expect(probes.worktree).toHaveBeenCalledTimes(1);
     expect(probes.pushInterlock).toHaveBeenCalledTimes(1);
+    expect(probes.syncInterlock).toHaveBeenCalledTimes(1);
     expect(probes.syncPush).toHaveBeenCalledTimes(1);
     expect(probes.active).toHaveBeenCalledTimes(1);
     expect(probes.head).toHaveBeenCalledTimes(1);
@@ -940,6 +968,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
     expect(result.worktree.ok).toBe(true);
     expect(result.user.ok).toBe(true);
     expect(result.pushInterlock.ok).toBe(true);
+    expect(result.syncInterlock.ok).toBe(true);
     expect(result.syncPush.ok).toBe(true);
     expect(result.active.ok).toBe(true);
     expect(result.head.ok).toBe(true);
@@ -962,11 +991,12 @@ describe("runSessionHandoffStatus — orchestration", () => {
       worktree: tracked(worktreeSync()),
       user: tracked(userSessionInit()),
       pushInterlock: tracked(handoffPushInterlock()),
+      syncInterlock: tracked(handoffSyncInterlock()),
       syncPush: tracked(resolvedSyncPush()),
       active: tracked(activeSessionInit()),
       head: tracked(headHash()),
     });
     await runSessionHandoffStatus({ identity: "andrew", role: "maintainer", probes });
-    expect(peakInFlight).toBe(7);
+    expect(peakInFlight).toBe(8);
   });
 });

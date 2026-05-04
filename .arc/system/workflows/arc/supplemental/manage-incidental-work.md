@@ -119,7 +119,7 @@ branch workflow, merge strategy, and handling branch updates.
 
 Interrupt coordination is symmetric — every pause has a corresponding resume, and both status files flip in the
 same commit as the triggering lifecycle event. The task list carries structural metadata only; dynamic interrupt
-state (`State`, `Interrupts`, `Paused At`, `Paused To`) lives in status files per R16.
+state (`State`, `Interrupts`, `Paused At`, `Paused To`) lives in status files.
 
 **Atomic-commit requirement:** The parent status file update and the incidental artifact change (create, archive,
 or delete) must land in a single commit. A split would leave the repo with a paused parent whose pointer resolves

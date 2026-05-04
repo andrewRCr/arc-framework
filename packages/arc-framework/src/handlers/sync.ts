@@ -5,9 +5,9 @@
  * 6-cell `push_interlock × notes_push × worktree-state` matrix. Routes the
  * paired cell through `runPairedPush` for worst-outcome semantics; uses
  * single-leg primitives for the remaining cells. Owns cross-cutting coherence
- * gates (R5 partial-push surfacing, R15 notes-vs-worktree blocking,
- * Reconcile-required on diverged worktree) so single-leg primitives stay
- * scope-narrow.
+ * gates (partial-push surfacing, notes-vs-worktree blocking, and the
+ * Reconcile-required surface on a diverged worktree) so single-leg primitives
+ * stay scope-narrow.
  *
  * Authorize-by-invocation: config is honored as-is whether the orchestrator is
  * called from the handoff workflow or by the user mid-session. The contract is
@@ -57,7 +57,7 @@ type NotesAction =
   | { kind: "save-only" }
   | { kind: "save+push" }
   | { kind: "save+prompt" }
-  | { kind: "save+block-r15"; reason: WorktreeSyncState };
+  | { kind: "save+notes-blocked"; reason: WorktreeSyncState };
 
 interface MatrixDecision {
   /** Stable cell label for output / parser consumption. */
@@ -75,7 +75,12 @@ interface MatrixInput {
   branch: string | null;
 }
 
-const R15_BLOCKING_STATES: ReadonlySet<WorktreeSyncState> = new Set([
+/**
+ * Worktree states that block notes push when notes auto-push runs under a
+ * manual worktree-push interlock — prevents notes from referencing commits
+ * that aren't on origin.
+ */
+const NOTES_BLOCK_WORKTREE_STATES: ReadonlySet<WorktreeSyncState> = new Set([
   "local-ahead",
   "diverged",
   "remote-ahead",
@@ -85,9 +90,10 @@ const R15_BLOCKING_STATES: ReadonlySet<WorktreeSyncState> = new Set([
  * Decide the matrix cell from probed inputs. Pure — no I/O, deterministic.
  *
  * Ordering: worktree-side decision first (push_interlock × worktree-state),
- * then notes-side (notes_push × push_interlock × worktree-state with R15
- * gating). Coherence overlays (Reconcile-required on diverged) are encoded
- * in the worktree action; the executor surfaces them and skips both legs.
+ * then notes-side (notes_push × push_interlock × worktree-state with the
+ * notes-vs-worktree gate). Coherence overlays (Reconcile-required on diverged)
+ * are encoded in the worktree action; the executor surfaces them and skips
+ * both legs.
  */
 function decideMatrix(input: MatrixInput): MatrixDecision {
   const worktree: WorktreeAction = decideWorktree(input);
@@ -113,16 +119,16 @@ function decideNotes(input: MatrixInput): NotesAction {
   if (input.notesPush === "manual") {
     return { kind: "save-only" };
   }
-  const r15Blocks = input.pushInterlock === "manual"
-    && R15_BLOCKING_STATES.has(input.worktreeState);
+  const notesBlockedByWorktree = input.pushInterlock === "manual"
+    && NOTES_BLOCK_WORKTREE_STATES.has(input.worktreeState);
   if (input.notesPush === "always") {
-    return r15Blocks
-      ? { kind: "save+block-r15", reason: input.worktreeState }
+    return notesBlockedByWorktree
+      ? { kind: "save+notes-blocked", reason: input.worktreeState }
       : { kind: "save+push" };
   }
   // notesPush === "prompt"
-  return r15Blocks
-    ? { kind: "save+block-r15", reason: input.worktreeState }
+  return notesBlockedByWorktree
+    ? { kind: "save+notes-blocked", reason: input.worktreeState }
     : { kind: "save+prompt" };
 }
 
@@ -131,10 +137,10 @@ function cellNameFor(worktree: WorktreeAction, notes: NotesAction): string {
   if (worktree.kind === "push" && notes.kind === "save+push") return "paired-push";
   if (worktree.kind === "push" && notes.kind === "save-only") return "worktree-only";
   if (worktree.kind === "push" && notes.kind === "save+prompt") return "worktree+notes-prompt";
-  if (worktree.kind === "push" && notes.kind === "save+block-r15") return "worktree-only-r15-blocked";
+  if (worktree.kind === "push" && notes.kind === "save+notes-blocked") return "worktree-push+notes-blocked";
   if (notes.kind === "save+push") return "notes-only";
   if (notes.kind === "save+prompt") return "notes-prompt";
-  if (notes.kind === "save+block-r15") return "notes-blocked-r15";
+  if (notes.kind === "save+notes-blocked") return "notes-blocked";
   return "save-only";
 }
 
@@ -359,7 +365,7 @@ async function executeSingleLeg(ctx: ExecuteContext): Promise<SyncOutcome> {
     }
   }
 
-  if (decision.notes.kind === "save+block-r15") {
+  if (decision.notes.kind === "save+notes-blocked") {
     const saveOk = await performSave(ctx);
     p.log.warn(
       "Notes push blocked: push the worktree first, then `arc user push`. "
@@ -371,7 +377,7 @@ async function executeSingleLeg(ctx: ExecuteContext): Promise<SyncOutcome> {
       notes: {
         action: "save",
         result: saveOk ? "blocked" : "failed",
-        detail: `r15:${decision.notes.reason}`,
+        detail: `notes-blocked-by-worktree:${decision.notes.reason}`,
       },
       exitCode: 1,
     };
@@ -432,7 +438,7 @@ async function executeSingleLeg(ctx: ExecuteContext): Promise<SyncOutcome> {
   }
 
   // save+push without paired routing — only reachable when worktree is push-skip
-  // but notes is save+push (notes-only cell, worktree skipped not by R15).
+  // but notes is save+push (notes-only cell, worktree-skip not blocked).
   const notesRecord = await pushNotesLeg(ctx);
   return {
     cell: decision.cellName,
@@ -537,7 +543,7 @@ function describeNotesAction(action: NotesAction): string {
       return "save and push";
     case "save+prompt":
       return "save, prompt before push";
-    case "save+block-r15":
-      return `save; push blocked by R15 (worktree ${action.reason})`;
+    case "save+notes-blocked":
+      return `save; notes push blocked (worktree ${action.reason})`;
   }
 }

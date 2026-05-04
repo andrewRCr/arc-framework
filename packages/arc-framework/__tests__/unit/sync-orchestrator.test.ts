@@ -2,8 +2,9 @@
  * Unit tests for the top-level `arc sync` orchestrator handler.
  *
  * Covers the 6-cell `push_interlock × notes_push × worktree-state` matrix
- * dispatch: paired-push, worktree-only, R15-gated notes-only, save-only,
- * the prompt cell, the diverged-worktree coherence gate, and `--dry-run`.
+ * dispatch: paired-push, worktree-only, notes-only with notes-vs-worktree
+ * gating, save-only, the prompt cell, the diverged-worktree coherence gate,
+ * and `--dry-run`.
  */
 
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
@@ -157,7 +158,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
     expect(process.exitCode).toBeUndefined();
   });
 
-  it("push_interlock: manual + notes_push: on-sync + worktree local-ahead → R15 block; notes save fires; notes push blocked", async () => {
+  it("push_interlock: manual + notes_push: on-sync + worktree local-ahead → notes-blocked; save fires; push blocked with guidance", async () => {
     setConfig("manual");
     setNotesPolicy("always");
     setWorktree("local-ahead", 2);

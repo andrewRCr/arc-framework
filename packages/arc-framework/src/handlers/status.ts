@@ -114,6 +114,14 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
           source: result.defaultsApplied.includes(key) ? "default" : "yaml",
         };
       },
+      syncInterlock: async () => {
+        const result = await runConfigSessionInitStatus({ cwd });
+        const key = "session.sync_interlock";
+        return {
+          value: result.settings[key] as "manual" | "on-handoff",
+          source: result.defaultsApplied.includes(key) ? "default" : "yaml",
+        };
+      },
       syncPush: () => resolveSyncPushPolicy({
         exec: gitExec,
         readFile: io.readFile,

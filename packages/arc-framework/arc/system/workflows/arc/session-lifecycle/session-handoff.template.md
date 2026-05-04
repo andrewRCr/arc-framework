@@ -29,8 +29,9 @@ arc status --session-handoff --json
 | `dirty`           | `{state: clean / dirty, fileCount}`. Consumed by Pre-Update Verification                                      |
 | `worktree`        | Worktree sync vs `origin/<branch>` — same state vocabulary as session-init                                    |
 | `user`            | Notes sync state (`value.state`: clean / remote-ahead / conflict / disabled / remote-unavailable)             |
-| `pushInterlock`   | `{value, source}` — push-interlock mode (`manual` requires explicit invocation; `on-handoff` fires here)      |
-| `syncPush`        | `{policy, source}` — resolved `user.sync_push` (always / prompt / manual)                                     |
+| `syncInterlock`   | `{value, source}` — gates whether this workflow auto-invokes `arc sync` (`on-handoff` fires; `manual` skips)  |
+| `pushInterlock`   | `{value, source}` — `arc sync`-internal worktree-push gate. Surfaced for diagnostics; not consulted here      |
+| `syncPush`        | `{policy, source}` — `arc sync`-internal notes-push gate. Surfaced for diagnostics; not consulted here        |
 | `active`          | Active status file resolution + sessionType (same shape as session-init)                                      |
 | `head`            | `{hash: string \| null}` — current HEAD short-hash for the `Commit at Handoff` anchor                         |
 
@@ -390,62 +391,36 @@ Persistent Context entries that span work units; reset ephemeral sections.
 After updating session state files, verify clean markdown. If SESSION-NOTES.md is gitignored, your linter
 may skip it by default — pass the path explicitly or use an IDE-integrated linter.
 
-## Push Sequence
+## Sync
 
-**Push-ordering invariant.** When both worktree-push and notes-push fire, **worktree-push lands
-first**. Notes attach to commits that must already exist on origin — reversing the order causes
-notes-push to reference unpublished commits. Not configurable; enforced by the workflow ordering
-below. See [Session Operations Strategy][session-ops] § Push Toggles for the underlying constraint.
+Gated on `syncInterlock.value`. `arc sync` (the orchestrator) owns the matrix dispatch
+internally — push-ordering invariant, worktree+notes coherence, notes-vs-worktree blocking,
+and partial-push recovery all live in the CLI, not in workflow prose. See [Session Operations
+Strategy][session-ops] § Push Toggles for the underlying model.
 
-### Worktree Push
+- **`on-handoff`** (default) — auto-invoke and consume the structured output:
 
-Gated on `pushInterlock.value` and `worktree.value.state`. The probe captured the
-worktree slot pre-step-3, so derive the unpushed count locally:
-`N = worktree.value.ahead + (1 if step 3 fired a chore commit, else 0)`. The agent knows whether
-step 3 committed — no re-probe needed. `N` is the source of truth for both the push gate and the
-surface message.
+    ```bash
+    arc sync --json
+    ```
 
-- `on-handoff`: run `git push` when `N > 0`. No ask — handoff invocation is the approval.
-- `on-handoff` + `worktree.value.state` is `remote-ahead` / `diverged`: skip the push;
-  surface in the handoff summary as `Reconcile required:` — manual rebase or merge needed before
-  pushing (step 3's commit, if any, can't fast-forward in this state).
-- `manual` (default): skip the push action. The user pushes when ready. Surface
-  unpushed commits in the handoff summary as a one-line note (`Worktree: N unpushed commit(s) on
-  {branch}`) whenever `N > 0`.
+  The orchestrator probes worktree state, notes state, `push_interlock`, and `notes_push`;
+  routes the resulting matrix cell through `runPairedPush` (paired) or single-leg primitives
+  (worktree-only, notes-only, notes-blocked, save-only, prompt). Worst-outcome exit code;
+  itemized leg outcomes in the JSON envelope's `cell`, `worktree`, `notes`, `exitCode`, and
+  optional `reconcile` fields. Surface the result per § Confirm Handoff.
 
-### Notes Push
+- **`manual`** — skip the auto-invoke. The user runs `arc sync` (or single-leg commands) when
+  ready. Surface unpushed state from the envelope's `worktree` slot in the handoff summary
+  (see § Confirm Handoff).
 
-After worktree push (whether fired or skipped), run `arc sync` — resolves `syncPush.value.policy`:
+**Identity absent** (`identity.identity === null`): skip the auto-invoke regardless of
+`syncInterlock.value` — `arc sync` requires identity for the notes leg. Surface unpushed
+worktree state from the envelope when applicable.
 
-```bash
-arc sync
-```
-
-- **`always`**: saves and pushes in one step.
-- **`prompt`**: saves, then asks before pushing. In non-interactive environments (CI, no TTY),
-  degrades to `manual` with a warning rather than hanging on the prompt.
-- **`manual`**: saves only; the user pushes later with `arc user push`.
-
-For manual control outside of handoff (ad-hoc save, push, or force-push), `arc user save`,
-`arc user push`, and `arc user push --force` remain available. In non-interactive or
-confirmation-free reruns, `arc sync --yes` skips overwrite prompts.
-
-**Error handling:** The CLI surfaces sync errors interactively — follow its guidance. Common cases:
-
-- **Push rejected (non-fast-forward)** — CLI offers force-push or merge-rebase; choose per which
-  side is authoritative.
-- **Missing remote** — local save completed; push later when `origin` is configured.
-- **Pull warning (local changes)** — CLI confirms before overwriting unsaved notes.
-
-**Surface the outcome in the handoff summary.** After `arc sync` returns, the agent must report
-whether the save and push succeeded — check the exit code and include a one-line result in the
-end-of-session summary (e.g., "session state synced to remote" or "sync failed, state preserved
-locally — re-run `arc sync` after resolving"). The CLI's interactive output is easy to miss when
-scrolling or in non-TTY contexts; an explicit outcome line prevents the "work didn't land but
-user thought it did" failure mode.
-
-If save itself fails (empty user directory, filesystem permissions), the session state is only in
-SESSION-NOTES.md on disk. Resolve the issue and re-run `arc user save`.
+**Unpushed-count formula** (`manual` mode and identity-absent fallbacks):
+`N = worktree.value.ahead + (1 if step 3 fired a chore commit, else 0)`. The probe captured
+`worktree` pre-step-3; the agent knows whether step 3 committed.
 
 ## Confirm Handoff
 
@@ -454,13 +429,33 @@ This is a quick confirmation for the human — the session state files are the d
 
 **ARC session handoff complete** · `{branch-name}` · {clean | uncommitted changes}
 
-**Sync:** {synced to remote | sync failed — re-run `arc sync` after resolving}
+**Sync:** one of:
+
+- `synced to remote` — `arc sync` returned `exitCode: 0`.
+- `sync failed — re-run \`arc sync\` after resolving` — `arc sync` returned non-zero.
+- `skipped (sync_interlock: manual). Run \`arc sync\` when ready.` — auto-invoke skipped per
+  config.
+- `skipped (no identity). Configure \`arc.identity\` to enable notes sync.` —
+  identity-absent fallback.
 
 **Next session:** [Task list pointer (on-task-list) or freeform (off-task-list)]
 
-**Conditional top-level sections** — prepend above `**Sync:**` when applicable:
+**Conditional top-level sections** — prepend above `**Sync:**` when applicable.
 
-- `N > 0` per Push Sequence formula and push did not fire (`manual`, or `on-handoff` skipped):
+When `arc sync` ran (`syncInterlock.value === "on-handoff"`), read state from its JSON
+envelope:
+
+- `cell === "blocked-diverged"` or output `reconcile` block present:
+
+  ```text
+  **Reconcile required:** `{branch}` diverged from `origin/{branch}` ({ahead} ahead, {behind}
+  behind). Manual rebase or merge needed before pushing.
+  ```
+
+When `arc sync` was skipped (`syncInterlock.value === "manual"` or identity absent), read
+from the probe envelope:
+
+- `N > 0` per § Sync formula:
 
   ```text
   **Worktree:** N unpushed commit(s) on `{branch}`.
