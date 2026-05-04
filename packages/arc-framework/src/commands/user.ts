@@ -57,6 +57,7 @@ export {
   type RunPairedPushOptions,
   type UserPullOptions,
   type UserPushOptions,
+  type UserPushResult,
   type UserSaveOptions,
   type UserSaveResult,
   type UserSessionInitState,

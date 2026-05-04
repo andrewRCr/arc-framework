@@ -141,18 +141,19 @@ load-bearing shape decisions.
           partial-fail with marker, ordering-invariant on worktree-fail, and pre-check
           block.
 
-    - `[ ]` **2.2.b `arc user push` idempotent no-op**
-        - `arc user push` checks remote ref state via
-          `git ls-remote refs/notes/arc/user/{identity}` before the push leg; no-ops with
-          confirmation when remote already matches local. Successful no-op clears the
-          partial-push marker (recovery path). Generalizes the recovery semantic so the
-          handoff workflow's "re-run `arc user push`" guidance is reliably idempotent.
-        - Affected files: `packages/arc-framework/src/commands/user/push-fetch.ts`;
-          `packages/arc-framework/src/handlers/{user,sync}.ts` (surface the no-op outcome).
-        - Build `test-first` (one behavior at a time):
-            - Remote already matches local → no-ops with confirmation (not error)
-            - Re-attempt after transient failure → re-attempts notes push successfully;
-              partial-push marker cleared on success
+    - `[x]` **2.2.b `arc user push` idempotent no-op**
+        - `runUserPush` (`commands/user/push-fetch.ts`) now probes
+          `git ls-remote origin refs/notes/arc/user/{identity}` against the local ref hash
+          before pushing; equal hashes return `{ kind: "noop" }` and clear the partial-push
+          marker without firing a push. Different (or missing) hashes proceed with the push
+          as before, also clearing the marker on success. `force: true` skips the probe and
+          pushes unconditionally. New `UserPushResult = { kind: "pushed" | "noop" }` exposed
+          via `commands/user/types.ts`. `pushWithInteractiveRecovery` propagates `noop`
+          through `PushResult`; `handlers/{user,sync}.ts` accept it alongside `ok` /
+          `ok-recovered`. Spinner doneLabel switches to "Already up to date." on no-op.
+        - Tests: 3 new in `__tests__/unit/push-fetch.test.ts` (no-op clears marker;
+          re-attempt after transient failure pushes and clears marker; force skips the
+          probe). Existing `push-recovery.test.ts` updated for the new return shape.
 
     - `[ ]` **2.2.c Handler + workflow integration**
         - `handlers/sync.ts` calls `runPairedPush` for the paired-push direction (replaces

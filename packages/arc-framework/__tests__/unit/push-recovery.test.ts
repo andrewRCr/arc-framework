@@ -73,7 +73,7 @@ describe("pushWithInteractiveRecovery", () => {
   });
 
   it("returns { kind: \"ok\" } when push succeeds on first try", async () => {
-    mockRunUserPush.mockResolvedValue(undefined);
+    mockRunUserPush.mockResolvedValue({ kind: "pushed" });
     const result = await pushWithInteractiveRecovery(io, identity, cwd);
     expect(result).toEqual({ kind: "ok" });
     expect(mockRunUserPush).toHaveBeenCalledTimes(1);

@@ -7,6 +7,7 @@ import {
   type UserIOContext,
   type UserPullOptions,
   type UserPushOptions,
+  type UserPushResult,
 } from "./types.js";
 
 /**
@@ -18,10 +19,18 @@ import {
  * divergence; force-push doesn't resolve them. Auto-fixed conditions (missing
  * notes refspec) proceed silently after fix.
  *
+ * Idempotent recovery: when `force` is unset, the function probes
+ * `git ls-remote origin <ref>` and compares against the local ref hash. If
+ * they match, no push fires and the result is `{ kind: "noop" }` — the
+ * partial-push marker is still cleared since the recovery condition is
+ * resolved. `force: true` skips the probe and pushes unconditionally.
+ *
  * @param options - Push options. Provide `access` to enable the pre-check.
+ * @returns Discriminated outcome: `pushed` when a push fired, `noop` when the
+ *   remote already matched local.
  * @throws {UserPushBlockedError} when a block-disposition condition is detected.
  */
-export async function runUserPush(options: UserPushOptions): Promise<void> {
+export async function runUserPush(options: UserPushOptions): Promise<UserPushResult> {
   const { cwd, io, identity, force, access } = options;
 
   if (access) {
@@ -36,10 +45,47 @@ export async function runUserPush(options: UserPushOptions): Promise<void> {
   }
 
   const ref = `refs/notes/${notesRef(identity)}`;
+
+  if (!force) {
+    const local = await readLocalRefHash(io, ref);
+    const remote = await readRemoteRefHash(io, ref);
+    if (local !== null && remote !== null && local === remote) {
+      if (cwd) {
+        await clearPartialPushMarker(cwd, io, identity);
+      }
+      return { kind: "noop" };
+    }
+  }
+
   const args = force ? ["push", "--force", "origin", ref] : ["push", "origin", ref];
   await io.exec("git", args);
   if (cwd) {
     await clearPartialPushMarker(cwd, io, identity);
+  }
+  return { kind: "pushed" };
+}
+
+async function readLocalRefHash(io: UserIOContext, ref: string): Promise<string | null> {
+  try {
+    const { stdout } = await io.exec("git", ["rev-parse", "--verify", ref]);
+    return stdout.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+async function readRemoteRefHash(io: UserIOContext, ref: string): Promise<string | null> {
+  try {
+    const { stdout } = await io.exec("git", ["ls-remote", "origin", ref]);
+    const line = stdout
+      .split("\n")
+      .map((entry) => entry.trim())
+      .find((entry) => entry.length > 0);
+    if (!line) return null;
+    const [hash] = line.split(/\s+/u);
+    return hash || null;
+  } catch {
+    return null;
   }
 }
 

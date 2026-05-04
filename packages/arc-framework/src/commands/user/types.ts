@@ -151,6 +151,15 @@ function buildBlockedMessage(conditions: PushabilityCondition[]): string {
   return `Push blocked — resolve before retrying:\n${lines.join("\n")}`;
 }
 
+/**
+ * Outcome of `runUserPush`.
+ *
+ * - `pushed`: a push was sent to remote.
+ * - `noop`: remote ref already matched local; nothing to push (partial-push
+ *   marker is still cleared, since the recovery condition is resolved).
+ */
+export type UserPushResult = { kind: "pushed" } | { kind: "noop" };
+
 /** Reason a paired-push leg was skipped without firing. */
 export type PairedPushSkipReason = "blocked-by-precheck" | "preceding-leg-failed";
 

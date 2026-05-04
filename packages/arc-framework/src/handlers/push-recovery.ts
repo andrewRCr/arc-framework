@@ -19,6 +19,7 @@ import { isNonInteractiveEnvironment, isRemoteError, runWithSpinner } from "./sh
 /** Outcome of an interactive push attempt. */
 export type PushResult =
   | { kind: "ok" }
+  | { kind: "noop" }
   | { kind: "ok-recovered"; via: "force" | "merge" }
   | { kind: "cancelled" }
   | { kind: "no-remote" }
@@ -46,14 +47,14 @@ export async function pushWithInteractiveRecovery(
   cwd: string,
   access?: AccessFn,
 ): Promise<PushResult> {
+  const spinner = p.spinner();
+  spinner.start("Pushing user notes...");
   try {
-    await runWithSpinner(
-      "Pushing user notes...",
-      () => runUserPush({ cwd, io, identity, access }),
-      "Push complete.",
-    );
-    return { kind: "ok" };
+    const pushResult = await runUserPush({ cwd, io, identity, access });
+    spinner.stop(pushResult.kind === "noop" ? "Already up to date." : "Push complete.");
+    return { kind: pushResult.kind === "noop" ? "noop" : "ok" };
   } catch (err) {
+    spinner.stop("Failed.");
     if (err instanceof UserPushBlockedError) {
       return { kind: "blocked", conditions: err.conditions };
     }

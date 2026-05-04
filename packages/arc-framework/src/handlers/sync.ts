@@ -376,6 +376,7 @@ async function handlePushDirection(params: DirectionParams): Promise<void> {
   switch (pushResult.kind) {
     case "ok":
     case "ok-recovered":
+    case "noop":
       if (restoreAfterPush) {
         await handleLoadDirection(params);
         return;

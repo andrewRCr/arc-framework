@@ -224,6 +224,7 @@ export async function handleUserPush(opts: UserPushOptions): Promise<void> {
   switch (result.kind) {
     case "ok":
     case "ok-recovered":
+    case "noop":
       p.outro("Done.");
       return;
     case "cancelled":
