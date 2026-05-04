@@ -268,14 +268,151 @@ and an exported paired-push helper are the load-bearing shape decisions.
   (`git pull --ff-only`)"; `local-ahead` retains the existing
   "push the worktree first" wording.
 
+## **Phase 2.R:** Sync remediation and robustness
+
+_Purpose:_ Correct the Phase 2 sync-contract gaps found during cross-machine handoff analysis
+before vocabulary/config work resumes. This phase hardens save verification, freshness
+reporting, orchestrator routing, machine-readable output, and the self-hosted CLI path so Phase
+3+ work builds on a reliable `arc sync` contract.
+
+### `[ ]` **2.R.1 Verified save and freshness surfaces**
+
+- _Goal:_ Save, push, and status surfaces cannot report success or "clean" when current-`HEAD`
+  user notes were not actually saved or the latest local note is stale.
+
+    - `[ ]` **2.R.1.a Save postcondition verification**
+        - Add an exact-`HEAD` note readback after `writeNote`; parse and validate the saved
+          manifest, compare the normalized manifest hash, and write `.sync-state.json` only
+          after verification succeeds.
+        - Build `test-first`:
+            - Writer resolves but readback is missing → command fails and sync-state does not
+              advance.
+            - Readback contains invalid JSON → command fails and sync-state does not advance.
+            - Readback manifest hash mismatches the materialized user dir → command fails and
+              sync-state does not advance.
+            - Successful readback writes sync-state after verification.
+
+    - `[ ]` **2.R.1.b Stale-local no-op push copy**
+        - Change the no-op `arc user push` copy to name the actual comparison: remote user
+          notes already match local user notes. It must not imply the local note is current for
+          `HEAD`.
+        - When local and remote notes refs match but the latest reachable local note is behind
+          `HEAD`, surface a warning/action hint to run save or sync before relying on handoff.
+        - Build test-first with local and remote notes refs equal while the latest local note is
+          attached to an ancestor commit: push remains a no-op, but copy includes the stale-local
+          warning and save/sync guidance.
+
+    - `[ ]` **2.R.1.c Session-init/handoff stale freshness detail**
+        - Add session-facing freshness detail when local and remote notes refs match but
+          `findNearestUserNote` resolves to an ancestor of `HEAD` with `ancestorDistance > 0`.
+        - `npx arc status --session-init --json` and `npx arc status --session-handoff --json`
+          must expose enough structured detail for workflows to distinguish "refs equal" from
+          "current-HEAD note exists."
+        - Build `test-first` for both session surfaces.
+
+### `[ ]` **2.R.2 Sync orchestrator execution contract**
+
+- _Goal:_ Every `arc sync` matrix cell preserves local state, gates unsafe pushes consistently,
+  and emits machine-consumable output in JSON mode.
+
+    - `[ ]` **2.R.2.a Paired-cell save-before-push**
+        - Make the paired `arc sync` cell save current user notes to current `HEAD` before the
+          notes push leg. Either call `runUserSave` before `runPairedPush` or introduce a
+          clearly named wrapper that owns save-then-paired-push ordering.
+        - Update orchestrator tests that currently assert paired sync skips save; replace them
+          with an ordering assertion that save precedes the paired notes push.
+        - Add a regression fixture for default config + clean worktree: after `arc sync`,
+          `git notes --ref refs/notes/arc/user/{identity} show HEAD` succeeds.
+
+    - `[ ]` **2.R.2.b Blocked-cell local-save invariant**
+        - Decide and encode the invariant for blocked sync cells. Preferred contract: all cells
+          that cannot push notes still save local user notes to current `HEAD` before refusing
+          the remote notes leg.
+        - Cover diverged, remote-ahead, local-ahead/manual, no-upstream, detached/rebase, and
+          remote-unavailable blocked paths. JSON output must report the save result separately
+          from the blocked push result.
+
+    - `[ ]` **2.R.2.c Worktree-leg pushability/state gate**
+        - Route every worktree push leg through the shared pushability/state helper; no
+          `arc sync` cell may rely on raw `git push origin <branch>` as its only guard.
+        - Build coverage for no-upstream, detached HEAD, rebase-in-progress, remote-ahead,
+          no-remote, remote-unavailable, and force-push advisory paths.
+
+    - `[ ]` **2.R.2.d Prompt and JSON mode semantics**
+        - `arc sync --json` must emit exactly one JSON object to stdout and must not prompt.
+          Diagnostics belong inside the envelope or on a stderr-safe channel that does not
+          corrupt stdout parsing.
+        - Define `--yes` behavior for prompt-policy cells so automation and handoff workflows
+          cannot hang on interactive prompts.
+        - Build child-process or equivalent integration coverage for paired, save-only,
+          blocked, and prompt-policy cells.
+
+### `[ ]` **2.R.3 Regression coverage across real git topologies**
+
+- _Goal:_ Test coverage catches the cross-machine and handoff failures that mocked unit tests
+  missed.
+
+    - `[ ]` **2.R.3.a Cross-clone handoff sync regression**
+        - Create a bare origin plus two clones. Clone A changes session notes and runs
+          `npx arc sync --json`; assert clone A's `HEAD` has a verified note, origin's user
+          notes ref advanced, and clone B can fetch/pull the current note.
+        - Assert clone B's session-init and session-handoff freshness detail reflects current
+          `HEAD` after pull.
+
+    - `[ ]` **2.R.3.b Matrix edge coverage**
+        - Add unit/integration coverage for the blocked and edge cells discovered in the audit:
+          diverged + on-sync, remote-ahead + manual worktree, worktree-only push gate failures,
+          notes prompt under non-interactive mode, and remote notes no-op with stale local note.
+
+    - `[ ]` **2.R.3.c JSON purity child-process tests**
+        - Run the actual CLI as a subprocess for representative `arc sync --json` cells and
+          assert stdout parses as one JSON object with no Clack spinner, prompt, or log
+          contamination.
+
+### `[ ]` **2.R.4 Self-hosted CLI guard**
+
+- _Goal:_ This repo cannot silently trust a stale ignored `dist/cli.js` for handoff-critical
+  `npx arc` commands.
+
+    - `[ ]` **2.R.4.a Choose guard shape**
+        - Decide between a dev-mode stale-build check, a documented/build-enforced session
+          bootstrap step, or a dedicated self-host wrapper.
+        - The chosen shape must account for this repo's `npx arc` resolving to
+          `packages/arc-framework/dist/cli.js` while `dist/` is ignored.
+
+    - `[ ]` **2.R.4.b Implement and verify guard**
+        - From a deliberately stale build state, the guard must warn or fail before `arc sync`,
+          `arc user save`, `arc user push`, or `arc status --session-* --json` output is
+          trusted.
+        - Add the narrowest reliable test or documented manual check needed for the chosen
+          guard shape.
+
+### `[ ]` **2.R.5 Final sync contract audit**
+
+- _Goal:_ Re-read the sync surface after remediation and capture residual risk before Phase 3
+  begins.
+
+    - `[ ]` **2.R.5.a Code-path audit against invariants**
+        - Audit `handlers/sync.ts`, `handlers/user-sync.ts`, `handlers/user.ts`,
+          `commands/user/*`, and `lib/git/*` against the remediation invariants:
+          verified save before sync-state advance, no JSON contamination, no raw worktree-push
+          bypass, no clean-but-stale hidden state, and no misleading no-op copy.
+
+    - `[ ]` **2.R.5.b Test-surface audit**
+        - Ensure unit, integration, and e2e coverage maps to all remediation invariants and at
+          least one real git cross-clone path.
+        - Record intentionally deferred residuals in the task outcome/status before Phase 3
+          begins.
+
 ## **Phase 3:** Vocabulary and config alignment
 
 _Purpose:_ Align user-notes vocabulary across config keys and rendering surfaces. R13 resolver
 consolidation, R12 per-dev interlock overrides (incl. new `arc.syncInterlock`), R9 config-shape
 rename + `arc update` migration (covers `user.sync_push` rename + `push_interlock` value rename),
 R8 layered vocabulary rule. The R10 command rename + orchestrator surface lands in Phase 2
-(2.2.c.i) since 2.2.c's matrix dispatch depends on it. Sequencing: resolver first (R12 needs it),
-then renames, then vocabulary pass (so the vocabulary pass operates on final-shape strings).
+(2.2.c.i) since 2.2.c's matrix dispatch depends on it. Sequencing: Phase 2.R completes first;
+then resolver first (R12 needs it), then renames, then vocabulary pass (so the vocabulary pass
+operates on final-shape strings).
 
 ### `[ ]` **3.1 Resolver consolidation**
 
@@ -321,7 +458,8 @@ then renames, then vocabulary pass (so the vocabulary pass operates on final-sha
 
     - Companion `sourceMap: Record<key, "git-config" | "yaml" | "default">` returned alongside
       the resolved settings. Diagnostic surfaces (orchestrator `--json` envelope, status
-      output) consume it.
+      output) consume it. When adding provenance to `arc sync --json`, keep it inside the
+      structured envelope; do not emit Clack/log output that would corrupt machine-readable stdout.
     - This per-dev resolution layer is the **validation read path** for the planned
       interlock-release wrappers' validation library (per
       `plan-interlock-release-wrappers.md` § Interlock-validation library). The wrappers call
@@ -450,6 +588,9 @@ then renames, then vocabulary pass (so the vocabulary pass operates on final-sha
         - `packages/arc-framework/src/handlers/push-recovery.ts` (recovery-prompt copy)
         - `packages/arc-framework/src/cli.ts` (subcommand help text)
     - Test-after — rendering and string-content audit, not logic change.
+    - Boundary: this is a human-copy pass. Do not rename machine-readable JSON discriminants,
+      config keys, or enum values unless an explicit migration task owns that change. Preserve
+      comparison-specific copy introduced by the stale-local/no-op and save-verification fixes.
 
 ## **Phase 4:** DX polish
 
@@ -511,7 +652,9 @@ Phase 3's vocabulary alignment for first-use copy strings.
       `materializedManifestHash`, `sourceCommit`, `sourceOperation`, optional `partialPush`)
       with `savedAt: ISO-string`. Bump to v3; readers parse v1 / v2 (existing forward-read
       pattern in `readLocalSyncState`) and write v3. Required for heuristics that need
-      recency to compare timestamps.
+      recency to compare timestamps. Coordinate with the save postcondition hardening: write or
+      upgrade sync-state only after the exact `HEAD` note has been verified, and preserve
+      `partialPush` marker semantics through the v3 migration.
     - `--offline` mode behavior: both worktree and notes fetches suppressed. Cross-machine
       vs. unfetched-local distinction collapses (no remote read available); surface a
       degraded classification ("offline — local state only; cross-machine signals
@@ -535,7 +678,7 @@ Phase 3's vocabulary alignment for first-use copy strings.
 ### `[ ]` **5.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
 
 - _Goal:_ WU success criteria verified through the verification workflow; quality gates pass
-  at Tier 3; atomic-task companion drained.
+  at Tier 3; Phase 2.R remediation complete; atomic-task companion drained.
 
 ---
 
@@ -564,6 +707,14 @@ Phase 3's vocabulary alignment for first-use copy strings.
 - `[ ]` `arc sync` (top-level orchestrator) dispatches over the 6-cell matrix; `arc user sync`
   (former `arc sync`) remains the notes-only direction-aware command. `arc user --help` lists
   `save / load / push / pull / fetch / sync`; both surfaces cross-reference
+- `[ ]` `arc sync --json` is a pure machine contract: stdout is one parseable JSON object across
+  paired, save-only, blocked, and prompt-policy cells; no prompt/spinner/log output contaminates it
+- `[ ]` Handoff sync has cross-clone coverage: clone A `arc sync --json` creates a verified
+  current-`HEAD` note and pushes it; clone B can fetch/pull notes and session-init/handoff
+  freshness reflects current `HEAD`
+- `[ ]` `arc user save` success verifies the exact `HEAD` note before `.sync-state.json` advances
+- `[ ]` Every `arc sync` worktree push leg runs through the shared pushability/state gate; no matrix
+  cell relies on raw `git push` as its only guard
 - `[ ]` `session.sync_interlock: manual` opts handoff out of automatic sync; handoff summary
   surfaces unpushed state without firing pushes
 - `[ ]` First-use framing surfaces operational: `arc join` install paragraph, `arc status` hint
