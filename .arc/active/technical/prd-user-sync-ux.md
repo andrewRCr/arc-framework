@@ -137,10 +137,13 @@ origin. The same coherence rule generalizes to all push triggers (handoff, manua
 - Recovery is idempotent — `arc user push` checks remote ref state via
   `git ls-remote refs/notes/arc/user/{identity}`; no-ops with confirmation when remote already
   matches local.
-- Cross-cutting coherence rules (R3 partial-push surfacing, R4 unpushed-HEAD blocking, R15
-  notes-vs-worktree blocking under mixed config, force-push refusal at handoff) live in the
-  `arc sync` orchestrator, not in single-leg primitives or the pushability matrix. Primitives
-  enforce shape (no force-flag, WU resolved, ref valid); the orchestrator decides what fires.
+- Coherence rules layer cleanly. Primitives enforce shape (no force-flag, WU resolved, ref
+  valid). The pushability matrix encodes shape-detectable coherence — including R4
+  unpushed-HEAD alignment via the notes-target check — so single-leg push entry points
+  (`arc user push`, `arc release push`, orchestrator-routed legs) get uniform enforcement by
+  consulting the matrix. The `arc sync` orchestrator owns *routing*: R3 partial-push marker
+  management across paired flows, R15 notes-vs-worktree blocking under mixed config,
+  force-push refusal at handoff, and the Reconcile-required surface on a diverged worktree.
 
 **R6. Directional copy audit.** Every headline and detail line in `sync-status.ts` names both
 sides of the comparison it makes. No line allows the user to wonder "newer than what" or "synced
