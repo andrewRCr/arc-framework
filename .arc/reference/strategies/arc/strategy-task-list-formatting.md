@@ -126,8 +126,10 @@ navigation benefit.
 
 Checkbox bullet with backtick-wrapped marker (matching parent task heading style); letter
 numbering at third level. Bold when detail bullets follow (creates visual hierarchy); plain
-when simple single-line. Indented 4 spaces from the parent task heading's content (under the
-parent's `_Goal:_` bullet — see § Goal/Note Lines for the structural anchor mechanic).
+when simple single-line. Indented 4 spaces below the parent's root-level descriptor block
+(Goal + any peer descriptors). By convention subtasks are Goal's children — the indent +1
+layer is what serves Goal, regardless of which root bullet structurally precedes the indent.
+See § Goal/Note Lines.
 
 The backtick wrapping prevents GFM from rendering the marker as an actual checkbox UI element
 in preview/rendered views. Without backticks, parent tasks (in headings — where GFM doesn't
@@ -162,38 +164,52 @@ Indented 4 spaces from the task they support; can nest further (8 / 12 spaces). 
 (1-2 lines per bullet). Use backticks for technical terms.
 
 At task completion, per-subtask description bullets shift from plan-content to outcome-content
-in place — same shape, no label change. See [process-task-loop § Completion notes content
-discipline][process-task-loop] for the content bound and replace-don't-accumulate rule.
+in place — same shape, no label change. Parent-level replacement is different (Goal preserved;
+peer descriptors and body subsumed by `_Outcome:_` at root); see § Goal/Note Lines and
+[process-task-loop § Completion notes content discipline][process-task-loop].
 
 ### Goal/Note Lines
 
-Italic-prefixed bullets at root level under a parent task heading: `- _Goal:_ {one line}`,
-`- _Note:_`, `- _Rationale:_`, `- _Approach:_`, `- _Context:_`. Italics signal non-actionable
-descriptor; bold (`**X.Y Title**`) is reserved for actionable task titles.
+Italic-prefixed bullets at root level under a parent task heading. Italics signal
+non-actionable descriptor; bold (`**X.Y Title**`) is reserved for actionable task titles.
 
-**Goal as structural anchor.** When a parent task has subtasks, `_Goal:_` is the bullet that
-owns them via 4-space indent — semantically, subtasks serve the Goal. Goal must come last
-among descriptor bullets so subtasks indent under it; other descriptors (Context, Rationale,
-Approach) appear as flat peer bullets BEFORE Goal.
+**Goal first at root, required on every parent task.** Goal opens the task body — always
+the first bullet under the parent task heading. It carries the outcome the rest of the body
+serves. Goal applies whether the parent has subtasks or not; titles describe changes ("Wire
+X into Y") while Goals describe outcomes ("X validates input on save"). Goal alone — title
+plus Goal with no further body — is allowed when that pair fully captures the work. For
+subtasks, Goal is opt-in: default no, opt in when the subtask carries separable sub-intent
+that doesn't reduce to "slice of parent Goal."
 
-**Subtaskless parents — no descriptor bullets pre-completion.** A parent task without subtasks
-must not carry `_Goal:_`, `_Note:_`, `_Rationale:_`, `_Approach:_`, or `_Context:_` bullets.
-The title carries the task; supporting bullets without indented children look orphaned. If a
-descriptor seems necessary, that's a signal to subtask the work — surface the Goal as the
-structural anchor and break the work into 2+ subtasks.
+**Diagnostic test for Goals**: would removing the Goal make it harder to verify the work
+satisfies the spec? If yes, keep it. If no, drop it (subtask) or rewrite to articulate
+outcome rather than restating the title (parent). The test catches title-restating Goals
+("Goal: Wire validation into save handler" alongside that exact title) and noise-shaped
+subtask Goals on mechanical decomposition.
 
-**Post-completion: outcomes replace descriptors.** At `[x]` time, all pre-completion
-descriptor bullets are REPLACED by a single `_Outcome:_` bullet at root level (per
-[process-task-loop § Completion notes content discipline][process-task-loop]). This applies to
-subtaskless parents too — `_Outcome:_` is allowed when warranted, and is the only descriptor
-a subtaskless parent ever carries. Don't accumulate plan AND outcome.
+**Peer descriptors as siblings of Goal at root, after Goal.** When framing is genuinely
+load-bearing and Goal text alone can't carry it, peer descriptors — `_Context:_`,
+`_Rationale:_`, `_Approach:_`, `_Shape:_`, `_Note:_` — sit at root after Goal as siblings.
+Optional and absent on most tasks. Markdown's tree treats the indented body as children of
+the last root bullet (the last peer descriptor when present); by convention indent +1 is
+"Goal's children" — what serves Goal — regardless of which root bullet structurally precedes
+the indent.
 
-**Verification-task exception.** The verification phase's single task (per
-[verify-work-unit.md][verify-work-unit]) carries three required completion-note categories —
-quality gates, success criteria, atomic tasks. These appear as three italic descriptor bullets
-at root level (`_Quality gates:_`, `_Success criteria:_`, `_Atomic tasks:_`) in lieu of a
-single `_Outcome:_`. Same italic convention; structured layout reflects the verification
-workflow's required coverage.
+**Goal preserved across completion; peer descriptors and body replaced.** At `[x]`, Goal
+stays verbatim. Peer descriptors (when present) and all Goal-children (description bullets,
+Build test-first lists) are subsumed by a single `_Outcome:_` bullet at root level — peer to
+Goal. Goal opens the post-completion shape; Outcome closes it; the two protected surfaces
+frame what was the pre-completion middle. See [process-task-loop § Completion notes content
+discipline][process-task-loop] for the content bound on Outcome.
+
+**Per-subtask description shifts in place** (unchanged behavior). At `[x]`, each subtask's
+description bullets at indent +2 shift from plan-content to outcome-content — same shape,
+no label change. The parent's rolled-up Outcome at root summarizes the unit-level result.
+
+**Verification-task exception preserved.** The verification phase's single task (per
+[verify-work-unit.md][verify-work-unit]) carries three required completion-note categories
+at root — `_Quality gates:_`, `_Success criteria:_`, `_Atomic tasks:_` — peers to Goal in
+lieu of `_Outcome:_`. All four (Goal + three categories) protected post-completion.
 
 ### Revision Numbering (R Scheme)
 
@@ -224,10 +240,14 @@ names (`method_name()`), file names (`models.py`), API endpoints (`/api/users/`)
 
 - Phase heading (H2) → col 1
 - Parent task heading (H3) → col 1
-- Root-level descriptor bullets (`_Goal:_`, peers) → col 1 (bullet marker; content starts col 3)
-- Subtasks under `_Goal:_` → col 5 (4-space indent + bullet)
-- Per-subtask description bullets → col 9 (8-space indent + bullet)
-- Sub-bullets within description → col 13 (12-space indent + bullet)
+- Root-level descriptor bullets (`_Goal:_`, peer descriptors, `_Outcome:_`) → col 1
+  (bullet marker; content starts col 3)
+- Goal-children → col 5 (4-space indent + bullet) — subtasks, description bullets for
+  subtaskless parents, Build test-first marker
+- Per-subtask description bullets / test-first cases under a subtaskless parent → col 9
+  (8-space indent + bullet)
+- Sub-bullets within subtask description / test-first cases under a subtask → col 13
+  (12-space indent + bullet)
 
 ### Blank-Line Discipline
 
@@ -246,6 +266,13 @@ Blank lines required:
   other list content where multi-line entries appear.
 
 - Before and after multi-paragraph descriptor blocks within a phase preamble
+
+- Before an indent-+1 children block when the preceding root bullet is multi-line — separates
+  the descriptor block from its operational children (subtasks or task-description bullets)
+
+- Between Goal and Outcome at root post-completion — both protected surfaces. The loose-list
+  rule already covers this when either is multi-line; this makes the separation explicit
+  even when both are short
 
 **File-header metadata blocks follow a different rule** from content lists. The bullet block
 at the top of a task list, completion doc, or similar metadata cluster is shape-mixed:

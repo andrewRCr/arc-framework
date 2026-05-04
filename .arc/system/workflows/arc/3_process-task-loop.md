@@ -68,10 +68,14 @@ arc:
        - **No inline dates**: Don't add completion dates to individual tasks (e.g., "Completed: 2025-11-02"). Inline
          dates become temporal noise during archival. WU-level completion date lives on the completion doc's
          `**Completed:**` field; no task list or per-task date stamp is expected.
-       - **Completion notes — content discipline.** At task completion, **replace** pre-completion descriptors
-         (Goal, Note, Rationale, Approach, Context, Design decisions) with a single outcome record. Don't
-         accumulate plan AND outcome — the historical record needs only what was done. Outcome content is
-         optional when the task title carries the work; not every `[x]` requires a notes block.
+       - **Completion notes — content discipline.** At task completion, **`_Goal:_` is preserved
+         verbatim** — protected surface alongside the title. **Replace** pre-completion peer descriptors
+         (`_Note:_`, `_Rationale:_`, `_Approach:_`, `_Context:_`, `_Shape:_`) and Goal-children
+         (description bullets, Build test-first lists) with a single `_Outcome:_` bullet at root level —
+         peer to Goal. Don't accumulate plan AND outcome — the historical record needs only what was
+         done. Outcome content is optional when title + Goal fully capture the work; not every `[x]`
+         requires an Outcome bullet. See [strategy-task-list-formatting § Goal/Note Lines][strat-tlf]
+         for the full pre/post shape.
 
          **Include:** what changed (key files/symbols when not obvious from the title); decisions worth
          preserving — only when the choice would surprise a reader; cross-references to the commit, ADR, or
@@ -290,3 +294,4 @@ updates**. Always update the task list file before reporting completion.
 [team-coordination]: ../../../reference/strategies/arc/strategy-team-coordination.md
 [arc-commit-skill]: ../../skills/arc-commit/SKILL.md
 [session-ops]: ../../../reference/strategies/arc/strategy-session-operations.md
+[strat-tlf]: ../../../reference/strategies/arc/strategy-task-list-formatting.md
