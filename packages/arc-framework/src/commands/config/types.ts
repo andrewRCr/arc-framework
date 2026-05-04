@@ -27,6 +27,7 @@ export interface ConfigSettings {
   "session.init_pull.notes": string;
   "session.commit_interlock": string;
   "session.push_interlock": string;
+  "session.sync_interlock": string;
   "archive.cadence": string;
   "user.sync_push": string;
 }
@@ -42,6 +43,7 @@ export interface ConfigSessionInitSettings {
   "session.init_pull.notes": string;
   "session.commit_interlock": string;
   "session.push_interlock": string;
+  "session.sync_interlock": string;
   "branch.protection": string;
   "pm.mode": string;
   "commit.format": string;

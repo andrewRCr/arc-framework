@@ -89,6 +89,7 @@ function okConfig(): Probe<ConfigStatusResult> {
         "session.init_pull.notes": "prompt",
         "session.commit_interlock": "manual",
         "session.push_interlock": "manual",
+        "session.sync_interlock": "on-handoff",
         "archive.cadence": "with-integration",
         "user.sync_push": "always",
       },
@@ -149,6 +150,7 @@ function makeSessionInitResult(
           "session.init_pull.notes": "prompt",
           "session.commit_interlock": "manual",
           "session.push_interlock": "manual",
+          "session.sync_interlock": "on-handoff",
           "branch.protection": "partial",
           "pm.mode": "none",
           "commit.format": "conventional",
@@ -218,8 +220,8 @@ describe("buildStatusSummary — full mode", () => {
     expect(summary).toContain("andrew: git note up to date");
     // Extensions full formatter headline: "N active · N inactive · N orphaned refs"
     expect(summary).toContain("1 active · 0 inactive · 0 orphaned refs");
-    // Config formatter: "18 agent-consumable settings"
-    expect(summary).toContain("18 agent-consumable settings");
+    // Config formatter: "19 agent-consumable settings"
+    expect(summary).toContain("19 agent-consumable settings");
     // Active formatter: "0 active work units"
     expect(summary).toContain("0 active work units");
   });

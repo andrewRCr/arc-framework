@@ -21,6 +21,7 @@ import { handleConfigStatus } from "./handlers/config.js";
 import { handleActiveStatus } from "./handlers/active.js";
 import { handleStatus } from "./handlers/status.js";
 import { handleSync } from "./handlers/sync.js";
+import { handleUserSync } from "./handlers/user-sync.js";
 import { handleLogAtomic } from "./handlers/log.js";
 
 const program = new Command();
@@ -75,7 +76,9 @@ program
 
 const userCmd = program
   .command("user")
-  .description("Manage ARC user directory and portability");
+  .description(
+    "Manage ARC user directory and portability — see also `arc sync` for the cross-concern orchestrator",
+  );
 
 userCmd
   .command("add <identity>")
@@ -122,6 +125,13 @@ userCmd
   .option("--session-init", "Render a non-destructive remote probe summary for session-init")
   .option("--json", "Emit the typed result as JSON")
   .action(handleUserStatus);
+
+userCmd
+  .command("sync")
+  .description("Direction-aware notes-only sync — push, pull, or prompt on conflict")
+  .option("-y, --yes", "Skip overwrite confirmation prompts")
+  .option("--max-walk <n>", "Max ancestors to walk when searching for a note (default: 1000)", parseInt)
+  .action(handleUserSync);
 
 // --- Extensions ---
 
@@ -183,13 +193,17 @@ program
   .option("--json", "Emit the typed result as JSON")
   .action(handleStatus);
 
-// --- Sync ---
+// --- Sync (orchestrator) ---
 
 program
   .command("sync")
-  .description("Synchronize user directory with remote notes")
+  .description(
+    "Synchronize the configured concerns — worktree push, user-notes push, "
+    + "per `push_interlock` and `notes_push` config",
+  )
   .option("-y, --yes", "Skip overwrite confirmation prompts")
-  .option("--max-walk <n>", "Max ancestors to walk when searching for a note (default: 1000)", parseInt)
+  .option("--dry-run", "Print the matrix decision without invoking either leg")
+  .option("--json", "Emit the structured result as JSON")
   .action(handleSync);
 
 // --- Log ---

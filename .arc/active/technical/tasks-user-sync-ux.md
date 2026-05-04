@@ -166,27 +166,19 @@ and an exported paired-push helper are the load-bearing shape decisions.
           Authorize-by-invocation: config honored as-is whether invoked by workflow or user.
         - Three subtasks split by surface:
 
-            - `[ ]` **2.2.c.i Command-surface restructure**
-                - Rename today's `arc sync` (notes-only direction-aware) → `arc user sync` per
-                  R10 (CLI re-registration; existing `handleSync` migrates under the
-                  `arc user` namespace). Introduce new top-level `arc sync` registered against
-                  a new orchestrator handler stub.
-                - Add `session.sync_interlock: manual | on-handoff` (default `on-handoff`) to
-                  config schema + `lib/config/status-reader.ts` validation. Per-dev override
-                  `arc.syncInterlock` lands in 3.2 (R12 expansion); this task uses 2-tier
-                  resolution (yaml → default) until the resolver helper is consolidated.
-                - Migrate value rename `session.push_interlock: on-handoff` → `on-sync` in
-                  schema + reader + any in-tree YAML. Old enum value rejected.
-                - Update `arc --help` and `arc user --help` so both surfaces cross-reference;
-                  `arc sync --help` frames the command as "synchronize the configured
-                  concerns — worktree push, user-notes push, per `push_interlock` and
-                  `notes_push` config."
-                - Affected files: `packages/arc-framework/src/cli.ts`;
-                  `packages/arc-framework/src/lib/config/status-reader.ts`;
-                  `packages/arc-framework/arc/system/arc-config.yml`; existing `handleSync`
-                  re-import paths in dependent handlers.
-                - Test-after — CLI registration wiring (config schema validation gets unit
-                  coverage with the dispatch logic in 2.2.c.ii).
+            - `[x]` **2.2.c.i Command-surface restructure**
+                - Renamed `arc sync` (notes-only) → `arc user sync`; `handleSync` migrated to
+                  `handlers/user-sync.ts` as `handleUserSync`. New top-level `arc sync`
+                  registered against an orchestrator stub in `handlers/sync.ts` that prints a
+                  "not yet implemented" notice and exits 1; dispatch lands in 2.2.c.ii.
+                - Added `session.sync_interlock` to TS schema (`lib/config/status-reader.ts`,
+                  `commands/config/types.ts`, `commands/config/status.ts` SESSION_INIT_KEYS) and
+                  shell validator. Default `on-handoff`. Migrated `session.push_interlock` enum
+                  value `on-handoff` → `on-sync` everywhere — TS reader, shell validator,
+                  `HandoffPushInterlock` type union, both `arc-config.yml` copies. Project's
+                  on-disk value carried forward to `on-sync`.
+                - Help text: `arc --help`, `arc user --help`, and `arc sync --help` now
+                  cross-reference per spec.
 
             - `[ ]` **2.2.c.ii Orchestrator dispatch + matrix routing**
                 - New orchestrator handler probes worktree state, notes state, and config

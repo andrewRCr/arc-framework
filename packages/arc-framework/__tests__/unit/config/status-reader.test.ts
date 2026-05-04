@@ -29,8 +29,8 @@ async function createFixture(): Promise<Fixture> {
 }
 
 describe("readConfigSettings — AGENT_CONSUMABLE_KEYS", () => {
-  it("enumerates the 18 agent-consumable keys", () => {
-    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(18);
+  it("enumerates the 19 agent-consumable keys", () => {
+    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(19);
   });
 
   it("excludes all hooks.* keys", () => {
@@ -47,6 +47,7 @@ describe("readConfigSettings — AGENT_CONSUMABLE_KEYS", () => {
   it("includes the session interlock keys", () => {
     expect(AGENT_CONSUMABLE_KEYS).toContain("session.commit_interlock");
     expect(AGENT_CONSUMABLE_KEYS).toContain("session.push_interlock");
+    expect(AGENT_CONSUMABLE_KEYS).toContain("session.sync_interlock");
   });
 
   it("includes archive.cadence", () => {
@@ -77,6 +78,7 @@ describe("readConfigSettings — default fallback", () => {
     expect(result.settings["session.remote_sync"]).toBe("enabled");
     expect(result.settings["session.commit_interlock"]).toBe("manual");
     expect(result.settings["session.push_interlock"]).toBe("manual");
+    expect(result.settings["session.sync_interlock"]).toBe("on-handoff");
     expect(result.settings["archive.cadence"]).toBe("with-integration");
     expect(result.settings["user.sync_push"]).toBe("always");
   });
@@ -122,7 +124,8 @@ describe("readConfigSettings — user-supplied values", () => {
       "session.init_pull.worktree: manual",
       "session.init_pull.notes: always",
       "session.commit_interlock: on-task-approval",
-      "session.push_interlock: on-handoff",
+      "session.push_interlock: on-sync",
+      "session.sync_interlock: manual",
       "archive.cadence: manual",
       "user.sync_push: manual",
     ].join("\n");
@@ -136,7 +139,8 @@ describe("readConfigSettings — user-supplied values", () => {
     expect(result.settings["session.init_pull.worktree"]).toBe("manual");
     expect(result.settings["session.init_pull.notes"]).toBe("always");
     expect(result.settings["session.commit_interlock"]).toBe("on-task-approval");
-    expect(result.settings["session.push_interlock"]).toBe("on-handoff");
+    expect(result.settings["session.push_interlock"]).toBe("on-sync");
+    expect(result.settings["session.sync_interlock"]).toBe("manual");
     expect(result.settings["archive.cadence"]).toBe("manual");
     expect(result.defaultsApplied).toHaveLength(0);
     expect(result.warnings).toHaveLength(0);
@@ -297,9 +301,9 @@ describe("readConfigSettings — session interlock independence", () => {
   it("accepts every commit/push interlock combination without coupling the axes", async () => {
     const combinations = [
       ["manual", "manual"],
-      ["manual", "on-handoff"],
+      ["manual", "on-sync"],
       ["on-task-approval", "manual"],
-      ["on-task-approval", "on-handoff"],
+      ["on-task-approval", "on-sync"],
     ] as const;
 
     for (const [commitInterlock, pushInterlock] of combinations) {

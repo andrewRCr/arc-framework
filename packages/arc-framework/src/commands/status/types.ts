@@ -102,7 +102,7 @@ export interface StatusProbes {
  * so the handoff envelope doesn't leak unrelated session-init settings.
  */
 export interface HandoffPushInterlock {
-  value: "manual" | "on-handoff";
+  value: "manual" | "on-sync";
   source: "yaml" | "default";
 }
 

@@ -116,7 +116,7 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
     await rm(fixture.root, { recursive: true, force: true });
   });
 
-  it("returns only the 9 init-gating keys", async () => {
+  it("returns only the 10 init-gating keys", async () => {
     await writeFile(
       fixture.configPath,
       [
@@ -129,7 +129,8 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
         "session.init_pull.worktree: manual",
         "session.init_pull.notes: always",
         "session.commit_interlock: on-task-approval",
-        "session.push_interlock: on-handoff",
+        "session.push_interlock: on-sync",
+        "session.sync_interlock: manual",
         "user.sync_push: prompt",
       ].join("\n"),
     );
@@ -146,13 +147,15 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
       "session.init_pull.worktree",
       "session.push_interlock",
       "session.remote_sync",
+      "session.sync_interlock",
     ]);
     expect(result.settings["session.remote_sync"]).toBe("disabled");
     expect(result.settings["pm.mode"]).toBe("arc-in-git");
     expect(result.settings["session.init_pull.worktree"]).toBe("manual");
     expect(result.settings["session.init_pull.notes"]).toBe("always");
     expect(result.settings["session.commit_interlock"]).toBe("on-task-approval");
-    expect(result.settings["session.push_interlock"]).toBe("on-handoff");
+    expect(result.settings["session.push_interlock"]).toBe("on-sync");
+    expect(result.settings["session.sync_interlock"]).toBe("manual");
   });
 
   it("falls back to documented defaults when arc-config.yml is missing", async () => {
@@ -162,6 +165,7 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
     expect(result.settings["session.init_pull.notes"]).toBe("prompt");
     expect(result.settings["session.commit_interlock"]).toBe("manual");
     expect(result.settings["session.push_interlock"]).toBe("manual");
+    expect(result.settings["session.sync_interlock"]).toBe("on-handoff");
     expect(result.settings["pm.mode"]).toBe("none");
     expect(result.settings["branch.protection"]).toBe("partial");
     expect(result.defaultsApplied).toContain("session.remote_sync");
@@ -169,6 +173,7 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
     expect(result.defaultsApplied).toContain("session.init_pull.notes");
     expect(result.defaultsApplied).toContain("session.commit_interlock");
     expect(result.defaultsApplied).toContain("session.push_interlock");
+    expect(result.defaultsApplied).toContain("session.sync_interlock");
     expect(result.warnings).toHaveLength(1);
   });
 
@@ -185,6 +190,7 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
         "session.init_pull.notes: prompt",
         "session.commit_interlock: manual",
         "session.push_interlock: manual",
+        "session.sync_interlock: on-handoff",
       ].join("\n"),
     );
     const result = await runConfigSessionInitStatus({ cwd: fixture.root });
@@ -196,6 +202,7 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
       "session.init_pull.notes",
       "session.commit_interlock",
       "session.push_interlock",
+      "session.sync_interlock",
       "branch.protection",
       "pm.mode",
       "commit.format",

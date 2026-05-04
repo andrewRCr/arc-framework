@@ -110,7 +110,7 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
         const result = await runConfigSessionInitStatus({ cwd });
         const key = "session.push_interlock";
         return {
-          value: result.settings[key] as "manual" | "on-handoff",
+          value: result.settings[key] as "manual" | "on-sync",
           source: result.defaultsApplied.includes(key) ? "default" : "yaml",
         };
       },

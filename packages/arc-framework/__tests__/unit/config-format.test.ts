@@ -36,6 +36,7 @@ const FULL_SETTINGS: ConfigSettings = {
   "session.init_pull.notes": "prompt",
   "session.commit_interlock": "manual",
   "session.push_interlock": "manual",
+  "session.sync_interlock": "on-handoff",
   "archive.cadence": "with-integration",
   "user.sync_push": "always",
 };
@@ -46,6 +47,7 @@ const SESSION_INIT_SETTINGS: ConfigSessionInitSettings = {
   "session.init_pull.notes": "prompt",
   "session.commit_interlock": "manual",
   "session.push_interlock": "manual",
+  "session.sync_interlock": "on-handoff",
   "branch.protection": "full",
   "pm.mode": "arc-in-git",
   "commit.format": "conventional",
@@ -75,9 +77,9 @@ function sessionInitResult(
 }
 
 describe("buildConfigStatusSummary — counts + keys", () => {
-  it("renders the agent-consumable headline with 18 settings", () => {
+  it("renders the agent-consumable headline with 19 settings", () => {
     const summary = buildConfigStatusSummary(fullResult());
-    expect(summary.split("\n")[0]).toBe("18 agent-consumable settings (hooks.* excluded):");
+    expect(summary.split("\n")[0]).toBe("19 agent-consumable settings (hooks.* excluded):");
   });
 
   it("lists every setting key with its value", () => {
@@ -123,13 +125,14 @@ describe("buildConfigSessionInitSummary — narrow subset", () => {
     expect(summary.split("\n")[0]).toBe("Init-gating settings:");
   });
 
-  it("lists only the 9 init-gating keys", () => {
+  it("lists only the 10 init-gating keys", () => {
     const summary = buildConfigSessionInitSummary(sessionInitResult());
     expect(summary).toContain("session.remote_sync: enabled");
     expect(summary).toContain("session.init_pull.worktree: prompt");
     expect(summary).toContain("session.init_pull.notes: prompt");
     expect(summary).toContain("session.commit_interlock: manual");
     expect(summary).toContain("session.push_interlock: manual");
+    expect(summary).toContain("session.sync_interlock: on-handoff");
     expect(summary).toContain("branch.protection: full");
     expect(summary).toContain("pm.mode: arc-in-git");
     expect(summary).toContain("commit.format: conventional");

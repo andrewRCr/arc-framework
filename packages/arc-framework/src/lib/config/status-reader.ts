@@ -38,6 +38,7 @@ const DEFAULTS: ConfigSettings = {
   "session.init_pull.notes": "prompt",
   "session.commit_interlock": "manual",
   "session.push_interlock": "manual",
+  "session.sync_interlock": "on-handoff",
   "archive.cadence": "with-integration",
   "user.sync_push": "always",
 };
@@ -51,7 +52,8 @@ const ENUM_VALIDATORS: Partial<Record<keyof ConfigSettings, readonly string[]>> 
   "session.init_pull.worktree": ["manual", "prompt"],
   "session.init_pull.notes": ["manual", "prompt", "always"],
   "session.commit_interlock": ["manual", "on-task-approval"],
-  "session.push_interlock": ["manual", "on-handoff"],
+  "session.push_interlock": ["manual", "on-sync"],
+  "session.sync_interlock": ["manual", "on-handoff"],
   "archive.cadence": ["with-integration", "manual"],
 };
 
