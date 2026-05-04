@@ -237,40 +237,85 @@ and an exported paired-push helper are the load-bearing shape decisions.
 
 ### `[ ]` **2.3 Unpushed-HEAD save/push behavior**
 
-- `arc user save` saves the local note regardless of HEAD push state (preserves working state).
-- `arc user push` checks the annotated commits' push status before pushing the notes ref; blocks
-  with clear guidance when worktree branch is ahead of origin.
-- Generalizes to all push triggers — handoff, manual, future modes — via the same coherence rule.
-- Affected file: `packages/arc-framework/src/commands/user/save-load.ts`.
+- `arc user save` already saves regardless of HEAD push state — verified in pre-impl audit, no
+  save-side change needed. Bullet preserved as regression-fence behavior (B1, B2).
+- Pushability matrix extension: notes target evaluates worktree-vs-origin coherence via
+  local-only `git rev-list --left-right --count HEAD...origin/<branch>`. No remote round-trip.
+  New condition kind `worktree-not-aligned-with-origin` (disposition `block`) with per-state
+  guidance for `local-ahead`, `behind`, and `diverged` (concrete copy strings finalize at
+  implementation time per PRD precedent). Probe failure (rare; malformed repo state) → allow
+  with advisory log; pre-2.3 behavior is no-gate, so falling through is the no-regression
+  direction. `no-upstream-branch` and `detached-head` already covered by existing matrix
+  conditions.
+- Scope: condition is notes-target-only. `target: "worktree"` matrix evaluations (e.g., the
+  planned `arc release push` worktree wrapper from `plan-interlock-release-wrappers.md`) see
+  no surface change from this task — coherence between worktree and notes is a notes-side
+  concern.
+- Coherence rule generalizes via the matrix to all push triggers — `arc user push`,
+  `arc user sync` push direction, and `arc sync`'s notes-only / notes-prompt cells all consult
+  the matrix through `runUserPush({ access })`. Plumbing: callers thread the resolved branch
+  name into `runPushabilityStatus` so the matrix computes the rev-list comparison locally.
+- `force: true` does NOT bypass the worktree-coherence gate. Force flag stays scoped to
+  notes-ref divergence recovery; force-push doesn't resolve unpushed worktree commits.
+- PRD R5 reconciliation (sibling action on the PRD; not blocking 2.3): "primitives enforce
+  shape" extends to include matrix-detectable coherence conditions. Orchestrator owns _routing_
+  across single-leg and paired flows; the matrix is the single source of "can this push fire
+  coherently" for shape-detectable conditions.
+- Affected files:
+  `packages/arc-framework/src/lib/git/pushability.ts` (matrix + new condition kind);
+  `packages/arc-framework/src/commands/user/push-fetch.ts` (forward branch to matrix);
+  `packages/arc-framework/src/commands/user/types.ts` (`UserPushOptions.worktreeBranch`);
+  `packages/arc-framework/src/handlers/{user,user-sync,push-recovery}.ts` (resolve branch
+  name before delegating to push primitives).
 - Build `test-first` (one behavior at a time):
-    - Worktree clean, notes save → succeeds and creates local note
-    - Worktree ahead of origin, notes save → succeeds locally (no push attempted)
-    - Worktree ahead of origin, notes push → blocks with guidance to push worktree first
-    - Worktree pushed, notes push retried → succeeds (recovery path)
-    - The 2026-05-01 reproduction (claim of remote sync success against unpushed commit) →
-      no longer occurs
+    - **B1.** Worktree clean + `arc user save` → succeeds and creates local note
+      (regression-fence; current behavior).
+    - **B2.** Worktree ahead + `arc user save` → succeeds locally, no push attempted
+      (regression-fence; current behavior).
+    - **B3.** Worktree local-ahead + `arc user push` → matrix surfaces
+      `worktree-not-aligned-with-origin` with ahead-count guidance; push leg blocked.
+    - **B4.** Worktree pushed + `arc user push` retried → succeeds (gate transient, keyed on
+      probe-time state; recovery works without `--force`).
+    - **B5.** 2026-05-01 reproduction (`arc user push` against local-ahead worktree) → notes
+      ref no longer publishes against an unpushed commit; gate fires before the push leg.
+    - **B6.** `arc user sync` push direction with local-ahead worktree → blocks via the same
+      matrix gate (confirms generalization per R4's "all push triggers").
 
-### `[ ]` **2.4 Notes-push under manual worktree-push interlock**
+### `[ ]` **2.4 R15 cell coverage + reconciliation guidance polish**
 
-- Naming note: this task body uses `user.notes_push` to anticipate the Phase 3.3 rename.
-  Implementation reads `user.sync_push` (with `always` carrying the same semantic as the
-  post-rename `on-handoff`) until 3.3.b's migration lands. No dual-key window — the rename is
-  the migration's job.
-- When `user.notes_push: on-handoff` and `session.push_interlock: manual`:
-- Worktree has no unpushed commits → save and push notes.
-- Worktree is local-ahead → save notes locally; block notes push with guidance ("push the
-  worktree first, then `arc user push`").
-- Worktree is diverged / remote-ahead → block notes push; surface reconciliation guidance.
-- Affected files: handoff-workflow integration;
-  `packages/arc-framework/src/commands/user/save-load.ts`.
+R15 (notes auto-push gated on worktree state under manual worktree-push interlock) was
+delivered structurally in 2.2.c.ii via the orchestrator's `decideNotes`. The pre-impl audit
+closed two gaps that remain after that delivery:
+
+- **Test coverage.** `sync-orchestrator.test.ts` covers the local-ahead block (test 2) and
+  the both-manual cell (test 4) but not:
+    - clean worktree + `push_interlock: manual` + notes auto-push → orchestrator's
+      `notes-only` cell fires save + push. Confirms notes auto-push works under manual
+      worktree interlock when the worktree is coherent.
+    - diverged worktree + `push_interlock: manual` + notes auto-push → block surfaces with
+      diverged-specific guidance.
+    - remote-ahead worktree + `push_interlock: manual` + notes auto-push → block surfaces
+      with remote-ahead-specific guidance.
+- **Reconciliation guidance copy.** `executeSingleLeg`'s `save+notes-blocked` branch
+  (`handlers/sync.ts:368-384`) emits a single message ("push the worktree first, then
+  `arc user push`") for all three blocked states. Correct for `local-ahead` but misleading
+  for `diverged` (force-push needed; "push first" doesn't work) and `remote-ahead` (needs
+  pull / fast-forward, not push). Replace with state-specific guidance — concrete copy
+  finalizes at implementation time, but the three states each get their own message; only
+  `local-ahead` retains the existing wording.
+- **Naming note (corrects prior task body).** Implementation reads the current key
+  `user.sync_push` (values `always | prompt | manual`). Per PRD R9, the rename target is
+  `user.notes_push` with semantic identity `always` ⇄ `on-sync` (NOT `on-handoff`). Rename
+  lands in 3.3.b; no dual-key window.
+- Affected file: `packages/arc-framework/src/handlers/sync.ts` (state-specific copy in the
+  `save+notes-blocked` branch).
 - Build `test-first` (one behavior at a time):
-    - Worktree clean + notes-on-handoff + push-manual → notes save+push fires
-    - Worktree local-ahead + notes-on-handoff + push-manual → notes save fires; push blocks with
-      guidance
-    - Worktree diverged + notes-on-handoff + push-manual → notes push blocks with reconciliation
-      guidance
-    - Worktree remote-ahead + notes-on-handoff + push-manual → notes push blocks with
-      reconciliation guidance
+    - Clean worktree + `push_interlock: manual` + `notes_push: always` → save + push fires
+      (notes-only cell).
+    - Diverged worktree + `push_interlock: manual` + `notes_push: always` → save fires;
+      notes push blocked with diverged-specific reconciliation guidance.
+    - Remote-ahead worktree + `push_interlock: manual` + `notes_push: always` → save fires;
+      notes push blocked with remote-ahead-specific reconciliation guidance.
 
 ## **Phase 3:** Vocabulary and config alignment
 
@@ -285,37 +330,59 @@ then renames, then vocabulary pass (so the vocabulary pass operates on final-sha
 
 - Extract the precedence logic shared by `user.notes_push` (and the new interlock keys in 3.2)
   into a generic helper — `resolveGitConfigOverride<T>`.
-- Migrate `lib/sync-policy.ts` onto it. The helper resolves git-config override → yaml → default
-  in 3-tier order.
+- Return shape (stable downstream-consumer contract):
+  `{ value: T, source: "git-config" | "yaml" | "default" }`. Source-tracking is **required**,
+  not optional — the planned interlock-release wrappers' audit log carries "interlock state at
+  decision time" with provenance, and the authorization footer's `abbreviated | full` modes
+  surface source per `plan-interlock-release-wrappers.md` § Audit log / § Authorization footer.
+- Migrate `lib/sync-policy.ts` onto it. The helper resolves git-config override → yaml →
+  default in 3-tier order.
 - Affected files: `packages/arc-framework/src/lib/sync-policy.ts`; new
-  `packages/arc-framework/src/lib/config/resolve-override.ts` (export path pinned — downstream
-  consumers, including the planned interlock-release wrappers' validation library, depend on
-  the location).
+  `packages/arc-framework/src/lib/config/resolve-override.ts`. Export path, return shape, and
+  generic signature are pinned as a stable downstream-consumer API — the planned
+  interlock-release wrappers' validation library builds on this contract.
 - Build `test-first` (one behavior at a time):
-    - Git-config value present → returns git-config value
-    - Git-config absent + yaml present → returns yaml value
-    - Both absent → returns default
+    - Git-config value present → returns `{ value, source: "git-config" }`
+    - Git-config absent + yaml present → returns `{ value, source: "yaml" }`
+    - Both absent → returns `{ value: default, source: "default" }`
     - Type validation: invalid value at any tier rejected with appropriate error
     - `sync-policy.ts` migrated → all existing sync-policy tests pass with no behavior change
 
 ### `[ ]` **3.2 Per-developer overrides for interlock keys**
 
-- Extend `lib/config/status-reader.ts` validation to read `arc.commitInterlock`,
-  `arc.pushInterlock`, and `arc.syncInterlock` git-config overrides before falling through to
-  yaml + default. (`session.sync_interlock` schema entry itself lands in 2.2.c.i; this task adds
-  the per-dev override surface.)
-- All three keys resolve via the helper from 3.1; no shape divergence.
-- Additive — no breaking changes to existing call signatures. Existing callers continue to read
-  the same fields; new resolution paths feed the same field shapes. Forward-compat for the
-  interlock-release wrappers' enforcement layer, which calls the same reader.
-- Affected file: `packages/arc-framework/src/lib/config/status-reader.ts`.
+- _Goal:_ Plumb `arc.commitInterlock`, `arc.pushInterlock`, and `arc.syncInterlock` git-config
+  overrides through to the four release-mode keys' resolution
+  (`session.commit_interlock`, `session.push_interlock`, `session.sync_interlock`,
+  `user.notes_push`). (`session.sync_interlock` schema entry itself lands in 2.2.c.i; this
+  task adds the per-dev override surface.)
+- _Shape:_ per-dev resolution layers **on top of** `readConfigSettings` via the 3.1 helper,
+  not by mutating the status-reader's signature. `readConfigSettings` stays yaml-only (no
+  `exec` dependency); a thin wrapper composes the yaml read with per-key
+  `resolveGitConfigOverride<T>` calls. Callers that need the resolved values (handlers, sync
+  orchestrator, status command) move to the wrapper; pure-yaml callers (config-status report)
+  stay on the reader directly.
+- Companion `sourceMap: Record<key, "git-config" | "yaml" | "default">` returned alongside the
+  resolved settings. Diagnostic surfaces (orchestrator `--json` envelope, status output)
+  consume it.
+- This per-dev resolution layer is the **validation read path** for the planned
+  interlock-release wrappers' validation library (per `plan-interlock-release-wrappers.md` §
+  Interlock-validation library). The wrappers call `resolveGitConfigOverride<T>` per key
+  directly; 3.2 ensures the full release-mode key surface is consistently resolvable.
+- Additive — no breaking changes to existing yaml-only callers.
+- Affected files: `packages/arc-framework/src/lib/config/status-reader.ts` (no signature
+  change; module-comment notes the layering boundary); new wrapper in
+  `packages/arc-framework/src/lib/config/` composing the 3.1 helper + status-reader; handler
+  call-site migrations as needed.
 - Build `test-first` (one behavior at a time):
-    - `arc.commitInterlock` git-config set → status-reader returns git-config value
-    - `arc.pushInterlock` git-config set → status-reader returns git-config value
-    - `arc.syncInterlock` git-config set → status-reader returns git-config value
-    - Git-config absent → falls through to yaml; absent yaml → falls through to default
-    - Invalid git-config value → rejected with same shape as yaml validation
-    - 3-tier resolution applied uniformly across all four release-mode keys
+    - `arc.commitInterlock` git-config set → wrapper returns git-config value with
+      `sourceMap[commit_interlock] === "git-config"`
+    - `arc.pushInterlock` git-config set → likewise for push interlock
+    - `arc.syncInterlock` git-config set → likewise for sync interlock
+    - `arc.notesPush` git-config set → likewise for notes push
+    - Git-config absent + yaml present → falls through to yaml; sourceMap reflects "yaml"
+    - All absent → defaults; sourceMap reflects "default"
+    - Invalid git-config value → falls through to yaml with warning (matches yaml-validation
+      shape)
 
 ### `[ ]` **3.3 Config-shape alignment**
 
@@ -326,48 +393,97 @@ then renames, then vocabulary pass (so the vocabulary pass operates on final-sha
           (`arc.syncPush` → `arc.notesPush`).
         - Value enum: `manual | prompt | on-sync` (semantic identity: `always` ⇄ `on-sync`).
           Each interlock value names its own trigger event per R9.
-        - Affected files: `packages/arc-framework/src/lib/config/status-reader.ts`,
-          `packages/arc-framework/src/lib/sync-policy.ts`,
-          `packages/arc-framework/arc/system/arc-config.yml` (template default).
+        - Affected files (audit-enumerated):
+            - `packages/arc-framework/src/lib/config/status-reader.ts` (DEFAULTS map +
+              `AGENT_CONSUMABLE_KEYS`; add notes_push to `ENUM_VALIDATORS` if validating at
+              TS layer)
+            - `packages/arc-framework/src/lib/sync-policy.ts` (`SYNC_PUSH_YAML_KEY`,
+              `SYNC_PUSH_GIT_CONFIG_KEY`, `VALID_POLICIES` constants; rename module-internal
+              types)
+            - `packages/arc-framework/src/commands/config/types.ts` (`ConfigSettings` and
+              `ConfigSessionInitSettings` interface keys)
+            - `packages/arc-framework/src/lib/config/index.ts` (`buildConfigKeyOverrides`
+              install-time team-mode default)
+            - `packages/arc-framework/arc/system/scripts/validate-config.sh`
+              (`validate_enum` line for `user.sync_push` + `known_keys` list)
+            - `packages/arc-framework/arc/system/arc-config.yml` (key + comment block —
+              multiple mentions in surrounding prose)
         - Build `test-first` (one behavior at a time):
             - Schema validates new key+values; rejects old key
             - `on-sync` value resolves equivalently to legacy `always`
             - Git-config override reads from `arc.notesPush`
+            - Shell validator accepts new key+values; rejects old key+values
 
     - `[ ]` **3.3.b `arc update` migration logic**
-        - Rewrite legacy `user.sync_push: {value}` → `user.notes_push: {translated}` once.
-          Old key removed; no dual-key window.
-        - Migrate `session.push_interlock: on-handoff` → `on-sync` in adopter configs (value
-          rename; key unchanged). Idempotent.
-        - Affected file: `packages/arc-framework/src/commands/update.ts` (or wherever migration
-          logic lives).
+        - _Architecture:_ Versioned migrator infrastructure in `update.ts`. Each migration is
+          `{ fromFrameworkVersion, migrate(yamlContent: string): string }`. `update` runs
+          applicable migrations (selected by stored `manifest.framework_version` vs. current)
+          before three-way merging the template against the migrated yaml. Pays for itself
+          across future renames; framework currently has no other adopters, so the cost
+          lands ahead of demand.
+        - _Migrations registered by this task:_
+            - `user.sync_push: {value}` → `user.notes_push: {translated}` (key rename + value
+              translation: `always` → `on-sync`; `prompt` / `manual` carry forward).
+            - `session.push_interlock: on-handoff` → `on-sync` (value rename; key unchanged).
+              **Adopter correctness note:** the framework template + this self-hosting repo
+              are already migrated to `on-sync` (per 2.2.c.i). Pre-2.2.c.i adopters with
+              `on-handoff` in their yaml will fail validation on next `arc update` unless
+              this migration runs.
+            - Old `user.sync_push` key removed; no dual-key window.
+        - Affected files: `packages/arc-framework/src/commands/update.ts` (migrator registry +
+          dispatch); new `packages/arc-framework/src/commands/update/migrations.ts`
+          (per-rename migrators).
         - Build `test-first` (one behavior at a time):
             - `user.sync_push: always` → `user.notes_push: on-sync` translation
             - `prompt` and `manual` carry forward unchanged
             - `session.push_interlock: on-handoff` → `on-sync` translation
             - Old `user.sync_push` key absent post-migration
             - Idempotent: re-running migration on already-migrated config is a no-op
+            - Both keys present (manual paste) → new key wins; old key removed; warn surfaced
+            - Invalid value in legacy key (`user.sync_push: garbage`) → preserved as-is (no
+              translation of unknown values); shell validator catches downstream
+            - Migrator registry dispatches by `manifest.framework_version`; older versions
+              run all applicable migrations in order
 
     - `[ ]` **3.3.c Strategy and reference doc updates**
         - Retire the documented-but-unused `auto / prompt / manual` standard from
           `strategy-session-operations.md` § Handoff-Interior Toggle Pattern. Canonical shape
-          becomes `manual | on-X` where `X` names the operation's trigger event; `prompt` stays
-          opt-in for review-before-fire toggles.
+          becomes `manual | on-X` where `X` names the operation's trigger event; `prompt`
+          stays opt-in for review-before-fire toggles.
         - Document the three-layer cascade (handoff event → sync; sync event → push and
           notes-push) explicitly. Each interlock's `on-X` value names its own trigger.
           Authorize-by-invocation: `arc sync` running mid-session is an explicit sync event.
-        - Update QUICK-REFERENCE, AGENT-BRIEF.ARC, and any other reference docs that surface the
-          old key name or the legacy `on-handoff` value on `push_interlock` / `notes_push`.
+        - Affected docs (audit-enumerated; live + adopter-shipped — package-project sync
+          requires updating the package mirror alongside the `.arc/` instance):
+            - `.arc/reference/QUICK-REFERENCE.md` +
+              `packages/arc-framework/arc/reference/QUICK-REFERENCE.template.md`
+            - `.arc/reference/strategies/arc/strategy-configurability-architecture.md` +
+              package mirror at `packages/arc-framework/arc/reference/strategies/arc/`
+            - `.arc/reference/strategies/arc/strategy-session-operations.md` + package mirror
+            - `.arc/reference/strategies/arc/strategy-team-coordination.md` + package mirror
+            - ADRs (project-internal; no package mirror per DEV-RULES.PROJECT § ADRs):
+              `.arc/reference/adr/adr-012-adopt-unified-user-directory-model.md`,
+              `.arc/reference/adr/adr-016-configurable-autonomy-interlocks-for-session-operations.md`
         - Test-after — documentation only.
 
 ### `[ ]` **3.4 Layered vocabulary rule application**
 
-- Sweep `sync-status.ts` rendering and adjacent help text so "user notes" is the workhorse noun
-  in headlines, action hints, and status summaries.
+- Sweep user-facing strings so "user notes" is the workhorse noun in headlines, action hints,
+  and status summaries.
 - "Git notes ref" or "git notes" surfaces only when storage mechanism is relevant (debugging,
   ref state, error messages mentioning `refs/notes/...`).
-- Affected files: `packages/arc-framework/src/commands/user/sync-status.ts`, `arc user --help`
-  text, error messages in `save-load.ts`.
+- Affected files (audit-enumerated):
+    - `packages/arc-framework/src/commands/user/sync-status.ts` (primary rendering surface)
+    - `packages/arc-framework/src/commands/user/format.ts` (summary builders)
+    - `packages/arc-framework/src/commands/user/save-load.ts` (error messages)
+    - `packages/arc-framework/src/commands/user/push-fetch.ts` (status / handler messaging)
+    - `packages/arc-framework/src/commands/user/types.ts` (any user-facing copy in error
+      classes / type defaults)
+    - `packages/arc-framework/src/handlers/user.ts` (UX strings + prompts)
+    - `packages/arc-framework/src/handlers/user-sync.ts` (direction-aware UX strings)
+    - `packages/arc-framework/src/handlers/sync.ts` (orchestrator messages)
+    - `packages/arc-framework/src/handlers/push-recovery.ts` (recovery-prompt copy)
+    - `packages/arc-framework/src/cli.ts` (subcommand help text)
 - Test-after — rendering and string-content audit, not logic change.
 
 ## **Phase 4:** DX polish
@@ -384,8 +500,11 @@ Phase 3's vocabulary alignment for first-use copy strings.
     - `[ ]` **4.1.a `arc join` post-init paragraph**
         - One-time install paragraph briefly explaining where the gitignored personal context
           lives and that it travels via push/pull as a git notes ref attached to commits.
-        - Affected file: `packages/arc-framework/src/commands/join.ts` (or post-init message
-          integration).
+        - Affected file: `packages/arc-framework/src/handlers/join.ts` — append to the
+          post-join `lines` block (currently rendering "What's next" via `p.note`). Optional
+          refactor to extract a `buildPostJoinMessage` helper analogous to
+          `commands/init.ts:buildPostInitMessage` if the message grows enough to warrant
+          separation.
         - Test-after — output formatting per project testing methodology.
         - Concrete paragraph copy finalizes at implementation time.
 
@@ -405,24 +524,42 @@ Phase 3's vocabulary alignment for first-use copy strings.
 - Extend the bounded-fetch pattern (already in place for the worktree-sync probe) to the notes
   ref on full-mode `arc status` invocation. Session-init probe stays remote-aware via the
   existing pull mechanism.
-- Boundary: this task classifies why the notes-sync state differs; it does not decide which branch
-  or work unit the identity should work on. Branch-gone recovery and target selection remain
-  Worktree Foundation + Coord Probe scope.
-- Downstream signal contract: preserve enough metadata from notes discovery for later routing work
-  to consume (annotated commit, note-history distance, current-HEAD reachability, and inferred
-  local / sibling-session / cross-machine cause).
+- Boundary: this task classifies why the notes-sync state differs; it does not decide which
+  branch or work unit the identity should work on. Branch-gone recovery and target selection
+  remain Worktree Foundation + Coord Probe scope.
+- Downstream signal contract: preserve enough metadata from notes discovery for later routing
+  work to consume (annotated commit, note-history distance, current-HEAD reachability, and
+  inferred local / sibling-session / cross-machine cause).
 - Sync-state inference distinguishes:
     - Local-behind-because-haven't-fetched (single-machine, single-session)
     - Local-behind-because-other-machine (cross-machine work)
     - Local-behind-because-sibling-session (same machine, different worktree/session)
-- The `--offline` flag suppresses both fetches.
-- Affected file: `packages/arc-framework/src/commands/user/sync-status.ts`.
+- _Sibling-session heuristic:_ compare `LocalSyncState.sourceCommit` (from
+  `.sync-state.json`) against the latest entry in `refs/notes/arc/user/{identity}` history.
+  Divergence + both-local-only (no remote-ahead path) → sibling session. Cross-machine causes
+  flow from remote ref differing from local ref state.
+- _Schema extension:_ extend `LocalSyncState` (currently v2 — `version`,
+  `materializedManifestHash`, `sourceCommit`, `sourceOperation`, optional `partialPush`) with
+  `savedAt: ISO-string`. Bump to v3; readers parse v1 / v2 (existing forward-read pattern in
+  `readLocalSyncState`) and write v3. Required for heuristics that need recency to compare
+  timestamps.
+- _`--offline` mode behavior:_ both worktree and notes fetches suppressed. Cross-machine vs.
+  unfetched-local distinction collapses (no remote read available); surface a degraded
+  classification ("offline — local state only; cross-machine signals unavailable") rather
+  than asserting a cause heuristically.
+- Affected files:
+  `packages/arc-framework/src/commands/user/sync-status.ts` (rendering + bounded-fetch);
+  `packages/arc-framework/src/commands/user/save-load.ts` (`LocalSyncState` schema bump,
+  read-with-forward-compat, write at v3).
 - Build `test-first` (one behavior at a time):
     - Bounded-fetch on notes ref fires by default in full-mode `arc status`
-    - `--offline` suppresses both worktree and notes fetches
-    - Sibling-session detection (notes ref distance from local working files vs. saved-when
-      timestamp) → state-machine resolves correctly
+    - `--offline` suppresses both worktree and notes fetches; classification degrades with
+      explicit guidance line
+    - Sibling-session detection: `sourceCommit` divergent from notes-ref head, both
+      local-only → state-machine resolves to "sibling session"
     - Cross-machine vs. unfetched-local distinction surfaced when remote ref differs
+    - `LocalSyncState` v2 → v3 read forward-compat: existing v2 files load without error and
+      get `savedAt = null` until the next save
 
 ## **Phase 5:** Verification
 
@@ -444,7 +581,8 @@ Phase 3's vocabulary alignment for first-use copy strings.
 - `[ ]` Full-mode and session-init `arc status` agree about underlying git state across all 5
   spine states + partial-push condition (verified by paired-call test fixtures)
 - `[ ]` Pushability pre-checks block or surface server errors per the documented matrix
-  (rebase, detached HEAD, no-upstream, protected branch, hook failure, auth, force-push)
+  (rebase, detached HEAD, no-upstream, protected branch, hook failure, auth, force-push,
+  worktree-not-aligned-with-origin)
 - `[ ]` All four release-mode keys (`session.commit_interlock`, `session.push_interlock`,
   `session.sync_interlock`, `user.notes_push`) support 3-tier resolution via per-dev `arc.*`
   overrides
@@ -458,6 +596,9 @@ Phase 3's vocabulary alignment for first-use copy strings.
   surfaces unpushed state without firing pushes
 - `[ ]` First-use framing surfaces operational: `arc join` install paragraph, `arc status` hint
   with notes-ref-existence trigger
+- `[ ]` Notes-ref bounded-fetch fires on full-mode `arc status`; `--offline` suppresses both
+  probes and degrades cause classification with explicit guidance; sibling-session vs.
+  cross-machine causes inferred and surfaced
 - `[ ]` Layered vocabulary rule applied: "user notes" workhorse noun across
   headlines/hints/summaries; "git notes ref" only when storage mechanism is relevant
 - `[ ]` All quality gates pass (markdown lint, TypeScript type check, full Vitest suite, build
