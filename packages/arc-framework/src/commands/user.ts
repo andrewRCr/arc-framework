@@ -23,6 +23,7 @@ export {
   runUserPull,
   runUserPush,
 } from "./user/push-fetch.js";
+export { runPairedPush } from "./user/paired-push.js";
 export {
   runUserSessionInitStatus,
   buildUserStatusResult,
@@ -50,6 +51,10 @@ export {
   type UserLoadOptions,
   type UserLoadResult,
   type UserLoadWalkExhausted,
+  type PairedPushLegOutcome,
+  type PairedPushResult,
+  type PairedPushSkipReason,
+  type RunPairedPushOptions,
   type UserPullOptions,
   type UserPushOptions,
   type UserSaveOptions,

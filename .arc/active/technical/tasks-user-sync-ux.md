@@ -127,25 +127,19 @@ load-bearing shape decisions.
   invokes via the CLI surface rather than coordinating both legs in workflow markdown — keeps
   the logic callable from non-handoff contexts (e.g., the planned interlock-release wrappers).
 
-    - `[ ]` **2.2.a Exported `runPairedPush` helper**
-        - New helper returning a discriminated `PairedPushResult` with per-leg outcomes
-          (success/failure + underlying error per leg) and a worst-outcome exit code.
-          Pre-check input drawn from `runPushabilityStatus({ target: "both" })` per Task 2.1;
-          pre-check block prevents either leg from firing. Push-ordering invariant: worktree
-          always lands before notes. Records partial-push marker when worktree succeeds and
-          notes fails (per 1.3.c wiring). No automatic retry — recovery is the caller's
-          responsibility via 2.2.b's idempotent path.
-        - Affected files: `packages/arc-framework/src/commands/user/push-fetch.ts` (or new
-          `packages/arc-framework/src/commands/user/paired-push.ts` if scope warrants);
-          `packages/arc-framework/src/commands/user/types.ts` (result type).
-        - Concrete itemized-output copy strings finalize at implementation time.
-        - Build `test-first` (one behavior at a time):
-            - Both legs succeed → result reports both succeeded; worst-outcome exit 0
-            - Worktree succeeds, notes fails → mixed result; itemized output marks each;
-              partial-push marker recorded (per 1.3.c wiring)
-            - Push-ordering invariant respected: worktree always lands before notes
-            - Pre-check failure (e.g., rebase in progress) → neither leg fires; result surfaces
-              the condition without attempting either push
+    - `[x]` **2.2.a Exported `runPairedPush` helper**
+        - New `commands/user/paired-push.ts` exports `runPairedPush` returning a
+          `PairedPushResult` with per-leg `success | failed | skipped` outcomes, surfaced
+          pushability conditions, and worst-outcome `exitCode`. Pre-check runs
+          `runPushabilityStatus({ target: "both" })`; block → both legs `skipped:
+          blocked-by-precheck`. Worktree-fail → notes `skipped: preceding-leg-failed`.
+          Worktree-success + notes-fail records the partial-push marker; full success
+          clears any pre-existing marker. Result types live in `commands/user/types.ts`;
+          re-exported via `commands/user.ts`. Itemized-output copy lives at the handler
+          (consumer wiring lands in 2.2.c).
+        - Tests: 4 new in `__tests__/unit/paired-push.test.ts` covering both-succeed,
+          partial-fail with marker, ordering-invariant on worktree-fail, and pre-check
+          block.
 
     - `[ ]` **2.2.b `arc user push` idempotent no-op**
         - `arc user push` checks remote ref state via

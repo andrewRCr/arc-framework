@@ -1,0 +1,234 @@
+/**
+ * Unit tests for runPairedPush — paired worktree + notes push helper.
+ *
+ * Covers worst-outcome semantics, push-ordering invariant, partial-push marker
+ * recording on partial failure, and pre-check blocking. The pushability matrix
+ * itself is tested in __tests__/unit/git/pushability.test.ts; these tests
+ * exercise orchestration around it.
+ */
+
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+import type {
+  ExecResult,
+  GitExec,
+  GitExecOptions,
+} from "../../src/lib/git/index.js";
+import type { UserIOContext } from "../../src/commands/user/types.js";
+
+const mockRecordPartialPushMarker = vi.fn();
+const mockClearPartialPushMarker = vi.fn();
+
+vi.mock("../../src/commands/user/save-load.js", () => ({
+  recordPartialPushMarker: (...args: unknown[]) => mockRecordPartialPushMarker(...args),
+  clearPartialPushMarker: (...args: unknown[]) => mockClearPartialPushMarker(...args),
+}));
+
+const { runPairedPush } = await import("../../src/commands/user/paired-push.js");
+
+// --- Test fixtures ---
+
+type ResponseFn = (
+  args: string[],
+  options?: GitExecOptions,
+) => ExecResult | Promise<ExecResult>;
+
+interface ExecStub {
+  exec: GitExec;
+  calls: Array<{ args: string[] }>;
+}
+
+function buildExec(responses: Record<string, ExecResult | ResponseFn>): ExecStub {
+  const calls: Array<{ args: string[] }> = [];
+  const exec: GitExec = async (cmd, args, options) => {
+    calls.push({ args });
+    void cmd;
+    const key = matchKey(args, responses);
+    if (key === null) {
+      throw new Error(`unmatched git invocation: ${args.join(" ")}`);
+    }
+    const entry = responses[key];
+    if (entry === undefined) {
+      throw new Error(`matched key '${key}' has no response`);
+    }
+    return typeof entry === "function" ? entry(args, options) : entry;
+  };
+  return { exec, calls };
+}
+
+function matchKey(
+  args: string[],
+  responses: Record<string, unknown>,
+): string | null {
+  for (const key of Object.keys(responses)) {
+    const tokens = key.split(" ");
+    if (tokens.every((token, i) => token === "*" || args[i] === token)) {
+      return key;
+    }
+  }
+  return null;
+}
+
+/** Build an access function whose `present` paths resolve, others reject. */
+function buildAccess(present: string[]): (path: string) => Promise<void> {
+  const set = new Set(present);
+  return async (path: string) => {
+    if (!set.has(path)) {
+      throw new Error(`ENOENT: no such file or directory, access '${path}'`);
+    }
+  };
+}
+
+const REBASE_MERGE_PATH = "rev-parse --git-path rebase-merge";
+const REBASE_APPLY_PATH = "rev-parse --git-path rebase-apply";
+const REV_PARSE_HEAD = "rev-parse --abbrev-ref HEAD";
+const REV_PARSE_UPSTREAM = "rev-parse --abbrev-ref @{upstream}";
+const CONFIG_GET_FETCH = "config --get-all remote.origin.fetch";
+
+const NOTES_REF = "refs/notes/arc/user/andrew";
+
+/** Common exec responses for a clean repository on branch 'main'. */
+function cleanRepoResponses(): Record<string, ExecResult | ResponseFn> {
+  return {
+    [REBASE_MERGE_PATH]: { stdout: "/repo/.git/rebase-merge", stderr: "" },
+    [REBASE_APPLY_PATH]: { stdout: "/repo/.git/rebase-apply", stderr: "" },
+    [REV_PARSE_HEAD]: { stdout: "main", stderr: "" },
+    [REV_PARSE_UPSTREAM]: { stdout: "origin/main", stderr: "" },
+    [CONFIG_GET_FETCH]: {
+      stdout:
+        "+refs/heads/*:refs/remotes/origin/*\n+refs/notes/arc/user/*:refs/notes/arc/user/*",
+      stderr: "",
+    },
+    "push origin main": { stdout: "", stderr: "" },
+    [`push origin ${NOTES_REF}`]: { stdout: "", stderr: "" },
+  };
+}
+
+function buildIo(exec: GitExec): UserIOContext {
+  return {
+    exec,
+    readFile: vi.fn(),
+    writeFile: vi.fn(),
+    mkdir: vi.fn(),
+    readDir: vi.fn(),
+    readNote: vi.fn(),
+    writeNote: vi.fn(),
+  } as unknown as UserIOContext;
+}
+
+const COMMON_OPTIONS = {
+  identity: "andrew",
+  cwd: "/repo",
+  branch: "main",
+};
+
+describe("runPairedPush", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it("both legs succeed → result reports both succeeded; worst-outcome exit 0", async () => {
+    const { exec, calls } = buildExec(cleanRepoResponses());
+    const io = buildIo(exec);
+    const access = buildAccess([]);
+
+    const result = await runPairedPush({ io, access, ...COMMON_OPTIONS });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.worktree).toEqual({ status: "success" });
+    expect(result.notes).toEqual({ status: "success" });
+
+    const pushArgs = calls
+      .map((c) => c.args)
+      .filter((args) => args[0] === "push");
+    expect(pushArgs).toEqual([
+      ["push", "origin", "main"],
+      ["push", "origin", NOTES_REF],
+    ]);
+
+    expect(mockRecordPartialPushMarker).not.toHaveBeenCalled();
+  });
+
+  it("worktree succeeds, notes fails → mixed result; partial-push marker recorded", async () => {
+    const responses = cleanRepoResponses();
+    const notesError = new Error("[remote rejected] notes/arc/user/andrew");
+    responses[`push origin ${NOTES_REF}`] = () => {
+      throw notesError;
+    };
+    const { exec } = buildExec(responses);
+    const io = buildIo(exec);
+    const access = buildAccess([]);
+
+    const result = await runPairedPush({ io, access, ...COMMON_OPTIONS });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.worktree).toEqual({ status: "success" });
+    expect(result.notes).toEqual({ status: "failed", error: notesError });
+
+    expect(mockRecordPartialPushMarker).toHaveBeenCalledTimes(1);
+    expect(mockRecordPartialPushMarker).toHaveBeenCalledWith(
+      "/repo",
+      io,
+      "andrew",
+    );
+    expect(mockClearPartialPushMarker).not.toHaveBeenCalled();
+  });
+
+  it("push-ordering invariant: notes never fires when worktree push fails", async () => {
+    const responses = cleanRepoResponses();
+    const worktreeError = new Error("error: failed to push some refs to 'origin'");
+    responses["push origin main"] = () => {
+      throw worktreeError;
+    };
+    const { exec, calls } = buildExec(responses);
+    const io = buildIo(exec);
+    const access = buildAccess([]);
+
+    const result = await runPairedPush({ io, access, ...COMMON_OPTIONS });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.worktree).toEqual({ status: "failed", error: worktreeError });
+    expect(result.notes).toEqual({
+      status: "skipped",
+      reason: "preceding-leg-failed",
+    });
+
+    const pushArgs = calls
+      .map((c) => c.args)
+      .filter((args) => args[0] === "push");
+    expect(pushArgs).toEqual([["push", "origin", "main"]]);
+
+    expect(mockRecordPartialPushMarker).not.toHaveBeenCalled();
+    expect(mockClearPartialPushMarker).not.toHaveBeenCalled();
+  });
+
+  it("pre-check failure (rebase in progress) → neither leg fires; condition surfaced", async () => {
+    const { exec, calls } = buildExec(cleanRepoResponses());
+    const io = buildIo(exec);
+    const access = buildAccess(["/repo/.git/rebase-merge"]);
+
+    const result = await runPairedPush({ io, access, ...COMMON_OPTIONS });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.worktree).toEqual({
+      status: "skipped",
+      reason: "blocked-by-precheck",
+    });
+    expect(result.notes).toEqual({
+      status: "skipped",
+      reason: "blocked-by-precheck",
+    });
+
+    const rebase = result.conditions.find((c) => c.kind === "rebase-in-progress");
+    expect(rebase?.disposition).toBe("block");
+    expect(rebase?.rebaseForm).toBe("rebase-merge");
+
+    const pushArgs = calls
+      .map((c) => c.args)
+      .filter((args) => args[0] === "push");
+    expect(pushArgs).toEqual([]);
+
+    expect(mockRecordPartialPushMarker).not.toHaveBeenCalled();
+    expect(mockClearPartialPushMarker).not.toHaveBeenCalled();
+  });
+});

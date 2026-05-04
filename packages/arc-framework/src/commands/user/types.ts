@@ -3,6 +3,7 @@ import type {
   DirEntry,
   PushabilityCondition,
   SkipWarning,
+  WorktreeSyncState,
 } from "../../lib/git/index.js";
 import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
 import type { CoreIO } from "../../lib/types.js";
@@ -148,6 +149,52 @@ function buildBlockedMessage(conditions: PushabilityCondition[]): string {
   }
   const lines = blocking.map((c) => `- ${c.guidance}`);
   return `Push blocked — resolve before retrying:\n${lines.join("\n")}`;
+}
+
+/** Reason a paired-push leg was skipped without firing. */
+export type PairedPushSkipReason = "blocked-by-precheck" | "preceding-leg-failed";
+
+/**
+ * Outcome of a single push leg in a paired worktree+notes push.
+ *
+ * - `success`: the push fired and completed.
+ * - `failed`: the push fired but git returned an error. Underlying error preserved.
+ * - `skipped`: the push did not fire. `reason` records why.
+ */
+export type PairedPushLegOutcome =
+  | { status: "success" }
+  | { status: "failed"; error: Error }
+  | { status: "skipped"; reason: PairedPushSkipReason };
+
+/**
+ * Discriminated result of a paired worktree+notes push.
+ *
+ * The push-ordering invariant is fixed: worktree always lands before notes,
+ * so `notes` is `skipped` with `preceding-leg-failed` whenever `worktree`
+ * fails. `exitCode` reflects the worst outcome — 0 only when both legs
+ * succeed, 1 in every other case (including pre-check block).
+ */
+export interface PairedPushResult {
+  worktree: PairedPushLegOutcome;
+  notes: PairedPushLegOutcome;
+  /** Pushability conditions surfaced by the pre-check matrix. */
+  conditions: PushabilityCondition[];
+  /** Worst-outcome exit code: 0 iff both legs succeeded. */
+  exitCode: number;
+}
+
+/** Options for the paired-push helper. */
+export interface RunPairedPushOptions {
+  io: UserIOContext;
+  identity: string;
+  /** Repository root, used to record/clear the partial-push marker. */
+  cwd: string;
+  /** Path-existence check for the pushability pre-check matrix. */
+  access: AccessFn;
+  /** Worktree branch name to push. */
+  branch: string;
+  /** Pre-resolved worktree sync state for force-push detection. */
+  worktreeSyncState?: WorktreeSyncState;
 }
 
 /** Options for the fetch operation. */
