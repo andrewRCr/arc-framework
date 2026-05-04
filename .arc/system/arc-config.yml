@@ -20,7 +20,7 @@ branch.base: main
 #             capture may commit directly to the base branch. (default)
 #   full    - All changes require branches and PR review.
 # See strategy-work-organization.md § Branch Protection Modes.
-branch.protection: partial
+branch.protection: full
 
 # --- Commit Discipline ---
 
@@ -88,7 +88,7 @@ hooks.skip_extensions: md|yml|yaml|json|toml|txt|csv|lock|conf|cfg|ini|env|licen
 # Files matching these patterns are not production code and may legitimately
 # reference tasks, phases, or .arc/ paths. Pipe-separated regex alternation.
 #   default: __tests__/|\.test\.|\.spec\.|/test/|/tests/
-hooks.test_patterns: __tests__/|\.test\.|\.spec\.|/test/|/tests/
+hooks.test_patterns: __tests__/|\.test\.|\.spec\.|/test/|/tests/|docs/demos/
 
 # Patterns scanned in production code for meta-project references.
 # The pre-commit hook flags files matching these patterns as errors.
@@ -96,7 +96,7 @@ hooks.test_patterns: __tests__/|\.test\.|\.spec\.|/test/|/tests/
 # (e.g., tooling that legitimately operates on .arc/ paths).
 # Pipe-separated regex alternation.
 #   default: '[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+|\.arc/'
-hooks.meta_ref_patterns: '[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+|\.arc/'
+hooks.meta_ref_patterns: '[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+'
 
 # Subject line hard limit for commit-msg hook.
 # Aligns with GitHub's truncation point and `git log --oneline` width.
@@ -188,13 +188,13 @@ session.init_pull.notes: prompt
 # See DEV-RULES.ARC § Commit Discipline.
 #   manual           - Each commit requires explicit approval. (default)
 #   on-task-approval - Task approval implicitly authorizes the task commit.
-session.commit_interlock: manual
+session.commit_interlock: on-task-approval
 
 # Push interlock release policy.
 # See DEV-RULES.ARC § Commit Discipline.
 #   manual     - Each push requires explicit approval. (default)
 #   on-handoff - Handoff implicitly authorizes the push.
-session.push_interlock: manual
+session.push_interlock: on-handoff
 
 # --- User Directory ---
 
