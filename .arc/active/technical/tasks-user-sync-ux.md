@@ -369,29 +369,69 @@ The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) is built as a 
           cancelled / no-remote / failed-nontty-conflict / blocked / failed).
 
     - `[ ]` **2.R.2.d JSON contract and `--yes` semantics**
-        - `arc sync --json` contract: exactly one JSON object on stdout; no Clack spinner,
-          prompt, or log output reaches stdout. Human diagnostics route to stderr or live
-          inside the envelope.
-        - Error-path coverage: every return path emits the JSON envelope. Today
-          identity-absent and cwd-absent paths return silently (`handlers/sync.ts:168, 173`)
-          and exit 0 — both must emit a structured envelope (`{cell: "none", reason, ...}`)
-          and set `process.exitCode > 0`.
-        - Envelope adds `interlockState: { pushInterlock, notesPush, syncInterlock }` for
-          downstream consumers (handoff workflow, future wrapper audit log per
-          `plan-interlock-release-wrappers.md`). Read `session.sync_interlock` for envelope
-          purposes even though the orchestrator itself doesn't act on it
-          (authorize-by-invocation per PRD R10).
-        - Dry-run shape parity: `--dry-run --json` emits the same envelope schema as the
-          runtime path (today they diverge — `mode: "dry-run"` wraps a different object
-          shape). Workflow consumers should not need branch logic on `mode`.
-        - `--yes` semantics: auto-accept default-yes prompts (degrade `notes_push: prompt` to
-          `always`; auto-accept safe-default recovery prompts in
-          `pushWithInteractiveRecovery`). Never auto-accept destructive defaults (force-push,
-          etc.) — refuse and emit guidance. Wire `opts.yes` into matrix dispatch (currently
-          declared in `SyncOptions` and unused).
-        - Contract tests with mocked exec assert structure (envelope, error paths,
-          `interlockState`, dry-run parity, `--yes`); subprocess-level stdout-purity tests
-          live in 2.R.3.c.
+
+        - _Goal:_ Pin the `arc sync --json` envelope as a stable machine-readable
+          contract — single object on stdout, every return path emits, structural parity
+          across runtime and dry-run, `interlockState` exposed for downstream consumers
+          — and wire `--yes` through matrix dispatch with safe-default prompt degradation.
+
+            - `[ ]` **2.R.2.d.1 `interlockState` envelope field**
+                - Additive: read `session.sync_interlock` from settings (already loaded
+                  via `readConfigSettings`) and add `interlockState: { pushInterlock,
+                  notesPush, syncInterlock }` to `SyncOutcome`. Authorize-by-invocation
+                  per PRD R10 — the envelope reports the value, the orchestrator does
+                  not act on it.
+                - Downstream consumers (handoff workflow, future wrapper audit log per
+                  `plan-interlock-release-wrappers.md`) begin consuming the field
+                  immediately.
+                - Tests: extend orchestrator unit coverage with `interlockState`
+                  presence and value assertions across at least one paired and one
+                  blocked cell.
+
+            - `[ ]` **2.R.2.d.2 Dry-run shape parity**
+                - `renderDryRun` in `handlers/sync.ts` emits a divergent shape today
+                  (`{ mode: "dry-run", cell, worktree, decision, ... }`) while runtime
+                  emits the `SyncOutcome` envelope. Refactor dry-run to produce the same
+                  envelope with `mode: "dry-run"` as a top-level indicator and leg
+                  outcomes set to `result: "skipped"` / `detail: "dry-run"`.
+                - Workflow consumers stop needing branch logic on `mode` — schema is one
+                  shape with an indicator field.
+                - Tests: assert dry-run JSON parses against the runtime envelope schema
+                  across representative cells (paired, blocked, save-only).
+
+            - `[ ]` **2.R.2.d.3 stdout purity under `--json`**
+                - Many `p.log.*` / `p.spinner` / `p.note` / `p.confirm` calls fire
+                  unconditionally — Clack writes to stdout by default. Route Clack output
+                  to stderr (or suppress) when `opts.json === true`; keep current
+                  behavior otherwise. `p.confirm` is interactive — must never fire under
+                  `--json`.
+                - Touches every code path in `handlers/sync.ts` that reports leg
+                  outcomes. Likely shape: a small IO-mode toggle threaded through the
+                  executor, or a thin Clack wrapper that conditionally redirects.
+                - Tests: with mocked exec, assert that under `opts.json === true` no
+                  Clack call writes to stdout. Subprocess-level purity is owned by
+                  2.R.3.c.
+
+            - `[ ]` **2.R.2.d.4 Error-path envelope coverage**
+                - The `resolveUserIdentity` and `requireArcProjectRoot` early returns in
+                  `handleSync` exit silently with code 0 today. Both must emit
+                  `{ cell: "none", reason: "identity-absent" | "no-arc-project" }`
+                  (envelope shape consistent with .2 / .3) and set
+                  `process.exitCode > 0`.
+                - Tests: contract tests assert both error paths emit a parseable
+                  envelope and set non-zero exit.
+
+            - `[ ]` **2.R.2.d.5 `--yes` wiring**
+                - `opts.yes` is declared on `SyncOptions` but unused. Thread through
+                  matrix dispatch: degrade `notes_push: prompt` → `always` so the
+                  save+prompt cell resolves without confirmation; auto-accept
+                  safe-default recovery prompts in `pushWithInteractiveRecovery`; refuse
+                  destructive defaults (force-push, etc.) and emit guidance instead of
+                  auto-accepting.
+                - Cross-cutting — touches matrix-decision input, recovery-layer prompt
+                  surface, and dry-run preview when `--yes` changes resolved policy.
+                - Tests: cover policy degradation, safe-default auto-accept, and refusal
+                  of destructive auto-accept paths.
 
 ### `[ ]` **2.R.3 Regression coverage across real git topologies**
 
