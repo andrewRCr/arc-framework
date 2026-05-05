@@ -205,13 +205,20 @@ interface SyncOutcome {
   notes: LegOutcomeRecord;
   exitCode: number;
   reconcile?: { ahead: number; behind: number; branch: string };
+  /**
+   * Indicator field present only in `--dry-run` envelopes. Workflow consumers
+   * can detect dry-run by presence; absence implies a runtime execution.
+   * Schema is otherwise identical so consumers don't need branch logic on this
+   * field to read leg outcomes.
+   */
+  mode?: "dry-run";
 }
 
 /**
- * Inner-function return shape — interlock state is attached once at the
- * `handleSync` boundary so per-cell builders stay focused on leg outcomes.
+ * Inner-function return shape — interlock state and mode are attached once at
+ * the `handleSync` boundary so per-cell builders stay focused on leg outcomes.
  */
-type ExecutedOutcome = Omit<SyncOutcome, "interlockState">;
+type ExecutedOutcome = Omit<SyncOutcome, "interlockState" | "mode">;
 
 export async function handleSync(opts: SyncOptions = {}): Promise<void> {
   if (!opts.json) p.intro("arc sync");
@@ -264,7 +271,17 @@ export async function handleSync(opts: SyncOptions = {}): Promise<void> {
   });
 
   if (opts.dryRun) {
-    renderDryRun(decision, worktree, branch, opts.json === true);
+    const executed = buildDryRunOutcome(decision, branch);
+    const outcome: SyncOutcome = {
+      ...executed,
+      interlockState: { pushInterlock, notesPush, syncInterlock },
+      mode: "dry-run",
+    };
+    if (opts.json) {
+      process.stdout.write(`${JSON.stringify(outcome, null, 2)}\n`);
+    } else {
+      renderDryRunHuman(decision);
+    }
     return;
   }
 
@@ -763,21 +780,69 @@ async function pushNotesLeg(ctx: ExecuteContext): Promise<LegOutcomeRecord> {
   }
 }
 
-function renderDryRun(
+/**
+ * Build the dry-run envelope from the matrix decision alone — no I/O.
+ *
+ * Schema parity with runtime: same `cell`, same `LegOutcomeRecord` shape on
+ * each leg, `reconcile` populated for diverged blocked cells, `save` present
+ * when the runtime path would have fired a separate save record (blocked-
+ * worktree and notes-blocked cells consolidate save into a separate field;
+ * other cells fold save into the notes/paired flow).
+ *
+ * Leg `result` is uniformly `"skipped"` with `detail: "dry-run"` since no leg
+ * actually executes. Action labels are predicted from the decision so
+ * consumers can read "what would have happened" without re-inspecting the
+ * matrix decision.
+ */
+function buildDryRunOutcome(
   decision: MatrixDecision,
-  worktree: { state: WorktreeSyncState; ahead: number; behind: number },
   branch: string | null,
-  json: boolean,
-): void {
-  if (json) {
-    process.stdout.write(`${JSON.stringify({
-      mode: "dry-run",
-      cell: decision.cellName,
-      worktree: { state: worktree.state, ahead: worktree.ahead, behind: worktree.behind, branch },
-      decision,
-    }, null, 2)}\n`);
-    return;
+): ExecutedOutcome {
+  const worktreeAction = decision.worktree.kind === "push" ? "push" : "skip";
+  const fireSeparateSave =
+    decision.worktree.kind === "skip-blocked-worktree"
+    || decision.notes.kind === "save+notes-blocked";
+
+  const reconcile =
+    decision.worktree.kind === "skip-blocked-worktree" && decision.worktree.reason === "diverged"
+      ? {
+        ahead: decision.worktree.ahead,
+        behind: decision.worktree.behind,
+        branch: decision.worktree.branch ?? branch ?? "HEAD",
+      }
+      : undefined;
+
+  return {
+    cell: decision.cellName,
+    worktree: { action: worktreeAction, result: "skipped", detail: "dry-run" },
+    ...(fireSeparateSave ? { save: { action: "save", result: "skipped", detail: "dry-run" } } : {}),
+    notes: { action: dryRunNotesAction(decision), result: "skipped", detail: "dry-run" },
+    exitCode: 0,
+    ...(reconcile ? { reconcile } : {}),
+  };
+}
+
+/**
+ * Predict the notes-leg `action` label a runtime execution would have
+ * recorded. Mirrors the runtime conventions: paired flows record `save+push`
+ * (paired helper consolidates), single-leg flows record `push` for the
+ * notes-only / save+prompt cells, `save` for save-only and cancelled prompts,
+ * and `push` for blocked notes refusals.
+ */
+function dryRunNotesAction(decision: MatrixDecision): string {
+  switch (decision.notes.kind) {
+    case "save-only":
+      return "save";
+    case "save+notes-blocked":
+      return "push";
+    case "save+prompt":
+      return "push";
+    case "save+push":
+      return decision.worktree.kind === "push" ? "save+push" : "push";
   }
+}
+
+function renderDryRunHuman(decision: MatrixDecision): void {
   p.log.info(`Matrix decision: ${decision.cellName}`);
   p.log.info(`Worktree: ${describeWorktreeAction(decision.worktree)}`);
   p.log.info(`Notes:    ${describeNotesAction(decision.notes)}`);

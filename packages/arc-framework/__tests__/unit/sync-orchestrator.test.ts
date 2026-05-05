@@ -142,14 +142,16 @@ function pushedBranchInvocations(): string[][] {
     .filter((args): args is string[] => Array.isArray(args) && args[0] === "push");
 }
 
-async function captureSyncJson(): Promise<Record<string, unknown>> {
+async function captureSyncJson(
+  opts: { dryRun?: boolean } = {},
+): Promise<Record<string, unknown>> {
   const stdoutWrite = vi
     .spyOn(process.stdout, "write")
     .mockImplementation(() => true);
   let written: string | undefined;
 
   try {
-    await handleSync({ json: true });
+    await handleSync({ json: true, ...opts });
     written = stdoutWrite.mock.calls.map((call) => String(call[0])).join("");
   } finally {
     stdoutWrite.mockRestore();
@@ -572,5 +574,88 @@ describe("handleSync orchestrator matrix dispatch", () => {
     expect(surfaced.some((line) => line.includes("paired-push"))).toBe(true);
     expect(surfaced.some((line) => line.toLowerCase().includes("dry-run"))).toBe(true);
     expect(process.exitCode).toBeUndefined();
+  });
+
+  it("--dry-run --json paired-push → envelope shape parity with runtime; no legs fire", async () => {
+    setConfig("on-sync");
+    setNotesPolicy("always");
+    setWorktree("clean");
+
+    const outcome = await captureSyncJson({ dryRun: true });
+
+    expect(mockRunPairedPush).not.toHaveBeenCalled();
+    expect(mockRunUserSave).not.toHaveBeenCalled();
+    expect(mockPushWithRecovery).not.toHaveBeenCalled();
+    expect(pushedBranchInvocations()).toEqual([]);
+    expect(outcome).toEqual({
+      cell: "paired-push",
+      interlockState: { pushInterlock: "on-sync", notesPush: "always", syncInterlock: "on-handoff" },
+      worktree: { action: "push", result: "skipped", detail: "dry-run" },
+      notes: { action: "save+push", result: "skipped", detail: "dry-run" },
+      exitCode: 0,
+      mode: "dry-run",
+    });
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it("--dry-run --json blocked-diverged → reconcile populated; save record present; no legs fire", async () => {
+    setConfig("on-sync");
+    setNotesPolicy("always");
+    setWorktree("diverged", 1, 2);
+
+    const outcome = await captureSyncJson({ dryRun: true });
+
+    expect(mockRunUserSave).not.toHaveBeenCalled();
+    expect(mockRunPairedPush).not.toHaveBeenCalled();
+    expect(mockPushWithRecovery).not.toHaveBeenCalled();
+    expect(outcome).toEqual({
+      cell: "blocked-diverged",
+      interlockState: { pushInterlock: "on-sync", notesPush: "always", syncInterlock: "on-handoff" },
+      worktree: { action: "skip", result: "skipped", detail: "dry-run" },
+      save: { action: "save", result: "skipped", detail: "dry-run" },
+      notes: { action: "push", result: "skipped", detail: "dry-run" },
+      exitCode: 0,
+      reconcile: { ahead: 1, behind: 2, branch: "main" },
+      mode: "dry-run",
+    });
+  });
+
+  it("--dry-run --json save-only → minimal envelope; no save record; no pushes", async () => {
+    setConfig("manual");
+    setNotesPolicy("manual");
+    setWorktree("clean");
+
+    const outcome = await captureSyncJson({ dryRun: true });
+
+    expect(mockRunUserSave).not.toHaveBeenCalled();
+    expect(mockPushWithRecovery).not.toHaveBeenCalled();
+    expect(outcome).toEqual({
+      cell: "save-only",
+      interlockState: { pushInterlock: "manual", notesPush: "manual", syncInterlock: "on-handoff" },
+      worktree: { action: "skip", result: "skipped", detail: "dry-run" },
+      notes: { action: "save", result: "skipped", detail: "dry-run" },
+      exitCode: 0,
+      mode: "dry-run",
+    });
+  });
+
+  it("--dry-run --json notes-blocked → save record present; notes leg shows would-be push action", async () => {
+    setConfig("manual");
+    setNotesPolicy("always");
+    setWorktree("local-ahead", 2);
+
+    const outcome = await captureSyncJson({ dryRun: true });
+
+    expect(mockRunUserSave).not.toHaveBeenCalled();
+    expect(mockPushWithRecovery).not.toHaveBeenCalled();
+    expect(outcome).toEqual({
+      cell: "notes-blocked",
+      interlockState: { pushInterlock: "manual", notesPush: "always", syncInterlock: "on-handoff" },
+      worktree: { action: "skip", result: "skipped", detail: "dry-run" },
+      save: { action: "save", result: "skipped", detail: "dry-run" },
+      notes: { action: "push", result: "skipped", detail: "dry-run" },
+      exitCode: 0,
+      mode: "dry-run",
+    });
   });
 });

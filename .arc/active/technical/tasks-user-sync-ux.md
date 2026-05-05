@@ -390,16 +390,25 @@ The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) is built as a 
                   non-default `sync_interlock` propagation and resolved-`notesPush`
                   reporting under non-interactive prompt degradation.
 
-            - `[ ]` **2.R.2.d.2 Dry-run shape parity**
-                - `renderDryRun` in `handlers/sync.ts` emits a divergent shape today
-                  (`{ mode: "dry-run", cell, worktree, decision, ... }`) while runtime
-                  emits the `SyncOutcome` envelope. Refactor dry-run to produce the same
-                  envelope with `mode: "dry-run"` as a top-level indicator and leg
-                  outcomes set to `result: "skipped"` / `detail: "dry-run"`.
-                - Workflow consumers stop needing branch logic on `mode` — schema is one
-                  shape with an indicator field.
-                - Tests: assert dry-run JSON parses against the runtime envelope schema
-                  across representative cells (paired, blocked, save-only).
+            - `[x]` **2.R.2.d.2 Dry-run shape parity**
+                - Replaced `renderDryRun`'s divergent JSON shape with a `buildDryRunOutcome`
+                  helper that returns an `ExecutedOutcome` from the matrix decision alone.
+                  `handleSync`'s dry-run branch attaches `interlockState` + `mode:
+                  "dry-run"` at the boundary, identical to the runtime path. Human render
+                  stayed on `renderDryRunHuman` (unchanged log output).
+                - `mode` is an optional `"dry-run"` field on `SyncOutcome` — present only
+                  in dry-run envelopes, absent in runtime. Consumers can detect dry-run
+                  by presence without branching on enum values.
+                - Leg `result` is uniformly `"skipped"` with `detail: "dry-run"`; action
+                  labels predicted from the decision (paired flow → `save+push`; single
+                  notes-only / save+prompt → `push`; save-only → `save`). `save` field
+                  appears for blocked-worktree and notes-blocked cells (the runtime
+                  cells that fold save into a separate record); `reconcile` populated
+                  for diverged-worktree cells.
+                - Tests: four new cases assert envelope parity across paired-push,
+                  blocked-diverged (reconcile + save present), save-only (minimal), and
+                  notes-blocked (save present, would-be push action). Existing human
+                  dry-run test unchanged.
 
             - `[ ]` **2.R.2.d.3 stdout purity under `--json`**
                 - Many `p.log.*` / `p.spinner` / `p.note` / `p.confirm` calls fire
