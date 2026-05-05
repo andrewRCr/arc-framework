@@ -95,6 +95,10 @@ has no path; skip notes regardless of state. Worktree channel still applies.
 **Reading rule**: Read every document in the list below in full EXCEPT QUICK-REFERENCE (item 6 —
 section-level partial read) and the active task list (item 9 — strategic partial read).
 
+**Partial-read structural mapping**: When a partial read needs section offsets, issue ONE grep for the
+section delimiter and compute Read offsets locally — never per-section greps. Skip the grep entirely
+when a stable file convention places the section at a known location.
+
 **Parallelism (prescriptive)**: Issue items 1–6, 8 (SESSION-NOTES), and — when
 `active.resolution === "single"` — the active status file as Reads in a single tool-message. Items 9–10
 follow after the status file resolves; they may parallel each other. Don't serialize when the platform
@@ -117,7 +121,9 @@ session-state, follow the override instead.
       touches the relevant domain, not at init time.
 5. `.arc/reference/strategies/STRATEGY-INDEX.md`
 6. `.arc/reference/QUICK-REFERENCE.md` — **section-level partial read**: `## Environment & Path Context`
-    only (subsumes `### Runtime Environment`)
+    only (subsumes `### Runtime Environment`). File convention: this is the first section. Read
+    directly with `limit: ~35`. Apply structural mapping (delimiter `^##` line prefix) only if the
+    convention has been broken.
 
 **Commit-interlock load set:** If `config.value.settings["session.commit_interlock"]` is
 `on-task-approval`, also load `.arc/system/methods/commit-format.md` and
@@ -206,10 +212,9 @@ warning in orientation.
         2. Search for the task number (e.g., `**4.2`) if the line hint is stale
         3. Search for the title fragment if the task was renumbered
         4. If none resolve, report the mismatch (Step 7)
-    - **Structural mapping** for header + phase preamble: when line-precise Reads are needed, issue one
-      grep for `^## \*\*Phase` (or equivalent phase-heading marker) returning all phase positions in a
-      single call — sufficient to compute Read offsets for header (above first phase), current phase
-      preamble, and current task section. Don't issue per-section greps.
+    - **Structural mapping**: Apply the Step 3 prelude rule with delimiter `^## \*\*Phase` (or
+      equivalent phase-heading marker) — one grep returns all phase positions, sufficient to compute
+      Read offsets for header (above first phase), current phase preamble, and current task section.
     - **Companion file awareness**: From `active.value.companions` — note their existence so
       references during execution resolve immediately. **Do not read these at init**
 
