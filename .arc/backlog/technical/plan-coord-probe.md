@@ -191,7 +191,10 @@ current benefit.
 - **User Sync UX Polish** (`prd-user-sync-ux.md`). Notes-discovery fix lives there; coord-probe consumes
   notes-as-signal once that fix lands. Coord-probe ships v1 with in-git + gh signals; notes signal
   joins later. Plans touch different files (CLI subcommand + adapter modules vs sync state machine +
-  load semantics) and can ship in either order.
+  load semantics) and can ship in either order. Test-infra reuse: Phase 2.R extracts a multi-clone
+  test harness at `__tests__/helpers/multi-clone.ts` (bare origin + parameterized clones with notes
+  refspec configured); coord-probe inherits it for branch-gone signal coverage and any cross-machine
+  adapter test rather than re-extracting.
 
 ### Downstream
 

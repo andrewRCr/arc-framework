@@ -291,6 +291,12 @@ and get the friction-reduction benefit. No setup helper yet.
   R14 pushability pre-check) is needed for the push wrapper's validation logic and orchestration
   boundary; Phase 3.1 (resolver consolidation) is the base layer the validation library builds
   on.
+- Phase 2.R (sync remediation) extracts `pushWorktreeBranch` in `lib/git/` as the swappable seam
+  — `arc release push` builds on this helper rather than re-extracting from raw `git push` call
+  sites. The `arc sync --json` envelope's `interlockState` field is the natural feed for the
+  wrapper audit log's "interlock state at decision time" entry. The
+  `force-push-required` advisory refusal contract is documented in `pushability.ts`'s preamble
+  for inheritance.
 - ADR-016 / interlock-model framing is canonicalized.
 
 **Approximate size.** Medium-large. ~12-15 sessions ballpark.
@@ -382,6 +388,11 @@ PRD-time decision; not a blocker.
   needs further redesign.
 - The interlock-validation library shape from `user-sync-ux` Phase 3.1 is reusable here without
   significant adaptation. If it isn't, WU1 picks up additional refactoring scope.
+- The `pushWorktreeBranch` helper extracted in `user-sync-ux` Phase 2.R provides a sufficient
+  seam for `arc release push` to swap implementation without changes to consumer call sites
+  (`handlers/sync.ts:executeSingleLeg`, `commands/user/paired-push.ts:pushWorktreeLeg`).
+  Verify at WU1 PRD stage; if the helper signature needs to widen for wrapper-specific
+  validation (audit-log hooks, interlock-state read), layer that on rather than re-extracting.
 - The footer's bypass-only stamping refinement (Alternative C above) is implementable cleanly —
   wrapper needs a reliable signal that harness gate was bypassed in this invocation context. If
   no robust signal exists, fall back to simple opt-in toggle without the refinement.
