@@ -9,11 +9,11 @@
 - **Task List:** `tasks-user-sync-ux.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task 2.R.1 — Verified save and freshness surfaces
-- **Next Task:** Task 2.R.2 — Sync orchestrator execution contract (line ~322)
+- **Last Completed:** Task 2.R.2.b — Blocked-cell local-save invariant
+- **Next Task:** Task 2.R.2.c — Worktree-leg pushability/state gate + helper extraction (line ~345)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 2.R.2.a — implement paired-cell save-before-push, starting with
-  ordering and save-failure tests before routing `runPairedPush` through verified save.
+- **Next Action:** Begin Task 2.R.2.c — extract the worktree push helper and route worktree-leg
+  pushability/state gates through it.
 
 ---
