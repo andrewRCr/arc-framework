@@ -9,6 +9,7 @@
 
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
 
+import { UserFacingError } from "../../src/lib/errors.js";
 import type { WorktreeSyncState } from "../../src/lib/git/worktree-sync.js";
 
 const mockIntro = vi.fn();
@@ -80,10 +81,21 @@ const mockResolveUserIdentity = vi.fn();
 const mockIsNonInteractive = vi.fn(() => false);
 vi.mock("../../src/handlers/shared.js", () => ({
   resolveUserIdentity: (...args: unknown[]) => mockResolveUserIdentity(...args),
-  isHandledError: () => false,
   isNonInteractiveEnvironment: () => mockIsNonInteractive(),
-  requireArcProjectRoot: () => process.cwd(),
+  ARC_PROJECT_ROOT_ERROR:
+    "Not inside an ARC project (no .arc/ directory found walking up from cwd).",
 }));
+
+const mockResolveArcRoot = vi.fn<() => string | null>(() => "/repo");
+vi.mock("../../src/lib/paths.js", async () => {
+  const actual = await vi.importActual<typeof import("../../src/lib/paths.js")>(
+    "../../src/lib/paths.js",
+  );
+  return {
+    ...actual,
+    resolveArcRoot: () => mockResolveArcRoot(),
+  };
+});
 
 const mockGitExec = vi.fn();
 vi.mock("../../src/lib/io-context.js", () => ({
@@ -120,6 +132,7 @@ function resetMockDefaults() {
   mockAccess.mockRejectedValue(new Error("path absent"));
   mockIsCancel.mockReturnValue(false);
   mockIsNonInteractive.mockReturnValue(false);
+  mockResolveArcRoot.mockReturnValue("/repo");
   mockSpinner.mockImplementation(() => ({ start: vi.fn(), stop: vi.fn() }));
   mockBuildSaveSummary.mockReturnValue("save summary");
   mockGitExec.mockImplementation(async (_cmd: unknown, args: unknown) => {
@@ -761,5 +774,112 @@ describe("--json stdout-purity contract", () => {
 
     expect(mockIntro).toHaveBeenCalledWith("arc sync");
     expect(mockOutro).toHaveBeenCalledWith("Done.");
+  });
+});
+
+describe("error-path envelope coverage", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    resetMockDefaults();
+    mockResolveUserIdentity.mockResolvedValue("andrew");
+    process.exitCode = undefined;
+  });
+
+  function buildIdentityMissingError(): UserFacingError {
+    return new UserFacingError({
+      code: "IDENTITY_MISSING",
+      whatHappened: "No identity configured.",
+      why: "User commands require arc.identity to be set in git config.",
+      whatToDo: "Run 'arc init' first.",
+    });
+  }
+
+  it("identity-absent + --json → emits parseable envelope on stdout; sets exit code", async () => {
+    mockResolveUserIdentity.mockRejectedValueOnce(buildIdentityMissingError());
+
+    const stdoutWrite = vi
+      .spyOn(process.stdout, "write")
+      .mockImplementation(() => true);
+    let writes: string[];
+    try {
+      await handleSync({ json: true });
+      writes = stdoutWrite.mock.calls.map((c) => String(c[0]));
+    } finally {
+      stdoutWrite.mockRestore();
+    }
+
+    expect(writes).toHaveLength(1);
+    expect(JSON.parse(writes[0] ?? "")).toEqual({
+      cell: "none",
+      reason: "identity-absent",
+    });
+    expect(process.exitCode).toBe(1);
+    expect(mockReadConfigSettings).not.toHaveBeenCalled();
+    expect(mockRunWorktreeSyncStatus).not.toHaveBeenCalled();
+    expect(mockResolveSyncPushPolicy).not.toHaveBeenCalled();
+  });
+
+  it("identity-absent + non-JSON → routes diagnostic via clack log; no envelope on stdout", async () => {
+    mockResolveUserIdentity.mockRejectedValueOnce(buildIdentityMissingError());
+
+    const stdoutWrite = vi
+      .spyOn(process.stdout, "write")
+      .mockImplementation(() => true);
+    try {
+      await handleSync();
+    } finally {
+      stdoutWrite.mockRestore();
+    }
+
+    expect(stdoutWrite).not.toHaveBeenCalled();
+    expect(mockLog.error).toHaveBeenCalledWith(
+      expect.stringContaining("IDENTITY_MISSING"),
+    );
+    expect(process.exitCode).toBe(1);
+    expect(mockReadConfigSettings).not.toHaveBeenCalled();
+  });
+
+  it("no-arc-project + --json → emits parseable envelope on stdout; sets exit code", async () => {
+    mockResolveArcRoot.mockReturnValueOnce(null);
+
+    const stdoutWrite = vi
+      .spyOn(process.stdout, "write")
+      .mockImplementation(() => true);
+    let writes: string[];
+    try {
+      await handleSync({ json: true });
+      writes = stdoutWrite.mock.calls.map((c) => String(c[0]));
+    } finally {
+      stdoutWrite.mockRestore();
+    }
+
+    expect(writes).toHaveLength(1);
+    expect(JSON.parse(writes[0] ?? "")).toEqual({
+      cell: "none",
+      reason: "no-arc-project",
+    });
+    expect(process.exitCode).toBe(1);
+    expect(mockReadConfigSettings).not.toHaveBeenCalled();
+    expect(mockRunWorktreeSyncStatus).not.toHaveBeenCalled();
+  });
+
+  it("no-arc-project + non-JSON → routes diagnostic via clack log; no envelope on stdout", async () => {
+    mockResolveArcRoot.mockReturnValueOnce(null);
+
+    const stdoutWrite = vi
+      .spyOn(process.stdout, "write")
+      .mockImplementation(() => true);
+    try {
+      await handleSync();
+    } finally {
+      stdoutWrite.mockRestore();
+    }
+
+    expect(stdoutWrite).not.toHaveBeenCalled();
+    expect(mockLog.error).toHaveBeenCalledWith(
+      expect.stringContaining("Not inside an ARC project"),
+    );
+    expect(process.exitCode).toBe(1);
+    expect(mockReadConfigSettings).not.toHaveBeenCalled();
   });
 });

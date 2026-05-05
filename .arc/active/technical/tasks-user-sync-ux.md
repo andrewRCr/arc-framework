@@ -430,14 +430,17 @@ The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) is built as a 
                   degradation warning); non-JSON regression guard preserving Clack
                   intro/outro. Subprocess-level purity is owned by 2.R.3.c.
 
-            - `[ ]` **2.R.2.d.4 Error-path envelope coverage**
-                - The `resolveUserIdentity` and `requireArcProjectRoot` early returns in
-                  `handleSync` exit silently with code 0 today. Both must emit
+            - `[x]` **2.R.2.d.4 Error-path envelope coverage**
+                - `handleSync` now catches `UserFacingError` from
+                  `resolveUserIdentity` and a `null` from `resolveArcRoot` directly,
+                  routing diagnostics through `output.log.error` so JSON mode keeps
+                  stdout pure. A new `emitErrorEnvelope` helper writes
                   `{ cell: "none", reason: "identity-absent" | "no-arc-project" }`
-                  (envelope shape consistent with .2 / .3) and set
-                  `process.exitCode > 0`.
-                - Tests: contract tests assert both error paths emit a parseable
-                  envelope and set non-zero exit.
+                  to stdout under `--json` and sets `process.exitCode = 1` in either
+                  mode.
+                - Tests: four contract cases (both error paths × JSON / non-JSON)
+                  pin envelope shape, non-zero exit, and confirm config /
+                  worktree probes never fire on the early-return paths.
 
             - `[ ]` **2.R.2.d.5 `--yes` wiring**
                 - `opts.yes` is declared on `SyncOptions` but unused. Thread through

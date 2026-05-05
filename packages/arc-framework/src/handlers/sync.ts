@@ -29,6 +29,7 @@ import {
   type UserIOContext,
 } from "../commands/user.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
+import { formatError, UserFacingError } from "../lib/errors.js";
 import {
   runPushabilityStatus,
   type PushabilityCondition,
@@ -36,13 +37,13 @@ import {
 import { pushWorktreeBranch } from "../lib/git/push-worktree.js";
 import { runWorktreeSyncStatus, type WorktreeSyncState } from "../lib/git/worktree-sync.js";
 import { createUserIOContext } from "../lib/io-context.js";
+import { resolveArcRoot } from "../lib/paths.js";
 import { createSyncOutput, type SyncOutput } from "../lib/sync-output.js";
 import { resolveSyncPushPolicy, type SyncPushPolicy } from "../lib/sync-policy.js";
 import { pushWithInteractiveRecovery } from "./push-recovery.js";
 import {
-  isHandledError,
+  ARC_PROJECT_ROOT_ERROR,
   isNonInteractiveEnvironment,
-  requireArcProjectRoot,
   resolveUserIdentity,
 } from "./shared.js";
 
@@ -227,12 +228,20 @@ export async function handleSync(opts: SyncOptions = {}): Promise<void> {
   try {
     identity = await resolveUserIdentity();
   } catch (err) {
-    if (isHandledError(err)) return;
+    if (err instanceof UserFacingError) {
+      output.log.error(formatError(err));
+      emitErrorEnvelope(opts, "identity-absent");
+      return;
+    }
     throw err;
   }
 
-  const cwd = requireArcProjectRoot();
-  if (!cwd) return;
+  const cwd = resolveArcRoot(process.cwd());
+  if (!cwd) {
+    output.log.error(ARC_PROJECT_ROOT_ERROR);
+    emitErrorEnvelope(opts, "no-arc-project");
+    return;
+  }
 
   const io = createUserIOContext();
   const { settings } = await readConfigSettings(cwd);
@@ -784,6 +793,30 @@ async function pushNotesLeg(ctx: ExecuteContext): Promise<LegOutcomeRecord> {
         + "Re-run `arc sync` in a terminal to resolve.",
       );
       return { action: "push", result: "failed", detail: "nontty-conflict" };
+  }
+}
+
+/**
+ * Emit the early-return envelope for handler paths where matrix execution
+ * never started (identity unresolved, cwd not under an ARC project).
+ *
+ * `cell: "none"` signals the absence of a matrix decision; `reason` discriminates
+ * the path. Under `--json`, writes a single JSON object to stdout to keep the
+ * machine-readable contract intact (every return path emits an envelope). In
+ * human mode, the upstream `output.log.error` already surfaced the diagnostic;
+ * no envelope is written.
+ *
+ * `process.exitCode = 1` fires regardless of mode so callers detect the
+ * non-zero status without parsing the envelope.
+ */
+function emitErrorEnvelope(
+  opts: SyncOptions,
+  reason: "identity-absent" | "no-arc-project",
+): void {
+  process.exitCode = 1;
+  if (opts.json === true) {
+    const envelope = { cell: "none", reason };
+    process.stdout.write(`${JSON.stringify(envelope, null, 2)}\n`);
   }
 }
 
