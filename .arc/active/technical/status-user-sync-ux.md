@@ -9,13 +9,14 @@
 - **Task List:** `tasks-user-sync-ux.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task 2.R.2.d.3 — stdout purity under `--json`
-- **Next Task:** Task 2.R.2.d.4 — Error-path envelope coverage (line ~433)
+- **Last Completed:** Task 2.R.2.d.5 — `--yes` wiring (closes 2.R.2.d, 2.R.2)
+- **Next Task:** Task 2.R.3.a.0 — Multi-clone test harness (line ~484)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 2.R.2.d.4 — convert the `resolveUserIdentity` and
-  `requireArcProjectRoot` early returns in `handleSync` from silent exit-0 to a
-  `{ cell: "none", reason: "identity-absent" | "no-arc-project" }` envelope with
-  `process.exitCode > 0`; add contract tests for both paths.
+- **Next Action:** Begin Task 2.R.3.a.0 — add `__tests__/helpers/multi-clone.ts`
+  exposing `setupMultiClone()` returning `{ origin, cloneA, cloneB, cleanup }`.
+  Build test-first with one trivial cross-clone scenario (clone A pushes commit;
+  clone B fetches and observes). Keep clone setup parameterizable — the harness
+  is reusable by `plan-coord-probe.md`.
 
 ---
