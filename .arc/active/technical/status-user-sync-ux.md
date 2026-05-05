@@ -9,15 +9,14 @@
 - **Task List:** `tasks-user-sync-ux.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task 2.R.3.a.1 — Cross-clone sync regression (closes 2.R.3.a)
-- **Next Task:** Task 2.R.3.b.1 — Paired-push success on multi-clone harness (line ~522)
+- **Last Completed:** Task 2.R.3.c.1 — Stdout purity across five representative cells
+  (caught + fixed Clack contamination in `pushWithInteractiveRecovery`; closes 2.R.3.c.1)
+- **Next Task:** Task 2.R.3.c.2 — CI ordering — built artifact precondition (line ~581)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 2.R.3.b.1 — add a paired-push integration test in
-  `__tests__/integration/multi-clone.test.ts` reusing `setupMultiClone()` and the
-  ARC-install pattern from the existing cross-clone regression. Override clone A's
-  `session.push_interlock` to `on-sync` so the matrix dispatches the paired cell;
-  drive `handleSync({ json: true })` and assert envelope + origin ref advances on
-  both `main` and `refs/notes/arc/user/test-user`, then clone B fetch + pull.
+- **Next Action:** Begin Task 2.R.3.c.2 — verify the e2e config's existing `globalSetup`
+  already builds `dist/cli.js` (`__tests__/e2e/global-setup.ts` runs `npm run build`),
+  then decide whether to add a per-test fail-fast prebuild guard so the
+  subprocess-prebuild contract holds project-wide for future e2e tests too.
 
 ---
