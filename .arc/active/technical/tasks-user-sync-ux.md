@@ -504,16 +504,20 @@ The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) is built as a 
                   `localNoteFreshness.state: "current-head"` at clone B's `HEAD` — covering
                   both session-init and session-handoff consumers, which share that probe.
 
-    - `[ ]` **2.R.3.b Real-git matrix coverage for cells mocked exec cannot prove**
+    - `[ ]` **2.R.3.b Real-git paired-push coverage**
 
-        - _Goal:_ Cover the matrix cells where 2.R.2.d's mocked-exec structure assertions
-          cannot prove the behavior — specifically the paired-push flagship cell (two real
-          pushes interleaving against origin) and the worktree-leg real-git failure path
-          (non-fast-forward rejection). All other audit-listed cells (diverged + on-sync,
-          remote-ahead + manual worktree, notes prompt under non-interactive, no-op +
-          stale-local) are already proven structurally in 2.R.2.d or — for the no-op +
-          stale-local case — by 2.R.1.b's `arc user push` real-git coverage and not
-          reachable via `arc sync` (save runs first and refreshes the note to `HEAD`).
+        - _Goal:_ Real-git proof of the paired-push flagship cell — the only matrix cell
+          where mocked-exec coverage in 2.R.2.d cannot prove the behavior end-to-end.
+          Worktree push and notes push must coordinate correctly against a real bare
+          origin, with both ref tips advancing and a sibling clone observing both after
+          fetch + pull. All other audit-listed cells (diverged + on-sync, remote-ahead +
+          manual worktree, notes prompt under non-interactive, no-op + stale-local) are
+          either proven structurally in 2.R.2.d or covered by 2.R.1.b's `arc user push`
+          real-git coverage; the worktree-only push-failure path was investigated and
+          dropped because `runWorktreeSyncStatus` performs a bounded fetch before
+          classifying state, so a stale-then-rejected push isn't reachable through the
+          orchestrator without contrived hook setup that adds no fidelity over mocked
+          failure injection.
 
             - `[ ]` **2.R.3.b.1 Paired-push success on multi-clone harness**
                 - _Goal:_ End-to-end real-git proof that the paired cell coordinates
@@ -523,7 +527,11 @@ The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) is built as a 
                   fetch + pull.
                 - Setup: `setupMultiClone()` harness; install ARC in clone A and clone
                   B with shared identity; configure clone A with
-                  `session.push_interlock: on-sync` and `user.sync_push: always`;
+                  `session.push_interlock: on-sync` and `user.sync_push: always`
+                  (defaults already provide `notes_push: always`; verify and override
+                  `push_interlock` via the clone's `arc-config.yml` after `runInit`,
+                  or via the `arc.pushInterlock` git-config override if one exists —
+                  read `lib/config/status-reader.ts` to confirm the override path);
                   modify `SESSION-NOTES.md` and create one new commit on clone A's
                   `main`.
                 - Drive: `chdir` to clone A and call `handleSync({ json: true })`
@@ -540,26 +548,6 @@ The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) is built as a 
                 - Mock `@clack/prompts` file-scoped (matches existing
                   `multi-clone.test.ts` pattern) — subprocess-level purity is owned
                   by `2.R.3.c`.
-
-            - `[ ]` **2.R.3.b.2 Worktree-only cell with non-fast-forward rejection**
-                - _Goal:_ Real-git proof that when the worktree push leg fails
-                  (origin advanced past clone A), the orchestrator records the
-                  worktree failure, completes the save leg, and returns a non-zero
-                  exit code — without disturbing the saved local notes ref.
-                - Setup: `setupMultiClone()` harness; install ARC in clone A; advance
-                  origin past clone A by making and pushing a commit from clone B
-                  (`harness.cloneB`) so clone A's `main` is non-fast-forward against
-                  origin; make one new commit on clone A; configure clone A with
-                  `session.push_interlock: on-sync` and `user.sync_push: manual`.
-                - Drive: `chdir` to clone A and call `handleSync({ json: true })`
-                  with stdout spied; parse the envelope.
-                - Assert envelope: `cell: "worktree-only"`,
-                  `worktree.result: "failed"` with a non-empty `detail`,
-                  `notes: { action: "save", result: "success" }`, `exitCode: 1`.
-                  Assert origin's `main` ref unchanged from clone B's commit (no
-                  force-push leaked through). Assert clone A's local
-                  `refs/notes/arc/user/test-user` exists and matches the saved
-                  manifest hash recorded in `.sync-state.json`.
 
     - `[ ]` **2.R.3.c JSON purity child-process tests**
 
