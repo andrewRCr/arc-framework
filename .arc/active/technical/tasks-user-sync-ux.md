@@ -543,19 +543,17 @@ The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) is built as a 
           with mocks; this task proves the shipped binary stays clean across
           representative cells.
 
-            - `[ ]` **2.R.3.c.0 Subprocess CLI invocation helper**
-                - Add `__tests__/helpers/run-cli.ts` exposing
-                  `runCli(args, options)` that spawns
-                  `node packages/arc-framework/dist/cli.js <args>` via
-                  `child_process.spawn` with `cwd`, `env`, and `stdio: "pipe"`,
-                  collects stdout/stderr buffers separately, and returns
-                  `{ stdout, stderr, exitCode }`. Default timeout: 10s with
-                  rejection on overrun.
-                - Forward-compat: keep `args`, `cwd`, and `env` parameterizable so
-                  future subprocess tests (beyond `arc sync`) can reuse the same
-                  helper.
-                - Build `test-first` with one trivial scenario: `runCli(["--help"])`
-                  returns exit 0 and stdout containing the program name.
+            - `[x]` **2.R.3.c.0 Subprocess CLI invocation helper**
+                - `runCli(args, options)` lives at `__tests__/helpers/run-cli.ts`,
+                  spawning `node dist/cli.js <args>` via `child_process.spawn`
+                  with `stdio: "pipe"`. `cwd`, `env` (merged on top of
+                  `process.env`), and `timeout` (default 10s, `SIGKILL` on
+                  overrun) are parameterizable so the purity tests in 2.R.3.c.1
+                  and future subprocess scenarios reuse the same shape.
+                - Smoke test in `__tests__/e2e/run-cli.e2e.test.ts` confirms
+                  `runCli(["--help"])` resolves with `exitCode: 0` and stdout
+                  containing `arc`. Lives under e2e config so the existing
+                  `global-setup` builds `dist/cli.js` before the helper runs.
 
             - `[ ]` **2.R.3.c.1 Stdout purity across five representative cells**
                 - _Goal:_ For each representative cell, asserting `stdout` parses
