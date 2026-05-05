@@ -9,12 +9,13 @@
 - **Task List:** `tasks-user-sync-ux.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task 2.R.2.c — Worktree-leg pushability/state gate + helper extraction
-- **Next Task:** Task 2.R.2.d — JSON contract and `--yes` semantics (line ~371)
+- **Last Completed:** Task 2.R.2.d.3 — stdout purity under `--json`
+- **Next Task:** Task 2.R.2.d.4 — Error-path envelope coverage (line ~433)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 2.R.2.d — pin the `arc sync --json` envelope contract (single
-  object on stdout, structured error paths, `interlockState` field, dry-run parity) and wire
-  `--yes` into matrix dispatch.
+- **Next Action:** Begin Task 2.R.2.d.4 — convert the `resolveUserIdentity` and
+  `requireArcProjectRoot` early returns in `handleSync` from silent exit-0 to a
+  `{ cell: "none", reason: "identity-absent" | "no-arc-project" }` envelope with
+  `process.exitCode > 0`; add contract tests for both paths.
 
 ---
