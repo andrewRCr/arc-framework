@@ -481,17 +481,17 @@ The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) is built as a 
         - _Goal:_ A real two-clone topology proves the post-2.R sync contract end-to-end and
           gives downstream plans (`plan-coord-probe.md`) a reusable harness.
 
-            - `[ ]` **2.R.3.a.0 Multi-clone test harness**
-                - Add `__tests__/helpers/multi-clone.ts` exposing `setupMultiClone()` returning
-                  `{ origin, cloneA, cloneB, cleanup }`. Helper creates a tmp dir,
-                  `git init --bare origin.git`, two `git clone` clones with the notes refspec
-                  configured, returns handles.
-                - Forward-compat: helper is reusable by `plan-coord-probe.md` (branch-gone
-                  signal coverage) and any future cross-machine regression. Build with that
-                  second consumer in mind — keep clone setup parameterizable (identity per
-                  clone, optional initial commit, optional config overrides).
-                - Build `test-first` with one trivial cross-clone scenario (clone A pushes
-                  commit; clone B fetches and observes it) to exercise the harness shape.
+            - `[x]` **2.R.3.a.0 Multi-clone test harness**
+                - `setupMultiClone()` in `__tests__/helpers/multi-clone.ts` returns
+                  `{ origin, cloneA, cloneB, cleanup }`; bare origin is seeded with one
+                  initial commit on `main` and each clone has the ARC user-notes fetch
+                  refspec configured via `configureNotesRefspec`.
+                - Setup is parameterizable per clone (`authorName`, `authorEmail`, arbitrary
+                  `git config` overrides) and per-harness (`initialCommit`), keeping the
+                  shape reusable by `plan-coord-probe.md` and other cross-machine regressions.
+                - Trivial cross-clone scenario in `__tests__/integration/multi-clone.test.ts`
+                  exercises the topology end-to-end: clone A pushes an empty commit to
+                  `origin/main`; clone B fetches and sees the same SHA.
 
             - `[ ]` **2.R.3.a.1 Cross-clone sync regression**
                 - Using the harness, build the regression: clone A changes session notes and
