@@ -195,12 +195,14 @@ the last root bullet (the last peer descriptor when present); by convention inde
 "Goal's children" — what serves Goal — regardless of which root bullet structurally precedes
 the indent.
 
-**Goal preserved across completion; peer descriptors and body replaced.** At `[x]`, Goal
-stays verbatim. Peer descriptors (when present) and all Goal-children (description bullets,
-Build test-first lists) are subsumed by a single `_Outcome:_` bullet at root level — peer to
-Goal. Goal opens the post-completion shape; Outcome closes it; the two protected surfaces
+**Goal preserved across completion; peer descriptors and body replaced.** At `[x]`, Goal stays
+verbatim. Peer descriptors (when present) and all Goal-children (description bullets, Build
+test-first lists) are pruned — replaced by a rolled-up `_Outcome:_` bullet at parent-Goal indent
+**placed after all subtasks** when the rollup carries signal (synthesis, verification, or
+cross-cutting), or simply removed when title + Goal already capture the work. Goal opens the
+post-completion shape; Outcome (when added) closes it from below; the two protected surfaces
 frame what was the pre-completion middle. See [process-task-loop § Completion notes content
-discipline][process-task-loop] for the content bound on Outcome.
+discipline][process-task-loop] for the threshold and granularity rules.
 
 **Per-subtask description shifts in place** (unchanged behavior). At `[x]`, each subtask's
 description bullets at indent +2 shift from plan-content to outcome-content — same shape,

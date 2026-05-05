@@ -82,14 +82,23 @@ arc:
        - **No inline dates**: Don't add completion dates to individual tasks (e.g., "Completed: 2025-11-02"). Inline
          dates become temporal noise during archival. WU-level completion date lives on the completion doc's
          `**Completed:**` field; no task list or per-task date stamp is expected.
-       - **Completion notes — content discipline.** At task completion, **`_Goal:_` is preserved
-         verbatim** — protected surface alongside the title. **Replace** pre-completion peer descriptors
-         (`_Note:_`, `_Rationale:_`, `_Approach:_`, `_Context:_`, `_Shape:_`) and Goal-children
-         (description bullets, Build test-first lists) with a single `_Outcome:_` bullet at root level —
-         peer to Goal. Don't accumulate plan AND outcome — the historical record needs only what was
-         done. Outcome content is optional when title + Goal fully capture the work; not every `[x]`
-         requires an Outcome bullet. See [strategy-task-list-formatting § Goal/Note Lines][strat-tlf]
-         for the full pre/post shape.
+       - **Completion notes — content discipline.** At `[x]`, **`_Goal:_` is preserved verbatim**.
+         **Replace** pre-completion peer descriptors (`_Note:_`, `_Rationale:_`, `_Approach:_`,
+         `_Context:_`, `_Shape:_`) and Goal-children (description bullets, Build test-first lists)
+         with a single `_Outcome:_` bullet at root — peer to Goal, **placed after the subtasks**
+         (Goal opens; Outcome closes from below). Don't accumulate plan AND outcome.
+
+         **Add an Outcome only when it earns signal** — one of: **synthesis** (emerges from the
+         union of subtasks; not in any one subtask's notes), **verification** (non-trivial closure
+         of the Goal loop, not a hollow mirror), or **cross-cutting impact** (downstream consequence
+         spanning subtasks). Test: would a reviewer lose anything they couldn't derive from subtask
+         notes or Goal? No → skip.
+
+         **Granularity:** at most one Outcome per closing cascade, at the deepest parent whose
+         scope matches the work-unit-of-this-commit. Ancestors that mechanically `[x]` from cascade
+         take no new Outcome.
+
+         See [strategy-task-list-formatting § Goal/Note Lines][strat-tlf] for full pre/post shape.
 
          **Include:** what changed (key files/symbols when not obvious from the title); decisions worth
          preserving — only when the choice would surprise a reader; cross-references to the commit, ADR, or
