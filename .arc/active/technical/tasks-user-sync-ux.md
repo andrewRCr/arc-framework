@@ -476,7 +476,7 @@ The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) is built as a 
 - _Goal:_ Test coverage catches the cross-machine and handoff failures that mocked unit tests
   missed.
 
-    - `[ ]` **2.R.3.a Cross-clone handoff sync regression**
+    - `[x]` **2.R.3.a Cross-clone handoff sync regression**
 
         - _Goal:_ A real two-clone topology proves the post-2.R sync contract end-to-end and
           gives downstream plans (`plan-coord-probe.md`) a reusable harness.
@@ -493,13 +493,16 @@ The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) is built as a 
                   exercises the topology end-to-end: clone A pushes an empty commit to
                   `origin/main`; clone B fetches and sees the same SHA.
 
-            - `[ ]` **2.R.3.a.1 Cross-clone sync regression**
-                - Using the harness, build the regression: clone A changes session notes and
-                  runs `npx arc sync --json`; assert clone A's `HEAD` has a verified note,
-                  origin's user notes ref advanced, and clone B can fetch/pull the current
-                  note.
-                - Assert clone B's session-init and session-handoff freshness detail reflects
-                  current `HEAD` after pull.
+            - `[x]` **2.R.3.a.1 Cross-clone sync regression**
+                - Clone A's `arc sync --json` envelope reports the `notes-only` cell with a
+                  successful notes push; clone A's `HEAD` carries the verified user note
+                  (`.sync-state.json` records `verifiedAt` with `sourceCommit` matching `HEAD`)
+                  and origin's `refs/notes/arc/user/test-user` advances to the same tip as
+                  clone A's local ref.
+                - Clone B's `runUserPull` fetches the new note, restores `SESSION-NOTES.md`
+                  byte-for-byte, and `runUserSessionInitStatus` reports
+                  `localNoteFreshness.state: "current-head"` at clone B's `HEAD` — covering
+                  both session-init and session-handoff consumers, which share that probe.
 
     - `[ ]` **2.R.3.b Matrix edge coverage**
         - Add unit/integration coverage for the blocked and edge cells discovered in the audit:
