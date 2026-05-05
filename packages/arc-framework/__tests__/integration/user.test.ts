@@ -1379,6 +1379,35 @@ describe("user status", () => {
     });
   });
 
+  it("reports session-init stale local-note freshness when matching refs are behind HEAD", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Saved before new HEAD", "utf-8");
+    const saveResult = await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await runUserPush({ io, identity: "test-user" });
+    await makeCommit(tempDir, "advance after save");
+
+    const result = await runUserSessionInitStatus({
+      cwd: tempDir,
+      io,
+      identity: "test-user",
+      remoteSyncEnabled: true,
+    });
+
+    expect(result.state).toBe("clean");
+    expect(result.localNoteFreshness).toMatchObject({
+      state: "ancestor",
+      commit: expect.stringMatching(new RegExp(`^${saveResult.commit}`)),
+      ancestorDistance: 1,
+      reachableFromHead: true,
+    });
+    expect(result.detailLines).toContain(
+      `Latest local user note is from ${saveResult.commit}, 1 commit(s) behind HEAD.`,
+    );
+    expect(result.actionHint).toBe("run `arc user save` or `arc sync` before relying on handoff");
+  });
+
   // --- Worktree drift qualifier (real exec) ---
   //
   // Verifies that `runUserStatus` orchestrates a real `runWorktreeSyncStatus`

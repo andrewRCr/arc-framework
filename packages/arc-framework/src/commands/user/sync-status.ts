@@ -15,6 +15,7 @@ import type {
   InspectUserSyncOptions,
   UserDiskStatus,
   UserIOContext,
+  UserSessionLocalNoteFreshness,
   UserRemoteStatus,
   UserSessionInitStatusOptions,
   UserSessionInitStatusResult,
@@ -150,7 +151,7 @@ async function readCommitRelativeAge(
 export async function runUserSessionInitStatus(
   options: UserSessionInitStatusOptions,
 ): Promise<UserSessionInitStatusResult> {
-  const { io, identity, remoteSyncEnabled } = options;
+  const { cwd, io, identity, remoteSyncEnabled } = options;
 
   if (!remoteSyncEnabled) {
     return buildUserSessionInitStatusResult({
@@ -159,7 +160,10 @@ export async function runUserSessionInitStatus(
     });
   }
 
-  const refInspection = await inspectUserSyncRefsDetailed(io, identity);
+  const [refInspection, localNoteFreshness] = await Promise.all([
+    inspectUserSyncRefsDetailed(io, identity),
+    inspectSessionLocalNoteFreshness({ cwd, io, identity }),
+  ]);
   return buildUserSessionInitStatusResult({
     identity,
     spine: computeUserSyncSpine({
@@ -167,7 +171,38 @@ export async function runUserSessionInitStatus(
       refState: refInspection.state,
     }),
     comparison: refInspection.comparison,
+    localNoteFreshness,
   });
+}
+
+async function inspectSessionLocalNoteFreshness(input: {
+  cwd: string;
+  io: UserIOContext;
+  identity: string;
+}): Promise<UserSessionLocalNoteFreshness> {
+  const { note } = await findNearestUserNote(input);
+  if (!note) {
+    return {
+      state: "missing",
+      commit: null,
+      ancestorDistance: 0,
+    };
+  }
+
+  const base = {
+    commit: note.commit,
+    ancestorDistance: note.ancestorDistance,
+    noteHistoryDistance: note.noteHistoryDistance,
+    reachableFromHead: note.reachableFromHead,
+  };
+
+  if (!note.reachableFromHead) {
+    return { state: "outside-head-ancestry", ...base };
+  }
+  if (note.ancestorDistance > 0) {
+    return { state: "ancestor", ...base };
+  }
+  return { state: "current-head", ...base };
 }
 
 interface UserSyncRefInspection {
@@ -261,8 +296,12 @@ function buildUserSessionInitStatusResult(input: {
   identity: string;
   spine: UserSyncSpine;
   comparison?: UserSyncRefInspection["comparison"];
+  localNoteFreshness?: UserSessionLocalNoteFreshness;
 }): UserSessionInitStatusResult {
   const { identity, spine } = input;
+  const staleNoteAction = shouldWarnStaleLocalNote(spine, input.localNoteFreshness)
+    ? "run `arc user save` or `arc sync` before relying on handoff"
+    : null;
 
   switch (spine.state) {
     case "disabled":
@@ -284,11 +323,16 @@ function buildUserSessionInitStatusResult(input: {
         state: spine.state,
         ...(spine.coherenceState ? { coherenceState: spine.coherenceState } : {}),
         summary: `${identity}: session-init local notes match remote notes`,
-        detailLines: spine.refState === "local-ahead"
-          ? ["Local notes are newer than remote notes, but no pull is needed before continuing."]
-          : ["Remote notes match local notes."],
-        actionHint: null,
+        detailLines: [
+          ...(spine.refState === "local-ahead"
+            ? ["Local notes are newer than remote notes, but no pull is needed before continuing."]
+            : ["Remote notes match local notes."]),
+          ...renderSessionLocalNoteFreshness(input.localNoteFreshness),
+          ...(staleNoteAction ? [`Next step: ${staleNoteAction}.`] : []),
+        ],
+        actionHint: staleNoteAction,
         shouldPromptToPull: spine.shouldPromptToPull,
+        ...(input.localNoteFreshness ? { localNoteFreshness: input.localNoteFreshness } : {}),
       };
     case "remote-ahead":
       return {
@@ -302,6 +346,7 @@ function buildUserSessionInitStatusResult(input: {
         ],
         actionHint: "run `arc user pull` before continuing session-init",
         shouldPromptToPull: spine.shouldPromptToPull,
+        ...(input.localNoteFreshness ? { localNoteFreshness: input.localNoteFreshness } : {}),
       };
     case "conflict":
       return {
@@ -315,6 +360,7 @@ function buildUserSessionInitStatusResult(input: {
         ],
         actionHint: "run `arc user pull` to replace local notes before continuing session-init",
         shouldPromptToPull: spine.shouldPromptToPull,
+        ...(input.localNoteFreshness ? { localNoteFreshness: input.localNoteFreshness } : {}),
       };
     case "remote-unavailable":
       if (input.comparison === "comparison-unavailable") {
@@ -329,6 +375,7 @@ function buildUserSessionInitStatusResult(input: {
           ],
           actionHint: "continue locally or retry session-init where git fetch/write access is allowed",
           shouldPromptToPull: spine.shouldPromptToPull,
+          ...(input.localNoteFreshness ? { localNoteFreshness: input.localNoteFreshness } : {}),
         };
       }
       return {
@@ -342,7 +389,40 @@ function buildUserSessionInitStatusResult(input: {
         ],
         actionHint: "continue locally or retry once the remote is reachable",
         shouldPromptToPull: spine.shouldPromptToPull,
+        ...(input.localNoteFreshness ? { localNoteFreshness: input.localNoteFreshness } : {}),
       };
+  }
+}
+
+function shouldWarnStaleLocalNote(
+  spine: UserSyncSpine,
+  freshness: UserSessionLocalNoteFreshness | undefined,
+): boolean {
+  return spine.refState === "same" && freshness?.state === "ancestor";
+}
+
+function renderSessionLocalNoteFreshness(
+  freshness: UserSessionLocalNoteFreshness | undefined,
+): string[] {
+  if (!freshness) return [];
+
+  switch (freshness.state) {
+    case "missing":
+      return ["No local user note exists for this identity."];
+    case "current-head":
+      return ["Latest local user note is current with HEAD."];
+    case "ancestor":
+      return [
+        `Latest local user note is from ${freshness.commit?.slice(0, 7)}, ${freshness.ancestorDistance} commit(s) behind HEAD.`,
+      ];
+    case "outside-head-ancestry": {
+      const historyDetail = freshness.noteHistoryDistance === undefined
+        ? ""
+        : ` (${freshness.noteHistoryDistance} note update(s) back)`;
+      return [
+        `Latest local user note is from ${freshness.commit?.slice(0, 7)}, outside current HEAD ancestry${historyDetail}.`,
+      ];
+    }
   }
 }
 

@@ -550,6 +550,15 @@ describe("partial-push coherence condition", () => {
 });
 
 describe("runUserSessionInitStatus", () => {
+  const staleNoteCommit = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const headCommit = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+  const noteHistoryCommit = "cccccccccccccccccccccccccccccccccccccccc";
+  const notesRef = "refs/notes/arc/user/andrew";
+
+  function notePathFor(commit: string): string {
+    return `${commit.slice(0, 2)}/${commit.slice(2)}`;
+  }
+
   const io = {
     exec: async () => ({ stdout: "", stderr: "" }),
     readDir: async () => [],
@@ -597,10 +606,69 @@ describe("runUserSessionInitStatus", () => {
     });
 
     expect(result.state).toBe("clean");
-    expect(calls).toEqual([
+    expect(calls).toEqual(expect.arrayContaining([
       { cmd: "git", args: ["rev-parse", "--verify", "refs/notes/arc/user/andrew"] },
       { cmd: "git", args: ["ls-remote", "origin", "refs/notes/arc/user/andrew"] },
-    ]);
+    ]));
+    expect(calls.some(({ args }) => args[0] === "fetch")).toBe(false);
+  });
+
+  it("surfaces stale local-note freshness when matching refs are behind HEAD", async () => {
+    const sameRefHash = "dddddddddddddddddddddddddddddddddddddddd";
+    const probeIO = {
+      ...io,
+      exec: async (_cmd: string, args: string[]) => {
+        if (args[0] === "rev-parse" && args[1] === "--verify") {
+          return { stdout: `${sameRefHash}\n`, stderr: "" };
+        }
+        if (args[0] === "ls-remote") {
+          return { stdout: `${sameRefHash}\t${notesRef}\n`, stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "HEAD") {
+          return { stdout: `${headCommit}\n`, stderr: "" };
+        }
+        if (args[0] === "log") {
+          return { stdout: `${noteHistoryCommit}\n`, stderr: "" };
+        }
+        if (args[0] === "diff-tree") {
+          return { stdout: `${notePathFor(staleNoteCommit)}\n`, stderr: "" };
+        }
+        if (args[0] === "show") {
+          return { stdout: JSON.stringify({ version: 2, files: {} }), stderr: "" };
+        }
+        if (args[0] === "merge-base") {
+          return { stdout: "", stderr: "" };
+        }
+        if (args[0] === "rev-list") {
+          return { stdout: "2\n", stderr: "" };
+        }
+        throw new Error(`unexpected command: git ${args.join(" ")}`);
+      },
+    };
+
+    const result = await runUserSessionInitStatus({
+      cwd: "/repo",
+      io: probeIO,
+      identity: "andrew",
+      remoteSyncEnabled: true,
+    });
+
+    expect(result.state).toBe("clean");
+    expect(result.shouldPromptToPull).toBe(false);
+    expect(result.localNoteFreshness).toEqual({
+      state: "ancestor",
+      commit: staleNoteCommit,
+      ancestorDistance: 2,
+      noteHistoryDistance: 0,
+      reachableFromHead: true,
+    });
+    expect(result.detailLines).toContain(
+      "Latest local user note is from aaaaaaa, 2 commit(s) behind HEAD.",
+    );
+    expect(result.detailLines).toContain(
+      "Next step: run `arc user save` or `arc sync` before relying on handoff.",
+    );
+    expect(result.actionHint).toBe("run `arc user save` or `arc sync` before relying on handoff");
   });
 
   it("treats fetch-blocked ancestry comparison as local continuation, not stale-note divergence", async () => {

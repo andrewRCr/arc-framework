@@ -412,6 +412,20 @@ export interface UserStatusOptions {
  */
 export type UserSessionInitQualifier = "clean-at-current-head";
 
+export type UserSessionLocalNoteFreshnessState =
+  | "missing"
+  | "current-head"
+  | "ancestor"
+  | "outside-head-ancestry";
+
+export interface UserSessionLocalNoteFreshness {
+  state: UserSessionLocalNoteFreshnessState;
+  commit: string | null;
+  ancestorDistance: number;
+  noteHistoryDistance?: number;
+  reachableFromHead?: boolean;
+}
+
 export interface UserSessionInitStatusResult {
   identity: string;
   state: UserSessionInitState;
@@ -421,6 +435,12 @@ export interface UserSessionInitStatusResult {
   detailLines: string[];
   actionHint: string | null;
   shouldPromptToPull: boolean;
+  /**
+   * Freshness of the newest local user note relative to current HEAD. Present
+   * on remote-enabled session probes so workflows can distinguish "refs
+   * match" from "current-HEAD note exists" without overloading `state`.
+   */
+  localNoteFreshness?: UserSessionLocalNoteFreshness;
   /**
    * Optional qualifier carrying cross-channel context (e.g., the worktree
    * sync state limits what the notes-clean verdict really means). Omitted

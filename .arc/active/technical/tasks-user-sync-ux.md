@@ -282,10 +282,13 @@ implementation when wrappers ship, without re-extracting from raw `git push` cal
 The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) is built as a reusable seam
 — `plan-coord-probe.md` inherits it for branch-gone signal coverage.
 
-### `[ ]` **2.R.1 Verified save and freshness surfaces**
+### `[x]` **2.R.1 Verified save and freshness surfaces**
 
 - _Goal:_ Save, push, and status surfaces cannot report success or "clean" when current-`HEAD`
   user notes were not actually saved or the latest local note is stale.
+- _Outcome:_ Save now verifies exact-`HEAD` note readback before advancing sync-state;
+  no-op push and session status surfaces distinguish matching refs from current-`HEAD`
+  freshness and warn before handoff when the latest local note is stale.
 
     - `[x]` **2.R.1.a Save postcondition verification**
         - `runUserSave` now verifies an exact-`HEAD` note readback before advancing
@@ -307,13 +310,14 @@ The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) is built as a 
           path warns that handoff needs `arc user save` or `arc sync`; unit and real-git
           integration coverage pin the stale-local warning while preserving no-op behavior.
 
-    - `[ ]` **2.R.1.c Session-init/handoff stale freshness detail**
-        - Add session-facing freshness detail when local and remote notes refs match but
-          `findNearestUserNote` resolves to an ancestor of `HEAD` with `ancestorDistance > 0`.
-        - `npx arc status --session-init --json` and `npx arc status --session-handoff --json`
-          must expose enough structured detail for workflows to distinguish "refs equal" from
-          "current-HEAD note exists."
-        - Build `test-first` for both session surfaces.
+    - `[x]` **2.R.1.c Session-init/handoff stale freshness detail**
+        - Session user probes now expose `localNoteFreshness`, preserving the five-state
+          ref-topology verdict while distinguishing missing, current-HEAD, ancestor, and
+          outside-ancestry local notes.
+        - Clean matching-ref session results warn with save/sync handoff guidance when the
+          latest local note is attached to an ancestor of `HEAD`; unit coverage pins both the
+          session-init user result and handoff envelope, with real-git coverage for
+          session-init freshness.
 
 ### `[ ]` **2.R.2 Sync orchestrator execution contract**
 

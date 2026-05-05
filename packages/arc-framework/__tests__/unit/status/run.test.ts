@@ -43,9 +43,11 @@ import type {
   ExtensionsStatusResult,
 } from "../../../src/commands/extensions/types.js";
 import type {
+  UserIOContext,
   UserSessionInitStatusResult,
   UserStatusResult,
 } from "../../../src/commands/user/types.js";
+import { runUserSessionInitStatus } from "../../../src/commands/user.js";
 import type { DirtyStateResult } from "../../../src/lib/git/dirty-state.js";
 import type { HeadHashResult } from "../../../src/lib/git/head-hash.js";
 import type { PushabilityResult } from "../../../src/lib/git/pushability.js";
@@ -200,6 +202,54 @@ function domainRulesSessionInit(
   overrides: Partial<DomainRulesSessionInitResult> = {},
 ): DomainRulesSessionInitResult {
   return { mode: "session-init", rules: [], warnings: [], ...overrides };
+}
+
+const STALE_NOTE_COMMIT = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const HEAD_COMMIT = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+const NOTE_HISTORY_COMMIT = "cccccccccccccccccccccccccccccccccccccccc";
+const USER_NOTES_REF = "refs/notes/arc/user/andrew";
+
+function notePathFor(commit: string): string {
+  return `${commit.slice(0, 2)}/${commit.slice(2)}`;
+}
+
+function staleLocalNoteIO(): UserIOContext {
+  const sameRefHash = "dddddddddddddddddddddddddddddddddddddddd";
+  return {
+    exec: vi.fn(async (_cmd: string, args: string[]) => {
+      if (args[0] === "rev-parse" && args[1] === "--verify") {
+        return { stdout: `${sameRefHash}\n`, stderr: "" };
+      }
+      if (args[0] === "ls-remote") {
+        return { stdout: `${sameRefHash}\t${USER_NOTES_REF}\n`, stderr: "" };
+      }
+      if (args[0] === "rev-parse" && args[1] === "HEAD") {
+        return { stdout: `${HEAD_COMMIT}\n`, stderr: "" };
+      }
+      if (args[0] === "log") {
+        return { stdout: `${NOTE_HISTORY_COMMIT}\n`, stderr: "" };
+      }
+      if (args[0] === "diff-tree") {
+        return { stdout: `${notePathFor(STALE_NOTE_COMMIT)}\n`, stderr: "" };
+      }
+      if (args[0] === "show") {
+        return { stdout: JSON.stringify({ version: 2, files: {} }), stderr: "" };
+      }
+      if (args[0] === "merge-base") {
+        return { stdout: "", stderr: "" };
+      }
+      if (args[0] === "rev-list") {
+        return { stdout: "2\n", stderr: "" };
+      }
+      throw new Error(`unexpected command: git ${args.join(" ")}`);
+    }),
+    readDir: vi.fn(async () => []),
+    readFile: vi.fn(async () => ""),
+    writeFile: vi.fn(async () => undefined),
+    mkdir: vi.fn(async () => undefined),
+    writeNote: vi.fn(async () => undefined),
+    readNote: vi.fn(async () => null),
+  };
 }
 
 function fullProbes(overrides: Partial<StatusProbes> = {}): StatusProbes {
@@ -830,6 +880,37 @@ describe("runSessionHandoffStatus — orchestration", () => {
     });
     expect(result.user.ok).toBe(true);
     if (result.user.ok) expect(result.user.value.state).toBe("remote-ahead");
+  });
+
+  it("carries stale local-note freshness through the handoff user slot", async () => {
+    const io = staleLocalNoteIO();
+    const probes = sessionHandoffProbes({
+      user: vi.fn((identity) =>
+        runUserSessionInitStatus({
+          cwd: "/repo",
+          io,
+          identity,
+          remoteSyncEnabled: true,
+        })),
+    });
+
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+
+    expect(result.user.ok).toBe(true);
+    if (result.user.ok) {
+      expect(result.user.value.localNoteFreshness).toMatchObject({
+        state: "ancestor",
+        commit: STALE_NOTE_COMMIT,
+        ancestorDistance: 2,
+      });
+      expect(result.user.value.detailLines).toContain(
+        "Next step: run `arc user save` or `arc sync` before relying on handoff.",
+      );
+    }
   });
 
   it("returns push interlock with provenance from the pushInterlock probe", async () => {
