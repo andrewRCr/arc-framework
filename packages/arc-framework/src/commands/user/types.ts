@@ -176,7 +176,16 @@ function buildBlockedMessage(conditions: PushabilityCondition[]): string {
 export type UserPushResult = { kind: "pushed" } | { kind: "noop" };
 
 /** Reason a paired-push leg was skipped without firing. */
-export type PairedPushSkipReason = "blocked-by-precheck" | "preceding-leg-failed";
+export type PairedPushSkipReason =
+  | "blocked-by-precheck"
+  | "preceding-leg-failed"
+  | "save-failed";
+
+/** Outcome of the local save boundary that precedes a paired push. */
+export type PairedPushSaveOutcome =
+  | { status: "success"; result: UserSaveResult }
+  | { status: "failed"; error: Error }
+  | { status: "skipped"; reason: "blocked-by-precheck" };
 
 /**
  * Outcome of a single push leg in a paired worktree+notes push.
@@ -199,6 +208,8 @@ export type PairedPushLegOutcome =
  * succeed, 1 in every other case (including pre-check block).
  */
 export interface PairedPushResult {
+  /** Save result for the local user directory before either push leg fires. */
+  save: PairedPushSaveOutcome;
   worktree: PairedPushLegOutcome;
   notes: PairedPushLegOutcome;
   /** Pushability conditions surfaced by the pre-check matrix. */

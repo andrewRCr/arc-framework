@@ -54,6 +54,7 @@ export {
   type UserLoadWalkExhausted,
   type PairedPushLegOutcome,
   type PairedPushResult,
+  type PairedPushSaveOutcome,
   type PairedPushSkipReason,
   type RunPairedPushOptions,
   type UserPullOptions,

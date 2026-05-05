@@ -162,6 +162,42 @@ describe("user status from a subdirectory", () => {
   });
 });
 
+describe("sync orchestrator", () => {
+  let tmpDir: string;
+  let bareDir: string;
+  const tempDirs: string[] = [];
+
+  beforeEach(async () => {
+    tmpDir = await createTempRepo();
+    tempDirs.push(tmpDir);
+  });
+
+  afterEach(async () => {
+    for (const dir of tempDirs) {
+      await cleanupTempDir(dir);
+    }
+    tempDirs.length = 0;
+  });
+
+  it("default config on a clean worktree saves a user note on HEAD", async () => {
+    await initAndCommit(tmpDir);
+
+    bareDir = join(tmpDir, "..", "sync-remote.git");
+    tempDirs.push(bareDir);
+    await git(["init", "--bare", bareDir], tmpDir);
+    await git(["remote", "add", "origin", bareDir], tmpDir);
+    const branch = await git(["branch", "--show-current"], tmpDir);
+    await git(["push", "-u", "origin", branch], tmpDir);
+
+    const result = await runArc(["sync"], tmpDir);
+
+    expect(result.exitCode).toBe(0);
+    await expect(
+      git(["notes", "--ref", "refs/notes/arc/user/test-user", "show", "HEAD"], tmpDir),
+    ).resolves.toContain("SESSION-NOTES.md");
+  });
+});
+
 describe("user push/pull portability", () => {
   let tmpDir: string;
   let bareDir: string;

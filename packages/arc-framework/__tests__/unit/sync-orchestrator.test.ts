@@ -139,6 +139,10 @@ describe("handleSync orchestrator matrix dispatch", () => {
     setNotesPolicy("always");
     setWorktree("clean");
     mockRunPairedPush.mockResolvedValue({
+      save: {
+        status: "success",
+        result: { identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] },
+      },
       worktree: { status: "success" },
       notes: { status: "success" },
       conditions: [],
@@ -156,6 +160,45 @@ describe("handleSync orchestrator matrix dispatch", () => {
     expect(mockRunUserSave).not.toHaveBeenCalled();
     expect(mockPushWithRecovery).not.toHaveBeenCalled();
     expect(process.exitCode).toBeUndefined();
+  });
+
+  it("paired-cell save failure reports JSON failure without a separate orchestrator save", async () => {
+    setConfig("on-sync");
+    setNotesPolicy("always");
+    setWorktree("clean");
+    mockRunPairedPush.mockResolvedValue({
+      save: {
+        status: "failed",
+        error: new Error("save verification failed"),
+      },
+      worktree: { status: "skipped", reason: "save-failed" },
+      notes: { status: "skipped", reason: "save-failed" },
+      conditions: [],
+      exitCode: 1,
+    });
+    const stdoutWrite = vi
+      .spyOn(process.stdout, "write")
+      .mockImplementation(() => true);
+    let written: string | undefined;
+
+    try {
+      await handleSync({ json: true });
+      written = stdoutWrite.mock.calls.map((call) => String(call[0])).join("");
+    } finally {
+      stdoutWrite.mockRestore();
+    }
+
+    expect(mockRunPairedPush).toHaveBeenCalledTimes(1);
+    expect(mockRunUserSave).not.toHaveBeenCalled();
+    expect(mockPushWithRecovery).not.toHaveBeenCalled();
+    expect(pushedBranchInvocations()).toEqual([]);
+    expect(JSON.parse(written ?? "")).toEqual({
+      cell: "paired-push",
+      worktree: { action: "skip", result: "skipped", detail: "save-failed" },
+      notes: { action: "save", result: "failed", detail: "save verification failed" },
+      exitCode: 1,
+    });
+    expect(process.exitCode).toBe(1);
   });
 
   it("push_interlock: manual + notes_push: on-sync + worktree local-ahead → notes-blocked; save fires; push blocked with guidance", async () => {

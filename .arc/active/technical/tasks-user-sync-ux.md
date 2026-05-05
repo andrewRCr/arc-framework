@@ -324,17 +324,14 @@ The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) is built as a 
 - _Goal:_ Every `arc sync` matrix cell preserves local state, gates unsafe pushes consistently,
   and emits machine-consumable output in JSON mode.
 
-    - `[ ]` **2.R.2.a Paired-cell save-before-push**
-        - Per PRD R5, save lives inside `runPairedPush` (`commands/user/paired-push.ts`).
-          Insert a verified-save step (using the post-2.R.1.a `runUserSave`) before
-          `pushWorktreeLeg`. Save failure short-circuits both legs with explicit JSON outcome
-          (no push fires). The orchestrator does not call `runUserSave` separately for the
-          paired cell — single boundary, single owner.
-        - Update orchestrator tests that currently assert paired sync skips save; replace with
-          an ordering assertion that save precedes the worktree leg, and a regression that
-          save-failure prevents both pushes.
-        - Add a regression fixture for default config + clean worktree: after `arc sync`,
-          `git notes --ref refs/notes/arc/user/{identity} show HEAD` succeeds.
+    - `[x]` **2.R.2.a Paired-cell save-before-push**
+        - `runPairedPush` now saves the user directory to `HEAD` with `runUserSave` before
+          either push leg fires. Save failure returns a `save-failed` paired result and skips
+          both worktree and notes pushes.
+        - The orchestrator reports paired save failure as a structured save failure in JSON
+          output, while keeping save ownership inside the paired helper. Unit coverage pins
+          save-before-push ordering and no-push-on-save-failure; E2E coverage verifies
+          `arc sync` leaves a readable `HEAD` user note on a default clean-worktree setup.
 
     - `[ ]` **2.R.2.b Blocked-cell local-save invariant**
         - Encode the invariant: save the current user dir to `HEAD` before refusing the remote

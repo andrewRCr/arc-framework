@@ -18,11 +18,15 @@ import type { UserIOContext } from "../../src/commands/user/types.js";
 
 const mockRecordPartialPushMarker = vi.fn();
 const mockClearPartialPushMarker = vi.fn();
+const mockRunUserSave = vi.fn();
 
 vi.mock("../../src/commands/user/save-load.js", () => ({
+  runUserSave: (opts: unknown) => mockRunUserSave(opts),
   recordPartialPushMarker: (...args: unknown[]) => mockRecordPartialPushMarker(...args),
   clearPartialPushMarker: (...args: unknown[]) => mockClearPartialPushMarker(...args),
 }));
+
+const { UserSaveError } = await import("../../src/commands/user/types.js");
 
 const { runPairedPush } = await import("../../src/commands/user/paired-push.js");
 
@@ -38,10 +42,16 @@ interface ExecStub {
   calls: Array<{ args: string[] }>;
 }
 
-function buildExec(responses: Record<string, ExecResult | ResponseFn>): ExecStub {
+function buildExec(
+  responses: Record<string, ExecResult | ResponseFn>,
+  pushEvents?: string[],
+): ExecStub {
   const calls: Array<{ args: string[] }> = [];
   const exec: GitExec = async (cmd, args, options) => {
     calls.push({ args });
+    if (pushEvents !== undefined && args[0] === "push") {
+      pushEvents.push(args.join(" "));
+    }
     void cmd;
     const key = matchKey(args, responses);
     if (key === null) {
@@ -125,18 +135,48 @@ const COMMON_OPTIONS = {
 describe("runPairedPush", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    mockRunUserSave.mockResolvedValue({
+      identity: "andrew",
+      commit: "abc1234",
+      fileCount: 1,
+      warnings: [],
+    });
   });
 
-  it("both legs succeed → result reports both succeeded; worst-outcome exit 0", async () => {
-    const { exec, calls } = buildExec(cleanRepoResponses());
+  it("save and both push legs succeed → result reports success; save precedes pushes", async () => {
+    const pushEvents: string[] = [];
+    mockRunUserSave.mockImplementation(async () => {
+      pushEvents.push("save");
+      return {
+        identity: "andrew",
+        commit: "abc1234",
+        fileCount: 1,
+        warnings: [],
+      };
+    });
+    const { exec, calls } = buildExec(cleanRepoResponses(), pushEvents);
     const io = buildIo(exec);
     const access = buildAccess([]);
 
     const result = await runPairedPush({ io, access, ...COMMON_OPTIONS });
 
     expect(result.exitCode).toBe(0);
+    expect(result.save).toEqual({
+      status: "success",
+      result: {
+        identity: "andrew",
+        commit: "abc1234",
+        fileCount: 1,
+        warnings: [],
+      },
+    });
     expect(result.worktree).toEqual({ status: "success" });
     expect(result.notes).toEqual({ status: "success" });
+    expect(mockRunUserSave).toHaveBeenCalledWith({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+    });
 
     const pushArgs = calls
       .map((c) => c.args)
@@ -145,8 +185,41 @@ describe("runPairedPush", () => {
       ["push", "origin", "main"],
       ["push", "origin", NOTES_REF],
     ]);
+    expect(pushEvents).toEqual([
+      "save",
+      "push origin main",
+      `push origin ${NOTES_REF}`,
+    ]);
 
     expect(mockRecordPartialPushMarker).not.toHaveBeenCalled();
+  });
+
+  it("save failure short-circuits both push legs", async () => {
+    const saveError = new UserSaveError("No eligible files found in user directory to save.");
+    mockRunUserSave.mockRejectedValue(saveError);
+    const { exec, calls } = buildExec(cleanRepoResponses());
+    const io = buildIo(exec);
+    const access = buildAccess([]);
+
+    const result = await runPairedPush({ io, access, ...COMMON_OPTIONS });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.save).toEqual({ status: "failed", error: saveError });
+    expect(result.worktree).toEqual({
+      status: "skipped",
+      reason: "save-failed",
+    });
+    expect(result.notes).toEqual({
+      status: "skipped",
+      reason: "save-failed",
+    });
+
+    const pushArgs = calls
+      .map((c) => c.args)
+      .filter((args) => args[0] === "push");
+    expect(pushArgs).toEqual([]);
+    expect(mockRecordPartialPushMarker).not.toHaveBeenCalled();
+    expect(mockClearPartialPushMarker).not.toHaveBeenCalled();
   });
 
   it("worktree succeeds, notes fails → mixed result; partial-push marker recorded", async () => {
@@ -162,6 +235,7 @@ describe("runPairedPush", () => {
     const result = await runPairedPush({ io, access, ...COMMON_OPTIONS });
 
     expect(result.exitCode).toBe(1);
+    expect(result.save?.status).toBe("success");
     expect(result.worktree).toEqual({ status: "success" });
     expect(result.notes).toEqual({ status: "failed", error: notesError });
 
@@ -187,6 +261,7 @@ describe("runPairedPush", () => {
     const result = await runPairedPush({ io, access, ...COMMON_OPTIONS });
 
     expect(result.exitCode).toBe(1);
+    expect(result.save?.status).toBe("success");
     expect(result.worktree).toEqual({ status: "failed", error: worktreeError });
     expect(result.notes).toEqual({
       status: "skipped",
@@ -210,6 +285,10 @@ describe("runPairedPush", () => {
     const result = await runPairedPush({ io, access, ...COMMON_OPTIONS });
 
     expect(result.exitCode).toBe(1);
+    expect(result.save).toEqual({
+      status: "skipped",
+      reason: "blocked-by-precheck",
+    });
     expect(result.worktree).toEqual({
       status: "skipped",
       reason: "blocked-by-precheck",

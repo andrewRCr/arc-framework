@@ -296,9 +296,20 @@ async function executePaired(ctx: ExecuteContext, branch: string): Promise<SyncO
   return {
     cell: ctx.decision.cellName,
     worktree: pairedLegToRecord(result.worktree, "push"),
-    notes: pairedLegToRecord(result.notes, "save+push"),
+    notes: pairedNotesToRecord(result),
     exitCode: result.exitCode,
   };
+}
+
+function pairedNotesToRecord(result: PairedPushResult): LegOutcomeRecord {
+  if (result.save.status === "failed") {
+    return {
+      action: "save",
+      result: "failed",
+      detail: result.save.error.message,
+    };
+  }
+  return pairedLegToRecord(result.notes, "save+push");
 }
 
 function pairedLegToRecord(
@@ -319,10 +330,17 @@ function renderPairedResult(result: PairedPushResult, branch: string): void {
   for (const condition of result.conditions.filter((c) => c.disposition === "block")) {
     p.log.error(condition.guidance);
   }
+  if (result.save.status === "success" && result.save.result.warnings.length > 0) {
+    p.note(buildSaveSummary(result.save.result), "Saved");
+  } else if (result.save.status === "failed") {
+    p.log.error(`Save failed: ${result.save.error.message}`);
+  }
   if (result.worktree.status === "success") {
     p.log.info(`Worktree pushed: \`${branch}\``);
   } else if (result.worktree.status === "failed") {
     p.log.error(`Worktree push failed: ${result.worktree.error.message}`);
+  } else if (result.worktree.reason === "save-failed") {
+    p.log.warn("Worktree push skipped because the save step failed.");
   } else if (result.worktree.reason === "blocked-by-precheck") {
     p.log.warn("Worktree push skipped: blocked by pre-check.");
   }
@@ -333,6 +351,8 @@ function renderPairedResult(result: PairedPushResult, branch: string): void {
     p.log.warn("Partial publish recorded; recover with `arc user push` (idempotent).");
   } else if (result.notes.reason === "preceding-leg-failed") {
     p.log.warn("Notes push skipped because the worktree leg failed.");
+  } else if (result.notes.reason === "save-failed") {
+    p.log.warn("Notes push skipped because the save step failed.");
   } else {
     p.log.warn("Notes push skipped: blocked by pre-check.");
   }
