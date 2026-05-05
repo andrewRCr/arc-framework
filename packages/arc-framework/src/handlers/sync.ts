@@ -29,6 +29,10 @@ import {
   type UserIOContext,
 } from "../commands/user.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
+import {
+  runPushabilityStatus,
+  type PushabilityCondition,
+} from "../lib/git/index.js";
 import { runWorktreeSyncStatus, type WorktreeSyncState } from "../lib/git/worktree-sync.js";
 import { createUserIOContext } from "../lib/io-context.js";
 import { resolveSyncPushPolicy, type SyncPushPolicy } from "../lib/sync-policy.js";
@@ -50,7 +54,13 @@ type PushInterlock = "manual" | "on-sync";
 
 type WorktreeAction =
   | { kind: "skip-not-configured" }
-  | { kind: "skip-blocked-diverged"; ahead: number; behind: number }
+  | {
+    kind: "skip-blocked-worktree";
+    reason: WorktreeSyncState;
+    ahead: number;
+    behind: number;
+    branch: string | null;
+  }
   | { kind: "push"; branch: string };
 
 type NotesAction =
@@ -84,6 +94,19 @@ const NOTES_BLOCK_WORKTREE_STATES: ReadonlySet<WorktreeSyncState> = new Set([
   "local-ahead",
   "diverged",
   "remote-ahead",
+  "no-upstream",
+  "detached-head",
+  "no-remote",
+  "remote-unavailable",
+]);
+
+const WORKTREE_PUSH_BLOCK_STATES: ReadonlySet<WorktreeSyncState> = new Set([
+  "diverged",
+  "remote-ahead",
+  "no-upstream",
+  "detached-head",
+  "no-remote",
+  "remote-unavailable",
 ]);
 
 /**
@@ -102,14 +125,16 @@ function decideMatrix(input: MatrixInput): MatrixDecision {
 }
 
 function decideWorktree(input: MatrixInput): WorktreeAction {
-  if (input.pushInterlock === "manual" || input.branch === null) {
+  if (input.pushInterlock === "manual") {
     return { kind: "skip-not-configured" };
   }
-  if (input.worktreeState === "diverged") {
+  if (WORKTREE_PUSH_BLOCK_STATES.has(input.worktreeState) || input.branch === null) {
     return {
-      kind: "skip-blocked-diverged",
+      kind: "skip-blocked-worktree",
+      reason: input.branch === null ? "detached-head" : input.worktreeState,
       ahead: input.worktreeAhead,
       behind: input.worktreeBehind,
+      branch: input.branch,
     };
   }
   return { kind: "push", branch: input.branch };
@@ -119,8 +144,8 @@ function decideNotes(input: MatrixInput): NotesAction {
   if (input.notesPush === "manual") {
     return { kind: "save-only" };
   }
-  const notesBlockedByWorktree = input.pushInterlock === "manual"
-    && NOTES_BLOCK_WORKTREE_STATES.has(input.worktreeState);
+  const notesBlockedByWorktree = NOTES_BLOCK_WORKTREE_STATES.has(input.worktreeState)
+    && (input.pushInterlock === "manual" || WORKTREE_PUSH_BLOCK_STATES.has(input.worktreeState));
   if (input.notesPush === "always") {
     return notesBlockedByWorktree
       ? { kind: "save+notes-blocked", reason: input.worktreeState }
@@ -133,7 +158,9 @@ function decideNotes(input: MatrixInput): NotesAction {
 }
 
 function cellNameFor(worktree: WorktreeAction, notes: NotesAction): string {
-  if (worktree.kind === "skip-blocked-diverged") return "blocked-diverged";
+  if (worktree.kind === "skip-blocked-worktree") {
+    return worktree.reason === "diverged" ? "blocked-diverged" : `blocked-${worktree.reason}`;
+  }
   if (worktree.kind === "push" && notes.kind === "save+push") return "paired-push";
   if (worktree.kind === "push" && notes.kind === "save-only") return "worktree-only";
   if (worktree.kind === "push" && notes.kind === "save+prompt") return "worktree+notes-prompt";
@@ -153,6 +180,7 @@ interface LegOutcomeRecord {
 interface SyncOutcome {
   cell: string;
   worktree: LegOutcomeRecord;
+  save?: LegOutcomeRecord;
   notes: LegOutcomeRecord;
   exitCode: number;
   reconcile?: { ahead: number; behind: number; branch: string };
@@ -254,26 +282,15 @@ interface ExecuteContext {
 }
 
 async function execute(ctx: ExecuteContext): Promise<SyncOutcome> {
-  const { decision, branch } = ctx;
+  const { decision } = ctx;
 
-  if (decision.worktree.kind === "skip-blocked-diverged") {
-    const branchLabel = branch ?? "HEAD";
-    p.log.warn(
-      `Reconcile required: \`${branchLabel}\` diverged from origin/${branchLabel} `
-      + `(${decision.worktree.ahead} ahead, ${decision.worktree.behind} behind). `
-      + "Manual rebase or merge needed before pushing.",
-    );
-    return {
-      cell: decision.cellName,
-      worktree: { action: "skip", result: "blocked", detail: "diverged" },
-      notes: { action: "skip", result: "blocked", detail: "diverged" },
-      exitCode: 1,
-      reconcile: {
-        ahead: decision.worktree.ahead,
-        behind: decision.worktree.behind,
-        branch: branchLabel,
-      },
-    };
+  const rebaseBlock = await detectRebaseSaveBlock(ctx);
+  if (rebaseBlock !== null) {
+    return executeRebaseBlocked(ctx);
+  }
+
+  if (decision.worktree.kind === "skip-blocked-worktree") {
+    return executeBlockedWorktree(ctx, decision.worktree);
   }
 
   if (decision.worktree.kind === "push" && decision.notes.kind === "save+push") {
@@ -281,6 +298,90 @@ async function execute(ctx: ExecuteContext): Promise<SyncOutcome> {
   }
 
   return executeSingleLeg(ctx);
+}
+
+async function detectRebaseSaveBlock(
+  ctx: ExecuteContext,
+): Promise<PushabilityCondition | null> {
+  const pushability = await runPushabilityStatus({
+    exec: ctx.io.exec,
+    access,
+    target: "worktree",
+    worktreeSyncState: ctx.worktreeState,
+  });
+  return pushability.conditions.find((c) => c.kind === "rebase-in-progress") ?? null;
+}
+
+function executeRebaseBlocked(ctx: ExecuteContext): SyncOutcome {
+  p.log.warn("Save skipped: rebase in progress; complete or abort rebase before saving.");
+  return {
+    cell: ctx.decision.cellName,
+    worktree: rebaseWorktreeRecord(ctx.decision.worktree),
+    save: { action: "save", result: "skipped", detail: "rebase-in-progress" },
+    notes: rebaseNotesRecord(ctx.decision.notes),
+    exitCode: 1,
+  };
+}
+
+function rebaseWorktreeRecord(worktree: WorktreeAction): LegOutcomeRecord {
+  if (worktree.kind === "push") {
+    return { action: "push", result: "blocked", detail: "rebase-in-progress" };
+  }
+  if (worktree.kind === "skip-blocked-worktree") {
+    return { action: "skip", result: "blocked", detail: worktree.reason };
+  }
+  return { action: "skip", result: "skipped", detail: "not-configured" };
+}
+
+function rebaseNotesRecord(notes: NotesAction): LegOutcomeRecord {
+  if (notes.kind === "save-only") {
+    return { action: "save", result: "skipped", detail: "rebase-in-progress" };
+  }
+  return { action: "push", result: "blocked", detail: "rebase-in-progress" };
+}
+
+async function executeBlockedWorktree(
+  ctx: ExecuteContext,
+  worktree: Extract<WorktreeAction, { kind: "skip-blocked-worktree" }>,
+): Promise<SyncOutcome> {
+  p.log.warn(worktreeBlockGuidance(worktree));
+  const save = await performSave(ctx);
+  const branchLabel = worktree.branch ?? ctx.branch ?? "HEAD";
+  return {
+    cell: ctx.decision.cellName,
+    worktree: { action: "skip", result: "blocked", detail: worktree.reason },
+    save,
+    notes: blockedWorktreeNotesRecord(ctx.decision.notes, worktree.reason, save),
+    exitCode: 1,
+    ...(worktree.reason === "diverged"
+      ? {
+        reconcile: {
+          ahead: worktree.ahead,
+          behind: worktree.behind,
+          branch: branchLabel,
+        },
+      }
+      : {}),
+  };
+}
+
+function blockedWorktreeNotesRecord(
+  notes: NotesAction,
+  reason: WorktreeSyncState,
+  save: LegOutcomeRecord,
+): LegOutcomeRecord {
+  if (notes.kind === "save-only") {
+    return {
+      action: "save",
+      result: save.result === "success" ? "success" : "failed",
+      detail: save.detail,
+    };
+  }
+  return {
+    action: "push",
+    result: "blocked",
+    detail: `notes-blocked-by-worktree:${reason}`,
+  };
 }
 
 async function executePaired(ctx: ExecuteContext, branch: string): Promise<SyncOutcome> {
@@ -386,26 +487,27 @@ async function executeSingleLeg(ctx: ExecuteContext): Promise<SyncOutcome> {
   }
 
   if (decision.notes.kind === "save+notes-blocked") {
-    const saveOk = await performSave(ctx);
+    const save = await performSave(ctx);
     p.log.warn(reconcileGuidance(decision.notes.reason));
     return {
       cell: decision.cellName,
       worktree: worktreeRecord,
+      save,
       notes: {
-        action: "save",
-        result: saveOk ? "blocked" : "failed",
+        action: "push",
+        result: "blocked",
         detail: `notes-blocked-by-worktree:${decision.notes.reason}`,
       },
       exitCode: 1,
     };
   }
 
-  const saveOk = await performSave(ctx);
-  if (!saveOk) {
+  const save = await performSave(ctx);
+  if (save.result !== "success") {
     return {
       cell: decision.cellName,
       worktree: worktreeRecord,
-      notes: { action: "save", result: "failed" },
+      notes: { action: "save", result: "failed", detail: save.detail },
       exitCode: 1,
     };
   }
@@ -465,7 +567,7 @@ async function executeSingleLeg(ctx: ExecuteContext): Promise<SyncOutcome> {
   };
 }
 
-async function performSave(ctx: ExecuteContext): Promise<boolean> {
+async function performSave(ctx: ExecuteContext): Promise<LegOutcomeRecord> {
   const spinner = p.spinner();
   spinner.start("Saving user directory...");
   try {
@@ -474,12 +576,12 @@ async function performSave(ctx: ExecuteContext): Promise<boolean> {
     if (result.warnings.length > 0) {
       p.note(buildSaveSummary(result), "Saved");
     }
-    return true;
+    return { action: "save", result: "success" };
   } catch (err) {
     spinner.stop("Save failed.");
     if (err instanceof UserSaveError) {
       p.log.error(err.message);
-      return false;
+      return { action: "save", result: "failed", detail: err.message };
     }
     throw err;
   }
@@ -553,8 +655,33 @@ function describeWorktreeAction(action: WorktreeAction): string {
       return `push origin ${action.branch}`;
     case "skip-not-configured":
       return "skip (push_interlock: manual)";
-    case "skip-blocked-diverged":
-      return `skip (diverged: ${action.ahead} ahead, ${action.behind} behind)`;
+    case "skip-blocked-worktree":
+      return `skip (${action.reason}: ${action.ahead} ahead, ${action.behind} behind)`;
+  }
+}
+
+function worktreeBlockGuidance(
+  action: Extract<WorktreeAction, { kind: "skip-blocked-worktree" }>,
+): string {
+  const branch = action.branch ?? "HEAD";
+  switch (action.reason) {
+    case "diverged":
+      return `Reconcile required: \`${branch}\` diverged from origin/${branch} `
+        + `(${action.ahead} ahead, ${action.behind} behind). `
+        + "Manual rebase or merge needed before pushing.";
+    case "remote-ahead":
+      return `Worktree push blocked: origin/${branch} is ahead. `
+        + "Fast-forward (`git pull --ff-only`) before pushing.";
+    case "no-upstream":
+      return `Worktree push blocked: set upstream first with \`git push -u origin ${branch}\`.`;
+    case "detached-head":
+      return "Worktree push blocked: HEAD is detached. Check out a branch first.";
+    case "no-remote":
+      return "Worktree push blocked: no `origin` remote is configured.";
+    case "remote-unavailable":
+      return "Worktree push blocked: origin is unavailable. Retry when the remote is reachable.";
+    default:
+      return `Worktree push blocked: worktree state is ${action.reason}.`;
   }
 }
 

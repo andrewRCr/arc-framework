@@ -333,20 +333,14 @@ The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) is built as a 
           save-before-push ordering and no-push-on-save-failure; E2E coverage verifies
           `arc sync` leaves a readable `HEAD` user note on a default clean-worktree setup.
 
-    - `[ ]` **2.R.2.b Blocked-cell local-save invariant**
-        - Encode the invariant: save the current user dir to `HEAD` before refusing the remote
-          notes leg in **every** blocked sync cell **except** rebase-in-progress.
-        - Per-state behavior:
-            - `diverged`, `remote-ahead`, `local-ahead/manual`, `no-upstream`,
-              `remote-unavailable` → save fires, push refused with state-specific guidance.
-            - `detached-head` → save fires; the notes-discovery walk (R2) finds it later
-              regardless of branch.
-            - `rebase-in-progress` → skip save with explicit guidance ("save skipped: rebase in
-              progress; complete or abort rebase before saving"). Rationale: HEAD during
-              rebase is mid-step; attaching a note that won't follow the rewrite is worse than
-              skipping.
-        - JSON output reports the save result separately from the blocked push result; both
-          legs surface in the envelope.
+    - `[x]` **2.R.2.b Blocked-cell local-save invariant**
+        - Blocked sync cells now save the current user directory before refusing notes push,
+          including diverged, remote-ahead, no-upstream, remote-unavailable, detached-HEAD,
+          and local-ahead/manual paths.
+        - Rebase-in-progress is the explicit exception: save is skipped with guidance to
+          complete or abort the rebase before saving. JSON output now reports save and blocked
+          push outcomes as separate envelope legs so callers can distinguish preserved local
+          state from refused remote publication.
 
     - `[ ]` **2.R.2.c Worktree-leg pushability/state gate + helper extraction**
         - Extract `pushWorktreeBranch({ exec, branch }) -> Promise<{ status: "success" |

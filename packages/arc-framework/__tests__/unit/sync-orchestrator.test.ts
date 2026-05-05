@@ -18,6 +18,17 @@ const mockNote = vi.fn();
 const mockConfirm = vi.fn();
 const mockIsCancel = vi.fn(() => false) as Mock<(value: unknown) => boolean>;
 const mockSpinner = vi.fn(() => ({ start: vi.fn(), stop: vi.fn() }));
+const mockAccess = vi.fn();
+
+vi.mock("node:fs/promises", async () => {
+  const actual = await vi.importActual<typeof import("node:fs/promises")>(
+    "node:fs/promises",
+  );
+  return {
+    ...actual,
+    access: (...args: unknown[]) => mockAccess(...args),
+  };
+});
 
 vi.mock("@clack/prompts", () => ({
   intro: (...args: unknown[]) => mockIntro(...args),
@@ -102,6 +113,7 @@ function setNotesPolicy(policy: "always" | "prompt" | "manual") {
 
 /** Default exec stub: branch resolves to 'main'; pushes succeed. */
 function resetMockDefaults() {
+  mockAccess.mockRejectedValue(new Error("path absent"));
   mockIsCancel.mockReturnValue(false);
   mockIsNonInteractive.mockReturnValue(false);
   mockSpinner.mockImplementation(() => ({ start: vi.fn(), stop: vi.fn() }));
@@ -124,6 +136,22 @@ function pushedBranchInvocations(): string[][] {
   return calls
     .map((call) => call[1] as unknown)
     .filter((args): args is string[] => Array.isArray(args) && args[0] === "push");
+}
+
+async function captureSyncJson(): Promise<Record<string, unknown>> {
+  const stdoutWrite = vi
+    .spyOn(process.stdout, "write")
+    .mockImplementation(() => true);
+  let written: string | undefined;
+
+  try {
+    await handleSync({ json: true });
+    written = stdoutWrite.mock.calls.map((call) => String(call[0])).join("");
+  } finally {
+    stdoutWrite.mockRestore();
+  }
+
+  return JSON.parse(written ?? "") as Record<string, unknown>;
 }
 
 describe("handleSync orchestrator matrix dispatch", () => {
@@ -176,29 +204,47 @@ describe("handleSync orchestrator matrix dispatch", () => {
       conditions: [],
       exitCode: 1,
     });
-    const stdoutWrite = vi
-      .spyOn(process.stdout, "write")
-      .mockImplementation(() => true);
-    let written: string | undefined;
-
-    try {
-      await handleSync({ json: true });
-      written = stdoutWrite.mock.calls.map((call) => String(call[0])).join("");
-    } finally {
-      stdoutWrite.mockRestore();
-    }
+    const outcome = await captureSyncJson();
 
     expect(mockRunPairedPush).toHaveBeenCalledTimes(1);
     expect(mockRunUserSave).not.toHaveBeenCalled();
     expect(mockPushWithRecovery).not.toHaveBeenCalled();
     expect(pushedBranchInvocations()).toEqual([]);
-    expect(JSON.parse(written ?? "")).toEqual({
+    expect(outcome).toEqual({
       cell: "paired-push",
       worktree: { action: "skip", result: "skipped", detail: "save-failed" },
       notes: { action: "save", result: "failed", detail: "save verification failed" },
       exitCode: 1,
     });
     expect(process.exitCode).toBe(1);
+  });
+
+  it("blocked notes cell reports save separately from blocked push in JSON", async () => {
+    setConfig("manual");
+    setNotesPolicy("always");
+    setWorktree("local-ahead", 2);
+    mockRunUserSave.mockResolvedValue({
+      identity: "andrew",
+      commit: "abc1234",
+      fileCount: 1,
+      warnings: [],
+    });
+
+    const outcome = await captureSyncJson();
+
+    expect(mockRunUserSave).toHaveBeenCalledTimes(1);
+    expect(mockPushWithRecovery).not.toHaveBeenCalled();
+    expect(outcome).toEqual({
+      cell: "notes-blocked",
+      worktree: { action: "skip", result: "skipped", detail: "not-configured" },
+      save: { action: "save", result: "success" },
+      notes: {
+        action: "push",
+        result: "blocked",
+        detail: "notes-blocked-by-worktree:local-ahead",
+      },
+      exitCode: 1,
+    });
   });
 
   it("push_interlock: manual + notes_push: on-sync + worktree local-ahead → notes-blocked; save fires; push blocked with guidance", async () => {
@@ -274,22 +320,120 @@ describe("handleSync orchestrator matrix dispatch", () => {
     expect(process.exitCode).toBeUndefined();
   });
 
-  it("diverged worktree + push_interlock: on-sync → both legs skip; Reconcile required surfaced", async () => {
+  it("diverged worktree + push_interlock: on-sync → save fires before both push legs block", async () => {
     setConfig("on-sync");
     setNotesPolicy("always");
     setWorktree("diverged", 1, 2);
+    mockRunUserSave.mockResolvedValue({
+      identity: "andrew",
+      commit: "abc1234",
+      fileCount: 1,
+      warnings: [],
+    });
 
-    await handleSync();
+    const outcome = await captureSyncJson();
 
     expect(mockRunPairedPush).not.toHaveBeenCalled();
-    expect(mockRunUserSave).not.toHaveBeenCalled();
+    expect(mockRunUserSave).toHaveBeenCalledTimes(1);
     expect(mockPushWithRecovery).not.toHaveBeenCalled();
     expect(pushedBranchInvocations()).toEqual([]);
-    const surfaced = [
-      ...mockLog.warn.mock.calls.map((c) => String(c[0] ?? "")),
-      ...mockLog.error.mock.calls.map((c) => String(c[0] ?? "")),
-    ];
-    expect(surfaced.some((line) => line.includes("Reconcile required"))).toBe(true);
+    expect(outcome).toEqual({
+      cell: "blocked-diverged",
+      worktree: { action: "skip", result: "blocked", detail: "diverged" },
+      save: { action: "save", result: "success" },
+      notes: {
+        action: "push",
+        result: "blocked",
+        detail: "notes-blocked-by-worktree:diverged",
+      },
+      exitCode: 1,
+      reconcile: { ahead: 1, behind: 2, branch: "main" },
+    });
+    expect(process.exitCode).toBe(1);
+  });
+
+  it.each([
+    ["remote-ahead", 0, 3, "main"],
+    ["no-upstream", 0, 0, "main"],
+    ["remote-unavailable", 0, 0, "main"],
+    ["detached-head", 0, 0, null],
+  ] satisfies Array<[WorktreeSyncState, number, number, string | null]>)(
+    "%s blocked cell saves locally before refusing notes push",
+    async (state, ahead, behind, branch) => {
+      setConfig("on-sync");
+      setNotesPolicy("always");
+      setWorktree(state, ahead, behind);
+      mockRunUserSave.mockResolvedValue({
+        identity: "andrew",
+        commit: "abc1234",
+        fileCount: 1,
+        warnings: [],
+      });
+      if (branch === null) {
+        mockGitExec.mockImplementation(async (_cmd: unknown, args: unknown) => {
+          if (Array.isArray(args) && args[0] === "rev-parse" && args[1] === "--abbrev-ref") {
+            return { stdout: "HEAD", stderr: "" };
+          }
+          return { stdout: "", stderr: "" };
+        });
+      }
+
+      const outcome = await captureSyncJson();
+
+      expect(mockRunUserSave).toHaveBeenCalledTimes(1);
+      expect(mockRunPairedPush).not.toHaveBeenCalled();
+      expect(mockPushWithRecovery).not.toHaveBeenCalled();
+      expect(pushedBranchInvocations()).toEqual([]);
+      expect(outcome).toMatchObject({
+        worktree: { action: "skip", result: "blocked", detail: state },
+        save: { action: "save", result: "success" },
+        notes: {
+          action: "push",
+          result: "blocked",
+          detail: `notes-blocked-by-worktree:${state}`,
+        },
+        exitCode: 1,
+      });
+    },
+  );
+
+  it("rebase-in-progress skips save with guidance before refusing sync", async () => {
+    setConfig("manual");
+    setNotesPolicy("always");
+    setWorktree("clean");
+    mockAccess.mockImplementation(async (path: unknown) => {
+      if (path === "/repo/.git/rebase-merge") return;
+      throw new Error("path absent");
+    });
+    mockGitExec.mockImplementation(async (_cmd: unknown, args: unknown) => {
+      if (Array.isArray(args)) {
+        if (args[0] === "rev-parse" && args[1] === "--git-path" && args[2] === "rebase-merge") {
+          return { stdout: "/repo/.git/rebase-merge", stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "--git-path" && args[2] === "rebase-apply") {
+          return { stdout: "/repo/.git/rebase-apply", stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "--abbrev-ref" && args[2] === "HEAD") {
+          return { stdout: "main", stderr: "" };
+        }
+      }
+      return { stdout: "", stderr: "" };
+    });
+
+    const outcome = await captureSyncJson();
+
+    expect(mockRunUserSave).not.toHaveBeenCalled();
+    expect(mockPushWithRecovery).not.toHaveBeenCalled();
+    expect(outcome).toEqual({
+      cell: "notes-only",
+      worktree: { action: "skip", result: "skipped", detail: "not-configured" },
+      save: { action: "save", result: "skipped", detail: "rebase-in-progress" },
+      notes: { action: "push", result: "blocked", detail: "rebase-in-progress" },
+      exitCode: 1,
+    });
+    expect(mockLog.warn).toHaveBeenCalledWith(
+      "Save skipped: rebase in progress; complete or abort rebase before saving.",
+    );
     expect(process.exitCode).toBe(1);
   });
 
