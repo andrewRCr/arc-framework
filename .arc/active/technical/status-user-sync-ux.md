@@ -9,14 +9,15 @@
 - **Task List:** `tasks-user-sync-ux.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task 2.R.2.d.5 — `--yes` wiring (closes 2.R.2.d, 2.R.2)
-- **Next Task:** Task 2.R.3.a.0 — Multi-clone test harness (line ~484)
+- **Last Completed:** Task 2.R.3.a.1 — Cross-clone sync regression (closes 2.R.3.a)
+- **Next Task:** Task 2.R.3.b.1 — Paired-push success on multi-clone harness (line ~522)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 2.R.3.a.0 — add `__tests__/helpers/multi-clone.ts`
-  exposing `setupMultiClone()` returning `{ origin, cloneA, cloneB, cleanup }`.
-  Build test-first with one trivial cross-clone scenario (clone A pushes commit;
-  clone B fetches and observes). Keep clone setup parameterizable — the harness
-  is reusable by `plan-coord-probe.md`.
+- **Next Action:** Begin Task 2.R.3.b.1 — add a paired-push integration test in
+  `__tests__/integration/multi-clone.test.ts` reusing `setupMultiClone()` and the
+  ARC-install pattern from the existing cross-clone regression. Override clone A's
+  `session.push_interlock` to `on-sync` so the matrix dispatches the paired cell;
+  drive `handleSync({ json: true })` and assert envelope + origin ref advances on
+  both `main` and `refs/notes/arc/user/test-user`, then clone B fetch + pull.
 
 ---
