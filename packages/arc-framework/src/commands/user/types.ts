@@ -413,8 +413,12 @@ export interface UserStatusRemoteIdentity {
  * - `missing`  — saved note has files the disk doesn't.
  * - `modified` — the same file exists on both sides but with different content.
  * - `mixed`    — multiple mismatch kinds apply simultaneously.
+ * - `behind`   — note advanced past the materialized snapshot's `sourceCommit`
+ *                while disk still matches the materialized manifest. The disk
+ *                is older than the latest local note (typically because a fetch
+ *                brought a newer note from another machine); a load reconciles.
  */
-export type UserUnsavedDirection = "edits" | "missing" | "modified" | "mixed";
+export type UserUnsavedDirection = "edits" | "missing" | "modified" | "mixed" | "behind";
 
 export interface UserStatusResult {
   identity: string;

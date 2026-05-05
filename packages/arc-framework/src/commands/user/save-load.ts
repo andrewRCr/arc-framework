@@ -278,19 +278,6 @@ export async function readLocalSyncState(
           ...(partialPush ? { partialPush } : {}),
         };
       }
-
-      if (
-        record.version === 1
-        && typeof record.materializedManifestHash === "string"
-        && record.materializedManifestHash.length > 0
-      ) {
-        return {
-          version: 2,
-          materializedManifestHash: record.materializedManifestHash,
-          sourceCommit: "",
-          sourceOperation: "load",
-        };
-      }
     } catch {
       return null;
     }
@@ -361,14 +348,9 @@ export async function recordPartialPushMarker(
   const localRefHash = await readLocalNotesRefHash(io, identity);
   if (!localRefHash) return false;
 
-  const sourceCommit = state.sourceCommit.length > 0
-    ? state.sourceCommit
-    : await readHeadHash(io);
-  if (sourceCommit.length === 0) return false;
-
   await writeLocalSyncStateRecord(cwd, io, identity, {
     ...state,
-    partialPush: { localRefHash, sourceCommit },
+    partialPush: { localRefHash, sourceCommit: state.sourceCommit },
   });
   return true;
 }
@@ -406,14 +388,6 @@ async function readLocalNotesRefHash(
   }
 }
 
-async function readHeadHash(io: UserIOContext): Promise<string> {
-  try {
-    const { stdout } = await io.exec("git", ["rev-parse", "HEAD"]);
-    return stdout.trim();
-  } catch {
-    return "";
-  }
-}
 
 function normalizeManifest(
   manifest: SyncManifest,

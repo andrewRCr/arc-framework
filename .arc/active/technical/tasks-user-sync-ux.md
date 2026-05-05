@@ -497,30 +497,27 @@ composition. The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) i
   advance, and reshape default status output so actions name the right verb in one line. Three-tier truth (refs / disk /
   working files) stays available behind `--verbose` and in `--json` for debugging and machine consumers.
 
-    - `[ ]` **2.R.4.a Disk-vs-note direction inference via `sourceCommit` ancestry**
+    - `[x]` **2.R.4.a Disk-vs-note direction inference via `sourceCommit` ancestry**
         - _Goal:_ `inspectDiskVsLocalSnapshot` distinguishes "disk behind note" (note advanced past
           `LocalSyncState.sourceCommit`; disk hash matches the materialized manifest) from "disk has unsaved edits"
           (disk advanced past the materialized manifest; note still at `sourceCommit`) and from genuine reconciliation
           cases. Today's hash-only comparison cannot tell these apart and silently misroutes post-fetch disk-behind
           state to a `save` action that overwrites the freshly fetched newer note.
-        - `determineUserStatusAction` consumes the signal and recommends `arc user load` for the disk-behind case;
-          `arc user save` for true unsaved edits; manual reconciliation framing for ambiguous mixed cases.
-        - The note-commit vs. `LocalSyncState.sourceCommit` ancestry check is the load-bearing comparison;
-          `git merge-base --is-ancestor` is already available via `isAncestor` in `sync-status.ts`. Legacy
-          `sourceCommit: ""` falls through to the existing hash-only heuristic — no direction inference, no behavior
-          change.
-        - Affected files: `packages/arc-framework/src/commands/user/sync-status.ts` (`inspectDiskVsLocalSnapshot`
-          direction logic + `determineUserStatusAction` routing).
-        - Build `test-first` (one behavior at a time):
-            - Note descendant of `sourceCommit`, disk hash matches materialized → `direction: "behind"`, action
-              recommends `arc user load`
-            - Note equal to `sourceCommit`, disk hash differs from materialized → direction reflects unsaved edits,
-              action recommends `arc user save`
-            - Both note and disk advanced from `sourceCommit` baseline → mixed direction; action prompts manual
-              reconciliation rather than auto-routing to either verb
-            - Note unreachable from `sourceCommit` (orphan / divergent history) → mixed direction; action prompts manual
-              reconciliation
-            - Legacy `sourceCommit: ""` → falls through to existing hash-only heuristic; no behavior change
+
+        - _Outcome:_ Added `"behind"` to `UserUnsavedDirection` and reshaped `inspectDiskVsLocalSnapshot` to gate on
+          `note.commit !== sourceCommit`. When `sourceCommit` is a strict ancestor of `note.commit` and the disk hash
+          matches the materialized manifest, the disk-behind branch returns `direction: "behind"`, `diskStatus:
+          "stale"` — routing through the existing `stale → arc user load` action. Note-moved cases that are not strict
+          disk-behind (descendant with diverged disk, or note off the sourceCommit's history) collapse to `direction:
+          "mixed", diskStatus: "mixed"`, surfacing the existing manual-reconciliation hint instead of auto-routing to
+          either verb. Note-at-baseline (`note.commit === sourceCommit`) falls through to the unchanged hash-only
+          heuristic. `deriveDiskStatus` extended for the new direction value. Folded in cleanup of the v1
+          `LocalSyncState` read path (and its `sourceCommit: ""` synthesis, the `recordPartialPushMarker` HEAD
+          fallback, and the now-unused `readHeadHash`) since this pre-1.0 framework has no shipped adopters carrying
+          v1 records on disk; v2 validation in `readLocalSyncState` already enforces non-empty `sourceCommit`. Test
+          coverage in `user-status.test.ts` covers four behaviors (disk-behind, true unsaved edits, both-moved,
+          divergent history) via a shared `inspectUserSyncState` io-mock helper; the legacy integration regression in
+          `user.test.ts` is removed.
 
     - `[ ]` **2.R.4.b Action-oriented status default with `--verbose` three-tier truth**
         - _Goal:_ `arc user status` default output names the next command in one sentence rather than narrating ref

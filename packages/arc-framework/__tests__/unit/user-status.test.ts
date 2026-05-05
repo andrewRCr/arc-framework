@@ -13,9 +13,12 @@ import {
   computeUserSyncSpine,
   buildUserStatusSummary,
   computeUnsavedDirection,
+  hashSyncManifest,
+  inspectUserSyncState,
   runUserSessionInitStatus,
   runUserStatus,
 } from "../../src/commands/user.js";
+import type { UserIOContext } from "../../src/commands/user.js";
 import type { SyncManifest } from "../../src/lib/git/index.js";
 import type { WorktreeSyncStatusResult } from "../../src/lib/git/worktree-sync.js";
 
@@ -389,6 +392,209 @@ describe("computeUnsavedDirection", () => {
 
     expect(computeUnsavedDirection(disk, note)).toBe("mixed");
   });
+});
+
+describe("inspectUserSyncState disk-vs-note direction inference", () => {
+  interface DirectionScenario {
+    sourceCommit: string;
+    noteCommit: string;
+    diskFiles: Record<string, string>;
+    noteFiles: Record<string, string>;
+    /** Hash recorded in `.sync-state.json` for the materialized snapshot. */
+    materializedManifestHash: string;
+    sourceOperation?: "save" | "load";
+    /** Result for `git merge-base --is-ancestor <sourceCommit> <noteCommit>`. */
+    sourceIsAncestorOfNote: boolean;
+  }
+
+  function buildIO(scenario: DirectionScenario): UserIOContext {
+    const localNotesRefHash = "c".repeat(40);
+    const noteHistoryCommit = "d".repeat(40);
+    const userDir = "/repo/.arc/user/andrew";
+    const internalDir = `${userDir}/.internal`;
+    const localNotesRef = "refs/notes/arc/user/andrew";
+    const noteCommitPath = `${scenario.noteCommit.slice(0, 2)}/${scenario.noteCommit.slice(2)}`;
+    const noteJSON = JSON.stringify({ version: 2, files: scenario.noteFiles });
+    const syncStateContent = JSON.stringify({
+      version: 2,
+      materializedManifestHash: scenario.materializedManifestHash,
+      sourceCommit: scenario.sourceCommit,
+      sourceOperation: scenario.sourceOperation ?? "save",
+    });
+
+    return {
+      exec: async (cmd, args) => {
+        if (cmd !== "git") throw new Error(`unexpected cmd: ${cmd}`);
+        if (args[0] === "rev-parse" && args[1] === "HEAD" && args.length === 2) {
+          return { stdout: `${scenario.noteCommit}\n`, stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "--verify" && args[2] === localNotesRef) {
+          return { stdout: `${localNotesRefHash}\n`, stderr: "" };
+        }
+        if (args[0] === "log" && args.includes(localNotesRef)) {
+          return { stdout: `${noteHistoryCommit}\n`, stderr: "" };
+        }
+        if (args[0] === "diff-tree" && args.includes(noteHistoryCommit)) {
+          return { stdout: `${noteCommitPath}\n`, stderr: "" };
+        }
+        if (args[0] === "show" && args[1] === `${noteHistoryCommit}:${noteCommitPath}`) {
+          return { stdout: noteJSON, stderr: "" };
+        }
+        if (
+          args[0] === "merge-base"
+          && args[1] === "--is-ancestor"
+          && args[2] === scenario.noteCommit
+          && args[3] === "HEAD"
+        ) {
+          return { stdout: "", stderr: "" };
+        }
+        if (
+          args[0] === "rev-list"
+          && args[1] === "--count"
+          && args[2] === `${scenario.noteCommit}..HEAD`
+        ) {
+          return { stdout: "0\n", stderr: "" };
+        }
+        if (
+          args[0] === "merge-base"
+          && args[1] === "--is-ancestor"
+          && args[2] === scenario.sourceCommit
+          && args[3] === scenario.noteCommit
+        ) {
+          if (scenario.sourceIsAncestorOfNote) return { stdout: "", stderr: "" };
+          throw new Error("not an ancestor");
+        }
+        if (args[0] === "ls-remote" && args[1] === "origin" && args[2] === localNotesRef) {
+          return { stdout: `${localNotesRefHash}\trefs/notes/arc/user/andrew\n`, stderr: "" };
+        }
+        throw new Error(`unexpected git call: ${args.join(" ")}`);
+      },
+      readDir: async (dir) => {
+        if (dir === userDir) {
+          return Object.entries(scenario.diskFiles).map(([name, content]) => ({
+            name,
+            size: content.length,
+          }));
+        }
+        return [];
+      },
+      readFile: async (path) => {
+        for (const [name, content] of Object.entries(scenario.diskFiles)) {
+          if (path === `${userDir}/${name}`) return content;
+        }
+        if (path === `${internalDir}/.sync-state.json`) return syncStateContent;
+        throw new Error(`ENOENT: ${path}`);
+      },
+      writeFile: async () => {},
+      mkdir: async () => undefined,
+      writeNote: async () => {},
+      readNote: async () => null,
+    };
+  }
+
+  function actionFor(state: Awaited<ReturnType<typeof inspectUserSyncState>>, savedCommit: string) {
+    return buildUserStatusResult({
+      identity: "andrew",
+      diskState: state.diskState,
+      diskStatus: state.diskStatus,
+      refState: state.refState,
+      remoteChecked: true,
+      savedCommit: savedCommit.slice(0, 7),
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      unsavedDirection: state.unsavedDirection,
+      backupFiles: [],
+      remoteIdentities: [],
+    }).actionHint;
+  }
+
+  it("flags disk as 'behind' and routes to `arc user load` when note advanced past sourceCommit while disk matches materialized", async () => {
+    const diskFiles = { "SESSION-NOTES.md": "disk-content" };
+    const diskManifest: SyncManifest = { version: 2, files: diskFiles };
+    const noteCommit = "b".repeat(40);
+    const io = buildIO({
+      sourceCommit: "a".repeat(40),
+      noteCommit,
+      diskFiles,
+      noteFiles: { "SESSION-NOTES.md": "newer-from-other-machine" },
+      materializedManifestHash: hashSyncManifest(diskManifest),
+      sourceIsAncestorOfNote: true,
+    });
+
+    const state = await inspectUserSyncState({ cwd: "/repo", io, identity: "andrew" });
+
+    expect(state.unsavedDirection).toBe("behind");
+    expect(actionFor(state, noteCommit)).toBe("run `arc user load`");
+  });
+
+  it("reflects unsaved edits and routes to `arc user save` when note is at sourceCommit and disk diverged from materialized", async () => {
+    const noteFiles = { "SESSION-NOTES.md": "saved" };
+    const noteManifest: SyncManifest = { version: 2, files: noteFiles };
+    const sharedCommit = "a".repeat(40);
+    const io = buildIO({
+      sourceCommit: sharedCommit,
+      noteCommit: sharedCommit,
+      diskFiles: { "SESSION-NOTES.md": "edited" },
+      noteFiles,
+      materializedManifestHash: hashSyncManifest(noteManifest),
+      sourceIsAncestorOfNote: true,
+    });
+
+    const state = await inspectUserSyncState({ cwd: "/repo", io, identity: "andrew" });
+
+    expect(state.unsavedDirection).toBe("modified");
+    expect(state.diskStatus).toBe("local unsaved");
+    expect(actionFor(state, sharedCommit)).toBe("run `arc user save`");
+  });
+
+  it("reports mixed direction with manual-reconciliation framing when both note and disk advanced from the materialized baseline", async () => {
+    const baselineManifest: SyncManifest = {
+      version: 2,
+      files: { "SESSION-NOTES.md": "baseline" },
+    };
+    const noteCommit = "b".repeat(40);
+    const io = buildIO({
+      sourceCommit: "a".repeat(40),
+      noteCommit,
+      diskFiles: { "SESSION-NOTES.md": "local-edits" },
+      noteFiles: { "SESSION-NOTES.md": "remote-edits" },
+      materializedManifestHash: hashSyncManifest(baselineManifest),
+      sourceIsAncestorOfNote: true,
+    });
+
+    const state = await inspectUserSyncState({ cwd: "/repo", io, identity: "andrew" });
+
+    expect(state.unsavedDirection).toBe("mixed");
+    expect(state.diskStatus).toBe("mixed");
+    expect(actionFor(state, noteCommit)).toBe(
+      "inspect local working files, then run `arc user load` or `arc user save`",
+    );
+  });
+
+  it("reports mixed direction with manual-reconciliation framing when note is unreachable from sourceCommit", async () => {
+    const baselineManifest: SyncManifest = {
+      version: 2,
+      files: { "SESSION-NOTES.md": "baseline" },
+    };
+    const noteCommit = "b".repeat(40);
+    const io = buildIO({
+      sourceCommit: "a".repeat(40),
+      noteCommit,
+      diskFiles: { "SESSION-NOTES.md": "baseline" },
+      noteFiles: { "SESSION-NOTES.md": "orphan-history" },
+      materializedManifestHash: hashSyncManifest(baselineManifest),
+      sourceIsAncestorOfNote: false,
+    });
+
+    const state = await inspectUserSyncState({ cwd: "/repo", io, identity: "andrew" });
+
+    expect(state.unsavedDirection).toBe("mixed");
+    expect(state.diskStatus).toBe("mixed");
+    expect(actionFor(state, noteCommit)).toBe(
+      "inspect local working files, then run `arc user load` or `arc user save`",
+    );
+  });
+
 });
 
 describe("user sync spine", () => {

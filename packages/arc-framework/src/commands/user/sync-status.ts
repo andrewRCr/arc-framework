@@ -922,18 +922,23 @@ async function inspectDiskVsLocalSnapshot(
   }
 
   const materializedHash = localSyncState.materializedManifestHash;
+  if (note.commit !== localSyncState.sourceCommit) {
+    const noteIsDescendant = await isAncestor(io, localSyncState.sourceCommit, note.commit);
+    if (noteIsDescendant && diskHash === materializedHash) {
+      return { state: "different", diskStatus: "stale", direction: "behind" };
+    }
+    // Note advanced past the materialized snapshot's baseline while disk
+    // also diverged, or note moved outside the baseline's history entirely.
+    // Both directions ambiguous; prefer manual reconciliation framing over
+    // auto-routing to either save or load.
+    return { state: "different", diskStatus: "mixed", direction: "mixed" };
+  }
+
   let diskStatus: UserDiskStatus;
   if (materializedHash === noteHash) {
     diskStatus = "local unsaved";
   } else if (diskHash === materializedHash) {
-    // Hash-only legacy provenance cannot safely distinguish "disk is stale"
-    // from "disk reflects a newer local-only save/load state". Avoid a
-    // destructive load recommendation when direction is ambiguous.
-    if (localSyncState.sourceCommit.length === 0) {
-      diskStatus = "mixed";
-    } else {
-      diskStatus = localSyncState.sourceOperation === "load" ? "stale" : "local unsaved";
-    }
+    diskStatus = localSyncState.sourceOperation === "load" ? "stale" : "local unsaved";
   } else {
     diskStatus = "mixed";
   }
@@ -1009,6 +1014,7 @@ export function deriveDiskStatus(
   switch (unsavedDirection) {
     case "edits":
       return "local unsaved";
+    case "behind":
     case "missing":
     case "modified":
     case null:

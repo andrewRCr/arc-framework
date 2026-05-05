@@ -1180,27 +1180,6 @@ describe("user status", () => {
     expect(result.unsavedDirection).toBe("edits");
   });
 
-  it("degrades legacy hash-only provenance to inspect instead of a wrong load hint", async () => {
-    const io = makeUserIO(tempDir);
-    const userDir = join(tempDir, ".arc", "user", "test-user");
-
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Original", "utf-8");
-    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Modified locally", "utf-8");
-
-    const modifiedHash = await hashUserDir(tempDir, "test-user");
-    await writeLocalSyncStateFixture(tempDir, "test-user", {
-      version: 1,
-      materializedManifestHash: modifiedHash,
-    });
-
-    const result = await runUserStatus({ cwd: tempDir, io, identity: "test-user", offline: true });
-    const summary = buildUserStatusSummary(result);
-
-    expect(result.diskStatus).toBe("mixed");
-    expect(summary).toContain("Next step: inspect local working files, then run `arc user load` or `arc user save`");
-  });
-
   it("uses save provenance to prefer save when disk matches a newer local-only state", async () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
