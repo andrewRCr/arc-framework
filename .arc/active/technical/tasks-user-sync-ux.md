@@ -504,18 +504,130 @@ The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) is built as a 
                   `localNoteFreshness.state: "current-head"` at clone B's `HEAD` — covering
                   both session-init and session-handoff consumers, which share that probe.
 
-    - `[ ]` **2.R.3.b Matrix edge coverage**
-        - Add unit/integration coverage for the blocked and edge cells discovered in the audit:
-          diverged + on-sync, remote-ahead + manual worktree, worktree-only push gate failures,
-          notes prompt under non-interactive mode, and remote notes no-op with stale local note.
+    - `[ ]` **2.R.3.b Real-git matrix coverage for cells mocked exec cannot prove**
+
+        - _Goal:_ Cover the matrix cells where 2.R.2.d's mocked-exec structure assertions
+          cannot prove the behavior — specifically the paired-push flagship cell (two real
+          pushes interleaving against origin) and the worktree-leg real-git failure path
+          (non-fast-forward rejection). All other audit-listed cells (diverged + on-sync,
+          remote-ahead + manual worktree, notes prompt under non-interactive, no-op +
+          stale-local) are already proven structurally in 2.R.2.d or — for the no-op +
+          stale-local case — by 2.R.1.b's `arc user push` real-git coverage and not
+          reachable via `arc sync` (save runs first and refreshes the note to `HEAD`).
+
+            - `[ ]` **2.R.3.b.1 Paired-push success on multi-clone harness**
+                - _Goal:_ End-to-end real-git proof that the paired cell coordinates
+                  worktree push and notes push correctly: both legs succeed, origin
+                  advances both `main` and `refs/notes/arc/user/test-user`, and a
+                  sibling clone observes the new HEAD plus the current note after
+                  fetch + pull.
+                - Setup: `setupMultiClone()` harness; install ARC in clone A and clone
+                  B with shared identity; configure clone A with
+                  `session.push_interlock: on-sync` and `user.sync_push: always`;
+                  modify `SESSION-NOTES.md` and create one new commit on clone A's
+                  `main`.
+                - Drive: `chdir` to clone A and call `handleSync({ json: true })`
+                  with `process.stdout.write` spied; parse the envelope.
+                - Assert envelope: `cell: "paired-push"`, `worktree.result: "success"`,
+                  `notes.result: "success"` (paired records `action: "save+push"`),
+                  `exitCode: 0`. Assert origin: `git rev-parse origin/main` matches
+                  clone A `HEAD`; `git rev-parse refs/notes/arc/user/test-user` on
+                  origin matches clone A's local notes-ref tip. Assert clone B:
+                  `git fetch origin` followed by `runUserPull` restores
+                  `SESSION-NOTES.md` byte-for-byte and `runUserSessionInitStatus`
+                  reports `localNoteFreshness.state: "current-head"` at clone B's
+                  `HEAD`.
+                - Mock `@clack/prompts` file-scoped (matches existing
+                  `multi-clone.test.ts` pattern) — subprocess-level purity is owned
+                  by `2.R.3.c`.
+
+            - `[ ]` **2.R.3.b.2 Worktree-only cell with non-fast-forward rejection**
+                - _Goal:_ Real-git proof that when the worktree push leg fails
+                  (origin advanced past clone A), the orchestrator records the
+                  worktree failure, completes the save leg, and returns a non-zero
+                  exit code — without disturbing the saved local notes ref.
+                - Setup: `setupMultiClone()` harness; install ARC in clone A; advance
+                  origin past clone A by making and pushing a commit from clone B
+                  (`harness.cloneB`) so clone A's `main` is non-fast-forward against
+                  origin; make one new commit on clone A; configure clone A with
+                  `session.push_interlock: on-sync` and `user.sync_push: manual`.
+                - Drive: `chdir` to clone A and call `handleSync({ json: true })`
+                  with stdout spied; parse the envelope.
+                - Assert envelope: `cell: "worktree-only"`,
+                  `worktree.result: "failed"` with a non-empty `detail`,
+                  `notes: { action: "save", result: "success" }`, `exitCode: 1`.
+                  Assert origin's `main` ref unchanged from clone B's commit (no
+                  force-push leaked through). Assert clone A's local
+                  `refs/notes/arc/user/test-user` exists and matches the saved
+                  manifest hash recorded in `.sync-state.json`.
 
     - `[ ]` **2.R.3.c JSON purity child-process tests**
-        - Run the actual CLI as a subprocess for representative `arc sync --json` cells
-          (paired, save-only, blocked, prompt-policy, error-path identity-absent) and assert
-          stdout parses as one JSON object with no Clack spinner, prompt, or log
-          contamination.
-        - Owns the subprocess-level purity contract; 2.R.2.d owns structure assertions with
-          mocked exec.
+
+        - _Goal:_ Pin the subprocess-level stdout purity contract for
+          `arc sync --json` end-to-end through the built CLI artifact (what
+          adopters actually run). Catches Clack contamination from any leaf that
+          bypasses `SyncOutput` — `2.R.2.d.3` proves orchestrator-layer purity
+          with mocks; this task proves the shipped binary stays clean across
+          representative cells.
+
+            - `[ ]` **2.R.3.c.0 Subprocess CLI invocation helper**
+                - Add `__tests__/helpers/run-cli.ts` exposing
+                  `runCli(args, options)` that spawns
+                  `node packages/arc-framework/dist/cli.js <args>` via
+                  `child_process.spawn` with `cwd`, `env`, and `stdio: "pipe"`,
+                  collects stdout/stderr buffers separately, and returns
+                  `{ stdout, stderr, exitCode }`. Default timeout: 10s with
+                  rejection on overrun.
+                - Forward-compat: keep `args`, `cwd`, and `env` parameterizable so
+                  future subprocess tests (beyond `arc sync`) can reuse the same
+                  helper.
+                - Build `test-first` with one trivial scenario: `runCli(["--help"])`
+                  returns exit 0 and stdout containing the program name.
+
+            - `[ ]` **2.R.3.c.1 Stdout purity across five representative cells**
+                - _Goal:_ For each representative cell, asserting `stdout` parses
+                  as exactly one JSON object with no ANSI escape sequences,
+                  Clack-spinner cursor codes, prompt artifacts, or log lines —
+                  while permitting `stderr` to carry diagnostics.
+                - Cells (set up per row; install ARC + identity in clone A as
+                  needed, drive via `runCli(["sync", "--json"], { cwd: cloneA })`):
+                    1. **paired** — `push_interlock: on-sync`,
+                       `notes_push: always`, clean worktree, fresh commit and
+                       SESSION-NOTES change in clone A.
+                    2. **save-only** — both interlocks `manual`,
+                       `notes_push: manual`, clean worktree.
+                    3. **blocked-diverged** — `push_interlock: on-sync`,
+                       `notes_push: always`; harness clone B advances origin
+                       while clone A makes a divergent commit so worktree state
+                       resolves to `diverged`. (Canonical blocked variant — the
+                       coherence-gate flagship; purity contract is identical
+                       across other blocked states.)
+                    4. **prompt-policy** — `push_interlock: manual`,
+                       `notes_push: prompt`, clean worktree. Under `--json` the
+                       policy degrades to `manual`; assert the degradation
+                       warning lands on `stderr`, not `stdout`.
+                    5. **error-path identity-absent** — clone with
+                       `arc.identity` unset (skip `arc init`'s identity write or
+                       `git config --unset` after install). Envelope must be
+                       `{ cell: "none", reason: "identity-absent" }` with exit 1.
+                - Per cell, assert: exactly one trailing-newline-terminated JSON
+                  object on stdout (`stdout.trim()` parses cleanly); no
+                  `\x1b[`-prefixed bytes anywhere in stdout; envelope `cell` and
+                  `exitCode` match the cell's contract.
+                - No `@clack/prompts` mock in this file — the subprocess is the
+                  real CLI, and any Clack output that reaches the parent process
+                  via the child's stdout is a contract violation.
+
+            - `[ ]` **2.R.3.c.2 CI ordering — built artifact precondition**
+                - _Goal:_ The subprocess tests need
+                  `packages/arc-framework/dist/cli.js` built. Confirm or wire
+                  the existing test runner sequence so `npm test` (and CI)
+                  build the package before the subprocess tests execute, or
+                  add a per-test prebuild guard that fails fast with a clear
+                  message if `dist/cli.js` is missing.
+                - Forward-compat: if other future subprocess tests land, the
+                  prebuild contract should be project-wide (not per-test
+                  bespoke).
 
 ### `[ ]` **2.R.4 Disk-vs-note direction inference and action-oriented status output**
 
