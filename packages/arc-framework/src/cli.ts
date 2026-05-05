@@ -201,7 +201,11 @@ program
     "Synchronize the configured concerns — worktree push, user-notes push, "
     + "per `push_interlock` and `notes_push` config",
   )
-  .option("-y, --yes", "Skip overwrite confirmation prompts")
+  .option(
+    "-y, --yes",
+    "Auto-accept safe-default prompts (push notes; merge on conflict). "
+    + "Force-push is never auto-selected.",
+  )
   .option("--dry-run", "Print the matrix decision without invoking either leg")
   .option("--json", "Emit the structured result as JSON")
   .action(handleSync);

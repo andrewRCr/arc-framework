@@ -263,7 +263,12 @@ export async function handleSync(opts: SyncOptions = {}): Promise<void> {
   ]);
 
   let notesPush = syncPushResolved.policy;
-  if (notesPush === "prompt" && (isNonInteractiveEnvironment() || opts.json === true)) {
+  if (notesPush === "prompt" && opts.yes === true) {
+    output.log.info(
+      `--yes flag detected — auto-accepting "prompt" policy (save and push notes).`,
+    );
+    notesPush = "always";
+  } else if (notesPush === "prompt" && (isNonInteractiveEnvironment() || opts.json === true)) {
     const reason = opts.json === true ? "JSON output mode" : "Non-interactive environment";
     output.log.warn(
       `${reason} detected — degrading "prompt" policy to "manual" (save only).`,
@@ -305,6 +310,7 @@ export async function handleSync(opts: SyncOptions = {}): Promise<void> {
     output,
     cwd,
     identity,
+    yes: opts.yes === true,
   });
 
   const outcome: SyncOutcome = {
@@ -342,6 +348,8 @@ interface ExecuteContext {
   output: SyncOutput;
   cwd: string;
   identity: string;
+  /** `--yes` flag — auto-accepts safe-default recovery prompts; never opts into force-push. */
+  yes: boolean;
 }
 
 async function execute(ctx: ExecuteContext): Promise<ExecutedOutcome> {
@@ -455,7 +463,7 @@ async function executePaired(ctx: ExecuteContext, branch: string): Promise<Execu
     access,
     branch,
     worktreeSyncState: ctx.worktreeState,
-    pushNotes: pairedNotesAdapter,
+    pushNotes: (context) => pairedNotesAdapter(context, ctx.yes),
   });
   renderPairedResult(result, branch, ctx.output);
   return {
@@ -473,6 +481,7 @@ async function executePaired(ctx: ExecuteContext, branch: string): Promise<Execu
  */
 async function pairedNotesAdapter(
   context: PairedPushNotesContext,
+  yes: boolean,
 ): Promise<PairedPushNotesPusherResult> {
   const result = await pushWithInteractiveRecovery({
     io: context.io,
@@ -480,6 +489,7 @@ async function pairedNotesAdapter(
     cwd: context.cwd,
     access: context.access,
     worktreeBranch: context.worktreeBranch,
+    yes,
   });
   switch (result.kind) {
     case "ok":
@@ -763,6 +773,7 @@ async function pushNotesLeg(ctx: ExecuteContext): Promise<LegOutcomeRecord> {
     cwd: ctx.cwd,
     access,
     worktreeBranch: ctx.branch ?? undefined,
+    yes: ctx.yes,
   });
   switch (result.kind) {
     case "ok":

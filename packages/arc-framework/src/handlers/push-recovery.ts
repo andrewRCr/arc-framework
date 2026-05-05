@@ -44,6 +44,14 @@ export interface PushWithInteractiveRecoveryOptions {
   access?: AccessFn;
   /** Current worktree branch — threaded into the pushability matrix. */
   worktreeBranch?: string;
+  /**
+   * Auto-accept safe-default recovery on conflict — `--yes` semantics.
+   *
+   * On non-fast-forward rejection, the conflict resolves via the merge path
+   * (force-fetch, re-save on top, push) without prompting. Force-push is
+   * never auto-selected; `--yes` does not opt into destructive defaults.
+   */
+  yes?: boolean;
 }
 
 /**
@@ -59,7 +67,7 @@ export interface PushWithInteractiveRecoveryOptions {
 export async function pushWithInteractiveRecovery(
   options: PushWithInteractiveRecoveryOptions,
 ): Promise<PushResult> {
-  const { io, identity, cwd, access, worktreeBranch } = options;
+  const { io, identity, cwd, access, worktreeBranch, yes } = options;
   const spinner = p.spinner();
   spinner.start("Pushing user notes...");
   try {
@@ -83,24 +91,17 @@ export async function pushWithInteractiveRecovery(
 
     if (!isDivergentPushError(msg)) return { kind: "failed", error: err };
 
-    // Conflict requires an interactive choice. In non-interactive environments,
-    // surface an explicit discriminant so callers can render a dedicated
-    // "save preserved; push skipped" banner instead of a generic failure.
-    if (isNonInteractiveEnvironment()) return { kind: "failed-nontty-conflict" };
+    // Conflict requires an interactive choice. Under `--yes`, auto-accept the
+    // safe default (merge); force-push is destructive and never auto-selected.
+    // Without `--yes`, non-interactive environments surface an explicit
+    // discriminant so callers can render a dedicated "save preserved; push
+    // skipped" banner instead of a generic failure.
+    const action: ConflictAction = yes === true
+      ? "merge"
+      : await promptConflictResolution();
 
-    p.log.warn("Push rejected — local and remote notes conflict (both moved since common ancestor).");
-    const action = await p.select({
-      message: "How would you like to resolve this?",
-      options: [
-        { value: "force", label: "Force push (overwrite remote with local)" },
-        { value: "merge", label: "Merge: rebase my save onto remote, then push" },
-        { value: "cancel", label: "Cancel" },
-      ],
-    });
-
-    if (p.isCancel(action) || action === "cancel") {
-      return { kind: "cancelled" };
-    }
+    if (action === "non-interactive") return { kind: "failed-nontty-conflict" };
+    if (action === "cancel") return { kind: "cancelled" };
 
     try {
       if (action === "force") {
@@ -139,6 +140,25 @@ export async function pushWithInteractiveRecovery(
       return { kind: "failed", error: recoveryErr };
     }
   }
+}
+
+/** Prompt result discriminator — `non-interactive` covers the no-TTY fallback. */
+type ConflictAction = "force" | "merge" | "cancel" | "non-interactive";
+
+async function promptConflictResolution(): Promise<ConflictAction> {
+  if (isNonInteractiveEnvironment()) return "non-interactive";
+
+  p.log.warn("Push rejected — local and remote notes conflict (both moved since common ancestor).");
+  const action = await p.select({
+    message: "How would you like to resolve this?",
+    options: [
+      { value: "force", label: "Force push (overwrite remote with local)" },
+      { value: "merge", label: "Merge: rebase my save onto remote, then push" },
+      { value: "cancel", label: "Cancel" },
+    ],
+  });
+  if (p.isCancel(action)) return "cancel";
+  return action;
 }
 
 async function warnIfLocalNoteStaleForHead(

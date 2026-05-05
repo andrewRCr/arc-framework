@@ -287,9 +287,6 @@ The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) is built as a 
 
 - _Goal:_ Save, push, and status surfaces cannot report success or "clean" when current-`HEAD`
   user notes were not actually saved or the latest local note is stale.
-- _Outcome:_ Save now verifies exact-`HEAD` note readback before advancing sync-state;
-  no-op push and session status surfaces distinguish matching refs from current-`HEAD`
-  freshness and warn before handoff when the latest local note is stale.
 
     - `[x]` **2.R.1.a Save postcondition verification**
         - `runUserSave` now verifies an exact-`HEAD` note readback before advancing
@@ -320,7 +317,11 @@ The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) is built as a 
           session-init user result and handoff envelope, with real-git coverage for
           session-init freshness.
 
-### `[ ]` **2.R.2 Sync orchestrator execution contract**
+- _Outcome:_ Save now verifies exact-`HEAD` note readback before advancing sync-state;
+  no-op push and session status surfaces distinguish matching refs from current-`HEAD`
+  freshness and warn before handoff when the latest local note is stale.
+
+### `[x]` **2.R.2 Sync orchestrator execution contract**
 
 - _Goal:_ Every `arc sync` matrix cell preserves local state, gates unsafe pushes consistently,
   and emits machine-consumable output in JSON mode.
@@ -368,7 +369,7 @@ The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) is built as a 
           all notes-pusher outcome variants (success / noop / ok-recovered /
           cancelled / no-remote / failed-nontty-conflict / blocked / failed).
 
-    - `[ ]` **2.R.2.d JSON contract and `--yes` semantics**
+    - `[x]` **2.R.2.d JSON contract and `--yes` semantics**
 
         - _Goal:_ Pin the `arc sync --json` envelope as a stable machine-readable
           contract — single object on stdout, every return path emits, structural parity
@@ -442,17 +443,33 @@ The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) is built as a 
                   pin envelope shape, non-zero exit, and confirm config /
                   worktree probes never fire on the early-return paths.
 
-            - `[ ]` **2.R.2.d.5 `--yes` wiring**
-                - `opts.yes` is declared on `SyncOptions` but unused. Thread through
-                  matrix dispatch: degrade `notes_push: prompt` → `always` so the
-                  save+prompt cell resolves without confirmation; auto-accept
-                  safe-default recovery prompts in `pushWithInteractiveRecovery`; refuse
-                  destructive defaults (force-push, etc.) and emit guidance instead of
-                  auto-accepting.
-                - Cross-cutting — touches matrix-decision input, recovery-layer prompt
-                  surface, and dry-run preview when `--yes` changes resolved policy.
-                - Tests: cover policy degradation, safe-default auto-accept, and refusal
-                  of destructive auto-accept paths.
+            - `[x]` **2.R.2.d.5 `--yes` wiring**
+                - `--yes` now degrades `notes_push: prompt` → `always` before the
+                  matrix decides, so the save+prompt cell never enters and dry-run
+                  previews reflect the resolved cell. The new gate runs ahead of
+                  the JSON / non-interactive `prompt` → `manual` fallback so
+                  explicit auto-accept always wins over implicit degradation.
+                - `pushWithInteractiveRecovery` now accepts `yes`; on conflict it
+                  auto-accepts the merge path (force-fetch, re-save on top, push)
+                  and bypasses both the Clack `select` and the
+                  `failed-nontty-conflict` shortcut. Force-push is never
+                  auto-selected — the `select` remains the only entry point for
+                  that destructive action. CLI help text updated to match.
+                - `ExecuteContext.yes` threads through `executePaired`'s notes
+                  adapter and `pushNotesLeg`. Tests cover policy degradation,
+                  --yes-overrides-JSON-degradation, paired-leg propagation,
+                  dry-run preview, conflict auto-merge, non-interactive override,
+                  and the force-push refusal contract.
+
+        - _Outcome:_ The `arc sync --json` envelope is now a stable contract:
+          every return path emits a single JSON object on stdout (runtime,
+          dry-run, and both early-return error paths), with `interlockState`
+          reporting the resolved policy, `mode: "dry-run"` distinguishing
+          previews, and `cell: "none"` plus a `reason` discriminator on
+          identity-absent / no-arc-project failures. Stdout purity holds
+          across all paths via `SyncOutput`. `--yes` threads through matrix
+          dispatch (prompt → always degradation) and the recovery layer
+          (auto-merge on conflict; force-push never auto-selected).
 
 ### `[ ]` **2.R.3 Regression coverage across real git topologies**
 

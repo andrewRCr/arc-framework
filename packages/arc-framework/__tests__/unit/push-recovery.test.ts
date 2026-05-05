@@ -240,4 +240,55 @@ describe("pushWithInteractiveRecovery", () => {
     expect(result).toEqual({ kind: "failed-nontty-conflict" });
     expect(mockSelect).not.toHaveBeenCalled();
   });
+
+  it("yes: auto-accepts merge on conflict — no prompt, runs fetch / re-save / push in order", async () => {
+    const callOrder: string[] = [];
+    mockRunUserPush
+      .mockImplementationOnce(() => { callOrder.push("push"); return Promise.reject(new Error("non-fast-forward")); })
+      .mockImplementationOnce(() => { callOrder.push("push"); return Promise.resolve(undefined); });
+    mockRunUserFetch.mockImplementation(() => { callOrder.push("fetch"); return Promise.resolve(undefined); });
+    mockRunUserSave.mockImplementation(() => {
+      callOrder.push("save");
+      return Promise.resolve({ identity, commit: "abc1234", fileCount: 1, warnings: [] });
+    });
+
+    const result = await pushWithInteractiveRecovery({ io, identity, cwd, yes: true });
+
+    expect(result).toEqual({ kind: "ok-recovered", via: "merge" });
+    expect(mockSelect).not.toHaveBeenCalled();
+    expect(callOrder).toEqual(["push", "fetch", "save", "push"]);
+    expect(mockRunUserPush).toHaveBeenNthCalledWith(2, expect.not.objectContaining({ force: true }));
+  });
+
+  it("yes: overrides non-interactive — auto-merge instead of failed-nontty-conflict", async () => {
+    mockIsNonInteractive.mockReturnValue(true);
+    mockRunUserPush
+      .mockRejectedValueOnce(new Error("non-fast-forward"))
+      .mockResolvedValueOnce(undefined);
+    mockRunUserFetch.mockResolvedValue(undefined);
+    mockRunUserSave.mockResolvedValue({ identity, commit: "abc1234", fileCount: 1, warnings: [] });
+
+    const result = await pushWithInteractiveRecovery({ io, identity, cwd, yes: true });
+
+    expect(result).toEqual({ kind: "ok-recovered", via: "merge" });
+    expect(mockSelect).not.toHaveBeenCalled();
+  });
+
+  it("yes: never auto-selects force — destructive option requires explicit user choice", async () => {
+    // Under --yes, a divergent push goes through merge recovery; force is never
+    // invoked even though the user could have chosen it interactively. Pin by
+    // asserting runUserPush is never called with force: true under yes.
+    mockRunUserPush
+      .mockRejectedValueOnce(new Error("non-fast-forward"))
+      .mockResolvedValueOnce(undefined);
+    mockRunUserFetch.mockResolvedValue(undefined);
+    mockRunUserSave.mockResolvedValue({ identity, commit: "abc1234", fileCount: 1, warnings: [] });
+
+    await pushWithInteractiveRecovery({ io, identity, cwd, yes: true });
+
+    const forceCalls = mockRunUserPush.mock.calls.filter(
+      (call) => (call[0] as { force?: boolean })?.force === true,
+    );
+    expect(forceCalls).toHaveLength(0);
+  });
 });

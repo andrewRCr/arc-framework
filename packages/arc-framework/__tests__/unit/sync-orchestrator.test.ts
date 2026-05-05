@@ -156,7 +156,7 @@ function pushedBranchInvocations(): string[][] {
 }
 
 async function captureSyncJson(
-  opts: { dryRun?: boolean } = {},
+  opts: { dryRun?: boolean; yes?: boolean } = {},
 ): Promise<Record<string, unknown>> {
   const stdoutWrite = vi
     .spyOn(process.stdout, "write")
@@ -774,6 +774,109 @@ describe("--json stdout-purity contract", () => {
 
     expect(mockIntro).toHaveBeenCalledWith("arc sync");
     expect(mockOutro).toHaveBeenCalledWith("Done.");
+  });
+});
+
+describe("--yes wiring", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    resetMockDefaults();
+    mockResolveUserIdentity.mockResolvedValue("andrew");
+    process.exitCode = undefined;
+  });
+
+  it("--yes degrades notes_push: prompt → always; never invokes confirm", async () => {
+    setConfig("manual");
+    setNotesPolicy("prompt");
+    setWorktree("clean");
+    mockRunUserSave.mockResolvedValue({
+      identity: "andrew",
+      commit: "abc1234",
+      fileCount: 1,
+      warnings: [],
+    });
+    mockPushWithRecovery.mockResolvedValue({ kind: "ok" });
+
+    const outcome = await captureSyncJson({ yes: true });
+
+    expect(mockConfirm).not.toHaveBeenCalled();
+    expect(mockPushWithRecovery).toHaveBeenCalledTimes(1);
+    expect(mockPushWithRecovery).toHaveBeenCalledWith(
+      expect.objectContaining({ yes: true }),
+    );
+    expect(outcome.cell).toBe("notes-only");
+    expect(outcome.interlockState).toMatchObject({ notesPush: "always" });
+  });
+
+  it("--yes wins over JSON-mode prompt-degradation gate (always > manual)", async () => {
+    setConfig("manual");
+    setNotesPolicy("prompt");
+    setWorktree("clean");
+    mockRunUserSave.mockResolvedValue({
+      identity: "andrew",
+      commit: "abc1234",
+      fileCount: 1,
+      warnings: [],
+    });
+    mockPushWithRecovery.mockResolvedValue({ kind: "ok" });
+
+    const outcome = await captureSyncJson({ yes: true });
+
+    expect(outcome.interlockState).toMatchObject({ notesPush: "always" });
+    expect(outcome.cell).toBe("notes-only");
+  });
+
+  it("--yes propagates yes: true into runPairedPush's notes adapter", async () => {
+    setConfig("on-sync");
+    setNotesPolicy("prompt");
+    setWorktree("clean");
+
+    let capturedNotesContext: unknown;
+    mockRunPairedPush.mockImplementation(async (opts: unknown) => {
+      const o = opts as {
+        pushNotes: (ctx: { io: unknown; identity: string; cwd: string;
+          access: unknown; worktreeBranch: string }) => Promise<unknown>;
+      };
+      capturedNotesContext = await o.pushNotes({
+        io: {},
+        identity: "andrew",
+        cwd: "/repo",
+        access: () => Promise.resolve(),
+        worktreeBranch: "main",
+      });
+      return {
+        save: { status: "success", result: { identity: "andrew", commit: "x", fileCount: 1, warnings: [] } },
+        worktree: { status: "success" },
+        notes: { status: "success" },
+        conditions: [],
+        exitCode: 0,
+      };
+    });
+    mockPushWithRecovery.mockResolvedValue({ kind: "ok" });
+
+    await handleSync({ yes: true });
+
+    expect(mockPushWithRecovery).toHaveBeenCalledWith(
+      expect.objectContaining({ yes: true }),
+    );
+    expect(capturedNotesContext).toEqual({ status: "success" });
+  });
+
+  it("--dry-run --json --yes → preview reflects degraded policy (notes-only, save+push)", async () => {
+    setConfig("manual");
+    setNotesPolicy("prompt");
+    setWorktree("clean");
+
+    const outcome = await captureSyncJson({ dryRun: true, yes: true });
+
+    expect(mockRunUserSave).not.toHaveBeenCalled();
+    expect(mockPushWithRecovery).not.toHaveBeenCalled();
+    expect(outcome).toMatchObject({
+      mode: "dry-run",
+      cell: "notes-only",
+      interlockState: { notesPush: "always" },
+      notes: { action: "push", result: "skipped", detail: "dry-run" },
+    });
   });
 });
 
