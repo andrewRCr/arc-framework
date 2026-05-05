@@ -411,7 +411,7 @@ describe("runPairedPush", () => {
             guidance: "missing refspec",
           },
         ],
-      } as const,
+      } satisfies PairedPushNotesPusherResult,
     ],
   ])(
     "notes-pusher non-success outcome %j → marker recorded; exitCode 1",
