@@ -272,8 +272,9 @@ and an exported paired-push helper are the load-bearing shape decisions.
 
 _Purpose:_ Correct the Phase 2 sync-contract gaps found during cross-machine handoff analysis
 before vocabulary/config work resumes. This phase hardens save verification, freshness
-reporting, orchestrator routing, machine-readable output, and the self-hosted CLI path so Phase
-3+ work builds on a reliable `arc sync` contract.
+reporting, orchestrator routing, machine-readable output, disk-vs-note direction inference,
+status messaging, and the self-hosted CLI path so Phase 3+ work builds on a reliable
+`arc sync` contract.
 
 _Forward-compat:_ Phase 2.R extracts a `pushWorktreeBranch` helper in `lib/git/` that the
 orchestrator and paired-push consume — `plan-interlock-release-wrappers.md` (WU1) swaps the
@@ -435,24 +436,104 @@ The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) is built as a 
         - Owns the subprocess-level purity contract; 2.R.2.d owns structure assertions with
           mocked exec.
 
-### `[ ]` **2.R.4 Self-hosted CLI guard**
+### `[ ]` **2.R.4 Disk-vs-note direction inference and action-oriented status output**
+
+- _Goal:_ Eliminate the misclassification that recommends `save` when `load` is correct
+  after a cross-machine ref advance, and reshape default status output so actions name the
+  right verb in one line. Three-tier truth (refs / disk / working files) stays available
+  behind `--verbose` and in `--json` for debugging and machine consumers.
+
+    - `[ ]` **2.R.4.a Disk-vs-note direction inference via `sourceCommit` ancestry**
+        - _Goal:_ `inspectDiskVsLocalSnapshot` distinguishes "disk behind note" (note
+          advanced past `LocalSyncState.sourceCommit`; disk hash matches the materialized
+          manifest) from "disk has unsaved edits" (disk advanced past the materialized
+          manifest; note still at `sourceCommit`) and from genuine reconciliation cases.
+          Today's hash-only comparison cannot tell these apart and silently misroutes
+          post-fetch disk-behind state to a `save` action that overwrites the freshly
+          fetched newer note.
+        - `determineUserStatusAction` consumes the signal and recommends `arc user load`
+          for the disk-behind case; `arc user save` for true unsaved edits; manual
+          reconciliation framing for ambiguous mixed cases.
+        - The note-commit vs. `LocalSyncState.sourceCommit` ancestry check is the
+          load-bearing comparison; `git merge-base --is-ancestor` is already available via
+          `isAncestor` in `sync-status.ts`. Legacy `sourceCommit: ""` falls through to the
+          existing hash-only heuristic — no direction inference, no behavior change.
+        - Affected files:
+          `packages/arc-framework/src/commands/user/sync-status.ts`
+          (`inspectDiskVsLocalSnapshot` direction logic + `determineUserStatusAction`
+          routing).
+        - Build `test-first` (one behavior at a time):
+            - Note descendant of `sourceCommit`, disk hash matches materialized →
+              `direction: "behind"`, action recommends `arc user load`
+            - Note equal to `sourceCommit`, disk hash differs from materialized →
+              direction reflects unsaved edits, action recommends `arc user save`
+            - Both note and disk advanced from `sourceCommit` baseline → mixed
+              direction; action prompts manual reconciliation rather than auto-routing
+              to either verb
+            - Note unreachable from `sourceCommit` (orphan / divergent history) →
+              mixed direction; action prompts manual reconciliation
+            - Legacy `sourceCommit: ""` → falls through to existing hash-only
+              heuristic; no behavior change
+
+    - `[ ]` **2.R.4.b Action-oriented status default with `--verbose` three-tier truth**
+        - _Goal:_ `arc user status` default output names the next command in one
+          sentence rather than narrating ref topology in three. Three-tier detail
+          stays available behind `--verbose` and in `--json` for debugging and
+          machine consumers.
+        - Default shape: headline `<identity>: <action-or-clean-state>`, one-line
+          context combining note commit + freshness + remote alignment, pre-load
+          backup count when present, single `Next step:` line. Today's
+          `renderHeadlineExplanation` + `renderWorkingFilesLine` redundant pair
+          collapses to one direction-aware sentence consuming the 2.R.4.a signal.
+        - Saved-at line absorbs commit hash anchoring — e.g.
+          `Note current with HEAD (9b1c241f), saved 9 hours ago.` collapses today's
+          separate "Saved X" + "Latest local git note is current with HEAD" lines.
+          Behind-HEAD and outside-ancestry variants follow the same shape.
+        - Pre-load backup default: `Pre-load backup present (N files).` Full
+          enumeration moves to `--verbose` only.
+        - `--verbose` renders today's full three-tier breakdown plus the backup
+          file enumeration — no information loss for debugging surfaces.
+        - `arc user status --json` envelope shape unchanged. Action-oriented
+          rendering is a presentation-layer change; machine consumers (sync
+          orchestrator, handoff workflow) keep their contract.
+        - Affected files:
+          `packages/arc-framework/src/commands/user/sync-status.ts`
+          (`buildUserStatusResult` rendering + verbose branching);
+          `packages/arc-framework/src/handlers/user.ts` (`--verbose` flag plumbing
+          for the user-status surface);
+          `packages/arc-framework/src/cli.ts` (subcommand flag declaration).
+        - Build `test-first` (one behavior at a time):
+            - Default mode, clean state → single-line headline (e.g. `Up to date.`),
+              no detail block
+            - Default mode, disk-behind state → one-sentence headline + one context
+              line + `Next step: arc user load`
+            - Default mode, disk-edits state → one-sentence headline + one context
+              line + `Next step: arc user save`
+            - Default mode, mixed/conflict state → one-sentence headline naming the
+              ambiguity + manual-reconciliation guidance
+            - `--verbose` renders today's full three-tier detail block including
+              backup file enumeration
+            - Default mode shows `Pre-load backup present (N files).` count only
+            - `--json` shape unchanged regardless of `--verbose` flag
+
+### `[ ]` **2.R.5 Self-hosted CLI guard**
 
 - _Goal:_ This repo cannot silently trust a stale ignored `dist/cli.js` for handoff-critical
   `npx arc` commands.
 
-    - `[ ]` **2.R.4.a Implement dev-mode stale-build check**
+    - `[ ]` **2.R.5.a Implement dev-mode stale-build check**
         - Shape: in-CLI check under a `__DEV__` flag (set via `package.json` or env that fires
           only in this repo's checkout). Compare `dist/cli.js` mtime against the newest
           `src/**/*.ts` mtime; warn or fail fast when dist is stale, suggesting `npm run
           build`. Adopters never see it (published package skips the check).
         - Account for this repo's `npx arc` resolving to `packages/arc-framework/dist/cli.js`
           while `dist/` is ignored.
-        - Budget: ~1.5 sessions total across 2.R.4.a + 2.R.4.b. Rejected alternatives:
+        - Budget: ~1.5 sessions total across 2.R.5.a + 2.R.5.b. Rejected alternatives:
           dedicated wrapper (overkill — ships infrastructure adopters don't need); pure-docs
           (doesn't catch the failure mode mechanically — Phase 2.R itself was added because
           docs proved insufficient).
 
-    - `[ ]` **2.R.4.b Verify guard + adopter-docs note**
+    - `[ ]` **2.R.5.b Verify guard + adopter-docs note**
         - From a deliberately stale build state, the guard must warn or fail before `arc sync`,
           `arc user save`, `arc user push`, or `arc status --session-* --json` output is
           trusted.
@@ -462,12 +543,12 @@ The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) is built as a 
           `npm run build` before invoking `npx arc` for handoff-critical commands. The
           dev-mode check warns if dist is stale.
 
-### `[ ]` **2.R.5 Final sync contract audit**
+### `[ ]` **2.R.6 Final sync contract audit**
 
 - _Goal:_ Re-read the sync surface after remediation and capture residual risk before Phase 3
   begins.
 
-    - `[ ]` **2.R.5.a Code-path audit against invariants**
+    - `[ ]` **2.R.6.a Code-path audit against invariants**
         - Audit `handlers/sync.ts`, `handlers/user-sync.ts`, `handlers/user.ts`,
           `commands/user/*`, and `lib/git/*` against the remediation invariants:
           verified save before sync-state advance, no JSON contamination, no raw worktree-push
@@ -478,7 +559,7 @@ The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) is built as a 
           status (clean | finding | TODO)`. Status-file pointer is updated during this task.
           Companion archives or migrates to a strategy doc at WU integration.
 
-    - `[ ]` **2.R.5.b Test-surface audit + residual risk**
+    - `[ ]` **2.R.6.b Test-surface audit + residual risk**
         - Ensure unit, integration, and e2e coverage maps to all remediation invariants and at
           least one real git cross-clone path.
         - Exit criterion: produce a checklist confirming no undocumented sync regressions
@@ -495,7 +576,7 @@ The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) is built as a 
               comparing against the just-written manifest, not the readback content; confirm
               the comparison source during implementation).
 
-    - `[ ]` **2.R.5.c Doc and preamble updates**
+    - `[ ]` **2.R.6.c Doc and preamble updates**
         - Update preambles for `runPairedPush` (`commands/user/paired-push.ts`) and
           `handleSync` (`handlers/sync.ts`) to reflect post-2.R semantics: verified
           save-before-push, blocked-cell save invariant, JSON contract, worktree-push helper
@@ -733,8 +814,9 @@ Phase 3's vocabulary alignment for first-use copy strings.
   with `--offline` degrading classification explicitly.
 
     - Extend the bounded-fetch pattern (already in place for the worktree-sync probe) to the
-      notes ref on full-mode `arc status` invocation. Session-init probe stays remote-aware
-      via the existing pull mechanism.
+      notes ref on full-mode `arc status` invocation. Inference helpers built here are
+      designed for cross-surface reuse — Task 4.3 consumes them in the session-init probe
+      to surface the disk-behind-note state for cascade handling.
     - Boundary: this task classifies why the notes-sync state differs; it does not decide
       which branch or work unit the identity should work on. Branch-gone recovery and target
       selection remain Worktree Foundation + Coord Probe scope.
@@ -773,6 +855,64 @@ Phase 3's vocabulary alignment for first-use copy strings.
         - Cross-machine vs. unfetched-local distinction surfaced when remote ref differs
         - `LocalSyncState` v2 → v3 read forward-compat: existing v2 files load without error
           and get `savedAt = null` until the next save
+
+### `[ ]` **4.3 Session-init load cascade**
+
+- _Goal:_ Session-init detects ref-aligned-but-disk-behind state via the 4.2 inference
+  helpers and offers `arc user load` per a new `session.init_load.notes` config knob —
+  same shape as the existing `session.init_pull.notes` cascade, applied to the load-needed
+  condition. Closes the cross-machine-resume gap where worktree pull silently advances the
+  user-notes ref while working files stay stale, and session-init reports "everything
+  synced" without surfacing the load action.
+
+    - `arc status --session-init --json` envelope's user channel surfaces a load-needed
+      signal (new `UserSyncSpine` state, or `loadNeeded: boolean` alongside existing
+      state — shape decision at implementation) when notes ref is aligned with remote but
+      disk is behind the latest note. Direction inference reuses the 2.R.4.a + 4.2
+      foundations.
+    - `session-init.md` Step 2 notes-channel logic gains a load-needed case:
+      `prompt` → ask before running `arc user load`; `always` → load without prompt;
+      `manual` → surface in orientation only.
+    - Combined-prompt integration: when worktree-pull and notes-load both need action,
+      issue a single combined prompt with per-channel choices (load both / worktree only
+      / notes only / skip), mirroring today's worktree-pull + notes-pull combined prompt.
+    - Dirty-tree precheck refuses auto-load when working files have unsaved edits not
+      reflected in the latest note — degrades to prompt or surface-only regardless of
+      `always` setting. Pre-load backup mechanism (already part of `arc user load`) is
+      the safety net for the auto-action case.
+    - Config schema: new `session.init_load.notes: prompt | always | manual` key (default
+      `prompt`). Mirrors `session.init_pull.notes` shape for consistency. Schema lands in
+      `arc-config.yml` template + `.arc/` instance + shell validator + DEFAULTS map.
+    - Affected files (audit-enumerated; confirm at implementation):
+        - `packages/arc-framework/src/commands/user/sync-status.ts`
+          (`runUserSessionInitStatus` envelope extension; load-needed signal derivation)
+        - `packages/arc-framework/src/lib/config/status-reader.ts` (DEFAULTS +
+          `AGENT_CONSUMABLE_KEYS` + enum validator entry)
+        - `packages/arc-framework/src/commands/config/types.ts` (`ConfigSettings`,
+          `ConfigSessionInitSettings` interface keys)
+        - `packages/arc-framework/arc/system/scripts/validate-config.sh`
+          (`validate_enum` line + `known_keys` list)
+        - `packages/arc-framework/arc/system/arc-config.yml` (key + comment)
+        - `.arc/system/workflows/arc/session-lifecycle/session-init.md` (Step 2
+          notes-channel state list + cascade handling + combined-prompt branch) plus
+          package source mirror at
+          `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/`
+    - Build `test-first` (one behavior at a time):
+        - Probe surfaces load-needed signal when ref aligned + sourceCommit ancestor
+          of note's commit + disk hash matches materialized
+        - Probe omits load-needed signal when refs aligned + disk hash matches note
+          hash (clean state)
+        - `session.init_load.notes: always` + clean tree → auto-load fires without
+          prompt; orientation reports the action taken
+        - `session.init_load.notes: prompt` → prompt issued before load; user accept
+          runs `arc user load`; user decline surfaces in orientation
+        - `session.init_load.notes: manual` → surface in orientation; no prompt
+        - Dirty-tree precheck refuses auto-load even under `always`; degrades to
+          prompt with explicit warning
+        - Combined prompt fires when worktree-pull + notes-load both needed; per-channel
+          accept handled correctly
+        - Identity absent → load-needed signal omitted (no path for load); worktree
+          channel still applies
 
 ## **Phase 5:** Verification
 
@@ -825,6 +965,16 @@ Phase 3's vocabulary alignment for first-use copy strings.
   cross-machine causes inferred and surfaced
 - `[ ]` Layered vocabulary rule applied: "user notes" workhorse noun across
   headlines/hints/summaries; "git notes ref" only when storage mechanism is relevant
+- `[ ]` Disk-vs-note direction inference (`sourceCommit` ancestry) distinguishes
+  "disk behind note" from "disk has unsaved edits"; status output recommends
+  `arc user load` vs `arc user save` accordingly — no silent overwrite of freshly
+  fetched newer notes
+- `[ ]` `arc user status` default output is action-oriented (one-line headline + one-line
+  context + `Next step:`); `--verbose` retains today's three-tier detail and pre-load
+  backup enumeration; `--json` envelope shape unchanged
+- `[ ]` Session-init detects ref-aligned-but-disk-behind state and offers `load` per
+  `session.init_load.notes` (`prompt | always | manual`); dirty-tree precheck refuses
+  auto-load; combined prompt covers concurrent worktree-pull + notes-load scenarios
 - `[ ]` All quality gates pass (markdown lint, TypeScript type check, full Vitest suite, build
   verification)
 - `[ ]` Ready for integration

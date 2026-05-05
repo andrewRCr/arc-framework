@@ -11,19 +11,19 @@
 
 ## Phase 2.R Audit Findings
 
-_Populated during Task 2.R.5.a — Code-path audit against invariants. One row per file:
+_Populated during Task 2.R.6.a — Code-path audit against invariants. One row per file:
 `invariant → location → status (clean | finding | TODO)`._
 
 | File | Invariant | Location | Status |
 |------|-----------|----------|--------|
 
-_(rows added during 2.R.5.a)_
+_(rows added during 2.R.6.a)_
 
 ---
 
 ## Residual Risks Carried Forward
 
-_Populated during Task 2.R.5.b — Test-surface audit + residual risk._
+_Populated during Task 2.R.6.b — Test-surface audit + residual risk._
 
 The following risks are intentionally out of scope for Phase 2.R; each is real and
 acknowledged. Captured here so they reach a future hardening WU rather than rediscovering
@@ -89,7 +89,7 @@ Helper is the swappable seam for `plan-interlock-release-wrappers.md` WU1's
 `arc release push`. Kept at internal scope (not exported from `lib/git/index.ts`) until
 the wrapper WU consumes it — avoids premature public-surface commitment.
 
-### Self-host guard shape (2.R.4.a)
+### Self-host guard shape (2.R.5.a)
 
 In-CLI dev-mode stale-build check under a `__DEV__` flag, plus a brief
 CONTRIBUTING/README note. Adopters never see it (published package skips). Rejected
@@ -110,6 +110,6 @@ and other destructive defaults always refuse with guidance. Matches `handleUserP
 
 _Append as audit work uncovers items needing later resolution._
 
-- _(none yet — populated during 2.R.5.a / 2.R.5.b)_
+- _(none yet — populated during 2.R.6.a / 2.R.6.b)_
 
 ---
