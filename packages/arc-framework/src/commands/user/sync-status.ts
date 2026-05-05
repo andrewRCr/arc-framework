@@ -79,7 +79,15 @@ export async function inspectUserSyncState(
 export async function runUserStatus(
   options: UserStatusOptions,
 ): Promise<UserStatusResult> {
-  const { cwd, io, identity, offline = false, all = false, remoteSyncEnabled = false } = options;
+  const {
+    cwd,
+    io,
+    identity,
+    offline = false,
+    all = false,
+    remoteSyncEnabled = false,
+    verbose,
+  } = options;
   const shouldProbeWorktree = !offline && remoteSyncEnabled;
   const [diskInspection, search, backupFiles, remoteIdentities, refInspection, worktreeProbe] =
     await Promise.all([
@@ -121,6 +129,7 @@ export async function runUserStatus(
     remoteIdentities,
     worktree: worktreeProbe ?? undefined,
     remoteSyncEnabled,
+    ...(verbose === undefined ? {} : { verbose }),
   });
 }
 
@@ -453,6 +462,16 @@ interface BuildUserStatusInput {
    * remote-sync case (emit a skip note) from the disabled case (emit nothing).
    */
   remoteSyncEnabled?: boolean;
+  /**
+   * Render the verbose three-tier (refs / disk / working files) detail block.
+   *
+   * When `false`, `summary` carries an action-oriented headline and
+   * `detailLines` collapse to at most a context line, an optional pre-load
+   * backup count, and a `Next step:` line. The default (`true`) preserves
+   * the verbose detail block — used by the composite `arc status` surface
+   * and any caller that hasn't migrated to the action-oriented presentation.
+   */
+  verbose?: boolean;
 }
 
 export function buildUserStatusResult(
@@ -482,12 +501,12 @@ export function buildUserStatusResult(
   const remoteStatus = spine.remoteStatus;
   const diskStatus = input.diskStatus ?? deriveDiskStatus(diskState, unsavedDirection);
   const headline = determineUserStatusHeadline(remoteStatus, diskStatus);
-  const summaryHeadline = renderSummaryHeadline(headline, remoteChecked);
-  const summary = remoteChecked
-    ? `${identity}: ${summaryHeadline}`
-    : `${identity}: ${summaryHeadline} (offline)`;
+  const verbose = input.verbose ?? true;
+  const offlineSuffix = remoteChecked ? "" : " (offline)";
+  const summary = verbose
+    ? `${identity}: ${renderSummaryHeadline(headline, remoteChecked)}${offlineSuffix}`
+    : `${identity}: ${renderActionOrientedHeadline(spine, diskStatus, unsavedDirection)}${offlineSuffix}`;
 
-  const detailLines: string[] = [];
   const actionHint = determineUserStatusAction(
     spine,
     diskState,
@@ -496,68 +515,36 @@ export function buildUserStatusResult(
     unsavedDirection,
   );
 
-  if (!remoteChecked) {
-    detailLines.push("Remote notes check skipped (`--offline`); local notes were not compared with remote notes.");
-  }
-
-  detailLines.push(renderHeadlineExplanation(headline, diskStatus));
-  detailLines.push(renderWorkingFilesLine(diskStatus));
-  detailLines.push(`Remote notes: ${renderRemoteStatus(remoteStatus)}.`);
-
-  if (spine.coherenceState === "partial-push") {
-    detailLines.push(
-      "Partial push recovery: remote notes are still behind local notes after a prior publish attempt.",
-    );
-  } else if (spine.coherenceState === "partial-push-unverified") {
-    detailLines.push(
-      "Partial push recovery cannot be verified because remote notes are unavailable for comparison with local notes.",
-    );
-  }
-
-  const worktreeQualifier = formatWorktreeQualifierLine({
-    worktree: input.worktree,
-    offline: !remoteChecked,
-    remoteSyncEnabled: input.remoteSyncEnabled ?? false,
-  });
-  if (worktreeQualifier) {
-    detailLines.push(worktreeQualifier);
-  }
-
-  if (savedAtRelative) {
-    detailLines.push(`Saved ${savedAtRelative}.`);
-  }
-
-  if (savedCommit && savedReachableFromHead && ancestorDistance > 0) {
-    detailLines.push(
-      `Latest local git note is from ${savedCommit}, ${ancestorDistance} commit(s) back from HEAD.`,
-    );
-  } else if (savedCommit && savedReachableFromHead && ancestorDistance === 0) {
-    detailLines.push("Latest local git note is current with HEAD.");
-  } else if (savedCommit) {
-    const historyDetail = noteHistoryDistance === undefined
-      ? ""
-      : ` (${noteHistoryDistance} note update(s) back)`;
-    detailLines.push(
-      `Latest local git note is from ${savedCommit}, outside current HEAD ancestry${historyDetail}.`,
-    );
-  } else if (!savedCommit && diskState === "different") {
-    detailLines.push("No local git note exists yet for this identity.");
-  }
-
-  if (backupFiles.length > 0) {
-    detailLines.push(`Pre-load backup present: ${backupFiles.join(", ")}`);
-  }
-
-  if (remoteIdentities.length > 0) {
-    const identities = remoteIdentities
-      .map((entry) => `${entry.identity} (${entry.hash})`)
-      .join(", ");
-    detailLines.push(`Remote identities: ${identities}`);
-  }
-
-  if (actionHint) {
-    detailLines.push(`Next step: ${actionHint}`);
-  }
+  const detailLines = verbose
+    ? buildVerboseDetailLines({
+      input,
+      spine,
+      headline,
+      diskStatus,
+      remoteStatus,
+      remoteChecked,
+      savedCommit,
+      savedReachableFromHead,
+      ancestorDistance,
+      noteHistoryDistance,
+      diskState,
+      savedAtRelative,
+      backupFiles,
+      remoteIdentities,
+      actionHint,
+    })
+    : buildDefaultDetailLines({
+      spine,
+      diskStatus,
+      savedCommit,
+      savedReachableFromHead,
+      ancestorDistance,
+      noteHistoryDistance,
+      diskState,
+      savedAtRelative,
+      backupFiles,
+      actionHint,
+    });
 
   return {
     identity,
@@ -652,6 +639,248 @@ function renderSummaryHeadline(
     case "remote unavailable":
       return "remote notes unavailable for comparison with local notes";
   }
+}
+
+function renderActionOrientedHeadline(
+  spine: UserSyncSpine,
+  diskStatus: UserDiskStatus,
+  unsavedDirection: UserUnsavedDirection | null,
+): string {
+  if (spine.coherenceState === "partial-push") {
+    return "Partial-push pending — local notes ahead of remote.";
+  }
+  if (spine.coherenceState === "partial-push-unverified") {
+    return "Partial-push state unverified — remote notes unavailable.";
+  }
+  switch (spine.state) {
+    case "conflict":
+      return "Local and remote notes diverged.";
+    case "remote-ahead":
+      return "Remote notes ahead of local.";
+    case "remote-unavailable":
+      return "Remote notes unavailable for comparison.";
+    case "disabled":
+    case "clean":
+      break;
+  }
+  switch (diskStatus) {
+    case "stale":
+      return unsavedDirection === "behind"
+        ? "Local note ahead of working files."
+        : "Working files reflect older saved state.";
+    case "local unsaved":
+      return "Working files have unsaved changes.";
+    case "mixed":
+      return "Working files and saved note both diverged.";
+    case "current":
+      break;
+  }
+  if (spine.refState === "local-ahead") return "Local notes ahead of remote.";
+  return "Up to date.";
+}
+
+interface VerboseDetailInput {
+  input: BuildUserStatusInput;
+  spine: UserSyncSpine;
+  headline: UserStatusHeadline;
+  diskStatus: UserDiskStatus;
+  remoteStatus: UserRemoteStatus;
+  remoteChecked: boolean;
+  savedCommit: string | null;
+  savedReachableFromHead: boolean;
+  ancestorDistance: number;
+  noteHistoryDistance: number | undefined;
+  diskState: UserSyncDiskState;
+  savedAtRelative: string | null;
+  backupFiles: string[];
+  remoteIdentities: UserStatusRemoteIdentity[];
+  actionHint: string | null;
+}
+
+function buildVerboseDetailLines(args: VerboseDetailInput): string[] {
+  const {
+    input,
+    spine,
+    headline,
+    diskStatus,
+    remoteStatus,
+    remoteChecked,
+    savedCommit,
+    savedReachableFromHead,
+    ancestorDistance,
+    noteHistoryDistance,
+    diskState,
+    savedAtRelative,
+    backupFiles,
+    remoteIdentities,
+    actionHint,
+  } = args;
+  const detailLines: string[] = [];
+
+  if (!remoteChecked) {
+    detailLines.push("Remote notes check skipped (`--offline`); local notes were not compared with remote notes.");
+  }
+
+  detailLines.push(renderHeadlineExplanation(headline, diskStatus));
+  detailLines.push(renderWorkingFilesLine(diskStatus));
+  detailLines.push(`Remote notes: ${renderRemoteStatus(remoteStatus)}.`);
+
+  if (spine.coherenceState === "partial-push") {
+    detailLines.push(
+      "Partial push recovery: remote notes are still behind local notes after a prior publish attempt.",
+    );
+  } else if (spine.coherenceState === "partial-push-unverified") {
+    detailLines.push(
+      "Partial push recovery cannot be verified because remote notes are unavailable for comparison with local notes.",
+    );
+  }
+
+  const worktreeQualifier = formatWorktreeQualifierLine({
+    worktree: input.worktree,
+    offline: !remoteChecked,
+    remoteSyncEnabled: input.remoteSyncEnabled ?? false,
+  });
+  if (worktreeQualifier) {
+    detailLines.push(worktreeQualifier);
+  }
+
+  if (savedAtRelative) {
+    detailLines.push(`Saved ${savedAtRelative}.`);
+  }
+
+  if (savedCommit && savedReachableFromHead && ancestorDistance > 0) {
+    detailLines.push(
+      `Latest local git note is from ${savedCommit}, ${ancestorDistance} commit(s) back from HEAD.`,
+    );
+  } else if (savedCommit && savedReachableFromHead && ancestorDistance === 0) {
+    detailLines.push("Latest local git note is current with HEAD.");
+  } else if (savedCommit) {
+    const historyDetail = noteHistoryDistance === undefined
+      ? ""
+      : ` (${noteHistoryDistance} note update(s) back)`;
+    detailLines.push(
+      `Latest local git note is from ${savedCommit}, outside current HEAD ancestry${historyDetail}.`,
+    );
+  } else if (!savedCommit && diskState === "different") {
+    detailLines.push("No local git note exists yet for this identity.");
+  }
+
+  if (backupFiles.length > 0) {
+    detailLines.push(`Pre-load backup present: ${backupFiles.join(", ")}`);
+  }
+
+  if (remoteIdentities.length > 0) {
+    const identities = remoteIdentities
+      .map((entry) => `${entry.identity} (${entry.hash})`)
+      .join(", ");
+    detailLines.push(`Remote identities: ${identities}`);
+  }
+
+  if (actionHint) {
+    detailLines.push(`Next step: ${actionHint}`);
+  }
+
+  return detailLines;
+}
+
+interface DefaultDetailInput {
+  spine: UserSyncSpine;
+  diskStatus: UserDiskStatus;
+  savedCommit: string | null;
+  savedReachableFromHead: boolean;
+  ancestorDistance: number;
+  noteHistoryDistance: number | undefined;
+  diskState: UserSyncDiskState;
+  savedAtRelative: string | null;
+  backupFiles: string[];
+  actionHint: string | null;
+}
+
+function buildDefaultDetailLines(args: DefaultDetailInput): string[] {
+  const {
+    spine,
+    diskStatus,
+    savedCommit,
+    savedReachableFromHead,
+    ancestorDistance,
+    noteHistoryDistance,
+    diskState,
+    savedAtRelative,
+    backupFiles,
+    actionHint,
+  } = args;
+  const detailLines: string[] = [];
+
+  if (!isHeadlineFullyClean(spine, diskStatus)) {
+    const contextLine = renderDefaultContextLine({
+      savedCommit,
+      savedReachableFromHead,
+      ancestorDistance,
+      noteHistoryDistance,
+      diskState,
+      savedAtRelative,
+    });
+    if (contextLine) detailLines.push(contextLine);
+  }
+
+  if (backupFiles.length > 0) {
+    detailLines.push(`Pre-load backup present (${backupFiles.length} files).`);
+  }
+
+  if (actionHint) {
+    detailLines.push(`Next step: ${actionHint}`);
+  }
+
+  return detailLines;
+}
+
+function isHeadlineFullyClean(
+  spine: UserSyncSpine,
+  diskStatus: UserDiskStatus,
+): boolean {
+  return spine.state === "clean"
+    && spine.refState !== "local-ahead"
+    && spine.coherenceState === undefined
+    && diskStatus === "current";
+}
+
+interface DefaultContextInput {
+  savedCommit: string | null;
+  savedReachableFromHead: boolean;
+  ancestorDistance: number;
+  noteHistoryDistance: number | undefined;
+  diskState: UserSyncDiskState;
+  savedAtRelative: string | null;
+}
+
+function renderDefaultContextLine(args: DefaultContextInput): string | null {
+  const {
+    savedCommit,
+    savedReachableFromHead,
+    ancestorDistance,
+    noteHistoryDistance,
+    diskState,
+    savedAtRelative,
+  } = args;
+
+  if (!savedCommit) {
+    return diskState === "different" ? "No local note saved yet." : null;
+  }
+
+  let position: string;
+  if (savedReachableFromHead && ancestorDistance === 0) {
+    position = `Note current with HEAD (${savedCommit})`;
+  } else if (savedReachableFromHead && ancestorDistance > 0) {
+    position = `Note from ${savedCommit}, ${ancestorDistance} commit(s) back from HEAD`;
+  } else {
+    const historyDetail = noteHistoryDistance === undefined
+      ? ""
+      : ` (${noteHistoryDistance} note update(s) back)`;
+    position = `Note from ${savedCommit}, outside HEAD ancestry${historyDetail}`;
+  }
+
+  const savedSuffix = savedAtRelative ? `, saved ${savedAtRelative}` : "";
+  return `${position}${savedSuffix}.`;
 }
 
 function renderHeadlineExplanation(

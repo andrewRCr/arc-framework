@@ -123,6 +123,7 @@ userCmd
   .option("--offline", "Skip remote and worktree probes; inspect only local snapshot vs disk")
   .option("--all", "List all remote user-note identities when a remote is available")
   .option("--session-init", "Render a non-destructive remote probe summary for session-init")
+  .option("--verbose", "Render the full ref/disk/working-files three-tier detail block (default: collapsed)")
   .option("--json", "Emit the typed result as JSON")
   .action(handleUserStatus);
 

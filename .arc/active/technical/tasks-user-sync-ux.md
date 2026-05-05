@@ -491,7 +491,7 @@ composition. The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) i
           across five representative cells (c.1), with a reusable spawn helper (c.0) and project-wide prebuild guard
           (c.2) so future subprocess tests inherit both layers without bespoke wiring.
 
-### `[ ]` **2.R.4 Disk-vs-note direction inference and action-oriented status output**
+### `[x]` **2.R.4 Disk-vs-note direction inference and action-oriented status output**
 
 - _Goal:_ Eliminate the misclassification that recommends `save` when `load` is correct after a cross-machine ref
   advance, and reshape default status output so actions name the right verb in one line. Three-tier truth (refs / disk /
@@ -519,34 +519,23 @@ composition. The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) i
           divergent history) via a shared `inspectUserSyncState` io-mock helper; the legacy integration regression in
           `user.test.ts` is removed.
 
-    - `[ ]` **2.R.4.b Action-oriented status default with `--verbose` three-tier truth**
+    - `[x]` **2.R.4.b Action-oriented status default with `--verbose` three-tier truth**
         - _Goal:_ `arc user status` default output names the next command in one sentence rather than narrating ref
           topology in three. Three-tier detail stays available behind `--verbose` and in `--json` for debugging and
           machine consumers.
-        - Default shape: headline `<identity>: <action-or-clean-state>`, one-line context combining note commit +
-          freshness + remote alignment, pre-load backup count when present, single `Next step:` line. Today's
-          `renderHeadlineExplanation` + `renderWorkingFilesLine` redundant pair collapses to one direction-aware
-          sentence consuming the 2.R.4.a signal.
-        - Saved-at line absorbs commit hash anchoring — e.g. `Note current with HEAD (9b1c241f), saved 9 hours ago.`
-          collapses today's separate "Saved X" + "Latest local git note is current with HEAD" lines. Behind-HEAD and
-          outside-ancestry variants follow the same shape.
-        - Pre-load backup default: `Pre-load backup present (N files).` Full enumeration moves to `--verbose` only.
-        - `--verbose` renders today's full three-tier breakdown plus the backup file enumeration — no information loss
-          for debugging surfaces.
-        - `arc user status --json` envelope shape unchanged. Action-oriented rendering is a presentation-layer change;
-          machine consumers (sync orchestrator, handoff workflow) keep their contract.
-        - Affected files: `packages/arc-framework/src/commands/user/sync-status.ts` (`buildUserStatusResult` rendering +
-          verbose branching); `packages/arc-framework/src/handlers/user.ts` (`--verbose` flag plumbing for the
-          user-status surface); `packages/arc-framework/src/cli.ts` (subcommand flag declaration).
-        - Build `test-first` (one behavior at a time):
-            - Default mode, clean state → single-line headline (e.g. `Up to date.`), no detail block
-            - Default mode, disk-behind state → one-sentence headline + one context line + `Next step: arc user load`
-            - Default mode, disk-edits state → one-sentence headline + one context line + `Next step: arc user save`
-            - Default mode, mixed/conflict state → one-sentence headline naming the ambiguity + manual-reconciliation
-              guidance
-            - `--verbose` renders today's full three-tier detail block including backup file enumeration
-            - Default mode shows `Pre-load backup present (N files).` count only
-            - `--json` shape unchanged regardless of `--verbose` flag
+
+        - _Outcome:_ `buildUserStatusResult` gained `verbose: boolean` (default `true` preserves composite `arc status`
+          rendering and existing programmatic callers). Default `arc user status` flips to a single direction-aware
+          action headline (`renderActionOrientedHeadline`) plus a context line collapsing note position + saved-at
+          freshness, an optional `Pre-load backup present (N files).` count, and a `Next step:` line — ≤3 detail lines
+          versus today's seven-line three-tier breakdown. New helpers in `sync-status.ts`: `renderActionOrientedHeadline`,
+          `buildVerboseDetailLines`, `buildDefaultDetailLines`, `renderDefaultContextLine`, `isHeadlineFullyClean`. The
+          `--verbose` flag plumbs through `cli.ts` → `handlers/user.ts` → `runUserStatus` → `buildUserStatusResult`.
+          `UserStatusResult` field shape is identical across modes — only `summary` and `detailLines` content varies, so
+          machine consumers (composite `arc status`, sync orchestrator, handoff workflow) read the same envelope. New
+          tests in `user-status.test.ts` cover all seven default-mode behaviors (clean, disk-behind, disk-edits, mixed,
+          conflict, remote-ahead, backup count) plus context-line variants (current/behind-HEAD/outside-ancestry,
+          savedAt absent), offline suffix, and shape parity between modes.
 
 ### `[ ]` **2.R.5 Self-hosted CLI guard**
 

@@ -357,6 +357,283 @@ describe("buildUserStatusResult", () => {
   });
 });
 
+describe("buildUserStatusResult default mode (verbose: false)", () => {
+  it("renders single-line headline with no detail block when fully clean", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "same",
+      refState: "same",
+      remoteChecked: true,
+      savedCommit: "9b1c241",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      savedAtRelative: "9 hours ago",
+      backupFiles: [],
+      remoteIdentities: [],
+      verbose: false,
+    });
+
+    expect(result.summary).toBe("andrew: Up to date.");
+    expect(result.detailLines).toEqual([]);
+  });
+
+  it("emits headline + context line + load hint for disk-behind state", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "different",
+      diskStatus: "stale",
+      refState: "same",
+      remoteChecked: true,
+      savedCommit: "9b1c241",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      savedAtRelative: "9 hours ago",
+      unsavedDirection: "behind",
+      backupFiles: [],
+      remoteIdentities: [],
+      verbose: false,
+    });
+
+    expect(result.summary).toBe("andrew: Local note ahead of working files.");
+    expect(result.detailLines).toEqual([
+      "Note current with HEAD (9b1c241), saved 9 hours ago.",
+      "Next step: run `arc user load`",
+    ]);
+  });
+
+  it("emits headline + context line + save hint for disk-edits state", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "different",
+      refState: "same",
+      remoteChecked: true,
+      savedCommit: "9b1c241",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      savedAtRelative: "9 hours ago",
+      unsavedDirection: "edits",
+      backupFiles: [],
+      remoteIdentities: [],
+      verbose: false,
+    });
+
+    expect(result.summary).toBe("andrew: Working files have unsaved changes.");
+    expect(result.detailLines).toEqual([
+      "Note current with HEAD (9b1c241), saved 9 hours ago.",
+      "Next step: run `arc user save`",
+    ]);
+  });
+
+  it("emits ambiguity-named headline + manual reconciliation hint for mixed state", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "different",
+      diskStatus: "mixed",
+      refState: "same",
+      remoteChecked: true,
+      savedCommit: "9b1c241",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      savedAtRelative: "9 hours ago",
+      unsavedDirection: "mixed",
+      backupFiles: [],
+      remoteIdentities: [],
+      verbose: false,
+    });
+
+    expect(result.summary).toBe("andrew: Working files and saved note both diverged.");
+    expect(result.detailLines).toEqual([
+      "Note current with HEAD (9b1c241), saved 9 hours ago.",
+      "Next step: inspect local working files, then run `arc user load` or `arc user save`",
+    ]);
+  });
+
+  it("emits diverged-notes headline for refs conflict", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "different",
+      refState: "diverged",
+      remoteChecked: true,
+      savedCommit: "9b1c241",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      savedAtRelative: "9 hours ago",
+      unsavedDirection: "mixed",
+      backupFiles: [],
+      remoteIdentities: [],
+      verbose: false,
+    });
+
+    expect(result.summary).toBe("andrew: Local and remote notes diverged.");
+    expect(result.detailLines).toContain(
+      "Next step: run `arc user fetch` for non-destructive inspection",
+    );
+  });
+
+  it("emits remote-ahead headline pointing to pull", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "same",
+      refState: "remote-ahead",
+      remoteChecked: true,
+      savedCommit: "9b1c241",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      savedAtRelative: "9 hours ago",
+      backupFiles: [],
+      remoteIdentities: [],
+      verbose: false,
+    });
+
+    expect(result.summary).toBe("andrew: Remote notes ahead of local.");
+    expect(result.detailLines).toContain("Next step: run `arc user pull`");
+  });
+
+  it("renders backup count only — no enumeration — in default mode", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "different",
+      refState: "same",
+      remoteChecked: true,
+      savedCommit: "9b1c241",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      savedAtRelative: "9 hours ago",
+      unsavedDirection: "modified",
+      backupFiles: [".pre-load-1.json", ".pre-load-2.json", ".pre-load-3.json"],
+      remoteIdentities: [],
+      verbose: false,
+    });
+
+    expect(result.detailLines).toContain("Pre-load backup present (3 files).");
+    expect(result.detailLines.some((line) => line.includes(".pre-load-1.json"))).toBe(false);
+  });
+
+  it("preserves verbose three-tier detail (including backup file enumeration) when verbose: true", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "different",
+      refState: "same",
+      remoteChecked: true,
+      savedCommit: "9b1c241",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      savedAtRelative: "9 hours ago",
+      unsavedDirection: "modified",
+      backupFiles: [".pre-load-1.json", ".pre-load-2.json"],
+      remoteIdentities: [],
+      verbose: true,
+    });
+
+    expect(result.detailLines).toContain("Latest local git note is not current with the working files.");
+    expect(result.detailLines).toContain("Working files reflect an older local git note.");
+    expect(result.detailLines).toContain("Remote notes: match local notes.");
+    expect(result.detailLines).toContain("Saved 9 hours ago.");
+    expect(result.detailLines).toContain(
+      "Pre-load backup present: .pre-load-1.json, .pre-load-2.json",
+    );
+  });
+
+  it("preserves identical UserStatusResult shape regardless of verbose flag", () => {
+    const baseInput = {
+      identity: "andrew",
+      diskState: "same" as const,
+      refState: "same" as const,
+      remoteChecked: true,
+      savedCommit: "9b1c241",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      savedAtRelative: "9 hours ago",
+      backupFiles: [],
+      remoteIdentities: [],
+    };
+
+    const verboseResult = buildUserStatusResult({ ...baseInput, verbose: true });
+    const terseResult = buildUserStatusResult({ ...baseInput, verbose: false });
+
+    expect(Object.keys(verboseResult).sort()).toEqual(Object.keys(terseResult).sort());
+  });
+
+  it("renders behind-HEAD note position in the context line", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "different",
+      refState: "same",
+      remoteChecked: true,
+      savedCommit: "9b1c241",
+      savedFromAncestor: true,
+      ancestorDistance: 3,
+      savedAtRelative: "9 hours ago",
+      unsavedDirection: "edits",
+      backupFiles: [],
+      remoteIdentities: [],
+      verbose: false,
+    });
+
+    expect(result.detailLines).toContain(
+      "Note from 9b1c241, 3 commit(s) back from HEAD, saved 9 hours ago.",
+    );
+  });
+
+  it("renders outside-ancestry note position in the context line", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "different",
+      refState: "same",
+      remoteChecked: true,
+      savedCommit: "9b1c241",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      noteHistoryDistance: 2,
+      savedReachableFromHead: false,
+      savedAtRelative: "9 hours ago",
+      unsavedDirection: "edits",
+      backupFiles: [],
+      remoteIdentities: [],
+      verbose: false,
+    });
+
+    expect(result.detailLines).toContain(
+      "Note from 9b1c241, outside HEAD ancestry (2 note update(s) back), saved 9 hours ago.",
+    );
+  });
+
+  it("drops the saved-ago suffix when savedAtRelative is absent", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "different",
+      refState: "same",
+      remoteChecked: true,
+      savedCommit: "9b1c241",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      unsavedDirection: "edits",
+      backupFiles: [],
+      remoteIdentities: [],
+      verbose: false,
+    });
+
+    expect(result.detailLines).toContain("Note current with HEAD (9b1c241).");
+  });
+
+  it("appends `(offline)` to the summary when --offline is set", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "same",
+      refState: null,
+      remoteChecked: false,
+      savedCommit: "9b1c241",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      backupFiles: [],
+      remoteIdentities: [],
+      verbose: false,
+    });
+
+    expect(result.summary).toBe("andrew: Up to date. (offline)");
+  });
+});
+
 describe("computeUnsavedDirection", () => {
   it("returns 'edits' when disk has files the saved note doesn't", () => {
     const disk = manifest({ "SESSION-NOTES.md": "aaa", "scratch.md": "bbb" });

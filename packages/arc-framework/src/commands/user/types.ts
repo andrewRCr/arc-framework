@@ -466,6 +466,15 @@ export interface UserStatusOptions {
    * Defaults to `false` (no probe, no qualifier line).
    */
   remoteSyncEnabled?: boolean;
+  /**
+   * Render the verbose three-tier (refs / disk / working files) detail block.
+   *
+   * The default (`true`) preserves the verbose detail block for callers that
+   * haven't migrated to the action-oriented presentation (composite `arc
+   * status`, programmatic consumers). The `arc user status` CLI handler
+   * passes `false` unless `--verbose` is set.
+   */
+  verbose?: boolean;
 }
 
 /**

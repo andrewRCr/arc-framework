@@ -424,6 +424,7 @@ export interface UserStatusOptions {
   offline?: boolean;
   all?: boolean;
   sessionInit?: boolean;
+  verbose?: boolean;
   json?: boolean;
 }
 
@@ -470,6 +471,7 @@ export async function handleUserStatus(opts: UserStatusOptions): Promise<void> {
     offline: opts.offline,
     all: opts.all,
     remoteSyncEnabled,
+    verbose: Boolean(opts.verbose),
   });
 
   if (json) {
