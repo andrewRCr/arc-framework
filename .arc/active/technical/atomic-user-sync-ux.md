@@ -16,25 +16,6 @@ the full protocol.
 
 ## Tasks
 
-- [ ] **Fix `npm run test:unit` wrapper to honor single-file scoping**
-    - `packages/arc-framework/package.json:12` defines
-      `"test:unit": "vitest run __tests__/unit"` — the directory baked in as a positional
-      arg. Forwarded args via `npm run test:unit -- <file>` become a second positional,
-      which Vitest treats as a union-OR include pattern and runs the full unit suite plus
-      the file. Single-file scope is silently lost.
-    - Surfaced when a Vitest worker timeout in
-      `__tests__/unit/active/session-type.test.ts` (a pure-logic test, no I/O) looked
-      like a `__tests__/unit/sync-orchestrator.test.ts` failure — the wrapper had
-      silently expanded scope to the entire unit suite, so an unrelated worker timeout
-      contaminated the signal.
-    - Fix: drop the baked-in positional and rely on a config-level include pattern, or
-      switch to a flag form (`--dir __tests__/unit`) that doesn't conflict with forwarded
-      positional args. After the fix, `npm run test:unit -- <file>` should genuinely
-      scope to `<file>`.
-    - Sibling worker-timeout investigation (whether `session-type.test.ts` flakes under
-      broad parallel runs due to FS contention from real-git tests) is a separate
-      follow-up if the timeout recurs after the wrapper fix.
-
 - [x] **Broaden DEV-RULES.ARC § No meta-project references in code**
     - Expanded planning-ID enumeration (added behavior IDs, requirement IDs, spec citations)
       and broadened scope from "production code" to code, tests, and durable documentation.
@@ -58,3 +39,20 @@ the full protocol.
     - Surfaced during arc-resume — agent ran a grep on QUICK-REFERENCE before partial-Read
       where the file convention made the grep avoidable.
     - Affected: `session-init.md` (`.arc/` instance + package source template).
+
+- [x] **Fix `npm run test:unit` wrapper to honor single-file scoping**
+    - Split unit and integration scripts onto dedicated config files
+      (`vitest.unit.config.ts`, `vitest.integration.config.ts`) mirroring the existing
+      `vitest.e2e.config.ts` pattern. Each config sets the `include` glob for its tier;
+      forwarded positional args become pure filters within that tier rather than unioning
+      with a baked-in directory pattern.
+    - Verified: `npm run test:unit -- sync-orchestrator` and `npm run test:unit --
+      __tests__/unit/sync-orchestrator.test.ts` both correctly scope to 17 tests; no-arg
+      `npm run test:unit` runs the full 1005-test unit suite. Symmetric verification on
+      `test:integration`.
+    - Suspected `__tests__/unit/active/session-type.test.ts` worker timeout did not recur
+      across the verification runs; sibling investigation deferred unless the timeout
+      returns under broad parallel runs.
+    - Affected: `packages/arc-framework/package.json`,
+      `packages/arc-framework/vitest.unit.config.ts` (new),
+      `packages/arc-framework/vitest.integration.config.ts` (new).
