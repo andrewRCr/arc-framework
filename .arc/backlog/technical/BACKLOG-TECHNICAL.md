@@ -148,6 +148,38 @@ all are hardening for edge cases unlikely to surface in normal use.
     - `readGitNote` with corrupt refs or missing commits
     - Spinner lifecycle edge cases (exception during spinner.start/stop)
 
+### Test Infrastructure
+
+- **Unify subprocess CLI test helpers (`runArc` + `runCli`)**
+    - Problem: Two near-overlapping subprocess helpers exist —
+      `__tests__/e2e/helpers.ts:runArc` (PTY-emulated via `script` on Linux,
+      injects `NO_COLOR=1`, 30s default timeout, catches errors and maps to
+      result) and `__tests__/helpers/run-cli.ts:runCli` (`stdio: "pipe"`,
+      no env injection, 10s default timeout, rejects on spawn-error/timeout).
+      Both spawn `node dist/cli.js`; the genuinely-different concern is
+      invocation mode (TTY for interactive Clack flows vs. pipe for stdout
+      purity contracts). Today, picking the wrong helper at a new test site
+      is easy and the failure mode (Clack short-circuits to non-interactive,
+      or PTY output contaminates a purity assertion) is confusing.
+      Shared `CLI_PATH` constant + prebuild guard already extracted to
+      `__tests__/helpers/cli-spawn.ts` during 2.R.3.c.2 — that captured the
+      genuinely-shared duplication. The remaining consolidation is the
+      ergonomic / single-import-surface question.
+    - Approach: Collapse to one helper with explicit `mode: "tty" | "pipe"`
+      parameter. Reconcile per-mode defaults (timeout, env injection, error
+      handling) as part of the API design — current asymmetries are tuned per
+      use case and can't be silently merged. Migrate ~80 `runArc` call sites
+      across 10 e2e test files + 6 `runCli` call sites; cwd-position mismatch
+      (positional vs. options-object) means every site touches its arg list.
+    - Notes: Not blocking — both helpers work today. Benefit is ergonomic and
+      makes the TTY-vs-pipe choice explicit at the call site instead of
+      implicit-in-import. Cost is real (86 sites + behavioral matrix
+      decisions). Path-independent: doing it later is no worse than doing it
+      now. Captured during 2.R.3.c.2 after option B (shared core extraction)
+      was selected over option C (full unification) for that task's scope.
+    - Effort estimate: M (helper redesign + 86-site migration + new unit
+      coverage for the mode parameter and default-merge behavior)
+
 ### Compatibility Testing Across Agent Platforms
 
 - ARC claims agent-agnosticism but isn't tested across platforms
@@ -179,7 +211,7 @@ Items that have been implemented or superseded by active work units.
 
 ---
 
-**Last reviewed:** 2026-04-28
+**Last reviewed:** 2026-05-05
 
 ---
 

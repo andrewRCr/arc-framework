@@ -14,14 +14,8 @@
  */
 
 import { spawn } from "node:child_process";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 
-/** Absolute path to the built CLI entry point. */
-const CLI_PATH = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  "../../dist/cli.js",
-);
+import { CLI_PATH, assertCliBuilt } from "./cli-spawn.js";
 
 /** Default subprocess timeout in milliseconds. */
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -65,6 +59,13 @@ export function runCli(
   const env = { ...process.env, ...(options.env ?? {}) };
 
   return new Promise<RunCliResult>((resolveResult, rejectResult) => {
+    try {
+      assertCliBuilt();
+    } catch (err) {
+      rejectResult(err as Error);
+      return;
+    }
+
     const child = spawn("node", [CLI_PATH, ...args], {
       cwd: options.cwd,
       env,

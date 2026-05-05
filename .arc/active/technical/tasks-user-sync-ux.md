@@ -471,7 +471,7 @@ The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) is built as a 
           dispatch (prompt → always degradation) and the recovery layer
           (auto-merge on conflict; force-push never auto-selected).
 
-### `[ ]` **2.R.3 Regression coverage across real git topologies**
+### `[x]` **2.R.3 Regression coverage across real git topologies**
 
 - _Goal:_ Test coverage catches the cross-machine and handoff failures that mocked unit tests
   missed.
@@ -534,7 +534,7 @@ The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) is built as a 
                   override), so the test rewrites `session.push_interlock` in clone A's
                   config file after `runInit` to dispatch the paired cell.
 
-    - `[ ]` **2.R.3.c JSON purity child-process tests**
+    - `[x]` **2.R.3.c JSON purity child-process tests**
 
         - _Goal:_ Pin the subprocess-level stdout purity contract for
           `arc sync --json` end-to-end through the built CLI artifact (what
@@ -578,16 +578,26 @@ The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) is built as a 
                   the subprocess so the host's gitconfig can't supply an
                   identity.
 
-            - `[ ]` **2.R.3.c.2 CI ordering — built artifact precondition**
-                - _Goal:_ The subprocess tests need
-                  `packages/arc-framework/dist/cli.js` built. Confirm or wire
-                  the existing test runner sequence so `npm test` (and CI)
-                  build the package before the subprocess tests execute, or
-                  add a per-test prebuild guard that fails fast with a clear
-                  message if `dist/cli.js` is missing.
-                - Forward-compat: if other future subprocess tests land, the
-                  prebuild contract should be project-wide (not per-test
-                  bespoke).
+            - `[x]` **2.R.3.c.2 CI ordering — built artifact precondition**
+                - E2E config's `globalSetup` (`__tests__/e2e/global-setup.ts`)
+                  already runs `npm run build` before any e2e test executes;
+                  CI's full-suite job also builds explicitly before
+                  `test:e2e`.
+                - Added project-wide prebuild guard via shared
+                  `__tests__/helpers/cli-spawn.ts` (exports `CLI_PATH` +
+                  `assertCliBuilt()`); both `runArc` and `runCli` consume
+                  it. Missing-`dist/cli.js` now fails fast with a clear
+                  "Run `npm run build` first" error — covers off-config
+                  invocations that globalSetup cannot catch.
+                - Full helper unification (single helper with
+                  `mode: "tty" | "pipe"`, ~86-site migration) deferred to
+                  `BACKLOG-TECHNICAL.md` § Test Infrastructure.
+
+        - _Outcome:_ Subprocess purity contract for `arc sync --json` is
+          end-to-end pinned through the shipped CLI across five
+          representative cells (c.1), with a reusable spawn helper (c.0)
+          and project-wide prebuild guard (c.2) so future subprocess tests
+          inherit both layers without bespoke wiring.
 
 ### `[ ]` **2.R.4 Disk-vs-note direction inference and action-oriented status output**
 
