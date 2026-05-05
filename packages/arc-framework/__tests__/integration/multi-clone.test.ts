@@ -51,6 +51,7 @@ const execFileAsync = promisify(execFile);
 
 interface SyncEnvelope {
   cell: string;
+  worktree: { action: string; result: string; detail?: string };
   notes: { action: string; result: string; detail?: string };
   exitCode: number;
 }
@@ -182,4 +183,138 @@ describe("user-notes cross-clone sync regression", () => {
       await harness.cleanup();
     }
   });
+});
+
+describe("user-notes paired-push cross-clone regression", () => {
+  it(
+    "clone A sync --json executes paired push, advances main and notes ref on origin, "
+    + "and clone B fetch + pull observes the new HEAD with current freshness",
+    async () => {
+      const harness = await setupMultiClone();
+      const originalCwd = process.cwd();
+      const identity = "test-user";
+      const noteRef = `refs/notes/arc/user/${identity}`;
+
+      try {
+        const recipe = await loadRecipe();
+        const templateDir = getArcTemplatePath();
+        const internalTemplateDir = getInternalTemplatePath();
+
+        for (const dir of [harness.cloneA, harness.cloneB]) {
+          await runInit({
+            cwd: dir,
+            io: makeIOContext(dir),
+            templateDir,
+            internalTemplateDir,
+            recipe,
+            prompts: DEFAULT_PROMPTS,
+            identityResult: identity,
+          });
+        }
+
+        // Override clone A's push_interlock so handleSync dispatches the paired
+        // cell. notes_push: always is the documented default — relied on here.
+        const cloneAConfigPath = join(
+          harness.cloneA, ".arc", "system", "arc-config.yml",
+        );
+        const configContent = await readFile(cloneAConfigPath, "utf-8");
+        const updatedConfig = configContent.replace(
+          /^session\.push_interlock:[^\n]*$/m,
+          "session.push_interlock: on-sync",
+        );
+        if (updatedConfig === configContent) {
+          throw new Error(
+            "Expected to override session.push_interlock in clone A's arc-config.yml",
+          );
+        }
+        await writeFile(cloneAConfigPath, updatedConfig, "utf-8");
+
+        const cloneANotesPath = join(
+          harness.cloneA, ".arc", "user", identity, "SESSION-NOTES.md",
+        );
+        const sessionNotesContent =
+          "# Paired-push regression test\n\nClone A handoff payload.\n";
+        await writeFile(cloneANotesPath, sessionNotesContent, "utf-8");
+
+        await execFileAsync(
+          "git",
+          [
+            "-c", "core.hooksPath=/dev/null",
+            "commit", "--allow-empty", "-m", "advance clone A main",
+          ],
+          { cwd: harness.cloneA },
+        );
+
+        let envelope: SyncEnvelope;
+        const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+        process.chdir(harness.cloneA);
+        try {
+          await handleSync({ json: true });
+        } finally {
+          const written = stdoutWrite.mock.calls
+            .map((call) => String(call[0]))
+            .join("");
+          stdoutWrite.mockRestore();
+          process.chdir(originalCwd);
+          envelope = JSON.parse(written) as SyncEnvelope;
+        }
+
+        expect(envelope.cell).toBe("paired-push");
+        expect(envelope.worktree.action).toBe("push");
+        expect(envelope.worktree.result).toBe("success");
+        expect(envelope.notes.action).toBe("save+push");
+        expect(envelope.notes.result).toBe("success");
+        expect(envelope.exitCode).toBe(0);
+
+        const { stdout: cloneAHead } = await execFileAsync(
+          "git", ["rev-parse", "HEAD"], { cwd: harness.cloneA },
+        );
+        const { stdout: originMainTip } = await execFileAsync(
+          "git", ["rev-parse", "main"], { cwd: harness.origin },
+        );
+        expect(originMainTip.trim()).toBe(cloneAHead.trim());
+
+        const { stdout: cloneANoteTip } = await execFileAsync(
+          "git", ["rev-parse", noteRef], { cwd: harness.cloneA },
+        );
+        const { stdout: originNoteTip } = await execFileAsync(
+          "git", ["rev-parse", noteRef], { cwd: harness.origin },
+        );
+        expect(originNoteTip.trim()).toBe(cloneANoteTip.trim());
+
+        await execFileAsync("git", ["fetch", "origin"], { cwd: harness.cloneB });
+        await execFileAsync(
+          "git", ["merge", "--ff-only", "origin/main"], { cwd: harness.cloneB },
+        );
+        const { stdout: cloneBHead } = await execFileAsync(
+          "git", ["rev-parse", "HEAD"], { cwd: harness.cloneB },
+        );
+        expect(cloneBHead.trim()).toBe(cloneAHead.trim());
+
+        const ioB = makeUserIO(harness.cloneB);
+        const pullResult = await runUserPull({
+          cwd: harness.cloneB, io: ioB, identity,
+        });
+        expect(pullResult).not.toBeNull();
+        expect(pullResult?.kind).toBe("loaded");
+
+        const cloneBNotes = await readFile(
+          join(harness.cloneB, ".arc", "user", identity, "SESSION-NOTES.md"),
+          "utf-8",
+        );
+        expect(cloneBNotes).toBe(sessionNotesContent);
+
+        const cloneBStatus = await runUserSessionInitStatus({
+          cwd: harness.cloneB,
+          io: ioB,
+          identity,
+          remoteSyncEnabled: true,
+        });
+        expect(cloneBStatus.localNoteFreshness?.state).toBe("current-head");
+        expect(cloneBStatus.localNoteFreshness?.commit).toBe(cloneBHead.trim());
+      } finally {
+        await harness.cleanup();
+      }
+    },
+  );
 });

@@ -504,7 +504,7 @@ The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) is built as a 
                   `localNoteFreshness.state: "current-head"` at clone B's `HEAD` — covering
                   both session-init and session-handoff consumers, which share that probe.
 
-    - `[ ]` **2.R.3.b Real-git paired-push coverage**
+    - `[x]` **2.R.3.b Real-git paired-push coverage**
 
         - _Goal:_ Real-git proof of the paired-push flagship cell — the only matrix cell
           where mocked-exec coverage in 2.R.2.d cannot prove the behavior end-to-end.
@@ -519,35 +519,20 @@ The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) is built as a 
           orchestrator without contrived hook setup that adds no fidelity over mocked
           failure injection.
 
-            - `[ ]` **2.R.3.b.1 Paired-push success on multi-clone harness**
-                - _Goal:_ End-to-end real-git proof that the paired cell coordinates
-                  worktree push and notes push correctly: both legs succeed, origin
-                  advances both `main` and `refs/notes/arc/user/test-user`, and a
-                  sibling clone observes the new HEAD plus the current note after
-                  fetch + pull.
-                - Setup: `setupMultiClone()` harness; install ARC in clone A and clone
-                  B with shared identity; configure clone A with
-                  `session.push_interlock: on-sync` and `user.sync_push: always`
-                  (defaults already provide `notes_push: always`; verify and override
-                  `push_interlock` via the clone's `arc-config.yml` after `runInit`,
-                  or via the `arc.pushInterlock` git-config override if one exists —
-                  read `lib/config/status-reader.ts` to confirm the override path);
-                  modify `SESSION-NOTES.md` and create one new commit on clone A's
-                  `main`.
-                - Drive: `chdir` to clone A and call `handleSync({ json: true })`
-                  with `process.stdout.write` spied; parse the envelope.
-                - Assert envelope: `cell: "paired-push"`, `worktree.result: "success"`,
-                  `notes.result: "success"` (paired records `action: "save+push"`),
-                  `exitCode: 0`. Assert origin: `git rev-parse origin/main` matches
-                  clone A `HEAD`; `git rev-parse refs/notes/arc/user/test-user` on
-                  origin matches clone A's local notes-ref tip. Assert clone B:
-                  `git fetch origin` followed by `runUserPull` restores
-                  `SESSION-NOTES.md` byte-for-byte and `runUserSessionInitStatus`
-                  reports `localNoteFreshness.state: "current-head"` at clone B's
-                  `HEAD`.
-                - Mock `@clack/prompts` file-scoped (matches existing
-                  `multi-clone.test.ts` pattern) — subprocess-level purity is owned
-                  by `2.R.3.c`.
+            - `[x]` **2.R.3.b.1 Paired-push success on multi-clone harness**
+                - Clone A's `arc sync --json` envelope reports the `paired-push` cell
+                  with `worktree.action: "push"` and `notes.action: "save+push"` both
+                  at result `success`; origin advances both `main` to clone A's `HEAD`
+                  and `refs/notes/arc/user/test-user` to clone A's local notes-ref tip.
+                - After `git fetch origin && git merge --ff-only origin/main`, clone B's
+                  `HEAD` matches clone A's; `runUserPull` restores `SESSION-NOTES.md`
+                  byte-for-byte and `runUserSessionInitStatus` reports
+                  `localNoteFreshness.state: "current-head"` at clone B's new `HEAD` —
+                  proving the worktree and notes legs coordinated coherently end-to-end.
+                - Override path confirmed: `readConfigSettings` consults only
+                  `.arc/system/arc-config.yml` (no `arc.pushInterlock` git-config
+                  override), so the test rewrites `session.push_interlock` in clone A's
+                  config file after `runInit` to dispatch the paired cell.
 
     - `[ ]` **2.R.3.c JSON purity child-process tests**
 
