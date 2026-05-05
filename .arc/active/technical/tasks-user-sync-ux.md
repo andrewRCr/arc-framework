@@ -287,32 +287,17 @@ The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) is built as a 
 - _Goal:_ Save, push, and status surfaces cannot report success or "clean" when current-`HEAD`
   user notes were not actually saved or the latest local note is stale.
 
-    - `[ ]` **2.R.1.a Save postcondition verification**
-        - Add an exact-`HEAD` note readback after `writeNote` in `runUserSave`
-          (`commands/user/save-load.ts`); parse and validate the saved manifest, compare the
-          normalized manifest hash, and write `.sync-state.json` only after verification
-          succeeds.
-        - On verification failure: do **not** roll back the just-written note. Next save
-          overwrites cleanly via `writeNote`'s replace semantics; the protective gate is
-          "sync-state never reflects an unverified write," not "no note exists without
-          verification." Avoids a delete code path that would be its own bug surface.
-        - New error type `UserSaveVerificationError extends UserSaveError` so existing
-          `isHandledError` / handler pipelines work without changes; tests asserting
-          verification-specific failure get a discriminator.
-        - Schema add: `LocalSyncState` v2 gains optional `verifiedAt: <commit-hash>`. Additive,
-          no version bump (readers ignore unknown fields). Distinguishes "verified at this
-          commit" from "advanced under legacy unverified write."
-        - Comparison source: hash the just-serialized manifest against the readback content,
-          not against a re-serialization of the user dir. Avoids races against sibling
-          sessions that push the notes ref between writeNote and readback.
-        - Build `test-first`:
-            - `writeNote` rejects → command fails and sync-state does not advance.
-            - `writeNote` resolves but readback is missing → command fails and sync-state does
-              not advance.
-            - Readback contains invalid JSON → command fails and sync-state does not advance.
-            - Readback manifest hash mismatches the just-written manifest → command fails and
-              sync-state does not advance.
-            - Successful readback writes sync-state (with `verifiedAt`) after verification.
+    - `[x]` **2.R.1.a Save postcondition verification**
+        - `runUserSave` now verifies an exact-`HEAD` note readback before advancing
+          `.sync-state.json`; missing, invalid, or mismatched readback throws
+          `UserSaveVerificationError` while leaving the written note for the next save to
+          replace cleanly.
+        - `LocalSyncState` v2 preserves optional `verifiedAt` on verified saves, with
+          normalized hash comparison between the just-serialized manifest and the readback
+          manifest rather than a second user-dir serialization.
+        - Unit coverage pins write failure, missing readback, invalid JSON, hash mismatch,
+          and verified sync-state behavior; the user integration helper now initializes temp
+          working and bare repos on `main` to match the branch assumptions in real-git tests.
 
     - `[ ]` **2.R.1.b Stale-local no-op push copy**
         - Change the no-op copy emitted by the `noop` discriminant in

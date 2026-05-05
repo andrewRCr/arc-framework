@@ -8,7 +8,8 @@
 
 import { describe, it, expect, vi } from "vitest";
 
-import { findNearestUserNote, runUserLoad } from "../../src/commands/user/save-load.js";
+import { findNearestUserNote, runUserLoad, runUserSave } from "../../src/commands/user/save-load.js";
+import { UserSaveVerificationError } from "../../src/commands/user/types.js";
 import type { UserIOContext } from "../../src/commands/user/types.js";
 
 interface GitMockConfig {
@@ -89,6 +90,53 @@ function mockIO(config: GitMockConfig = {}): { io: UserIOContext; execCalls: [st
   };
 
   return { io, execCalls };
+}
+
+interface SaveMockConfig {
+  head?: string;
+  files?: Record<string, string>;
+  writeNoteRejects?: boolean;
+  readback?: string | null;
+}
+
+function mockSaveIO(config: SaveMockConfig = {}): UserIOContext {
+  const head = config.head ?? "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const files = config.files ?? { "SESSION-NOTES.md": "# Notes" };
+  let writtenNote: string | null = null;
+
+  return {
+    exec: vi.fn(async (cmd: string, args: string[]) => {
+      if (cmd === "git" && args[0] === "rev-parse" && args[1] === "HEAD") {
+        return { stdout: head, stderr: "" };
+      }
+      throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
+    }),
+    readFile: vi.fn(async (filePath: string) => {
+      const name = filePath.slice(filePath.lastIndexOf("/") + 1);
+      const content = files[name];
+      if (content === undefined) {
+        throw new Error(`unexpected file read: ${filePath}`);
+      }
+      return content;
+    }),
+    writeFile: vi.fn(async () => undefined),
+    readDir: vi.fn(async () => (
+      Object.entries(files).map(([name, content]) => ({
+        name,
+        size: Buffer.byteLength(content, "utf-8"),
+      }))
+    )),
+    mkdir: vi.fn(async () => undefined),
+    writeNote: vi.fn(async (_ref: string, content: string) => {
+      if (config.writeNoteRejects) {
+        throw new Error("write failed");
+      }
+      writtenNote = content;
+    }),
+    readNote: vi.fn(async () => (
+      Object.hasOwn(config, "readback") ? config.readback! : writtenNote
+    )),
+  };
 }
 
 describe("findNearestUserNote — notes-ref history walk", () => {
@@ -251,5 +299,71 @@ describe("runUserLoad — walk-exhausted outcome", () => {
     });
 
     expect(result).toBeNull();
+  });
+});
+
+describe("runUserSave — save verification", () => {
+  it("does not advance sync-state when writeNote rejects", async () => {
+    const io = mockSaveIO({ writeNoteRejects: true });
+
+    await expect(
+      runUserSave({ cwd: "/repo", io, identity: "andrew" }),
+    ).rejects.toThrow("write failed");
+
+    expect(io.writeFile).not.toHaveBeenCalled();
+  });
+
+  it("throws a verification error and does not advance sync-state when readback is missing", async () => {
+    const io = mockSaveIO({ readback: null });
+
+    await expect(
+      runUserSave({ cwd: "/repo", io, identity: "andrew" }),
+    ).rejects.toThrow(UserSaveVerificationError);
+
+    expect(io.writeFile).not.toHaveBeenCalled();
+  });
+
+  it("throws a verification error and does not advance sync-state when readback is invalid JSON", async () => {
+    const io = mockSaveIO({ readback: "{not-json" });
+
+    await expect(
+      runUserSave({ cwd: "/repo", io, identity: "andrew" }),
+    ).rejects.toThrow(UserSaveVerificationError);
+
+    expect(io.writeFile).not.toHaveBeenCalled();
+  });
+
+  it("throws a verification error and does not advance sync-state when readback hash mismatches", async () => {
+    const io = mockSaveIO({
+      readback: JSON.stringify({
+        version: 2,
+        files: { "SESSION-NOTES.md": "# Different" },
+      }),
+    });
+
+    await expect(
+      runUserSave({ cwd: "/repo", io, identity: "andrew" }),
+    ).rejects.toThrow(UserSaveVerificationError);
+
+    expect(io.writeFile).not.toHaveBeenCalled();
+  });
+
+  it("writes sync-state with verifiedAt after successful readback verification", async () => {
+    const head = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+    const io = mockSaveIO({ head });
+
+    await runUserSave({ cwd: "/repo", io, identity: "andrew" });
+
+    expect(io.writeNote).toHaveBeenCalledWith("arc/user/andrew", expect.any(String), head);
+    expect(io.readNote).toHaveBeenCalledWith("arc/user/andrew", head);
+    expect(io.writeFile).toHaveBeenCalledTimes(1);
+    const [syncStatePath, syncStateContent] = vi.mocked(io.writeFile).mock.calls[0]!;
+    expect(syncStatePath).toBe("/repo/.arc/user/andrew/.internal/.sync-state.json");
+    expect(JSON.parse(syncStateContent)).toMatchObject({
+      version: 2,
+      sourceCommit: head,
+      sourceOperation: "save",
+      verifiedAt: head,
+    });
   });
 });

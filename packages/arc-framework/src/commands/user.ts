@@ -43,6 +43,7 @@ export {
   BACKUP_FILENAME,
   UserPushBlockedError,
   UserSaveError,
+  UserSaveVerificationError,
   type InspectUserSyncOptions,
   type UserAddOptions,
   type UserFetchOptions,

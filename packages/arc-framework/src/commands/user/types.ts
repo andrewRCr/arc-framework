@@ -41,6 +41,14 @@ export class UserSaveError extends Error {
   }
 }
 
+/** Error thrown when a saved git note cannot be verified against its readback. */
+export class UserSaveVerificationError extends UserSaveError {
+  constructor(message: string) {
+    super(message);
+    this.name = "UserSaveVerificationError";
+  }
+}
+
 /** Backup filename for pre-load snapshot of local state. */
 export const BACKUP_FILENAME = ".pre-load-backup.json";
 

@@ -8,6 +8,7 @@ import { notesRef } from "./shared.js";
 import {
   BACKUP_FILENAME,
   UserSaveError,
+  UserSaveVerificationError,
   type UserLoadOutcome,
   type NearestNoteSearch,
   type UserIOContext,
@@ -27,6 +28,7 @@ interface LocalSyncState {
   materializedManifestHash: string;
   sourceCommit: string;
   sourceOperation: "save" | "load";
+  verifiedAt?: string;
   partialPush?: PartialPushMarker;
 }
 
@@ -62,7 +64,8 @@ export async function runUserSave(
 
   const json = JSON.stringify(result.manifest);
   await io.writeNote(notesRef(identity), json, commit);
-  await writeLocalSyncState(cwd, io, identity, result.manifest, commit, "save");
+  await verifySavedNote(io, identity, commit, result.manifest);
+  await writeLocalSyncState(cwd, io, identity, result.manifest, commit, "save", commit);
 
   return {
     identity,
@@ -166,6 +169,46 @@ export async function runUserLoad(
   };
 }
 
+async function verifySavedNote(
+  io: UserIOContext,
+  identity: string,
+  commit: string,
+  expectedManifest: SyncManifest,
+): Promise<void> {
+  const ref = notesRef(identity);
+  const readback = await io.readNote(ref, commit);
+  const shortCommit = commit.slice(0, 7);
+
+  if (readback === null) {
+    throw new UserSaveVerificationError(
+      `Save verification failed on ${shortCommit}: git note readback was missing.`,
+    );
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readback);
+  } catch {
+    throw new UserSaveVerificationError(
+      `Save verification failed on ${shortCommit}: git note readback was not valid JSON.`,
+    );
+  }
+
+  if (!isSyncManifest(parsed)) {
+    throw new UserSaveVerificationError(
+      `Save verification failed on ${shortCommit}: git note readback had an unsupported manifest shape.`,
+    );
+  }
+
+  const expectedHash = hashSyncManifest(expectedManifest);
+  const actualHash = hashSyncManifest(parsed);
+  if (actualHash !== expectedHash) {
+    throw new UserSaveVerificationError(
+      `Save verification failed on ${shortCommit}: git note readback did not match the saved manifest.`,
+    );
+  }
+}
+
 export function hashSyncManifest(
   manifest: SyncManifest,
 ): string {
@@ -173,6 +216,23 @@ export function hashSyncManifest(
   return createHash("sha256")
     .update(JSON.stringify(normalized))
     .digest("hex");
+}
+
+function isSyncManifest(value: unknown): value is SyncManifest {
+  if (typeof value !== "object" || value === null) return false;
+
+  const record = value as Record<string, unknown>;
+  if (record.version !== 1 && record.version !== 2) return false;
+  if (
+    typeof record.files !== "object" ||
+    record.files === null ||
+    Array.isArray(record.files)
+  ) {
+    return false;
+  }
+
+  return Object.values(record.files as Record<string, unknown>)
+    .every((content) => typeof content === "string");
 }
 
 export async function readLocalSyncState(
@@ -212,6 +272,9 @@ export async function readLocalSyncState(
           materializedManifestHash: record.materializedManifestHash,
           sourceCommit: record.sourceCommit,
           sourceOperation: record.sourceOperation,
+          ...(typeof record.verifiedAt === "string" && record.verifiedAt.length > 0
+            ? { verifiedAt: record.verifiedAt }
+            : {}),
           ...(partialPush ? { partialPush } : {}),
         };
       }
@@ -260,6 +323,7 @@ async function writeLocalSyncState(
   manifest: SyncManifest,
   sourceCommit: string,
   sourceOperation: "save" | "load",
+  verifiedAt?: string,
 ): Promise<void> {
   const internalDir = getUserInternalDir(cwd, identity);
   const syncStatePath = join(internalDir, LOCAL_SYNC_STATE_FILENAME);
@@ -269,6 +333,7 @@ async function writeLocalSyncState(
     materializedManifestHash: hashSyncManifest(manifest),
     sourceCommit,
     sourceOperation,
+    ...(verifiedAt ? { verifiedAt } : {}),
   };
   await io.writeFile(syncStatePath, `${JSON.stringify(state, null, 2)}\n`);
 }
@@ -321,6 +386,7 @@ export async function clearPartialPushMarker(
     materializedManifestHash: state.materializedManifestHash,
     sourceCommit: state.sourceCommit,
     sourceOperation: state.sourceOperation,
+    ...(state.verifiedAt ? { verifiedAt: state.verifiedAt } : {}),
   });
 }
 
