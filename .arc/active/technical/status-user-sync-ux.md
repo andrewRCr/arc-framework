@@ -9,11 +9,12 @@
 - **Task List:** `tasks-user-sync-ux.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task 2.R.2.b — Blocked-cell local-save invariant
-- **Next Task:** Task 2.R.2.c — Worktree-leg pushability/state gate + helper extraction (line ~345)
+- **Last Completed:** Task 2.R.2.c — Worktree-leg pushability/state gate + helper extraction
+- **Next Task:** Task 2.R.2.d — JSON contract and `--yes` semantics (line ~371)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 2.R.2.c — extract the worktree push helper and route worktree-leg
-  pushability/state gates through it.
+- **Next Action:** Begin Task 2.R.2.d — pin the `arc sync --json` envelope contract (single
+  object on stdout, structured error paths, `interlockState` field, dry-run parity) and wire
+  `--yes` into matrix dispatch.
 
 ---
