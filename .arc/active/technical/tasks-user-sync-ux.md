@@ -410,18 +410,25 @@ The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) is built as a 
                   notes-blocked (save present, would-be push action). Existing human
                   dry-run test unchanged.
 
-            - `[ ]` **2.R.2.d.3 stdout purity under `--json`**
-                - Many `p.log.*` / `p.spinner` / `p.note` / `p.confirm` calls fire
-                  unconditionally — Clack writes to stdout by default. Route Clack output
-                  to stderr (or suppress) when `opts.json === true`; keep current
-                  behavior otherwise. `p.confirm` is interactive — must never fire under
-                  `--json`.
-                - Touches every code path in `handlers/sync.ts` that reports leg
-                  outcomes. Likely shape: a small IO-mode toggle threaded through the
-                  executor, or a thin Clack wrapper that conditionally redirects.
-                - Tests: with mocked exec, assert that under `opts.json === true` no
-                  Clack call writes to stdout. Subprocess-level purity is owned by
-                  2.R.3.c.
+            - `[x]` **2.R.2.d.3 stdout purity under `--json`**
+                - New `lib/sync-output.ts` exports `createSyncOutput(jsonMode)` returning
+                  a `SyncOutput` (intro / outro / log.\* / note / spinner / confirm /
+                  isCancel). Human mode passes through to `@clack/prompts`; JSON mode
+                  no-ops decorations (intro / outro / spinner), routes diagnostics
+                  through `process.stderr.write`, and short-circuits `confirm` to `false`.
+                - `handlers/sync.ts` removed its direct `@clack/prompts` import; ~30
+                  call sites swapped to `ctx.output.*` via a new `output: SyncOutput`
+                  field on `ExecuteContext`. `renderPairedResult` /
+                  `renderPairedNotesOutcome` / `renderDryRunHuman` gained an `output`
+                  parameter. The prompt-policy degradation gate also fires under
+                  `opts.json === true` so the save+prompt cell can never enter under
+                  JSON mode (defense-in-depth alongside the no-op confirm).
+                - Tests: rebase-in-progress assertion shifted from `mockLog.warn` to
+                  stderr-spy; new `--json stdout-purity contract` describe with three
+                  cases — exactly-one JSON write with zero Clack mock calls; prompt-
+                  policy degradation under `--json` (no `confirm`, stderr carries
+                  degradation warning); non-JSON regression guard preserving Clack
+                  intro/outro. Subprocess-level purity is owned by 2.R.3.c.
 
             - `[ ]` **2.R.2.d.4 Error-path envelope coverage**
                 - The `resolveUserIdentity` and `requireArcProjectRoot` early returns in

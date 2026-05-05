@@ -429,7 +429,17 @@ describe("handleSync orchestrator matrix dispatch", () => {
       return { stdout: "", stderr: "" };
     });
 
-    const outcome = await captureSyncJson();
+    const stderrWrite = vi
+      .spyOn(process.stderr, "write")
+      .mockImplementation(() => true);
+    let outcome: Record<string, unknown>;
+    let stderrText: string;
+    try {
+      outcome = await captureSyncJson();
+      stderrText = stderrWrite.mock.calls.map((c) => String(c[0])).join("");
+    } finally {
+      stderrWrite.mockRestore();
+    }
 
     expect(mockRunUserSave).not.toHaveBeenCalled();
     expect(mockPushWithRecovery).not.toHaveBeenCalled();
@@ -441,9 +451,9 @@ describe("handleSync orchestrator matrix dispatch", () => {
       notes: { action: "push", result: "blocked", detail: "rebase-in-progress" },
       exitCode: 1,
     });
-    expect(mockLog.warn).toHaveBeenCalledWith(
-      "Save skipped: rebase in progress; complete or abort rebase before saving.",
-    );
+    // Under --json, diagnostics route to stderr (not to Clack) so stdout stays pure.
+    expect(stderrText).toContain("Save skipped: rebase in progress");
+    expect(mockLog.warn).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
 
@@ -657,5 +667,99 @@ describe("handleSync orchestrator matrix dispatch", () => {
       exitCode: 0,
       mode: "dry-run",
     });
+  });
+});
+
+describe("--json stdout-purity contract", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    resetMockDefaults();
+    mockResolveUserIdentity.mockResolvedValue("andrew");
+    process.exitCode = undefined;
+  });
+
+  it("emits exactly one JSON object on stdout — no Clack call leaks through", async () => {
+    setConfig("manual");
+    setNotesPolicy("manual");
+    setWorktree("clean");
+    mockRunUserSave.mockResolvedValue({
+      identity: "andrew",
+      commit: "abc1234",
+      fileCount: 1,
+      warnings: [],
+    });
+
+    const stdoutWrite = vi
+      .spyOn(process.stdout, "write")
+      .mockImplementation(() => true);
+    let writes: string[];
+    try {
+      await handleSync({ json: true });
+      writes = stdoutWrite.mock.calls.map((c) => String(c[0]));
+    } finally {
+      stdoutWrite.mockRestore();
+    }
+
+    expect(writes).toHaveLength(1);
+    expect(() => JSON.parse(writes[0] ?? "")).not.toThrow();
+
+    expect(mockIntro).not.toHaveBeenCalled();
+    expect(mockOutro).not.toHaveBeenCalled();
+    expect(mockLog.info).not.toHaveBeenCalled();
+    expect(mockLog.warn).not.toHaveBeenCalled();
+    expect(mockLog.error).not.toHaveBeenCalled();
+    expect(mockNote).not.toHaveBeenCalled();
+    expect(mockConfirm).not.toHaveBeenCalled();
+    expect(mockSpinner).not.toHaveBeenCalled();
+  });
+
+  it("--json + notes_push: prompt → degrades to manual; never invokes confirm", async () => {
+    setConfig("manual");
+    setNotesPolicy("prompt");
+    setWorktree("clean");
+    mockRunUserSave.mockResolvedValue({
+      identity: "andrew",
+      commit: "abc1234",
+      fileCount: 1,
+      warnings: [],
+    });
+
+    const stderrWrite = vi
+      .spyOn(process.stderr, "write")
+      .mockImplementation(() => true);
+    let outcome: Record<string, unknown>;
+    let stderrText: string;
+    try {
+      outcome = await captureSyncJson();
+      stderrText = stderrWrite.mock.calls.map((c) => String(c[0])).join("");
+    } finally {
+      stderrWrite.mockRestore();
+    }
+
+    expect(mockConfirm).not.toHaveBeenCalled();
+    expect(outcome.cell).toBe("save-only");
+    expect(outcome.interlockState).toMatchObject({ notesPush: "manual" });
+    expect(stderrText).toMatch(/JSON output mode.+degrading "prompt"/);
+  });
+
+  it("non-JSON path keeps Clack output as-is (regression guard for routing flag)", async () => {
+    setConfig("on-sync");
+    setNotesPolicy("always");
+    setWorktree("clean");
+    mockRunPairedPush.mockResolvedValue({
+      save: {
+        status: "success",
+        result: { identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] },
+      },
+      worktree: { status: "success" },
+      notes: { status: "success" },
+      conditions: [],
+      exitCode: 0,
+    });
+
+    await handleSync();
+
+    expect(mockIntro).toHaveBeenCalledWith("arc sync");
+    expect(mockOutro).toHaveBeenCalledWith("Done.");
   });
 });

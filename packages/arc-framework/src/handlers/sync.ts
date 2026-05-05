@@ -18,8 +18,6 @@
 
 import { access } from "node:fs/promises";
 
-import * as p from "@clack/prompts";
-
 import {
   buildSaveSummary,
   runPairedPush,
@@ -38,6 +36,7 @@ import {
 import { pushWorktreeBranch } from "../lib/git/push-worktree.js";
 import { runWorktreeSyncStatus, type WorktreeSyncState } from "../lib/git/worktree-sync.js";
 import { createUserIOContext } from "../lib/io-context.js";
+import { createSyncOutput, type SyncOutput } from "../lib/sync-output.js";
 import { resolveSyncPushPolicy, type SyncPushPolicy } from "../lib/sync-policy.js";
 import { pushWithInteractiveRecovery } from "./push-recovery.js";
 import {
@@ -221,7 +220,8 @@ interface SyncOutcome {
 type ExecutedOutcome = Omit<SyncOutcome, "interlockState" | "mode">;
 
 export async function handleSync(opts: SyncOptions = {}): Promise<void> {
-  if (!opts.json) p.intro("arc sync");
+  const output = createSyncOutput(opts.json === true);
+  output.intro("arc sync");
 
   let identity: string;
   try {
@@ -248,15 +248,16 @@ export async function handleSync(opts: SyncOptions = {}): Promise<void> {
       exec: io.exec,
       readFile: io.readFile,
       cwd,
-      warn: (message) => { p.log.warn(message); },
+      warn: (message) => { output.log.warn(message); },
     }),
     resolveCurrentBranch(io),
   ]);
 
   let notesPush = syncPushResolved.policy;
-  if (notesPush === "prompt" && isNonInteractiveEnvironment()) {
-    p.log.warn(
-      'Non-interactive environment detected — degrading "prompt" policy to "manual" (save only).',
+  if (notesPush === "prompt" && (isNonInteractiveEnvironment() || opts.json === true)) {
+    const reason = opts.json === true ? "JSON output mode" : "Non-interactive environment";
+    output.log.warn(
+      `${reason} detected — degrading "prompt" policy to "manual" (save only).`,
     );
     notesPush = "manual";
   }
@@ -277,10 +278,10 @@ export async function handleSync(opts: SyncOptions = {}): Promise<void> {
       interlockState: { pushInterlock, notesPush, syncInterlock },
       mode: "dry-run",
     };
-    if (opts.json) {
+    if (opts.json === true) {
       process.stdout.write(`${JSON.stringify(outcome, null, 2)}\n`);
     } else {
-      renderDryRunHuman(decision);
+      renderDryRunHuman(decision, output);
     }
     return;
   }
@@ -292,6 +293,7 @@ export async function handleSync(opts: SyncOptions = {}): Promise<void> {
     worktreeBehind: worktree.behind,
     branch,
     io,
+    output,
     cwd,
     identity,
   });
@@ -301,10 +303,10 @@ export async function handleSync(opts: SyncOptions = {}): Promise<void> {
     interlockState: { pushInterlock, notesPush, syncInterlock },
   };
 
-  if (opts.json) {
+  if (opts.json === true) {
     process.stdout.write(`${JSON.stringify(outcome, null, 2)}\n`);
   } else {
-    p.outro("Done.");
+    output.outro("Done.");
   }
   if (outcome.exitCode !== 0) {
     process.exitCode = outcome.exitCode;
@@ -328,6 +330,7 @@ interface ExecuteContext {
   worktreeBehind: number;
   branch: string | null;
   io: UserIOContext;
+  output: SyncOutput;
   cwd: string;
   identity: string;
 }
@@ -364,7 +367,7 @@ async function detectRebaseSaveBlock(
 }
 
 function executeRebaseBlocked(ctx: ExecuteContext): ExecutedOutcome {
-  p.log.warn("Save skipped: rebase in progress; complete or abort rebase before saving.");
+  ctx.output.log.warn("Save skipped: rebase in progress; complete or abort rebase before saving.");
   return {
     cell: ctx.decision.cellName,
     worktree: rebaseWorktreeRecord(ctx.decision.worktree),
@@ -395,7 +398,7 @@ async function executeBlockedWorktree(
   ctx: ExecuteContext,
   worktree: Extract<WorktreeAction, { kind: "skip-blocked-worktree" }>,
 ): Promise<ExecutedOutcome> {
-  p.log.warn(worktreeBlockGuidance(worktree));
+  ctx.output.log.warn(worktreeBlockGuidance(worktree));
   const save = await performSave(ctx);
   const branchLabel = worktree.branch ?? ctx.branch ?? "HEAD";
   return {
@@ -445,7 +448,7 @@ async function executePaired(ctx: ExecuteContext, branch: string): Promise<Execu
     worktreeSyncState: ctx.worktreeState,
     pushNotes: pairedNotesAdapter,
   });
-  renderPairedResult(result, branch);
+  renderPairedResult(result, branch, ctx.output);
   return {
     cell: ctx.decision.cellName,
     worktree: pairedLegToRecord(result.worktree, "push"),
@@ -537,33 +540,37 @@ function pairedLegToRecord(
   }
 }
 
-function renderPairedResult(result: PairedPushResult, branch: string): void {
+function renderPairedResult(
+  result: PairedPushResult,
+  branch: string,
+  output: SyncOutput,
+): void {
   for (const condition of result.conditions.filter((c) => c.disposition === "block")) {
-    p.log.error(condition.guidance);
+    output.log.error(condition.guidance);
   }
   for (const condition of result.conditions.filter(
     (c) => c.disposition === "advisory" && c.kind === "force-push-required",
   )) {
-    p.log.error(condition.guidance);
+    output.log.error(condition.guidance);
   }
   if (result.save.status === "success" && result.save.result.warnings.length > 0) {
-    p.note(buildSaveSummary(result.save.result), "Saved");
+    output.note(buildSaveSummary(result.save.result), "Saved");
   } else if (result.save.status === "failed") {
-    p.log.error(`Save failed: ${result.save.error.message}`);
+    output.log.error(`Save failed: ${result.save.error.message}`);
   }
   if (result.worktree.status === "success") {
-    p.log.info(`Worktree pushed: \`${branch}\``);
+    output.log.info(`Worktree pushed: \`${branch}\``);
   } else if (result.worktree.status === "failed") {
-    p.log.error(`Worktree push failed: ${result.worktree.error.message}`);
+    output.log.error(`Worktree push failed: ${result.worktree.error.message}`);
   } else if (result.worktree.reason === "save-failed") {
-    p.log.warn("Worktree push skipped because the save step failed.");
+    output.log.warn("Worktree push skipped because the save step failed.");
   } else if (result.worktree.reason === "blocked-by-precheck") {
-    p.log.warn("Worktree push skipped: blocked by pre-check.");
+    output.log.warn("Worktree push skipped: blocked by pre-check.");
   }
-  renderPairedNotesOutcome(result);
+  renderPairedNotesOutcome(result, output);
 }
 
-function renderPairedNotesOutcome(result: PairedPushResult): void {
+function renderPairedNotesOutcome(result: PairedPushResult, output: SyncOutput): void {
   const notes = result.notes;
   switch (notes.status) {
     case "success":
@@ -571,40 +578,40 @@ function renderPairedNotesOutcome(result: PairedPushResult): void {
       // pushWithInteractiveRecovery's spinner already reports the outcome.
       return;
     case "ok-recovered":
-      p.log.info(`Notes pushed (recovered via ${notes.via}).`);
+      output.log.info(`Notes pushed (recovered via ${notes.via}).`);
       return;
     case "cancelled":
-      p.log.info("Notes push cancelled.");
-      p.log.warn("Partial publish recorded; recover with `arc user push` (idempotent).");
+      output.log.info("Notes push cancelled.");
+      output.log.warn("Partial publish recorded; recover with `arc user push` (idempotent).");
       return;
     case "no-remote":
-      p.log.error("No remote configured. Push requires a remote repository.");
-      p.log.warn("Partial publish recorded; recover with `arc user push` (idempotent).");
+      output.log.error("No remote configured. Push requires a remote repository.");
+      output.log.warn("Partial publish recorded; recover with `arc user push` (idempotent).");
       return;
     case "failed-nontty-conflict":
-      p.log.warn(
+      output.log.warn(
         "Push rejected — local and remote notes conflict (both moved since common ancestor), "
         + "and the environment is non-interactive.",
       );
-      p.log.warn("Partial publish recorded; recover with `arc user push` (idempotent).");
+      output.log.warn("Partial publish recorded; recover with `arc user push` (idempotent).");
       return;
     case "blocked":
       for (const condition of notes.conditions.filter((c) => c.disposition === "block")) {
-        p.log.error(condition.guidance);
+        output.log.error(condition.guidance);
       }
-      p.log.warn("Partial publish recorded; recover with `arc user push` (idempotent).");
+      output.log.warn("Partial publish recorded; recover with `arc user push` (idempotent).");
       return;
     case "failed":
-      p.log.error(`Notes push failed: ${notes.error.message}`);
-      p.log.warn("Partial publish recorded; recover with `arc user push` (idempotent).");
+      output.log.error(`Notes push failed: ${notes.error.message}`);
+      output.log.warn("Partial publish recorded; recover with `arc user push` (idempotent).");
       return;
     case "skipped":
       if (notes.reason === "preceding-leg-failed") {
-        p.log.warn("Notes push skipped because the worktree leg failed.");
+        output.log.warn("Notes push skipped because the worktree leg failed.");
       } else if (notes.reason === "save-failed") {
-        p.log.warn("Notes push skipped because the save step failed.");
+        output.log.warn("Notes push skipped because the save step failed.");
       } else {
-        p.log.warn("Notes push skipped: blocked by pre-check.");
+        output.log.warn("Notes push skipped: blocked by pre-check.");
       }
       return;
   }
@@ -621,11 +628,11 @@ async function executeSingleLeg(ctx: ExecuteContext): Promise<ExecutedOutcome> {
       branch: decision.worktree.branch,
     });
     if (result.status === "success") {
-      p.log.info(`Worktree pushed: \`${decision.worktree.branch}\``);
+      ctx.output.log.info(`Worktree pushed: \`${decision.worktree.branch}\``);
       worktreeRecord = { action: "push", result: "success" };
     } else {
       worktreeFailed = true;
-      p.log.error(`Worktree push failed: ${result.error.message}`);
+      ctx.output.log.error(`Worktree push failed: ${result.error.message}`);
       worktreeRecord = { action: "push", result: "failed", detail: result.error.message };
     }
   } else {
@@ -635,13 +642,13 @@ async function executeSingleLeg(ctx: ExecuteContext): Promise<ExecutedOutcome> {
       && decision.notes.kind === "save-only"
       && ctx.branch !== null
     ) {
-      p.log.info(`Worktree: ${ctx.worktreeAhead} unpushed commit(s) on \`${ctx.branch}\`.`);
+      ctx.output.log.info(`Worktree: ${ctx.worktreeAhead} unpushed commit(s) on \`${ctx.branch}\`.`);
     }
   }
 
   if (decision.notes.kind === "save+notes-blocked") {
     const save = await performSave(ctx);
-    p.log.warn(reconcileGuidance(decision.notes.reason));
+    ctx.output.log.warn(reconcileGuidance(decision.notes.reason));
     return {
       cell: decision.cellName,
       worktree: worktreeRecord,
@@ -666,7 +673,7 @@ async function executeSingleLeg(ctx: ExecuteContext): Promise<ExecutedOutcome> {
   }
 
   if (decision.notes.kind === "save-only") {
-    p.log.info("Notes saved locally; push manually with `arc user push`.");
+    ctx.output.log.info("Notes saved locally; push manually with `arc user push`.");
     return {
       cell: decision.cellName,
       worktree: worktreeRecord,
@@ -677,7 +684,7 @@ async function executeSingleLeg(ctx: ExecuteContext): Promise<ExecutedOutcome> {
 
   if (decision.notes.kind === "save+prompt") {
     if (worktreeFailed) {
-      p.log.warn(
+      ctx.output.log.warn(
         "Worktree push failed; skipping notes prompt. Run `arc user push` after resolving.",
       );
       return {
@@ -687,12 +694,12 @@ async function executeSingleLeg(ctx: ExecuteContext): Promise<ExecutedOutcome> {
         exitCode: 1,
       };
     }
-    const shouldPush = await p.confirm({
+    const shouldPush = await ctx.output.confirm({
       message: "Push user notes to remote now?",
       initialValue: true,
     });
-    if (p.isCancel(shouldPush) || !shouldPush) {
-      p.log.info("Notes push skipped. Run `arc user push` when ready.");
+    if (ctx.output.isCancel(shouldPush) || !shouldPush) {
+      ctx.output.log.info("Notes push skipped. Run `arc user push` when ready.");
       return {
         cell: decision.cellName,
         worktree: worktreeRecord,
@@ -721,19 +728,19 @@ async function executeSingleLeg(ctx: ExecuteContext): Promise<ExecutedOutcome> {
 }
 
 async function performSave(ctx: ExecuteContext): Promise<LegOutcomeRecord> {
-  const spinner = p.spinner();
+  const spinner = ctx.output.spinner();
   spinner.start("Saving user directory...");
   try {
     const result = await runUserSave({ cwd: ctx.cwd, io: ctx.io, identity: ctx.identity });
     spinner.stop("Save complete.");
     if (result.warnings.length > 0) {
-      p.note(buildSaveSummary(result), "Saved");
+      ctx.output.note(buildSaveSummary(result), "Saved");
     }
     return { action: "save", result: "success" };
   } catch (err) {
     spinner.stop("Save failed.");
     if (err instanceof UserSaveError) {
-      p.log.error(err.message);
+      ctx.output.log.error(err.message);
       return { action: "save", result: "failed", detail: err.message };
     }
     throw err;
@@ -756,23 +763,23 @@ async function pushNotesLeg(ctx: ExecuteContext): Promise<LegOutcomeRecord> {
     case "noop":
       return { action: "push", result: "noop" };
     case "cancelled":
-      p.log.info("Notes push cancelled. Run `arc user push` when ready.");
+      ctx.output.log.info("Notes push cancelled. Run `arc user push` when ready.");
       return { action: "push", result: "cancelled" };
     case "no-remote":
-      p.log.error("No remote configured. Push requires a remote repository.");
+      ctx.output.log.error("No remote configured. Push requires a remote repository.");
       return { action: "push", result: "failed", detail: "no-remote" };
     case "blocked":
       for (const condition of result.conditions.filter((c) => c.disposition === "block")) {
-        p.log.error(condition.guidance);
+        ctx.output.log.error(condition.guidance);
       }
       return { action: "push", result: "blocked" };
     case "failed":
-      p.log.error(
+      ctx.output.log.error(
         `Notes push failed: ${result.error instanceof Error ? result.error.message : String(result.error)}`,
       );
       return { action: "push", result: "failed" };
     case "failed-nontty-conflict":
-      p.log.warn(
+      ctx.output.log.warn(
         "Push rejected — notes conflict and the environment is non-interactive. "
         + "Re-run `arc sync` in a terminal to resolve.",
       );
@@ -842,12 +849,12 @@ function dryRunNotesAction(decision: MatrixDecision): string {
   }
 }
 
-function renderDryRunHuman(decision: MatrixDecision): void {
-  p.log.info(`Matrix decision: ${decision.cellName}`);
-  p.log.info(`Worktree: ${describeWorktreeAction(decision.worktree)}`);
-  p.log.info(`Notes:    ${describeNotesAction(decision.notes)}`);
-  p.log.info("dry-run: no pushes will fire.");
-  p.outro("Done.");
+function renderDryRunHuman(decision: MatrixDecision, output: SyncOutput): void {
+  output.log.info(`Matrix decision: ${decision.cellName}`);
+  output.log.info(`Worktree: ${describeWorktreeAction(decision.worktree)}`);
+  output.log.info(`Notes:    ${describeNotesAction(decision.notes)}`);
+  output.log.info("dry-run: no pushes will fire.");
+  output.outro("Done.");
 }
 
 function describeWorktreeAction(action: WorktreeAction): string {
