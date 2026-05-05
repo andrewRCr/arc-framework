@@ -94,10 +94,14 @@ const { handleSync } = await import("../../src/handlers/sync.js");
 
 // --- Test helpers ---
 
-function setConfig(pushInterlock: "manual" | "on-sync") {
+function setConfig(
+  pushInterlock: "manual" | "on-sync",
+  syncInterlock: "manual" | "on-handoff" = "on-handoff",
+) {
   mockReadConfigSettings.mockResolvedValue({
     settings: {
       "session.push_interlock": pushInterlock,
+      "session.sync_interlock": syncInterlock,
       "session.remote_sync": "enabled",
     },
   });
@@ -212,6 +216,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
     expect(pushedBranchInvocations()).toEqual([]);
     expect(outcome).toEqual({
       cell: "paired-push",
+      interlockState: { pushInterlock: "on-sync", notesPush: "always", syncInterlock: "on-handoff" },
       worktree: { action: "skip", result: "skipped", detail: "save-failed" },
       notes: { action: "save", result: "failed", detail: "save verification failed" },
       exitCode: 1,
@@ -236,6 +241,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
     expect(mockPushWithRecovery).not.toHaveBeenCalled();
     expect(outcome).toEqual({
       cell: "notes-blocked",
+      interlockState: { pushInterlock: "manual", notesPush: "always", syncInterlock: "on-handoff" },
       worktree: { action: "skip", result: "skipped", detail: "not-configured" },
       save: { action: "save", result: "success" },
       notes: {
@@ -339,6 +345,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
     expect(pushedBranchInvocations()).toEqual([]);
     expect(outcome).toEqual({
       cell: "blocked-diverged",
+      interlockState: { pushInterlock: "on-sync", notesPush: "always", syncInterlock: "on-handoff" },
       worktree: { action: "skip", result: "blocked", detail: "diverged" },
       save: { action: "save", result: "success" },
       notes: {
@@ -426,6 +433,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
     expect(mockPushWithRecovery).not.toHaveBeenCalled();
     expect(outcome).toEqual({
       cell: "notes-only",
+      interlockState: { pushInterlock: "manual", notesPush: "always", syncInterlock: "on-handoff" },
       worktree: { action: "skip", result: "skipped", detail: "not-configured" },
       save: { action: "save", result: "skipped", detail: "rebase-in-progress" },
       notes: { action: "push", result: "blocked", detail: "rebase-in-progress" },
@@ -502,6 +510,51 @@ describe("handleSync orchestrator matrix dispatch", () => {
     expect(mockRunPairedPush).not.toHaveBeenCalled();
     expect(pushedBranchInvocations()).toEqual([]);
     expect(process.exitCode).toBeUndefined();
+  });
+
+  it("interlockState envelope reports configured sync_interlock verbatim", async () => {
+    setConfig("on-sync", "manual");
+    setNotesPolicy("always");
+    setWorktree("clean");
+    mockRunPairedPush.mockResolvedValue({
+      save: {
+        status: "success",
+        result: { identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] },
+      },
+      worktree: { status: "success" },
+      notes: { status: "success" },
+      conditions: [],
+      exitCode: 0,
+    });
+
+    const outcome = await captureSyncJson();
+
+    expect(outcome.interlockState).toEqual({
+      pushInterlock: "on-sync",
+      notesPush: "always",
+      syncInterlock: "manual",
+    });
+  });
+
+  it("interlockState reports the resolved notesPush after non-interactive degradation", async () => {
+    setConfig("manual");
+    setNotesPolicy("prompt");
+    setWorktree("clean");
+    mockIsNonInteractive.mockReturnValue(true);
+    mockRunUserSave.mockResolvedValue({
+      identity: "andrew",
+      commit: "abc1234",
+      fileCount: 1,
+      warnings: [],
+    });
+
+    const outcome = await captureSyncJson();
+
+    expect(outcome.interlockState).toEqual({
+      pushInterlock: "manual",
+      notesPush: "manual",
+      syncInterlock: "on-handoff",
+    });
   });
 
   it("--dry-run → no pushes fire; matrix decision printed", async () => {

@@ -54,6 +54,23 @@ export interface SyncOptions {
 }
 
 type PushInterlock = "manual" | "on-sync";
+type SyncInterlock = "manual" | "on-handoff";
+
+/**
+ * Snapshot of the configured interlocks at the moment `arc sync` ran. Reported
+ * verbatim in the JSON envelope so downstream consumers (handoff workflow,
+ * future wrapper audit log) can record the policy in effect without re-reading
+ * config. Authorize-by-invocation: the orchestrator does not act on
+ * `syncInterlock` — the field is informational for callers.
+ *
+ * `notesPush` is the resolved policy after non-interactive degradation, not
+ * the raw config value, since the resolved value is what drove behavior.
+ */
+export interface InterlockState {
+  pushInterlock: PushInterlock;
+  notesPush: SyncPushPolicy;
+  syncInterlock: SyncInterlock;
+}
 
 type WorktreeAction =
   | { kind: "skip-not-configured" }
@@ -182,12 +199,19 @@ interface LegOutcomeRecord {
 
 interface SyncOutcome {
   cell: string;
+  interlockState: InterlockState;
   worktree: LegOutcomeRecord;
   save?: LegOutcomeRecord;
   notes: LegOutcomeRecord;
   exitCode: number;
   reconcile?: { ahead: number; behind: number; branch: string };
 }
+
+/**
+ * Inner-function return shape — interlock state is attached once at the
+ * `handleSync` boundary so per-cell builders stay focused on leg outcomes.
+ */
+type ExecutedOutcome = Omit<SyncOutcome, "interlockState">;
 
 export async function handleSync(opts: SyncOptions = {}): Promise<void> {
   if (!opts.json) p.intro("arc sync");
@@ -207,6 +231,8 @@ export async function handleSync(opts: SyncOptions = {}): Promise<void> {
   const { settings } = await readConfigSettings(cwd);
   const pushInterlock: PushInterlock =
     settings["session.push_interlock"] === "on-sync" ? "on-sync" : "manual";
+  const syncInterlock: SyncInterlock =
+    settings["session.sync_interlock"] === "manual" ? "manual" : "on-handoff";
   const remoteSyncEnabled = settings["session.remote_sync"] === "enabled";
 
   const [worktree, syncPushResolved, branch] = await Promise.all([
@@ -242,7 +268,7 @@ export async function handleSync(opts: SyncOptions = {}): Promise<void> {
     return;
   }
 
-  const outcome = await execute({
+  const executed = await execute({
     decision,
     worktreeState: worktree.state,
     worktreeAhead: worktree.ahead,
@@ -252,6 +278,11 @@ export async function handleSync(opts: SyncOptions = {}): Promise<void> {
     cwd,
     identity,
   });
+
+  const outcome: SyncOutcome = {
+    ...executed,
+    interlockState: { pushInterlock, notesPush, syncInterlock },
+  };
 
   if (opts.json) {
     process.stdout.write(`${JSON.stringify(outcome, null, 2)}\n`);
@@ -284,7 +315,7 @@ interface ExecuteContext {
   identity: string;
 }
 
-async function execute(ctx: ExecuteContext): Promise<SyncOutcome> {
+async function execute(ctx: ExecuteContext): Promise<ExecutedOutcome> {
   const { decision } = ctx;
 
   const rebaseBlock = await detectRebaseSaveBlock(ctx);
@@ -315,7 +346,7 @@ async function detectRebaseSaveBlock(
   return pushability.conditions.find((c) => c.kind === "rebase-in-progress") ?? null;
 }
 
-function executeRebaseBlocked(ctx: ExecuteContext): SyncOutcome {
+function executeRebaseBlocked(ctx: ExecuteContext): ExecutedOutcome {
   p.log.warn("Save skipped: rebase in progress; complete or abort rebase before saving.");
   return {
     cell: ctx.decision.cellName,
@@ -346,7 +377,7 @@ function rebaseNotesRecord(notes: NotesAction): LegOutcomeRecord {
 async function executeBlockedWorktree(
   ctx: ExecuteContext,
   worktree: Extract<WorktreeAction, { kind: "skip-blocked-worktree" }>,
-): Promise<SyncOutcome> {
+): Promise<ExecutedOutcome> {
   p.log.warn(worktreeBlockGuidance(worktree));
   const save = await performSave(ctx);
   const branchLabel = worktree.branch ?? ctx.branch ?? "HEAD";
@@ -387,7 +418,7 @@ function blockedWorktreeNotesRecord(
   };
 }
 
-async function executePaired(ctx: ExecuteContext, branch: string): Promise<SyncOutcome> {
+async function executePaired(ctx: ExecuteContext, branch: string): Promise<ExecutedOutcome> {
   const result = await runPairedPush({
     io: ctx.io,
     identity: ctx.identity,
@@ -562,7 +593,7 @@ function renderPairedNotesOutcome(result: PairedPushResult): void {
   }
 }
 
-async function executeSingleLeg(ctx: ExecuteContext): Promise<SyncOutcome> {
+async function executeSingleLeg(ctx: ExecuteContext): Promise<ExecutedOutcome> {
   const { decision } = ctx;
   let worktreeRecord: LegOutcomeRecord;
   let worktreeFailed = false;

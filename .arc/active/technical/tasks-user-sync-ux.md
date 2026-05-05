@@ -375,18 +375,20 @@ The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) is built as a 
           across runtime and dry-run, `interlockState` exposed for downstream consumers
           — and wire `--yes` through matrix dispatch with safe-default prompt degradation.
 
-            - `[ ]` **2.R.2.d.1 `interlockState` envelope field**
-                - Additive: read `session.sync_interlock` from settings (already loaded
-                  via `readConfigSettings`) and add `interlockState: { pushInterlock,
-                  notesPush, syncInterlock }` to `SyncOutcome`. Authorize-by-invocation
-                  per PRD R10 — the envelope reports the value, the orchestrator does
-                  not act on it.
-                - Downstream consumers (handoff workflow, future wrapper audit log per
-                  `plan-interlock-release-wrappers.md`) begin consuming the field
-                  immediately.
-                - Tests: extend orchestrator unit coverage with `interlockState`
-                  presence and value assertions across at least one paired and one
-                  blocked cell.
+            - `[x]` **2.R.2.d.1 `interlockState` envelope field**
+                - `InterlockState` type added in `handlers/sync.ts`; `handleSync` reads
+                  `session.sync_interlock` (defaulting to `"on-handoff"`) and attaches
+                  `{ pushInterlock, notesPush, syncInterlock }` to the `SyncOutcome`
+                  envelope once at the boundary via an `ExecutedOutcome` inner type, so
+                  per-cell builders stay focused on leg outcomes.
+                - `notesPush` reports the resolved policy after non-interactive
+                  degradation, not the raw config, since the resolved value is what
+                  drove behavior. Authorize-by-invocation per PRD R10 — `syncInterlock`
+                  is reported but not acted on.
+                - Existing paired / blocked / diverged / rebase envelope assertions
+                  extended with `interlockState`; two focused tests added for
+                  non-default `sync_interlock` propagation and resolved-`notesPush`
+                  reporting under non-interactive prompt degradation.
 
             - `[ ]` **2.R.2.d.2 Dry-run shape parity**
                 - `renderDryRun` in `handlers/sync.ts` emits a divergent shape today
