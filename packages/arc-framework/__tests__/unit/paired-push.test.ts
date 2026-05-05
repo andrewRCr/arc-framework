@@ -2,7 +2,8 @@
  * Unit tests for runPairedPush — paired worktree + notes push helper.
  *
  * Covers worst-outcome semantics, push-ordering invariant, partial-push marker
- * recording on partial failure, and pre-check blocking. The pushability matrix
+ * recording on partial failure, pre-check blocking, force-push advisory
+ * refusal, and the injected-notes-pusher delegate. The pushability matrix
  * itself is tested in __tests__/unit/git/pushability.test.ts; these tests
  * exercise orchestration around it.
  */
@@ -14,7 +15,12 @@ import type {
   GitExec,
   GitExecOptions,
 } from "../../src/lib/git/index.js";
-import type { UserIOContext } from "../../src/commands/user/types.js";
+import type {
+  PairedPushNotesContext,
+  PairedPushNotesPusher,
+  PairedPushNotesPusherResult,
+  UserIOContext,
+} from "../../src/commands/user/types.js";
 
 const mockRecordPartialPushMarker = vi.fn();
 const mockClearPartialPushMarker = vi.fn();
@@ -95,8 +101,6 @@ const REV_PARSE_HEAD = "rev-parse --abbrev-ref HEAD";
 const REV_PARSE_UPSTREAM = "rev-parse --abbrev-ref @{upstream}";
 const CONFIG_GET_FETCH = "config --get-all remote.origin.fetch";
 
-const NOTES_REF = "refs/notes/arc/user/andrew";
-
 /** Common exec responses for a clean repository on branch 'main'. */
 function cleanRepoResponses(): Record<string, ExecResult | ResponseFn> {
   return {
@@ -110,7 +114,6 @@ function cleanRepoResponses(): Record<string, ExecResult | ResponseFn> {
       stderr: "",
     },
     "push origin main": { stdout: "", stderr: "" },
-    [`push origin ${NOTES_REF}`]: { stdout: "", stderr: "" },
   };
 }
 
@@ -124,6 +127,22 @@ function buildIo(exec: GitExec): UserIOContext {
     readNote: vi.fn(),
     writeNote: vi.fn(),
   } as unknown as UserIOContext;
+}
+
+interface PushNotesStub {
+  pushNotes: PairedPushNotesPusher;
+  calls: PairedPushNotesContext[];
+}
+
+function stubPushNotes(
+  result: PairedPushNotesPusherResult | ((ctx: PairedPushNotesContext) => PairedPushNotesPusherResult),
+): PushNotesStub {
+  const calls: PairedPushNotesContext[] = [];
+  const pushNotes: PairedPushNotesPusher = async (context) => {
+    calls.push(context);
+    return typeof result === "function" ? result(context) : result;
+  };
+  return { pushNotes, calls };
 }
 
 const COMMON_OPTIONS = {
@@ -144,9 +163,9 @@ describe("runPairedPush", () => {
   });
 
   it("save and both push legs succeed → result reports success; save precedes pushes", async () => {
-    const pushEvents: string[] = [];
+    const events: string[] = [];
     mockRunUserSave.mockImplementation(async () => {
-      pushEvents.push("save");
+      events.push("save");
       return {
         identity: "andrew",
         commit: "abc1234",
@@ -154,11 +173,12 @@ describe("runPairedPush", () => {
         warnings: [],
       };
     });
-    const { exec, calls } = buildExec(cleanRepoResponses(), pushEvents);
+    const { exec, calls } = buildExec(cleanRepoResponses(), events);
     const io = buildIo(exec);
     const access = buildAccess([]);
+    const { pushNotes, calls: notesCalls } = stubPushNotes({ status: "success" });
 
-    const result = await runPairedPush({ io, access, ...COMMON_OPTIONS });
+    const result = await runPairedPush({ io, access, pushNotes, ...COMMON_OPTIONS });
 
     expect(result.exitCode).toBe(0);
     expect(result.save).toEqual({
@@ -181,17 +201,25 @@ describe("runPairedPush", () => {
     const pushArgs = calls
       .map((c) => c.args)
       .filter((args) => args[0] === "push");
-    expect(pushArgs).toEqual([
-      ["push", "origin", "main"],
-      ["push", "origin", NOTES_REF],
-    ]);
-    expect(pushEvents).toEqual([
-      "save",
-      "push origin main",
-      `push origin ${NOTES_REF}`,
-    ]);
+    expect(pushArgs).toEqual([["push", "origin", "main"]]);
 
+    expect(notesCalls).toHaveLength(1);
+    expect(notesCalls[0]).toEqual({
+      io,
+      identity: "andrew",
+      cwd: "/repo",
+      access,
+      worktreeBranch: "main",
+    });
+
+    expect(events).toEqual(["save", "push origin main"]);
     expect(mockRecordPartialPushMarker).not.toHaveBeenCalled();
+    expect(mockClearPartialPushMarker).toHaveBeenCalledTimes(1);
+    expect(mockClearPartialPushMarker).toHaveBeenCalledWith(
+      "/repo",
+      io,
+      "andrew",
+    );
   });
 
   it("save failure short-circuits both push legs", async () => {
@@ -200,8 +228,9 @@ describe("runPairedPush", () => {
     const { exec, calls } = buildExec(cleanRepoResponses());
     const io = buildIo(exec);
     const access = buildAccess([]);
+    const { pushNotes, calls: notesCalls } = stubPushNotes({ status: "success" });
 
-    const result = await runPairedPush({ io, access, ...COMMON_OPTIONS });
+    const result = await runPairedPush({ io, access, pushNotes, ...COMMON_OPTIONS });
 
     expect(result.exitCode).toBe(1);
     expect(result.save).toEqual({ status: "failed", error: saveError });
@@ -218,21 +247,19 @@ describe("runPairedPush", () => {
       .map((c) => c.args)
       .filter((args) => args[0] === "push");
     expect(pushArgs).toEqual([]);
+    expect(notesCalls).toEqual([]);
     expect(mockRecordPartialPushMarker).not.toHaveBeenCalled();
     expect(mockClearPartialPushMarker).not.toHaveBeenCalled();
   });
 
-  it("worktree succeeds, notes fails → mixed result; partial-push marker recorded", async () => {
-    const responses = cleanRepoResponses();
+  it("worktree succeeds, notes-pusher returns failed → mixed result; partial-push marker recorded", async () => {
     const notesError = new Error("[remote rejected] notes/arc/user/andrew");
-    responses[`push origin ${NOTES_REF}`] = () => {
-      throw notesError;
-    };
-    const { exec } = buildExec(responses);
+    const { exec } = buildExec(cleanRepoResponses());
     const io = buildIo(exec);
     const access = buildAccess([]);
+    const { pushNotes } = stubPushNotes({ status: "failed", error: notesError });
 
-    const result = await runPairedPush({ io, access, ...COMMON_OPTIONS });
+    const result = await runPairedPush({ io, access, pushNotes, ...COMMON_OPTIONS });
 
     expect(result.exitCode).toBe(1);
     expect(result.save?.status).toBe("success");
@@ -248,7 +275,7 @@ describe("runPairedPush", () => {
     expect(mockClearPartialPushMarker).not.toHaveBeenCalled();
   });
 
-  it("push-ordering invariant: notes never fires when worktree push fails", async () => {
+  it("push-ordering invariant: notes-pusher never fires when worktree push fails", async () => {
     const responses = cleanRepoResponses();
     const worktreeError = new Error("error: failed to push some refs to 'origin'");
     responses["push origin main"] = () => {
@@ -257,8 +284,9 @@ describe("runPairedPush", () => {
     const { exec, calls } = buildExec(responses);
     const io = buildIo(exec);
     const access = buildAccess([]);
+    const { pushNotes, calls: notesCalls } = stubPushNotes({ status: "success" });
 
-    const result = await runPairedPush({ io, access, ...COMMON_OPTIONS });
+    const result = await runPairedPush({ io, access, pushNotes, ...COMMON_OPTIONS });
 
     expect(result.exitCode).toBe(1);
     expect(result.save?.status).toBe("success");
@@ -272,6 +300,7 @@ describe("runPairedPush", () => {
       .map((c) => c.args)
       .filter((args) => args[0] === "push");
     expect(pushArgs).toEqual([["push", "origin", "main"]]);
+    expect(notesCalls).toEqual([]);
 
     expect(mockRecordPartialPushMarker).not.toHaveBeenCalled();
     expect(mockClearPartialPushMarker).not.toHaveBeenCalled();
@@ -281,8 +310,9 @@ describe("runPairedPush", () => {
     const { exec, calls } = buildExec(cleanRepoResponses());
     const io = buildIo(exec);
     const access = buildAccess(["/repo/.git/rebase-merge"]);
+    const { pushNotes, calls: notesCalls } = stubPushNotes({ status: "success" });
 
-    const result = await runPairedPush({ io, access, ...COMMON_OPTIONS });
+    const result = await runPairedPush({ io, access, pushNotes, ...COMMON_OPTIONS });
 
     expect(result.exitCode).toBe(1);
     expect(result.save).toEqual({
@@ -306,8 +336,97 @@ describe("runPairedPush", () => {
       .map((c) => c.args)
       .filter((args) => args[0] === "push");
     expect(pushArgs).toEqual([]);
+    expect(notesCalls).toEqual([]);
 
     expect(mockRecordPartialPushMarker).not.toHaveBeenCalled();
     expect(mockClearPartialPushMarker).not.toHaveBeenCalled();
   });
+
+  it("force-push-required advisory refuses paired flow even though matrix marks allowed", async () => {
+    const { exec, calls } = buildExec(cleanRepoResponses());
+    const io = buildIo(exec);
+    const access = buildAccess([]);
+    const { pushNotes, calls: notesCalls } = stubPushNotes({ status: "success" });
+
+    const result = await runPairedPush({
+      io,
+      access,
+      pushNotes,
+      worktreeSyncState: "diverged",
+      ...COMMON_OPTIONS,
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.save).toEqual({ status: "skipped", reason: "blocked-by-precheck" });
+    expect(result.worktree).toEqual({ status: "skipped", reason: "blocked-by-precheck" });
+    expect(result.notes).toEqual({ status: "skipped", reason: "blocked-by-precheck" });
+
+    const advisory = result.conditions.find((c) => c.kind === "force-push-required");
+    expect(advisory?.disposition).toBe("advisory");
+
+    const pushArgs = calls
+      .map((c) => c.args)
+      .filter((args) => args[0] === "push");
+    expect(pushArgs).toEqual([]);
+    expect(notesCalls).toEqual([]);
+    expect(mockRunUserSave).not.toHaveBeenCalled();
+    expect(mockRecordPartialPushMarker).not.toHaveBeenCalled();
+    expect(mockClearPartialPushMarker).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [{ status: "noop" } as const, true],
+    [{ status: "ok-recovered", via: "force" } as const, true],
+    [{ status: "ok-recovered", via: "merge" } as const, true],
+  ])(
+    "notes-pusher recovery outcome %j → success; clear partial-push marker",
+    async (outcome, expectClear) => {
+      const { exec } = buildExec(cleanRepoResponses());
+      const io = buildIo(exec);
+      const access = buildAccess([]);
+      const { pushNotes } = stubPushNotes(outcome);
+
+      const result = await runPairedPush({ io, access, pushNotes, ...COMMON_OPTIONS });
+
+      expect(result.exitCode).toBe(0);
+      expect(result.notes).toEqual(outcome);
+      expect(mockRecordPartialPushMarker).not.toHaveBeenCalled();
+      if (expectClear) {
+        expect(mockClearPartialPushMarker).toHaveBeenCalledTimes(1);
+      }
+    },
+  );
+
+  it.each([
+    [{ status: "cancelled" } as const],
+    [{ status: "no-remote" } as const],
+    [{ status: "failed-nontty-conflict" } as const],
+    [
+      {
+        status: "blocked",
+        conditions: [
+          {
+            kind: "missing-notes-refspec",
+            disposition: "block",
+            guidance: "missing refspec",
+          },
+        ],
+      } as const,
+    ],
+  ])(
+    "notes-pusher non-success outcome %j → marker recorded; exitCode 1",
+    async (outcome) => {
+      const { exec } = buildExec(cleanRepoResponses());
+      const io = buildIo(exec);
+      const access = buildAccess([]);
+      const { pushNotes } = stubPushNotes(outcome);
+
+      const result = await runPairedPush({ io, access, pushNotes, ...COMMON_OPTIONS });
+
+      expect(result.exitCode).toBe(1);
+      expect(result.notes).toEqual(outcome);
+      expect(mockRecordPartialPushMarker).toHaveBeenCalledTimes(1);
+      expect(mockClearPartialPushMarker).not.toHaveBeenCalled();
+    },
+  );
 });

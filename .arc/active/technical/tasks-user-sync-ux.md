@@ -343,30 +343,30 @@ The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) is built as a 
           push outcomes as separate envelope legs so callers can distinguish preserved local
           state from refused remote publication.
 
-    - `[ ]` **2.R.2.c Worktree-leg pushability/state gate + helper extraction**
-        - Extract `pushWorktreeBranch({ exec, branch }) -> Promise<{ status: "success" |
-          "failed", error? }>` in `lib/git/` (alongside `pushability.ts`). Both
-          `handlers/sync.ts` `executeSingleLeg` and `commands/user/paired-push.ts`
-          `pushWorktreeLeg` consume it. No `arc sync` cell may rely on raw
-          `git push origin <branch>` as its only guard.
-        - Forward-compat: `pushWorktreeBranch` is the seam wrappers swap (per
-          `plan-interlock-release-wrappers.md` WU1). Keep helper at internal scope today;
-          do not export from `lib/git/index.ts` until the wrapper WU consumes it.
-        - Extend `runPushabilityStatus` to surface `worktree-not-aligned-with-origin` for
-          `target: "worktree"` (lift the current `target === "notes"` guard at
-          `pushability.ts:149`). `target: "both"` continues to suppress alignment — paired
-          path resolves it by pushing the worktree leg first.
-        - Route the paired notes leg through `pushWithInteractiveRecovery` (today
-          `commands/user/paired-push.ts:90` uses raw `git push refs/notes/...`). Restores
-          symmetry with single-leg `arc user push`: conflict recovery, idempotent no-op
-          detection, and recovery-prompt path apply uniformly.
-        - Confirm the `force-push-required` advisory contract: orchestrator and paired-push
-          call sites refuse on advisory disposition. Document the refusal contract in
-          `pushability.ts` preamble so wrappers inherit it (per
-          `plan-interlock-release-wrappers.md` push-wrapper validation).
-        - Build coverage for no-upstream, detached HEAD, rebase-in-progress, remote-ahead,
-          no-remote, remote-unavailable, force-push advisory, and worktree-not-aligned (new
-          for `target: "worktree"`) paths.
+    - `[x]` **2.R.2.c Worktree-leg pushability/state gate + helper extraction**
+        - Extracted `pushWorktreeBranch` in `lib/git/push-worktree.ts` (internal scope; not
+          re-exported from `lib/git/index.ts`). Both `handlers/sync.ts` `executeSingleLeg`
+          and `commands/user/paired-push.ts` consume it, removing the last raw
+          `git push origin <branch>` call sites in the sync surface.
+        - `runPushabilityStatus` now runs the alignment probe on `target: "worktree"` as
+          well as `target: "notes"`; `target: "both"` continues to suppress (paired-push
+          resolves alignment by pushing worktree first). Single-leg worktree push call
+          sites can refuse on `worktree-not-aligned-with-origin` without re-deriving from
+          the worktree-sync state machine.
+        - Paired notes leg now routes through an injected `PairedPushNotesPusher` delegate
+          wired to `pushWithInteractiveRecovery` in `handlers/sync.ts`. `commands/user/`
+          stays Clack-free; the paired flow inherits conflict recovery, idempotent no-op
+          detection, and pre-check refusal symmetric with single-leg `arc user push`.
+        - `runPairedPush` refuses on `force-push-required` advisory disposition
+          (defense-in-depth — `decideWorktree` already routes diverged worktrees to
+          `executeBlockedWorktree` upstream). Refusal contract documented in
+          `pushability.ts` preamble so push wrappers inherit it.
+        - Coverage: new `push-worktree.test.ts`; `pushability.test.ts` extended with
+          `target: "worktree"` alignment cases (clean / local-ahead / behind / diverged /
+          probe-failure / branch-omitted / no-upstream-precedence); `paired-push.test.ts`
+          updated for the injected delegate and covers force-push advisory refusal plus
+          all notes-pusher outcome variants (success / noop / ok-recovered /
+          cancelled / no-remote / failed-nontty-conflict / blocked / failed).
 
     - `[ ]` **2.R.2.d JSON contract and `--yes` semantics**
         - `arc sync --json` contract: exactly one JSON object on stdout; no Clack spinner,

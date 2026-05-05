@@ -11,6 +11,14 @@
  * session-handoff probe envelope so the handoff workflow can gate the
  * worktree push.
  *
+ * **Advisory disposition contract (caller refusal).** Conditions surfaced
+ * with `disposition: "advisory"` (currently `force-push-required`) are not
+ * automatic blocks — callers decide refusal vs. allow. Within the user-sync
+ * surface, every push call site refuses on advisory disposition; force-push
+ * is destructive and only `arc user push --force` opts in. The contract is
+ * inherited by push wrappers so a wrapper swapping the underlying push call
+ * preserves the refusal posture without re-implementing it.
+ *
  * @module
  */
 
@@ -77,12 +85,19 @@ export interface RunPushabilityStatusOptions {
    */
   worktreeSyncState?: WorktreeSyncState;
   /**
-   * Worktree branch name for the notes-target alignment probe. When provided
-   * with `target: "notes"`, the matrix runs a local-only
+   * Worktree branch name for the alignment probe. When provided with
+   * `target: "notes"` or `target: "worktree"`, the matrix runs a local-only
    * `git rev-list --left-right --count HEAD...origin/<branch>` to detect
-   * notes-vs-worktree coherence violations (notes would otherwise reference
-   * an unpushed or stale base commit). Suppressed on `target: "both"` since
-   * paired-push commits to push the worktree first, resolving alignment.
+   * coherence violations:
+   *
+   * - `target: "notes"` — notes would otherwise reference an unpushed or
+   *   stale base commit.
+   * - `target: "worktree"` — single-leg worktree push call sites can refuse
+   *   when local is ahead/behind/diverged from origin without re-deriving
+   *   alignment from the worktree-sync state machine.
+   *
+   * Suppressed on `target: "both"` — paired-push commits to push the
+   * worktree leg first, resolving alignment by virtue of the flow.
    */
   worktreeBranch?: string;
 }
@@ -143,10 +158,11 @@ export async function runPushabilityStatus(
     }
   }
 
-  // Notes-target-only: gate notes push on worktree-vs-origin alignment.
-  // Paired-push (`target: "both"`) suppresses since the paired flow pushes
-  // the worktree leg first, resolving alignment by virtue of the flow.
-  if (target === "notes" && typeof worktreeBranch === "string" && worktreeBranch !== "") {
+  // Single-target alignment probe: gate the push on worktree-vs-origin
+  // alignment when the caller is pushing only one leg. Paired-push
+  // (`target: "both"`) suppresses since the paired flow pushes the worktree
+  // leg first, resolving alignment by virtue of the flow.
+  if (target !== "both" && typeof worktreeBranch === "string" && worktreeBranch !== "") {
     const alignment = await probeWorktreeAlignment(exec, worktreeBranch);
     if (alignment !== null) {
       conditions.push({

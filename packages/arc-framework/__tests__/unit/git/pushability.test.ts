@@ -382,4 +382,167 @@ describe("runPushabilityStatus", () => {
       ).toBeUndefined();
     });
   });
+
+  describe("worktree-vs-origin alignment (worktree target)", () => {
+    const REV_LIST_LEFT_RIGHT_PREFIX = "rev-list --left-right --count";
+
+    function worktreeResponses(): Record<string, ExecResult | ResponseFn> {
+      return {
+        [REBASE_MERGE_PATH]: { stdout: "/repo/.git/rebase-merge", stderr: "" },
+        [REBASE_APPLY_PATH]: { stdout: "/repo/.git/rebase-apply", stderr: "" },
+        [REV_PARSE_HEAD]: { stdout: "feature/x", stderr: "" },
+        [REV_PARSE_UPSTREAM]: { stdout: "origin/feature/x", stderr: "" },
+      };
+    }
+
+    it("clean worktree (ahead=0, behind=0) → no alignment condition", async () => {
+      const responses = worktreeResponses();
+      responses[`${REV_LIST_LEFT_RIGHT_PREFIX} HEAD...origin/feature/x`] = {
+        stdout: "0\t0\n",
+        stderr: "",
+      };
+      const { exec } = buildExec(responses);
+      const access = buildAccess([]);
+
+      const result = await runPushabilityStatus({
+        exec,
+        access,
+        target: "worktree",
+        worktreeBranch: "feature/x",
+      });
+
+      expect(result.allowed).toBe(true);
+      expect(
+        result.conditions.find((c) => c.kind === "worktree-not-aligned-with-origin"),
+      ).toBeUndefined();
+    });
+
+    it("local-ahead → blocks single-leg worktree push with ahead-count guidance", async () => {
+      const responses = worktreeResponses();
+      responses[`${REV_LIST_LEFT_RIGHT_PREFIX} HEAD...origin/feature/x`] = {
+        stdout: "2\t0\n",
+        stderr: "",
+      };
+      const { exec } = buildExec(responses);
+      const access = buildAccess([]);
+
+      const result = await runPushabilityStatus({
+        exec,
+        access,
+        target: "worktree",
+        worktreeBranch: "feature/x",
+      });
+
+      expect(result.allowed).toBe(false);
+      const cond = result.conditions.find((c) => c.kind === "worktree-not-aligned-with-origin");
+      expect(cond?.disposition).toBe("block");
+      expect(cond?.worktreeAlignment).toEqual({ state: "local-ahead", ahead: 2, behind: 0 });
+    });
+
+    it("behind → blocks single-leg worktree push with behind-specific guidance", async () => {
+      const responses = worktreeResponses();
+      responses[`${REV_LIST_LEFT_RIGHT_PREFIX} HEAD...origin/feature/x`] = {
+        stdout: "0\t3\n",
+        stderr: "",
+      };
+      const { exec } = buildExec(responses);
+      const access = buildAccess([]);
+
+      const result = await runPushabilityStatus({
+        exec,
+        access,
+        target: "worktree",
+        worktreeBranch: "feature/x",
+      });
+
+      expect(result.allowed).toBe(false);
+      const cond = result.conditions.find((c) => c.kind === "worktree-not-aligned-with-origin");
+      expect(cond?.disposition).toBe("block");
+      expect(cond?.worktreeAlignment).toEqual({ state: "behind", ahead: 0, behind: 3 });
+    });
+
+    it("diverged → blocks single-leg worktree push with diverged-specific guidance", async () => {
+      const responses = worktreeResponses();
+      responses[`${REV_LIST_LEFT_RIGHT_PREFIX} HEAD...origin/feature/x`] = {
+        stdout: "2\t3\n",
+        stderr: "",
+      };
+      const { exec } = buildExec(responses);
+      const access = buildAccess([]);
+
+      const result = await runPushabilityStatus({
+        exec,
+        access,
+        target: "worktree",
+        worktreeBranch: "feature/x",
+      });
+
+      expect(result.allowed).toBe(false);
+      const cond = result.conditions.find((c) => c.kind === "worktree-not-aligned-with-origin");
+      expect(cond?.disposition).toBe("block");
+      expect(cond?.worktreeAlignment).toEqual({ state: "diverged", ahead: 2, behind: 3 });
+    });
+
+    it("worktreeBranch omitted on target='worktree' → no alignment probe, no condition", async () => {
+      const responses = worktreeResponses();
+      responses[`${REV_LIST_LEFT_RIGHT_PREFIX} HEAD...origin/feature/x`] = () => {
+        throw new Error("rev-list should not run when worktreeBranch is omitted");
+      };
+      const { exec } = buildExec(responses);
+      const access = buildAccess([]);
+
+      const result = await runPushabilityStatus({ exec, access, target: "worktree" });
+
+      expect(result.allowed).toBe(true);
+      expect(
+        result.conditions.find((c) => c.kind === "worktree-not-aligned-with-origin"),
+      ).toBeUndefined();
+    });
+
+    it("probe failure (rev-list throws) → no condition; allow with no regression", async () => {
+      const responses = worktreeResponses();
+      responses[`${REV_LIST_LEFT_RIGHT_PREFIX} HEAD...origin/feature/x`] = () => {
+        throw new Error("fatal: ambiguous argument 'origin/feature/x': unknown revision");
+      };
+      const { exec } = buildExec(responses);
+      const access = buildAccess([]);
+
+      const result = await runPushabilityStatus({
+        exec,
+        access,
+        target: "worktree",
+        worktreeBranch: "feature/x",
+      });
+
+      expect(result.allowed).toBe(true);
+      expect(
+        result.conditions.find((c) => c.kind === "worktree-not-aligned-with-origin"),
+      ).toBeUndefined();
+    });
+
+    it("worktree branch with no upstream blocks before alignment probe runs", async () => {
+      const responses = worktreeResponses();
+      responses[REV_PARSE_UPSTREAM] = () => {
+        throw new Error("fatal: no upstream configured for branch 'feature/x'");
+      };
+      responses[`${REV_LIST_LEFT_RIGHT_PREFIX} HEAD...origin/feature/x`] = () => {
+        throw new Error("rev-list should not run when no-upstream blocks");
+      };
+      const { exec } = buildExec(responses);
+      const access = buildAccess([]);
+
+      const result = await runPushabilityStatus({
+        exec,
+        access,
+        target: "worktree",
+        worktreeBranch: "feature/x",
+      });
+
+      // Both no-upstream and the alignment probe-failure-fallback may surface;
+      // no-upstream is the deterministic block. Alignment is non-blocking when
+      // it cannot probe.
+      expect(result.allowed).toBe(false);
+      expect(result.conditions.find((c) => c.kind === "no-upstream-branch")).toBeDefined();
+    });
+  });
 });

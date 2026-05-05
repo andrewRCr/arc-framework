@@ -188,7 +188,7 @@ export type PairedPushSaveOutcome =
   | { status: "skipped"; reason: "blocked-by-precheck" };
 
 /**
- * Outcome of a single push leg in a paired worktree+notes push.
+ * Outcome of the worktree leg in a paired worktree+notes push.
  *
  * - `success`: the push fired and completed.
  * - `failed`: the push fired but git returned an error. Underlying error preserved.
@@ -198,6 +198,51 @@ export type PairedPushLegOutcome =
   | { status: "success" }
   | { status: "failed"; error: Error }
   | { status: "skipped"; reason: PairedPushSkipReason };
+
+/**
+ * Outcome surface of the injected notes-leg pusher delegate.
+ *
+ * Mirrors the discriminated `PushResult` surface of
+ * `pushWithInteractiveRecovery` so the paired flow preserves the
+ * single-leg recovery taxonomy (cancellation, conflict, blocked, no-remote)
+ * for downstream rendering. The skip variants are added by
+ * `runPairedPush` itself when an upstream leg short-circuits the flow.
+ */
+export type PairedPushNotesPusherResult =
+  | { status: "success" }
+  | { status: "noop" }
+  | { status: "ok-recovered"; via: "force" | "merge" }
+  | { status: "cancelled" }
+  | { status: "no-remote" }
+  | { status: "failed-nontty-conflict" }
+  | { status: "blocked"; conditions: PushabilityCondition[] }
+  | { status: "failed"; error: Error };
+
+/** Outcome of the notes leg as reported in {@link PairedPushResult}. */
+export type PairedPushNotesOutcome =
+  | PairedPushNotesPusherResult
+  | { status: "skipped"; reason: PairedPushSkipReason };
+
+/** Context handed to the injected notes-leg pusher. */
+export interface PairedPushNotesContext {
+  io: UserIOContext;
+  identity: string;
+  cwd: string;
+  access: AccessFn;
+  /** Worktree branch the paired flow just pushed; threaded into the matrix. */
+  worktreeBranch: string;
+}
+
+/**
+ * Pluggable notes-leg pusher injected into {@link RunPairedPushOptions}.
+ *
+ * Production wires `pushWithInteractiveRecovery` so paired and single-leg
+ * pushes share conflict-recovery prompts, idempotent no-op detection, and
+ * pre-check refusal. Tests inject a stub that emits a chosen outcome.
+ */
+export type PairedPushNotesPusher = (
+  context: PairedPushNotesContext,
+) => Promise<PairedPushNotesPusherResult>;
 
 /**
  * Discriminated result of a paired worktree+notes push.
@@ -211,7 +256,7 @@ export interface PairedPushResult {
   /** Save result for the local user directory before either push leg fires. */
   save: PairedPushSaveOutcome;
   worktree: PairedPushLegOutcome;
-  notes: PairedPushLegOutcome;
+  notes: PairedPushNotesOutcome;
   /** Pushability conditions surfaced by the pre-check matrix. */
   conditions: PushabilityCondition[];
   /** Worst-outcome exit code: 0 iff both legs succeeded. */
@@ -230,6 +275,12 @@ export interface RunPairedPushOptions {
   branch: string;
   /** Pre-resolved worktree sync state for force-push detection. */
   worktreeSyncState?: WorktreeSyncState;
+  /**
+   * Notes-leg pusher delegate. Production wires
+   * `pushWithInteractiveRecovery` so the paired flow inherits its
+   * conflict-recovery and idempotent-noop semantics; tests inject a stub.
+   */
+  pushNotes: PairedPushNotesPusher;
 }
 
 /** Options for the fetch operation. */

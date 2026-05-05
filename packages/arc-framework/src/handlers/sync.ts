@@ -25,6 +25,8 @@ import {
   runPairedPush,
   runUserSave,
   UserSaveError,
+  type PairedPushNotesContext,
+  type PairedPushNotesPusherResult,
   type PairedPushResult,
   type UserIOContext,
 } from "../commands/user.js";
@@ -33,6 +35,7 @@ import {
   runPushabilityStatus,
   type PushabilityCondition,
 } from "../lib/git/index.js";
+import { pushWorktreeBranch } from "../lib/git/push-worktree.js";
 import { runWorktreeSyncStatus, type WorktreeSyncState } from "../lib/git/worktree-sync.js";
 import { createUserIOContext } from "../lib/io-context.js";
 import { resolveSyncPushPolicy, type SyncPushPolicy } from "../lib/sync-policy.js";
@@ -392,6 +395,7 @@ async function executePaired(ctx: ExecuteContext, branch: string): Promise<SyncO
     access,
     branch,
     worktreeSyncState: ctx.worktreeState,
+    pushNotes: pairedNotesAdapter,
   });
   renderPairedResult(result, branch);
   return {
@@ -402,6 +406,44 @@ async function executePaired(ctx: ExecuteContext, branch: string): Promise<SyncO
   };
 }
 
+/**
+ * Notes-leg pusher delegate for `runPairedPush`. Threads the paired flow's
+ * context into `pushWithInteractiveRecovery` so paired and single-leg pushes
+ * share conflict recovery, idempotent no-op detection, and pre-check refusal.
+ */
+async function pairedNotesAdapter(
+  context: PairedPushNotesContext,
+): Promise<PairedPushNotesPusherResult> {
+  const result = await pushWithInteractiveRecovery({
+    io: context.io,
+    identity: context.identity,
+    cwd: context.cwd,
+    access: context.access,
+    worktreeBranch: context.worktreeBranch,
+  });
+  switch (result.kind) {
+    case "ok":
+      return { status: "success" };
+    case "noop":
+      return { status: "noop" };
+    case "ok-recovered":
+      return { status: "ok-recovered", via: result.via };
+    case "cancelled":
+      return { status: "cancelled" };
+    case "no-remote":
+      return { status: "no-remote" };
+    case "failed-nontty-conflict":
+      return { status: "failed-nontty-conflict" };
+    case "blocked":
+      return { status: "blocked", conditions: result.conditions };
+    case "failed":
+      return {
+        status: "failed",
+        error: result.error instanceof Error ? result.error : new Error(String(result.error)),
+      };
+  }
+}
+
 function pairedNotesToRecord(result: PairedPushResult): LegOutcomeRecord {
   if (result.save.status === "failed") {
     return {
@@ -410,7 +452,27 @@ function pairedNotesToRecord(result: PairedPushResult): LegOutcomeRecord {
       detail: result.save.error.message,
     };
   }
-  return pairedLegToRecord(result.notes, "save+push");
+  const notes = result.notes;
+  switch (notes.status) {
+    case "success":
+      return { action: "save+push", result: "success" };
+    case "noop":
+      return { action: "save+push", result: "noop" };
+    case "ok-recovered":
+      return { action: "save+push", result: "success", detail: `recovered:${notes.via}` };
+    case "cancelled":
+      return { action: "save+push", result: "cancelled" };
+    case "no-remote":
+      return { action: "save+push", result: "failed", detail: "no-remote" };
+    case "failed-nontty-conflict":
+      return { action: "save+push", result: "failed", detail: "nontty-conflict" };
+    case "blocked":
+      return { action: "save+push", result: "blocked" };
+    case "failed":
+      return { action: "save+push", result: "failed", detail: notes.error.message };
+    case "skipped":
+      return { action: "skip", result: "skipped", detail: notes.reason };
+  }
 }
 
 function pairedLegToRecord(
@@ -431,6 +493,11 @@ function renderPairedResult(result: PairedPushResult, branch: string): void {
   for (const condition of result.conditions.filter((c) => c.disposition === "block")) {
     p.log.error(condition.guidance);
   }
+  for (const condition of result.conditions.filter(
+    (c) => c.disposition === "advisory" && c.kind === "force-push-required",
+  )) {
+    p.log.error(condition.guidance);
+  }
   if (result.save.status === "success" && result.save.result.warnings.length > 0) {
     p.note(buildSaveSummary(result.save.result), "Saved");
   } else if (result.save.status === "failed") {
@@ -445,17 +512,53 @@ function renderPairedResult(result: PairedPushResult, branch: string): void {
   } else if (result.worktree.reason === "blocked-by-precheck") {
     p.log.warn("Worktree push skipped: blocked by pre-check.");
   }
-  if (result.notes.status === "success") {
-    p.log.info("Notes pushed.");
-  } else if (result.notes.status === "failed") {
-    p.log.error(`Notes push failed: ${result.notes.error.message}`);
-    p.log.warn("Partial publish recorded; recover with `arc user push` (idempotent).");
-  } else if (result.notes.reason === "preceding-leg-failed") {
-    p.log.warn("Notes push skipped because the worktree leg failed.");
-  } else if (result.notes.reason === "save-failed") {
-    p.log.warn("Notes push skipped because the save step failed.");
-  } else {
-    p.log.warn("Notes push skipped: blocked by pre-check.");
+  renderPairedNotesOutcome(result);
+}
+
+function renderPairedNotesOutcome(result: PairedPushResult): void {
+  const notes = result.notes;
+  switch (notes.status) {
+    case "success":
+    case "noop":
+      // pushWithInteractiveRecovery's spinner already reports the outcome.
+      return;
+    case "ok-recovered":
+      p.log.info(`Notes pushed (recovered via ${notes.via}).`);
+      return;
+    case "cancelled":
+      p.log.info("Notes push cancelled.");
+      p.log.warn("Partial publish recorded; recover with `arc user push` (idempotent).");
+      return;
+    case "no-remote":
+      p.log.error("No remote configured. Push requires a remote repository.");
+      p.log.warn("Partial publish recorded; recover with `arc user push` (idempotent).");
+      return;
+    case "failed-nontty-conflict":
+      p.log.warn(
+        "Push rejected — local and remote notes conflict (both moved since common ancestor), "
+        + "and the environment is non-interactive.",
+      );
+      p.log.warn("Partial publish recorded; recover with `arc user push` (idempotent).");
+      return;
+    case "blocked":
+      for (const condition of notes.conditions.filter((c) => c.disposition === "block")) {
+        p.log.error(condition.guidance);
+      }
+      p.log.warn("Partial publish recorded; recover with `arc user push` (idempotent).");
+      return;
+    case "failed":
+      p.log.error(`Notes push failed: ${notes.error.message}`);
+      p.log.warn("Partial publish recorded; recover with `arc user push` (idempotent).");
+      return;
+    case "skipped":
+      if (notes.reason === "preceding-leg-failed") {
+        p.log.warn("Notes push skipped because the worktree leg failed.");
+      } else if (notes.reason === "save-failed") {
+        p.log.warn("Notes push skipped because the save step failed.");
+      } else {
+        p.log.warn("Notes push skipped: blocked by pre-check.");
+      }
+      return;
   }
 }
 
@@ -465,15 +568,17 @@ async function executeSingleLeg(ctx: ExecuteContext): Promise<SyncOutcome> {
   let worktreeFailed = false;
 
   if (decision.worktree.kind === "push") {
-    try {
-      await ctx.io.exec("git", ["push", "origin", decision.worktree.branch]);
+    const result = await pushWorktreeBranch({
+      exec: ctx.io.exec,
+      branch: decision.worktree.branch,
+    });
+    if (result.status === "success") {
       p.log.info(`Worktree pushed: \`${decision.worktree.branch}\``);
       worktreeRecord = { action: "push", result: "success" };
-    } catch (err) {
+    } else {
       worktreeFailed = true;
-      const msg = err instanceof Error ? err.message : String(err);
-      p.log.error(`Worktree push failed: ${msg}`);
-      worktreeRecord = { action: "push", result: "failed", detail: msg };
+      p.log.error(`Worktree push failed: ${result.error.message}`);
+      worktreeRecord = { action: "push", result: "failed", detail: result.error.message };
     }
   } else {
     worktreeRecord = { action: "skip", result: "skipped", detail: "not-configured" };

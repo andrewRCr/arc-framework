@@ -8,6 +8,11 @@
  * leg fails, a partial-push marker is recorded so subsequent coherence
  * probes can surface the recovery state.
  *
+ * The notes leg is delegated to an injected {@link PairedPushNotesPusher}
+ * (production wires `pushWithInteractiveRecovery`) so the paired and
+ * single-leg paths share conflict recovery, idempotent no-op detection, and
+ * pre-check refusal without `commands/user/` taking a Clack dependency.
+ *
  * No automatic retry. Recovery is the caller's responsibility via
  * `arc user push` (idempotent).
  *
@@ -15,14 +20,14 @@
  */
 
 import { runPushabilityStatus } from "../../lib/git/index.js";
+import { pushWorktreeBranch } from "../../lib/git/push-worktree.js";
 import {
   clearPartialPushMarker,
   recordPartialPushMarker,
   runUserSave,
 } from "./save-load.js";
-import { notesRef } from "./shared.js";
 import type {
-  PairedPushLegOutcome,
+  PairedPushNotesOutcome,
   PairedPushResult,
   PairedPushSaveOutcome,
   RunPairedPushOptions,
@@ -33,12 +38,15 @@ import type {
  * Run the paired worktree + notes push.
  *
  * Runs the pushability pre-check matrix (`target: "both"`) before either leg.
- * On block, neither leg fires and both are reported `skipped`. Otherwise the
- * current user directory is saved to HEAD before any push fires. Save failure
- * skips both push legs. On save success, the worktree push runs first; if it
- * fails, the notes leg is skipped. On worktree success + notes failure, a
- * partial-push marker is recorded; on full success, any pre-existing marker is
- * cleared.
+ * On block, neither leg fires and both are reported `skipped`. The
+ * `force-push-required` advisory disposition also refuses here — the paired
+ * flow inherits the user-sync-surface contract that force-push is destructive
+ * and must be opted into explicitly. Otherwise the current user directory is
+ * saved to HEAD before any push fires. Save failure skips both push legs. On
+ * save success, the worktree push runs first; if it fails, the notes leg is
+ * skipped. On worktree success, the injected notes pusher runs; the
+ * partial-push marker is recorded on failure (and cleared on success for
+ * defense-in-depth — `runUserPush` clears it on success internally).
  *
  * @param options - See {@link RunPairedPushOptions}.
  * @returns Discriminated outcome with per-leg status, surfaced pushability
@@ -47,7 +55,7 @@ import type {
 export async function runPairedPush(
   options: RunPairedPushOptions,
 ): Promise<PairedPushResult> {
-  const { io, identity, cwd, access, branch, worktreeSyncState } = options;
+  const { io, identity, cwd, access, branch, worktreeSyncState, pushNotes } = options;
 
   const pushability = await runPushabilityStatus({
     exec: io.exec,
@@ -56,7 +64,11 @@ export async function runPairedPush(
     worktreeSyncState,
   });
 
-  if (!pushability.allowed) {
+  const refusedByAdvisory = pushability.conditions.some(
+    (c) => c.disposition === "advisory" && c.kind === "force-push-required",
+  );
+
+  if (!pushability.allowed || refusedByAdvisory) {
     return {
       save: { status: "skipped", reason: "blocked-by-precheck" },
       worktree: { status: "skipped", reason: "blocked-by-precheck" },
@@ -77,7 +89,7 @@ export async function runPairedPush(
     };
   }
 
-  const worktree = await pushWorktreeLeg(io, branch);
+  const worktree = await pushWorktreeBranch({ exec: io.exec, branch });
   if (worktree.status === "failed") {
     return {
       save,
@@ -88,15 +100,29 @@ export async function runPairedPush(
     };
   }
 
-  const notes = await pushNotesLeg(io, identity);
-  if (notes.status === "failed") {
-    await recordPartialPushMarker(cwd, io, identity);
-  } else {
+  const notes: PairedPushNotesOutcome = await pushNotes({
+    io,
+    identity,
+    cwd,
+    access,
+    worktreeBranch: branch,
+  });
+  if (isNotesSuccess(notes)) {
     await clearPartialPushMarker(cwd, io, identity);
+  } else {
+    await recordPartialPushMarker(cwd, io, identity);
   }
 
-  const exitCode = notes.status === "success" ? 0 : 1;
+  const exitCode = isNotesSuccess(notes) ? 0 : 1;
   return { save, worktree, notes, conditions: pushability.conditions, exitCode };
+}
+
+function isNotesSuccess(outcome: PairedPushNotesOutcome): boolean {
+  return (
+    outcome.status === "success"
+    || outcome.status === "noop"
+    || outcome.status === "ok-recovered"
+  );
 }
 
 async function saveUserDirectory(
@@ -107,30 +133,6 @@ async function saveUserDirectory(
   try {
     const result = await runUserSave({ cwd, io, identity });
     return { status: "success", result };
-  } catch (err) {
-    return { status: "failed", error: toError(err) };
-  }
-}
-
-async function pushWorktreeLeg(
-  io: UserIOContext,
-  branch: string,
-): Promise<PairedPushLegOutcome> {
-  try {
-    await io.exec("git", ["push", "origin", branch]);
-    return { status: "success" };
-  } catch (err) {
-    return { status: "failed", error: toError(err) };
-  }
-}
-
-async function pushNotesLeg(
-  io: UserIOContext,
-  identity: string,
-): Promise<PairedPushLegOutcome> {
-  try {
-    await io.exec("git", ["push", "origin", `refs/notes/${notesRef(identity)}`]);
-    return { status: "success" };
   } catch (err) {
     return { status: "failed", error: toError(err) };
   }
