@@ -44,7 +44,7 @@ This matters now because:
 
 ## Relationship to Interlock Model Frame
 
-[ADR-016][adr-016] / [plan-session-operational-flow][plan-ops] establishes configurable autonomy
+[ADR-016][adr-016] / `plan-session-operational-flow.md` establishes configurable autonomy
 **interlocks** for session-operational flow at four architectural junctions: task, commit, push,
 integration. The two plans share **junction prefixes** (`commit-`, `push-`, `integration-`) but
 attach different concerns at each junction:
@@ -112,7 +112,7 @@ get the pre-push stage wired up.
 **Pre-handoff hook as new stage (interlock-model integration).** Additional hook placement for
 handoff ceremony: session-close validation before handoff artifacts are finalized. Config-gated via
 `hooks.pre_handoff` (naming TBD at PRD, aligned with autonomy-axis naming from
-[plan-session-operational-flow][plan-ops]). Complements commit-gate and push-gate checks with
+`plan-session-operational-flow.md`). Complements commit-gate and push-gate checks with
 handoff-specific validation — e.g., status-file rotation validity, git-notes consistency, worktree
 cleanliness.
 
@@ -244,6 +244,15 @@ No external research blockers remain before PRD drafting.
   accumulate. If the method becomes crowded in practice, revisit splitting.
 - Auto-re-stage behavior is safe when combined with ARC's existing structural CHECKs. Needs test
   coverage ensuring re-staged fixes don't re-trigger or loop.
+- **Initial-setup sufficiency for gate coverage over time.** One-shot gate-command configuration
+  assumes adopters re-register new typecheck / test / lint scripts as they add them. Failure mode
+  confirmed 2026-05-05 in this repo: `typecheck:test` (added April 2026) was never wired to local
+  Tier 2; a type error in test code passed `npm test` (vitest transpiles without typechecking) and
+  `npm run typecheck` (production-only) but failed CI. Pre-push enforcement only protects against
+  scripts the adopter remembered to register. If this drift pattern is plausible for other adopters
+  (multi-tier test suites, separate prod/test typecheck configs, evolving lint surfaces), consider
+  scoping in an `arc check-gates` audit (compare detected scripts against configured gate commands)
+  or a re-runnable initial-setup refresh.
 
 ## Scope Estimate
 
@@ -261,7 +270,7 @@ Rough breakdown:
 
 **Dependencies:**
 
-- **[plan-session-operational-flow][plan-ops] Phase 1 (constitutional foundation) must land first** so
+- **`plan-session-operational-flow.md` Phase 1 (constitutional foundation) must land first** so
   the interlock-model vocabulary and architectural-junction naming are formally canonicalized before
   this plan's tier-vocabulary rework. Phase 3 (config surface) landing first is preferred — the
   autonomy-axis naming influences `hooks.pre_push` / `hooks.pre_handoff` config shape and avoids
@@ -276,7 +285,7 @@ Rough breakdown:
 - Landing before ARCd Rebrand means rebrand picks up the new tier vocabulary in its bulk rename
   pass, avoiding double-churn (same argument as User Sync UX Polish).
 
-**Scheduling:** After plan-session-operational-flow Phases 1-3 land, after Work-Unit Mobility, before
+**Scheduling:** After `plan-session-operational-flow.md` Phases 1-3 land, after Work-Unit Mobility, before
 ARCd Rebrand. Pre-1.0 polish window.
 
 **Pre-approved split at PRD-drafting time:** If the chosen tier-vocabulary rework (Path A or B per
@@ -292,4 +301,3 @@ Both halves are independently valuable. Keep unified if the rework stays managea
 ---
 
 [adr-016]: ../../reference/adr/adr-016-configurable-autonomy-interlocks-for-session-operations.md
-[plan-ops]: plan-session-operational-flow.md
