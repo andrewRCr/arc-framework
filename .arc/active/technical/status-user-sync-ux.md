@@ -9,15 +9,15 @@
 - **Task List:** `tasks-user-sync-ux.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task 2.R.3.c.2 — CI ordering / built artifact precondition (project-wide
-  prebuild guard via shared `__tests__/helpers/cli-spawn.ts`; cascades close 2.R.3.c subprocess
-  purity tests and 2.R.3 regression coverage)
-- **Next Task:** Task 2.R.4.a — Disk-vs-note direction inference via `sourceCommit` ancestry (line ~500)
+- **Last Completed:** Task 2.R.4.a — Disk-vs-note direction inference via `sourceCommit` ancestry
+  (added `"behind"` direction; folded in v1 `LocalSyncState` read-path retirement)
+- **Next Task:** Task 2.R.4.b — Action-oriented status default with `--verbose` three-tier truth (line ~522)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 2.R.4.a — RED for first behavior: note descendant of `sourceCommit`
-  + disk hash matches materialized → `direction: "behind"`, action recommends `arc user load`.
-  File: `packages/arc-framework/src/commands/user/sync-status.ts` (`inspectDiskVsLocalSnapshot`
-  + `determineUserStatusAction`).
+- **Next Action:** Begin Task 2.R.4.b — collapse `arc user status` default output to a single
+  direction-aware sentence consuming the 2.R.4.a signal, with three-tier ref/disk/working-files
+  detail moved behind `--verbose` and preserved verbatim in `--json`. Files:
+  `packages/arc-framework/src/commands/user/sync-status.ts` (`buildUserStatusResult`,
+  `renderHeadlineExplanation`, `renderWorkingFilesLine`) and `format.ts` (status summary).
 
 ---
