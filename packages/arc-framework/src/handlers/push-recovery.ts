@@ -11,7 +11,13 @@
 
 import * as p from "@clack/prompts";
 
-import { runUserPush, runUserFetch, runUserSave, UserPushBlockedError } from "../commands/user.js";
+import {
+  findNearestUserNote,
+  runUserPush,
+  runUserFetch,
+  runUserSave,
+  UserPushBlockedError,
+} from "../commands/user.js";
 import type { UserIOContext } from "../commands/user.js";
 import type { AccessFn, PushabilityCondition } from "../lib/git/index.js";
 import { isNonInteractiveEnvironment, isRemoteError, runWithSpinner } from "./shared.js";
@@ -58,8 +64,13 @@ export async function pushWithInteractiveRecovery(
   spinner.start("Pushing user notes...");
   try {
     const pushResult = await runUserPush({ cwd, io, identity, access, worktreeBranch });
-    spinner.stop(pushResult.kind === "noop" ? "Already up to date." : "Push complete.");
-    return { kind: pushResult.kind === "noop" ? "noop" : "ok" };
+    if (pushResult.kind === "noop") {
+      spinner.stop("Remote user notes already match local user notes.");
+      await warnIfLocalNoteStaleForHead({ cwd, io, identity });
+      return { kind: "noop" };
+    }
+    spinner.stop("Push complete.");
+    return { kind: "ok" };
   } catch (err) {
     spinner.stop("Failed.");
     if (err instanceof UserPushBlockedError) {
@@ -128,4 +139,17 @@ export async function pushWithInteractiveRecovery(
       return { kind: "failed", error: recoveryErr };
     }
   }
+}
+
+async function warnIfLocalNoteStaleForHead(
+  options: Pick<PushWithInteractiveRecoveryOptions, "cwd" | "io" | "identity">,
+): Promise<void> {
+  const { cwd, io, identity } = options;
+  const { note } = await findNearestUserNote({ cwd, io, identity });
+  if (!note?.reachableFromHead || note.ancestorDistance <= 0) return;
+
+  p.log.warn(
+    `Latest local user note is attached to a commit ${note.ancestorDistance} commit(s) behind HEAD.`,
+  );
+  p.log.info("Run `arc user save` or `arc sync` before relying on handoff.");
 }

@@ -1005,6 +1005,33 @@ describe("user push and pull", () => {
     expect(await hasRemoteNotes(io, "test-user")).toBe(true);
   });
 
+  it("warns on no-op push when matching local and remote notes are stale for HEAD", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Saved before new work", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await runUserPush({ cwd: tempDir, io, identity: "test-user" });
+    await makeCommit(tempDir, "work after save");
+
+    mockLog.warn.mockClear();
+    mockLog.info.mockClear();
+    mockSpinner.stop.mockClear();
+
+    const result = await pushWithInteractiveRecovery({ io, identity: "test-user", cwd: tempDir });
+
+    expect(result).toEqual({ kind: "noop" });
+    expect(mockSpinner.stop).toHaveBeenCalledWith(
+      "Remote user notes already match local user notes.",
+    );
+    expect(mockLog.warn).toHaveBeenCalledWith(
+      "Latest local user note is attached to a commit 1 commit(s) behind HEAD.",
+    );
+    expect(mockLog.info).toHaveBeenCalledWith(
+      "Run `arc user save` or `arc sync` before relying on handoff.",
+    );
+  });
+
   it("clears a partial-push marker when arc user push recovers the notes ref", async () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");

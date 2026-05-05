@@ -24,6 +24,7 @@ vi.mock("@clack/prompts", () => ({
 const mockRunUserPush = vi.fn();
 const mockRunUserFetch = vi.fn();
 const mockRunUserSave = vi.fn();
+const mockFindNearestUserNote = vi.fn();
 
 class MockUserSaveError extends Error {
   constructor(message: string) {
@@ -45,6 +46,7 @@ vi.mock("../../src/commands/user.js", () => ({
   runUserPush: (...args: unknown[]) => mockRunUserPush(...args),
   runUserFetch: (...args: unknown[]) => mockRunUserFetch(...args),
   runUserSave: (...args: unknown[]) => mockRunUserSave(...args),
+  findNearestUserNote: (...args: unknown[]) => mockFindNearestUserNote(...args),
   UserSaveError: MockUserSaveError,
   UserPushBlockedError: MockUserPushBlockedError,
 }));
@@ -70,6 +72,7 @@ describe("pushWithInteractiveRecovery", () => {
     vi.resetAllMocks();
     mockIsCancel.mockReturnValue(false);
     mockIsNonInteractive.mockReturnValue(false);
+    mockFindNearestUserNote.mockResolvedValue({ note: null });
   });
 
   it("returns { kind: \"ok\" } when push succeeds on first try", async () => {
@@ -79,6 +82,33 @@ describe("pushWithInteractiveRecovery", () => {
     expect(mockRunUserPush).toHaveBeenCalledTimes(1);
     expect(mockRunUserPush).toHaveBeenCalledWith(expect.objectContaining({ cwd }));
     expect(mockSelect).not.toHaveBeenCalled();
+  });
+
+  it("reports matching remote/local notes without implying the local note is current for HEAD", async () => {
+    mockRunUserPush.mockResolvedValue({ kind: "noop" });
+    mockFindNearestUserNote.mockResolvedValue({
+      note: {
+        commit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        reachableFromHead: true,
+        fromAncestor: true,
+        ancestorDistance: 2,
+        noteHistoryDistance: 0,
+        content: "{}",
+      },
+    });
+
+    const result = await pushWithInteractiveRecovery({ io, identity, cwd });
+
+    expect(result).toEqual({ kind: "noop" });
+    expect(mockSpinnerInstance.stop).toHaveBeenCalledWith(
+      "Remote user notes already match local user notes.",
+    );
+    expect(mockLog.warn).toHaveBeenCalledWith(
+      "Latest local user note is attached to a commit 2 commit(s) behind HEAD.",
+    );
+    expect(mockLog.info).toHaveBeenCalledWith(
+      "Run `arc user save` or `arc sync` before relying on handoff.",
+    );
   });
 
   it("returns no-remote when push fails with missing-remote error", async () => {

@@ -299,16 +299,13 @@ The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) is built as a 
           and verified sync-state behavior; the user integration helper now initializes temp
           working and bare repos on `main` to match the branch assumptions in real-git tests.
 
-    - `[ ]` **2.R.1.b Stale-local no-op push copy**
-        - Change the no-op copy emitted by the `noop` discriminant in
-          `pushWithInteractiveRecovery` (`commands/user/push-fetch.ts`) to name the actual
-          comparison: remote user notes already match local user notes. It must not imply the
-          local note is current for `HEAD`.
-        - When local and remote notes refs match but the latest reachable local note is behind
-          `HEAD`, surface a warning/action hint to run save or sync before relying on handoff.
-        - Build `test-first` with local and remote notes refs equal while the latest local note
-          is attached to an ancestor commit: push remains a no-op, but copy includes the
-          stale-local warning and save/sync guidance.
+    - `[x]` **2.R.1.b Stale-local no-op push copy**
+        - `pushWithInteractiveRecovery` now reports the no-op comparison as remote user notes
+          matching local user notes, then checks the latest local note against `HEAD` before
+          returning.
+        - When the matching local/remote note is attached to an ancestor of `HEAD`, the push
+          path warns that handoff needs `arc user save` or `arc sync`; unit and real-git
+          integration coverage pin the stale-local warning while preserving no-op behavior.
 
     - `[ ]` **2.R.1.c Session-init/handoff stale freshness detail**
         - Add session-facing freshness detail when local and remote notes refs match but
