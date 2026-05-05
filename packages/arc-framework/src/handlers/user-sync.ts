@@ -29,6 +29,7 @@ import {
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { runWorktreeSyncStatus } from "../lib/git/worktree-sync.js";
 import { createUserIOContext } from "../lib/io-context.js";
+import { createSyncOutput } from "../lib/sync-output.js";
 import { resolveSyncPushPolicy } from "../lib/sync-policy.js";
 import { pushWithInteractiveRecovery } from "./push-recovery.js";
 import {
@@ -386,6 +387,7 @@ async function handlePushDirection(params: DirectionParams): Promise<void> {
     cwd,
     access,
     worktreeBranch: params.worktreeBranch,
+    output: createSyncOutput(false),
   });
   switch (pushResult.kind) {
     case "ok":

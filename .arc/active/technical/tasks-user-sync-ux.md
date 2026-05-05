@@ -555,39 +555,28 @@ The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) is built as a 
                   containing `arc`. Lives under e2e config so the existing
                   `global-setup` builds `dist/cli.js` before the helper runs.
 
-            - `[ ]` **2.R.3.c.1 Stdout purity across five representative cells**
-                - _Goal:_ For each representative cell, asserting `stdout` parses
-                  as exactly one JSON object with no ANSI escape sequences,
-                  Clack-spinner cursor codes, prompt artifacts, or log lines —
-                  while permitting `stderr` to carry diagnostics.
-                - Cells (set up per row; install ARC + identity in clone A as
-                  needed, drive via `runCli(["sync", "--json"], { cwd: cloneA })`):
-                    1. **paired** — `push_interlock: on-sync`,
-                       `notes_push: always`, clean worktree, fresh commit and
-                       SESSION-NOTES change in clone A.
-                    2. **save-only** — both interlocks `manual`,
-                       `notes_push: manual`, clean worktree.
-                    3. **blocked-diverged** — `push_interlock: on-sync`,
-                       `notes_push: always`; harness clone B advances origin
-                       while clone A makes a divergent commit so worktree state
-                       resolves to `diverged`. (Canonical blocked variant — the
-                       coherence-gate flagship; purity contract is identical
-                       across other blocked states.)
-                    4. **prompt-policy** — `push_interlock: manual`,
-                       `notes_push: prompt`, clean worktree. Under `--json` the
-                       policy degrades to `manual`; assert the degradation
-                       warning lands on `stderr`, not `stdout`.
-                    5. **error-path identity-absent** — clone with
-                       `arc.identity` unset (skip `arc init`'s identity write or
-                       `git config --unset` after install). Envelope must be
-                       `{ cell: "none", reason: "identity-absent" }` with exit 1.
-                - Per cell, assert: exactly one trailing-newline-terminated JSON
-                  object on stdout (`stdout.trim()` parses cleanly); no
-                  `\x1b[`-prefixed bytes anywhere in stdout; envelope `cell` and
-                  `exitCode` match the cell's contract.
-                - No `@clack/prompts` mock in this file — the subprocess is the
-                  real CLI, and any Clack output that reaches the parent process
-                  via the child's stdout is a contract violation.
+            - `[x]` **2.R.3.c.1 Stdout purity across five representative cells**
+                - `__tests__/e2e/sync-purity.e2e.test.ts` drives `arc sync --json`
+                  via `runCli` across five cells (paired-push, save-only,
+                  blocked-diverged, prompt-policy degradation, identity-absent),
+                  pinning the contract: stdout is exactly one trailing-newline-
+                  terminated JSON object with no `\x1b[` bytes; envelope `cell`
+                  and `exitCode` match each cell's contract; `prompt-policy`
+                  additionally pins the degradation warning to `stderr`.
+                - Surfaced and fixed a real Clack contamination: spinner cursor
+                  codes and `◇` glyphs from `pushWithInteractiveRecovery` were
+                  bleeding into subprocess stdout on the paired path. Helper
+                  now requires `output: SyncOutput`, threaded through all four
+                  call sites (sync paired adapter, sync single-leg notes,
+                  `handleUserSync`, `handleUserPush`); see
+                  `notes-user-sync-ux.md` § Design Decisions for the no-default
+                  rationale and residual-risk callout on
+                  `promptConflictResolution`.
+                - Identity-absent setup defeats the `slugify(user.name)`
+                  fallback by unsetting `user.name` locally and passing
+                  `GIT_CONFIG_GLOBAL=/dev/null` + `GIT_CONFIG_NOSYSTEM=1` to
+                  the subprocess so the host's gitconfig can't supply an
+                  identity.
 
             - `[ ]` **2.R.3.c.2 CI ordering — built artifact precondition**
                 - _Goal:_ The subprocess tests need

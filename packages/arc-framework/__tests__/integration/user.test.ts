@@ -40,6 +40,10 @@ import {
   type UserLoadResult,
 } from "../../src/commands/user.js";
 import { pushWithInteractiveRecovery } from "../../src/handlers/push-recovery.js";
+import { createSyncOutput } from "../../src/lib/sync-output.js";
+
+/** Human-mode SyncOutput stub — delegates through the file-scoped clack mock above. */
+const recoveryOutput = createSyncOutput(false);
 
 const {
   mockLog,
@@ -891,7 +895,7 @@ describe("user push and pull", () => {
     ).rejects.toThrow(/rejected/);
 
     try {
-      const result = await pushWithInteractiveRecovery({ io, identity: "test-user", cwd: tempDir });
+      const result = await pushWithInteractiveRecovery({ io, identity: "test-user", cwd: tempDir, output: recoveryOutput });
       expect(result).toEqual({ kind: "ok-recovered", via: "merge" });
 
       const diskContent = await readFile(join(userDir, "SESSION-NOTES.md"), "utf-8");
@@ -1018,7 +1022,7 @@ describe("user push and pull", () => {
     mockLog.info.mockClear();
     mockSpinner.stop.mockClear();
 
-    const result = await pushWithInteractiveRecovery({ io, identity: "test-user", cwd: tempDir });
+    const result = await pushWithInteractiveRecovery({ io, identity: "test-user", cwd: tempDir, output: recoveryOutput });
 
     expect(result).toEqual({ kind: "noop" });
     expect(mockSpinner.stop).toHaveBeenCalledWith(

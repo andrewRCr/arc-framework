@@ -104,6 +104,30 @@ Auto-accept default-yes prompts only. `notes_push: prompt` degrades to `always`;
 and other destructive defaults always refuse with guidance. Matches `handleUserPull`'s
 `shouldSkipOverwriteConfirm(yes)` convention.
 
+### `pushWithInteractiveRecovery` output routing (2.R.3.c.1)
+
+`pushWithInteractiveRecovery` accepts a required `output: SyncOutput` parameter
+rather than defaulting to raw `@clack/prompts`. Rationale: the helper has zero
+external consumers (two call sites in `handlers/sync.ts`, plus `handleUserSync`
+and `handleUserPush`) — there is no back-compat surface to preserve, and a
+silent fallback to clack would re-introduce the JSON-mode contamination class
+the test in 2.R.3.c.1 was added to catch. Sync paths pass their existing
+`SyncOutput` (no-op spinner under JSON mode); user-mode callers pass
+`createSyncOutput(false)` for clack passthrough.
+
+Local `runRoutedSpinner` in `push-recovery.ts` mirrors `shared.ts`'s
+`runWithSpinner` so the conflict-recovery branches route their spinners through
+`output` too. Kept inline rather than refactoring the shared helper — its other
+consumers are human-mode handlers that don't have a `SyncOutput` in scope.
+
+**Residual risk carried forward.** `promptConflictResolution` still uses
+`p.log.warn` + `p.select` directly. Both are gated by
+`isNonInteractiveEnvironment()` which short-circuits to `"non-interactive"`
+before either clack call fires in any subprocess context, so they are
+dead-code under JSON mode today. If that gate is ever removed or weakened,
+route them through `output` too — the 5-cell purity test won't catch it
+because no test cell triggers an actual notes conflict.
+
 ---
 
 ## Open Items Surfaced During Pre-Implementation Audit

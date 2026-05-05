@@ -463,7 +463,7 @@ async function executePaired(ctx: ExecuteContext, branch: string): Promise<Execu
     access,
     branch,
     worktreeSyncState: ctx.worktreeState,
-    pushNotes: (context) => pairedNotesAdapter(context, ctx.yes),
+    pushNotes: (context) => pairedNotesAdapter(context, ctx.yes, ctx.output),
   });
   renderPairedResult(result, branch, ctx.output);
   return {
@@ -482,6 +482,7 @@ async function executePaired(ctx: ExecuteContext, branch: string): Promise<Execu
 async function pairedNotesAdapter(
   context: PairedPushNotesContext,
   yes: boolean,
+  output: SyncOutput,
 ): Promise<PairedPushNotesPusherResult> {
   const result = await pushWithInteractiveRecovery({
     io: context.io,
@@ -490,6 +491,7 @@ async function pairedNotesAdapter(
     access: context.access,
     worktreeBranch: context.worktreeBranch,
     yes,
+    output,
   });
   switch (result.kind) {
     case "ok":
@@ -774,6 +776,7 @@ async function pushNotesLeg(ctx: ExecuteContext): Promise<LegOutcomeRecord> {
     access,
     worktreeBranch: ctx.branch ?? undefined,
     yes: ctx.yes,
+    output: ctx.output,
   });
   switch (result.kind) {
     case "ok":

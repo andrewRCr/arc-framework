@@ -20,7 +20,8 @@ import {
 } from "../commands/user.js";
 import type { UserIOContext } from "../commands/user.js";
 import type { AccessFn, PushabilityCondition } from "../lib/git/index.js";
-import { isNonInteractiveEnvironment, isRemoteError, runWithSpinner } from "./shared.js";
+import type { SyncOutput } from "../lib/sync-output.js";
+import { isNonInteractiveEnvironment, isRemoteError } from "./shared.js";
 
 /** Outcome of an interactive push attempt. */
 export type PushResult =
@@ -52,6 +53,14 @@ export interface PushWithInteractiveRecoveryOptions {
    * never auto-selected; `--yes` does not opt into destructive defaults.
    */
   yes?: boolean;
+  /**
+   * Output routing for spinner and log emission. Required so JSON-mode
+   * callers route spinner cursor codes and log lines through a no-op
+   * spinner / stderr sink, keeping subprocess stdout free of Clack
+   * artifacts. Human-mode callers pass `createSyncOutput(false)` for a
+   * pass-through wrapper around `@clack/prompts`.
+   */
+  output: SyncOutput;
 }
 
 /**
@@ -67,14 +76,14 @@ export interface PushWithInteractiveRecoveryOptions {
 export async function pushWithInteractiveRecovery(
   options: PushWithInteractiveRecoveryOptions,
 ): Promise<PushResult> {
-  const { io, identity, cwd, access, worktreeBranch, yes } = options;
-  const spinner = p.spinner();
+  const { io, identity, cwd, access, worktreeBranch, yes, output } = options;
+  const spinner = output.spinner();
   spinner.start("Pushing user notes...");
   try {
     const pushResult = await runUserPush({ cwd, io, identity, access, worktreeBranch });
     if (pushResult.kind === "noop") {
       spinner.stop("Remote user notes already match local user notes.");
-      await warnIfLocalNoteStaleForHead({ cwd, io, identity });
+      await warnIfLocalNoteStaleForHead(output, { cwd, io, identity });
       return { kind: "noop" };
     }
     spinner.stop("Push complete.");
@@ -105,7 +114,8 @@ export async function pushWithInteractiveRecovery(
 
     try {
       if (action === "force") {
-        await runWithSpinner(
+        await runRoutedSpinner(
+          output,
           "Force-pushing user notes...",
           () => runUserPush({ cwd, io, identity, force: true, access, worktreeBranch }),
           "Force push complete.",
@@ -117,17 +127,20 @@ export async function pushWithInteractiveRecovery(
       // writes the current disk state as a new note on top of the aligned base,
       // and push sends the combined state. Re-save after fetch is the critical
       // step the former "pull first" option skipped.
-      await runWithSpinner(
+      await runRoutedSpinner(
+        output,
         "Fetching remote notes...",
         () => runUserFetch({ io, identity, force: true }),
         "Fetch complete.",
       );
-      await runWithSpinner(
+      await runRoutedSpinner(
+        output,
         "Saving current user directory on top...",
         () => runUserSave({ cwd, io, identity }),
         "Save complete.",
       );
-      await runWithSpinner(
+      await runRoutedSpinner(
+        output,
         "Pushing user notes...",
         () => runUserPush({ cwd, io, identity, access, worktreeBranch }),
         "Push complete.",
@@ -139,6 +152,30 @@ export async function pushWithInteractiveRecovery(
       }
       return { kind: "failed", error: recoveryErr };
     }
+  }
+}
+
+/**
+ * Local twin of `runWithSpinner` that routes the spinner through the caller's
+ * `SyncOutput` instead of raw `@clack/prompts`. Kept inline so push-recovery
+ * stays self-contained — the shared helper still serves human-mode callers
+ * elsewhere that don't have a `SyncOutput` in scope.
+ */
+async function runRoutedSpinner<T>(
+  output: SyncOutput,
+  label: string,
+  fn: () => Promise<T>,
+  doneLabel: string,
+): Promise<T> {
+  const spinner = output.spinner();
+  spinner.start(label);
+  try {
+    const result = await fn();
+    spinner.stop(doneLabel);
+    return result;
+  } catch (err) {
+    spinner.stop("Failed.");
+    throw err;
   }
 }
 
@@ -162,14 +199,15 @@ async function promptConflictResolution(): Promise<ConflictAction> {
 }
 
 async function warnIfLocalNoteStaleForHead(
+  output: SyncOutput,
   options: Pick<PushWithInteractiveRecoveryOptions, "cwd" | "io" | "identity">,
 ): Promise<void> {
   const { cwd, io, identity } = options;
   const { note } = await findNearestUserNote({ cwd, io, identity });
   if (!note?.reachableFromHead || note.ancestorDistance <= 0) return;
 
-  p.log.warn(
+  output.log.warn(
     `Latest local user note is attached to a commit ${note.ancestorDistance} commit(s) behind HEAD.`,
   );
-  p.log.info("Run `arc user save` or `arc sync` before relying on handoff.");
+  output.log.info("Run `arc user save` or `arc sync` before relying on handoff.");
 }

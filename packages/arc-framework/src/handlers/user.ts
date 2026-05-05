@@ -19,6 +19,7 @@ import { slugifyIdentity } from "../lib/git/index.js";
 import { formatError, UserFacingError } from "../lib/errors.js";
 import { getInternalTemplatePath } from "../lib/paths.js";
 import { createUserIOContext } from "../lib/io-context.js";
+import { createSyncOutput } from "../lib/sync-output.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { pushWithInteractiveRecovery } from "./push-recovery.js";
 import {
@@ -223,7 +224,9 @@ export async function handleUserPush(opts: UserPushOptions): Promise<void> {
     return;
   }
 
-  const result = await pushWithInteractiveRecovery({ io, identity, cwd, access, worktreeBranch });
+  const result = await pushWithInteractiveRecovery({
+    io, identity, cwd, access, worktreeBranch, output: createSyncOutput(false),
+  });
   switch (result.kind) {
     case "ok":
     case "ok-recovered":

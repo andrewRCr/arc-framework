@@ -60,12 +60,19 @@ vi.mock("../../src/handlers/shared.js", () => ({
 }));
 
 const { pushWithInteractiveRecovery } = await import("../../src/handlers/push-recovery.js");
+const { createSyncOutput } = await import("../../src/lib/sync-output.js");
 
 // --- Tests ---
 
 const io = {} as never;
 const identity = "andrew";
 const cwd = "/repo";
+/**
+ * Human-mode SyncOutput stub — its log/spinner methods delegate through the
+ * file-scoped `@clack/prompts` mock above, so existing assertions on
+ * `mockLog` and `mockSpinnerInstance` keep firing.
+ */
+const output = createSyncOutput(false);
 
 describe("pushWithInteractiveRecovery", () => {
   beforeEach(() => {
@@ -77,7 +84,7 @@ describe("pushWithInteractiveRecovery", () => {
 
   it("returns { kind: \"ok\" } when push succeeds on first try", async () => {
     mockRunUserPush.mockResolvedValue({ kind: "pushed" });
-    const result = await pushWithInteractiveRecovery({ io, identity, cwd });
+    const result = await pushWithInteractiveRecovery({ io, identity, cwd, output });
     expect(result).toEqual({ kind: "ok" });
     expect(mockRunUserPush).toHaveBeenCalledTimes(1);
     expect(mockRunUserPush).toHaveBeenCalledWith(expect.objectContaining({ cwd }));
@@ -97,7 +104,7 @@ describe("pushWithInteractiveRecovery", () => {
       },
     });
 
-    const result = await pushWithInteractiveRecovery({ io, identity, cwd });
+    const result = await pushWithInteractiveRecovery({ io, identity, cwd, output });
 
     expect(result).toEqual({ kind: "noop" });
     expect(mockSpinnerInstance.stop).toHaveBeenCalledWith(
@@ -113,7 +120,7 @@ describe("pushWithInteractiveRecovery", () => {
 
   it("returns no-remote when push fails with missing-remote error", async () => {
     mockRunUserPush.mockRejectedValue(new Error("No configured push destination"));
-    const result = await pushWithInteractiveRecovery({ io, identity, cwd });
+    const result = await pushWithInteractiveRecovery({ io, identity, cwd, output });
     expect(result).toEqual({ kind: "no-remote" });
     expect(mockSelect).not.toHaveBeenCalled();
   });
@@ -121,7 +128,7 @@ describe("pushWithInteractiveRecovery", () => {
   it("returns failed with original error for unknown push failure", async () => {
     const err = new Error("network timeout");
     mockRunUserPush.mockRejectedValue(err);
-    const result = await pushWithInteractiveRecovery({ io, identity, cwd });
+    const result = await pushWithInteractiveRecovery({ io, identity, cwd, output });
     expect(result).toEqual({ kind: "failed", error: err });
     expect(mockSelect).not.toHaveBeenCalled();
   });
@@ -132,7 +139,7 @@ describe("pushWithInteractiveRecovery", () => {
       .mockResolvedValueOnce(undefined);
     mockSelect.mockResolvedValue("force");
 
-    const result = await pushWithInteractiveRecovery({ io, identity, cwd });
+    const result = await pushWithInteractiveRecovery({ io, identity, cwd, output });
 
     expect(result).toEqual({ kind: "ok-recovered", via: "force" });
     expect(mockRunUserPush).toHaveBeenNthCalledWith(2, expect.objectContaining({ force: true }));
@@ -153,7 +160,7 @@ describe("pushWithInteractiveRecovery", () => {
     });
     mockSelect.mockResolvedValue("merge");
 
-    const result = await pushWithInteractiveRecovery({ io, identity, cwd });
+    const result = await pushWithInteractiveRecovery({ io, identity, cwd, output });
 
     expect(result).toEqual({ kind: "ok-recovered", via: "merge" });
     // Sequence: initial push (rejected) → force-fetch → re-save → retry push (no force)
@@ -181,7 +188,7 @@ describe("pushWithInteractiveRecovery", () => {
     });
     mockSelect.mockResolvedValue("merge");
 
-    const result = await pushWithInteractiveRecovery({ io, identity, cwd });
+    const result = await pushWithInteractiveRecovery({ io, identity, cwd, output });
 
     expect(result).toEqual({ kind: "failed", error: saveErr });
     // Initial push (rejected) → fetch → save (threw) → NO retry push
@@ -194,7 +201,7 @@ describe("pushWithInteractiveRecovery", () => {
     mockSelect.mockResolvedValue("cancel");
     mockIsCancel.mockImplementation((value) => value === "cancel");
 
-    const result = await pushWithInteractiveRecovery({ io, identity, cwd });
+    const result = await pushWithInteractiveRecovery({ io, identity, cwd, output });
 
     expect(result).toEqual({ kind: "cancelled" });
   });
@@ -204,7 +211,7 @@ describe("pushWithInteractiveRecovery", () => {
     mockSelect.mockResolvedValue(Symbol("cancel"));
     mockIsCancel.mockReturnValue(true);
 
-    const result = await pushWithInteractiveRecovery({ io, identity, cwd });
+    const result = await pushWithInteractiveRecovery({ io, identity, cwd, output });
 
     expect(result).toEqual({ kind: "cancelled" });
   });
@@ -216,7 +223,7 @@ describe("pushWithInteractiveRecovery", () => {
       .mockRejectedValueOnce(recoveryErr);
     mockSelect.mockResolvedValue("force");
 
-    const result = await pushWithInteractiveRecovery({ io, identity, cwd });
+    const result = await pushWithInteractiveRecovery({ io, identity, cwd, output });
 
     expect(result).toEqual({ kind: "failed", error: recoveryErr });
   });
@@ -225,7 +232,7 @@ describe("pushWithInteractiveRecovery", () => {
     mockRunUserPush.mockRejectedValue(new Error("non-fast-forward"));
     mockIsNonInteractive.mockReturnValue(true);
 
-    const result = await pushWithInteractiveRecovery({ io, identity, cwd });
+    const result = await pushWithInteractiveRecovery({ io, identity, cwd, output });
 
     expect(result).toEqual({ kind: "failed-nontty-conflict" });
     expect(mockSelect).not.toHaveBeenCalled();
@@ -235,7 +242,7 @@ describe("pushWithInteractiveRecovery", () => {
     mockRunUserPush.mockRejectedValue(new Error("[rejected] non-fast-forward"));
     mockIsNonInteractive.mockReturnValue(true);
 
-    const result = await pushWithInteractiveRecovery({ io, identity, cwd });
+    const result = await pushWithInteractiveRecovery({ io, identity, cwd, output });
 
     expect(result).toEqual({ kind: "failed-nontty-conflict" });
     expect(mockSelect).not.toHaveBeenCalled();
@@ -252,7 +259,7 @@ describe("pushWithInteractiveRecovery", () => {
       return Promise.resolve({ identity, commit: "abc1234", fileCount: 1, warnings: [] });
     });
 
-    const result = await pushWithInteractiveRecovery({ io, identity, cwd, yes: true });
+    const result = await pushWithInteractiveRecovery({ io, identity, cwd, yes: true, output });
 
     expect(result).toEqual({ kind: "ok-recovered", via: "merge" });
     expect(mockSelect).not.toHaveBeenCalled();
@@ -268,7 +275,7 @@ describe("pushWithInteractiveRecovery", () => {
     mockRunUserFetch.mockResolvedValue(undefined);
     mockRunUserSave.mockResolvedValue({ identity, commit: "abc1234", fileCount: 1, warnings: [] });
 
-    const result = await pushWithInteractiveRecovery({ io, identity, cwd, yes: true });
+    const result = await pushWithInteractiveRecovery({ io, identity, cwd, yes: true, output });
 
     expect(result).toEqual({ kind: "ok-recovered", via: "merge" });
     expect(mockSelect).not.toHaveBeenCalled();
@@ -284,7 +291,7 @@ describe("pushWithInteractiveRecovery", () => {
     mockRunUserFetch.mockResolvedValue(undefined);
     mockRunUserSave.mockResolvedValue({ identity, commit: "abc1234", fileCount: 1, warnings: [] });
 
-    await pushWithInteractiveRecovery({ io, identity, cwd, yes: true });
+    await pushWithInteractiveRecovery({ io, identity, cwd, yes: true, output });
 
     const forceCalls = mockRunUserPush.mock.calls.filter(
       (call) => (call[0] as { force?: boolean })?.force === true,
