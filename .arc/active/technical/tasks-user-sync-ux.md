@@ -918,22 +918,16 @@ single entrypoint for all commit paths.
           `boundedFetch` to a generic argument list — the existing helper hard-codes branch fetch and one
           new caller doesn't justify reshaping the shared one. Only the constant is shared.
 
-    - `[ ]` **4.2.c Inference helper module — `inferUserSyncCause`**
-        - Pure function per the helper contract above. No IO; takes structured inputs and returns a classification
-          with confidence. Unit-tested in isolation across the cause taxonomy and key input variants.
-        - Implementer's choice: either include a "no-divergence" output value (uniform call site) or call the
-          helper only after divergence is detected (focused taxonomy). Either is consistent with the contract;
-          pick at implementation time and document in the helper's TSDoc.
-        - Affected files: new module under `packages/arc-framework/src/lib/user-sync/` plus its unit test file.
-        - Build `test-first` (one behavior at a time):
-            - Local ref strict ancestor of remote → `unfetched-local`
-            - Local ref ahead AND `sourceCommit` outside current HEAD ancestry, no remote-ahead path →
-              `concurrent-local-writer`
-            - Remote carries notes local doesn't have AND local ref also ahead → `cross-machine`
-            - `offline: true` collapses cross-machine signals → `offline` with confidence noted
-            - Sync-state missing OR `sourceCommit` is null → `unknown` with `confidence: "low"`
-            - `savedAt` recency informs confidence but never flips a cause to `unknown` — recency is a
-              confidence modifier, not a cause discriminator
+    - `[x]` **4.2.c Inference helper module — `inferUserSyncCause`**
+        - New pure helper at `packages/arc-framework/src/lib/user-sync/inference.ts` exports `inferUserSyncCause`,
+          `UserSyncCause`, and `UserSyncCauseConfidence`. Helper takes a precomputed `refRelation` alongside the
+          contract's hash inputs — ancestry/IO stays at call sites so 4.2.d and Task 4.3 can both reuse the engine.
+        - Picked the **focused-taxonomy** implementer's choice — helper called only after divergence; the
+          defensive `refRelation: "same"` branch returns `unknown` rather than introducing a 6th cause value.
+          `savedAt` modulates confidence (`high`/`low`) at a 7-day `SAVED_AT_RECENCY_THRESHOLD_MS` without ever
+          flipping the cause; `now` is optional and falls back to `Date.now()` for production ergonomics.
+        - 10 unit cases in `__tests__/unit/user-sync-inference.test.ts` cover the 5 causes, the recency
+          modifier across all non-`unknown` causes, and the defensive `same` branch.
 
     - `[ ]` **4.2.d Wire helper into `runUserStatus` rendering**
         - `runUserStatus` reads `LocalSyncState` (currently transitive via `inspectDiskVsLocalSnapshot`; expose
