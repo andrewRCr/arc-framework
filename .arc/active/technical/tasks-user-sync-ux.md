@@ -742,36 +742,16 @@ on final-shape strings).
           `on-sync`, migrated the resolver API to `resolveNotesPushPolicy` + `NotesPushPolicy`, and updated config
           readers, validators, shipped/self-hosted config files, setup guidance, call sites, and affected tests.
 
-    - `[ ]` **3.2.b `arc update` migration logic**
-        - **Inline one-shot migrator** — versioned migrator-registry infrastructure deferred (see
-          `BACKLOG-TECHNICAL.md` § Migration Infrastructure). One module-private function
-          `migrateUserSyncPush(yamlContent: string): string` runs unconditionally in `update.ts` before three-way
-          merging the template against the migrated yaml. Detects already-migrated content and no-ops; idempotent.
-          When a second config-key rename surfaces, escalate to a dedicated WU at that point — the inline function
-          becomes the registry's first registered migration cleanly.
-        - Migrations applied by this function:
-            - `user.sync_push: {value}` → `user.notes_push: {translated}` (key rename + value translation: `always` →
-              `on-sync`; `prompt` / `manual` carry forward).
-            - `session.push_interlock: on-handoff` → `on-sync` (value rename; key unchanged). **Adopter correctness
-              note:** the framework template + this self-hosting repo are already migrated to `on-sync` (per 2.2.c.i).
-              Pre-2.2.c.i adopters with `on-handoff` in their yaml will fail validation on next `arc update` unless this
-              migration runs.
-            - Old `user.sync_push` key removed; no dual-key window.
-        - Affected files: `packages/arc-framework/src/commands/update.ts` (inline migrator function + call site before
-          three-way merge).
-        - Build `test-first` (one behavior at a time):
-            - `user.sync_push: always` → `user.notes_push: on-sync` translation
-            - `prompt` and `manual` carry forward unchanged
-            - `session.push_interlock: on-handoff` → `on-sync` translation
-            - Old `user.sync_push` key absent post-migration
-            - Idempotent: re-running migration on already-migrated config is a no-op
-            - Both keys present (manual paste) → new key wins; old key removed; warn surfaced
-            - Invalid value in legacy key (`user.sync_push: garbage`) → preserved as-is (no translation of unknown
-              values); shell validator catches downstream
-            - Three-way merge interaction: adopter with customized `user.sync_push: prompt` produces migrated
-              `user.notes_push: prompt` against new template's `user.notes_push: on-sync` → three-way merge surfaces
-              a conflict on the value (both sides changed the line differently); adopter resolves manually per the
-              standard `arc update` conflict path
+    - `[x]` **3.2.b `arc update` migration logic**
+        - Added a private `migrateUserSyncPush(...)` pass in `update.ts` for `.arc/system/arc-config.yml` before
+          three-way merge, with update-result reporting for migrated files and dual-key migration warnings in the
+          summary output.
+        - The migration rewrites `user.sync_push` to `user.notes_push`, translates legacy `always` and
+          `session.push_interlock: on-handoff` to `on-sync`, removes old-key duplicates with new-key precedence,
+          preserves unknown legacy values for downstream validation, and keeps customized legacy values on the current
+          side of standard update conflicts.
+        - Covered through `runUpdate` integration tests for translated values, old-key removal, idempotency, dual-key
+          warnings, invalid-value preservation, and customized-value conflict markers.
 
     - `[ ]` **3.2.c Strategy and reference doc updates**
         - Retire the documented-but-unused `auto / prompt / manual` standard from `strategy-session-operations.md` §

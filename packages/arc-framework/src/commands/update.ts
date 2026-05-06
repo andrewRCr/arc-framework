@@ -32,6 +32,7 @@ import { atomicWriteJson } from "../lib/fs.js";
 import type { Recipe, Manifest } from "../lib/types.js";
 import {
   ARC_IN_GIT_CONDITION,
+  ARC_CONFIG_TEMPLATE_PATH,
   INTERNAL_DIR_SEGMENTS, MANIFEST_FILENAME, PRISTINE_FILENAME,
   MANIFEST_SCHEMA_VERSION,
 } from "../lib/constants.js";
@@ -59,6 +60,8 @@ export type PristineStoreError = "not-found" | "invalid-json" | null;
 export interface UpdateResult {
   /** Files cleanly updated with new framework content. */
   updated: number;
+  /** Files changed by one-shot migrations before merge. */
+  migrated: string[];
   /** Conflicted file paths requiring manual resolution (have conflict markers). */
   conflicts: string[];
   /** Files whose pristine baseline was missing — rebuilt from framework content. */
@@ -81,8 +84,114 @@ export interface UpdateResult {
   currentVersion: string;
   /** Warnings from skill regeneration (e.g., modified skill files overwritten). */
   skillWarnings: string[];
+  /** Warnings from one-shot migrations. */
+  migrationWarnings: string[];
   /** Cause of whole-store pristine failure, if any (for UX messaging). */
   pristineStoreError: PristineStoreError;
+}
+
+interface UserSyncPushMigrationResult {
+  content: string;
+  changed: boolean;
+  warnings: string[];
+}
+
+interface ParsedConfigLine {
+  indent: string;
+  key: string;
+  separator: string;
+  value: string;
+  comment: string;
+}
+
+function parseConfigLine(line: string): ParsedConfigLine | null {
+  const match = line.match(/^(\s*)([\w.]+)(\s*:\s*)([^#\r\n]*?)(\s*(?:#.*)?)$/);
+  if (!match) return null;
+  return {
+    indent: match[1] ?? "",
+    key: match[2] ?? "",
+    separator: match[3] ?? ": ",
+    value: match[4] ?? "",
+    comment: match[5] ?? "",
+  };
+}
+
+function formatConfigLine(
+  parsed: ParsedConfigLine,
+  key: string,
+  value: string,
+): string {
+  return `${parsed.indent}${key}${parsed.separator}${value}${parsed.comment}`;
+}
+
+function translateLegacyNotesPushValue(value: string): string {
+  return value === "always" ? "on-sync" : value;
+}
+
+function migrateUserSyncPush(yamlContent: string): UserSyncPushMigrationResult {
+  const legacyKey = "user.sync_push";
+  const newKey = "user.notes_push";
+  const pushInterlockKey = "session.push_interlock";
+
+  const lines = yamlContent.split("\n");
+  const hasNewKey = lines.some((line) => parseConfigLine(line)?.key === newKey);
+  const migratedLines: string[] = [];
+  const warnings: string[] = [];
+  let changed = false;
+  let convertedLegacyKey = false;
+  let removedLegacyBecauseNewKeyExists = false;
+
+  for (const line of lines) {
+    const parsed = parseConfigLine(line);
+    if (!parsed) {
+      migratedLines.push(line);
+      continue;
+    }
+
+    const trimmedValue = parsed.value.trim();
+
+    if (parsed.key === legacyKey) {
+      if (hasNewKey) {
+        changed = true;
+        removedLegacyBecauseNewKeyExists = true;
+        continue;
+      }
+
+      if (convertedLegacyKey) {
+        changed = true;
+        continue;
+      }
+
+      migratedLines.push(
+        formatConfigLine(
+          parsed,
+          newKey,
+          translateLegacyNotesPushValue(trimmedValue),
+        ),
+      );
+      changed = true;
+      convertedLegacyKey = true;
+      continue;
+    }
+
+    if (parsed.key === pushInterlockKey && trimmedValue === "on-handoff") {
+      migratedLines.push(formatConfigLine(parsed, pushInterlockKey, "on-sync"));
+      changed = true;
+      continue;
+    }
+
+    migratedLines.push(line);
+  }
+
+  if (removedLegacyBecauseNewKeyExists) {
+    warnings.push(
+      "arc-config.yml contains both user.sync_push and user.notes_push; "
+        + "preserving user.notes_push and removing legacy user.sync_push.",
+    );
+  }
+
+  const content = migratedLines.join("\n");
+  return { content, changed: changed || content !== yamlContent, warnings };
 }
 
 // --- Temp file merge wrapper ---
@@ -206,12 +315,29 @@ export async function runUpdate(
 
   // Apply change plan (I/O)
   const mergeFn = createContentMergeFn(io.exec);
+  const arcConfigPath = join(arcDir, ARC_CONFIG_TEMPLATE_PATH);
+  const migrated = new Set<string>();
+  const migrationWarnings: string[] = [];
   const applyResult = await applyChangePlan(
     plan,
     arcDir,
     manifest,
     mergeFn,
-    { readFile: io.readFile, writeFile: io.writeFile, mkdir: io.mkdir },
+    {
+      readFile: async (path) => {
+        const content = await io.readFile(path);
+        if (path !== arcConfigPath) return content;
+
+        const migration = migrateUserSyncPush(content);
+        if (migration.changed) {
+          migrated.add(ARC_CONFIG_TEMPLATE_PATH);
+        }
+        migrationWarnings.push(...migration.warnings);
+        return migration.content;
+      },
+      writeFile: io.writeFile,
+      mkdir: io.mkdir,
+    },
     { templateDir, tokens, config, configKeyOverrides },
   );
 
@@ -250,6 +376,7 @@ export async function runUpdate(
   // Compose final result from apply result + update-specific fields
   return {
     updated: applyResult.updated,
+    migrated: [...migrated],
     conflicts: applyResult.conflicts,
     pristineRebuilt: applyResult.pristineRebuilt,
     added: applyResult.added,
@@ -261,6 +388,7 @@ export async function runUpdate(
     previousVersion: manifest.framework_version,
     currentVersion,
     skillWarnings: skillResult.warnings,
+    migrationWarnings,
     pristineStoreError,
   };
 }
@@ -286,6 +414,7 @@ export function buildUpdateSummary(result: UpdateResult): string {
   // Summary line
   const parts: string[] = [];
   if (result.updated > 0) parts.push(`${result.updated} updated`);
+  if (result.migrated.length > 0) parts.push(`${result.migrated.length} migrated`);
   if (result.conflicts.length > 0) {
     parts.push(`${result.conflicts.length} conflicts`);
   }
@@ -342,6 +471,15 @@ export function buildUpdateSummary(result: UpdateResult): string {
     lines.push("");
     lines.push("Skill warnings:");
     for (const warning of result.skillWarnings) {
+      lines.push(`  ${warning}`);
+    }
+  }
+
+  // Migration warnings
+  if (result.migrationWarnings.length > 0) {
+    lines.push("");
+    lines.push("Migration warnings:");
+    for (const warning of result.migrationWarnings) {
       lines.push(`  ${warning}`);
     }
   }
