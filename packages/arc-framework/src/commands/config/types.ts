@@ -25,6 +25,7 @@ export interface ConfigSettings {
   "session.remote_sync": string;
   "session.init_pull.worktree": string;
   "session.init_pull.notes": string;
+  "session.init_load.notes": string;
   "session.commit_interlock": string;
   "session.push_interlock": string;
   "session.sync_interlock": string;
@@ -41,6 +42,7 @@ export interface ConfigSessionInitSettings {
   "session.remote_sync": string;
   "session.init_pull.worktree": string;
   "session.init_pull.notes": string;
+  "session.init_load.notes": string;
   "session.commit_interlock": string;
   "session.push_interlock": string;
   "session.sync_interlock": string;

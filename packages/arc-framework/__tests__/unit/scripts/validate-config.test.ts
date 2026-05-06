@@ -69,3 +69,25 @@ describe("validate-config.sh — user.notes_push", () => {
     expect(result.stdout).toContain("manual prompt on-sync");
   });
 });
+
+describe("validate-config.sh — session.init_load.notes", () => {
+  it("accepts manual, prompt, and always", async () => {
+    for (const value of ["manual", "prompt", "always"]) {
+      const result = await runValidateConfig(`session.init_load.notes: ${value}\n`);
+      expect(result.code).toBe(0);
+      expect(result.stdout).toContain(`PASS  session.init_load.notes: ${value}`);
+    }
+  });
+
+  it("rejects unknown values with the valid-set message", async () => {
+    const result = await runValidateConfig("session.init_load.notes: bogus\n");
+    expect(result.code).toBe(2);
+    expect(result.stdout).toContain("ERROR session.init_load.notes: 'bogus' is not valid");
+    expect(result.stdout).toContain("manual prompt always");
+  });
+
+  it("recognizes the key as known (no Unknown-key warning)", async () => {
+    const result = await runValidateConfig("session.init_load.notes: prompt\n");
+    expect(result.stdout).not.toContain("Unknown key: 'session.init_load.notes'");
+  });
+});

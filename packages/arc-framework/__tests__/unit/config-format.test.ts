@@ -34,6 +34,7 @@ const FULL_SETTINGS: ConfigSettings = {
   "session.remote_sync": "enabled",
   "session.init_pull.worktree": "prompt",
   "session.init_pull.notes": "prompt",
+  "session.init_load.notes": "prompt",
   "session.commit_interlock": "manual",
   "session.push_interlock": "manual",
   "session.sync_interlock": "on-handoff",
@@ -45,6 +46,7 @@ const SESSION_INIT_SETTINGS: ConfigSessionInitSettings = {
   "session.remote_sync": "enabled",
   "session.init_pull.worktree": "prompt",
   "session.init_pull.notes": "prompt",
+  "session.init_load.notes": "prompt",
   "session.commit_interlock": "manual",
   "session.push_interlock": "manual",
   "session.sync_interlock": "on-handoff",
@@ -77,9 +79,9 @@ function sessionInitResult(
 }
 
 describe("buildConfigStatusSummary — counts + keys", () => {
-  it("renders the agent-consumable headline with 19 settings", () => {
+  it("renders the agent-consumable headline with 20 settings", () => {
     const summary = buildConfigStatusSummary(fullResult());
-    expect(summary.split("\n")[0]).toBe("19 agent-consumable settings (hooks.* excluded):");
+    expect(summary.split("\n")[0]).toBe("20 agent-consumable settings (hooks.* excluded):");
   });
 
   it("lists every setting key with its value", () => {

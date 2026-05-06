@@ -944,25 +944,20 @@ _Implementation order within phase:_
   the load-needed condition. Closes the cross-machine-resume gap where worktree pull silently advances the user-notes
   ref while working files stay stale, and session-init reports "everything synced" without surfacing the load action.
 
-    - `[ ]` **4.3.a Config schema for `session.init_load.notes`**
+    - `[x]` **4.3.a Config schema for `session.init_load.notes`**
 
-        - _Goal:_ Land the new config key with default `prompt` and enum `manual | prompt | always`, mirroring
-          `session.init_pull.notes` shape. Independent of probe and workflow — can land first.
-
-        - Affected files:
-            - `packages/arc-framework/arc/system/arc-config.yml` (key + comment)
-            - `packages/arc-framework/arc/system/scripts/validate-config.sh` (`validate_enum` line + `known_keys`
-              entry)
-            - `packages/arc-framework/src/commands/config/types.ts` (`ConfigSettings`, `ConfigSessionInitSettings`
-              interface keys)
-            - `packages/arc-framework/src/lib/config/status-reader.ts` (`DEFAULTS` + `ENUM_VALIDATORS` entry;
-              `AGENT_CONSUMABLE_KEYS` derives from `DEFAULTS`)
-
-        - Build `test-first` (one behavior at a time):
-            - Validator script accepts `manual`, `prompt`, `always`; rejects other values
-            - `arc config status` surfaces the key with its default when absent from yml
-            - `arc config status` surfaces the on-disk value when present
-            - Invalid yml value substitutes the default and surfaces a parse-time warning
+        - Threaded the new key through both schema layers in lockstep:
+          `ConfigSettings` / `ConfigSessionInitSettings` interfaces, `DEFAULTS` (`"prompt"`) and
+          `ENUM_VALIDATORS` (`["manual", "prompt", "always"]`) in the status reader, the shell validator
+          (`validate_enum` line + `known_keys` entry), and the `arc-config.yml` key + comment block
+          documenting the cross-machine resume gap and `always`-mode dirty-tree refusal.
+        - Mirrored package source → project copy: `arc-config.yml` and `validate-config.sh` in
+          `.arc/system/`. Configurable file (yml) gets the default key + comment in both copies; framework
+          script (validator) is byte-identical between copies. Framework-sync drift check passes.
+        - Tests: 5 new cases in `__tests__/unit/config/status-reader.test.ts` (default, enum acceptance,
+          unknown rejection) + 3 in `__tests__/unit/scripts/validate-config.test.ts` (validator accepts
+          enum, rejects unknown, recognizes the key). Existing fixtures across `config-format`,
+          `status-format`, and `status/run` updated for the new key in the settings object.
 
     - `[ ]` **4.3.b Probe-side `loadNeeded` signal**
 

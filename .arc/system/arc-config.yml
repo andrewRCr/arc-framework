@@ -182,6 +182,15 @@ session.init_pull.worktree: prompt
 # See session-init.md § Conditional Sync Pulls for combined-prompt and post-pull re-probe behavior.
 session.init_pull.notes: prompt
 
+# Notes load policy at session init when the local notes ref is current but the
+# user-directory working files are stale relative to the latest local note (the
+# cross-machine resume gap — fetch advanced the ref while disk stayed behind).
+#   manual - Surface the load action in orientation; user runs `arc user load` when ready.
+#   prompt - Prompt before loading. (default)
+#   always - Load automatically (the pre-load backup snapshot is the safety net).
+# See session-init.md § Conditional Sync Pulls for the load cascade and dirty-tree refusal under `always`.
+session.init_load.notes: prompt
+
 # --- Session Interlocks ---
 
 # Commit interlock release policy.

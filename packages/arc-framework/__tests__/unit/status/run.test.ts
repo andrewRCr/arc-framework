@@ -110,6 +110,7 @@ function configResult(overrides: Partial<ConfigStatusResult> = {}): ConfigStatus
       "session.remote_sync": "enabled",
       "session.init_pull.worktree": "prompt",
       "session.init_pull.notes": "prompt",
+      "session.init_load.notes": "prompt",
       "session.commit_interlock": "manual",
       "session.push_interlock": "manual",
       "session.sync_interlock": "on-handoff",
@@ -167,6 +168,7 @@ function configSessionInit(
       "session.remote_sync": "enabled",
       "session.init_pull.worktree": "prompt",
       "session.init_pull.notes": "prompt",
+      "session.init_load.notes": "prompt",
       "session.commit_interlock": "manual",
       "session.push_interlock": "manual",
       "session.sync_interlock": "on-handoff",
@@ -515,13 +517,13 @@ describe("runSessionInitStatus — orchestration", () => {
     if (result.user.ok) expect(result.user.value.state).toBe("clean");
     if (result.active.ok) expect(result.active.value.resolution).toBe("none");
     if (result.config.ok) {
-      // Session-init settings object has exactly 10 keys.
       expect(Object.keys(result.config.value.settings).sort()).toEqual([
         "branch.protection",
         "commit.context_footer",
         "commit.format",
         "pm.mode",
         "session.commit_interlock",
+        "session.init_load.notes",
         "session.init_pull.notes",
         "session.init_pull.worktree",
         "session.push_interlock",

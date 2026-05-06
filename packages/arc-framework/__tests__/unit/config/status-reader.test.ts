@@ -29,8 +29,8 @@ async function createFixture(): Promise<Fixture> {
 }
 
 describe("readConfigSettings — AGENT_CONSUMABLE_KEYS", () => {
-  it("enumerates the 19 agent-consumable keys", () => {
-    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(19);
+  it("enumerates the 20 agent-consumable keys", () => {
+    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(20);
   });
 
   it("excludes all hooks.* keys", () => {
@@ -42,6 +42,10 @@ describe("readConfigSettings — AGENT_CONSUMABLE_KEYS", () => {
   it("includes the session.init_pull.* channel keys", () => {
     expect(AGENT_CONSUMABLE_KEYS).toContain("session.init_pull.worktree");
     expect(AGENT_CONSUMABLE_KEYS).toContain("session.init_pull.notes");
+  });
+
+  it("includes session.init_load.notes", () => {
+    expect(AGENT_CONSUMABLE_KEYS).toContain("session.init_load.notes");
   });
 
   it("includes the session interlock keys", () => {
@@ -123,6 +127,7 @@ describe("readConfigSettings — user-supplied values", () => {
       "session.remote_sync: disabled",
       "session.init_pull.worktree: manual",
       "session.init_pull.notes: always",
+      "session.init_load.notes: always",
       "session.commit_interlock: on-task-approval",
       "session.push_interlock: on-sync",
       "session.sync_interlock: manual",
@@ -138,6 +143,7 @@ describe("readConfigSettings — user-supplied values", () => {
     expect(result.settings["user.notes_push"]).toBe("manual");
     expect(result.settings["session.init_pull.worktree"]).toBe("manual");
     expect(result.settings["session.init_pull.notes"]).toBe("always");
+    expect(result.settings["session.init_load.notes"]).toBe("always");
     expect(result.settings["session.commit_interlock"]).toBe("on-task-approval");
     expect(result.settings["session.push_interlock"]).toBe("on-sync");
     expect(result.settings["session.sync_interlock"]).toBe("manual");
@@ -286,6 +292,46 @@ describe("readConfigSettings — session.init_pull channels", () => {
     expect(result.defaultsApplied).toContain("session.init_pull.worktree");
     expect(result.defaultsApplied).toContain("session.init_pull.notes");
     expect(result.defaultsApplied).not.toContain("pm.mode");
+  });
+});
+
+describe("readConfigSettings — session.init_load.notes", () => {
+  let fixture: Fixture;
+  beforeEach(async () => {
+    fixture = await createFixture();
+  });
+  afterEach(async () => {
+    await rm(fixture.root, { recursive: true, force: true });
+  });
+
+  it("applies 'prompt' default when absent", async () => {
+    await writeFile(fixture.configPath, "pm.mode: arc-in-git\n");
+    const result = await readConfigSettings(fixture.root);
+    expect(result.settings["session.init_load.notes"]).toBe("prompt");
+    expect(result.defaultsApplied).toContain("session.init_load.notes");
+    expect(result.warnings).toHaveLength(0);
+  });
+
+  it("accepts manual | prompt | always", async () => {
+    for (const value of ["manual", "prompt", "always"]) {
+      await writeFile(fixture.configPath, `session.init_load.notes: ${value}\n`);
+      const result = await readConfigSettings(fixture.root);
+      expect(result.settings["session.init_load.notes"]).toBe(value);
+      expect(result.warnings).toHaveLength(0);
+    }
+  });
+
+  it("rejects unknown values with an error naming the valid set", async () => {
+    await writeFile(fixture.configPath, "session.init_load.notes: bogus\n");
+    const result = await readConfigSettings(fixture.root);
+    expect(result.settings["session.init_load.notes"]).toBe("prompt");
+    expect(result.warnings).toHaveLength(1);
+    const message = result.warnings[0] ?? "";
+    expect(message).toContain("session.init_load.notes");
+    expect(message).toContain("'bogus'");
+    expect(message).toContain("manual");
+    expect(message).toContain("prompt");
+    expect(message).toContain("always");
   });
 });
 

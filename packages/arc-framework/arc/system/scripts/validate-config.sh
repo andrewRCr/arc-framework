@@ -116,6 +116,7 @@ validate_enum "team.mode" "false true" "false"
 validate_enum "session.remote_sync" "enabled disabled" "enabled"
 validate_enum "session.init_pull.worktree" "manual prompt" "prompt"
 validate_enum "session.init_pull.notes" "manual prompt always" "prompt"
+validate_enum "session.init_load.notes" "manual prompt always" "prompt"
 
 # User directory
 validate_enum "user.notes_push" "manual prompt on-sync" "on-sync"
@@ -165,7 +166,7 @@ fi
 # Unknown key detection (typo protection)
 # ============================================================================
 
-known_keys="branch.base branch.protection commit.format commit.context_footer commit.custom_pattern commit.context_pattern merge.strategy hooks.pre_commit hooks.commit_msg hooks.task_numbering hooks.skip_extensions hooks.test_patterns hooks.meta_ref_patterns hooks.subject_max_length hooks.subject_warn_length hooks.contributor_protected_paths review.pre_merge platform.type pm.mode team.mode session.remote_sync session.init_pull.worktree session.init_pull.notes session.commit_interlock session.push_interlock session.sync_interlock user.notes_push archive.cadence"
+known_keys="branch.base branch.protection commit.format commit.context_footer commit.custom_pattern commit.context_pattern merge.strategy hooks.pre_commit hooks.commit_msg hooks.task_numbering hooks.skip_extensions hooks.test_patterns hooks.meta_ref_patterns hooks.subject_max_length hooks.subject_warn_length hooks.contributor_protected_paths review.pre_merge platform.type pm.mode team.mode session.remote_sync session.init_pull.worktree session.init_pull.notes session.init_load.notes session.commit_interlock session.push_interlock session.sync_interlock user.notes_push archive.cadence"
 
 for key in $(arc_config_keys); do
     found=false
