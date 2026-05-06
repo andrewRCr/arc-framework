@@ -607,18 +607,57 @@ composition. The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) i
               unit tests pass.
 
     - `[ ]` **2.R.6.b Test-surface audit + residual risk**
-        - Ensure unit, integration, and e2e coverage maps to all remediation invariants and at least one real git
-          cross-clone path.
-        - Exit criterion: produce a checklist confirming no undocumented sync regressions remain. Every Phase 2.R
-          remediation invariant has a covering test; every documented residual is intentional and recorded in
-          `notes-user-sync-ux.md`.
-        - Carry-forward residuals to record explicitly (already pre-populated in `notes-user-sync-ux.md`):
-            - Cross-machine partial-push invisibility (`recordPartialPushMarker` is local-only; machine B has no signal
-              that A's push was partial). Out of scope for 2.R; would require a remote-marker mechanism.
+        - Verify nothing 2.R touched is silently uncovered: every invariant, audit-surfaced fix, and extracted seam
+          has coverage at the appropriate tier; cross-machine invariants have cross-clone paths; residuals are
+          consolidated into one list for a future hardening WU.
+        - **Audit dimensions** (broader than invariants alone — extracted seams and audit-surfaced fixes are
+          first-class targets, mirroring the scope correction made in 2.R.6.a.1 when the seam set was extended at
+          audit start):
+            - **Invariant coverage.** Every 2.R invariant (I1–I7 per `notes-user-sync-ux.md` § Phase 2.R Audit
+              Findings) has at least one covering test. Map each to test file + test name.
+            - **Audit-surfaced fixes.** 2.R.6.a.2 (stdout contamination + `NOT_IN_ARC_PROJECT` envelope) and
+              2.R.6.a.3 (SyncOutput threading through `resolveSyncPushPolicy`) landed during the audit and are not
+              part of the original 7-invariant set. .a.3 shipped with no new tests by design (forward-compat only);
+              pin the no-test rationale rather than leaving it implicit.
+            - **Extracted seams.** Helpers introduced or extracted in 2.R get explicit coverage rows even when they
+              don't map 1:1 to an invariant. Starting points, not exhaustive: `pushWorktreeBranch`,
+              `lib/dev-check.ts`, `emitStatusError`, `runCli` + `assertCliBuilt`, `inspectDiskVsLocalSnapshot`
+              four-way direction inference, the new `sync-status` helpers (`renderActionOrientedHeadline`,
+              `buildVerboseDetailLines`, `buildDefaultDetailLines`, `renderDefaultContextLine`,
+              `isHeadlineFullyClean`), `lib/sync-output.ts`, `lib/sync-policy.ts`, paired-push notes-pusher delegate.
+              Extend if the audit surfaces additional seams.
+            - **Tier-appropriateness.** Coverage at the right tier, not just tier-presence. I2 (JSON purity) needs
+              subprocess/e2e (2.R.3.c.1 proves the contamination class would slip past unit-only); I1 / I4 / I5 want
+              real-git, not unit-only mocks. Call out tier mismatches as `tier-gap`, distinct from missing coverage.
+            - **Cross-clone path per cross-machine invariant.** "At least one real-git cross-clone path" is
+              insufficient. Each cross-machine invariant — I1 freshness, I4 clean-but-stale, I5 stale-local no-op —
+              gets its own cross-clone path. `__tests__/helpers/multi-clone.ts` is built; use it per cross-machine
+              invariant.
+        - **Residuals consolidation.** Pull design-decision residuals into `notes-user-sync-ux.md` § Residual Risks
+          Carried Forward so the future hardening WU finds one list. Items currently captured only in § Design
+          Decisions or § Phase 2.R Audit Findings:
+            - `promptConflictResolution` raw-clack `p.log.warn` + `p.select` calls, gated by
+              `isNonInteractiveEnvironment()`. Dead code under JSON mode today; route through `output` if that gate
+              is weakened.
+            - Single-leg `runUserPush` I7 reliance on push-recovery's rejected-path branch rather than the advisory
+              mechanism. Documented as clean per task-text scope ("advisory-refusal-everywhere applies to paired
+              path"); worth recording so the asymmetry is visible to a future hardening pass.
+            - `--force` path in `handleUserPush` (~200-225) as intentional escape hatch — automatic pushes are
+              advisory-refused, explicit `--force` is by-design unguarded.
+        - Carry-forward residuals already pre-populated in `notes-user-sync-ux.md` § Residual Risks Carried Forward:
+            - Cross-machine partial-push invisibility (`recordPartialPushMarker` is local-only; machine B has no
+              signal that A's push was partial). Out of scope for 2.R; would require a remote-marker mechanism.
             - Pull-side / load-side verification symmetry (`runUserLoad` does no postcondition check; 2.R.1.a is
               save-only). Lower priority; flag for a future hardening WU.
             - Save-verification race against sibling sessions (mitigated in 2.R.1.a by comparing against the
               just-written manifest, not the readback content; confirm the comparison source during implementation).
+        - **Deliverable shape.** New section § Phase 2.R Test Coverage in `notes-user-sync-ux.md`, parallel to
+          § Phase 2.R Audit Findings. Rows: (invariant-or-seam, tier, test file:test name, status). Status legend:
+          `clean` (covered at appropriate tier), `tier-gap` (covered at wrong tier), `gap` (no covering test),
+          `intentional` (no-test by design, with rationale). Mirror the choke-point flagging pattern from .6.a.
+        - Exit criterion: every 2.R invariant, audit-surfaced fix, and extracted seam has covering tests at the
+          appropriate tier or an explicit `intentional` row with rationale; every documented residual is
+          intentional and recorded in `notes-user-sync-ux.md` § Residual Risks Carried Forward.
 
     - `[ ]` **2.R.6.c Doc and preamble updates**
         - Update preambles for `runPairedPush` (`commands/user/paired-push.ts`) and `handleSync` (`handlers/sync.ts`) to
