@@ -44,6 +44,10 @@ documentation style — live in [DEV-RULES.PROJECT][dev-rules-project]. Contribu
 
 - **Never use `--no-verify`** to bypass commit hooks — hooks exist to catch errors.
 
+- **Amend scope:** Use `git commit --amend` only for same-concern fixups to the most recent
+  unpushed commit (typo, lint, missing file from the same logical change); otherwise create a
+  new commit. Never amend pushed commits without explicit user request.
+
 - **Check before reverting files:** Before `git checkout -- <file>`, review `git diff <file>` —
   other tasks may have uncommitted work in the same file.
 
