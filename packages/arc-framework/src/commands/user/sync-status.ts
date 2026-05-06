@@ -251,9 +251,10 @@ export async function runUserSessionInitStatus(
     });
   }
 
-  const [refInspection, localNoteFreshness] = await Promise.all([
+  const [refInspection, localNoteFreshness, diskInspection] = await Promise.all([
     inspectUserSyncRefsDetailed(io, identity),
     inspectSessionLocalNoteFreshness({ cwd, io, identity }),
+    inspectDiskVsLocalSnapshot(cwd, io, identity),
   ]);
   return buildUserSessionInitStatusResult({
     identity,
@@ -263,7 +264,33 @@ export async function runUserSessionInitStatus(
     }),
     comparison: refInspection.comparison,
     localNoteFreshness,
+    loadNeeded: computeSessionInitLoadNeeded({
+      refState: refInspection.state,
+      unsavedDirection: diskInspection.direction,
+    }),
   });
+}
+
+/**
+ * Compute the cross-machine resume hint surfaced on the `clean` arm of
+ * {@link UserSessionInitStatusResult.loadNeeded}. Returns `undefined` outside
+ * `refState === "same"` so the field is suppressed on the `local-ahead` arm
+ * of `clean` and on every non-clean spine state — workflow consumers use a
+ * truthy check, so absent and explicit-false collapse symmetrically.
+ *
+ * `direction === "behind"` already encodes the load-needed conditions:
+ * note advanced past the materialized basis (note.commit !== sourceCommit
+ * with sourceCommit ancestor of note.commit) and disk hash matches the
+ * materialized hash (no local edits to clobber). Anything else — disk
+ * matches note (already loaded), local edits, or mixed divergence — yields
+ * `false`.
+ */
+function computeSessionInitLoadNeeded(input: {
+  refState: UserSyncRefState | null;
+  unsavedDirection: UserUnsavedDirection | null;
+}): boolean | undefined {
+  if (input.refState !== "same") return undefined;
+  return input.unsavedDirection === "behind";
 }
 
 async function inspectSessionLocalNoteFreshness(input: {
@@ -396,6 +423,7 @@ function buildUserSessionInitStatusResult(input: {
   spine: UserSyncSpine;
   comparison?: UserSyncRefInspection["comparison"];
   localNoteFreshness?: UserSessionLocalNoteFreshness;
+  loadNeeded?: boolean;
 }): UserSessionInitStatusResult {
   const { identity, spine } = input;
   const staleNoteAction = shouldWarnStaleLocalNote(spine, input.localNoteFreshness)
@@ -432,6 +460,7 @@ function buildUserSessionInitStatusResult(input: {
         actionHint: staleNoteAction,
         shouldPromptToPull: spine.shouldPromptToPull,
         ...(input.localNoteFreshness ? { localNoteFreshness: input.localNoteFreshness } : {}),
+        ...(input.loadNeeded !== undefined ? { loadNeeded: input.loadNeeded } : {}),
       };
     case "remote-ahead":
       return {

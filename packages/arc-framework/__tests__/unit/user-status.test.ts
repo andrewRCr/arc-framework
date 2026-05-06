@@ -1323,6 +1323,7 @@ describe("runUserSessionInitStatus", () => {
 
     expect(result.state).toBe("disabled");
     expect(result.shouldPromptToPull).toBe(false);
+    expect(result.loadNeeded).toBeUndefined();
     expect(buildUserSessionInitStatusSummary(result)).toContain("session-init remote sync disabled");
   });
 
@@ -1449,6 +1450,211 @@ describe("runUserSessionInitStatus", () => {
     );
     expect(result.shouldPromptToPull).toBe(false);
   });
+});
+
+describe("runUserSessionInitStatus loadNeeded probe", () => {
+  const userDir = "/repo/.arc/user/andrew";
+  const internalDir = `${userDir}/.internal`;
+  const localNotesRef = "refs/notes/arc/user/andrew";
+  const localNotesRefHash = "c".repeat(40);
+  const remoteAheadHash = "f".repeat(40);
+  const noteHistoryCommit = "d".repeat(40);
+  const sourceCommit = "a".repeat(40);
+  const noteCommit = "b".repeat(40);
+  const noteCommitPath = `${noteCommit.slice(0, 2)}/${noteCommit.slice(2)}`;
+
+  type RefStateOverride =
+    | "same"
+    | "local-ahead"
+    | "remote-ahead"
+    | "diverged"
+    | "remote-unavailable";
+
+  interface ProbeOptions {
+    refState: RefStateOverride;
+    /** When `true`, disk content matches note content (state === "same" → loadNeeded: false). */
+    diskMatchesNote?: boolean;
+  }
+
+  function buildIO(options: ProbeOptions): UserIOContext {
+    const diskFiles = options.diskMatchesNote
+      ? { "SESSION-NOTES.md": "shared-content" }
+      : { "SESSION-NOTES.md": "disk-content" };
+    const noteFiles = options.diskMatchesNote
+      ? { "SESSION-NOTES.md": "shared-content" }
+      : { "SESSION-NOTES.md": "newer-from-other-machine" };
+    const noteJSON = JSON.stringify({ version: 2, files: noteFiles });
+    const materializedManifest: SyncManifest = { version: 2, files: diskFiles };
+    const materializedManifestHash = hashSyncManifest(materializedManifest);
+    const syncStateContent = JSON.stringify({
+      version: 2,
+      materializedManifestHash,
+      sourceCommit,
+      sourceOperation: "save",
+    });
+
+    return {
+      exec: async (cmd, args) => {
+        if (cmd !== "git") throw new Error(`unexpected cmd: ${cmd}`);
+        if (args[0] === "rev-parse" && args[1] === "--verify" && args[2] === localNotesRef) {
+          return { stdout: `${localNotesRefHash}\n`, stderr: "" };
+        }
+        if (args[0] === "ls-remote" && args[1] === "origin" && args[2] === localNotesRef) {
+          if (options.refState === "remote-unavailable") {
+            throw new Error("remote unavailable");
+          }
+          if (options.refState === "local-ahead") {
+            return { stdout: "", stderr: "" };
+          }
+          if (options.refState === "remote-ahead" || options.refState === "diverged") {
+            return { stdout: `${remoteAheadHash}\trefs/notes/arc/user/andrew\n`, stderr: "" };
+          }
+          return { stdout: `${localNotesRefHash}\trefs/notes/arc/user/andrew\n`, stderr: "" };
+        }
+        if (args[0] === "fetch") {
+          return { stdout: "", stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "--verify" && args[2]?.startsWith("refs/arc-sync-temp/")) {
+          return { stdout: `${remoteAheadHash}\n`, stderr: "" };
+        }
+        if (args[0] === "update-ref" && args[1] === "-d") {
+          return { stdout: "", stderr: "" };
+        }
+        if (
+          args[0] === "merge-base"
+          && args[1] === "--is-ancestor"
+          && args[2] === localNotesRefHash
+          && args[3] === remoteAheadHash
+        ) {
+          if (options.refState === "remote-ahead") return { stdout: "", stderr: "" };
+          throw new Error("not an ancestor");
+        }
+        if (
+          args[0] === "merge-base"
+          && args[1] === "--is-ancestor"
+          && args[2] === remoteAheadHash
+          && args[3] === localNotesRefHash
+        ) {
+          throw new Error("not an ancestor");
+        }
+        if (args[0] === "rev-parse" && args[1] === "HEAD" && args.length === 2) {
+          return { stdout: `${noteCommit}\n`, stderr: "" };
+        }
+        if (args[0] === "log" && args.includes(localNotesRef)) {
+          return { stdout: `${noteHistoryCommit}\n`, stderr: "" };
+        }
+        if (args[0] === "diff-tree" && args.includes(noteHistoryCommit)) {
+          return { stdout: `${noteCommitPath}\n`, stderr: "" };
+        }
+        if (args[0] === "show" && args[1] === `${noteHistoryCommit}:${noteCommitPath}`) {
+          return { stdout: noteJSON, stderr: "" };
+        }
+        if (
+          args[0] === "merge-base"
+          && args[1] === "--is-ancestor"
+          && args[2] === noteCommit
+          && args[3] === "HEAD"
+        ) {
+          return { stdout: "", stderr: "" };
+        }
+        if (
+          args[0] === "rev-list"
+          && args[1] === "--count"
+          && args[2] === `${noteCommit}..HEAD`
+        ) {
+          return { stdout: "0\n", stderr: "" };
+        }
+        if (
+          args[0] === "merge-base"
+          && args[1] === "--is-ancestor"
+          && args[2] === sourceCommit
+          && args[3] === noteCommit
+        ) {
+          return { stdout: "", stderr: "" };
+        }
+        throw new Error(`unexpected git call: ${args.join(" ")}`);
+      },
+      readDir: async (dir) => {
+        if (dir === userDir) {
+          return Object.entries(diskFiles).map(([name, content]) => ({
+            name,
+            size: content.length,
+          }));
+        }
+        return [];
+      },
+      readFile: async (path) => {
+        for (const [name, content] of Object.entries(diskFiles)) {
+          if (path === `${userDir}/${name}`) return content;
+        }
+        if (path === `${internalDir}/.sync-state.json`) return syncStateContent;
+        throw new Error(`ENOENT: ${path}`);
+      },
+      writeFile: async () => {},
+      mkdir: async () => undefined,
+      writeNote: async () => {},
+      readNote: async () => null,
+    };
+  }
+
+  it("surfaces loadNeeded: true when refs match and disk lags behind a descendant note", async () => {
+    const io = buildIO({ refState: "same" });
+
+    const result = await runUserSessionInitStatus({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      remoteSyncEnabled: true,
+    });
+
+    expect(result.state).toBe("clean");
+    expect(result.loadNeeded).toBe(true);
+  });
+
+  it("surfaces loadNeeded: false when refs match and disk hash matches note hash", async () => {
+    const io = buildIO({ refState: "same", diskMatchesNote: true });
+
+    const result = await runUserSessionInitStatus({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      remoteSyncEnabled: true,
+    });
+
+    expect(result.state).toBe("clean");
+    expect(result.loadNeeded).toBe(false);
+  });
+
+  it("omits loadNeeded when refState is local-ahead (clean spine but not 'same')", async () => {
+    const io = buildIO({ refState: "local-ahead" });
+
+    const result = await runUserSessionInitStatus({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      remoteSyncEnabled: true,
+    });
+
+    expect(result.state).toBe("clean");
+    expect(result.loadNeeded).toBeUndefined();
+  });
+
+  it.each(["remote-ahead", "diverged", "remote-unavailable"] as const)(
+    "omits loadNeeded on non-clean spine state derived from refState %s",
+    async (refState) => {
+      const io = buildIO({ refState });
+
+      const result = await runUserSessionInitStatus({
+        cwd: "/repo",
+        io,
+        identity: "andrew",
+        remoteSyncEnabled: true,
+      });
+
+      expect(result.state).not.toBe("clean");
+      expect(result.loadNeeded).toBeUndefined();
+    },
+  );
 });
 
 describe("buildUserSessionInitStatusSummary", () => {

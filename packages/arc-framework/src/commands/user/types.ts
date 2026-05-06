@@ -544,6 +544,18 @@ export interface UserSessionInitStatusResult {
    * when not applicable; do not write `null`.
    */
   qualifier?: UserSessionInitQualifier;
+  /**
+   * Cross-machine resume hint for the `clean` arm: when `refState === "same"`,
+   * `true` means the on-disk user files lag behind the latest local note (a
+   * fresh note arrived via a worktree pull but was never materialized) and
+   * `arc user load` would surface that content non-destructively; `false`
+   * means the disk already matches the latest note. Omitted on the
+   * `local-ahead` arm (no cross-machine gap) and on every non-clean spine
+   * state. Workflow consumers use a truthy check
+   * (`if (user.value.loadNeeded)`) so absent and explicit-false collapse
+   * symmetrically.
+   */
+  loadNeeded?: boolean;
 }
 
 export interface UserSessionInitStatusOptions {

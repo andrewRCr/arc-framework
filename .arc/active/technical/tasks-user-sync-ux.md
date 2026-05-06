@@ -937,7 +937,7 @@ _Implementation order within phase:_
         - 3 unit cases in `__tests__/unit/user-status.test.ts` cover skip-note + degraded-line adjacency,
           online-mode omission, and default-mode omission.
 
-### `[ ]` **4.3 Session-init load cascade**
+### `[x]` **4.3 Session-init load cascade**
 
 - _Goal:_ Session-init detects ref-aligned-but-disk-behind state and offers `arc user load` per a new
   `session.init_load.notes` config knob — same shape as the existing `session.init_pull.notes` cascade, applied to
@@ -959,63 +959,78 @@ _Implementation order within phase:_
           enum, rejects unknown, recognizes the key). Existing fixtures across `config-format`,
           `status-format`, and `status/run` updated for the new key in the settings object.
 
-    - `[ ]` **4.3.b Probe-side `loadNeeded` signal**
+    - `[x]` **4.3.b Probe-side `loadNeeded` signal**
 
         - _Goal:_ Extend `runUserSessionInitStatus` to compute the load-needed condition and surface
           `loadNeeded?: boolean` on the `clean` arm of `UserSessionInitStatusResult` when `refState === "same"`.
           The PRD-pinned 5-state spine (R1: `clean | remote-ahead | conflict | disabled | remote-unavailable`)
           stays the canonical surface — no 6th state.
 
-        - _Type shape:_ Optional field on the `clean` arm only, populated when `refState === "same"`. Under
-          `refState === "local-ahead"` (the other condition that collapses to `clean` spine state), local notes are
-          ahead of remote, so the cross-machine-resume gap doesn't apply — field omitted. Workflow rule:
-          `if (user.value.loadNeeded) { /* cascade per session.init_load.notes */ }` — truthy check covers absent
-          (not applicable) and explicit-false (applicable, condition not met) symmetrically.
+        - Added `inspectDiskVsLocalSnapshot` to `runUserSessionInitStatus`'s `Promise.all` and a small
+          `computeSessionInitLoadNeeded` helper that returns `undefined` outside `refState === "same"`
+          and `direction === "behind"` inside it. `direction === "behind"` already encodes the load-needed
+          conditions exactly — note advanced past materialized basis (`note.commit !== sourceCommit` with
+          `isAncestor(sourceCommit, note.commit)`) plus disk hash equal to `materializedManifestHash`
+          (no local edits). Folding the rule into the existing `inspectDiskVsLocalSnapshot` direction
+          taxonomy avoided duplicating the ancestry call at the call site and kept the call-site primitive
+          shape identical to 4.2.d's pattern. `inferUserSyncCause` is not invoked — focused-taxonomy
+          invariant from 4.2.c short-circuits on `same` refs.
 
-        - _Mechanism:_ Load-needed detection reuses the call-site primitives 4.2.d already assembles
-          (`sourceCommit`, `headReachable`, ancestry calls) plus a `diskState === "current"` check from
-          `inspectDiskVsLocalSnapshot` (added to `runUserSessionInitStatus`'s `Promise.all`). `inferUserSyncCause`
-          itself is not invoked — it short-circuits on `same` ref state by design (4.2.c focused-taxonomy
-          invariant). Load-needed condition: `refState === "same"` AND `isAncestor(sourceCommit, note.commit)`
-          AND `diskState === "current"`.
+        - `loadNeeded` is surfaced only on the clean arm of `buildUserSessionInitStatusResult`'s switch
+          and only when defined — `local-ahead` collapses to `clean` spine but produces `undefined`
+          here, so the field is omitted symmetrically with non-clean spine states. Workflow consumers
+          can treat the field uniformly via a truthy check.
 
-        - Affected files:
-            - `packages/arc-framework/src/commands/user/sync-status.ts` (`runUserSessionInitStatus` Promise.all
-              extension, ancestry call, condition check, envelope field on `clean` arm)
-            - `packages/arc-framework/src/commands/user/types.ts` (optional `loadNeeded?: boolean` on the `clean`
-              arm of `UserSessionInitStatusResult`)
-            - `packages/arc-framework/__tests__/unit/user-status.test.ts` (probe behavior cases)
-
-        - Build `test-first` (one behavior at a time):
-            - Probe surfaces `loadNeeded: true` when `refState === "same"` AND
-              `isAncestor(sourceCommit, note.commit)` AND `diskState === "current"`
-            - Probe surfaces `loadNeeded: false` when `refState === "same"` AND disk hash matches note hash
-            - Probe omits `loadNeeded` field when `refState === "local-ahead"` (also `clean` spine state)
-            - Probe omits `loadNeeded` field on non-clean spine states (`remote-ahead`, `conflict`,
-              `remote-unavailable`, `disabled`)
-            - Identity absent → no probe runs; workflow short-circuits per existing identity-absent path
-
-    - `[ ]` **4.3.c Workflow Step 2 notes-load cascade**
-
-        - _Goal:_ Extend `session-init.md` Step 2 with a notes-load case under the `recommendedAction` envelope
-          established by 4.6.a; integrate combined-prompt across three actions (worktree-pull, notes-pull,
-          notes-load); pin dirty-tree precheck.
-
-        - _Cascade rule:_ `loadNeeded === true` → `prompt` mode asks before running `arc user load`; `always`
-          mode loads without prompt; `manual` mode surfaces in orientation only. Dirty-tree precheck refuses
-          auto-load under `always`; degrades to prompt with explicit "stash or commit" warning. Pre-load backup
-          mechanism (already part of `arc user load`) is the safety net for the auto-action case.
-
-        - _Combined prompt:_ When two or three actions need acceptance simultaneously, issue a single combined
-          prompt with per-channel choices (mirroring today's worktree-pull + notes-pull combined prompt pattern).
-          Identity absent → notes-load skipped regardless of state; worktree channel still applies.
+        - Tests batched in a new `runUserSessionInitStatus loadNeeded probe` describe block — tightly
+          coupled (shared IO scenario builder, single conditional implementation), so per the
+          test-first method's batching judgment they were authored together rather than sliced
+          one-at-a-time. Six cases cover the four orchestrator behaviors plus an `it.each` over
+          non-clean spine states (`remote-ahead`, `diverged`, `remote-unavailable`); the
+          identity-absent behavior is enforced at the higher CLI probe layer (`runUserSessionInitStatus`
+          requires identity in its signature) and stays out of this unit. The existing
+          "returns disabled" test gained a `loadNeeded` omission assertion.
 
         - Affected files:
-            - `.arc/system/workflows/arc/session-lifecycle/session-init.md` (Step 2 notes-channel branch +
-              combined-prompt extension)
-            - `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/session-init.template.md` (mirror)
+            - `packages/arc-framework/src/commands/user/sync-status.ts` (Promise.all extension,
+              `computeSessionInitLoadNeeded` helper, clean-arm field plumbing)
+            - `packages/arc-framework/src/commands/user/types.ts` (`loadNeeded?: boolean` on
+              `UserSessionInitStatusResult` with consumer-rule TSDoc)
+            - `packages/arc-framework/__tests__/unit/user-status.test.ts` (six new probe-behavior
+              cases plus a disabled-arm omission assertion on the existing test)
 
-        - Test-after — workflow doc lint; behavioral coverage already lives in 4.3.b.
+    - `[x]` **4.3.c Workflow Step 2 notes-load cascade**
+
+        - Added a **Notes-load dispatch** subsection to `session-init.md` Step 2 keyed on
+          `user.value.loadNeeded === true`, dispatching on `session.init_load.notes` (`always` →
+          immediate `arc user load` with dirty-tree degrading to `prompt`; `prompt` → ask first;
+          `manual` → orientation surface only). Pre-load backup is named as the safety net for the
+          auto-action case.
+
+        - Generalized the **Combined prompt** section: the envelope still pre-composes
+          `recommendedCombinedPrompt` for the two-pull case (worktree-pull + notes-pull); the agent
+          composes locally for the worktree-pull + notes-load combo. Notes-pull and notes-load are
+          mutually exclusive on the notes channel (one fires on `refState ∈ {remote-ahead, conflict}`,
+          the other on `refState === "same"`), so no three-way combo arises in practice — called out
+          explicitly to keep the dispatch reasoning closed.
+
+        - Renamed **Notes-pull ordering** → **Notes operation ordering** so it covers both pull and
+          load: either operation must complete before Step 3, since SESSION-NOTES reads would
+          otherwise be stale. Identity-absent block extended to mention notes-load skipping
+          alongside notes-pull.
+
+        - Step 1 envelope table updated: `user` row carries the new `value.loadNeeded?: boolean`
+          field spec (clean-arm-only with the cross-machine resume gap rationale); `config` row adds
+          `session.init_load.notes` to the session-relevant settings list. Padded all data rows to a
+          single closing-pipe column to satisfy MD060 alignment after the longer `user` row.
+
+        - Mirrored to
+          `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/session-init.template.md`
+          with the table-padding script applied to its larger row width (max-row alignment differs
+          between project copy and template because the team-mode block and `{{REPO_ROOT}}`
+          placeholder live only in the template — preserved per existing convention).
+
+        - Test surface = markdown lint (zero violations) per the task spec; behavioral coverage
+          lives in 4.3.b's probe-behavior cases.
 
 ### `[ ]` **4.4 JIT commit-format loading at arc-commit**
 
