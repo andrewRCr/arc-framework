@@ -11,13 +11,79 @@
 
 ## Phase 2.R Audit Findings
 
-_Populated during Task 2.R.6.a — Code-path audit against invariants. One row per file:
-`invariant → location → status (clean | finding | TODO)`._
+_Populated during Task 2.R.6.a — Code-path audit against invariants. One row per
+(file, applicable invariant); files with no applicable invariants get a single
+`(no applicable invariants)` row. Status legend: `clean` (invariant met),
+`finding` (active gap to fix), `TODO` (residual already tracked or out-of-scope
+note carried forward)._
+
+**Invariants:**
+
+- I1 — Verified save before sync-state advance (2.R.1.a)
+- I2 — No JSON contamination (2.R.2.d, 2.R.4)
+- I3 — No raw worktree-push bypass (2.R.2.c)
+- I4 — No clean-but-stale hidden state (2.R.1.c)
+- I5 — No misleading no-op copy (2.R.1.b)
+- I6 — Blocked-cell save invariant (2.R.2.b)
+- I7 — Force-push advisory refused at every call site (2.R.2.c)
+
+**Scope summary:** 25 files audited (5 handlers, 9 `commands/user/`, 9 `lib/git/`,
+2 `lib/sync-*`). 0 active findings against 2.R invariants. 2 TODOs carried
+forward (both pre-existing residuals or out-of-scope CLI-surface gaps).
+
+**Audit method:** Read each file in full; identified which invariants the file
+enforces, exposes, or defers; recorded location (symbol + line) and status. Choke
+points (the file that owns enforcement of an invariant) are flagged.
 
 | File | Invariant | Location | Status |
-|------|-----------|----------|--------|
-
-_(rows added during 2.R.6.a)_
+| ---- | --------- | -------- | ------ |
+| `handlers/sync.ts` | I1 | `performSave` (~752); `executePaired` → `runPairedPush` (~458) | clean — defers to `runUserSave`/`runPairedPush` |
+| `handlers/sync.ts` | I2 | `output: SyncOutput` threaded throughout; JSON stdout writes only at ~224, ~295-296, ~321-322, ~832-833; `emitErrorEnvelope` (~826-835) | clean |
+| `handlers/sync.ts` | I3 | `executeSingleLeg` uses `pushWorktreeBranch` (~647); paired path delegates to `runPairedPush` | clean |
+| `handlers/sync.ts` | I6 | `executeBlockedWorktree` saves (~419); `save+notes-blocked` saves (~671); `executeRebaseBlocked` skips save per documented exception (~387-395) | clean |
+| `handlers/sync.ts` | I7 | Paired flow refuses via `runPairedPush`; single-leg notes via `pushWithInteractiveRecovery` | clean |
+| `handlers/user-sync.ts` | I1 | `handlePushDirection` calls `runUserSave` (~351) before `pushWithInteractiveRecovery` (~384); `degradeConflictToSaveOnly` saves (~220) | clean |
+| `handlers/user-sync.ts` | I2 | Command lacks `--json`; uses raw `p.log.*`; passes `createSyncOutput(false)` to recovery (~390) | clean (no JSON contract surface today) |
+| `handlers/user-sync.ts` | I5 | Defers no-op rendering to `pushWithInteractiveRecovery` | clean |
+| `handlers/user-sync.ts` | I6 | `local unsaved` routes to "push" (preserves disk); conflict in non-interactive env degrades to save-only (~178-181) | clean |
+| `handlers/user.ts` | I1 | `handleUserSave` → `runUserSave` (~99); verification lives in helper | clean |
+| `handlers/user.ts` | I2 | `handleUserStatus --json`: identity-resolution failure under `--json` writes a clack error block to stdout (via `isHandledError` → `p.log.error`) and returns with no JSON envelope (~438-440); same gap on `requireArcProjectRoot` (~444). Two failures: stdout contamination + missing-on-error envelope | finding — addressed in 2.R.6.a.2 |
+| `handlers/user.ts` | I5 | `handleUserPush` delegates to `pushWithInteractiveRecovery` | clean |
+| `handlers/user.ts` | I7 | `--force` path is explicit user opt-in, bypasses recovery (~200-225) | clean (intentional escape hatch; advisory contract covers automatic pushes) |
+| `handlers/push-recovery.ts` | I1 | Merge-recovery branch re-saves on top of fetched base (~136-141) before push; verification inside `runUserSave` | clean |
+| `handlers/push-recovery.ts` | I2 | Spinner via `output.spinner()` (~80, ~170-171); stale-local warn routes through `output.log` (~209-212); `promptConflictResolution` (~185-199) uses raw `p.log.warn` + `p.select` | TODO — residual already documented in § Design Decisions (gated by `isNonInteractiveEnvironment()` which short-circuits before clack fires under JSON mode) |
+| `handlers/push-recovery.ts` | I5 | `pushResult.kind === "noop"` reports "Remote user notes already match local user notes" then `warnIfLocalNoteStaleForHead` (~84-88, ~201-213) | clean (2.R.1.b choke point) |
+| `handlers/push-recovery.ts` | I7 | Advisory routed via `runUserPush` pushability pre-check; force-push only on explicit prompt selection (~116-124) or `--yes` does not auto-select force (~108-110) | clean |
+| `handlers/status.ts` | I2 | `--json` writes via `process.stdout.write` (~146, ~163, ~181); errors via `process.stderr.write` (~89-91, ~139-141); mutually-exclusive flag error skips envelope (~88-94) | clean (CLI-misuse error only; runtime probes always emit envelope) |
+| `handlers/status.ts` | I4 | Routes `runUserSessionInitStatus` (~108, ~154) which carries `localNoteFreshness` to session-init consumers | clean |
+| `commands/user/save-load.ts` | I1 | `runUserSave` ordering: `writeNote` → `verifySavedNote` → `writeLocalSyncState` (~66-68); verification compares hash of just-serialized manifest vs readback (~203-209); on failure `UserSaveVerificationError` throws and sync-state never advances | clean (2.R.1.a choke point) |
+| `commands/user/save-load.ts` | I4 | `findNearestUserNote` returns full freshness fields (`reachableFromHead`, `ancestorDistance`, `noteHistoryDistance`) for caller rendering | clean |
+| `commands/user/save-load.ts` | I5 | `recordPartialPushMarker`/`clearPartialPushMarker` carry the partial-push state used by no-op gating | clean |
+| `commands/user/save-load.ts` | (residual) | `runUserLoad` does no symmetric postcondition check (~155-157) | TODO — already documented in § Residual Risks (load-side verification symmetry; deferred to future hardening WU) |
+| `commands/user/paired-push.ts` | I1 | `saveUserDirectory` → `runUserSave` (~81, ~134); save fires only after pushability allowed | clean |
+| `commands/user/paired-push.ts` | I3 | `pushWorktreeBranch` (~92); no raw `git push` | clean |
+| `commands/user/paired-push.ts` | I6 | Pushability pre-check (~60-65); save-before-push (~81-91); save skipped only on pre-check block (consistent with rebase-in-progress exception) | clean |
+| `commands/user/paired-push.ts` | I7 | `refusedByAdvisory` check (~67-78); paired flow refuses on `force-push-required` advisory before save fires | clean (2.R.2.c choke point) |
+| `commands/user/push-fetch.ts` | I5 | `runUserPush` noop detection via local-vs-remote ref-hash compare (~50-58); partial-push marker cleared on noop | clean |
+| `commands/user/push-fetch.ts` | I7 | Pushability pre-check on `target: "notes"` (~37-42); `worktreeBranch` triggers `worktree-not-aligned-with-origin` block; `force-push-required` advisory not refused at this site — divergent push instead routes through [rejected] path in `push-recovery.ts` | clean (single-leg pattern; advisory-refusal-everywhere applies to paired path per task 2.R.2.c text) |
+| `commands/user/sync-status.ts` | I4 | `inspectSessionLocalNoteFreshness` (~187-215); `shouldWarnStaleLocalNote` (~406-411); session-init "clean" branch surfaces stale-action (~329-345); `renderSessionLocalNoteFreshness` (~413-436) | clean (2.R.1.c choke point) |
+| `commands/user/shared.ts` | (none) | `notesRef` only | clean |
+| `commands/user/add.ts` | (none) | `runUserAdd` provisions templates; not on sync surface | clean |
+| `commands/user/format.ts` | (none) | Pure summary builders for save/load/status | clean |
+| `commands/user/relative-time.ts` | (none) | `formatRelativeTime` formatter | clean |
+| `commands/user/types.ts` | (none) | Type / error class definitions; `UserSaveVerificationError` and `UserPushBlockedError` declared here | clean |
+| `lib/git/pushability.ts` | I7 | `force-push-required` advisory definition site (~143-151); preamble documents caller-refusal contract (~14-20) | clean (definition site) |
+| `lib/git/push-worktree.ts` | I3 | `pushWorktreeBranch` is the sole `git push origin <branch>` worktree call site (~44); not re-exported from `lib/git/index.ts` per design (~14-15) | clean (2.R.2.c choke point) |
+| `lib/git/push-worktree.ts` | I7 | Preamble documents that pushability gating is the caller's responsibility (~11-12) | clean |
+| `lib/git/worktree-sync.ts` | (none) | Read-only state probe; returns explicit states for caller interpretation | clean |
+| `lib/git/user-sync.ts` | (none) | Pure (de)serialization with allowlist + size cap; path-traversal guard in `deserialize` | clean |
+| `lib/git/dirty-state.ts` | (none) | Porcelain probe | clean |
+| `lib/git/exec.ts` | I3 | No raw `git push` neighbors; `configureNotesRefspec` only configures fetch refspec | clean |
+| `lib/git/head-hash.ts` | (none) | HEAD short-hash probe | clean |
+| `lib/git/identity.ts` | (none) | Identity slug + resolution | clean |
+| `lib/git/index.ts` | I3 | Barrel deliberately omits `pushWorktreeBranch` re-export (internal scope) | clean |
+| `lib/sync-output.ts` | I2 | Under `jsonMode: true`: `intro/outro/note/log.info/spinner` no-op; `log.warn/error` stderr-only; `confirm` resolves to `false`; `isCancel` returns `false` (~57-88) | clean (2.R.4 choke point) |
+| `lib/sync-policy.ts` | I2 | `warn` callback caller-controlled; `handlers/sync.ts` routes via `output.log.warn` (~260); `handlers/user-sync.ts` uses raw `p.log.warn` (~336) — fine today since `arc user sync` lacks `--json`; latent risk if `--json` is added later without threading `output` here | finding — addressed in 2.R.6.a.3 |
 
 ---
 
@@ -134,6 +200,7 @@ because no test cell triggers an actual notes conflict.
 
 _Append as audit work uncovers items needing later resolution._
 
-- _(none yet — populated during 2.R.6.a / 2.R.6.b)_
+- _(none open — items surfaced by the audit are tracked as 2.R.6.a.2 / 2.R.6.a.3
+  and addressed inline rather than deferred.)_
 
 ---

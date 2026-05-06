@@ -555,7 +555,7 @@ composition. The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) i
     - `[x]` **2.R.5.b Verify guard + contributor-docs note**
         - _Goal:_ Confirm the dev-mode check fires correctly across the handoff-critical surface from a deliberately
           stale build state, and document the workflow expectation in the contributor onboarding surface.
- 
+
         - _Outcome:_ Verification matrix from `touch packages/arc-framework/src/cli.ts` confirmed all five
           handoff-critical commands (`arc sync`, `arc user save`, `arc user push`, `arc status --session-init --json`,
           `arc status --session-handoff --json`) refuse with exit 1, clean stderr error, and empty stdout; the
@@ -569,13 +569,41 @@ composition. The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) i
 - _Goal:_ Re-read the sync surface after remediation and capture residual risk before Phase 3 begins.
 
     - `[ ]` **2.R.6.a Code-path audit against invariants**
-        - Audit `handlers/sync.ts`, `handlers/user-sync.ts`, `handlers/user.ts`, `commands/user/*`, and `lib/git/*`
-          against the remediation invariants: verified save before sync-state advance, no JSON contamination, no raw
-          worktree-push bypass, no clean-but-stale hidden state, no misleading no-op copy, blocked-cell save invariant,
-          and force-push advisory refused at every call site.
-        - Deliverable: structured findings in `notes-user-sync-ux.md` (companion file created ahead of time during
-          planning) with one row per file: `invariant → location → status (clean | finding | TODO)`. Status-file pointer
-          is updated during this task. Companion archives or migrates to a strategy doc at WU integration.
+        - _Goal:_ Audit code paths against 2.R invariants and fix any gaps surfaced inline so audit findings convert
+          directly to closed work, not deferred WUs.
+
+        - `[x]` **2.R.6.a.1 Audit pass**
+            - _Outcome:_ 25 files audited across handlers, `commands/user/*`, `lib/git/*`, and `lib/sync-*` (scope
+              extended at audit start to add `handlers/push-recovery.ts`, `handlers/status.ts`, `lib/sync-output.ts`,
+              and `lib/sync-policy.ts` — the supporting modules where 2.R invariants now live). 0 active findings
+              against five of the seven 2.R invariants; two findings surfaced for I2 (no JSON contamination) and
+              addressed in 2.R.6.a.2 / 2.R.6.a.3. Full matrix in `notes-user-sync-ux.md` § Phase 2.R Audit Findings,
+              with choke points flagged.
+
+        - `[ ]` **2.R.6.a.2 Fix `arc user status --json` stdout contamination + envelope-on-error**
+            - _Goal:_ Under `--json`, `arc user status` (and `arc user status --session-init --json`) must keep
+              stdout pure — no clack output — and emit a structured error envelope on every failure path so
+              programmatic consumers can parse the result.
+            - _Approach:_ Convert `handleUserStatus` (`handlers/user.ts`) to use `createSyncOutput(json)` instead
+              of raw `@clack/prompts`; replace `isHandledError` and `requireArcProjectRoot` failure paths under
+              `--json` with `{ "error": { "code", "message" } }` writes to stdout. `code` matches
+              `UserFacingError.code` where available (e.g., `IDENTITY_MISSING`); add `NOT_IN_ARC_PROJECT` to
+              `ArcErrorCode` for the project-root-missing case. `message` is the raw `Error.message` (no
+              ANSI/glyph formatting). Human-mode behavior unchanged.
+            - Coverage: extend the existing `arc user status --json` test surface (or add one if absent) with
+              identity-absent and not-in-arc-project cases, asserting stdout parses as `{ error: { code, message } }`
+              with no clack noise.
+
+        - `[ ]` **2.R.6.a.3 Thread `SyncOutput` through `resolveSyncPushPolicy` callers**
+            - _Goal:_ Eliminate the latent JSON-contamination risk that any future `--json` surface on
+              `arc user sync` (or any new caller of `resolveSyncPushPolicy`) inherits the helper's `warn`
+              routing by construction rather than by hand-threading.
+            - _Approach:_ Hoist `createSyncOutput(false)` to the top of `handleUserSync` (`handlers/user-sync.ts`)
+              and replace the inline `(message) => { p.log.warn(message); }` callback at the
+              `resolveSyncPushPolicy` site with `output.log.warn`. No behavior change today; forward-compat by
+              construction once `--json` lands on any caller.
+            - Coverage: existing `handleUserSync` tests continue to pass (no behavior change). No new tests
+              required — the change is mechanical routing, not logic.
 
     - `[ ]` **2.R.6.b Test-surface audit + residual risk**
         - Ensure unit, integration, and e2e coverage maps to all remediation invariants and at least one real git
