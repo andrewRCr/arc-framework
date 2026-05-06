@@ -729,13 +729,19 @@ on final-shape strings).
 
 - _Goal:_ One 3-tier resolver helper handles `user.notes_push` and the three interlock keys, returning
   `{ value, source }` so downstream consumers can audit precedence.
-    - Extract the precedence logic shared by `user.notes_push` (and the new interlock keys in 3.2) into a generic helper
+    - Extract the precedence logic shared by `user.notes_push` (and the new interlock keys in 3.3) into a generic helper
       — `resolveGitConfigOverride<T>`.
     - Return shape (stable downstream-consumer contract): `{ value: T, source: "git-config" | "yaml" | "default" }`.
       Source-tracking is **required**, not optional — the planned interlock-release wrappers' audit log carries
       "interlock state at decision time" with provenance, and the authorization footer's `abbreviated | full` modes
       surface source per `plan-interlock-release-wrappers.md` § Audit log / § Authorization footer.
     - Migrate `lib/sync-policy.ts` onto it. The helper resolves git-config override → yaml → default in 3-tier order.
+    - **Migration path:** Replace `resolveSyncPushPolicy`'s body with a thin call to the generic helper (per-key
+      validator + key strings + default baked in); the function returns `{ value, source }` directly — no `policy`
+      field, no shim. Three call sites destructure `.policy` today and migrate to `.value`: `handlers/sync.ts`,
+      `handlers/user-sync.ts`, `handlers/status.ts`. The function-name rename
+      (`resolveSyncPushPolicy` → `resolveNotesPushPolicy`) folds into 3.2.a alongside the yaml-key, git-config-key,
+      and value-enum renames; this task keeps the existing function name to bound scope.
 
     - Affected files: `packages/arc-framework/src/lib/sync-policy.ts`; new
       `packages/arc-framework/src/lib/config/resolve-override.ts`. Export path, return shape, and generic signature are
@@ -745,78 +751,62 @@ on final-shape strings).
         - Git-config value present → returns `{ value, source: "git-config" }`
         - Git-config absent + yaml present → returns `{ value, source: "yaml" }`
         - Both absent → returns `{ value: default, source: "default" }`
-        - Type validation: invalid value at any tier rejected with appropriate error
-        - `sync-policy.ts` migrated → all existing sync-policy tests pass with no behavior change
+        - Invalid value at any tier emits a warning and falls through to the next tier; final fallback is the
+          documented default. Asymmetric throw-vs-substitute behavior between git-config and yaml layers is rejected —
+          both layers warn-and-fall-through.
+        - `sync-policy.ts` migrated → existing sync-policy tests pass with `.policy` → `.value` field rename and
+          warn-and-fall-through behavior unchanged
 
-### `[ ]` **3.2 Per-developer overrides for interlock keys**
-
-- _Goal:_ Plumb `arc.commitInterlock`, `arc.pushInterlock`, and `arc.syncInterlock` git-config overrides through to the
-  four release-mode keys' resolution (`session.commit_interlock`, `session.push_interlock`, `session.sync_interlock`,
-  `user.notes_push`). (`session.sync_interlock` schema entry itself lands in 2.2.c.i; this task adds the per-dev
-  override surface.)
-
-- _Shape:_ per-dev resolution layers **on top of** `readConfigSettings` via the 3.1 helper, not by mutating the
-  status-reader's signature. `readConfigSettings` stays yaml-only (no `exec` dependency); a thin wrapper composes the
-  yaml read with per-key `resolveGitConfigOverride<T>` calls. Callers that need the resolved values (handlers, sync
-  orchestrator, status command) move to the wrapper; pure-yaml callers (config-status report) stay on the reader
-  directly.
-    - Companion `sourceMap: Record<key, "git-config" | "yaml" | "default">` returned alongside the resolved settings.
-      Diagnostic surfaces (orchestrator `--json` envelope, status output) consume it. When adding provenance to
-      `arc sync --json`, keep it inside the structured envelope; do not emit Clack/log output that would corrupt
-      machine-readable stdout.
-    - This per-dev resolution layer is the **validation read path** for the planned interlock-release wrappers'
-      validation library (per `plan-interlock-release-wrappers.md` § Interlock-validation library). The wrappers call
-      `resolveGitConfigOverride<T>` per key directly; 3.2 ensures the full release-mode key surface is consistently
-      resolvable.
-
-    - Additive — no breaking changes to existing yaml-only callers.
-    - Affected files: `packages/arc-framework/src/lib/config/status-reader.ts` (no signature change; module-comment
-      notes the layering boundary); new wrapper in `packages/arc-framework/src/lib/config/` composing the 3.1 helper +
-      status-reader; handler call-site migrations as needed.
-    - Build `test-first` (one behavior at a time):
-        - `arc.commitInterlock` git-config set → wrapper returns git-config value with
-          `sourceMap[commit_interlock] === "git-config"`
-        - `arc.pushInterlock` git-config set → likewise for push interlock
-        - `arc.syncInterlock` git-config set → likewise for sync interlock
-        - `arc.notesPush` git-config set → likewise for notes push
-        - Git-config absent + yaml present → falls through to yaml; sourceMap reflects "yaml"
-        - All absent → defaults; sourceMap reflects "default"
-        - Invalid git-config value → falls through to yaml with warning (matches yaml- validation shape)
-
-### `[ ]` **3.3 Config-shape alignment**
+### `[ ]` **3.2 Config-shape alignment**
 
 - _Goal:_ Rename `user.sync_push` → `user.notes_push` end-to-end and migrate adopters in place.
 
-    - `[ ]` **3.3.a Yaml schema and value enum**
-        - Rename key in config schema/validation; rename git-config override (`arc.syncPush` → `arc.notesPush`).
+    - `[ ]` **3.2.a Yaml schema, value enum, and surface rename**
+        - Rename yaml key `user.sync_push` → `user.notes_push` in config schema/validation; rename git-config override
+          `arc.syncPush` → `arc.notesPush`; rename the resolver function `resolveSyncPushPolicy` →
+          `resolveNotesPushPolicy` and the module's exported constants/types
+          (`SYNC_PUSH_YAML_KEY` → `NOTES_PUSH_YAML_KEY`, `SYNC_PUSH_GIT_CONFIG_KEY` → `NOTES_PUSH_GIT_CONFIG_KEY`,
+          `SyncPushPolicy` → `NotesPushPolicy`, `DEFAULT_SYNC_PUSH_POLICY` → `DEFAULT_NOTES_PUSH_POLICY`).
         - Value enum: `manual | prompt | on-sync` (semantic identity: `always` ⇄ `on-sync`). Each interlock value names
           its own trigger event per R9.
         - Affected files (audit-enumerated):
             - `packages/arc-framework/src/lib/config/status-reader.ts` (DEFAULTS map + `AGENT_CONSUMABLE_KEYS`; add
-              notes_push to `ENUM_VALIDATORS` if validating at TS layer)
-            - `packages/arc-framework/src/lib/sync-policy.ts` (`SYNC_PUSH_YAML_KEY`, `SYNC_PUSH_GIT_CONFIG_KEY`,
-              `VALID_POLICIES` constants; rename module-internal types)
+              notes_push to `ENUM_VALIDATORS` if validating at TS layer — note 3.3 then removes the four release-mode
+              keys from `ENUM_VALIDATORS` per the validator source-of-truth pin)
+            - `packages/arc-framework/src/lib/sync-policy.ts` (constants + types listed above; `resolveSyncPushPolicy`
+              function; rename module-internal types)
             - `packages/arc-framework/src/commands/config/types.ts` (`ConfigSettings` and `ConfigSessionInitSettings`
               interface keys)
             - `packages/arc-framework/src/lib/config/index.ts` (`buildConfigKeyOverrides` install-time team-mode
               default)
             - `packages/arc-framework/arc/system/scripts/validate-config.sh` (`validate_enum` line for
               `user.sync_push` + `known_keys` list)
-            - `packages/arc-framework/arc/system/arc-config.yml` (key + comment block — multiple mentions in surrounding
-              prose)
+            - `packages/arc-framework/arc/system/arc-config.yml` + `.arc/system/arc-config.yml` (key + comment block —
+              multiple mentions in surrounding prose; both copies)
+        - Test fan-out (audit-enumerated; expect rename touches in addition to logic changes):
+            - `__tests__/unit/sync-policy.test.ts` (constants + import names; `.policy` → `.value` field rename)
+            - `__tests__/unit/init.test.ts` (`overrides["user.sync_push"]` → `overrides["user.notes_push"]`)
+            - `__tests__/unit/config/status-reader.test.ts`
+            - `__tests__/unit/user-handlers.test.ts`
+            - `__tests__/unit/config-format.test.ts`
+            - `__tests__/unit/status-format.test.ts`
+            - `__tests__/integration/config.test.ts`, `__tests__/integration/init.test.ts`
+            - `__tests__/e2e/sync-purity.e2e.test.ts`
+            - `__tests__/unit/sync-orchestrator.test.ts`, `__tests__/unit/sync.test.ts` (mocks + imports)
         - Build `test-first` (one behavior at a time):
             - Schema validates new key+values; rejects old key
             - `on-sync` value resolves equivalently to legacy `always`
             - Git-config override reads from `arc.notesPush`
             - Shell validator accepts new key+values; rejects old key+values
 
-    - `[ ]` **3.3.b `arc update` migration logic**
-        - Architecture: versioned migrator infrastructure in `update.ts`. Each migration is
-          `{ fromFrameworkVersion, migrate(yamlContent: string): string }`. `update` runs applicable migrations
-          (selected by stored `manifest.framework_version` vs. current) before three-way merging the template against
-          the migrated yaml. Pays for itself across future renames; framework currently has no other adopters, so the
-          cost lands ahead of demand.
-        - Migrations registered by this task:
+    - `[ ]` **3.2.b `arc update` migration logic**
+        - **Inline one-shot migrator** — versioned migrator-registry infrastructure deferred (see
+          `BACKLOG-TECHNICAL.md` § Migration Infrastructure). One module-private function
+          `migrateUserSyncPush(yamlContent: string): string` runs unconditionally in `update.ts` before three-way
+          merging the template against the migrated yaml. Detects already-migrated content and no-ops; idempotent.
+          When a second config-key rename surfaces, escalate to a dedicated WU at that point — the inline function
+          becomes the registry's first registered migration cleanly.
+        - Migrations applied by this function:
             - `user.sync_push: {value}` → `user.notes_push: {translated}` (key rename + value translation: `always` →
               `on-sync`; `prompt` / `manual` carry forward).
             - `session.push_interlock: on-handoff` → `on-sync` (value rename; key unchanged). **Adopter correctness
@@ -824,8 +814,8 @@ on final-shape strings).
               Pre-2.2.c.i adopters with `on-handoff` in their yaml will fail validation on next `arc update` unless this
               migration runs.
             - Old `user.sync_push` key removed; no dual-key window.
-        - Affected files: `packages/arc-framework/src/commands/update.ts` (migrator registry + dispatch); new
-          `packages/arc-framework/src/commands/update/migrations.ts` (per-rename migrators).
+        - Affected files: `packages/arc-framework/src/commands/update.ts` (inline migrator function + call site before
+          three-way merge).
         - Build `test-first` (one behavior at a time):
             - `user.sync_push: always` → `user.notes_push: on-sync` translation
             - `prompt` and `manual` carry forward unchanged
@@ -835,10 +825,12 @@ on final-shape strings).
             - Both keys present (manual paste) → new key wins; old key removed; warn surfaced
             - Invalid value in legacy key (`user.sync_push: garbage`) → preserved as-is (no translation of unknown
               values); shell validator catches downstream
-            - Migrator registry dispatches by `manifest.framework_version`; older versions run all applicable migrations
-              in order
+            - Three-way merge interaction: adopter with customized `user.sync_push: prompt` produces migrated
+              `user.notes_push: prompt` against new template's `user.notes_push: on-sync` → three-way merge surfaces
+              a conflict on the value (both sides changed the line differently); adopter resolves manually per the
+              standard `arc update` conflict path
 
-    - `[ ]` **3.3.c Strategy and reference doc updates**
+    - `[ ]` **3.2.c Strategy and reference doc updates**
         - Retire the documented-but-unused `auto / prompt / manual` standard from `strategy-session-operations.md` §
           Handoff-Interior Toggle Pattern. Canonical shape becomes `manual | on-X` where `X` names the operation's
           trigger event; `prompt` stays opt-in for review-before-fire toggles.
@@ -854,18 +846,68 @@ on final-shape strings).
             - `.arc/reference/strategies/arc/strategy-team-coordination.md` + package mirror
             - ADRs (project-internal; no package mirror per DEV-RULES.PROJECT § ADRs):
               `.arc/reference/adr/adr-012-adopt-unified-user-directory-model.md`,
-              `.arc/reference/adr/adr-016-configurable-autonomy-interlocks-for-session-operations.md`
+              `.arc/reference/adr/adr-016-configurable-autonomy-interlocks-for-session-operations.md` — assess
+              amendment-trailer vs. content-edit posture per ADR strategy at implementation time
         - Test-after — documentation only.
+
+### `[ ]` **3.3 Per-developer overrides for interlock keys**
+
+- _Goal:_ Plumb `arc.commitInterlock`, `arc.pushInterlock`, and `arc.syncInterlock` git-config overrides through to the
+  four release-mode keys' resolution (`session.commit_interlock`, `session.push_interlock`, `session.sync_interlock`,
+  `user.notes_push`). (`session.sync_interlock` schema entry itself lands in 2.2.c.i; the `arc.notesPush` rename lands
+  in 3.2.a; this task adds the per-dev override surface for all four keys against final-shape config-key names.)
+
+- _Shape:_ per-dev resolution layers **on top of** `readConfigSettings` via the 3.1 helper, not by mutating the
+  status-reader's signature. `readConfigSettings` stays yaml-only (no `exec` dependency); a thin wrapper composes the
+  yaml read with per-key `resolveGitConfigOverride<T>` calls. Callers that need the resolved values (handlers, sync
+  orchestrator, status command) move to the wrapper; pure-yaml callers (config-status report) stay on the reader
+  directly.
+    - **Validator source-of-truth:** per-key resolver functions own enum validation for the four release-mode keys —
+      validators are passed once into the generic helper. `status-reader.ts`'s `ENUM_VALIDATORS` map removes the four
+      release-mode keys (yaml values for those keys flow through the reader as raw strings; the wrapper applies
+      validation). Single source of truth per key; no double-validation across yaml and git-config tiers.
+    - **Spawn cost:** wrapper issues four `git config --get` calls via `Promise.all`; ≈ one round-trip latency. Add
+      caching only if profiling shows it.
+    - Companion `sourceMap: Record<key, "git-config" | "yaml" | "default">` returned alongside the resolved settings.
+      Diagnostic surfaces (orchestrator `--json` envelope, status output) consume it. When adding provenance to
+      `arc sync --json`, keep it inside the structured envelope; do not emit Clack/log output that would corrupt
+      machine-readable stdout.
+    - This per-dev resolution layer is the **validation read path** for the planned interlock-release wrappers'
+      validation library (per `plan-interlock-release-wrappers.md` § Interlock-validation library). The wrappers call
+      `resolveGitConfigOverride<T>` per key directly; 3.3 ensures the full release-mode key surface is consistently
+      resolvable.
+
+    - Additive at the wrapper boundary — no breaking changes to existing yaml-only callers (config-status report).
+      Handlers that need resolved values move to the wrapper.
+    - Affected files: `packages/arc-framework/src/lib/config/status-reader.ts` (remove four release-mode keys from
+      `ENUM_VALIDATORS`; module-comment notes the layering boundary); new wrapper in
+      `packages/arc-framework/src/lib/config/` composing the 3.1 helper + status-reader; handler call-site migrations
+      (`handlers/sync.ts`, `handlers/user-sync.ts`, `handlers/status.ts`, plus any sites consuming the four
+      release-mode keys' resolved values).
+    - Build `test-first` (one behavior at a time):
+        - `arc.commitInterlock` git-config set → wrapper returns git-config value with
+          `sourceMap[commit_interlock] === "git-config"`
+        - `arc.pushInterlock` git-config set → likewise for push interlock
+        - `arc.syncInterlock` git-config set → likewise for sync interlock
+        - `arc.notesPush` git-config set → likewise for notes push
+        - Git-config absent + yaml present → falls through to yaml; sourceMap reflects "yaml"
+        - All absent → defaults; sourceMap reflects "default"
+        - Invalid git-config value → warns and falls through to yaml; sourceMap reflects "yaml"
+        - Invalid yaml value → warns and falls through to default; sourceMap reflects "default"
 
 ### `[ ]` **3.4 Layered vocabulary rule application**
 
 - _Goal:_ User-facing surfaces use "user notes" as the workhorse noun; storage-mechanism terminology ("git notes ref",
   `refs/notes/...`) appears only when the storage layer is relevant.
-    - Sweep user-facing strings so "user notes" is the workhorse noun in headlines, action hints, and status summaries.
+    - **Scope: delta-only sweep, not full re-audit.** Phase 1.4 (directional copy audit) and Phase 2.R already balanced
+      directional copy and naming across `sync-status.ts` and adjacent surfaces. 3.4's pass identifies and standardizes
+      residual `git note(s)` references, pre-rename config-key strings (`sync_push`, `arc.syncPush`), and any
+      user-facing strings that drifted from the workhorse-noun rule. **Do not rebalance comparison-pair phrasing
+      already pinned by 1.4/2.R** — the comparison-named-on-both-sides invariant takes precedence over noun-uniformity.
     - "Git notes ref" or "git notes" surfaces only when storage mechanism is relevant (debugging, ref state, error
       messages mentioning `refs/notes/...`).
 
-    - Affected files (audit-enumerated):
+    - Affected files (audit-enumerated; verify residuals only — many already in workhorse-noun shape post-1.4/2.R):
         - `packages/arc-framework/src/commands/user/sync-status.ts` (primary rendering surface)
         - `packages/arc-framework/src/commands/user/format.ts` (summary builders)
         - `packages/arc-framework/src/commands/user/save-load.ts` (error messages)
@@ -877,9 +919,11 @@ on final-shape strings).
         - `packages/arc-framework/src/handlers/push-recovery.ts` (recovery-prompt copy)
         - `packages/arc-framework/src/cli.ts` (subcommand help text)
     - Test-after — rendering and string-content audit, not logic change.
-    - Boundary: this is a human-copy pass. Do not rename machine-readable JSON discriminants, config keys, or enum
-      values unless an explicit migration task owns that change. Preserve comparison-specific copy introduced by the
-      stale-local/no-op and save-verification fixes.
+    - Boundary: this is a human-copy pass. Do not rename machine-readable JSON discriminants (e.g. internal-kind
+      labels like `"git note up to date"` in `sync-status.ts`), config keys, or enum values unless an explicit
+      migration task owns that change. Display strings derived from those kinds may be reworded to align with the
+      workhorse-noun rule. Preserve comparison-specific copy introduced by the stale-local/no-op and save-verification
+      fixes.
 
 ## **Phase 4:** DX polish
 

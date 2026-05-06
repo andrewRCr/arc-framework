@@ -180,6 +180,34 @@ all are hardening for edge cases unlikely to surface in normal use.
     - Effort estimate: M (helper redesign + 86-site migration + new unit
       coverage for the mode parameter and default-merge behavior)
 
+### Migration Infrastructure
+
+- **Versioned config-key migration registry for `arc update`**
+    - Problem: As ARC evolves, config schema changes (key renames, value enum shifts) need to
+      migrate adopter `arc-config.yml` files during `arc update`. Today there's no infrastructure
+      for chained or version-gated migrations — each rename inlines its own one-shot migrator
+      directly in `update.ts`. With a single migration on the books (`user-sync-ux` Phase 3.2.b
+      handles `user.sync_push` → `user.notes_push` plus `session.push_interlock: on-handoff` →
+      `on-sync`), inline is fine. With a second concurrent migration, dispatch logic and
+      version-gating concerns start duplicating across one-shot functions.
+    - Approach: Introduce a versioned migrator registry in `update.ts`. Each migration is
+      `{ fromFrameworkVersion, migrate(yamlContent: string): string }`. `update` runs applicable
+      migrations (selected by stored `manifest.framework_version` vs. current) before three-way
+      merging the template against the migrated yaml. New migrations register at the registry;
+      old ones stay registered indefinitely (idempotent on already-migrated content).
+    - Notes: Deliberately deferred from `user-sync-ux` Phase 3 in favor of the inline one-shot
+      pattern. Reasoning: pre-1.0 framework with no shipped adopters means the registry's
+      interface shape can only be validated against actual demand from a second migration.
+      Building the registry on the first migration locks in interface assumptions that may not
+      survive the second concrete use case. When a second config-key rename surfaces — likely
+      candidates include the interlock-release-wrappers WU (wrapper config keys), future
+      planning-module work (PM keys), or ARCd Rebrand (surface-wide renames) — escalate to a
+      dedicated WU at that point. The WU's scope is "build the registry AND register both
+      existing migrations" so two concrete cases inform the interface design. Refactoring the
+      inline `migrateUserSyncPush` into the registry's first registered migration is mechanical.
+    - Effort estimate: S–M (registry + dispatch + version-gating tests + author doc; includes
+      registering both existing migrations as the first concrete users)
+
 ### Compatibility Testing Across Agent Platforms
 
 - ARC claims agent-agnosticism but isn't tested across platforms
