@@ -9,14 +9,15 @@
 - **Task List:** `tasks-user-sync-ux.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task 3.4 — Layered vocabulary rule application (closes Phase 3)
-- **Next Task:** Task 4.1.a — `arc join` post-init paragraph (line ~836)
+- **Last Completed:** Task 4.1 — First-use framing surface (4.1.a `arc join` paragraph + 4.1.b `arc status` hint)
+- **Next Task:** Task 4.2.a — `LocalSyncState` v2 → v3 schema bump + atomic write (line ~893)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 4.1.a — append a one-time install paragraph to `arc join`'s post-init output
-  (`packages/arc-framework/src/handlers/join.ts`) introducing the gitignored personal context and explaining
-  its push/pull travel via a git notes ref. Optionally extract `buildPostJoinMessage` analogous to
-  `commands/init.ts:buildPostInitMessage` if the message warrants separation. Concrete paragraph copy
-  finalizes at implementation time. Test-after — output formatting.
+- **Next Action:** Begin Task 4.2.a — extend `LocalSyncState` (in `commands/user/save-load.ts`) with
+  `savedAt: ISO-string`, bump `version` literal `2` → `3`, add v2 read forward-compat (existing files load with
+  `savedAt` undefined), replace `io.writeFile` in `writeLocalSyncState` with `atomicWriteJson` from `lib/fs.js`.
+  Coordinate with the 2.R.1.a save postcondition; preserve `verifiedAt` and `partialPush` semantics. Test-first
+  per the 5 listed behaviors. Read 4.2's parent block first — it carries the cause-taxonomy and
+  `inferUserSyncCause` helper-contract context that 4.2.a feeds into.
 
 ---
