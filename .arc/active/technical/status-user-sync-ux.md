@@ -9,16 +9,16 @@
 - **Task List:** `tasks-user-sync-ux.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task 4.2.b — Bounded-fetch wrapper for notes-ref fetch in full-mode `arc status`
-- **Next Task:** Task 4.2.c — Inference helper module `inferUserSyncCause` (line ~921)
+- **Last Completed:** Task 4.2 — Shared-ref sync-state inference (Tasks 4.2.a–e complete)
+- **Next Task:** Task 4.3 — Session-init load cascade (line ~934)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 4.2.c — implement pure `inferUserSyncCause(input)` in a new
-  `packages/arc-framework/src/lib/user-sync/` module per the helper contract at the top of 4.2 (line ~882):
-  inputs `{ localRefHash, remoteRefHash, sourceCommit, savedAt, latestNoteRefHistoryEntry, headReachable,
-  offline }`, output `{ cause: UserSyncCause, confidence: "high" | "low" | "offline" }`. No IO. Test-first
-  across the 6 listed behaviors. Implementer's choice (per task): include a "no-divergence" output value
-  (uniform call site) or invoke only after divergence is detected — pick at implementation time and document
-  in the helper's TSDoc.
+- **Next Action:** Begin Task 4.3 — session-init load cascade. Adds an additive `loadNeeded: boolean` signal to
+  the user channel of `arc status --session-init --json` (ref-aligned-but-disk-behind detection driven by
+  `inferUserSyncCause` + the 2.R.4.a notes-discovery walk), a new `session.init_load.notes: prompt | always |
+  manual` config knob mirroring `session.init_pull.notes`, and a new notes-channel branch in `session-init.md`
+  Step 2 that prompts/loads/surfaces per the knob. Dirty-tree precheck refuses auto-load even under `always`.
+  Audit-enumerated affected files span the CLI orchestrator, config types/validators/templates, and the workflow
+  doc — likely warrants subtask decomposition during implementation.
 
 ---
