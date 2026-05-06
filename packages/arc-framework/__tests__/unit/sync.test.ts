@@ -55,7 +55,7 @@ vi.mock("../../src/commands/user.js", async () => {
 });
 
 const mockResolvePolicy = vi.fn();
-vi.mock("../../src/lib/sync-policy.js", () => ({
+vi.mock("../../src/lib/config/resolved-settings.js", () => ({
   resolveNotesPushPolicy: (opts: unknown) => mockResolvePolicy(opts),
 }));
 

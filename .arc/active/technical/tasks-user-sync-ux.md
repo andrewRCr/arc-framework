@@ -773,50 +773,34 @@ on final-shape strings).
           notes the key rename without changing the unified-push-policy decision; ADR-016 documents the
           sync-interlock split and `on-X` vocabulary alignment. No decision reversed.
 
-### `[ ]` **3.3 Per-developer overrides for interlock keys**
+### `[x]` **3.3 Per-developer overrides for interlock keys**
 
 - _Goal:_ Plumb `arc.commitInterlock`, `arc.pushInterlock`, and `arc.syncInterlock` git-config overrides through to the
   four release-mode keys' resolution (`session.commit_interlock`, `session.push_interlock`, `session.sync_interlock`,
   `user.notes_push`). (`session.sync_interlock` schema entry itself lands in 2.2.c.i; the `arc.notesPush` rename lands
   in 3.2.a; this task adds the per-dev override surface for all four keys against final-shape config-key names.)
-
-- _Shape:_ per-dev resolution layers **on top of** `readConfigSettings` via the 3.1 helper, not by mutating the
-  status-reader's signature. `readConfigSettings` stays yaml-only (no `exec` dependency); a thin wrapper composes the
-  yaml read with per-key `resolveGitConfigOverride<T>` calls. Callers that need the resolved values (handlers, sync
-  orchestrator, status command) move to the wrapper; pure-yaml callers (config-status report) stay on the reader
-  directly.
-    - **Validator source-of-truth:** per-key resolver functions own enum validation for the four release-mode keys —
-      validators are passed once into the generic helper. `status-reader.ts`'s `ENUM_VALIDATORS` map removes the four
-      release-mode keys (yaml values for those keys flow through the reader as raw strings; the wrapper applies
-      validation). Single source of truth per key; no double-validation across yaml and git-config tiers.
-    - **Spawn cost:** wrapper issues four `git config --get` calls via `Promise.all`; ≈ one round-trip latency. Add
-      caching only if profiling shows it.
-    - Companion `sourceMap: Record<key, "git-config" | "yaml" | "default">` returned alongside the resolved settings.
-      Diagnostic surfaces (orchestrator `--json` envelope, status output) consume it. When adding provenance to
-      `arc sync --json`, keep it inside the structured envelope; do not emit Clack/log output that would corrupt
-      machine-readable stdout.
-    - This per-dev resolution layer is the **validation read path** for the planned interlock-release wrappers'
-      validation library (per `plan-interlock-release-wrappers.md` § Interlock-validation library). The wrappers call
-      `resolveGitConfigOverride<T>` per key directly; 3.3 ensures the full release-mode key surface is consistently
-      resolvable.
+- _Outcome:_ Added `lib/config/resolved-settings.ts` carrying per-key constants/type-guards, four per-key resolver
+  helpers (`resolveCommitInterlock` / `resolvePushInterlock` / `resolveSyncInterlock` / `resolveNotesPushPolicy`), and
+  the composite `resolveAllSettings` wrapper. Provenance lands as nested `{value, source}` per key (matches
+  `ResolvedConfigOverride<T>` and `HandoffSyncInterlock` precedent) instead of a parallel `sourceMap` — keeps the
+  audit-log feed shape one-field deep for `plan-interlock-release-wrappers.md`. `status-reader.ts` drops the four
+  release-mode keys from `ENUM_VALIDATORS` with a module-comment naming the layering boundary; raw yaml values flow
+  through to `arc config status` while the wrapper owns validation for operational reads. `handlers/sync.ts` migrates
+  to the composite wrapper, `handlers/user-sync.ts` and `handlers/status.ts` migrate to the per-key helpers, and
+  `lib/sync-policy.ts` retires (consumers absorbed into the new module). `InterlockState` and the `arc sync --json`
+  envelope's `interlockState` field now carry nested provenance; `HandoffSyncInterlock.source` widens to include
+  `"git-config"`. Quality gates green: 1330 tests pass; lint, typecheck, build clean.
 
     - Additive at the wrapper boundary — no breaking changes to existing yaml-only callers (config-status report).
       Handlers that need resolved values move to the wrapper.
-    - Affected files: `packages/arc-framework/src/lib/config/status-reader.ts` (remove four release-mode keys from
-      `ENUM_VALIDATORS`; module-comment notes the layering boundary); new wrapper in
-      `packages/arc-framework/src/lib/config/` composing the 3.1 helper + status-reader; handler call-site migrations
-      (`handlers/sync.ts`, `handlers/user-sync.ts`, `handlers/status.ts`, plus any sites consuming the four
-      release-mode keys' resolved values).
-    - Build `test-first` (one behavior at a time):
-        - `arc.commitInterlock` git-config set → wrapper returns git-config value with
-          `sourceMap[commit_interlock] === "git-config"`
-        - `arc.pushInterlock` git-config set → likewise for push interlock
-        - `arc.syncInterlock` git-config set → likewise for sync interlock
-        - `arc.notesPush` git-config set → likewise for notes push
-        - Git-config absent + yaml present → falls through to yaml; sourceMap reflects "yaml"
-        - All absent → defaults; sourceMap reflects "default"
-        - Invalid git-config value → warns and falls through to yaml; sourceMap reflects "yaml"
-        - Invalid yaml value → warns and falls through to default; sourceMap reflects "default"
+    - Affected files: `packages/arc-framework/src/lib/config/status-reader.ts` (removed four release-mode keys from
+      `ENUM_VALIDATORS`; module-comment notes the layering boundary); new wrapper module
+      `packages/arc-framework/src/lib/config/resolved-settings.ts` (constants, per-key helpers, composite wrapper);
+      `handlers/sync.ts` (composite wrapper, nested-provenance `InterlockState`); `handlers/user-sync.ts` (per-key
+      `resolveNotesPushPolicy`); `handlers/status.ts` + `commands/status/types.ts` (handoff probe via
+      `resolveSyncInterlock`; `HandoffSyncInterlock.source` widened); deletes `lib/sync-policy.ts` and its test file.
+    - Eight test-first behaviors covered in `__tests__/unit/config/resolved-settings.test.ts`, parameterized over the
+      four release-mode keys (24 wrapper-targeted cases plus four composite-behavior cases).
 
 ### `[ ]` **3.4 Layered vocabulary rule application**
 

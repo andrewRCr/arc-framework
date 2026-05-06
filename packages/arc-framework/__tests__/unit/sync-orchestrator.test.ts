@@ -57,14 +57,9 @@ vi.mock("../../src/commands/user.js", async () => {
   };
 });
 
-const mockResolveNotesPushPolicy = vi.fn();
-vi.mock("../../src/lib/sync-policy.js", () => ({
-  resolveNotesPushPolicy: (opts: unknown) => mockResolveNotesPushPolicy(opts),
-}));
-
-const mockReadConfigSettings = vi.fn();
-vi.mock("../../src/lib/config/status-reader.js", () => ({
-  readConfigSettings: (cwd: unknown) => mockReadConfigSettings(cwd),
+const mockResolveAllSettings = vi.fn();
+vi.mock("../../src/lib/config/resolved-settings.js", () => ({
+  resolveAllSettings: (opts: unknown) => mockResolveAllSettings(opts),
 }));
 
 const mockRunWorktreeSyncStatus = vi.fn();
@@ -106,17 +101,50 @@ const { handleSync } = await import("../../src/handlers/sync.js");
 
 // --- Test helpers ---
 
+interface ResolvedSettingsState {
+  pushInterlock: "manual" | "on-sync";
+  syncInterlock: "manual" | "on-handoff";
+  notesPush: "on-sync" | "prompt" | "manual";
+  pushSource: "git-config" | "yaml" | "default";
+  syncSource: "git-config" | "yaml" | "default";
+  notesSource: "git-config" | "yaml" | "default";
+}
+
+const resolvedState: ResolvedSettingsState = {
+  pushInterlock: "manual",
+  syncInterlock: "on-handoff",
+  notesPush: "on-sync",
+  pushSource: "default",
+  syncSource: "default",
+  notesSource: "default",
+};
+
+function syncResolvedSettingsMock(): void {
+  mockResolveAllSettings.mockResolvedValue({
+    settings: {
+      "session.push_interlock": resolvedState.pushInterlock,
+      "session.sync_interlock": resolvedState.syncInterlock,
+      "user.notes_push": resolvedState.notesPush,
+      "session.remote_sync": "enabled",
+    },
+    resolved: {
+      commitInterlock: { value: "manual", source: "default" },
+      pushInterlock: { value: resolvedState.pushInterlock, source: resolvedState.pushSource },
+      syncInterlock: { value: resolvedState.syncInterlock, source: resolvedState.syncSource },
+      notesPush: { value: resolvedState.notesPush, source: resolvedState.notesSource },
+    },
+    defaultsApplied: [],
+    warnings: [],
+  });
+}
+
 function setConfig(
   pushInterlock: "manual" | "on-sync",
   syncInterlock: "manual" | "on-handoff" = "on-handoff",
 ) {
-  mockReadConfigSettings.mockResolvedValue({
-    settings: {
-      "session.push_interlock": pushInterlock,
-      "session.sync_interlock": syncInterlock,
-      "session.remote_sync": "enabled",
-    },
-  });
+  resolvedState.pushInterlock = pushInterlock;
+  resolvedState.syncInterlock = syncInterlock;
+  syncResolvedSettingsMock();
 }
 
 function setWorktree(state: WorktreeSyncState, ahead = 0, behind = 0) {
@@ -124,7 +152,18 @@ function setWorktree(state: WorktreeSyncState, ahead = 0, behind = 0) {
 }
 
 function setNotesPolicy(policy: "on-sync" | "prompt" | "manual") {
-  mockResolveNotesPushPolicy.mockResolvedValue({ value: policy, source: "default" });
+  resolvedState.notesPush = policy;
+  syncResolvedSettingsMock();
+}
+
+function resetResolvedState(): void {
+  resolvedState.pushInterlock = "manual";
+  resolvedState.syncInterlock = "on-handoff";
+  resolvedState.notesPush = "on-sync";
+  resolvedState.pushSource = "default";
+  resolvedState.syncSource = "default";
+  resolvedState.notesSource = "default";
+  syncResolvedSettingsMock();
 }
 
 /** Default exec stub: branch resolves to 'main'; pushes succeed. */
@@ -177,6 +216,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     resetMockDefaults();
+    resetResolvedState();
     mockResolveUserIdentity.mockResolvedValue("andrew");
     process.exitCode = undefined;
   });
@@ -231,7 +271,11 @@ describe("handleSync orchestrator matrix dispatch", () => {
     expect(pushedBranchInvocations()).toEqual([]);
     expect(outcome).toEqual({
       cell: "paired-push",
-      interlockState: { pushInterlock: "on-sync", notesPush: "on-sync", syncInterlock: "on-handoff" },
+      interlockState: {
+        pushInterlock: { value: "on-sync", source: "default" },
+        notesPush: { value: "on-sync", source: "default" },
+        syncInterlock: { value: "on-handoff", source: "default" },
+      },
       worktree: { action: "skip", result: "skipped", detail: "save-failed" },
       notes: { action: "save", result: "failed", detail: "save verification failed" },
       exitCode: 1,
@@ -256,7 +300,11 @@ describe("handleSync orchestrator matrix dispatch", () => {
     expect(mockPushWithRecovery).not.toHaveBeenCalled();
     expect(outcome).toEqual({
       cell: "notes-blocked",
-      interlockState: { pushInterlock: "manual", notesPush: "on-sync", syncInterlock: "on-handoff" },
+      interlockState: {
+        pushInterlock: { value: "manual", source: "default" },
+        notesPush: { value: "on-sync", source: "default" },
+        syncInterlock: { value: "on-handoff", source: "default" },
+      },
       worktree: { action: "skip", result: "skipped", detail: "not-configured" },
       save: { action: "save", result: "success" },
       notes: {
@@ -360,7 +408,11 @@ describe("handleSync orchestrator matrix dispatch", () => {
     expect(pushedBranchInvocations()).toEqual([]);
     expect(outcome).toEqual({
       cell: "blocked-diverged",
-      interlockState: { pushInterlock: "on-sync", notesPush: "on-sync", syncInterlock: "on-handoff" },
+      interlockState: {
+        pushInterlock: { value: "on-sync", source: "default" },
+        notesPush: { value: "on-sync", source: "default" },
+        syncInterlock: { value: "on-handoff", source: "default" },
+      },
       worktree: { action: "skip", result: "blocked", detail: "diverged" },
       save: { action: "save", result: "success" },
       notes: {
@@ -458,7 +510,11 @@ describe("handleSync orchestrator matrix dispatch", () => {
     expect(mockPushWithRecovery).not.toHaveBeenCalled();
     expect(outcome).toEqual({
       cell: "notes-only",
-      interlockState: { pushInterlock: "manual", notesPush: "on-sync", syncInterlock: "on-handoff" },
+      interlockState: {
+        pushInterlock: { value: "manual", source: "default" },
+        notesPush: { value: "on-sync", source: "default" },
+        syncInterlock: { value: "on-handoff", source: "default" },
+      },
       worktree: { action: "skip", result: "skipped", detail: "not-configured" },
       save: { action: "save", result: "skipped", detail: "rebase-in-progress" },
       notes: { action: "push", result: "blocked", detail: "rebase-in-progress" },
@@ -555,9 +611,9 @@ describe("handleSync orchestrator matrix dispatch", () => {
     const outcome = await captureSyncJson();
 
     expect(outcome.interlockState).toEqual({
-      pushInterlock: "on-sync",
-      notesPush: "on-sync",
-      syncInterlock: "manual",
+      pushInterlock: { value: "on-sync", source: "default" },
+      notesPush: { value: "on-sync", source: "default" },
+      syncInterlock: { value: "manual", source: "default" },
     });
   });
 
@@ -576,9 +632,9 @@ describe("handleSync orchestrator matrix dispatch", () => {
     const outcome = await captureSyncJson();
 
     expect(outcome.interlockState).toEqual({
-      pushInterlock: "manual",
-      notesPush: "manual",
-      syncInterlock: "on-handoff",
+      pushInterlock: { value: "manual", source: "default" },
+      notesPush: { value: "manual", source: "default" },
+      syncInterlock: { value: "on-handoff", source: "default" },
     });
   });
 
@@ -612,7 +668,11 @@ describe("handleSync orchestrator matrix dispatch", () => {
     expect(pushedBranchInvocations()).toEqual([]);
     expect(outcome).toEqual({
       cell: "paired-push",
-      interlockState: { pushInterlock: "on-sync", notesPush: "on-sync", syncInterlock: "on-handoff" },
+      interlockState: {
+        pushInterlock: { value: "on-sync", source: "default" },
+        notesPush: { value: "on-sync", source: "default" },
+        syncInterlock: { value: "on-handoff", source: "default" },
+      },
       worktree: { action: "push", result: "skipped", detail: "dry-run" },
       notes: { action: "save+push", result: "skipped", detail: "dry-run" },
       exitCode: 0,
@@ -633,7 +693,11 @@ describe("handleSync orchestrator matrix dispatch", () => {
     expect(mockPushWithRecovery).not.toHaveBeenCalled();
     expect(outcome).toEqual({
       cell: "blocked-diverged",
-      interlockState: { pushInterlock: "on-sync", notesPush: "on-sync", syncInterlock: "on-handoff" },
+      interlockState: {
+        pushInterlock: { value: "on-sync", source: "default" },
+        notesPush: { value: "on-sync", source: "default" },
+        syncInterlock: { value: "on-handoff", source: "default" },
+      },
       worktree: { action: "skip", result: "skipped", detail: "dry-run" },
       save: { action: "save", result: "skipped", detail: "dry-run" },
       notes: { action: "push", result: "skipped", detail: "dry-run" },
@@ -654,7 +718,11 @@ describe("handleSync orchestrator matrix dispatch", () => {
     expect(mockPushWithRecovery).not.toHaveBeenCalled();
     expect(outcome).toEqual({
       cell: "save-only",
-      interlockState: { pushInterlock: "manual", notesPush: "manual", syncInterlock: "on-handoff" },
+      interlockState: {
+        pushInterlock: { value: "manual", source: "default" },
+        notesPush: { value: "manual", source: "default" },
+        syncInterlock: { value: "on-handoff", source: "default" },
+      },
       worktree: { action: "skip", result: "skipped", detail: "dry-run" },
       notes: { action: "save", result: "skipped", detail: "dry-run" },
       exitCode: 0,
@@ -673,7 +741,11 @@ describe("handleSync orchestrator matrix dispatch", () => {
     expect(mockPushWithRecovery).not.toHaveBeenCalled();
     expect(outcome).toEqual({
       cell: "notes-blocked",
-      interlockState: { pushInterlock: "manual", notesPush: "on-sync", syncInterlock: "on-handoff" },
+      interlockState: {
+        pushInterlock: { value: "manual", source: "default" },
+        notesPush: { value: "on-sync", source: "default" },
+        syncInterlock: { value: "on-handoff", source: "default" },
+      },
       worktree: { action: "skip", result: "skipped", detail: "dry-run" },
       save: { action: "save", result: "skipped", detail: "dry-run" },
       notes: { action: "push", result: "skipped", detail: "dry-run" },
@@ -687,6 +759,7 @@ describe("--json stdout-purity contract", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     resetMockDefaults();
+    resetResolvedState();
     mockResolveUserIdentity.mockResolvedValue("andrew");
     process.exitCode = undefined;
   });
@@ -751,7 +824,7 @@ describe("--json stdout-purity contract", () => {
 
     expect(mockConfirm).not.toHaveBeenCalled();
     expect(outcome.cell).toBe("save-only");
-    expect(outcome.interlockState).toMatchObject({ notesPush: "manual" });
+    expect(outcome.interlockState).toMatchObject({ notesPush: { value: "manual" } });
     expect(stderrText).toMatch(/JSON output mode.+degrading "prompt"/);
   });
 
@@ -781,6 +854,7 @@ describe("--yes wiring", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     resetMockDefaults();
+    resetResolvedState();
     mockResolveUserIdentity.mockResolvedValue("andrew");
     process.exitCode = undefined;
   });
@@ -805,7 +879,7 @@ describe("--yes wiring", () => {
       expect.objectContaining({ yes: true }),
     );
     expect(outcome.cell).toBe("notes-only");
-    expect(outcome.interlockState).toMatchObject({ notesPush: "on-sync" });
+    expect(outcome.interlockState).toMatchObject({ notesPush: { value: "on-sync" } });
   });
 
   it("--yes wins over JSON-mode prompt-degradation gate (on-sync > manual)", async () => {
@@ -822,7 +896,7 @@ describe("--yes wiring", () => {
 
     const outcome = await captureSyncJson({ yes: true });
 
-    expect(outcome.interlockState).toMatchObject({ notesPush: "on-sync" });
+    expect(outcome.interlockState).toMatchObject({ notesPush: { value: "on-sync" } });
     expect(outcome.cell).toBe("notes-only");
   });
 
@@ -874,7 +948,7 @@ describe("--yes wiring", () => {
     expect(outcome).toMatchObject({
       mode: "dry-run",
       cell: "notes-only",
-      interlockState: { notesPush: "on-sync" },
+      interlockState: { notesPush: { value: "on-sync" } },
       notes: { action: "push", result: "skipped", detail: "dry-run" },
     });
   });
@@ -884,6 +958,7 @@ describe("error-path envelope coverage", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     resetMockDefaults();
+    resetResolvedState();
     mockResolveUserIdentity.mockResolvedValue("andrew");
     process.exitCode = undefined;
   });
@@ -917,9 +992,8 @@ describe("error-path envelope coverage", () => {
       reason: "identity-absent",
     });
     expect(process.exitCode).toBe(1);
-    expect(mockReadConfigSettings).not.toHaveBeenCalled();
+    expect(mockResolveAllSettings).not.toHaveBeenCalled();
     expect(mockRunWorktreeSyncStatus).not.toHaveBeenCalled();
-    expect(mockResolveNotesPushPolicy).not.toHaveBeenCalled();
   });
 
   it("identity-absent + non-JSON → routes diagnostic via clack log; no envelope on stdout", async () => {
@@ -939,7 +1013,7 @@ describe("error-path envelope coverage", () => {
       expect.stringContaining("IDENTITY_MISSING"),
     );
     expect(process.exitCode).toBe(1);
-    expect(mockReadConfigSettings).not.toHaveBeenCalled();
+    expect(mockResolveAllSettings).not.toHaveBeenCalled();
   });
 
   it("no-arc-project + --json → emits parseable envelope on stdout; sets exit code", async () => {
@@ -962,7 +1036,7 @@ describe("error-path envelope coverage", () => {
       reason: "no-arc-project",
     });
     expect(process.exitCode).toBe(1);
-    expect(mockReadConfigSettings).not.toHaveBeenCalled();
+    expect(mockResolveAllSettings).not.toHaveBeenCalled();
     expect(mockRunWorktreeSyncStatus).not.toHaveBeenCalled();
   });
 
@@ -983,6 +1057,6 @@ describe("error-path envelope coverage", () => {
       expect.stringContaining("Not inside an ARC project"),
     );
     expect(process.exitCode).toBe(1);
-    expect(mockReadConfigSettings).not.toHaveBeenCalled();
+    expect(mockResolveAllSettings).not.toHaveBeenCalled();
   });
 });

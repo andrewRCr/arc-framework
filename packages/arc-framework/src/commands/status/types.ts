@@ -103,7 +103,7 @@ export interface StatusProbes {
  */
 export interface HandoffSyncInterlock {
   value: "manual" | "on-handoff";
-  source: "yaml" | "default";
+  source: "git-config" | "yaml" | "default";
 }
 
 /**

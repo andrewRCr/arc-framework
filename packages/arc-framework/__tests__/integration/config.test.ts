@@ -228,7 +228,7 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
   });
 
   describe("session interlock settings", () => {
-    it("validates commit and push interlock enum values", async () => {
+    it("passes interlock values through verbatim (validation lives in resolveAllSettings)", async () => {
       await writeFile(
         fixture.configPath,
         [
@@ -238,10 +238,13 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
         ].join("\n"),
       );
       const result = await runConfigSessionInitStatus({ cwd: fixture.root });
-      expect(result.settings["session.commit_interlock"]).toBe("manual");
-      expect(result.settings["session.push_interlock"]).toBe("manual");
-      expect(result.warnings.some((w) => w.includes("session.commit_interlock"))).toBe(true);
-      expect(result.warnings.some((w) => w.includes("session.push_interlock"))).toBe(true);
+      // Reader is the yaml-only surface — release-mode keys flow through as
+      // raw strings. The wrapper (`resolveAllSettings`) owns validation;
+      // operational paths warn-and-fall-through there.
+      expect(result.settings["session.commit_interlock"]).toBe("automatic");
+      expect(result.settings["session.push_interlock"]).toBe("auto");
+      expect(result.warnings.some((w) => w.includes("session.commit_interlock"))).toBe(false);
+      expect(result.warnings.some((w) => w.includes("session.push_interlock"))).toBe(false);
     });
   });
 });

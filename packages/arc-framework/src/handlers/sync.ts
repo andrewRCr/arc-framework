@@ -58,7 +58,12 @@ import {
   type PairedPushResult,
   type UserIOContext,
 } from "../commands/user.js";
-import { readConfigSettings } from "../lib/config/status-reader.js";
+import {
+  resolveAllSettings,
+  type NotesPushPolicy,
+  type PushInterlock,
+  type SyncInterlock,
+} from "../lib/config/resolved-settings.js";
 import { formatError, UserFacingError } from "../lib/errors.js";
 import {
   runPushabilityStatus,
@@ -68,8 +73,8 @@ import { pushWorktreeBranch } from "../lib/git/push-worktree.js";
 import { runWorktreeSyncStatus, type WorktreeSyncState } from "../lib/git/worktree-sync.js";
 import { createUserIOContext } from "../lib/io-context.js";
 import { resolveArcRoot } from "../lib/paths.js";
+import type { ResolvedConfigOverride } from "../lib/config/resolve-override.js";
 import { createSyncOutput, type SyncOutput } from "../lib/sync-output.js";
-import { resolveNotesPushPolicy, type NotesPushPolicy } from "../lib/sync-policy.js";
 import { pushWithInteractiveRecovery } from "./push-recovery.js";
 import {
   ARC_PROJECT_ROOT_ERROR,
@@ -83,9 +88,6 @@ export interface SyncOptions {
   json?: boolean;
 }
 
-type PushInterlock = "manual" | "on-sync";
-type SyncInterlock = "manual" | "on-handoff";
-
 /**
  * Snapshot of the configured interlocks at the moment `arc sync` ran. Reported
  * verbatim in the JSON envelope so downstream consumers (handoff workflow,
@@ -93,13 +95,18 @@ type SyncInterlock = "manual" | "on-handoff";
  * config. Authorize-by-invocation: the orchestrator does not act on
  * `syncInterlock` — the field is informational for callers.
  *
- * `notesPush` is the resolved policy after non-interactive degradation, not
- * the raw config value, since the resolved value is what drove behavior.
+ * Each entry carries `{ value, source }` provenance so audit-log consumers
+ * can distinguish git-config overrides from yaml-configured defaults.
+ *
+ * `notesPush.value` is the resolved policy after non-interactive degradation;
+ * `notesPush.source` reflects where the pre-degradation policy was configured
+ * (so a degraded `prompt → manual` from a git-config-set `arc.notesPush=prompt`
+ * still reports `source: "git-config"`).
  */
 export interface InterlockState {
-  pushInterlock: PushInterlock;
-  notesPush: NotesPushPolicy;
-  syncInterlock: SyncInterlock;
+  pushInterlock: ResolvedConfigOverride<PushInterlock>;
+  notesPush: ResolvedConfigOverride<NotesPushPolicy>;
+  syncInterlock: ResolvedConfigOverride<SyncInterlock>;
 }
 
 type WorktreeAction =
@@ -274,21 +281,19 @@ export async function handleSync(opts: SyncOptions = {}): Promise<void> {
   }
 
   const io = createUserIOContext();
-  const { settings } = await readConfigSettings(cwd);
-  const pushInterlock: PushInterlock =
-    settings["session.push_interlock"] === "on-sync" ? "on-sync" : "manual";
-  const syncInterlock: SyncInterlock =
-    settings["session.sync_interlock"] === "manual" ? "manual" : "on-handoff";
-  const remoteSyncEnabled = settings["session.remote_sync"] === "enabled";
+  const resolvedSettings = await resolveAllSettings({
+    cwd,
+    exec: io.exec,
+    readFile: io.readFile,
+    warn: (message) => { output.log.warn(message); },
+  });
+  const remoteSyncEnabled = resolvedSettings.settings["session.remote_sync"] === "enabled";
+  const pushInterlock = resolvedSettings.resolved.pushInterlock.value;
+  const syncInterlock = resolvedSettings.resolved.syncInterlock;
+  const notesPushResolved = resolvedSettings.resolved.notesPush;
 
-  const [worktree, notesPushResolved, branch] = await Promise.all([
+  const [worktree, branch] = await Promise.all([
     runWorktreeSyncStatus({ exec: io.exec, remoteSyncEnabled }),
-    resolveNotesPushPolicy({
-      exec: io.exec,
-      readFile: io.readFile,
-      cwd,
-      warn: (message) => { output.log.warn(message); },
-    }),
     resolveCurrentBranch(io),
   ]);
 
@@ -306,6 +311,12 @@ export async function handleSync(opts: SyncOptions = {}): Promise<void> {
     notesPush = "manual";
   }
 
+  const interlockState: InterlockState = {
+    pushInterlock: resolvedSettings.resolved.pushInterlock,
+    notesPush: { value: notesPush, source: notesPushResolved.source },
+    syncInterlock,
+  };
+
   const decision = decideMatrix({
     pushInterlock,
     notesPush,
@@ -319,7 +330,7 @@ export async function handleSync(opts: SyncOptions = {}): Promise<void> {
     const executed = buildDryRunOutcome(decision, branch);
     const outcome: SyncOutcome = {
       ...executed,
-      interlockState: { pushInterlock, notesPush, syncInterlock },
+      interlockState,
       mode: "dry-run",
     };
     if (opts.json === true) {
@@ -345,7 +356,7 @@ export async function handleSync(opts: SyncOptions = {}): Promise<void> {
 
   const outcome: SyncOutcome = {
     ...executed,
-    interlockState: { pushInterlock, notesPush, syncInterlock },
+    interlockState,
   };
 
   if (opts.json === true) {

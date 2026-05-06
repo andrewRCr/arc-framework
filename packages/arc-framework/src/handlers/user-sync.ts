@@ -30,7 +30,7 @@ import { readConfigSettings } from "../lib/config/status-reader.js";
 import { runWorktreeSyncStatus } from "../lib/git/worktree-sync.js";
 import { createUserIOContext } from "../lib/io-context.js";
 import { createSyncOutput } from "../lib/sync-output.js";
-import { resolveNotesPushPolicy } from "../lib/sync-policy.js";
+import { resolveNotesPushPolicy } from "../lib/config/resolved-settings.js";
 import { pushWithInteractiveRecovery } from "./push-recovery.js";
 import {
   isHandledError, isNonInteractiveEnvironment, requireArcProjectRoot, resolveUserIdentity,
