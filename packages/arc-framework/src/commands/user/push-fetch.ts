@@ -11,7 +11,7 @@ import {
 } from "./types.js";
 
 /**
- * Push user notes ref to remote origin.
+ * Push user notes to remote origin.
  *
  * Runs the pushability pre-check matrix first when an `access` seam is
  * provided. Block-disposition conditions (rebase in progress, detached HEAD)
@@ -134,7 +134,7 @@ export async function hasLocalNotes(
 }
 
 /**
- * Fetch user notes ref from remote origin.
+ * Fetch user notes from remote origin.
  *
  * @param options - Fetch options
  */

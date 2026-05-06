@@ -802,35 +802,22 @@ on final-shape strings).
     - Eight test-first behaviors covered in `__tests__/unit/config/resolved-settings.test.ts`, parameterized over the
       four release-mode keys (24 wrapper-targeted cases plus four composite-behavior cases).
 
-### `[ ]` **3.4 Layered vocabulary rule application**
+### `[x]` **3.4 Layered vocabulary rule application**
 
 - _Goal:_ User-facing surfaces use "user notes" as the workhorse noun; storage-mechanism terminology ("git notes ref",
   `refs/notes/...`) appears only when the storage layer is relevant.
-    - **Scope: delta-only sweep, not full re-audit.** Phase 1.4 (directional copy audit) and Phase 2.R already balanced
-      directional copy and naming across `sync-status.ts` and adjacent surfaces. 3.4's pass identifies and standardizes
-      residual `git note(s)` references, pre-rename config-key strings (`sync_push`, `arc.syncPush`), and any
-      user-facing strings that drifted from the workhorse-noun rule. **Do not rebalance comparison-pair phrasing
-      already pinned by 1.4/2.R** — the comparison-named-on-both-sides invariant takes precedence over noun-uniformity.
-    - "Git notes ref" or "git notes" surfaces only when storage mechanism is relevant (debugging, ref state, error
-      messages mentioning `refs/notes/...`).
-
-    - Affected files (audit-enumerated; verify residuals only — many already in workhorse-noun shape post-1.4/2.R):
-        - `packages/arc-framework/src/commands/user/sync-status.ts` (primary rendering surface)
-        - `packages/arc-framework/src/commands/user/format.ts` (summary builders)
-        - `packages/arc-framework/src/commands/user/save-load.ts` (error messages)
-        - `packages/arc-framework/src/commands/user/push-fetch.ts` (status / handler messaging)
-        - `packages/arc-framework/src/commands/user/types.ts` (any user-facing copy in error classes / type defaults)
-        - `packages/arc-framework/src/handlers/user.ts` (UX strings + prompts)
-        - `packages/arc-framework/src/handlers/user-sync.ts` (direction-aware UX strings)
-        - `packages/arc-framework/src/handlers/sync.ts` (orchestrator messages)
-        - `packages/arc-framework/src/handlers/push-recovery.ts` (recovery-prompt copy)
-        - `packages/arc-framework/src/cli.ts` (subcommand help text)
-    - Test-after — rendering and string-content audit, not logic change.
-    - Boundary: this is a human-copy pass. Do not rename machine-readable JSON discriminants (e.g. internal-kind
-      labels like `"git note up to date"` in `sync-status.ts`), config keys, or enum values unless an explicit
-      migration task owns that change. Display strings derived from those kinds may be reworded to align with the
-      workhorse-noun rule. Preserve comparison-specific copy introduced by the stale-local/no-op and save-verification
-      fixes.
+- _Outcome:_ Applied the workhorse-noun rule to single-side residuals — save/restore output strings (`format.ts`),
+  JSDoc summary lines on the `runUserPush` / `runUserFetch` / `runUserSave` / `runUserLoad` API, the standalone
+  freshness rendering at `sync-status.ts:753-765` (now aligned with `renderSessionLocalNoteFreshness` at 420-432),
+  `user-sync.ts:324` load-failure error symmetry (matching the pull-failure workhorse at 287), and the `arc user
+  save` / `arc user load` CLI help (matching push/fetch/pull siblings). Preserved as storage-relevant or
+  comparison-pair: `sync-status.ts:891-921` (renderHeadlineExplanation / renderWorkingFilesLine local-vs-remote
+  and storage-vs-disk pairs), `user-sync.ts` noop / conflict-warn equality statements and the cross-layer
+  state-machine action narrations at 106/108/113/125/129/133/183/203/208/214/295, save-verification errors and
+  walk / corrupt JSDoc in `save-load.ts`, the `IO.writeNote` / `IO.readNote` / `SyncStateKind` interface
+  descriptions in `types.ts`, and the JSON-discriminant labels. Updated six test pins in
+  `__tests__/unit/user-status.test.ts` covering the converted freshness renderer; the comparison-pair pins in
+  the same file were not touched.
 
 ## **Phase 4:** DX polish
 

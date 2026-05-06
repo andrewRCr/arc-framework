@@ -89,11 +89,11 @@ describe("buildUserStatusResult", () => {
     expect(result.detailLines).toContain("Latest local git note is not current with the working files.");
     expect(result.detailLines).toContain("Working files reflect an older local git note.");
     expect(result.detailLines).toContain("Remote notes: match local notes.");
-    expect(result.detailLines).toContain("Latest local git note is from abc1234, 3 commit(s) back from HEAD.");
+    expect(result.detailLines).toContain("Latest local user note is from abc1234, 3 commit(s) back from HEAD.");
     expect(result.detailLines).toContain("Pre-load backup present: .pre-load-backup.json");
   });
 
-  it("renders the current-HEAD line when the local git note is at HEAD", () => {
+  it("renders the current-HEAD line when the local user note is at HEAD", () => {
     const result = buildUserStatusResult({
       identity: "andrew",
       diskState: "same",
@@ -107,10 +107,10 @@ describe("buildUserStatusResult", () => {
     });
 
     expect(result.detailLines.some((line) => line.includes("commit(s) back"))).toBe(false);
-    expect(result.detailLines).toContain("Latest local git note is current with HEAD.");
+    expect(result.detailLines).toContain("Latest local user note is current with HEAD.");
   });
 
-  it("renders note-history reachability when the local git note is outside HEAD ancestry", () => {
+  it("renders note-history reachability when the local user note is outside HEAD ancestry", () => {
     const result = buildUserStatusResult({
       identity: "andrew",
       diskState: "same",
@@ -126,9 +126,9 @@ describe("buildUserStatusResult", () => {
     });
 
     expect(result.detailLines).toContain(
-      "Latest local git note is from abc1234, outside current HEAD ancestry (2 note update(s) back).",
+      "Latest local user note is from abc1234, outside current HEAD ancestry (2 note update(s) back).",
     );
-    expect(result.detailLines).not.toContain("Latest local git note is current with HEAD.");
+    expect(result.detailLines).not.toContain("Latest local user note is current with HEAD.");
   });
 
   it("reports conflicts with a fetch hint", () => {
@@ -932,7 +932,7 @@ describe("user sync spine", () => {
     expect(result.spineState).toBe("remote-ahead");
     expect(result.detailLines).toContain("Saved 11 hours ago.");
     expect(result.detailLines).toContain(
-      "Latest local git note is from abc1234, outside current HEAD ancestry (2 note update(s) back).",
+      "Latest local user note is from abc1234, outside current HEAD ancestry (2 note update(s) back).",
     );
   });
 

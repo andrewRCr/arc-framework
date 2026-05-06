@@ -42,7 +42,7 @@ interface PartialPushMarker {
 export const DEFAULT_MAX_ANCESTOR_WALK = 1000;
 
 /**
- * Save the user directory to a git note on HEAD.
+ * Save the user directory to user notes on HEAD.
  *
  * Serializes eligible files from `user/{identity}/` and stores the JSON
  * manifest as a git note on the current HEAD commit.
@@ -77,7 +77,7 @@ export async function runUserSave(
 }
 
 /**
- * Load the user directory from a git note.
+ * Load the user directory from user notes.
  *
  * Walks the user notes ref's own history looking for the newest note
  * attachment. This finds notes even when their annotated commits are outside

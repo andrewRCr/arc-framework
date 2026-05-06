@@ -321,7 +321,7 @@ async function handleLoadDirection(params: DirectionParams): Promise<void> {
   } catch (err) {
     spinner.stop("Load failed.");
     const msg = err instanceof Error ? err.message : String(err);
-    p.log.error(`Failed to restore git note: ${msg}`);
+    p.log.error(`Failed to restore user notes: ${msg}`);
     process.exitCode = 1;
   }
 }

@@ -750,19 +750,19 @@ function buildVerboseDetailLines(args: VerboseDetailInput): string[] {
 
   if (savedCommit && savedReachableFromHead && ancestorDistance > 0) {
     detailLines.push(
-      `Latest local git note is from ${savedCommit}, ${ancestorDistance} commit(s) back from HEAD.`,
+      `Latest local user note is from ${savedCommit}, ${ancestorDistance} commit(s) back from HEAD.`,
     );
   } else if (savedCommit && savedReachableFromHead && ancestorDistance === 0) {
-    detailLines.push("Latest local git note is current with HEAD.");
+    detailLines.push("Latest local user note is current with HEAD.");
   } else if (savedCommit) {
     const historyDetail = noteHistoryDistance === undefined
       ? ""
       : ` (${noteHistoryDistance} note update(s) back)`;
     detailLines.push(
-      `Latest local git note is from ${savedCommit}, outside current HEAD ancestry${historyDetail}.`,
+      `Latest local user note is from ${savedCommit}, outside current HEAD ancestry${historyDetail}.`,
     );
   } else if (!savedCommit && diskState === "different") {
-    detailLines.push("No local git note exists yet for this identity.");
+    detailLines.push("No local user note exists yet for this identity.");
   }
 
   if (backupFiles.length > 0) {

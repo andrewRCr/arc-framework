@@ -90,12 +90,12 @@ userCmd
 
 userCmd
   .command("save")
-  .description("Save user directory to a git note on HEAD")
+  .description("Save user directory to user notes on HEAD")
   .action(handleUserSave);
 
 userCmd
   .command("load")
-  .description("Restore user directory from a git note")
+  .description("Restore user directory from user notes")
   .option("-y, --yes", "Skip overwrite confirmation prompts")
   .option("--max-walk <n>", "Max ancestors to walk when searching for a note (default: 1000)", parseInt)
   .action(handleUserLoad);
