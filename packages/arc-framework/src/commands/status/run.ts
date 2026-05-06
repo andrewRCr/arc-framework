@@ -28,9 +28,17 @@ import type {
   RunStatusOptions,
   SessionHandoffResult,
   SessionInitProbeResult,
+  SessionInitUserValue,
+  SessionInitWorktreeValue,
   StatusIdentity,
   StatusResult,
 } from "./types.js";
+import {
+  inferSessionInitRecommendations,
+  type NotesPullPolicy,
+  type WorktreePullPolicy,
+} from "../../lib/session-init/recommended-action.js";
+import type { DirtyStateResult } from "../../lib/git/dirty-state.js";
 
 const IDENTITY_MISSING_MESSAGE =
   "User probe skipped: `arc.identity` is not configured in git config.";
@@ -119,18 +127,25 @@ export async function runSessionInitStatus(
 ): Promise<SessionInitProbeResult> {
   const { identity, role, probes } = options;
 
-  const userTask: Promise<SessionInitProbeResult["user"]> = identity === null
+  type RawUser = { ok: true; value: import("../user/types.js").UserSessionInitStatusResult }
+    | ProbeErrorSlot;
+  type RawWorktree = { ok: true; value: import("../../lib/git/worktree-sync.js").WorktreeSyncStatusResult }
+    | ProbeErrorSlot;
+
+  const userTask: Promise<RawUser> = identity === null
     ? Promise.resolve(identityMissing())
     : safeProbe(() => probes.user(identity));
-  const worktreeTask = safeProbe(() => probes.worktree());
+  const worktreeTask: Promise<RawWorktree> = safeProbe(() => probes.worktree());
+  const dirtyTask = safeProbe(() => probes.dirty());
   const extensionsTask = safeProbe(() => probes.extensions());
   const configTask = safeProbe(() => probes.config());
   const activeTask = safeProbe(() => probes.active(identity, role));
   const domainRulesTask = safeProbe(() => probes.domainRules());
 
-  const [user, worktree, extensions, config, active, domainRules] = await Promise.all([
+  const [user, worktree, dirty, extensions, config, active, domainRules] = await Promise.all([
     userTask,
     worktreeTask,
+    dirtyTask,
     extensionsTask,
     configTask,
     activeTask,
@@ -140,22 +155,92 @@ export async function runSessionInitStatus(
   // Cross-channel qualifier: when the notes-clean verdict is true only
   // because local HEAD is behind origin, attach the qualifier to user
   // so downstream consumers can reason about reachability.
-  const qualifiedUser =
+  const qualifiedUser: RawUser =
     user.ok && user.value.state === "clean" &&
       worktree.ok && worktree.value.state === "remote-ahead"
       ? { ...user, value: { ...user.value, qualifier: "clean-at-current-head" as const } }
       : user;
 
+  const recommendations = composeSessionInitRecommendations({
+    worktree,
+    user: qualifiedUser,
+    dirty,
+    config,
+  });
+
+  const enrichedWorktree: SessionInitProbeResult["worktree"] = worktree.ok
+    ? {
+      ok: true,
+      value: {
+        ...worktree.value,
+        recommendedAction: recommendations.worktree.recommendedAction,
+        recommendedPromptText: recommendations.worktree.recommendedPromptText,
+      } satisfies SessionInitWorktreeValue,
+    }
+    : worktree;
+
+  const enrichedUser: SessionInitProbeResult["user"] = qualifiedUser.ok
+    ? {
+      ok: true,
+      value: {
+        ...qualifiedUser.value,
+        recommendedAction: recommendations.user.recommendedAction,
+        recommendedPromptText: recommendations.user.recommendedPromptText,
+      } satisfies SessionInitUserValue,
+    }
+    : qualifiedUser;
+
   return {
     mode: "session-init",
     identity: buildIdentity(identity, role),
-    user: qualifiedUser,
-    worktree,
+    user: enrichedUser,
+    worktree: enrichedWorktree,
+    dirty,
     extensions,
     config,
     active,
     domainRules,
+    recommendedCombinedPrompt: recommendations.recommendedCombinedPrompt,
   };
+}
+
+/**
+ * Compose recommendations from resolved probe slots. Falls back to skip-
+ * everything when any required input failed to resolve — the workflow
+ * surfaces probe-failure diagnostics separately, so recommendations stay
+ * neutral rather than guessing.
+ */
+function composeSessionInitRecommendations(slots: {
+  worktree: { ok: true; value: import("../../lib/git/worktree-sync.js").WorktreeSyncStatusResult } | ProbeErrorSlot;
+  user: { ok: true; value: import("../user/types.js").UserSessionInitStatusResult } | ProbeErrorSlot;
+  dirty: { ok: true; value: DirtyStateResult } | ProbeErrorSlot;
+  config: { ok: true; value: import("../config/types.js").ConfigSessionInitResult } | ProbeErrorSlot;
+}): ReturnType<typeof inferSessionInitRecommendations> {
+  if (!slots.worktree.ok || !slots.dirty.ok || !slots.config.ok) {
+    return {
+      worktree: { recommendedAction: "skip", recommendedPromptText: "" },
+      user: { recommendedAction: "skip", recommendedPromptText: "" },
+      recommendedCombinedPrompt: null,
+    };
+  }
+  const settings = slots.config.value.settings;
+  return inferSessionInitRecommendations({
+    worktree: slots.worktree.value,
+    user: slots.user.ok ? slots.user.value : null,
+    worktreePullPolicy: normalizeWorktreePolicy(settings["session.init_pull.worktree"]),
+    notesPullPolicy: normalizeNotesPolicy(settings["session.init_pull.notes"]),
+    dirty: slots.dirty.value,
+  });
+}
+
+function normalizeWorktreePolicy(raw: string): WorktreePullPolicy {
+  return raw === "manual" ? "manual" : "prompt";
+}
+
+function normalizeNotesPolicy(raw: string): NotesPullPolicy {
+  if (raw === "manual") return "manual";
+  if (raw === "always") return "always";
+  return "prompt";
 }
 
 /**

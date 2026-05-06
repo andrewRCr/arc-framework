@@ -133,9 +133,22 @@ function makeSessionInitResult(
         detailLines: ["Remote notes match local notes."],
         actionHint: null,
         shouldPromptToPull: false,
+        recommendedAction: "skip",
+        recommendedPromptText: "",
       },
     },
-    worktree: { ok: true, value: { state: "clean", ahead: 0, behind: 0 } },
+    worktree: {
+      ok: true,
+      value: {
+        state: "clean",
+        ahead: 0,
+        behind: 0,
+        recommendedAction: "skip",
+        recommendedPromptText: "",
+      },
+    },
+    dirty: { ok: true, value: { state: "clean", fileCount: 0 } },
+    recommendedCombinedPrompt: null,
     extensions: {
       ok: true,
       value: { mode: "session-init", active: ["pre-merge-review"], warnings: [] },
@@ -290,7 +303,16 @@ describe("buildSessionInitStatusSummary — scoped mode", () => {
   it("renders worktree drift states with counts", () => {
     const summary = buildSessionInitStatusSummary(
       makeSessionInitResult({
-        worktree: { ok: true, value: { state: "remote-ahead", ahead: 0, behind: 3 } },
+        worktree: {
+          ok: true,
+          value: {
+            state: "remote-ahead",
+            ahead: 0,
+            behind: 3,
+            recommendedAction: "prompt",
+            recommendedPromptText: "Worktree: branch is behind origin by 3 commit(s).\nPull?",
+          },
+        },
       }),
     );
     expect(summary).toContain("remote ahead by 3");
@@ -301,7 +323,14 @@ describe("buildSessionInitStatusSummary — scoped mode", () => {
       makeSessionInitResult({
         worktree: {
           ok: true,
-          value: { state: "remote-unavailable", ahead: 0, behind: 0, failureReason: "timeout" },
+          value: {
+            state: "remote-unavailable",
+            ahead: 0,
+            behind: 0,
+            failureReason: "timeout",
+            recommendedAction: "surface",
+            recommendedPromptText: "",
+          },
         },
       }),
     );

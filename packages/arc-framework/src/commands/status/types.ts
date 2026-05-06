@@ -33,6 +33,28 @@ import type { DirtyStateResult } from "../../lib/git/dirty-state.js";
 import type { HeadHashResult } from "../../lib/git/head-hash.js";
 import type { PushabilityResult } from "../../lib/git/pushability.js";
 import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
+import type { RecommendedAction } from "../../lib/session-init/recommended-action.js";
+
+export type { RecommendedAction };
+
+/**
+ * Worktree slot in the session-init envelope. Extends the raw probe result
+ * with a precomputed action + prompt text the workflow renders directly.
+ */
+export interface SessionInitWorktreeValue extends WorktreeSyncStatusResult {
+  recommendedAction: RecommendedAction;
+  /** Composed prompt text when `recommendedAction === "prompt"`; empty string otherwise. */
+  recommendedPromptText: string;
+}
+
+/**
+ * User slot in the session-init envelope. Extends the standalone probe
+ * result with the same recommendation pair as the worktree slot.
+ */
+export interface SessionInitUserValue extends UserSessionInitStatusResult {
+  recommendedAction: RecommendedAction;
+  recommendedPromptText: string;
+}
 
 /** Git-config pointers resolved in the composite handler (not a probe). */
 export interface StatusIdentity {
@@ -74,12 +96,20 @@ export interface StatusResult {
 export interface SessionInitProbeResult {
   mode: "session-init";
   identity: StatusIdentity;
-  user: Probe<UserSessionInitStatusResult>;
-  worktree: Probe<WorktreeSyncStatusResult>;
+  user: Probe<SessionInitUserValue>;
+  worktree: Probe<SessionInitWorktreeValue>;
+  dirty: Probe<DirtyStateResult>;
   extensions: Probe<ExtensionsSessionInitResult>;
   config: Probe<ConfigSessionInitResult>;
   active: Probe<ActiveSessionInitResult>;
   domainRules: Probe<DomainRulesSessionInitResult>;
+  /**
+   * Per-channel offer text composed when both the worktree and user slots
+   * resolve to `recommendedAction === "prompt"`. Null when only one channel
+   * (or neither) prompts. Workflow renders verbatim instead of composing
+   * combined-prompt prose itself.
+   */
+  recommendedCombinedPrompt: string | null;
 }
 
 /** Probe functions in full mode — bound to cwd and any required I/O. */
@@ -140,6 +170,7 @@ export interface SessionHandoffResult {
 export interface SessionInitProbes {
   user: (identity: string) => Promise<UserSessionInitStatusResult>;
   worktree: () => Promise<WorktreeSyncStatusResult>;
+  dirty: () => Promise<DirtyStateResult>;
   extensions: () => Promise<ExtensionsSessionInitResult>;
   config: () => Promise<ConfigSessionInitResult>;
   /**

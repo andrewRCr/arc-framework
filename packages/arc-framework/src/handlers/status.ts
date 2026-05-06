@@ -133,6 +133,7 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
     const probes: SessionInitProbes = {
       user: (id) => runUserSessionInitStatus({ cwd, io, identity: id, remoteSyncEnabled }),
       worktree: () => runWorktreeSyncStatus({ exec: gitExec, remoteSyncEnabled }),
+      dirty: () => runDirtyStateStatus({ exec: gitExec }),
       extensions: () => runExtensionsSessionInitStatus({ cwd }),
       config: () => runConfigSessionInitStatus({ cwd }),
       active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec: gitExec }),

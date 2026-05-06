@@ -1188,21 +1188,25 @@ _Implementation order within phase:_
   surface has more conditional branches and bigger judgment savings; Confirm Handoff is a follow-on
   refinement.
 
-    - `[ ]` **4.6.a Session-init Step 2 `recommendedAction`**
-        - Probe slots: `worktree.recommendedAction`, `worktree.recommendedPromptText`,
-          `user.recommendedAction`, `user.recommendedPromptText`. When the combined-prompt case applies
-          (both channels prompt), envelope adds a top-level `recommendedCombinedPrompt` field with the
-          per-channel offer text already composed.
-        - Affected files: probe types + run + handler + helper module; session-init.md Step 2 prose
-          replacement; tests for new fields across state × config combinations.
-        - Build `test-first` (one behavior at a time):
-            - `worktree.value.state === "remote-ahead"` + `init_pull.worktree: prompt` → `recommendedAction:
-              "prompt"` with channel-named + count-included prompt text
-            - Same state + `init_pull.worktree: manual` → `recommendedAction: "surface"`; prompt text empty
-            - Same state + dirty tree → prompt text carries the "stash or commit" warning
-            - Both channels need prompt → top-level `recommendedCombinedPrompt` composed; per-channel
-              prompts also present (workflow can opt for combined or per-channel)
-            - Clean / no-upstream / detached-head / no-remote / skipped → `recommendedAction: "skip"`
+    - `[x]` **4.6.a Session-init Step 2 `recommendedAction`**
+        - New helper `lib/session-init/recommended-action.ts` (`inferSessionInitRecommendations`) composes
+          per-channel `recommendedAction` ∈ `{pull, prompt, surface, skip}` and `recommendedPromptText`
+          (channel-named, count-included, dirty-tree-aware) from resolved worktree/user/dirty signals plus
+          the `session.init_pull.*` policies. `runSessionInitStatus` now also fans out a `dirty` probe
+          (mirroring session-handoff), passes the resolved slots into the helper, and attaches the
+          recommendation pair to the worktree/user values via the new `SessionInitWorktreeValue` /
+          `SessionInitUserValue` types. Top-level `recommendedCombinedPrompt` populates only when both
+          channels resolve to `prompt`. Helper falls back to skip-everything when any required input slot
+          fails — workflow surfaces probe failure separately.
+        - `session-init.md` Step 2 collapsed: per-channel `recommendedAction` dispatch replaces the
+          state×config conditional matrix; combined-prompt section now keys on `recommendedCombinedPrompt`
+          non-null. Step 1 envelope table extended with `dirty`, `recommendedCombinedPrompt`, and the
+          recommendation fields on `worktree` / `user`. Mirrored in the package template copy.
+        - Tests: 25 helper-side cases in `__tests__/unit/session-init/recommended-action.test.ts`
+          (state × policy × dirty); 8 orchestrator cases in `__tests__/unit/status/run.test.ts` covering
+          dirty-probe fan-out, recommendation pass-through, identity-missing skip, and probe-failure
+          fallback. Test batching used per the test-first method's batching-judgment clause — pure helper
+          with a known state table, shared fixtures, no independent discovery between behaviors.
 
     - `[ ]` **4.6.b Confirm Handoff `recommendedSummaryLine`**
         - Field added to `arc sync --json` envelope and to the session-handoff envelope (when sync

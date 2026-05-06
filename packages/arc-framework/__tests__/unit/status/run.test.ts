@@ -264,6 +264,7 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
   return {
     user: vi.fn(async () => userSessionInit()),
     worktree: vi.fn(async () => worktreeSync()),
+    dirty: vi.fn(async () => dirtyState()),
     extensions: vi.fn(async () => extensionsSessionInit()),
     config: vi.fn(async () => configSessionInit()),
     active: vi.fn(async () => activeSessionInit()),
@@ -447,6 +448,8 @@ describe("runSessionInitStatus — orchestration", () => {
     const probes = sessionInitProbes();
     await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
     expect(probes.user).toHaveBeenCalledTimes(1);
+    expect(probes.worktree).toHaveBeenCalledTimes(1);
+    expect(probes.dirty).toHaveBeenCalledTimes(1);
     expect(probes.extensions).toHaveBeenCalledTimes(1);
     expect(probes.config).toHaveBeenCalledTimes(1);
     expect(probes.active).toHaveBeenCalledTimes(1);
@@ -677,17 +680,171 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
       role: "maintainer",
       probes,
     });
-    // All pre-existing fields plus the new worktree peer.
     expect(Object.keys(result).sort()).toEqual([
       "active",
       "config",
+      "dirty",
       "domainRules",
       "extensions",
       "identity",
       "mode",
+      "recommendedCombinedPrompt",
       "user",
       "worktree",
     ]);
+  });
+});
+
+describe("runSessionInitStatus — recommended actions", () => {
+  it("attaches recommendedAction=skip with empty prompt text on a clean worktree", async () => {
+    const probes = sessionInitProbes();
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.worktree.ok).toBe(true);
+    if (result.worktree.ok) {
+      expect(result.worktree.value.recommendedAction).toBe("skip");
+      expect(result.worktree.value.recommendedPromptText).toBe("");
+    }
+    expect(result.user.ok).toBe(true);
+    if (result.user.ok) {
+      expect(result.user.value.recommendedAction).toBe("skip");
+    }
+    expect(result.recommendedCombinedPrompt).toBeNull();
+  });
+
+  it("threads worktree remote-ahead + prompt policy into recommendedAction=prompt", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "remote-ahead", behind: 4 })),
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    if (result.worktree.ok) {
+      expect(result.worktree.value.recommendedAction).toBe("prompt");
+      expect(result.worktree.value.recommendedPromptText).toContain("4");
+      expect(result.worktree.value.recommendedPromptText).toContain("Worktree");
+    }
+  });
+
+  it("threads dirty-tree state into the prompt text warning", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "remote-ahead", behind: 1 })),
+      dirty: vi.fn(async () => dirtyState({ state: "dirty", fileCount: 3 })),
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    if (result.worktree.ok) {
+      expect(result.worktree.value.recommendedPromptText).toContain(
+        "Working tree dirty",
+      );
+    }
+    expect(result.dirty.ok).toBe(true);
+    if (result.dirty.ok) {
+      expect(result.dirty.value.state).toBe("dirty");
+      expect(result.dirty.value.fileCount).toBe(3);
+    }
+  });
+
+  it("composes recommendedCombinedPrompt when both channels prompt", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "remote-ahead", behind: 2 })),
+      user: vi.fn(async () => userSessionInit({ state: "remote-ahead" })),
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.recommendedCombinedPrompt).not.toBeNull();
+    expect(result.recommendedCombinedPrompt).toContain("Worktree");
+    expect(result.recommendedCombinedPrompt).toContain("Notes");
+    expect(result.recommendedCombinedPrompt).toContain(
+      "Pull both / worktree only / notes only / skip?",
+    );
+  });
+
+  it("manual notes policy + remote-ahead → recommendedAction=surface", async () => {
+    const probes = sessionInitProbes({
+      user: vi.fn(async () => userSessionInit({ state: "remote-ahead" })),
+      config: vi.fn(async () =>
+        configSessionInit({
+          settings: {
+            ...configSessionInit().settings,
+            "session.init_pull.notes": "manual",
+          },
+        }),
+      ),
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    if (result.user.ok) {
+      expect(result.user.value.recommendedAction).toBe("surface");
+      expect(result.user.value.recommendedPromptText).toBe("");
+    }
+    expect(result.recommendedCombinedPrompt).toBeNull();
+  });
+
+  it("always notes policy + remote-ahead → recommendedAction=pull", async () => {
+    const probes = sessionInitProbes({
+      user: vi.fn(async () => userSessionInit({ state: "remote-ahead" })),
+      config: vi.fn(async () =>
+        configSessionInit({
+          settings: {
+            ...configSessionInit().settings,
+            "session.init_pull.notes": "always",
+          },
+        }),
+      ),
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    if (result.user.ok) {
+      expect(result.user.value.recommendedAction).toBe("pull");
+    }
+  });
+
+  it("identity-missing → user slot recommendedAction skipped at orchestrator boundary", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "remote-ahead", behind: 2 })),
+    });
+    const result = await runSessionInitStatus({ identity: null, role: null, probes });
+    expect(result.user.ok).toBe(false);
+    if (result.worktree.ok) {
+      expect(result.worktree.value.recommendedAction).toBe("prompt");
+    }
+    expect(result.recommendedCombinedPrompt).toBeNull();
+  });
+
+  it("falls back to skip-everything when a required input slot fails", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "remote-ahead", behind: 2 })),
+      dirty: async () => { throw new Error("porcelain failed"); },
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.dirty.ok).toBe(false);
+    if (result.worktree.ok) {
+      expect(result.worktree.value.recommendedAction).toBe("skip");
+      expect(result.worktree.value.recommendedPromptText).toBe("");
+    }
+    expect(result.recommendedCombinedPrompt).toBeNull();
   });
 });
 
