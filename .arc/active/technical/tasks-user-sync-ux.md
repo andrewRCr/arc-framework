@@ -753,25 +753,20 @@ on final-shape strings).
         - Covered through `runUpdate` integration tests for translated values, old-key removal, idempotency, dual-key
           warnings, invalid-value preservation, and customized-value conflict markers.
 
-    - `[ ]` **3.2.c Strategy and reference doc updates**
-        - Retire the documented-but-unused `auto / prompt / manual` standard from `strategy-session-operations.md` §
-          Handoff-Interior Toggle Pattern. Canonical shape becomes `manual | on-X` where `X` names the operation's
-          trigger event; `prompt` stays opt-in for review-before-fire toggles.
-        - Document the three-layer cascade (handoff event → sync; sync event → push and notes-push) explicitly. Each
-          interlock's `on-X` value names its own trigger. Authorize-by-invocation: `arc sync` running mid-session is an
-          explicit sync event.
-        - Affected docs (audit-enumerated; live + adopter-shipped — package-project sync requires updating the package
-          mirror alongside the `.arc/` instance):
-            - `.arc/reference/QUICK-REFERENCE.md` + `packages/arc-framework/arc/reference/QUICK-REFERENCE.template.md`
-            - `.arc/reference/strategies/arc/strategy-configurability-architecture.md` + package mirror at
-              `packages/arc-framework/arc/reference/strategies/arc/`
-            - `.arc/reference/strategies/arc/strategy-session-operations.md` + package mirror
-            - `.arc/reference/strategies/arc/strategy-team-coordination.md` + package mirror
-            - ADRs (project-internal; no package mirror per DEV-RULES.PROJECT § ADRs):
-              `.arc/reference/adr/adr-012-adopt-unified-user-directory-model.md`,
-              `.arc/reference/adr/adr-016-configurable-autonomy-interlocks-for-session-operations.md` — assess
-              amendment-trailer vs. content-edit posture per ADR strategy at implementation time
-        - Test-after — documentation only.
+    - `[x]` **3.2.c Strategy and reference doc updates**
+        - Retired the `auto / prompt / manual` standard from strategy-session-operations § Handoff-Interior Toggle
+          Pattern; canonical shape is now `manual | on-X` where `X` names the trigger event, with `prompt` as an
+          opt-in third value for review-before-fire toggles.
+        - Documented the three-layer cascade (handoff → sync; sync → push and notes-push) explicitly in
+          strategy-session-operations § Handoff-Interior Toggle Pattern and strategy-configurability-architecture
+          § Session interlocks; `arc sync` mid-session is named as an explicit sync event (authorize-by-invocation).
+        - Aligned vocabulary across the four strategies and the QUICK-REFERENCE pair: `user.sync_push` →
+          `user.notes_push`, `arc.syncPush` → `arc.notesPush`, `session.push_interlock: on-handoff` → `on-sync`,
+          plus the new `session.sync_interlock: manual | on-handoff` enum. Refreshed the handoff envelope table
+          in strategy-session-operations to match actual probe shape (`syncInterlock`/`pushability`).
+        - ADRs updated as Tier 2 amendment trailers (append-only with annotation) per the ADR strategy: ADR-012
+          notes the key rename without changing the unified-push-policy decision; ADR-016 documents the
+          sync-interlock split and `on-X` vocabulary alignment. No decision reversed.
 
 ### `[ ]` **3.3 Per-developer overrides for interlock keys**
 

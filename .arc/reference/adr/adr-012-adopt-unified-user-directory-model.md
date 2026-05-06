@@ -386,6 +386,19 @@ This extends the user-directory portability model rather than supersedes it: not
 covers the personal-workspace-across-machines concern; the worktree channel adds visibility into
 tracked-code drift the notes channel was never designed to catch.
 
+**Amendment (2026-05-06):** The unified push policy key `user.sync_push` was renamed to
+`user.notes_push` to align with the broader handoff-interior toggle vocabulary
+(`manual | on-X` where `X` names the trigger event). The legacy `always` value translates to
+`on-sync` under the new shape — notes push fires when an `arc sync` event releases the toggle,
+either handoff-driven (via `session.sync_interlock: on-handoff`) or via explicit `arc sync`
+invocation. The per-developer override moves correspondingly: `git config arc.syncPush` →
+`git config arc.notesPush`. `arc update` migrates legacy `arc-config.yml` values in place.
+
+The decision to consolidate session-portability push policy under a single user-domain key is
+unchanged; only the key name and value enum shifted to track the framework-wide vocabulary
+alignment. See [strategy-session-operations.md](../strategies/arc/strategy-session-operations.md)
+§ Handoff-Interior Toggle Pattern for the canonical shape.
+
 ---
 
 Context: tasks-cli-implementation.md (off-plan — architectural evaluation before Phase 2)

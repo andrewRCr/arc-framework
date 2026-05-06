@@ -106,10 +106,14 @@ branch rather than rejecting the composite. Mirrors the session-init field table
 | `dirty`           | Working-tree porcelain check (`value.state`: clean / dirty; `value.fileCount` carries the entry count, 0 when clean)                                                      |
 | `worktree`        | Worktree sync state vs. `origin/<current-branch>` — same shape as session-init's `worktree` slot                                                                          |
 | `user`            | Notes-sync state — same shape as session-init's `user` slot; identity-missing short-circuit applies when `arc.identity` is absent                                         |
-| `pushInterlock`   | `{value, source}` — resolved `session.push_interlock` policy. Surfaced top-level so handoff doesn't pull the broader session-init settings map                            |
-| `syncPush`        | `{policy, source}` — resolved `user.sync_push` policy with provenance. Handoff-interior toggle slot; future toggles register as named siblings here                       |
+| `syncInterlock`   | `{value, source}` — resolved `session.sync_interlock`. Gates whether handoff invokes `arc sync` (`on-handoff`) or surfaces unpushed state without firing (`manual`)       |
 | `active`          | Active status file resolution — same shape as session-init's `active` slot                                                                                                |
 | `head`            | Current `HEAD` short-hash (`value.hash`) — anchors the `Commit at Handoff` field written by the handoff workflow                                                          |
+| `pushability`     | Pushability pre-check matrix for the worktree push leg (`target: "worktree"`). Cross-reference with `worktree` for the full divergence picture                            |
+
+Push-interlock and notes-push policy are not surfaced as handoff envelope slots — `arc sync` owns
+their resolution internally. The handoff workflow gates on `syncInterlock` (whether to invoke
+`arc sync` at all); the orchestrator routes the downstream legs.
 
 Consumer plans reference this table from their plan docs when defining handoff-time workflow behavior.
 
@@ -364,19 +368,20 @@ regardless of approval).
 
 ### Linear Interlock Stack
 
-The four interlocks attach to the four operational junctions a unit of work passes through, in order
-(task → commit → push → integrate):
+The five interlocks attach to the operational junctions a unit of work passes through:
 
 | Interlock                 | Configurability |
 |---------------------------|-----------------|
 | `task-interlock`          | Invariant       |
 | `commit-interlock`        | Configurable    |
+| `sync-interlock`          | Configurable    |
 | `push-interlock`          | Configurable    |
 | `integration-interlock`   | Invariant       |
 
-All four interlocks are engaged by default. The configurable two release under explicit
-`session.commit_interlock` and `session.push_interlock` settings; see § Configurability
-Architecture for the enums.
+All five interlocks are engaged by default. The configurable three release under explicit
+`session.commit_interlock`, `session.sync_interlock`, and `session.push_interlock` settings; see
+§ Configurability Architecture for the enums and § Handoff-Interior Toggle Pattern for how the
+sync and push interlocks chain.
 
 **Task-interlock.** Every review increment receives explicit human approval. Deferred review is a
 bounded user-scoped convenience, not an autonomy mode.
@@ -385,8 +390,14 @@ bounded user-scoped convenience, not an autonomy mode.
 invokes commit. `on-task-approval` releases the interlock on task approval.
 
 **Push-interlock.** Under `session.push_interlock: manual` (the default), the user explicitly
-invokes push. `on-handoff` releases the interlock at handoff only — never per-commit.
-Mid-session push always requires explicit invocation regardless of mode.
+invokes push. `on-sync` releases the interlock when an `arc sync` event fires — sync invocations
+include handoff-driven sync (via `session.sync_interlock: on-handoff`) and explicit mid-session
+`arc sync` calls. Per-commit push release is not offered.
+
+**Sync-interlock.** Under `session.sync_interlock: on-handoff` (the default), handoff invokes
+`arc sync` as part of the handoff ceremony. `manual` surfaces unpushed state in the handoff
+summary without firing sync. The sync orchestrator routes worktree-push and notes-push per their
+own interlock settings — see § Handoff-Interior Toggle Pattern for the cascade.
 
 **Integration-interlock.** Merge to integration / main requires explicit human approval. Agents must not
 infer merge approval from task approval, review completion, passing checks, or general "proceed" language.
@@ -414,7 +425,12 @@ The configurable interlocks use independent config axes.
 - `session.commit_interlock: on-task-approval` — commit-interlock releases on task approval.
 - `session.push_interlock: manual` (default) — push-interlock engaged by default; user explicitly
   invokes push.
-- `session.push_interlock: on-handoff` — push-interlock releases at handoff only (never per-commit).
+- `session.push_interlock: on-sync` — push-interlock releases when an `arc sync` event fires
+  (per-commit release is not offered).
+- `session.sync_interlock: on-handoff` (default) — handoff invokes `arc sync` as part of the
+  handoff ceremony.
+- `session.sync_interlock: manual` — handoff surfaces unpushed state without invoking sync;
+  sync requires explicit invocation.
 
 ### Approval-Signal Architecture
 
@@ -499,17 +515,17 @@ commit, multiple atomic commits, or iteration before committing.
 
 ### Push-Timing Reasoning
 
-Push-on-handoff fires at handoff only; per-commit push release is not offered. The constraint surfaces in
-operational behavior: worktree-push and notes-push pair at the same release event, with fixed ordering
-(worktree first, then notes — notes attach to commits that must already exist on origin; reverse
-ordering produces dangling notes references).
+Push-on-sync fires when an `arc sync` event releases the push interlock; per-commit push release
+is not offered. The constraint surfaces in operational behavior: worktree-push and notes-push pair
+at the same release event, with fixed ordering (worktree first, then notes — notes attach to
+commits that must already exist on origin; reverse ordering produces dangling notes references).
 
 For deeper rationale on stakes asymmetry and concurrent-session race surface, see
 [push-timing background][TODO-docs-site].
 
 ### Cascade Reversibility & Rollback
 
-When a single approval triggers multiple operations (commit-on-task-approval; push-on-handoff), the cascade
+When a single approval triggers multiple operations (commit-on-task-approval; push-on-sync), the cascade
 must be reversible. ARC v1 ships protocol-level support — a DEV-RULES rule (see
 [DEV-RULES.ARC][dev-rules-arc] § Commit Discipline, *cascade-undo*) requiring agents to present an
 undo plan and await explicit confirmation before destructive cascade reversals (resetting commits,
@@ -530,7 +546,7 @@ the boundary. Classify failures by the state they leave behind before choosing a
 | ---- | -------- | ------- | ------------- |
 | 1 | Bad state | Pre-commit hook fails during commit-on-task-approval | Fix obvious issues; otherwise fall back to manual-with-prompt |
 | 2 | Bad state | Tier 1/Tier 2 quality gate fails after an auto-released commit | Apply cascade-undo rule before destructive rollback |
-| 3 | Transit | Network failure during push-on-handoff | Preserve local state, surface in summary, retry when reachable |
+| 3 | Transit | Network failure during push-on-sync | Preserve local state, surface in summary, retry when reachable |
 | 4 | Transit | Partial multi-commit or multi-push cascade | Preserve landed work, surface exact partial state, retry remaining transit |
 | 5 | Process | Agent/session crash mid-cascade | Run crash-recovery scan; prompt continue or rollback |
 
@@ -562,11 +578,12 @@ auto-released commit is the proposed remedy, present a cascade-undo plan first: 
 reset or revert, whether anything was pushed, and the exact recovery command shape. Await explicit
 confirmation before destructive rollback.
 
-**Mode 3 — network failure during push-on-handoff.** Detection: worktree push or notes push exits
-non-zero for remote/network reasons during handoff. Keep local commits and session files intact.
-Surface the failure in the handoff summary, including whether the worktree push, notes push, or
-both failed. Retry the failed transport when connectivity or remote permissions recover; if the
-remote rejected a non-fast-forward update, switch to the handoff workflow's reconcile path.
+**Mode 3 — network failure during push-on-sync.** Detection: worktree push or notes push exits
+non-zero for remote/network reasons while `arc sync` is running (handoff-driven or explicit).
+Keep local commits and session files intact. Surface the failure in the sync summary, including
+whether the worktree push, notes push, or both failed. Retry the failed transport when
+connectivity or remote permissions recover; if the remote rejected a non-fast-forward update,
+switch to the handoff workflow's reconcile path.
 
 **Mode 4 — partial multi-commit or multi-push cascade.** Detection: a cascade has multiple
 transport or commit operations and only some complete. Preserve the completed operations; do not
@@ -675,40 +692,64 @@ to task-list bundling would cost, see [status-file timing background][TODO-docs-
 ## Handoff-Interior Toggle Pattern
 
 Inside the orthogonal handoff ceremony, individual actions are configurable. The pattern: each
-handoff-interior action gets a config key under its primary domain, with a standard value enum.
+handoff-interior action gets a config key under its primary domain, with a standard value enum
+that names its trigger event.
 
-**Config-key convention.** Toggles live as flat keys under their primary domain — `user.sync_push`
-(notes push), future `worktree.sync_push`, future `handoff.<action>`. Not a nested `handoff.actions`
+**Config-key convention.** Toggles live as flat keys under their primary domain — `user.notes_push`
+(notes push), future `worktree.<action>`, future `handoff.<action>`. Not a nested `handoff.actions`
 map. The flat-key constraint accommodates existing `arc-config.yml` parsing (githooks, line-based
 shell matching require flat keys with dotted grouping); the convention also keeps each toggle
 discoverable from its primary domain rather than centralized in a handoff section.
 
-**Standard value enum.** `auto / prompt / manual`:
+**Standard value enum.** `manual | on-X` where `X` names the operation's trigger event:
 
-- `auto` — fire without prompting.
-- `prompt` — ask the user before firing.
-- `manual` — surface in handoff summary; do not fire automatically.
+- `manual` — surface in summary; do not fire automatically. User explicitly invokes.
+- `on-X` — fire automatically when the named event occurs. Each toggle's `on-X` value names its
+  own trigger (e.g., `on-handoff`, `on-sync`, `on-task-approval`), so the cascade graph reads off
+  config alone.
 
-Boolean toggles (binary on/off actions) accept a context-appropriate variant. The existing
-`user.sync_push: always | prompt | manual` is a grandfathered variant — `always` is semantically
-equivalent to `auto`. New toggles use `auto`.
+`prompt` is an opt-in third value for toggles that want review-before-fire — useful when the
+operation has team-coordination consequences (e.g., team-mode `user.notes_push: prompt` asks
+before pushing notes that other developers will see). Not part of the standard `manual | on-X`
+shape; toggles declare `prompt` support explicitly.
 
-**Per-developer override.** Mirroring `arc.syncPush` for `user.sync_push`, each toggle defines a
-matching `git config` key for personal override. Document the override in the toggle's primary-domain
-section.
+**Three-layer cascade.** Handoff-interior operations chain through interlocks. Each link names
+its trigger:
+
+1. **handoff event → sync.** `session.sync_interlock: on-handoff` releases the sync interlock
+   when handoff fires. `arc sync` is the orchestrator that routes worktree-push and notes-push.
+2. **sync event → push.** `session.push_interlock: on-sync` releases the push interlock when a
+   sync event fires.
+3. **sync event → notes-push.** `user.notes_push: on-sync` releases notes-push when a sync event
+   fires.
+
+Each link reads top-down: handoff may invoke sync, which may invoke push and notes-push — but
+only when each interlock is configured to release on the upstream event. A `manual` setting at
+any layer halts the cascade at that point; the action surfaces in the summary instead of firing.
+
+**Authorize-by-invocation.** `arc sync` running mid-session is an explicit sync event — the user's
+direct invocation authorizes the downstream cascade (push and notes-push under their `on-sync`
+configurations). The trigger doesn't have to come from handoff; any sync invocation counts as a
+sync event for the layers below.
+
+**Per-developer override.** Each toggle defines a matching `git config` key for personal override —
+e.g., `arc.notesPush` for `user.notes_push`, `arc.pushInterlock` for `session.push_interlock`,
+`arc.syncInterlock` for `session.sync_interlock`. Document the override in the toggle's
+primary-domain section.
 
 **Composite handoff probe.** `arc status --session-handoff --json` returns the handoff envelope —
-dirty state, worktree state, notes-sync state, push-interlock mode, handoff-interior toggle values, resolved
-active status file, and current HEAD short-hash. The handoff workflow consumes the envelope;
-per-action checklist consults each toggle's mode and acts. See § Probe pattern § Extension contract
-for how new toggles add slots.
+dirty state, worktree state, notes-sync state, sync-interlock mode, pushability pre-check matrix,
+resolved active status file, and current HEAD short-hash. The handoff workflow consumes the
+envelope and gates on `syncInterlock`; the sync orchestrator owns push-interlock and notes-push
+resolution internally. See § Probe pattern § Extension contract for how new toggles add slots.
 
-**Push-ordering invariant.** When both worktree-push and notes-push fire during handoff, worktree-push
-MUST land before notes-push (see § Push-Timing Reasoning for the constraint). Not a config; not
-optional. Enforced by the handoff workflow's per-action checklist ordering.
+**Push-ordering invariant.** When both worktree-push and notes-push fire under a sync event,
+worktree-push MUST land before notes-push (see § Push-Timing Reasoning for the constraint). Not
+a config; not optional. Enforced by the sync orchestrator's per-leg ordering.
 
-**Canonical instance.** `user.sync_push: always | prompt | manual` — see § Session State Portability
-for operational details. New toggles follow this shape.
+**Canonical instance.** `user.notes_push: manual | on-sync` (with `prompt` as opt-in for team
+mode) — see § Session State Portability for operational details. New toggles follow the
+`manual | on-X` shape.
 
 ---
 
@@ -776,14 +817,16 @@ init triggers `arc user pull` when remote notes are ahead and `arc user load` wh
 are missing or stale. Overwrite prompts default to confirm and accept `--yes` on `arc sync`,
 `arc user pull`, and `arc user load`; `arc user fetch` is transport-only and non-destructive.
 
-**Push policy** (`user.sync_push` in `arc-config.yml`):
+**Push policy** (`user.notes_push` in `arc-config.yml`):
 
-- `always` — solo default. Auto-push after save, no friction.
-- `prompt` — team default. Conscious choice per handoff.
+- `on-sync` — solo default. Notes push fires when an `arc sync` event releases the toggle
+  (handoff-driven sync via `session.sync_interlock: on-handoff`, or explicit `arc sync`
+  invocation).
+- `prompt` — team default. Conscious choice each sync event.
 - `manual` — full control. Push only when explicitly requested.
 
-Per-developer override via `git config arc.syncPush`. `user.sync_push` is the canonical instance of
-the [handoff-interior toggle pattern](#handoff-interior-toggle-pattern).
+Per-developer override via `git config arc.notesPush`. `user.notes_push` is the canonical instance
+of the [handoff-interior toggle pattern](#handoff-interior-toggle-pattern).
 
 ### Scope
 
