@@ -211,8 +211,12 @@ export async function serialize(
  * Allows flat filenames and relative subdirectory paths (e.g., `drafts/idea.md`)
  * while preventing path traversal (`../`, `./`, absolute paths, backslashes).
  * Each segment is validated independently.
+ *
+ * Exported as `isSafeManifestPath` so post-load verification can mirror
+ * deserialize's silent-skip semantics — entries the deserialize call drops
+ * are also dropped from the verification surface.
  */
-function isSafePath(name: string): boolean {
+export function isSafeManifestPath(name: string): boolean {
   if (name !== name.trim()) return false;
   if (name.length === 0) return false;
   if (name.includes("\\")) return false;
@@ -246,7 +250,7 @@ export async function deserialize(
   mkdirFn?: (path: string, opts: { recursive: boolean }) => Promise<string | undefined>,
 ): Promise<void> {
   for (const [name, content] of Object.entries(manifest.files)) {
-    if (!isSafePath(name)) continue;
+    if (!isSafeManifestPath(name)) continue;
     const fullPath = `${userDir}/${name}`;
 
     // Create parent directories for subdirectory entries

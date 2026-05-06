@@ -58,6 +58,7 @@ export {
 export {
   isAllowedFile,
   isExcludedFile,
+  isSafeManifestPath,
   serialize,
   deserialize,
   MAX_FILE_SIZE,

@@ -2,11 +2,12 @@ import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 
-import { deserialize, serialize, type SyncManifest } from "../../lib/git/index.js";
+import { deserialize, isSafeManifestPath, serialize, type SyncManifest } from "../../lib/git/index.js";
 import { ensureDir } from "../../lib/template/index.js";
 import { notesRef } from "./shared.js";
 import {
   BACKUP_FILENAME,
+  UserLoadVerificationError,
   UserSaveError,
   UserSaveVerificationError,
   type UserLoadOutcome,
@@ -154,7 +155,8 @@ export async function runUserLoad(
 
   await ensureDir(userDir, io.mkdir);
   await deserialize(userDir, manifest, io.writeFile, io.mkdir);
-  await writeLocalSyncState(cwd, io, identity, manifest, foundCommit, "load");
+  await verifyMaterializedUserDir(userDir, io, foundCommit, manifest);
+  await writeLocalSyncState(cwd, io, identity, manifest, foundCommit, "load", foundCommit);
 
   return {
     kind: "loaded",
@@ -167,6 +169,40 @@ export async function runUserLoad(
     reachableFromHead: search.note.reachableFromHead,
     warnings: staleWarnings,
   };
+}
+
+async function verifyMaterializedUserDir(
+  userDir: string,
+  io: UserIOContext,
+  commit: string,
+  manifest: SyncManifest,
+): Promise<void> {
+  const shortCommit = commit.slice(0, 7);
+  const expectedFiles: Record<string, string> = {};
+  const readbackFiles: Record<string, string> = {};
+
+  for (const [name, content] of Object.entries(manifest.files)) {
+    if (!isSafeManifestPath(name)) continue;
+    expectedFiles[name] = content;
+
+    let actual: string;
+    try {
+      actual = await io.readFile(`${userDir}/${name}`);
+    } catch {
+      throw new UserLoadVerificationError(
+        `Load verification failed for note ${shortCommit}: materialized file "${name}" was missing or unreadable.`,
+      );
+    }
+    readbackFiles[name] = actual;
+  }
+
+  const expectedHash = hashSyncManifest({ version: manifest.version, files: expectedFiles });
+  const actualHash = hashSyncManifest({ version: manifest.version, files: readbackFiles });
+  if (expectedHash !== actualHash) {
+    throw new UserLoadVerificationError(
+      `Load verification failed for note ${shortCommit}: materialized file content did not match the loaded manifest.`,
+    );
+  }
 }
 
 async function verifySavedNote(

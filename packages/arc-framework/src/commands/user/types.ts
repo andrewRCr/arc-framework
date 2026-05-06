@@ -49,6 +49,20 @@ export class UserSaveVerificationError extends UserSaveError {
   }
 }
 
+/**
+ * Error thrown when a loaded note's materialized files do not match the
+ * manifest. Symmetric to {@link UserSaveVerificationError} on the load
+ * boundary — guards against torn writes during materialization, partial
+ * permissions, and disk-full mid-write so `LocalSyncState` cannot advance
+ * past an actually-incomplete materialization.
+ */
+export class UserLoadVerificationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UserLoadVerificationError";
+  }
+}
+
 /** Backup filename for pre-load snapshot of local state. */
 export const BACKUP_FILENAME = ".pre-load-backup.json";
 

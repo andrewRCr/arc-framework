@@ -672,22 +672,24 @@ composition. The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) i
           actually needs `--json`, since pre-emptive migration would add dormant indirection with no JSON-mode
           test surface to exercise it.
 
-    - `[ ]` **2.R.6.e Load-side verification symmetry**
+    - `[x]` **2.R.6.e Load-side verification symmetry**
         - _Goal:_ Add a postcondition check to `runUserLoad` symmetric to 2.R.1.a's save-side verification, so
           load failures (torn writes during materialization, partial permissions, disk full mid-write) cannot
           leave `LocalSyncState` advanced past an actually-incomplete materialization.
-        - _Approach:_ After `deserialize` materializes files and before `writeLocalSyncState` advances the
-          sync-state, re-read the user-dir contents and verify the readback hash matches the manifest hash
-          computed during deserialization. On mismatch, throw a `UserLoadVerificationError` and leave
-          sync-state unchanged. Failure semantics symmetric to `UserSaveVerificationError` (no rollback of the
-          partial materialization — next load overwrites cleanly).
-        - Build `test-first` (one behavior at a time):
-            - readback missing files → `UserLoadVerificationError`; sync-state unchanged
-            - readback file content mismatch → `UserLoadVerificationError`; sync-state unchanged
-            - readback hash matches manifest hash → load succeeds; sync-state advances with `verifiedAt`
-            - existing happy-path real-git integration test in `integration/user.test.ts` continues to pass
-        - _Forward-compat:_ Load-verification reuses the same hash-comparison primitives as save verification —
-          any future migration of those primitives applies to both sites symmetrically.
+        - _Outcome:_ `runUserLoad` now verifies materialized user-dir contents against the loaded manifest
+          before `writeLocalSyncState` advances; missing files or content mismatch throws
+          `UserLoadVerificationError` and leaves sync-state unchanged, while a successful match advances
+          sync-state with `verifiedAt: foundCommit` (mirroring save's `verifiedAt: HEAD`). New
+          `verifyMaterializedUserDir` helper iterates `manifest.files` per-entry — reading each materialized
+          file via `io.readFile`, hashing the readback through `hashSyncManifest`, and comparing — so
+          coexisting local files outside the manifest don't false-positive the check (load preserves them by
+          design). `isSafePath` in `lib/git/user-sync.ts` was renamed and exported as `isSafeManifestPath`
+          (re-exported from `lib/git/index.ts`) so verification mirrors `deserialize`'s silent-skip filtering
+          from a single source of truth. Three unit tests added in `unit/save-load.test.ts §
+          runUserLoad — load verification` (missing readback / content mismatch / verifiedAt on match); all
+          48 real-git integration tests in `integration/user.test.ts` continue to pass unchanged. Existing
+          `verifySavedNote` retained — primitives shared via `hashSyncManifest`, so any future migration of
+          the hash function applies to both sites symmetrically.
 
     - `[ ]` **2.R.6.f Route `promptConflictResolution` through `SyncOutput`**
         - _Goal:_ Eliminate the latent JSON-contamination class in

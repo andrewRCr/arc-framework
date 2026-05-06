@@ -9,8 +9,12 @@
 import { describe, it, expect, vi } from "vitest";
 
 import { findNearestUserNote, runUserLoad, runUserSave } from "../../src/commands/user/save-load.js";
-import { UserSaveVerificationError } from "../../src/commands/user/types.js";
+import {
+  UserLoadVerificationError,
+  UserSaveVerificationError,
+} from "../../src/commands/user/types.js";
 import type { UserIOContext } from "../../src/commands/user/types.js";
+import type { SyncManifest } from "../../src/lib/git/index.js";
 
 interface GitMockConfig {
   head?: string;
@@ -363,6 +367,133 @@ describe("runUserSave — save verification", () => {
       version: 2,
       sourceCommit: head,
       sourceOperation: "save",
+      verifiedAt: head,
+    });
+  });
+});
+
+interface LoadMockConfig {
+  head?: string;
+  manifest?: SyncManifest;
+  /**
+   * Per-file readback content keyed by manifest filename. `undefined` makes
+   * the corresponding `io.readFile` reject (simulates a torn write or missing
+   * file). Defaults to a faithful copy of `manifest.files` (happy path).
+   */
+  readback?: Record<string, string | undefined>;
+}
+
+const SYNC_STATE_PATH = "/repo/.arc/user/andrew/.internal/.sync-state.json";
+
+function mockLoadIO(config: LoadMockConfig = {}): UserIOContext {
+  const head = config.head ?? "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const manifest: SyncManifest = config.manifest ?? {
+    version: 2,
+    files: { "SESSION-NOTES.md": "# Notes" },
+  };
+  const readback = config.readback ?? { ...manifest.files };
+  const noteContent = JSON.stringify(manifest);
+  const notePath = `${head.slice(0, 2)}/${head.slice(2)}`;
+
+  return {
+    exec: vi.fn(async (cmd: string, args: string[]) => {
+      if (cmd !== "git") throw new Error(`unexpected exec: ${cmd}`);
+      if (args[0] === "rev-parse" && args[1] === "HEAD") {
+        return { stdout: head, stderr: "" };
+      }
+      if (args[0] === "log") {
+        return { stdout: "note-history-0", stderr: "" };
+      }
+      if (args[0] === "diff-tree") {
+        return { stdout: notePath, stderr: "" };
+      }
+      if (args[0] === "show") {
+        return { stdout: noteContent, stderr: "" };
+      }
+      if (args[0] === "merge-base") {
+        return { stdout: "", stderr: "" };
+      }
+      if (args[0] === "rev-list" && args[1] === "--count") {
+        return { stdout: "0", stderr: "" };
+      }
+      throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
+    }),
+    readFile: vi.fn(async (filePath: string) => {
+      const name = filePath.slice(filePath.lastIndexOf("/") + 1);
+      if (Object.hasOwn(readback, name)) {
+        const content = readback[name];
+        if (content === undefined) {
+          throw new Error(`ENOENT: ${filePath}`);
+        }
+        return content;
+      }
+      throw new Error(`unexpected readFile: ${filePath}`);
+    }),
+    writeFile: vi.fn(async () => undefined),
+    readDir: vi.fn(async () => []),
+    mkdir: vi.fn(async () => undefined),
+    writeNote: vi.fn(async () => undefined),
+    readNote: vi.fn(async () => noteContent),
+  };
+}
+
+function syncStateWrites(io: UserIOContext): unknown[] {
+  return vi.mocked(io.writeFile).mock.calls.filter(([path]) => path === SYNC_STATE_PATH);
+}
+
+describe("runUserLoad — load verification", () => {
+  it("throws a verification error and does not advance sync-state when a materialized file is missing", async () => {
+    const io = mockLoadIO({
+      manifest: {
+        version: 2,
+        files: { "SESSION-NOTES.md": "# Notes" },
+      },
+      readback: { "SESSION-NOTES.md": undefined },
+    });
+
+    await expect(
+      runUserLoad({ cwd: "/repo", io, identity: "andrew" }),
+    ).rejects.toThrow(UserLoadVerificationError);
+
+    expect(syncStateWrites(io)).toHaveLength(0);
+  });
+
+  it("throws a verification error and does not advance sync-state when readback content does not match the manifest", async () => {
+    const io = mockLoadIO({
+      manifest: {
+        version: 2,
+        files: { "SESSION-NOTES.md": "# Notes" },
+      },
+      readback: { "SESSION-NOTES.md": "# Different content" },
+    });
+
+    await expect(
+      runUserLoad({ cwd: "/repo", io, identity: "andrew" }),
+    ).rejects.toThrow(UserLoadVerificationError);
+
+    expect(syncStateWrites(io)).toHaveLength(0);
+  });
+
+  it("writes sync-state with verifiedAt after readback hash matches the manifest", async () => {
+    const head = "cccccccccccccccccccccccccccccccccccccccc";
+    const io = mockLoadIO({
+      head,
+      manifest: {
+        version: 2,
+        files: { "SESSION-NOTES.md": "# Notes" },
+      },
+    });
+
+    const result = await runUserLoad({ cwd: "/repo", io, identity: "andrew" });
+
+    expect(result?.kind).toBe("loaded");
+    const writes = syncStateWrites(io);
+    expect(writes).toHaveLength(1);
+    const [, syncStateContent] = writes[0]! as [string, string];
+    expect(JSON.parse(syncStateContent)).toMatchObject({
+      version: 2,
+      sourceCommit: head,
+      sourceOperation: "load",
       verifiedAt: head,
     });
   });
