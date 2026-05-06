@@ -6,10 +6,13 @@
  * and I/O adapters in `src/lib/io-context.ts`.
  */
 
+import { fileURLToPath } from "node:url";
+
 import { Command, Option } from "commander";
 
 import { getFrameworkVersion } from "./lib/version.js";
 import { formatUnexpectedError } from "./lib/errors.js";
+import { checkDevBuildStaleness, createDevCheckDeps } from "./lib/dev-check.js";
 import { handleInit } from "./handlers/init.js";
 import { handleJoin } from "./handlers/join.js";
 import { handleUpdate, handleHealth, handleDiff } from "./handlers/lifecycle.js";
@@ -226,6 +229,66 @@ logCmd
   .option("--all", "Show all matching commits (no limit)")
   .option("--work-unit <name>", "Filter by work unit name (matches atomic-{name})")
   .action(handleLogAtomic);
+
+// --- Dev-mode stale-build guard (self-hosting only) ---
+
+program.hook("preAction", (_thisCommand, actionCommand) => {
+  const verdict = checkDevBuildStaleness(
+    createDevCheckDeps(fileURLToPath(import.meta.url)),
+  );
+  if (verdict.kind === "skip" || verdict.kind === "fresh") return;
+
+  const distAgeText = verdict.distAge === null
+    ? "dist/cli.js missing"
+    : `dist/cli.js built ${formatAge(verdict.distAge)} ago`;
+  const baseMsg
+    = `arc dev build is stale (${verdict.newestSrc} changed `
+    + `${formatAge(verdict.srcAge)} ago; ${distAgeText}).`;
+
+  if (isHandoffCritical(actionCommand)) {
+    const cmdPath = formatCommandPath(actionCommand);
+    process.stderr.write(
+      `error: ${baseMsg} Refusing \`${cmdPath}\` against stale dist; `
+      + "run `npm run build`, then retry.\n",
+    );
+    process.exit(1);
+  }
+
+  process.stderr.write(
+    `warn: ${baseMsg} Run \`npm run build\` before relying on output.\n`,
+  );
+});
+
+function isHandoffCritical(cmd: Command): boolean {
+  const name = cmd.name();
+  const parentName = cmd.parent?.name();
+  if (parentName === "arc" && name === "sync") return true;
+  if (parentName === "user" && (name === "save" || name === "push")) return true;
+  if (parentName === "arc" && name === "status") {
+    const opts = cmd.opts();
+    if (opts.json === true && (opts.sessionInit === true || opts.sessionHandoff === true)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function formatCommandPath(cmd: Command): string {
+  const parts: string[] = [];
+  let cur: Command | null = cmd;
+  while (cur !== null) {
+    parts.unshift(cur.name());
+    cur = cur.parent;
+  }
+  return parts.join(" ");
+}
+
+function formatAge(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  if (seconds < 86_400) return `${Math.floor(seconds / 3600)}h`;
+  return `${Math.floor(seconds / 86_400)}d`;
+}
 
 // --- Entry ---
 
