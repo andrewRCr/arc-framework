@@ -733,9 +733,14 @@ on final-shape strings).
   `resolveSyncPushPolicy` to return `{ value, source }` through that helper, and updated notes-push consumers/tests to
   use the stable `value` field while preserving invalid-value warn-and-fall-through behavior.
 
-### `[ ]` **3.2 Config-shape alignment**
+### `[x]` **3.2 Config-shape alignment**
 
 - _Goal:_ Rename `user.sync_push` → `user.notes_push` end-to-end and migrate adopters in place.
+- _Outcome:_ Yaml schema and surface rename (3.2.a), `arc update` migration with dual-key warnings and
+  conflict-marker handling for customized values (3.2.b), and full vocabulary alignment across the four
+  affected strategies, the QUICK-REFERENCE pair, and ADRs 012/016 (3.2.c) — `auto / prompt / manual`
+  retired in favor of `manual | on-X` and the three-layer cascade documented explicitly. Adopters running
+  `arc update` migrate in place; ADRs took Tier 2 amendment trailers.
 
     - `[x]` **3.2.a Yaml schema, value enum, and surface rename**
         - Renamed the CLI config surface to `user.notes_push` / `arc.notesPush`, replaced the notes-push auto mode with
