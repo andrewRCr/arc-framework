@@ -949,11 +949,17 @@ copy strings.
           `refs/notes/arc/user/{identity}` present).
         - Naturally bounded — fires until first handoff (or manual `arc user save`) creates the local ref, then stops.
           No suppression flag.
+        - **Pin at implementation start:** (a) the probe field consulted for ref-existence —
+          `localNoteFreshness === "missing"` (added in 2.R.1.c) detects "no note attached at HEAD" but is broader than
+          "ref doesn't exist anywhere"; if the distinction matters, add a dedicated ref-existence probe rather than
+          repurposing `localNoteFreshness`. (b) hint placement relative to the action-oriented headline from 2.R.4.b —
+          above the headline, below it, or as a dedicated first-use block — and behavior across `--verbose` modes.
         - Affected file: `packages/arc-framework/src/commands/user/sync-status.ts`.
         - Build `test-first` (one behavior at a time):
             - Local notes ref absent → hint appears in `arc status` output
             - Local notes ref present → hint absent
-            - Hint absence is silent (no flag, no flag-checking code path)
+            - Hint absence flows from the ref-presence probe alone — no flag, no stored suppression state, no
+              environment-variable check
 
 ### `[ ]` **4.2 Shared-ref sync-state inference**
 
@@ -976,10 +982,11 @@ copy strings.
       entry in `refs/notes/arc/user/{identity}` history. Divergence + both-local-only (no remote-ahead path) → sibling
       session. Cross-machine causes flow from remote ref differing from local ref state.
     - Schema extension: extend `LocalSyncState` (currently v2 — `version`, `materializedManifestHash`, `sourceCommit`,
-      `sourceOperation`, optional `partialPush`) with `savedAt: ISO-string`. Bump to v3; readers parse v1 / v2 (existing
-      forward-read pattern in `readLocalSyncState`) and write v3. Required for heuristics that need recency to compare
-      timestamps. Coordinate with the save postcondition hardening: write or upgrade sync-state only after the exact
-      `HEAD` note has been verified, and preserve `partialPush` marker semantics through the v3 migration.
+      `sourceOperation`, optional `verifiedAt`, optional `partialPush`) with `savedAt: ISO-string`. Bump to v3; readers
+      parse v2 and write v3 (v1 read path was retired in 2.R.4.a — pre-1.0 framework with no shipped v1 records).
+      Required for heuristics that need recency to compare timestamps. Coordinate with the save postcondition hardening
+      from 2.R.1.a: write or upgrade sync-state only after the exact `HEAD` note has been verified, and preserve
+      `verifiedAt` and `partialPush` semantics through the v3 migration.
     - `--offline` mode behavior: both worktree and notes fetches suppressed. Cross-machine vs. unfetched-local
       distinction collapses (no remote read available); surface a degraded classification ("offline — local state only;
       cross-machine signals unavailable") rather than asserting a cause heuristically.
@@ -992,7 +999,7 @@ copy strings.
         - Sibling-session detection: `sourceCommit` divergent from notes-ref head, both local-only → state-machine
           resolves to "sibling session"
         - Cross-machine vs. unfetched-local distinction surfaced when remote ref differs
-        - `LocalSyncState` v2 → v3 read forward-compat: existing v2 files load without error and get `savedAt = null`
+        - `LocalSyncState` v2 → v3 read forward-compat: existing v2 files load without error; `savedAt` is `undefined`
           until the next save
 
 ### `[ ]` **4.3 Session-init load cascade**
@@ -1002,9 +1009,11 @@ copy strings.
   cascade, applied to the load-needed condition. Closes the cross-machine-resume gap where worktree pull silently
   advances the user-notes ref while working files stay stale, and session-init reports "everything synced" without
   surfacing the load action.
-    - `arc status --session-init --json` envelope's user channel surfaces a load-needed signal (new `UserSyncSpine`
-      state, or `loadNeeded: boolean` alongside existing state — shape decision at implementation) when notes ref is
-      aligned with remote but disk is behind the latest note. Direction inference reuses the 2.R.4.a + 4.2 foundations.
+    - `arc status --session-init --json` envelope's user channel surfaces a load-needed signal as an additive
+      `loadNeeded: boolean` field alongside the existing spine state when notes ref is aligned with remote but disk is
+      behind the latest note. The PRD-pinned 5-state spine (R1: `clean | remote-ahead | conflict | disabled |
+      remote-unavailable`) stays the canonical surface — no 6th state. Direction inference reuses the 2.R.4.a + 4.2
+      foundations.
     - `session-init.md` Step 2 notes-channel logic gains a load-needed case: `prompt` → ask before running
       `arc user load`; `always` → load without prompt; `manual` → surface in orientation only.
     - Combined-prompt integration: when worktree-pull and notes-load both need action, issue a single combined prompt
