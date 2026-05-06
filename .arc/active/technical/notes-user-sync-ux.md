@@ -87,35 +87,89 @@ points (the file that owns enforcement of an invariant) are flagged.
 
 ---
 
+## Phase 2.R Test Coverage
+
+_Populated during Task 2.R.6.b — Test-surface audit. One row per item; tiers
+listed inline so multi-tier coverage stays scannable. Status legend: `clean`
+(covered at appropriate tier), `tier-gap` (covered at wrong tier), `gap` (no
+covering test), `intentional` (no-test by design, with rationale)._
+
+**Audit dimensions covered:** invariant coverage, audit-surfaced fixes from
+2.R.6.a, extracted seams, tier-appropriateness, cross-clone path per
+cross-machine invariant.
+
+**Scope summary:** 7 invariants (I1–I7) covered at appropriate tiers, all
+choke points flagged. 2 audit-surfaced fixes from 2.R.6.a (.a.2 covered;
+.a.3 intentional no-new-test, forward-compat only). 12 extracted seams or
+seam-equivalent contracts covered. Cross-clone paths exist for the three
+cross-machine invariants (I1 verified save, I3 paired-push worktree leg,
+I4 stale freshness); I5/I6/I7 are intra-clone enforcement points where
+cross-clone coverage adds no signal. 0 active gaps; 2 entries marked
+`intentional` with rationale. Cross-machine partial-push invisibility
+deferred to `backlog/technical/plan-cross-machine-sync-coherence.md` for
+follow-up design (see § Residual Risks Carried Forward).
+
+### Invariant coverage
+
+| Item | Status | Coverage |
+| ---- | ------ | -------- |
+| **I1** Verified save before sync-state advance | clean (choke: `commands/user/save-load.ts`) | unit `unit/save-load.test.ts` § runUserSave save-verification (5 tests: write-failure / missing readback / invalid JSON / hash mismatch / verifiedAt); integration `integration/user.test.ts` save+load round-trip; cross-clone `integration/multi-clone.test.ts` notes-only test asserts `verifiedAt` defined + paired-push test asserts `notes.action === "save+push"`; e2e `e2e/user.e2e.test.ts` clean-worktree save + `e2e/sync-purity.e2e.test.ts` paired-push cell |
+| **I2** No JSON contamination | clean | unit `unit/sync-orchestrator.test.ts` § stdout-purity contract (3 tests) + error-path envelope coverage (4 tests); unit `unit/user-handlers.test.ts` § handleUserStatus --json retrofit (5 tests); subprocess e2e `e2e/sync-purity.e2e.test.ts` (5 cells: paired-push / save-only / blocked-diverged / prompt-policy / identity-absent); cross-clone `integration/multi-clone.test.ts` parses envelope from stdout via spy |
+| **I3** No raw worktree-push bypass | clean (choke: `lib/git/push-worktree.ts`) | unit `unit/git/push-worktree.test.ts` (3 tests on `pushWorktreeBranch`); unit `unit/git/pushability.test.ts` § worktree-target alignment (8 tests); unit `unit/paired-push.test.ts` paired-flow ordering; cross-clone `integration/multi-clone.test.ts` paired-push regression advances `origin/main`; e2e `e2e/sync-purity.e2e.test.ts` paired-push cell |
+| **I4** No clean-but-stale hidden state | clean (choke: `commands/user/sync-status.ts`) | unit `unit/user-status.test.ts` § runUserSessionInitStatus stale-freshness + behind-HEAD/outside-ancestry context-line; integration `integration/user.test.ts` reports session-init stale local-note freshness; cross-clone `integration/multi-clone.test.ts` both tests assert clone B `localNoteFreshness?.state === "current-head"` after pull |
+| **I5** No misleading no-op copy | clean (choke: `handlers/push-recovery.ts`); intra-clone — no cross-clone path needed | unit `unit/push-recovery.test.ts` § matching remote/local without implying current-HEAD; integration `integration/user.test.ts` `warns on no-op push when matching local and remote notes are stale for HEAD` |
+| **I6** Blocked-cell save invariant | clean (choke: `handlers/sync.ts`); orchestrator-level — no cross-clone path needed | unit `unit/sync-orchestrator.test.ts` (6 blocked-cell tests: blocked-notes JSON parity, diverged-on-sync save-before-block, rebase-skipped exception, diverged-with-always, remote-ahead-with-always, clean-with-always) |
+| **I7** Force-push advisory refused at every call site | clean; advisory-tier coverage at definition + paired-flow choke | unit `unit/paired-push.test.ts` § force-push-required advisory refuses paired flow; unit `unit/git/pushability.test.ts` § force-push required surfaces advisory condition (definition site); unit `unit/push-recovery.test.ts` § yes never auto-selects force |
+
+### Audit-surfaced fixes (Phase 2.R.6.a)
+
+| Item | Status | Coverage |
+| ---- | ------ | -------- |
+| **2.R.6.a.2** `arc user status --json` stdout purity + envelope-on-error | clean | unit `unit/user-handlers.test.ts` § handleUserStatus --json retrofit (5 tests, including `IDENTITY_MISSING` + `NOT_IN_ARC_PROJECT` envelope tests added by .a.2); both pin no Clack calls + `process.exitCode === 1` |
+| **2.R.6.a.3** `SyncOutput` threading through `resolveSyncPushPolicy` callers | intentional (no-test by design) | Forward-compat only — no behavior change today since `arc user sync` lacks `--json`. Existing 1066 unit tests pass and pin no regression. Coverage flips on automatically when any caller adds `--json` and switches `createSyncOutput(false)` → `createSyncOutput(json)` — the warn route follows by construction |
+
+### Extracted seams
+
+| Item | Status | Coverage |
+| ---- | ------ | -------- |
+| `pushWorktreeBranch` (`lib/git/push-worktree.ts`) | clean | unit `unit/git/push-worktree.test.ts` (3 tests: success / executor-error / non-Error normalization) |
+| `lib/dev-check.ts` | clean | unit `unit/dev-check.test.ts` (4 tests on `checkDevBuildStaleness`: skip / missing-dist / stale / fresh); preAction wiring manually verified per 2.R.5.b across 5-command handoff-critical matrix |
+| `emitStatusError` (`handlers/user.ts`) | clean | unit `unit/user-handlers.test.ts` § handleUserStatus --json retrofit (covered by .a.2 envelope tests above) |
+| `runCli` + `assertCliBuilt` (`__tests__/helpers/`) | clean | smoke `e2e/run-cli.e2e.test.ts`; consumed by `e2e/sync-purity.e2e.test.ts` (5 cells); prebuild guard surfaces missing-`dist/cli.js` with clear error |
+| `inspectDiskVsLocalSnapshot` four-way direction inference | clean | unit `unit/user-status.test.ts` § disk-vs-note direction inference (4 behaviors: behind / unsaved-edits / both-moved / divergent-history) |
+| `sync-status` helpers (`renderActionOrientedHeadline`, `buildVerboseDetailLines`, `buildDefaultDetailLines`, `renderDefaultContextLine`, `isHeadlineFullyClean`) | clean | unit `unit/user-status.test.ts` § buildUserStatusResult default mode (16+ tests across 7 default-mode behaviors, context-line variants, offline suffix, shape parity vs verbose) |
+| `lib/sync-output.ts` | intentional (boundary-tier coverage) | JSON-mode contract (no-op spinner, stderr-only warn, false confirm, false isCancel) tested at consuming boundaries: unit `unit/sync-orchestrator.test.ts` § stdout-purity contract; subprocess e2e `e2e/sync-purity.e2e.test.ts` 5 cells. Isolated unit tests on the wrapper functions would not catch the contamination class subprocess tests are designed to catch — boundary-tier coverage is the appropriate tier |
+| `lib/sync-policy.ts` + `resolveSyncPushPolicy` warn-routing seam | clean | unit `unit/sync-policy.test.ts` (precedence: git-config / yaml / default + warn defaulting); 2.R.6.a.3 `output` threading exercised by handleUserSync push-policy tests in `unit/sync.test.ts` (manual / prompt / always paths) |
+| Paired-push notes-pusher delegate (`PairedPushNotesPusher`) | clean | unit `unit/paired-push.test.ts` (6 tests covering injected delegate + all outcome variants: success / noop / ok-recovered / cancelled / no-remote / failed-nontty-conflict / blocked / failed) |
+| `interlockState` envelope field (2.R.2.d.1) | clean | unit `unit/sync-orchestrator.test.ts` (configured sync_interlock verbatim + resolved notesPush after non-interactive degradation) |
+| `--yes` semantics (2.R.2.d) | clean | unit `unit/sync-orchestrator.test.ts` § --yes wiring (4 tests including dry-run preview reflects degraded policy); unit `unit/sync.test.ts` pull overwrite bypass; unit `unit/push-recovery.test.ts` (yes auto-merge / overrides non-interactive / never auto-selects force); unit `unit/user-handlers.test.ts` handleUserPull bypass |
+| `multi-clone` test harness (`__tests__/helpers/multi-clone.ts`) | clean | integration `integration/multi-clone.test.ts` harness smoke (`produces two clones sharing an origin`) + 2 cross-clone regression tests (notes-only verified-save propagation; paired-push origin advance + clone B fetch+pull) |
+
+---
+
 ## Residual Risks Carried Forward
 
 _Populated during Task 2.R.6.b — Test-surface audit + residual risk._
 
-The following risks are intentionally out of scope for Phase 2.R; each is real and
-acknowledged. Captured here so they reach a future hardening WU rather than rediscovering
-them as bugs.
+Most concerns surfaced by the audit folded back into this WU rather than deferring —
+2.R.6.e (load-side verification symmetry) and 2.R.6.f (route `promptConflictResolution`
+through `SyncOutput`) added as new sibling tasks; 2.R.6.c absorbed two preamble-only
+items (single-leg `runUserPush` I7 asymmetry, `--force` escape hatch in `handleUserPush`);
+the save-verification race was confirmed closed by 2.R.1.a's just-serialized-manifest
+comparison.
+
+One concern is large enough to deserve its own design WU and is captured at length in
+`backlog/technical/plan-cross-machine-sync-coherence.md`:
 
 - **Cross-machine partial-push invisibility.** `recordPartialPushMarker` is local-only
   (`.arc/user/{identity}/.internal/.sync-state.json`, gitignored). Machine A's partial
   push leaves no signal machine B can read after `git pull`. PRD R3 ("partial-push state
   is a recognized condition on the spine") holds on the originating machine; on a sibling
-  clone it currently fails silently. Closing this would require a remote-marker mechanism
-  (e.g., a sibling notes ref under `refs/notes/arc/sync-state/` or a server-side hook
-  contract). Defer to a future hardening WU; flag if cross-clone resume bug recurs.
-
-- **Pull-side / load-side verification symmetry.** Phase 2.R adds save postcondition
-  verification (2.R.1.a). `runUserLoad` does no symmetric postcondition check —
-  `deserialize` runs and `writeLocalSyncState` advances regardless of whether the
-  materialized files match the manifest. The 2026-04-24 cross-machine resume bug was
-  direction confusion (already addressed by R1/R2), not corruption, so this is lower
-  priority. Worth picking up in a future hardening WU for symmetry.
-
-- **Save-verification race against sibling sessions.** If two sibling sessions on the same
-  machine race on the notes ref, `writeNote` followed by readback could see content
-  written by the other session. Mitigated in 2.R.1.a by comparing against the
-  just-serialized manifest (in-memory), not against a re-read of the user dir or the
-  remote-attached note. Confirm the comparison source during implementation. PRD R17
-  (shared-ref sync-state inference for sibling sessions) covers the broader concern.
+  clone it currently fails silently. Closing this requires a remote-marker mechanism
+  (sibling notes ref or hook contract) — substantial enough to be its own WU. See
+  `backlog/technical/plan-cross-machine-sync-coherence.md` for the design surface,
+  scenario detail, alternatives, open questions, and dependencies. Flag if cross-clone
+  resume bug recurs in the meantime.
 
 ---
 

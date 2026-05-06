@@ -606,58 +606,22 @@ composition. The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) i
               `createSyncOutput(false)` → `createSyncOutput(json)` and the warn route follows. Existing 1066
               unit tests pass.
 
-    - `[ ]` **2.R.6.b Test-surface audit + residual risk**
-        - Verify nothing 2.R touched is silently uncovered: every invariant, audit-surfaced fix, and extracted seam
-          has coverage at the appropriate tier; cross-machine invariants have cross-clone paths; residuals are
-          consolidated into one list for a future hardening WU.
-        - **Audit dimensions** (broader than invariants alone — extracted seams and audit-surfaced fixes are
-          first-class targets, mirroring the scope correction made in 2.R.6.a.1 when the seam set was extended at
-          audit start):
-            - **Invariant coverage.** Every 2.R invariant (I1–I7 per `notes-user-sync-ux.md` § Phase 2.R Audit
-              Findings) has at least one covering test. Map each to test file + test name.
-            - **Audit-surfaced fixes.** 2.R.6.a.2 (stdout contamination + `NOT_IN_ARC_PROJECT` envelope) and
-              2.R.6.a.3 (SyncOutput threading through `resolveSyncPushPolicy`) landed during the audit and are not
-              part of the original 7-invariant set. .a.3 shipped with no new tests by design (forward-compat only);
-              pin the no-test rationale rather than leaving it implicit.
-            - **Extracted seams.** Helpers introduced or extracted in 2.R get explicit coverage rows even when they
-              don't map 1:1 to an invariant. Starting points, not exhaustive: `pushWorktreeBranch`,
-              `lib/dev-check.ts`, `emitStatusError`, `runCli` + `assertCliBuilt`, `inspectDiskVsLocalSnapshot`
-              four-way direction inference, the new `sync-status` helpers (`renderActionOrientedHeadline`,
-              `buildVerboseDetailLines`, `buildDefaultDetailLines`, `renderDefaultContextLine`,
-              `isHeadlineFullyClean`), `lib/sync-output.ts`, `lib/sync-policy.ts`, paired-push notes-pusher delegate.
-              Extend if the audit surfaces additional seams.
-            - **Tier-appropriateness.** Coverage at the right tier, not just tier-presence. I2 (JSON purity) needs
-              subprocess/e2e (2.R.3.c.1 proves the contamination class would slip past unit-only); I1 / I4 / I5 want
-              real-git, not unit-only mocks. Call out tier mismatches as `tier-gap`, distinct from missing coverage.
-            - **Cross-clone path per cross-machine invariant.** "At least one real-git cross-clone path" is
-              insufficient. Each cross-machine invariant — I1 freshness, I4 clean-but-stale, I5 stale-local no-op —
-              gets its own cross-clone path. `__tests__/helpers/multi-clone.ts` is built; use it per cross-machine
-              invariant.
-        - **Residuals consolidation.** Pull design-decision residuals into `notes-user-sync-ux.md` § Residual Risks
-          Carried Forward so the future hardening WU finds one list. Items currently captured only in § Design
-          Decisions or § Phase 2.R Audit Findings:
-            - `promptConflictResolution` raw-clack `p.log.warn` + `p.select` calls, gated by
-              `isNonInteractiveEnvironment()`. Dead code under JSON mode today; route through `output` if that gate
-              is weakened.
-            - Single-leg `runUserPush` I7 reliance on push-recovery's rejected-path branch rather than the advisory
-              mechanism. Documented as clean per task-text scope ("advisory-refusal-everywhere applies to paired
-              path"); worth recording so the asymmetry is visible to a future hardening pass.
-            - `--force` path in `handleUserPush` (~200-225) as intentional escape hatch — automatic pushes are
-              advisory-refused, explicit `--force` is by-design unguarded.
-        - Carry-forward residuals already pre-populated in `notes-user-sync-ux.md` § Residual Risks Carried Forward:
-            - Cross-machine partial-push invisibility (`recordPartialPushMarker` is local-only; machine B has no
-              signal that A's push was partial). Out of scope for 2.R; would require a remote-marker mechanism.
-            - Pull-side / load-side verification symmetry (`runUserLoad` does no postcondition check; 2.R.1.a is
-              save-only). Lower priority; flag for a future hardening WU.
-            - Save-verification race against sibling sessions (mitigated in 2.R.1.a by comparing against the
-              just-written manifest, not the readback content; confirm the comparison source during implementation).
-        - **Deliverable shape.** New section § Phase 2.R Test Coverage in `notes-user-sync-ux.md`, parallel to
-          § Phase 2.R Audit Findings. Rows: (invariant-or-seam, tier, test file:test name, status). Status legend:
-          `clean` (covered at appropriate tier), `tier-gap` (covered at wrong tier), `gap` (no covering test),
-          `intentional` (no-test by design, with rationale). Mirror the choke-point flagging pattern from .6.a.
-        - Exit criterion: every 2.R invariant, audit-surfaced fix, and extracted seam has covering tests at the
-          appropriate tier or an explicit `intentional` row with rationale; every documented residual is
-          intentional and recorded in `notes-user-sync-ux.md` § Residual Risks Carried Forward.
+    - `[x]` **2.R.6.b Test-surface audit + residual risk**
+        - _Goal:_ Verify nothing 2.R touched is silently uncovered: every invariant, audit-surfaced fix, and
+          extracted seam has coverage at the appropriate tier; cross-machine invariants have cross-clone paths;
+          residuals are consolidated into one list for a future hardening WU.
+        - _Outcome:_ Added § Phase 2.R Test Coverage matrix in `notes-user-sync-ux.md` covering I1–I7, the two
+          audit-surfaced fixes from .6.a, and 12 extracted seams. 0 active gaps; two `intentional` rows with
+          rationale (.6.a.3 forward-compat-only; `lib/sync-output.ts` boundary-tier coverage). Cross-clone paths
+          confirmed in `integration/multi-clone.test.ts` for the three cross-machine invariants (I1 verified save,
+          I3 paired-push worktree leg, I4 stale freshness); I5 / I6 / I7 are intra-clone enforcement points.
+          Audit surfaced six residual concerns; closed-loop forward-feed into this WU rather than deferring:
+          2.R.6.e and 2.R.6.f added as new sibling tasks (load-side verification symmetry; route
+          `promptConflictResolution` through `SyncOutput`). 2.R.6.c absorbed two preamble-only items
+          (single-leg `runUserPush` I7 asymmetry; `--force` escape hatch in `handleUserPush`).
+          Save-verification race confirmed closed by 2.R.1.a's just-serialized-manifest comparison — not a
+          residual. Cross-machine partial-push invisibility deferred to
+          `backlog/technical/plan-cross-machine-sync-coherence.md` as a substantial design WU of its own.
 
     - `[ ]` **2.R.6.c Doc and preamble updates**
         - Update preambles for `runPairedPush` (`commands/user/paired-push.ts`) and `handleSync` (`handlers/sync.ts`) to
@@ -665,6 +629,14 @@ composition. The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) i
           worktree-push helper extraction, force-push advisory refusal.
         - Update `pushability.ts` preamble to document the `force-push-required` advisory refusal contract (so wrappers
           inherit it without re-deriving).
+        - Document the I7 single-leg/paired asymmetry in `commands/user/push-fetch.ts` and `lib/git/pushability.ts`
+          preambles: paired-flow refuses `force-push-required` advisory at the orchestrator boundary; single-leg
+          `runUserPush` does not refuse advisory directly — divergent push instead routes through push-recovery's
+          `[rejected]` path. Both achieve user-facing safety; the asymmetry is intentional (folded in from the
+          .6.b audit).
+        - Document the `--force` escape hatch in `handlers/user.ts:handleUserPush` preamble: explicit user opt-in
+          bypasses pushability and recovery; automatic pushes remain advisory-refused under I7. By-design unguarded,
+          matching `git push --force` semantics (folded in from the .6.b audit).
         - Update `strategy-session-operations.md` § Handoff-Interior Toggle Pattern (or the relevant section) for any
           post-2.R cascade-shape changes surfaced during the audit.
 
@@ -688,9 +660,45 @@ composition. The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) i
         - _Forward-compat:_ any future `--json` flag on `arc user save / load / push / pull` or lifecycle commands
           inherits the routing pattern by construction — the handler instantiates a `SyncOutput` with the appropriate
           mode and threads it through; no further refactor needed at the spinner layer.
-        - _Out of scope:_ routing `promptConflictResolution`'s remaining `p.log.warn` + `p.select` calls. Tracked as a
-          residual in `notes-user-sync-ux.md` § residual (gated by `isNonInteractiveEnvironment`, dead-code in
-          subprocess today; route through `output` only if that gate is ever weakened).
+        - _Out of scope:_ routing `promptConflictResolution`'s remaining `p.log.warn` + `p.select` calls — that's
+          a separate concern about non-spinner clack consumers, picked up as 2.R.6.f.
+
+    - `[ ]` **2.R.6.e Load-side verification symmetry**
+        - _Goal:_ Add a postcondition check to `runUserLoad` symmetric to 2.R.1.a's save-side verification, so
+          load failures (torn writes during materialization, partial permissions, disk full mid-write) cannot
+          leave `LocalSyncState` advanced past an actually-incomplete materialization.
+        - _Approach:_ After `deserialize` materializes files and before `writeLocalSyncState` advances the
+          sync-state, re-read the user-dir contents and verify the readback hash matches the manifest hash
+          computed during deserialization. On mismatch, throw a `UserLoadVerificationError` and leave
+          sync-state unchanged. Failure semantics symmetric to `UserSaveVerificationError` (no rollback of the
+          partial materialization — next load overwrites cleanly).
+        - Build `test-first` (one behavior at a time):
+            - readback missing files → `UserLoadVerificationError`; sync-state unchanged
+            - readback file content mismatch → `UserLoadVerificationError`; sync-state unchanged
+            - readback hash matches manifest hash → load succeeds; sync-state advances with `verifiedAt`
+            - existing happy-path real-git integration test in `integration/user.test.ts` continues to pass
+        - _Forward-compat:_ Load-verification reuses the same hash-comparison primitives as save verification —
+          any future migration of those primitives applies to both sites symmetrically.
+
+    - `[ ]` **2.R.6.f Route `promptConflictResolution` through `SyncOutput`**
+        - _Goal:_ Eliminate the latent JSON-contamination class in
+          `handlers/push-recovery.ts:promptConflictResolution` (raw `p.log.warn` + `p.select`). Currently dead
+          code under JSON mode because `isNonInteractiveEnvironment()` short-circuits before either fires; route
+          through `output: SyncOutput` by construction so the gate stops being the sole protection.
+        - _Approach:_ Thread `output: SyncOutput` into `promptConflictResolution`; replace `p.log.warn` with
+          `output.log.warn`. For `p.select`, decide at implementation time between extending `SyncOutput` with
+          a `select`-shaped method (no-op to a deterministic default under JSON mode, matching the existing
+          `confirm` → `false` pattern) or gating the raw `p.select` call on `output.jsonMode === false` with
+          an explicit no-default fallback. Pick based on whether `select` has other consumers in the sync
+          surface that would benefit from the abstraction.
+        - Build `test-first`:
+            - Existing `unit/push-recovery.test.ts` tests continue to pass (no interactive-mode behavior change)
+            - New test: under JSON mode (`createSyncOutput(true)`), `promptConflictResolution` does not invoke
+              raw clack `p.log.warn` or `p.select` — warn routes through `output.log.warn`
+            - The 5-cell sync-purity e2e (`__tests__/e2e/sync-purity.e2e.test.ts`) continues to pass
+        - _Forward-compat:_ Mirrors 2.R.6.a.3 — no behavior change today, but the JSON-mode contract becomes
+          enforced by construction rather than by the `isNonInteractiveEnvironment()` short-circuit. If the
+          gate is ever weakened, routing follows automatically.
 
 ## **Phase 3:** Vocabulary and config alignment
 
