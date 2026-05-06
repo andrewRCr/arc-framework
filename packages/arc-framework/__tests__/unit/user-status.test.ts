@@ -358,6 +358,150 @@ describe("buildUserStatusResult", () => {
   });
 });
 
+describe("buildUserStatusResult userSyncCause routing", () => {
+  function divergedInput() {
+    return {
+      identity: "andrew",
+      diskState: "same" as const,
+      refState: "diverged" as const,
+      remoteChecked: true,
+      savedCommit: "abc1234",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      backupFiles: [],
+      remoteIdentities: [],
+    };
+  }
+
+  function remoteAheadInput() {
+    return {
+      ...divergedInput(),
+      refState: "remote-ahead" as const,
+    };
+  }
+
+  function localAheadInput() {
+    return {
+      ...divergedInput(),
+      refState: "local-ahead" as const,
+    };
+  }
+
+  it("threads userSyncCause onto UserStatusResult for every taxonomy value", () => {
+    const causes = [
+      "unfetched-local",
+      "concurrent-local-writer",
+      "cross-machine",
+      "offline",
+      "unknown",
+    ] as const;
+
+    for (const cause of causes) {
+      const result = buildUserStatusResult({
+        ...divergedInput(),
+        userSyncCause: { cause, confidence: cause === "offline" ? "offline" : "high" },
+      });
+      expect(result.userSyncCause).toBe(cause);
+    }
+  });
+
+  it("renders the existing pull-direction copy for unfetched-local via the cause-aware path", () => {
+    const result = buildUserStatusResult({
+      ...remoteAheadInput(),
+      userSyncCause: { cause: "unfetched-local", confidence: "high" },
+    });
+
+    const causeLines = result.detailLines.filter((line) => line.startsWith("Cause:"));
+    expect(causeLines).toHaveLength(1);
+    expect(causeLines[0]).toContain("arc user pull");
+  });
+
+  it("renders concurrent-local-writer copy distinct from cross-machine and free of machine-locality assertions", () => {
+    const concurrent = buildUserStatusResult({
+      ...localAheadInput(),
+      userSyncCause: { cause: "concurrent-local-writer", confidence: "high" },
+    });
+    const crossMachine = buildUserStatusResult({
+      ...divergedInput(),
+      userSyncCause: { cause: "cross-machine", confidence: "high" },
+    });
+
+    const concurrentLine = concurrent.detailLines.find((line) => line.startsWith("Cause:"));
+    const crossMachineLine = crossMachine.detailLines.find((line) => line.startsWith("Cause:"));
+
+    expect(concurrentLine).toBeDefined();
+    expect(crossMachineLine).toBeDefined();
+    expect(concurrentLine).not.toBe(crossMachineLine);
+    expect(concurrentLine).not.toMatch(/another machine|this machine|other machine/i);
+  });
+
+  it("hedges cross-machine copy when confidence is low (sync state stale or missing)", () => {
+    const high = buildUserStatusResult({
+      ...divergedInput(),
+      userSyncCause: { cause: "cross-machine", confidence: "high" },
+    });
+    const low = buildUserStatusResult({
+      ...divergedInput(),
+      userSyncCause: { cause: "cross-machine", confidence: "low" },
+    });
+
+    const highLine = high.detailLines.find((line) => line.startsWith("Cause:"));
+    const lowLine = low.detailLines.find((line) => line.startsWith("Cause:"));
+
+    expect(highLine).toBeDefined();
+    expect(lowLine).toBeDefined();
+    expect(lowLine).not.toBe(highLine);
+    expect(lowLine).toMatch(/stale|hedged|low confidence/i);
+  });
+
+  it("appends the cause line additively — existing detailLines retain their wording and position", () => {
+    const without = buildUserStatusResult(divergedInput());
+    const withCause = buildUserStatusResult({
+      ...divergedInput(),
+      userSyncCause: { cause: "cross-machine", confidence: "high" },
+    });
+
+    expect(withCause.detailLines.length).toBe(without.detailLines.length + 1);
+    for (let i = 0; i < without.detailLines.length; i++) {
+      expect(withCause.detailLines[i]).toBe(without.detailLines[i]);
+    }
+    expect(withCause.detailLines[withCause.detailLines.length - 1]).toMatch(/^Cause:/);
+  });
+
+  it("non-verbose mode: action-oriented headline reflects the cause when present", () => {
+    const result = buildUserStatusResult({
+      ...remoteAheadInput(),
+      verbose: false,
+      userSyncCause: { cause: "unfetched-local", confidence: "high" },
+    });
+
+    expect(result.summary).toBe("andrew: Remote notes ahead — pull to sync.");
+  });
+
+  it("non-verbose mode: action-oriented headline falls back to existing taxonomy when cause is unknown", () => {
+    const withUnknown = buildUserStatusResult({
+      ...divergedInput(),
+      verbose: false,
+      userSyncCause: { cause: "unknown", confidence: "low" },
+    });
+    const withoutCause = buildUserStatusResult({
+      ...divergedInput(),
+      verbose: false,
+    });
+
+    expect(withUnknown.summary).toBe(withoutCause.summary);
+  });
+
+  it("does not append a cause detail line when cause is unknown — existing taxonomy carries the message", () => {
+    const result = buildUserStatusResult({
+      ...divergedInput(),
+      userSyncCause: { cause: "unknown", confidence: "low" },
+    });
+
+    expect(result.detailLines.some((line) => line.startsWith("Cause:"))).toBe(false);
+  });
+});
+
 describe("buildUserStatusResult first-use orientation hint", () => {
   const HINT = "New here? Run `arc user --help` to learn about user notes.";
 
@@ -1685,5 +1829,83 @@ describe("runUserStatus bounded notes-ref fetch", () => {
     });
 
     expect(findNotesRefFetch(calls)).toBeUndefined();
+  });
+});
+
+describe("runUserStatus userSyncCause orchestration", () => {
+  function silentIO(execImpl: (cmd: string, args: string[]) =>
+    Promise<{ stdout: string; stderr: string }>) {
+    return {
+      exec: execImpl,
+      readDir: async () => [],
+      readFile: async () => {
+        throw new Error("ENOENT");
+      },
+      writeFile: async () => {},
+      mkdir: async () => undefined,
+      writeNote: async () => {},
+      readNote: async () => null,
+    };
+  }
+
+  it("threads offline cause onto UserStatusResult under --offline", async () => {
+    const io = silentIO(async (_cmd: string, args: string[]) => {
+      if (args[0] === "rev-parse" && args[1] === "HEAD") {
+        return { stdout: "deadbeef\n", stderr: "" };
+      }
+      if (args[0] === "rev-parse" && args[1] === "--verify") {
+        throw new Error("ref not found");
+      }
+      if (args[0] === "log") return { stdout: "", stderr: "" };
+      if (args[0] === "merge-base") throw new Error("not an ancestor");
+      if (args[0] === "show") return { stdout: "", stderr: "" };
+      throw new Error(`unexpected git call: ${args.join(" ")}`);
+    });
+
+    const result = await runUserStatus({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      offline: true,
+      remoteSyncEnabled: false,
+    });
+
+    expect(result.userSyncCause).toBe("offline");
+    expect(result.userSyncCauseConfidence).toBe("offline");
+    expect(result.detailLines).toContain(
+      "Cause: cross-machine signals unavailable in offline mode.",
+    );
+  });
+
+  it("omits userSyncCause when ref state is clean (same) without offline", async () => {
+    const localHash = "a".repeat(40);
+
+    const io = silentIO(async (_cmd: string, args: string[]) => {
+      if (args[0] === "rev-parse" && args[1] === "HEAD") {
+        return { stdout: "deadbeef\n", stderr: "" };
+      }
+      if (args[0] === "rev-parse" && args[1] === "--verify"
+        && args[2] === "refs/notes/arc/user/andrew") {
+        return { stdout: `${localHash}\n`, stderr: "" };
+      }
+      if (args[0] === "ls-remote") {
+        return { stdout: `${localHash}\trefs/notes/arc/user/andrew\n`, stderr: "" };
+      }
+      if (args[0] === "log") return { stdout: "", stderr: "" };
+      if (args[0] === "merge-base") throw new Error("not an ancestor");
+      if (args[0] === "show") return { stdout: "", stderr: "" };
+      if (args[0] === "fetch") return { stdout: "", stderr: "" };
+      throw new Error(`unexpected git call: ${args.join(" ")}`);
+    });
+
+    const result = await runUserStatus({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      remoteSyncEnabled: false,
+    });
+
+    expect(result.userSyncCause).toBeUndefined();
+    expect(result.detailLines.some((line) => line.startsWith("Cause:"))).toBe(false);
   });
 });

@@ -6,6 +6,12 @@ import {
   runWorktreeSyncStatus,
   type WorktreeSyncStatusResult,
 } from "../../lib/git/worktree-sync.js";
+import {
+  inferUserSyncCause,
+  type UserSyncCause,
+  type UserSyncCauseConfidence,
+  type UserSyncRefRelation,
+} from "../../lib/user-sync/index.js";
 import { formatRelativeTime } from "./relative-time.js";
 import {
   clearPartialPushMarker,
@@ -95,7 +101,7 @@ export async function runUserStatus(
   const shouldProbeWorktree = !offline && remoteSyncEnabled;
   const [
     diskInspection, search, backupFiles, remoteIdentities, refInspection, worktreeProbe,
-    userNotesRefExists,
+    userNotesRefExists, localSyncState,
   ] = await Promise.all([
     inspectDiskVsLocalSnapshot(cwd, io, identity),
     findNearestUserNote({ cwd, io, identity }),
@@ -108,6 +114,7 @@ export async function runUserStatus(
       ? runWorktreeSyncStatus({ exec: io.exec, remoteSyncEnabled: true })
       : Promise.resolve(null),
     inspectUserNotesRefExists(io, identity),
+    readLocalSyncState(cwd, io, identity),
   ]);
   const spine = computeUserSyncSpine({
     remoteSyncEnabled: !offline,
@@ -119,6 +126,13 @@ export async function runUserStatus(
 
   const note = search.note;
   const savedAtRelative = note ? await readCommitRelativeAge(io, note.commit) : null;
+  const userSyncCause = await classifyUserSyncCause({
+    io,
+    offline,
+    refInspection,
+    note,
+    localSyncState,
+  });
 
   return buildUserStatusResult({
     spine,
@@ -140,6 +154,56 @@ export async function runUserStatus(
     remoteSyncEnabled,
     userNotesRefExists,
     ...(verbose === undefined ? {} : { verbose }),
+    ...(userSyncCause ? { userSyncCause } : {}),
+  });
+}
+
+/**
+ * Build {@link inferUserSyncCause} inputs from the orchestrator's already-fetched
+ * state and invoke the helper. Returns `undefined` when no helper invocation is
+ * warranted (clean `same` ref state without offline mode) so the call site
+ * suppresses the cause field on `UserStatusResult`.
+ */
+async function classifyUserSyncCause(input: {
+  io: UserIOContext;
+  offline: boolean;
+  refInspection: UserSyncRefInspection | null;
+  note: { commit: string } | null;
+  localSyncState: { sourceCommit: string; savedAt?: string } | null;
+}): Promise<{ cause: UserSyncCause; confidence: UserSyncCauseConfidence } | undefined> {
+  const { io, offline, refInspection, note, localSyncState } = input;
+
+  const sourceCommit = localSyncState?.sourceCommit ?? null;
+  const savedAt = localSyncState?.savedAt ?? null;
+  const latestNoteRefHistoryEntry = note?.commit ?? null;
+  const headReachable = sourceCommit
+    ? await isAncestor(io, sourceCommit, "HEAD")
+    : false;
+
+  if (offline) {
+    return inferUserSyncCause({
+      refRelation: "remote-unavailable",
+      localRefHash: null,
+      remoteRefHash: null,
+      sourceCommit,
+      savedAt,
+      latestNoteRefHistoryEntry,
+      headReachable,
+      offline: true,
+    });
+  }
+
+  if (!refInspection || refInspection.state === "same") return undefined;
+
+  return inferUserSyncCause({
+    refRelation: refInspection.state as UserSyncRefRelation,
+    localRefHash: refInspection.localHash,
+    remoteRefHash: refInspection.remoteHash,
+    sourceCommit,
+    savedAt,
+    latestNoteRefHistoryEntry,
+    headReachable,
+    offline: false,
   });
 }
 
@@ -505,6 +569,12 @@ interface BuildUserStatusInput {
    * no flag, env-var, or stored suppression beyond the probe boolean.
    */
   userNotesRefExists?: boolean;
+  /**
+   * Inferred cause + confidence for the user-notes-ref divergence. Set when the
+   * call site invoked `inferUserSyncCause` (i.e., when ref state is divergent).
+   * Drives the cause-aware detail line and action-oriented headline.
+   */
+  userSyncCause?: { cause: UserSyncCause; confidence: UserSyncCauseConfidence };
 }
 
 const FIRST_USE_ORIENTATION_HINT =
@@ -539,9 +609,19 @@ export function buildUserStatusResult(
   const headline = determineUserStatusHeadline(remoteStatus, diskStatus);
   const verbose = input.verbose ?? true;
   const offlineSuffix = remoteChecked ? "" : " (offline)";
+
+  const causeAwareActionHeadline = input.userSyncCause
+    ? renderCauseAwareActionHeadline(
+      input.userSyncCause.cause,
+      input.userSyncCause.confidence,
+    )
+    : null;
+  const actionHeadline = causeAwareActionHeadline
+    ?? renderActionOrientedHeadline(spine, diskStatus, unsavedDirection);
+
   const summary = verbose
     ? `${identity}: ${renderSummaryHeadline(headline, remoteChecked)}${offlineSuffix}`
-    : `${identity}: ${renderActionOrientedHeadline(spine, diskStatus, unsavedDirection)}${offlineSuffix}`;
+    : `${identity}: ${actionHeadline}${offlineSuffix}`;
 
   const actionHint = determineUserStatusAction(
     spine,
@@ -582,9 +662,19 @@ export function buildUserStatusResult(
       actionHint,
     });
 
-  const detailLines = input.userNotesRefExists === false
-    ? [FIRST_USE_ORIENTATION_HINT, ...baseDetailLines]
+  const causeLine = input.userSyncCause
+    ? renderUserSyncCauseLine(
+      input.userSyncCause.cause,
+      input.userSyncCause.confidence,
+    )
+    : null;
+  const detailLinesWithCause = causeLine
+    ? [...baseDetailLines, causeLine]
     : baseDetailLines;
+
+  const detailLines = input.userNotesRefExists === false
+    ? [FIRST_USE_ORIENTATION_HINT, ...detailLinesWithCause]
+    : detailLinesWithCause;
 
   return {
     identity,
@@ -609,6 +699,12 @@ export function buildUserStatusResult(
     backupFiles,
     remoteIdentities,
     ...(input.worktree ? { worktree: input.worktree } : {}),
+    ...(input.userSyncCause
+      ? {
+        userSyncCause: input.userSyncCause.cause,
+        userSyncCauseConfidence: input.userSyncCause.confidence,
+      }
+      : {}),
   };
 }
 
@@ -678,6 +774,56 @@ function renderSummaryHeadline(
       return "local and remote notes conflict";
     case "remote unavailable":
       return "remote notes unavailable for comparison with local notes";
+  }
+}
+
+/**
+ * Map an inferred user-sync cause to its cause-aware detail line. Returns
+ * `null` when no extra line should be appended (e.g. `unknown` falls back to
+ * the existing taxonomy for messaging).
+ */
+function renderUserSyncCauseLine(
+  cause: UserSyncCause,
+  confidence: UserSyncCauseConfidence,
+): string | null {
+  switch (cause) {
+    case "unfetched-local":
+      return "Cause: remote notes ahead of local — run `arc user pull` to sync.";
+    case "concurrent-local-writer":
+      return "Cause: another writer has advanced the user-notes ref beyond local sync state.";
+    case "cross-machine":
+      return confidence === "low"
+        ? "Cause: local and remote notes both moved (sync state stale; classification hedged)."
+        : "Cause: local and remote notes both carry edits the other hasn't seen.";
+    case "offline":
+      return "Cause: cross-machine signals unavailable in offline mode.";
+    case "unknown":
+      return null;
+  }
+}
+
+/**
+ * Cause-aware action-oriented headline for non-verbose mode. Returns `null`
+ * when no cause-specific headline applies — call site falls back to
+ * {@link renderActionOrientedHeadline}.
+ */
+function renderCauseAwareActionHeadline(
+  cause: UserSyncCause,
+  confidence: UserSyncCauseConfidence,
+): string | null {
+  switch (cause) {
+    case "unfetched-local":
+      return "Remote notes ahead — pull to sync.";
+    case "concurrent-local-writer":
+      return "Concurrent writer detected on user-notes ref.";
+    case "cross-machine":
+      return confidence === "low"
+        ? "Local and remote notes diverged (sync state stale)."
+        : "Local and remote notes diverged across machines.";
+    case "offline":
+      return "Offline — cross-machine signals unavailable.";
+    case "unknown":
+      return null;
   }
 }
 

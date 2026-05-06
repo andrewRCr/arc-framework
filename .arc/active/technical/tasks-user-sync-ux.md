@@ -929,27 +929,25 @@ single entrypoint for all commit paths.
         - 10 unit cases in `__tests__/unit/user-sync-inference.test.ts` cover the 5 causes, the recency
           modifier across all non-`unknown` causes, and the defensive `same` branch.
 
-    - `[ ]` **4.2.d Wire helper into `runUserStatus` rendering**
-        - `runUserStatus` reads `LocalSyncState` (currently transitive via `inspectDiskVsLocalSnapshot`; expose
-          the value to call the helper here), invokes `inferUserSyncCause`, and surfaces
-          `userSyncCause: UserSyncCause` on `UserStatusResult`. JSON consumers (`arc status --json`) inherit it.
-        - Render integration: append a single cause-aware line in `detailLines` after the existing "Latest local
-          user note is..." line. Action-oriented headline (non-verbose mode) picks from a cause-aware string
-          table; verbose mode keeps its descriptive headline. Cause line is purely additive — no existing line
-          changes wording or position.
-        - Affected files: `packages/arc-framework/src/commands/user/sync-status.ts` (orchestration + rendering);
-          `packages/arc-framework/src/commands/user/types.ts` (`UserStatusResult.userSyncCause`).
-        - Build `test-first` (one behavior at a time):
-            - `userSyncCause` field appears on `UserStatusResult` for every cause taxonomy value
-            - `unfetched-local` renders the existing pull-direction copy ("run `arc user pull`") via the
-              cause-aware path
-            - `concurrent-local-writer` renders cause-aware copy distinct from cross-machine; copy avoids
-              machine-locality assertions
-            - `cross-machine` renders cross-machine copy with confidence-appropriate hedging when sync-state is
-              missing or stale
-            - Cause line is purely additive — existing `detailLines` unchanged in wording or position
-            - Action-oriented headline reflects the cause when present; falls back to existing taxonomy when
-              cause is `unknown`
+    - `[x]` **4.2.d Wire helper into `runUserStatus` rendering**
+        - `runUserStatus` adds `readLocalSyncState` to its `Promise.all` batch, computes `headReachable` via
+          `isAncestor(sourceCommit, HEAD)`, and delegates to a new `classifyUserSyncCause` helper that maps
+          `UserSyncRefInspection.state` to `UserSyncRefRelation`, plus `note?.commit` to
+          `latestNoteRefHistoryEntry`. Skips the call for `same` ref state without offline; offline path
+          short-circuits to the offline cause via `refRelation: "remote-unavailable"` + `offline: true`.
+        - `UserStatusResult` gains optional `userSyncCause` (`UserSyncCause`) and `userSyncCauseConfidence`
+          fields — present only when the helper was invoked. JSON consumers inherit both.
+        - Cause-aware rendering lives in two new pure helpers (`renderUserSyncCauseLine`,
+          `renderCauseAwareActionHeadline`) selected by `BuildUserStatusInput.userSyncCause`. Cause line is
+          appended to the end of `detailLines` (purely additive — every existing line keeps its wording and
+          absolute position); non-verbose action-oriented headline routes through the cause-aware table when a
+          cause is present and falls back to the existing taxonomy on `unknown`. `unfetched-local`'s detail
+          line embeds the existing `arc user pull` copy. `cross-machine` copy hedges on `confidence: "low"`.
+          `concurrent-local-writer` copy is sibling-writer framing free of machine-locality assertions.
+        - 8 rendering unit cases on `buildUserStatusResult` (taxonomy threading, cause-line copy per cause,
+          additivity invariant, action-oriented headline cause routing, unknown fallback, no-cause-line for
+          unknown) plus 2 orchestration cases on `runUserStatus` (offline → `offline` cause; clean ref state →
+          no cause field).
 
     - `[ ]` **4.2.e `--offline` degradation rendering**
         - When `offline: true`, render an explicit degraded-classification line:

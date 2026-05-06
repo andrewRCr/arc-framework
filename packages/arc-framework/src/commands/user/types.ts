@@ -467,6 +467,14 @@ export interface UserStatusResult {
    * caller did not pass `--offline`. Omitted when no probe was run.
    */
   worktree?: WorktreeSyncStatusResult;
+  /**
+   * Inferred cause of user-notes-ref divergence — populated only when the
+   * helper was invoked (i.e., when a divergent ref state was detected). JSON
+   * consumers (`arc status --json`) inherit this field for downstream tooling.
+   */
+  userSyncCause?: import("../../lib/user-sync/index.js").UserSyncCause;
+  /** Confidence of the inferred cause, when {@link userSyncCause} is present. */
+  userSyncCauseConfidence?: import("../../lib/user-sync/index.js").UserSyncCauseConfidence;
 }
 
 export interface UserStatusOptions {
