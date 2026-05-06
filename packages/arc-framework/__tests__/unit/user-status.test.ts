@@ -14,6 +14,7 @@ import {
   buildUserStatusSummary,
   computeUnsavedDirection,
   hashSyncManifest,
+  inspectUserSyncRefsDetailed,
   inspectUserSyncState,
   runUserSessionInitStatus,
   runUserStatus,
@@ -1538,5 +1539,151 @@ describe("runUserStatus worktree probe orchestration", () => {
       c.args[0] === "rev-parse" && c.args[1] === "--verify"
       && c.args[2] === "refs/notes/arc/user/andrew",
     )).toBe(true);
+  });
+});
+
+describe("runUserStatus bounded notes-ref fetch", () => {
+  const localHash = "a".repeat(40);
+  const remoteHash = "b".repeat(40);
+  const notesRef = "refs/notes/arc/user/andrew";
+
+  interface ExecCall {
+    cmd: string;
+    args: string[];
+    options?: { signal?: AbortSignal };
+  }
+
+  type FetchBehavior = "ok" | "abort-error" | "generic-error";
+
+  function makeIO(execImpl: (cmd: string, args: string[], options?: { signal?: AbortSignal }) =>
+    Promise<{ stdout: string; stderr: string }>) {
+    return {
+      exec: execImpl,
+      readDir: async () => [],
+      readFile: async () => "",
+      writeFile: async () => {},
+      mkdir: async () => undefined,
+      writeNote: async () => {},
+      readNote: async () => null,
+    };
+  }
+
+  // Drives the must-fetch path: a present-but-different local notes ref
+  // means classifyPreFetch returns must-fetch, so the bounded fetch fires.
+  function fakeMustFetchExec(record: ExecCall[], fetchBehavior: FetchBehavior) {
+    return async (cmd: string, args: string[], options?: { signal?: AbortSignal }) => {
+      record.push({ cmd, args, options });
+      if (args[0] === "rev-parse" && args[1] === "--abbrev-ref" && args[2] === "HEAD") {
+        return { stdout: "main\n", stderr: "" };
+      }
+      if (args[0] === "rev-parse" && args[1] === "--abbrev-ref" && args[2] === "@{upstream}") {
+        return { stdout: "origin/main\n", stderr: "" };
+      }
+      if (args[0] === "rev-list" && args.includes("--count")) {
+        return { stdout: "0\t0\n", stderr: "" };
+      }
+      if (args[0] === "rev-parse" && args.length === 2 && args[1] === "HEAD") {
+        return { stdout: "abc1234\n", stderr: "" };
+      }
+      if (args[0] === "rev-parse" && args[1] === "--verify" && args[2] === notesRef) {
+        return { stdout: `${localHash}\n`, stderr: "" };
+      }
+      if (args[0] === "ls-remote") {
+        return { stdout: `${remoteHash}\t${notesRef}\n`, stderr: "" };
+      }
+      if (
+        args[0] === "fetch"
+        && args[1] === "origin"
+        && typeof args[2] === "string"
+        && args[2].startsWith(`+${notesRef}:`)
+      ) {
+        if (fetchBehavior === "abort-error") {
+          const err = new Error("aborted");
+          err.name = "AbortError";
+          throw err;
+        }
+        if (fetchBehavior === "generic-error") {
+          throw new Error("network down");
+        }
+        return { stdout: "", stderr: "" };
+      }
+      if (args[0] === "fetch") {
+        // Worktree-probe fetch — ignore for this suite.
+        return { stdout: "", stderr: "" };
+      }
+      // Temp-ref read after a successful fetch — return the remote hash so
+      // ancestor classification has data to work with.
+      if (args[0] === "rev-parse" && args[1] === "--verify"
+        && typeof args[2] === "string" && args[2].startsWith("refs/arc-sync-temp/")) {
+        return { stdout: `${remoteHash}\n`, stderr: "" };
+      }
+      if (args[0] === "merge-base") {
+        // Treat hashes as unrelated → diverged; not asserted by these tests
+        // but keeps the post-fetch classification path quiet.
+        throw new Error("not an ancestor");
+      }
+      if (args[0] === "update-ref" && args[1] === "-d") {
+        return { stdout: "", stderr: "" };
+      }
+      if (args[0] === "notes") {
+        return { stdout: "", stderr: "" };
+      }
+      throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
+    };
+  }
+
+  function findNotesRefFetch(calls: ExecCall[]): ExecCall | undefined {
+    return calls.find((c) =>
+      c.args[0] === "fetch"
+      && c.args[1] === "origin"
+      && typeof c.args[2] === "string"
+      && c.args[2].startsWith(`+${notesRef}:`),
+    );
+  }
+
+  it("invokes the notes-ref fetch with an AbortSignal in full-mode `arc status`", async () => {
+    const calls: ExecCall[] = [];
+    const io = makeIO(fakeMustFetchExec(calls, "ok"));
+
+    await runUserStatus({ cwd: "/repo", io, identity: "andrew", remoteSyncEnabled: true });
+
+    const notesFetch = findNotesRefFetch(calls);
+    expect(notesFetch).toBeDefined();
+    expect(notesFetch?.options?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("classifies AbortError as remote-unavailable / failureReason: timeout", async () => {
+    const calls: ExecCall[] = [];
+    const io = makeIO(fakeMustFetchExec(calls, "abort-error"));
+
+    const inspection = await inspectUserSyncRefsDetailed(io, "andrew", 1000);
+
+    expect(inspection.state).toBe("remote-unavailable");
+    expect(inspection.failureReason).toBe("timeout");
+  });
+
+  it("classifies non-Abort fetch errors as remote-unavailable / failureReason: error", async () => {
+    const calls: ExecCall[] = [];
+    const io = makeIO(fakeMustFetchExec(calls, "generic-error"));
+
+    const inspection = await inspectUserSyncRefsDetailed(io, "andrew", 1000);
+
+    expect(inspection.state).toBe("remote-unavailable");
+    expect(inspection.failureReason).toBe("error");
+  });
+
+  it("does not invoke the notes-ref fetch when --offline is set", async () => {
+    const calls: ExecCall[] = [];
+    const io = makeIO(fakeMustFetchExec(calls, "ok"));
+
+    await runUserStatus({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      offline: true,
+      remoteSyncEnabled: true,
+    });
+
+    expect(findNotesRefFetch(calls)).toBeUndefined();
   });
 });

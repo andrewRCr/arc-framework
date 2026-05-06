@@ -1,7 +1,11 @@
 import { join } from "node:path";
 
 import { serialize, type SyncManifest } from "../../lib/git/index.js";
-import { runWorktreeSyncStatus, type WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
+import {
+  DEFAULT_FETCH_TIMEOUT_MS,
+  runWorktreeSyncStatus,
+  type WorktreeSyncStatusResult,
+} from "../../lib/git/worktree-sync.js";
 import { formatRelativeTime } from "./relative-time.js";
 import {
   clearPartialPushMarker,
@@ -97,7 +101,9 @@ export async function runUserStatus(
     findNearestUserNote({ cwd, io, identity }),
     listBackupFiles(cwd, io, identity),
     all ? listRemoteUserIdentities(io) : Promise.resolve([]),
-    offline ? Promise.resolve(null) : inspectUserSyncRefsDetailed(io, identity),
+    offline
+      ? Promise.resolve(null)
+      : inspectUserSyncRefsDetailed(io, identity, DEFAULT_FETCH_TIMEOUT_MS),
     shouldProbeWorktree
       ? runWorktreeSyncStatus({ exec: io.exec, remoteSyncEnabled: true })
       : Promise.resolve(null),
@@ -231,6 +237,14 @@ interface UserSyncRefInspection {
   comparison: "full" | "read-only" | "comparison-unavailable" | "remote-unavailable";
   localHash: string | null;
   remoteHash: string | null;
+  /**
+   * Distinguishes failure modes when `state` is `remote-unavailable` from the
+   * notes-ref fetch path. Mirrors the worktree-sync vocabulary
+   * (`WorktreeSyncStatusResult.failureReason`). Set on the catch path; omitted
+   * when the fetch wasn't reached (pre-fetch fast-result classifications) or
+   * succeeded.
+   */
+  failureReason?: "timeout" | "error";
 }
 
 /**
@@ -1009,9 +1023,10 @@ function classifyPreFetch(
   return { kind: "must-fetch", localHash, remoteHash };
 }
 
-async function inspectUserSyncRefsDetailed(
+export async function inspectUserSyncRefsDetailed(
   io: UserIOContext,
   identity: string,
+  fetchTimeoutMs?: number,
 ): Promise<UserSyncRefInspection> {
   const localRef = `refs/notes/${notesRef(identity)}`;
   const tempRef = `${TEMP_SYNC_REF_PREFIX}/${identity}`;
@@ -1022,8 +1037,18 @@ async function inspectUserSyncRefsDetailed(
   if (classification.kind === "fast-result") return classification.result;
 
   try {
-    await io.exec("git", ["fetch", "origin", `+${localRef}:${tempRef}`]);
+    await boundedNotesRefFetch(io, localRef, tempRef, fetchTimeoutMs);
   } catch (err) {
+    const isAbortError = err instanceof Error && err.name === "AbortError";
+    if (isAbortError) {
+      return {
+        state: "remote-unavailable",
+        comparison: "comparison-unavailable",
+        localHash: classification.localHash,
+        remoteHash: classification.remoteHash,
+        failureReason: "timeout",
+      };
+    }
     const message = err instanceof Error ? err.message : String(err);
     if (message.includes("couldn't find remote ref")) {
       return {
@@ -1038,6 +1063,7 @@ async function inspectUserSyncRefsDetailed(
       comparison: "comparison-unavailable",
       localHash: classification.localHash,
       remoteHash: classification.remoteHash,
+      failureReason: "error",
     };
   }
 
@@ -1077,6 +1103,41 @@ async function inspectUserSyncRefsDetailed(
     };
   } finally {
     await deleteRef(io, tempRef);
+  }
+}
+
+/**
+ * Fetch the user notes ref into a temp ref, optionally bounded by a timeout.
+ *
+ * When `timeoutMs` is provided, an `AbortController` aborts the fetch on
+ * timeout — the resulting `AbortError` is what tells the caller to classify
+ * the failure as `failureReason: "timeout"`. When undefined, falls through to
+ * the unbounded fetch (preserves legacy behavior on the session-init probe
+ * and the orchestrator path).
+ *
+ * Mirrors `lib/git/worktree-sync.ts:boundedFetch` but stays local — the
+ * worktree variant fetches a branch, this one fetches a notes ref into a
+ * temp ref under `refs/arc-sync-temp/`.
+ */
+async function boundedNotesRefFetch(
+  io: UserIOContext,
+  localRef: string,
+  tempRef: string,
+  timeoutMs?: number,
+): Promise<void> {
+  const args = ["fetch", "origin", `+${localRef}:${tempRef}`];
+  if (timeoutMs === undefined) {
+    await io.exec("git", args);
+    return;
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => {
+    controller.abort();
+  }, timeoutMs);
+  try {
+    await io.exec("git", args, { signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
   }
 }
 

@@ -905,24 +905,18 @@ single entrypoint for all commit paths.
           `io.writeFile` injection point). 5 new behavior cases land under `describe("LocalSyncState v3
           schema")`.
 
-    - `[ ]` **4.2.b Bounded-fetch wrapper for notes-ref fetch in full-mode `arc status`**
-        - Wrap the existing `git fetch origin +<localRef>:<tempRef>` call in `inspectUserSyncRefsDetailed` with
-          the same `AbortController` + timeout pattern as `lib/git/worktree-sync.ts:boundedFetch`. Default timeout
-          `DEFAULT_FETCH_TIMEOUT_MS` (3000 ms; consider exporting and sharing the constant rather than
-          duplicating).
-        - Scope: bounded-fetch lands on the `runUserStatus` path only. Per PRD R17, the session-init probe
-          (`runUserSessionInitStatus` → `inspectUserSyncRefsDetailed`) keeps its current behavior — already
-          remote-aware via the existing pull mechanism.
-        - On timeout, classify as `remote-unavailable` with `failureReason: "timeout"` (mirrors the worktree-sync
-          state vocabulary).
-        - Affected files: `packages/arc-framework/src/commands/user/sync-status.ts`; possibly
-          `packages/arc-framework/src/lib/git/worktree-sync.ts` if the constant is exported for shared use.
-        - Build `test-first` (one behavior at a time):
-            - Bounded fetch fires by default in full-mode `arc status` (notes-ref fetch invoked with an
-              `AbortController` signal)
-            - Timeout maps to `remote-unavailable` / `failureReason: "timeout"`
-            - Non-timeout fetch error maps to `remote-unavailable` / `failureReason: "error"`
-            - `--offline` suppresses the fetch entirely (existing behavior preserved)
+    - `[x]` **4.2.b Bounded-fetch wrapper for notes-ref fetch in full-mode `arc status`**
+        - `inspectUserSyncRefsDetailed` (now exported) takes an optional `fetchTimeoutMs`. When set, the
+          notes-ref fetch runs under an `AbortController` via a new `boundedNotesRefFetch` helper.
+          AbortError → `remote-unavailable` / `failureReason: "timeout"`; non-Abort error →
+          `failureReason: "error"`; "couldn't find remote ref" still maps to `local-ahead`.
+        - `runUserStatus` passes `DEFAULT_FETCH_TIMEOUT_MS` (3000ms, shared with `worktree-sync.ts`);
+          `inspectUserSyncState` orchestrator and `runUserSessionInitStatus` stay unbounded per scope.
+          `UserSyncRefInspection` gains optional `failureReason: "timeout" | "error"` mirroring the
+          worktree-sync vocabulary.
+        - Pattern inlined as `boundedNotesRefFetch` rather than reshaping `lib/git/worktree-sync.ts`'s
+          `boundedFetch` to a generic argument list — the existing helper hard-codes branch fetch and one
+          new caller doesn't justify reshaping the shared one. Only the constant is shared.
 
     - `[ ]` **4.2.c Inference helper module — `inferUserSyncCause`**
         - Pure function per the helper contract above. No IO; takes structured inputs and returns a classification
