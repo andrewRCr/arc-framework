@@ -144,6 +144,8 @@ describe("ArcErrorCode", () => {
           return "reinstall cli";
         case "NOT_INSTALLED":
           return "run init";
+        case "NOT_IN_ARC_PROJECT":
+          return "run from arc project";
         case "MANIFEST_VERSION_UNSUPPORTED":
           return "update cli";
         case "ROLE_FORBIDDEN":
