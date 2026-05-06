@@ -9,20 +9,21 @@
 - **Task List:** `tasks-user-sync-ux.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task 2.R.6.a — Code-path audit + audit-surfaced fixes (parent cascade-closed;
-  .a.1 surveyed 25 files across handlers, `commands/user/*`, `lib/git/*`, and `lib/sync-*` against
-  the seven 2.R remediation invariants and populated the findings matrix in `notes-user-sync-ux.md`;
-  .a.2 fixed stdout contamination + missing-on-error JSON envelope in `arc user status --json`
-  via `emitStatusError` + `createSyncOutput(json)` threading + new `NOT_IN_ARC_PROJECT` error code;
-  .a.3 hoisted `createSyncOutput` once in `handlePushDirection` and routed the `resolveSyncPushPolicy`
-  warn callback through it for forward-compat once any caller gains `--json`)
-- **Next Task:** Task 2.R.6.b — Test-surface audit + residual risk (line ~609)
+- **Last Completed:** Task 2.R.6.b — Test-surface audit + residual risk (added § Phase 2.R Test
+  Coverage matrix in `notes-user-sync-ux.md` covering I1–I7, two .6.a fixes, and 12 extracted seams;
+  0 active gaps; audit's six surfaced concerns disposed without deferring to a phantom hardening WU
+  — 2.R.6.e + 2.R.6.f added as new sibling tasks (load-side verification symmetry; route
+  `promptConflictResolution` through `SyncOutput`); 2.R.6.c absorbed two preamble-only items
+  (single-leg `runUserPush` I7 asymmetry; `--force` escape hatch); save-verification race confirmed
+  closed by 2.R.1.a; cross-machine partial-push deferred to
+  `backlog/technical/plan-cross-machine-sync-coherence.md`)
+- **Next Task:** Task 2.R.6.c — Doc and preamble updates (line ~626)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 2.R.6.b — verify unit/integration/e2e coverage maps to every Phase
-  2.R remediation invariant with at least one real-git cross-clone path; produce a checklist
-  confirming no undocumented sync regressions remain; record any genuinely intentional residuals
-  in `notes-user-sync-ux.md` (the three already pre-populated there are starting points, not the
-  full set).
+- **Next Action:** Begin Task 2.R.6.c — update preambles for `runPairedPush`
+  (`commands/user/paired-push.ts`), `handleSync` (`handlers/sync.ts`), `pushability.ts`,
+  `commands/user/push-fetch.ts` (I7 single-leg/paired asymmetry), and `handlers/user.ts:handleUserPush`
+  (`--force` escape hatch); update `strategy-session-operations.md` § Handoff-Interior Toggle Pattern
+  for any post-2.R cascade-shape changes surfaced during the audit.
 
 ---
