@@ -180,6 +180,26 @@ export interface UserPushOptions {
   force?: boolean;
 }
 
+/**
+ * Handle `arc user push`.
+ *
+ * Default path runs through `pushWithInteractiveRecovery`, which gates on the
+ * pushability pre-check, surfaces no-op detection, and routes divergent
+ * pushes through the `[rejected]` recovery branch. Block-disposition
+ * conditions (rebase in progress, detached HEAD) refuse the push; advisory
+ * `force-push-required` is not refused at this site — divergence is handled
+ * in recovery (see `commands/user/push-fetch.ts` for the single-leg / paired
+ * asymmetry).
+ *
+ * **`--force` escape hatch.** Explicit user opt-in bypasses both the
+ * pushability pre-check (block-disposition conditions still throw via
+ * `UserPushBlockedError`) and the recovery branch entirely, executing
+ * `git push --force` against the notes ref. By-design unguarded — matches
+ * `git push --force` semantics. Automatic pushes never reach this branch:
+ * `arc sync`, the handoff cascade, and any other internal caller leaves
+ * `force` unset, so the I7 advisory-refusal contract still covers every
+ * non-explicit push.
+ */
 export async function handleUserPush(opts: UserPushOptions): Promise<void> {
   p.intro("arc user push");
 

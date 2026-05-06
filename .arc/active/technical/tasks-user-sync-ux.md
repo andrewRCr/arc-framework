@@ -623,22 +623,34 @@ composition. The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) i
           residual. Cross-machine partial-push invisibility deferred to
           `backlog/technical/plan-cross-machine-sync-coherence.md` as a substantial design WU of its own.
 
-    - `[ ]` **2.R.6.c Doc and preamble updates**
-        - Update preambles for `runPairedPush` (`commands/user/paired-push.ts`) and `handleSync` (`handlers/sync.ts`) to
-          reflect post-2.R semantics: verified save-before-push, blocked-cell save invariant, JSON contract,
-          worktree-push helper extraction, force-push advisory refusal.
-        - Update `pushability.ts` preamble to document the `force-push-required` advisory refusal contract (so wrappers
-          inherit it without re-deriving).
-        - Document the I7 single-leg/paired asymmetry in `commands/user/push-fetch.ts` and `lib/git/pushability.ts`
-          preambles: paired-flow refuses `force-push-required` advisory at the orchestrator boundary; single-leg
-          `runUserPush` does not refuse advisory directly — divergent push instead routes through push-recovery's
-          `[rejected]` path. Both achieve user-facing safety; the asymmetry is intentional (folded in from the
-          .6.b audit).
-        - Document the `--force` escape hatch in `handlers/user.ts:handleUserPush` preamble: explicit user opt-in
-          bypasses pushability and recovery; automatic pushes remain advisory-refused under I7. By-design unguarded,
-          matching `git push --force` semantics (folded in from the .6.b audit).
-        - Update `strategy-session-operations.md` § Handoff-Interior Toggle Pattern (or the relevant section) for any
-          post-2.R cascade-shape changes surfaced during the audit.
+    - `[x]` **2.R.6.c Doc and preamble updates**
+        - `runPairedPush` (`commands/user/paired-push.ts`) module preamble extended to document verified
+          save-before-push (sync-state advances only on exact-`HEAD` readback match), `pushWorktreeBranch`
+          consumption from `lib/git/`, and force-push advisory refusal at the orchestrator boundary; the function
+          preamble tightened to call out `runUserSave`'s verification and the helper for the worktree leg.
+        - `handleSync` (`handlers/sync.ts`) module preamble gained four post-2.R sections: blocked-cell save
+          invariant (every blocked cell except rebase-in-progress saves before refusing notes push), JSON envelope
+          contract (single object on stdout across runtime/dry-run/error paths, `interlockState` attached at the
+          handler boundary, resolved `notesPush` reported), shared `pushWorktreeBranch` helper for single-leg
+          pushes, and force-push routing (paired refusal at orchestrator; single-leg via push-recovery `[rejected]`).
+        - `lib/git/pushability.ts` advisory-disposition contract paragraph extended with the single-leg / paired
+          refusal asymmetry — paired refuses at the orchestrator boundary before save fires; single-leg
+          `runUserPush` lets divergent pushes through to `git push` and routes rejection through
+          `push-recovery.ts`'s `[rejected]` branch. Asymmetry rationale tied to the worktree-vs-notes coupling
+          difference (paired commits worktree first; single-leg runs against arbitrary remote state).
+        - `runUserPush` (`commands/user/push-fetch.ts`) preamble documents that advisory disposition is **not**
+          refused at this site — block-disposition still throws, but divergence reaches `git push` and recovery
+          handles it. Cross-references `handlers/push-recovery.ts` and `lib/git/pushability.ts` for the
+          asymmetry contract; mentions `--force` as the only path that sets `force: true`.
+        - `handleUserPush` (`handlers/user.ts`) gained a TSDoc preamble — previously had only a section comment.
+          Documents the default recovery path, explicit `--force` escape hatch (bypasses pushability pre-check
+          and recovery; matches `git push --force` semantics), and the I7 contract perimeter (automatic pushes
+          never reach this branch, so advisory refusal still covers every non-explicit push).
+        - `strategy-session-operations.md` § Handoff-Interior Toggle Pattern: assessed; no update needed. 2.R
+          changes are all internal to `arc sync` / `runPairedPush` / `runUserSave` and don't affect the toggle
+          pattern (config-key convention, `auto/prompt/manual` enum), the push-ordering invariant
+          (worktree-first, already documented), the cascade-reversibility model, or the probe envelope shape.
+          Audit § Open Items already closed the surface as "(none open — items surfaced … addressed inline)".
 
     - `[ ]` **2.R.6.d Unify spinner-routing helper**
         - _Goal:_ Eliminate the two-helper smell created during 2.R.3.c.1 — `shared.ts:runWithSpinner` (raw

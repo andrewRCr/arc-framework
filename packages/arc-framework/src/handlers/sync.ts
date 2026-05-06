@@ -13,6 +13,36 @@
  * called from the handoff workflow or by the user mid-session. The contract is
  * "fire when sync runs", not "fire only at the handoff occasion".
  *
+ * **Blocked-cell save invariant.** Every blocked sync cell — diverged,
+ * remote-ahead, no-upstream, detached-HEAD, no-remote, remote-unavailable,
+ * local-ahead/manual, and the `save+notes-blocked` cell — saves the current
+ * user directory before refusing the notes push. Rebase-in-progress is the
+ * one exception: save is skipped because `HEAD` is mid-step and notes
+ * wouldn't follow the rewrite. The paired path's pre-push save lives inside
+ * `runPairedPush`; this orchestrator only owns saves for the cells that
+ * don't route through paired.
+ *
+ * **JSON envelope contract.** Under `--json`, every return path emits a
+ * single object on stdout — runtime, dry-run, and early-error paths included.
+ * Schema parity holds across runtime and `--dry-run`; `interlockState`
+ * (`{pushInterlock, notesPush, syncInterlock}`) is attached once at the
+ * `handleSync` boundary so per-cell builders stay focused on leg outcomes.
+ * `notesPush` reports the resolved policy after non-interactive degradation,
+ * not the raw config; `syncInterlock` is informational only — the
+ * orchestrator does not act on it (authorize-by-invocation).
+ *
+ * **Worktree-push helper.** Single-leg worktree pushes in `executeSingleLeg`
+ * go through {@link pushWorktreeBranch} from `lib/git/`, the same helper
+ * `runPairedPush` consumes — paired and single-leg cannot diverge on the
+ * underlying push call.
+ *
+ * **Force-push handling.** A diverged worktree is decoded by `decideMatrix`
+ * as a blocked cell upstream of any push attempt. Defense-in-depth, the
+ * paired flow refuses on the `force-push-required` advisory inside
+ * `runPairedPush`; the single-leg notes path inherits advisory routing
+ * through `pushWithInteractiveRecovery`'s `[rejected]` branch. No matrix
+ * cell auto-opts into force-push.
+ *
  * @module
  */
 

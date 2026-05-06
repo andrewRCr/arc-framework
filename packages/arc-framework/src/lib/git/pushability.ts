@@ -14,10 +14,22 @@
  * **Advisory disposition contract (caller refusal).** Conditions surfaced
  * with `disposition: "advisory"` (currently `force-push-required`) are not
  * automatic blocks — callers decide refusal vs. allow. Within the user-sync
- * surface, every push call site refuses on advisory disposition; force-push
- * is destructive and only `arc user push --force` opts in. The contract is
- * inherited by push wrappers so a wrapper swapping the underlying push call
- * preserves the refusal posture without re-implementing it.
+ * surface, no automatic push opts into force-push; `arc user push --force`
+ * is the explicit escape hatch. The contract is inherited by push wrappers
+ * so a wrapper swapping the underlying push call preserves the refusal
+ * posture without re-implementing it.
+ *
+ * **Single-leg / paired refusal asymmetry.** The paired flow refuses
+ * `force-push-required` at the orchestrator boundary inside `runPairedPush`,
+ * before save fires. Single-leg `runUserPush` (notes-only push) does not
+ * refuse the advisory at its call site — divergent pushes instead route
+ * through `handlers/push-recovery.ts`'s `[rejected]` branch, which surfaces
+ * the conflict and offers force-push only on explicit user selection. Both
+ * paths achieve user-facing safety; the asymmetry is intentional and
+ * matches the worktree-vs-notes coupling difference (paired-push commits
+ * the worktree first, so divergence at that boundary is recoverable; the
+ * single-leg notes path runs against arbitrary remote state, so the
+ * recovery branch is the natural touch point).
  *
  * @module
  */

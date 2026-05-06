@@ -19,11 +19,21 @@ import {
  * divergence; force-push doesn't resolve them. Auto-fixed conditions (missing
  * notes refspec) proceed silently after fix.
  *
+ * Advisory disposition is **not** refused at this site (single-leg / paired
+ * asymmetry — see `lib/git/pushability.ts`). Divergent pushes pass the
+ * pre-check and reach `git push`; rejection is then routed through
+ * `handlers/push-recovery.ts`'s `[rejected]` branch, which surfaces the
+ * conflict and offers force-push only on explicit user selection. The paired
+ * flow refuses the advisory at its orchestrator boundary instead. Both paths
+ * keep automatic pushes safe; the difference is where the refusal lands.
+ *
  * Idempotent recovery: when `force` is unset, the function probes
  * `git ls-remote origin <ref>` and compares against the local ref hash. If
  * they match, no push fires and the result is `{ kind: "noop" }` — the
  * partial-push marker is still cleared since the recovery condition is
- * resolved. `force: true` skips the probe and pushes unconditionally.
+ * resolved. `force: true` skips the probe and pushes unconditionally — see
+ * `handleUserPush`'s `--force` escape hatch for the only call path that
+ * sets it.
  *
  * @param options - Push options. Provide `access` to enable the pre-check.
  * @returns Discriminated outcome: `pushed` when a push fired, `noop` when the
