@@ -580,19 +580,19 @@ composition. The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) i
               addressed in 2.R.6.a.2 / 2.R.6.a.3. Full matrix in `notes-user-sync-ux.md` § Phase 2.R Audit Findings,
               with choke points flagged.
 
-        - `[ ]` **2.R.6.a.2 Fix `arc user status --json` stdout contamination + envelope-on-error**
+        - `[x]` **2.R.6.a.2 Fix `arc user status --json` stdout contamination + envelope-on-error**
             - _Goal:_ Under `--json`, `arc user status` (and `arc user status --session-init --json`) must keep
               stdout pure — no clack output — and emit a structured error envelope on every failure path so
               programmatic consumers can parse the result.
-            - _Approach:_ Convert `handleUserStatus` (`handlers/user.ts`) to use `createSyncOutput(json)` instead
-              of raw `@clack/prompts`; replace `isHandledError` and `requireArcProjectRoot` failure paths under
-              `--json` with `{ "error": { "code", "message" } }` writes to stdout. `code` matches
-              `UserFacingError.code` where available (e.g., `IDENTITY_MISSING`); add `NOT_IN_ARC_PROJECT` to
-              `ArcErrorCode` for the project-root-missing case. `message` is the raw `Error.message` (no
-              ANSI/glyph formatting). Human-mode behavior unchanged.
-            - Coverage: extend the existing `arc user status --json` test surface (or add one if absent) with
-              identity-absent and not-in-arc-project cases, asserting stdout parses as `{ error: { code, message } }`
-              with no clack noise.
+            - _Outcome:_ `handleUserStatus` (`handlers/user.ts`) now uses `createSyncOutput(json)` instead of
+              raw `@clack/prompts`; identity-resolution failure and project-root-missing both emit
+              `{ "error": { "code", "message" } }` to stdout via a new `emitStatusError` helper, set exit code
+              1, and skip clack entirely. Project-root path bypasses `requireArcProjectRoot` under `--json` (uses
+              `resolveArcRoot` directly) so the helper's clack-on-stdout error path can't fire. Added
+              `NOT_IN_ARC_PROJECT` to `ArcErrorCode` for the project-root case. Human-mode behavior unchanged.
+              Two new unit tests pin the contract: `IDENTITY_MISSING` envelope on identity-absent;
+              `NOT_IN_ARC_PROJECT` envelope on cwd outside ARC project — both assert no clack calls and
+              `process.exitCode === 1`. Existing JSON tests continue to pass.
 
         - `[ ]` **2.R.6.a.3 Thread `SyncOutput` through `resolveSyncPushPolicy` callers**
             - _Goal:_ Eliminate the latent JSON-contamination risk that any future `--json` surface on

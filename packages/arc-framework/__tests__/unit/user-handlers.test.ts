@@ -7,6 +7,8 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from "vitest";
 
+import { UserFacingError } from "../../src/lib/errors.js";
+
 // --- Mocks ---
 
 const mockIntro = vi.fn();
@@ -88,6 +90,7 @@ vi.mock("../../src/handlers/shared.js", () => ({
   isNonInteractiveEnvironment: () => mockIsNonInteractive(),
   requireArcProjectRoot: () => process.cwd(),
   resolveCurrentBranchName: async () => "feature/x",
+  ARC_PROJECT_ROOT_ERROR: "Not inside an ARC project (no .arc/ directory found walking up from cwd).",
 }));
 
 vi.mock("../../src/lib/config/status-reader.js", () => ({
@@ -98,8 +101,11 @@ vi.mock("../../src/lib/io-context.js", () => ({
   createUserIOContext: () => ({}),
 }));
 
+const mockResolveArcRoot = vi.fn();
+
 vi.mock("../../src/lib/paths.js", () => ({
   getInternalTemplatePath: () => "/templates",
+  resolveArcRoot: (startDir?: string) => mockResolveArcRoot(startDir),
 }));
 
 vi.mock("../../src/lib/git/index.js", () => ({
@@ -141,6 +147,7 @@ function resetMockDefaults() {
     defaultsApplied: [],
     errors: [],
   });
+  mockResolveArcRoot.mockReturnValue(process.cwd());
 }
 
 // --- handleUserPush tests ---
@@ -680,5 +687,46 @@ describe("handleUserStatus --json retrofit", () => {
     expect(mockRunUserStatus).toHaveBeenCalledWith(
       expect.objectContaining({ offline: true, all: true }),
     );
+  });
+
+  it("emits a JSON error envelope and skips Clack when identity is unresolvable under --json", async () => {
+    mockResolveUserIdentity.mockRejectedValue(new UserFacingError({
+      code: "IDENTITY_MISSING",
+      whatHappened: "No identity configured.",
+      why: "User commands require arc.identity to be set in git config.",
+      whatToDo: "Run 'arc init' first.",
+    }));
+
+    await handleUserStatus({ json: true });
+
+    expect(mockIntro).not.toHaveBeenCalled();
+    expect(mockOutro).not.toHaveBeenCalled();
+    expect(mockNote).not.toHaveBeenCalled();
+    expect(mockLog.error).not.toHaveBeenCalled();
+    expect(mockRunUserStatus).not.toHaveBeenCalled();
+
+    const out = writes.join("");
+    const parsed = JSON.parse(out.trim()) as { error: { code: string; message: string } };
+    expect(parsed.error.code).toBe("IDENTITY_MISSING");
+    expect(parsed.error.message).toBe("No identity configured.");
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("emits a JSON error envelope when the cwd is not inside an ARC project under --json", async () => {
+    mockResolveArcRoot.mockReturnValue(null);
+
+    await handleUserStatus({ json: true });
+
+    expect(mockIntro).not.toHaveBeenCalled();
+    expect(mockOutro).not.toHaveBeenCalled();
+    expect(mockNote).not.toHaveBeenCalled();
+    expect(mockLog.error).not.toHaveBeenCalled();
+    expect(mockRunUserStatus).not.toHaveBeenCalled();
+
+    const out = writes.join("");
+    const parsed = JSON.parse(out.trim()) as { error: { code: string; message: string } };
+    expect(parsed.error.code).toBe("NOT_IN_ARC_PROJECT");
+    expect(parsed.error.message).toContain("Not inside an ARC project");
+    expect(process.exitCode).toBe(1);
   });
 });

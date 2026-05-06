@@ -16,16 +16,16 @@ import {
   UserPushBlockedError,
 } from "../commands/user.js";
 import { slugifyIdentity } from "../lib/git/index.js";
-import { formatError, UserFacingError } from "../lib/errors.js";
-import { getInternalTemplatePath } from "../lib/paths.js";
+import { formatError, UserFacingError, type ArcErrorCode } from "../lib/errors.js";
+import { getInternalTemplatePath, resolveArcRoot } from "../lib/paths.js";
 import { createUserIOContext } from "../lib/io-context.js";
-import { createSyncOutput } from "../lib/sync-output.js";
+import { createSyncOutput, type SyncOutput } from "../lib/sync-output.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { pushWithInteractiveRecovery } from "./push-recovery.js";
 import {
   runWithSpinner, isHandledError, isNonInteractiveEnvironment,
   requireArcProjectRoot, resolveUserIdentity, isRemoteError,
-  resolveCurrentBranchName,
+  resolveCurrentBranchName, ARC_PROJECT_ROOT_ERROR,
 } from "./shared.js";
 
 /** Uniform overwrite-confirm prompt copy. */
@@ -430,19 +430,31 @@ export interface UserStatusOptions {
 
 export async function handleUserStatus(opts: UserStatusOptions): Promise<void> {
   const json = Boolean(opts.json);
-  if (!json) p.intro("arc user status");
+  const output = createSyncOutput(json);
+  output.intro("arc user status");
 
   let identity: string;
   try {
     identity = await resolveUserIdentity();
   } catch (err) {
+    if (err instanceof UserFacingError) {
+      emitStatusError(json, output, err.code, err.message, err);
+      process.exitCode = 1;
+      return;
+    }
     if (isHandledError(err)) return;
     throw err;
   }
 
   const io = createUserIOContext();
-  const cwd = requireArcProjectRoot();
-  if (!cwd) return;
+  const cwd = json ? resolveArcRoot(process.cwd()) : requireArcProjectRoot();
+  if (!cwd) {
+    if (json) {
+      emitStatusError(json, output, "NOT_IN_ARC_PROJECT", ARC_PROJECT_ROOT_ERROR);
+      process.exitCode = 1;
+    }
+    return;
+  }
 
   if (opts.sessionInit) {
     const { settings } = await readConfigSettings(cwd);
@@ -457,8 +469,8 @@ export async function handleUserStatus(opts: UserStatusOptions): Promise<void> {
       process.stdout.write(`${JSON.stringify(result)}\n`);
       return;
     }
-    p.note(buildUserSessionInitStatusSummary(result), "Session Init");
-    p.outro("Done.");
+    output.note(buildUserSessionInitStatusSummary(result), "Session Init");
+    output.outro("Done.");
     return;
   }
 
@@ -479,6 +491,28 @@ export async function handleUserStatus(opts: UserStatusOptions): Promise<void> {
     return;
   }
 
-  p.note(buildUserStatusSummary(result), "Status");
-  p.outro("Done.");
+  output.note(buildUserStatusSummary(result), "Status");
+  output.outro("Done.");
+}
+
+/**
+ * Surface a status-handler error in the format appropriate for the active
+ * mode. Under `--json`, writes a single envelope `{ error: { code, message } }`
+ * to stdout — keeps the JSON pipe contract intact (every return path emits an
+ * envelope) and avoids contaminating stdout with clack output. In human mode,
+ * routes the formatted error through the SyncOutput log sink.
+ */
+function emitStatusError(
+  json: boolean,
+  output: SyncOutput,
+  code: ArcErrorCode,
+  message: string,
+  formatSource?: Error,
+): void {
+  if (json) {
+    const envelope = { error: { code, message } };
+    process.stdout.write(`${JSON.stringify(envelope)}\n`);
+    return;
+  }
+  output.log.error(formatSource ? formatError(formatSource) : message);
 }
