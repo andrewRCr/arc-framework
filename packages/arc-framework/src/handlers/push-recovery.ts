@@ -9,8 +9,6 @@
  * @module
  */
 
-import * as p from "@clack/prompts";
-
 import {
   findNearestUserNote,
   runUserPush,
@@ -107,7 +105,7 @@ export async function pushWithInteractiveRecovery(
     // skipped" banner instead of a generic failure.
     const action: ConflictAction = yes === true
       ? "merge"
-      : await promptConflictResolution();
+      : await promptConflictResolution(output);
 
     if (action === "non-interactive") return { kind: "failed-nontty-conflict" };
     if (action === "cancel") return { kind: "cancelled" };
@@ -158,20 +156,21 @@ export async function pushWithInteractiveRecovery(
 /** Prompt result discriminator — `non-interactive` covers the no-TTY fallback. */
 type ConflictAction = "force" | "merge" | "cancel" | "non-interactive";
 
-async function promptConflictResolution(): Promise<ConflictAction> {
+async function promptConflictResolution(output: SyncOutput): Promise<ConflictAction> {
   if (isNonInteractiveEnvironment()) return "non-interactive";
 
-  p.log.warn("Push rejected — local and remote notes conflict (both moved since common ancestor).");
-  const action = await p.select({
+  output.log.warn("Push rejected — local and remote notes conflict (both moved since common ancestor).");
+  const action = await output.select<"force" | "merge" | "cancel">({
     message: "How would you like to resolve this?",
     options: [
       { value: "force", label: "Force push (overwrite remote with local)" },
       { value: "merge", label: "Merge: rebase my save onto remote, then push" },
       { value: "cancel", label: "Cancel" },
     ],
+    jsonModeDefault: "cancel",
   });
-  if (p.isCancel(action)) return "cancel";
-  return action;
+  if (output.isCancel(action)) return "cancel";
+  return action as "force" | "merge" | "cancel";
 }
 
 async function warnIfLocalNoteStaleForHead(

@@ -285,6 +285,32 @@ describe("pushWithInteractiveRecovery", () => {
     expect(mockSelect).not.toHaveBeenCalled();
   });
 
+  it("under JSON mode, conflict prompt routes warn through stderr and select returns the cancel default — no raw clack invocations", async () => {
+    const stderrSpy = vi
+      .spyOn(process.stderr, "write")
+      .mockImplementation(() => true);
+    try {
+      const jsonOutput = createSyncOutput(true);
+      mockRunUserPush.mockRejectedValue(new Error("non-fast-forward"));
+
+      const result = await pushWithInteractiveRecovery({
+        io,
+        identity,
+        cwd,
+        output: jsonOutput,
+      });
+
+      expect(result).toEqual({ kind: "cancelled" });
+      expect(mockSelect).not.toHaveBeenCalled();
+      expect(mockLog.warn).not.toHaveBeenCalled();
+      const stderrWrites = stderrSpy.mock.calls.map((call) => String(call[0])).join("");
+      expect(stderrWrites).toContain("Push rejected");
+      expect(stderrWrites).toContain("warn:");
+    } finally {
+      stderrSpy.mockRestore();
+    }
+  });
+
   it("yes: never auto-selects force — destructive option requires explicit user choice", async () => {
     // Under --yes, a divergent push goes through merge recovery; force is never
     // invoked even though the user could have chosen it interactively. Pin by

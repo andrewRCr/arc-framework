@@ -564,7 +564,7 @@ composition. The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) i
           Commit Convention naming the build-before-invoke expectation, the handoff-critical command list, and the
           warn-vs-refuse tier.
 
-### `[ ]` **2.R.6 Final sync contract audit**
+### `[x]` **2.R.6 Final sync contract audit**
 
 - _Goal:_ Re-read the sync surface after remediation and capture residual risk before Phase 3 begins.
 
@@ -691,25 +691,30 @@ composition. The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) i
           `verifySavedNote` retained — primitives shared via `hashSyncManifest`, so any future migration of
           the hash function applies to both sites symmetrically.
 
-    - `[ ]` **2.R.6.f Route `promptConflictResolution` through `SyncOutput`**
+    - `[x]` **2.R.6.f Route `promptConflictResolution` through `SyncOutput`**
         - _Goal:_ Eliminate the latent JSON-contamination class in
           `handlers/push-recovery.ts:promptConflictResolution` (raw `p.log.warn` + `p.select`). Currently dead
           code under JSON mode because `isNonInteractiveEnvironment()` short-circuits before either fires; route
           through `output: SyncOutput` by construction so the gate stops being the sole protection.
-        - _Approach:_ Thread `output: SyncOutput` into `promptConflictResolution`; replace `p.log.warn` with
-          `output.log.warn`. For `p.select`, decide at implementation time between extending `SyncOutput` with
-          a `select`-shaped method (no-op to a deterministic default under JSON mode, matching the existing
-          `confirm` → `false` pattern) or gating the raw `p.select` call on `output.jsonMode === false` with
-          an explicit no-default fallback. Pick based on whether `select` has other consumers in the sync
-          surface that would benefit from the abstraction.
-        - Build `test-first`:
-            - Existing `unit/push-recovery.test.ts` tests continue to pass (no interactive-mode behavior change)
-            - New test: under JSON mode (`createSyncOutput(true)`), `promptConflictResolution` does not invoke
-              raw clack `p.log.warn` or `p.select` — warn routes through `output.log.warn`
-            - The 5-cell sync-purity e2e (`__tests__/e2e/sync-purity.e2e.test.ts`) continues to pass
-        - _Forward-compat:_ Mirrors 2.R.6.a.3 — no behavior change today, but the JSON-mode contract becomes
-          enforced by construction rather than by the `isNonInteractiveEnvironment()` short-circuit. If the
-          gate is ever weakened, routing follows automatically.
+        - _Outcome:_ `SyncOutput` extended with a `select<T extends string>` method (plus
+          `SyncOutputSelectOption` / `SyncOutputSelectOptions` types) that takes a required `jsonModeDefault: T`
+          — JSON-mode select returns that default without prompting, mirroring the `confirm` → `false`
+          pattern parameterized for the multi-option case. `promptConflictResolution` now takes `output:
+          SyncOutput` and routes warn through `output.log.warn` and the action prompt through
+          `output.select<"force" | "merge" | "cancel">({..., jsonModeDefault: "cancel"})`; the file's `import * as p
+          from "@clack/prompts"` is gone. The JSON-mode contract is now enforced by construction — if
+          `isNonInteractiveEnvironment()` were ever weakened, JSON-mode callers would still hit
+          stderr-routed warn + deterministic "cancel" without touching clack. New unit test in
+          `unit/push-recovery.test.ts` pins the contract: under `createSyncOutput(true)` with the
+          non-interactive gate stubbed false, the conflict path returns `{ kind: "cancelled" }`, no
+          `p.log.warn` / `p.select` mock calls fire, and the conflict warning lands on stderr through
+          `output.log.warn`. Existing 15 push-recovery tests, the 5-cell `sync-purity.e2e.test.ts`, and the
+          full 1301-test unit + integration suite stay green. Primary motivation is the already-shipping
+          `arc sync --json` path: `pushWithInteractiveRecovery` is reachable from the orchestrator's
+          notes-leg, and the prior gate caught subprocess/CI but not TTY-invoked `--json`. The second
+          `select` consumer in `handlers/user-sync.ts:handleConflict` is currently outside the JSON-mode
+          surface (`arc user sync` has no `--json` requirement in PRD R10 and isn't in the backlog); if a
+          future need surfaces it, the migration inherits this routing without re-deriving the pattern.
 
 ## **Phase 3:** Vocabulary and config alignment
 

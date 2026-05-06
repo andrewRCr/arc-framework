@@ -35,6 +35,24 @@ export interface SyncOutputSpinner {
   stop(message?: string): void;
 }
 
+export interface SyncOutputSelectOption<T extends string> {
+  value: T;
+  label: string;
+}
+
+export interface SyncOutputSelectOptions<T extends string> {
+  message: string;
+  options: SyncOutputSelectOption<T>[];
+  /**
+   * Value returned in JSON mode without prompting. Should be the safest
+   * no-op choice for the call site — typically the cancel/decline option —
+   * so a non-interactive consumer never gets a destructive default it
+   * didn't opt into. Mirrors the `confirm` → `false` pattern, parameterized
+   * because `select` has no universal decline value.
+   */
+  jsonModeDefault: T;
+}
+
 export interface SyncOutput {
   jsonMode: boolean;
   intro(message: string): void;
@@ -47,6 +65,7 @@ export interface SyncOutput {
   note(message: string, title?: string): void;
   spinner(): SyncOutputSpinner;
   confirm(opts: { message: string; initialValue?: boolean }): Promise<boolean | symbol>;
+  select<T extends string>(opts: SyncOutputSelectOptions<T>): Promise<T | symbol>;
   isCancel(value: unknown): boolean;
 }
 
@@ -68,6 +87,10 @@ export function createSyncOutput(jsonMode: boolean): SyncOutput {
       note: (message, title) => { p.note(message, title); },
       spinner: () => p.spinner(),
       confirm: (opts) => p.confirm(opts),
+      select: (opts) => p.select({
+        message: opts.message,
+        options: opts.options as Parameters<typeof p.select>[0]["options"],
+      }) as Promise<typeof opts.jsonModeDefault | symbol>,
       isCancel: (value) => p.isCancel(value),
     };
   }
@@ -83,6 +106,7 @@ export function createSyncOutput(jsonMode: boolean): SyncOutput {
     note: () => undefined,
     spinner: () => ({ start: () => undefined, stop: () => undefined }),
     confirm: () => Promise.resolve(false),
+    select: (opts) => Promise.resolve(opts.jsonModeDefault),
     isCancel: () => false,
   };
 }
