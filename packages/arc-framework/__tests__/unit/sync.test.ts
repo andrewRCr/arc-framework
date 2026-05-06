@@ -56,7 +56,7 @@ vi.mock("../../src/commands/user.js", async () => {
 
 const mockResolvePolicy = vi.fn();
 vi.mock("../../src/lib/sync-policy.js", () => ({
-  resolveSyncPushPolicy: (opts: unknown) => mockResolvePolicy(opts),
+  resolveNotesPushPolicy: (opts: unknown) => mockResolvePolicy(opts),
 }));
 
 const mockReadConfigSettings = vi.fn();
@@ -124,7 +124,7 @@ function setSyncState(
   });
 }
 
-function setPolicy(policy: "always" | "prompt" | "manual") {
+function setPolicy(policy: "on-sync" | "prompt" | "manual") {
   mockResolvePolicy.mockResolvedValue({ value: policy, source: "default" });
 }
 
@@ -235,7 +235,7 @@ describe("handleUserSync direction handling", () => {
 
   it("chooses push when disk has local unsaved files", async () => {
     setSyncState("same", "different", { diskStatus: "local unsaved", unsavedDirection: "edits" });
-    setPolicy("always");
+    setPolicy("on-sync");
     mockRunUserSave.mockResolvedValue({ warnings: [] });
     mockPushWithRecovery.mockResolvedValue({ kind: "ok" });
 
@@ -411,7 +411,7 @@ describe("handleUserSync direction handling", () => {
 
   it("prompts on conflict and respects push resolution", async () => {
     setSyncState("remote-ahead", "different");
-    setPolicy("always");
+    setPolicy("on-sync");
     mockSelect.mockResolvedValue("push");
     mockRunUserSave.mockResolvedValue({ warnings: [] });
     mockPushWithRecovery.mockResolvedValue({ kind: "ok" });
@@ -455,7 +455,7 @@ describe("handleUserSync direction handling", () => {
 
   it("pushes then loads when local note is ahead but disk is stale", async () => {
     setSyncState("local-ahead", "different", { diskStatus: "stale", unsavedDirection: "modified" });
-    setPolicy("always");
+    setPolicy("on-sync");
     mockRunUserSave.mockResolvedValue({ warnings: [] });
     mockPushWithRecovery.mockResolvedValue({ kind: "ok" });
     mockRunUserLoad.mockResolvedValue({
@@ -531,7 +531,7 @@ describe("handleUserSync push policy", () => {
 
   it("renders failed-nontty-conflict banner when push recovery surfaces that discriminant", async () => {
     setSyncState("local-ahead", "same");
-    setPolicy("always");
+    setPolicy("on-sync");
     mockRunUserSave.mockResolvedValue({ warnings: [] });
     mockPushWithRecovery.mockResolvedValue({ kind: "failed-nontty-conflict" });
 
@@ -546,7 +546,7 @@ describe("handleUserSync push policy", () => {
 
   it("records a partial-push marker when notes push fails after clean worktree publish state", async () => {
     setSyncState("local-ahead", "same");
-    setPolicy("always");
+    setPolicy("on-sync");
     mockRunUserSave.mockResolvedValue({ warnings: [] });
     mockPushWithRecovery.mockResolvedValue({ kind: "failed", error: new Error("network timeout") });
 
@@ -562,7 +562,7 @@ describe("handleUserSync push policy", () => {
 
   it("threads worktreeBranch into pushWithInteractiveRecovery; surfaces matrix-blocked notes push", async () => {
     setSyncState("local-ahead", "same");
-    setPolicy("always");
+    setPolicy("on-sync");
     mockRunUserSave.mockResolvedValue({ warnings: [] });
     // Worktree-not-aligned-with-origin would surface from the matrix; the
     // user-sync handler renders the blocked-condition guidance and preserves

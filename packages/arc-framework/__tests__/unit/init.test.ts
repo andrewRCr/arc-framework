@@ -128,22 +128,22 @@ describe("buildConfigMap", () => {
 // --- buildConfigKeyOverrides ---
 
 describe("buildConfigKeyOverrides", () => {
-  it("maps pm_mode, team_mode, and user.sync_push", () => {
+  it("maps pm_mode, team_mode, and user.notes_push", () => {
     const overrides = buildConfigKeyOverrides({ pm_mode: "arc-in-git", team_mode: true });
     expect(overrides["pm.mode"]).toBe("arc-in-git");
     expect(overrides["team.mode"]).toBe("true");
-    expect(overrides["user.sync_push"]).toBe("prompt");
+    expect(overrides["user.notes_push"]).toBe("prompt");
   });
 
-  it("defaults team_mode to false and sync_push to always", () => {
+  it("defaults team_mode to false and notes_push to on-sync", () => {
     const overrides = buildConfigKeyOverrides({ pm_mode: "none" });
     expect(overrides["team.mode"]).toBe("false");
-    expect(overrides["user.sync_push"]).toBe("always");
+    expect(overrides["user.notes_push"]).toBe("on-sync");
   });
 
-  it("sets sync_push to always when team_mode is false", () => {
+  it("sets notes_push to on-sync when team_mode is false", () => {
     const overrides = buildConfigKeyOverrides({ pm_mode: "none", team_mode: false });
-    expect(overrides["user.sync_push"]).toBe("always");
+    expect(overrides["user.notes_push"]).toBe("on-sync");
   });
 });
 

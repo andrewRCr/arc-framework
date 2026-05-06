@@ -135,7 +135,7 @@ describe("arc sync --json stdout purity", () => {
     const harness = await setupClonesWithIdentity(identity);
     try {
       await installArcInClone(harness.cloneA, {
-        "user.sync_push": "manual",
+        "user.notes_push": "manual",
       });
 
       const result = await runCli(["sync", "--json"], { cwd: harness.cloneA });
@@ -182,7 +182,7 @@ describe("arc sync --json stdout purity", () => {
       const harness = await setupClonesWithIdentity(identity);
       try {
         await installArcInClone(harness.cloneA, {
-          "user.sync_push": "prompt",
+          "user.notes_push": "prompt",
         });
 
         const result = await runCli(["sync", "--json"], { cwd: harness.cloneA });

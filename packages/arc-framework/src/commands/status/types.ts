@@ -33,7 +33,7 @@ import type { DirtyStateResult } from "../../lib/git/dirty-state.js";
 import type { HeadHashResult } from "../../lib/git/head-hash.js";
 import type { PushabilityResult } from "../../lib/git/pushability.js";
 import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
-import type { ResolvedSyncPush } from "../../lib/sync-policy.js";
+import type { ResolvedNotesPush } from "../../lib/sync-policy.js";
 
 /** Git-config pointers resolved in the composite handler (not a probe). */
 export interface StatusIdentity {
@@ -136,7 +136,7 @@ export interface SessionHandoffResult {
   user: Probe<UserSessionInitStatusResult>;
   pushInterlock: Probe<HandoffPushInterlock>;
   syncInterlock: Probe<HandoffSyncInterlock>;
-  syncPush: Probe<ResolvedSyncPush>;
+  syncPush: Probe<ResolvedNotesPush>;
   active: Probe<ActiveSessionInitResult>;
   head: Probe<HeadHashResult>;
   /**
@@ -175,7 +175,7 @@ export interface SessionHandoffProbes {
   user: (identity: string) => Promise<UserSessionInitStatusResult>;
   pushInterlock: () => Promise<HandoffPushInterlock>;
   syncInterlock: () => Promise<HandoffSyncInterlock>;
-  syncPush: () => Promise<ResolvedSyncPush>;
+  syncPush: () => Promise<ResolvedNotesPush>;
   active: (
     identity: string | null,
     role: string | null,

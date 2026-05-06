@@ -69,7 +69,7 @@ import { runWorktreeSyncStatus, type WorktreeSyncState } from "../lib/git/worktr
 import { createUserIOContext } from "../lib/io-context.js";
 import { resolveArcRoot } from "../lib/paths.js";
 import { createSyncOutput, type SyncOutput } from "../lib/sync-output.js";
-import { resolveSyncPushPolicy, type SyncPushPolicy } from "../lib/sync-policy.js";
+import { resolveNotesPushPolicy, type NotesPushPolicy } from "../lib/sync-policy.js";
 import { pushWithInteractiveRecovery } from "./push-recovery.js";
 import {
   ARC_PROJECT_ROOT_ERROR,
@@ -98,7 +98,7 @@ type SyncInterlock = "manual" | "on-handoff";
  */
 export interface InterlockState {
   pushInterlock: PushInterlock;
-  notesPush: SyncPushPolicy;
+  notesPush: NotesPushPolicy;
   syncInterlock: SyncInterlock;
 }
 
@@ -128,7 +128,7 @@ interface MatrixDecision {
 
 interface MatrixInput {
   pushInterlock: PushInterlock;
-  notesPush: SyncPushPolicy;
+  notesPush: NotesPushPolicy;
   worktreeState: WorktreeSyncState;
   worktreeAhead: number;
   worktreeBehind: number;
@@ -196,7 +196,7 @@ function decideNotes(input: MatrixInput): NotesAction {
   }
   const notesBlockedByWorktree = NOTES_BLOCK_WORKTREE_STATES.has(input.worktreeState)
     && (input.pushInterlock === "manual" || WORKTREE_PUSH_BLOCK_STATES.has(input.worktreeState));
-  if (input.notesPush === "always") {
+  if (input.notesPush === "on-sync") {
     return notesBlockedByWorktree
       ? { kind: "save+notes-blocked", reason: input.worktreeState }
       : { kind: "save+push" };
@@ -281,9 +281,9 @@ export async function handleSync(opts: SyncOptions = {}): Promise<void> {
     settings["session.sync_interlock"] === "manual" ? "manual" : "on-handoff";
   const remoteSyncEnabled = settings["session.remote_sync"] === "enabled";
 
-  const [worktree, syncPushResolved, branch] = await Promise.all([
+  const [worktree, notesPushResolved, branch] = await Promise.all([
     runWorktreeSyncStatus({ exec: io.exec, remoteSyncEnabled }),
-    resolveSyncPushPolicy({
+    resolveNotesPushPolicy({
       exec: io.exec,
       readFile: io.readFile,
       cwd,
@@ -292,12 +292,12 @@ export async function handleSync(opts: SyncOptions = {}): Promise<void> {
     resolveCurrentBranch(io),
   ]);
 
-  let notesPush = syncPushResolved.value;
+  let notesPush = notesPushResolved.value;
   if (notesPush === "prompt" && opts.yes === true) {
     output.log.info(
       `--yes flag detected — auto-accepting "prompt" policy (save and push notes).`,
     );
-    notesPush = "always";
+    notesPush = "on-sync";
   } else if (notesPush === "prompt" && (isNonInteractiveEnvironment() || opts.json === true)) {
     const reason = opts.json === true ? "JSON output mode" : "Non-interactive environment";
     output.log.warn(

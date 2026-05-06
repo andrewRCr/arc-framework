@@ -52,7 +52,7 @@ import type { DirtyStateResult } from "../../../src/lib/git/dirty-state.js";
 import type { HeadHashResult } from "../../../src/lib/git/head-hash.js";
 import type { PushabilityResult } from "../../../src/lib/git/pushability.js";
 import type { WorktreeSyncStatusResult } from "../../../src/lib/git/worktree-sync.js";
-import type { ResolvedSyncPush } from "../../../src/lib/sync-policy.js";
+import type { ResolvedNotesPush } from "../../../src/lib/sync-policy.js";
 
 // --- Fixtures ---
 
@@ -116,7 +116,7 @@ function configResult(overrides: Partial<ConfigStatusResult> = {}): ConfigStatus
       "session.push_interlock": "manual",
       "session.sync_interlock": "on-handoff",
       "archive.cadence": "with-integration",
-      "user.sync_push": "always",
+      "user.notes_push": "on-sync",
     },
     defaultsApplied: [],
     warnings: [],
@@ -290,8 +290,8 @@ function handoffSyncInterlock(
   return { value: "on-handoff", source: "default", ...overrides };
 }
 
-function resolvedSyncPush(overrides: Partial<ResolvedSyncPush> = {}): ResolvedSyncPush {
-  return { value: "always", source: "default", ...overrides };
+function resolvedSyncPush(overrides: Partial<ResolvedNotesPush> = {}): ResolvedNotesPush {
+  return { value: "on-sync", source: "default", ...overrides };
 }
 
 function headHash(overrides: Partial<HeadHashResult> = {}): HeadHashResult {
@@ -945,7 +945,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
     }
   });
 
-  it("returns sync-push policy with provenance from the syncPush probe", async () => {
+  it("returns notes-push policy with provenance from the syncPush probe", async () => {
     const probes = sessionHandoffProbes({
       syncPush: vi.fn(async () => resolvedSyncPush({ value: "prompt", source: "yaml" })),
     });

@@ -155,7 +155,7 @@ function resetMockDefaults() {
       "pm.mode": "none",
       "team.mode": "false",
       "session.remote_sync": "enabled",
-      "user.sync_push": "always",
+      "user.notes_push": "on-sync",
     },
     defaultsApplied: [],
     errors: [],

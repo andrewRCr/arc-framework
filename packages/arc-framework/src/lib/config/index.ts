@@ -26,7 +26,7 @@ export function buildConfigKeyOverrides(
   return {
     [CONFIG_KEY_PM_MODE]: source.pm_mode,
     [CONFIG_KEY_TEAM_MODE]: String(source.team_mode ?? false),
-    "user.sync_push": source.team_mode ? "prompt" : "always",
+    "user.notes_push": source.team_mode ? "prompt" : "on-sync",
   };
 }
 

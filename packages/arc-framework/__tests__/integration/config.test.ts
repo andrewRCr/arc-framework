@@ -57,7 +57,7 @@ describe("runConfigStatus — full mode", () => {
       "session.commit_interlock: manual",
       "session.push_interlock: manual",
       "archive.cadence: manual",
-      "user.sync_push: always",
+      "user.notes_push: on-sync",
     ].join("\n");
     await writeFile(fixture.configPath, content);
 
@@ -131,7 +131,7 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
         "session.commit_interlock: on-task-approval",
         "session.push_interlock: on-sync",
         "session.sync_interlock: manual",
-        "user.sync_push: prompt",
+        "user.notes_push: prompt",
       ].join("\n"),
     );
     const result = await runConfigSessionInitStatus({ cwd: fixture.root });

@@ -38,7 +38,7 @@ const FULL_SETTINGS: ConfigSettings = {
   "session.push_interlock": "manual",
   "session.sync_interlock": "on-handoff",
   "archive.cadence": "with-integration",
-  "user.sync_push": "always",
+  "user.notes_push": "on-sync",
 };
 
 const SESSION_INIT_SETTINGS: ConfigSessionInitSettings = {
@@ -87,7 +87,7 @@ describe("buildConfigStatusSummary — counts + keys", () => {
     expect(summary).toContain("pm.mode: arc-in-git");
     expect(summary).toContain("branch.protection: full");
     expect(summary).toContain("archive.cadence: with-integration");
-    expect(summary).toContain("user.sync_push: always");
+    expect(summary).toContain("user.notes_push: on-sync");
   });
 
   it("marks defaulted keys with a (default) suffix", () => {
@@ -96,8 +96,8 @@ describe("buildConfigStatusSummary — counts + keys", () => {
     );
     expect(summary).toContain("pm.mode: arc-in-git (default)");
     expect(summary).toContain("branch.protection: full (default)");
-    expect(summary).toContain("user.sync_push: always");
-    expect(summary).not.toContain("user.sync_push: always (default)");
+    expect(summary).toContain("user.notes_push: on-sync");
+    expect(summary).not.toContain("user.notes_push: on-sync (default)");
   });
 
   it("does not include a (default) suffix when no defaults were applied", () => {
@@ -138,7 +138,7 @@ describe("buildConfigSessionInitSummary — narrow subset", () => {
     expect(summary).toContain("commit.format: conventional");
     expect(summary).toContain("commit.context_footer: required");
     expect(summary).not.toContain("branch.base:");
-    expect(summary).not.toContain("user.sync_push:");
+    expect(summary).not.toContain("user.notes_push:");
   });
 
   it("marks defaulted keys", () => {

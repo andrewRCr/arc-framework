@@ -737,43 +737,10 @@ on final-shape strings).
 
 - _Goal:_ Rename `user.sync_push` → `user.notes_push` end-to-end and migrate adopters in place.
 
-    - `[ ]` **3.2.a Yaml schema, value enum, and surface rename**
-        - Rename yaml key `user.sync_push` → `user.notes_push` in config schema/validation; rename git-config override
-          `arc.syncPush` → `arc.notesPush`; rename the resolver function `resolveSyncPushPolicy` →
-          `resolveNotesPushPolicy` and the module's exported constants/types
-          (`SYNC_PUSH_YAML_KEY` → `NOTES_PUSH_YAML_KEY`, `SYNC_PUSH_GIT_CONFIG_KEY` → `NOTES_PUSH_GIT_CONFIG_KEY`,
-          `SyncPushPolicy` → `NotesPushPolicy`, `DEFAULT_SYNC_PUSH_POLICY` → `DEFAULT_NOTES_PUSH_POLICY`).
-        - Value enum: `manual | prompt | on-sync` (semantic identity: `always` ⇄ `on-sync`). Each interlock value names
-          its own trigger event per R9.
-        - Affected files (audit-enumerated):
-            - `packages/arc-framework/src/lib/config/status-reader.ts` (DEFAULTS map + `AGENT_CONSUMABLE_KEYS`; add
-              notes_push to `ENUM_VALIDATORS` if validating at TS layer — note 3.3 then removes the four release-mode
-              keys from `ENUM_VALIDATORS` per the validator source-of-truth pin)
-            - `packages/arc-framework/src/lib/sync-policy.ts` (constants + types listed above; `resolveSyncPushPolicy`
-              function; rename module-internal types)
-            - `packages/arc-framework/src/commands/config/types.ts` (`ConfigSettings` and `ConfigSessionInitSettings`
-              interface keys)
-            - `packages/arc-framework/src/lib/config/index.ts` (`buildConfigKeyOverrides` install-time team-mode
-              default)
-            - `packages/arc-framework/arc/system/scripts/validate-config.sh` (`validate_enum` line for
-              `user.sync_push` + `known_keys` list)
-            - `packages/arc-framework/arc/system/arc-config.yml` + `.arc/system/arc-config.yml` (key + comment block —
-              multiple mentions in surrounding prose; both copies)
-        - Test fan-out (audit-enumerated; expect rename touches in addition to logic changes):
-            - `__tests__/unit/sync-policy.test.ts` (constants + import names; `.policy` → `.value` field rename)
-            - `__tests__/unit/init.test.ts` (`overrides["user.sync_push"]` → `overrides["user.notes_push"]`)
-            - `__tests__/unit/config/status-reader.test.ts`
-            - `__tests__/unit/user-handlers.test.ts`
-            - `__tests__/unit/config-format.test.ts`
-            - `__tests__/unit/status-format.test.ts`
-            - `__tests__/integration/config.test.ts`, `__tests__/integration/init.test.ts`
-            - `__tests__/e2e/sync-purity.e2e.test.ts`
-            - `__tests__/unit/sync-orchestrator.test.ts`, `__tests__/unit/sync.test.ts` (mocks + imports)
-        - Build `test-first` (one behavior at a time):
-            - Schema validates new key+values; rejects old key
-            - `on-sync` value resolves equivalently to legacy `always`
-            - Git-config override reads from `arc.notesPush`
-            - Shell validator accepts new key+values; rejects old key+values
+    - `[x]` **3.2.a Yaml schema, value enum, and surface rename**
+        - Renamed the CLI config surface to `user.notes_push` / `arc.notesPush`, replaced the notes-push auto mode with
+          `on-sync`, migrated the resolver API to `resolveNotesPushPolicy` + `NotesPushPolicy`, and updated config
+          readers, validators, shipped/self-hosted config files, setup guidance, call sites, and affected tests.
 
     - `[ ]` **3.2.b `arc update` migration logic**
         - **Inline one-shot migrator** — versioned migrator-registry infrastructure deferred (see

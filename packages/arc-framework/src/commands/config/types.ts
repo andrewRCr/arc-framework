@@ -29,7 +29,7 @@ export interface ConfigSettings {
   "session.push_interlock": string;
   "session.sync_interlock": string;
   "archive.cadence": string;
-  "user.sync_push": string;
+  "user.notes_push": string;
 }
 
 /**

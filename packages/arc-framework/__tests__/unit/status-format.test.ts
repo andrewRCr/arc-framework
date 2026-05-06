@@ -91,7 +91,7 @@ function okConfig(): Probe<ConfigStatusResult> {
         "session.push_interlock": "manual",
         "session.sync_interlock": "on-handoff",
         "archive.cadence": "with-integration",
-        "user.sync_push": "always",
+        "user.notes_push": "on-sync",
       },
       defaultsApplied: [],
       warnings: [],

@@ -40,7 +40,7 @@ const DEFAULTS: ConfigSettings = {
   "session.push_interlock": "manual",
   "session.sync_interlock": "on-handoff",
   "archive.cadence": "with-integration",
-  "user.sync_push": "always",
+  "user.notes_push": "on-sync",
 };
 
 /**
@@ -54,6 +54,7 @@ const ENUM_VALIDATORS: Partial<Record<keyof ConfigSettings, readonly string[]>> 
   "session.commit_interlock": ["manual", "on-task-approval"],
   "session.push_interlock": ["manual", "on-sync"],
   "session.sync_interlock": ["manual", "on-handoff"],
+  "user.notes_push": ["manual", "prompt", "on-sync"],
   "archive.cadence": ["with-integration", "manual"],
 };
 

@@ -151,7 +151,7 @@ pm.mode: arc-in-git
 # Team mode. Controls behavioral defaults for multi-developer collaboration.
 # Behavioral, not structural — the user/{identity}/ directory layout is
 # identical in solo and team modes. Team mode affects:
-#   - user.sync_push default (solo: always, team: prompt)
+#   - user.notes_push default (solo: on-sync, team: prompt)
 #   - Team coordination guidance (task ownership, handoff conventions)
 #   false - Solo mode. Single developer, auto-sync session context. (default)
 #   true  - Team mode. Multiple developers, conscious sync decisions.
@@ -198,7 +198,7 @@ session.push_interlock: on-sync
 
 # Sync interlock release policy.
 # `arc sync` is the orchestrator that routes worktree push and user-notes push
-# per `session.push_interlock` and `user.sync_push`. This setting controls when
+# per `session.push_interlock` and `user.notes_push`. This setting controls when
 # `arc sync` itself fires.
 #   manual     - Each `arc sync` invocation requires explicit user invocation.
 #   on-handoff - Handoff implicitly invokes `arc sync`. (default)
@@ -207,12 +207,12 @@ session.sync_interlock: on-handoff
 # --- User Directory ---
 
 # Automatic push of user/{identity}/ directory via git notes.
-# Controls whether `arc session push` runs automatically after handoff.
-#   always - Push session state automatically after every handoff. (default)
-#   prompt - Ask whether to push after handoff.
-#   manual - Never auto-push; user runs `arc session push` explicitly.
-# Per-developer override: `git config arc.syncPush <value>`
-user.sync_push: always
+# Controls whether `arc sync` pushes user notes after saving them.
+#   manual  - Never auto-push; user runs `arc user push` explicitly.
+#   prompt  - Ask whether to push user notes when `arc sync` runs.
+#   on-sync - Push user notes whenever `arc sync` runs. (default)
+# Per-developer override: `git config arc.notesPush <value>`
+user.notes_push: on-sync
 
 # --- Archival ---
 

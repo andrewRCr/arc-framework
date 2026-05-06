@@ -54,7 +54,7 @@ import { runPushabilityStatus } from "../lib/git/pushability.js";
 import { runWorktreeSyncStatus } from "../lib/git/worktree-sync.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { createUserIOContext, gitExec } from "../lib/io-context.js";
-import { resolveSyncPushPolicy } from "../lib/sync-policy.js";
+import { resolveNotesPushPolicy } from "../lib/sync-policy.js";
 import { requireArcProjectRoot } from "./shared.js";
 
 export interface StatusCliOptions {
@@ -122,7 +122,7 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
           source: result.defaultsApplied.includes(key) ? "default" : "yaml",
         };
       },
-      syncPush: () => resolveSyncPushPolicy({
+      syncPush: () => resolveNotesPushPolicy({
         exec: gitExec,
         readFile: io.readFile,
         cwd,

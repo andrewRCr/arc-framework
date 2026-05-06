@@ -80,7 +80,7 @@ describe("readConfigSettings — default fallback", () => {
     expect(result.settings["session.push_interlock"]).toBe("manual");
     expect(result.settings["session.sync_interlock"]).toBe("on-handoff");
     expect(result.settings["archive.cadence"]).toBe("with-integration");
-    expect(result.settings["user.sync_push"]).toBe("always");
+    expect(result.settings["user.notes_push"]).toBe("on-sync");
   });
 
   it("reports every key as defaulted when the file is missing", async () => {
@@ -127,7 +127,7 @@ describe("readConfigSettings — user-supplied values", () => {
       "session.push_interlock: on-sync",
       "session.sync_interlock: manual",
       "archive.cadence: manual",
-      "user.sync_push: manual",
+      "user.notes_push: manual",
     ].join("\n");
     await writeFile(fixture.configPath, content);
 
@@ -135,7 +135,7 @@ describe("readConfigSettings — user-supplied values", () => {
     expect(result.settings["branch.base"]).toBe("develop");
     expect(result.settings["commit.format"]).toBe("custom");
     expect(result.settings["pm.mode"]).toBe("arc-in-git");
-    expect(result.settings["user.sync_push"]).toBe("manual");
+    expect(result.settings["user.notes_push"]).toBe("manual");
     expect(result.settings["session.init_pull.worktree"]).toBe("manual");
     expect(result.settings["session.init_pull.notes"]).toBe("always");
     expect(result.settings["session.commit_interlock"]).toBe("on-task-approval");
@@ -276,7 +276,7 @@ describe("readConfigSettings — session.init_pull channels", () => {
       "pm.mode: arc-in-git",
       "team.mode: false",
       "session.remote_sync: enabled",
-      "user.sync_push: always",
+      "user.notes_push: on-sync",
     ].join("\n");
     await writeFile(fixture.configPath, legacyContent);
     const result = await readConfigSettings(fixture.root);
@@ -286,6 +286,30 @@ describe("readConfigSettings — session.init_pull channels", () => {
     expect(result.defaultsApplied).toContain("session.init_pull.worktree");
     expect(result.defaultsApplied).toContain("session.init_pull.notes");
     expect(result.defaultsApplied).not.toContain("pm.mode");
+  });
+});
+
+describe("readConfigSettings — user.notes_push", () => {
+  let fixture: Fixture;
+  beforeEach(async () => {
+    fixture = await createFixture();
+  });
+  afterEach(async () => {
+    await rm(fixture.root, { recursive: true, force: true });
+  });
+
+  it("includes user.notes_push and excludes the legacy user.sync_push key", () => {
+    expect(AGENT_CONSUMABLE_KEYS).toContain("user.notes_push");
+    expect(AGENT_CONSUMABLE_KEYS).not.toContain("user.sync_push");
+  });
+
+  it("accepts manual | prompt | on-sync", async () => {
+    for (const value of ["manual", "prompt", "on-sync"]) {
+      await writeFile(fixture.configPath, `user.notes_push: ${value}\n`);
+      const result = await readConfigSettings(fixture.root);
+      expect(result.settings["user.notes_push"]).toBe(value);
+      expect(result.warnings).toHaveLength(0);
+    }
   });
 });
 
