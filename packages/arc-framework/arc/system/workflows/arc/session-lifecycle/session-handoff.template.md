@@ -181,24 +181,23 @@ session-init's sessionType inference key on this prefix. Task-list-driven workfl
 
 **Update `.arc/user/{identity}/SESSION-NOTES.md`** (personal session context — gitignored):
 
-**Audience:** The reader is the next session's agent loading from cold context. They already have
-tracked state — git log, task list, active status file, commit bodies, `notes-*.md`, PRD, constitution,
-strategies. Write only what they can't derive from any of that. The goal is signal, not length. A
-genuinely rich session may produce a longer note; a routine session produces a shorter one. Volume
-is a side effect, not a target.
+**Audience:** The next session's agent loading from cold context. They already have tracked state —
+git log, task list, status file, commit bodies, `notes-*.md`, PRD, constitution, strategies. Write
+only what they can't derive from any of that. Volume is a side effect, not a target.
 
 **The filter — include only if all three hold:**
 
-1. **Not carried in any tracked source.** If the fact lives in a commit body, task list,
-   `notes-*.md`, PRD, strategy, or constitution, that source is authoritative. Duplicating it here
-   creates a shadow copy that drifts.
-2. **The next session will act on it at step 0.** Orientation-relevant — it changes what the next
-   session does or checks when it loads. Not a retrospective observation you "want on record."
-3. **Missing or wrong would cost real rework.** Re-deriving from tracked state in 30 seconds is
-   not rework; a mis-interpretation costing an hour of re-debugging is.
+1. **Not in any tracked source.** Commit body, task list, `notes-*.md`, PRD, strategy, constitution
+   — those are authoritative; duplicating creates shadow copies that drift. This subsumes most
+   omissions: don't restate commit subjects, completed tasks, decisions in plan docs, or rules in
+   DEV-RULES.
+2. **Acted on at step 0.** Orientation-relevant — changes what the next session does or checks
+   when it loads. Not a retrospective observation you "want on record."
+3. **Costly if missing.** Re-deriving from tracked state in 30 seconds is not rework; a
+   misinterpretation costing an hour of re-debugging is.
 
-If any of the three fails, omit. This is the same criterion Persistent Context enforces — it
-applies to every ephemeral section too.
+If any criterion fails, omit. Empty sections write `[none]` — empty is the normal case for routine
+sessions.
 
 **Template skeleton:**
 
@@ -248,79 +247,56 @@ _Remove when: [explicit trigger condition]_
 - [Context that must persist until trigger is met]
 ```
 
-**Session Type override (optional):** Add `**Session Type:**` to Handoff Metadata only when the
-next session's intent diverges from what the active status file implies — for example, status
-points to an in-progress execution WU but the next session will plan a separate concern. Absent
-(default) → session-init infers from tracked state. Don't write by default; the inference covers
-the 99% case.
+**Per-section guidance:**
 
-**Uncommitted Work:** Committed work lives in `git log`, task list checkboxes, and the status
-file's `**Last Completed:**` pointer — restating it here fails filter criterion #1 (already in
-tracked sources). Reserve this section for work the next session can only see in `git diff`. Use
-commit-level granularity so the next session can reconstruct proper atomic commits:
+- **Working On / Session Type override:** Marker vocabulary in the template. `Session Type` is
+  optional; absent → session-init infers. Set only when the next session's intent diverges from
+  what the active status file implies (e.g., status points at execution, next session will plan
+  a separate concern).
+- **Uncommitted Work:** Work the next session can only see in `git diff` — committed work is
+  already in `git log`. Use commit-level granularity so the next session can reconstruct atomic
+  commits. Map accomplishments to logical commits (what changed, which files), include task
+  numbers for `Context:` footers, note incidental work separately. Write `[none]` when everything
+  is committed (the common case after a deferred-review scope finishes). Examples:
 
-- ✅ Task 3.2.1: Added input validation to config parser (src/config.py, src/validators.py) —
-  rejects malformed YAML
-- ✅ Task 3.2.2: Updated API response schema (api/v2/schemas.py:45–67) — added nullable fields
-- ✅ Incidental: Fixed broken cross-reference in workflow doc (session-init.md)
+    - ✅ Task 3.2.1: Added input validation to config parser (src/config.py, src/validators.py) —
+      rejects malformed YAML
+    - ✅ Task 3.2.2: Updated API response schema (api/v2/schemas.py:45–67) — added nullable fields
+    - ✅ Incidental: Fixed broken cross-reference in workflow doc (session-init.md)
 
-Map accomplishments to logical commits (what changed, which files), include task numbers for
-`Context:` footers, note incidental work separately from task list work. When everything is
-committed (the common case after a deferred-review scope finishes), write `[none]`.
+- **Remaining Work Before Returning to Task List:** Off-task-list work with a known path back.
+  List all steps, not just the next. Use triple-anchor format for the return target. If the path
+  is unknown, state it: "Path unclear — will return to Task X.Y when resolved."
+- **Additional Context:** Debugging insights, decisions not in tracked state, things tried and
+  ruled out, observed risks, "currently mid-X with concrete next action Y" mid-task stops.
+  Filter applies — empty is normal.
 
-**Remaining Work Before Returning to Task List:** Only for off-task-list work when the path
-back is known. List all steps, not just the next one. Use triple-anchor format (task number +
-title + line hint) for the return target. When the path is unknown, state it: "Path unclear —
-will return to Task X.Y when resolved."
+- **Persistent Context:** Entries that survive across handoffs. Each needs an explicit removal
+  trigger (not tied to full work unit completion). Same filter as above.
 
-**Additional Context:** Supplemental information that passes the filter — debugging insights,
-decisions not in commit bodies, things tried and ruled out, constraints discovered. If nothing
-passes the filter, write `[none]`. Empty is the normal case for routine sessions.
+    - **Passes:** forward-looking constraints (terminology for an unlanded rename), un-codified
+      meta-conventions, parking references to uncommitted work visible in `git status`.
+    - **Fails:** mechanism decisions already in a plan doc's § Resolved Decisions, rules already
+      in a strategy doc, behavioral guidance already in DEV-RULES.
+    - **Anti-pattern (planning sessions):** writing an entry for every mechanism decision
+      resolved in the plan doc — Persistent Context is not a substitute for § Resolved Decisions.
+    - **Anti-pattern (future-WU drift):** activation-audit reminders inside a backlog
+      `plan-*.md` for an unactivated WU. Write them into the plan doc itself; the activating
+      session sees them naturally.
 
-**Persistent Context:** Entries that survive across handoffs. Each needs an explicit removal
-trigger (not tied to full work unit completion). Same criterion as the filter above — tracked
-state is authoritative.
+    Review at each handoff: remove entries whose triggers are met, AND entries whose information
+    is now carried in tracked state.
 
-- **Passes:** forward-looking constraints (terminology for a rename that hasn't landed),
-  un-codified meta-conventions (rules not yet in a strategy doc), parking references (to
-  uncommitted work visible in `git status`).
-- **Fails:** mechanism decisions already in a plan doc's § Resolved Decisions, architecture
-  rules already in a strategy doc, behavioral guidance already in DEV-RULES.
-- **Anti-pattern** (common during pre-PRD planning): writing a persistent-context entry for
-  every mechanism decision resolved in the plan doc. Persistent context is not a substitute
-  for the plan doc's § Resolved Decisions section.
-- **Anti-pattern** (future-WU drift): writing persistent-context entries for stale references
-  or activation-audit reminders inside a backlog `plan-*.md` for a WU that hasn't activated.
-  These don't apply to interim sessions — they apply once, when that WU activates. Write the
-  note into the plan doc itself; the activating session sees it naturally.
+**Stay-out list — when you notice yourself writing one of these, delete it:**
 
-Review at each handoff: remove entries whose triggers are met, AND entries whose information
-is now carried in tracked state.
+- Forward-looking content the next session will read when they get there (phase previews,
+  upcoming-task summaries, "things NOT to re-do" lists).
+- Process narration (debugging steps, mid-task discoveries, tooling gotchas). Codify durable
+  lessons in a strategy or QUICK-REFERENCE — not here.
+- Explanatory paragraphs where the template expects whitespace. Empty sections stay empty.
 
-**Anti-patterns — omit by name.** When you notice yourself writing one of these, delete it and
-trust the tracked source:
-
-- ❌ **Restating tracked content.** Anything already in a commit body, task list, status file,
-  or `notes-*.md` — including commit-by-commit narration, completed-task summaries, and
-  design-decision retrospectives. The next session reads tracked state first; SESSION-NOTES is
-  the delta. Cross-reference at most; don't restate.
-- ❌ **Forward-looking content the next session reads when they get there.** Phase previews,
-  upcoming-task summaries, "things NOT to re-do" lists. The task list and tracked state surface
-  this naturally at step 0 — no need to mirror them.
-- ❌ **Process narration.** "Table-width math was tight; commit-body length warnings fired
-  twice; markdown-table-prettify has a stdout gotcha." Session retrospective, not next-session
-  context. If one observation becomes a durable lesson, codify it in a strategy or
-  QUICK-REFERENCE — not SESSION-NOTES.
-- ❌ **Explanatory paragraphs where the template expects whitespace.** An empty Persistent
-  Context section is fine as empty. Don't write prose explaining why it's empty.
-
-**Minimum viable SESSION-NOTES — what belongs here:** If it doesn't fit one of these, it
-probably doesn't belong:
-
-- Things tried that didn't work (not yet captured in a commit or notes file)
-- Decisions not captured in tracked state
-- Observed risks
-- "Currently mid-X with concrete next action Y" when stopping mid-task
+(Restating tracked content is the most common failure but already excluded by filter #1 — see
+the filter for the full case.)
 
 ## Handoff Examples
 
