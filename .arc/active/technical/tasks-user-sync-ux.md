@@ -833,14 +833,13 @@ single entrypoint for all commit paths.
 
 - _Goal:_ Introduce the user-notes feature and orient new developers without a suppression-flag burden.
 
-    - `[ ]` **4.1.a `arc join` post-init paragraph**
-        - One-time install paragraph briefly explaining where the gitignored personal context lives and that it travels
-          via push/pull as a git notes ref attached to commits.
-        - Affected file: `packages/arc-framework/src/handlers/join.ts` — append to the post-join `lines` block
-          (currently rendering "What's next" via `p.note`). Optional refactor to extract a `buildPostJoinMessage` helper
-          analogous to `commands/init.ts:buildPostInitMessage` if the message grows enough to warrant separation.
-        - Test-after — output formatting per project testing methodology.
-        - Concrete paragraph copy finalizes at implementation time.
+    - `[x]` **4.1.a `arc join` post-init paragraph**
+        - Extracted `buildPostJoinMessage` in `commands/join.ts` mirroring `commands/init.ts:buildPostInitMessage`;
+          `handlers/join.ts` calls it. Adds a one-time orientation paragraph to the post-join `What's next` block when
+          identity resolves: where personal context lives (`.arc/user/<identity>/`, gitignored) and that it travels
+          via user notes (a git notes ref) pushed/pulled by `arc sync`.
+        - Test-after: 6 cases in `join.test.ts` covering role-confirmation line, tools-conditional restart cue, and
+          identity-conditional orientation paragraph (presence, path interpolation, null-identity omission).
 
     - `[ ]` **4.1.b `arc status` single-line hint**
         - Single-line hint pointing at `arc user --help`, conditional on local notes ref absence (no
