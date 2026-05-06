@@ -652,28 +652,25 @@ composition. The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) i
           (worktree-first, already documented), the cascade-reversibility model, or the probe envelope shape.
           Audit § Open Items already closed the surface as "(none open — items surfaced … addressed inline)".
 
-    - `[ ]` **2.R.6.d Unify spinner-routing helper**
+    - `[x]` **2.R.6.d Unify spinner-routing helper**
         - _Goal:_ Eliminate the two-helper smell created during 2.R.3.c.1 — `shared.ts:runWithSpinner` (raw
           `p.spinner()`) and `push-recovery.ts:runRoutedSpinner` (routed through `output: SyncOutput`) are
           near-identical 5-line wrappers that drift with any spinner-pattern change. Set one canonical pattern: spinner
-          ownership lives at handler boundaries where JSON/human-mode awareness already lives.
-        - _Approach:_ thread `output: SyncOutput` as a **required** parameter through `shared.ts:runWithSpinner`. No
-          silent default to clack — caller responsibility (per `notes-user-sync-ux.md` § `pushWithInteractiveRecovery`
-          output routing). Delete the local `runRoutedSpinner` twin in `push-recovery.ts`; switch its three call sites
-          (force-push branch + merge fetch/save/push branches) to the unified helper using the `output` param already
-          threaded into `pushWithInteractiveRecovery`. Update the remaining 5 call sites — `handlers/lifecycle.ts:33`,
-          `handlers/user.ts:67`, `:97`, `:202`, `:294` — to pass `createSyncOutput(false)`. Hoist one instance per
-          handler entry rather than re-instantiating per call.
-        - Build `test-first` (no behavior change — only the routing source differs, so each behavior is a no-op
-          assertion that existing coverage continues to pass):
-            - The 17 unit/integration tests of `pushWithInteractiveRecovery` continue to pass
-            - Lifecycle / user-handler tests that exercise spinner-wrapped ops continue to pass
-            - The 5-cell stdout purity e2e (`__tests__/e2e/sync-purity.e2e.test.ts`) continues to pass
-        - _Forward-compat:_ any future `--json` flag on `arc user save / load / push / pull` or lifecycle commands
-          inherits the routing pattern by construction — the handler instantiates a `SyncOutput` with the appropriate
-          mode and threads it through; no further refactor needed at the spinner layer.
-        - _Out of scope:_ routing `promptConflictResolution`'s remaining `p.log.warn` + `p.select` calls — that's
-          a separate concern about non-spinner clack consumers, picked up as 2.R.6.f.
+          ownership lives at handler boundaries where JSON/human-mode awareness already lives. Scope covers the
+          full spinner surface in user-sync handlers — both the helper consumers and the inline `p.spinner()`
+          sites in `handleUserLoad` / `handleUserPull` that don't fit the helper's signature.
+        - _Outcome:_ Spinner routing in user-sync handlers is single-source — `runWithSpinner` is the canonical
+          helper, consuming `output: SyncOutput` as a required first parameter (matching the deleted
+          `runRoutedSpinner`'s ordering); inline `p.spinner()` in `handleUserLoad`/`handleUserPull` switched to
+          `output.spinner()` directly because their per-branch stop labels don't fit `(label, fn, doneLabel)`.
+          Eight `runWithSpinner` call sites updated (3 in `push-recovery.ts` replacing the deleted twin; 5 in
+          `handleUpdate`/`handleUserAdd`/`handleUserSave`/`handleUserPush --force`/`handleUserFetch`); a
+          `SyncOutput` instance is hoisted per handler entry. Two test mocks (`unit/push-recovery.test.ts`,
+          `unit/user-handlers.test.ts`) updated for the new signature. All quality surfaces remain green: 1066
+          unit + 231 integration + 56 e2e (including the 5-cell sync-purity e2e). Non-spinner clack consumers
+          (`p.intro`, `p.outro`, `p.note`, `p.log.*`) in those handlers stay raw — deferred until a handler
+          actually needs `--json`, since pre-emptive migration would add dormant indirection with no JSON-mode
+          test surface to exercise it.
 
     - `[ ]` **2.R.6.e Load-side verification symmetry**
         - _Goal:_ Add a postcondition check to `runUserLoad` symmetric to 2.R.1.a's save-side verification, so

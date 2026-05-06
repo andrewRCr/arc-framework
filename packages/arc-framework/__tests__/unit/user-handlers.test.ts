@@ -76,14 +76,22 @@ const mockReadConfigSettings = vi.fn();
 
 // Mock runWithSpinner to just call the fn directly (skip spinner ceremony)
 const mockRunWithSpinner = vi.fn(
-  async (label: string, fn: () => Promise<unknown>, done: string) => { void label; void done; return fn(); },
+  async (
+    output: unknown,
+    label: string,
+    fn: () => Promise<unknown>,
+    done: string,
+  ) => { void output; void label; void done; return fn(); },
 );
 
 const mockIsNonInteractive = vi.fn(() => false);
 
 vi.mock("../../src/handlers/shared.js", () => ({
   resolveUserIdentity: (...args: unknown[]) => mockResolveUserIdentity(...args),
-  runWithSpinner: (...args: unknown[]) => mockRunWithSpinner(...(args as [string, () => Promise<unknown>, string])),
+  runWithSpinner: (...args: unknown[]) =>
+    mockRunWithSpinner(
+      ...(args as [unknown, string, () => Promise<unknown>, string]),
+    ),
   isHandledError: () => false,
   isRemoteError: (msg: string) =>
     msg.includes("No configured push destination") || msg.includes("does not appear to be a git repository"),
@@ -122,7 +130,12 @@ function resetMockDefaults() {
   mockIsCancel.mockReturnValue(false);
   mockIsNonInteractive.mockReturnValue(false);
   mockRunWithSpinner.mockImplementation(
-    async (label: string, fn: () => Promise<unknown>, done: string) => { void label; void done; return fn(); },
+    async (
+      output: unknown,
+      label: string,
+      fn: () => Promise<unknown>,
+      done: string,
+    ) => { void output; void label; void done; return fn(); },
   );
   mockBuildSaveSummary.mockReturnValue("");
   mockBuildLoadSummary.mockReturnValue("");

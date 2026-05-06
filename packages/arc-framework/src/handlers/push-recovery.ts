@@ -21,7 +21,7 @@ import {
 import type { UserIOContext } from "../commands/user.js";
 import type { AccessFn, PushabilityCondition } from "../lib/git/index.js";
 import type { SyncOutput } from "../lib/sync-output.js";
-import { isNonInteractiveEnvironment, isRemoteError } from "./shared.js";
+import { isNonInteractiveEnvironment, isRemoteError, runWithSpinner } from "./shared.js";
 
 /** Outcome of an interactive push attempt. */
 export type PushResult =
@@ -114,7 +114,7 @@ export async function pushWithInteractiveRecovery(
 
     try {
       if (action === "force") {
-        await runRoutedSpinner(
+        await runWithSpinner(
           output,
           "Force-pushing user notes...",
           () => runUserPush({ cwd, io, identity, force: true, access, worktreeBranch }),
@@ -127,19 +127,19 @@ export async function pushWithInteractiveRecovery(
       // writes the current disk state as a new note on top of the aligned base,
       // and push sends the combined state. Re-save after fetch is the critical
       // step the former "pull first" option skipped.
-      await runRoutedSpinner(
+      await runWithSpinner(
         output,
         "Fetching remote notes...",
         () => runUserFetch({ io, identity, force: true }),
         "Fetch complete.",
       );
-      await runRoutedSpinner(
+      await runWithSpinner(
         output,
         "Saving current user directory on top...",
         () => runUserSave({ cwd, io, identity }),
         "Save complete.",
       );
-      await runRoutedSpinner(
+      await runWithSpinner(
         output,
         "Pushing user notes...",
         () => runUserPush({ cwd, io, identity, access, worktreeBranch }),
@@ -152,30 +152,6 @@ export async function pushWithInteractiveRecovery(
       }
       return { kind: "failed", error: recoveryErr };
     }
-  }
-}
-
-/**
- * Local twin of `runWithSpinner` that routes the spinner through the caller's
- * `SyncOutput` instead of raw `@clack/prompts`. Kept inline so push-recovery
- * stays self-contained — the shared helper still serves human-mode callers
- * elsewhere that don't have a `SyncOutput` in scope.
- */
-async function runRoutedSpinner<T>(
-  output: SyncOutput,
-  label: string,
-  fn: () => Promise<T>,
-  doneLabel: string,
-): Promise<T> {
-  const spinner = output.spinner();
-  spinner.start(label);
-  try {
-    const result = await fn();
-    spinner.stop(doneLabel);
-    return result;
-  } catch (err) {
-    spinner.stop("Failed.");
-    throw err;
   }
 }
 

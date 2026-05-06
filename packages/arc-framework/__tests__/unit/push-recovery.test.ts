@@ -56,7 +56,11 @@ vi.mock("../../src/handlers/shared.js", () => ({
   isNonInteractiveEnvironment: () => mockIsNonInteractive(),
   isRemoteError: (msg: string) =>
     msg.includes("No configured push destination") || msg.includes("does not appear to be a git repository"),
-  runWithSpinner: async (_label: string, fn: () => Promise<unknown>) => fn(),
+  runWithSpinner: async (
+    _output: unknown,
+    _label: string,
+    fn: () => Promise<unknown>,
+  ) => fn(),
 }));
 
 const { pushWithInteractiveRecovery } = await import("../../src/handlers/push-recovery.js");

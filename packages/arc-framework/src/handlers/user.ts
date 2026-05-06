@@ -46,6 +46,7 @@ function walkExhaustedMessage(walked: number): string {
 
 export async function handleUserAdd(rawIdentity: string): Promise<void> {
   p.intro("arc user add");
+  const output = createSyncOutput(false);
 
   // Sanitize identity to prevent path traversal from raw CLI input
   const identity = slugifyIdentity(rawIdentity);
@@ -65,6 +66,7 @@ export async function handleUserAdd(rawIdentity: string): Promise<void> {
 
   try {
     await runWithSpinner(
+      output,
       `Creating user directory for ${identity}...`,
       () => runUserAdd({ cwd, io, identity, internalTemplateDir: getInternalTemplatePath(), pmMode }),
       `User directory created for ${identity}.`,
@@ -81,6 +83,7 @@ export async function handleUserAdd(rawIdentity: string): Promise<void> {
 
 export async function handleUserSave(): Promise<void> {
   p.intro("arc user save");
+  const output = createSyncOutput(false);
 
   let identity: string;
   try {
@@ -95,6 +98,7 @@ export async function handleUserSave(): Promise<void> {
 
   try {
     const result = await runWithSpinner(
+      output,
       "Saving user directory...",
       () => runUserSave({ cwd, io, identity }),
       "Save complete.",
@@ -121,6 +125,7 @@ export interface UserLoadOptions {
 
 export async function handleUserLoad(opts: UserLoadOptions = {}): Promise<void> {
   p.intro("arc user load");
+  const output = createSyncOutput(false);
 
   let identity: string;
   try {
@@ -132,7 +137,7 @@ export async function handleUserLoad(opts: UserLoadOptions = {}): Promise<void> 
   const io = createUserIOContext();
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
-  const spinner = p.spinner();
+  const spinner = output.spinner();
   spinner.start("Loading user directory...");
 
   let result;
@@ -202,6 +207,7 @@ export interface UserPushOptions {
  */
 export async function handleUserPush(opts: UserPushOptions): Promise<void> {
   p.intro("arc user push");
+  const output = createSyncOutput(false);
 
   let identity: string;
   try {
@@ -220,6 +226,7 @@ export async function handleUserPush(opts: UserPushOptions): Promise<void> {
   if (opts.force) {
     try {
       await runWithSpinner(
+        output,
         "Force-pushing user notes...",
         () => runUserPush({ cwd, io, identity, force: true, access, worktreeBranch }),
         "Force push complete.",
@@ -245,7 +252,7 @@ export async function handleUserPush(opts: UserPushOptions): Promise<void> {
   }
 
   const result = await pushWithInteractiveRecovery({
-    io, identity, cwd, access, worktreeBranch, output: createSyncOutput(false),
+    io, identity, cwd, access, worktreeBranch, output,
   });
   switch (result.kind) {
     case "ok":
@@ -291,6 +298,7 @@ export interface UserFetchOptions {
 
 export async function handleUserFetch(opts: UserFetchOptions): Promise<void> {
   p.intro("arc user fetch");
+  const output = createSyncOutput(false);
 
   let identity: string;
   if (opts.identity) {
@@ -312,6 +320,7 @@ export async function handleUserFetch(opts: UserFetchOptions): Promise<void> {
   const hasLocal = await hasLocalNotes(io, identity);
   try {
     await runWithSpinner(
+      output,
       "Fetching user notes...",
       () => runUserFetch({ io, identity, force: hasLocal }),
       "Fetch complete.",
@@ -352,6 +361,7 @@ export interface UserPullOptions {
 
 export async function handleUserPull(opts: UserPullOptions): Promise<void> {
   p.intro("arc user pull");
+  const output = createSyncOutput(false);
 
   let identity: string;
   if (opts.identity) {
@@ -382,7 +392,7 @@ export async function handleUserPull(opts: UserPullOptions): Promise<void> {
     }
   }
 
-  const spinner = p.spinner();
+  const spinner = output.spinner();
   spinner.start("Pulling user notes...");
 
   let result;
