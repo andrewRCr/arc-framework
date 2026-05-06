@@ -857,44 +857,128 @@ single entrypoint for all commit paths.
 
 ### `[ ]` **4.2 Shared-ref sync-state inference**
 
-- _Goal:_ `arc status` distinguishes single-session, sibling-session, and cross-machine causes for notes-ref divergence
-  — actionable guidance over generic "remote ahead" framing, with `--offline` degrading classification explicitly.
-    - Extend the bounded-fetch pattern (already in place for the worktree-sync probe) to the notes ref on full-mode
-      `arc status` invocation. Inference helpers built here are designed for cross-surface reuse — Task 4.3 consumes
-      them in the session-init probe to surface the disk-behind-note state for cascade handling.
-    - Boundary: this task classifies why the notes-sync state differs; it does not decide which branch or work unit the
-      identity should work on. Branch-gone recovery and target selection remain Worktree Foundation + Coord Probe scope.
-    - Downstream signal contract: preserve enough metadata from notes discovery for later routing work to consume
-      (annotated commit, note-history distance, current-HEAD reachability, and inferred local / sibling-session /
-      cross-machine cause).
+- _Goal:_ `arc status` distinguishes the causes of notes-ref divergence — `unfetched-local`,
+  `concurrent-local-writer`, `cross-machine` — and gives actionable guidance instead of generic "remote ahead"
+  framing. `--offline` degrades classification explicitly; bounded-fetch keeps the full-mode probe responsive.
 
-    - Sync-state inference distinguishes:
-        - Local-behind-because-haven't-fetched (single-machine, single-session)
-        - Local-behind-because-other-machine (cross-machine work)
-        - Local-behind-because-sibling-session (same machine, different worktree/session)
-    - Sibling-session heuristic: compare `LocalSyncState.sourceCommit` (from `.sync-state.json`) against the latest
-      entry in `refs/notes/arc/user/{identity}` history. Divergence + both-local-only (no remote-ahead path) → sibling
-      session. Cross-machine causes flow from remote ref differing from local ref state.
-    - Schema extension: extend `LocalSyncState` (currently v2 — `version`, `materializedManifestHash`, `sourceCommit`,
-      `sourceOperation`, optional `verifiedAt`, optional `partialPush`) with `savedAt: ISO-string`. Bump to v3; readers
-      parse v2 and write v3 (v1 read path was retired in 2.R.4.a — pre-1.0 framework with no shipped v1 records).
-      Required for heuristics that need recency to compare timestamps. Coordinate with the save postcondition hardening
-      from 2.R.1.a: write or upgrade sync-state only after the exact `HEAD` note has been verified, and preserve
-      `verifiedAt` and `partialPush` semantics through the v3 migration.
-    - `--offline` mode behavior: both worktree and notes fetches suppressed. Cross-machine vs. unfetched-local
-      distinction collapses (no remote read available); surface a degraded classification ("offline — local state only;
-      cross-machine signals unavailable") rather than asserting a cause heuristically.
-    - Affected files: `packages/arc-framework/src/commands/user/sync-status.ts` (rendering + bounded-fetch);
-      `packages/arc-framework/src/commands/user/save-load.ts` (`LocalSyncState` schema bump, read-with-forward-compat,
-      write at v3).
-    - Build `test-first` (one behavior at a time):
-        - Bounded-fetch on notes ref fires by default in full-mode `arc status`
-        - `--offline` suppresses both worktree and notes fetches; classification degrades with explicit guidance line
-        - Sibling-session detection: `sourceCommit` divergent from notes-ref head, both local-only → state-machine
-          resolves to "sibling session"
-        - Cross-machine vs. unfetched-local distinction surfaced when remote ref differs
-        - `LocalSyncState` v2 → v3 read forward-compat: existing v2 files load without error; `savedAt` is `undefined`
-          until the next save
+    - _Note (concurrency model):_ Per `plan-concurrent-work-conventions.md` § Concurrency Model, ARC's steady
+      state under Worktree Foundation is parallel sessions, one WU per session. Concurrent writers on the shared
+      `refs/notes/arc/user/{identity}` ref are the normal case, not an exception. The cause taxonomy intentionally
+      avoids machine-locality assertions the local probe can't make — `concurrent-local-writer` covers what an
+      earlier draft called "sibling session," and only the remote-vs-local ref shape distinguishes it from
+      `cross-machine` (and only when remote signals are available).
+
+    - _Cause taxonomy:_
+        - **`unfetched-local`** — local notes ref is strict ancestor of remote notes ref; just pull
+        - **`concurrent-local-writer`** — local ref ahead of (or diverged from) remote AND has a note attached to
+          a commit outside current HEAD's ancestry. Another active writer exists; the probe doesn't assert which
+          machine. Detection compares `LocalSyncState.sourceCommit` against the latest entry in
+          `refs/notes/arc/user/{identity}` history — divergence with no remote-ahead path implicates a local writer
+        - **`cross-machine`** — remote ref carries notes our local doesn't have AND our local ref is also ahead.
+          Distinguishes "shared writer ahead of us" from "our worktree's view alone"
+        - **`offline`** — `--offline` collapses cross-machine vs unfetched into "comparison unavailable"
+        - **`unknown`** — sync-state missing, source commit unreachable, or other degraded inputs
+
+    - _Helper contract (consumed by 4.2.d and Task 4.3):_ pure function `inferUserSyncCause(input)` exported from
+      a new module under `packages/arc-framework/src/lib/user-sync/` (final placement at 4.2.c). Inputs:
+      `{ localRefHash, remoteRefHash, sourceCommit, savedAt, latestNoteRefHistoryEntry, headReachable, offline }`.
+      Output: `{ cause: UserSyncCause, confidence: "high" | "low" | "offline" }`. IO concerns stay at call sites
+      so 4.3 can call the helper from `runUserSessionInitStatus` without round-tripping the inputs.
+
+    - _Boundary:_ this task classifies why the notes-sync state differs; it does not decide which branch or work
+      unit the identity should work on. Branch-gone recovery and target selection remain Worktree Foundation +
+      Coord Probe scope. The load-needed signal in the session-init envelope and cascade handling in
+      `session-init.md` Step 2 are Task 4.3's scope.
+
+    - `[ ]` **4.2.a `LocalSyncState` v2 → v3 schema bump + atomic write**
+        - Add `savedAt: ISO-string` to the schema. Bump `version` literal from `2` to `3`. Reader parses v2
+          records (existing files) with `savedAt` left `undefined` until the next save; writer emits v3.
+        - Replace `io.writeFile(path, json)` in `writeLocalSyncState` with `atomicWriteJson` (from `lib/fs.js` —
+          already used by init). Concurrent saves from parallel sessions otherwise risk torn writes that the v3
+          reader would reject; atomic temp+rename guarantees readers see fully-old or fully-new content, never
+          partial. Cross-platform write atomicity (WSL2, Windows) is genuinely weak without this.
+        - Coordinate with the 2.R.1.a save postcondition: write or upgrade sync-state only after the exact `HEAD`
+          note has been verified. Preserve `verifiedAt` and `partialPush` semantics through the v3 migration.
+        - Affected file: `packages/arc-framework/src/commands/user/save-load.ts`.
+        - Build `test-first` (one behavior at a time):
+            - v2 → v3 read forward-compat: existing v2 files load without error; `savedAt` is `undefined`
+            - v3 write produces a record on disk with `savedAt` populated and `version: 3`
+            - `verifiedAt` and `partialPush` round-trip cleanly through v3 read/write
+            - Concurrent-writer safety: two near-simultaneous writes never produce malformed JSON on disk — one
+              write wins; both possible final contents are valid v3 records
+            - `sourceCommit` referencing an unreachable commit on read: reader does not crash; record loads with
+              the recorded value preserved (downstream classifier handles reachability)
+
+    - `[ ]` **4.2.b Bounded-fetch wrapper for notes-ref fetch in full-mode `arc status`**
+        - Wrap the existing `git fetch origin +<localRef>:<tempRef>` call in `inspectUserSyncRefsDetailed` with
+          the same `AbortController` + timeout pattern as `lib/git/worktree-sync.ts:boundedFetch`. Default timeout
+          `DEFAULT_FETCH_TIMEOUT_MS` (3000 ms; consider exporting and sharing the constant rather than
+          duplicating).
+        - Scope: bounded-fetch lands on the `runUserStatus` path only. Per PRD R17, the session-init probe
+          (`runUserSessionInitStatus` → `inspectUserSyncRefsDetailed`) keeps its current behavior — already
+          remote-aware via the existing pull mechanism.
+        - On timeout, classify as `remote-unavailable` with `failureReason: "timeout"` (mirrors the worktree-sync
+          state vocabulary).
+        - Affected files: `packages/arc-framework/src/commands/user/sync-status.ts`; possibly
+          `packages/arc-framework/src/lib/git/worktree-sync.ts` if the constant is exported for shared use.
+        - Build `test-first` (one behavior at a time):
+            - Bounded fetch fires by default in full-mode `arc status` (notes-ref fetch invoked with an
+              `AbortController` signal)
+            - Timeout maps to `remote-unavailable` / `failureReason: "timeout"`
+            - Non-timeout fetch error maps to `remote-unavailable` / `failureReason: "error"`
+            - `--offline` suppresses the fetch entirely (existing behavior preserved)
+
+    - `[ ]` **4.2.c Inference helper module — `inferUserSyncCause`**
+        - Pure function per the helper contract above. No IO; takes structured inputs and returns a classification
+          with confidence. Unit-tested in isolation across the cause taxonomy and key input variants.
+        - Implementer's choice: either include a "no-divergence" output value (uniform call site) or call the
+          helper only after divergence is detected (focused taxonomy). Either is consistent with the contract;
+          pick at implementation time and document in the helper's TSDoc.
+        - Affected files: new module under `packages/arc-framework/src/lib/user-sync/` plus its unit test file.
+        - Build `test-first` (one behavior at a time):
+            - Local ref strict ancestor of remote → `unfetched-local`
+            - Local ref ahead AND `sourceCommit` outside current HEAD ancestry, no remote-ahead path →
+              `concurrent-local-writer`
+            - Remote carries notes local doesn't have AND local ref also ahead → `cross-machine`
+            - `offline: true` collapses cross-machine signals → `offline` with confidence noted
+            - Sync-state missing OR `sourceCommit` is null → `unknown` with `confidence: "low"`
+            - `savedAt` recency informs confidence but never flips a cause to `unknown` — recency is a
+              confidence modifier, not a cause discriminator
+
+    - `[ ]` **4.2.d Wire helper into `runUserStatus` rendering**
+        - `runUserStatus` reads `LocalSyncState` (currently transitive via `inspectDiskVsLocalSnapshot`; expose
+          the value to call the helper here), invokes `inferUserSyncCause`, and surfaces
+          `userSyncCause: UserSyncCause` on `UserStatusResult`. JSON consumers (`arc status --json`) inherit it.
+        - Render integration: append a single cause-aware line in `detailLines` after the existing "Latest local
+          user note is..." line. Action-oriented headline (non-verbose mode) picks from a cause-aware string
+          table; verbose mode keeps its descriptive headline. Cause line is purely additive — no existing line
+          changes wording or position.
+        - Affected files: `packages/arc-framework/src/commands/user/sync-status.ts` (orchestration + rendering);
+          `packages/arc-framework/src/commands/user/types.ts` (`UserStatusResult.userSyncCause`).
+        - Build `test-first` (one behavior at a time):
+            - `userSyncCause` field appears on `UserStatusResult` for every cause taxonomy value
+            - `unfetched-local` renders the existing pull-direction copy ("run `arc user pull`") via the
+              cause-aware path
+            - `concurrent-local-writer` renders cause-aware copy distinct from cross-machine; copy avoids
+              machine-locality assertions
+            - `cross-machine` renders cross-machine copy with confidence-appropriate hedging when sync-state is
+              missing or stale
+            - Cause line is purely additive — existing `detailLines` unchanged in wording or position
+            - Action-oriented headline reflects the cause when present; falls back to existing taxonomy when
+              cause is `unknown`
+
+    - `[ ]` **4.2.e `--offline` degradation rendering**
+        - When `offline: true`, render an explicit degraded-classification line:
+          `"offline — local state only; cross-machine signals unavailable"`. Composes with the existing
+          `--offline` skip-note ("Remote notes check skipped (`--offline`)..."); the new line augments rather
+          than replaces.
+        - Affected files: `packages/arc-framework/src/commands/user/sync-status.ts` (rendering).
+        - Build `test-first` (one behavior at a time):
+            - `--offline` surfaces both the existing skip-note AND the new degraded-classification line
+            - Cause under offline is `offline` (per helper output); never `cross-machine` or
+              `concurrent-local-writer`
+            - Action-oriented headline under offline reflects the degraded state without asserting an
+              unverifiable cause
 
 ### `[ ]` **4.3 Session-init load cascade**
 
@@ -906,8 +990,8 @@ single entrypoint for all commit paths.
     - `arc status --session-init --json` envelope's user channel surfaces a load-needed signal as an additive
       `loadNeeded: boolean` field alongside the existing spine state when notes ref is aligned with remote but disk is
       behind the latest note. The PRD-pinned 5-state spine (R1: `clean | remote-ahead | conflict | disabled |
-      remote-unavailable`) stays the canonical surface — no 6th state. Direction inference reuses the 2.R.4.a + 4.2
-      foundations.
+      remote-unavailable`) stays the canonical surface — no 6th state. Direction inference consumes
+      `inferUserSyncCause` from Task 4.2.c plus the 2.R.4.a notes-discovery walk.
     - `session-init.md` Step 2 notes-channel logic gains a load-needed case: `prompt` → ask before running
       `arc user load`; `always` → load without prompt; `manual` → surface in orientation only.
     - Combined-prompt integration: when worktree-pull and notes-load both need action, issue a single combined prompt
