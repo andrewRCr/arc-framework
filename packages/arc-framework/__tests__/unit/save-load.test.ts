@@ -6,15 +6,36 @@
  * by `runUserLoad`.
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { join } from "node:path";
+import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 
-import { findNearestUserNote, runUserLoad, runUserSave } from "../../src/commands/user/save-load.js";
+import {
+  clearPartialPushMarker,
+  findNearestUserNote,
+  readLocalSyncState,
+  recordPartialPushMarker,
+  runUserLoad,
+  runUserSave,
+} from "../../src/commands/user/save-load.js";
 import {
   UserLoadVerificationError,
   UserSaveVerificationError,
 } from "../../src/commands/user/types.js";
 import type { UserIOContext } from "../../src/commands/user/types.js";
 import type { SyncManifest } from "../../src/lib/git/index.js";
+
+const SYNC_STATE_RELATIVE = ".arc/user/andrew/.internal/.sync-state.json";
+
+async function exists(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 interface GitMockConfig {
   head?: string;
@@ -307,34 +328,46 @@ describe("runUserLoad — walk-exhausted outcome", () => {
 });
 
 describe("runUserSave — save verification", () => {
+  let cwd: string;
+  let syncStatePath: string;
+
+  beforeEach(async () => {
+    cwd = await mkdtemp(join(tmpdir(), "arc-save-test-"));
+    syncStatePath = join(cwd, SYNC_STATE_RELATIVE);
+  });
+
+  afterEach(async () => {
+    await rm(cwd, { recursive: true, force: true });
+  });
+
   it("does not advance sync-state when writeNote rejects", async () => {
     const io = mockSaveIO({ writeNoteRejects: true });
 
     await expect(
-      runUserSave({ cwd: "/repo", io, identity: "andrew" }),
+      runUserSave({ cwd, io, identity: "andrew" }),
     ).rejects.toThrow("write failed");
 
-    expect(io.writeFile).not.toHaveBeenCalled();
+    expect(await exists(syncStatePath)).toBe(false);
   });
 
   it("throws a verification error and does not advance sync-state when readback is missing", async () => {
     const io = mockSaveIO({ readback: null });
 
     await expect(
-      runUserSave({ cwd: "/repo", io, identity: "andrew" }),
+      runUserSave({ cwd, io, identity: "andrew" }),
     ).rejects.toThrow(UserSaveVerificationError);
 
-    expect(io.writeFile).not.toHaveBeenCalled();
+    expect(await exists(syncStatePath)).toBe(false);
   });
 
   it("throws a verification error and does not advance sync-state when readback is invalid JSON", async () => {
     const io = mockSaveIO({ readback: "{not-json" });
 
     await expect(
-      runUserSave({ cwd: "/repo", io, identity: "andrew" }),
+      runUserSave({ cwd, io, identity: "andrew" }),
     ).rejects.toThrow(UserSaveVerificationError);
 
-    expect(io.writeFile).not.toHaveBeenCalled();
+    expect(await exists(syncStatePath)).toBe(false);
   });
 
   it("throws a verification error and does not advance sync-state when readback hash mismatches", async () => {
@@ -346,29 +379,28 @@ describe("runUserSave — save verification", () => {
     });
 
     await expect(
-      runUserSave({ cwd: "/repo", io, identity: "andrew" }),
+      runUserSave({ cwd, io, identity: "andrew" }),
     ).rejects.toThrow(UserSaveVerificationError);
 
-    expect(io.writeFile).not.toHaveBeenCalled();
+    expect(await exists(syncStatePath)).toBe(false);
   });
 
   it("writes sync-state with verifiedAt after successful readback verification", async () => {
     const head = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
     const io = mockSaveIO({ head });
 
-    await runUserSave({ cwd: "/repo", io, identity: "andrew" });
+    await runUserSave({ cwd, io, identity: "andrew" });
 
     expect(io.writeNote).toHaveBeenCalledWith("arc/user/andrew", expect.any(String), head);
     expect(io.readNote).toHaveBeenCalledWith("arc/user/andrew", head);
-    expect(io.writeFile).toHaveBeenCalledTimes(1);
-    const [syncStatePath, syncStateContent] = vi.mocked(io.writeFile).mock.calls[0]!;
-    expect(syncStatePath).toBe("/repo/.arc/user/andrew/.internal/.sync-state.json");
-    expect(JSON.parse(syncStateContent)).toMatchObject({
-      version: 2,
+    const onDisk = JSON.parse(await readFile(syncStatePath, "utf-8")) as Record<string, unknown>;
+    expect(onDisk).toMatchObject({
+      version: 3,
       sourceCommit: head,
       sourceOperation: "save",
       verifiedAt: head,
     });
+    expect(typeof onDisk.savedAt).toBe("string");
   });
 });
 
@@ -382,8 +414,6 @@ interface LoadMockConfig {
    */
   readback?: Record<string, string | undefined>;
 }
-
-const SYNC_STATE_PATH = "/repo/.arc/user/andrew/.internal/.sync-state.json";
 
 function mockLoadIO(config: LoadMockConfig = {}): UserIOContext {
   const head = config.head ?? "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -437,11 +467,19 @@ function mockLoadIO(config: LoadMockConfig = {}): UserIOContext {
   };
 }
 
-function syncStateWrites(io: UserIOContext): unknown[] {
-  return vi.mocked(io.writeFile).mock.calls.filter(([path]) => path === SYNC_STATE_PATH);
-}
-
 describe("runUserLoad — load verification", () => {
+  let cwd: string;
+  let syncStatePath: string;
+
+  beforeEach(async () => {
+    cwd = await mkdtemp(join(tmpdir(), "arc-load-test-"));
+    syncStatePath = join(cwd, SYNC_STATE_RELATIVE);
+  });
+
+  afterEach(async () => {
+    await rm(cwd, { recursive: true, force: true });
+  });
+
   it("throws a verification error and does not advance sync-state when a materialized file is missing", async () => {
     const io = mockLoadIO({
       manifest: {
@@ -452,10 +490,10 @@ describe("runUserLoad — load verification", () => {
     });
 
     await expect(
-      runUserLoad({ cwd: "/repo", io, identity: "andrew" }),
+      runUserLoad({ cwd, io, identity: "andrew" }),
     ).rejects.toThrow(UserLoadVerificationError);
 
-    expect(syncStateWrites(io)).toHaveLength(0);
+    expect(await exists(syncStatePath)).toBe(false);
   });
 
   it("throws a verification error and does not advance sync-state when readback content does not match the manifest", async () => {
@@ -468,10 +506,10 @@ describe("runUserLoad — load verification", () => {
     });
 
     await expect(
-      runUserLoad({ cwd: "/repo", io, identity: "andrew" }),
+      runUserLoad({ cwd, io, identity: "andrew" }),
     ).rejects.toThrow(UserLoadVerificationError);
 
-    expect(syncStateWrites(io)).toHaveLength(0);
+    expect(await exists(syncStatePath)).toBe(false);
   });
 
   it("writes sync-state with verifiedAt after readback hash matches the manifest", async () => {
@@ -484,17 +522,226 @@ describe("runUserLoad — load verification", () => {
       },
     });
 
-    const result = await runUserLoad({ cwd: "/repo", io, identity: "andrew" });
+    const result = await runUserLoad({ cwd, io, identity: "andrew" });
 
     expect(result?.kind).toBe("loaded");
-    const writes = syncStateWrites(io);
-    expect(writes).toHaveLength(1);
-    const [, syncStateContent] = writes[0]! as [string, string];
-    expect(JSON.parse(syncStateContent)).toMatchObject({
-      version: 2,
+    const onDisk = JSON.parse(await readFile(syncStatePath, "utf-8")) as Record<string, unknown>;
+    expect(onDisk).toMatchObject({
+      version: 3,
       sourceCommit: head,
       sourceOperation: "load",
       verifiedAt: head,
     });
+    expect(typeof onDisk.savedAt).toBe("string");
+  });
+});
+
+describe("LocalSyncState v3 schema", () => {
+  let cwd: string;
+  let internalDir: string;
+  let syncStatePath: string;
+  const identity = "andrew";
+
+  beforeEach(async () => {
+    cwd = await mkdtemp(join(tmpdir(), "arc-sync-state-test-"));
+    internalDir = join(cwd, ".arc", "user", identity, ".internal");
+    await mkdir(internalDir, { recursive: true });
+    syncStatePath = join(internalDir, ".sync-state.json");
+  });
+
+  afterEach(async () => {
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  function realFsIO(overrides: Partial<UserIOContext> = {}): UserIOContext {
+    return {
+      exec: vi.fn(async () => ({ stdout: "", stderr: "" })),
+      readFile: vi.fn(async (p: string) => readFile(p, "utf-8")),
+      writeFile: vi.fn(async (p: string, c: string) => {
+        await writeFile(p, c, "utf-8");
+      }),
+      mkdir: vi.fn(async (p: string) => {
+        await mkdir(p, { recursive: true });
+      }),
+      readDir: vi.fn(async () => []),
+      readNote: vi.fn(async () => null),
+      writeNote: vi.fn(async () => undefined),
+      ...overrides,
+    };
+  }
+
+  it("reads v2 records without error and leaves savedAt undefined", async () => {
+    const v2Record = {
+      version: 2,
+      materializedManifestHash: "abcdef0123456789",
+      sourceCommit: "a".repeat(40),
+      sourceOperation: "save" as const,
+      verifiedAt: "a".repeat(40),
+    };
+    await writeFile(syncStatePath, `${JSON.stringify(v2Record, null, 2)}\n`, "utf-8");
+
+    const state = await readLocalSyncState(cwd, realFsIO(), identity);
+
+    expect(state).not.toBeNull();
+    expect(state!.materializedManifestHash).toBe(v2Record.materializedManifestHash);
+    expect(state!.sourceCommit).toBe(v2Record.sourceCommit);
+    expect(state!.sourceOperation).toBe("save");
+    expect(state!.verifiedAt).toBe(v2Record.verifiedAt);
+    expect(state!.savedAt).toBeUndefined();
+  });
+
+  it("writes v3 records with savedAt populated and version: 3 via runUserSave", async () => {
+    const head = "b".repeat(40);
+    const userDir = join(cwd, ".arc", "user", identity);
+    await mkdir(userDir, { recursive: true });
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Notes", "utf-8");
+
+    let writtenNote: string | null = null;
+    const io = realFsIO({
+      exec: vi.fn(async (cmd: string, args: string[]) => {
+        if (cmd === "git" && args[0] === "rev-parse" && args[1] === "HEAD") {
+          return { stdout: head, stderr: "" };
+        }
+        throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
+      }),
+      readDir: vi.fn(async () => [{ name: "SESSION-NOTES.md", size: 7 }]),
+      writeNote: vi.fn(async (_ref: string, content: string) => {
+        writtenNote = content;
+      }),
+      readNote: vi.fn(async () => writtenNote),
+    });
+
+    const before = Date.now();
+    await runUserSave({ cwd, io, identity });
+    const after = Date.now();
+
+    const onDisk = JSON.parse(await readFile(syncStatePath, "utf-8")) as Record<string, unknown>;
+    expect(onDisk.version).toBe(3);
+    expect(onDisk.sourceCommit).toBe(head);
+    expect(onDisk.sourceOperation).toBe("save");
+    expect(onDisk.verifiedAt).toBe(head);
+    expect(typeof onDisk.savedAt).toBe("string");
+    const savedAtMs = Date.parse(onDisk.savedAt as string);
+    expect(savedAtMs).toBeGreaterThanOrEqual(before);
+    expect(savedAtMs).toBeLessThanOrEqual(after);
+  });
+
+  it("round-trips verifiedAt and partialPush across v3 read/write", async () => {
+    const v3Record = {
+      version: 3,
+      materializedManifestHash: "deadbeef".repeat(2),
+      sourceCommit: "c".repeat(40),
+      sourceOperation: "save" as const,
+      savedAt: "2026-05-06T10:30:00.000Z",
+      verifiedAt: "c".repeat(40),
+      partialPush: {
+        localRefHash: "d".repeat(40),
+        sourceCommit: "c".repeat(40),
+      },
+    };
+    await writeFile(syncStatePath, `${JSON.stringify(v3Record, null, 2)}\n`, "utf-8");
+
+    const beforeClear = await readLocalSyncState(cwd, realFsIO(), identity);
+    expect(beforeClear).not.toBeNull();
+    expect(beforeClear!.savedAt).toBe(v3Record.savedAt);
+    expect(beforeClear!.verifiedAt).toBe(v3Record.verifiedAt);
+    expect(beforeClear!.partialPush).toEqual(v3Record.partialPush);
+
+    await clearPartialPushMarker(cwd, realFsIO(), identity);
+
+    const afterClear = await readLocalSyncState(cwd, realFsIO(), identity);
+    expect(afterClear).not.toBeNull();
+    expect(afterClear!.partialPush).toBeUndefined();
+    expect(afterClear!.savedAt).toBe(v3Record.savedAt);
+    expect(afterClear!.verifiedAt).toBe(v3Record.verifiedAt);
+
+    const reReadFromDisk = JSON.parse(await readFile(syncStatePath, "utf-8")) as Record<string, unknown>;
+    expect(reReadFromDisk.version).toBe(3);
+    expect(reReadFromDisk.partialPush).toBeUndefined();
+    expect(reReadFromDisk.savedAt).toBe(v3Record.savedAt);
+
+    const localRefHash = "e".repeat(40);
+    const recordIo = realFsIO({
+      exec: vi.fn(async (cmd: string, args: string[]) => {
+        if (cmd === "git" && args[0] === "rev-parse" && args[1] === "--verify") {
+          return { stdout: localRefHash, stderr: "" };
+        }
+        throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
+      }),
+    });
+    await recordPartialPushMarker(cwd, recordIo, identity);
+
+    const afterRecord = await readLocalSyncState(cwd, realFsIO(), identity);
+    expect(afterRecord).not.toBeNull();
+    expect(afterRecord!.partialPush).toEqual({
+      localRefHash,
+      sourceCommit: v3Record.sourceCommit,
+    });
+    expect(afterRecord!.savedAt).toBe(v3Record.savedAt);
+    expect(afterRecord!.verifiedAt).toBe(v3Record.verifiedAt);
+  });
+
+  it("never produces malformed JSON on disk under concurrent writes", async () => {
+    const head = "f".repeat(40);
+    const userDir = join(cwd, ".arc", "user", identity);
+    await mkdir(userDir, { recursive: true });
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Concurrent A", "utf-8");
+
+    const makeIO = (content: string): UserIOContext => {
+      let writtenNote: string | null = null;
+      return realFsIO({
+        exec: vi.fn(async (cmd: string, args: string[]) => {
+          if (cmd === "git" && args[0] === "rev-parse" && args[1] === "HEAD") {
+            return { stdout: head, stderr: "" };
+          }
+          throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
+        }),
+        readFile: vi.fn(async (p: string) => {
+          if (p.endsWith("SESSION-NOTES.md")) return content;
+          return readFile(p, "utf-8");
+        }),
+        readDir: vi.fn(async () => [{ name: "SESSION-NOTES.md", size: content.length }]),
+        writeNote: vi.fn(async (_ref: string, c: string) => {
+          writtenNote = c;
+        }),
+        readNote: vi.fn(async () => writtenNote),
+      });
+    };
+
+    const results = await Promise.allSettled([
+      runUserSave({ cwd, io: makeIO("# Variant A"), identity }),
+      runUserSave({ cwd, io: makeIO("# Variant B"), identity }),
+    ]);
+
+    const fulfilled = results.filter((r) => r.status === "fulfilled");
+    expect(fulfilled.length).toBeGreaterThanOrEqual(1);
+
+    const raw = await readFile(syncStatePath, "utf-8");
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    expect(parsed.version).toBe(3);
+    expect(parsed.sourceCommit).toBe(head);
+    expect(parsed.sourceOperation).toBe("save");
+    expect(typeof parsed.savedAt).toBe("string");
+    expect(typeof parsed.materializedManifestHash).toBe("string");
+    expect((parsed.materializedManifestHash as string).length).toBeGreaterThan(0);
+  });
+
+  it("loads a v3 record with an unreachable sourceCommit without crashing", async () => {
+    const v3Record = {
+      version: 3,
+      materializedManifestHash: "fffeee",
+      sourceCommit: "0".repeat(40),
+      sourceOperation: "load" as const,
+      savedAt: "2026-01-01T00:00:00.000Z",
+    };
+    await writeFile(syncStatePath, `${JSON.stringify(v3Record, null, 2)}\n`, "utf-8");
+
+    const state = await readLocalSyncState(cwd, realFsIO(), identity);
+
+    expect(state).not.toBeNull();
+    expect(state!.sourceCommit).toBe(v3Record.sourceCommit);
+    expect(state!.savedAt).toBe(v3Record.savedAt);
+    expect(state!.materializedManifestHash).toBe(v3Record.materializedManifestHash);
+    expect(state!.sourceOperation).toBe("load");
   });
 });

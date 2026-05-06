@@ -890,24 +890,20 @@ single entrypoint for all commit paths.
       Coord Probe scope. The load-needed signal in the session-init envelope and cascade handling in
       `session-init.md` Step 2 are Task 4.3's scope.
 
-    - `[ ]` **4.2.a `LocalSyncState` v2 → v3 schema bump + atomic write**
-        - Add `savedAt: ISO-string` to the schema. Bump `version` literal from `2` to `3`. Reader parses v2
-          records (existing files) with `savedAt` left `undefined` until the next save; writer emits v3.
-        - Replace `io.writeFile(path, json)` in `writeLocalSyncState` with `atomicWriteJson` (from `lib/fs.js` —
-          already used by init). Concurrent saves from parallel sessions otherwise risk torn writes that the v3
-          reader would reject; atomic temp+rename guarantees readers see fully-old or fully-new content, never
-          partial. Cross-platform write atomicity (WSL2, Windows) is genuinely weak without this.
-        - Coordinate with the 2.R.1.a save postcondition: write or upgrade sync-state only after the exact `HEAD`
-          note has been verified. Preserve `verifiedAt` and `partialPush` semantics through the v3 migration.
-        - Affected file: `packages/arc-framework/src/commands/user/save-load.ts`.
-        - Build `test-first` (one behavior at a time):
-            - v2 → v3 read forward-compat: existing v2 files load without error; `savedAt` is `undefined`
-            - v3 write produces a record on disk with `savedAt` populated and `version: 3`
-            - `verifiedAt` and `partialPush` round-trip cleanly through v3 read/write
-            - Concurrent-writer safety: two near-simultaneous writes never produce malformed JSON on disk — one
-              write wins; both possible final contents are valid v3 records
-            - `sourceCommit` referencing an unreachable commit on read: reader does not crash; record loads with
-              the recorded value preserved (downstream classifier handles reachability)
+    - `[x]` **4.2.a `LocalSyncState` v2 → v3 schema bump + atomic write**
+        - `LocalSyncState.version` bumped to `3` with optional `savedAt: ISO-string`. Reader (`save-load.ts`)
+          accepts v2 or v3 on disk and normalizes to v3 in memory; v2 records hydrate with `savedAt: undefined`
+          until the next save. Both sync-state writers (`writeLocalSyncState`, `writeLocalSyncStateRecord`)
+          route through `atomicWriteJson`; `clearPartialPushMarker` propagates `savedAt` across the cycle so
+          partial-push toggling never drops the field.
+        - Hardened `atomicWriteJson` (`lib/fs.ts`) with a per-call random tmp suffix. The single-write
+          temp+rename primitive wasn't sufficient on its own for behavior #4 — without unique tmp paths,
+          two near-simultaneous writers would have raced through the same `.{name}.tmp` and the surviving
+          rename could have published torn JSON.
+        - Test migration in `__tests__/unit/save-load.test.ts`: sync-state assertions moved from
+          `io.writeFile` mocks to real-fs disk reads (sync-state writes no longer route through the
+          `io.writeFile` injection point). 5 new behavior cases land under `describe("LocalSyncState v3
+          schema")`.
 
     - `[ ]` **4.2.b Bounded-fetch wrapper for notes-ref fetch in full-mode `arc status`**
         - Wrap the existing `git fetch origin +<localRef>:<tempRef>` call in `inspectUserSyncRefsDetailed` with

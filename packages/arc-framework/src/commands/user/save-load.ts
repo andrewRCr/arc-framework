@@ -2,6 +2,7 @@ import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 
+import { atomicWriteJson } from "../../lib/fs.js";
 import { deserialize, isSafeManifestPath, serialize, type SyncManifest } from "../../lib/git/index.js";
 import { ensureDir } from "../../lib/template/index.js";
 import { notesRef } from "./shared.js";
@@ -25,10 +26,16 @@ const LOCAL_SYNC_STATE_FILENAME = ".sync-state.json";
 const USER_INTERNAL_DIRNAME = ".internal";
 
 interface LocalSyncState {
-  version: 2;
+  version: 3;
   materializedManifestHash: string;
   sourceCommit: string;
   sourceOperation: "save" | "load";
+  /**
+   * ISO-8601 timestamp when this record was written. Optional in memory because
+   * v2 records on disk predate the field — they hydrate with `savedAt: undefined`
+   * and pick up a populated value on the next save.
+   */
+  savedAt?: string;
   verifiedAt?: string;
   partialPush?: PartialPushMarker;
 }
@@ -295,7 +302,7 @@ export async function readLocalSyncState(
       const record = parsed as Record<string, unknown>;
 
       if (
-        record.version === 2
+        (record.version === 2 || record.version === 3)
         && typeof record.materializedManifestHash === "string"
         && record.materializedManifestHash.length > 0
         && typeof record.sourceCommit === "string"
@@ -304,10 +311,13 @@ export async function readLocalSyncState(
       ) {
         const partialPush = parsePartialPushMarker(record.partialPush);
         return {
-          version: 2,
+          version: 3,
           materializedManifestHash: record.materializedManifestHash,
           sourceCommit: record.sourceCommit,
           sourceOperation: record.sourceOperation,
+          ...(typeof record.savedAt === "string" && record.savedAt.length > 0
+            ? { savedAt: record.savedAt }
+            : {}),
           ...(typeof record.verifiedAt === "string" && record.verifiedAt.length > 0
             ? { verifiedAt: record.verifiedAt }
             : {}),
@@ -352,13 +362,14 @@ async function writeLocalSyncState(
   const syncStatePath = join(internalDir, LOCAL_SYNC_STATE_FILENAME);
   await ensureDir(internalDir, io.mkdir);
   const state: LocalSyncState = {
-    version: 2,
+    version: 3,
     materializedManifestHash: hashSyncManifest(manifest),
     sourceCommit,
     sourceOperation,
+    savedAt: new Date().toISOString(),
     ...(verifiedAt ? { verifiedAt } : {}),
   };
-  await io.writeFile(syncStatePath, `${JSON.stringify(state, null, 2)}\n`);
+  await atomicWriteJson(syncStatePath, state);
 }
 
 async function writeLocalSyncStateRecord(
@@ -370,7 +381,7 @@ async function writeLocalSyncStateRecord(
   const internalDir = getUserInternalDir(cwd, identity);
   const syncStatePath = join(internalDir, LOCAL_SYNC_STATE_FILENAME);
   await ensureDir(internalDir, io.mkdir);
-  await io.writeFile(syncStatePath, `${JSON.stringify(state, null, 2)}\n`);
+  await atomicWriteJson(syncStatePath, state);
 }
 
 export async function recordPartialPushMarker(
@@ -404,6 +415,7 @@ export async function clearPartialPushMarker(
     materializedManifestHash: state.materializedManifestHash,
     sourceCommit: state.sourceCommit,
     sourceOperation: state.sourceOperation,
+    ...(state.savedAt ? { savedAt: state.savedAt } : {}),
     ...(state.verifiedAt ? { verifiedAt: state.verifiedAt } : {}),
   });
 }
