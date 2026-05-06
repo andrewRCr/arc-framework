@@ -829,6 +829,12 @@ shift judgment-heavy decisions from workflow prose into CLI/probe outputs (`rest
 `recommendedSummaryLine`), defer commit-format method loading to first commit, and rely on `arc-commit` as the
 single entrypoint for all commit paths.
 
+_Implementation order within phase:_
+4.1 → 4.2 → **4.6.a** → 4.3.a → 4.3.b → 4.3.c → 4.4 → 4.5.a → 4.5.b → 4.5.c → **4.6.b**. 4.6.a establishes the
+`recommendedAction` envelope pattern that 4.3.c extends with a third (notes-load) channel; reverse order would have
+4.3 author Step 2 prose that 4.6.a immediately rewrites. Within 4.3 and 4.5, subtasks have local dependencies
+(.a → .b → .c). Numbering reflects conceptual grouping (end-user vs agent-load surfaces) and stays as-is.
+
 ### `[x]` **4.1 First-use framing surface**
 
 - _Goal:_ Introduce the user-notes feature and orient new developers without a suppression-flag burden.
@@ -933,52 +939,88 @@ single entrypoint for all commit paths.
 
 ### `[ ]` **4.3 Session-init load cascade**
 
-- _Goal:_ Session-init detects ref-aligned-but-disk-behind state via the 4.2 inference helpers and offers
-  `arc user load` per a new `session.init_load.notes` config knob — same shape as the existing `session.init_pull.notes`
-  cascade, applied to the load-needed condition. Closes the cross-machine-resume gap where worktree pull silently
-  advances the user-notes ref while working files stay stale, and session-init reports "everything synced" without
-  surfacing the load action.
-    - `arc status --session-init --json` envelope's user channel surfaces a load-needed signal as an additive
-      `loadNeeded: boolean` field alongside the existing spine state when notes ref is aligned with remote but disk is
-      behind the latest note. The PRD-pinned 5-state spine (R1: `clean | remote-ahead | conflict | disabled |
-      remote-unavailable`) stays the canonical surface — no 6th state. Direction inference consumes
-      `inferUserSyncCause` from Task 4.2.c plus the 2.R.4.a notes-discovery walk.
-    - `session-init.md` Step 2 notes-channel logic gains a load-needed case: `prompt` → ask before running
-      `arc user load`; `always` → load without prompt; `manual` → surface in orientation only.
-    - Combined-prompt integration: when worktree-pull and notes-load both need action, issue a single combined prompt
-      with per-channel choices (load both / worktree only / notes only / skip), mirroring today's worktree-pull +
-      notes-pull combined prompt.
-    - Dirty-tree precheck refuses auto-load when working files have unsaved edits not reflected in the latest note —
-      degrades to prompt or surface-only regardless of `always` setting. Pre-load backup mechanism (already part of
-      `arc user load`) is the safety net for the auto-action case.
-    - Config schema: new `session.init_load.notes: prompt | always | manual` key (default `prompt`). Mirrors
-      `session.init_pull.notes` shape for consistency. Schema lands in `arc-config.yml` template + `.arc/` instance +
-      shell validator + DEFAULTS map.
+- _Goal:_ Session-init detects ref-aligned-but-disk-behind state and offers `arc user load` per a new
+  `session.init_load.notes` config knob — same shape as the existing `session.init_pull.notes` cascade, applied to
+  the load-needed condition. Closes the cross-machine-resume gap where worktree pull silently advances the user-notes
+  ref while working files stay stale, and session-init reports "everything synced" without surfacing the load action.
 
-    - Affected files (audit-enumerated; confirm at implementation):
-        - `packages/arc-framework/src/commands/user/sync-status.ts` (`runUserSessionInitStatus` envelope extension;
-          load-needed signal derivation)
-        - `packages/arc-framework/src/lib/config/status-reader.ts` (DEFAULTS + `AGENT_CONSUMABLE_KEYS` + enum validator
-          entry)
-        - `packages/arc-framework/src/commands/config/types.ts` (`ConfigSettings`, `ConfigSessionInitSettings` interface
-          keys)
-        - `packages/arc-framework/arc/system/scripts/validate-config.sh` (`validate_enum` line + `known_keys` list)
-        - `packages/arc-framework/arc/system/arc-config.yml` (key + comment)
-        - `.arc/system/workflows/arc/session-lifecycle/session-init.md` (Step 2 notes-channel state list + cascade
-          handling + combined-prompt branch) plus package source mirror at
-          `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/`
-    - Build `test-first` (one behavior at a time):
-        - Probe surfaces load-needed signal when ref aligned + sourceCommit ancestor of note's commit + disk hash
-          matches materialized
-        - Probe omits load-needed signal when refs aligned + disk hash matches note hash (clean state)
-        - `session.init_load.notes: always` + clean tree → auto-load fires without prompt; orientation reports the
-          action taken
-        - `session.init_load.notes: prompt` → prompt issued before load; user accept runs `arc user load`; user decline
-          surfaces in orientation
-        - `session.init_load.notes: manual` → surface in orientation; no prompt
-        - Dirty-tree precheck refuses auto-load even under `always`; degrades to prompt with explicit warning
-        - Combined prompt fires when worktree-pull + notes-load both needed; per-channel accept handled correctly
-        - Identity absent → load-needed signal omitted (no path for load); worktree channel still applies
+    - `[ ]` **4.3.a Config schema for `session.init_load.notes`**
+
+        - _Goal:_ Land the new config key with default `prompt` and enum `manual | prompt | always`, mirroring
+          `session.init_pull.notes` shape. Independent of probe and workflow — can land first.
+
+        - Affected files:
+            - `packages/arc-framework/arc/system/arc-config.yml` (key + comment)
+            - `packages/arc-framework/arc/system/scripts/validate-config.sh` (`validate_enum` line + `known_keys`
+              entry)
+            - `packages/arc-framework/src/commands/config/types.ts` (`ConfigSettings`, `ConfigSessionInitSettings`
+              interface keys)
+            - `packages/arc-framework/src/lib/config/status-reader.ts` (`DEFAULTS` + `ENUM_VALIDATORS` entry;
+              `AGENT_CONSUMABLE_KEYS` derives from `DEFAULTS`)
+
+        - Build `test-first` (one behavior at a time):
+            - Validator script accepts `manual`, `prompt`, `always`; rejects other values
+            - `arc config status` surfaces the key with its default when absent from yml
+            - `arc config status` surfaces the on-disk value when present
+            - Invalid yml value substitutes the default and surfaces a parse-time warning
+
+    - `[ ]` **4.3.b Probe-side `loadNeeded` signal**
+
+        - _Goal:_ Extend `runUserSessionInitStatus` to compute the load-needed condition and surface
+          `loadNeeded?: boolean` on the `clean` arm of `UserSessionInitStatusResult` when `refState === "same"`.
+          The PRD-pinned 5-state spine (R1: `clean | remote-ahead | conflict | disabled | remote-unavailable`)
+          stays the canonical surface — no 6th state.
+
+        - _Type shape:_ Optional field on the `clean` arm only, populated when `refState === "same"`. Under
+          `refState === "local-ahead"` (the other condition that collapses to `clean` spine state), local notes are
+          ahead of remote, so the cross-machine-resume gap doesn't apply — field omitted. Workflow rule:
+          `if (user.value.loadNeeded) { /* cascade per session.init_load.notes */ }` — truthy check covers absent
+          (not applicable) and explicit-false (applicable, condition not met) symmetrically.
+
+        - _Mechanism:_ Load-needed detection reuses the call-site primitives 4.2.d already assembles
+          (`sourceCommit`, `headReachable`, ancestry calls) plus a `diskState === "current"` check from
+          `inspectDiskVsLocalSnapshot` (added to `runUserSessionInitStatus`'s `Promise.all`). `inferUserSyncCause`
+          itself is not invoked — it short-circuits on `same` ref state by design (4.2.c focused-taxonomy
+          invariant). Load-needed condition: `refState === "same"` AND `isAncestor(sourceCommit, note.commit)`
+          AND `diskState === "current"`.
+
+        - Affected files:
+            - `packages/arc-framework/src/commands/user/sync-status.ts` (`runUserSessionInitStatus` Promise.all
+              extension, ancestry call, condition check, envelope field on `clean` arm)
+            - `packages/arc-framework/src/commands/user/types.ts` (optional `loadNeeded?: boolean` on the `clean`
+              arm of `UserSessionInitStatusResult`)
+            - `packages/arc-framework/__tests__/unit/user-status.test.ts` (probe behavior cases)
+
+        - Build `test-first` (one behavior at a time):
+            - Probe surfaces `loadNeeded: true` when `refState === "same"` AND
+              `isAncestor(sourceCommit, note.commit)` AND `diskState === "current"`
+            - Probe surfaces `loadNeeded: false` when `refState === "same"` AND disk hash matches note hash
+            - Probe omits `loadNeeded` field when `refState === "local-ahead"` (also `clean` spine state)
+            - Probe omits `loadNeeded` field on non-clean spine states (`remote-ahead`, `conflict`,
+              `remote-unavailable`, `disabled`)
+            - Identity absent → no probe runs; workflow short-circuits per existing identity-absent path
+
+    - `[ ]` **4.3.c Workflow Step 2 notes-load cascade**
+
+        - _Goal:_ Extend `session-init.md` Step 2 with a notes-load case under the `recommendedAction` envelope
+          established by 4.6.a; integrate combined-prompt across three actions (worktree-pull, notes-pull,
+          notes-load); pin dirty-tree precheck.
+
+        - _Cascade rule:_ `loadNeeded === true` → `prompt` mode asks before running `arc user load`; `always`
+          mode loads without prompt; `manual` mode surfaces in orientation only. Dirty-tree precheck refuses
+          auto-load under `always`; degrades to prompt with explicit "stash or commit" warning. Pre-load backup
+          mechanism (already part of `arc user load`) is the safety net for the auto-action case.
+
+        - _Combined prompt:_ When two or three actions need acceptance simultaneously, issue a single combined
+          prompt with per-channel choices (mirroring today's worktree-pull + notes-pull combined prompt pattern).
+          Identity absent → notes-load skipped regardless of state; worktree channel still applies.
+
+        - Affected files:
+            - `.arc/system/workflows/arc/session-lifecycle/session-init.md` (Step 2 notes-channel branch +
+              combined-prompt extension)
+            - `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/session-init.template.md` (mirror)
+
+        - Test-after — workflow doc lint; behavioral coverage already lives in 4.3.b.
 
 ### `[ ]` **4.4 JIT commit-format loading at arc-commit**
 
@@ -996,11 +1038,14 @@ single entrypoint for all commit paths.
         - `.arc/system/workflows/arc/session-lifecycle/session-init.contributor.md` +
           `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/session-init.contributor.md` —
           mirror if the same block is duplicated there
-        - `.arc/reference/strategies/arc/strategy-session-operations.md` — update the rationale paragraph
-          added in `d1dbb7bd docs(arc): load commit formats for task approvals` to reflect the new policy
-          (JIT for both interlock modes)
+        - `.arc/reference/strategies/arc/strategy-session-operations.md` — remove the
+          `### Commit-Interlock Load-Set` subsection. The section justified eager-loading; with eager-loading gone,
+          the rationale is moot. Loading is documented at the call site (`arc-commit` SKILL § 3). No replacement
+          paragraph needed.
     - Test-after — documentation only; no automated assertion. The behavioral check is "init no longer Reads
-      commit-format / commit-context-format under any commit-interlock mode."
+      commit-format / commit-context-format under any commit-interlock mode." Confirm via
+      `grep -rn 'commit-format' packages/arc-framework/__tests__/` that no test pins the load-set Reads to include
+      commit-format methods at session-init.
 
 ### `[ ]` **4.5 Handoff probe `restateCandidates` slot**
 
@@ -1023,35 +1068,102 @@ single entrypoint for all commit paths.
     }
     ```
 
-    Computation: `git log <commit-at-handoff>..HEAD --oneline` (subjects + hashes); status-file diff in that
-    range to extract `**Last Completed:**` deltas; `git diff --name-only <commit-at-handoff>..HEAD` filtered
-    on `notes-*.md`. Probe reads `commit-at-handoff` from SESSION-NOTES; when SESSION-NOTES is absent or the
-    field is missing, returns `{commitsSinceHandoff: [], tasksClosedSinceHandoff: [], noteFileChangesSinceHandoff: []}`
-    and surfaces a soft signal ("baseline unknown") so the workflow falls back to recall-based filtering.
+    - `[ ]` **4.5.a `restate-candidates` helper module**
 
-- _Workflow integration:_ Replace the SESSION-NOTES filter section's three-criterion + anti-pattern + stay-out
-  list compression with a "cross-check candidate content against `restateCandidates`; if it paraphrases an
-  entry, omit. Then apply the residual filter (orientation-relevant + costly to re-derive)" rule. Net trim:
-  ~25 lines from the workflow body.
+        - _Goal:_ Pure helper that derives the slot from baseline hash + IO context. Independent of probe
+          orchestration and workflow doc — can land first.
 
-    - Affected files:
-        - `packages/arc-framework/src/commands/status/types.ts` (slot type + envelope)
-        - `packages/arc-framework/src/commands/status/run.ts` (probe orchestration)
-        - `packages/arc-framework/src/handlers/status.ts` (probe construction)
-        - `packages/arc-framework/src/lib/...` — new helper module deriving the slot (likely
-          `lib/handoff/restate-candidates.ts`)
-        - Tests: `__tests__/unit/status/run.test.ts` (slot included in expected key set + per-slot test);
-          new unit tests for the helper covering empty-baseline, no-commits, multi-commit, task-list
-          touched, notes-file touched cases
-        - `.arc/system/workflows/arc/session-lifecycle/session-handoff.md` (probe table + SESSION-NOTES
-          section) plus package mirror
-    - Build `test-first` (one behavior at a time):
-        - Returns commits between SESSION-NOTES `Commit at Handoff` and HEAD with hash + subject
-        - Empty result when HEAD matches `Commit at Handoff`
-        - Returns task IDs newly checked `[x]` in the active task list since the baseline
-        - Returns `notes-*.md` paths touched in the range; ignores other file changes
-        - Missing SESSION-NOTES → empty arrays + soft "baseline unknown" signal
-        - Missing baseline hash in SESSION-NOTES → empty arrays + soft signal
+        - _Computation:_ `git log <commit-at-handoff>..HEAD --oneline` (subjects + hashes); commit-message walk
+          in the same range with `Context:` lines extracted and the regex
+          `/Task[s]? ([0-9]+(?:\.[0-9A-Za-z]+)+(?:-[0-9A-Za-z]+(?:\.[0-9A-Za-z]+)*)?)/g` applied to each,
+          emitting individual IDs (`4.2`, `2.3.a`, `2.R.6.e`) and raw range strings (`4.2-4.5`, `2.3.c-e`)
+          deduplicated into a flat array — range expansion is intentionally not performed (consumer handles
+          range membership as natural-language judgment); `git diff --name-only <commit-at-handoff>..HEAD`
+          filtered on `notes-*.md`. When SESSION-NOTES is absent, the field is missing, or the baseline commit
+          is unreachable from HEAD (force-push, rebase), returns
+          `{commitsSinceHandoff: [], tasksClosedSinceHandoff: [], noteFileChangesSinceHandoff: []}` and surfaces
+          a soft signal ("baseline unknown") so the workflow falls back to recall-based filtering.
+
+          Computation rests on ARC's one-task-per-commit discipline: under proper usage, "tasks named in
+          `Context:` footers" and "tasks closed" are the same set. Discipline violations (committing partial
+          work without a leaf-task closure) manifest as over-reporting in this field — tolerable for a filter
+          signal.
+
+        - Affected files:
+            - new `packages/arc-framework/src/lib/handoff/restate-candidates.ts` exporting
+              `deriveRestateCandidates`
+            - new `packages/arc-framework/__tests__/unit/handoff/restate-candidates.test.ts`
+
+        - Build `test-first` (one behavior at a time):
+            - Returns commits between SESSION-NOTES `Commit at Handoff` and HEAD with hash + subject
+            - Empty result when HEAD matches `Commit at Handoff`
+            - Extracts task IDs from `Context:` footers in the range — single forms (`(Task 4.2)`,
+              `(Task 4.2.a)`, `(Task 4.2.R)`) emit individual IDs
+            - Range and list patterns extracted as raw strings: `(Tasks 4.2-4.5)` emits `["4.2-4.5"]`;
+              `(Tasks 6.1.h, 6.2.a-d)` emits `["6.1.h", "6.2.a-d"]`; `(incidental - discovered during Task 4.3)`
+              emits `["4.3"]`
+            - Returns `notes-*.md` paths touched in the range; ignores other file changes
+            - Missing SESSION-NOTES → empty arrays + soft "baseline unknown" signal
+            - Missing baseline hash in SESSION-NOTES → empty arrays + soft signal
+            - Baseline commit unreachable from HEAD (force-push, rebase) → empty arrays + soft "baseline
+              unknown" signal
+
+    - `[ ]` **4.5.b Probe wiring**
+
+        - _Goal:_ Wire `deriveRestateCandidates` into the `arc status --session-handoff --json` envelope.
+
+        - Affected files:
+            - `packages/arc-framework/src/commands/status/types.ts` (slot type + `SessionHandoffResult`
+              extension)
+            - `packages/arc-framework/src/commands/status/run.ts` (probe orchestration)
+            - `packages/arc-framework/src/handlers/status.ts` (probe construction with bound IO + SESSION-NOTES
+              baseline read)
+            - `packages/arc-framework/__tests__/unit/status/run.test.ts` (slot included in expected key set;
+              per-slot success + soft-signal cases)
+
+        - Build `test-first` (one behavior at a time):
+            - `runSessionHandoffStatus` envelope includes `restateCandidates` slot
+            - Probe success path returns the helper's result verbatim
+            - Probe failure (helper throws) returns `{ok: false, error: {kind: "runtime", message}}` per
+              existing probe-error contract
+
+    - `[ ]` **4.5.c Workflow doc rewrite**
+
+        - _Goal:_ Restructure session-handoff.md SESSION-NOTES filter section as a two-pass pipeline: mechanical
+          cross-check first, judgment-based 3-criterion filter second.
+
+        - _New filter shape_ (replaces existing `**The filter — include only if all three hold:**` block):
+
+            ```markdown
+            **Filter pipeline — apply both passes:**
+
+            **Pass 1 — Cross-check `restateCandidates`.** Probe slot carries `commitsSinceHandoff`,
+            `tasksClosedSinceHandoff`, and `noteFileChangesSinceHandoff` for this session. If candidate content
+            paraphrases an entry, omit. Mechanical step — array-driven, not judgment. When the soft signal
+            "baseline unknown" fires, skip Pass 1 and rely on Pass 2.
+
+            **Pass 2 — 3-criterion filter on the residual:**
+
+            1. **Not in any durable tracked source.** PRD, strategy, constitution, plan docs, ADRs — those are
+               authoritative; duplicating creates shadow copies that drift.
+            2. **Acted on at step 0.** Orientation-relevant — changes what the next session does or checks when
+               it loads. Not a retrospective observation you "want on record."
+            3. **Costly if missing.** Re-deriving from tracked state in 30 seconds is not rework; a
+               misinterpretation costing an hour of re-debugging is.
+
+            If any criterion fails, omit. Empty sections write `[none]`.
+            ```
+
+        - Net trim ~10 lines from the filter section (criterion #1's example list collapses; cross-check adds
+          new but compact text). Stay-out list and per-section guidance stay as-is — they cover broader
+          anti-patterns the cross-check doesn't.
+
+        - Affected files:
+            - `.arc/system/workflows/arc/session-lifecycle/session-handoff.md` (filter section)
+            - `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/session-handoff.template.md`
+              (mirror)
+
+        - Test-after — workflow doc lint; behavioral coverage already lives in 4.5.a/b.
 
 ### `[ ]` **4.6 Pre-computed prose in session-init Step 2 and Confirm Handoff**
 
