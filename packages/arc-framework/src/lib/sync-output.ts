@@ -6,10 +6,20 @@
  * based on whether the run is human-facing or `--json`.
  *
  * - **Human mode**: pass-through to Clack — preserves existing CLI UX.
- * - **JSON mode**: visual decorations (intro / outro / spinner) become
- *   no-ops; diagnostics (`log.*`, `note`) route to stderr so stdout stays
- *   pure; interactive `confirm` returns `false` so the prompt cell can never
- *   suspend a non-interactive consumer waiting for input.
+ * - **JSON mode**: visual decorations (intro / outro / spinner) and
+ *   informational surfaces (`log.info`, `note`) become no-ops; warnings and
+ *   errors still route to stderr because they carry recovery guidance not
+ *   reconstructible from envelope result codes (partial-publish, force-push,
+ *   identity-absent). Stdout stays pure for the JSON envelope; stderr stays
+ *   useful for the consumer who reads it. Interactive `confirm` returns
+ *   `false` so the prompt cell can never suspend a non-interactive consumer
+ *   waiting for input.
+ *
+ * Info-level suppression rationale: every `output.log.info` site duplicates
+ * data already in the JSON envelope (`worktree.result`, `notes.result`,
+ * `interlockState`, etc.). A consumer parsing the envelope reconstructs the
+ * same signal; an info-level line on stderr is redundant chatter that turns
+ * `2>&1 | jq` into a foot-gun.
  *
  * The orchestrator additionally degrades `notes_push: prompt` → `manual` at
  * policy-resolution time when `opts.json` is set, so the JSON-mode confirm
@@ -40,9 +50,8 @@ export interface SyncOutput {
   isCancel(value: unknown): boolean;
 }
 
-function writeStderr(prefix: string, message: string, title?: string): void {
-  const heading = title ? `[${title}] ` : "";
-  process.stderr.write(`${prefix}${heading}${message}\n`);
+function writeStderr(prefix: string, message: string): void {
+  process.stderr.write(`${prefix}${message}\n`);
 }
 
 export function createSyncOutput(jsonMode: boolean): SyncOutput {
@@ -67,11 +76,11 @@ export function createSyncOutput(jsonMode: boolean): SyncOutput {
     intro: () => undefined,
     outro: () => undefined,
     log: {
-      info: (message) => { writeStderr("info: ", message); },
+      info: () => undefined,
       warn: (message) => { writeStderr("warn: ", message); },
       error: (message) => { writeStderr("error: ", message); },
     },
-    note: (message, title) => { writeStderr("", message, title); },
+    note: () => undefined,
     spinner: () => ({ start: () => undefined, stop: () => undefined }),
     confirm: () => Promise.resolve(false),
     isCancel: () => false,

@@ -120,6 +120,12 @@ describe("arc sync --json stdout purity", () => {
       expect(envelope.cell).toBe("paired-push");
       expect(envelope.exitCode).toBe(0);
       expect(result.exitCode).toBe(0);
+
+      // Info-level chatter and note blocks duplicate envelope fields — suppressed
+      // under --json so consumers can `2>&1 | jq` without contamination. Errors
+      // and warnings still fire on stderr (proven by the prompt-policy case).
+      expect(result.stderr).not.toMatch(/^info: /m);
+      expect(result.stderr).not.toContain("[Saved]");
     } finally {
       await harness.cleanup();
     }
@@ -190,6 +196,9 @@ describe("arc sync --json stdout purity", () => {
         // Degradation warning lands on stderr, not stdout.
         expect(result.stderr).toContain("degrading");
         expect(result.stdout).not.toContain("degrading");
+
+        // Warns fire on stderr; info-level chatter is suppressed under --json.
+        expect(result.stderr).not.toMatch(/^info: /m);
       } finally {
         await harness.cleanup();
       }

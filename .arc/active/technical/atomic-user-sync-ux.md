@@ -56,3 +56,24 @@ the full protocol.
     - Affected: `packages/arc-framework/package.json`,
       `packages/arc-framework/vitest.unit.config.ts` (new),
       `packages/arc-framework/vitest.integration.config.ts` (new).
+
+- [x] **Suppress info-level chatter and notes on `arc sync --json`**
+    - `SyncOutput` JSON-mode branch: `log.info` and `note` are now no-ops; `log.warn`
+      and `log.error` still route to stderr because they carry recovery guidance not
+      reconstructible from envelope result codes (partial-publish, force-push,
+      identity-absent). Every `output.log.info` site duplicated structured envelope
+      fields (`worktree.result`, `notes.result`, `interlockState`); suppressing them
+      makes `arc sync --json 2>&1 | jq …` parse cleanly without losing signal a
+      consumer needs.
+    - Surfaced when an agent handoff pipe choked on the merged stream; analysis
+      narrowed the actual surface to `arc sync --json` only — mutating user commands
+      (`arc user save / push / pull / fetch / sync`) don't take `--json`, and
+      read-only status `--json` handlers were already info-clean.
+    - E2E coverage pins the contract: paired-push stderr is info-prefix-free and
+      note-block-free; prompt-policy stderr retains the `degrading` warn while
+      staying info-line-free. Existing `sync-orchestrator.test.ts:721`
+      `mockLog.info).not.toHaveBeenCalled()` under `json: true` continues to pass
+      (mocks at `@clack/prompts` boundary; JSON-mode bypasses Clack either way).
+    - Affected: `packages/arc-framework/src/lib/sync-output.ts` (JSON-mode branch +
+      module docstring); `packages/arc-framework/__tests__/e2e/sync-purity.e2e.test.ts`
+      (assertions added to paired-push and prompt-policy cases).
