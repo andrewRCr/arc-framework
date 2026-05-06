@@ -560,9 +560,7 @@ describe("LocalSyncState v3 schema", () => {
       writeFile: vi.fn(async (p: string, c: string) => {
         await writeFile(p, c, "utf-8");
       }),
-      mkdir: vi.fn(async (p: string) => {
-        await mkdir(p, { recursive: true });
-      }),
+      mkdir: vi.fn(async (p: string) => mkdir(p, { recursive: true })),
       readDir: vi.fn(async () => []),
       readNote: vi.fn(async () => null),
       writeNote: vi.fn(async () => undefined),
