@@ -1066,45 +1066,18 @@ _Implementation order within phase:_
     }
     ```
 
-    - `[ ]` **4.5.a `restate-candidates` helper module**
+    - `[x]` **4.5.a `restate-candidates` helper module**
 
         - _Goal:_ Pure helper that derives the slot from baseline hash + IO context. Independent of probe
           orchestration and workflow doc — can land first.
 
-        - _Computation:_ `git log <commit-at-handoff>..HEAD --oneline` (subjects + hashes); commit-message walk
-          in the same range with `Context:` lines extracted and the regex
-          `/Task[s]? ([0-9]+(?:\.[0-9A-Za-z]+)+(?:-[0-9A-Za-z]+(?:\.[0-9A-Za-z]+)*)?)/g` applied to each,
-          emitting individual IDs (`4.2`, `2.3.a`, `2.R.6.e`) and raw range strings (`4.2-4.5`, `2.3.c-e`)
-          deduplicated into a flat array — range expansion is intentionally not performed (consumer handles
-          range membership as natural-language judgment); `git diff --name-only <commit-at-handoff>..HEAD`
-          filtered on `notes-*.md`. When SESSION-NOTES is absent, the field is missing, or the baseline commit
-          is unreachable from HEAD (force-push, rebase), returns
-          `{commitsSinceHandoff: [], tasksClosedSinceHandoff: [], noteFileChangesSinceHandoff: []}` and surfaces
-          a soft signal ("baseline unknown") so the workflow falls back to recall-based filtering.
-
-          Computation rests on ARC's one-task-per-commit discipline: under proper usage, "tasks named in
-          `Context:` footers" and "tasks closed" are the same set. Discipline violations (committing partial
-          work without a leaf-task closure) manifest as over-reporting in this field — tolerable for a filter
-          signal.
-
-        - Affected files:
-            - new `packages/arc-framework/src/lib/handoff/restate-candidates.ts` exporting
-              `deriveRestateCandidates`
-            - new `packages/arc-framework/__tests__/unit/handoff/restate-candidates.test.ts`
-
-        - Build `test-first` (one behavior at a time):
-            - Returns commits between SESSION-NOTES `Commit at Handoff` and HEAD with hash + subject
-            - Empty result when HEAD matches `Commit at Handoff`
-            - Extracts task IDs from `Context:` footers in the range — single forms (`(Task 4.2)`,
-              `(Task 4.2.a)`, `(Task 4.2.R)`) emit individual IDs
-            - Range and list patterns extracted as raw strings: `(Tasks 4.2-4.5)` emits `["4.2-4.5"]`;
-              `(Tasks 6.1.h, 6.2.a-d)` emits `["6.1.h", "6.2.a-d"]`; `(incidental - discovered during Task 4.3)`
-              emits `["4.3"]`
-            - Returns `notes-*.md` paths touched in the range; ignores other file changes
-            - Missing SESSION-NOTES → empty arrays + soft "baseline unknown" signal
-            - Missing baseline hash in SESSION-NOTES → empty arrays + soft signal
-            - Baseline commit unreachable from HEAD (force-push, rebase) → empty arrays + soft "baseline
-              unknown" signal
+        - _Outcome:_ Added `deriveRestateCandidates` in
+          `packages/arc-framework/src/lib/handoff/restate-candidates.ts` with eight behavior-driven tests
+          covering the success path, empty range, single/range/list ID extraction, notes-file filtering, and
+          all three fallback cases. The spec's single regex captures only the first ID after each
+          `Task[s]?` prefix, so a two-regex pass (header chunk → ID list) handles comma-listed IDs like
+          `Tasks 6.1.h, 6.2.a-d`. All fallback modes unify under one `baseline-unknown` soft signal — emitted
+          via an optional `baselineSignal` field absent on the success path.
 
     - `[ ]` **4.5.b Probe wiring**
 
