@@ -145,6 +145,17 @@ eventual docs-site placement. Not live framework reference docs; those stay stac
 after this WU's framework-level design lands. Mechanical configuration: wire lint-staged into our
 existing husky setup to dogfood the new dispatch method. Not a framework-delivery concern.
 
+**Gate-coverage drift detection.** Configured gate commands drift over time as projects add new scripts —
+additional typecheck variants (production vs. test tsconfig), evolving lint surfaces, separate test tiers.
+Initial-setup captures the configured set at one moment; nothing re-checks coverage as the project grows.
+Promoted to a first-class deliverable based on three confirmed recurrences in this repo's self-hosting
+codebase (2026-04-23 eslint+typecheck, 2026-05-05 `typecheck:test` not wired locally, 2026-05-06
+`typecheck:test` on test-mock signature) — the pattern is real, not hypothetical. Deliverable: an
+`arc check-gates` audit that compares detected ecosystem scripts (npm `package.json` scripts; equivalents
+for other ecosystems) against configured gate commands and flags omissions. Re-runnable any time;
+initial-setup invokes it implicitly. PRD finalizes cross-ecosystem detection heuristics and the
+false-positive boundary (which detected scripts are gate-relevant vs. not).
+
 ### Out of scope
 
 - Switching ARC's shipped hook script format (stays shell-based in `.arc/system/githooks/`).
@@ -244,15 +255,13 @@ No external research blockers remain before PRD drafting.
   accumulate. If the method becomes crowded in practice, revisit splitting.
 - Auto-re-stage behavior is safe when combined with ARC's existing structural CHECKs. Needs test
   coverage ensuring re-staged fixes don't re-trigger or loop.
-- **Initial-setup sufficiency for gate coverage over time.** One-shot gate-command configuration
-  assumes adopters re-register new typecheck / test / lint scripts as they add them. Failure mode
-  confirmed 2026-05-05 in this repo: `typecheck:test` (added April 2026) was never wired to local
-  Tier 2; a type error in test code passed `npm test` (vitest transpiles without typechecking) and
-  `npm run typecheck` (production-only) but failed CI. Pre-push enforcement only protects against
-  scripts the adopter remembered to register. If this drift pattern is plausible for other adopters
-  (multi-tier test suites, separate prod/test typecheck configs, evolving lint surfaces), consider
-  scoping in an `arc check-gates` audit (compare detected scripts against configured gate commands)
-  or a re-runnable initial-setup refresh.
+- **`arc check-gates` audit heuristics.** The drift-detection deliverable is now in scope (see § Scope >
+  In scope > Gate-coverage drift detection); three recurrences in this repo's self-hosting codebase
+  (2026-04-23, 2026-05-05, 2026-05-06 — all variants of "test typecheck never wired to local enforcement")
+  closed the "is this real?" question. Open at PRD time: cross-ecosystem detection (npm `package.json`
+  scripts vs. cargo `Cargo.toml` aliases vs. Make targets vs. justfile recipes), the heuristic for
+  classifying detected scripts as gate-relevant vs. not (false-positive surface), and surfacing cadence —
+  re-runnable command vs. opportunistic warning at session-init or push-gate dispatch.
 
 ## Scope Estimate
 
@@ -264,6 +273,7 @@ Rough breakdown:
 - Pre-push hook + structural CHECK + two-copy sync: 0.5-1 day.
 - Method extension + dispatch logic + tests: 1 day.
 - Initial-setup bootstrap workflow edit + tests: 0.5 day.
+- `arc check-gates` audit command + cross-ecosystem detection + tests: 1-1.5 days.
 - Docs-content-sweep routing entry: 0.25 day.
 - Config schema update + CI audit updates: 0.5 day.
 - Repo dogfooding (lint-staged wiring in atomic inbox — sibling task, not counted here).
