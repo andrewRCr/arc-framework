@@ -9,11 +9,12 @@
 - **Task List:** `tasks-user-sync-ux.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task 3.2.b — `arc update` migration logic
-- **Next Task:** Task 3.2.c — Strategy and reference doc updates (line ~756)
+- **Last Completed:** Task 3.2 — Config-shape alignment (cascade-complete; 3.2.a–c done)
+- **Next Task:** Task 3.3 — Per-developer overrides for interlock keys (line ~771)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 3.2.c — update strategy/reference docs for final `user.notes_push` / `on-sync`
-  vocabulary across live and packaged mirrors; assess ADR amendment posture.
+- **Next Action:** Begin Task 3.3 — build the 3-tier resolver wrapper composing `readConfigSettings` with
+  per-key `resolveGitConfigOverride<T>` for `arc.commitInterlock` / `arc.pushInterlock` /
+  `arc.syncInterlock` / `arc.notesPush`. Test-first per the eight listed behaviors.
 
 ---
