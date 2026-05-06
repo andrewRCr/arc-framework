@@ -9,15 +9,16 @@
 - **Task List:** `tasks-user-sync-ux.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task 4.1 — First-use framing surface (4.1.a `arc join` paragraph + 4.1.b `arc status` hint)
-- **Next Task:** Task 4.2.a — `LocalSyncState` v2 → v3 schema bump + atomic write (line ~893)
+- **Last Completed:** Task 4.2.b — Bounded-fetch wrapper for notes-ref fetch in full-mode `arc status`
+- **Next Task:** Task 4.2.c — Inference helper module `inferUserSyncCause` (line ~921)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 4.2.a — extend `LocalSyncState` (in `commands/user/save-load.ts`) with
-  `savedAt: ISO-string`, bump `version` literal `2` → `3`, add v2 read forward-compat (existing files load with
-  `savedAt` undefined), replace `io.writeFile` in `writeLocalSyncState` with `atomicWriteJson` from `lib/fs.js`.
-  Coordinate with the 2.R.1.a save postcondition; preserve `verifiedAt` and `partialPush` semantics. Test-first
-  per the 5 listed behaviors. Read 4.2's parent block first — it carries the cause-taxonomy and
-  `inferUserSyncCause` helper-contract context that 4.2.a feeds into.
+- **Next Action:** Begin Task 4.2.c — implement pure `inferUserSyncCause(input)` in a new
+  `packages/arc-framework/src/lib/user-sync/` module per the helper contract at the top of 4.2 (line ~882):
+  inputs `{ localRefHash, remoteRefHash, sourceCommit, savedAt, latestNoteRefHistoryEntry, headReachable,
+  offline }`, output `{ cause: UserSyncCause, confidence: "high" | "low" | "offline" }`. No IO. Test-first
+  across the 6 listed behaviors. Implementer's choice (per task): include a "no-divergence" output value
+  (uniform call site) or invoke only after divergence is detected — pick at implementation time and document
+  in the helper's TSDoc.
 
 ---
