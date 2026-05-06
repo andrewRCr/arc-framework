@@ -161,7 +161,7 @@ export async function runSessionInitStatus(
 /**
  * Run the session-handoff composite probe.
  *
- * Self-contained envelope for the arc-handoff workflow. Fans out to seven
+ * Self-contained envelope for the arc-handoff workflow. Fans out the active
  * slots in parallel; per-slot failures wrap into `Probe` errors so the
  * envelope itself never rejects. Identity is resolved in the handler and
  * passed in as pointers; when `identity` is `null` the user (notes-sync)
@@ -177,22 +177,18 @@ export async function runSessionHandoffStatus(
   const userTask: Promise<SessionHandoffResult["user"]> = identity === null
     ? Promise.resolve(identityMissing())
     : safeProbe(() => probes.user(identity));
-  const pushInterlockTask = safeProbe(() => probes.pushInterlock());
   const syncInterlockTask = safeProbe(() => probes.syncInterlock());
-  const syncPushTask = safeProbe(() => probes.syncPush());
   const activeTask = safeProbe(() => probes.active(identity, role));
   const headTask = safeProbe(() => probes.head());
   const pushabilityTask = safeProbe(() => probes.pushability());
 
   const [
-    dirty, worktree, user, pushInterlock, syncInterlock, syncPush, active, head, pushability,
+    dirty, worktree, user, syncInterlock, active, head, pushability,
   ] = await Promise.all([
     dirtyTask,
     worktreeTask,
     userTask,
-    pushInterlockTask,
     syncInterlockTask,
-    syncPushTask,
     activeTask,
     headTask,
     pushabilityTask,
@@ -204,9 +200,7 @@ export async function runSessionHandoffStatus(
     dirty,
     worktree,
     user,
-    pushInterlock,
     syncInterlock,
-    syncPush,
     active,
     head,
     pushability,

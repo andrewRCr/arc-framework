@@ -54,7 +54,6 @@ import { runPushabilityStatus } from "../lib/git/pushability.js";
 import { runWorktreeSyncStatus } from "../lib/git/worktree-sync.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { createUserIOContext, gitExec } from "../lib/io-context.js";
-import { resolveNotesPushPolicy } from "../lib/sync-policy.js";
 import { requireArcProjectRoot } from "./shared.js";
 
 export interface StatusCliOptions {
@@ -106,14 +105,6 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
       dirty: () => runDirtyStateStatus({ exec: gitExec }),
       worktree: () => runWorktreeSyncStatus({ exec: gitExec, remoteSyncEnabled }),
       user: (id) => runUserSessionInitStatus({ cwd, io, identity: id, remoteSyncEnabled }),
-      pushInterlock: async () => {
-        const result = await runConfigSessionInitStatus({ cwd });
-        const key = "session.push_interlock";
-        return {
-          value: result.settings[key] as "manual" | "on-sync",
-          source: result.defaultsApplied.includes(key) ? "default" : "yaml",
-        };
-      },
       syncInterlock: async () => {
         const result = await runConfigSessionInitStatus({ cwd });
         const key = "session.sync_interlock";
@@ -122,11 +113,6 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
           source: result.defaultsApplied.includes(key) ? "default" : "yaml",
         };
       },
-      syncPush: () => resolveNotesPushPolicy({
-        exec: gitExec,
-        readFile: io.readFile,
-        cwd,
-      }),
       active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec: gitExec }),
       head: () => runHeadHashStatus({ exec: gitExec }),
       pushability: () => runPushabilityStatus({

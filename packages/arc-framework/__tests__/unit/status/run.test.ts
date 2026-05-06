@@ -23,7 +23,6 @@ import {
   runStatus,
 } from "../../../src/commands/status.js";
 import type {
-  HandoffPushInterlock,
   HandoffSyncInterlock,
   SessionHandoffProbes,
   SessionInitProbes,
@@ -52,7 +51,6 @@ import type { DirtyStateResult } from "../../../src/lib/git/dirty-state.js";
 import type { HeadHashResult } from "../../../src/lib/git/head-hash.js";
 import type { PushabilityResult } from "../../../src/lib/git/pushability.js";
 import type { WorktreeSyncStatusResult } from "../../../src/lib/git/worktree-sync.js";
-import type { ResolvedNotesPush } from "../../../src/lib/sync-policy.js";
 
 // --- Fixtures ---
 
@@ -278,20 +276,10 @@ function dirtyState(overrides: Partial<DirtyStateResult> = {}): DirtyStateResult
   return { state: "clean", fileCount: 0, ...overrides };
 }
 
-function handoffPushInterlock(
-  overrides: Partial<HandoffPushInterlock> = {},
-): HandoffPushInterlock {
-  return { value: "manual", source: "default", ...overrides };
-}
-
 function handoffSyncInterlock(
   overrides: Partial<HandoffSyncInterlock> = {},
 ): HandoffSyncInterlock {
   return { value: "on-handoff", source: "default", ...overrides };
-}
-
-function resolvedSyncPush(overrides: Partial<ResolvedNotesPush> = {}): ResolvedNotesPush {
-  return { value: "on-sync", source: "default", ...overrides };
 }
 
 function headHash(overrides: Partial<HeadHashResult> = {}): HeadHashResult {
@@ -305,9 +293,7 @@ function sessionHandoffProbes(
     dirty: vi.fn(async () => dirtyState()),
     worktree: vi.fn(async () => worktreeSync()),
     user: vi.fn(async () => userSessionInit()),
-    pushInterlock: vi.fn(async () => handoffPushInterlock()),
     syncInterlock: vi.fn(async () => handoffSyncInterlock()),
-    syncPush: vi.fn(async () => resolvedSyncPush()),
     active: vi.fn(async () => activeSessionInit()),
     head: vi.fn(async () => headHash()),
     pushability: vi.fn(async () => ({ allowed: true, conditions: [] })),
@@ -733,9 +719,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
     expect(probes.dirty).toHaveBeenCalledTimes(1);
     expect(probes.worktree).toHaveBeenCalledTimes(1);
     expect(probes.user).toHaveBeenCalledTimes(1);
-    expect(probes.pushInterlock).toHaveBeenCalledTimes(1);
     expect(probes.syncInterlock).toHaveBeenCalledTimes(1);
-    expect(probes.syncPush).toHaveBeenCalledTimes(1);
     expect(probes.active).toHaveBeenCalledTimes(1);
     expect(probes.head).toHaveBeenCalledTimes(1);
     expect(probes.pushability).toHaveBeenCalledTimes(1);
@@ -756,10 +740,8 @@ describe("runSessionHandoffStatus — orchestration", () => {
       "head",
       "identity",
       "mode",
-      "pushInterlock",
       "pushability",
       "syncInterlock",
-      "syncPush",
       "user",
       "worktree",
     ]);
@@ -913,22 +895,6 @@ describe("runSessionHandoffStatus — orchestration", () => {
     }
   });
 
-  it("returns push interlock with provenance from the pushInterlock probe", async () => {
-    const probes = sessionHandoffProbes({
-      pushInterlock: vi.fn(async () =>
-        handoffPushInterlock({ value: "on-sync", source: "yaml" })),
-    });
-    const result = await runSessionHandoffStatus({
-      identity: "andrew",
-      role: "maintainer",
-      probes,
-    });
-    expect(result.pushInterlock.ok).toBe(true);
-    if (result.pushInterlock.ok) {
-      expect(result.pushInterlock.value).toEqual({ value: "on-sync", source: "yaml" });
-    }
-  });
-
   it("returns sync interlock with provenance from the syncInterlock probe", async () => {
     const probes = sessionHandoffProbes({
       syncInterlock: vi.fn(async () =>
@@ -942,21 +908,6 @@ describe("runSessionHandoffStatus — orchestration", () => {
     expect(result.syncInterlock.ok).toBe(true);
     if (result.syncInterlock.ok) {
       expect(result.syncInterlock.value).toEqual({ value: "manual", source: "yaml" });
-    }
-  });
-
-  it("returns notes-push policy with provenance from the syncPush probe", async () => {
-    const probes = sessionHandoffProbes({
-      syncPush: vi.fn(async () => resolvedSyncPush({ value: "prompt", source: "yaml" })),
-    });
-    const result = await runSessionHandoffStatus({
-      identity: "andrew",
-      role: "maintainer",
-      probes,
-    });
-    expect(result.syncPush.ok).toBe(true);
-    if (result.syncPush.ok) {
-      expect(result.syncPush.value).toEqual({ value: "prompt", source: "yaml" });
     }
   });
 
@@ -984,7 +935,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
   it("carries per-slot errors in the envelope without rejecting the composite", async () => {
     const probes = sessionHandoffProbes({
       dirty: vi.fn(async () => { throw new Error("porcelain failed"); }),
-      pushInterlock: vi.fn(async () => { throw new Error("config unreadable"); }),
+      syncInterlock: vi.fn(async () => { throw new Error("config unreadable"); }),
     });
     const result = await runSessionHandoffStatus({
       identity: "andrew",
@@ -992,20 +943,18 @@ describe("runSessionHandoffStatus — orchestration", () => {
       probes,
     });
     expect(result.dirty.ok).toBe(false);
-    expect(result.pushInterlock.ok).toBe(false);
+    expect(result.syncInterlock.ok).toBe(false);
     if (!result.dirty.ok) {
       expect(result.dirty.error.kind).toBe("runtime");
       expect(result.dirty.error.message).toBe("porcelain failed");
     }
-    if (!result.pushInterlock.ok) {
-      expect(result.pushInterlock.error.kind).toBe("runtime");
-      expect(result.pushInterlock.error.message).toBe("config unreadable");
+    if (!result.syncInterlock.ok) {
+      expect(result.syncInterlock.error.kind).toBe("runtime");
+      expect(result.syncInterlock.error.message).toBe("config unreadable");
     }
     // Sibling slots resolve normally.
     expect(result.worktree.ok).toBe(true);
     expect(result.user.ok).toBe(true);
-    expect(result.syncInterlock.ok).toBe(true);
-    expect(result.syncPush.ok).toBe(true);
     expect(result.active.ok).toBe(true);
   });
 
@@ -1022,9 +971,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
     // Other slots still fire.
     expect(probes.dirty).toHaveBeenCalledTimes(1);
     expect(probes.worktree).toHaveBeenCalledTimes(1);
-    expect(probes.pushInterlock).toHaveBeenCalledTimes(1);
     expect(probes.syncInterlock).toHaveBeenCalledTimes(1);
-    expect(probes.syncPush).toHaveBeenCalledTimes(1);
     expect(probes.active).toHaveBeenCalledTimes(1);
     expect(probes.head).toHaveBeenCalledTimes(1);
   });
@@ -1048,9 +995,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
     // Other slots still resolve normally.
     expect(result.worktree.ok).toBe(true);
     expect(result.user.ok).toBe(true);
-    expect(result.pushInterlock.ok).toBe(true);
     expect(result.syncInterlock.ok).toBe(true);
-    expect(result.syncPush.ok).toBe(true);
     expect(result.active.ok).toBe(true);
     expect(result.head.ok).toBe(true);
   });
@@ -1071,13 +1016,11 @@ describe("runSessionHandoffStatus — orchestration", () => {
       dirty: tracked(dirtyState()),
       worktree: tracked(worktreeSync()),
       user: tracked(userSessionInit()),
-      pushInterlock: tracked(handoffPushInterlock()),
       syncInterlock: tracked(handoffSyncInterlock()),
-      syncPush: tracked(resolvedSyncPush()),
       active: tracked(activeSessionInit()),
       head: tracked(headHash()),
     });
     await runSessionHandoffStatus({ identity: "andrew", role: "maintainer", probes });
-    expect(peakInFlight).toBe(8);
+    expect(peakInFlight).toBe(6);
   });
 });

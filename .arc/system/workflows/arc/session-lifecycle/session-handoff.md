@@ -30,8 +30,6 @@ arc status --session-handoff --json
 | `worktree`        | Worktree sync vs `origin/<branch>` — same state vocabulary as session-init                                    |
 | `user`            | Notes sync state (`value.state`: clean / remote-ahead / conflict / disabled / remote-unavailable)             |
 | `syncInterlock`   | `{value, source}` — gates whether this workflow auto-invokes `arc sync` (`on-handoff` fires; `manual` skips)  |
-| `pushInterlock`   | `{value, source}` — `arc sync`-internal worktree-push gate. Surfaced for diagnostics; not consulted here      |
-| `syncPush`        | `{policy, source}` — `arc sync`-internal notes-push gate. Surfaced for diagnostics; not consulted here        |
 | `active`          | Active status file resolution + sessionType (same shape as session-init)                                      |
 | `head`            | `{hash: string \| null}` — current HEAD short-hash for the `Commit at Handoff` anchor                         |
 
@@ -110,9 +108,9 @@ Update session state files before ending session:
 
     **Skill invocation is the approval.** `/arc-handoff` is user-initiated; the invocation grants
     approval for the workflow's bundled actions, including the `chore(status): handoff` commit.
-    No separate per-commit prompt fires under either push-interlock mode — the `pushInterlock.value` axis
-    governs push behavior (see § Push Sequence), where remote-side consequences justify granular
-    gating. Stage and commit unconditionally:
+    No separate per-commit prompt fires under either push-interlock mode — push behavior is gated
+    by `arc sync` internally (see § Sync), where remote-side consequences justify granular gating.
+    Stage and commit unconditionally:
 
     ```bash
     git add <resolved-status-file-path>

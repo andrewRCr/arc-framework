@@ -33,7 +33,6 @@ import type { DirtyStateResult } from "../../lib/git/dirty-state.js";
 import type { HeadHashResult } from "../../lib/git/head-hash.js";
 import type { PushabilityResult } from "../../lib/git/pushability.js";
 import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
-import type { ResolvedNotesPush } from "../../lib/sync-policy.js";
 
 /** Git-config pointers resolved in the composite handler (not a probe). */
 export interface StatusIdentity {
@@ -97,16 +96,6 @@ export interface StatusProbes {
 }
 
 /**
- * Push-interlock slot in the session-handoff envelope — narrow projection of
- * `ConfigSessionInitResult.settings["session.push_interlock"]`. Distinct shape
- * so the handoff envelope doesn't leak unrelated session-init settings.
- */
-export interface HandoffPushInterlock {
-  value: "manual" | "on-sync";
-  source: "yaml" | "default";
-}
-
-/**
  * Sync-interlock slot in the session-handoff envelope — narrow projection of
  * `session.sync_interlock`. Gates whether the handoff workflow auto-invokes
  * `arc sync` (`on-handoff`) or surfaces unpushed state without firing
@@ -121,12 +110,12 @@ export interface HandoffSyncInterlock {
  * Session-handoff composite result — `--session-handoff` consumer shape.
  *
  * Self-contained: arc-handoff is skill-invoked and shouldn't depend on
- * session-init context still being intact. Eight slots: dirty-state probe,
- * worktree sync, notes sync (user), push interlock with provenance, the
- * handoff-interior toggle set (`syncPush` today; future toggles named as
- * sibling slots), the resolved active status file, current HEAD short-hash
- * for the `Commit at Handoff` anchor, and pushability pre-checks gating
- * the worktree push.
+ * session-init context still being intact. Slots cover dirty-state, worktree
+ * sync vs origin, notes sync (user), the sync-interlock gate, the resolved
+ * active status file, current HEAD short-hash for the `Commit at Handoff`
+ * anchor, and pushability pre-checks gating the worktree push. Push-interlock
+ * and notes-push policy are owned by `arc sync` internally; the handoff
+ * workflow doesn't read them.
  */
 export interface SessionHandoffResult {
   mode: "session-handoff";
@@ -134,9 +123,7 @@ export interface SessionHandoffResult {
   dirty: Probe<DirtyStateResult>;
   worktree: Probe<WorktreeSyncStatusResult>;
   user: Probe<UserSessionInitStatusResult>;
-  pushInterlock: Probe<HandoffPushInterlock>;
   syncInterlock: Probe<HandoffSyncInterlock>;
-  syncPush: Probe<ResolvedNotesPush>;
   active: Probe<ActiveSessionInitResult>;
   head: Probe<HeadHashResult>;
   /**
@@ -173,9 +160,7 @@ export interface SessionHandoffProbes {
   dirty: () => Promise<DirtyStateResult>;
   worktree: () => Promise<WorktreeSyncStatusResult>;
   user: (identity: string) => Promise<UserSessionInitStatusResult>;
-  pushInterlock: () => Promise<HandoffPushInterlock>;
   syncInterlock: () => Promise<HandoffSyncInterlock>;
-  syncPush: () => Promise<ResolvedNotesPush>;
   active: (
     identity: string | null,
     role: string | null,
