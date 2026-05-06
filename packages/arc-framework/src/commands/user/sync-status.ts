@@ -905,6 +905,7 @@ function buildVerboseDetailLines(args: VerboseDetailInput): string[] {
 
   if (!remoteChecked) {
     detailLines.push("Remote notes check skipped (`--offline`); local notes were not compared with remote notes.");
+    detailLines.push("offline — local state only; cross-machine signals unavailable");
   }
 
   detailLines.push(renderHeadlineExplanation(headline, diskStatus));

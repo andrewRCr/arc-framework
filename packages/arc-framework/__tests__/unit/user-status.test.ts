@@ -502,6 +502,67 @@ describe("buildUserStatusResult userSyncCause routing", () => {
   });
 });
 
+describe("buildUserStatusResult --offline degradation rendering", () => {
+  const SKIP_NOTE = "Remote notes check skipped (`--offline`); local notes were not compared with remote notes.";
+  const DEGRADED_LINE = "offline — local state only; cross-machine signals unavailable";
+
+  it("verbose: surfaces both the existing skip-note AND the new degraded-classification line under --offline", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "same",
+      refState: null,
+      remoteChecked: false,
+      savedCommit: "abc1234",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      backupFiles: [],
+      remoteIdentities: [],
+    });
+
+    const skipIndex = result.detailLines.indexOf(SKIP_NOTE);
+    const degradedIndex = result.detailLines.indexOf(DEGRADED_LINE);
+
+    expect(skipIndex).toBeGreaterThanOrEqual(0);
+    expect(degradedIndex).toBeGreaterThanOrEqual(0);
+    expect(degradedIndex).toBe(skipIndex + 1);
+  });
+
+  it("verbose: omits the degraded-classification line when remote was checked (online mode)", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "same",
+      refState: "same",
+      remoteChecked: true,
+      savedCommit: "abc1234",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      backupFiles: [],
+      remoteIdentities: [],
+    });
+
+    expect(result.detailLines).not.toContain(DEGRADED_LINE);
+    expect(result.detailLines).not.toContain(SKIP_NOTE);
+  });
+
+  it("default mode: omits both the skip-note and the degraded-classification line (verbose-only pairing)", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "same",
+      refState: null,
+      remoteChecked: false,
+      savedCommit: "abc1234",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      backupFiles: [],
+      remoteIdentities: [],
+      verbose: false,
+    });
+
+    expect(result.detailLines).not.toContain(SKIP_NOTE);
+    expect(result.detailLines).not.toContain(DEGRADED_LINE);
+  });
+});
+
 describe("buildUserStatusResult first-use orientation hint", () => {
   const HINT = "New here? Run `arc user --help` to learn about user notes.";
 

@@ -855,40 +855,11 @@ single entrypoint for all commit paths.
           integration cases on `runUserStatus` (threads into `detailLines[0]` end-to-end, probe fires even with
           `offline: true`).
 
-### `[ ]` **4.2 Shared-ref sync-state inference**
+### `[x]` **4.2 Shared-ref sync-state inference**
 
 - _Goal:_ `arc status` distinguishes the causes of notes-ref divergence — `unfetched-local`,
   `concurrent-local-writer`, `cross-machine` — and gives actionable guidance instead of generic "remote ahead"
   framing. `--offline` degrades classification explicitly; bounded-fetch keeps the full-mode probe responsive.
-
-    - _Note (concurrency model):_ Per `plan-concurrent-work-conventions.md` § Concurrency Model, ARC's steady
-      state under Worktree Foundation is parallel sessions, one WU per session. Concurrent writers on the shared
-      `refs/notes/arc/user/{identity}` ref are the normal case, not an exception. The cause taxonomy intentionally
-      avoids machine-locality assertions the local probe can't make — `concurrent-local-writer` covers what an
-      earlier draft called "sibling session," and only the remote-vs-local ref shape distinguishes it from
-      `cross-machine` (and only when remote signals are available).
-
-    - _Cause taxonomy:_
-        - **`unfetched-local`** — local notes ref is strict ancestor of remote notes ref; just pull
-        - **`concurrent-local-writer`** — local ref ahead of (or diverged from) remote AND has a note attached to
-          a commit outside current HEAD's ancestry. Another active writer exists; the probe doesn't assert which
-          machine. Detection compares `LocalSyncState.sourceCommit` against the latest entry in
-          `refs/notes/arc/user/{identity}` history — divergence with no remote-ahead path implicates a local writer
-        - **`cross-machine`** — remote ref carries notes our local doesn't have AND our local ref is also ahead.
-          Distinguishes "shared writer ahead of us" from "our worktree's view alone"
-        - **`offline`** — `--offline` collapses cross-machine vs unfetched into "comparison unavailable"
-        - **`unknown`** — sync-state missing, source commit unreachable, or other degraded inputs
-
-    - _Helper contract (consumed by 4.2.d and Task 4.3):_ pure function `inferUserSyncCause(input)` exported from
-      a new module under `packages/arc-framework/src/lib/user-sync/` (final placement at 4.2.c). Inputs:
-      `{ localRefHash, remoteRefHash, sourceCommit, savedAt, latestNoteRefHistoryEntry, headReachable, offline }`.
-      Output: `{ cause: UserSyncCause, confidence: "high" | "low" | "offline" }`. IO concerns stay at call sites
-      so 4.3 can call the helper from `runUserSessionInitStatus` without round-tripping the inputs.
-
-    - _Boundary:_ this task classifies why the notes-sync state differs; it does not decide which branch or work
-      unit the identity should work on. Branch-gone recovery and target selection remain Worktree Foundation +
-      Coord Probe scope. The load-needed signal in the session-init envelope and cascade handling in
-      `session-init.md` Step 2 are Task 4.3's scope.
 
     - `[x]` **4.2.a `LocalSyncState` v2 → v3 schema bump + atomic write**
         - `LocalSyncState.version` bumped to `3` with optional `savedAt: ISO-string`. Reader (`save-load.ts`)
@@ -949,18 +920,16 @@ single entrypoint for all commit paths.
           unknown) plus 2 orchestration cases on `runUserStatus` (offline → `offline` cause; clean ref state →
           no cause field).
 
-    - `[ ]` **4.2.e `--offline` degradation rendering**
-        - When `offline: true`, render an explicit degraded-classification line:
-          `"offline — local state only; cross-machine signals unavailable"`. Composes with the existing
-          `--offline` skip-note ("Remote notes check skipped (`--offline`)..."); the new line augments rather
-          than replaces.
-        - Affected files: `packages/arc-framework/src/commands/user/sync-status.ts` (rendering).
-        - Build `test-first` (one behavior at a time):
-            - `--offline` surfaces both the existing skip-note AND the new degraded-classification line
-            - Cause under offline is `offline` (per helper output); never `cross-machine` or
-              `concurrent-local-writer`
-            - Action-oriented headline under offline reflects the degraded state without asserting an
-              unverifiable cause
+    - `[x]` **4.2.e `--offline` degradation rendering**
+        - `buildVerboseDetailLines` appends `"offline — local state only; cross-machine signals unavailable"`
+          immediately after the existing `Remote notes check skipped (--offline)...` skip-note when
+          `remoteChecked === false`. Verbose-only pairing — default mode keeps its single-line action-oriented
+          framing, which already routes through the cause-aware path from 4.2.d.
+        - Behaviors 2 (cause stays `offline`, never cross-machine/concurrent-local-writer) and 3 (action-oriented
+          headline avoids unverifiable causes) are already enforced by the 4.2.c inference helper short-circuit
+          on `offline: true` and the 4.2.d cause-aware headline routing — no additional code here.
+        - 3 unit cases in `__tests__/unit/user-status.test.ts` cover skip-note + degraded-line adjacency,
+          online-mode omission, and default-mode omission.
 
 ### `[ ]` **4.3 Session-init load cascade**
 
