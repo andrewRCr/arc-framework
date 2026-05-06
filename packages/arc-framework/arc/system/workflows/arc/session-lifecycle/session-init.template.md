@@ -143,10 +143,6 @@ session-state, follow the override instead.
     directly with `limit: ~35`. Apply structural mapping (delimiter `^##` line prefix) only if the
     convention has been broken.
 
-**Commit-interlock load set:** If `config.value.settings["session.commit_interlock"]` is
-`on-task-approval`, also load `.arc/system/methods/commit-format.md` and
-`.arc/system/methods/commit-context-format.md` during session-init.
-
 **Active work context:**
 
 7. **Active status file** — resolve from `active.value` and partial-read the `## Work Unit Metadata`

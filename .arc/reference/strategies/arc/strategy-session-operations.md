@@ -486,17 +486,6 @@ whether `session.commit_interlock` is `manual` or `on-task-approval`. This keeps
 focused on reviewed code changes while preserving the session-state contract that handoff is the
 single update point for contributor-local active status.
 
-### Commit-Interlock Load-Set
-
-When `session.commit_interlock` resolves to `on-task-approval`, session-init eagerly loads
-`commit-format.md` and `commit-context-format.md`. Commit-on-task-approval fires between tasks
-without an explicit `arc-commit` skill invocation, so session-init is the reliable point to load
-the commit-message and context-footer contracts before the release can occur.
-
-Under `session.commit_interlock: manual`, those methods stay T3 and load on demand through the
-`arc-commit` skill or prepare-commits workflow. The manual path keeps the default session-init
-load set smaller because no commit release can occur without the user invoking the commit path.
-
 ### Deferred-Review × Commit-Interlock Release
 
 Deferred review safe-accumulates by default under `session.commit_interlock: on-task-approval`.

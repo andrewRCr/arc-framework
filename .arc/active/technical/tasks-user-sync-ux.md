@@ -1032,30 +1032,18 @@ _Implementation order within phase:_
         - Test surface = markdown lint (zero violations) per the task spec; behavioral coverage
           lives in 4.3.b's probe-behavior cases.
 
-### `[ ]` **4.4 JIT commit-format loading at arc-commit**
+### `[x]` **4.4 JIT commit-format loading at arc-commit**
 
 - _Goal:_ Drop the `commit-format.md` + `commit-context-format.md` load set from session-init Step 3 under
   `session.commit_interlock: on-task-approval` — the methods load via arc-commit Step 3 (or prepare-commits
   frontmatter) at first commit, not at every session start. Reduces init token load by ~3-4k unconditionally.
-    - Depends on the entrypoint tightening already applied: process-task-loop Step 4 routes commits through
-      arc-commit; arc-commit Step 3 loads both methods regardless of simple-vs-complex path. The load is
-      reliable at fire time; init-time pre-loading is no longer pulling weight.
-    - Affected files (audit-enumerated):
-        - `.arc/system/workflows/arc/session-lifecycle/session-init.md` — remove the "Commit-interlock load
-          set" block from Step 3 (3 sentences)
-        - `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/session-init.template.md` —
-          mirror
-        - `.arc/system/workflows/arc/session-lifecycle/session-init.contributor.md` +
-          `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/session-init.contributor.md` —
-          mirror if the same block is duplicated there
-        - `.arc/reference/strategies/arc/strategy-session-operations.md` — remove the
-          `### Commit-Interlock Load-Set` subsection. The section justified eager-loading; with eager-loading gone,
-          the rationale is moot. Loading is documented at the call site (`arc-commit` SKILL § 3). No replacement
-          paragraph needed.
-    - Test-after — documentation only; no automated assertion. The behavioral check is "init no longer Reads
-      commit-format / commit-context-format under any commit-interlock mode." Confirm via
-      `grep -rn 'commit-format' packages/arc-framework/__tests__/` that no test pins the load-set Reads to include
-      commit-format methods at session-init.
+
+- _Outcome:_ Removed the load-set block from `session-init.md` + `session-init.template.md` and the
+  duplicated paragraph from both `session-init.contributor.md` copies; deleted the
+  `### Commit-Interlock Load-Set` subsection from both `strategy-session-operations.md` copies (the
+  rationale was moot once eager-loading went away). Behavioral grep clean —
+  `grep -rn 'commit-format' packages/arc-framework/__tests__/` returned only file-classification /
+  manifest / frontmatter hits; no test pins commit-format Reads at session-init.
 
 ### `[ ]` **4.5 Handoff probe `restateCandidates` slot**
 
