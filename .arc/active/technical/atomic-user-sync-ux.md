@@ -77,3 +77,22 @@ the full protocol.
     - Affected: `packages/arc-framework/src/lib/sync-output.ts` (JSON-mode branch +
       module docstring); `packages/arc-framework/__tests__/e2e/sync-purity.e2e.test.ts`
       (assertions added to paired-push and prompt-policy cases).
+
+- [x] **Add TS-quality pre-commit gate for self-hosting repo**
+    - New `scripts/check-ts-quality.sh` invoked from `.husky/pre-commit` after
+      `check-package-sync.sh`. Detects staged changes under `packages/arc-framework/(src|__tests__)/*.ts`
+      via `git diff --cached --name-only --diff-filter=ACMR`; on match, runs `lint:ts` + `typecheck` +
+      `typecheck:test` in sequence and collects failures into a single end-of-run summary so all three
+      gates report in one shot rather than fast-failing on the first.
+    - Three independent gates because production `tsconfig.json` excludes `__tests__/`, vitest's esbuild
+      transpile skips typechecking, and eslint catches issues neither `tsc` pass surfaces — third
+      recurrence of the gap pattern (today's `save-load.test.ts:563` MkdirFn typecheck:test red was caught
+      only by CI).
+    - Verified by exercise: staged a fixture `__tests__/unit/_fixture-broken.ts` with a deliberate
+      `string = 42` assignment; gate fired (`typecheck:test` flagged TS2322, exit 1); silent (exit 0) on a
+      markdown-only staged change. Sibling script rather than extending `check-package-sync.sh` to keep the
+      latter's name truthful.
+    - Stopgap: supersedes when `plan-quality-gate-hooks.md` (backlog) lands its push-gate dispatch; the
+      ATOMIC-INBOX `Adopt lint-staged in this dev repo (post plan-quality-gate-hooks)` entry tracks the
+      post-plan migration that refactors this into the framework's tier-dispatch method.
+    - Affected: `scripts/check-ts-quality.sh` (new); `.husky/pre-commit` (one-line addition).

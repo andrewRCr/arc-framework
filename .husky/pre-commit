@@ -3,3 +3,4 @@
 set -e
 bash .arc/system/githooks/pre-commit
 bash scripts/check-package-sync.sh
+bash scripts/check-ts-quality.sh
