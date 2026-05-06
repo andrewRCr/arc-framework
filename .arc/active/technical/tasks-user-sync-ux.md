@@ -568,7 +568,7 @@ composition. The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) i
 
 - _Goal:_ Re-read the sync surface after remediation and capture residual risk before Phase 3 begins.
 
-    - `[ ]` **2.R.6.a Code-path audit against invariants**
+    - `[x]` **2.R.6.a Code-path audit against invariants**
         - _Goal:_ Audit code paths against 2.R invariants and fix any gaps surfaced inline so audit findings convert
           directly to closed work, not deferred WUs.
 
@@ -594,16 +594,17 @@ composition. The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) i
               `NOT_IN_ARC_PROJECT` envelope on cwd outside ARC project — both assert no clack calls and
               `process.exitCode === 1`. Existing JSON tests continue to pass.
 
-        - `[ ]` **2.R.6.a.3 Thread `SyncOutput` through `resolveSyncPushPolicy` callers**
+        - `[x]` **2.R.6.a.3 Thread `SyncOutput` through `resolveSyncPushPolicy` callers**
             - _Goal:_ Eliminate the latent JSON-contamination risk that any future `--json` surface on
               `arc user sync` (or any new caller of `resolveSyncPushPolicy`) inherits the helper's `warn`
               routing by construction rather than by hand-threading.
-            - _Approach:_ Hoist `createSyncOutput(false)` to the top of `handleUserSync` (`handlers/user-sync.ts`)
-              and replace the inline `(message) => { p.log.warn(message); }` callback at the
-              `resolveSyncPushPolicy` site with `output.log.warn`. No behavior change today; forward-compat by
-              construction once `--json` lands on any caller.
-            - Coverage: existing `handleUserSync` tests continue to pass (no behavior change). No new tests
-              required — the change is mechanical routing, not logic.
+            - _Outcome:_ `handlePushDirection` (`handlers/user-sync.ts`) now hoists `createSyncOutput(false)`
+              once at function entry; the `resolveSyncPushPolicy` `warn` callback routes through
+              `output.log.warn`, and the existing `pushWithInteractiveRecovery` call reuses the same `output`
+              instead of constructing a second one inline. No behavior change today (`arc user sync` has no
+              `--json`); forward-compat by construction — any future `--json` mode added to a caller flips
+              `createSyncOutput(false)` → `createSyncOutput(json)` and the warn route follows. Existing 1066
+              unit tests pass.
 
     - `[ ]` **2.R.6.b Test-surface audit + residual risk**
         - Ensure unit, integration, and e2e coverage maps to all remediation invariants and at least one real git

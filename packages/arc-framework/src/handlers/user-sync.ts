@@ -328,12 +328,13 @@ async function handleLoadDirection(params: DirectionParams): Promise<void> {
 
 async function handlePushDirection(params: DirectionParams): Promise<void> {
   const { cwd, io, identity, restoreAfterPush } = params;
+  const output = createSyncOutput(false);
 
   const resolved = await resolveSyncPushPolicy({
     exec: io.exec,
     readFile: io.readFile,
     cwd,
-    warn: (message) => { p.log.warn(message); },
+    warn: (message) => { output.log.warn(message); },
   });
 
   let policy = resolved.policy;
@@ -387,7 +388,7 @@ async function handlePushDirection(params: DirectionParams): Promise<void> {
     cwd,
     access,
     worktreeBranch: params.worktreeBranch,
-    output: createSyncOutput(false),
+    output,
   });
   switch (pushResult.kind) {
     case "ok":
