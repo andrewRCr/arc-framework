@@ -8,11 +8,10 @@
  * @module
  */
 
-import { join } from "node:path";
-
-import { parseArcConfig } from "./config/index.js";
-import { ARC_CONFIG_SEGMENTS } from "./constants.js";
-import { gitConfigGet } from "./git/index.js";
+import {
+  resolveGitConfigOverride,
+  type ResolvedConfigOverride,
+} from "./config/resolve-override.js";
 import type { GitExec } from "./git/index.js";
 
 /** Valid push policy values. */
@@ -38,10 +37,7 @@ export interface ResolveSyncPushOptions {
   warn?: (message: string) => void;
 }
 
-export interface ResolvedSyncPush {
-  policy: SyncPushPolicy;
-  source: "git-config" | "yaml" | "default";
-}
+export type ResolvedSyncPush = ResolvedConfigOverride<SyncPushPolicy>;
 
 function isValidPolicy(value: string | undefined): value is SyncPushPolicy {
   return typeof value === "string"
@@ -59,35 +55,15 @@ function isValidPolicy(value: string | undefined): value is SyncPushPolicy {
 export async function resolveSyncPushPolicy(
   opts: ResolveSyncPushOptions,
 ): Promise<ResolvedSyncPush> {
-  const warn = opts.warn ?? (() => undefined);
-
-  const override = await gitConfigGet(opts.exec, SYNC_PUSH_GIT_CONFIG_KEY);
-  if (override !== undefined && override !== "") {
-    if (isValidPolicy(override)) {
-      return { policy: override, source: "git-config" };
-    }
-    warn(
-      `Ignoring invalid value "${override}" for ${SYNC_PUSH_GIT_CONFIG_KEY} — `
-      + `expected one of: ${VALID_POLICIES.join(", ")}.`,
-    );
-  }
-
-  try {
-    const configPath = join(opts.cwd, ...ARC_CONFIG_SEGMENTS);
-    const content = await opts.readFile(configPath);
-    const yamlValue = parseArcConfig(content)[SYNC_PUSH_YAML_KEY];
-    if (yamlValue !== undefined && yamlValue !== "") {
-      if (isValidPolicy(yamlValue)) {
-        return { policy: yamlValue, source: "yaml" };
-      }
-      warn(
-        `Ignoring invalid value "${yamlValue}" for ${SYNC_PUSH_YAML_KEY} in `
-        + `arc-config.yml — expected one of: ${VALID_POLICIES.join(", ")}.`,
-      );
-    }
-  } catch {
-    // arc-config.yml unreadable — fall through to default silently.
-  }
-
-  return { policy: DEFAULT_SYNC_PUSH_POLICY, source: "default" };
+  return resolveGitConfigOverride<SyncPushPolicy>({
+    exec: opts.exec,
+    readFile: opts.readFile,
+    cwd: opts.cwd,
+    gitConfigKey: SYNC_PUSH_GIT_CONFIG_KEY,
+    yamlKey: SYNC_PUSH_YAML_KEY,
+    defaultValue: DEFAULT_SYNC_PUSH_POLICY,
+    isValidValue: isValidPolicy,
+    validValues: VALID_POLICIES,
+    warn: opts.warn,
+  });
 }

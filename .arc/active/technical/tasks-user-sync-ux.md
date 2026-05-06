@@ -725,37 +725,13 @@ orchestrator surface lands in Phase 2 (2.2.c.i) since 2.2.c's matrix dispatch de
 completes first; then resolver first (R12 needs it), then renames, then vocabulary pass (so the vocabulary pass operates
 on final-shape strings).
 
-### `[ ]` **3.1 Resolver consolidation**
+### `[x]` **3.1 Resolver consolidation**
 
 - _Goal:_ One 3-tier resolver helper handles `user.notes_push` and the three interlock keys, returning
   `{ value, source }` so downstream consumers can audit precedence.
-    - Extract the precedence logic shared by `user.notes_push` (and the new interlock keys in 3.3) into a generic helper
-      — `resolveGitConfigOverride<T>`.
-    - Return shape (stable downstream-consumer contract): `{ value: T, source: "git-config" | "yaml" | "default" }`.
-      Source-tracking is **required**, not optional — the planned interlock-release wrappers' audit log carries
-      "interlock state at decision time" with provenance, and the authorization footer's `abbreviated | full` modes
-      surface source per `plan-interlock-release-wrappers.md` § Audit log / § Authorization footer.
-    - Migrate `lib/sync-policy.ts` onto it. The helper resolves git-config override → yaml → default in 3-tier order.
-    - **Migration path:** Replace `resolveSyncPushPolicy`'s body with a thin call to the generic helper (per-key
-      validator + key strings + default baked in); the function returns `{ value, source }` directly — no `policy`
-      field, no shim. Three call sites destructure `.policy` today and migrate to `.value`: `handlers/sync.ts`,
-      `handlers/user-sync.ts`, `handlers/status.ts`. The function-name rename
-      (`resolveSyncPushPolicy` → `resolveNotesPushPolicy`) folds into 3.2.a alongside the yaml-key, git-config-key,
-      and value-enum renames; this task keeps the existing function name to bound scope.
-
-    - Affected files: `packages/arc-framework/src/lib/sync-policy.ts`; new
-      `packages/arc-framework/src/lib/config/resolve-override.ts`. Export path, return shape, and generic signature are
-      pinned as a stable downstream-consumer API — the planned interlock-release wrappers' validation library builds on
-      this contract.
-    - Build `test-first` (one behavior at a time):
-        - Git-config value present → returns `{ value, source: "git-config" }`
-        - Git-config absent + yaml present → returns `{ value, source: "yaml" }`
-        - Both absent → returns `{ value: default, source: "default" }`
-        - Invalid value at any tier emits a warning and falls through to the next tier; final fallback is the
-          documented default. Asymmetric throw-vs-substitute behavior between git-config and yaml layers is rejected —
-          both layers warn-and-fall-through.
-        - `sync-policy.ts` migrated → existing sync-policy tests pass with `.policy` → `.value` field rename and
-          warn-and-fall-through behavior unchanged
+- _Outcome:_ Added `resolveGitConfigOverride<T>` as the shared git-config → yaml → default resolver, migrated
+  `resolveSyncPushPolicy` to return `{ value, source }` through that helper, and updated notes-push consumers/tests to
+  use the stable `value` field while preserving invalid-value warn-and-fall-through behavior.
 
 ### `[ ]` **3.2 Config-shape alignment**
 

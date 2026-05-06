@@ -292,7 +292,7 @@ export async function handleSync(opts: SyncOptions = {}): Promise<void> {
     resolveCurrentBranch(io),
   ]);
 
-  let notesPush = syncPushResolved.policy;
+  let notesPush = syncPushResolved.value;
   if (notesPush === "prompt" && opts.yes === true) {
     output.log.info(
       `--yes flag detected — auto-accepting "prompt" policy (save and push notes).`,

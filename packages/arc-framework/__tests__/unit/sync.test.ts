@@ -125,7 +125,7 @@ function setSyncState(
 }
 
 function setPolicy(policy: "always" | "prompt" | "manual") {
-  mockResolvePolicy.mockResolvedValue({ policy, source: "default" });
+  mockResolvePolicy.mockResolvedValue({ value: policy, source: "default" });
 }
 
 /**

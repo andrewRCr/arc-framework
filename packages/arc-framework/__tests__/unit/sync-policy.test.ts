@@ -48,7 +48,7 @@ describe("resolveSyncPushPolicy", () => {
         const exec = gitExecWithOverride(policy);
         const readFile = readFileWithYaml(`${SYNC_PUSH_YAML_KEY}: always\n`);
         const result = await resolveSyncPushPolicy({ exec, readFile, cwd });
-        expect(result).toEqual({ policy, source: "git-config" });
+        expect(result).toEqual({ value: policy, source: "git-config" });
       });
     }
 
@@ -56,7 +56,7 @@ describe("resolveSyncPushPolicy", () => {
       const exec = gitExecWithOverride("manual");
       const readFile = readFileWithYaml(`${SYNC_PUSH_YAML_KEY}: prompt\n`);
       const result = await resolveSyncPushPolicy({ exec, readFile, cwd });
-      expect(result.policy).toBe("manual");
+      expect(result.value).toBe("manual");
       expect(result.source).toBe("git-config");
     });
 
@@ -65,7 +65,7 @@ describe("resolveSyncPushPolicy", () => {
       const readFile = readFileWithYaml(`${SYNC_PUSH_YAML_KEY}: prompt\n`);
       const warn = vi.fn();
       const result = await resolveSyncPushPolicy({ exec, readFile, cwd, warn });
-      expect(result).toEqual({ policy: "prompt", source: "yaml" });
+      expect(result).toEqual({ value: "prompt", source: "yaml" });
       expect(warn).toHaveBeenCalledOnce();
       expect(warn.mock.calls[0]?.[0]).toContain("bogus");
       expect(warn.mock.calls[0]?.[0]).toContain(SYNC_PUSH_GIT_CONFIG_KEY);
@@ -75,7 +75,7 @@ describe("resolveSyncPushPolicy", () => {
       const exec = gitExecWithOverride("");
       const readFile = readFileWithYaml(`${SYNC_PUSH_YAML_KEY}: manual\n`);
       const result = await resolveSyncPushPolicy({ exec, readFile, cwd });
-      expect(result).toEqual({ policy: "manual", source: "yaml" });
+      expect(result).toEqual({ value: "manual", source: "yaml" });
     });
   });
 
@@ -85,7 +85,7 @@ describe("resolveSyncPushPolicy", () => {
         const exec = gitExecWithOverride(undefined);
         const readFile = readFileWithYaml(`${SYNC_PUSH_YAML_KEY}: ${policy}\n`);
         const result = await resolveSyncPushPolicy({ exec, readFile, cwd });
-        expect(result).toEqual({ policy, source: "yaml" });
+        expect(result).toEqual({ value: policy, source: "yaml" });
       });
     }
 
@@ -94,7 +94,7 @@ describe("resolveSyncPushPolicy", () => {
       const readFile = readFileWithYaml(`${SYNC_PUSH_YAML_KEY}: alwys\n`);
       const warn = vi.fn();
       const result = await resolveSyncPushPolicy({ exec, readFile, cwd, warn });
-      expect(result).toEqual({ policy: DEFAULT_SYNC_PUSH_POLICY, source: "default" });
+      expect(result).toEqual({ value: DEFAULT_SYNC_PUSH_POLICY, source: "default" });
       expect(warn).toHaveBeenCalledOnce();
       expect(warn.mock.calls[0]?.[0]).toContain("alwys");
       expect(warn.mock.calls[0]?.[0]).toContain(SYNC_PUSH_YAML_KEY);
@@ -105,7 +105,7 @@ describe("resolveSyncPushPolicy", () => {
       const readFile = readFileWithYaml(undefined);
       const warn = vi.fn();
       const result = await resolveSyncPushPolicy({ exec, readFile, cwd, warn });
-      expect(result).toEqual({ policy: DEFAULT_SYNC_PUSH_POLICY, source: "default" });
+      expect(result).toEqual({ value: DEFAULT_SYNC_PUSH_POLICY, source: "default" });
       expect(warn).not.toHaveBeenCalled();
     });
 
@@ -113,7 +113,7 @@ describe("resolveSyncPushPolicy", () => {
       const exec = gitExecWithOverride(undefined);
       const readFile = readFileWithYaml("branch.base: main\n");
       const result = await resolveSyncPushPolicy({ exec, readFile, cwd });
-      expect(result).toEqual({ policy: DEFAULT_SYNC_PUSH_POLICY, source: "default" });
+      expect(result).toEqual({ value: DEFAULT_SYNC_PUSH_POLICY, source: "default" });
     });
   });
 
@@ -122,7 +122,7 @@ describe("resolveSyncPushPolicy", () => {
       const exec = gitExecWithOverride(undefined);
       const readFile = readFileWithYaml(undefined);
       const result = await resolveSyncPushPolicy({ exec, readFile, cwd });
-      expect(result).toEqual({ policy: DEFAULT_SYNC_PUSH_POLICY, source: "default" });
+      expect(result).toEqual({ value: DEFAULT_SYNC_PUSH_POLICY, source: "default" });
     });
   });
 
@@ -132,7 +132,7 @@ describe("resolveSyncPushPolicy", () => {
       const readFile = readFileWithYaml(`${SYNC_PUSH_YAML_KEY}: alsowrong\n`);
       await expect(
         resolveSyncPushPolicy({ exec, readFile, cwd }),
-      ).resolves.toEqual({ policy: DEFAULT_SYNC_PUSH_POLICY, source: "default" });
+      ).resolves.toEqual({ value: DEFAULT_SYNC_PUSH_POLICY, source: "default" });
     });
   });
 });

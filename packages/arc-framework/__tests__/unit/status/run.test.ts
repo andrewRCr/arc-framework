@@ -291,7 +291,7 @@ function handoffSyncInterlock(
 }
 
 function resolvedSyncPush(overrides: Partial<ResolvedSyncPush> = {}): ResolvedSyncPush {
-  return { policy: "always", source: "default", ...overrides };
+  return { value: "always", source: "default", ...overrides };
 }
 
 function headHash(overrides: Partial<HeadHashResult> = {}): HeadHashResult {
@@ -947,7 +947,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
 
   it("returns sync-push policy with provenance from the syncPush probe", async () => {
     const probes = sessionHandoffProbes({
-      syncPush: vi.fn(async () => resolvedSyncPush({ policy: "prompt", source: "yaml" })),
+      syncPush: vi.fn(async () => resolvedSyncPush({ value: "prompt", source: "yaml" })),
     });
     const result = await runSessionHandoffStatus({
       identity: "andrew",
@@ -956,7 +956,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
     });
     expect(result.syncPush.ok).toBe(true);
     if (result.syncPush.ok) {
-      expect(result.syncPush.value).toEqual({ policy: "prompt", source: "yaml" });
+      expect(result.syncPush.value).toEqual({ value: "prompt", source: "yaml" });
     }
   });
 

@@ -337,7 +337,7 @@ async function handlePushDirection(params: DirectionParams): Promise<void> {
     warn: (message) => { output.log.warn(message); },
   });
 
-  let policy = resolved.policy;
+  let policy = resolved.value;
   if (policy === "prompt" && isNonInteractiveEnvironment()) {
     p.log.warn(
       'Non-interactive environment detected — degrading "prompt" policy to "manual" (save only).',

@@ -124,7 +124,7 @@ function setWorktree(state: WorktreeSyncState, ahead = 0, behind = 0) {
 }
 
 function setNotesPolicy(policy: "always" | "prompt" | "manual") {
-  mockResolveSyncPushPolicy.mockResolvedValue({ policy, source: "default" });
+  mockResolveSyncPushPolicy.mockResolvedValue({ value: policy, source: "default" });
 }
 
 /** Default exec stub: branch resolves to 'main'; pushes succeed. */
