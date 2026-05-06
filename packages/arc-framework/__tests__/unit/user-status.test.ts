@@ -357,6 +357,61 @@ describe("buildUserStatusResult", () => {
   });
 });
 
+describe("buildUserStatusResult first-use orientation hint", () => {
+  const HINT = "New here? Run `arc user --help` to learn about user notes.";
+
+  function baseFirstUseInput() {
+    return {
+      identity: "andrew",
+      diskState: "same" as const,
+      refState: "same" as const,
+      remoteChecked: true,
+      savedCommit: "9b1c241",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      savedAtRelative: "9 hours ago",
+      backupFiles: [],
+      remoteIdentities: [],
+    };
+  }
+
+  it("renders the orientation hint as detailLines[0] when local notes ref is absent", () => {
+    const result = buildUserStatusResult({
+      ...baseFirstUseInput(),
+      userNotesRefExists: false,
+    });
+
+    expect(result.detailLines[0]).toBe(HINT);
+  });
+
+  it("omits the orientation hint when local notes ref exists", () => {
+    const result = buildUserStatusResult({
+      ...baseFirstUseInput(),
+      userNotesRefExists: true,
+    });
+
+    expect(result.detailLines).not.toContain(HINT);
+  });
+
+  it("omits the orientation hint when ref-existence is unknown (default behavior)", () => {
+    const result = buildUserStatusResult({
+      ...baseFirstUseInput(),
+    });
+
+    expect(result.detailLines).not.toContain(HINT);
+  });
+
+  it("renders the hint at detailLines[0] in default mode too", () => {
+    const result = buildUserStatusResult({
+      ...baseFirstUseInput(),
+      verbose: false,
+      userNotesRefExists: false,
+    });
+
+    expect(result.detailLines[0]).toBe(HINT);
+  });
+});
+
 describe("buildUserStatusResult default mode (verbose: false)", () => {
   it("renders single-line headline with no detail block when fully clean", () => {
     const result = buildUserStatusResult({
@@ -1449,5 +1504,39 @@ describe("runUserStatus worktree probe orchestration", () => {
     });
 
     expect(calls.some((c) => c.args[0] === "fetch")).toBe(false);
+  });
+
+  it("threads local notes ref absence into detailLines as the first-use hint", async () => {
+    const calls: Array<{ cmd: string; args: string[] }> = [];
+    const io = makeIO(fakeNoNotesExec(calls));
+
+    const result = await runUserStatus({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      remoteSyncEnabled: true,
+    });
+
+    expect(result.detailLines[0]).toBe(
+      "New here? Run `arc user --help` to learn about user notes.",
+    );
+  });
+
+  it("probes local notes ref existence even in offline mode", async () => {
+    const calls: Array<{ cmd: string; args: string[] }> = [];
+    const io = makeIO(fakeNoNotesExec(calls));
+
+    await runUserStatus({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      offline: true,
+      remoteSyncEnabled: true,
+    });
+
+    expect(calls.some((c) =>
+      c.args[0] === "rev-parse" && c.args[1] === "--verify"
+      && c.args[2] === "refs/notes/arc/user/andrew",
+    )).toBe(true);
   });
 });

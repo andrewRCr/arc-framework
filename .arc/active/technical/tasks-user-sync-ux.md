@@ -829,7 +829,7 @@ shift judgment-heavy decisions from workflow prose into CLI/probe outputs (`rest
 `recommendedSummaryLine`), defer commit-format method loading to first commit, and rely on `arc-commit` as the
 single entrypoint for all commit paths.
 
-### `[ ]` **4.1 First-use framing surface**
+### `[x]` **4.1 First-use framing surface**
 
 - _Goal:_ Introduce the user-notes feature and orient new developers without a suppression-flag burden.
 
@@ -841,22 +841,19 @@ single entrypoint for all commit paths.
         - Test-after: 6 cases in `join.test.ts` covering role-confirmation line, tools-conditional restart cue, and
           identity-conditional orientation paragraph (presence, path interpolation, null-identity omission).
 
-    - `[ ]` **4.1.b `arc status` single-line hint**
-        - Single-line hint pointing at `arc user --help`, conditional on local notes ref absence (no
-          `refs/notes/arc/user/{identity}` present).
-        - Naturally bounded — fires until first handoff (or manual `arc user save`) creates the local ref, then stops.
-          No suppression flag.
-        - **Pin at implementation start:** (a) the probe field consulted for ref-existence —
-          `localNoteFreshness === "missing"` (added in 2.R.1.c) detects "no note attached at HEAD" but is broader than
-          "ref doesn't exist anywhere"; if the distinction matters, add a dedicated ref-existence probe rather than
-          repurposing `localNoteFreshness`. (b) hint placement relative to the action-oriented headline from 2.R.4.b —
-          above the headline, below it, or as a dedicated first-use block — and behavior across `--verbose` modes.
-        - Affected file: `packages/arc-framework/src/commands/user/sync-status.ts`.
-        - Build `test-first` (one behavior at a time):
-            - Local notes ref absent → hint appears in `arc status` output
-            - Local notes ref present → hint absent
-            - Hint absence flows from the ref-presence probe alone — no flag, no stored suppression state, no
-              environment-variable check
+    - `[x]` **4.1.b `arc status` single-line hint**
+        - Pin (a) resolved by adding a dedicated `inspectUserNotesRefExists` probe in
+          `commands/user/sync-status.ts` (thin wrapper over `readRefHash` via `git rev-parse --verify`) — runs
+          unconditionally in the `runUserStatus` Promise.all batch (also fires in offline mode), independent of the
+          broader `localNoteFreshness === "missing"` signal whose semantics include "no HEAD-ancestor note in walk."
+        - Pin (b) resolved by prepending the hint as `detailLines[0]` in both verbose and default modes via a new
+          `BuildUserStatusInput.userNotesRefExists?: boolean` field; the prepend fires only on explicit `false`, so
+          `undefined`/`true` suppress identically — no flag, env-var, or stored suppression beyond the probe boolean.
+        - Hint copy: `New here? Run \`arc user --help\` to learn about user notes.`
+        - Test-first coverage in `__tests__/unit/user-status.test.ts`: 4 unit cases on `buildUserStatusResult`
+          (ref-absent → hint at [0], ref-present → omitted, undefined → omitted, default-mode parity) plus 2
+          integration cases on `runUserStatus` (threads into `detailLines[0]` end-to-end, probe fires even with
+          `offline: true`).
 
 ### `[ ]` **4.2 Shared-ref sync-state inference**
 

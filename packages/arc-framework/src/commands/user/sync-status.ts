@@ -89,17 +89,20 @@ export async function runUserStatus(
     verbose,
   } = options;
   const shouldProbeWorktree = !offline && remoteSyncEnabled;
-  const [diskInspection, search, backupFiles, remoteIdentities, refInspection, worktreeProbe] =
-    await Promise.all([
-      inspectDiskVsLocalSnapshot(cwd, io, identity),
-      findNearestUserNote({ cwd, io, identity }),
-      listBackupFiles(cwd, io, identity),
-      all ? listRemoteUserIdentities(io) : Promise.resolve([]),
-      offline ? Promise.resolve(null) : inspectUserSyncRefsDetailed(io, identity),
-      shouldProbeWorktree
-        ? runWorktreeSyncStatus({ exec: io.exec, remoteSyncEnabled: true })
-        : Promise.resolve(null),
-    ]);
+  const [
+    diskInspection, search, backupFiles, remoteIdentities, refInspection, worktreeProbe,
+    userNotesRefExists,
+  ] = await Promise.all([
+    inspectDiskVsLocalSnapshot(cwd, io, identity),
+    findNearestUserNote({ cwd, io, identity }),
+    listBackupFiles(cwd, io, identity),
+    all ? listRemoteUserIdentities(io) : Promise.resolve([]),
+    offline ? Promise.resolve(null) : inspectUserSyncRefsDetailed(io, identity),
+    shouldProbeWorktree
+      ? runWorktreeSyncStatus({ exec: io.exec, remoteSyncEnabled: true })
+      : Promise.resolve(null),
+    inspectUserNotesRefExists(io, identity),
+  ]);
   const spine = computeUserSyncSpine({
     remoteSyncEnabled: !offline,
     refState: refInspection?.state ?? null,
@@ -129,8 +132,17 @@ export async function runUserStatus(
     remoteIdentities,
     worktree: worktreeProbe ?? undefined,
     remoteSyncEnabled,
+    userNotesRefExists,
     ...(verbose === undefined ? {} : { verbose }),
   });
+}
+
+async function inspectUserNotesRefExists(
+  io: UserIOContext,
+  identity: string,
+): Promise<boolean> {
+  const localRef = `refs/notes/${notesRef(identity)}`;
+  return (await readRefHash(io, localRef)) !== null;
 }
 
 async function readCommitRelativeAge(
@@ -472,7 +484,17 @@ interface BuildUserStatusInput {
    * and any caller that hasn't migrated to the action-oriented presentation.
    */
   verbose?: boolean;
+  /**
+   * Whether `refs/notes/arc/user/{identity}` exists locally. When explicitly
+   * `false`, prepends a one-time orientation hint as `detailLines[0]` pointing
+   * at `arc user --help`. `undefined` and `true` suppress the hint — there is
+   * no flag, env-var, or stored suppression beyond the probe boolean.
+   */
+  userNotesRefExists?: boolean;
 }
+
+const FIRST_USE_ORIENTATION_HINT =
+  "New here? Run `arc user --help` to learn about user notes.";
 
 export function buildUserStatusResult(
   input: BuildUserStatusInput,
@@ -515,7 +537,7 @@ export function buildUserStatusResult(
     unsavedDirection,
   );
 
-  const detailLines = verbose
+  const baseDetailLines = verbose
     ? buildVerboseDetailLines({
       input,
       spine,
@@ -545,6 +567,10 @@ export function buildUserStatusResult(
       backupFiles,
       actionHint,
     });
+
+  const detailLines = input.userNotesRefExists === false
+    ? [FIRST_USE_ORIENTATION_HINT, ...baseDetailLines]
+    : baseDetailLines;
 
   return {
     identity,
