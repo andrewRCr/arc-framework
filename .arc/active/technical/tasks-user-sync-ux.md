@@ -542,21 +542,65 @@ composition. The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) i
 - _Goal:_ This repo cannot silently trust a stale ignored `dist/cli.js` for handoff-critical `npx arc` commands.
 
     - `[ ]` **2.R.5.a Implement dev-mode stale-build check**
-        - Shape: in-CLI check under a `__DEV__` flag (set via `package.json` or env that fires only in this repo's
-          checkout). Compare `dist/cli.js` mtime against the newest `src/**/*.ts` mtime; warn or fail fast when dist is
-          stale, suggesting `npm run build`. Adopters never see it (published package skips the check).
-        - Account for this repo's `npx arc` resolving to `packages/arc-framework/dist/cli.js` while `dist/` is ignored.
-        - Budget: ~1.5 sessions total across 2.R.5.a + 2.R.5.b. Rejected alternatives: dedicated wrapper (overkill —
-          ships infrastructure adopters don't need); pure-docs (doesn't catch the failure mode mechanically — Phase 2.R
-          itself was added because docs proved insufficient).
+        - _Goal:_ Self-hosting `npx arc` invocations refuse to run handoff-critical commands against a stale ignored
+          `dist/cli.js`; non-handoff commands warn but proceed. Adopters never see the check (published package excludes
+          `src/`, so the dev-mode discriminator returns "skip").
+        - _Detection mechanism:_ `src/` adjacency from the running `dist/cli.js` — `existsSync(<dist>/../src/cli.ts)`
+          discriminates dev checkout from published install. Self-validating against the publish reality: `src/` is not
+          in the package's `files` array, so adopters never have it. No publish-time scripts, no env vars, no marker
+          files, no `package.json` strip-on-publish.
+        - _Severity tier:_ Tiered behavior keyed on a handoff-critical command allowlist:
+            - **Fail-fast (exit 1):** `arc sync`, `arc user save`, `arc user push`, `arc status --session-init --json`,
+              `arc status --session-handoff --json`. Handoff-critical output cannot be trusted from stale dist.
+            - **Warn-only (continue, exit 0):** every other command. Quick reads (`arc log`, `arc health`, `arc diff`,
+              non-session `arc status`) stay frictionless mid-debug.
+        - _Wiring point:_ Commander `.hook("preAction", ...)` in `cli.ts`. Hook resolves the running command and consults
+          the handoff-critical allowlist. `--version` / `--help` paths bypass preAction by Commander's own contract;
+          unknown-command paths likewise skip.
+        - _Stale comparison:_ Exact mtime comparison — `max(stat(src/**/*.ts).mtime) > stat(dist/cli.js).mtime` →
+          stale. No threshold buffer; false positives from `git checkout` mtime-bumps or IDE auto-saves resolve via the
+          suggested `npm run build`, which is the same remediation in any case. Source set excludes `__tests__/` since
+          test edits don't affect `dist/cli.js`.
+        - _Output format:_ Direct `process.stderr.write` (the check fires before any handler boots; `SyncOutput` is not
+          available). Warn shape: `warn: arc dev build is stale (src/<file> changed Ns ago; dist/cli.js built Ns ago).
+          Run \`npm run build\` before relying on output.` Error shape adds `refusing to run \`<cmd>\` against stale
+          dist; run \`npm run build\`, then retry.`
+        - _Affected files:_
+            - `packages/arc-framework/src/lib/dev-check.ts` (new) — pure helper exporting `checkDevBuildStaleness({...})`
+              with injectable `existsSync` + `stat` for testability; returns
+              `{ kind: "skip" | "fresh" | "stale", srcAge?: number, distAge?: number, newestSrc?: string }`.
+            - `packages/arc-framework/src/cli.ts` — preAction hook + handoff-critical allowlist constant; calls into
+              `dev-check.ts` and renders warn/error.
+        - Build `test-first` (one behavior at a time):
+            - `src/` absent (published install) → returns `{ kind: "skip" }`; no message
+            - `dist/cli.js` absent (function-level — runtime is unreachable since the CLI wouldn't launch) → returns
+              stale
+            - `src/**/*.ts` newer than `dist/cli.js` → returns stale with computed ages and the newest-src filename
+            - `dist/cli.js` newer than `src/**/*.ts` → returns fresh
+            - Allowlist match (e.g., `sync`) + stale → preAction exits non-zero with error message; allowlist miss +
+              stale → warns to stderr and proceeds; either + fresh → silent
+        - _Budget:_ ~1.5 sessions total across 2.R.5.a + 2.R.5.b. Rejected alternatives: build-time `__DEV__` constant
+          via tsup `define` (over-engineered for one check; adds publish-time risk of skew between dev and publish build
+          configs); explicit marker file (strictly worse than `src/` adjacency — same mechanic, weaker
+          self-validation); dedicated wrapper (overkill — ships infrastructure adopters don't need); pure-docs (Phase
+          2.R itself was added because docs proved insufficient).
 
-    - `[ ]` **2.R.5.b Verify guard + adopter-docs note**
-        - From a deliberately stale build state, the guard must warn or fail before `arc sync`, `arc user save`,
-          `arc user push`, or `arc status --session-* --json` output is trusted.
-        - Add the narrowest reliable test for the dev-mode check (mocked-mtime fixture covering stale, fresh, and
-          missing-dist cases).
-        - Add a brief CONTRIBUTING/README note: after pulling self-hosting changes, run `npm run build` before invoking
-          `npx arc` for handoff-critical commands. The dev-mode check warns if dist is stale.
+    - `[ ]` **2.R.5.b Verify guard + contributor-docs note**
+        - _Goal:_ Confirm the dev-mode check fires correctly across the handoff-critical surface from a deliberately
+          stale build state, and document the workflow expectation in the contributor onboarding surface.
+        - _Manual verification (deliberately stale build):_ `touch packages/arc-framework/src/cli.ts` to make src newer
+          than dist, then run each handoff-critical command — `arc sync`, `arc user save`, `arc user push`,
+          `arc status --session-init --json`, `arc status --session-handoff --json`. Each must exit non-zero with the
+          error message before any handler-level work fires. Run a non-handoff command (e.g., `arc log --atomic`) and
+          confirm warn-only behavior. Restore via `npm run build`; confirm silent behavior across the same set.
+        - _Docs surface:_ `CONTRIBUTING.md` (root) — add a brief paragraph in or after the existing Quick Start section
+          noting that after pulling self-hosting changes, `npm run build` must run before invoking `npx arc` for
+          handoff-critical commands; the dev-mode check warns on quick-read commands and refuses handoff-critical
+          commands when dist is stale. `AGENT-BRIEF.CONTRIBUTOR.md` is orthogonal (role-scoped methodology boundaries,
+          not local dev tooling) — no change.
+        - _Affected files:_ `CONTRIBUTING.md` (root).
+        - Test-after — manual verification only. Unit-level coverage for the helper lives in 2.R.5.a's `test-first`
+          cycle.
 
 ### `[ ]` **2.R.6 Final sync contract audit**
 
