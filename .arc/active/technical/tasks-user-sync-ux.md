@@ -577,7 +577,7 @@ composition. The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) i
               extended at audit start to add `handlers/push-recovery.ts`, `handlers/status.ts`, `lib/sync-output.ts`,
               and `lib/sync-policy.ts` — the supporting modules where 2.R invariants now live). 0 active findings
               against five of the seven 2.R invariants; two findings surfaced for I2 (no JSON contamination) and
-              addressed in 2.R.6.a.2 / 2.R.6.a.3. Full matrix in `notes-user-sync-ux.md` § Phase 2.R Audit Findings,
+              addressed in 2.R.6.a.2 / 2.R.6.a.3. Full matrix in `notes-user-sync-ux.md` § Sync Invariants Audit,
               with choke points flagged.
 
         - `[x]` **2.R.6.a.2 Fix `arc user status --json` stdout contamination + envelope-on-error**
@@ -610,7 +610,7 @@ composition. The cross-clone test harness (`__tests__/helpers/multi-clone.ts`) i
         - _Goal:_ Verify nothing 2.R touched is silently uncovered: every invariant, audit-surfaced fix, and
           extracted seam has coverage at the appropriate tier; cross-machine invariants have cross-clone paths;
           residuals are consolidated into one list for a future hardening WU.
-        - _Outcome:_ Added § Phase 2.R Test Coverage matrix in `notes-user-sync-ux.md` covering I1–I7, the two
+        - _Outcome:_ Added § Sync Invariants Test Coverage matrix in `notes-user-sync-ux.md` covering I1–I7, the two
           audit-surfaced fixes from .6.a, and 12 extracted seams. 0 active gaps; two `intentional` rows with
           rationale (.6.a.3 forward-compat-only; `lib/sync-output.ts` boundary-tier coverage). Cross-clone paths
           confirmed in `integration/multi-clone.test.ts` for the three cross-machine invariants (I1 verified save,

@@ -1,21 +1,25 @@
 # Notes — User Sync UX Polish
 
-> **Companion to:** `status-user-sync-ux.md` (active WU). Captures deeper context that
-> doesn't fit the status file's pointer shape: per-decision rationale, audit findings,
-> design alternatives considered, and residual risks carried forward.
->
-> **Lifecycle:** Created during Phase 2.R planning when the audit deliverable
-> destination was specified. Archives or migrates to a strategy doc at WU integration.
+> **Companion to:** `tasks-user-sync-ux.md` and `prd-user-sync-ux.md`. Captures deeper
+> context that doesn't fit the status file's pointer shape: per-decision rationale, audit
+> findings, design alternatives considered, and residual risks carried forward.
+
+**Contents:**
+
+- [Sync Invariants Audit](#sync-invariants-audit) — file × invariant matrix (25 files)
+- [Sync Invariants Test Coverage](#sync-invariants-test-coverage) — coverage by invariant,
+  audit-surfaced fix, and extracted seam
+- [Residual Risks Carried Forward](#residual-risks-carried-forward)
+- [Design Decisions](#design-decisions)
 
 ---
 
-## Phase 2.R Audit Findings
+## Sync Invariants Audit
 
-_Populated during Task 2.R.6.a — Code-path audit against invariants. One row per
-(file, applicable invariant); files with no applicable invariants get a single
-`(no applicable invariants)` row. Status legend: `clean` (invariant met),
-`finding` (active gap to fix), `TODO` (residual already tracked or out-of-scope
-note carried forward)._
+_Code-path audit against invariants. One row per (file, applicable invariant); files with
+no applicable invariants get a single `(no applicable invariants)` row. Status legend:
+`clean` (invariant met), `finding` (active gap to fix), `TODO` (residual already tracked
+or out-of-scope note carried forward)._
 
 **Invariants:**
 
@@ -87,12 +91,11 @@ points (the file that owns enforcement of an invariant) are flagged.
 
 ---
 
-## Phase 2.R Test Coverage
+## Sync Invariants Test Coverage
 
-_Populated during Task 2.R.6.b — Test-surface audit. One row per item; tiers
-listed inline so multi-tier coverage stays scannable. Status legend: `clean`
-(covered at appropriate tier), `tier-gap` (covered at wrong tier), `gap` (no
-covering test), `intentional` (no-test by design, with rationale)._
+_Test-surface audit. One row per item; tiers listed inline so multi-tier coverage stays
+scannable. Status legend: `clean` (covered at appropriate tier), `tier-gap` (covered at
+wrong tier), `gap` (no covering test), `intentional` (no-test by design, with rationale)._
 
 **Audit dimensions covered:** invariant coverage, audit-surfaced fixes from
 2.R.6.a, extracted seams, tier-appropriateness, cross-clone path per
@@ -149,8 +152,6 @@ follow-up design (see § Residual Risks Carried Forward).
 
 ## Residual Risks Carried Forward
 
-_Populated during Task 2.R.6.b — Test-surface audit + residual risk._
-
 Most concerns surfaced by the audit folded back into this WU rather than deferring —
 2.R.6.e (load-side verification symmetry) and 2.R.6.f (route `promptConflictResolution`
 through `SyncOutput`) added as new sibling tasks; 2.R.6.c absorbed two preamble-only
@@ -174,8 +175,6 @@ One concern is large enough to deserve its own design WU and is captured at leng
 ---
 
 ## Design Decisions
-
-_Append as decisions worth preserving across implementation._
 
 ### Verification-failure no-rollback (2.R.1.a)
 
@@ -247,14 +246,5 @@ before either clack call fires in any subprocess context, so they are
 dead-code under JSON mode today. If that gate is ever removed or weakened,
 route them through `output` too — the 5-cell purity test won't catch it
 because no test cell triggers an actual notes conflict.
-
----
-
-## Open Items Surfaced During Pre-Implementation Audit
-
-_Append as audit work uncovers items needing later resolution._
-
-- _(none open — items surfaced by the audit are tracked as 2.R.6.a.2 / 2.R.6.a.3
-  and addressed inline rather than deferred.)_
 
 ---
