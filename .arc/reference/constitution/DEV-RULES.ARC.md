@@ -269,15 +269,19 @@ Don't proceed from intuition when the declared content is one read away.
 ### No meta-project references in code
 
 Never reference planning IDs — task IDs (`Task X.Y`), phase numbers (`Phase 3`), behavior IDs
-(`B5`), requirement IDs (`R12`), spec citations (`§ Goals`) — or `.arc/` documentation paths in
-code, tests, or durable documentation (strategies, methods, workflows, READMEs). This applies to
-comments, docstrings, identifiers, test names, and prose. Content outside planning artifacts
-reads standalone — explain "what" and "why" independently of the planning record that produced
-it.
+(`B5`), requirement IDs (`R12`), spec citations (`§ Goals`) — named processes, methods, or
+workflows that organize the work (ARC's own — `the test-first method`,
+`prepare-commits workflow` — or your project's analogues), or `.arc/` documentation paths in
+code, tests, or durable documentation (strategies, methods, workflows, READMEs). Applies to
+comments, docstrings (including file-level), identifiers, test names, and prose.
 
-Planning vocabulary belongs inside planning artifacts: PRDs, plans, task lists, status files,
-ADRs, completion docs, work-unit notes, and commit `Context:` footers. The IDs aid organization
-there; outside those surfaces, they rot as the planning record evolves.
+Meta-commentary vs. substantive reference: citations that justify the code by appeal to
+process artifacts — `per the team's TDD playbook`, `implements the spec from RFC-042`,
+`per the test-first method's batching-judgment clause` — are a form of documentation coupling,
+binding code to a document on its own evolution schedule. Replace them with what the code
+does; route process rationale to a planning artifact (PRDs, plans, task lists, status files,
+ADRs, completion docs, work-unit notes, commit `Context:` footers). Substantive references —
+test names describing behavior, comments on non-obvious invariants — stay.
 
 ### `.arc/` artifact references
 

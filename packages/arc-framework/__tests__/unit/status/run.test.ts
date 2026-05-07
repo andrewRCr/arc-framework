@@ -8,11 +8,6 @@
  * Real I/O behavior of the individual probes is covered by their own
  * integration tests; the end-to-end composite wiring is covered by
  * `__tests__/integration/status.test.ts`.
- *
- * Batching rationale: per the test-first method's batching-judgment
- * clause — behaviors are tightly coupled to a single orchestrator and
- * share fixture setup (mock probe bundle); one-at-a-time slicing has no
- * independent discovery value here.
  */
 
 import { describe, it, expect, vi } from "vitest";

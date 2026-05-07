@@ -36,33 +36,6 @@ the full protocol.
     - _Affected files:_ `.arc/system/workflows/arc/session-lifecycle/session-handoff.md` +
       package-source mirror; potentially `.husky/pre-commit` + a new `scripts/check-md-lint.sh`.
 
-- [ ] **Audit meta-project references in test file headers; strengthen DEV-RULES.ARC**
-
-    - _Goal:_ Remove the `.arc/`-method-doc references that have crept into test file
-      docstrings (e.g., "per the test-first method's batching-judgment clause"). Two-part:
-      remove existing instances; tighten the rule prose so test files are explicitly in scope.
-
-    - _Known instances (audit beyond these):_
-        - `__tests__/unit/status/run.test.ts:12-15` — "Batching rationale: per the test-first
-          method's batching-judgment clause..."
-        - `__tests__/unit/session-init/recommended-action.test.ts` — likely same pattern.
-
-    - _Rule strengthening:_ DEV-RULES.ARC § Documentation Boundaries already covers "code, tests,
-      and durable documentation" — but the existing instances suggest authors read "code" and
-      didn't think about test-file docstrings. Consider an explicit example or a sharper phrasing
-      ("internal commentary in code or tests — including file-level docstrings — must not name
-      methods, workflows, or strategies").
-
-    - _Affected files:_
-        - `__tests__/unit/status/run.test.ts` — strip docstring meta-refs.
-        - `__tests__/unit/session-init/recommended-action.test.ts` — same.
-        - `.arc/reference/constitution/DEV-RULES.ARC.md` + package-source mirror — tighten
-          § Documentation Boundaries.
-
-    - _Pre-resume sequencing:_ Both items above land BEFORE resuming task-list work next session
-      — they're cleanup that keeps the WU's code in line with the framework's own discipline.
-      Flag in SESSION-NOTES at handoff.
-
 - [x] **Broaden DEV-RULES.ARC § No meta-project references in code**
     - Expanded planning-ID enumeration (added behavior IDs, requirement IDs, spec citations)
       and broadened scope from "production code" to code, tests, and durable documentation.
@@ -158,3 +131,20 @@ the full protocol.
       arms enriched with branch-parity assertions across skipped / clean / detached-head.
     - Affected: `lib/git/worktree-sync.ts`, `handlers/sync.ts`, `handlers/status.ts`,
       `commands/status/run.ts`, `commands/status/types.ts`, plus the test files above.
+
+- [x] **Audit meta-project references in test file headers; strengthen DEV-RULES.ARC**
+    - Codebase sweep across `packages/arc-framework/__tests__/**/*.ts` found one actual
+      meta-commentary instance: `run.test.ts:12-15` "Batching rationale: per the test-first
+      method's batching-judgment clause...". Stripped the paragraph; the surrounding docstring
+      paragraphs (test scope + cross-tier reference to `integration/status.test.ts`) stay
+      because they describe SUT and test-tier division substantively. The flagged
+      `recommended-action.test.ts` was already clean.
+    - DEV-RULES.ARC § Documentation Boundaries / "No meta-project references in code" extended:
+      prohibited list now enumerates named processes / methods / workflows that organize the
+      work (with adopter-extensibility cue: ARC's own or your project's analogues), and
+      `docstrings` qualified to `docstrings (including file-level)`. The trailing two paragraphs
+      collapsed into one — names "documentation coupling" as the mechanism (per external research
+      — no established term exists, but documentation coupling is the closest precise frame),
+      gives cross-domain example citations (TDD playbook, RFC, ARC method), and folds the
+      where-rationale-belongs artifact list inline. Net leaner overall despite added framing.
+      Both copies (`.arc/` instance + package source mirror) updated symmetrically.
