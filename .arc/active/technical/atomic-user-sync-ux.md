@@ -39,6 +39,26 @@ the full protocol.
 
     - _Test-after:_ existing test sweep covers the contract; new fixtures pass through.
 
+- [ ] **Move status-file markdown lint to fire before the step-3 commit**
+
+    - _Goal:_ Catch markdown lint errors in the active status file BEFORE the chore-commit lands,
+      not after via § Post-Update Cleanup (which currently runs post-commit and forces an amend).
+
+    - _Surfaced when:_ This session's handoff hit MD004/MD007 errors in
+      `status-user-sync-ux.md` (a wrap-introduced `+` parsed as a list bullet); pre-commit hooks
+      don't gate markdown today, so the lint error landed in the chore commit and required
+      amending after § Post-Update Cleanup caught it.
+
+    - _Possible shapes:_
+        - Add an explicit substep at the end of § Comprehensive Handoff Format step 3 — verify
+          the staged status file passes `markdownlint-cli2 <path>` before `git commit`.
+        - Add a markdown-lint pre-commit hook scoped to staged `*.md` files (mirror the
+          `check-ts-quality.sh` pattern for TS).
+        - Both — workflow doc as primary surface, hook as defense-in-depth.
+
+    - _Affected files:_ `.arc/system/workflows/arc/session-lifecycle/session-handoff.md` +
+      package-source mirror; potentially `.husky/pre-commit` + a new `scripts/check-md-lint.sh`.
+
 - [ ] **Audit meta-project references in test file headers; strengthen DEV-RULES.ARC**
 
     - _Goal:_ Remove the `.arc/`-method-doc references that have crept into test file
