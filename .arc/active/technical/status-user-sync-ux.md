@@ -9,17 +9,19 @@
 - **Task List:** `tasks-user-sync-ux.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task 4.3 — Session-init load cascade (Tasks 4.3.b probe-side `loadNeeded` signal +
-  4.3.c workflow Step 2 notes-load dispatch; parent 4.3 closed)
-- **Next Task:** Task 4.4 — JIT commit-format loading at arc-commit (line ~1020)
+- **Last Completed:** Task 4.5.b — Probe wiring (`restateCandidates` slot wired through
+  `SessionHandoffResult` + `runSessionHandoffStatus` + handler; helper from 4.5.a now consumed by the
+  live envelope). Incidental fix landed: helper switched to `git log -z --format=%h%n%s%n%B` after the
+  initial NUL-in-args design tripped Node's `child_process.execFile` rejection.
+- **Next Task:** Task 4.5.c — Workflow doc rewrite (line ~1094)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 4.4 per Phase 4 implementation order (4.4 → 4.5.a → 4.5.b → 4.5.c → 4.6.b).
-  Drop the `commit-format.md` + `commit-context-format.md` load set from session-init Step 3 under
-  `session.commit_interlock: on-task-approval` — methods now load via arc-commit Step 3 (or
-  prepare-commits frontmatter) at first commit, not on every session start. Touches `session-init.md`
-  and `session-init.contributor.md` (both copies in `.arc/` and `packages/arc-framework/arc/`) and
-  `strategy-session-operations.md` (`### Commit-Interlock Load-Set` subsection removal). Behavioral
-  check via grep — no tests pin the load-set Reads at session-init.
+- **Next Action:** Begin Task 4.5.c per Phase 4 implementation order (4.5.c → 4.6.b; 4.5.d
+  parallel/non-blocking). Restructure the session-handoff.md SESSION-NOTES filter section as a
+  two-pass pipeline — Pass 1 mechanical cross-check against `restateCandidates`, Pass 2 the existing
+  3-criterion judgment filter on the residual. Touches `.arc/system/workflows/arc/session-lifecycle/
+  session-handoff.md` and the package-source mirror; net trim ~10 lines. Test-after = workflow doc
+  lint; behavioral coverage already lives in 4.5.a/b. After 4.5.c, 4.5.d picks up the integration test
+  closing the testing gap surfaced by the 4.5.b incidental fix.
 
 ---
