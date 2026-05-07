@@ -144,5 +144,6 @@ describe("inferUserSyncCause", () => {
     const result = inferUserSyncCause(makeInput({ refRelation: "same" }));
 
     expect(result.cause).toBe("unknown");
+    expect(result.confidence).toBe("low");
   });
 });

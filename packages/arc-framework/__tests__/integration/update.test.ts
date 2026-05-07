@@ -624,6 +624,25 @@ describe("update integration — arc-config migration", () => {
     );
   });
 
+  it("migrates the last (effective) legacy entry when duplicates are present", async () => {
+    const currentConfig = [
+      "user.sync_push: manual",
+      "user.sync_push: on-sync",
+      "",
+    ].join("\n");
+
+    const result = await runArcConfigUpdate(currentConfig);
+
+    expect(result.migrated).toEqual([configPath]);
+    expect(result.conflicts).toEqual([]);
+    expect(result.migrationWarnings).toHaveLength(1);
+    expect(result.migrationWarnings[0]).toContain("multiple user.sync_push entries");
+    const content = await readFile(join(tempDir, ".arc", configPath), "utf-8");
+    expect(content).toContain("user.notes_push: on-sync");
+    expect(content).not.toContain("user.notes_push: manual");
+    expect(content).not.toContain("user.sync_push");
+  });
+
   it("preserves user.notes_push and warns when both notes-push keys are present", async () => {
     const currentConfig = [
       "user.sync_push: manual",

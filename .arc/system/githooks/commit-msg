@@ -265,7 +265,7 @@ case "$context_footer_mode" in
                 spec_file=$(echo "$context_line" | sed -E 's/Context: ((plan|prd)-[a-zA-Z0-9-]+\.md).*/\1/')
 
                 spec_found=false
-                for dir in .arc/active/*/; do
+                for dir in .arc/active/*/ .arc/backlog/*/; do
                     if [ -f "$dir$spec_file" ]; then
                         spec_found=true
                         break
@@ -273,7 +273,7 @@ case "$context_footer_mode" in
                 done
 
                 if [ "$spec_found" = false ]; then
-                    echo -e "${YELLOW}Warning: Plan/PRD file '$spec_file' not found in active directories${NC}"
+                    echo -e "${YELLOW}Warning: Plan/PRD file '$spec_file' not found in active or backlog directories${NC}"
                     echo "   This may be intentional if the file was just created or archived"
                     warnings=$((warnings + 1))
                 fi

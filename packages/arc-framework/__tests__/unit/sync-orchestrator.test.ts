@@ -441,7 +441,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
     async (state, ahead, behind, branch) => {
       setConfig("on-sync");
       setNotesPolicy("on-sync");
-      setWorktree(state, ahead, behind);
+      setWorktree(state, ahead, behind, branch);
       mockRunUserSave.mockResolvedValue({
         identity: "andrew",
         commit: "abc1234",

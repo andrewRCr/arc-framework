@@ -112,6 +112,7 @@ a configurability path (how teams adapt it).
 | Per-WU status + user/{identity}/ state  | P5        | Two-file session state in user dir  | Method override — substitute session mechanism        |
 | Session init/handoff ceremonies         | P5        | Structured document loading         | Behavioral guidance — ceremony adapted to agent type  |
 | Commit interlock release                | P5        | Manual commit                       | Config setting — `session.commit_interlock`           |
+| Sync interlock release                  | P5        | Sync at handoff                     | Config setting — `session.sync_interlock`             |
 | Push interlock release                  | P5        | Manual push                         | Config setting — `session.push_interlock`             |
 
 #### Design commitment conventions

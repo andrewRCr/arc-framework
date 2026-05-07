@@ -135,13 +135,24 @@ function migrateUserSyncPush(yamlContent: string): UserSyncPushMigrationResult {
 
   const lines = yamlContent.split("\n");
   const hasNewKey = lines.some((line) => parseConfigLine(line)?.key === newKey);
+
+  // YAML last-key-wins: when duplicates exist, the last occurrence is the effective value.
+  // Migrate that one and drop the earlier shadows.
+  let lastLegacyIndex = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (parseConfigLine(lines[i] ?? "")?.key === legacyKey) {
+      lastLegacyIndex = i;
+    }
+  }
+
   const migratedLines: string[] = [];
   const warnings: string[] = [];
   let changed = false;
-  let convertedLegacyKey = false;
   let removedLegacyBecauseNewKeyExists = false;
+  let droppedDuplicateLegacy = false;
 
-  for (const line of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i] ?? "";
     const parsed = parseConfigLine(line);
     if (!parsed) {
       migratedLines.push(line);
@@ -157,8 +168,9 @@ function migrateUserSyncPush(yamlContent: string): UserSyncPushMigrationResult {
         continue;
       }
 
-      if (convertedLegacyKey) {
+      if (i !== lastLegacyIndex) {
         changed = true;
+        droppedDuplicateLegacy = true;
         continue;
       }
 
@@ -170,7 +182,6 @@ function migrateUserSyncPush(yamlContent: string): UserSyncPushMigrationResult {
         ),
       );
       changed = true;
-      convertedLegacyKey = true;
       continue;
     }
 
@@ -187,6 +198,13 @@ function migrateUserSyncPush(yamlContent: string): UserSyncPushMigrationResult {
     warnings.push(
       "arc-config.yml contains both user.sync_push and user.notes_push; "
         + "preserving user.notes_push and removing legacy user.sync_push.",
+    );
+  }
+
+  if (droppedDuplicateLegacy) {
+    warnings.push(
+      "arc-config.yml had multiple user.sync_push entries; "
+        + "migrated the last (effective) value to user.notes_push and dropped earlier duplicates.",
     );
   }
 
