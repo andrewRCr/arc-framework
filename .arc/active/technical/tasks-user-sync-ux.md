@@ -1045,7 +1045,7 @@ _Implementation order within phase:_
   `grep -rn 'commit-format' packages/arc-framework/__tests__/` returned only file-classification /
   manifest / frontmatter hits; no test pins commit-format Reads at session-init.
 
-### `[ ]` **4.5 Handoff probe `restateCandidates` slot**
+### `[x]` **4.5 Handoff probe `restateCandidates` slot**
 
 - _Goal:_ Extend `arc status --session-handoff --json` envelope with a `restateCandidates` slot carrying
   commits, closed tasks, and notes-file changes since the last handoff. The handoff workflow's SESSION-NOTES
@@ -1120,7 +1120,7 @@ _Implementation order within phase:_
           uses a fake 40-hex hash rather than a force-pushed-away commit (same `git log` rejection
           path triggers the catch arm and returns `baseline-unknown`).
 
-### `[ ]` **4.6 Pre-computed prose in session-init Step 2 and Confirm Handoff**
+### `[x]` **4.6 Pre-computed prose in session-init Step 2 and Confirm Handoff**
 
 - _Goal:_ Push judgment-heavy message selection from workflow prose into CLI/orchestrator output. Two
   surfaces:
@@ -1202,64 +1202,68 @@ _Implementation order within phase:_
 
 ## **Phase 5:** Verification
 
-### `[ ]` **5.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+### `[x]` **5.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
 
-- _Goal:_ WU success criteria verified through the verification workflow; quality gates pass at Tier 3; Phase 2.R
-  remediation complete; atomic-task companion drained.
+- _Quality gates:_ Tier 3 clean — md lint, ts lint, sh lint, typecheck, typecheck:test, build, full vitest
+  (1452 unit/integration + 56 e2e).
+- _Success criteria:_ 25 task-list criteria all marked `[x]` met against the PRD's 9-criterion checklist —
+  no deviations, no supersessions.
+- _Atomic tasks:_ companion drained — 9 entries: 8 completed, 1 deferred (`[~]`) to
+  `plan-quality-gate-hooks.md` with the workflow-doc stopgap landed inline.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Cross-machine resume produces directionally-correct action hint (machine A push → machine B `git pull` +
+- `[x]` Cross-machine resume produces directionally-correct action hint (machine A push → machine B `git pull` +
   `arc status` recommends `arc user pull`)
-- `[ ]` `arc user load` and `arc user pull` succeed when notes attach to commits outside HEAD's ancestry
+- `[x]` `arc user load` and `arc user pull` succeed when notes attach to commits outside HEAD's ancestry
   (notes-ref-history walk is the default)
-- `[ ]` Worktree-ahead-of-origin scenarios produce coherent save/push behavior — `arc user save` preserves working
+- `[x]` Worktree-ahead-of-origin scenarios produce coherent save/push behavior — `arc user save` preserves working
   state; `arc user push` blocks with guidance; never claims notes-push success against unpushed commit
-- `[ ]` Paired-push partial failures produce non-zero exit, itemized output marking each leg, and idempotent recovery
+- `[x]` Paired-push partial failures produce non-zero exit, itemized output marking each leg, and idempotent recovery
   via `arc user push`
-- `[ ]` Full-mode and session-init `arc status` agree about underlying git state across all 5 spine states +
+- `[x]` Full-mode and session-init `arc status` agree about underlying git state across all 5 spine states +
   partial-push condition (verified by paired-call test fixtures)
-- `[ ]` Pushability pre-checks block or surface server errors per the documented matrix (rebase, detached HEAD,
+- `[x]` Pushability pre-checks block or surface server errors per the documented matrix (rebase, detached HEAD,
   no-upstream, protected branch, hook failure, auth, force-push, worktree-not-aligned-with-origin)
-- `[ ]` All four release-mode keys (`session.commit_interlock`, `session.push_interlock`, `session.sync_interlock`,
+- `[x]` All four release-mode keys (`session.commit_interlock`, `session.push_interlock`, `session.sync_interlock`,
   `user.notes_push`) support 3-tier resolution via per-dev `arc.*` overrides
-- `[ ]` `arc update` migrates legacy `user.sync_push` and `push_interlock: on-handoff` configs; old keys/values removed;
+- `[x]` `arc update` migrates legacy `user.sync_push` and `push_interlock: on-handoff` configs; old keys/values removed;
   no dual-key window; strategy docs reflect canonical shape with the three-layer cascade documented
-- `[ ]` `arc sync` (top-level orchestrator) dispatches over the 6-cell matrix; `arc user sync` (former `arc sync`)
+- `[x]` `arc sync` (top-level orchestrator) dispatches over the 6-cell matrix; `arc user sync` (former `arc sync`)
   remains the notes-only direction-aware command. `arc user --help` lists `save / load / push / pull / fetch / sync`;
   both surfaces cross-reference
-- `[ ]` `arc sync --json` is a pure machine contract: stdout is one parseable JSON object across paired, save-only,
+- `[x]` `arc sync --json` is a pure machine contract: stdout is one parseable JSON object across paired, save-only,
   blocked, and prompt-policy cells; no prompt/spinner/log output contaminates it
-- `[ ]` Handoff sync has cross-clone coverage: clone A `arc sync --json` creates a verified current-`HEAD` note and
+- `[x]` Handoff sync has cross-clone coverage: clone A `arc sync --json` creates a verified current-`HEAD` note and
   pushes it; clone B can fetch/pull notes and session-init/handoff freshness reflects current `HEAD`
-- `[ ]` `arc user save` success verifies the exact `HEAD` note before `.sync-state.json` advances
-- `[ ]` Every `arc sync` worktree push leg runs through the shared pushability/state gate; no matrix cell relies on raw
+- `[x]` `arc user save` success verifies the exact `HEAD` note before `.sync-state.json` advances
+- `[x]` Every `arc sync` worktree push leg runs through the shared pushability/state gate; no matrix cell relies on raw
   `git push` as its only guard
-- `[ ]` `session.sync_interlock: manual` opts handoff out of automatic sync; handoff summary surfaces unpushed state
+- `[x]` `session.sync_interlock: manual` opts handoff out of automatic sync; handoff summary surfaces unpushed state
   without firing pushes
-- `[ ]` First-use framing surfaces operational: `arc join` install paragraph, `arc status` hint with notes-ref-existence
+- `[x]` First-use framing surfaces operational: `arc join` install paragraph, `arc status` hint with notes-ref-existence
   trigger
-- `[ ]` Notes-ref bounded-fetch fires on full-mode `arc status`; `--offline` suppresses both probes and degrades cause
+- `[x]` Notes-ref bounded-fetch fires on full-mode `arc status`; `--offline` suppresses both probes and degrades cause
   classification with explicit guidance; sibling-session vs. cross-machine causes inferred and surfaced
-- `[ ]` Layered vocabulary rule applied: "user notes" workhorse noun across headlines/hints/summaries; "git notes ref"
+- `[x]` Layered vocabulary rule applied: "user notes" workhorse noun across headlines/hints/summaries; "git notes ref"
   only when storage mechanism is relevant
-- `[ ]` Disk-vs-note direction inference (`sourceCommit` ancestry) distinguishes "disk behind note" from "disk has
+- `[x]` Disk-vs-note direction inference (`sourceCommit` ancestry) distinguishes "disk behind note" from "disk has
   unsaved edits"; status output recommends `arc user load` vs `arc user save` accordingly — no silent overwrite of
   freshly fetched newer notes
-- `[ ]` `arc user status` default output is action-oriented (one-line headline + one-line context + `Next step:`);
+- `[x]` `arc user status` default output is action-oriented (one-line headline + one-line context + `Next step:`);
   `--verbose` retains today's three-tier detail and pre-load backup enumeration; `--json` envelope shape unchanged
-- `[ ]` Session-init detects ref-aligned-but-disk-behind state and offers `load` per `session.init_load.notes`
+- `[x]` Session-init detects ref-aligned-but-disk-behind state and offers `load` per `session.init_load.notes`
   (`prompt | always | manual`); dirty-tree precheck refuses auto-load; combined prompt covers concurrent worktree-pull +
   notes-load scenarios
-- `[ ]` Session-init no longer pre-loads commit-format / commit-context-format methods under any
+- `[x]` Session-init no longer pre-loads commit-format / commit-context-format methods under any
   `commit_interlock` mode; arc-commit Step 3 owns the load on first commit
-- `[ ]` Handoff probe envelope carries `restateCandidates` (commits / closed tasks / notes-file changes since
+- `[x]` Handoff probe envelope carries `restateCandidates` (commits / closed tasks / notes-file changes since
   last handoff); SESSION-NOTES filter prose collapses against structured data
-- `[ ]` Session-init Step 2 sync-pull decision and handoff Confirm Handoff summary line are computed in the
+- `[x]` Session-init Step 2 sync-pull decision and handoff Confirm Handoff summary line are computed in the
   CLI and surfaced as envelope fields; workflow prose renders, doesn't decide
-- `[ ]` All quality gates pass (markdown lint, TypeScript type check, full Vitest suite, build verification)
-- `[ ]` Ready for integration
+- `[x]` All quality gates pass (markdown lint, TypeScript type check, full Vitest suite, build verification)
+- `[x]` Ready for integration
 
 [verify-work-unit]: ../../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md

@@ -9,18 +9,16 @@
 - **Task List:** `tasks-user-sync-ux.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task 4.6.b — Confirm Handoff `recommendedSummaryLine` with probe-twice scope
-  expansion. Pure helper composes Reconcile / Worktree-N-unpushed / null from canonical state;
-  `arc sync --json` and `arc status --session-handoff --json` envelopes both pre-compute the field;
-  workflow restructured to probe-twice (probe-2 fires after the status-file commit, carrying
-  post-step-3 worktree/head/dirty). Latent `Commit at Handoff` staleness fix lands as a side effect
-  of the restructure. (Task 4.5.c — workflow doc filter pipeline rewrite — also closed this session.)
-- **Next Task:** Task 4.5.d — Integration coverage for `deriveRestateCandidates` (line ~1106)
+- **Last Completed:** Task 5.1 — Verification phase. Tier 3 quality gates clean (md/ts/sh lint,
+  typecheck, typecheck:test, build, full vitest 1452 unit/integration + 56 e2e); 25 task-list
+  success criteria all marked `[x]` met against the PRD's 9-criterion checklist (no deviations);
+  atomic companion drained — 8 completed, 1 deferred (`[~]`) to `plan-quality-gate-hooks.md` with
+  workflow-doc stopgap (project-markdown-lint substep on the status-file chore-commit) landed
+  inline this session. Task 4.5.d (integration coverage for `deriveRestateCandidates`, 4 behaviors)
+  also closed this session.
+- **Next Task:** [none — verification complete; integration prep next]
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 4.5.d — integration coverage for `deriveRestateCandidates` against
-  a real temp git repo (4 behaviors per the task spec: helper-invocation success, special-char
-  round-trip through the format string, multi-ID `Context:` footer parse, unreachable-baseline
-  yields `baseline-unknown`). Pre-resume atomic items both landed this session.
+- **Next Action:** integrate-work-unit Step 1 — verify completion.
 
 ---
