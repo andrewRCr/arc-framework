@@ -18,12 +18,9 @@
 - **Next Task:** Task 4.5.d — Integration coverage for `deriveRestateCandidates` (line ~1106)
 - **Blockers:** [none]
 
-- **Next Action:** Two pre-resume atomic items in `atomic-user-sync-ux.md` land BEFORE resuming
-  task-list work — both surfaced during 4.6.b: (1) consolidate branch resolution onto
-  `WorktreeSyncStatusResult.branch` (drops the 3rd `resolveCurrentBranch` 4.6.b introduced); (2) clean
-  meta-project references in test file headers and tighten DEV-RULES.ARC § Documentation Boundaries
-  so test-file docstrings are explicitly in scope. After both atomic items land, begin Task 4.5.d —
-  integration coverage for `deriveRestateCandidates` against a real temp git repo, four behaviors per
-  the task spec.
+- **Next Action:** Begin Task 4.5.d — integration coverage for `deriveRestateCandidates` against
+  a real temp git repo (4 behaviors per the task spec: helper-invocation success, special-char
+  round-trip through the format string, multi-ID `Context:` footer parse, unreachable-baseline
+  yields `baseline-unknown`). Pre-resume atomic items both landed this session.
 
 ---
