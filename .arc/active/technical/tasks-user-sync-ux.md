@@ -1079,24 +1079,17 @@ _Implementation order within phase:_
           `Tasks 6.1.h, 6.2.a-d`. All fallback modes unify under one `baseline-unknown` soft signal — emitted
           via an optional `baselineSignal` field absent on the success path.
 
-    - `[ ]` **4.5.b Probe wiring**
+    - `[x]` **4.5.b Probe wiring**
 
         - _Goal:_ Wire `deriveRestateCandidates` into the `arc status --session-handoff --json` envelope.
 
-        - Affected files:
-            - `packages/arc-framework/src/commands/status/types.ts` (slot type + `SessionHandoffResult`
-              extension)
-            - `packages/arc-framework/src/commands/status/run.ts` (probe orchestration)
-            - `packages/arc-framework/src/handlers/status.ts` (probe construction with bound IO + SESSION-NOTES
-              baseline read)
-            - `packages/arc-framework/__tests__/unit/status/run.test.ts` (slot included in expected key set;
-              per-slot success + soft-signal cases)
-
-        - Build `test-first` (one behavior at a time):
-            - `runSessionHandoffStatus` envelope includes `restateCandidates` slot
-            - Probe success path returns the helper's result verbatim
-            - Probe failure (helper throws) returns `{ok: false, error: {kind: "runtime", message}}` per
-              existing probe-error contract
+        - _Outcome:_ Added `restateCandidates: Probe<RestateCandidatesResult>` to `SessionHandoffResult` and
+          the matching probe to `SessionHandoffProbes` (`status/types.ts`); orchestrated alongside the other
+          slots in `Promise.all` (`status/run.ts`); constructed the probe in `handlers/status.ts` to read
+          `.arc/user/{identity}/SESSION-NOTES.md` inside the probe body so the file read parallels with the
+          rest of the fan-out instead of serializing at handler init. Test-first added four orchestration
+          cases (slot present in key set, helper result verbatim, soft-signal pass-through, runtime-error
+          wrap); 53 run.test.ts tests pass.
 
     - `[ ]` **4.5.c Workflow doc rewrite**
 

@@ -51,6 +51,7 @@ import type { DirtyStateResult } from "../../../src/lib/git/dirty-state.js";
 import type { HeadHashResult } from "../../../src/lib/git/head-hash.js";
 import type { PushabilityResult } from "../../../src/lib/git/pushability.js";
 import type { WorktreeSyncStatusResult } from "../../../src/lib/git/worktree-sync.js";
+import type { RestateCandidatesResult } from "../../../src/lib/handoff/restate-candidates.js";
 
 // --- Fixtures ---
 
@@ -289,6 +290,17 @@ function headHash(overrides: Partial<HeadHashResult> = {}): HeadHashResult {
   return { hash: "a1b2c3d", ...overrides };
 }
 
+function restateCandidates(
+  overrides: Partial<RestateCandidatesResult> = {},
+): RestateCandidatesResult {
+  return {
+    commitsSinceHandoff: [],
+    tasksClosedSinceHandoff: [],
+    noteFileChangesSinceHandoff: [],
+    ...overrides,
+  };
+}
+
 function sessionHandoffProbes(
   overrides: Partial<SessionHandoffProbes> = {},
 ): SessionHandoffProbes {
@@ -300,6 +312,7 @@ function sessionHandoffProbes(
     active: vi.fn(async () => activeSessionInit()),
     head: vi.fn(async () => headHash()),
     pushability: vi.fn(async () => ({ allowed: true, conditions: [] })),
+    restateCandidates: vi.fn(async () => restateCandidates()),
     ...overrides,
   };
 }
@@ -882,6 +895,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
     expect(probes.active).toHaveBeenCalledTimes(1);
     expect(probes.head).toHaveBeenCalledTimes(1);
     expect(probes.pushability).toHaveBeenCalledTimes(1);
+    expect(probes.restateCandidates).toHaveBeenCalledTimes(1);
     expect(probes.user).toHaveBeenCalledWith("andrew");
     expect(probes.active).toHaveBeenCalledWith("andrew", "maintainer");
   });
@@ -900,11 +914,72 @@ describe("runSessionHandoffStatus — orchestration", () => {
       "identity",
       "mode",
       "pushability",
+      "restateCandidates",
       "syncInterlock",
       "user",
       "worktree",
     ]);
     expect(result.mode).toBe("session-handoff");
+  });
+
+  it("returns the helper's restate-candidates payload verbatim on the success path", async () => {
+    const payload: RestateCandidatesResult = {
+      commitsSinceHandoff: [
+        { hash: "abc1234", subject: "feat(x): one" },
+        { hash: "def5678", subject: "fix(y): two" },
+      ],
+      tasksClosedSinceHandoff: ["4.5.a", "4.5.b"],
+      noteFileChangesSinceHandoff: [".arc/active/technical/notes-foo.md"],
+    };
+    const probes = sessionHandoffProbes({
+      restateCandidates: vi.fn(async () => payload),
+    });
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.restateCandidates.ok).toBe(true);
+    if (result.restateCandidates.ok) {
+      expect(result.restateCandidates.value).toEqual(payload);
+    }
+  });
+
+  it("propagates the baseline-unknown soft signal through the slot", async () => {
+    const probes = sessionHandoffProbes({
+      restateCandidates: vi.fn(async () =>
+        restateCandidates({ baselineSignal: "baseline-unknown" }),
+      ),
+    });
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.restateCandidates.ok).toBe(true);
+    if (result.restateCandidates.ok) {
+      expect(result.restateCandidates.value.baselineSignal).toBe("baseline-unknown");
+    }
+  });
+
+  it("wraps a rejecting restate-candidates probe as ok=false runtime error", async () => {
+    const probes = sessionHandoffProbes({
+      restateCandidates: vi.fn(async () => {
+        throw new Error("git log failed");
+      }),
+    });
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.restateCandidates.ok).toBe(false);
+    if (!result.restateCandidates.ok) {
+      expect(result.restateCandidates.error.kind).toBe("runtime");
+      expect(result.restateCandidates.error.message).toBe("git log failed");
+    }
+    expect(result.dirty.ok).toBe(true);
+    expect(result.worktree.ok).toBe(true);
   });
 
   it("returns pushability matrix from the pushability probe", async () => {

@@ -15,6 +15,7 @@
  */
 
 import { access } from "node:fs/promises";
+import { join } from "node:path";
 
 import * as p from "@clack/prompts";
 
@@ -52,6 +53,7 @@ import { runDirtyStateStatus } from "../lib/git/dirty-state.js";
 import { runHeadHashStatus } from "../lib/git/head-hash.js";
 import { runPushabilityStatus } from "../lib/git/pushability.js";
 import { runWorktreeSyncStatus } from "../lib/git/worktree-sync.js";
+import { deriveRestateCandidates } from "../lib/handoff/restate-candidates.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { resolveSyncInterlock } from "../lib/config/resolved-settings.js";
 import { createUserIOContext, gitExec } from "../lib/io-context.js";
@@ -114,6 +116,14 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
         access,
         target: "worktree",
       }),
+      restateCandidates: async () => {
+        const sessionNotes = identity === null
+          ? null
+          : await io
+              .readFile(join(cwd, ".arc", "user", identity, "SESSION-NOTES.md"))
+              .catch(() => null);
+        return deriveRestateCandidates({ exec: gitExec, sessionNotes });
+      },
     };
     if (!json) {
       process.stderr.write(

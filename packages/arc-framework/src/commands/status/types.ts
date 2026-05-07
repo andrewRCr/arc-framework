@@ -33,6 +33,7 @@ import type { DirtyStateResult } from "../../lib/git/dirty-state.js";
 import type { HeadHashResult } from "../../lib/git/head-hash.js";
 import type { PushabilityResult } from "../../lib/git/pushability.js";
 import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
+import type { RestateCandidatesResult } from "../../lib/handoff/restate-candidates.js";
 import type { RecommendedAction } from "../../lib/session-init/recommended-action.js";
 
 export type { RecommendedAction };
@@ -164,6 +165,15 @@ export interface SessionHandoffResult {
    * picture.
    */
   pushability: Probe<PushabilityResult>;
+  /**
+   * Structured payload backing the SESSION-NOTES restate filter — commits,
+   * task IDs from `Context:` footers, and notes-file path changes since the
+   * baseline recorded in SESSION-NOTES. The handoff workflow's filter
+   * collapses against this in place of recall-based paraphrase checks. On a
+   * structural failure (missing baseline / unreachable commit), the helper
+   * emits empty arrays plus a `baseline-unknown` soft signal.
+   */
+  restateCandidates: Probe<RestateCandidatesResult>;
 }
 
 /** Probe functions in session-init mode — bound to cwd and any required I/O. */
@@ -198,6 +208,7 @@ export interface SessionHandoffProbes {
   ) => Promise<ActiveSessionInitResult>;
   head: () => Promise<HeadHashResult>;
   pushability: () => Promise<PushabilityResult>;
+  restateCandidates: () => Promise<RestateCandidatesResult>;
 }
 
 export interface RunStatusOptions {
