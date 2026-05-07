@@ -16,6 +16,56 @@ the full protocol.
 
 ## Tasks
 
+- [ ] **Consolidate branch resolution onto `WorktreeSyncStatusResult.branch`**
+
+    - _Goal:_ Single source of truth for current branch — the worktree probe already resolves it
+      internally; propagate to the result and drop the parallel `resolveCurrentBranch` calls in
+      `handlers/sync.ts` and `handlers/status.ts` (handoff path). Removes 3 → 1 duplication
+      surfaced during 4.6.b.
+
+    - _Affected files:_
+        - `packages/arc-framework/src/lib/git/worktree-sync.ts` — add `branch: string \| null`
+          to `WorktreeSyncStatusResult`; populate in every return path.
+        - `packages/arc-framework/src/handlers/sync.ts` — drop `resolveCurrentBranch`; read
+          `worktree.branch` instead.
+        - `packages/arc-framework/src/handlers/status.ts` — drop the `resolveCurrentBranch`
+          helper added during 4.6.b; read from worktree slot in handoff path.
+        - `packages/arc-framework/src/commands/status/run.ts` — `runSessionHandoffStatus`
+          drops the `branch` option; reads from worktree slot when populating envelope `branch`
+          field (envelope shape stays the same).
+        - Test fixtures: `worktreeSync(...)` helpers in `__tests__/unit/status/run.test.ts`,
+          `__tests__/unit/session-init/recommended-action.test.ts`, and any other consumers of
+          `WorktreeSyncStatusResult` need a `branch: "main"` default.
+
+    - _Test-after:_ existing test sweep covers the contract; new fixtures pass through.
+
+- [ ] **Audit meta-project references in test file headers; strengthen DEV-RULES.ARC**
+
+    - _Goal:_ Remove the `.arc/`-method-doc references that have crept into test file
+      docstrings (e.g., "per the test-first method's batching-judgment clause"). Two-part:
+      remove existing instances; tighten the rule prose so test files are explicitly in scope.
+
+    - _Known instances (audit beyond these):_
+        - `__tests__/unit/status/run.test.ts:12-15` — "Batching rationale: per the test-first
+          method's batching-judgment clause..."
+        - `__tests__/unit/session-init/recommended-action.test.ts` — likely same pattern.
+
+    - _Rule strengthening:_ DEV-RULES.ARC § Documentation Boundaries already covers "code, tests,
+      and durable documentation" — but the existing instances suggest authors read "code" and
+      didn't think about test-file docstrings. Consider an explicit example or a sharper phrasing
+      ("internal commentary in code or tests — including file-level docstrings — must not name
+      methods, workflows, or strategies").
+
+    - _Affected files:_
+        - `__tests__/unit/status/run.test.ts` — strip docstring meta-refs.
+        - `__tests__/unit/session-init/recommended-action.test.ts` — same.
+        - `.arc/reference/constitution/DEV-RULES.ARC.md` + package-source mirror — tighten
+          § Documentation Boundaries.
+
+    - _Pre-resume sequencing:_ Both items above land BEFORE resuming task-list work next session
+      — they're cleanup that keeps the WU's code in line with the framework's own discipline.
+      Flag in SESSION-NOTES at handoff.
+
 - [x] **Broaden DEV-RULES.ARC § No meta-project references in code**
     - Expanded planning-ID enumeration (added behavior IDs, requirement IDs, spec citations)
       and broadened scope from "production code" to code, tests, and durable documentation.
