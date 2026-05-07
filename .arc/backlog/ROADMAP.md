@@ -204,7 +204,35 @@ this WU handles the architectural work.
   Session-Init Optimization lands; WU-B (auto-push instantiation against handoff-interior
   toggles) waits for Session-Operational Flow Phase 6. Unified if sequencing allows.
 
-**Worktree Foundation** — Parallel with User Sync UX Polish and Coord Probe (after Session-Operational Flow lands)
+**Interlock Release Wrappers** — Next, after User Sync UX Polish
+
+Closes the final friction point in session operations: the redundant harness-prompt + ARC-interlock
+duplicate authorization on every commit and push. Two CLI wrapper commands (`arc release commit`,
+`arc release push`) shadow `git commit` / `git push` so harness allowlists can pattern-match the
+wrappers distinctly from raw git. Wrappers enforce ARC interlock state at the CLI boundary (refuse
+on missing WU, unsatisfied interlock state, destructive flags, branch-protection violations);
+workflow guidance becomes mechanical guarantee. Two-leg justification: mechanical interlock
+enforcement at the CLI boundary (catches agent-confusion failure modes that workflow-as-code only
+catches by compliance) plus permission-shape for harness allowlist bypass (single decision point at
+the interlock layer for users who opt in). Strictly opt-in; setup helper requires explicit
+acknowledgment of the trust-model shift; loud-not-silent surfacing in `arc status` and session-init
+orientation when allowlist active. Per-harness viability researched 2026-05-03: Claude Code and
+Codex CLI viable (Codex with a shell-wrapper caveat to verify); opencode auto-allowlist deferred
+pending upstream config-validation fixes.
+
+- Plan: `technical/plan-interlock-release-wrappers.md`
+- Upstream: User Sync UX Polish (Phase 2 paired-push semantics + pushability matrix feeds
+  push-wrapper validation; Phase 3.1 resolver consolidation is the base for the validation library;
+  `pushWorktreeBranch` helper from Phase 2.R is the swappable seam), Interlock Foundation (ADR-016
+  frame canonicalized)
+- Downstream: Worktree Foundation, Agile WU Lifecycle, Concurrent Work Conventions (parallelism
+  trio benefits from low-friction commit/push surface during multi-WU work; no hard dependency)
+- **Scope note:** Pre-approved split into two sibling WUs at PRD-drafting time: WU1 (foundation —
+  wrappers, validation library, audit log, authorization footer, ADR; ~12-15 sessions) and WU2
+  (adopter ergonomics — setup helper, per-harness detection, status integration, workflow updates,
+  strategy doc; ~10-13 sessions). WU2 strictly depends on WU1.
+
+**Worktree Foundation** — After Interlock Release Wrappers; parallel with Coord Probe
 
 Mechanism layer for parallel and mobile work — extracts shift lifecycle from arc-modes (mode-universal
 infrastructure), adds worktree-aware shift, gives session-init worktree context awareness including
@@ -292,109 +320,33 @@ Agile WU Lifecycle; conventions → this WU). Composes with mechanism + tier-mod
   ARC Operating Modes (shift lifecycle delivered by Worktree Foundation as prerequisite;
   concurrent-work conventions inform mode-specific guidance)
 
-**Quality Gate Tiers and Hook Integration** — After Concurrent Work Conventions
+## Post-Parallelism Trio: Sequencing TBD
 
-Align ARC's tier model (Tier 1/2/3) with standard git hook stages (pre-commit / pre-push / CI),
-likely via rename to gate-stage naming (commit-gate / push-gate / pr-gate — final shape TBD).
-Adds pre-push as a recognized ARC surface with structural dispatch to adopter-configured push-gate
-commands; extends `quality-gate-commands` method with tier metadata so hooks auto-dispatch the
-right commands at the right stage. Codifies the structural-vs-adopter-impl separation (ARC owns
-tier abstraction + structural CHECKs + dispatch plumbing; adopters bring linters/tests at initial
-setup). Surfaced 2026-04-24 when a CI failure landed on an ARC commit — Tier 2 would have caught
-it but hadn't run under the current manual-discipline model. External research confirmed hook-stage
-alignment is the universal idiom and ARC's gap is real. Builds on ADR-014 (hook-manager detection
-already ships).
+The work units below are real and dependency-coupled regardless of parallelism shape, but their
+detailed sequencing depends on what the parallelism trio (Worktree Foundation + Concurrent Work
+Conventions + Agile WU Lifecycle) makes the WU model look like in practice. Designing detailed
+sequencing for the post-parallelism world before the trio defines that world is wasted work;
+`plan-roadmap-evolution` activates against the post-trio substrate to redesign Phase C
+holistically. Plan documents for each remain in `backlog/` for reference.
 
-- Plan: `technical/plan-quality-gate-hooks.md`
-- Upstream: Session-Init Optimization (DEV-RULES / session-init overlap),
-  Session-Operational Flow Phases 1-3 (canonical gate vocabulary + config surface — supersedes
-  this plan's independent convergence on commit-gate / push-gate / pr-gate naming; adds
-  handoff-gate as fourth hook stage), User Sync UX Polish (shared polish surfaces),
-  Worktree Foundation (session-init orientation overlap),
-  Agile WU Lifecycle (tier model — gate-tier mapping per WU tier is this WU's PRD work),
-  ADR-014 (hook-manager detection prerequisite)
-- Downstream: ARCd Rebrand (new tier naming absorbed in rename pass),
-  Dogfooding (beta-ready quality gate surface)
-- **Scope note:** Pre-approved split at PRD-drafting time if tier rename proves too large:
-  (1) hook integration (architectural), (2) tier rename (editorial). Keep unified if rename
-  stays manageable.
-
-**ARCd Rebrand** — After Quality Gate Tiers and Hook Integration
-
-Rebrand ARC → ARCd as the public product brand while preserving ARC as the methodology and
-workflow vocabulary. Split architecture: ARCd names the public implementation surface
-(`arcd.dev`, `@arcd/cli`, `arcd` binary, `ARCd-config.yml`) while ARC remains the methodology
-substrate (`.arc/`, `arc-*` skills, `arc-methods.md`). Absorbs config-key renames (`pm.mode`
-→ `pm.layer`, `team.mode` → `team.enabled`, `pm.mode: arc-in-git` value → `arc-pm`) and CLI
-command cleanup (`arc status` → `arcd health`, explicit `arcd version`) extracted from the
-Operating Modes WU scope — same-surface editorial pass avoids a second churn event. Must land
-before Operating Modes and public release.
-
-- Plan: `technical/plan-arcd-rebrand.md`
-- Upstream: Session-Init Optimization (lean session-init surface for terminology sweep),
-  Methodology Maturation (same-surface churn avoidance), User Sync UX Polish (consolidated
-  sync copy to rename), Coord Probe (coord-probe terminology absorbed),
-  Worktree Foundation (mobility mechanism surfaces to rename in one pass),
-  Agile WU Lifecycle (tier vocabulary absorbed),
-  Concurrent Work Conventions (focus-role and concurrent-work terminology absorbed),
-  Quality Gate Tiers and Hook Integration (gate-stage terminology absorbed in rename pass)
-- Downstream: arc-plan Conductor, Operating Modes, WU5
-
-**arc-plan Conductor** — After Interlock Foundation; parallelizable with Worktree Foundation and
-Agile WU Lifecycle
-
-Promote `arc-plan` from facilitation skill to ARC's canonical planning conductor — the entry
-point for any planning ceremony, with selectable depth (minimum / standard / expanded). Closes
-the planning-session status-file creation gap that opens when planning happens without a
-planning-branch ceremony, orchestrates downstream operations (planning-branch activation,
-worktree spawn, status-file creation) for the configuration, and adds the
-`refine-plan-loop` workflow (planning-side analogue to process-task-loop) for the expanded
-depth. Preserves ARC's lightweight default planning experience (minimum depth) while supporting
-deeper shaping when work warrants it.
-
-- Plan: `feature/plan-arc-plan-conductor.md`
-- Upstream: Interlock Foundation (status-file plumbing the conductor consumes); ARCd Rebrand
-  (rebrand-ready terminology in new content)
-- Downstream: Operating Modes (planning workflow support available for PRD drafting); Worktree
-  Foundation and Agile WU Lifecycle integrations land incrementally
-
-**ARC Operating Modes** — After arc-plan Conductor
-
-Establish ARC's mode architecture — a lightweight mode (ARC Lite) for small projects preserving
-execution discipline without lifecycle ceremony, and a local/untracked mode for constrained
-environments where ARC can't be committed to the repo. Shift lifecycle (paused / waiting-for
-state transitions) enters this WU as a prerequisite delivered by Work-Unit Mobility, not as
-bundled scope — modes composes with the lifecycle subsystem to make Local Full viable.
-
-- Plan: `feature/plan-arc-modes.md` (PRD-ready, 59-item deliverables inventory)
-- Upstream: ARCd Rebrand (settled naming and key renames), arc-plan Conductor (planning
-  workflow tooling for PRD drafting), Worktree Foundation (shift lifecycle available),
-  Concurrent Work Conventions (concurrent-work conventions inform mode-specific guidance)
-- Downstream: Dogfooding, WU5
-- **Scope note:** Single WU by default. Pre-approved split at PRD-drafting time if scope proves
-  unmanageable: foundation (installation-type mechanism + strategy audit) → Lite+Local
-  (mode-specific content, workflows, templates). Splitting Lite from Local is explicitly
-  rejected — shared infrastructure dominates unique per-mode work.
-
-**Dogfooding Phase** — After Operating Modes
-
-Install the beta CLI in a real project and battle-test the full workflow (init → work →
-update → contributor setup). Includes testing new operating modes. Identify friction, bugs,
-and design issues through real usage. Iterate on the CLI (`0.x.y` releases) until stable
-enough for public release.
-
-- Upstream: WU4 (base CLI), Operating Modes (expanded mode support)
-- Downstream: WU5
-
-**WU5: Public Release (1.0)** — Future
-
-Docs site with content (MkDocs Material + GitHub Pages), full README rewrite, repo made
-public, community infrastructure, release automation, npm `1.0.0`. Content priorities
-informed by beta testing and dogfooding experience.
-
-- Plan: `feature/plan-wu5-public-release.md` (stub)
-- Upstream: Dogfooding (real-world feedback)
-- Downstream: none
+- **Quality Gate Tiers and Hook Integration** — Align ARC's tier model with git hook stages
+  (pre-commit / pre-push / CI), gate-stage rename, push-gate dispatch through
+  `quality-gate-commands` method extension. Plan: `technical/plan-quality-gate-hooks.md`.
+- **ARCd Rebrand** — Public product brand split (ARCd as implementation surface; ARC preserved
+  as methodology vocabulary); absorbs config-key renames (`pm.mode` → `pm.layer` etc.) and CLI
+  cleanup (`arc status` → `arcd health`). Plan: `technical/plan-arcd-rebrand.md`.
+- **arc-plan Conductor** — Promote `arc-plan` from facilitation skill to canonical planning
+  conductor; selectable depth (minimum / standard / expanded); orchestrates planning-branch
+  activation, worktree spawn, status-file creation; adds `refine-plan-loop` workflow. Plan:
+  `feature/plan-arc-plan-conductor.md`.
+- **ARC Operating Modes** — ARC Lite (lightweight execution discipline, no lifecycle ceremony)
+  and Local-only mode (untracked, for constrained environments). Plan:
+  `feature/plan-arc-modes.md`.
+- **Dogfooding Phase** — Beta CLI battle-tested in a real project; iterate `0.x.y` until stable
+  enough for public release.
+- **WU5: Public Release (1.0)** — Docs site (MkDocs Material + GitHub Pages), full README
+  rewrite, repo public, community infrastructure, npm `1.0.0`. Plan:
+  `feature/plan-wu5-public-release.md` (stub).
 
 ---
 
@@ -418,45 +370,26 @@ Phase A ──► Phase B ──► Phase C (Work Units):
    │     │     │     │     │     │
    │     │     │     │     │     ├──► Methodology Maturation ✅
    │     │     │     │     │     │     │
-   │     │     │     │     │     │     ├──► Work-Status Restructure
+   │     │     │     │     │     │     ├──► Work-Status Restructure ✅
    │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     ├──► Session-Init Optimization
+   │     │     │     │     │     │     │     ├──► Session-Init Optimization ✅
    │     │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     │     ├──► Session-Operational Flow (ADR-016 frame)
+   │     │     │     │     │     │     │     │     ├──► Session-Operational Flow ✅ (ADR-016 frame)
    │     │     │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     │     │     ├──► User Sync UX Polish       ─┐    (first wave: three
-   │     │     │     │     │     │     │     │     │     ├──► Coord Probe                 │     parallelize after frame)
-   │     │     │     │     │     │     │     │     │     ├──► Worktree Foundation        ─┤
-   │     │     │     │     │     │     │     │     │     │                                │
-   │     │     │     │     │     │     │     │     │     ├──► Agile WU Lifecycle          ├──► ARCd Rebrand
-   │     │     │     │     │     │     │     │     │     │      (after Worktree Foundation)│
-   │     │     │     │     │     │     │     │     │     │                                │
-   │     │     │     │     │     │     │     │     │     ├──► Concurrent Work Conventions │
-   │     │     │     │     │     │     │     │     │     │      (after Agile WU Lifecycle)│
-   │     │     │     │     │     │     │     │     │     │                                │
-   │     │     │     │     │     │     │     │     │     ├──► Quality Gate Tiers + Hooks ─┘
-   │     │     │     │     │     │     │     │     │     │      (after Concurrent Work Conventions;
-   │     │     │     │     │     │     │     │     │     │       gate-tier mapping per WU tier)
-   │     │     │     │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     │     │     │     ├──► arc-plan Conductor
-   │     │     │     │     │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     │     │     │     │     ├──► Operating Modes (Lite + Local)
-   │     │     │     │     │     │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     │     │     │     │     │     ├──► Dogfooding (iterate 0.x.y)
-   │     │     │     │     │     │     │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     │     │     │     │     │     │     └──► WU5 (Public Release, 1.0)
-   │     │     │     │     │     │     │     │     │     │     │     │     │     │           ▲
-   │     │     └─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┘ (content can start after WU2)
-   │     │                                                                                    ▲
-   │     └──────────────────────────────────────────────────────────────────────────────────┘ (philosophy informs docs + README)
-   │                                                                                          ▲
-   └──────────────────────────────────────────────────────────────────────────────────────────┘
+   │     │     │     │     │     │     │     │     │     ├──► User Sync UX Polish ✅
+   │     │     │     │     │     │     │     │     │     │
+   │     │     │     │     │     │     │     │     │     ├──► Interlock Release Wrappers (closes session-ops friction)
+   │     │     │     │     │     │     │     │     │     │
+   │     │     │     │     │     │     │     │     │     ├──► Coord Probe (parallel; consumes notes-discovery from User Sync UX)
+   │     │     │     │     │     │     │     │     │     │
+   │     │     │     │     │     │     │     │     │     ├──► Parallelism trio (after Interlock Release Wrappers):
+   │     │     │     │     │     │     │     │     │     │      • Worktree Foundation
+   │     │     │     │     │     │     │     │     │     │      • Agile WU Lifecycle (after Worktree Foundation)
+   │     │     │     │     │     │     │     │     │     │      • Concurrent Work Conventions (after Agile WU Lifecycle)
+   │     │     │     │     │     │     │     │     │     │
+   │     │     │     │     │     │     │     │     │     └──► Post-Parallelism Trio: Sequencing TBD
+   │     │     │     │     │     │     │     │     │            (plan-roadmap-evolution activates here)
 ```
-
-**Parallelism:** WU5 docs site content and README drafts can begin after WU1+WU2 without
-waiting for later work units. Community infrastructure (issue templates, CoC, etc.) has no
-upstream dependencies. Methodology Maturation content placement decisions may inform WU5 docs
-site structure.
 
 ---
 
@@ -502,13 +435,24 @@ site structure.
 
 ## Change Log
 
+- **2026-05-07**: Phase C structural rework. `plan-interlock-release-wrappers` threaded
+  into Phase C between User Sync UX Polish and the parallelism trio — closes the final
+  session-operations friction point (redundant harness-prompt + ARC-interlock duplicate
+  authorization on every commit and push). Phase C entries downstream of the parallelism
+  trio (Worktree Foundation + Concurrent Work Conventions + Agile WU Lifecycle) compressed
+  to a `Post-Parallelism Trio: Sequencing TBD` section with one-line summaries and plan-doc
+  references — designing detailed sequencing for the post-parallelism world before the trio
+  defines that world is wasted work; `plan-roadmap-evolution` activates against the post-trio
+  substrate to redesign Phase C holistically. Compressed entries: Quality Gate Tiers and Hook
+  Integration, ARCd Rebrand, arc-plan Conductor, ARC Operating Modes, Dogfooding Phase, WU5
+  Public Release. Dependency Analysis tree truncated at the trio; WU5-specific Parallelism
+  subsection removed (subsumed by the compressed section).
 - **2026-05-07**: User Sync UX Polish complete (merged via PR #27) and archived to
   `archive/2026-q2/technical/07_user-sync-ux/`. Delivered the five-state `UserSyncSpine`,
   hardened paired-push contract, `arc sync` orchestrator + JSON envelope, vocabulary
   alignment (`user.sync_push` → `user.notes_push`; `push_interlock: on-handoff` → `on-sync`;
   new `session.sync_interlock`), per-developer interlock overrides, and library seams for
-  the next WU's interlock-release wrappers. Roadmap entry pending broader structural rework
-  to thread `plan-interlock-release-wrappers` and downstream sequencing into Phase C.
+  the next WU's interlock-release wrappers.
 - **2026-04-30**: Session-Operational Flow PRD + task list complete and merged via PR #24;
   activated on `technical/session-operational-flow`. Implementation begins with Phase 1
   (metadata-state foundation + cadence refinements — flipped from PRD's Phase 3 ordering so
