@@ -5,18 +5,16 @@
 - **State:** Planning
 - **Branch:** technical/plan-interlock-release-wrappers
 
-- **Spec:** `plan-interlock-release-wrappers.md`
+- **Spec:** `prd-release-wrappers-foundation.md`
 - **Task List:** [none]
-- **Sibling Work Unit(s):** [none]
+- **Sibling Work Unit(s):** `plan-release-wrappers-ergonomics.md`
 
-- **Last Completed:** Plan revision — Codex matcher empirical findings folded in;
-  wrapper-vs-gate orthogonality clarified; investigation report archived under
-  `reference/research/`.
+- **Last Completed:** WU1 PRD generated (release-wrappers-foundation); parent plan
+  trimmed and renamed to scope WU2 (release-wrappers-ergonomics) — middle-ground
+  approach (CLI primitives + workflow-driven setup) folded in.
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run `1_create-prd.md` for WU1 (foundation). Plan revision complete;
-  deferred items (naming, footer behavior, setup helper invocation point) carried as
-  PRD-time decisions.
+- **Next Action:** Run `2_generate-tasks.md` for WU1 (`prd-release-wrappers-foundation.md`).
 
 ---
