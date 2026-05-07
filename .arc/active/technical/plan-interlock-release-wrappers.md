@@ -68,6 +68,13 @@ R10), which calls `arc release push` for the worktree leg and `arc user push` fo
 based on the configured matrix. Wrappers stay scope-narrow: shape enforcement and authorization
 validation for a single git operation.
 
+Quality-gate validation (linters, tests, typecheck) is also out of scope — that fires from the
+git-hook layer (pre-commit, pre-push) regardless of invocation path. Wrapper enforces *who
+authorized* (interlock state); hooks enforce *what passed validation* (gate state). The two
+concerns are orthogonal at the same junction and compose cleanly: pre-commit / pre-push fire on
+every commit/push regardless of whether `arc release` or raw `git` produced the invocation.
+Gate-dispatch design lives in `plan-quality-gate-hooks`.
+
 **Interlock-validation library.** Shared logic both wrappers call. Builds on the resolver
 consolidation work in `user-sync-ux` Phase 3.1 (`resolveGitConfigOverride<T>`) for interlock-state
 reads. Single source of truth for "is this commit/push currently authorized" used by both wrappers
@@ -76,10 +83,11 @@ and potentially by downstream consumers (status reporter, audit-log writer).
 **Audit log.** Append-only JSONL at `.arc/user/{identity}/.internal/.audit-log.jsonl`. Fully
 CLI-internal; no agent interaction. Per-invocation entry: timestamp, command, sanitized args,
 active WU, interlock state at decision time, decision (proceeded / refused + reason), outcome
-(commit hash / push ref status, on success). Forensic value: identifies which mutating ops flowed
-through the wrapper vs. raw git; supports incident triage when a bad commit lands without harness
-prompt. Local-only by default; portability via git notes is opt-in for users who want
-cross-machine continuity.
+(commit hash / push ref status on success; hook-failure with hook name + exit code when a git
+hook blocks the wrapper-authorized operation). Forensic value: identifies which mutating ops
+flowed through the wrapper vs. raw git; supports incident triage when a bad commit lands without
+harness prompt; distinguishes wrapper-refusal from gate-hook-rejection in post-mortem. Local-only
+by default; portability via git notes is opt-in for users who want cross-machine continuity.
 
 **Authorization footer (opt-in).** Configurable git trailer on commits that flowed through the
 wrapper. Default `off` — most users get clean commit messages. Users who want distributed
@@ -195,6 +203,13 @@ Wrong-setup scenarios stratified by severity:
   surface wrapper's posture in next session-init orientation when interlock setting changes.
 - Multi-developer repo, asymmetric allowlist between developers. Not really wrong — different
   setup; document as expected.
+- *Codex matcher grammar limits:* commits authored with command substitution (heredoc'd
+  multi-line messages, `$'...'` quoting), env-variable prefixes, or output redirection fall
+  through to harness prompt despite the wrapper allowlist. Behavior is deterministic per input,
+  not intermittent. *Mitigation:* setup helper documents the supported grammar; agent-issued
+  invocations follow it by convention. Adopters who hit a fall-through case see the harness
+  prompt and can either re-author the command within the grammar or accept the prompt for that
+  invocation.
 
 **High — requires deliberate design:**
 
@@ -234,17 +249,28 @@ External research completed (2026-05-03):
 | Harness     | Status              |
 |-------------|---------------------|
 | Claude Code | viable              |
-| Codex CLI   | viable (caveat)     |
+| Codex CLI   | viable              |
 | opencode    | blocked upstream    |
 
 **Claude Code.** Pattern-based allowlist; `Bash(arc release commit:*)` matches distinctly from
 `Bash(git commit:*)`.
 
 **Codex CLI.** Starlark `prefix_rule()` with explicit list patterns: `["arc", "release", "commit"]`
-vs `["git", "commit"]` is unambiguous. **Caveat:** prefix matching reportedly fails when commands
-are invoked via `/bin/bash -lc ...` shell wrapper or with env prefixes ([openai/codex#13175]).
-Whether Codex itself wraps tool invocations this way needs empirical verification — see
-Verification Matrix in WU1.
+vs `["git", "commit"]` is unambiguous. Codex wraps shell commands as `bash -lc "..."` /
+`zsh -lc "..."` before execution, but unwraps them via `commands_for_exec_policy` before
+`prefix_rule` matching using a word-only grammar (positional args, named flags with quoted values,
+`&&` / `||` / `;` / `|` chains of plain commands). The realistic wrapper-invocation shape —
+`arc release commit -m "fix: foo"` — falls inside that grammar and matches reliably; verified
+empirically against codex-cli 0.128.0 (2026-05-07) and against the public source
+(`exec_policy.rs`, `shell-command/src/bash.rs`).
+
+Predictable fall-through to literal `/bin/bash` matching (and thus harness prompt) when the
+invocation includes an env-variable prefix (`FOO=bar arc release commit ...`), redirection
+(`arc release commit ... > log`), command substitution (`arc release commit -m "$(...)"`), or
+ANSI-C `$'...'` quoting. Behavior is deterministic per input, not intermittent
+([openai/codex#13175] closed-as-dup-of-#11298; [openai/codex#10920] open but describes the same
+matcher boundary). Setup helper documents the failure surface so adopters can author commits
+within the supported grammar.
 
 **opencode.** Glob syntax exists but flag-parsing bug ([sst/opencode#6676]) means
 `arc release commit -m "..."` may not match patterns reliably. Compounded by silent
@@ -274,8 +300,11 @@ and get the friction-reduction benefit. No setup helper yet.
 **Verification matrix:**
 
 - Empirical: invoke `arc release commit --version` from each priority harness with a corresponding
-  allowlist rule installed; confirm rule matches and command runs without prompt. Codex specifically
-  needs verification of the shell-wrapper caveat.
+  allowlist rule installed; confirm rule matches and command runs without prompt. Codex coverage
+  includes the realistic agent-issued shapes (positional + quoted-flag invocations) plus a sample
+  fall-through case (e.g., env-prefixed) to confirm the documented matcher grammar holds in
+  practice — pre-validated empirically (2026-05-07); WU1 verification re-runs against the
+  then-current Codex version.
 - Refusal taxonomy: every documented refusal scenario covered by integration test (no active WU,
   interlock not satisfied, destructive flag, branch protection violation, etc.).
 - Audit log integrity: every wrapper invocation produces exactly one log entry with correct
@@ -361,13 +390,16 @@ PRD-time decision; not a blocker.
 
 ## Unknowns and Assumptions
 
-**Empirical verification needed:**
+**Empirical findings (resolved 2026-05-07):**
 
-- **Codex shell-wrapper caveat applicability.** Does Codex itself invoke tool commands via
-  `/bin/bash -lc` or env-prefix patterns that would trip [openai/codex#13175]? If yes, the
-  prefix-rule allowlist won't match in practice and we need either upstream engagement, a
-  documented workaround, or treating Codex as deferred (parallel to opencode). Cheap to test:
-  install a rule, invoke wrapper from Codex, observe.
+- **Codex matcher grammar.** Verified against codex-cli 0.128.0 and the public source. Codex
+  unwraps `bash -lc` / `zsh -lc` shell wrappings via `commands_for_exec_policy`
+  (`codex-rs/core/src/exec_policy.rs`) before `prefix_rule` matching, using a word-only grammar
+  defined in `codex-rs/shell-command/src/bash.rs` (`ALLOWED_KINDS` / `ALLOWED_PUNCT_TOKENS`).
+  The realistic wrapper-invocation shape — `arc release commit -m "fix: foo"` — falls inside
+  the grammar and matches reliably. Predictable fall-through (env prefix, redirection, command
+  substitution, ANSI-C `$'...'` quoting) lands in § Per-Harness Viability and § Adopter
+  Friction Analysis. No upstream-engagement or deferral required.
 
 **Resolution-tracking:**
 
@@ -375,6 +407,10 @@ PRD-time decision; not a blocker.
   (silent validation failure). When upstream lands, opencode handler in WU2 setup helper graduates
   from stub to full implementation. Worth periodic check-in but not a blocker for shipping WU1/WU2
   with the other two harnesses supported.
+- Codex's [openai/codex#13175] (closed-as-dup-of-#11298) and [openai/codex#10920] (open). Current
+  matcher behavior is documented and stable; if upstream broadens the accepted grammar (e.g.,
+  unwraps env-prefixed commands), the § Adopter Friction "Codex matcher grammar limits" entry
+  retires and the strategy doc's per-harness setup section updates.
 
 **Assumptions to validate at PRD:**
 
@@ -441,6 +477,7 @@ sequenced; no parallel option.
 ---
 
 [openai/codex#13175]: https://github.com/openai/codex/issues/13175
+[openai/codex#10920]: https://github.com/openai/codex/issues/10920
 [sst/opencode#6676]: https://github.com/sst/opencode/issues/6676
 [sst/opencode#15507]: https://github.com/sst/opencode/issues/15507
 [sst/opencode#5330]: https://github.com/sst/opencode/issues/5330
