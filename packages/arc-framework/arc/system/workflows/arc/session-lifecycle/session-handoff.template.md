@@ -185,19 +185,23 @@ session-init's sessionType inference key on this prefix. Task-list-driven workfl
 git log, task list, status file, commit bodies, `notes-*.md`, PRD, constitution, strategies. Write
 only what they can't derive from any of that. Volume is a side effect, not a target.
 
-**The filter — include only if all three hold:**
+**Filter pipeline — apply both passes:**
 
-1. **Not in any tracked source.** Commit body, task list, `notes-*.md`, PRD, strategy, constitution
-   — those are authoritative; duplicating creates shadow copies that drift. This subsumes most
-   omissions: don't restate commit subjects, completed tasks, decisions in plan docs, or rules in
-   DEV-RULES.
-2. **Acted on at step 0.** Orientation-relevant — changes what the next session does or checks
-   when it loads. Not a retrospective observation you "want on record."
+**Pass 1 — Cross-check `restateCandidates`.** Probe slot carries `commitsSinceHandoff`,
+`tasksClosedSinceHandoff`, and `noteFileChangesSinceHandoff` for this session. If candidate content
+paraphrases an entry, omit. Mechanical step — array-driven, not judgment. When the soft signal
+"baseline unknown" fires, skip Pass 1 and rely on Pass 2.
+
+**Pass 2 — 3-criterion filter on the residual:**
+
+1. **Not in any durable tracked source.** PRD, strategy, constitution, plan docs, ADRs — those are
+   authoritative; duplicating creates shadow copies that drift.
+2. **Acted on at step 0.** Orientation-relevant — changes what the next session does or checks when
+   it loads. Not a retrospective observation you "want on record."
 3. **Costly if missing.** Re-deriving from tracked state in 30 seconds is not rework; a
    misinterpretation costing an hour of re-debugging is.
 
-If any criterion fails, omit. Empty sections write `[none]` — empty is the normal case for routine
-sessions.
+If any criterion fails, omit. Empty sections write `[none]`.
 
 **Template skeleton:**
 
@@ -295,8 +299,8 @@ _Remove when: [explicit trigger condition]_
   lessons in a strategy or QUICK-REFERENCE — not here.
 - Explanatory paragraphs where the template expects whitespace. Empty sections stay empty.
 
-(Restating tracked content is the most common failure but already excluded by filter #1 — see
-the filter for the full case.)
+(Restating tracked content is the most common failure but already excluded by Pass 1 — see the
+filter pipeline above for the full case.)
 
 ## Handoff Examples
 

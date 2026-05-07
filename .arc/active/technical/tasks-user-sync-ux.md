@@ -1091,43 +1091,17 @@ _Implementation order within phase:_
           cases (slot present in key set, helper result verbatim, soft-signal pass-through, runtime-error
           wrap); 53 run.test.ts tests pass.
 
-    - `[ ]` **4.5.c Workflow doc rewrite**
+    - `[x]` **4.5.c Workflow doc rewrite**
 
         - _Goal:_ Restructure session-handoff.md SESSION-NOTES filter section as a two-pass pipeline: mechanical
           cross-check first, judgment-based 3-criterion filter second.
 
-        - _New filter shape_ (replaces existing `**The filter — include only if all three hold:**` block):
-
-            ```markdown
-            **Filter pipeline — apply both passes:**
-
-            **Pass 1 — Cross-check `restateCandidates`.** Probe slot carries `commitsSinceHandoff`,
-            `tasksClosedSinceHandoff`, and `noteFileChangesSinceHandoff` for this session. If candidate content
-            paraphrases an entry, omit. Mechanical step — array-driven, not judgment. When the soft signal
-            "baseline unknown" fires, skip Pass 1 and rely on Pass 2.
-
-            **Pass 2 — 3-criterion filter on the residual:**
-
-            1. **Not in any durable tracked source.** PRD, strategy, constitution, plan docs, ADRs — those are
-               authoritative; duplicating creates shadow copies that drift.
-            2. **Acted on at step 0.** Orientation-relevant — changes what the next session does or checks when
-               it loads. Not a retrospective observation you "want on record."
-            3. **Costly if missing.** Re-deriving from tracked state in 30 seconds is not rework; a
-               misinterpretation costing an hour of re-debugging is.
-
-            If any criterion fails, omit. Empty sections write `[none]`.
-            ```
-
-        - Net trim ~10 lines from the filter section (criterion #1's example list collapses; cross-check adds
-          new but compact text). Stay-out list and per-section guidance stay as-is — they cover broader
-          anti-patterns the cross-check doesn't.
-
-        - Affected files:
-            - `.arc/system/workflows/arc/session-lifecycle/session-handoff.md` (filter section)
-            - `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/session-handoff.template.md`
-              (mirror)
-
-        - Test-after — workflow doc lint; behavioral coverage already lives in 4.5.a/b.
+        - _Outcome:_ Filter block in session-handoff.md (and the package-source mirror) restructured to the
+          two-pass shape — Pass 1 mechanical `restateCandidates` cross-check, Pass 2 narrowed to "durable
+          tracked source" (PRD, strategy, constitution, plan docs, ADRs); commit/task/note restatement now
+          caught mechanically by Pass 1. Stay-out list cross-reference at the foot of the section updated
+          from "filter #1" to point at Pass 1 + the filter pipeline. Spec estimated ~10-line trim; actual
+          +4 (Pass 1 prose adds more than criterion #1's collapse trims). Lint clean.
 
     - `[ ]` **4.5.d Integration coverage for `deriveRestateCandidates`**
 
