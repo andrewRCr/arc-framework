@@ -9,11 +9,14 @@
 - **Task List:** [none]
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** [none]
+- **Last Completed:** Plan revision — Codex matcher empirical findings folded in;
+  wrapper-vs-gate orthogonality clarified; investigation report archived under
+  `reference/research/`.
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Assess whether plan-doc needs another iteration pass before PRD-drafting
-  (see SESSION-NOTES Additional Context); if ready, run `1_create-prd.md` for WU1 (foundation).
+- **Next Action:** Run `1_create-prd.md` for WU1 (foundation). Plan revision complete;
+  deferred items (naming, footer behavior, setup helper invocation point) carried as
+  PRD-time decisions.
 
 ---
