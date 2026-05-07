@@ -16,26 +16,6 @@ the full protocol.
 
 ## Tasks
 
-- [ ] **Move status-file markdown lint to fire before the step-3 commit**
-
-    - _Goal:_ Catch markdown lint errors in the active status file BEFORE the chore-commit lands,
-      not after via § Post-Update Cleanup (which currently runs post-commit and forces an amend).
-
-    - _Surfaced when:_ This session's handoff hit MD004/MD007 errors in
-      `status-user-sync-ux.md` (a wrap-introduced `+` parsed as a list bullet); pre-commit hooks
-      don't gate markdown today, so the lint error landed in the chore commit and required
-      amending after § Post-Update Cleanup caught it.
-
-    - _Possible shapes:_
-        - Add an explicit substep at the end of § Comprehensive Handoff Format step 3 — verify
-          the staged status file passes `markdownlint-cli2 <path>` before `git commit`.
-        - Add a markdown-lint pre-commit hook scoped to staged `*.md` files (mirror the
-          `check-ts-quality.sh` pattern for TS).
-        - Both — workflow doc as primary surface, hook as defense-in-depth.
-
-    - _Affected files:_ `.arc/system/workflows/arc/session-lifecycle/session-handoff.md` +
-      package-source mirror; potentially `.husky/pre-commit` + a new `scripts/check-md-lint.sh`.
-
 - [x] **Broaden DEV-RULES.ARC § No meta-project references in code**
     - Expanded planning-ID enumeration (added behavior IDs, requirement IDs, spec citations)
       and broadened scope from "production code" to code, tests, and durable documentation.
@@ -148,3 +128,14 @@ the full protocol.
       gives cross-domain example citations (TDD playbook, RFC, ARC method), and folds the
       where-rationale-belongs artifact list inline. Net leaner overall despite added framing.
       Both copies (`.arc/` instance + package source mirror) updated symmetrically.
+
+- [~] **Move status-file markdown lint to fire before the step-3 commit**
+
+    - _Outcome:_ Workflow-doc half landed inline as a stopgap — `session-handoff.md` step 3's
+      bash block now interleaves `<project markdown lint on the staged file>` between
+      `git add` and `git commit` with a "fix + re-stage on failure" comment (both copies:
+      `.arc/` instance + package source mirror). Hook half deferred to
+      `plan-quality-gate-hooks.md`, which now carries an "Audit and consolidate
+      workflow-embedded quality-gate triggers" bullet under In scope — that PRD will catalog
+      this stopgap (along with other workflow-embedded gates) and decide per item whether
+      the dispatch model subsumes it. No follow-up needed in this WU.

@@ -121,10 +121,12 @@ Update session state files before ending session:
     approval for the workflow's bundled actions, including the `chore(status): handoff` commit.
     No separate per-commit prompt fires under either push-interlock mode — push behavior is gated
     by `arc sync` internally (see § Sync), where remote-side consequences justify granular gating.
-    Stage and commit unconditionally:
+    Stage the status file, lint it (catches authoring errors before the chore-commit lands),
+    and commit unconditionally:
 
     ```bash
     git add <resolved-status-file-path>
+    <project markdown lint on the staged file>  # fix + re-stage on failure
     git commit -m "chore(status): handoff
 
     Context: <status-file>.md (handoff)"

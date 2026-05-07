@@ -157,6 +157,18 @@ for other ecosystems) against configured gate commands and flags omissions. Re-r
 initial-setup invokes it implicitly. PRD finalizes cross-ecosystem detection heuristics and the
 false-positive boundary (which detected scripts are gate-relevant vs. not).
 
+**Audit and consolidate workflow-embedded quality-gate triggers.** Before PRD, sweep
+`.arc/system/workflows/**` for quality-gate steps embedded in workflow prose — don't trust any existing
+inventory. Catalog each (workflow + step + gate type + scope) and decide per item whether the new
+dispatch model subsumes it. Consolidation criterion: mechanical-and-now-hook-covered → remove from
+workflow; human-judgment-gated or scope-the-hook-can't-see → keep in workflow. Known triggers as of this
+WU: `session-handoff.md` step 3's status-file markdown lint substep (added as stopgap during
+user-sync-ux); `3_process-task-loop.md`'s Tier 1 / Tier 2 invocations; `verify-work-unit.md`'s Tier 3
+invocation. The catalog likely surfaces more. Cross-reference inbox during catalog: known downstream
+consumers in `user/andrew/ATOMIC-INBOX.md` (this-repo-scope) are the lint-staged adoption migration and
+the custom under-wrap markdownlint rule — neither migrates into this plan, but both are downstream of
+whatever shape this plan ships.
+
 ### Out of scope
 
 - Switching ARC's shipped hook script format (stays shell-based in `.arc/system/githooks/`).
