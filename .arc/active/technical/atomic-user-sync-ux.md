@@ -16,29 +16,6 @@ the full protocol.
 
 ## Tasks
 
-- [ ] **Consolidate branch resolution onto `WorktreeSyncStatusResult.branch`**
-
-    - _Goal:_ Single source of truth for current branch — the worktree probe already resolves it
-      internally; propagate to the result and drop the parallel `resolveCurrentBranch` calls in
-      `handlers/sync.ts` and `handlers/status.ts` (handoff path). Removes 3 → 1 duplication
-      surfaced during 4.6.b.
-
-    - _Affected files:_
-        - `packages/arc-framework/src/lib/git/worktree-sync.ts` — add `branch: string \| null`
-          to `WorktreeSyncStatusResult`; populate in every return path.
-        - `packages/arc-framework/src/handlers/sync.ts` — drop `resolveCurrentBranch`; read
-          `worktree.branch` instead.
-        - `packages/arc-framework/src/handlers/status.ts` — drop the `resolveCurrentBranch`
-          helper added during 4.6.b; read from worktree slot in handoff path.
-        - `packages/arc-framework/src/commands/status/run.ts` — `runSessionHandoffStatus`
-          drops the `branch` option; reads from worktree slot when populating envelope `branch`
-          field (envelope shape stays the same).
-        - Test fixtures: `worktreeSync(...)` helpers in `__tests__/unit/status/run.test.ts`,
-          `__tests__/unit/session-init/recommended-action.test.ts`, and any other consumers of
-          `WorktreeSyncStatusResult` need a `branch: "main"` default.
-
-    - _Test-after:_ existing test sweep covers the contract; new fixtures pass through.
-
 - [ ] **Move status-file markdown lint to fire before the step-3 commit**
 
     - _Goal:_ Catch markdown lint errors in the active status file BEFORE the chore-commit lands,
@@ -166,3 +143,18 @@ the full protocol.
       ATOMIC-INBOX `Adopt lint-staged in this dev repo (post plan-quality-gate-hooks)` entry tracks the
       post-plan migration that refactors this into the framework's tier-dispatch method.
     - Affected: `scripts/check-ts-quality.sh` (new); `.husky/pre-commit` (one-line addition).
+
+- [x] **Consolidate branch resolution onto `WorktreeSyncStatusResult.branch`**
+    - `WorktreeSyncStatusResult` gains required `branch: string \| null`; `getCurrentBranch` hoisted
+      ahead of the `remoteSyncEnabled` short-circuit so every return arm (including `skipped`)
+      carries it. Removes the parallel `resolveCurrentBranch` helpers in `handlers/sync.ts` and
+      `handlers/status.ts`; `runSessionHandoffStatus` drops the `branch` option and derives from the
+      worktree slot, falling back to `null` on worktree-probe failure (accepted regression —
+      `recommendedSummaryLine` already nulls under the same condition).
+    - Test surface: 5 typecheck-gated fixture sites updated (`run.test.ts`, `recommended-action.test.ts`,
+      `status-format.test.ts`, `user-status.test.ts`, `integration/status.test.ts`); defensive `branch`
+      defaults added to `mockRunWorktreeSyncStatus` literals in `sync.test.ts` + `sync-orchestrator.test.ts`.
+      New unit case pins null-branch fallback on worktree-probe failure; existing `worktree-sync.test.ts`
+      arms enriched with branch-parity assertions across skipped / clean / detached-head.
+    - Affected: `lib/git/worktree-sync.ts`, `handlers/sync.ts`, `handlers/status.ts`,
+      `commands/status/run.ts`, `commands/status/types.ts`, plus the test files above.

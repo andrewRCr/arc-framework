@@ -300,10 +300,8 @@ export async function handleSync(opts: SyncOptions = {}): Promise<void> {
   const syncInterlock = resolvedSettings.resolved.syncInterlock;
   const notesPushResolved = resolvedSettings.resolved.notesPush;
 
-  const [worktree, branch] = await Promise.all([
-    runWorktreeSyncStatus({ exec: io.exec, remoteSyncEnabled }),
-    resolveCurrentBranch(io),
-  ]);
+  const worktree = await runWorktreeSyncStatus({ exec: io.exec, remoteSyncEnabled });
+  const branch = worktree.branch;
 
   let notesPush = notesPushResolved.value;
   if (notesPush === "prompt" && opts.yes === true) {
@@ -385,16 +383,6 @@ export async function handleSync(opts: SyncOptions = {}): Promise<void> {
   }
   if (outcome.exitCode !== 0) {
     process.exitCode = outcome.exitCode;
-  }
-}
-
-async function resolveCurrentBranch(io: UserIOContext): Promise<string | null> {
-  try {
-    const { stdout } = await io.exec("git", ["rev-parse", "--abbrev-ref", "HEAD"]);
-    const trimmed = stdout.trim();
-    return trimmed === "" || trimmed === "HEAD" ? null : trimmed;
-  } catch {
-    return null;
   }
 }
 

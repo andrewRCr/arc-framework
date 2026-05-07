@@ -1713,19 +1713,19 @@ describe("buildUserStatusResult worktree qualifier", () => {
   }
 
   it("omits the qualifier when worktree probe is clean", () => {
-    const result = withWorktree({ state: "clean", ahead: 0, behind: 0 });
+    const result = withWorktree({ state: "clean", ahead: 0, behind: 0, branch: "main" });
 
     expect(result.detailLines.some((line) => line.startsWith("Worktree"))).toBe(false);
   });
 
   it("appends a behind-by-N qualifier when worktree is remote-ahead", () => {
-    const result = withWorktree({ state: "remote-ahead", ahead: 0, behind: 3 });
+    const result = withWorktree({ state: "remote-ahead", ahead: 0, behind: 3, branch: "main" });
 
     expect(result.detailLines).toContain("Local worktree HEAD is behind its origin upstream by 3 commit(s).");
   });
 
   it("appends a divergence qualifier with both counts when worktree is diverged", () => {
-    const result = withWorktree({ state: "diverged", ahead: 2, behind: 5 });
+    const result = withWorktree({ state: "diverged", ahead: 2, behind: 5, branch: "main" });
 
     expect(result.detailLines).toContain(
       "Local worktree HEAD and its origin upstream have diverged (2 local ahead, 5 remote ahead).",
@@ -1734,7 +1734,7 @@ describe("buildUserStatusResult worktree qualifier", () => {
 
   it("keeps the qualifier when notes already report remote-ahead", () => {
     const result = withWorktree(
-      { state: "remote-ahead", ahead: 0, behind: 1 },
+      { state: "remote-ahead", ahead: 0, behind: 1, branch: "main" },
       { refState: "remote-ahead" },
     );
 
@@ -1744,7 +1744,7 @@ describe("buildUserStatusResult worktree qualifier", () => {
 
   it("keeps the qualifier when notes are in conflict", () => {
     const result = withWorktree(
-      { state: "remote-ahead", ahead: 0, behind: 4 },
+      { state: "remote-ahead", ahead: 0, behind: 4, branch: "main" },
       { refState: "diverged", diskState: "different", unsavedDirection: "mixed" },
     );
 
@@ -1757,6 +1757,7 @@ describe("buildUserStatusResult worktree qualifier", () => {
       state: "remote-unavailable",
       ahead: 0,
       behind: 0,
+      branch: "main",
       failureReason: "timeout",
     });
 
@@ -1770,6 +1771,7 @@ describe("buildUserStatusResult worktree qualifier", () => {
       state: "remote-unavailable",
       ahead: 0,
       behind: 0,
+      branch: "main",
       failureReason: "error",
     });
 
@@ -1817,7 +1819,7 @@ describe("buildUserStatusResult worktree qualifier", () => {
   });
 
   it("omits the qualifier when worktree is local-ahead (no drift to flag)", () => {
-    const result = withWorktree({ state: "local-ahead", ahead: 2, behind: 0 });
+    const result = withWorktree({ state: "local-ahead", ahead: 2, behind: 0, branch: "main" });
 
     expect(result.detailLines.some((line) => line.startsWith("Worktree"))).toBe(false);
   });

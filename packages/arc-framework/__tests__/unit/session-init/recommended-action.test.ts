@@ -22,7 +22,7 @@ import type { UserSessionInitStatusResult } from "../../../src/commands/user/typ
 function worktree(
   overrides: Partial<WorktreeSyncStatusResult> = {},
 ): WorktreeSyncStatusResult {
-  return { state: "clean", ahead: 0, behind: 0, ...overrides };
+  return { state: "clean", ahead: 0, behind: 0, branch: "main", ...overrides };
 }
 
 function user(

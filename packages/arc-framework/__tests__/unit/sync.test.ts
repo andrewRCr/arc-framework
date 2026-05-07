@@ -141,7 +141,7 @@ function resetMockDefaults() {
   mockRecordPartialPushMarker.mockResolvedValue(true);
   // Default: remote_sync enabled, worktree clean — qualifier silent.
   mockReadConfigSettings.mockResolvedValue({ settings: { "session.remote_sync": "enabled" } });
-  mockRunWorktreeSyncStatus.mockResolvedValue({ state: "clean", ahead: 0, behind: 0 });
+  mockRunWorktreeSyncStatus.mockResolvedValue({ state: "clean", ahead: 0, behind: 0, branch: "main" });
 }
 
 describe("decideSyncAction", () => {
@@ -656,7 +656,7 @@ describe("handleUserSync worktree qualifier", () => {
 
   it("emits a worktree drift qualifier when origin is ahead", async () => {
     setSyncState("same", "same");
-    mockRunWorktreeSyncStatus.mockResolvedValue({ state: "remote-ahead", ahead: 0, behind: 3 });
+    mockRunWorktreeSyncStatus.mockResolvedValue({ state: "remote-ahead", ahead: 0, behind: 3, branch: "main" });
 
     await handleUserSync();
 
@@ -667,7 +667,7 @@ describe("handleUserSync worktree qualifier", () => {
 
   it("emits a divergence qualifier when worktree has diverged", async () => {
     setSyncState("same", "same");
-    mockRunWorktreeSyncStatus.mockResolvedValue({ state: "diverged", ahead: 1, behind: 2 });
+    mockRunWorktreeSyncStatus.mockResolvedValue({ state: "diverged", ahead: 1, behind: 2, branch: "main" });
 
     await handleUserSync();
 
@@ -682,6 +682,7 @@ describe("handleUserSync worktree qualifier", () => {
       state: "remote-unavailable",
       ahead: 0,
       behind: 0,
+      branch: "main",
       failureReason: "timeout",
     });
 
@@ -694,7 +695,7 @@ describe("handleUserSync worktree qualifier", () => {
 
   it("stays silent when worktree is clean", async () => {
     setSyncState("same", "same");
-    mockRunWorktreeSyncStatus.mockResolvedValue({ state: "clean", ahead: 0, behind: 0 });
+    mockRunWorktreeSyncStatus.mockResolvedValue({ state: "clean", ahead: 0, behind: 0, branch: "main" });
 
     await handleUserSync();
 

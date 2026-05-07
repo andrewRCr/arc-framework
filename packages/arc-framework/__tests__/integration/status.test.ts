@@ -189,7 +189,7 @@ function makeProbes(fixture: Fixture): StatusProbes {
 function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
   return {
     user: async (identity) => stubUserSessionInit(identity),
-    worktree: async () => ({ state: "skipped", ahead: 0, behind: 0 }),
+    worktree: async () => ({ state: "skipped", ahead: 0, behind: 0, branch: "main" }),
     dirty: async () => ({ state: "clean", fileCount: 0 }),
     extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
     config: () => runConfigSessionInitStatus({ cwd: fixture.root }),
@@ -363,7 +363,7 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
   it("resolves active under .arc/user/{identity}/active/ when role=contributor and surfaces companions", async () => {
     const probes: SessionInitProbes = {
       user: async (id) => stubUserSessionInit(id),
-      worktree: async () => ({ state: "skipped", ahead: 0, behind: 0 }),
+      worktree: async () => ({ state: "skipped", ahead: 0, behind: 0, branch: "main" }),
       dirty: async () => ({ state: "clean", fileCount: 0 }),
       extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
       config: () => runConfigSessionInitStatus({ cwd: fixture.root }),

@@ -256,7 +256,7 @@ function normalizeNotesPolicy(raw: string): NotesPullPolicy {
 export async function runSessionHandoffStatus(
   options: RunSessionHandoffStatusOptions,
 ): Promise<SessionHandoffResult> {
-  const { identity, role, branch, probes } = options;
+  const { identity, role, probes } = options;
 
   const dirtyTask = safeProbe(() => probes.dirty());
   const worktreeTask = safeProbe(() => probes.worktree());
@@ -282,6 +282,8 @@ export async function runSessionHandoffStatus(
     pushabilityTask,
     restateCandidatesTask,
   ]);
+
+  const branch = worktree.ok ? worktree.value.branch : null;
 
   const recommendedSummaryLine = worktree.ok
     ? inferRecommendedSummaryLine({

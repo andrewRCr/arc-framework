@@ -148,14 +148,20 @@ export interface HandoffSyncInterlock {
  * and notes-push policy are owned by `arc sync` internally; the handoff
  * workflow doesn't read them.
  *
- * `branch` is resolved at the handler boundary (mirroring `identity`) so the
- * Confirm Handoff header and the pre-computed `recommendedSummaryLine` read
- * from one canonical source instead of agent-side `git rev-parse` calls.
+ * `branch` is sourced from the worktree probe slot (where it's already
+ * resolved internally) so the Confirm Handoff header and the pre-computed
+ * `recommendedSummaryLine` read from one canonical source instead of
+ * agent-side `git rev-parse` calls. Falls back to `null` when the worktree
+ * probe itself fails — `recommendedSummaryLine` is null on the same condition
+ * so downstream consumers tolerate the absence.
  */
 export interface SessionHandoffResult {
   mode: "session-handoff";
   identity: StatusIdentity;
-  /** Current branch name; `null` on detached HEAD. */
+  /**
+   * Current branch name from the worktree probe; `null` on detached HEAD or
+   * when the worktree probe failed.
+   */
   branch: string | null;
   dirty: Probe<DirtyStateResult>;
   worktree: Probe<WorktreeSyncStatusResult>;
@@ -243,7 +249,5 @@ export interface RunSessionInitStatusOptions {
 export interface RunSessionHandoffStatusOptions {
   identity: string | null;
   role: string | null;
-  /** Current branch name; `null` on detached HEAD. Resolved at handler boundary. */
-  branch: string | null;
   probes: SessionHandoffProbes;
 }

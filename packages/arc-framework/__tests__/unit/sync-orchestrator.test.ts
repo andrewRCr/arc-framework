@@ -147,8 +147,8 @@ function setConfig(
   syncResolvedSettingsMock();
 }
 
-function setWorktree(state: WorktreeSyncState, ahead = 0, behind = 0) {
-  mockRunWorktreeSyncStatus.mockResolvedValue({ state, ahead, behind });
+function setWorktree(state: WorktreeSyncState, ahead = 0, behind = 0, branch: string | null = "main") {
+  mockRunWorktreeSyncStatus.mockResolvedValue({ state, ahead, behind, branch });
 }
 
 function setNotesPolicy(policy: "on-sync" | "prompt" | "manual") {

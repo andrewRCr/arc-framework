@@ -157,7 +157,7 @@ function extensionsSessionInit(
 function worktreeSync(
   overrides: Partial<WorktreeSyncStatusResult> = {},
 ): WorktreeSyncStatusResult {
-  return { state: "clean", ahead: 0, behind: 0, ...overrides };
+  return { state: "clean", ahead: 0, behind: 0, branch: "main", ...overrides };
 }
 
 function configSessionInit(
@@ -887,7 +887,7 @@ describe("JSON wire shape — discriminated union survives serialization", () =>
 describe("runSessionHandoffStatus — orchestration", () => {
   it("invokes every probe helper exactly once", async () => {
     const probes = sessionHandoffProbes();
-    await runSessionHandoffStatus({ identity: "andrew", role: "maintainer", branch: "main", probes });
+    await runSessionHandoffStatus({ identity: "andrew", role: "maintainer", probes });
     expect(probes.dirty).toHaveBeenCalledTimes(1);
     expect(probes.worktree).toHaveBeenCalledTimes(1);
     expect(probes.user).toHaveBeenCalledTimes(1);
@@ -905,7 +905,6 @@ describe("runSessionHandoffStatus — orchestration", () => {
     const result = await runSessionHandoffStatus({
       identity: "andrew",
       role: "maintainer",
-      branch: "main",
       probes,
     });
     expect(Object.keys(result).sort()).toEqual([
@@ -940,7 +939,6 @@ describe("runSessionHandoffStatus — orchestration", () => {
     const result = await runSessionHandoffStatus({
       identity: "andrew",
       role: "maintainer",
-      branch: "main",
       probes,
     });
     expect(result.restateCandidates.ok).toBe(true);
@@ -958,7 +956,6 @@ describe("runSessionHandoffStatus — orchestration", () => {
     const result = await runSessionHandoffStatus({
       identity: "andrew",
       role: "maintainer",
-      branch: "main",
       probes,
     });
     expect(result.restateCandidates.ok).toBe(true);
@@ -976,7 +973,6 @@ describe("runSessionHandoffStatus — orchestration", () => {
     const result = await runSessionHandoffStatus({
       identity: "andrew",
       role: "maintainer",
-      branch: "main",
       probes,
     });
     expect(result.restateCandidates.ok).toBe(false);
@@ -1006,7 +1002,6 @@ describe("runSessionHandoffStatus — orchestration", () => {
     const result = await runSessionHandoffStatus({
       identity: "andrew",
       role: "maintainer",
-      branch: "main",
       probes,
     });
     expect(result.pushability.ok).toBe(true);
@@ -1023,7 +1018,6 @@ describe("runSessionHandoffStatus — orchestration", () => {
     const result = await runSessionHandoffStatus({
       identity: "andrew",
       role: "maintainer",
-      branch: "main",
       probes,
     });
     expect(result.head.ok).toBe(true);
@@ -1037,7 +1031,6 @@ describe("runSessionHandoffStatus — orchestration", () => {
     const result = await runSessionHandoffStatus({
       identity: "andrew",
       role: "maintainer",
-      branch: "main",
       probes,
     });
     expect(result.head.ok).toBe(true);
@@ -1051,7 +1044,6 @@ describe("runSessionHandoffStatus — orchestration", () => {
     const result = await runSessionHandoffStatus({
       identity: "andrew",
       role: "maintainer",
-      branch: "main",
       probes,
     });
     expect(result.head.ok).toBe(false);
@@ -1071,7 +1063,6 @@ describe("runSessionHandoffStatus — orchestration", () => {
     const result = await runSessionHandoffStatus({
       identity: "andrew",
       role: "maintainer",
-      branch: "main",
       probes,
     });
     expect(result.dirty.ok).toBe(true);
@@ -1087,7 +1078,6 @@ describe("runSessionHandoffStatus — orchestration", () => {
     const result = await runSessionHandoffStatus({
       identity: "andrew",
       role: "maintainer",
-      branch: "main",
       probes,
     });
     expect(result.worktree.ok).toBe(true);
@@ -1104,7 +1094,6 @@ describe("runSessionHandoffStatus — orchestration", () => {
     const result = await runSessionHandoffStatus({
       identity: "andrew",
       role: "maintainer",
-      branch: "main",
       probes,
     });
     expect(result.user.ok).toBe(true);
@@ -1126,7 +1115,6 @@ describe("runSessionHandoffStatus — orchestration", () => {
     const result = await runSessionHandoffStatus({
       identity: "andrew",
       role: "maintainer",
-      branch: "main",
       probes,
     });
 
@@ -1151,7 +1139,6 @@ describe("runSessionHandoffStatus — orchestration", () => {
     const result = await runSessionHandoffStatus({
       identity: "andrew",
       role: "maintainer",
-      branch: "main",
       probes,
     });
     expect(result.syncInterlock.ok).toBe(true);
@@ -1172,7 +1159,6 @@ describe("runSessionHandoffStatus — orchestration", () => {
     const result = await runSessionHandoffStatus({
       identity: "andrew",
       role: "maintainer",
-      branch: "main",
       probes,
     });
     expect(result.active.ok).toBe(true);
@@ -1190,7 +1176,6 @@ describe("runSessionHandoffStatus — orchestration", () => {
     const result = await runSessionHandoffStatus({
       identity: "andrew",
       role: "maintainer",
-      branch: "main",
       probes,
     });
     expect(result.dirty.ok).toBe(false);
@@ -1214,7 +1199,6 @@ describe("runSessionHandoffStatus — orchestration", () => {
     const result = await runSessionHandoffStatus({
       identity: null,
       role: null,
-      branch: "main",
       probes,
     });
     expect(probes.user).not.toHaveBeenCalled();
@@ -1237,7 +1221,6 @@ describe("runSessionHandoffStatus — orchestration", () => {
     const result = await runSessionHandoffStatus({
       identity: "andrew",
       role: "maintainer",
-      branch: "main",
       probes,
     });
     expect(result.dirty.ok).toBe(false);
@@ -1273,18 +1256,19 @@ describe("runSessionHandoffStatus — orchestration", () => {
       active: tracked(activeSessionInit()),
       head: tracked(headHash()),
     });
-    await runSessionHandoffStatus({ identity: "andrew", role: "maintainer", branch: "main", probes });
+    await runSessionHandoffStatus({ identity: "andrew", role: "maintainer", probes });
     expect(peakInFlight).toBe(6);
   });
 
   it("composes recommendedSummaryLine: Reconcile required for diverged worktree", async () => {
     const probes = sessionHandoffProbes({
-      worktree: vi.fn(async () => worktreeSync({ state: "diverged", ahead: 2, behind: 3 })),
+      worktree: vi.fn(async () =>
+        worktreeSync({ state: "diverged", ahead: 2, behind: 3, branch: "feature/foo" }),
+      ),
     });
     const result = await runSessionHandoffStatus({
       identity: "andrew",
       role: "maintainer",
-      branch: "feature/foo",
       probes,
     });
     expect(result.recommendedSummaryLine).toBe(
@@ -1295,12 +1279,13 @@ describe("runSessionHandoffStatus — orchestration", () => {
 
   it("composes recommendedSummaryLine: Worktree N unpushed for local-ahead", async () => {
     const probes = sessionHandoffProbes({
-      worktree: vi.fn(async () => worktreeSync({ state: "local-ahead", ahead: 4, behind: 0 })),
+      worktree: vi.fn(async () =>
+        worktreeSync({ state: "local-ahead", ahead: 4, behind: 0, branch: "feature/baz" }),
+      ),
     });
     const result = await runSessionHandoffStatus({
       identity: "andrew",
       role: "maintainer",
-      branch: "feature/baz",
       probes,
     });
     expect(result.recommendedSummaryLine).toBe(
@@ -1313,7 +1298,6 @@ describe("runSessionHandoffStatus — orchestration", () => {
     const result = await runSessionHandoffStatus({
       identity: "andrew",
       role: "maintainer",
-      branch: "main",
       probes,
     });
     expect(result.recommendedSummaryLine).toBeNull();
@@ -1324,7 +1308,6 @@ describe("runSessionHandoffStatus — orchestration", () => {
     const result = await runSessionHandoffStatus({
       identity: null,
       role: null,
-      branch: "main",
       probes,
     });
     expect(result.recommendedSummaryLine).toBeNull();
@@ -1332,12 +1315,13 @@ describe("runSessionHandoffStatus — orchestration", () => {
 
   it("still surfaces Reconcile when identity is absent but worktree is diverged", async () => {
     const probes = sessionHandoffProbes({
-      worktree: vi.fn(async () => worktreeSync({ state: "diverged", ahead: 1, behind: 2 })),
+      worktree: vi.fn(async () =>
+        worktreeSync({ state: "diverged", ahead: 1, behind: 2, branch: "feature/qux" }),
+      ),
     });
     const result = await runSessionHandoffStatus({
       identity: null,
       role: null,
-      branch: "feature/qux",
       probes,
     });
     expect(result.recommendedSummaryLine).toBe(
@@ -1353,7 +1337,6 @@ describe("runSessionHandoffStatus — orchestration", () => {
     const result = await runSessionHandoffStatus({
       identity: "andrew",
       role: "maintainer",
-      branch: "main",
       probes,
     });
     expect(result.recommendedSummaryLine).toBeNull();
@@ -1361,25 +1344,39 @@ describe("runSessionHandoffStatus — orchestration", () => {
 
   it("returns recommendedSummaryLine null when branch is null (detached HEAD)", async () => {
     const probes = sessionHandoffProbes({
-      worktree: vi.fn(async () => worktreeSync({ state: "diverged", ahead: 1, behind: 1 })),
+      worktree: vi.fn(async () =>
+        worktreeSync({ state: "diverged", ahead: 1, behind: 1, branch: null }),
+      ),
     });
     const result = await runSessionHandoffStatus({
       identity: "andrew",
       role: "maintainer",
-      branch: null,
       probes,
     });
     expect(result.recommendedSummaryLine).toBeNull();
   });
 
-  it("threads branch through to the envelope verbatim", async () => {
-    const probes = sessionHandoffProbes();
+  it("threads branch from worktree slot through to the envelope verbatim", async () => {
+    const probes = sessionHandoffProbes({
+      worktree: vi.fn(async () => worktreeSync({ branch: "technical/probe-two" })),
+    });
     const result = await runSessionHandoffStatus({
       identity: "andrew",
       role: "maintainer",
-      branch: "technical/probe-two",
       probes,
     });
     expect(result.branch).toBe("technical/probe-two");
+  });
+
+  it("falls back to null branch when the worktree probe failed", async () => {
+    const probes = sessionHandoffProbes({
+      worktree: vi.fn(async () => { throw new Error("worktree boom"); }),
+    });
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.branch).toBeNull();
   });
 });
