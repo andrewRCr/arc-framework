@@ -3,7 +3,7 @@
 - **Started**: 2026-05-01
 - **Completed**: 2026-05-07
 - **Branch**: technical/user-sync-ux
-- **Pull Request**: {pending until archival}
+- **Pull Request**: <https://github.com/andrewRCr/arc-framework/pull/27>
 
 - **Context**: Roadmap-queued sync-surface polish — scoped after live cross-machine use surfaced resume
   defects (notes-ref topology vs. disk staleness divergence) and dual-state-machine drift between full-mode

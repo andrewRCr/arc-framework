@@ -11,34 +11,66 @@ Current state at a glance. Updated when work is activated, completed, or archive
 
 **Last Completed:**
 
-- Session-Operational Flow (technical) — Operationalizes the Interlock Foundation frame with
-  independent commit/push interlock settings, handoff-interior toggle consumers, deferred-review
-  safe-accumulation, status Integration metadata, and recovery guidance for configured release
-  cascades.
-    - Archive: `archive/2026-q2/technical/06_session-operational-flow/`
+- User Sync UX Polish (technical) — Collapsed `arc status` and `arc sync` onto a single five-state
+  spine, hardened the paired-push contract against cross-machine resume bugs and partial-publish
+  hazards, aligned the user-notes vocabulary across config keys and command surfaces, and pushed
+  judgment-heavy workflow decisions into pre-composed envelope strings so prose renders rather
+  than decides.
+    - Archive: `archive/2026-q2/technical/07_user-sync-ux/`
 
 **Currently Active:**
 
-- User Sync UX Polish (technical) — In Progress. State-machine unification, directional copy audit,
-  HEAD-independent notes discovery, and scoped auto-push design against the handoff-interior toggle
-  framework.
-    - PRD: `.arc/active/technical/prd-user-sync-ux.md`
-    - Task List: `.arc/active/technical/tasks-user-sync-ux.md`
-    - Branch: `technical/user-sync-ux`
+- _Between work units._ User Sync UX Polish archived; next WU not yet activated.
 
 **Next Priority:**
 
-- Execute User Sync UX Polish; Coord Probe and Worktree Foundation remain parallelizable
-  siblings on the new session-operational frame
-- Then: Agile WU Lifecycle (after Worktree Foundation), Concurrent Work Conventions
-  (after Agile WU Lifecycle), Quality Gate Tiers + Hook Integration (after Concurrent
-  Work Conventions)
+- Interlock-Release Wrappers (technical) — Pre-1.0 polish for git-surface UX. Wrapper commands
+  (`arc release commit`, `arc release push`) that enforce ARC interlock state at the CLI
+  boundary and provide a permission-shape distinct from raw git for harness allowlist bypass.
+  Builds on User Sync UX Polish Phase 2 (paired-push semantics, pushability matrix) and
+  Phase 3.1 (resolver consolidation). Plan: `backlog/technical/plan-interlock-release-wrappers.md`
+- Then: Coord Probe and Worktree Foundation remain parallelizable siblings on the
+  session-operational frame; Agile WU Lifecycle (after Worktree Foundation), Concurrent Work
+  Conventions (after Agile WU Lifecycle), Quality Gate Tiers + Hook Integration (after
+  Concurrent Work Conventions)
 - Then: ARCd Rebrand — Public product brand split (ARCd for product, ARC for
   methodology) with absorbed config-key renames and CLI command cleanup
 - Then: arc-plan Conductor (parallelizable with Worktree Foundation and Agile WU
   Lifecycle), ARC Operating Modes (ARC Lite + local/untracked)
 
 ## Completed Major Work
+
+### User Sync UX Polish (May 2026)
+
+State-machine unification, hardened paired-push contract, vocabulary alignment, and
+envelope-driven workflow rendering for the user-notes sync surface.
+
+- Shared `UserSyncSpine` (`clean | remote-ahead | conflict | disabled | remote-unavailable`)
+  consumed by full status, session-init, and `inspectUserSyncState`; disk staleness, saved
+  age, note-history distance, and partial-push recovery layer as detail axes
+- Notes-ref-history walk: `arc user load` / `arc user pull` discover the newest readable
+  note by walking `refs/notes/arc/user/{identity}` history, preserving notes attached to
+  commits no longer reachable from HEAD's first-parent walk
+- Verified-save postcondition: `runUserSave` reads back the just-written note and
+  hash-compares against the just-serialized manifest before `.sync-state.json` advances
+- `arc sync` orchestrator dispatches the 6-cell matrix (worktree × notes); `arc user sync`
+  preserved as the notes-only direction-aware command. Paired-push saves before either leg,
+  refuses on `force-push-required` advisory, and surfaces partial-push failures with
+  itemized output and idempotent recovery
+- `arc sync --json` envelope: single JSON object on stdout across all return paths;
+  `interlockState` carries resolved policy with provenance; stdout purity guarded by the
+  `SyncOutput` boundary wrapper
+- Config-key vocabulary alignment: `user.sync_push` → `user.notes_push`;
+  `push_interlock: on-handoff` → `on-sync`; `session.sync_interlock` added with
+  `manual | on-handoff`; `arc update` migrates legacy values in place
+- Per-developer interlock overrides (`arc.commitInterlock`, `arc.pushInterlock`,
+  `arc.syncInterlock`, `arc.notesPush`) plumb through `resolved-settings.ts` with
+  `{value, source}` provenance
+- Pre-composed envelope strings (`recommendedAction`, `recommendedPromptText`,
+  `recommendedCombinedPrompt`, `recommendedSummaryLine`, `restateCandidates`) so workflow
+  prose renders verbatim instead of branching
+- Library seams for the next WU's wrapper commands: `lib/git/push-worktree.ts`,
+  `lib/git/pushability.ts`, `commands/user/paired-push.ts`, `lib/sync-output.ts`
 
 ### Interlock Foundation (April 2026)
 
