@@ -1103,7 +1103,7 @@ _Implementation order within phase:_
           from "filter #1" to point at Pass 1 + the filter pipeline. Spec estimated ~10-line trim; actual
           +4 (Pass 1 prose adds more than criterion #1's collapse trims). Lint clean.
 
-    - `[ ]` **4.5.d Integration coverage for `deriveRestateCandidates`**
+    - `[x]` **4.5.d Integration coverage for `deriveRestateCandidates`**
 
         - _Goal:_ Close the testing gap surfaced when 4.5.b's wiring shipped a runtime defect that the
           unit suite couldn't catch — the helper used NUL in the `git log --format` arg, which Node's
@@ -1111,21 +1111,14 @@ _Implementation order within phase:_
           boundary. The fix (incidental commit during 4.5.b: `git log -z` with `%h%n%s%n%B` and NUL only
           in output) restores the success path; this task locks the contract.
 
-        - Affected files:
-            - new `packages/arc-framework/__tests__/integration/handoff/restate-candidates.test.ts`
-
-        - Build `test-first` (one behavior at a time) — exercising the real `gitExec` against a temp git
-          repo (mirror the existing `__tests__/integration/` patterns):
-            - Helper invocation succeeds against a temp repo with a known SESSION-NOTES baseline (asserts
-              no `baselineSignal`, real commits surfaced)
-            - Subjects containing newlines/tabs/quotes round-trip cleanly through the format string
-            - Commit body containing a `Context:` footer with a multi-ID range yields the expected raw
-              IDs (parser pinned end-to-end, not just against canned strings)
-            - Unreachable baseline (force-pushed away) yields `baseline-unknown`
-
-        - _Note:_ Does not block 4.6 — file the test under `__tests__/integration/handoff/` and run as
-          part of the existing vitest sweep. Strategy-level "lib helpers crossing real-exec boundary need
-          integration coverage" treatment is deferred until a second instance of this gap appears.
+        - _Outcome:_ 4 behaviors at `__tests__/integration/handoff/restate-candidates.test.ts` drive
+          the helper through a real `gitExec` over `createTempRepo` — success path, special-char
+          round-trip, multi-ID `Context:` footer parse, unreachable-baseline fallback. Two judgment
+          calls worth surfacing: subjects-containing-newlines maps to multi-line bodies rather than
+          subjects themselves (git's `%s` is single-line by construction, so the newline coverage
+          rides on body content while subject covers tabs + quotes); the unreachable-baseline case
+          uses a fake 40-hex hash rather than a force-pushed-away commit (same `git log` rejection
+          path triggers the catch arm and returns `baseline-unknown`).
 
 ### `[ ]` **4.6 Pre-computed prose in session-init Step 2 and Confirm Handoff**
 
