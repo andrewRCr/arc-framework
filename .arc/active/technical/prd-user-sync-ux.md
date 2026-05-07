@@ -34,6 +34,11 @@ Underlying causes:
   reference unknown commits. Interlock Foundation's push-ordering invariant guarantees worktree
   before notes when both fire at handoff, but doesn't cover the mixed-config or unpushed-HEAD
   cases.
+- **No orchestrator for the paired-push surface.** The handoff workflow today coordinates worktree
+  push and notes push in markdown — two CLI invocations (`git push` and `arc sync`) with
+  workflow-prose gating. Cross-cutting coherence rules (R3 partial-push, R4 unpushed-HEAD, R14
+  notes-vs-worktree blocking) are scattered across single-leg commands and workflow narrative.
+  No single CLI surface owns "do the right combination of pushes per my config."
 - **Three competing config-shape standards.** `user.sync_push: always | prompt | manual` predates
   Interlock Foundation; IF shipped `session.{commit,push}_interlock: manual | on-X`; the
   session-operations strategy doc documents an unused third "canonical" shape (`auto / prompt /
@@ -72,20 +77,27 @@ surfaces across machines and would dominate dogfooding time.
   comparison's reference side named in every headline and detail line.
 - **Unpushed-HEAD save+push (the 2026-05-01 case).** Developer runs `arc user save` on a worktree
   branch ahead of origin. `save` succeeds (preserves local working state). `arc user push` (or
-  `user.notes_push: on-handoff` firing at handoff) blocks the notes-push leg with guidance to push
-  the worktree branch first. The CLI never claims remote sync success against an unpushed commit.
+  `user.notes_push: on-sync` firing through `arc sync` at handoff) blocks the notes-push leg with
+  guidance to push the worktree branch first. The CLI never claims remote sync success against an
+  unpushed commit.
 - **Partial-push failure recovery.** Worktree push succeeds at handoff but notes push fails
   (network blip, server policy). Output itemizes both legs; exit code reflects the worst outcome.
   `arc user push` invoked manually checks remote ref state via `git ls-remote`; if remote already
   matches local, the command no-ops; otherwise it re-attempts the notes push. Re-runnable safely.
 - **Cross-version config migration.** Adopter on `user.sync_push: always` runs `arc update`. The
-  migration rewrites the key+value to `user.notes_push: on-handoff`. Old key removed; no dual-key
+  migration rewrites the key+value to `user.notes_push: on-sync`. Old key removed; no dual-key
   window.
 - **Vocabulary first-use.** Developer freshly joined via `arc join` sees a brief paragraph
   orienting them to user-notes (where the gitignored personal context lives, that it travels via
   push/pull as a git notes ref). On their first `arc status` invocation before they've created any
   notes, a single-line hint points at `arc user --help`. Once their first handoff completes (notes
   ref exists), the status hint stops firing.
+- **Handoff sync opt-out (same-machine continuation).** Developer planning to start the next
+  session immediately on the same machine configures `session.sync_interlock: manual`. The handoff
+  workflow surfaces unpushed state in the summary but does not auto-invoke `arc sync` — pushes
+  fire only when the developer explicitly runs `arc sync` (or single-leg commands). The contract:
+  the configured trigger (`on-handoff` vs. `manual`) names when the workflow fires sync; the
+  sync command itself is unchanged when invoked manually.
 
 ## Requirements
 
@@ -113,9 +125,15 @@ guidance — never report clean.
 push state (preserves working state). `arc user push` checks the annotated commits' push status
 before pushing the notes ref; blocks with clear guidance when the worktree branch is ahead of
 origin. The same coherence rule generalizes to all push triggers (handoff, manual, future modes).
+Save success means the exact `HEAD` note was verified readable and manifest-matched before local
+sync-state metadata advances.
 
-**R5. Paired-push failure semantics.** When worktree and notes pushes fire together at handoff:
+**R5. Paired-push failure semantics.** When worktree and notes pushes fire together via
+`arc sync` (typically invoked by the handoff workflow):
 
+- The paired path saves the current user directory to `HEAD` before pushing the notes ref. If the
+  paired-push helper remains push-only, the orchestrator or a clearly named wrapper owns that
+  save-before-push boundary.
 - Exit code reflects the worst outcome across the paired operation. Never exit 0 on partial
   publish.
 - Output itemizes both legs, marking each succeeded/failed, with the underlying error line for
@@ -124,6 +142,13 @@ origin. The same coherence rule generalizes to all push triggers (handoff, manua
 - Recovery is idempotent — `arc user push` checks remote ref state via
   `git ls-remote refs/notes/arc/user/{identity}`; no-ops with confirmation when remote already
   matches local.
+- Coherence rules layer cleanly. Primitives enforce shape (no force-flag, WU resolved, ref
+  valid). The pushability matrix encodes shape-detectable coherence — including R4
+  unpushed-HEAD alignment via the notes-target check — so single-leg push entry points
+  (`arc user push`, `arc release push`, orchestrator-routed legs) get uniform enforcement by
+  consulting the matrix. The `arc sync` orchestrator owns *routing*: R3 partial-push marker
+  management across paired flows, R15 notes-vs-worktree blocking under mixed config,
+  force-push refusal at handoff, and the Reconcile-required surface on a diverged worktree.
 
 **R6. Directional copy audit.** Every headline and detail line in `sync-status.ts` names both
 sides of the comparison it makes. No line allows the user to wonder "newer than what" or "synced
@@ -142,36 +167,86 @@ relevant (debugging, ref state, error messages mentioning `refs/notes/...`). The
 documented and applied across `sync-status.ts` rendering and adjacent help text.
 
 **R9. Config-shape alignment.** Rename and align the legacy notes-push key with IF's interlock
-vocabulary:
+vocabulary, using event-naming consistency: each interlock value names *its own* trigger event
+(not an upstream occasion):
 
 - Yaml key: `user.sync_push` → `user.notes_push`.
-- Value enum: `always | prompt | manual` → `manual | prompt | on-handoff` (semantic identity:
-  `always` ⇄ `on-handoff`).
-- Git-config override: `arc.syncPush` → `arc.notesPush`.
+- Value enum: `always | prompt | manual` → `manual | prompt | on-sync` (semantic identity:
+  `always` ⇄ `on-sync`). The trigger is the `arc sync` event; the typical *occasion* is the
+  handoff workflow, but mid-session `arc sync` invocations are also sync events.
+- `session.push_interlock` value rename: `manual | on-handoff` → `manual | on-sync`. Same
+  reasoning — push-leg's trigger event is sync, not handoff.
+- Git-config override: `arc.syncPush` → `arc.notesPush`. `arc.pushInterlock` value rename
+  parallels the yaml.
 - Strategy doc § Standard value enum (session-operations § Handoff-Interior Toggle Pattern):
   retire the documented-but-unused `auto / prompt / manual` standard. Canonical shape becomes
-  `manual | on-X` with `prompt` available as opt-in for review-before-fire toggles (notes; future
-  similar cases).
+  `manual | on-X` where `X` names the actual triggering event for that operation; `prompt` stays
+  available as opt-in for review-before-fire toggles (notes; future similar cases). Document the
+  three-layer cascade (handoff event → sync; sync event → push & notes-push) explicitly.
 - Migration: hard rename in `arc update` rewrites key+values. Old key removed; no dual-key window.
   Pre-1.0 break is acceptable.
 
-**R10. Command-shape alignment.** Rename `arc sync` → `arc user sync` so the user-notes porcelain
-shares the namespace with the rest of the family. Hard rename, pre-1.0 — no transitional alias.
-The existing direction-aware porcelain semantic is preserved; only the invocation path moves.
+**R10. Command-shape alignment + orchestrator surface.** Two changes, one coherent move:
 
-**R11. Per-developer overrides for interlock keys.** Add `git config arc.commitInterlock` and
-`arc.pushInterlock` as per-dev overrides for the IF interlocks. Both keys move to **3-tier
+- **Notes-only rename.** Today's `arc sync` (notes-only direction-aware porcelain) becomes
+  `arc user sync`. The user-notes family shares the namespace with `save / load / push / pull /
+  fetch`. Hard rename, pre-1.0 — no transitional alias. Existing direction-aware semantic
+  preserved; only the invocation path moves.
+- **New top-level `arc sync` (orchestrator).** Becomes the all-in-one sync command: probes
+  worktree state, notes state, and config (`push_interlock`, `notes_push`); dispatches over the
+  6-cell matrix (paired push, worktree-only, notes-only, R15 blocking, save-only, prompt cells);
+  surfaces worst-outcome exit code + itemized output. The paired cell saves current notes before
+  the paired push; every worktree push leg runs through the same pushability/state gate rather than
+  relying on raw `git push` as the only guard. Owns the cross-cutting coherence rules per R5.
+- **Authorize-by-invocation.** `arc sync` honors config as-is whether invoked by the workflow at
+  handoff or by the user mid-session. The user typing `arc sync` is the sync event; configured
+  triggers (`on-sync` interlock values) fire accordingly. The contract is "fire when sync runs,"
+  not "fire only at the handoff occasion."
+- **`--dry-run`.** Preview-mode flag prints the matrix decision and what would fire without
+  invoking either leg. Useful for verifying config under unfamiliar conditions; cheap to add.
+- **`--json`.** Machine-contract flag emits exactly one structured JSON object on stdout and does
+  not prompt. Human diagnostics either live inside the envelope or use a channel that cannot
+  corrupt the JSON stream.
+- **Discoverability.** `arc --help` lists both `sync` (top-level orchestrator) and
+  `user sync` (notes-only). Each command's `--help` cross-references the other.
+
+**R11. Sync-interlock config option.** New `session.sync_interlock: manual | on-handoff` (default
+`on-handoff`) gates whether the handoff workflow auto-invokes `arc sync`:
+
+- `on-handoff` (default): handoff workflow runs `arc sync` automatically. Matches today's
+  implicit behavior — backwards-compat for existing adopters.
+- `manual`: handoff workflow does not auto-invoke sync. Surfaces unpushed state in the handoff
+  summary (`Worktree: N unpushed commit(s)`, `Notes: local changes unpushed`, etc.) but takes no
+  action. User runs `arc sync` (or single-leg commands) when ready.
+- Use case: same-machine continuation — developer planning to start the next session
+  immediately doesn't want auto-pushes at handoff; the handoff is just state preservation.
+- Per-developer override `arc.syncInterlock` follows the 3-tier pattern (R12).
+- Three-layer cascade made explicit:
+
+    ```text
+    commit_interlock: on-task-approval  (event: task approval → operation: commit)
+    sync_interlock:   on-handoff        (event: handoff       → operation: sync)
+    push_interlock:   on-sync           (event: sync          → operation: push)
+    notes_push:       on-sync           (event: sync          → operation: notes push)
+    ```
+
+  Each interlock's `on-X` names *its own* trigger; cascade reads cleanly downward. `arc sync`
+  with `sync_interlock: manual` is the user opting out of the handoff→sync edge while keeping
+  sync→push edges intact.
+
+**R12. Per-developer overrides for interlock keys.** Add `git config arc.commitInterlock`,
+`arc.pushInterlock`, and `arc.syncInterlock` as per-dev overrides. All three move to **3-tier
 resolution** (git config → yaml → default), matching `user.notes_push` and the broader
 handoff-interior toggle shape.
 
-**R12. Resolver consolidation.** With all three release-mode keys (`session.commit_interlock`,
-`session.push_interlock`, `user.notes_push`) sharing the 3-tier resolution shape, extract the
-precedence logic into a generic helper (e.g., `resolveGitConfigOverride<T>`) and migrate
-`lib/sync-policy.ts` plus the new interlock resolutions onto it. Validation in
-`lib/config/status-reader.ts` extends to read the git-config override before falling through to
-yaml + default.
+**R13. Resolver consolidation.** With all four release-mode keys (`session.commit_interlock`,
+`session.push_interlock`, `session.sync_interlock`, `user.notes_push`) sharing the 3-tier
+resolution shape, extract the precedence logic into a generic helper (e.g.,
+`resolveGitConfigOverride<T>`) and migrate `lib/sync-policy.ts` plus the new interlock
+resolutions onto it. Keep the yaml reader side-effect-free; resolved call sites use a wrapper that
+composes yaml settings with git-config overrides and returns value provenance.
 
-**R13. Pushability pre-checks for handoff-interior pushes.** Detect what's detectable client-side;
+**R14. Pushability pre-checks for handoff-interior pushes.** Detect what's detectable client-side;
 surface the condition; never silently skip. The PRD pins behavior per condition; concrete copy
 strings finalize at implementation time:
 
@@ -185,11 +260,13 @@ strings finalize at implementation time:
   without API access.
 - **Pre-receive hook failure** — bubble server output verbatim.
 - **Permission denied (auth/authz)** — bubble error; suggest token/credentials refresh.
-- **Force-push required** — error. Never force-push from handoff or `arc user push`. User invokes
-  raw git if rewriting history is intended.
+- **Worktree force-push required** — error. Never force-push the worktree from handoff or
+  `arc sync`. User invokes raw git if rewriting worktree history is intended; notes-ref conflict
+  recovery remains governed by R5.
 
-**R14. `user.notes_push: on-handoff` under `session.push_interlock: manual`.** When notes
-auto-push but worktree is manual:
+**R15. `user.notes_push: on-sync` under `session.push_interlock: manual`.** When notes
+auto-push but worktree is manual, the orchestrator (`arc sync`) gates notes push on worktree
+state:
 
 - Worktree has no unpushed commits → save and push notes.
 - Worktree is local-ahead → save notes locally; **block** notes push with guidance ("push the
@@ -198,7 +275,7 @@ auto-push but worktree is manual:
 
 ### P2 — DX polish
 
-**R15. First-use framing surface.** Two complementary surfaces:
+**R16. First-use framing surface.** Two complementary surfaces:
 
 - `arc join` post-init paragraph: introduces the user-notes feature once at install time —
   briefly explains where the gitignored personal context lives and that it travels via push/pull
@@ -210,7 +287,7 @@ auto-push but worktree is manual:
 PRD pins behavior, surface placement, and trigger condition; concrete copy strings finalize at
 implementation time.
 
-**R16. Shared-ref sync-state inference for sibling sessions.** Each session computes sync state
+**R17. Shared-ref sync-state inference for sibling sessions.** Each session computes sync state
 from its worktree's HEAD; the notes ref is shared across the identity. Sync-state inference
 distinguishes:
 
@@ -233,8 +310,10 @@ the existing pull mechanism. The `--offline` flag suppresses both fetches.
   go through reviewed commits and commit work is reviewed at the task-interlock; mid-session
   prompts add friction without team-scenario justification. The notes-prompt rationale is unique
   to notes (review-before-share for shared remotes).
-- Reserving `arc sync` as a broader cross-domain porcelain (e.g., framework + user notes
-  combined). Not on the pre-1.0 roadmap; revisit only if outside-repo / non-git sync enters scope.
+- Reserving `arc sync` for cross-domain porcelain beyond worktree+notes (e.g., framework files,
+  external services). The post-rename `arc sync` orchestrator's scope is bounded to the same
+  surface today's handoff push step covers — worktree branch + user-notes ref. Future expansion
+  revisited only if outside-repo / non-git sync enters scope.
 - Suppression flag for the first-use `arc status` hint. Trigger-bounded by local notes ref
   existence; revisit only on real signal that the unsuppressable form is friction.
 
@@ -244,13 +323,23 @@ the existing pull mechanism. The `--offline` flag suppresses both fetches.
 
 - `packages/arc-framework/src/commands/user/sync-status.ts` — primary state-machine and rendering
   surface. State-machine unification refactors `inspectUserSyncRefsDetailed`.
-- `packages/arc-framework/src/commands/user/save-load.ts` — notes-discovery walk; switches from
-  HEAD ancestry to notes-ref history.
+- `packages/arc-framework/src/commands/user/save-load.ts` — notes-discovery walk and save
+  postcondition; switches from HEAD ancestry to notes-ref history and verifies an exact-`HEAD`
+  note before reporting save success.
 - `packages/arc-framework/src/lib/sync-policy.ts` — 3-tier resolution for `user.notes_push`.
   Migrates onto the generic resolver helper.
-- `packages/arc-framework/src/lib/config/status-reader.ts` — extend validation to read git-config
-  overrides for `arc.commitInterlock` and `arc.pushInterlock` before yaml + default.
-- `arc update` migration path — applies the `user.sync_push` → `user.notes_push` rewrite.
+- `packages/arc-framework/src/lib/config/status-reader.ts` — yaml/default validation boundary.
+  Per-developer override resolution layers above it through the R13 resolver wrapper so pure-yaml
+  callers do not gain a git-exec dependency.
+- `packages/arc-framework/src/cli.ts` + new orchestrator handler — top-level `arc sync` registers
+  as the orchestrator; existing `handleSync` migrates under `arc user sync`.
+- `packages/arc-framework/src/handlers/sync.ts` — orchestrator dispatch over the 6-cell matrix;
+  owns verified save-before-notes-push, pushability/state-gated worktree legs, and a pure
+  `--json` contract for handoff consumption.
+- `.arc/system/workflows/arc/session-lifecycle/session-handoff.md` — Push Sequence section
+  collapses to "Run `arc sync` (gated by `sync_interlock`); interpret structured output."
+- `arc update` migration path — applies the `user.sync_push` → `user.notes_push` rewrite plus
+  `session.push_interlock: on-handoff` → `on-sync` value migration.
 
 ### Cross-cutting design constraints
 
@@ -268,7 +357,7 @@ implementation must avoid:
 - **Single-line error buried in success output** — failure is visually distinct from progress
   text. Itemized two-line summaries make state scannable.
 
-These constraints inform R5 (paired-push failure), R13 (pushability pre-checks), R1
+These constraints inform R5 (paired-push failure), R14 (pushability pre-checks), R1
 (state-machine), and the rendering surfaces touched by R6 (directional copy).
 
 ### Dependencies
@@ -284,11 +373,11 @@ All upstream prerequisites have landed (archived under
 
 ### Sibling and downstream work
 
-- **Sibling plans (parallelizable):** [plan-worktree-foundation][plan-wf] (worktree-aware sync
-  semantics — either order works); [plan-coord-probe][plan-coord] (consumes the notes-discovery
+- **Sibling plans (parallelizable):** `plan-worktree-foundation.md` (worktree-aware sync
+  semantics — either order works); `plan-coord-probe.md` (consumes the notes-discovery
   fix as a branch-gone signal source).
-- **Downstream (benefit from this WU's exits):** [plan-agile-wu-lifecycle][plan-awl] and
-  [plan-concurrent-work-conventions][plan-cwc] benefit from a clean sync state machine and
+- **Downstream (benefit from this WU's exits):** `plan-agile-wu-lifecycle.md` and
+  `plan-concurrent-work-conventions.md` benefit from a clean sync state machine and
   aligned config vocabulary before adding their own axes.
 
 ### Scheduling
@@ -304,8 +393,8 @@ and config/command-shape alignment (all touch `sync-status.ts` adjacent surfaces
 rendering layer) makes a split awkward. Split-trigger is task-generation scope blowout; if
 invoked, the natural axis is **diagnostic vs. behavior**:
 
-- Diagnostic: R1, R2, R3, R6, R7, R16.
-- Behavior: R4, R5, R9, R10, R11, R12, R13, R14, R15.
+- Diagnostic: R1, R2, R3, R6, R7, R17.
+- Behavior: R4, R5, R9, R10, R11, R12, R13, R14, R15, R16.
 
 Each track is independently shippable and either order works. Decision deferred to task
 generation review.
@@ -321,8 +410,18 @@ during implementation:
   supplementation, not abstraction (R8 posture).
 - `user.notes_push: prompt` rationale (review-before-share for team mode) is the only
   non-`manual|on-X` mode worth keeping (R9 canonical shape).
-- The IF push-ordering invariant holds for all paired-push scenarios introduced here — no new
-  orderings needed (R5).
+- The IF push-ordering invariant holds for all paired-push scenarios introduced here — worktree
+  still lands before notes, with a verified current-`HEAD` notes save before the notes ref push
+  (R5).
+- `arc sync` framing as authorize-by-invocation under the `on-sync` cascade. Manual mid-session
+  `arc sync` is an explicit sync event; configured `on-sync` interlocks fire accordingly. The
+  contract names triggers (events), not occasions (handoff vs. mid-session). Confirmed during
+  design discussion 2026-05-04; the alternative (require `--handoff` flag) was rejected as
+  adding ceremony without coverage benefit.
+- The orchestrator (`arc sync`) owns cross-cutting coherence rules (R5 partial-push, R4
+  unpushed-HEAD, R15 notes-vs-worktree blocking, worktree force-push refusal at handoff).
+  Single-leg primitives stay scope-narrow; orchestrator-routed legs still consult the shared
+  pushability/state gates so alternate matrix cells cannot bypass them.
 - `lib/autonomy-policy.ts` deletion during SOF Task 2.1 was clean — verified at PRD drafting:
   no orphan references in workflows, strategies, or active code.
 
@@ -332,14 +431,21 @@ during implementation:
   recovery direction. The action hint matches the user's actual next step.
 - A worktree branch ahead of origin never produces a notes-push success against an unpushed
   commit. `arc user save` and `arc user push` either succeed coherently or block with actionable
-  guidance.
+  guidance; save success implies a verified exact-`HEAD` note.
+- Handoff `arc sync --json` emits parseable structured output only, and a cross-clone regression
+  proves current-`HEAD` session notes save, push to origin, and pull on a second machine.
 - Full-mode and session-init `arc status` agree about underlying git state across all 5 spine
   states + the partial-push condition (verified via paired-call test fixtures).
-- One config-key vocabulary across all three release-mode keys (`session.commit_interlock`,
-  `session.push_interlock`, `user.notes_push`); each supports per-dev override; old
-  `user.sync_push` rewritten cleanly by `arc update` migration.
+- One config-key vocabulary across all four release-mode keys (`session.commit_interlock`,
+  `session.push_interlock`, `session.sync_interlock`, `user.notes_push`); each supports per-dev
+  override; old `user.sync_push` rewritten cleanly by `arc update` migration.
 - User-notes command family reachable under one namespace: `arc user --help` lists `save / load /
-  push / pull / fetch / sync`. `arc sync` removed.
+  push / pull / fetch / sync`. Top-level `arc sync` becomes the orchestrator over worktree+notes
+  per `sync_interlock`; legacy notes-only `arc sync` removed (replaced by `arc user sync`).
+- `session.sync_interlock: manual` opts out of automatic handoff-time sync; handoff summary
+  surfaces unpushed state without firing pushes.
+- Three-layer cascade documented in strategy doc: each interlock's `on-X` value names its own
+  trigger event; cascade reads handoff → sync → push & notes-push.
 - Quality gates pass: markdown lint (zero violations), TypeScript type check, full Vitest suite,
   build verification.
 
@@ -347,10 +453,11 @@ during implementation:
 
 **Resolve during implementation (not blocking task generation):**
 
-- Concrete copy strings for the pushability pre-check matrix (R13), the paired-push failure
-  itemized output (R5), the first-use framing paragraph and `arc status` hint (R15), and the
-  worktree-qualifier `failureReason` lines (R7). Strings live with the code that emits them; the
-  PRD pins behavior shape per condition.
+- Concrete copy strings for the pushability pre-check matrix (R14), the paired-push failure
+  itemized output (R5), the orchestrator's matrix-cell surfaces (R10/R15), the first-use
+  framing paragraph and `arc status` hint (R16), and the worktree-qualifier `failureReason`
+  lines (R7). Strings live with the code that emits them; the PRD pins behavior shape per
+  condition.
 - Whether the `prompt` mode for `user.notes_push` should remain an opt-in convention or surface
   more prominently for team-mode adopters. Beta feedback may suggest adjustments; default
   position is opt-in / discover-via-config.
@@ -361,8 +468,3 @@ during implementation:
   scope estimate at task-generation review crosses the split-trigger threshold.
 
 ---
-
-[plan-coord]: plan-coord-probe.md
-[plan-wf]: plan-worktree-foundation.md
-[plan-awl]: plan-agile-wu-lifecycle.md
-[plan-cwc]: ../feature/plan-concurrent-work-conventions.md

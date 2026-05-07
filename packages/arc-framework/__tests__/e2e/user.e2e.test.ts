@@ -162,6 +162,41 @@ describe("user status from a subdirectory", () => {
   });
 });
 
+describe("sync orchestrator", () => {
+  let tmpDir: string;
+  let bareDir: string;
+  const tempDirs: string[] = [];
+
+  beforeEach(async () => {
+    tmpDir = await createTempRepo();
+    tempDirs.push(tmpDir);
+  });
+
+  afterEach(async () => {
+    for (const dir of tempDirs) {
+      await cleanupTempDir(dir);
+    }
+    tempDirs.length = 0;
+  });
+
+  it("default config on a clean worktree saves a user note on HEAD", async () => {
+    await initAndCommit(tmpDir);
+
+    bareDir = join(tmpDir, "sync-remote.git");
+    await git(["init", "--bare", bareDir], tmpDir);
+    await git(["remote", "add", "origin", bareDir], tmpDir);
+    const branch = await git(["branch", "--show-current"], tmpDir);
+    await git(["push", "-u", "origin", branch], tmpDir);
+
+    const result = await runArc(["sync"], tmpDir);
+
+    expect(result.exitCode).toBe(0);
+    await expect(
+      git(["notes", "--ref", "refs/notes/arc/user/test-user", "show", "HEAD"], tmpDir),
+    ).resolves.toContain("SESSION-NOTES.md");
+  });
+});
+
 describe("user push/pull portability", () => {
   let tmpDir: string;
   let bareDir: string;
@@ -188,8 +223,7 @@ describe("user push/pull portability", () => {
     expect(save.exitCode).toBe(0);
 
     // Create bare remote and add as origin
-    bareDir = join(tmpDir, "..", "bare-remote.git");
-    tempDirs.push(bareDir);
+    bareDir = join(tmpDir, "bare-remote.git");
     await git(["init", "--bare", bareDir], tmpDir);
     await git(["remote", "add", "origin", bareDir], tmpDir);
 
@@ -200,8 +234,7 @@ describe("user push/pull portability", () => {
     expect(push.exitCode).toBe(0);
 
     // Clone fresh repo from bare
-    cloneDir = join(tmpDir, "..", "fresh-clone");
-    tempDirs.push(cloneDir);
+    cloneDir = join(tmpDir, "fresh-clone");
     await git(["clone", bareDir, cloneDir], tmpDir);
 
     // Configure identity in clone

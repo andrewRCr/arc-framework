@@ -17,22 +17,31 @@ duration of this workflow.
 ## Resolve Handoff Context
 
 Open with the composite probe — single call, slot-wise envelope, per-slot error handling matching
-the session-init pattern:
+the session-init pattern. This is **probe-1**; a second invocation (**probe-2**) fires later in
+the workflow to refresh slots that the status-file commit mutates.
 
 ```bash
 arc status --session-handoff --json
 ```
 
-| Field             | Contents                                                                                                      |
-|-------------------|---------------------------------------------------------------------------------------------------------------|
-| `identity`        | `{identity, role}` — either may be `null`. `identity === null` short-circuits the notes-sync slot             |
-| `dirty`           | `{state: clean / dirty, fileCount}`. Consumed by Pre-Update Verification                                      |
-| `worktree`        | Worktree sync vs `origin/<branch>` — same state vocabulary as session-init                                    |
-| `user`            | Notes sync state (`value.state`: clean / remote-ahead / conflict / disabled / remote-unavailable)             |
-| `pushInterlock`   | `{value, source}` — push-interlock mode (`manual` requires explicit invocation; `on-handoff` fires here)      |
-| `syncPush`        | `{policy, source}` — resolved `user.sync_push` (always / prompt / manual)                                     |
-| `active`          | Active status file resolution + sessionType (same shape as session-init)                                      |
-| `head`            | `{hash: string \| null}` — current HEAD short-hash for the `Commit at Handoff` anchor                         |
+| Field                    | Contents                                                                                                              |
+|--------------------------|-----------------------------------------------------------------------------------------------------------------------|
+| `identity`               | `{identity, role}` — either may be `null`. `identity === null` short-circuits the notes-sync slot                     |
+| `branch`                 | Current branch name; `null` on detached HEAD. Resolved at handler boundary; canonical for the Confirm Handoff header  |
+| `dirty`                  | `{state: clean / dirty, fileCount}`. Re-read from probe-2 for the SESSION-NOTES "Uncommitted Work" section            |
+| `worktree`               | Worktree sync vs `origin/<branch>` — same state vocabulary as session-init. Re-read from probe-2 for unpushed counts  |
+| `user`                   | Notes sync state (`value.state`: clean / remote-ahead / conflict / disabled / remote-unavailable)                     |
+| `syncInterlock`          | `{value, source}` — gates whether this workflow auto-invokes `arc sync` (`on-handoff` fires; `manual` skips)          |
+| `active`                 | Active status file resolution + sessionType (same shape as session-init)                                              |
+| `head`                   | `{hash: string \| null}` — current HEAD short-hash. Re-read from probe-2 for the `Commit at Handoff` anchor           |
+| `pushability`            | Pushability pre-check matrix for the worktree push leg                                                                |
+| `restateCandidates`      | Structured payload backing the SESSION-NOTES restate filter — read from probe-1 (stable across step 3)                |
+| `recommendedSummaryLine` | Pre-composed top-of-Confirm-Handoff line (`**Reconcile required:** ...` / `**Worktree:** N unpushed ...` / `null`)    |
+
+**Slot freshness contract.** Probe-1 captures pre-step-3 state. The status-file commit at step 3
+mutates `worktree`, `dirty`, and `head`; those slots must be re-read from probe-2 to render
+post-step-3 truth. Other slots (`identity`, `branch`, `syncInterlock`, `active`, `user`,
+`pushability`, `restateCandidates`) are stable from probe-1.
 
 **Identity absent** (`identity.identity === null`): Skip the notes-sync slot — notes operations
 depend on identity for path resolution. Surface a warning in the handoff summary. Sessions without
@@ -42,7 +51,8 @@ identity cannot push notes.
 `git status --porcelain`, `git status -sb` (or `git rev-list --count`), `git config arc.identity`
 / `arc.role`. Note the degradation in the handoff summary.
 
-Carry slot values forward to the steps that consume them — don't re-probe.
+Carry slot values forward to the steps that consume them — don't re-probe outside the documented
+probe-1 / probe-2 points.
 
 ## What to Update
 
@@ -109,26 +119,40 @@ Update session state files before ending session:
 
     **Skill invocation is the approval.** `/arc-handoff` is user-initiated; the invocation grants
     approval for the workflow's bundled actions, including the `chore(status): handoff` commit.
-    No separate per-commit prompt fires under either push-interlock mode — the `pushInterlock.value` axis
-    governs push behavior (see § Push Sequence), where remote-side consequences justify granular
-    gating. Stage and commit unconditionally:
+    No separate per-commit prompt fires under either push-interlock mode — push behavior is gated
+    by `arc sync` internally (see § Sync), where remote-side consequences justify granular gating.
+    Stage the status file, lint it (catches authoring errors before the chore-commit lands),
+    and commit unconditionally:
 
     ```bash
     git add <resolved-status-file-path>
+    <project markdown lint on the staged file>  # fix + re-stage on failure
     git commit -m "chore(status): handoff
 
     Context: <status-file>.md (handoff)"
     ```
 
-    The new HEAD becomes the `**Commit at Handoff:**` value written in step 4. If no field
+    The new HEAD becomes the `**Commit at Handoff:**` value written in step 5. If no field
     cleared the skip threshold, the file is clean and no commit fires.
 
     Contributors (`arc.role = contributor`) skip the commit — their personal active status file at
     `.arc/user/{identity}/active/status-{name}.md` is gitignored, so the field update lands
     without staging.
-4. **Write SESSION-NOTES** per the guidance below. Record `**Commit at Handoff:**` from
-   `head.value.hash` (the probe captured pre-step-3; if step 3 fired a chore commit, run
-   `git rev-parse --short HEAD` once to refresh — the post-commit HEAD is the right anchor).
+4. **Refresh probe** — re-run the composite probe to pick up post-step-3 state:
+
+    ```bash
+    arc status --session-handoff --json
+    ```
+
+    Probe-2 carries the post-step-3 values for `worktree`, `dirty`, `head`, and
+    `recommendedSummaryLine`. Steps 5 and Confirm Handoff read those four slots from probe-2; all
+    other slots remain stable from probe-1.
+
+    When step 3 didn't fire a commit (no field cleared the skip threshold), probe-2's mutated
+    slots are identical to probe-1's — the second invocation is harmless redundancy. The
+    workflow doesn't branch on whether a commit fired.
+5. **Write SESSION-NOTES** per the guidance below. Record `**Commit at Handoff:**` from
+   probe-2's `head.value.hash` — that's the post-step-3 HEAD whether or not step 3 committed.
 
 **Update the active status file** (tracked project state, if an active WU exists):
 
@@ -172,24 +196,27 @@ session-init's sessionType inference key on this prefix. Task-list-driven workfl
 
 **Update `.arc/user/{identity}/SESSION-NOTES.md`** (personal session context — gitignored):
 
-**Audience:** The reader is the next session's agent loading from cold context. They already have
-tracked state — git log, task list, active status file, commit bodies, `notes-*.md`, PRD, constitution,
-strategies. Write only what they can't derive from any of that. The goal is signal, not length. A
-genuinely rich session may produce a longer note; a routine session produces a shorter one. Volume
-is a side effect, not a target.
+**Audience:** The next session's agent loading from cold context. They already have tracked state —
+git log, task list, status file, commit bodies, `notes-*.md`, PRD, constitution, strategies. Write
+only what they can't derive from any of that. Volume is a side effect, not a target.
 
-**The filter — include only if all three hold:**
+**Filter pipeline — apply both passes:**
 
-1. **Not carried in any tracked source.** If the fact lives in a commit body, task list,
-   `notes-*.md`, PRD, strategy, or constitution, that source is authoritative. Duplicating it here
-   creates a shadow copy that drifts.
-2. **The next session will act on it at step 0.** Orientation-relevant — it changes what the next
-   session does or checks when it loads. Not a retrospective observation you "want on record."
-3. **Missing or wrong would cost real rework.** Re-deriving from tracked state in 30 seconds is
-   not rework; a mis-interpretation costing an hour of re-debugging is.
+**Pass 1 — Cross-check `restateCandidates`.** Probe slot carries `commitsSinceHandoff`,
+`tasksClosedSinceHandoff`, and `noteFileChangesSinceHandoff` for this session. If candidate content
+paraphrases an entry, omit. Mechanical step — array-driven, not judgment. When the soft signal
+"baseline unknown" fires, skip Pass 1 and rely on Pass 2.
 
-If any of the three fails, omit. This is the same criterion Persistent Context enforces — it
-applies to every ephemeral section too.
+**Pass 2 — 3-criterion filter on the residual:**
+
+1. **Not in any durable tracked source.** PRD, strategy, constitution, plan docs, ADRs — those are
+   authoritative; duplicating creates shadow copies that drift.
+2. **Acted on at step 0.** Orientation-relevant — changes what the next session does or checks when
+   it loads. Not a retrospective observation you "want on record."
+3. **Costly if missing.** Re-deriving from tracked state in 30 seconds is not rework; a
+   misinterpretation costing an hour of re-debugging is.
+
+If any criterion fails, omit. Empty sections write `[none]`.
 
 **Template skeleton:**
 
@@ -239,79 +266,56 @@ _Remove when: [explicit trigger condition]_
 - [Context that must persist until trigger is met]
 ```
 
-**Session Type override (optional):** Add `**Session Type:**` to Handoff Metadata only when the
-next session's intent diverges from what the active status file implies — for example, status
-points to an in-progress execution WU but the next session will plan a separate concern. Absent
-(default) → session-init infers from tracked state. Don't write by default; the inference covers
-the 99% case.
+**Per-section guidance:**
 
-**Uncommitted Work:** Committed work lives in `git log`, task list checkboxes, and the status
-file's `**Last Completed:**` pointer — restating it here fails filter criterion #1 (already in
-tracked sources). Reserve this section for work the next session can only see in `git diff`. Use
-commit-level granularity so the next session can reconstruct proper atomic commits:
+- **Working On / Session Type override:** Marker vocabulary in the template. `Session Type` is
+  optional; absent → session-init infers. Set only when the next session's intent diverges from
+  what the active status file implies (e.g., status points at execution, next session will plan
+  a separate concern).
+- **Uncommitted Work:** Work the next session can only see in `git diff` — committed work is
+  already in `git log`. Use commit-level granularity so the next session can reconstruct atomic
+  commits. Map accomplishments to logical commits (what changed, which files), include task
+  numbers for `Context:` footers, note incidental work separately. Write `[none]` when everything
+  is committed (the common case after a deferred-review scope finishes). Examples:
 
-- ✅ Task 3.2.1: Added input validation to config parser (src/config.py, src/validators.py) —
-  rejects malformed YAML
-- ✅ Task 3.2.2: Updated API response schema (api/v2/schemas.py:45–67) — added nullable fields
-- ✅ Incidental: Fixed broken cross-reference in workflow doc (session-init.md)
+    - ✅ Task 3.2.1: Added input validation to config parser (src/config.py, src/validators.py) —
+      rejects malformed YAML
+    - ✅ Task 3.2.2: Updated API response schema (api/v2/schemas.py:45–67) — added nullable fields
+    - ✅ Incidental: Fixed broken cross-reference in workflow doc (session-init.md)
 
-Map accomplishments to logical commits (what changed, which files), include task numbers for
-`Context:` footers, note incidental work separately from task list work. When everything is
-committed (the common case after a deferred-review scope finishes), write `[none]`.
+- **Remaining Work Before Returning to Task List:** Off-task-list work with a known path back.
+  List all steps, not just the next. Use triple-anchor format for the return target. If the path
+  is unknown, state it: "Path unclear — will return to Task X.Y when resolved."
+- **Additional Context:** Debugging insights, decisions not in tracked state, things tried and
+  ruled out, observed risks, "currently mid-X with concrete next action Y" mid-task stops.
+  Filter applies — empty is normal.
 
-**Remaining Work Before Returning to Task List:** Only for off-task-list work when the path
-back is known. List all steps, not just the next one. Use triple-anchor format (task number +
-title + line hint) for the return target. When the path is unknown, state it: "Path unclear —
-will return to Task X.Y when resolved."
+- **Persistent Context:** Entries that survive across handoffs. Each needs an explicit removal
+  trigger (not tied to full work unit completion). Same filter as above.
 
-**Additional Context:** Supplemental information that passes the filter — debugging insights,
-decisions not in commit bodies, things tried and ruled out, constraints discovered. If nothing
-passes the filter, write `[none]`. Empty is the normal case for routine sessions.
+    - **Passes:** forward-looking constraints (terminology for an unlanded rename), un-codified
+      meta-conventions, parking references to uncommitted work visible in `git status`.
+    - **Fails:** mechanism decisions already in a plan doc's § Resolved Decisions, rules already
+      in a strategy doc, behavioral guidance already in DEV-RULES.
+    - **Anti-pattern (planning sessions):** writing an entry for every mechanism decision
+      resolved in the plan doc — Persistent Context is not a substitute for § Resolved Decisions.
+    - **Anti-pattern (future-WU drift):** activation-audit reminders inside a backlog
+      `plan-*.md` for an unactivated WU. Write them into the plan doc itself; the activating
+      session sees them naturally.
 
-**Persistent Context:** Entries that survive across handoffs. Each needs an explicit removal
-trigger (not tied to full work unit completion). Same criterion as the filter above — tracked
-state is authoritative.
+    Review at each handoff: remove entries whose triggers are met, AND entries whose information
+    is now carried in tracked state.
 
-- **Passes:** forward-looking constraints (terminology for a rename that hasn't landed),
-  un-codified meta-conventions (rules not yet in a strategy doc), parking references (to
-  uncommitted work visible in `git status`).
-- **Fails:** mechanism decisions already in a plan doc's § Resolved Decisions, architecture
-  rules already in a strategy doc, behavioral guidance already in DEV-RULES.
-- **Anti-pattern** (common during pre-PRD planning): writing a persistent-context entry for
-  every mechanism decision resolved in the plan doc. Persistent context is not a substitute
-  for the plan doc's § Resolved Decisions section.
-- **Anti-pattern** (future-WU drift): writing persistent-context entries for stale references
-  or activation-audit reminders inside a backlog `plan-*.md` for a WU that hasn't activated.
-  These don't apply to interim sessions — they apply once, when that WU activates. Write the
-  note into the plan doc itself; the activating session sees it naturally.
+**Stay-out list — when you notice yourself writing one of these, delete it:**
 
-Review at each handoff: remove entries whose triggers are met, AND entries whose information
-is now carried in tracked state.
+- Forward-looking content the next session will read when they get there (phase previews,
+  upcoming-task summaries, "things NOT to re-do" lists).
+- Process narration (debugging steps, mid-task discoveries, tooling gotchas). Codify durable
+  lessons in a strategy or QUICK-REFERENCE — not here.
+- Explanatory paragraphs where the template expects whitespace. Empty sections stay empty.
 
-**Anti-patterns — omit by name.** When you notice yourself writing one of these, delete it and
-trust the tracked source:
-
-- ❌ **Restating tracked content.** Anything already in a commit body, task list, status file,
-  or `notes-*.md` — including commit-by-commit narration, completed-task summaries, and
-  design-decision retrospectives. The next session reads tracked state first; SESSION-NOTES is
-  the delta. Cross-reference at most; don't restate.
-- ❌ **Forward-looking content the next session reads when they get there.** Phase previews,
-  upcoming-task summaries, "things NOT to re-do" lists. The task list and tracked state surface
-  this naturally at step 0 — no need to mirror them.
-- ❌ **Process narration.** "Table-width math was tight; commit-body length warnings fired
-  twice; markdown-table-prettify has a stdout gotcha." Session retrospective, not next-session
-  context. If one observation becomes a durable lesson, codify it in a strategy or
-  QUICK-REFERENCE — not SESSION-NOTES.
-- ❌ **Explanatory paragraphs where the template expects whitespace.** An empty Persistent
-  Context section is fine as empty. Don't write prose explaining why it's empty.
-
-**Minimum viable SESSION-NOTES — what belongs here:** If it doesn't fit one of these, it
-probably doesn't belong:
-
-- Things tried that didn't work (not yet captured in a commit or notes file)
-- Decisions not captured in tracked state
-- Observed risks
-- "Currently mid-X with concrete next action Y" when stopping mid-task
+(Restating tracked content is the most common failure but already excluded by Pass 1 — see the
+filter pipeline above for the full case.)
 
 ## Handoff Examples
 
@@ -380,62 +384,33 @@ Persistent Context entries that span work units; reset ephemeral sections.
 After updating session state files, verify clean markdown. If SESSION-NOTES.md is gitignored, your linter
 may skip it by default — pass the path explicitly or use an IDE-integrated linter.
 
-## Push Sequence
+## Sync
 
-**Push-ordering invariant.** When both worktree-push and notes-push fire, **worktree-push lands
-first**. Notes attach to commits that must already exist on origin — reversing the order causes
-notes-push to reference unpublished commits. Not configurable; enforced by the workflow ordering
-below. See [Session Operations Strategy][session-ops] § Push Toggles for the underlying constraint.
+Gated on `syncInterlock.value`. `arc sync` (the orchestrator) owns the matrix dispatch
+internally — push-ordering invariant, worktree+notes coherence, notes-vs-worktree blocking,
+and partial-push recovery all live in the CLI, not in workflow prose. See [Session Operations
+Strategy][session-ops] § Push Toggles for the underlying model.
 
-### Worktree Push
+- **`on-handoff`** (default) — auto-invoke and consume the structured output:
 
-Gated on `pushInterlock.value` and `worktree.value.state`. The probe captured the
-worktree slot pre-step-3, so derive the unpushed count locally:
-`N = worktree.value.ahead + (1 if step 3 fired a chore commit, else 0)`. The agent knows whether
-step 3 committed — no re-probe needed. `N` is the source of truth for both the push gate and the
-surface message.
+    ```bash
+    arc sync --json
+    ```
 
-- `on-handoff`: run `git push` when `N > 0`. No ask — handoff invocation is the approval.
-- `on-handoff` + `worktree.value.state` is `remote-ahead` / `diverged`: skip the push;
-  surface in the handoff summary as `Reconcile required:` — manual rebase or merge needed before
-  pushing (step 3's commit, if any, can't fast-forward in this state).
-- `manual` (default): skip the push action. The user pushes when ready. Surface
-  unpushed commits in the handoff summary as a one-line note (`Worktree: N unpushed commit(s) on
-  {branch}`) whenever `N > 0`.
+  The orchestrator probes worktree state, notes state, `push_interlock`, and `notes_push`;
+  routes the resulting matrix cell through `runPairedPush` (paired) or single-leg primitives
+  (worktree-only, notes-only, notes-blocked, save-only, prompt). Worst-outcome exit code;
+  itemized leg outcomes in the JSON envelope's `cell`, `worktree`, `notes`, `exitCode`,
+  optional `reconcile`, and `recommendedSummaryLine` fields. Surface the result per § Confirm
+  Handoff.
 
-### Notes Push
+- **`manual`** — skip the auto-invoke. The user runs `arc sync` (or single-leg commands) when
+  ready. Probe-2's `recommendedSummaryLine` carries the unpushed / Reconcile surface (see §
+  Confirm Handoff).
 
-After worktree push (whether fired or skipped), run `arc sync` — resolves `syncPush.value.policy`:
-
-```bash
-arc sync
-```
-
-- **`always`**: saves and pushes in one step.
-- **`prompt`**: saves, then asks before pushing. In non-interactive environments (CI, no TTY),
-  degrades to `manual` with a warning rather than hanging on the prompt.
-- **`manual`**: saves only; the user pushes later with `arc user push`.
-
-For manual control outside of handoff (ad-hoc save, push, or force-push), `arc user save`,
-`arc user push`, and `arc user push --force` remain available. In non-interactive or
-confirmation-free reruns, `arc sync --yes` skips overwrite prompts.
-
-**Error handling:** The CLI surfaces sync errors interactively — follow its guidance. Common cases:
-
-- **Push rejected (non-fast-forward)** — CLI offers force-push or merge-rebase; choose per which
-  side is authoritative.
-- **Missing remote** — local save completed; push later when `origin` is configured.
-- **Pull warning (local changes)** — CLI confirms before overwriting unsaved notes.
-
-**Surface the outcome in the handoff summary.** After `arc sync` returns, the agent must report
-whether the save and push succeeded — check the exit code and include a one-line result in the
-end-of-session summary (e.g., "session state synced to remote" or "sync failed, state preserved
-locally — re-run `arc sync` after resolving"). The CLI's interactive output is easy to miss when
-scrolling or in non-TTY contexts; an explicit outcome line prevents the "work didn't land but
-user thought it did" failure mode.
-
-If save itself fails (empty user directory, filesystem permissions), the session state is only in
-SESSION-NOTES.md on disk. Resolve the issue and re-run `arc user save`.
+**Identity absent** (`identity.identity === null`): skip the auto-invoke regardless of
+`syncInterlock.value` — `arc sync` requires identity for the notes leg. Probe-2's
+`recommendedSummaryLine` still composes from worktree state.
 
 ## Confirm Handoff
 
@@ -444,24 +419,26 @@ This is a quick confirmation for the human — the session state files are the d
 
 **ARC session handoff complete** · `{branch-name}` · {clean | uncommitted changes}
 
-**Sync:** {synced to remote | sync failed — re-run `arc sync` after resolving}
+**Sync:** one of (read from `arc sync --json`'s envelope when sync ran; otherwise per the
+skip arms):
+
+- `synced to remote` — sync ran, at least one leg has `action: "push"` with
+  `result: "success"` (worktree, notes, or both).
+- `saved locally — no remote push fired` — sync ran with `exitCode: 0` but no leg pushed
+  (save-only cell, notes-blocked path, or every leg `noop`/`skipped`/`blocked`).
+- `sync failed — re-run \`arc sync\` after resolving` — sync ran and returned non-zero.
+- `skipped (sync_interlock: manual). Run \`arc sync\` when ready.` — auto-invoke skipped per
+  config.
+- `skipped (no identity). Configure \`arc.identity\` to enable notes sync.` —
+  identity-absent fallback.
 
 **Next session:** [Task list pointer (on-task-list) or freeform (off-task-list)]
 
-**Conditional top-level sections** — prepend above `**Sync:**` when applicable:
-
-- `N > 0` per Push Sequence formula and push did not fire (`manual`, or `on-handoff` skipped):
-
-  ```text
-  **Worktree:** N unpushed commit(s) on `{branch}`.
-  ```
-
-- `worktree.value.state === "diverged"`:
-
-  ```text
-  **Reconcile required:** `{branch}` diverged from `origin/{branch}` ({ahead} ahead, {behind}
-  behind). Manual rebase or merge needed before pushing.
-  ```
+**Conditional top-level section** — when `recommendedSummaryLine` is non-null, prepend it
+verbatim above `**Sync:**`. Read from `arc sync --json`'s envelope when sync ran
+(`syncInterlock.value === "on-handoff"` and identity present); read from probe-2 otherwise
+(manual mode or identity absent). Both surfaces compose from canonical state — no agent-side
+counting or dispatch.
 
 **Formatting guidance:**
 

@@ -68,10 +68,23 @@ arc:
        - **No inline dates**: Don't add completion dates to individual tasks (e.g., "Completed: 2025-11-02"). Inline
          dates become temporal noise during archival. WU-level completion date lives on the completion doc's
          `**Completed:**` field; no task list or per-task date stamp is expected.
-       - **Completion notes — content discipline.** At task completion, **replace** pre-completion descriptors
-         (Goal, Note, Rationale, Approach, Context, Design decisions) with a single outcome record. Don't
-         accumulate plan AND outcome — the historical record needs only what was done. Outcome content is
-         optional when the task title carries the work; not every `[x]` requires a notes block.
+       - **Completion notes — content discipline.** At `[x]`, **`_Goal:_` is preserved verbatim**.
+         **Replace** pre-completion peer descriptors (`_Note:_`, `_Rationale:_`, `_Approach:_`,
+         `_Context:_`, `_Shape:_`) and Goal-children (description bullets, Build test-first lists)
+         with a single `_Outcome:_` bullet at root — peer to Goal, **placed after the subtasks**
+         (Goal opens; Outcome closes from below). Don't accumulate plan AND outcome.
+
+         **Add an Outcome only when it earns signal** — one of: **synthesis** (emerges from the
+         union of subtasks; not in any one subtask's notes), **verification** (non-trivial closure
+         of the Goal loop, not a hollow mirror), or **cross-cutting impact** (downstream consequence
+         spanning subtasks). Test: would a reviewer lose anything they couldn't derive from subtask
+         notes or Goal? No → skip.
+
+         **Granularity:** at most one Outcome per closing cascade, at the deepest parent whose
+         scope matches the work-unit-of-this-commit. Ancestors that mechanically `[x]` from cascade
+         take no new Outcome.
+
+         See [strategy-task-list-formatting § Goal/Note Lines][strat-tlf] for full pre/post shape.
 
          **Include:** what changed (key files/symbols when not obvious from the title); decisions worth
          preserving — only when the choice would surprise a reader; cross-references to the commit, ADR, or
@@ -108,9 +121,11 @@ arc:
              `Commit and proceed` (when `session.commit_interlock: on-task-approval`).
            - **Target:** `to Task X.Y` (next task in phase) · `to Phase N+1, Task N+1.1` (current
              task ends the phase) · `to integrate-work-unit` (verification complete — WU end).
-       - **Response semantics:** Short affirmative as first word ("y", "yes", "ok") advances.
-         Redirect syntax preserved — `y, also <X>` and `y; <redirect>` advance while folding in
-         the addendum.
+       - **Response semantics:** Short affirmative ("y", "yes", "ok") as first word advances.
+         Under `Commit and proceed`, the affirmative covers both halves; `y; <redirect>` keeps
+         the commit and replaces only the advancement target (handoff, deferred range, and
+         integrate are all valid retargets). A redirect that questions just-finished work
+         (`y; hold the commit`, `y; revisit X first`) breaks the bundle — pause and ask.
        - **Implied permission:** User approval ("looks good", "proceed") implies permission to
          continue to the next task UNLESS explicitly stated otherwise. Address any stated concerns
          before moving on.
@@ -190,11 +205,11 @@ arc:
      User may choose to commit changes or request modifications. Under
      `session.commit_interlock: manual`, task approval advances work only; committing remains an
      explicit user-invoked action. Under `on-task-approval`, the commit-interlock releases on task
-     approval per [Configurability Architecture Strategy][config-arch] § Session interlocks.
-     Under `session.commit_interlock: on-task-approval`, on approval signal, release the
-     commit-interlock per [arc-commit § Step 2-6][arc-commit-skill]. Complexity criteria from
-     § Step 2 bump to manual-with-prompt rather than invoking prepare-commits silently.
-     When committing, follow the [prepare-commits workflow](supplemental/prepare-commits.md).
+     approval per [Configurability Architecture Strategy][config-arch] § Session interlocks; on
+     approval signal, invoke the [arc-commit skill][arc-commit-skill] — it owns the
+     simple-vs-complex path decision and loads the format methods. After the commit lands, start
+     the bundle's named target immediately without re-prompting. Complexity criteria bump to
+     manual-with-prompt rather than invoking prepare-commits silently.
 
      **Atomicity check (before staging):** Do all changes serve one logical concern? When in
      doubt, split and ask. See [Commit Discipline][dev-rules-arc].
@@ -287,3 +302,4 @@ updates**. Always update the task list file before reporting completion.
 [team-coordination]: ../../../reference/strategies/arc/strategy-team-coordination.md
 [arc-commit-skill]: ../../skills/arc-commit/SKILL.md
 [session-ops]: ../../../reference/strategies/arc/strategy-session-operations.md
+[strat-tlf]: ../../../reference/strategies/arc/strategy-task-list-formatting.md

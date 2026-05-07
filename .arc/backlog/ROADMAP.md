@@ -176,7 +176,7 @@ runs per `notes-interlock-foundation.md` (archived).
 - PR: <https://github.com/andrewRCr/arc-framework/pull/25>
 - Upstream: Interlock Foundation (shipped — PR #23)
 
-**User Sync UX Polish** — Planning (activated 2026-05-01)
+**User Sync UX Polish** — In Progress (activated 2026-05-02)
 
 State-machine unification (collapse full-mode and session-init notes-sync probes to one spine),
 directional copy audit across `arc status` output, notes-discovery fix (HEAD-independent walk so
@@ -189,7 +189,8 @@ consolidated state machine and directional copy, rather than re-touching churned
 atomic fix for the `arc user fetch` prompt removal lands in the Session-Init Optimization WU;
 this WU handles the architectural work.
 
-- Plan: `active/technical/plan-user-sync-ux.md`
+- PRD: `active/technical/prd-user-sync-ux.md`
+- Task List: `active/technical/tasks-user-sync-ux.md`
 - Upstream: Session-Init Optimization (atomic fetch-prompt fix, lean session-init substrate),
   Session-Operational Flow Phase 6 (handoff-interior toggle framework — substrate for auto-push
   implementation)

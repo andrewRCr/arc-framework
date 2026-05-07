@@ -3314,6 +3314,17 @@ flags provide explicit paths regardless.
 
 **Equal-weight deliverable — scoped in alongside ARC Lite.**
 
+> **Forward-compat note (added 2026-05-02):** A backend storage tier captured in
+> `plan-arc-backend.md` shares substantial structural concerns with Local mode — materialization,
+> sync state machine, project-ID resolution, re-clone recovery, failure handling. Local was
+> designed before the backend tier was recognized as a target; specific decisions (per-developer
+> backing store as non-bare git repo, `arcd backing` command shape, sync firing points,
+> failure-class taxonomy) may or may not generalize cleanly to multi-user. **At Local's
+> PRD-promotion time, scope a storage-abstraction sketch as part of that work** to validate
+> Local's implementation choices against backend-tier composability. See `plan-arc-backend.md`
+> § Local Mode Composition for the discipline statement and `strategy-storage-evolution.md`
+> § Holistic Design Touchpoints for the joint-attention surface.
+
 ### Purpose
 
 Local mode enables ARC in repositories where the developer doesn't control the tracked space — work

@@ -47,6 +47,12 @@ export interface WorktreeSyncStatusResult {
   /** Remote commits not in local. Always 0 outside healthy states. */
   behind: number;
   /**
+   * Current branch name resolved via `getCurrentBranch`. `null` for detached
+   * HEAD or any failure to resolve. Populated on every return arm including
+   * `skipped` so callers don't need their own branch-resolution helper.
+   */
+  branch: string | null;
+  /**
    * Distinguishes failure modes when `state` is `remote-unavailable`.
    * Omitted for all other states.
    */
@@ -76,13 +82,17 @@ export async function runWorktreeSyncStatus(
 ): Promise<WorktreeSyncStatusResult> {
   const { exec, remoteSyncEnabled, fetchTimeoutMs = DEFAULT_FETCH_TIMEOUT_MS } = options;
 
+  // Resolve branch up-front so every return arm — including the disabled-sync
+  // short-circuit — can carry it. Callers consolidate on this single source of
+  // truth instead of running parallel `git rev-parse` helpers.
+  const branch = await getCurrentBranch(exec);
+
   if (!remoteSyncEnabled) {
-    return { state: "skipped", ahead: 0, behind: 0 };
+    return { state: "skipped", ahead: 0, behind: 0, branch };
   }
 
-  const branch = await getCurrentBranch(exec);
   if (branch === null) {
-    return { state: "detached-head", ahead: 0, behind: 0 };
+    return { state: "detached-head", ahead: 0, behind: 0, branch: null };
   }
 
   const upstream = await getUpstream(exec);
@@ -92,6 +102,7 @@ export async function runWorktreeSyncStatus(
       state: hasOrigin ? "no-upstream" : "no-remote",
       ahead: 0,
       behind: 0,
+      branch,
     };
   }
 
@@ -101,12 +112,13 @@ export async function runWorktreeSyncStatus(
       state: "remote-unavailable",
       ahead: 0,
       behind: 0,
+      branch,
       failureReason: fetchOutcome,
     };
   }
 
   const counts = await countAheadBehind(exec, branch);
-  return { state: classifyState(counts), ...counts };
+  return { state: classifyState(counts), ...counts, branch };
 }
 
 async function boundedFetch(

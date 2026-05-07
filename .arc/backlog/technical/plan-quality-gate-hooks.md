@@ -44,12 +44,12 @@ This matters now because:
 
 ## Relationship to Interlock Model Frame
 
-[ADR-016][adr-016] / [plan-session-operational-flow][plan-ops] establishes configurable autonomy
-**interlocks** for session-operational flow at four architectural junctions: task, commit, push,
-integration. The two plans share **junction prefixes** (`commit-`, `push-`, `integration-`) but
-attach different concerns at each junction:
+[ADR-016][adr-016] established configurable autonomy **interlocks** for session-operational flow at
+four architectural junctions: task, commit, push, integration (delivered via the Session-Operational
+Flow WU, May 2026). This plan and the shipped interlock model share **junction prefixes** (`commit-`,
+`push-`, `integration-`) but attach different concerns at each junction:
 
-| Junction       | Autonomy concern (session-flow plan) | Validation concern (this plan)                    |
+| Junction       | Autonomy concern (interlock model)   | Validation concern (this plan)                    |
 |----------------|--------------------------------------|---------------------------------------------------|
 | commit         | commit-interlock (approval hold)     | commit-gate (deadline for fast checks)            |
 | push           | push-interlock (approval hold)       | push-gate (deadline for medium checks)            |
@@ -66,11 +66,12 @@ Impacts on scope:
   a junction in the linear stack. Hook placement still gains a pre-handoff stage for session-close
   validation (status-file rotation validity, git-notes consistency, worktree cleanliness) —
   attaching as a hook stage on the ceremony, parallel to commit/push/integration gates.
-- **Interaction with configurable autonomy modes.** When auto-commit / auto-push modes ship, hook
-  invocation timing changes slightly — hooks fire as part of the cascade rather than as standalone
-  gates. The cascade-visibility requirement from ADR-016 means hook output remains visible to the
-  user even under auto modes. Plan needs to confirm hook behavior composes cleanly with cascade
-  semantics.
+- **Interaction with shipped autonomy modes.** Under the shipped interlock-release cascades
+  (`commit_interlock: on-task-approval`, `push_interlock: on-sync`, `sync_interlock: on-handoff`,
+  etc.), hook invocation timing changes slightly — hooks fire as part of the cascade rather than as
+  standalone gates. The cascade-visibility requirement from ADR-016 means hook output remains visible
+  to the user even under cascade modes. Plan needs to confirm hook behavior composes cleanly with
+  cascade semantics.
 - **Tier-rename framing decoupled from autonomy-vocab alignment.** The original motivation for
   renaming Tier 1/2/3 partly rode on shared "gate" vocabulary with the autonomy plan. With that
   alignment dissolved, the rename's case stands on its own merits — and on inspection, the rename
@@ -111,8 +112,8 @@ get the pre-push stage wired up.
 
 **Pre-handoff hook as new stage (interlock-model integration).** Additional hook placement for
 handoff ceremony: session-close validation before handoff artifacts are finalized. Config-gated via
-`hooks.pre_handoff` (naming TBD at PRD, aligned with autonomy-axis naming from
-[plan-session-operational-flow][plan-ops]). Complements commit-gate and push-gate checks with
+`hooks.pre_handoff` (naming TBD at PRD, aligned with the shipped autonomy-axis naming under
+`session.*_interlock` in `arc-config.yml`). Complements commit-gate and push-gate checks with
 handoff-specific validation — e.g., status-file rotation validity, git-notes consistency, worktree
 cleanliness.
 
@@ -144,6 +145,29 @@ eventual docs-site placement. Not live framework reference docs; those stay stac
 **This repo's own adoption** — route to `user/andrew/ATOMIC-INBOX.md` as a separate atomic task
 after this WU's framework-level design lands. Mechanical configuration: wire lint-staged into our
 existing husky setup to dogfood the new dispatch method. Not a framework-delivery concern.
+
+**Gate-coverage drift detection.** Configured gate commands drift over time as projects add new scripts —
+additional typecheck variants (production vs. test tsconfig), evolving lint surfaces, separate test tiers.
+Initial-setup captures the configured set at one moment; nothing re-checks coverage as the project grows.
+Promoted to a first-class deliverable based on three confirmed recurrences in this repo's self-hosting
+codebase (2026-04-23 eslint+typecheck, 2026-05-05 `typecheck:test` not wired locally, 2026-05-06
+`typecheck:test` on test-mock signature) — the pattern is real, not hypothetical. Deliverable: an
+`arc check-gates` audit that compares detected ecosystem scripts (npm `package.json` scripts; equivalents
+for other ecosystems) against configured gate commands and flags omissions. Re-runnable any time;
+initial-setup invokes it implicitly. PRD finalizes cross-ecosystem detection heuristics and the
+false-positive boundary (which detected scripts are gate-relevant vs. not).
+
+**Audit and consolidate workflow-embedded quality-gate triggers.** Before PRD, sweep
+`.arc/system/workflows/**` for quality-gate steps embedded in workflow prose — don't trust any existing
+inventory. Catalog each (workflow + step + gate type + scope) and decide per item whether the new
+dispatch model subsumes it. Consolidation criterion: mechanical-and-now-hook-covered → remove from
+workflow; human-judgment-gated or scope-the-hook-can't-see → keep in workflow. Known triggers as of this
+WU: `session-handoff.md` step 3's status-file markdown lint substep (added as stopgap during
+user-sync-ux); `3_process-task-loop.md`'s Tier 1 / Tier 2 invocations; `verify-work-unit.md`'s Tier 3
+invocation. The catalog likely surfaces more. Cross-reference inbox during catalog: known downstream
+consumers in `user/andrew/ATOMIC-INBOX.md` (this-repo-scope) are the lint-staged adoption migration and
+the custom under-wrap markdownlint rule — neither migrates into this plan, but both are downstream of
+whatever shape this plan ships.
 
 ### Out of scope
 
@@ -244,6 +268,13 @@ No external research blockers remain before PRD drafting.
   accumulate. If the method becomes crowded in practice, revisit splitting.
 - Auto-re-stage behavior is safe when combined with ARC's existing structural CHECKs. Needs test
   coverage ensuring re-staged fixes don't re-trigger or loop.
+- **`arc check-gates` audit heuristics.** The drift-detection deliverable is now in scope (see § Scope >
+  In scope > Gate-coverage drift detection); three recurrences in this repo's self-hosting codebase
+  (2026-04-23, 2026-05-05, 2026-05-06 — all variants of "test typecheck never wired to local enforcement")
+  closed the "is this real?" question. Open at PRD time: cross-ecosystem detection (npm `package.json`
+  scripts vs. cargo `Cargo.toml` aliases vs. Make targets vs. justfile recipes), the heuristic for
+  classifying detected scripts as gate-relevant vs. not (false-positive surface), and surfacing cadence —
+  re-runnable command vs. opportunistic warning at session-init or push-gate dispatch.
 
 ## Scope Estimate
 
@@ -255,29 +286,30 @@ Rough breakdown:
 - Pre-push hook + structural CHECK + two-copy sync: 0.5-1 day.
 - Method extension + dispatch logic + tests: 1 day.
 - Initial-setup bootstrap workflow edit + tests: 0.5 day.
+- `arc check-gates` audit command + cross-ecosystem detection + tests: 1-1.5 days.
 - Docs-content-sweep routing entry: 0.25 day.
 - Config schema update + CI audit updates: 0.5 day.
 - Repo dogfooding (lint-staged wiring in atomic inbox — sibling task, not counted here).
 
 **Dependencies:**
 
-- **[plan-session-operational-flow][plan-ops] Phase 1 (constitutional foundation) must land first** so
-  the interlock-model vocabulary and architectural-junction naming are formally canonicalized before
-  this plan's tier-vocabulary rework. Phase 3 (config surface) landing first is preferred — the
-  autonomy-axis naming influences `hooks.pre_push` / `hooks.pre_handoff` config shape and avoids
-  retroactive churn.
-- Session-Init Optimization must land first — overlapping edits on DEV-RULES.ARC, session-init.md, and
-  `quality-gate-commands.md` would conflict with ongoing audit work.
+- **Session-Operational Flow** — shipped May 2026. Interlock-model vocabulary and architectural-junction
+  naming are canonical; the `session.*_interlock` config surface in `arc-config.yml` is the
+  authoritative reference for `hooks.pre_push` / `hooks.pre_handoff` config shape. Prerequisite met.
+- **Session-Init Optimization** — shipped. DEV-RULES.ARC / session-init.md / quality-gate-commands.md
+  edits no longer conflict with active audit work. Prerequisite met.
+- **ADR-014 (hook-manager detection)** — in place; prerequisite met.
 - User Sync UX Polish landing first is preferred — both are pre-1.0 polish; reduces overlap on shared
   adopter-facing surfaces (`arc-config.yml`, DEV-RULES, `arc status`).
-- Work-Unit Mobility landing first is preferred — its session-init orientation and status-file template
-  edits overlap with surfaces this WU also touches. Clean separation.
-- ADR-014 (hook-manager detection) is already in place — prerequisite met.
+- Worktree Foundation landing first is preferred — session-init orientation and worktree-mechanism
+  surfaces overlap with surfaces this WU also touches. Clean separation.
+- Agile WU Lifecycle landing first — gate-tier mapping per WU tier is a PRD input for this plan; the
+  tier model needs to canonicalize before tier-vocabulary rework lands.
 - Landing before ARCd Rebrand means rebrand picks up the new tier vocabulary in its bulk rename
   pass, avoiding double-churn (same argument as User Sync UX Polish).
 
-**Scheduling:** After plan-session-operational-flow Phases 1-3 land, after Work-Unit Mobility, before
-ARCd Rebrand. Pre-1.0 polish window.
+**Scheduling:** After Worktree Foundation and Agile WU Lifecycle. Before ARCd Rebrand. Pre-1.0 polish
+window.
 
 **Pre-approved split at PRD-drafting time:** If the chosen tier-vocabulary rework (Path A or B per
 § Alternatives) proves to touch more surface than anticipated, split into:
@@ -292,4 +324,3 @@ Both halves are independently valuable. Keep unified if the rework stays managea
 ---
 
 [adr-016]: ../../reference/adr/adr-016-configurable-autonomy-interlocks-for-session-operations.md
-[plan-ops]: plan-session-operational-flow.md

@@ -33,6 +33,17 @@ export {
 } from "./dirty-state.js";
 
 export {
+  runPushabilityStatus,
+  type AccessFn,
+  type PushabilityCondition,
+  type PushabilityConditionKind,
+  type PushabilityDisposition,
+  type PushabilityResult,
+  type PushabilityTarget,
+  type RunPushabilityStatusOptions,
+} from "./pushability.js";
+
+export {
   runHeadHashStatus,
   type HeadHashResult,
   type RunHeadHashStatusOptions,
@@ -47,6 +58,7 @@ export {
 export {
   isAllowedFile,
   isExcludedFile,
+  isSafeManifestPath,
   serialize,
   deserialize,
   MAX_FILE_SIZE,

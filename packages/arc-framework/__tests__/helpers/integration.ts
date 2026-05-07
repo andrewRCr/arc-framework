@@ -77,7 +77,7 @@ export async function createTempRepo(
   prefix = "arc-test-",
 ): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), prefix));
-  await execFileAsync("git", ["init", dir]);
+  await execFileAsync("git", ["init", "--initial-branch=main", dir]);
   await execFileAsync("git", ["config", "user.email", "test@test.com"], {
     cwd: dir,
   });
@@ -397,7 +397,7 @@ export async function makeCommit(cwd: string, message: string): Promise<string> 
 /** Create a bare remote repo and add it as origin to the working repo. */
 export async function addBareRemote(cwd: string): Promise<string> {
   const remoteDir = await mkdtemp(join(tmpdir(), "arc-remote-"));
-  await execFileAsync("git", ["init", "--bare", remoteDir]);
+  await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remoteDir]);
   await execFileAsync("git", ["remote", "add", "origin", remoteDir], { cwd });
   await execFileAsync("git", ["push", "-u", "origin", "HEAD"], { cwd });
   return remoteDir;

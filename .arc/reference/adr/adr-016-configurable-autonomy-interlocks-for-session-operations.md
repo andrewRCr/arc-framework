@@ -239,10 +239,32 @@ timing, and keep session handoff as an orthogonal ceremony rather than introduci
 This is a configuration-shape amendment, not a reversal of the decision. The interlock stack, structured
 approval prompts, handoff-only push release, and invariant integration-interlock remain unchanged.
 
+**2026-05-06 — Sync-interlock split and `on-X` vocabulary alignment.** User Sync UX work split
+the push-release event into two layers and aligned the value enum with the framework-wide
+`manual | on-X` shape (where `X` names the trigger event):
+
+- **`session.sync_interlock: manual | on-handoff`** (default `on-handoff`). New configurable
+  interlock. Gates whether session handoff invokes `arc sync` as part of the handoff ceremony,
+  or surfaces unpushed state without firing.
+- **`session.push_interlock: manual | on-sync`** (default `manual`). Value rename: `on-handoff` →
+  `on-sync`. Push now releases on an `arc sync` event — handoff-driven sync (via
+  `session.sync_interlock: on-handoff`), or explicit mid-session `arc sync` invocation.
+- **`user.notes_push: manual | on-sync`** (with `prompt` opt-in for team mode). Renamed from
+  `user.sync_push` and reshaped from `always | prompt | manual`. Releases under the same `on-sync`
+  trigger as the push interlock.
+
+Cascade: handoff event → sync, sync event → push and notes-push. Each interlock's `on-X` value
+names its own trigger; `manual` at any layer halts the cascade at that point. `arc sync` running
+mid-session is an explicit sync event — authorize-by-invocation. The interlock model and the
+handoff-as-orthogonal-ceremony posture are unchanged; this amendment refines the configuration
+surface so the cascade graph reads off config alone.
+
+This is a configuration-shape amendment, not a reversal of the decision.
+
 ---
 
 [dev-rules-arc]: ../constitution/DEV-RULES.ARC.md
-[plan-sync]: ../../active/technical/plan-user-sync-ux.md
+[plan-sync]: ../../active/technical/prd-user-sync-ux.md
 [plan-hooks]: ../../backlog/technical/plan-quality-gate-hooks.md
 [plan-wf]: ../../backlog/technical/plan-worktree-foundation.md
 [plan-cwc]: ../../backlog/feature/plan-concurrent-work-conventions.md

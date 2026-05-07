@@ -7,7 +7,7 @@
 import * as p from "@clack/prompts";
 import { unlink, rmdir } from "node:fs/promises";
 
-import { runJoin, runJoinReconfigure } from "../commands/join.js";
+import { runJoin, runJoinReconfigure, buildPostJoinMessage } from "../commands/join.js";
 import type { JoinPromptResult } from "../commands/join.js";
 import { runJoinPrompts } from "../prompts/join-prompts.js";
 import { validateTools } from "../lib/skills/index.js";
@@ -108,15 +108,7 @@ export async function handleJoin(opts: JoinOptions): Promise<void> {
 
     spinner.stop("Workspace setup complete.");
 
-    const lines: string[] = [];
-    lines.push(`Joined as ${result.role}.`);
-    if (result.tools.length > 0) {
-      lines.push("");
-      lines.push(
-        "Next: Restart your AI tool so the new /arc-resume skill is available, then run it.",
-      );
-    }
-    p.note(lines.join("\n"), "What's next");
+    p.note(buildPostJoinMessage(result), "What's next");
   } catch (err) {
     spinner.stop("Setup failed.");
     if (isHandledError(err)) return;

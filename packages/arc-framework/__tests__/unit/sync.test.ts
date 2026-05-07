@@ -1,5 +1,5 @@
 /**
- * Unit tests for the sync handler.
+ * Unit tests for the `arc user sync` handler.
  *
  * Covers the sync direction matrix, conflict prompting, and push policy
  * handling on the push path.
@@ -31,6 +31,7 @@ const mockInspectUserSyncState = vi.fn();
 const mockRunUserLoad = vi.fn();
 const mockRunUserSave = vi.fn();
 const mockRunUserPull = vi.fn();
+const mockRecordPartialPushMarker = vi.fn();
 const mockHasLocalNotes: Mock<(...args: unknown[]) => Promise<boolean>> = vi.fn();
 const mockBuildSaveSummary: Mock<(result: unknown) => string> = vi.fn(() => "save summary");
 const mockBuildLoadSummary: Mock<(result: unknown) => string> = vi.fn(() => "load summary");
@@ -45,6 +46,8 @@ vi.mock("../../src/commands/user.js", async () => {
     runUserLoad: (opts: unknown) => mockRunUserLoad(opts),
     runUserSave: (opts: unknown) => mockRunUserSave(opts),
     runUserPull: (opts: unknown) => mockRunUserPull(opts),
+    recordPartialPushMarker: (cwd: unknown, io: unknown, identity: unknown) =>
+      mockRecordPartialPushMarker(cwd, io, identity),
     hasLocalNotes: (...args: unknown[]) => mockHasLocalNotes(...args),
     buildSaveSummary: (result: unknown) => mockBuildSaveSummary(result),
     buildLoadSummary: (result: unknown) => mockBuildLoadSummary(result),
@@ -52,8 +55,8 @@ vi.mock("../../src/commands/user.js", async () => {
 });
 
 const mockResolvePolicy = vi.fn();
-vi.mock("../../src/lib/sync-policy.js", () => ({
-  resolveSyncPushPolicy: (opts: unknown) => mockResolvePolicy(opts),
+vi.mock("../../src/lib/config/resolved-settings.js", () => ({
+  resolveNotesPushPolicy: (opts: unknown) => mockResolvePolicy(opts),
 }));
 
 const mockReadConfigSettings = vi.fn();
@@ -68,8 +71,7 @@ vi.mock("../../src/lib/git/worktree-sync.js", () => ({
 
 const mockPushWithRecovery = vi.fn();
 vi.mock("../../src/handlers/push-recovery.js", () => ({
-  pushWithInteractiveRecovery: (io: unknown, identity: unknown, cwd: unknown) =>
-    mockPushWithRecovery(io, identity, cwd),
+  pushWithInteractiveRecovery: (opts: unknown) => mockPushWithRecovery(opts),
 }));
 
 const mockResolveUserIdentity = vi.fn();
@@ -79,13 +81,14 @@ vi.mock("../../src/handlers/shared.js", () => ({
   isHandledError: () => false,
   isNonInteractiveEnvironment: () => mockIsNonInteractive(),
   requireArcProjectRoot: () => process.cwd(),
+  resolveCurrentBranchName: async () => "feature/x",
 }));
 
 vi.mock("../../src/lib/io-context.js", () => ({
   createUserIOContext: () => ({ exec: vi.fn(), readFile: vi.fn() }),
 }));
 
-const { handleSync, decideSyncAction } = await import("../../src/handlers/sync.js");
+const { handleUserSync, decideSyncAction } = await import("../../src/handlers/user-sync.js");
 const { UserSaveError } = await import("../../src/commands/user.js");
 
 function setSyncState(
@@ -104,7 +107,15 @@ function setSyncState(
           : "remote unavailable";
   const diskStatus = options.diskStatus
     ?? (diskState === "same" ? "current" : "local unsaved");
+  const spineState = refState === "remote-ahead"
+    ? "remote-ahead"
+    : refState === "diverged"
+      ? "conflict"
+      : refState === "remote-unavailable"
+        ? "remote-unavailable"
+        : "clean";
   mockInspectUserSyncState.mockResolvedValue({
+    spineState,
     refState,
     diskState,
     remoteStatus,
@@ -113,8 +124,8 @@ function setSyncState(
   });
 }
 
-function setPolicy(policy: "always" | "prompt" | "manual") {
-  mockResolvePolicy.mockResolvedValue({ policy, source: "default" });
+function setPolicy(policy: "on-sync" | "prompt" | "manual") {
+  mockResolvePolicy.mockResolvedValue({ value: policy, source: "default" });
 }
 
 /**
@@ -127,14 +138,16 @@ function resetMockDefaults() {
   mockSpinner.mockImplementation(() => ({ start: vi.fn(), stop: vi.fn() }));
   mockBuildSaveSummary.mockReturnValue("save summary");
   mockBuildLoadSummary.mockReturnValue("load summary");
+  mockRecordPartialPushMarker.mockResolvedValue(true);
   // Default: remote_sync enabled, worktree clean — qualifier silent.
   mockReadConfigSettings.mockResolvedValue({ settings: { "session.remote_sync": "enabled" } });
-  mockRunWorktreeSyncStatus.mockResolvedValue({ state: "clean", ahead: 0, behind: 0 });
+  mockRunWorktreeSyncStatus.mockResolvedValue({ state: "clean", ahead: 0, behind: 0, branch: "main" });
 }
 
 describe("decideSyncAction", () => {
   it("maps the shared sync model to noop/push/pull/load/conflict", () => {
     expect(decideSyncAction({
+      spineState: "clean",
       refState: "same",
       diskState: "same",
       remoteStatus: "in sync",
@@ -142,6 +155,7 @@ describe("decideSyncAction", () => {
       unsavedDirection: null,
     })).toBe("noop");
     expect(decideSyncAction({
+      spineState: "clean",
       refState: "same",
       diskState: "different",
       remoteStatus: "in sync",
@@ -149,6 +163,7 @@ describe("decideSyncAction", () => {
       unsavedDirection: "edits",
     })).toBe("push");
     expect(decideSyncAction({
+      spineState: "clean",
       refState: "same",
       diskState: "different",
       remoteStatus: "in sync",
@@ -156,6 +171,7 @@ describe("decideSyncAction", () => {
       unsavedDirection: "modified",
     })).toBe("load");
     expect(decideSyncAction({
+      spineState: "clean",
       refState: "local-ahead",
       diskState: "same",
       remoteStatus: "local ahead",
@@ -163,6 +179,7 @@ describe("decideSyncAction", () => {
       unsavedDirection: null,
     })).toBe("push");
     expect(decideSyncAction({
+      spineState: "clean",
       refState: "local-ahead",
       diskState: "different",
       remoteStatus: "local ahead",
@@ -170,6 +187,7 @@ describe("decideSyncAction", () => {
       unsavedDirection: "modified",
     })).toBe("push-load");
     expect(decideSyncAction({
+      spineState: "remote-ahead",
       refState: "remote-ahead",
       diskState: "same",
       remoteStatus: "remote ahead",
@@ -177,6 +195,7 @@ describe("decideSyncAction", () => {
       unsavedDirection: null,
     })).toBe("pull");
     expect(decideSyncAction({
+      spineState: "remote-ahead",
       refState: "remote-ahead",
       diskState: "different",
       remoteStatus: "remote ahead",
@@ -184,6 +203,7 @@ describe("decideSyncAction", () => {
       unsavedDirection: "edits",
     })).toBe("conflict");
     expect(decideSyncAction({
+      spineState: "conflict",
       refState: "diverged",
       diskState: "same",
       remoteStatus: "conflict",
@@ -193,7 +213,7 @@ describe("decideSyncAction", () => {
   });
 });
 
-describe("handleSync direction handling", () => {
+describe("handleUserSync direction handling", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     resetMockDefaults();
@@ -205,7 +225,7 @@ describe("handleSync direction handling", () => {
   it("reports already-in-sync without saving or pulling", async () => {
     setSyncState("same", "same");
 
-    await handleSync();
+    await handleUserSync();
 
     expect(mockRunUserSave).not.toHaveBeenCalled();
     expect(mockRunUserPull).not.toHaveBeenCalled();
@@ -215,11 +235,11 @@ describe("handleSync direction handling", () => {
 
   it("chooses push when disk has local unsaved files", async () => {
     setSyncState("same", "different", { diskStatus: "local unsaved", unsavedDirection: "edits" });
-    setPolicy("always");
+    setPolicy("on-sync");
     mockRunUserSave.mockResolvedValue({ warnings: [] });
     mockPushWithRecovery.mockResolvedValue({ kind: "ok" });
 
-    await handleSync();
+    await handleUserSync();
 
     expect(mockLog.info).toHaveBeenCalledWith(
       "→ Saving working-file changes and pushing the local git note to remote.",
@@ -241,7 +261,7 @@ describe("handleSync direction handling", () => {
       warnings: [],
     });
 
-    await handleSync();
+    await handleUserSync();
 
     expect(mockLog.info).toHaveBeenCalledWith("→ Restoring the local git note to working files.");
     expect(mockRunUserLoad).toHaveBeenCalledTimes(1);
@@ -261,7 +281,7 @@ describe("handleSync direction handling", () => {
       warnings: [],
     });
 
-    await handleSync();
+    await handleUserSync();
 
     expect(mockLog.info).toHaveBeenCalledWith(
       "→ Pulling the newer remote git note and restoring it to working files.",
@@ -286,7 +306,7 @@ describe("handleSync direction handling", () => {
       warnings: [],
     });
 
-    await handleSync();
+    await handleUserSync();
 
     expect(mockConfirm).toHaveBeenCalledTimes(1);
     expect(mockConfirm).toHaveBeenCalledWith(
@@ -300,7 +320,7 @@ describe("handleSync direction handling", () => {
     mockHasLocalNotes.mockResolvedValue(true);
     mockConfirm.mockResolvedValue(false);
 
-    await handleSync();
+    await handleUserSync();
 
     expect(mockLog.info).toHaveBeenCalledWith("Pull cancelled.");
     expect(mockRunUserPull).not.toHaveBeenCalled();
@@ -319,7 +339,7 @@ describe("handleSync direction handling", () => {
       warnings: [],
     });
 
-    await handleSync({ yes: true });
+    await handleUserSync({ yes: true });
 
     expect(mockConfirm).not.toHaveBeenCalled();
     expect(mockRunUserPull).toHaveBeenCalledTimes(1);
@@ -339,7 +359,7 @@ describe("handleSync direction handling", () => {
       warnings: [],
     });
 
-    await handleSync();
+    await handleUserSync();
 
     expect(mockConfirm).not.toHaveBeenCalled();
     expect(mockRunUserPull).toHaveBeenCalledTimes(1);
@@ -359,7 +379,7 @@ describe("handleSync direction handling", () => {
       warnings: [],
     });
 
-    await handleSync();
+    await handleUserSync();
 
     expect(mockSelect).toHaveBeenCalledTimes(1);
     expect(mockConfirm).not.toHaveBeenCalled();
@@ -379,7 +399,7 @@ describe("handleSync direction handling", () => {
       warnings: [],
     });
 
-    await handleSync();
+    await handleUserSync();
 
     expect(mockLog.warn).toHaveBeenCalledWith(
       "Local and remote git notes conflict (both moved since common ancestor).",
@@ -391,12 +411,12 @@ describe("handleSync direction handling", () => {
 
   it("prompts on conflict and respects push resolution", async () => {
     setSyncState("remote-ahead", "different");
-    setPolicy("always");
+    setPolicy("on-sync");
     mockSelect.mockResolvedValue("push");
     mockRunUserSave.mockResolvedValue({ warnings: [] });
     mockPushWithRecovery.mockResolvedValue({ kind: "ok" });
 
-    await handleSync();
+    await handleUserSync();
 
     expect(mockSelect).toHaveBeenCalledTimes(1);
     expect(mockRunUserSave).toHaveBeenCalledTimes(1);
@@ -407,7 +427,7 @@ describe("handleSync direction handling", () => {
     setSyncState("diverged", "same");
     mockSelect.mockResolvedValue("cancel");
 
-    await handleSync();
+    await handleUserSync();
 
     expect(mockLog.info).toHaveBeenCalledWith("Sync cancelled.");
     expect(mockRunUserSave).not.toHaveBeenCalled();
@@ -426,7 +446,7 @@ describe("handleSync direction handling", () => {
       warnings: [],
     });
 
-    await handleSync({ maxWalk: 300 });
+    await handleUserSync({ maxWalk: 300 });
 
     expect(mockRunUserPull).toHaveBeenCalledWith(
       expect.objectContaining({ maxAncestorWalk: 300 }),
@@ -435,7 +455,7 @@ describe("handleSync direction handling", () => {
 
   it("pushes then loads when local note is ahead but disk is stale", async () => {
     setSyncState("local-ahead", "different", { diskStatus: "stale", unsavedDirection: "modified" });
-    setPolicy("always");
+    setPolicy("on-sync");
     mockRunUserSave.mockResolvedValue({ warnings: [] });
     mockPushWithRecovery.mockResolvedValue({ kind: "ok" });
     mockRunUserLoad.mockResolvedValue({
@@ -448,7 +468,7 @@ describe("handleSync direction handling", () => {
       warnings: [],
     });
 
-    await handleSync();
+    await handleUserSync();
 
     expect(mockPushWithRecovery).toHaveBeenCalledTimes(1);
     expect(mockRunUserLoad).toHaveBeenCalledTimes(1);
@@ -458,7 +478,7 @@ describe("handleSync direction handling", () => {
     setSyncState("remote-ahead", "same");
     mockRunUserPull.mockResolvedValue({ kind: "walk-exhausted", walked: 1000, maxWalk: 1000 });
 
-    await handleSync();
+    await handleUserSync();
 
     expect(mockLog.warn).toHaveBeenCalledWith(
       expect.stringContaining("walked 1000 ancestors without finding a note"),
@@ -467,7 +487,7 @@ describe("handleSync direction handling", () => {
   });
 });
 
-describe("handleSync push policy", () => {
+describe("handleUserSync push policy", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     resetMockDefaults();
@@ -480,7 +500,7 @@ describe("handleSync push policy", () => {
     setPolicy("manual");
     mockRunUserSave.mockResolvedValue({ warnings: [] });
 
-    await handleSync();
+    await handleUserSync();
 
     expect(mockRunUserSave).toHaveBeenCalledTimes(1);
     expect(mockPushWithRecovery).not.toHaveBeenCalled();
@@ -493,7 +513,7 @@ describe("handleSync push policy", () => {
     mockConfirm.mockResolvedValue(true);
     mockPushWithRecovery.mockResolvedValue({ kind: "ok" });
 
-    await handleSync();
+    await handleUserSync();
 
     expect(mockConfirm).toHaveBeenCalledTimes(1);
     expect(mockPushWithRecovery).toHaveBeenCalledTimes(1);
@@ -503,7 +523,7 @@ describe("handleSync push policy", () => {
     setSyncState("remote-ahead", "same");
     mockRunUserPull.mockRejectedValue(new Error("couldn't find remote ref"));
 
-    await handleSync();
+    await handleUserSync();
 
     expect(mockLog.error).toHaveBeenCalledWith(expect.stringContaining("couldn't find remote ref"));
     expect(process.exitCode).toBe(1);
@@ -511,11 +531,11 @@ describe("handleSync push policy", () => {
 
   it("renders failed-nontty-conflict banner when push recovery surfaces that discriminant", async () => {
     setSyncState("local-ahead", "same");
-    setPolicy("always");
+    setPolicy("on-sync");
     mockRunUserSave.mockResolvedValue({ warnings: [] });
     mockPushWithRecovery.mockResolvedValue({ kind: "failed-nontty-conflict" });
 
-    await handleSync();
+    await handleUserSync();
 
     expect(mockLog.warn).toHaveBeenCalledWith(expect.stringContaining("conflict"));
     expect(mockLog.warn).toHaveBeenCalledWith(expect.stringContaining("non-interactive"));
@@ -523,9 +543,58 @@ describe("handleSync push policy", () => {
     expect(mockLog.error).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
+
+  it("records a partial-push marker when notes push fails after clean worktree publish state", async () => {
+    setSyncState("local-ahead", "same");
+    setPolicy("on-sync");
+    mockRunUserSave.mockResolvedValue({ warnings: [] });
+    mockPushWithRecovery.mockResolvedValue({ kind: "failed", error: new Error("network timeout") });
+
+    await handleUserSync();
+
+    expect(mockRecordPartialPushMarker).toHaveBeenCalledWith(
+      process.cwd(),
+      expect.anything(),
+      "andrew",
+    );
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("threads worktreeBranch into pushWithInteractiveRecovery; surfaces matrix-blocked notes push", async () => {
+    setSyncState("local-ahead", "same");
+    setPolicy("on-sync");
+    mockRunUserSave.mockResolvedValue({ warnings: [] });
+    // Worktree-not-aligned-with-origin would surface from the matrix; the
+    // user-sync handler renders the blocked-condition guidance and preserves
+    // the local save. Simulate by returning the blocked discriminant.
+    mockPushWithRecovery.mockResolvedValue({
+      kind: "blocked",
+      conditions: [
+        {
+          kind: "worktree-not-aligned-with-origin",
+          disposition: "block",
+          guidance: "Worktree has 2 unpushed commit(s) on `feature/x` — push the worktree first, then retry the notes push.",
+          worktreeAlignment: { state: "local-ahead", ahead: 2, behind: 0 },
+        },
+      ],
+    });
+
+    await handleUserSync();
+
+    expect(mockPushWithRecovery).toHaveBeenCalledWith(
+      expect.objectContaining({ worktreeBranch: "feature/x" }),
+    );
+    expect(mockLog.error).toHaveBeenCalledWith(
+      expect.stringContaining("push the worktree first"),
+    );
+    expect(mockLog.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Local save preserved"),
+    );
+    expect(process.exitCode).toBe(1);
+  });
 });
 
-describe("handleSync non-TTY conflict degradation", () => {
+describe("handleUserSync non-TTY conflict degradation", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     resetMockDefaults();
@@ -538,7 +607,7 @@ describe("handleSync non-TTY conflict degradation", () => {
     setSyncState("diverged", "same");
     mockRunUserSave.mockResolvedValue({ warnings: [] });
 
-    await handleSync();
+    await handleUserSync();
 
     expect(mockRunUserSave).toHaveBeenCalledTimes(1);
     expect(mockSelect).not.toHaveBeenCalled();
@@ -556,7 +625,7 @@ describe("handleSync non-TTY conflict degradation", () => {
     setSyncState("remote-ahead", "different");
     mockRunUserSave.mockResolvedValue({ warnings: [] });
 
-    await handleSync();
+    await handleUserSync();
 
     expect(mockRunUserSave).toHaveBeenCalledTimes(1);
     expect(mockRunUserPull).not.toHaveBeenCalled();
@@ -569,14 +638,14 @@ describe("handleSync non-TTY conflict degradation", () => {
     setSyncState("diverged", "same");
     mockRunUserSave.mockRejectedValue(new UserSaveError("No eligible files found in user directory to save."));
 
-    await handleSync();
+    await handleUserSync();
 
     expect(mockLog.error).toHaveBeenCalledWith(expect.stringContaining("No eligible files"));
     expect(process.exitCode).toBe(1);
   });
 });
 
-describe("handleSync worktree qualifier", () => {
+describe("handleUserSync worktree qualifier", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     resetMockDefaults();
@@ -587,43 +656,48 @@ describe("handleSync worktree qualifier", () => {
 
   it("emits a worktree drift qualifier when origin is ahead", async () => {
     setSyncState("same", "same");
-    mockRunWorktreeSyncStatus.mockResolvedValue({ state: "remote-ahead", ahead: 0, behind: 3 });
+    mockRunWorktreeSyncStatus.mockResolvedValue({ state: "remote-ahead", ahead: 0, behind: 3, branch: "main" });
 
-    await handleSync();
+    await handleUserSync();
 
-    expect(mockLog.info).toHaveBeenCalledWith("Worktree is behind origin by 3 commit(s).");
+    expect(mockLog.info).toHaveBeenCalledWith(
+      "Local worktree HEAD is behind its origin upstream by 3 commit(s).",
+    );
   });
 
   it("emits a divergence qualifier when worktree has diverged", async () => {
     setSyncState("same", "same");
-    mockRunWorktreeSyncStatus.mockResolvedValue({ state: "diverged", ahead: 1, behind: 2 });
+    mockRunWorktreeSyncStatus.mockResolvedValue({ state: "diverged", ahead: 1, behind: 2, branch: "main" });
 
-    await handleSync();
+    await handleUserSync();
 
-    expect(mockLog.info).toHaveBeenCalledWith("Worktree has diverged from origin (1 ahead, 2 behind).");
+    expect(mockLog.info).toHaveBeenCalledWith(
+      "Local worktree HEAD and its origin upstream have diverged (1 local ahead, 2 remote ahead).",
+    );
   });
 
-  it("emits a soft 'comparison unavailable' qualifier when the worktree probe failed", async () => {
+  it("emits a timeout-specific qualifier when the worktree probe times out", async () => {
     setSyncState("same", "same");
     mockRunWorktreeSyncStatus.mockResolvedValue({
       state: "remote-unavailable",
       ahead: 0,
       behind: 0,
+      branch: "main",
       failureReason: "timeout",
     });
 
-    await handleSync();
+    await handleUserSync();
 
     expect(mockLog.info).toHaveBeenCalledWith(
-      "Worktree remote comparison unavailable; reported state may not reflect unreachable remote commits.",
+      "Worktree local-to-origin comparison timed out; retry or use `--offline` to report local worktree refs only.",
     );
   });
 
   it("stays silent when worktree is clean", async () => {
     setSyncState("same", "same");
-    mockRunWorktreeSyncStatus.mockResolvedValue({ state: "clean", ahead: 0, behind: 0 });
+    mockRunWorktreeSyncStatus.mockResolvedValue({ state: "clean", ahead: 0, behind: 0, branch: "main" });
 
-    await handleSync();
+    await handleUserSync();
 
     const qualifierCalls = mockLog.info.mock.calls
       .map((call) => String(call[0] ?? ""))
@@ -635,7 +709,7 @@ describe("handleSync worktree qualifier", () => {
     setSyncState("same", "same");
     mockReadConfigSettings.mockResolvedValue({ settings: { "session.remote_sync": "disabled" } });
 
-    await handleSync();
+    await handleUserSync();
 
     expect(mockRunWorktreeSyncStatus).not.toHaveBeenCalled();
     const qualifierCalls = mockLog.info.mock.calls

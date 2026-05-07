@@ -10,11 +10,16 @@ import {
   buildLoadSummary,
   buildUserSessionInitStatusSummary,
   buildUserStatusResult,
+  computeUserSyncSpine,
   buildUserStatusSummary,
   computeUnsavedDirection,
+  hashSyncManifest,
+  inspectUserSyncRefsDetailed,
+  inspectUserSyncState,
   runUserSessionInitStatus,
   runUserStatus,
 } from "../../src/commands/user.js";
+import type { UserIOContext } from "../../src/commands/user.js";
 import type { SyncManifest } from "../../src/lib/git/index.js";
 import type { WorktreeSyncStatusResult } from "../../src/lib/git/worktree-sync.js";
 
@@ -39,7 +44,9 @@ describe("buildUserStatusResult", () => {
     expect(result.remoteStatus).toBe("in sync");
     expect(result.diskStatus).toBe("current");
     expect(result.actionHint).toBeNull();
-    expect(buildUserStatusSummary(result)).toContain("andrew: git note up to date");
+    expect(buildUserStatusSummary(result)).toContain(
+      "andrew: local notes match working files and remote notes",
+    );
   });
 
   it("reports remote-ahead state with a pull hint", () => {
@@ -76,16 +83,18 @@ describe("buildUserStatusResult", () => {
     });
 
     expect(result.headline).toBe("git note out of date");
-    expect(result.summary).toBe("andrew: git note out of date (offline)");
-    expect(result.detailLines).toContain("Remote check skipped (`--offline`).");
+    expect(result.summary).toBe("andrew: working files differ from local notes (offline)");
+    expect(result.detailLines).toContain(
+      "Remote notes check skipped (`--offline`); local notes were not compared with remote notes.",
+    );
     expect(result.detailLines).toContain("Latest local git note is not current with the working files.");
     expect(result.detailLines).toContain("Working files reflect an older local git note.");
-    expect(result.detailLines).toContain("Remote notes: in sync.");
-    expect(result.detailLines).toContain("Latest local git note is from abc1234, 3 commit(s) back.");
+    expect(result.detailLines).toContain("Remote notes: match local notes.");
+    expect(result.detailLines).toContain("Latest local user note is from abc1234, 3 commit(s) back from HEAD.");
     expect(result.detailLines).toContain("Pre-load backup present: .pre-load-backup.json");
   });
 
-  it("renders the current-HEAD line when the local git note is at HEAD", () => {
+  it("renders the current-HEAD line when the local user note is at HEAD", () => {
     const result = buildUserStatusResult({
       identity: "andrew",
       diskState: "same",
@@ -99,7 +108,28 @@ describe("buildUserStatusResult", () => {
     });
 
     expect(result.detailLines.some((line) => line.includes("commit(s) back"))).toBe(false);
-    expect(result.detailLines).toContain("Latest local git note is current with HEAD.");
+    expect(result.detailLines).toContain("Latest local user note is current with HEAD.");
+  });
+
+  it("renders note-history reachability when the local user note is outside HEAD ancestry", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "same",
+      refState: "same",
+      remoteChecked: true,
+      savedCommit: "abc1234",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      noteHistoryDistance: 2,
+      savedReachableFromHead: false,
+      backupFiles: [],
+      remoteIdentities: [],
+    });
+
+    expect(result.detailLines).toContain(
+      "Latest local user note is from abc1234, outside current HEAD ancestry (2 note update(s) back).",
+    );
+    expect(result.detailLines).not.toContain("Latest local user note is current with HEAD.");
   });
 
   it("reports conflicts with a fetch hint", () => {
@@ -250,7 +280,7 @@ describe("buildUserStatusResult", () => {
     });
 
     expect(result.detailLines).toContain("Working files match the latest local git note.");
-    expect(result.detailLines).toContain("Remote notes: remote note ahead.");
+    expect(result.detailLines).toContain("Remote notes: ahead of local notes.");
   });
 
   it("picks 'arc user save' hint for local-unsaved when disk has local-only files", () => {
@@ -328,6 +358,543 @@ describe("buildUserStatusResult", () => {
   });
 });
 
+describe("buildUserStatusResult userSyncCause routing", () => {
+  function divergedInput() {
+    return {
+      identity: "andrew",
+      diskState: "same" as const,
+      refState: "diverged" as const,
+      remoteChecked: true,
+      savedCommit: "abc1234",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      backupFiles: [],
+      remoteIdentities: [],
+    };
+  }
+
+  function remoteAheadInput() {
+    return {
+      ...divergedInput(),
+      refState: "remote-ahead" as const,
+    };
+  }
+
+  function localAheadInput() {
+    return {
+      ...divergedInput(),
+      refState: "local-ahead" as const,
+    };
+  }
+
+  it("threads userSyncCause onto UserStatusResult for every taxonomy value", () => {
+    const causes = [
+      "unfetched-local",
+      "concurrent-local-writer",
+      "cross-machine",
+      "offline",
+      "unknown",
+    ] as const;
+
+    for (const cause of causes) {
+      const result = buildUserStatusResult({
+        ...divergedInput(),
+        userSyncCause: { cause, confidence: cause === "offline" ? "offline" : "high" },
+      });
+      expect(result.userSyncCause).toBe(cause);
+    }
+  });
+
+  it("renders the existing pull-direction copy for unfetched-local via the cause-aware path", () => {
+    const result = buildUserStatusResult({
+      ...remoteAheadInput(),
+      userSyncCause: { cause: "unfetched-local", confidence: "high" },
+    });
+
+    const causeLines = result.detailLines.filter((line) => line.startsWith("Cause:"));
+    expect(causeLines).toHaveLength(1);
+    expect(causeLines[0]).toContain("arc user pull");
+  });
+
+  it("renders concurrent-local-writer copy distinct from cross-machine and free of machine-locality assertions", () => {
+    const concurrent = buildUserStatusResult({
+      ...localAheadInput(),
+      userSyncCause: { cause: "concurrent-local-writer", confidence: "high" },
+    });
+    const crossMachine = buildUserStatusResult({
+      ...divergedInput(),
+      userSyncCause: { cause: "cross-machine", confidence: "high" },
+    });
+
+    const concurrentLine = concurrent.detailLines.find((line) => line.startsWith("Cause:"));
+    const crossMachineLine = crossMachine.detailLines.find((line) => line.startsWith("Cause:"));
+
+    expect(concurrentLine).toBeDefined();
+    expect(crossMachineLine).toBeDefined();
+    expect(concurrentLine).not.toBe(crossMachineLine);
+    expect(concurrentLine).not.toMatch(/another machine|this machine|other machine/i);
+  });
+
+  it("hedges cross-machine copy when confidence is low (sync state stale or missing)", () => {
+    const high = buildUserStatusResult({
+      ...divergedInput(),
+      userSyncCause: { cause: "cross-machine", confidence: "high" },
+    });
+    const low = buildUserStatusResult({
+      ...divergedInput(),
+      userSyncCause: { cause: "cross-machine", confidence: "low" },
+    });
+
+    const highLine = high.detailLines.find((line) => line.startsWith("Cause:"));
+    const lowLine = low.detailLines.find((line) => line.startsWith("Cause:"));
+
+    expect(highLine).toBeDefined();
+    expect(lowLine).toBeDefined();
+    expect(lowLine).not.toBe(highLine);
+    expect(lowLine).toMatch(/stale|hedged|low confidence/i);
+  });
+
+  it("appends the cause line additively — existing detailLines retain their wording and position", () => {
+    const without = buildUserStatusResult(divergedInput());
+    const withCause = buildUserStatusResult({
+      ...divergedInput(),
+      userSyncCause: { cause: "cross-machine", confidence: "high" },
+    });
+
+    expect(withCause.detailLines.length).toBe(without.detailLines.length + 1);
+    for (let i = 0; i < without.detailLines.length; i++) {
+      expect(withCause.detailLines[i]).toBe(without.detailLines[i]);
+    }
+    expect(withCause.detailLines[withCause.detailLines.length - 1]).toMatch(/^Cause:/);
+  });
+
+  it("non-verbose mode: action-oriented headline reflects the cause when present", () => {
+    const result = buildUserStatusResult({
+      ...remoteAheadInput(),
+      verbose: false,
+      userSyncCause: { cause: "unfetched-local", confidence: "high" },
+    });
+
+    expect(result.summary).toBe("andrew: Remote notes ahead — pull to sync.");
+  });
+
+  it("non-verbose mode: action-oriented headline falls back to existing taxonomy when cause is unknown", () => {
+    const withUnknown = buildUserStatusResult({
+      ...divergedInput(),
+      verbose: false,
+      userSyncCause: { cause: "unknown", confidence: "low" },
+    });
+    const withoutCause = buildUserStatusResult({
+      ...divergedInput(),
+      verbose: false,
+    });
+
+    expect(withUnknown.summary).toBe(withoutCause.summary);
+  });
+
+  it("does not append a cause detail line when cause is unknown — existing taxonomy carries the message", () => {
+    const result = buildUserStatusResult({
+      ...divergedInput(),
+      userSyncCause: { cause: "unknown", confidence: "low" },
+    });
+
+    expect(result.detailLines.some((line) => line.startsWith("Cause:"))).toBe(false);
+  });
+});
+
+describe("buildUserStatusResult --offline degradation rendering", () => {
+  const SKIP_NOTE = "Remote notes check skipped (`--offline`); local notes were not compared with remote notes.";
+  const DEGRADED_LINE = "offline — local state only; cross-machine signals unavailable";
+
+  it("verbose: surfaces both the existing skip-note AND the new degraded-classification line under --offline", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "same",
+      refState: null,
+      remoteChecked: false,
+      savedCommit: "abc1234",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      backupFiles: [],
+      remoteIdentities: [],
+    });
+
+    const skipIndex = result.detailLines.indexOf(SKIP_NOTE);
+    const degradedIndex = result.detailLines.indexOf(DEGRADED_LINE);
+
+    expect(skipIndex).toBeGreaterThanOrEqual(0);
+    expect(degradedIndex).toBeGreaterThanOrEqual(0);
+    expect(degradedIndex).toBe(skipIndex + 1);
+  });
+
+  it("verbose: omits the degraded-classification line when remote was checked (online mode)", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "same",
+      refState: "same",
+      remoteChecked: true,
+      savedCommit: "abc1234",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      backupFiles: [],
+      remoteIdentities: [],
+    });
+
+    expect(result.detailLines).not.toContain(DEGRADED_LINE);
+    expect(result.detailLines).not.toContain(SKIP_NOTE);
+  });
+
+  it("default mode: omits both the skip-note and the degraded-classification line (verbose-only pairing)", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "same",
+      refState: null,
+      remoteChecked: false,
+      savedCommit: "abc1234",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      backupFiles: [],
+      remoteIdentities: [],
+      verbose: false,
+    });
+
+    expect(result.detailLines).not.toContain(SKIP_NOTE);
+    expect(result.detailLines).not.toContain(DEGRADED_LINE);
+  });
+});
+
+describe("buildUserStatusResult first-use orientation hint", () => {
+  const HINT = "New here? Run `arc user --help` to learn about user notes.";
+
+  function baseFirstUseInput() {
+    return {
+      identity: "andrew",
+      diskState: "same" as const,
+      refState: "same" as const,
+      remoteChecked: true,
+      savedCommit: "9b1c241",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      savedAtRelative: "9 hours ago",
+      backupFiles: [],
+      remoteIdentities: [],
+    };
+  }
+
+  it("renders the orientation hint as detailLines[0] when local notes ref is absent", () => {
+    const result = buildUserStatusResult({
+      ...baseFirstUseInput(),
+      userNotesRefExists: false,
+    });
+
+    expect(result.detailLines[0]).toBe(HINT);
+  });
+
+  it("omits the orientation hint when local notes ref exists", () => {
+    const result = buildUserStatusResult({
+      ...baseFirstUseInput(),
+      userNotesRefExists: true,
+    });
+
+    expect(result.detailLines).not.toContain(HINT);
+  });
+
+  it("omits the orientation hint when ref-existence is unknown (default behavior)", () => {
+    const result = buildUserStatusResult({
+      ...baseFirstUseInput(),
+    });
+
+    expect(result.detailLines).not.toContain(HINT);
+  });
+
+  it("renders the hint at detailLines[0] in default mode too", () => {
+    const result = buildUserStatusResult({
+      ...baseFirstUseInput(),
+      verbose: false,
+      userNotesRefExists: false,
+    });
+
+    expect(result.detailLines[0]).toBe(HINT);
+  });
+});
+
+describe("buildUserStatusResult default mode (verbose: false)", () => {
+  it("renders single-line headline with no detail block when fully clean", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "same",
+      refState: "same",
+      remoteChecked: true,
+      savedCommit: "9b1c241",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      savedAtRelative: "9 hours ago",
+      backupFiles: [],
+      remoteIdentities: [],
+      verbose: false,
+    });
+
+    expect(result.summary).toBe("andrew: Up to date.");
+    expect(result.detailLines).toEqual([]);
+  });
+
+  it("emits headline + context line + load hint for disk-behind state", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "different",
+      diskStatus: "stale",
+      refState: "same",
+      remoteChecked: true,
+      savedCommit: "9b1c241",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      savedAtRelative: "9 hours ago",
+      unsavedDirection: "behind",
+      backupFiles: [],
+      remoteIdentities: [],
+      verbose: false,
+    });
+
+    expect(result.summary).toBe("andrew: Local note ahead of working files.");
+    expect(result.detailLines).toEqual([
+      "Note current with HEAD (9b1c241), saved 9 hours ago.",
+      "Next step: run `arc user load`",
+    ]);
+  });
+
+  it("emits headline + context line + save hint for disk-edits state", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "different",
+      refState: "same",
+      remoteChecked: true,
+      savedCommit: "9b1c241",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      savedAtRelative: "9 hours ago",
+      unsavedDirection: "edits",
+      backupFiles: [],
+      remoteIdentities: [],
+      verbose: false,
+    });
+
+    expect(result.summary).toBe("andrew: Working files have unsaved changes.");
+    expect(result.detailLines).toEqual([
+      "Note current with HEAD (9b1c241), saved 9 hours ago.",
+      "Next step: run `arc user save`",
+    ]);
+  });
+
+  it("emits ambiguity-named headline + manual reconciliation hint for mixed state", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "different",
+      diskStatus: "mixed",
+      refState: "same",
+      remoteChecked: true,
+      savedCommit: "9b1c241",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      savedAtRelative: "9 hours ago",
+      unsavedDirection: "mixed",
+      backupFiles: [],
+      remoteIdentities: [],
+      verbose: false,
+    });
+
+    expect(result.summary).toBe("andrew: Working files and saved note both diverged.");
+    expect(result.detailLines).toEqual([
+      "Note current with HEAD (9b1c241), saved 9 hours ago.",
+      "Next step: inspect local working files, then run `arc user load` or `arc user save`",
+    ]);
+  });
+
+  it("emits diverged-notes headline for refs conflict", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "different",
+      refState: "diverged",
+      remoteChecked: true,
+      savedCommit: "9b1c241",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      savedAtRelative: "9 hours ago",
+      unsavedDirection: "mixed",
+      backupFiles: [],
+      remoteIdentities: [],
+      verbose: false,
+    });
+
+    expect(result.summary).toBe("andrew: Local and remote notes diverged.");
+    expect(result.detailLines).toContain(
+      "Next step: run `arc user fetch` for non-destructive inspection",
+    );
+  });
+
+  it("emits remote-ahead headline pointing to pull", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "same",
+      refState: "remote-ahead",
+      remoteChecked: true,
+      savedCommit: "9b1c241",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      savedAtRelative: "9 hours ago",
+      backupFiles: [],
+      remoteIdentities: [],
+      verbose: false,
+    });
+
+    expect(result.summary).toBe("andrew: Remote notes ahead of local.");
+    expect(result.detailLines).toContain("Next step: run `arc user pull`");
+  });
+
+  it("renders backup count only — no enumeration — in default mode", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "different",
+      refState: "same",
+      remoteChecked: true,
+      savedCommit: "9b1c241",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      savedAtRelative: "9 hours ago",
+      unsavedDirection: "modified",
+      backupFiles: [".pre-load-1.json", ".pre-load-2.json", ".pre-load-3.json"],
+      remoteIdentities: [],
+      verbose: false,
+    });
+
+    expect(result.detailLines).toContain("Pre-load backup present (3 files).");
+    expect(result.detailLines.some((line) => line.includes(".pre-load-1.json"))).toBe(false);
+  });
+
+  it("preserves verbose three-tier detail (including backup file enumeration) when verbose: true", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "different",
+      refState: "same",
+      remoteChecked: true,
+      savedCommit: "9b1c241",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      savedAtRelative: "9 hours ago",
+      unsavedDirection: "modified",
+      backupFiles: [".pre-load-1.json", ".pre-load-2.json"],
+      remoteIdentities: [],
+      verbose: true,
+    });
+
+    expect(result.detailLines).toContain("Latest local git note is not current with the working files.");
+    expect(result.detailLines).toContain("Working files reflect an older local git note.");
+    expect(result.detailLines).toContain("Remote notes: match local notes.");
+    expect(result.detailLines).toContain("Saved 9 hours ago.");
+    expect(result.detailLines).toContain(
+      "Pre-load backup present: .pre-load-1.json, .pre-load-2.json",
+    );
+  });
+
+  it("preserves identical UserStatusResult shape regardless of verbose flag", () => {
+    const baseInput = {
+      identity: "andrew",
+      diskState: "same" as const,
+      refState: "same" as const,
+      remoteChecked: true,
+      savedCommit: "9b1c241",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      savedAtRelative: "9 hours ago",
+      backupFiles: [],
+      remoteIdentities: [],
+    };
+
+    const verboseResult = buildUserStatusResult({ ...baseInput, verbose: true });
+    const terseResult = buildUserStatusResult({ ...baseInput, verbose: false });
+
+    expect(Object.keys(verboseResult).sort()).toEqual(Object.keys(terseResult).sort());
+  });
+
+  it("renders behind-HEAD note position in the context line", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "different",
+      refState: "same",
+      remoteChecked: true,
+      savedCommit: "9b1c241",
+      savedFromAncestor: true,
+      ancestorDistance: 3,
+      savedAtRelative: "9 hours ago",
+      unsavedDirection: "edits",
+      backupFiles: [],
+      remoteIdentities: [],
+      verbose: false,
+    });
+
+    expect(result.detailLines).toContain(
+      "Note from 9b1c241, 3 commit(s) back from HEAD, saved 9 hours ago.",
+    );
+  });
+
+  it("renders outside-ancestry note position in the context line", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "different",
+      refState: "same",
+      remoteChecked: true,
+      savedCommit: "9b1c241",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      noteHistoryDistance: 2,
+      savedReachableFromHead: false,
+      savedAtRelative: "9 hours ago",
+      unsavedDirection: "edits",
+      backupFiles: [],
+      remoteIdentities: [],
+      verbose: false,
+    });
+
+    expect(result.detailLines).toContain(
+      "Note from 9b1c241, outside HEAD ancestry (2 note update(s) back), saved 9 hours ago.",
+    );
+  });
+
+  it("drops the saved-ago suffix when savedAtRelative is absent", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "different",
+      refState: "same",
+      remoteChecked: true,
+      savedCommit: "9b1c241",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      unsavedDirection: "edits",
+      backupFiles: [],
+      remoteIdentities: [],
+      verbose: false,
+    });
+
+    expect(result.detailLines).toContain("Note current with HEAD (9b1c241).");
+  });
+
+  it("appends `(offline)` to the summary when --offline is set", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "same",
+      refState: null,
+      remoteChecked: false,
+      savedCommit: "9b1c241",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      backupFiles: [],
+      remoteIdentities: [],
+      verbose: false,
+    });
+
+    expect(result.summary).toBe("andrew: Up to date. (offline)");
+  });
+});
+
 describe("computeUnsavedDirection", () => {
   it("returns 'edits' when disk has files the saved note doesn't", () => {
     const disk = manifest({ "SESSION-NOTES.md": "aaa", "scratch.md": "bbb" });
@@ -365,7 +932,377 @@ describe("computeUnsavedDirection", () => {
   });
 });
 
+describe("inspectUserSyncState disk-vs-note direction inference", () => {
+  interface DirectionScenario {
+    sourceCommit: string;
+    noteCommit: string;
+    diskFiles: Record<string, string>;
+    noteFiles: Record<string, string>;
+    /** Hash recorded in `.sync-state.json` for the materialized snapshot. */
+    materializedManifestHash: string;
+    sourceOperation?: "save" | "load";
+    /** Result for `git merge-base --is-ancestor <sourceCommit> <noteCommit>`. */
+    sourceIsAncestorOfNote: boolean;
+  }
+
+  function buildIO(scenario: DirectionScenario): UserIOContext {
+    const localNotesRefHash = "c".repeat(40);
+    const noteHistoryCommit = "d".repeat(40);
+    const userDir = "/repo/.arc/user/andrew";
+    const internalDir = `${userDir}/.internal`;
+    const localNotesRef = "refs/notes/arc/user/andrew";
+    const noteCommitPath = `${scenario.noteCommit.slice(0, 2)}/${scenario.noteCommit.slice(2)}`;
+    const noteJSON = JSON.stringify({ version: 2, files: scenario.noteFiles });
+    const syncStateContent = JSON.stringify({
+      version: 2,
+      materializedManifestHash: scenario.materializedManifestHash,
+      sourceCommit: scenario.sourceCommit,
+      sourceOperation: scenario.sourceOperation ?? "save",
+    });
+
+    return {
+      exec: async (cmd, args) => {
+        if (cmd !== "git") throw new Error(`unexpected cmd: ${cmd}`);
+        if (args[0] === "rev-parse" && args[1] === "HEAD" && args.length === 2) {
+          return { stdout: `${scenario.noteCommit}\n`, stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "--verify" && args[2] === localNotesRef) {
+          return { stdout: `${localNotesRefHash}\n`, stderr: "" };
+        }
+        if (args[0] === "log" && args.includes(localNotesRef)) {
+          return { stdout: `${noteHistoryCommit}\n`, stderr: "" };
+        }
+        if (args[0] === "diff-tree" && args.includes(noteHistoryCommit)) {
+          return { stdout: `${noteCommitPath}\n`, stderr: "" };
+        }
+        if (args[0] === "show" && args[1] === `${noteHistoryCommit}:${noteCommitPath}`) {
+          return { stdout: noteJSON, stderr: "" };
+        }
+        if (
+          args[0] === "merge-base"
+          && args[1] === "--is-ancestor"
+          && args[2] === scenario.noteCommit
+          && args[3] === "HEAD"
+        ) {
+          return { stdout: "", stderr: "" };
+        }
+        if (
+          args[0] === "rev-list"
+          && args[1] === "--count"
+          && args[2] === `${scenario.noteCommit}..HEAD`
+        ) {
+          return { stdout: "0\n", stderr: "" };
+        }
+        if (
+          args[0] === "merge-base"
+          && args[1] === "--is-ancestor"
+          && args[2] === scenario.sourceCommit
+          && args[3] === scenario.noteCommit
+        ) {
+          if (scenario.sourceIsAncestorOfNote) return { stdout: "", stderr: "" };
+          throw new Error("not an ancestor");
+        }
+        if (args[0] === "ls-remote" && args[1] === "origin" && args[2] === localNotesRef) {
+          return { stdout: `${localNotesRefHash}\trefs/notes/arc/user/andrew\n`, stderr: "" };
+        }
+        throw new Error(`unexpected git call: ${args.join(" ")}`);
+      },
+      readDir: async (dir) => {
+        if (dir === userDir) {
+          return Object.entries(scenario.diskFiles).map(([name, content]) => ({
+            name,
+            size: content.length,
+          }));
+        }
+        return [];
+      },
+      readFile: async (path) => {
+        for (const [name, content] of Object.entries(scenario.diskFiles)) {
+          if (path === `${userDir}/${name}`) return content;
+        }
+        if (path === `${internalDir}/.sync-state.json`) return syncStateContent;
+        throw new Error(`ENOENT: ${path}`);
+      },
+      writeFile: async () => {},
+      mkdir: async () => undefined,
+      writeNote: async () => {},
+      readNote: async () => null,
+    };
+  }
+
+  function actionFor(state: Awaited<ReturnType<typeof inspectUserSyncState>>, savedCommit: string) {
+    return buildUserStatusResult({
+      identity: "andrew",
+      diskState: state.diskState,
+      diskStatus: state.diskStatus,
+      refState: state.refState,
+      remoteChecked: true,
+      savedCommit: savedCommit.slice(0, 7),
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      unsavedDirection: state.unsavedDirection,
+      backupFiles: [],
+      remoteIdentities: [],
+    }).actionHint;
+  }
+
+  it("flags disk as 'behind' and routes to `arc user load` when note advanced past sourceCommit while disk matches materialized", async () => {
+    const diskFiles = { "SESSION-NOTES.md": "disk-content" };
+    const diskManifest: SyncManifest = { version: 2, files: diskFiles };
+    const noteCommit = "b".repeat(40);
+    const io = buildIO({
+      sourceCommit: "a".repeat(40),
+      noteCommit,
+      diskFiles,
+      noteFiles: { "SESSION-NOTES.md": "newer-from-other-machine" },
+      materializedManifestHash: hashSyncManifest(diskManifest),
+      sourceIsAncestorOfNote: true,
+    });
+
+    const state = await inspectUserSyncState({ cwd: "/repo", io, identity: "andrew" });
+
+    expect(state.unsavedDirection).toBe("behind");
+    expect(actionFor(state, noteCommit)).toBe("run `arc user load`");
+  });
+
+  it("reflects unsaved edits and routes to `arc user save` when note is at sourceCommit and disk diverged from materialized", async () => {
+    const noteFiles = { "SESSION-NOTES.md": "saved" };
+    const noteManifest: SyncManifest = { version: 2, files: noteFiles };
+    const sharedCommit = "a".repeat(40);
+    const io = buildIO({
+      sourceCommit: sharedCommit,
+      noteCommit: sharedCommit,
+      diskFiles: { "SESSION-NOTES.md": "edited" },
+      noteFiles,
+      materializedManifestHash: hashSyncManifest(noteManifest),
+      sourceIsAncestorOfNote: true,
+    });
+
+    const state = await inspectUserSyncState({ cwd: "/repo", io, identity: "andrew" });
+
+    expect(state.unsavedDirection).toBe("modified");
+    expect(state.diskStatus).toBe("local unsaved");
+    expect(actionFor(state, sharedCommit)).toBe("run `arc user save`");
+  });
+
+  it("reports mixed direction with manual-reconciliation framing when both note and disk advanced from the materialized baseline", async () => {
+    const baselineManifest: SyncManifest = {
+      version: 2,
+      files: { "SESSION-NOTES.md": "baseline" },
+    };
+    const noteCommit = "b".repeat(40);
+    const io = buildIO({
+      sourceCommit: "a".repeat(40),
+      noteCommit,
+      diskFiles: { "SESSION-NOTES.md": "local-edits" },
+      noteFiles: { "SESSION-NOTES.md": "remote-edits" },
+      materializedManifestHash: hashSyncManifest(baselineManifest),
+      sourceIsAncestorOfNote: true,
+    });
+
+    const state = await inspectUserSyncState({ cwd: "/repo", io, identity: "andrew" });
+
+    expect(state.unsavedDirection).toBe("mixed");
+    expect(state.diskStatus).toBe("mixed");
+    expect(actionFor(state, noteCommit)).toBe(
+      "inspect local working files, then run `arc user load` or `arc user save`",
+    );
+  });
+
+  it("reports mixed direction with manual-reconciliation framing when note is unreachable from sourceCommit", async () => {
+    const baselineManifest: SyncManifest = {
+      version: 2,
+      files: { "SESSION-NOTES.md": "baseline" },
+    };
+    const noteCommit = "b".repeat(40);
+    const io = buildIO({
+      sourceCommit: "a".repeat(40),
+      noteCommit,
+      diskFiles: { "SESSION-NOTES.md": "baseline" },
+      noteFiles: { "SESSION-NOTES.md": "orphan-history" },
+      materializedManifestHash: hashSyncManifest(baselineManifest),
+      sourceIsAncestorOfNote: false,
+    });
+
+    const state = await inspectUserSyncState({ cwd: "/repo", io, identity: "andrew" });
+
+    expect(state.unsavedDirection).toBe("mixed");
+    expect(state.diskStatus).toBe("mixed");
+    expect(actionFor(state, noteCommit)).toBe(
+      "inspect local working files, then run `arc user load` or `arc user save`",
+    );
+  });
+
+});
+
+describe("user sync spine", () => {
+  it("maps every ref/topology input onto exactly one session-init spine state", () => {
+    const cases = [
+      { remoteSyncEnabled: false, refState: null, expected: "disabled" },
+      { remoteSyncEnabled: true, refState: "same", expected: "clean" },
+      { remoteSyncEnabled: true, refState: "local-ahead", expected: "clean" },
+      { remoteSyncEnabled: true, refState: "remote-ahead", expected: "remote-ahead" },
+      { remoteSyncEnabled: true, refState: "diverged", expected: "conflict" },
+      { remoteSyncEnabled: true, refState: "remote-unavailable", expected: "remote-unavailable" },
+    ] as const;
+
+    const states = new Set(cases.map((entry) => computeUserSyncSpine(entry).state));
+
+    expect(states).toEqual(new Set(["disabled", "clean", "remote-ahead", "conflict", "remote-unavailable"]));
+    for (const entry of cases) {
+      expect(computeUserSyncSpine(entry).state).toBe(entry.expected);
+    }
+  });
+
+  it("keeps remote-ahead recovery pull-directed even when working files have local edits", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "different",
+      refState: "remote-ahead",
+      remoteChecked: true,
+      savedCommit: "abc1234",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      unsavedDirection: "edits",
+      backupFiles: [],
+      remoteIdentities: [],
+    });
+
+    expect(result.spineState).toBe("remote-ahead");
+    expect(result.actionHint).toBe("run `arc user pull`");
+    expect(result.actionHint).not.toContain("save");
+    expect(result.actionHint).not.toContain("push");
+  });
+
+  it("layers full-mode detail axes without changing the shared spine state", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "same",
+      refState: "remote-ahead",
+      remoteChecked: true,
+      savedCommit: "abc1234",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      noteHistoryDistance: 2,
+      savedReachableFromHead: false,
+      savedAtRelative: "11 hours ago",
+      backupFiles: [],
+      remoteIdentities: [],
+    });
+
+    expect(result.spineState).toBe("remote-ahead");
+    expect(result.detailLines).toContain("Saved 11 hours ago.");
+    expect(result.detailLines).toContain(
+      "Latest local user note is from abc1234, outside current HEAD ancestry (2 note update(s) back).",
+    );
+  });
+
+  it("returns the same spine state for full-mode and session-init probes on the same refs", async () => {
+    const io = {
+      exec: async (_cmd: string, args: string[]) => {
+        if (args[0] === "rev-parse" && args[1] === "--verify") {
+          throw new Error("local note ref missing");
+        }
+        if (args[0] === "ls-remote") {
+          return { stdout: "remote456\trefs/notes/arc/user/andrew\n", stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "HEAD") {
+          return { stdout: "head123\n", stderr: "" };
+        }
+        if (args[0] === "log") {
+          return { stdout: "", stderr: "" };
+        }
+        throw new Error(`unexpected command: git ${args.join(" ")}`);
+      },
+      readDir: async () => [],
+      readFile: async () => "",
+      writeFile: async () => {},
+      mkdir: async () => undefined,
+      writeNote: async () => {},
+      readNote: async () => null,
+    };
+
+    const full = await runUserStatus({ cwd: "/repo", io, identity: "andrew" });
+    const sessionInit = await runUserSessionInitStatus({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      remoteSyncEnabled: true,
+    });
+
+    expect(full.spineState).toBe(sessionInit.state);
+    expect(full.actionHint).toBe("run `arc user pull`");
+    expect(sessionInit.actionHint).toContain("arc user pull");
+  });
+});
+
+describe("partial-push coherence condition", () => {
+  it("layers partial-push coherence on local-ahead topology without adding a spine state", () => {
+    const spine = computeUserSyncSpine({
+      remoteSyncEnabled: true,
+      refState: "local-ahead",
+      coherenceState: "partial-push",
+    });
+
+    expect(spine.state).toBe("clean");
+    expect(spine.refState).toBe("local-ahead");
+    expect(spine.remoteStatus).toBe("local ahead");
+    expect(spine.coherenceState).toBe("partial-push");
+  });
+
+  it("keeps the session-init spine state five-state while preserving partial-push detail", () => {
+    const spine = computeUserSyncSpine({
+      remoteSyncEnabled: true,
+      refState: "local-ahead",
+      coherenceState: "partial-push",
+    });
+    const sessionInitStates = new Set([
+      "disabled",
+      "clean",
+      "remote-ahead",
+      "conflict",
+      "remote-unavailable",
+    ]);
+
+    expect(sessionInitStates.has(spine.state)).toBe(true);
+    expect(spine.state).toBe("clean");
+    expect(spine.coherenceState).toBe("partial-push");
+  });
+
+  it("surfaces partial-push recovery explicitly in full-mode status", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "same",
+      refState: "local-ahead",
+      coherenceState: "partial-push",
+      remoteChecked: true,
+      savedCommit: "abc1234",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      backupFiles: [],
+      remoteIdentities: [],
+    });
+
+    expect(result.spineState).toBe("clean");
+    expect(result.refState).toBe("local-ahead");
+    expect(result.coherenceState).toBe("partial-push");
+    expect(result.detailLines).toContain(
+      "Partial push recovery: remote notes are still behind local notes after a prior publish attempt.",
+    );
+    expect(result.actionHint).toBe("run `arc user push` to retry the notes push");
+  });
+});
+
 describe("runUserSessionInitStatus", () => {
+  const staleNoteCommit = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const headCommit = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+  const noteHistoryCommit = "cccccccccccccccccccccccccccccccccccccccc";
+  const notesRef = "refs/notes/arc/user/andrew";
+
+  function notePathFor(commit: string): string {
+    return `${commit.slice(0, 2)}/${commit.slice(2)}`;
+  }
+
   const io = {
     exec: async () => ({ stdout: "", stderr: "" }),
     readDir: async () => [],
@@ -386,6 +1323,7 @@ describe("runUserSessionInitStatus", () => {
 
     expect(result.state).toBe("disabled");
     expect(result.shouldPromptToPull).toBe(false);
+    expect(result.loadNeeded).toBeUndefined();
     expect(buildUserSessionInitStatusSummary(result)).toContain("session-init remote sync disabled");
   });
 
@@ -413,10 +1351,69 @@ describe("runUserSessionInitStatus", () => {
     });
 
     expect(result.state).toBe("clean");
-    expect(calls).toEqual([
+    expect(calls).toEqual(expect.arrayContaining([
       { cmd: "git", args: ["rev-parse", "--verify", "refs/notes/arc/user/andrew"] },
       { cmd: "git", args: ["ls-remote", "origin", "refs/notes/arc/user/andrew"] },
-    ]);
+    ]));
+    expect(calls.some(({ args }) => args[0] === "fetch")).toBe(false);
+  });
+
+  it("surfaces stale local-note freshness when matching refs are behind HEAD", async () => {
+    const sameRefHash = "dddddddddddddddddddddddddddddddddddddddd";
+    const probeIO = {
+      ...io,
+      exec: async (_cmd: string, args: string[]) => {
+        if (args[0] === "rev-parse" && args[1] === "--verify") {
+          return { stdout: `${sameRefHash}\n`, stderr: "" };
+        }
+        if (args[0] === "ls-remote") {
+          return { stdout: `${sameRefHash}\t${notesRef}\n`, stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "HEAD") {
+          return { stdout: `${headCommit}\n`, stderr: "" };
+        }
+        if (args[0] === "log") {
+          return { stdout: `${noteHistoryCommit}\n`, stderr: "" };
+        }
+        if (args[0] === "diff-tree") {
+          return { stdout: `${notePathFor(staleNoteCommit)}\n`, stderr: "" };
+        }
+        if (args[0] === "show") {
+          return { stdout: JSON.stringify({ version: 2, files: {} }), stderr: "" };
+        }
+        if (args[0] === "merge-base") {
+          return { stdout: "", stderr: "" };
+        }
+        if (args[0] === "rev-list") {
+          return { stdout: "2\n", stderr: "" };
+        }
+        throw new Error(`unexpected command: git ${args.join(" ")}`);
+      },
+    };
+
+    const result = await runUserSessionInitStatus({
+      cwd: "/repo",
+      io: probeIO,
+      identity: "andrew",
+      remoteSyncEnabled: true,
+    });
+
+    expect(result.state).toBe("clean");
+    expect(result.shouldPromptToPull).toBe(false);
+    expect(result.localNoteFreshness).toEqual({
+      state: "ancestor",
+      commit: staleNoteCommit,
+      ancestorDistance: 2,
+      noteHistoryDistance: 0,
+      reachableFromHead: true,
+    });
+    expect(result.detailLines).toContain(
+      "Latest local user note is from aaaaaaa, 2 commit(s) behind HEAD.",
+    );
+    expect(result.detailLines).toContain(
+      "Next step: run `arc user save` or `arc sync` before relying on handoff.",
+    );
+    expect(result.actionHint).toBe("run `arc user save` or `arc sync` before relying on handoff");
   });
 
   it("treats fetch-blocked ancestry comparison as local continuation, not stale-note divergence", async () => {
@@ -444,9 +1441,9 @@ describe("runUserSessionInitStatus", () => {
     });
 
     expect(result.state).toBe("remote-unavailable");
-    expect(result.summary).toBe("andrew: session-init remote comparison unavailable here");
+    expect(result.summary).toBe("andrew: session-init local-to-remote notes comparison unavailable here");
     expect(result.detailLines).toContain(
-      "Remote notes are reachable, but this environment blocks the fetch-based ancestry comparison.",
+      "Remote notes are reachable, but this environment blocks the local-to-remote notes ancestry comparison.",
     );
     expect(result.detailLines).toContain(
       "Next step: continue with local tracked state, or retry session-init where git fetch/write access is allowed.",
@@ -455,12 +1452,217 @@ describe("runUserSessionInitStatus", () => {
   });
 });
 
+describe("runUserSessionInitStatus loadNeeded probe", () => {
+  const userDir = "/repo/.arc/user/andrew";
+  const internalDir = `${userDir}/.internal`;
+  const localNotesRef = "refs/notes/arc/user/andrew";
+  const localNotesRefHash = "c".repeat(40);
+  const remoteAheadHash = "f".repeat(40);
+  const noteHistoryCommit = "d".repeat(40);
+  const sourceCommit = "a".repeat(40);
+  const noteCommit = "b".repeat(40);
+  const noteCommitPath = `${noteCommit.slice(0, 2)}/${noteCommit.slice(2)}`;
+
+  type RefStateOverride =
+    | "same"
+    | "local-ahead"
+    | "remote-ahead"
+    | "diverged"
+    | "remote-unavailable";
+
+  interface ProbeOptions {
+    refState: RefStateOverride;
+    /** When `true`, disk content matches note content (state === "same" → loadNeeded: false). */
+    diskMatchesNote?: boolean;
+  }
+
+  function buildIO(options: ProbeOptions): UserIOContext {
+    const diskFiles = options.diskMatchesNote
+      ? { "SESSION-NOTES.md": "shared-content" }
+      : { "SESSION-NOTES.md": "disk-content" };
+    const noteFiles = options.diskMatchesNote
+      ? { "SESSION-NOTES.md": "shared-content" }
+      : { "SESSION-NOTES.md": "newer-from-other-machine" };
+    const noteJSON = JSON.stringify({ version: 2, files: noteFiles });
+    const materializedManifest: SyncManifest = { version: 2, files: diskFiles };
+    const materializedManifestHash = hashSyncManifest(materializedManifest);
+    const syncStateContent = JSON.stringify({
+      version: 2,
+      materializedManifestHash,
+      sourceCommit,
+      sourceOperation: "save",
+    });
+
+    return {
+      exec: async (cmd, args) => {
+        if (cmd !== "git") throw new Error(`unexpected cmd: ${cmd}`);
+        if (args[0] === "rev-parse" && args[1] === "--verify" && args[2] === localNotesRef) {
+          return { stdout: `${localNotesRefHash}\n`, stderr: "" };
+        }
+        if (args[0] === "ls-remote" && args[1] === "origin" && args[2] === localNotesRef) {
+          if (options.refState === "remote-unavailable") {
+            throw new Error("remote unavailable");
+          }
+          if (options.refState === "local-ahead") {
+            return { stdout: "", stderr: "" };
+          }
+          if (options.refState === "remote-ahead" || options.refState === "diverged") {
+            return { stdout: `${remoteAheadHash}\trefs/notes/arc/user/andrew\n`, stderr: "" };
+          }
+          return { stdout: `${localNotesRefHash}\trefs/notes/arc/user/andrew\n`, stderr: "" };
+        }
+        if (args[0] === "fetch") {
+          return { stdout: "", stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "--verify" && args[2]?.startsWith("refs/arc-sync-temp/")) {
+          return { stdout: `${remoteAheadHash}\n`, stderr: "" };
+        }
+        if (args[0] === "update-ref" && args[1] === "-d") {
+          return { stdout: "", stderr: "" };
+        }
+        if (
+          args[0] === "merge-base"
+          && args[1] === "--is-ancestor"
+          && args[2] === localNotesRefHash
+          && args[3] === remoteAheadHash
+        ) {
+          if (options.refState === "remote-ahead") return { stdout: "", stderr: "" };
+          throw new Error("not an ancestor");
+        }
+        if (
+          args[0] === "merge-base"
+          && args[1] === "--is-ancestor"
+          && args[2] === remoteAheadHash
+          && args[3] === localNotesRefHash
+        ) {
+          throw new Error("not an ancestor");
+        }
+        if (args[0] === "rev-parse" && args[1] === "HEAD" && args.length === 2) {
+          return { stdout: `${noteCommit}\n`, stderr: "" };
+        }
+        if (args[0] === "log" && args.includes(localNotesRef)) {
+          return { stdout: `${noteHistoryCommit}\n`, stderr: "" };
+        }
+        if (args[0] === "diff-tree" && args.includes(noteHistoryCommit)) {
+          return { stdout: `${noteCommitPath}\n`, stderr: "" };
+        }
+        if (args[0] === "show" && args[1] === `${noteHistoryCommit}:${noteCommitPath}`) {
+          return { stdout: noteJSON, stderr: "" };
+        }
+        if (
+          args[0] === "merge-base"
+          && args[1] === "--is-ancestor"
+          && args[2] === noteCommit
+          && args[3] === "HEAD"
+        ) {
+          return { stdout: "", stderr: "" };
+        }
+        if (
+          args[0] === "rev-list"
+          && args[1] === "--count"
+          && args[2] === `${noteCommit}..HEAD`
+        ) {
+          return { stdout: "0\n", stderr: "" };
+        }
+        if (
+          args[0] === "merge-base"
+          && args[1] === "--is-ancestor"
+          && args[2] === sourceCommit
+          && args[3] === noteCommit
+        ) {
+          return { stdout: "", stderr: "" };
+        }
+        throw new Error(`unexpected git call: ${args.join(" ")}`);
+      },
+      readDir: async (dir) => {
+        if (dir === userDir) {
+          return Object.entries(diskFiles).map(([name, content]) => ({
+            name,
+            size: content.length,
+          }));
+        }
+        return [];
+      },
+      readFile: async (path) => {
+        for (const [name, content] of Object.entries(diskFiles)) {
+          if (path === `${userDir}/${name}`) return content;
+        }
+        if (path === `${internalDir}/.sync-state.json`) return syncStateContent;
+        throw new Error(`ENOENT: ${path}`);
+      },
+      writeFile: async () => {},
+      mkdir: async () => undefined,
+      writeNote: async () => {},
+      readNote: async () => null,
+    };
+  }
+
+  it("surfaces loadNeeded: true when refs match and disk lags behind a descendant note", async () => {
+    const io = buildIO({ refState: "same" });
+
+    const result = await runUserSessionInitStatus({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      remoteSyncEnabled: true,
+    });
+
+    expect(result.state).toBe("clean");
+    expect(result.loadNeeded).toBe(true);
+  });
+
+  it("surfaces loadNeeded: false when refs match and disk hash matches note hash", async () => {
+    const io = buildIO({ refState: "same", diskMatchesNote: true });
+
+    const result = await runUserSessionInitStatus({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      remoteSyncEnabled: true,
+    });
+
+    expect(result.state).toBe("clean");
+    expect(result.loadNeeded).toBe(false);
+  });
+
+  it("omits loadNeeded when refState is local-ahead (clean spine but not 'same')", async () => {
+    const io = buildIO({ refState: "local-ahead" });
+
+    const result = await runUserSessionInitStatus({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      remoteSyncEnabled: true,
+    });
+
+    expect(result.state).toBe("clean");
+    expect(result.loadNeeded).toBeUndefined();
+  });
+
+  it.each(["remote-ahead", "diverged", "remote-unavailable"] as const)(
+    "omits loadNeeded on non-clean spine state derived from refState %s",
+    async (refState) => {
+      const io = buildIO({ refState });
+
+      const result = await runUserSessionInitStatus({
+        cwd: "/repo",
+        io,
+        identity: "andrew",
+        remoteSyncEnabled: true,
+      });
+
+      expect(result.state).not.toBe("clean");
+      expect(result.loadNeeded).toBeUndefined();
+    },
+  );
+});
+
 describe("buildUserSessionInitStatusSummary", () => {
   it("renders a promptable remote-ahead session-init summary", () => {
     const summary = buildUserSessionInitStatusSummary({
       identity: "andrew",
       state: "remote-ahead",
-      summary: "andrew: session-init remote notes ahead",
+      summary: "andrew: session-init remote notes ahead of local notes",
       detailLines: [
         "Remote notes are newer than local notes.",
         "Next step: ask whether to run `arc user pull` before continuing session-init.",
@@ -469,7 +1671,7 @@ describe("buildUserSessionInitStatusSummary", () => {
       shouldPromptToPull: true,
     });
 
-    expect(summary).toContain("andrew: session-init remote notes ahead");
+    expect(summary).toContain("andrew: session-init remote notes ahead of local notes");
     expect(summary).toContain("Next step: ask whether to run `arc user pull`");
   });
 });
@@ -511,53 +1713,70 @@ describe("buildUserStatusResult worktree qualifier", () => {
   }
 
   it("omits the qualifier when worktree probe is clean", () => {
-    const result = withWorktree({ state: "clean", ahead: 0, behind: 0 });
+    const result = withWorktree({ state: "clean", ahead: 0, behind: 0, branch: "main" });
 
     expect(result.detailLines.some((line) => line.startsWith("Worktree"))).toBe(false);
   });
 
   it("appends a behind-by-N qualifier when worktree is remote-ahead", () => {
-    const result = withWorktree({ state: "remote-ahead", ahead: 0, behind: 3 });
+    const result = withWorktree({ state: "remote-ahead", ahead: 0, behind: 3, branch: "main" });
 
-    expect(result.detailLines).toContain("Worktree is behind origin by 3 commit(s).");
+    expect(result.detailLines).toContain("Local worktree HEAD is behind its origin upstream by 3 commit(s).");
   });
 
   it("appends a divergence qualifier with both counts when worktree is diverged", () => {
-    const result = withWorktree({ state: "diverged", ahead: 2, behind: 5 });
+    const result = withWorktree({ state: "diverged", ahead: 2, behind: 5, branch: "main" });
 
-    expect(result.detailLines).toContain("Worktree has diverged from origin (2 ahead, 5 behind).");
+    expect(result.detailLines).toContain(
+      "Local worktree HEAD and its origin upstream have diverged (2 local ahead, 5 remote ahead).",
+    );
   });
 
   it("keeps the qualifier when notes already report remote-ahead", () => {
     const result = withWorktree(
-      { state: "remote-ahead", ahead: 0, behind: 1 },
+      { state: "remote-ahead", ahead: 0, behind: 1, branch: "main" },
       { refState: "remote-ahead" },
     );
 
     expect(result.headline).toBe("remote note ahead");
-    expect(result.detailLines).toContain("Worktree is behind origin by 1 commit(s).");
+    expect(result.detailLines).toContain("Local worktree HEAD is behind its origin upstream by 1 commit(s).");
   });
 
   it("keeps the qualifier when notes are in conflict", () => {
     const result = withWorktree(
-      { state: "remote-ahead", ahead: 0, behind: 4 },
+      { state: "remote-ahead", ahead: 0, behind: 4, branch: "main" },
       { refState: "diverged", diskState: "different", unsavedDirection: "mixed" },
     );
 
     expect(result.headline).toBe("notes conflict");
-    expect(result.detailLines).toContain("Worktree is behind origin by 4 commit(s).");
+    expect(result.detailLines).toContain("Local worktree HEAD is behind its origin upstream by 4 commit(s).");
   });
 
-  it("emits a soft 'comparison unavailable' qualifier when the worktree probe failed", () => {
+  it("emits a timeout-specific qualifier when the worktree probe times out", () => {
     const result = withWorktree({
       state: "remote-unavailable",
       ahead: 0,
       behind: 0,
+      branch: "main",
       failureReason: "timeout",
     });
 
     expect(result.detailLines).toContain(
-      "Worktree remote comparison unavailable; reported state may not reflect unreachable remote commits.",
+      "Worktree local-to-origin comparison timed out; retry or use `--offline` to report local worktree refs only.",
+    );
+  });
+
+  it("emits an auth/network qualifier when the worktree probe fails without timing out", () => {
+    const result = withWorktree({
+      state: "remote-unavailable",
+      ahead: 0,
+      behind: 0,
+      branch: "main",
+      failureReason: "error",
+    });
+
+    expect(result.detailLines).toContain(
+      "Worktree local-to-origin comparison failed; investigate auth/network access before trusting remote worktree state.",
     );
   });
 
@@ -576,10 +1795,10 @@ describe("buildUserStatusResult worktree qualifier", () => {
     });
 
     expect(result.detailLines).toContain(
-      "Worktree remote comparison skipped (`--offline`); reported state reflects local refs only.",
+      "Worktree remote comparison skipped (`--offline`); reported state reflects local worktree refs only.",
     );
-    expect(result.detailLines.some((line) => line.startsWith("Worktree is behind"))).toBe(false);
-    expect(result.detailLines.some((line) => line.startsWith("Worktree has diverged"))).toBe(false);
+    expect(result.detailLines.some((line) => line.startsWith("Local worktree HEAD is behind"))).toBe(false);
+    expect(result.detailLines.some((line) => line.startsWith("Local worktree HEAD and"))).toBe(false);
   });
 
   it("emits no qualifier and no offline note when remote_sync is disabled", () => {
@@ -600,7 +1819,7 @@ describe("buildUserStatusResult worktree qualifier", () => {
   });
 
   it("omits the qualifier when worktree is local-ahead (no drift to flag)", () => {
-    const result = withWorktree({ state: "local-ahead", ahead: 2, behind: 0 });
+    const result = withWorktree({ state: "local-ahead", ahead: 2, behind: 0, branch: "main" });
 
     expect(result.detailLines.some((line) => line.startsWith("Worktree"))).toBe(false);
   });
@@ -699,5 +1918,263 @@ describe("runUserStatus worktree probe orchestration", () => {
     });
 
     expect(calls.some((c) => c.args[0] === "fetch")).toBe(false);
+  });
+
+  it("threads local notes ref absence into detailLines as the first-use hint", async () => {
+    const calls: Array<{ cmd: string; args: string[] }> = [];
+    const io = makeIO(fakeNoNotesExec(calls));
+
+    const result = await runUserStatus({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      remoteSyncEnabled: true,
+    });
+
+    expect(result.detailLines[0]).toBe(
+      "New here? Run `arc user --help` to learn about user notes.",
+    );
+  });
+
+  it("probes local notes ref existence even in offline mode", async () => {
+    const calls: Array<{ cmd: string; args: string[] }> = [];
+    const io = makeIO(fakeNoNotesExec(calls));
+
+    await runUserStatus({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      offline: true,
+      remoteSyncEnabled: true,
+    });
+
+    expect(calls.some((c) =>
+      c.args[0] === "rev-parse" && c.args[1] === "--verify"
+      && c.args[2] === "refs/notes/arc/user/andrew",
+    )).toBe(true);
+  });
+});
+
+describe("runUserStatus bounded notes-ref fetch", () => {
+  const localHash = "a".repeat(40);
+  const remoteHash = "b".repeat(40);
+  const notesRef = "refs/notes/arc/user/andrew";
+
+  interface ExecCall {
+    cmd: string;
+    args: string[];
+    options?: { signal?: AbortSignal };
+  }
+
+  type FetchBehavior = "ok" | "abort-error" | "generic-error";
+
+  function makeIO(execImpl: (cmd: string, args: string[], options?: { signal?: AbortSignal }) =>
+    Promise<{ stdout: string; stderr: string }>) {
+    return {
+      exec: execImpl,
+      readDir: async () => [],
+      readFile: async () => "",
+      writeFile: async () => {},
+      mkdir: async () => undefined,
+      writeNote: async () => {},
+      readNote: async () => null,
+    };
+  }
+
+  // Drives the must-fetch path: a present-but-different local notes ref
+  // means classifyPreFetch returns must-fetch, so the bounded fetch fires.
+  function fakeMustFetchExec(record: ExecCall[], fetchBehavior: FetchBehavior) {
+    return async (cmd: string, args: string[], options?: { signal?: AbortSignal }) => {
+      record.push({ cmd, args, options });
+      if (args[0] === "rev-parse" && args[1] === "--abbrev-ref" && args[2] === "HEAD") {
+        return { stdout: "main\n", stderr: "" };
+      }
+      if (args[0] === "rev-parse" && args[1] === "--abbrev-ref" && args[2] === "@{upstream}") {
+        return { stdout: "origin/main\n", stderr: "" };
+      }
+      if (args[0] === "rev-list" && args.includes("--count")) {
+        return { stdout: "0\t0\n", stderr: "" };
+      }
+      if (args[0] === "rev-parse" && args.length === 2 && args[1] === "HEAD") {
+        return { stdout: "abc1234\n", stderr: "" };
+      }
+      if (args[0] === "rev-parse" && args[1] === "--verify" && args[2] === notesRef) {
+        return { stdout: `${localHash}\n`, stderr: "" };
+      }
+      if (args[0] === "ls-remote") {
+        return { stdout: `${remoteHash}\t${notesRef}\n`, stderr: "" };
+      }
+      if (
+        args[0] === "fetch"
+        && args[1] === "origin"
+        && typeof args[2] === "string"
+        && args[2].startsWith(`+${notesRef}:`)
+      ) {
+        if (fetchBehavior === "abort-error") {
+          const err = new Error("aborted");
+          err.name = "AbortError";
+          throw err;
+        }
+        if (fetchBehavior === "generic-error") {
+          throw new Error("network down");
+        }
+        return { stdout: "", stderr: "" };
+      }
+      if (args[0] === "fetch") {
+        // Worktree-probe fetch — ignore for this suite.
+        return { stdout: "", stderr: "" };
+      }
+      // Temp-ref read after a successful fetch — return the remote hash so
+      // ancestor classification has data to work with.
+      if (args[0] === "rev-parse" && args[1] === "--verify"
+        && typeof args[2] === "string" && args[2].startsWith("refs/arc-sync-temp/")) {
+        return { stdout: `${remoteHash}\n`, stderr: "" };
+      }
+      if (args[0] === "merge-base") {
+        // Treat hashes as unrelated → diverged; not asserted by these tests
+        // but keeps the post-fetch classification path quiet.
+        throw new Error("not an ancestor");
+      }
+      if (args[0] === "update-ref" && args[1] === "-d") {
+        return { stdout: "", stderr: "" };
+      }
+      if (args[0] === "notes") {
+        return { stdout: "", stderr: "" };
+      }
+      throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
+    };
+  }
+
+  function findNotesRefFetch(calls: ExecCall[]): ExecCall | undefined {
+    return calls.find((c) =>
+      c.args[0] === "fetch"
+      && c.args[1] === "origin"
+      && typeof c.args[2] === "string"
+      && c.args[2].startsWith(`+${notesRef}:`),
+    );
+  }
+
+  it("invokes the notes-ref fetch with an AbortSignal in full-mode `arc status`", async () => {
+    const calls: ExecCall[] = [];
+    const io = makeIO(fakeMustFetchExec(calls, "ok"));
+
+    await runUserStatus({ cwd: "/repo", io, identity: "andrew", remoteSyncEnabled: true });
+
+    const notesFetch = findNotesRefFetch(calls);
+    expect(notesFetch).toBeDefined();
+    expect(notesFetch?.options?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("classifies AbortError as remote-unavailable / failureReason: timeout", async () => {
+    const calls: ExecCall[] = [];
+    const io = makeIO(fakeMustFetchExec(calls, "abort-error"));
+
+    const inspection = await inspectUserSyncRefsDetailed(io, "andrew", 1000);
+
+    expect(inspection.state).toBe("remote-unavailable");
+    expect(inspection.failureReason).toBe("timeout");
+  });
+
+  it("classifies non-Abort fetch errors as remote-unavailable / failureReason: error", async () => {
+    const calls: ExecCall[] = [];
+    const io = makeIO(fakeMustFetchExec(calls, "generic-error"));
+
+    const inspection = await inspectUserSyncRefsDetailed(io, "andrew", 1000);
+
+    expect(inspection.state).toBe("remote-unavailable");
+    expect(inspection.failureReason).toBe("error");
+  });
+
+  it("does not invoke the notes-ref fetch when --offline is set", async () => {
+    const calls: ExecCall[] = [];
+    const io = makeIO(fakeMustFetchExec(calls, "ok"));
+
+    await runUserStatus({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      offline: true,
+      remoteSyncEnabled: true,
+    });
+
+    expect(findNotesRefFetch(calls)).toBeUndefined();
+  });
+});
+
+describe("runUserStatus userSyncCause orchestration", () => {
+  function silentIO(execImpl: (cmd: string, args: string[]) =>
+    Promise<{ stdout: string; stderr: string }>) {
+    return {
+      exec: execImpl,
+      readDir: async () => [],
+      readFile: async () => {
+        throw new Error("ENOENT");
+      },
+      writeFile: async () => {},
+      mkdir: async () => undefined,
+      writeNote: async () => {},
+      readNote: async () => null,
+    };
+  }
+
+  it("threads offline cause onto UserStatusResult under --offline", async () => {
+    const io = silentIO(async (_cmd: string, args: string[]) => {
+      if (args[0] === "rev-parse" && args[1] === "HEAD") {
+        return { stdout: "deadbeef\n", stderr: "" };
+      }
+      if (args[0] === "rev-parse" && args[1] === "--verify") {
+        throw new Error("ref not found");
+      }
+      if (args[0] === "log") return { stdout: "", stderr: "" };
+      if (args[0] === "merge-base") throw new Error("not an ancestor");
+      if (args[0] === "show") return { stdout: "", stderr: "" };
+      throw new Error(`unexpected git call: ${args.join(" ")}`);
+    });
+
+    const result = await runUserStatus({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      offline: true,
+      remoteSyncEnabled: false,
+    });
+
+    expect(result.userSyncCause).toBe("offline");
+    expect(result.userSyncCauseConfidence).toBe("offline");
+    expect(result.detailLines).toContain(
+      "Cause: cross-machine signals unavailable in offline mode.",
+    );
+  });
+
+  it("omits userSyncCause when ref state is clean (same) without offline", async () => {
+    const localHash = "a".repeat(40);
+
+    const io = silentIO(async (_cmd: string, args: string[]) => {
+      if (args[0] === "rev-parse" && args[1] === "HEAD") {
+        return { stdout: "deadbeef\n", stderr: "" };
+      }
+      if (args[0] === "rev-parse" && args[1] === "--verify"
+        && args[2] === "refs/notes/arc/user/andrew") {
+        return { stdout: `${localHash}\n`, stderr: "" };
+      }
+      if (args[0] === "ls-remote") {
+        return { stdout: `${localHash}\trefs/notes/arc/user/andrew\n`, stderr: "" };
+      }
+      if (args[0] === "log") return { stdout: "", stderr: "" };
+      if (args[0] === "merge-base") throw new Error("not an ancestor");
+      if (args[0] === "show") return { stdout: "", stderr: "" };
+      if (args[0] === "fetch") return { stdout: "", stderr: "" };
+      throw new Error(`unexpected git call: ${args.join(" ")}`);
+    });
+
+    const result = await runUserStatus({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      remoteSyncEnabled: false,
+    });
+
+    expect(result.userSyncCause).toBeUndefined();
+    expect(result.detailLines.some((line) => line.startsWith("Cause:"))).toBe(false);
   });
 });

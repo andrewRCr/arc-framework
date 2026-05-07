@@ -54,8 +54,10 @@ const FETCH_BRANCH = "fetch origin *";
 const REV_LIST_COUNT = "rev-list --left-right --count *";
 
 describe("runWorktreeSyncStatus", () => {
-  it("short-circuits without invoking git when remoteSyncEnabled is false", async () => {
-    const { exec, calls } = buildExec({});
+  it("short-circuits past upstream/fetch checks but still resolves branch when remoteSyncEnabled is false", async () => {
+    const { exec, calls } = buildExec({
+      [REV_PARSE_HEAD]: { stdout: "main", stderr: "" },
+    });
 
     const result = await runWorktreeSyncStatus({
       exec,
@@ -65,7 +67,10 @@ describe("runWorktreeSyncStatus", () => {
     expect(result.state).toBe("skipped");
     expect(result.ahead).toBe(0);
     expect(result.behind).toBe(0);
-    expect(calls).toEqual([]);
+    expect(result.branch).toBe("main");
+    // Branch resolution is the only git call — no fetch, no upstream lookup.
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.args).toEqual(["rev-parse", "--abbrev-ref", "HEAD"]);
   });
 
   it("returns clean with zero counts when local HEAD matches origin/<branch>", async () => {
@@ -81,6 +86,7 @@ describe("runWorktreeSyncStatus", () => {
     expect(result.state).toBe("clean");
     expect(result.ahead).toBe(0);
     expect(result.behind).toBe(0);
+    expect(result.branch).toBe("main");
   });
 
   it("returns remote-ahead with the correct behind count", async () => {
@@ -155,6 +161,7 @@ describe("runWorktreeSyncStatus", () => {
     expect(result.state).toBe("detached-head");
     expect(result.ahead).toBe(0);
     expect(result.behind).toBe(0);
+    expect(result.branch).toBeNull();
     expect(calls.some((c) => c.args[0] === "fetch")).toBe(false);
     expect(calls.some((c) => c.args.includes("@{upstream}"))).toBe(false);
   });

@@ -25,7 +25,8 @@ context_footer_mode=$(arc_config_get "commit.context_footer" "required")
 custom_pattern=$(arc_config_get "commit.custom_pattern" "")
 context_pattern=$(arc_config_get "commit.context_pattern" "")
 subject_max_length=$(arc_config_get "hooks.subject_max_length" "72")
-subject_warn_length=$(arc_config_get "hooks.subject_warn_length" "60")
+body_max_lines=$(arc_config_get "hooks.body_max_lines" "100")
+body_max_line_length=$(arc_config_get "hooks.body_max_line_length" "100")
 arc_role=$(git config arc.role 2>/dev/null || echo "maintainer")
 
 # Exit early if hook is disabled
@@ -109,9 +110,10 @@ esac
 
 # ============================================================================
 # RULE 2: Subject Line Length (configurable)
-# Defaults: max 72 (GitHub truncation point), warn at 60 (accounts for
-# conventional commit prefix overhead of 8-15 chars vs traditional 50).
+# Default max 72 — GitHub UI breakpoint and `git log --oneline` width.
 # Skipped when commit.format: any (no format opinion → no length opinion).
+# Authorial discipline aims at conventional ~50 chars; the hook only blocks
+# at the hard limit to avoid warning fatigue.
 # ============================================================================
 if [ "$commit_format" != "any" ]; then
     if [ "$subject_length" -lt 10 ]; then
@@ -120,9 +122,6 @@ if [ "$commit_format" != "any" ]; then
     elif [ "$subject_length" -gt "$subject_max_length" ]; then
         echo -e "${RED}Error: Subject line too long (${subject_length} chars, maximum ${subject_max_length})${NC}"
         errors=$((errors + 1))
-    elif [ "$subject_length" -gt "$subject_warn_length" ]; then
-        echo -e "${YELLOW}Warning: Subject line is ${subject_length} chars (recommended max ${subject_warn_length}, hard limit ${subject_max_length})${NC}"
-        warnings=$((warnings + 1))
     fi
 fi
 
@@ -261,20 +260,20 @@ case "$context_footer_mode" in
                     echo "   Your Context line: $context_line"
                 fi
 
-            # Matches: Context: plan-[name].md (planning|code review)
-            elif echo "$context_line" | grep -qE '^Context: plan-[a-zA-Z0-9-]+\.md \((planning|code review)\)$'; then
-                plan_file=$(echo "$context_line" | sed -E 's/Context: (plan-[a-zA-Z0-9-]+\.md).*/\1/')
+            # Matches: Context: (plan|prd)-[name].md (planning|code review)
+            elif echo "$context_line" | grep -qE '^Context: (plan|prd)-[a-zA-Z0-9-]+\.md \((planning|code review)\)$'; then
+                spec_file=$(echo "$context_line" | sed -E 's/Context: ((plan|prd)-[a-zA-Z0-9-]+\.md).*/\1/')
 
-                plan_found=false
-                for dir in .arc/active/*/; do
-                    if [ -f "$dir$plan_file" ]; then
-                        plan_found=true
+                spec_found=false
+                for dir in .arc/active/*/ .arc/backlog/*/; do
+                    if [ -f "$dir$spec_file" ]; then
+                        spec_found=true
                         break
                     fi
                 done
 
-                if [ "$plan_found" = false ]; then
-                    echo -e "${YELLOW}Warning: Plan file '$plan_file' not found in active directories${NC}"
+                if [ "$spec_found" = false ]; then
+                    echo -e "${YELLOW}Warning: Plan/PRD file '$spec_file' not found in active or backlog directories${NC}"
                     echo "   This may be intentional if the file was just created or archived"
                     warnings=$((warnings + 1))
                 fi
@@ -334,6 +333,7 @@ case "$context_footer_mode" in
                 echo "   - Context: tasks-[name].md (incidental - discovered during <context>)"
                 echo "   - Context: tasks-[name].md (planning), (maintenance), or (code review)"
                 echo "   - Context: plan-[name].md (planning) or (code review)"
+                echo "   - Context: prd-[name].md (planning) or (code review)"
                 echo "   - Context: status-[name].md (handoff), (activation), (integration), (archival), or (planning)"
                 echo "   - Context: status-[name].md (incidental - discovered during <context>)"
                 echo "   - Context: atomic-[name].md"
@@ -369,35 +369,37 @@ case "$context_footer_mode" in
 esac
 
 # ============================================================================
-# RULE 5: Body Length Limits (warnings only)
+# RULE 5: Body Runaway Detection (hard errors)
 # ============================================================================
+# Catches genuinely runaway commit bodies — no soft warnings. Authorial
+# discipline aims at ~72-char wrap (see commit-format method); these limits
+# are backstops for accidental paste / forgotten wrap, not style enforcement.
 body_lines=$(echo "$body" | grep -vc '^$' || true)
 
-if [ "$body_lines" -gt 25 ]; then
-    echo -e "${YELLOW}Warning: Commit body is ${body_lines} lines (maximum 25 recommended)${NC}"
-    echo "   Consider breaking into multiple commits or reducing verbosity"
-    warnings=$((warnings + 1))
-elif [ "$body_lines" -gt 15 ]; then
-    echo -e "${YELLOW}Info: Commit body is ${body_lines} lines (normal limit 15, milestone limit 25)${NC}"
+if [ "$body_lines" -gt "$body_max_lines" ]; then
+    echo -e "${RED}Error: Commit body is ${body_lines} lines (maximum ${body_max_lines})${NC}"
+    echo "   Past this length the commit is usually better split, or the prose moved to a doc."
+    errors=$((errors + 1))
+fi
+
+long_line_count=$(echo "$body" | awk -v max="$body_max_line_length" 'length > max { count++ } END { print count + 0 }')
+if [ "$long_line_count" -gt 0 ]; then
+    echo -e "${RED}Error: Commit body has ${long_line_count} line(s) over ${body_max_line_length} chars${NC}"
+    echo "   Aim at ~72-char wrap (commit-format method); this hard limit catches accidental paste / forgotten wrap."
+    errors=$((errors + 1))
 fi
 
 # ============================================================================
-# RULE 6: Common Mistakes
+# RULE 6: Phases vs. Tasks (hard error)
 # ============================================================================
-
-# Check for "Phase X.Y" instead of "Task X.Y"
+# Phases use bare integers; tasks use dotted form. "Phase X.Y" is a category
+# mismatch that corrupts grep-ability of commit history.
 # Excludes dotted IDs with 3+ segments (e.g., 5.3.a) — those are unambiguously tasks.
 if echo "$commit_msg" | grep -qE 'Phase [0-9]+\.[0-9]+($|[^.])'; then
-    echo -e "${YELLOW}Warning: Found 'Phase X.Y' in commit message${NC}"
+    echo -e "${RED}Error: Found 'Phase X.Y' in commit message${NC}"
     echo "   Phases use single integers (Phase 1, Phase 2). Use 'Task X.Y' for specific tasks."
-    warnings=$((warnings + 1))
-fi
-
-# Check for referencing PRD instead of task list
-if echo "$commit_msg" | grep -qE 'Related to:.*PRD'; then
-    echo -e "${YELLOW}Warning: Found 'Related to: ... PRD' in commit message${NC}"
-    echo "   Use 'Context: tasks-[name].md' instead to reference task list"
-    warnings=$((warnings + 1))
+    echo "   Preserves grep-ability: \`git log --grep \"Task 3.1\"\` should find the right commits."
+    errors=$((errors + 1))
 fi
 
 # ============================================================================

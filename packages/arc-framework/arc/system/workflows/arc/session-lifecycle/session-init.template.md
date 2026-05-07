@@ -27,15 +27,17 @@ pwd && arc status --session-init --json
 `pwd` should match the repo root (`{{REPO_ROOT}}`). The probe returns a single JSON envelope
 the agent consumes:
 
-| Field         | Contents                                                                                                                                                                                                                                                 |
-|---------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `identity`    | `{identity, role}` — either may be `null`                                                                                                                                                                                                                |
-| `user`        | Remote notes state (`value.state`: clean / remote-ahead / conflict / disabled / remote-unavailable). May carry a worktree-context qualifier in `value.detailLines` (e.g., comparison-vs-current-HEAD note when the worktree is behind origin)            |
-| `worktree`    | Worktree sync state vs. `origin/<current-branch>` (`value.state`: clean / local-ahead / remote-ahead / diverged / no-upstream / detached-head / no-remote / remote-unavailable / skipped; `value.ahead` and `value.behind` populated for healthy states) |
-| `extensions`  | `value.active`: the **active-extensions list** — consulted by fire-point directives in downstream workflows                                                                                                                                              |
-| `config`      | `value.settings`: session-relevant settings (`session.remote_sync`, `session.init_pull.worktree`, `session.init_pull.notes`, `branch.protection`, `pm.mode`, `commit.format`, `commit.context_footer`)                                                   |
-| `active`      | Active status file resolution (`value.resolution`: single / multiple / none; `value.path`, `value.candidates`, `value.layout`)                                                                                                                           |
-| `domainRules` | `value.rules`: `{path, domain, purpose}` tuples from `DEV-RULES.{DOMAIN}.md` files; `value.warnings`: frontmatter parse diagnostics                                                                                                                      |
+| Field                       | Contents                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+|-----------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------                                                                                                                                                                                                                                      |
+| `identity`                  | `{identity, role}` — either may be `null`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `user`                      | Remote notes state (`value.state`: clean / remote-ahead / conflict / disabled / remote-unavailable). Carries `value.recommendedAction` ∈ `{pull, prompt, surface, skip}` and `value.recommendedPromptText` (composed channel-named offer text; empty string when not prompting) for Step 2's per-channel pull dispatch. The clean arm also carries `value.loadNeeded?: boolean` — `true` when refs match but disk lags behind the latest local note (cross-machine resume gap), feeding Step 2's notes-load dispatch; omitted on every non-clean spine state                              |
+| `worktree`                  | Worktree sync state vs. `origin/<current-branch>` (`value.state`: clean / local-ahead / remote-ahead / diverged / no-upstream / detached-head / no-remote / remote-unavailable / skipped; `value.ahead` and `value.behind` populated for healthy states). Carries `value.recommendedAction` / `value.recommendedPromptText` mirroring the user slot                                                                                                                                                                                                                                       |
+| `dirty`                     | Working-tree state from `git status --porcelain` (`value.state`: clean / dirty; `value.fileCount`). Folded into the user/worktree `recommendedPromptText` so Step 2 doesn't re-probe                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `extensions`                | `value.active`: the **active-extensions list** — consulted by fire-point directives in downstream workflows                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `config`                    | `value.settings`: session-relevant settings (`session.remote_sync`, `session.init_pull.worktree`, `session.init_pull.notes`, `session.init_load.notes`, `branch.protection`, `pm.mode`, `commit.format`, `commit.context_footer`)                                                                                                                                                                                                                                                                                                                                                         |
+| `active`                    | Active status file resolution (`value.resolution`: single / multiple / none; `value.path`, `value.candidates`, `value.layout`)                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `domainRules`               | `value.rules`: `{path, domain, purpose}` tuples from `DEV-RULES.{DOMAIN}.md` files; `value.warnings`: frontmatter parse diagnostics                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `recommendedCombinedPrompt` | Top-level. Composed combined-prompt text when both `worktree` and `user` resolve to `recommendedAction === "prompt"`; `null` otherwise                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
 Carry `config` values forward as behavioral awareness. Do not surface configuration in orientation — defaults
 and overrides reach the user at the consuming operation.
@@ -55,45 +57,65 @@ user-sync state available) and note the degradation in orientation.
 
 ## 2. Conditional Sync Pulls
 
-Two channels may need attention: worktree (`worktree.value`) and personal notes (`user.value`).
+Two channels: worktree (`worktree.value`) and personal notes (`user.value`). Both expose
+`recommendedAction` and `recommendedPromptText` derived from current state × `session.init_pull.*` config
+× dirty-tree state. The envelope's top-level `recommendedCombinedPrompt` carries the combined-prompt
+offer text when both pull channels resolve to `prompt`. The personal notes channel additionally
+carries `loadNeeded?: boolean` for the cross-machine resume gap; the notes-load dispatch fires
+alongside the pull dispatch on the clean arm.
 
-**Dirty-tree precheck.** Before any pull prompt, check `git status --porcelain`. If non-empty, the prompt
-must warn: "working tree dirty — stash or commit before accepting". No auto-stash; user resolves manually.
+**Per-channel rule.** For each channel, dispatch on `recommendedAction`:
 
-**Worktree channel** — keyed on `worktree.value.state` and `config.value.settings["session.init_pull.worktree"]`:
+- `pull` — fire the channel's pull immediately (`git pull --ff-only` for worktree; `arc user pull` for
+  notes). Skip post-pull re-probe on success — clean post-state is implied by a clean pull.
+- `prompt` — ask using `recommendedPromptText` (channel-named, count-included, dirty-tree-aware). On
+  accept, run the channel's pull. The agent owns the prompt — do not defer it to the CLI.
+- `surface` — carry the channel's state into Step 6's orientation (e.g., `Reconcile required:` for
+  worktree-diverged, informational line for local-ahead, degraded-state note for remote-unavailable).
+  No prompt, no pull.
+- `skip` — no action.
 
-- `remote-ahead`: `prompt` mode → ask before pulling. On accept, run `git pull --ff-only`. Skip post-pull
-  re-probe on success — `clean` post-state is implied by a clean pull. `manual` mode → surface in
-  orientation; do not prompt.
-- `diverged`: Non-blocking. Surface in Step 6 as `Reconcile required:`; carry forward.
-- `local-ahead`: Single informational line in Step 6. No prompt.
-- `clean`, `no-upstream`, `detached-head`, `no-remote`, `skipped`: No action.
-- `remote-unavailable`: Note in orientation. Continue session-init.
+**Notes-load dispatch.** Independent of the pull dispatch, when `user.value.loadNeeded === true` (refs
+match but disk lags behind the latest local note — typical when a worktree pull silently advanced the
+user-notes ref on this machine), dispatch on `session.init_load.notes`:
 
-**Notes channel** — keyed on `user.value.state` and `config.value.settings["session.init_pull.notes"]`:
+- `always` — fire `arc user load` immediately, **except** when `dirty.value.state === "dirty"`. Under
+  a dirty tree, `always` degrades to `prompt` with a "stash or commit local edits before loading"
+  warning prepended to the offer text. The pre-load backup that ships with `arc user load` is the
+  safety net for the auto-action case.
+- `prompt` — ask before running `arc user load`. Channel-named, dirty-tree-aware offer text mirrors
+  the pull-prompt convention. The agent owns the prompt.
+- `manual` — surface in Step 6 orientation only (informational line; no prompt, no run).
 
-- `remote-ahead` or `conflict`: `prompt` mode → ask before running `arc user pull`. `always` mode → pull
-  without prompting. `manual` mode → surface in orientation; do not prompt. **Pull before Step 3** —
-  SESSION-NOTES reads below would be stale otherwise.
-- `clean`, `disabled`: No action.
-- `remote-unavailable`: Note the degraded state. If the remote is unreachable, continue with local tracked
-  state or retry once reachable. If reachable but full comparison is blocked in this environment, continue
-  with local tracked state or retry where `git fetch` / remote-ref writes are allowed.
+`loadNeeded` absent or `false` → no action regardless of config. Notes-pull and notes-load are
+mutually exclusive on the notes channel (pull fires when `refState ∈ {remote-ahead, conflict}`; load
+fires when `refState === "same"`), so they never co-occur there.
 
-**Combined prompt.** When both channels need a prompt under `prompt` mode, issue one combined prompt instead
-of two. Name each channel with its counts (worktree: `value.ahead` / `value.behind`; notes: from `user.value`
-when present), include the dirty-tree warning when applicable, and offer per-channel choices (pull both /
-worktree only / notes only / skip). On combined-accept, issue `git pull --ff-only && arc user pull` as a
-single Bash call; skip post-pull re-probe on success. On partial pulls or single-channel accept where
-downstream state ambiguity matters, re-probe to confirm.
+**Combined prompt.** When more than one acceptance prompt would fire simultaneously, issue a single
+combined prompt with per-channel choices instead of multiple per-channel prompts. The envelope
+pre-composes `recommendedCombinedPrompt` for the two-pull case (worktree-pull + notes-pull) — issue
+that text directly, offer choices `pull both / worktree only / notes only / skip`, and on
+combined-accept run `git pull --ff-only && arc user pull` as a single Bash call. For other
+multi-channel combos (e.g., worktree-pull + notes-load) compose the offer text locally with the
+analogous per-channel choices and run the corresponding sequenced commands. Skip post-pull re-probe
+on combined-accept; on partial pulls or single-channel accept where downstream state ambiguity
+matters, re-probe to confirm.
 
-The agent owns the prompt — do not defer it to the CLI. If `identity.identity === null`, the notes channel
-has no path; skip notes regardless of state. Worktree channel still applies.
+**Notes operation ordering.** When the notes pull or notes load fires, it must complete before Step 3
+— SESSION-NOTES reads below would be stale otherwise.
+
+**Identity absent.** When `identity.identity === null`, the notes slot resolves to
+`recommendedAction: "skip"` with no `loadNeeded` field, so notes-pull and notes-load both skip.
+Worktree channel still applies.
 
 ## 3. Load Context Documents
 
 **Reading rule**: Read every document in the list below in full EXCEPT QUICK-REFERENCE (item 6 —
 section-level partial read) and the active task list (item 9 — strategic partial read).
+
+**Partial-read structural mapping**: When a partial read needs section offsets, issue ONE grep for the
+section delimiter and compute Read offsets locally — never per-section greps. Skip the grep entirely
+when a stable file convention places the section at a known location.
 
 **Parallelism (prescriptive)**: Issue items 1–6, 8 (SESSION-NOTES), and — when
 `active.resolution === "single"` — the active status file as Reads in a single tool-message. Items 9–10
@@ -117,11 +139,9 @@ session-state, follow the override instead.
       touches the relevant domain, not at init time.
 5. `.arc/reference/strategies/STRATEGY-INDEX.md`
 6. `.arc/reference/QUICK-REFERENCE.md` — **section-level partial read**: `## Environment & Path Context`
-    only (subsumes `### Runtime Environment`)
-
-**Commit-interlock load set:** If `config.value.settings["session.commit_interlock"]` is
-`on-task-approval`, also load `.arc/system/methods/commit-format.md` and
-`.arc/system/methods/commit-context-format.md` during session-init.
+    only (subsumes `### Runtime Environment`). File convention: this is the first section. Read
+    directly with `limit: ~35`. Apply structural mapping (delimiter `^##` line prefix) only if the
+    convention has been broken.
 
 **Active work context:**
 
@@ -219,10 +239,9 @@ warning in orientation.
         2. Search for the task number (e.g., `**4.2`) if the line hint is stale
         3. Search for the title fragment if the task was renumbered
         4. If none resolve, report the mismatch (Step 7)
-    - **Structural mapping** for header + phase preamble: when line-precise Reads are needed, issue one
-      grep for `^## \*\*Phase` (or equivalent phase-heading marker) returning all phase positions in a
-      single call — sufficient to compute Read offsets for header (above first phase), current phase
-      preamble, and current task section. Don't issue per-section greps.
+    - **Structural mapping**: Apply the Step 3 prelude rule with delimiter `^## \*\*Phase` (or
+      equivalent phase-heading marker) — one grep returns all phase positions, sufficient to compute
+      Read offsets for header (above first phase), current phase preamble, and current task section.
     - **Companion file awareness**: From `active.value.companions` — note their existence so
       references during execution resolve immediately. **Do not read these at init**
 

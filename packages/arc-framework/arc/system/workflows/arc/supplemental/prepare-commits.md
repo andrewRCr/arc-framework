@@ -11,11 +11,11 @@ arc:
 
 # Workflow: Prepare Commits
 
-For straightforward commits (single task, clear scope), the [commit-format][arc-methods-cf] and
-[commit-context-format][arc-methods-ccf] methods plus git hook validation are sufficient — you don't
-need this guide.
+This is the complex-path body for the [arc-commit skill][arc-commit-skill]. The skill owns the
+simple-vs-complex path decision; if you're reading this workflow directly, you've already been
+routed to the complex path.
 
-## When to Use This Guide
+## When This Workflow Applies
 
 - Multiple tasks accumulated without committing
 - Uncommitted work spanning multiple sessions
@@ -23,21 +23,9 @@ need this guide.
 - Uncertainty about what should be one commit vs. multiple
 - Session-end commits with mixed completed and partial work
 
-## Quick Commit Reference
-
-For simple, single-concern commits where you know what changed:
-
-1. `git status` — review pending changes
-2. `git --no-pager diff --stat` — overview of scope
-3. Update task list if committing completed task work — stage with the commit. (Status file
-   stays untouched here — see [DEV-RULES.ARC][dev-rules-arc] § Status-file timing.)
-4. Stage files for one logical change
-5. Pre-stage review extensions · `#pre-stage-review`: If `pre-stage-review` appears in the active-extensions
-   list (established at session init), load and execute its [`.actions`][arc-ext-pre-stage]. Otherwise, skip.
-6. Verify staging: `git diff --cached --stat` — confirm the staged set matches intent. Pre-staged
-   files (from earlier `git rm` or `git add`) can silently slip in; intended files can be left out.
-7. Commit using the [commit-format][arc-methods-cf] and [commit-context-format][arc-methods-ccf] methods
-8. Git hooks validate automatically
+For straightforward commits (single task, clear scope), arc-commit's simple path plus
+[commit-format][arc-methods-cf] / [commit-context-format][arc-methods-ccf] (loaded via this
+workflow's frontmatter) plus git hook validation are sufficient.
 
 ## Atomicity Guide
 
@@ -145,24 +133,13 @@ git log --oneline -10    # Review commit messages
 git status               # Verify clean state
 ```
 
-## Branch Practices
-
-- Verify correct branch before committing
-- Branch naming: `feature/[name]` for user-facing, `technical/[name]` for infrastructure
-- Incidental work: minor fixes commit to the current branch; larger incidental work may use
-  a dedicated `incidental/<name>` branch — see [manage-incidental-work.md][manage-incidental]
-- Merge using the project's `merge.strategy` setting (default: `merge` — preserves commit history).
-  With squash merging, traceability shifts from commits to PR descriptions —
-  see [Configurability Architecture][config-arch] § Merge Strategy for implications.
-- Clean up branches after successful merge
-- See [Work Organization Strategy][work-org] for details
+**Verify correct branch before committing.** Branch model — naming, incidental routing, merge
+strategy — lives in [Work Organization Strategy][work-org].
 
 ---
 
 [dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md
 [work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md
-[config-arch]: ../../../../reference/strategies/arc/strategy-configurability-architecture.md
-[manage-incidental]: manage-incidental-work.md
-[arc-ext-pre-stage]: ../../../extensions/pre-stage-review.md
+[arc-commit-skill]: ../../../skills/arc-commit/SKILL.md
 [arc-methods-cf]: ../../../methods/commit-format.md
 [arc-methods-ccf]: ../../../methods/commit-context-format.md

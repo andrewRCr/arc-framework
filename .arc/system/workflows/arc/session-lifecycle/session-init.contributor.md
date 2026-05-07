@@ -10,10 +10,6 @@ Loaded from `session-init.md` Step 3 when `identity.role === "contributor"`. Ste
 also universal — return to `session-init.md` for those. This file covers only the divergent surface:
 Step 3 item 7+ load shape, Step 5 freshness, and Step 6 orientation format.
 
-The universal commit-interlock load set from `session-init.md` also applies before this contributor
-branch: when `session.commit_interlock` is `on-task-approval`, load `commit-format.md` and
-`commit-context-format.md` during session-init.
-
 ## Step 3 (item 7+) — Active load set
 
 After items 1–6 load, run items 7–10 with the contributor adjustments below. The composite probe's

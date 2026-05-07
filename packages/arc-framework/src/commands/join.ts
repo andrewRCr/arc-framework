@@ -243,3 +243,43 @@ export async function runJoinReconfigure(
     removedSkills,
   };
 }
+
+// --- Post-Join Message ---
+
+/**
+ * Build the post-join message displayed after successful workspace setup.
+ *
+ * Three optional sections atop the role-confirmation line: a skill-restart
+ * cue when tools are configured, and a one-time orientation paragraph
+ * introducing the user-notes feature when an identity is set.
+ *
+ * @param result - Result from a successful join run
+ * @returns Formatted message string ready for display
+ */
+export function buildPostJoinMessage(result: JoinResult): string {
+  const lines: string[] = [];
+
+  lines.push(`Joined as ${result.role}.`);
+
+  if (result.tools.length > 0) {
+    lines.push("");
+    lines.push(
+      "Next: Restart your AI tool so the new /arc-resume skill is available, then run it.",
+    );
+  }
+
+  if (result.identity) {
+    lines.push("");
+    lines.push(
+      `Personal session context lives in .arc/user/${result.identity}/ (gitignored). It`,
+    );
+    lines.push(
+      "travels with your commits as user notes (a git notes ref), pushed and pulled",
+    );
+    lines.push(
+      "by `arc sync` so you can resume work across machines.",
+    );
+  }
+
+  return lines.join("\n");
+}

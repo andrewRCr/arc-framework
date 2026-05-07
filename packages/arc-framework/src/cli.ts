@@ -6,10 +6,13 @@
  * and I/O adapters in `src/lib/io-context.ts`.
  */
 
+import { fileURLToPath } from "node:url";
+
 import { Command, Option } from "commander";
 
 import { getFrameworkVersion } from "./lib/version.js";
 import { formatUnexpectedError } from "./lib/errors.js";
+import { checkDevBuildStaleness, createDevCheckDeps } from "./lib/dev-check.js";
 import { handleInit } from "./handlers/init.js";
 import { handleJoin } from "./handlers/join.js";
 import { handleUpdate, handleHealth, handleDiff } from "./handlers/lifecycle.js";
@@ -21,6 +24,7 @@ import { handleConfigStatus } from "./handlers/config.js";
 import { handleActiveStatus } from "./handlers/active.js";
 import { handleStatus } from "./handlers/status.js";
 import { handleSync } from "./handlers/sync.js";
+import { handleUserSync } from "./handlers/user-sync.js";
 import { handleLogAtomic } from "./handlers/log.js";
 
 const program = new Command();
@@ -75,7 +79,9 @@ program
 
 const userCmd = program
   .command("user")
-  .description("Manage ARC user directory and portability");
+  .description(
+    "Manage ARC user directory and portability — see also `arc sync` for the cross-concern orchestrator",
+  );
 
 userCmd
   .command("add <identity>")
@@ -84,12 +90,12 @@ userCmd
 
 userCmd
   .command("save")
-  .description("Save user directory to a git note on HEAD")
+  .description("Save user directory to user notes on HEAD")
   .action(handleUserSave);
 
 userCmd
   .command("load")
-  .description("Restore user directory from a git note")
+  .description("Restore user directory from user notes")
   .option("-y, --yes", "Skip overwrite confirmation prompts")
   .option("--max-walk <n>", "Max ancestors to walk when searching for a note (default: 1000)", parseInt)
   .action(handleUserLoad);
@@ -120,8 +126,16 @@ userCmd
   .option("--offline", "Skip remote and worktree probes; inspect only local snapshot vs disk")
   .option("--all", "List all remote user-note identities when a remote is available")
   .option("--session-init", "Render a non-destructive remote probe summary for session-init")
+  .option("--verbose", "Render the full ref/disk/working-files three-tier detail block (default: collapsed)")
   .option("--json", "Emit the typed result as JSON")
   .action(handleUserStatus);
+
+userCmd
+  .command("sync")
+  .description("Direction-aware notes-only sync — push, pull, or prompt on conflict")
+  .option("-y, --yes", "Skip overwrite confirmation prompts")
+  .option("--max-walk <n>", "Max ancestors to walk when searching for a note (default: 1000)", parseInt)
+  .action(handleUserSync);
 
 // --- Extensions ---
 
@@ -183,13 +197,21 @@ program
   .option("--json", "Emit the typed result as JSON")
   .action(handleStatus);
 
-// --- Sync ---
+// --- Sync (orchestrator) ---
 
 program
   .command("sync")
-  .description("Synchronize user directory with remote notes")
-  .option("-y, --yes", "Skip overwrite confirmation prompts")
-  .option("--max-walk <n>", "Max ancestors to walk when searching for a note (default: 1000)", parseInt)
+  .description(
+    "Synchronize the configured concerns — worktree push, user-notes push, "
+    + "per `push_interlock` and `notes_push` config",
+  )
+  .option(
+    "-y, --yes",
+    "Auto-accept safe-default prompts (push notes; merge on conflict). "
+    + "Force-push is never auto-selected.",
+  )
+  .option("--dry-run", "Print the matrix decision without invoking either leg")
+  .option("--json", "Emit the structured result as JSON")
   .action(handleSync);
 
 // --- Log ---
@@ -207,6 +229,66 @@ logCmd
   .option("--all", "Show all matching commits (no limit)")
   .option("--work-unit <name>", "Filter by work unit name (matches atomic-{name})")
   .action(handleLogAtomic);
+
+// --- Dev-mode stale-build guard (self-hosting only) ---
+
+program.hook("preAction", (_thisCommand, actionCommand) => {
+  const verdict = checkDevBuildStaleness(
+    createDevCheckDeps(fileURLToPath(import.meta.url)),
+  );
+  if (verdict.kind === "skip" || verdict.kind === "fresh") return;
+
+  const distAgeText = verdict.distAge === null
+    ? "dist/cli.js missing"
+    : `dist/cli.js built ${formatAge(verdict.distAge)} ago`;
+  const baseMsg
+    = `arc dev build is stale (${verdict.newestSrc} changed `
+    + `${formatAge(verdict.srcAge)} ago; ${distAgeText}).`;
+
+  if (isHandoffCritical(actionCommand)) {
+    const cmdPath = formatCommandPath(actionCommand);
+    process.stderr.write(
+      `error: ${baseMsg} Refusing \`${cmdPath}\` against stale dist; `
+      + "run `npm run build`, then retry.\n",
+    );
+    process.exit(1);
+  }
+
+  process.stderr.write(
+    `warn: ${baseMsg} Run \`npm run build\` before relying on output.\n`,
+  );
+});
+
+function isHandoffCritical(cmd: Command): boolean {
+  const name = cmd.name();
+  const parentName = cmd.parent?.name();
+  if (parentName === "arc" && name === "sync") return true;
+  if (parentName === "user" && (name === "save" || name === "push" || name === "sync")) return true;
+  if (parentName === "arc" && name === "status") {
+    const opts = cmd.opts();
+    if (opts.json === true && (opts.sessionInit === true || opts.sessionHandoff === true)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function formatCommandPath(cmd: Command): string {
+  const parts: string[] = [];
+  let cur: Command | null = cmd;
+  while (cur !== null) {
+    parts.unshift(cur.name());
+    cur = cur.parent;
+  }
+  return parts.join(" ");
+}
+
+function formatAge(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  if (seconds < 86_400) return `${Math.floor(seconds / 3600)}h`;
+  return `${Math.floor(seconds / 86_400)}d`;
+}
 
 // --- Entry ---
 

@@ -6,6 +6,16 @@
  * without maintaining bespoke one-key readers. `hooks.*` keys are excluded —
  * shell-consumed by git hooks, not by agents.
  *
+ * **Layering boundary.** The four release-mode keys
+ * (`session.commit_interlock`, `session.push_interlock`,
+ * `session.sync_interlock`, `user.notes_push`) are deliberately omitted from
+ * `ENUM_VALIDATORS`. Yaml values for those keys flow through this reader as
+ * raw strings; validation belongs to `resolveAllSettings` (the wrapper that
+ * composes this reader with per-key `resolveGitConfigOverride` calls). Single
+ * source of truth per key — no double-validation across yaml and git-config
+ * tiers. Callers needing resolved values use the wrapper; callers consuming
+ * raw yaml (`arc config status`) stay on this reader.
+ *
  * @module
  */
 
@@ -36,22 +46,25 @@ const DEFAULTS: ConfigSettings = {
   "session.remote_sync": "enabled",
   "session.init_pull.worktree": "prompt",
   "session.init_pull.notes": "prompt",
+  "session.init_load.notes": "prompt",
   "session.commit_interlock": "manual",
   "session.push_interlock": "manual",
+  "session.sync_interlock": "on-handoff",
   "archive.cadence": "with-integration",
-  "user.sync_push": "always",
+  "user.notes_push": "on-sync",
 };
 
 /**
  * Per-key allowed value sets for keys validated at parse time. Keys absent
  * from this map are passed through verbatim — shell-side `validate-config.sh`
- * remains the broader enum gate.
+ * remains the broader enum gate. The four release-mode keys
+ * (`session.{commit,push,sync}_interlock`, `user.notes_push`) are
+ * intentionally absent — see the module-level layering-boundary note.
  */
 const ENUM_VALIDATORS: Partial<Record<keyof ConfigSettings, readonly string[]>> = {
   "session.init_pull.worktree": ["manual", "prompt"],
   "session.init_pull.notes": ["manual", "prompt", "always"],
-  "session.commit_interlock": ["manual", "on-task-approval"],
-  "session.push_interlock": ["manual", "on-handoff"],
+  "session.init_load.notes": ["manual", "prompt", "always"],
   "archive.cadence": ["with-integration", "manual"],
 };
 

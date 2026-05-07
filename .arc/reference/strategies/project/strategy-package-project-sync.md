@@ -42,6 +42,24 @@ or `system/` that isn't clearly project-specific content. Check the manifest
 both copies to confirm the `.arc/` edit was intentional. Propagate to package source. If
 ambiguous, ask.
 
+**Configurable file sync — never `cp`.** Schema, key, or comment changes that need to land in
+both copies of a Configurable file must be applied with targeted edits, not `cp`. Configurable
+files diverge by design: the package source carries template defaults; the `.arc/` instance
+carries this project's overrides. A blind `cp` from package to instance silently regresses
+every project-specific value (`branch.protection`, interlock policies, `hooks.*_patterns`
+extensions, etc.).
+
+**To propagate a schema change correctly:**
+
+1. Edit the package source first (the change ships to adopters via `arc update`).
+2. Edit `.arc/` separately with the same diff, preserving the project-specific lines untouched.
+3. Verify with `diff <package-copy> <instance-copy>` — the remaining diff should show only
+   project overrides, never schema, key, or comment differences.
+
+The `cp` shortcut is the highest-frequency failure mode for Configurable files. The pre-commit
+hook (see Safeguards) catches it at staging time, but the blast already touched the working
+tree by then. Use targeted edits from the start.
+
 ## Template Counterparts
 
 14 files in the package use a `.template.md` suffix, stripped at init time. 6 of these contain
@@ -69,17 +87,30 @@ no sync concern.
 
 ### Pre-commit hook (automated)
 
-`scripts/check-package-sync.sh` runs via `.husky/pre-commit` after the ARC hook. Warns when
-Framework files under `.arc/reference/` or `.arc/system/` are staged without their package
-counterpart also staged. Uses manifest.json classification to avoid false positives on
-Configurable and Scaffolded files.
+`scripts/check-package-sync.sh` runs via `.husky/pre-commit` after the ARC hook. Two checks,
+each scoped by `manifest.json` classification:
 
-**What it catches:** Wrong-direction edits to Framework files (editing `.arc/` instead of
-package source).
+1. **Framework wrong-direction** (warning): a Framework file is staged in `.arc/` without its
+   package-source counterpart also staged.
+2. **Configurable blind-`cp`** (error, blocks commit): a Configurable file is staged
+   byte-identical to its package-source counterpart after diverging at HEAD. This is the
+   `cp pkg/<f> .arc/<f>` signature — staged content matches package, but HEAD content didn't,
+   so the commit just wiped project-specific overrides. Files already byte-identical at HEAD
+   (project inherits the template default for that file) don't trigger.
 
-**What it can't catch:** Editing package source without syncing to `.arc/` (reverse direction —
-less dangerous, caught on next `arc update` self-test). Framework-section drift within
-Configurable files (too nuanced for line-based matching).
+**What it catches:**
+
+- Wrong-direction edits to Framework files (editing `.arc/` instead of package source).
+- Blind `cp` of Configurable files from package source to `.arc/` (clobbers project overrides).
+
+**What it can't catch:**
+
+- Editing package source without syncing to `.arc/` (reverse direction — less dangerous,
+  caught on next `arc update` self-test).
+- Section-level drift within Configurable files where the file remains non-identical to the
+  package source (too nuanced for byte-equality).
+- Manual `cp` then manual partial-edit that leaves the file non-identical but still missing
+  some overrides. Same nuance gap as the previous bullet — discipline > tooling here.
 
 ### DEV-RULES.PROJECT guard (session-loaded)
 

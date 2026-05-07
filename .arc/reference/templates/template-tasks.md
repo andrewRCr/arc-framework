@@ -39,12 +39,21 @@ project's configured base branch per [`arc-config.yml`][arc-config], not a hardc
 
 _Purpose:_ {what this phase delivers and why this granularity}
 
-### `[ ]` **1.1 {Task description}**
+### `[ ]` **1.1 {Subtaskless parent task title}**
 
-- _Goal:_ {one-line clarification}
+- _Goal:_ {one-line outcome the task targets — protected across completion}
 
-    - `[ ]` **1.1.a {Subtask description}**
+    - {description bullet — replaced by `_Outcome:_` at `[x]`}
+    - {another description bullet}
+
+### `[ ]` **1.2 {Parent-with-subtasks task title}**
+
+- _Goal:_ {one-line outcome — protected across completion}
+
+    - `[ ]` **1.2.a {Subtask description}**
         - {detail bullet — plan now, outcome at `[x]`}
+    - `[ ]` **1.2.b {Subtask description}**
+        - {detail bullet}
 
 ## **Phase N:** Verification
 

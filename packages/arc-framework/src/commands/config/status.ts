@@ -29,6 +29,7 @@ const SESSION_INIT_KEYS = [
   "session.init_pull.notes",
   "session.commit_interlock",
   "session.push_interlock",
+  "session.sync_interlock",
   "branch.protection",
   "pm.mode",
   "commit.format",

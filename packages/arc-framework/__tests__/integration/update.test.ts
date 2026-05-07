@@ -518,6 +518,174 @@ describe("update integration — merge scenarios", () => {
   });
 });
 
+describe("update integration — arc-config migration", () => {
+  let tempDir: string;
+  let templateDir: string;
+
+  const configPath = "system/arc-config.yml";
+  const installConfig = (teamMode = false) => ({
+    project_name: "Test Project",
+    pm_mode: "none",
+    team_mode: teamMode,
+    tools: [],
+  });
+
+  async function runArcConfigUpdate(
+    currentConfig: string,
+    templateConfig = "user.notes_push: on-sync\n",
+    teamMode = false,
+  ): Promise<UpdateResult> {
+    await setupInitialState(
+      tempDir,
+      {
+        [configPath]: { content: currentConfig, classification: "Configurable" },
+      },
+      installConfig(teamMode),
+    );
+    templateDir = await createTemplateDir({ [configPath]: templateConfig });
+
+    return runUpdate({
+      cwd: tempDir,
+      io: makeIOContext(tempDir),
+      templateDir,
+      recipe: makeRecipe([configPath]),
+    });
+  }
+
+  beforeEach(async () => {
+    tempDir = await createTempRepo("arc-update-test-");
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tempDir);
+    if (templateDir) {
+      await rm(templateDir, { recursive: true, force: true });
+    }
+  });
+
+  it("migrates legacy user.sync_push: always to user.notes_push: on-sync", async () => {
+    const legacyConfig = "user.sync_push: always\n";
+    const updatedConfig = "user.notes_push: on-sync\n";
+
+    const result = await runArcConfigUpdate(legacyConfig, updatedConfig);
+
+    expect(result.conflicts).toEqual([]);
+    expect(result.migrated).toEqual([configPath]);
+    expect(await readFile(join(tempDir, ".arc", configPath), "utf-8")).toBe(
+      updatedConfig,
+    );
+  });
+
+  it.each(["prompt", "manual"] as const)(
+    "carries legacy user.sync_push: %s forward under the new key",
+    async (value) => {
+      const result = await runArcConfigUpdate(`user.sync_push: ${value}\n`);
+
+      expect(result.conflicts).toEqual([configPath]);
+      const content = await readFile(join(tempDir, ".arc", configPath), "utf-8");
+      expect(content).toContain(`user.notes_push: ${value}`);
+      expect(content).not.toContain("user.sync_push");
+    },
+  );
+
+  it("migrates session.push_interlock: on-handoff to on-sync", async () => {
+    const result = await runArcConfigUpdate(
+      "session.push_interlock: on-handoff\n",
+      "session.push_interlock: on-sync\n",
+    );
+
+    expect(result.conflicts).toEqual([]);
+    expect(result.migrated).toEqual([configPath]);
+    expect(await readFile(join(tempDir, ".arc", configPath), "utf-8")).toBe(
+      "session.push_interlock: on-sync\n",
+    );
+  });
+
+  it("removes the legacy user.sync_push key after migration", async () => {
+    await runArcConfigUpdate("user.sync_push: always\n");
+
+    const content = await readFile(join(tempDir, ".arc", configPath), "utf-8");
+    expect(content).not.toContain("user.sync_push");
+  });
+
+  it("is idempotent for already-migrated config", async () => {
+    const migratedConfig = [
+      "session.push_interlock: on-sync",
+      "user.notes_push: on-sync",
+      "",
+    ].join("\n");
+
+    const result = await runArcConfigUpdate(migratedConfig, migratedConfig);
+
+    expect(result.migrated).toEqual([]);
+    expect(result.conflicts).toEqual([]);
+    expect(await readFile(join(tempDir, ".arc", configPath), "utf-8")).toBe(
+      migratedConfig,
+    );
+  });
+
+  it("migrates the last (effective) legacy entry when duplicates are present", async () => {
+    const currentConfig = [
+      "user.sync_push: manual",
+      "user.sync_push: on-sync",
+      "",
+    ].join("\n");
+
+    const result = await runArcConfigUpdate(currentConfig);
+
+    expect(result.migrated).toEqual([configPath]);
+    expect(result.conflicts).toEqual([]);
+    expect(result.migrationWarnings).toHaveLength(1);
+    expect(result.migrationWarnings[0]).toContain("multiple user.sync_push entries");
+    const content = await readFile(join(tempDir, ".arc", configPath), "utf-8");
+    expect(content).toContain("user.notes_push: on-sync");
+    expect(content).not.toContain("user.notes_push: manual");
+    expect(content).not.toContain("user.sync_push");
+  });
+
+  it("preserves user.notes_push and warns when both notes-push keys are present", async () => {
+    const currentConfig = [
+      "user.sync_push: manual",
+      "user.notes_push: prompt",
+      "",
+    ].join("\n");
+
+    const result = await runArcConfigUpdate(
+      currentConfig,
+      "user.notes_push: prompt\n",
+      true,
+    );
+
+    expect(result.conflicts).toEqual([]);
+    expect(result.migrationWarnings).toHaveLength(1);
+    expect(result.migrationWarnings[0]).toContain("both user.sync_push and user.notes_push");
+    expect(await readFile(join(tempDir, ".arc", configPath), "utf-8")).toBe(
+      "user.notes_push: prompt\n",
+    );
+  });
+
+  it("preserves invalid legacy user.sync_push values under the new key", async () => {
+    const result = await runArcConfigUpdate("user.sync_push: garbage\n");
+
+    expect(result.conflicts).toEqual([configPath]);
+    const content = await readFile(join(tempDir, ".arc", configPath), "utf-8");
+    expect(content).toContain("user.notes_push: garbage");
+    expect(content).not.toContain("user.sync_push");
+  });
+
+  it("surfaces a value conflict after migrating a customized legacy notes-push value", async () => {
+    const result = await runArcConfigUpdate("user.sync_push: prompt\n");
+
+    expect(result.conflicts).toEqual([configPath]);
+    const content = await readFile(join(tempDir, ".arc", configPath), "utf-8");
+    expect(content).toContain("<<<<<<<");
+    expect(content).toContain("user.notes_push: prompt");
+    expect(content).toContain("=======");
+    expect(content).toContain("user.notes_push: on-sync");
+    expect(content).toContain(">>>>>>>");
+  });
+});
+
 describe("update integration — file add/remove", () => {
   let tempDir: string;
   let templateDir: string;
@@ -858,6 +1026,7 @@ describe("update integration — error cases", () => {
 describe("buildUpdateSummary", () => {
   const baseResult: UpdateResult = {
     updated: 0,
+    migrated: [],
     conflicts: [],
     pristineRebuilt: [],
     added: [],
@@ -869,6 +1038,7 @@ describe("buildUpdateSummary", () => {
     previousVersion: "0.1.0",
     currentVersion: "0.1.0",
     skillWarnings: [],
+    migrationWarnings: [],
     pristineStoreError: null,
   };
 
@@ -949,6 +1119,18 @@ describe("buildUpdateSummary", () => {
     };
     const output = buildUpdateSummary(result);
     expect(output).not.toContain("Skill warnings");
+  });
+
+  it("shows migrated count and migration warnings when present", () => {
+    const result: UpdateResult = {
+      ...baseResult,
+      migrated: ["system/arc-config.yml"],
+      migrationWarnings: ["arc-config.yml contains both user.sync_push and user.notes_push."],
+    };
+    const output = buildUpdateSummary(result);
+    expect(output).toContain("1 migrated");
+    expect(output).toContain("Migration warnings:");
+    expect(output).toContain("both user.sync_push and user.notes_push");
   });
 
   it("shows version change when versions differ", () => {

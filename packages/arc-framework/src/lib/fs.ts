@@ -9,15 +9,21 @@
 
 import { join, dirname, basename, relative } from "node:path";
 import { readdir, stat, writeFile, rename, unlink, mkdir } from "node:fs/promises";
+import { randomBytes } from "node:crypto";
 
 /**
  * Write a JSON value to a file atomically using temp-file-then-rename.
  *
- * Creates a `.tmp` sibling in the same directory as the target, writes the
- * serialized content there, then renames over the target. On POSIX systems
+ * Creates a unique `.tmp` sibling in the same directory as the target, writes
+ * the serialized content there, then renames over the target. On POSIX systems
  * `rename(2)` is atomic — the target is either the old content or the new
  * content, never a partial write. Same-directory placement avoids `EXDEV`
  * failures when `$TMPDIR` is on a different filesystem.
+ *
+ * The temp filename includes a random suffix so concurrent writers (parallel
+ * sessions writing the same target) never share a temp file — each rename
+ * promotes a fully-formed payload, so the target only ever transitions
+ * between two valid records.
  *
  * @param targetPath - Absolute path to the JSON file
  * @param data - Value to serialize (pretty-printed with 2-space indent + trailing newline)
@@ -25,7 +31,7 @@ import { readdir, stat, writeFile, rename, unlink, mkdir } from "node:fs/promise
 export async function atomicWriteJson(targetPath: string, data: unknown): Promise<void> {
   const dir = dirname(targetPath);
   await mkdir(dir, { recursive: true });
-  const tmpPath = join(dir, `.${basename(targetPath)}.tmp`);
+  const tmpPath = join(dir, `.${basename(targetPath)}.${randomBytes(8).toString("hex")}.tmp`);
 
   try {
     await writeFile(tmpPath, JSON.stringify(data, null, 2) + "\n", "utf-8");

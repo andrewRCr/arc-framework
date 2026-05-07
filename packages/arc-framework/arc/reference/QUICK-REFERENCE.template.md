@@ -215,7 +215,7 @@ arc sync
 
 See [Session Operations Strategy](strategies/arc/strategy-session-operations.md) § Session
 State Portability for the portability model, `arc sync` direction semantics, and
-`user.sync_push` push policy.
+`user.notes_push` push policy.
 
 ### Atomic Work History
 

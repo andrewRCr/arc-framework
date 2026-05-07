@@ -25,10 +25,12 @@ export interface ConfigSettings {
   "session.remote_sync": string;
   "session.init_pull.worktree": string;
   "session.init_pull.notes": string;
+  "session.init_load.notes": string;
   "session.commit_interlock": string;
   "session.push_interlock": string;
+  "session.sync_interlock": string;
   "archive.cadence": string;
-  "user.sync_push": string;
+  "user.notes_push": string;
 }
 
 /**
@@ -40,8 +42,10 @@ export interface ConfigSessionInitSettings {
   "session.remote_sync": string;
   "session.init_pull.worktree": string;
   "session.init_pull.notes": string;
+  "session.init_load.notes": string;
   "session.commit_interlock": string;
   "session.push_interlock": string;
+  "session.sync_interlock": string;
   "branch.protection": string;
   "pm.mode": string;
   "commit.format": string;

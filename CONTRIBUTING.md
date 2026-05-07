@@ -22,6 +22,20 @@ npm test
 npm run build
 ```
 
+## Development Workflow
+
+After pulling self-hosting changes or making local source edits, run `npm run build` before
+invoking handoff-critical commands (`npx arc sync`, `npx arc user save`, `npx arc user push`,
+`npx arc user sync`, and `npx arc status --session-init --json` or
+`npx arc status --session-handoff --json`). The CLI's dev-mode check refuses these commands
+with a stderr error and exit 1 when `dist/cli.js` is older than the newest `src/**/*.ts`,
+since their output drives cross-machine state and a stale build silently produces wrong
+answers. Quick-read commands (`npx arc log`, `npx arc health`, `npx arc diff`, plain
+`npx arc status`) print a stderr warning but still run.
+
+The check fires only in this development checkout — published installs don't include `src/`,
+so adopters never see it.
+
 ## Commit Convention
 
 Git hooks enforce conventional commit format with a `Context:` footer. Contributors use

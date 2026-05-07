@@ -9,34 +9,41 @@
 
 import * as p from "@clack/prompts";
 
-import { resolveIdentity, isGitRepo } from "../lib/git/index.js";
+import { resolveIdentity, isGitRepo, type GitExec } from "../lib/git/index.js";
 import { resolveArcRoot } from "../lib/paths.js";
 import { formatError, UserFacingError } from "../lib/errors.js";
 import { UserSaveError } from "../commands/user.js";
 import { gitExec } from "../lib/io-context.js";
+import type { SyncOutput } from "../lib/sync-output.js";
 
 // --- Spinner ---
 
 /**
- * Run an async operation with a clack spinner. Stops the spinner on success
- * or failure and re-throws errors for the caller to handle.
+ * Run an async operation with a routed spinner. Stops the spinner on success
+ * or failure and re-throws errors for the caller to handle. The spinner is
+ * obtained from `output.spinner()` so JSON-mode callers route the cursor
+ * codes and labels through a no-op spinner rather than emitting clack
+ * artifacts to stdout. Human-mode callers pass `createSyncOutput(false)` for
+ * pass-through to `@clack/prompts`.
  *
  * Verb-tense convention for user/sync CLI output:
  * - `label` (in-progress): present continuous — "Saving user directory...".
  * - `doneLabel` (success): completed adjective — "Save complete.".
  * - Failure label emitted here is "Failed."; callers that need a specific
- *   failure label (e.g., "Pull failed.") manage their own spinner inline.
- * - `p.note(..., "Label")` result-box labels: past tense matching the caller's
- *   outer verb, not the internal function called — "Pulled" for `arc sync pull`
- *   and `arc user pull` even though they consume `buildLoadSummary`; "Loaded"
- *   only for `arc user load`.
+ *   failure label (e.g., "Pull failed.") manage their own spinner inline via
+ *   `output.spinner()`.
+ * - Result-box labels (`output.note(..., "Label")`): past tense matching the
+ *   caller's outer verb, not the internal function called — "Pulled" for
+ *   `arc sync pull` and `arc user pull` even though they consume
+ *   `buildLoadSummary`; "Loaded" only for `arc user load`.
  */
 export async function runWithSpinner<T>(
+  output: SyncOutput,
   label: string,
   fn: () => Promise<T>,
   doneLabel: string,
 ): Promise<T> {
-  const spinner = p.spinner();
+  const spinner = output.spinner();
   spinner.start(label);
   try {
     const result = await fn();
@@ -139,6 +146,22 @@ export function requireArcProjectRoot(startDir = process.cwd()): string | null {
   p.log.error(ARC_PROJECT_ROOT_ERROR);
   process.exitCode = 1;
   return null;
+}
+
+/**
+ * Resolve the current branch name via `git rev-parse --abbrev-ref HEAD`.
+ * Returns `null` for detached HEAD or when the probe fails — the pushability
+ * matrix's alignment probe expects a branch name; absence falls through to no
+ * gate (existing matrix conditions cover detached-head separately).
+ */
+export async function resolveCurrentBranchName(exec: GitExec): Promise<string | null> {
+  try {
+    const { stdout } = await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"]);
+    const trimmed = stdout.trim();
+    return trimmed === "" || trimmed === "HEAD" ? null : trimmed;
+  } catch {
+    return null;
+  }
 }
 
 /**

@@ -1,7 +1,65 @@
 # PRD: ARCd Rebrand
 
 - **Type:** Technical
-- **Updated:** 2026-04-22
+- **Updated:** 2026-05-03 (demoted to stale-spec form; see § Status below)
+
+---
+
+## ⚠️ Status: Stale — Needs Refresh Before Re-Activation
+
+**Demoted from active execution-ready to stale-spec form on 2026-05-03.** Task list
+(`tasks-arcd-rebrand.md`) and atomic companion retired in the same demotion. This PRD
+remains the spec-ownership home for the rebrand intent and the anchor for in-graph
+references (`prd-arcd-docs-site.md`, `plan-arc-modes.md`, `plan-docs-content-sweep.md`,
+`plan-arc-backend.md`). It requires refresh against current codebase and methodology
+state before re-graduating to a new task list at activation time.
+
+### Why preserved as stale PRD rather than reopened
+
+Project's primary audience reframed during a 2026-05-03 exploratory session: portfolio
+piece for employer evaluation, not product launch for adopter acquisition. Adoption is
+secondary/bonus. Under that reframe, the rebrand's original drivers weaken
+substantially — namespace disambiguation and brand differentiation in crowded AI
+tooling space matter for product marketing; matter much less for evaluating
+engineering work. "arc" reads as personal-brand authenticity (initials carryover from
+`arc-portfolio`) rather than as generic naming; a polished product brand on a
+portfolio piece can read as founder-cosplay rather than engineering rigor.
+
+The brand decision itself (ARC / ARCd / ARCd Framework, asymmetric three-tier) is
+**preserved, not reopened**. Brand alternatives were explored in the 2026-05-03
+session; none surfaced that justified the rebrand cost over the existing direction.
+The intellectual-clarity case for the asymmetric tier (cleanly separating methodology
+from implementation, avoiding collision with the existing Kotlin "arc framework" in
+the AI space) holds independent of marketing motivation. The rebrand still has merit;
+it is not pre-1.0 critical.
+
+The session also surfaced a *methodology-positioning phrase* concern captured
+separately in `plan-docs-content-sweep.md` (item #9). The load-bearing identity work
+is public-facing copy, not naming.
+
+### What needs refresh before re-activation
+
+Several P0 specifics from the prior draft have been overtaken or partially shipped by
+intervening WUs:
+
+- `arc status` → `arc health` already shipped via Session-Init Optimization. The
+  remaining work narrows to absorbing `arc health` → `arcd health` as part of the
+  global binary sweep — no dedicated subtask needed (already noted in § CLI command
+  surface cleanup callout below).
+- `pm.mode: arc-in-git` → `pm.layer: arc-pm` config rename was design-shifted by
+  intervening planning work (`plan-agile-wu-lifecycle.md` and adjacent plans). Verify
+  the rename still applies in the same shape, or whether the planning-module config
+  has evolved since.
+- `team.mode` → `team.enabled` rename: verify against current config shape.
+- Files-touched indicative lists need re-derivation — the package source's surface
+  area has shifted with intervening WUs.
+- npm publish-version specifics, schema-version-bump details, and other
+  implementation-ready elements should be re-verified at re-graduation.
+
+The intent layer (three-tier model § Introduction; content-sweep guardrails §
+Technical Considerations; ordering constraint; zero-adoption assumption; session-
+boundary mandatory stops) is durable and survives the demotion as-is — re-graduation
+should preserve it.
 
 ---
 

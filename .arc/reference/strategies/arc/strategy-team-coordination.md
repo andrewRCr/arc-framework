@@ -129,7 +129,7 @@ The outgoing developer runs a standard session handoff with these additions:
 
 3. **Push user directory.** Ensure git notes are pushed so the incoming developer can fetch
    them (see session-handoff workflow for the git notes save-and-push steps). With
-   `user.sync_push: prompt` (the team default), confirm the push when prompted.
+   `user.notes_push: prompt` (the team default), confirm the push when prompted.
 
 ### Incoming Bootstrap
 
@@ -197,9 +197,10 @@ or committing nearby task-list edits, and should expect straightforward checkbox
 conflicts when two owned tasks complete close together.
 
 **Push remains separate.** A local commit is not team-visible until pushed. `session.push_interlock:
-on-handoff` releases push at session handoff only; mid-session push still requires explicit user
-invocation. Teams that depend on a shared integration branch should agree when mid-session pushes
-are expected versus when handoff push is sufficient.
+on-sync` releases push when an `arc sync` event fires — typically handoff-driven sync (via
+`session.sync_interlock: on-handoff`), or explicit mid-session `arc sync` invocation. Teams that
+depend on a shared integration branch should agree when mid-session pushes are expected versus
+when handoff-driven push is sufficient.
 
 ---
 
@@ -332,10 +333,10 @@ branch. They share one `status-{name}.md`. Coordination mechanisms:
 
 ### Configuration Notes
 
-**`user.sync_push` and team mode:** When `arc init` sets `team.mode: true`, it defaults
-`user.sync_push` to `prompt` (ask before pushing session notes). If you toggle `team.mode`
-after init by editing `arc-config.yml`, `user.sync_push` is not automatically updated — check
-and adjust it manually. Per-developer override: `git config arc.syncPush <always|prompt|manual>`.
+**`user.notes_push` and team mode:** When `arc init` sets `team.mode: true`, it defaults
+`user.notes_push` to `prompt` (ask before pushing session notes). If you toggle `team.mode`
+after init by editing `arc-config.yml`, `user.notes_push` is not automatically updated — check
+and adjust it manually. Per-developer override: `git config arc.notesPush <manual|on-sync|prompt>`.
 
 ---
 

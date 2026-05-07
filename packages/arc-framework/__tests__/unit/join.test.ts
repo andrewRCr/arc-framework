@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { runJoin, runJoinReconfigure } from "../../src/commands/join.js";
-import type { JoinIOContext, JoinOptions, JoinReconfigureOptions } from "../../src/commands/join.js";
+import { runJoin, runJoinReconfigure, buildPostJoinMessage } from "../../src/commands/join.js";
+import type {
+  JoinIOContext, JoinOptions, JoinReconfigureOptions, JoinResult,
+} from "../../src/commands/join.js";
 import { UserFacingError } from "../../src/lib/errors.js";
 import { CANONICAL_SKILLS } from "../../src/lib/skills/index.js";
 import type { SkillRemovalIO } from "../../src/lib/skills/index.js";
@@ -405,5 +407,59 @@ describe("runJoinReconfigure", () => {
       previousTools: ["claude"],
     }));
     expect(maintainerResult.role).toBe("maintainer");
+  });
+});
+
+// --- buildPostJoinMessage ---
+
+describe("buildPostJoinMessage", () => {
+  function makeJoinResult(overrides: Partial<JoinResult> = {}): JoinResult {
+    return {
+      role: "maintainer",
+      tools: ["claude"],
+      identity: "andrew",
+      ...overrides,
+    };
+  }
+
+  it("opens with role-confirmation line", () => {
+    const msg = buildPostJoinMessage(makeJoinResult({ role: "contributor" }));
+
+    expect(msg.startsWith("Joined as contributor.")).toBe(true);
+  });
+
+  it("includes skill restart cue when tools are configured", () => {
+    const msg = buildPostJoinMessage(makeJoinResult());
+
+    expect(msg).toContain("Restart your AI tool so the new /arc-resume skill is available");
+  });
+
+  it("omits skill restart cue when no tools are configured", () => {
+    const msg = buildPostJoinMessage(makeJoinResult({ tools: [] }));
+
+    expect(msg).not.toContain("Restart your AI tool");
+  });
+
+  it("introduces user-notes orientation when identity is set", () => {
+    const msg = buildPostJoinMessage(makeJoinResult({ identity: "alice" }));
+
+    expect(msg).toContain(".arc/user/alice/");
+    expect(msg).toContain("(gitignored)");
+    expect(msg).toContain("user notes");
+    expect(msg).toContain("git notes ref");
+    expect(msg).toContain("`arc sync`");
+  });
+
+  it("omits user-notes orientation when identity is null", () => {
+    const msg = buildPostJoinMessage(makeJoinResult({ identity: null }));
+
+    expect(msg).not.toContain(".arc/user/");
+    expect(msg).not.toContain("user notes");
+  });
+
+  it("interpolates the resolved identity into the user directory path", () => {
+    const msg = buildPostJoinMessage(makeJoinResult({ identity: "robin-q" }));
+
+    expect(msg).toContain(".arc/user/robin-q/");
   });
 });

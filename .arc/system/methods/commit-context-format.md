@@ -41,12 +41,17 @@ Used when the commit operates on a task spec or on the task list itself.
 - `Context: tasks-[name].md (maintenance)` — task list maintenance only
 - `Context: tasks-[name].md (code review)` — review-driven changes to task-listed work
 
-### Plan-doc references — `plan-[name].md`
+### Plan-doc / PRD references — `plan-[name].md` or `prd-[name].md`
 
-Used during planning sessions when iterating a plan doc that exists.
+Used during planning sessions when iterating a spec-shaped artifact. `plan-*` covers
+pre-PRD planning artifacts; `prd-*` covers post-PRD-generation iteration on the formalized
+spec (e.g., requirement amendments or scope clarification surfaced during pre-implementation
+audit). Both take the same parentheticals.
 
 - `Context: plan-[name].md (planning)` — plan iteration
 - `Context: plan-[name].md (code review)` — review-driven changes to the plan
+- `Context: prd-[name].md (planning)` — PRD iteration
+- `Context: prd-[name].md (code review)` — review-driven changes to the PRD
 
 ### Status-file references — `status-[name].md`
 

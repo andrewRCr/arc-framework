@@ -112,6 +112,7 @@ a configurability path (how teams adapt it).
 | Per-WU status + user/{identity}/ state  | P5        | Two-file session state in user dir  | Method override — substitute session mechanism        |
 | Session init/handoff ceremonies         | P5        | Structured document loading         | Behavioral guidance — ceremony adapted to agent type  |
 | Commit interlock release                | P5        | Manual commit                       | Config setting — `session.commit_interlock`           |
+| Sync interlock release                  | P5        | Sync at handoff                     | Config setting — `session.sync_interlock`             |
 | Push interlock release                  | P5        | Manual push                         | Config setting — `session.push_interlock`             |
 
 #### Design commitment conventions
@@ -210,7 +211,7 @@ layering mechanism.
 - Every current setting (`branch.*`, `commit.*`, `merge.*`, `hooks.*`, `platform.*`) is inherently project-wide.
   Per-developer variation would create inconsistency.
 - Per-developer values (e.g., identity) route through **git config** (`git config arc.identity alice`).
-- Project-level defaults that individuals may want to override (e.g., `user.sync_push`) follow the same pattern:
+- Project-level defaults that individuals may want to override (e.g., `user.notes_push`) follow the same pattern:
   `arc-config.yml` sets the team default, git config provides a personal override.
 
 ### Settings with behavioral implications
@@ -226,23 +227,30 @@ Most config settings are straightforward toggles. Some carry deeper implications
 - **`squash`** (escape hatch, tier 3) — Individual commits collapse into one per branch. Traceability shifts:
   PR descriptions must carry the traceability that individual commits would normally provide.
 
-**Session interlocks** govern how approval propagates through the commit and push interlocks:
+**Session interlocks** govern how approval propagates through the commit, sync, and push interlocks:
 
 - **`session.commit_interlock: manual`** (default) — commit requires explicit user invocation.
 - **`session.commit_interlock: on-task-approval`** — task approval releases the commit interlock.
+- **`session.sync_interlock: on-handoff`** (default) — handoff invokes `arc sync` as part of the
+  handoff ceremony.
+- **`session.sync_interlock: manual`** — handoff surfaces unpushed state without invoking sync.
 - **`session.push_interlock: manual`** (default) — push requires explicit user invocation.
-- **`session.push_interlock: on-handoff`** — handoff invocation releases the push interlock.
+- **`session.push_interlock: on-sync`** — an `arc sync` event releases the push interlock.
 
-The interlock model these settings configure lives in [Session Operations Strategy][session-ops]
-§ Interlock Model.
+The three interlocks chain: handoff event → sync, sync event → push (and notes-push). Each
+interlock's `on-X` value names its own trigger. The interlock model these settings configure
+lives in [Session Operations Strategy][session-ops] § Interlock Model and § Handoff-Interior
+Toggle Pattern.
 
 ### Handoff-interior toggles
 
-Inside the orthogonal session-handoff ceremony, individual actions (notes push, future worktree push,
-future quality-gate finalization) are configured via flat keys under their primary domain —
-`user.sync_push`, future `worktree.sync_push`. Standard value enum: `auto / prompt / manual`. The pattern
-is documented in [Session Operations Strategy][session-ops] § Handoff-Interior Toggle Pattern; consumer
-plans adding new toggles follow that shape.
+Inside the orthogonal session-handoff ceremony, individual actions (notes push, future worktree
+push, future quality-gate finalization) are configured via flat keys under their primary domain —
+`user.notes_push`, future `worktree.<action>`. Standard value enum: `manual | on-X` where `X`
+names the operation's trigger event; `prompt` is an opt-in third value for toggles that want
+review-before-fire (e.g., team-mode `user.notes_push: prompt`). The pattern is documented in
+[Session Operations Strategy][session-ops] § Handoff-Interior Toggle Pattern; consumer plans
+adding new toggles follow that shape.
 
 ### Structural vs. runtime settings
 

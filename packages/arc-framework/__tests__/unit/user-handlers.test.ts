@@ -7,6 +7,8 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from "vitest";
 
+import { UserFacingError } from "../../src/lib/errors.js";
+
 // --- Mocks ---
 
 const mockIntro = vi.fn();
@@ -43,6 +45,15 @@ const mockBuildLoadSummary: Mock<(result: unknown) => string> = vi.fn(() => "");
 const mockBuildUserStatusSummary = vi.fn((result: { summary?: string }) => result.summary ?? "");
 const mockBuildUserSessionInitStatusSummary = vi.fn((result: { summary?: string }) => result.summary ?? "");
 
+class MockUserPushBlockedError extends Error {
+  readonly conditions: unknown[];
+  constructor(conditions: unknown[]) {
+    super("blocked");
+    this.name = "UserPushBlockedError";
+    this.conditions = conditions;
+  }
+}
+
 vi.mock("../../src/commands/user.js", () => ({
   runUserSave: (...args: unknown[]) => mockRunUserSave(...args),
   runUserLoad: (...args: unknown[]) => mockRunUserLoad(...args),
@@ -57,6 +68,7 @@ vi.mock("../../src/commands/user.js", () => ({
   buildLoadSummary: (result: unknown) => mockBuildLoadSummary(result),
   buildUserSessionInitStatusSummary: (result: { summary?: string }) => mockBuildUserSessionInitStatusSummary(result),
   buildUserStatusSummary: (result: { summary?: string }) => mockBuildUserStatusSummary(result),
+  UserPushBlockedError: MockUserPushBlockedError,
 }));
 
 const mockResolveUserIdentity = vi.fn();
@@ -64,19 +76,29 @@ const mockReadConfigSettings = vi.fn();
 
 // Mock runWithSpinner to just call the fn directly (skip spinner ceremony)
 const mockRunWithSpinner = vi.fn(
-  async (label: string, fn: () => Promise<unknown>, done: string) => { void label; void done; return fn(); },
+  async (
+    output: unknown,
+    label: string,
+    fn: () => Promise<unknown>,
+    done: string,
+  ) => { void output; void label; void done; return fn(); },
 );
 
 const mockIsNonInteractive = vi.fn(() => false);
 
 vi.mock("../../src/handlers/shared.js", () => ({
   resolveUserIdentity: (...args: unknown[]) => mockResolveUserIdentity(...args),
-  runWithSpinner: (...args: unknown[]) => mockRunWithSpinner(...(args as [string, () => Promise<unknown>, string])),
+  runWithSpinner: (...args: unknown[]) =>
+    mockRunWithSpinner(
+      ...(args as [unknown, string, () => Promise<unknown>, string]),
+    ),
   isHandledError: () => false,
   isRemoteError: (msg: string) =>
     msg.includes("No configured push destination") || msg.includes("does not appear to be a git repository"),
   isNonInteractiveEnvironment: () => mockIsNonInteractive(),
   requireArcProjectRoot: () => process.cwd(),
+  resolveCurrentBranchName: async () => "feature/x",
+  ARC_PROJECT_ROOT_ERROR: "Not inside an ARC project (no .arc/ directory found walking up from cwd).",
 }));
 
 vi.mock("../../src/lib/config/status-reader.js", () => ({
@@ -87,8 +109,11 @@ vi.mock("../../src/lib/io-context.js", () => ({
   createUserIOContext: () => ({}),
 }));
 
+const mockResolveArcRoot = vi.fn();
+
 vi.mock("../../src/lib/paths.js", () => ({
   getInternalTemplatePath: () => "/templates",
+  resolveArcRoot: (startDir?: string) => mockResolveArcRoot(startDir),
 }));
 
 vi.mock("../../src/lib/git/index.js", () => ({
@@ -105,7 +130,12 @@ function resetMockDefaults() {
   mockIsCancel.mockReturnValue(false);
   mockIsNonInteractive.mockReturnValue(false);
   mockRunWithSpinner.mockImplementation(
-    async (label: string, fn: () => Promise<unknown>, done: string) => { void label; void done; return fn(); },
+    async (
+      output: unknown,
+      label: string,
+      fn: () => Promise<unknown>,
+      done: string,
+    ) => { void output; void label; void done; return fn(); },
   );
   mockBuildSaveSummary.mockReturnValue("");
   mockBuildLoadSummary.mockReturnValue("");
@@ -125,11 +155,12 @@ function resetMockDefaults() {
       "pm.mode": "none",
       "team.mode": "false",
       "session.remote_sync": "enabled",
-      "user.sync_push": "always",
+      "user.notes_push": "on-sync",
     },
     defaultsApplied: [],
     errors: [],
   });
+  mockResolveArcRoot.mockReturnValue(process.cwd());
 }
 
 // --- handleUserPush tests ---
@@ -221,6 +252,45 @@ describe("handleUserPush divergence resolution", () => {
       expect.stringContaining("git remote add origin"),
     );
     expect(process.exitCode).toBe(1);
+  });
+
+  it("threads worktreeBranch into runUserPush; surfaces matrix-blocked guidance and exits 1", async () => {
+    const blocked = new MockUserPushBlockedError([
+      {
+        kind: "worktree-not-aligned-with-origin",
+        disposition: "block",
+        guidance: "Worktree has 2 unpushed commit(s) on `feature/x` — push the worktree first.",
+        worktreeAlignment: { state: "local-ahead", ahead: 2, behind: 0 },
+      },
+    ]);
+    mockRunUserPush.mockRejectedValueOnce(blocked);
+
+    await handleUserPush({});
+
+    expect(mockRunUserPush).toHaveBeenCalledWith(
+      expect.objectContaining({ worktreeBranch: "feature/x" }),
+    );
+    expect(mockLog.error).toHaveBeenCalledWith(
+      expect.stringContaining("push the worktree first"),
+    );
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("re-attempt after worktree push succeeds without --force: gate is transient", async () => {
+    // The alignment gate is keyed on probe-time worktree state — once the
+    // worktree leg lands, retrying succeeds via the normal idempotent path.
+    mockRunUserPush.mockResolvedValueOnce({ kind: "pushed" });
+
+    await handleUserPush({});
+
+    expect(mockRunUserPush).toHaveBeenCalledTimes(1);
+    expect(mockRunUserPush).toHaveBeenCalledWith(
+      expect.objectContaining({ worktreeBranch: "feature/x" }),
+    );
+    expect(mockRunUserPush).toHaveBeenCalledWith(
+      expect.not.objectContaining({ force: true }),
+    );
+    expect(mockOutro).toHaveBeenCalledWith("Done.");
   });
 
   it("renders failed-nontty-conflict banner without prompting when non-interactive", async () => {
@@ -630,5 +700,46 @@ describe("handleUserStatus --json retrofit", () => {
     expect(mockRunUserStatus).toHaveBeenCalledWith(
       expect.objectContaining({ offline: true, all: true }),
     );
+  });
+
+  it("emits a JSON error envelope and skips Clack when identity is unresolvable under --json", async () => {
+    mockResolveUserIdentity.mockRejectedValue(new UserFacingError({
+      code: "IDENTITY_MISSING",
+      whatHappened: "No identity configured.",
+      why: "User commands require arc.identity to be set in git config.",
+      whatToDo: "Run 'arc init' first.",
+    }));
+
+    await handleUserStatus({ json: true });
+
+    expect(mockIntro).not.toHaveBeenCalled();
+    expect(mockOutro).not.toHaveBeenCalled();
+    expect(mockNote).not.toHaveBeenCalled();
+    expect(mockLog.error).not.toHaveBeenCalled();
+    expect(mockRunUserStatus).not.toHaveBeenCalled();
+
+    const out = writes.join("");
+    const parsed = JSON.parse(out.trim()) as { error: { code: string; message: string } };
+    expect(parsed.error.code).toBe("IDENTITY_MISSING");
+    expect(parsed.error.message).toBe("No identity configured.");
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("emits a JSON error envelope when the cwd is not inside an ARC project under --json", async () => {
+    mockResolveArcRoot.mockReturnValue(null);
+
+    await handleUserStatus({ json: true });
+
+    expect(mockIntro).not.toHaveBeenCalled();
+    expect(mockOutro).not.toHaveBeenCalled();
+    expect(mockNote).not.toHaveBeenCalled();
+    expect(mockLog.error).not.toHaveBeenCalled();
+    expect(mockRunUserStatus).not.toHaveBeenCalled();
+
+    const out = writes.join("");
+    const parsed = JSON.parse(out.trim()) as { error: { code: string; message: string } };
+    expect(parsed.error.code).toBe("NOT_IN_ARC_PROJECT");
+    expect(parsed.error.message).toContain("Not inside an ARC project");
+    expect(process.exitCode).toBe(1);
   });
 });

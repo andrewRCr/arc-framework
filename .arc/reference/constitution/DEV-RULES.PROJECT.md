@@ -105,17 +105,21 @@ Apply standard software engineering principles:
     - Reference names: lowercase, descriptive, hyphenated (e.g., `[dev-rules]`, `[process-loop]`)
     - One `---` + link block per file, always at the very end
     - Short links (same directory or one level up) may remain inline at author discretion
+    - Exception: movable ARC WU artifacts use filename-only references per [DEV-RULES.ARC][dev-rules-arc]
 
 ## Package-Project Sync
 
 This repo has two copies of ARC framework content: `packages/arc-framework/arc/` (authoritative
 source, ships to adopters) and `.arc/` (project instance). Methodology edits to Framework files
 go through the package source and sync to `.arc/` — not the other way around. Configurable files
-are edited in `.arc/` (project-specific sections) or package source (framework sections).
+are edited in `.arc/` (project-specific sections) or package source (framework sections); never
+`cp` between copies — that overwrites project-specific overrides silently.
 
-A pre-commit hook warns when Framework files are edited in `.arc/` without the package counterpart
-staged. See [Package-Project Sync Strategy][package-sync] for the full architecture, dependency
-map, and template handling guidance.
+Pre-commit hooks (a) warn when Framework files are edited in `.arc/` without the package
+counterpart staged, and (b) error when a Configurable file in `.arc/` is staged byte-identical to
+the package source after diverging at HEAD (the blind-`cp` signature). See
+[Package-Project Sync Strategy][package-sync] for the full architecture, dependency map, and
+template handling guidance.
 
 **Self-hosting skill-file drift:** The harness-local skill directories (`.claude/skills/`,
 `.codex/skills/`, `.gemini/skills/`, etc. — all gitignored) are regenerated deterministically by

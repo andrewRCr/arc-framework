@@ -18,6 +18,24 @@ begin the standard workflow.
 
 ### CI/CD Improvements
 
+- **Lifecycle-aware link reanchoring for movable ARC artifacts**
+    - Problem: In `pm.mode: arc-in-git`, lifecycle workflows move PRDs, task lists, atomic
+      companions, plan docs, and archives between `backlog/`, `active/`, and
+      `reference/archive/`. Markdown links inside moved files can go stale because relative paths
+      are anchored to the source file's old directory. The pre-commit link validator catches the
+      failure, but recovery is manual and interrupts activation/archive flow.
+    - Approach: Explore a combined helper + lifecycle command improvement:
+        1. Add a constrained link-reanchor helper that accepts explicit move pairs (or reads them
+           from staged `git mv` state), parses Markdown links/reference definitions, and rewrites
+           only targets that resolve to moved ARC artifacts.
+        2. Integrate that helper into future lifecycle CLI commands for activation/archive so
+           `npx arc` can perform `git mv`, status/PM updates, and link reanchoring as one
+           operation.
+    - Notes: Keep this structural, not a broad grep/replace. The helper should support `--check`
+      and `--write`, preserve filename-only references, and remain scoped to arc-in-git lifecycle
+      moves. This complements, rather than replaces, the markdown link validator guardrail.
+    - Effort estimate: M (helper + tests); L if bundled with full activation/archive CLI commands
+
 - **Enhanced link validation — reference-style compliance + hook hardening**
     - Problem: Two related gaps surfaced when Marksman LSP integration revealed mixed link styles
       and stale cross-file references the existing `validate-links.sh` pre-commit hook didn't
@@ -130,6 +148,66 @@ all are hardening for edge cases unlikely to surface in normal use.
     - `readGitNote` with corrupt refs or missing commits
     - Spinner lifecycle edge cases (exception during spinner.start/stop)
 
+### Test Infrastructure
+
+- **Unify subprocess CLI test helpers (`runArc` + `runCli`)**
+    - Problem: Two near-overlapping subprocess helpers exist —
+      `__tests__/e2e/helpers.ts:runArc` (PTY-emulated via `script` on Linux,
+      injects `NO_COLOR=1`, 30s default timeout, catches errors and maps to
+      result) and `__tests__/helpers/run-cli.ts:runCli` (`stdio: "pipe"`,
+      no env injection, 10s default timeout, rejects on spawn-error/timeout).
+      Both spawn `node dist/cli.js`; the genuinely-different concern is
+      invocation mode (TTY for interactive Clack flows vs. pipe for stdout
+      purity contracts). Today, picking the wrong helper at a new test site
+      is easy and the failure mode (Clack short-circuits to non-interactive,
+      or PTY output contaminates a purity assertion) is confusing.
+      Shared `CLI_PATH` constant + prebuild guard already extracted to
+      `__tests__/helpers/cli-spawn.ts` during 2.R.3.c.2 — that captured the
+      genuinely-shared duplication. The remaining consolidation is the
+      ergonomic / single-import-surface question.
+    - Approach: Collapse to one helper with explicit `mode: "tty" | "pipe"`
+      parameter. Reconcile per-mode defaults (timeout, env injection, error
+      handling) as part of the API design — current asymmetries are tuned per
+      use case and can't be silently merged. Migrate ~80 `runArc` call sites
+      across 10 e2e test files + 6 `runCli` call sites; cwd-position mismatch
+      (positional vs. options-object) means every site touches its arg list.
+    - Notes: Not blocking — both helpers work today. Benefit is ergonomic and
+      makes the TTY-vs-pipe choice explicit at the call site instead of
+      implicit-in-import. Cost is real (86 sites + behavioral matrix
+      decisions). Path-independent: doing it later is no worse than doing it
+      now. Captured during 2.R.3.c.2 after option B (shared core extraction)
+      was selected over option C (full unification) for that task's scope.
+    - Effort estimate: M (helper redesign + 86-site migration + new unit
+      coverage for the mode parameter and default-merge behavior)
+
+### Migration Infrastructure
+
+- **Versioned config-key migration registry for `arc update`**
+    - Problem: As ARC evolves, config schema changes (key renames, value enum shifts) need to
+      migrate adopter `arc-config.yml` files during `arc update`. Today there's no infrastructure
+      for chained or version-gated migrations — each rename inlines its own one-shot migrator
+      directly in `update.ts`. With a single migration on the books (`user-sync-ux` Phase 3.2.b
+      handles `user.sync_push` → `user.notes_push` plus `session.push_interlock: on-handoff` →
+      `on-sync`), inline is fine. With a second concurrent migration, dispatch logic and
+      version-gating concerns start duplicating across one-shot functions.
+    - Approach: Introduce a versioned migrator registry in `update.ts`. Each migration is
+      `{ fromFrameworkVersion, migrate(yamlContent: string): string }`. `update` runs applicable
+      migrations (selected by stored `manifest.framework_version` vs. current) before three-way
+      merging the template against the migrated yaml. New migrations register at the registry;
+      old ones stay registered indefinitely (idempotent on already-migrated content).
+    - Notes: Deliberately deferred from `user-sync-ux` Phase 3 in favor of the inline one-shot
+      pattern. Reasoning: pre-1.0 framework with no shipped adopters means the registry's
+      interface shape can only be validated against actual demand from a second migration.
+      Building the registry on the first migration locks in interface assumptions that may not
+      survive the second concrete use case. When a second config-key rename surfaces — likely
+      candidates include the interlock-release-wrappers WU (wrapper config keys), future
+      planning-module work (PM keys), or ARCd Rebrand (surface-wide renames) — escalate to a
+      dedicated WU at that point. The WU's scope is "build the registry AND register both
+      existing migrations" so two concrete cases inform the interface design. Refactoring the
+      inline `migrateUserSyncPush` into the registry's first registered migration is mechanical.
+    - Effort estimate: S–M (registry + dispatch + version-gating tests + author doc; includes
+      registering both existing migrations as the first concrete users)
+
 ### Compatibility Testing Across Agent Platforms
 
 - ARC claims agent-agnosticism but isn't tested across platforms
@@ -161,7 +239,7 @@ Items that have been implemented or superseded by active work units.
 
 ---
 
-**Last reviewed:** 2026-04-28
+**Last reviewed:** 2026-05-05
 
 ---
 

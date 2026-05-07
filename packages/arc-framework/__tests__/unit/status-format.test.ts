@@ -30,6 +30,7 @@ function okUser(): Probe<UserStatusResult> {
     ok: true,
     value: {
       identity: "andrew",
+      spineState: "clean",
       headline: "git note up to date",
       remoteStatus: "in sync",
       diskStatus: "current",
@@ -86,10 +87,12 @@ function okConfig(): Probe<ConfigStatusResult> {
         "session.remote_sync": "enabled",
         "session.init_pull.worktree": "prompt",
         "session.init_pull.notes": "prompt",
+        "session.init_load.notes": "prompt",
         "session.commit_interlock": "manual",
         "session.push_interlock": "manual",
+        "session.sync_interlock": "on-handoff",
         "archive.cadence": "with-integration",
-        "user.sync_push": "always",
+        "user.notes_push": "on-sync",
       },
       defaultsApplied: [],
       warnings: [],
@@ -131,9 +134,23 @@ function makeSessionInitResult(
         detailLines: ["Remote notes match local notes."],
         actionHint: null,
         shouldPromptToPull: false,
+        recommendedAction: "skip",
+        recommendedPromptText: "",
       },
     },
-    worktree: { ok: true, value: { state: "clean", ahead: 0, behind: 0 } },
+    worktree: {
+      ok: true,
+      value: {
+        state: "clean",
+        ahead: 0,
+        behind: 0,
+        branch: "main",
+        recommendedAction: "skip",
+        recommendedPromptText: "",
+      },
+    },
+    dirty: { ok: true, value: { state: "clean", fileCount: 0 } },
+    recommendedCombinedPrompt: null,
     extensions: {
       ok: true,
       value: { mode: "session-init", active: ["pre-merge-review"], warnings: [] },
@@ -146,8 +163,10 @@ function makeSessionInitResult(
           "session.remote_sync": "enabled",
           "session.init_pull.worktree": "prompt",
           "session.init_pull.notes": "prompt",
+          "session.init_load.notes": "prompt",
           "session.commit_interlock": "manual",
           "session.push_interlock": "manual",
+          "session.sync_interlock": "on-handoff",
           "branch.protection": "partial",
           "pm.mode": "none",
           "commit.format": "conventional",
@@ -217,8 +236,8 @@ describe("buildStatusSummary — full mode", () => {
     expect(summary).toContain("andrew: git note up to date");
     // Extensions full formatter headline: "N active · N inactive · N orphaned refs"
     expect(summary).toContain("1 active · 0 inactive · 0 orphaned refs");
-    // Config formatter: "18 agent-consumable settings"
-    expect(summary).toContain("18 agent-consumable settings");
+    // Config formatter: "N agent-consumable settings"
+    expect(summary).toContain("20 agent-consumable settings");
     // Active formatter: "0 active work units"
     expect(summary).toContain("0 active work units");
   });
@@ -287,7 +306,17 @@ describe("buildSessionInitStatusSummary — scoped mode", () => {
   it("renders worktree drift states with counts", () => {
     const summary = buildSessionInitStatusSummary(
       makeSessionInitResult({
-        worktree: { ok: true, value: { state: "remote-ahead", ahead: 0, behind: 3 } },
+        worktree: {
+          ok: true,
+          value: {
+            state: "remote-ahead",
+            ahead: 0,
+            behind: 3,
+            branch: "main",
+            recommendedAction: "prompt",
+            recommendedPromptText: "Worktree: branch is behind origin by 3 commit(s).\nPull?",
+          },
+        },
       }),
     );
     expect(summary).toContain("remote ahead by 3");
@@ -298,7 +327,15 @@ describe("buildSessionInitStatusSummary — scoped mode", () => {
       makeSessionInitResult({
         worktree: {
           ok: true,
-          value: { state: "remote-unavailable", ahead: 0, behind: 0, failureReason: "timeout" },
+          value: {
+            state: "remote-unavailable",
+            ahead: 0,
+            behind: 0,
+            branch: "main",
+            failureReason: "timeout",
+            recommendedAction: "surface",
+            recommendedPromptText: "",
+          },
         },
       }),
     );

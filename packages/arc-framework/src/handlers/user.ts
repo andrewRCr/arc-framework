@@ -4,6 +4,8 @@
  * @module
  */
 
+import { access } from "node:fs/promises";
+
 import * as p from "@clack/prompts";
 
 import {
@@ -11,16 +13,19 @@ import {
   runUserSessionInitStatus, runUserStatus,
   buildSaveSummary, buildLoadSummary, buildUserSessionInitStatusSummary, buildUserStatusSummary,
   hasLocalNotes,
+  UserPushBlockedError,
 } from "../commands/user.js";
 import { slugifyIdentity } from "../lib/git/index.js";
-import { formatError, UserFacingError } from "../lib/errors.js";
-import { getInternalTemplatePath } from "../lib/paths.js";
+import { formatError, UserFacingError, type ArcErrorCode } from "../lib/errors.js";
+import { getInternalTemplatePath, resolveArcRoot } from "../lib/paths.js";
 import { createUserIOContext } from "../lib/io-context.js";
+import { createSyncOutput, type SyncOutput } from "../lib/sync-output.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { pushWithInteractiveRecovery } from "./push-recovery.js";
 import {
   runWithSpinner, isHandledError, isNonInteractiveEnvironment,
   requireArcProjectRoot, resolveUserIdentity, isRemoteError,
+  resolveCurrentBranchName, ARC_PROJECT_ROOT_ERROR,
 } from "./shared.js";
 
 /** Uniform overwrite-confirm prompt copy. */
@@ -41,6 +46,7 @@ function walkExhaustedMessage(walked: number): string {
 
 export async function handleUserAdd(rawIdentity: string): Promise<void> {
   p.intro("arc user add");
+  const output = createSyncOutput(false);
 
   // Sanitize identity to prevent path traversal from raw CLI input
   const identity = slugifyIdentity(rawIdentity);
@@ -60,6 +66,7 @@ export async function handleUserAdd(rawIdentity: string): Promise<void> {
 
   try {
     await runWithSpinner(
+      output,
       `Creating user directory for ${identity}...`,
       () => runUserAdd({ cwd, io, identity, internalTemplateDir: getInternalTemplatePath(), pmMode }),
       `User directory created for ${identity}.`,
@@ -76,6 +83,7 @@ export async function handleUserAdd(rawIdentity: string): Promise<void> {
 
 export async function handleUserSave(): Promise<void> {
   p.intro("arc user save");
+  const output = createSyncOutput(false);
 
   let identity: string;
   try {
@@ -90,6 +98,7 @@ export async function handleUserSave(): Promise<void> {
 
   try {
     const result = await runWithSpinner(
+      output,
       "Saving user directory...",
       () => runUserSave({ cwd, io, identity }),
       "Save complete.",
@@ -116,6 +125,7 @@ export interface UserLoadOptions {
 
 export async function handleUserLoad(opts: UserLoadOptions = {}): Promise<void> {
   p.intro("arc user load");
+  const output = createSyncOutput(false);
 
   let identity: string;
   try {
@@ -127,7 +137,7 @@ export async function handleUserLoad(opts: UserLoadOptions = {}): Promise<void> 
   const io = createUserIOContext();
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
-  const spinner = p.spinner();
+  const spinner = output.spinner();
   spinner.start("Loading user directory...");
 
   let result;
@@ -175,8 +185,29 @@ export interface UserPushOptions {
   force?: boolean;
 }
 
+/**
+ * Handle `arc user push`.
+ *
+ * Default path runs through `pushWithInteractiveRecovery`, which gates on the
+ * pushability pre-check, surfaces no-op detection, and routes divergent
+ * pushes through the `[rejected]` recovery branch. Block-disposition
+ * conditions (rebase in progress, detached HEAD) refuse the push; advisory
+ * `force-push-required` is not refused at this site — divergence is handled
+ * in recovery (see `commands/user/push-fetch.ts` for the single-leg / paired
+ * asymmetry).
+ *
+ * **`--force` escape hatch.** Explicit user opt-in bypasses both the
+ * pushability pre-check (block-disposition conditions still throw via
+ * `UserPushBlockedError`) and the recovery branch entirely, executing
+ * `git push --force` against the notes ref. By-design unguarded — matches
+ * `git push --force` semantics. Automatic pushes never reach this branch:
+ * `arc sync`, the handoff cascade, and any other internal caller leaves
+ * `force` unset, so the I7 advisory-refusal contract still covers every
+ * non-explicit push.
+ */
 export async function handleUserPush(opts: UserPushOptions): Promise<void> {
   p.intro("arc user push");
+  const output = createSyncOutput(false);
 
   let identity: string;
   try {
@@ -189,17 +220,25 @@ export async function handleUserPush(opts: UserPushOptions): Promise<void> {
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
 
+  const worktreeBranch = await resolveCurrentBranchName(io.exec) ?? undefined;
+
   // Explicit --force: bypass recovery prompt, push forcibly.
   if (opts.force) {
     try {
       await runWithSpinner(
+        output,
         "Force-pushing user notes...",
-        () => runUserPush({ io, identity, force: true }),
+        () => runUserPush({ cwd, io, identity, force: true, access, worktreeBranch }),
         "Force push complete.",
       );
       p.outro("Done.");
     } catch (err) {
       if (isHandledError(err)) return;
+      if (err instanceof UserPushBlockedError) {
+        p.log.error(err.message);
+        process.exitCode = 1;
+        return;
+      }
       const msg = err instanceof Error ? err.message : String(err);
       if (isRemoteError(msg)) {
         p.log.error("No remote configured. Push requires a remote repository.");
@@ -212,10 +251,13 @@ export async function handleUserPush(opts: UserPushOptions): Promise<void> {
     return;
   }
 
-  const result = await pushWithInteractiveRecovery(io, identity, cwd);
+  const result = await pushWithInteractiveRecovery({
+    io, identity, cwd, access, worktreeBranch, output,
+  });
   switch (result.kind) {
     case "ok":
     case "ok-recovered":
+    case "noop":
       p.outro("Done.");
       return;
     case "cancelled":
@@ -236,6 +278,12 @@ export async function handleUserPush(opts: UserPushOptions): Promise<void> {
       );
       process.exitCode = 1;
       return;
+    case "blocked":
+      for (const condition of result.conditions.filter((c) => c.disposition === "block")) {
+        p.log.error(condition.guidance);
+      }
+      process.exitCode = 1;
+      return;
     case "failed":
       if (isHandledError(result.error)) return;
       throw result.error;
@@ -250,6 +298,7 @@ export interface UserFetchOptions {
 
 export async function handleUserFetch(opts: UserFetchOptions): Promise<void> {
   p.intro("arc user fetch");
+  const output = createSyncOutput(false);
 
   let identity: string;
   if (opts.identity) {
@@ -271,6 +320,7 @@ export async function handleUserFetch(opts: UserFetchOptions): Promise<void> {
   const hasLocal = await hasLocalNotes(io, identity);
   try {
     await runWithSpinner(
+      output,
       "Fetching user notes...",
       () => runUserFetch({ io, identity, force: hasLocal }),
       "Fetch complete.",
@@ -311,6 +361,7 @@ export interface UserPullOptions {
 
 export async function handleUserPull(opts: UserPullOptions): Promise<void> {
   p.intro("arc user pull");
+  const output = createSyncOutput(false);
 
   let identity: string;
   if (opts.identity) {
@@ -341,7 +392,7 @@ export async function handleUserPull(opts: UserPullOptions): Promise<void> {
     }
   }
 
-  const spinner = p.spinner();
+  const spinner = output.spinner();
   spinner.start("Pulling user notes...");
 
   let result;
@@ -403,24 +454,37 @@ export interface UserStatusOptions {
   offline?: boolean;
   all?: boolean;
   sessionInit?: boolean;
+  verbose?: boolean;
   json?: boolean;
 }
 
 export async function handleUserStatus(opts: UserStatusOptions): Promise<void> {
   const json = Boolean(opts.json);
-  if (!json) p.intro("arc user status");
+  const output = createSyncOutput(json);
+  output.intro("arc user status");
 
   let identity: string;
   try {
     identity = await resolveUserIdentity();
   } catch (err) {
+    if (err instanceof UserFacingError) {
+      emitStatusError(json, output, err.code, err.message, err);
+      process.exitCode = 1;
+      return;
+    }
     if (isHandledError(err)) return;
     throw err;
   }
 
   const io = createUserIOContext();
-  const cwd = requireArcProjectRoot();
-  if (!cwd) return;
+  const cwd = json ? resolveArcRoot(process.cwd()) : requireArcProjectRoot();
+  if (!cwd) {
+    if (json) {
+      emitStatusError(json, output, "NOT_IN_ARC_PROJECT", ARC_PROJECT_ROOT_ERROR);
+      process.exitCode = 1;
+    }
+    return;
+  }
 
   if (opts.sessionInit) {
     const { settings } = await readConfigSettings(cwd);
@@ -435,8 +499,8 @@ export async function handleUserStatus(opts: UserStatusOptions): Promise<void> {
       process.stdout.write(`${JSON.stringify(result)}\n`);
       return;
     }
-    p.note(buildUserSessionInitStatusSummary(result), "Session Init");
-    p.outro("Done.");
+    output.note(buildUserSessionInitStatusSummary(result), "Session Init");
+    output.outro("Done.");
     return;
   }
 
@@ -449,6 +513,7 @@ export async function handleUserStatus(opts: UserStatusOptions): Promise<void> {
     offline: opts.offline,
     all: opts.all,
     remoteSyncEnabled,
+    verbose: Boolean(opts.verbose),
   });
 
   if (json) {
@@ -456,6 +521,28 @@ export async function handleUserStatus(opts: UserStatusOptions): Promise<void> {
     return;
   }
 
-  p.note(buildUserStatusSummary(result), "Status");
-  p.outro("Done.");
+  output.note(buildUserStatusSummary(result), "Status");
+  output.outro("Done.");
+}
+
+/**
+ * Surface a status-handler error in the format appropriate for the active
+ * mode. Under `--json`, writes a single envelope `{ error: { code, message } }`
+ * to stdout — keeps the JSON pipe contract intact (every return path emits an
+ * envelope) and avoids contaminating stdout with clack output. In human mode,
+ * routes the formatted error through the SyncOutput log sink.
+ */
+function emitStatusError(
+  json: boolean,
+  output: SyncOutput,
+  code: ArcErrorCode,
+  message: string,
+  formatSource?: Error,
+): void {
+  if (json) {
+    const envelope = { error: { code, message } };
+    process.stdout.write(`${JSON.stringify(envelope)}\n`);
+    return;
+  }
+  output.log.error(formatSource ? formatError(formatSource) : message);
 }

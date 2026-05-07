@@ -433,7 +433,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     );
     expect(config).toContain("team.mode: false");
     expect(config).toContain("session.remote_sync: enabled");
-    expect(config).toContain("user.sync_push: always");
+    expect(config).toContain("user.notes_push: on-sync");
   });
 
   it("renders session.init_pull.* keys with defaults and inline comments", async () => {
@@ -613,7 +613,7 @@ describe("init integration (fresh mode, team_mode=true)", () => {
     );
     expect(config).toContain("team.mode: true");
     expect(config).toContain("session.remote_sync: enabled");
-    expect(config).toContain("user.sync_push: prompt");
+    expect(config).toContain("user.notes_push: prompt");
 
     const message = buildPostInitMessage(result!);
     expect(message).toContain("Team mode enabled");

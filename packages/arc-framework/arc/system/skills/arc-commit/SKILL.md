@@ -34,20 +34,15 @@ disable-model-invocation: false
      before composing any commit message. Both paths require this — the format spec includes
      context footer patterns that are not safe to assume from memory.
 
-4. Execute the chosen workflow.
+4. Execute the chosen path.
 
-   - For simple path: stage only files for one logical change and commit using the loaded
-     format guidance.
-   - For complex path: follow
+   - **Simple path:** stage only files for one logical change — no unrelated files. If
+     separation is unclear at staging time, stop and re-check file-level intent. Pre-stage
+     review extension (`#pre-stage-review`): if `pre-stage-review` appears in the
+     active-extensions list established at session init, load and execute its `.actions`;
+     otherwise, skip. Run `git diff --cached --stat` to verify staging matches intent —
+     pre-staged files can silently slip in; intended files can be left out. Commit using the
+     loaded format guidance.
+   - **Complex path:** follow
      `.arc/system/workflows/arc/supplemental/prepare-commits.md` to analyze and split
      changes into atomic commits.
-
-5. Enforce atomicity.
-
-   - Do not include unrelated files in the same commit.
-   - If separation is unclear, stop and re-check file-level intent before committing.
-
-6. Verify staging before committing.
-
-   - Run `git diff --cached --stat` after staging. Pre-staged files can silently slip in;
-     intended files can be left out. Verify the staging area matches intent.

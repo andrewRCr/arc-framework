@@ -14,6 +14,9 @@
  * @module
  */
 
+import { access } from "node:fs/promises";
+import { join } from "node:path";
+
 import * as p from "@clack/prompts";
 
 import {
@@ -48,10 +51,12 @@ import {
 import { gitConfigGet } from "../lib/git/index.js";
 import { runDirtyStateStatus } from "../lib/git/dirty-state.js";
 import { runHeadHashStatus } from "../lib/git/head-hash.js";
+import { runPushabilityStatus } from "../lib/git/pushability.js";
 import { runWorktreeSyncStatus } from "../lib/git/worktree-sync.js";
+import { deriveRestateCandidates } from "../lib/handoff/restate-candidates.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
+import { resolveSyncInterlock } from "../lib/config/resolved-settings.js";
 import { createUserIOContext, gitExec } from "../lib/io-context.js";
-import { resolveSyncPushPolicy } from "../lib/sync-policy.js";
 import { requireArcProjectRoot } from "./shared.js";
 
 export interface StatusCliOptions {
@@ -103,21 +108,22 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
       dirty: () => runDirtyStateStatus({ exec: gitExec }),
       worktree: () => runWorktreeSyncStatus({ exec: gitExec, remoteSyncEnabled }),
       user: (id) => runUserSessionInitStatus({ cwd, io, identity: id, remoteSyncEnabled }),
-      pushInterlock: async () => {
-        const result = await runConfigSessionInitStatus({ cwd });
-        const key = "session.push_interlock";
-        return {
-          value: result.settings[key] as "manual" | "on-handoff",
-          source: result.defaultsApplied.includes(key) ? "default" : "yaml",
-        };
-      },
-      syncPush: () => resolveSyncPushPolicy({
-        exec: gitExec,
-        readFile: io.readFile,
-        cwd,
-      }),
+      syncInterlock: () => resolveSyncInterlock({ cwd, exec: gitExec, readFile: io.readFile }),
       active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec: gitExec }),
       head: () => runHeadHashStatus({ exec: gitExec }),
+      pushability: () => runPushabilityStatus({
+        exec: gitExec,
+        access,
+        target: "worktree",
+      }),
+      restateCandidates: async () => {
+        const sessionNotes = identity === null
+          ? null
+          : await io
+              .readFile(join(cwd, ".arc", "user", identity, "SESSION-NOTES.md"))
+              .catch(() => null);
+        return deriveRestateCandidates({ exec: gitExec, sessionNotes });
+      },
     };
     if (!json) {
       process.stderr.write(
@@ -137,6 +143,7 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
     const probes: SessionInitProbes = {
       user: (id) => runUserSessionInitStatus({ cwd, io, identity: id, remoteSyncEnabled }),
       worktree: () => runWorktreeSyncStatus({ exec: gitExec, remoteSyncEnabled }),
+      dirty: () => runDirtyStateStatus({ exec: gitExec }),
       extensions: () => runExtensionsSessionInitStatus({ cwd }),
       config: () => runConfigSessionInitStatus({ cwd }),
       active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec: gitExec }),

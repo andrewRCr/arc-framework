@@ -17,6 +17,7 @@ import { getArcTemplatePath, getRecipePath, getChangelogPath } from "../lib/path
 import { getFrameworkVersion, checkLatestVersion } from "../lib/version.js";
 import { createIOContext, execFileAsync } from "../lib/io-context.js";
 import { runWithSpinner, isHandledError, requireArcProjectRoot } from "./shared.js";
+import { createSyncOutput } from "../lib/sync-output.js";
 import { readChangelog, filterChangelogRange, buildChangelogDisplay } from "../lib/changelog.js";
 
 // --- Update ---
@@ -24,6 +25,7 @@ import { readChangelog, filterChangelogRange, buildChangelogDisplay } from "../l
 export async function handleUpdate(options: { quiet?: boolean } = {}): Promise<void> {
   p.intro("arc update");
 
+  const output = createSyncOutput(false);
   const templateDir = getArcTemplatePath();
   const recipe = await loadRecipeFile(getRecipePath(), (f) => readFile(f, "utf-8"));
 
@@ -31,6 +33,7 @@ export async function handleUpdate(options: { quiet?: boolean } = {}): Promise<v
     const cwd = requireArcProjectRoot();
     if (!cwd) return;
     const result = await runWithSpinner(
+      output,
       "Updating ARC framework files...",
       () => runUpdate({ cwd, io: createIOContext(), templateDir, recipe }),
       "Update complete.",

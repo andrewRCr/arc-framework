@@ -44,6 +44,10 @@ documentation style — live in [DEV-RULES.PROJECT][dev-rules-project]. Contribu
 
 - **Never use `--no-verify`** to bypass commit hooks — hooks exist to catch errors.
 
+- **Amend scope:** Use `git commit --amend` only for same-concern fixups to the most recent
+  unpushed commit (typo, lint, missing file from the same logical change); otherwise create a
+  new commit. Never amend pushed commits without explicit user request.
+
 - **Check before reverting files:** Before `git checkout -- <file>`, review `git diff <file>` —
   other tasks may have uncommitted work in the same file.
 
@@ -264,15 +268,26 @@ Don't proceed from intuition when the declared content is one read away.
 
 ### No meta-project references in code
 
-Never reference task IDs, phase numbers, or `.arc/` documentation in production code — comments,
-docstrings, or variable names. Code should explain "what" and "why" independently of project
-management context.
+Never reference planning IDs — task IDs (`Task X.Y`), phase numbers (`Phase 3`), behavior IDs
+(`B5`), requirement IDs (`R12`), spec citations (`§ Goals`) — named processes, methods, or
+workflows that organize the work (ARC's own — `the test-first method`,
+`prepare-commits workflow` — or your project's analogues), or `.arc/` documentation paths in
+code, tests, or durable documentation (strategies, methods, workflows, READMEs). Applies to
+comments, docstrings (including file-level), identifiers, test names, and prose.
 
-### Task references in `.arc/` docs
+Meta-commentary vs. substantive reference: citations that justify the code by appeal to
+process artifacts — `per the team's TDD playbook`, `implements the spec from RFC-042`,
+`per the test-first method's batching-judgment clause` — are a form of documentation coupling,
+binding code to a document on its own evolution schedule. Replace them with what the code
+does; route process rationale to a planning artifact (PRDs, plans, task lists, status files,
+ADRs, completion docs, work-unit notes, commit `Context:` footers). Substantive references —
+test names describing behavior, comments on non-obvious invariants — stay.
 
-When referencing tasks in `.arc/` documentation, include both the task identifier and the task
-list filename: "Task X.Y - `tasks-name.md`" or "Phase X - `tasks-name.md`". Use only the
-filename (no path) since task lists move between active/, backlog/, and archive/ directories.
+### `.arc/` artifact references
+
+For movable WU artifacts (`plan-*`, `prd-*`, `tasks-*`, `status-*`, companions), use backticked
+filenames only; no Markdown links or paths. For tasks, include task ID + task-list filename:
+"Task X.Y - `tasks-name.md`". Paths are for current-location metadata, commands, and stable docs.
 
 ### Write for the reader, not the author
 

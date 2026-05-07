@@ -2,15 +2,17 @@ import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 
-import { deserialize, serialize, type SyncManifest } from "../../lib/git/index.js";
+import { atomicWriteJson } from "../../lib/fs.js";
+import { deserialize, isSafeManifestPath, serialize, type SyncManifest } from "../../lib/git/index.js";
 import { ensureDir } from "../../lib/template/index.js";
 import { notesRef } from "./shared.js";
 import {
   BACKUP_FILENAME,
+  UserLoadVerificationError,
   UserSaveError,
+  UserSaveVerificationError,
   type UserLoadOutcome,
   type NearestNoteSearch,
-  type NearestUserNoteRef,
   type UserIOContext,
   type UserLoadOptions,
   type UserSaveOptions,
@@ -24,17 +26,30 @@ const LOCAL_SYNC_STATE_FILENAME = ".sync-state.json";
 const USER_INTERNAL_DIRNAME = ".internal";
 
 interface LocalSyncState {
-  version: 2;
+  version: 3;
   materializedManifestHash: string;
   sourceCommit: string;
   sourceOperation: "save" | "load";
+  /**
+   * ISO-8601 timestamp when this record was written. Optional in memory because
+   * v2 records on disk predate the field — they hydrate with `savedAt: undefined`
+   * and pick up a populated value on the next save.
+   */
+  savedAt?: string;
+  verifiedAt?: string;
+  partialPush?: PartialPushMarker;
+}
+
+interface PartialPushMarker {
+  localRefHash: string;
+  sourceCommit: string;
 }
 
 /** Default ancestor-walk cap. Aligns with common shallow-clone depth conventions. */
 export const DEFAULT_MAX_ANCESTOR_WALK = 1000;
 
 /**
- * Save the user directory to a git note on HEAD.
+ * Save the user directory to user notes on HEAD.
  *
  * Serializes eligible files from `user/{identity}/` and stores the JSON
  * manifest as a git note on the current HEAD commit.
@@ -57,7 +72,8 @@ export async function runUserSave(
 
   const json = JSON.stringify(result.manifest);
   await io.writeNote(notesRef(identity), json, commit);
-  await writeLocalSyncState(cwd, io, identity, result.manifest, commit, "save");
+  await verifySavedNote(io, identity, commit, result.manifest);
+  await writeLocalSyncState(cwd, io, identity, result.manifest, commit, "save", commit);
 
   return {
     identity,
@@ -68,11 +84,11 @@ export async function runUserSave(
 }
 
 /**
- * Load the user directory from a git note.
+ * Load the user directory from user notes.
  *
- * Reads the note from HEAD first. If not found, walks up to `maxAncestorWalk`
- * ancestors looking for a note (the common case after switching branches or
- * making new commits since the last save).
+ * Walks the user notes ref's own history looking for the newest note
+ * attachment. This finds notes even when their annotated commits are outside
+ * current HEAD ancestry.
  *
  * @param options - Load options
  * @returns Load result, or null if no note found
@@ -146,7 +162,8 @@ export async function runUserLoad(
 
   await ensureDir(userDir, io.mkdir);
   await deserialize(userDir, manifest, io.writeFile, io.mkdir);
-  await writeLocalSyncState(cwd, io, identity, manifest, foundCommit, "load");
+  await verifyMaterializedUserDir(userDir, io, foundCommit, manifest);
+  await writeLocalSyncState(cwd, io, identity, manifest, foundCommit, "load", foundCommit);
 
   return {
     kind: "loaded",
@@ -155,8 +172,84 @@ export async function runUserLoad(
     fileCount: Object.keys(manifest.files).length,
     fromAncestor,
     ancestorDistance: search.note.ancestorDistance,
+    noteHistoryDistance: search.note.noteHistoryDistance,
+    reachableFromHead: search.note.reachableFromHead,
     warnings: staleWarnings,
   };
+}
+
+async function verifyMaterializedUserDir(
+  userDir: string,
+  io: UserIOContext,
+  commit: string,
+  manifest: SyncManifest,
+): Promise<void> {
+  const shortCommit = commit.slice(0, 7);
+  const expectedFiles: Record<string, string> = {};
+  const readbackFiles: Record<string, string> = {};
+
+  for (const [name, content] of Object.entries(manifest.files)) {
+    if (!isSafeManifestPath(name)) continue;
+    expectedFiles[name] = content;
+
+    let actual: string;
+    try {
+      actual = await io.readFile(`${userDir}/${name}`);
+    } catch {
+      throw new UserLoadVerificationError(
+        `Load verification failed for note ${shortCommit}: materialized file "${name}" was missing or unreadable.`,
+      );
+    }
+    readbackFiles[name] = actual;
+  }
+
+  const expectedHash = hashSyncManifest({ version: manifest.version, files: expectedFiles });
+  const actualHash = hashSyncManifest({ version: manifest.version, files: readbackFiles });
+  if (expectedHash !== actualHash) {
+    throw new UserLoadVerificationError(
+      `Load verification failed for note ${shortCommit}: materialized file content did not match the loaded manifest.`,
+    );
+  }
+}
+
+async function verifySavedNote(
+  io: UserIOContext,
+  identity: string,
+  commit: string,
+  expectedManifest: SyncManifest,
+): Promise<void> {
+  const ref = notesRef(identity);
+  const readback = await io.readNote(ref, commit);
+  const shortCommit = commit.slice(0, 7);
+
+  if (readback === null) {
+    throw new UserSaveVerificationError(
+      `Save verification failed on ${shortCommit}: git note readback was missing.`,
+    );
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readback);
+  } catch {
+    throw new UserSaveVerificationError(
+      `Save verification failed on ${shortCommit}: git note readback was not valid JSON.`,
+    );
+  }
+
+  if (!isSyncManifest(parsed)) {
+    throw new UserSaveVerificationError(
+      `Save verification failed on ${shortCommit}: git note readback had an unsupported manifest shape.`,
+    );
+  }
+
+  const expectedHash = hashSyncManifest(expectedManifest);
+  const actualHash = hashSyncManifest(parsed);
+  if (actualHash !== expectedHash) {
+    throw new UserSaveVerificationError(
+      `Save verification failed on ${shortCommit}: git note readback did not match the saved manifest.`,
+    );
+  }
 }
 
 export function hashSyncManifest(
@@ -166,6 +259,23 @@ export function hashSyncManifest(
   return createHash("sha256")
     .update(JSON.stringify(normalized))
     .digest("hex");
+}
+
+function isSyncManifest(value: unknown): value is SyncManifest {
+  if (typeof value !== "object" || value === null) return false;
+
+  const record = value as Record<string, unknown>;
+  if (record.version !== 1 && record.version !== 2) return false;
+  if (
+    typeof record.files !== "object" ||
+    record.files === null ||
+    Array.isArray(record.files)
+  ) {
+    return false;
+  }
+
+  return Object.values(record.files as Record<string, unknown>)
+    .every((content) => typeof content === "string");
 }
 
 export async function readLocalSyncState(
@@ -192,31 +302,26 @@ export async function readLocalSyncState(
       const record = parsed as Record<string, unknown>;
 
       if (
-        record.version === 2
+        (record.version === 2 || record.version === 3)
         && typeof record.materializedManifestHash === "string"
         && record.materializedManifestHash.length > 0
         && typeof record.sourceCommit === "string"
         && record.sourceCommit.length > 0
         && (record.sourceOperation === "save" || record.sourceOperation === "load")
       ) {
+        const partialPush = parsePartialPushMarker(record.partialPush);
         return {
-          version: 2,
+          version: 3,
           materializedManifestHash: record.materializedManifestHash,
           sourceCommit: record.sourceCommit,
           sourceOperation: record.sourceOperation,
-        };
-      }
-
-      if (
-        record.version === 1
-        && typeof record.materializedManifestHash === "string"
-        && record.materializedManifestHash.length > 0
-      ) {
-        return {
-          version: 2,
-          materializedManifestHash: record.materializedManifestHash,
-          sourceCommit: "",
-          sourceOperation: "load",
+          ...(typeof record.savedAt === "string" && record.savedAt.length > 0
+            ? { savedAt: record.savedAt }
+            : {}),
+          ...(typeof record.verifiedAt === "string" && record.verifiedAt.length > 0
+            ? { verifiedAt: record.verifiedAt }
+            : {}),
+          ...(partialPush ? { partialPush } : {}),
         };
       }
     } catch {
@@ -227,6 +332,23 @@ export async function readLocalSyncState(
   return null;
 }
 
+function parsePartialPushMarker(value: unknown): PartialPushMarker | null {
+  if (typeof value !== "object" || value === null) return null;
+  const record = value as Record<string, unknown>;
+  if (
+    typeof record.localRefHash !== "string" ||
+    record.localRefHash.length === 0 ||
+    typeof record.sourceCommit !== "string" ||
+    record.sourceCommit.length === 0
+  ) {
+    return null;
+  }
+  return {
+    localRefHash: record.localRefHash,
+    sourceCommit: record.sourceCommit,
+  };
+}
+
 async function writeLocalSyncState(
   cwd: string,
   io: UserIOContext,
@@ -234,18 +356,86 @@ async function writeLocalSyncState(
   manifest: SyncManifest,
   sourceCommit: string,
   sourceOperation: "save" | "load",
+  verifiedAt?: string,
 ): Promise<void> {
   const internalDir = getUserInternalDir(cwd, identity);
   const syncStatePath = join(internalDir, LOCAL_SYNC_STATE_FILENAME);
   await ensureDir(internalDir, io.mkdir);
   const state: LocalSyncState = {
-    version: 2,
+    version: 3,
     materializedManifestHash: hashSyncManifest(manifest),
     sourceCommit,
     sourceOperation,
+    savedAt: new Date().toISOString(),
+    ...(verifiedAt ? { verifiedAt } : {}),
   };
-  await io.writeFile(syncStatePath, `${JSON.stringify(state, null, 2)}\n`);
+  await atomicWriteJson(syncStatePath, state);
 }
+
+async function writeLocalSyncStateRecord(
+  cwd: string,
+  io: UserIOContext,
+  identity: string,
+  state: LocalSyncState,
+): Promise<void> {
+  const internalDir = getUserInternalDir(cwd, identity);
+  const syncStatePath = join(internalDir, LOCAL_SYNC_STATE_FILENAME);
+  await ensureDir(internalDir, io.mkdir);
+  await atomicWriteJson(syncStatePath, state);
+}
+
+export async function recordPartialPushMarker(
+  cwd: string,
+  io: UserIOContext,
+  identity: string,
+): Promise<boolean> {
+  const state = await readLocalSyncState(cwd, io, identity);
+  if (!state) return false;
+
+  const localRefHash = await readLocalNotesRefHash(io, identity);
+  if (!localRefHash) return false;
+
+  await writeLocalSyncStateRecord(cwd, io, identity, {
+    ...state,
+    partialPush: { localRefHash, sourceCommit: state.sourceCommit },
+  });
+  return true;
+}
+
+export async function clearPartialPushMarker(
+  cwd: string,
+  io: UserIOContext,
+  identity: string,
+): Promise<void> {
+  const state = await readLocalSyncState(cwd, io, identity);
+  if (!state?.partialPush) return;
+
+  await writeLocalSyncStateRecord(cwd, io, identity, {
+    version: state.version,
+    materializedManifestHash: state.materializedManifestHash,
+    sourceCommit: state.sourceCommit,
+    sourceOperation: state.sourceOperation,
+    ...(state.savedAt ? { savedAt: state.savedAt } : {}),
+    ...(state.verifiedAt ? { verifiedAt: state.verifiedAt } : {}),
+  });
+}
+
+async function readLocalNotesRefHash(
+  io: UserIOContext,
+  identity: string,
+): Promise<string | null> {
+  try {
+    const { stdout } = await io.exec("git", [
+      "rev-parse",
+      "--verify",
+      `refs/notes/${notesRef(identity)}`,
+    ]);
+    return stdout.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
 
 function normalizeManifest(
   manifest: SyncManifest,
@@ -258,98 +448,146 @@ function normalizeManifest(
   };
 }
 
-/**
- * Walk HEAD's ancestors (up to the configured cap) looking for a note.
- *
- * Returns a structured result so callers can distinguish "no notes exist at
- * all", "notes exist but not reachable within cap" (cap-hit), and "found" —
- * and render the right diagnostic for each case.
- */
+/** Walk the user notes ref history (up to the configured cap) looking for a note. */
 export async function findNearestUserNote(
   options: UserLoadOptions,
 ): Promise<NearestNoteSearch> {
   const { io, identity } = options;
   const maxWalk = options.maxAncestorWalk ?? DEFAULT_MAX_ANCESTOR_WALK;
   const ref = notesRef(identity);
+  const fullRef = `refs/notes/${ref}`;
 
-  const { stdout: head } = await io.exec("git", ["rev-parse", "HEAD"]);
-  const headHash = head;
-
-  const notedCommits = new Set<string>();
+  let headHash: string;
   try {
-    const { stdout: notesList } = await io.exec("git", [
-      "notes", "--ref", ref, "list",
+    const { stdout } = await io.exec("git", ["rev-parse", "HEAD"]);
+    headHash = stdout.trim();
+  } catch {
+    headHash = "";
+  }
+
+  const notesHistory = await readNotesRefHistory(io, fullRef, maxWalk);
+  if (notesHistory.length === 0) {
+    return { note: null, walked: 0, maxWalk, capped: false };
+  }
+
+  for (const [index, noteHistoryCommit] of notesHistory.entries()) {
+    const changedPaths = await listChangedNotePaths(io, noteHistoryCommit);
+    for (const path of changedPaths) {
+      const annotatedCommit = notePathToCommit(path);
+      if (!annotatedCommit) continue;
+
+      const content = await readNoteContentAtHistoryCommit(io, noteHistoryCommit, path);
+      if (!content) continue;
+
+      const reachableFromHead = headHash.length > 0
+        ? await isCommitReachableFromHead(io, annotatedCommit)
+        : false;
+      const ancestorDistance = reachableFromHead
+        ? await countCommitsSince(io, annotatedCommit)
+        : 0;
+
+      return {
+        note: {
+          content,
+          commit: annotatedCommit,
+          reachableFromHead,
+          fromAncestor: reachableFromHead && annotatedCommit !== headHash,
+          ancestorDistance,
+          noteHistoryDistance: index,
+        },
+        walked: index + 1,
+        maxWalk,
+        capped: false,
+      };
+    }
+  }
+
+  return {
+    note: null,
+    walked: notesHistory.length,
+    maxWalk,
+    capped: notesHistory.length >= maxWalk,
+  };
+}
+
+async function readNotesRefHistory(
+  io: UserIOContext,
+  fullRef: string,
+  maxWalk: number,
+): Promise<string[]> {
+  try {
+    const { stdout } = await io.exec("git", [
+      "log",
+      "--format=%H",
+      "--max-count",
+      String(maxWalk),
+      fullRef,
     ]);
-    for (const line of notesList.split("\n")) {
-      const commit = line.split(" ")[1];
-      if (commit) notedCommits.add(commit);
-    }
+    return stdout.split("\n").map((entry) => entry.trim()).filter(Boolean);
   } catch {
-    // No notes ref exists — no notes at all
-  }
-
-  if (notedCommits.size === 0) {
-    return { note: null, walked: 0, maxWalk, capped: false };
-  }
-
-  try {
-    const walkResult = await walkAncestorsForNote(
-      io,
-      ref,
-      notedCommits,
-      headHash,
-      maxWalk,
-    );
-
-    if (walkResult.note) {
-      return { note: walkResult.note, walked: walkResult.walked, maxWalk, capped: false };
-    }
-
-    return {
-      note: null,
-      walked: walkResult.walked,
-      maxWalk,
-      capped: walkResult.walked >= maxWalk,
-    };
-  } catch {
-    // rev-list failure (shouldn't happen after successful rev-parse)
-    return { note: null, walked: 0, maxWalk, capped: false };
+    return [];
   }
 }
 
-async function walkAncestorsForNote(
+async function listChangedNotePaths(
   io: UserIOContext,
-  ref: string,
-  notedCommits: Set<string>,
-  headHash: string,
-  maxWalk: number,
-): Promise<{ note: NearestUserNoteRef | null; walked: number }> {
-  const revListArgs = ["rev-list", "--max-count", String(maxWalk), "HEAD"];
-  const { stdout: ancestorList } = await io.exec("git", revListArgs);
-  const commits = ancestorList.split("\n").filter((commit) => commit.length > 0);
-
-  for (const [index, commit] of commits.entries()) {
-    if (!notedCommits.has(commit)) {
-      continue;
-    }
-
-    const content = await io.readNote(ref, commit);
-    if (!content) {
-      continue;
-    }
-
-    return {
-      note: {
-        content,
-        commit,
-        fromAncestor: commit !== headHash,
-        ancestorDistance: index,
-      },
-      walked: index + 1,
-    };
+  noteHistoryCommit: string,
+): Promise<string[]> {
+  try {
+    const { stdout } = await io.exec("git", [
+      "diff-tree",
+      "--no-commit-id",
+      "--name-only",
+      "-r",
+      "--root",
+      noteHistoryCommit,
+    ]);
+    return stdout.split("\n").map((entry) => entry.trim()).filter(Boolean);
+  } catch {
+    return [];
   }
+}
 
-  return { note: null, walked: commits.length };
+function notePathToCommit(path: string): string | null {
+  const commit = path.replaceAll("/", "");
+  return /^[0-9a-f]{40}$/u.test(commit) ? commit : null;
+}
+
+async function readNoteContentAtHistoryCommit(
+  io: UserIOContext,
+  noteHistoryCommit: string,
+  path: string,
+): Promise<string | null> {
+  try {
+    const { stdout } = await io.exec("git", ["show", `${noteHistoryCommit}:${path}`]);
+    return stdout;
+  } catch {
+    return null;
+  }
+}
+
+async function isCommitReachableFromHead(
+  io: UserIOContext,
+  commit: string,
+): Promise<boolean> {
+  try {
+    await io.exec("git", ["merge-base", "--is-ancestor", commit, "HEAD"]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function countCommitsSince(
+  io: UserIOContext,
+  commit: string,
+): Promise<number> {
+  try {
+    const { stdout } = await io.exec("git", ["rev-list", "--count", `${commit}..HEAD`]);
+    return Number.parseInt(stdout.trim(), 10) || 0;
+  } catch {
+    return 0;
+  }
 }
 
 export async function listBackupFiles(

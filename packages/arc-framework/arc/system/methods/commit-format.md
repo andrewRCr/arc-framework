@@ -39,7 +39,13 @@ Conventional commit format.
 traceability metadata — the `Context:` footer handles that (see
 [commit-context-format](commit-context-format.md)).
 
-**Body:** 10–15 lines max (20–25 for milestones). Focus on WHY and IMPACT, not what changed.
+**Body:** Wrap at ~72 chars per line (renders cleanly in `git log`). Focus on WHY and IMPACT,
+not what changed. Hard limits: 100 lines, 100 chars per line — exceed either and the commit
+probably wants splitting or its prose moved to a doc.
+
+**Phases vs. tasks:** Bare integers for phases (`Phase 1`, `Phase 2`); dotted form for tasks
+(`Task 1.2`, `Task 3.1.a`). Never write `Phase X.Y` — that's a task identifier; the hook
+blocks it. Preserves grep-ability: `git log --grep "Task 3.1"` should find the right commits.
 
 **Enforcement:** Git hooks validate format when `commit.format` is `conventional` or `custom`
 in [`arc-config.yml`][arc-config]. See `system/githooks/README.md` for setup.

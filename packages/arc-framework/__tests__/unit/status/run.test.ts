@@ -8,11 +8,6 @@
  * Real I/O behavior of the individual probes is covered by their own
  * integration tests; the end-to-end composite wiring is covered by
  * `__tests__/integration/status.test.ts`.
- *
- * Batching rationale: per the test-first method's batching-judgment
- * clause — behaviors are tightly coupled to a single orchestrator and
- * share fixture setup (mock probe bundle); one-at-a-time slicing has no
- * independent discovery value here.
  */
 
 import { describe, it, expect, vi } from "vitest";
@@ -23,7 +18,7 @@ import {
   runStatus,
 } from "../../../src/commands/status.js";
 import type {
-  HandoffPushInterlock,
+  HandoffSyncInterlock,
   SessionHandoffProbes,
   SessionInitProbes,
   StatusProbes,
@@ -42,19 +37,23 @@ import type {
   ExtensionsStatusResult,
 } from "../../../src/commands/extensions/types.js";
 import type {
+  UserIOContext,
   UserSessionInitStatusResult,
   UserStatusResult,
 } from "../../../src/commands/user/types.js";
+import { runUserSessionInitStatus } from "../../../src/commands/user.js";
 import type { DirtyStateResult } from "../../../src/lib/git/dirty-state.js";
 import type { HeadHashResult } from "../../../src/lib/git/head-hash.js";
+import type { PushabilityResult } from "../../../src/lib/git/pushability.js";
 import type { WorktreeSyncStatusResult } from "../../../src/lib/git/worktree-sync.js";
-import type { ResolvedSyncPush } from "../../../src/lib/sync-policy.js";
+import type { RestateCandidatesResult } from "../../../src/lib/handoff/restate-candidates.js";
 
 // --- Fixtures ---
 
 function userResult(overrides: Partial<UserStatusResult> = {}): UserStatusResult {
   return {
     identity: "andrew",
+    spineState: "clean",
     headline: "git note up to date",
     remoteStatus: "in sync",
     diskStatus: "current",
@@ -107,10 +106,12 @@ function configResult(overrides: Partial<ConfigStatusResult> = {}): ConfigStatus
       "session.remote_sync": "enabled",
       "session.init_pull.worktree": "prompt",
       "session.init_pull.notes": "prompt",
+      "session.init_load.notes": "prompt",
       "session.commit_interlock": "manual",
       "session.push_interlock": "manual",
+      "session.sync_interlock": "on-handoff",
       "archive.cadence": "with-integration",
-      "user.sync_push": "always",
+      "user.notes_push": "on-sync",
     },
     defaultsApplied: [],
     warnings: [],
@@ -151,7 +152,7 @@ function extensionsSessionInit(
 function worktreeSync(
   overrides: Partial<WorktreeSyncStatusResult> = {},
 ): WorktreeSyncStatusResult {
-  return { state: "clean", ahead: 0, behind: 0, ...overrides };
+  return { state: "clean", ahead: 0, behind: 0, branch: "main", ...overrides };
 }
 
 function configSessionInit(
@@ -163,8 +164,10 @@ function configSessionInit(
       "session.remote_sync": "enabled",
       "session.init_pull.worktree": "prompt",
       "session.init_pull.notes": "prompt",
+      "session.init_load.notes": "prompt",
       "session.commit_interlock": "manual",
       "session.push_interlock": "manual",
+      "session.sync_interlock": "on-handoff",
       "branch.protection": "partial",
       "pm.mode": "none",
       "commit.format": "conventional",
@@ -197,6 +200,54 @@ function domainRulesSessionInit(
   return { mode: "session-init", rules: [], warnings: [], ...overrides };
 }
 
+const STALE_NOTE_COMMIT = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const HEAD_COMMIT = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+const NOTE_HISTORY_COMMIT = "cccccccccccccccccccccccccccccccccccccccc";
+const USER_NOTES_REF = "refs/notes/arc/user/andrew";
+
+function notePathFor(commit: string): string {
+  return `${commit.slice(0, 2)}/${commit.slice(2)}`;
+}
+
+function staleLocalNoteIO(): UserIOContext {
+  const sameRefHash = "dddddddddddddddddddddddddddddddddddddddd";
+  return {
+    exec: vi.fn(async (_cmd: string, args: string[]) => {
+      if (args[0] === "rev-parse" && args[1] === "--verify") {
+        return { stdout: `${sameRefHash}\n`, stderr: "" };
+      }
+      if (args[0] === "ls-remote") {
+        return { stdout: `${sameRefHash}\t${USER_NOTES_REF}\n`, stderr: "" };
+      }
+      if (args[0] === "rev-parse" && args[1] === "HEAD") {
+        return { stdout: `${HEAD_COMMIT}\n`, stderr: "" };
+      }
+      if (args[0] === "log") {
+        return { stdout: `${NOTE_HISTORY_COMMIT}\n`, stderr: "" };
+      }
+      if (args[0] === "diff-tree") {
+        return { stdout: `${notePathFor(STALE_NOTE_COMMIT)}\n`, stderr: "" };
+      }
+      if (args[0] === "show") {
+        return { stdout: JSON.stringify({ version: 2, files: {} }), stderr: "" };
+      }
+      if (args[0] === "merge-base") {
+        return { stdout: "", stderr: "" };
+      }
+      if (args[0] === "rev-list") {
+        return { stdout: "2\n", stderr: "" };
+      }
+      throw new Error(`unexpected command: git ${args.join(" ")}`);
+    }),
+    readDir: vi.fn(async () => []),
+    readFile: vi.fn(async () => ""),
+    writeFile: vi.fn(async () => undefined),
+    mkdir: vi.fn(async () => undefined),
+    writeNote: vi.fn(async () => undefined),
+    readNote: vi.fn(async () => null),
+  };
+}
+
 function fullProbes(overrides: Partial<StatusProbes> = {}): StatusProbes {
   return {
     user: vi.fn(async () => userResult()),
@@ -211,6 +262,7 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
   return {
     user: vi.fn(async () => userSessionInit()),
     worktree: vi.fn(async () => worktreeSync()),
+    dirty: vi.fn(async () => dirtyState()),
     extensions: vi.fn(async () => extensionsSessionInit()),
     config: vi.fn(async () => configSessionInit()),
     active: vi.fn(async () => activeSessionInit()),
@@ -223,18 +275,25 @@ function dirtyState(overrides: Partial<DirtyStateResult> = {}): DirtyStateResult
   return { state: "clean", fileCount: 0, ...overrides };
 }
 
-function handoffPushInterlock(
-  overrides: Partial<HandoffPushInterlock> = {},
-): HandoffPushInterlock {
-  return { value: "manual", source: "default", ...overrides };
-}
-
-function resolvedSyncPush(overrides: Partial<ResolvedSyncPush> = {}): ResolvedSyncPush {
-  return { policy: "always", source: "default", ...overrides };
+function handoffSyncInterlock(
+  overrides: Partial<HandoffSyncInterlock> = {},
+): HandoffSyncInterlock {
+  return { value: "on-handoff", source: "default", ...overrides };
 }
 
 function headHash(overrides: Partial<HeadHashResult> = {}): HeadHashResult {
   return { hash: "a1b2c3d", ...overrides };
+}
+
+function restateCandidates(
+  overrides: Partial<RestateCandidatesResult> = {},
+): RestateCandidatesResult {
+  return {
+    commitsSinceHandoff: [],
+    tasksClosedSinceHandoff: [],
+    noteFileChangesSinceHandoff: [],
+    ...overrides,
+  };
 }
 
 function sessionHandoffProbes(
@@ -244,10 +303,11 @@ function sessionHandoffProbes(
     dirty: vi.fn(async () => dirtyState()),
     worktree: vi.fn(async () => worktreeSync()),
     user: vi.fn(async () => userSessionInit()),
-    pushInterlock: vi.fn(async () => handoffPushInterlock()),
-    syncPush: vi.fn(async () => resolvedSyncPush()),
+    syncInterlock: vi.fn(async () => handoffSyncInterlock()),
     active: vi.fn(async () => activeSessionInit()),
     head: vi.fn(async () => headHash()),
+    pushability: vi.fn(async () => ({ allowed: true, conditions: [] })),
+    restateCandidates: vi.fn(async () => restateCandidates()),
     ...overrides,
   };
 }
@@ -398,6 +458,8 @@ describe("runSessionInitStatus — orchestration", () => {
     const probes = sessionInitProbes();
     await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
     expect(probes.user).toHaveBeenCalledTimes(1);
+    expect(probes.worktree).toHaveBeenCalledTimes(1);
+    expect(probes.dirty).toHaveBeenCalledTimes(1);
     expect(probes.extensions).toHaveBeenCalledTimes(1);
     expect(probes.config).toHaveBeenCalledTimes(1);
     expect(probes.active).toHaveBeenCalledTimes(1);
@@ -463,17 +525,18 @@ describe("runSessionInitStatus — orchestration", () => {
     if (result.user.ok) expect(result.user.value.state).toBe("clean");
     if (result.active.ok) expect(result.active.value.resolution).toBe("none");
     if (result.config.ok) {
-      // Session-init settings object has exactly 9 keys.
       expect(Object.keys(result.config.value.settings).sort()).toEqual([
         "branch.protection",
         "commit.context_footer",
         "commit.format",
         "pm.mode",
         "session.commit_interlock",
+        "session.init_load.notes",
         "session.init_pull.notes",
         "session.init_pull.worktree",
         "session.push_interlock",
         "session.remote_sync",
+        "session.sync_interlock",
       ]);
     }
   });
@@ -627,17 +690,171 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
       role: "maintainer",
       probes,
     });
-    // All pre-existing fields plus the new worktree peer.
     expect(Object.keys(result).sort()).toEqual([
       "active",
       "config",
+      "dirty",
       "domainRules",
       "extensions",
       "identity",
       "mode",
+      "recommendedCombinedPrompt",
       "user",
       "worktree",
     ]);
+  });
+});
+
+describe("runSessionInitStatus — recommended actions", () => {
+  it("attaches recommendedAction=skip with empty prompt text on a clean worktree", async () => {
+    const probes = sessionInitProbes();
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.worktree.ok).toBe(true);
+    if (result.worktree.ok) {
+      expect(result.worktree.value.recommendedAction).toBe("skip");
+      expect(result.worktree.value.recommendedPromptText).toBe("");
+    }
+    expect(result.user.ok).toBe(true);
+    if (result.user.ok) {
+      expect(result.user.value.recommendedAction).toBe("skip");
+    }
+    expect(result.recommendedCombinedPrompt).toBeNull();
+  });
+
+  it("threads worktree remote-ahead + prompt policy into recommendedAction=prompt", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "remote-ahead", behind: 4 })),
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    if (result.worktree.ok) {
+      expect(result.worktree.value.recommendedAction).toBe("prompt");
+      expect(result.worktree.value.recommendedPromptText).toContain("4");
+      expect(result.worktree.value.recommendedPromptText).toContain("Worktree");
+    }
+  });
+
+  it("threads dirty-tree state into the prompt text warning", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "remote-ahead", behind: 1 })),
+      dirty: vi.fn(async () => dirtyState({ state: "dirty", fileCount: 3 })),
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    if (result.worktree.ok) {
+      expect(result.worktree.value.recommendedPromptText).toContain(
+        "Working tree dirty",
+      );
+    }
+    expect(result.dirty.ok).toBe(true);
+    if (result.dirty.ok) {
+      expect(result.dirty.value.state).toBe("dirty");
+      expect(result.dirty.value.fileCount).toBe(3);
+    }
+  });
+
+  it("composes recommendedCombinedPrompt when both channels prompt", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "remote-ahead", behind: 2 })),
+      user: vi.fn(async () => userSessionInit({ state: "remote-ahead" })),
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.recommendedCombinedPrompt).not.toBeNull();
+    expect(result.recommendedCombinedPrompt).toContain("Worktree");
+    expect(result.recommendedCombinedPrompt).toContain("Notes");
+    expect(result.recommendedCombinedPrompt).toContain(
+      "Pull both / worktree only / notes only / skip?",
+    );
+  });
+
+  it("manual notes policy + remote-ahead → recommendedAction=surface", async () => {
+    const probes = sessionInitProbes({
+      user: vi.fn(async () => userSessionInit({ state: "remote-ahead" })),
+      config: vi.fn(async () =>
+        configSessionInit({
+          settings: {
+            ...configSessionInit().settings,
+            "session.init_pull.notes": "manual",
+          },
+        }),
+      ),
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    if (result.user.ok) {
+      expect(result.user.value.recommendedAction).toBe("surface");
+      expect(result.user.value.recommendedPromptText).toBe("");
+    }
+    expect(result.recommendedCombinedPrompt).toBeNull();
+  });
+
+  it("always notes policy + remote-ahead → recommendedAction=pull", async () => {
+    const probes = sessionInitProbes({
+      user: vi.fn(async () => userSessionInit({ state: "remote-ahead" })),
+      config: vi.fn(async () =>
+        configSessionInit({
+          settings: {
+            ...configSessionInit().settings,
+            "session.init_pull.notes": "always",
+          },
+        }),
+      ),
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    if (result.user.ok) {
+      expect(result.user.value.recommendedAction).toBe("pull");
+    }
+  });
+
+  it("identity-missing → user slot recommendedAction skipped at orchestrator boundary", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "remote-ahead", behind: 2 })),
+    });
+    const result = await runSessionInitStatus({ identity: null, role: null, probes });
+    expect(result.user.ok).toBe(false);
+    if (result.worktree.ok) {
+      expect(result.worktree.value.recommendedAction).toBe("prompt");
+    }
+    expect(result.recommendedCombinedPrompt).toBeNull();
+  });
+
+  it("falls back to skip-everything when a required input slot fails", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "remote-ahead", behind: 2 })),
+      dirty: async () => { throw new Error("porcelain failed"); },
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.dirty.ok).toBe(false);
+    if (result.worktree.ok) {
+      expect(result.worktree.value.recommendedAction).toBe("skip");
+      expect(result.worktree.value.recommendedPromptText).toBe("");
+    }
+    expect(result.recommendedCombinedPrompt).toBeNull();
   });
 });
 
@@ -669,10 +886,11 @@ describe("runSessionHandoffStatus — orchestration", () => {
     expect(probes.dirty).toHaveBeenCalledTimes(1);
     expect(probes.worktree).toHaveBeenCalledTimes(1);
     expect(probes.user).toHaveBeenCalledTimes(1);
-    expect(probes.pushInterlock).toHaveBeenCalledTimes(1);
-    expect(probes.syncPush).toHaveBeenCalledTimes(1);
+    expect(probes.syncInterlock).toHaveBeenCalledTimes(1);
     expect(probes.active).toHaveBeenCalledTimes(1);
     expect(probes.head).toHaveBeenCalledTimes(1);
+    expect(probes.pushability).toHaveBeenCalledTimes(1);
+    expect(probes.restateCandidates).toHaveBeenCalledTimes(1);
     expect(probes.user).toHaveBeenCalledWith("andrew");
     expect(probes.active).toHaveBeenCalledWith("andrew", "maintainer");
   });
@@ -686,16 +904,106 @@ describe("runSessionHandoffStatus — orchestration", () => {
     });
     expect(Object.keys(result).sort()).toEqual([
       "active",
+      "branch",
       "dirty",
       "head",
       "identity",
       "mode",
-      "pushInterlock",
-      "syncPush",
+      "pushability",
+      "recommendedSummaryLine",
+      "restateCandidates",
+      "syncInterlock",
       "user",
       "worktree",
     ]);
     expect(result.mode).toBe("session-handoff");
+  });
+
+  it("returns the helper's restate-candidates payload verbatim on the success path", async () => {
+    const payload: RestateCandidatesResult = {
+      commitsSinceHandoff: [
+        { hash: "abc1234", subject: "feat(x): one" },
+        { hash: "def5678", subject: "fix(y): two" },
+      ],
+      tasksClosedSinceHandoff: ["4.5.a", "4.5.b"],
+      noteFileChangesSinceHandoff: [".arc/active/technical/notes-foo.md"],
+    };
+    const probes = sessionHandoffProbes({
+      restateCandidates: vi.fn(async () => payload),
+    });
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.restateCandidates.ok).toBe(true);
+    if (result.restateCandidates.ok) {
+      expect(result.restateCandidates.value).toEqual(payload);
+    }
+  });
+
+  it("propagates the baseline-unknown soft signal through the slot", async () => {
+    const probes = sessionHandoffProbes({
+      restateCandidates: vi.fn(async () =>
+        restateCandidates({ baselineSignal: "baseline-unknown" }),
+      ),
+    });
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.restateCandidates.ok).toBe(true);
+    if (result.restateCandidates.ok) {
+      expect(result.restateCandidates.value.baselineSignal).toBe("baseline-unknown");
+    }
+  });
+
+  it("wraps a rejecting restate-candidates probe as ok=false runtime error", async () => {
+    const probes = sessionHandoffProbes({
+      restateCandidates: vi.fn(async () => {
+        throw new Error("git log failed");
+      }),
+    });
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.restateCandidates.ok).toBe(false);
+    if (!result.restateCandidates.ok) {
+      expect(result.restateCandidates.error.kind).toBe("runtime");
+      expect(result.restateCandidates.error.message).toBe("git log failed");
+    }
+    expect(result.dirty.ok).toBe(true);
+    expect(result.worktree.ok).toBe(true);
+  });
+
+  it("returns pushability matrix from the pushability probe", async () => {
+    const blockedResult: PushabilityResult = {
+      allowed: false,
+      conditions: [
+        {
+          kind: "rebase-in-progress",
+          disposition: "block",
+          rebaseForm: "rebase-merge",
+          guidance: "Rebase in progress — complete or abort before pushing.",
+        },
+      ],
+    };
+    const probes = sessionHandoffProbes({
+      pushability: vi.fn(async () => blockedResult),
+    });
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.pushability.ok).toBe(true);
+    if (result.pushability.ok) {
+      expect(result.pushability.value.allowed).toBe(false);
+      expect(result.pushability.value.conditions[0]?.kind).toBe("rebase-in-progress");
+    }
   });
 
   it("returns the HEAD short-hash from the head probe", async () => {
@@ -787,34 +1095,50 @@ describe("runSessionHandoffStatus — orchestration", () => {
     if (result.user.ok) expect(result.user.value.state).toBe("remote-ahead");
   });
 
-  it("returns push interlock with provenance from the pushInterlock probe", async () => {
+  it("carries stale local-note freshness through the handoff user slot", async () => {
+    const io = staleLocalNoteIO();
     const probes = sessionHandoffProbes({
-      pushInterlock: vi.fn(async () =>
-        handoffPushInterlock({ value: "on-handoff", source: "yaml" })),
+      user: vi.fn((identity) =>
+        runUserSessionInitStatus({
+          cwd: "/repo",
+          io,
+          identity,
+          remoteSyncEnabled: true,
+        })),
     });
+
     const result = await runSessionHandoffStatus({
       identity: "andrew",
       role: "maintainer",
       probes,
     });
-    expect(result.pushInterlock.ok).toBe(true);
-    if (result.pushInterlock.ok) {
-      expect(result.pushInterlock.value).toEqual({ value: "on-handoff", source: "yaml" });
+
+    expect(result.user.ok).toBe(true);
+    if (result.user.ok) {
+      expect(result.user.value.localNoteFreshness).toMatchObject({
+        state: "ancestor",
+        commit: STALE_NOTE_COMMIT,
+        ancestorDistance: 2,
+      });
+      expect(result.user.value.detailLines).toContain(
+        "Next step: run `arc user save` or `arc sync` before relying on handoff.",
+      );
     }
   });
 
-  it("returns sync-push policy with provenance from the syncPush probe", async () => {
+  it("returns sync interlock with provenance from the syncInterlock probe", async () => {
     const probes = sessionHandoffProbes({
-      syncPush: vi.fn(async () => resolvedSyncPush({ policy: "prompt", source: "yaml" })),
+      syncInterlock: vi.fn(async () =>
+        handoffSyncInterlock({ value: "manual", source: "yaml" })),
     });
     const result = await runSessionHandoffStatus({
       identity: "andrew",
       role: "maintainer",
       probes,
     });
-    expect(result.syncPush.ok).toBe(true);
-    if (result.syncPush.ok) {
-      expect(result.syncPush.value).toEqual({ policy: "prompt", source: "yaml" });
+    expect(result.syncInterlock.ok).toBe(true);
+    if (result.syncInterlock.ok) {
+      expect(result.syncInterlock.value).toEqual({ value: "manual", source: "yaml" });
     }
   });
 
@@ -842,7 +1166,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
   it("carries per-slot errors in the envelope without rejecting the composite", async () => {
     const probes = sessionHandoffProbes({
       dirty: vi.fn(async () => { throw new Error("porcelain failed"); }),
-      pushInterlock: vi.fn(async () => { throw new Error("config unreadable"); }),
+      syncInterlock: vi.fn(async () => { throw new Error("config unreadable"); }),
     });
     const result = await runSessionHandoffStatus({
       identity: "andrew",
@@ -850,19 +1174,18 @@ describe("runSessionHandoffStatus — orchestration", () => {
       probes,
     });
     expect(result.dirty.ok).toBe(false);
-    expect(result.pushInterlock.ok).toBe(false);
+    expect(result.syncInterlock.ok).toBe(false);
     if (!result.dirty.ok) {
       expect(result.dirty.error.kind).toBe("runtime");
       expect(result.dirty.error.message).toBe("porcelain failed");
     }
-    if (!result.pushInterlock.ok) {
-      expect(result.pushInterlock.error.kind).toBe("runtime");
-      expect(result.pushInterlock.error.message).toBe("config unreadable");
+    if (!result.syncInterlock.ok) {
+      expect(result.syncInterlock.error.kind).toBe("runtime");
+      expect(result.syncInterlock.error.message).toBe("config unreadable");
     }
     // Sibling slots resolve normally.
     expect(result.worktree.ok).toBe(true);
     expect(result.user.ok).toBe(true);
-    expect(result.syncPush.ok).toBe(true);
     expect(result.active.ok).toBe(true);
   });
 
@@ -879,8 +1202,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
     // Other slots still fire.
     expect(probes.dirty).toHaveBeenCalledTimes(1);
     expect(probes.worktree).toHaveBeenCalledTimes(1);
-    expect(probes.pushInterlock).toHaveBeenCalledTimes(1);
-    expect(probes.syncPush).toHaveBeenCalledTimes(1);
+    expect(probes.syncInterlock).toHaveBeenCalledTimes(1);
     expect(probes.active).toHaveBeenCalledTimes(1);
     expect(probes.head).toHaveBeenCalledTimes(1);
   });
@@ -904,8 +1226,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
     // Other slots still resolve normally.
     expect(result.worktree.ok).toBe(true);
     expect(result.user.ok).toBe(true);
-    expect(result.pushInterlock.ok).toBe(true);
-    expect(result.syncPush.ok).toBe(true);
+    expect(result.syncInterlock.ok).toBe(true);
     expect(result.active.ok).toBe(true);
     expect(result.head.ok).toBe(true);
   });
@@ -926,12 +1247,131 @@ describe("runSessionHandoffStatus — orchestration", () => {
       dirty: tracked(dirtyState()),
       worktree: tracked(worktreeSync()),
       user: tracked(userSessionInit()),
-      pushInterlock: tracked(handoffPushInterlock()),
-      syncPush: tracked(resolvedSyncPush()),
+      syncInterlock: tracked(handoffSyncInterlock()),
       active: tracked(activeSessionInit()),
       head: tracked(headHash()),
     });
     await runSessionHandoffStatus({ identity: "andrew", role: "maintainer", probes });
-    expect(peakInFlight).toBe(7);
+    expect(peakInFlight).toBe(6);
+  });
+
+  it("composes recommendedSummaryLine: Reconcile required for diverged worktree", async () => {
+    const probes = sessionHandoffProbes({
+      worktree: vi.fn(async () =>
+        worktreeSync({ state: "diverged", ahead: 2, behind: 3, branch: "feature/foo" }),
+      ),
+    });
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.recommendedSummaryLine).toBe(
+      "**Reconcile required:** `feature/foo` diverged from `origin/feature/foo` "
+      + "(2 ahead, 3 behind). Manual rebase or merge needed before pushing.",
+    );
+  });
+
+  it("composes recommendedSummaryLine: Worktree N unpushed for local-ahead", async () => {
+    const probes = sessionHandoffProbes({
+      worktree: vi.fn(async () =>
+        worktreeSync({ state: "local-ahead", ahead: 4, behind: 0, branch: "feature/baz" }),
+      ),
+    });
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.recommendedSummaryLine).toBe(
+      "**Worktree:** 4 unpushed commit(s) on `feature/baz`.",
+    );
+  });
+
+  it("returns recommendedSummaryLine null for clean worktree", async () => {
+    const probes = sessionHandoffProbes();
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.recommendedSummaryLine).toBeNull();
+  });
+
+  it("returns recommendedSummaryLine null when identity is absent and worktree is clean", async () => {
+    const probes = sessionHandoffProbes();
+    const result = await runSessionHandoffStatus({
+      identity: null,
+      role: null,
+      probes,
+    });
+    expect(result.recommendedSummaryLine).toBeNull();
+  });
+
+  it("still surfaces Reconcile when identity is absent but worktree is diverged", async () => {
+    const probes = sessionHandoffProbes({
+      worktree: vi.fn(async () =>
+        worktreeSync({ state: "diverged", ahead: 1, behind: 2, branch: "feature/qux" }),
+      ),
+    });
+    const result = await runSessionHandoffStatus({
+      identity: null,
+      role: null,
+      probes,
+    });
+    expect(result.recommendedSummaryLine).toBe(
+      "**Reconcile required:** `feature/qux` diverged from `origin/feature/qux` "
+      + "(1 ahead, 2 behind). Manual rebase or merge needed before pushing.",
+    );
+  });
+
+  it("returns recommendedSummaryLine null when worktree probe failed", async () => {
+    const probes = sessionHandoffProbes({
+      worktree: vi.fn(async () => { throw new Error("probe failed"); }),
+    });
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.recommendedSummaryLine).toBeNull();
+  });
+
+  it("returns recommendedSummaryLine null when branch is null (detached HEAD)", async () => {
+    const probes = sessionHandoffProbes({
+      worktree: vi.fn(async () =>
+        worktreeSync({ state: "diverged", ahead: 1, behind: 1, branch: null }),
+      ),
+    });
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.recommendedSummaryLine).toBeNull();
+  });
+
+  it("threads branch from worktree slot through to the envelope verbatim", async () => {
+    const probes = sessionHandoffProbes({
+      worktree: vi.fn(async () => worktreeSync({ branch: "technical/probe-two" })),
+    });
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.branch).toBe("technical/probe-two");
+  });
+
+  it("falls back to null branch when the worktree probe failed", async () => {
+    const probes = sessionHandoffProbes({
+      worktree: vi.fn(async () => { throw new Error("worktree boom"); }),
+    });
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.branch).toBeNull();
   });
 });

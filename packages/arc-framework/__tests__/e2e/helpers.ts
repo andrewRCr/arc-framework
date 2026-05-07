@@ -10,17 +10,12 @@
 import { execFile } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { promisify } from "node:util";
 
-const execFileAsync = promisify(execFile);
+import { CLI_PATH, assertCliBuilt } from "../helpers/cli-spawn.js";
 
-/** Absolute path to the built CLI entry point. */
-const CLI_PATH = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  "../../dist/cli.js",
-);
+const execFileAsync = promisify(execFile);
 
 /** Result of a CLI invocation. */
 export interface RunResult {
@@ -46,6 +41,7 @@ export async function runArc(
   cwd: string,
   options?: { timeout?: number; env?: Record<string, string> },
 ): Promise<RunResult> {
+  assertCliBuilt();
   const timeout = options?.timeout ?? 30_000;
   const env = { ...process.env, NO_COLOR: "1", ...options?.env };
   try {

@@ -40,6 +40,10 @@ import {
   type UserLoadResult,
 } from "../../src/commands/user.js";
 import { pushWithInteractiveRecovery } from "../../src/handlers/push-recovery.js";
+import { createSyncOutput } from "../../src/lib/sync-output.js";
+
+/** Human-mode SyncOutput stub — delegates through the file-scoped clack mock above. */
+const recoveryOutput = createSyncOutput(false);
 
 const {
   mockLog,
@@ -107,11 +111,32 @@ async function writeLocalSyncStateFixture(
   await writeFile(syncStatePath, `${JSON.stringify(state, null, 2)}\n`, "utf-8");
 }
 
+async function readLocalSyncStateFixture(
+  tempDir: string,
+  identity: string,
+): Promise<Record<string, unknown>> {
+  const syncStatePath = join(tempDir, ".arc", "user", identity, ".internal", ".sync-state.json");
+  return JSON.parse(await readFile(syncStatePath, "utf-8")) as Record<string, unknown>;
+}
+
 async function hashUserDir(tempDir: string, identity: string): Promise<string> {
   const userDir = join(tempDir, ".arc", "user", identity);
   const io = makeUserIO(tempDir);
   const result = await serialize(userDir, io.readDir, io.readFile);
   return hashSyncManifest(result.manifest);
+}
+
+async function writePartialPushMarker(
+  tempDir: string,
+  identity: string,
+  localRefHash: string,
+  sourceCommit: string,
+): Promise<void> {
+  const current = await readLocalSyncStateFixture(tempDir, identity);
+  await writeLocalSyncStateFixture(tempDir, identity, {
+    ...current,
+    partialPush: { localRefHash, sourceCommit },
+  });
 }
 
 describe("user save and load", () => {
@@ -220,6 +245,51 @@ describe("user save and load", () => {
 
     const restored = await readFile(join(userDir, "SESSION-NOTES.md"), "utf-8");
     expect(restored).toBe("# Deep reachable note");
+  });
+
+  it("load finds a note attached outside current HEAD ancestry", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await execFileAsync("git", ["-C", tempDir, "checkout", "-b", "side-session"]);
+    await makeCommit(tempDir, "side session work");
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Side session note", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    await execFileAsync("git", ["-C", tempDir, "checkout", "main"]);
+    const loadResult = await runUserLoad({
+      cwd: tempDir, io, identity: "test-user",
+    });
+
+    const loadedResult = expectLoaded(loadResult);
+    expect(loadedResult.reachableFromHead).toBe(false);
+    expect(loadedResult.noteHistoryDistance).toBe(0);
+
+    const restored = await readFile(join(userDir, "SESSION-NOTES.md"), "utf-8");
+    expect(restored).toBe("# Side session note");
+  });
+
+  it("load finds a note when the annotated local branch is gone", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await execFileAsync("git", ["-C", tempDir, "checkout", "-b", "finished-elsewhere"]);
+    await makeCommit(tempDir, "finished elsewhere work");
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Branch gone note", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    await execFileAsync("git", ["-C", tempDir, "checkout", "main"]);
+    await execFileAsync("git", ["-C", tempDir, "branch", "-D", "finished-elsewhere"]);
+
+    const loadResult = await runUserLoad({
+      cwd: tempDir, io, identity: "test-user",
+    });
+
+    const loadedResult = expectLoaded(loadResult);
+    expect(loadedResult.reachableFromHead).toBe(false);
+
+    const restored = await readFile(join(userDir, "SESSION-NOTES.md"), "utf-8");
+    expect(restored).toBe("# Branch gone note");
   });
 
   it("returns null when no note found anywhere", async () => {
@@ -362,7 +432,7 @@ describe("user save and load", () => {
     await cleanupTempDir(remoteDir);
   });
 
-  it("load returns null in shallow clone when note is beyond boundary", async () => {
+  it("load finds note-ref history in a shallow clone when annotated commit is beyond boundary", async () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
@@ -391,14 +461,16 @@ describe("user save and load", () => {
     const shallowUserDir = join(shallowDir, ".arc", "user", "test-user");
     await mkdir(shallowUserDir, { recursive: true });
 
-    // Load with maxWalk=1 to ensure we don't search beyond shallow boundary
     const loadResult = await runUserLoad({
       cwd: shallowDir, io: shallowIO, identity: "test-user", maxAncestorWalk: 1,
     });
 
-    // Note is beyond the shallow boundary — load distinguishes this from
-    // "no notes exist" via the walk-exhausted outcome.
-    expect(loadResult).toEqual({ kind: "walk-exhausted", walked: 1, maxWalk: 1 });
+    const loadedResult = expectLoaded(loadResult);
+    expect(loadedResult.reachableFromHead).toBe(false);
+    expect(loadedResult.noteHistoryDistance).toBe(0);
+
+    const restored = await readFile(join(shallowUserDir, "SESSION-NOTES.md"), "utf-8");
+    expect(restored).toBe("# Deep note");
 
     await cleanupTempDir(shallowDir);
     await cleanupTempDir(remoteDir);
@@ -823,7 +895,7 @@ describe("user push and pull", () => {
     ).rejects.toThrow(/rejected/);
 
     try {
-      const result = await pushWithInteractiveRecovery(io, "test-user", tempDir);
+      const result = await pushWithInteractiveRecovery({ io, identity: "test-user", cwd: tempDir, output: recoveryOutput });
       expect(result).toEqual({ kind: "ok-recovered", via: "merge" });
 
       const diskContent = await readFile(join(userDir, "SESSION-NOTES.md"), "utf-8");
@@ -936,6 +1008,67 @@ describe("user push and pull", () => {
 
     expect(await hasRemoteNotes(io, "test-user")).toBe(true);
   });
+
+  it("warns on no-op push when matching local and remote notes are stale for HEAD", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Saved before new work", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await runUserPush({ cwd: tempDir, io, identity: "test-user" });
+    await makeCommit(tempDir, "work after save");
+
+    mockLog.warn.mockClear();
+    mockLog.info.mockClear();
+    mockSpinner.stop.mockClear();
+
+    const result = await pushWithInteractiveRecovery({ io, identity: "test-user", cwd: tempDir, output: recoveryOutput });
+
+    expect(result).toEqual({ kind: "noop" });
+    expect(mockSpinner.stop).toHaveBeenCalledWith(
+      "Remote user notes already match local user notes.",
+    );
+    expect(mockLog.warn).toHaveBeenCalledWith(
+      "Latest local user note is attached to a commit 1 commit(s) behind HEAD.",
+    );
+    expect(mockLog.info).toHaveBeenCalledWith(
+      "Run `arc user save` or `arc sync` before relying on handoff.",
+    );
+  });
+
+  it("clears a partial-push marker when arc user push recovers the notes ref", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Needs push", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    const localRefHash = await readNotesRefTip(tempDir, "test-user");
+    const { stdout: head } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: tempDir });
+    await writePartialPushMarker(tempDir, "test-user", localRefHash, head.trim());
+
+    await runUserPush({ cwd: tempDir, io, identity: "test-user" });
+    const syncState = await readLocalSyncStateFixture(tempDir, "test-user");
+
+    expect(syncState).not.toHaveProperty("partialPush");
+    expect(await hasRemoteNotes(io, "test-user")).toBe(true);
+  });
+
+  it("clears a partial-push marker when arc user push no-ops because remote already matches", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Already pushed", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await runUserPush({ cwd: tempDir, io, identity: "test-user" });
+    const localRefHash = await readNotesRefTip(tempDir, "test-user");
+    const { stdout: head } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: tempDir });
+    await writePartialPushMarker(tempDir, "test-user", localRefHash, head.trim());
+
+    await runUserPush({ cwd: tempDir, io, identity: "test-user" });
+    const syncState = await readLocalSyncStateFixture(tempDir, "test-user");
+
+    expect(syncState).not.toHaveProperty("partialPush");
+  });
 });
 
 describe("user status", () => {
@@ -977,8 +1110,8 @@ describe("user status", () => {
     const summary = buildUserStatusSummary(result);
 
     expect(result.headline).toBe("remote note ahead");
-    expect(summary).toContain("test-user: remote note ahead");
-    expect(summary).toContain("Remote notes: remote note ahead.");
+    expect(summary).toContain("test-user: remote notes are ahead of local notes");
+    expect(summary).toContain("Remote notes: ahead of local notes.");
     expect(summary).toContain("Working files match the latest local git note.");
     expect(summary).toContain("Next step: run `arc user pull`");
   });
@@ -998,8 +1131,8 @@ describe("user status", () => {
     const summary = buildUserStatusSummary(result);
 
     expect(result.headline).toBe("git note out of date");
-    expect(summary).toContain("test-user: git note out of date (offline)");
-    expect(summary).toContain("Remote notes: in sync.");
+    expect(summary).toContain("test-user: working files differ from local notes (offline)");
+    expect(summary).toContain("Remote notes: match local notes.");
     expect(summary).toContain("Working files reflect an older local git note.");
     expect(summary).toContain("Pre-load backup present: .pre-load-backup-");
     expect(summary).toContain("Next step: run `arc user load`");
@@ -1021,8 +1154,8 @@ describe("user status", () => {
     const summary = buildUserStatusSummary(result);
 
     expect(result.headline).toBe("git note out of date");
-    expect(summary).toContain("test-user: git note out of date (offline)");
-    expect(summary).toContain("Remote notes: in sync.");
+    expect(summary).toContain("test-user: working files differ from local notes (offline)");
+    expect(summary).toContain("Remote notes: match local notes.");
     expect(summary).toContain("Working files have changed since the latest local git note.");
     expect(summary).toContain("Next step: run `arc user save`");
     expect(result.unsavedDirection).toBe("modified");
@@ -1040,32 +1173,11 @@ describe("user status", () => {
     const summary = buildUserStatusSummary(result);
 
     expect(result.headline).toBe("git note out of date");
-    expect(summary).toContain("test-user: git note out of date (offline)");
-    expect(summary).toContain("Remote notes: in sync.");
+    expect(summary).toContain("test-user: working files differ from local notes (offline)");
+    expect(summary).toContain("Remote notes: match local notes.");
     expect(summary).toContain("Working files have changed since the latest local git note.");
     expect(summary).toContain("Next step: run `arc user save`");
     expect(result.unsavedDirection).toBe("edits");
-  });
-
-  it("degrades legacy hash-only provenance to inspect instead of a wrong load hint", async () => {
-    const io = makeUserIO(tempDir);
-    const userDir = join(tempDir, ".arc", "user", "test-user");
-
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Original", "utf-8");
-    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Modified locally", "utf-8");
-
-    const modifiedHash = await hashUserDir(tempDir, "test-user");
-    await writeLocalSyncStateFixture(tempDir, "test-user", {
-      version: 1,
-      materializedManifestHash: modifiedHash,
-    });
-
-    const result = await runUserStatus({ cwd: tempDir, io, identity: "test-user", offline: true });
-    const summary = buildUserStatusSummary(result);
-
-    expect(result.diskStatus).toBe("mixed");
-    expect(summary).toContain("Next step: inspect local working files, then run `arc user load` or `arc user save`");
   });
 
   it("uses save provenance to prefer save when disk matches a newer local-only state", async () => {
@@ -1114,6 +1226,86 @@ describe("user status", () => {
 
     expect(result.diskStatus).toBe("stale");
     expect(summary).toContain("Next step: run `arc user load`");
+  });
+
+  it("reports a validated partial-push marker when local notes are still ahead of remote", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Saved locally", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    const localRefHash = await readNotesRefTip(tempDir, "test-user");
+    const { stdout: head } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: tempDir });
+    await writePartialPushMarker(tempDir, "test-user", localRefHash, head.trim());
+
+    const result = await runUserStatus({ cwd: tempDir, io, identity: "test-user" });
+    const summary = buildUserStatusSummary(result);
+
+    expect(result.refState).toBe("local-ahead");
+    expect(result.spineState).toBe("clean");
+    expect(result.coherenceState).toBe("partial-push");
+    expect(summary).toContain("Partial push recovery:");
+    expect(summary).toContain("Next step: run `arc user push` to retry the notes push");
+  });
+
+  it("clears a stale partial-push marker when the local notes ref has moved", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# First save", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    const staleRefHash = await readNotesRefTip(tempDir, "test-user");
+    const { stdout: head } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: tempDir });
+
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Second save", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await writePartialPushMarker(tempDir, "test-user", staleRefHash, head.trim());
+
+    const result = await runUserStatus({ cwd: tempDir, io, identity: "test-user" });
+    const syncState = await readLocalSyncStateFixture(tempDir, "test-user");
+
+    expect(result.refState).toBe("local-ahead");
+    expect(result.coherenceState).toBeUndefined();
+    expect(syncState).not.toHaveProperty("partialPush");
+  });
+
+  it("clears a partial-push marker when remote notes already match local notes", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Pushed", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await runUserPush({ io, identity: "test-user" });
+    const localRefHash = await readNotesRefTip(tempDir, "test-user");
+    const { stdout: head } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: tempDir });
+    await writePartialPushMarker(tempDir, "test-user", localRefHash, head.trim());
+
+    const result = await runUserStatus({ cwd: tempDir, io, identity: "test-user" });
+    const syncState = await readLocalSyncStateFixture(tempDir, "test-user");
+
+    expect(result.refState).toBe("same");
+    expect(result.spineState).toBe("clean");
+    expect(result.coherenceState).toBeUndefined();
+    expect(syncState).not.toHaveProperty("partialPush");
+  });
+
+  it("reports partial-push verification uncertainty when remote notes are unavailable", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Saved locally", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    const localRefHash = await readNotesRefTip(tempDir, "test-user");
+    const { stdout: head } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: tempDir });
+    await writePartialPushMarker(tempDir, "test-user", localRefHash, head.trim());
+    await execFileAsync("git", ["remote", "remove", "origin"], { cwd: tempDir });
+
+    const result = await runUserStatus({ cwd: tempDir, io, identity: "test-user" });
+    const summary = buildUserStatusSummary(result);
+
+    expect(result.refState).toBe("remote-unavailable");
+    expect(result.coherenceState).toBe("partial-push-unverified");
+    expect(summary).toContain("Partial push recovery cannot be verified");
   });
 
   it("lists remote identities when --all-style inspection is requested", async () => {
@@ -1170,6 +1362,35 @@ describe("user status", () => {
     });
   });
 
+  it("reports session-init stale local-note freshness when matching refs are behind HEAD", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Saved before new HEAD", "utf-8");
+    const saveResult = await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await runUserPush({ io, identity: "test-user" });
+    await makeCommit(tempDir, "advance after save");
+
+    const result = await runUserSessionInitStatus({
+      cwd: tempDir,
+      io,
+      identity: "test-user",
+      remoteSyncEnabled: true,
+    });
+
+    expect(result.state).toBe("clean");
+    expect(result.localNoteFreshness).toMatchObject({
+      state: "ancestor",
+      commit: expect.stringMatching(new RegExp(`^${saveResult.commit}`)),
+      ancestorDistance: 1,
+      reachableFromHead: true,
+    });
+    expect(result.detailLines).toContain(
+      `Latest local user note is from ${saveResult.commit}, 1 commit(s) behind HEAD.`,
+    );
+    expect(result.actionHint).toBe("run `arc user save` or `arc sync` before relying on handoff");
+  });
+
   // --- Worktree drift qualifier (real exec) ---
   //
   // Verifies that `runUserStatus` orchestrates a real `runWorktreeSyncStatus`
@@ -1197,7 +1418,7 @@ describe("user status", () => {
     });
 
     expect(result.detailLines).toContain(
-      "Worktree is behind origin by 1 commit(s).",
+      "Local worktree HEAD is behind its origin upstream by 1 commit(s).",
     );
     expect(result.worktree?.state).toBe("remote-ahead");
     expect(result.worktree?.behind).toBe(1);
@@ -1221,10 +1442,10 @@ describe("user status", () => {
     });
 
     expect(result.detailLines).toContain(
-      "Worktree remote comparison skipped (`--offline`); reported state reflects local refs only.",
+      "Worktree remote comparison skipped (`--offline`); reported state reflects local worktree refs only.",
     );
     expect(
-      result.detailLines.some((line) => line.startsWith("Worktree is behind")),
+      result.detailLines.some((line) => line.startsWith("Local worktree HEAD is behind")),
     ).toBe(false);
     // No worktree probe was invoked, so the field is omitted.
     expect(result.worktree).toBeUndefined();
