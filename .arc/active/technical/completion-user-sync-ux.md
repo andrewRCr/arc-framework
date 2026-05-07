@@ -172,9 +172,3 @@ strings so prose renders rather than decides.
   standalone branch-resolution helper rather than reading branch from `WorktreeSyncStatusResult`.
   Adding `branch` to that shared result is a separate cleanup that ripples through fixtures in
   unrelated test files.
-
-- _Workflow-doc staleness — clean-work-unit Mode 2_ — Step 1's "Add/update `**Completed**:` date
-  in both files" guidance is stale relative to the current `template-tasks.md` and
-  `strategy-task-list-formatting.md` (no Completed field on the task-list header — dates land in
-  this completion doc and git log). Surfaced during this integration prep; capture as an atomic
-  workflow-doc edit.
