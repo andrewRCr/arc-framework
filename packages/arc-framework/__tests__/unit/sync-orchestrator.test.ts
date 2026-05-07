@@ -279,6 +279,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
       worktree: { action: "skip", result: "skipped", detail: "save-failed" },
       notes: { action: "save", result: "failed", detail: "save verification failed" },
       exitCode: 1,
+      recommendedSummaryLine: null,
     });
     expect(process.exitCode).toBe(1);
   });
@@ -313,6 +314,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
         detail: "notes-blocked-by-worktree:local-ahead",
       },
       exitCode: 1,
+      recommendedSummaryLine: null,
     });
   });
 
@@ -422,6 +424,9 @@ describe("handleSync orchestrator matrix dispatch", () => {
       },
       exitCode: 1,
       reconcile: { ahead: 1, behind: 2, branch: "main" },
+      recommendedSummaryLine:
+        "**Reconcile required:** `main` diverged from `origin/main` (1 ahead, 2 behind). "
+        + "Manual rebase or merge needed before pushing.",
     });
     expect(process.exitCode).toBe(1);
   });
@@ -519,6 +524,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
       save: { action: "save", result: "skipped", detail: "rebase-in-progress" },
       notes: { action: "push", result: "blocked", detail: "rebase-in-progress" },
       exitCode: 1,
+      recommendedSummaryLine: null,
     });
     // Under --json, diagnostics route to stderr (not to Clack) so stdout stays pure.
     expect(stderrText).toContain("Save skipped: rebase in progress");
@@ -676,6 +682,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
       worktree: { action: "push", result: "skipped", detail: "dry-run" },
       notes: { action: "save+push", result: "skipped", detail: "dry-run" },
       exitCode: 0,
+      recommendedSummaryLine: null,
       mode: "dry-run",
     });
     expect(process.exitCode).toBeUndefined();
@@ -703,6 +710,9 @@ describe("handleSync orchestrator matrix dispatch", () => {
       notes: { action: "push", result: "skipped", detail: "dry-run" },
       exitCode: 0,
       reconcile: { ahead: 1, behind: 2, branch: "main" },
+      recommendedSummaryLine:
+        "**Reconcile required:** `main` diverged from `origin/main` (1 ahead, 2 behind). "
+        + "Manual rebase or merge needed before pushing.",
       mode: "dry-run",
     });
   });
@@ -726,6 +736,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
       worktree: { action: "skip", result: "skipped", detail: "dry-run" },
       notes: { action: "save", result: "skipped", detail: "dry-run" },
       exitCode: 0,
+      recommendedSummaryLine: null,
       mode: "dry-run",
     });
   });
@@ -750,6 +761,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
       save: { action: "save", result: "skipped", detail: "dry-run" },
       notes: { action: "push", result: "skipped", detail: "dry-run" },
       exitCode: 0,
+      recommendedSummaryLine: null,
       mode: "dry-run",
     });
   });

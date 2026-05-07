@@ -17,21 +17,31 @@ duration of this workflow.
 ## Resolve Handoff Context
 
 Open with the composite probe — single call, slot-wise envelope, per-slot error handling matching
-the session-init pattern:
+the session-init pattern. This is **probe-1**; a second invocation (**probe-2**) fires later in
+the workflow to refresh slots that the status-file commit mutates.
 
 ```bash
 arc status --session-handoff --json
 ```
 
-| Field             | Contents                                                                                                      |
-|-------------------|---------------------------------------------------------------------------------------------------------------|
-| `identity`        | `{identity, role}` — either may be `null`. `identity === null` short-circuits the notes-sync slot             |
-| `dirty`           | `{state: clean / dirty, fileCount}`. Consumed by Pre-Update Verification                                      |
-| `worktree`        | Worktree sync vs `origin/<branch>` — same state vocabulary as session-init                                    |
-| `user`            | Notes sync state (`value.state`: clean / remote-ahead / conflict / disabled / remote-unavailable)             |
-| `syncInterlock`   | `{value, source}` — gates whether this workflow auto-invokes `arc sync` (`on-handoff` fires; `manual` skips)  |
-| `active`          | Active status file resolution + sessionType (same shape as session-init)                                      |
-| `head`            | `{hash: string \| null}` — current HEAD short-hash for the `Commit at Handoff` anchor                         |
+| Field                    | Contents                                                                                                              |
+|--------------------------|-----------------------------------------------------------------------------------------------------------------------|
+| `identity`               | `{identity, role}` — either may be `null`. `identity === null` short-circuits the notes-sync slot                     |
+| `branch`                 | Current branch name; `null` on detached HEAD. Resolved at handler boundary; canonical for the Confirm Handoff header  |
+| `dirty`                  | `{state: clean / dirty, fileCount}`. Re-read from probe-2 for the SESSION-NOTES "Uncommitted Work" section            |
+| `worktree`               | Worktree sync vs `origin/<branch>` — same state vocabulary as session-init. Re-read from probe-2 for unpushed counts  |
+| `user`                   | Notes sync state (`value.state`: clean / remote-ahead / conflict / disabled / remote-unavailable)                     |
+| `syncInterlock`          | `{value, source}` — gates whether this workflow auto-invokes `arc sync` (`on-handoff` fires; `manual` skips)          |
+| `active`                 | Active status file resolution + sessionType (same shape as session-init)                                              |
+| `head`                   | `{hash: string \| null}` — current HEAD short-hash. Re-read from probe-2 for the `Commit at Handoff` anchor           |
+| `pushability`            | Pushability pre-check matrix for the worktree push leg                                                                |
+| `restateCandidates`      | Structured payload backing the SESSION-NOTES restate filter — read from probe-1 (stable across step 3)                |
+| `recommendedSummaryLine` | Pre-composed top-of-Confirm-Handoff line (`**Reconcile required:** ...` / `**Worktree:** N unpushed ...` / `null`)    |
+
+**Slot freshness contract.** Probe-1 captures pre-step-3 state. The status-file commit at step 3
+mutates `worktree`, `dirty`, and `head`; those slots must be re-read from probe-2 to render
+post-step-3 truth. Other slots (`identity`, `branch`, `syncInterlock`, `active`, `user`,
+`pushability`, `restateCandidates`) are stable from probe-1.
 
 **Identity absent** (`identity.identity === null`): Skip the notes-sync slot — notes operations
 depend on identity for path resolution. Surface a warning in the handoff summary. Sessions without
@@ -41,7 +51,8 @@ identity cannot push notes.
 `git status --porcelain`, `git status -sb` (or `git rev-list --count`), `git config arc.identity`
 / `arc.role`. Note the degradation in the handoff summary.
 
-Carry slot values forward to the steps that consume them — don't re-probe.
+Carry slot values forward to the steps that consume them — don't re-probe outside the documented
+probe-1 / probe-2 points.
 
 ## What to Update
 
@@ -119,15 +130,27 @@ Update session state files before ending session:
     Context: <status-file>.md (handoff)"
     ```
 
-    The new HEAD becomes the `**Commit at Handoff:**` value written in step 4. If no field
+    The new HEAD becomes the `**Commit at Handoff:**` value written in step 5. If no field
     cleared the skip threshold, the file is clean and no commit fires.
 
     Contributors (`arc.role = contributor`) skip the commit — their personal active status file at
     `.arc/user/{identity}/active/status-{name}.md` is gitignored, so the field update lands
     without staging.
-4. **Write SESSION-NOTES** per the guidance below. Record `**Commit at Handoff:**` from
-   `head.value.hash` (the probe captured pre-step-3; if step 3 fired a chore commit, run
-   `git rev-parse --short HEAD` once to refresh — the post-commit HEAD is the right anchor).
+4. **Refresh probe** — re-run the composite probe to pick up post-step-3 state:
+
+    ```bash
+    arc status --session-handoff --json
+    ```
+
+    Probe-2 carries the post-step-3 values for `worktree`, `dirty`, `head`, and
+    `recommendedSummaryLine`. Steps 5 and Confirm Handoff read those four slots from probe-2; all
+    other slots remain stable from probe-1.
+
+    When step 3 didn't fire a commit (no field cleared the skip threshold), probe-2's mutated
+    slots are identical to probe-1's — the second invocation is harmless redundancy. The
+    workflow doesn't branch on whether a commit fired.
+5. **Write SESSION-NOTES** per the guidance below. Record `**Commit at Handoff:**` from
+   probe-2's `head.value.hash` — that's the post-step-3 HEAD whether or not step 3 committed.
 
 **Update the active status file** (tracked project state, if an active WU exists):
 
@@ -375,20 +398,17 @@ Strategy][session-ops] § Push Toggles for the underlying model.
   The orchestrator probes worktree state, notes state, `push_interlock`, and `notes_push`;
   routes the resulting matrix cell through `runPairedPush` (paired) or single-leg primitives
   (worktree-only, notes-only, notes-blocked, save-only, prompt). Worst-outcome exit code;
-  itemized leg outcomes in the JSON envelope's `cell`, `worktree`, `notes`, `exitCode`, and
-  optional `reconcile` fields. Surface the result per § Confirm Handoff.
+  itemized leg outcomes in the JSON envelope's `cell`, `worktree`, `notes`, `exitCode`,
+  optional `reconcile`, and `recommendedSummaryLine` fields. Surface the result per § Confirm
+  Handoff.
 
 - **`manual`** — skip the auto-invoke. The user runs `arc sync` (or single-leg commands) when
-  ready. Surface unpushed state from the envelope's `worktree` slot in the handoff summary
-  (see § Confirm Handoff).
+  ready. Probe-2's `recommendedSummaryLine` carries the unpushed / Reconcile surface (see §
+  Confirm Handoff).
 
 **Identity absent** (`identity.identity === null`): skip the auto-invoke regardless of
-`syncInterlock.value` — `arc sync` requires identity for the notes leg. Surface unpushed
-worktree state from the envelope when applicable.
-
-**Unpushed-count formula** (`manual` mode and identity-absent fallbacks):
-`N = worktree.value.ahead + (1 if step 3 fired a chore commit, else 0)`. The probe captured
-`worktree` pre-step-3; the agent knows whether step 3 committed.
+`syncInterlock.value` — `arc sync` requires identity for the notes leg. Probe-2's
+`recommendedSummaryLine` still composes from worktree state.
 
 ## Confirm Handoff
 
@@ -408,33 +428,11 @@ This is a quick confirmation for the human — the session state files are the d
 
 **Next session:** [Task list pointer (on-task-list) or freeform (off-task-list)]
 
-**Conditional top-level sections** — prepend above `**Sync:**` when applicable.
-
-When `arc sync` ran (`syncInterlock.value === "on-handoff"`), read state from its JSON
-envelope:
-
-- `cell === "blocked-diverged"` or output `reconcile` block present:
-
-  ```text
-  **Reconcile required:** `{branch}` diverged from `origin/{branch}` ({ahead} ahead, {behind}
-  behind). Manual rebase or merge needed before pushing.
-  ```
-
-When `arc sync` was skipped (`syncInterlock.value === "manual"` or identity absent), read
-from the probe envelope:
-
-- `N > 0` per § Sync formula:
-
-  ```text
-  **Worktree:** N unpushed commit(s) on `{branch}`.
-  ```
-
-- `worktree.value.state === "diverged"`:
-
-  ```text
-  **Reconcile required:** `{branch}` diverged from `origin/{branch}` ({ahead} ahead, {behind}
-  behind). Manual rebase or merge needed before pushing.
-  ```
+**Conditional top-level section** — when `recommendedSummaryLine` is non-null, prepend it
+verbatim above `**Sync:**`. Read from `arc sync --json`'s envelope when sync ran
+(`syncInterlock.value === "on-handoff"` and identity present); read from probe-2 otherwise
+(manual mode or identity absent). Both surfaces compose from canonical state — no agent-side
+counting or dispatch.
 
 **Formatting guidance:**
 

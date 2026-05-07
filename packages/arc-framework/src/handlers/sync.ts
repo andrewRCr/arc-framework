@@ -71,6 +71,7 @@ import {
 } from "../lib/git/index.js";
 import { pushWorktreeBranch } from "../lib/git/push-worktree.js";
 import { runWorktreeSyncStatus, type WorktreeSyncState } from "../lib/git/worktree-sync.js";
+import { inferRecommendedSummaryLine } from "../lib/handoff/recommended-summary-line.js";
 import { createUserIOContext } from "../lib/io-context.js";
 import { resolveArcRoot } from "../lib/paths.js";
 import type { ResolvedConfigOverride } from "../lib/config/resolve-override.js";
@@ -243,6 +244,12 @@ interface SyncOutcome {
   exitCode: number;
   reconcile?: { ahead: number; behind: number; branch: string };
   /**
+   * State-aware top-of-Confirm-Handoff line composed from the probed worktree
+   * state. Non-null for the diverged cell (`**Reconcile required:** ...`);
+   * null otherwise. Workflow renders verbatim above `**Sync:**`.
+   */
+  recommendedSummaryLine: string | null;
+  /**
    * Indicator field present only in `--dry-run` envelopes. Workflow consumers
    * can detect dry-run by presence; absence implies a runtime execution.
    * Schema is otherwise identical so consumers don't need branch logic on this
@@ -252,10 +259,11 @@ interface SyncOutcome {
 }
 
 /**
- * Inner-function return shape — interlock state and mode are attached once at
- * the `handleSync` boundary so per-cell builders stay focused on leg outcomes.
+ * Inner-function return shape — interlock state, summary line, and mode are
+ * attached once at the `handleSync` boundary so per-cell builders stay focused
+ * on leg outcomes.
  */
-type ExecutedOutcome = Omit<SyncOutcome, "interlockState" | "mode">;
+type ExecutedOutcome = Omit<SyncOutcome, "interlockState" | "recommendedSummaryLine" | "mode">;
 
 export async function handleSync(opts: SyncOptions = {}): Promise<void> {
   const output = createSyncOutput(opts.json === true);
@@ -326,11 +334,21 @@ export async function handleSync(opts: SyncOptions = {}): Promise<void> {
     branch,
   });
 
+  const recommendedSummaryLine = inferRecommendedSummaryLine({
+    context: "sync-ran",
+    worktreeState: worktree.state,
+    ahead: worktree.ahead,
+    behind: worktree.behind,
+    branch,
+    unpushedN: 0,
+  });
+
   if (opts.dryRun) {
     const executed = buildDryRunOutcome(decision, branch);
     const outcome: SyncOutcome = {
       ...executed,
       interlockState,
+      recommendedSummaryLine,
       mode: "dry-run",
     };
     if (opts.json === true) {
@@ -357,6 +375,7 @@ export async function handleSync(opts: SyncOptions = {}): Promise<void> {
   const outcome: SyncOutcome = {
     ...executed,
     interlockState,
+    recommendedSummaryLine,
   };
 
   if (opts.json === true) {

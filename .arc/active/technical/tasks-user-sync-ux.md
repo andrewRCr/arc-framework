@@ -1170,18 +1170,42 @@ _Implementation order within phase:_
           fallback. Test batching used per the test-first method's batching-judgment clause — pure helper
           with a known state table, shared fixtures, no independent discovery between behaviors.
 
-    - `[ ]` **4.6.b Confirm Handoff `recommendedSummaryLine`**
-        - Field added to `arc sync --json` envelope and to the session-handoff envelope (when sync
-          auto-invoke is skipped per `syncInterlock.value: manual`).
-        - Affected files: `packages/arc-framework/src/handlers/sync.ts` (envelope shape +
-          line composition); session-handoff.md Confirm Handoff section prose replacement; tests across
-          paired/blocked/diverged/manual/identity-absent cells.
-        - Build `test-first` (one behavior at a time):
-            - `cell === "blocked-diverged"` → "**Reconcile required:**..." line composed
-            - `worktree.value.state === "diverged"` (manual mode skip) → same line
-            - Manual mode + N > 0 unpushed → "**Worktree:** N unpushed commit(s)..." line
-            - Clean state + nothing to surface → `recommendedSummaryLine: null`
-            - Identity absent → null (notes guidance lives in `**Sync:**` line, not the conditional top)
+    - `[x]` **4.6.b Confirm Handoff `recommendedSummaryLine`**
+
+        - _Goal:_ Push judgment-heavy Confirm Handoff message dispatch from workflow prose into pre-composed
+          envelope strings — sync envelope and session-handoff probe envelope both gain
+          `recommendedSummaryLine`; workflow renders verbatim.
+
+        - _Outcome:_ Scope expanded mid-task to **probe-twice** for full determinism after surfacing that
+          chore-commit is the common case (under-counts on every typical handoff under the original single-probe
+          design). New shape:
+            - Pure helper `inferRecommendedSummaryLine` at `lib/handoff/recommended-summary-line.ts` —
+              context discriminator (`sync-ran` / `sync-skipped`), worktree state, branch, ahead/behind, N;
+              outputs Reconcile / Worktree-N-unpushed / null.
+            - `SyncOutcome.recommendedSummaryLine` (sync envelope) — context=`sync-ran`, surfaces
+              Reconcile only on diverged.
+            - `SessionHandoffResult.recommendedSummaryLine` (handoff envelope) — context=`sync-skipped`,
+              surfaces Reconcile or Worktree-N-unpushed; also adds top-level `branch` field (resolved at
+              handler boundary) for the Confirm Handoff header.
+            - Workflow restructure: probe-1 stays at workflow open; new step 4 fires probe-2 after the
+              status-file commit; SESSION-NOTES write (now step 5) reads probe-2's `head`/`dirty`;
+              Confirm Handoff reads `recommendedSummaryLine` from sync envelope (sync ran) or probe-2
+              envelope (sync skipped). The unpushed-count formula and the `Commit at Handoff`
+              ad-hoc-rev-parse instruction both delete entirely.
+            - Latent bug fix: `Commit at Handoff` SESSION-NOTES anchor now reads probe-2's post-step-3
+              `head`. The prior single-probe design wrote a pre-step-3 hash on every chore-commit-fired
+              handoff, which means session-init's freshness check tripped on every fresh resume.
+
+        - _Tests:_ 8 helper unit cases at `__tests__/unit/handoff/recommended-summary-line.test.ts`;
+          8 orchestrator cases on `runSessionHandoffStatus` at `__tests__/unit/status/run.test.ts`
+          (5 spec cells + branch passthrough + worktree-probe-failed null + null-branch null);
+          updated 8 sync-orchestrator cases for the new envelope field. Lint + typecheck + 1206 unit
+          tests pass.
+
+        - _Carried forward:_ `arc-framework/src/handlers/sync.ts` retains its standalone
+          `resolveCurrentBranch` helper rather than reading branch from `WorktreeSyncStatusResult` —
+          adding `branch` to that shared result is a separate cleanup; it would let sync drop its
+          parallel branch-resolution call but ripples through fixtures in unrelated test files.
 
 ## **Phase 5:** Verification
 

@@ -38,6 +38,7 @@ import {
   type NotesPullPolicy,
   type WorktreePullPolicy,
 } from "../../lib/session-init/recommended-action.js";
+import { inferRecommendedSummaryLine } from "../../lib/handoff/recommended-summary-line.js";
 import type { DirtyStateResult } from "../../lib/git/dirty-state.js";
 
 const IDENTITY_MISSING_MESSAGE =
@@ -255,7 +256,7 @@ function normalizeNotesPolicy(raw: string): NotesPullPolicy {
 export async function runSessionHandoffStatus(
   options: RunSessionHandoffStatusOptions,
 ): Promise<SessionHandoffResult> {
-  const { identity, role, probes } = options;
+  const { identity, role, branch, probes } = options;
 
   const dirtyTask = safeProbe(() => probes.dirty());
   const worktreeTask = safeProbe(() => probes.worktree());
@@ -282,9 +283,21 @@ export async function runSessionHandoffStatus(
     restateCandidatesTask,
   ]);
 
+  const recommendedSummaryLine = worktree.ok
+    ? inferRecommendedSummaryLine({
+      context: "sync-skipped",
+      worktreeState: worktree.value.state,
+      ahead: worktree.value.ahead,
+      behind: worktree.value.behind,
+      branch,
+      unpushedN: worktree.value.ahead,
+    })
+    : null;
+
   return {
     mode: "session-handoff",
     identity: buildIdentity(identity, role),
+    branch,
     dirty,
     worktree,
     user,
@@ -293,5 +306,6 @@ export async function runSessionHandoffStatus(
     head,
     pushability,
     restateCandidates,
+    recommendedSummaryLine,
   };
 }

@@ -147,10 +147,16 @@ export interface HandoffSyncInterlock {
  * anchor, and pushability pre-checks gating the worktree push. Push-interlock
  * and notes-push policy are owned by `arc sync` internally; the handoff
  * workflow doesn't read them.
+ *
+ * `branch` is resolved at the handler boundary (mirroring `identity`) so the
+ * Confirm Handoff header and the pre-computed `recommendedSummaryLine` read
+ * from one canonical source instead of agent-side `git rev-parse` calls.
  */
 export interface SessionHandoffResult {
   mode: "session-handoff";
   identity: StatusIdentity;
+  /** Current branch name; `null` on detached HEAD. */
+  branch: string | null;
   dirty: Probe<DirtyStateResult>;
   worktree: Probe<WorktreeSyncStatusResult>;
   user: Probe<UserSessionInitStatusResult>;
@@ -174,6 +180,17 @@ export interface SessionHandoffResult {
    * emits empty arrays plus a `baseline-unknown` soft signal.
    */
   restateCandidates: Probe<RestateCandidatesResult>;
+  /**
+   * State-aware top-of-Confirm-Handoff line, populated only when sync
+   * auto-invoke would skip (`syncInterlock.value === "manual"` or identity
+   * absent). Carries `**Reconcile required:** ...` on diverged worktree or
+   * `**Worktree:** N unpushed commit(s) on \`branch\`.` on local-ahead;
+   * `null` when nothing warrants a top-level surface. The probe captures
+   * `worktree` pre-Step-3 of the handoff workflow — if Step 3 fires a chore
+   * commit, the rendered unpushed-count is one short of post-Step-3 truth.
+   * The workflow handles that adjustment when prepending the line.
+   */
+  recommendedSummaryLine: string | null;
 }
 
 /** Probe functions in session-init mode — bound to cwd and any required I/O. */
@@ -226,5 +243,7 @@ export interface RunSessionInitStatusOptions {
 export interface RunSessionHandoffStatusOptions {
   identity: string | null;
   role: string | null;
+  /** Current branch name; `null` on detached HEAD. Resolved at handler boundary. */
+  branch: string | null;
   probes: SessionHandoffProbes;
 }

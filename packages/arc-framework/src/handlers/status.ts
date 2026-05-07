@@ -86,6 +86,16 @@ async function readIdentityPointers(): Promise<{
   };
 }
 
+async function resolveCurrentBranch(): Promise<string | null> {
+  try {
+    const { stdout } = await gitExec("git", ["rev-parse", "--abbrev-ref", "HEAD"]);
+    const trimmed = stdout.trim();
+    return trimmed === "" || trimmed === "HEAD" ? null : trimmed;
+  } catch {
+    return null;
+  }
+}
+
 export async function handleStatus(opts: StatusCliOptions): Promise<void> {
   if (opts.sessionInit && opts.sessionHandoff) {
     process.stderr.write(
@@ -132,7 +142,8 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
       process.exitCode = 1;
       return;
     }
-    const result = await runSessionHandoffStatus({ identity, role, probes });
+    const branch = await resolveCurrentBranch();
+    const result = await runSessionHandoffStatus({ identity, role, branch, probes });
     process.stdout.write(`${JSON.stringify(result)}\n`);
     return;
   }
