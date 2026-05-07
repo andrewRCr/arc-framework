@@ -58,9 +58,9 @@ marked `[x]`. If any unchecked tasks found → STOP — use Mode 1 instead.
 
 - **Mode 2 only:** Update the per-WU status file `**State:**` field to `Complete`. The task list no
   longer carries a `**Status:**` header — lifecycle state lives in `active/{category}/status-{name}.md`.
-- Add/update `**Completed**:` date in both files (YYYY-MM-DD format)
-- Note: All work uses separate `completion-{name}.md` (created in
-  [integrate-work-unit](integrate-work-unit.md) workflow Phase 1, Step 3)
+  Lifecycle dates (Started / Completed) live in the separate `completion-{name}.md`, created in
+  [integrate-work-unit](integrate-work-unit.md) workflow Phase 1, Step 3 — not on the task-list or
+  notes-file headers, which carry no date fields under the current `template-tasks.md` convention.
 
 **Evaluate notes file disposition (Mode 2 only):**
 
@@ -235,19 +235,19 @@ Process:
 **Step 5b: Format for archival.**
 
 - **Add Table of Contents** at top (after metadata). Group by category, use markdown anchor links.
-- **Update section headers:** Remove task number references (e.g., "Task 5.5: Token Validation..."
-  → "Token Validation Issue Resolution"). Make headers descriptive and standalone.
+- **Update section headers:** Remove task or phase scope prefixes (e.g., "Task 5.5: Token
+  Validation Implementation" → "Token Validation Issue Resolution"; "Phase 2.R Audit Findings"
+  → "Sync Invariants Audit"). Make headers descriptive and standalone.
 - **Remove temporal markers:** Delete "To be filled", "Pending approval", "Status: PENDING".
   Update decision records to show final outcomes.
 - **Consolidate verbose explorations:** Preserve the journey but add summary at top of long sections.
-- **Verify consistency:** Check anchor links, update metadata dates and status.
+- **Verify consistency:** Check anchor links and metadata.
 
 ### 6. Update Cross References
 
 - Confirm "Related Task/Notes" pointers are accurate in both files
 - Update status file `**State:** Complete` (sole source of truth for WU lifecycle — notes and
   PRD headers do not carry a State/Status field post-activation)
-- Add completion date to both files
 - **If notes file was deleted:** Delete the file (`git rm notes-{name}.md`) and remove all
   references to it from the task file
 - **If bottom-matter was removed:** Add `---` after final task to indicate intentional end

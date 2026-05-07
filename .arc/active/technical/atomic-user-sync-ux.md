@@ -129,6 +129,23 @@ the full protocol.
       where-rationale-belongs artifact list inline. Net leaner overall despite added framing.
       Both copies (`.arc/` instance + package source mirror) updated symmetrically.
 
+- [x] **Align clean-work-unit Mode 2 with current task-list header convention**
+    - Step 1 "Update status metadata": dropped the "Add/update `**Completed**:` date in both
+      files" bullet and folded the completion-doc reference into the State-update bullet —
+      current `template-tasks.md` and `strategy-task-list-formatting.md` carry no
+      Completed/Started fields on the task-list header; lifecycle dates land in
+      `completion-{name}.md` and the git log.
+    - Step 6 "Update Cross References": dropped the parallel "Add completion date to both
+      files" bullet (same root cause).
+    - Step 5b "Format for archival": augmented the header-rename example to cover phase-scope
+      prefixes (`Phase 2.R Audit Findings` → `Sync Invariants Audit`) alongside task-number
+      prefixes — the equivalent rename surfaced during this WU's notes-file cleanup.
+      "Verify consistency" sub-bullet trimmed: dropped the "update metadata dates and status"
+      tail (same stale instruction).
+    - Surfaced during integrate-work-unit Step 2 on this WU; user elected inline-fix on this
+      branch as incidental/atomic rather than ATOMIC-INBOX capture.
+    - Affected: `clean-work-unit.md` (package source + `.arc/` instance, byte-identical sync).
+
 - [~] **Move status-file markdown lint to fire before the step-3 commit**
 
     - _Outcome:_ Workflow-doc half landed inline as a stopgap — `session-handoff.md` step 3's
