@@ -13,7 +13,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run `1_create-prd.md` to draft PRD for WU1 (foundation). WU2 (adopter
-  ergonomics) gets its own PRD per the pre-approved sibling split at PRD-drafting time.
+- **Next Action:** Assess whether plan-doc needs another iteration pass before PRD-drafting
+  (see SESSION-NOTES Additional Context); if ready, run `1_create-prd.md` for WU1 (foundation).
 
 ---
