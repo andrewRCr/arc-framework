@@ -212,8 +212,9 @@ describe("user-notes paired-push cross-clone regression", () => {
           });
         }
 
-        // Override clone A's push_interlock so handleSync dispatches the paired
-        // cell. notes_push: always is the documented default — relied on here.
+        // Override clone A's session.push_interlock so handleSync dispatches
+        // the paired cell. user.notes_push is left at its default (on-sync) —
+        // relied on here.
         const cloneAConfigPath = join(
           harness.cloneA, ".arc", "system", "arc-config.yml",
         );

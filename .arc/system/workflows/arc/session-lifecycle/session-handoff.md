@@ -419,10 +419,14 @@ This is a quick confirmation for the human — the session state files are the d
 
 **ARC session handoff complete** · `{branch-name}` · {clean | uncommitted changes}
 
-**Sync:** one of:
+**Sync:** one of (read from `arc sync --json`'s envelope when sync ran; otherwise per the
+skip arms):
 
-- `synced to remote` — `arc sync` returned `exitCode: 0`.
-- `sync failed — re-run \`arc sync\` after resolving` — `arc sync` returned non-zero.
+- `synced to remote` — sync ran, at least one leg has `action: "push"` with
+  `result: "success"` (worktree, notes, or both).
+- `saved locally — no remote push fired` — sync ran with `exitCode: 0` but no leg pushed
+  (save-only cell, notes-blocked path, or every leg `noop`/`skipped`/`blocked`).
+- `sync failed — re-run \`arc sync\` after resolving` — sync ran and returned non-zero.
 - `skipped (sync_interlock: manual). Run \`arc sync\` when ready.` — auto-invoke skipped per
   config.
 - `skipped (no identity). Configure \`arc.identity\` to enable notes sync.` —

@@ -154,6 +154,7 @@ describe("ArcErrorCode", () => {
     };
 
     expect(handle(err.code)).toBe("install git");
+    expect(handle("NOT_IN_ARC_PROJECT")).toBe("run from arc project");
   });
 });
 

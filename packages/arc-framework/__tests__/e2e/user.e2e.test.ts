@@ -182,8 +182,7 @@ describe("sync orchestrator", () => {
   it("default config on a clean worktree saves a user note on HEAD", async () => {
     await initAndCommit(tmpDir);
 
-    bareDir = join(tmpDir, "..", "sync-remote.git");
-    tempDirs.push(bareDir);
+    bareDir = join(tmpDir, "sync-remote.git");
     await git(["init", "--bare", bareDir], tmpDir);
     await git(["remote", "add", "origin", bareDir], tmpDir);
     const branch = await git(["branch", "--show-current"], tmpDir);
@@ -224,8 +223,7 @@ describe("user push/pull portability", () => {
     expect(save.exitCode).toBe(0);
 
     // Create bare remote and add as origin
-    bareDir = join(tmpDir, "..", "bare-remote.git");
-    tempDirs.push(bareDir);
+    bareDir = join(tmpDir, "bare-remote.git");
     await git(["init", "--bare", bareDir], tmpDir);
     await git(["remote", "add", "origin", bareDir], tmpDir);
 
@@ -236,8 +234,7 @@ describe("user push/pull portability", () => {
     expect(push.exitCode).toBe(0);
 
     // Clone fresh repo from bare
-    cloneDir = join(tmpDir, "..", "fresh-clone");
-    tempDirs.push(cloneDir);
+    cloneDir = join(tmpDir, "fresh-clone");
     await git(["clone", bareDir, cloneDir], tmpDir);
 
     // Configure identity in clone

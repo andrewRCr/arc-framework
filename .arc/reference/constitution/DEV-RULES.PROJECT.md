@@ -105,7 +105,7 @@ Apply standard software engineering principles:
     - Reference names: lowercase, descriptive, hyphenated (e.g., `[dev-rules]`, `[process-loop]`)
     - One `---` + link block per file, always at the very end
     - Short links (same directory or one level up) may remain inline at author discretion
-    - Exception: movable ARC WU artifacts use filename-only references per DEV-RULES.ARC
+    - Exception: movable ARC WU artifacts use filename-only references per [DEV-RULES.ARC][dev-rules-arc]
 
 ## Package-Project Sync
 
