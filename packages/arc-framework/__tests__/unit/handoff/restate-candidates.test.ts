@@ -49,14 +49,13 @@ function matchKey(
 
 const BASELINE = "372b654e";
 const RANGE = `${BASELINE}..HEAD`;
-const LOG_KEY = `log ${RANGE} *`;
+const LOG_KEY = `log -z ${RANGE} *`;
 const DIFF_KEY = `diff --name-only ${RANGE}`;
 
-const FS = "\u0000";
-const RS = "\u001E";
+const COMMIT_SEP = "\u0000";
 
 function commitRecord(hash: string, subject: string, body: string): string {
-  return `${hash}${FS}${subject}${FS}${body}${RS}`;
+  return `${hash}\n${subject}\n${body}${COMMIT_SEP}`;
 }
 
 function notes(baselineLine: string): string {

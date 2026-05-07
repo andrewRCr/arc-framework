@@ -50,8 +50,8 @@ export interface DeriveRestateCandidatesOptions {
   sessionNotes: string | null;
 }
 
-const FIELD_SEP = "\u0000";
-const RECORD_SEP = "\u001E";
+const LOG_FORMAT = "%h%n%s%n%B";
+const COMMIT_SEP = "\u0000";
 
 const BASELINE_HASH_REGEX = /\*\*Commit at Handoff:\*\*\s+`([^`]+)`/u;
 const TASK_HEADER_REGEX = /Tasks?\s+([^)\n]+?)(?=\)|\n|$)/gu;
@@ -84,11 +84,7 @@ export async function deriveRestateCandidates(
   let logStdout: string;
   let diffStdout: string;
   try {
-    const log = await exec("git", [
-      "log",
-      range,
-      `--format=%h${FIELD_SEP}%s${FIELD_SEP}%B${RECORD_SEP}`,
-    ]);
+    const log = await exec("git", ["log", "-z", range, `--format=${LOG_FORMAT}`]);
     logStdout = log.stdout;
     const diff = await exec("git", ["diff", "--name-only", range]);
     diffStdout = diff.stdout;
@@ -98,15 +94,17 @@ export async function deriveRestateCandidates(
 
   const commits: RestateCandidatesCommit[] = [];
   const taskIds = new Set<string>();
-  for (const record of logStdout.split(RECORD_SEP)) {
+  for (const record of logStdout.split(COMMIT_SEP)) {
     if (record.length === 0) continue;
-    const fields = record.split(FIELD_SEP);
-    const hash = fields[0];
-    const subject = fields[1];
-    const body = fields[2];
-    if (hash === undefined || subject === undefined || body === undefined) {
-      continue;
-    }
+    // Split into [hash, subject, body...] on the first two newlines; the body
+    // itself may contain newlines so the third field absorbs the remainder.
+    const firstNl = record.indexOf("\n");
+    if (firstNl === -1) continue;
+    const secondNl = record.indexOf("\n", firstNl + 1);
+    if (secondNl === -1) continue;
+    const hash = record.slice(0, firstNl);
+    const subject = record.slice(firstNl + 1, secondNl);
+    const body = record.slice(secondNl + 1);
     commits.push({ hash, subject });
     extractTaskIds(body, taskIds);
   }
