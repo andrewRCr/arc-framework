@@ -9,19 +9,21 @@
 - **Task List:** `tasks-user-sync-ux.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task 4.5.b — Probe wiring (`restateCandidates` slot wired through
-  `SessionHandoffResult` + `runSessionHandoffStatus` + handler; helper from 4.5.a now consumed by the
-  live envelope). Incidental fix landed: helper switched to `git log -z --format=%h%n%s%n%B` after the
-  initial NUL-in-args design tripped Node's `child_process.execFile` rejection.
-- **Next Task:** Task 4.5.c — Workflow doc rewrite (line ~1094)
+- **Last Completed:** Task 4.6.b — Confirm Handoff `recommendedSummaryLine` with probe-twice scope
+  expansion. Pure helper composes Reconcile / Worktree-N-unpushed / null from canonical state;
+  `arc sync --json` and `arc status --session-handoff --json` envelopes both pre-compute the field;
+  workflow restructured to probe-twice (probe-2 fires after the status-file commit, carrying
+  post-step-3 worktree/head/dirty). Latent `Commit at Handoff` staleness fix lands as a side effect
+  of the restructure. (Task 4.5.c — workflow doc filter pipeline rewrite — also closed this session.)
+- **Next Task:** Task 4.5.d — Integration coverage for `deriveRestateCandidates` (line ~1106)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 4.5.c per Phase 4 implementation order (4.5.c → 4.6.b; 4.5.d
-  parallel/non-blocking). Restructure the session-handoff.md SESSION-NOTES filter section as a
-  two-pass pipeline — Pass 1 mechanical cross-check against `restateCandidates`, Pass 2 the existing
-  3-criterion judgment filter on the residual. Touches `.arc/system/workflows/arc/session-lifecycle/
-  session-handoff.md` and the package-source mirror; net trim ~10 lines. Test-after = workflow doc
-  lint; behavioral coverage already lives in 4.5.a/b. After 4.5.c, 4.5.d picks up the integration test
-  closing the testing gap surfaced by the 4.5.b incidental fix.
+- **Next Action:** Two pre-resume atomic items in `atomic-user-sync-ux.md` land BEFORE resuming
+  task-list work — both surfaced during 4.6.b: (1) consolidate branch resolution onto
+  `WorktreeSyncStatusResult.branch` (drops the 3rd `resolveCurrentBranch` 4.6.b introduced); (2) clean
+  meta-project references in test file headers and tighten DEV-RULES.ARC § Documentation Boundaries
+  so test-file docstrings are explicitly in scope. After both atomic items land, begin Task 4.5.d —
+  integration coverage for `deriveRestateCandidates` against a real temp git repo, four behaviors per
+  the task spec.
 
 ---
