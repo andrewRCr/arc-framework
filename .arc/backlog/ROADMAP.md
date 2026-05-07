@@ -176,7 +176,7 @@ runs per `notes-interlock-foundation.md` (archived).
 - PR: <https://github.com/andrewRCr/arc-framework/pull/25>
 - Upstream: Interlock Foundation (shipped — PR #23)
 
-**User Sync UX Polish** — In Progress (activated 2026-05-02)
+**User Sync UX Polish** — ✅ Complete (May 2026)
 
 State-machine unification (collapse full-mode and session-init notes-sync probes to one spine),
 directional copy audit across `arc status` output, notes-discovery fix (HEAD-independent walk so
@@ -189,8 +189,8 @@ consolidated state machine and directional copy, rather than re-touching churned
 atomic fix for the `arc user fetch` prompt removal lands in the Session-Init Optimization WU;
 this WU handles the architectural work.
 
-- PRD: `active/technical/prd-user-sync-ux.md`
-- Task List: `active/technical/tasks-user-sync-ux.md`
+- Archive: `archive/2026-q2/technical/07_user-sync-ux/`
+- PR: <https://github.com/andrewRCr/arc-framework/pull/27>
 - Upstream: Session-Init Optimization (atomic fetch-prompt fix, lean session-init substrate),
   Session-Operational Flow Phase 6 (handoff-interior toggle framework — substrate for auto-push
   implementation)
@@ -502,6 +502,13 @@ site structure.
 
 ## Change Log
 
+- **2026-05-07**: User Sync UX Polish complete (merged via PR #27) and archived to
+  `archive/2026-q2/technical/07_user-sync-ux/`. Delivered the five-state `UserSyncSpine`,
+  hardened paired-push contract, `arc sync` orchestrator + JSON envelope, vocabulary
+  alignment (`user.sync_push` → `user.notes_push`; `push_interlock: on-handoff` → `on-sync`;
+  new `session.sync_interlock`), per-developer interlock overrides, and library seams for
+  the next WU's interlock-release wrappers. Roadmap entry pending broader structural rework
+  to thread `plan-interlock-release-wrappers` and downstream sequencing into Phase C.
 - **2026-04-30**: Session-Operational Flow PRD + task list complete and merged via PR #24;
   activated on `technical/session-operational-flow`. Implementation begins with Phase 1
   (metadata-state foundation + cadence refinements — flipped from PRD's Phase 3 ordering so
