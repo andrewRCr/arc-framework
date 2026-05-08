@@ -225,14 +225,45 @@ pending upstream config-validation fixes.
   push-wrapper validation; Phase 3.1 resolver consolidation is the base for the validation library;
   `pushWorktreeBranch` helper from Phase 2.R is the swappable seam), Interlock Foundation (ADR-016
   frame canonicalized)
-- Downstream: Worktree Foundation, Agile WU Lifecycle, Concurrent Work Conventions (parallelism
-  trio benefits from low-friction commit/push surface during multi-WU work; no hard dependency)
+- Downstream: Work Organization Reform, parallelism trio downstream of WOR (parallelism trio
+  benefits from low-friction commit/push surface during multi-WU work; no hard dependency)
 - **Scope note:** Pre-approved split into two sibling WUs at PRD-drafting time: WU1 (foundation —
   wrappers, validation library, audit log, authorization footer, ADR; ~12-15 sessions) and WU2
   (adopter ergonomics — setup helper, per-harness detection, status integration, workflow updates,
   strategy doc; ~10-13 sessions). WU2 strictly depends on WU1.
 
-**Worktree Foundation** — After Interlock Release Wrappers; parallel with Coord Probe
+**Work Organization Reform** — After Interlock Release Wrappers (WU1 + WU2); upstream of the
+parallelism trio
+
+Constitutional reform of WU lifecycle conventions: single-branch-per-WU model (planning branch IS
+WU branch through entire lifecycle, no separate planning-PR), Conventional Branch alignment for
+branches (`plan/` + `feat/`/`fix/`/`chore/`/etc., retiring `feature/`/`technical/` category
+prefixes), sweep-as-you-go integration foundation (lifted from former Agile WU Lifecycle scope),
+status-file location-by-state convention, optional group dirs in `backlog/` for codified multi-WU
+groups, and planning-checkpoint review opt-in (config + extension for teams that value planning
+review). Delivers per-worktree isolation as a structural precondition for Worktree Foundation —
+under current model, planning-branch merge brings the status file to main in `Planning` state
+where it leaks into every new worktree branched from main. Single-branch-per-WU resolves the leak
+structurally: WU artifacts live only on the WU branch through entire lifecycle, sweep-as-you-go
+routes them through `active/` on the branch directly to `archive/` on main at integration. Surfaced
+2026-05-08 during pre-PRD sanity-check on the parallelism trio when worktree-DX evaluation traced
+the four boundary workflows and found the leak; reform expanded to encompass branch-prefix
+contradiction (PR conventional-commit type vs branch category routinely contradicted) and
+sibling-WU grouping (related WUs benefit from group-dir co-location in `backlog/`). Companion ADR
+documents the constitutional shift (parallel scale to ADR-016).
+
+- Plan: `technical/plan-work-organization-reform.md` (pre-PRD draft, iteration expected)
+- Upstream: Interlock Release Wrappers WU2 (final session-operations friction closed before
+  conventions reform lands), Session-Operational Flow Phase 7 (metadata-state foundation —
+  `**State:**` enum consumed; sweep-cadence config lifted into this WU's scope)
+- Downstream: Worktree Foundation (per-worktree isolation foundation, cross-worktree roster
+  cascade), Agile WU Lifecycle (consolidated boundary workflows + sweep-as-you-go foundation;
+  AWL's scope item 7a shrinks to tier-aware adaptations only), Concurrent Work Conventions
+  (Conventional Branch alignment + per-worktree isolation + group-dir convention as substrate),
+  ARCd Rebrand (stable branch-and-lifecycle terminology), ARC Operating Modes (Lite mode unaffected
+  — single-WU model has no per-worktree concerns)
+
+**Worktree Foundation** — After Work Organization Reform; parallel with Coord Probe
 
 Mechanism layer for parallel and mobile work — extracts shift lifecycle from arc-modes (mode-universal
 infrastructure), adds worktree-aware shift, gives session-init worktree context awareness including
@@ -243,13 +274,15 @@ Concurrent Work Conventions; tier model in Agile WU Lifecycle. Resolves the long
 ROADMAP claims "parallelizable" downstream WUs without ARC actually having parallelism infrastructure.
 
 - Plan: `technical/plan-worktree-foundation.md` (pre-PRD draft, iteration expected)
-- Upstream: Session-Init Optimization (lean session-init substrate to extend),
-  Session-Operational Flow (avoid session-init workflow surface conflicts)
-- Sibling: User Sync UX Polish, Coord Probe (parallelizable; SESSION-NOTES per-worktree handling
-  interacts with sync semantics, either order works)
-- Downstream: Agile WU Lifecycle (clean activate/integrate workflows), Concurrent Work Conventions
-  (mechanism layer entirely), Coord Probe (consumes branch-gone fire point), ARC Operating Modes
-  (extracted shift lifecycle as prerequisite, not bundled), ARCd Rebrand (terminology absorbed)
+- Upstream: Work Organization Reform (per-worktree isolation foundation, single-branch-per-WU
+  lifecycle, cross-worktree roster cascade — hard dependency), Session-Init Optimization (lean
+  session-init substrate to extend), Session-Operational Flow (avoid session-init workflow surface
+  conflicts)
+- Sibling: Coord Probe (parallelizable; consumes branch-gone fire point as one cascade signal)
+- Downstream: Agile WU Lifecycle (tier-aware adaptations on top of consolidated workflows),
+  Concurrent Work Conventions (mechanism layer entirely), Coord Probe (consumes branch-gone fire
+  point), ARC Operating Modes (extracted shift lifecycle as prerequisite, not bundled), ARCd
+  Rebrand (terminology absorbed)
 
 **Coord Probe** — Parallel with User Sync UX Polish and Worktree Foundation (after Session-Operational Flow lands)
 
@@ -290,8 +323,10 @@ plan-arc-modes' "Required vs Available" rejection by preserving execution discip
 Companion ADR drafted at PRD time (parallel scale to ADR-016).
 
 - Plan: `technical/plan-agile-wu-lifecycle.md` (pre-PRD draft, iteration expected)
-- Upstream: Worktree Foundation (clean activate/integrate workflows post-pointer-field retirement;
-  the tier model's `arc start` operates on worktree-aware activation substrate),
+- Upstream: Work Organization Reform (consolidated boundary workflows + sweep-as-you-go foundation
+  — tier-aware adaptations layer on top; AWL's scope item 7a shrinks to tier-specific work),
+  Worktree Foundation (clean activate/integrate workflows post-pointer-field retirement; the tier
+  model's `arc start` operates on worktree-aware activation substrate),
   Session-Operational Flow (no direct dependency, but avoids surface conflicts on
   activation/integration workflow edits)
 - Downstream: Concurrent Work Conventions (tier model informs concurrency conventions; focus-role
@@ -311,8 +346,10 @@ Agile WU Lifecycle; conventions → this WU). Composes with mechanism + tier-mod
 "agile, principled, multi-WU work."
 
 - Plan: `feature/plan-concurrent-work-conventions.md` (pre-PRD draft, iteration expected)
-- Upstream: Worktree Foundation (mechanism layer; pause-pointer migration), Agile WU Lifecycle (tier
-  model; focus-role applies to quick + standard, not atomic),
+- Upstream: Work Organization Reform (Conventional Branch alignment + per-worktree isolation +
+  group-dir convention as substrate for focus-role conventions),
+  Worktree Foundation (mechanism layer; pause-pointer migration), Agile WU Lifecycle (tier model;
+  focus-role applies to quick + standard, not atomic),
   User Sync UX Polish (clean sync state machine before worktree-axis-plus-focus-role conventions
   land), Session-Operational Flow Phases 3/5/6 (configurable autonomy reduces approval ceremony
   under multi-session load; async-merge audit captured here per ADR-016 discussion)
@@ -380,9 +417,11 @@ Phase A ──► Phase B ──► Phase C (Work Units):
    │     │     │     │     │     │     │     │     │     │
    │     │     │     │     │     │     │     │     │     ├──► Interlock Release Wrappers (closes session-ops friction)
    │     │     │     │     │     │     │     │     │     │
+   │     │     │     │     │     │     │     │     │     ├──► Work Organization Reform (per-worktree isolation foundation)
+   │     │     │     │     │     │     │     │     │     │
    │     │     │     │     │     │     │     │     │     ├──► Coord Probe (parallel; consumes notes-discovery from User Sync UX)
    │     │     │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     │     │     ├──► Parallelism trio (after Interlock Release Wrappers):
+   │     │     │     │     │     │     │     │     │     ├──► Parallelism trio (after Work Organization Reform):
    │     │     │     │     │     │     │     │     │     │      • Worktree Foundation
    │     │     │     │     │     │     │     │     │     │      • Agile WU Lifecycle (after Worktree Foundation)
    │     │     │     │     │     │     │     │     │     │      • Concurrent Work Conventions (after Agile WU Lifecycle)
@@ -435,6 +474,28 @@ Phase A ──► Phase B ──► Phase C (Work Units):
 
 ## Change Log
 
+- **2026-05-08**: Work Organization Reform inserted between Interlock Release Wrappers and the
+  parallelism trio. Surfaced during pre-PRD sanity-check on the parallelism trio when worktree-DX
+  evaluation traced the four boundary workflows and identified a structural per-worktree isolation
+  leak: `integrate-planning-branch.md` leaves the status file in `active/` on main in
+  `State: Planning`, and `activate-work-unit.md` transitions on the WU branch only — main retains
+  the stale Planning-state version through WU integration, leaking into every worktree branched
+  from main thereafter. Reform expanded to encompass branch-prefix contradiction (PR
+  conventional-commit type vs branch category routinely contradicted; WUs cross feature/technical
+  boundaries) and sibling-WU grouping (related WUs benefit from group-dir co-location in
+  `backlog/`). Resolution: single-branch-per-WU lifecycle (planning branch IS WU branch through
+  entire lifecycle, no separate planning-PR), Conventional Branch alignment (`plan/` graduating to
+  `feat/`/`fix/`/etc.), sweep-as-you-go integration foundation (lifted from former Agile WU
+  Lifecycle scope item 7a), status-file location-by-state convention, optional group dirs in
+  `backlog/`, planning-checkpoint review opt-in (config + extension for teams that want it).
+  Companion ADR planned (parallel scale to ADR-016). Sequencing change: Interlock Release Wrappers
+  → **Work Organization Reform** → parallelism trio (Worktree Foundation ‖ Coord Probe → Agile WU
+  Lifecycle → Concurrent Work Conventions). Plan-doc: `technical/plan-work-organization-reform.md`.
+  Downstream plan docs updated to reflect the new dependency: `plan-worktree-foundation.md`
+  consumes per-worktree isolation foundation; `plan-agile-wu-lifecycle.md` scope item 7a shrinks
+  to tier-aware adaptations (sweep-as-you-go foundation moved to WOR);
+  `plan-concurrent-work-conventions.md` focus-role and group conventions layer on top of WOR's
+  branch and isolation foundation.
 - **2026-05-07**: Phase C structural rework. `plan-interlock-release-wrappers` threaded
   into Phase C between User Sync UX Polish and the parallelism trio — closes the final
   session-operations friction point (redundant harness-prompt + ARC-interlock duplicate
