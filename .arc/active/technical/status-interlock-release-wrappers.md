@@ -9,16 +9,18 @@
 - **Task List:** [none]
 - **Sibling Work Unit(s):** `plan-release-wrappers-ergonomics.md`
 
-- **Last Completed:** Generated WU1 task list, notes, and atomic companion
-  (`tasks-release-wrappers-foundation.md` + companions in
-  `.arc/backlog/technical/`) via three-pass `2_generate-tasks.md` workflow;
-  refined the workflow itself based on session insights (Pass 3
-  durable-capture discipline + pass-review framing reframed as agent
-  self-reflection through internal lenses).
+- **Last Completed:** Drafted `plan-work-organization-reform.md` (new
+  upstream WU between Interlock Release Wrappers and the parallelism
+  trio — single-branch-per-WU lifecycle, Conventional Branch alignment,
+  sweep-as-you-go foundation, group-dir convention) and threaded WOR
+  upstream across `plan-worktree-foundation.md`,
+  `plan-agile-wu-lifecycle.md`, `plan-concurrent-work-conventions.md`,
+  and ROADMAP.
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-planning-branch Step 1 — verify readiness for
-  PR (planning artifacts settled in backlog; ready to merge to `main`).
+- **Next Action:** integrate-planning-branch Step 1 — verify readiness
+  for PR. Branch now delivers WU1 planning artifacts + WOR plan-doc +
+  parallelism-trio sequencing updates as one bundled `[PLAN]:` PR.
 
 ---
