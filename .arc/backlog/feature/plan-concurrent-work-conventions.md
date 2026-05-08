@@ -7,7 +7,9 @@ as the canonical home for same-identity concurrent usage. Composes with `plan-wo
 
 - **State:** Draft — pre-PRD exploration captured. Renamed from former Work-Unit Mobility WU as part
   of the agile/mobility split (mechanism → Worktree Foundation; tier model → Agile WU Lifecycle;
-  conventions → this WU). Iteration expected before PRD promotion.
+  conventions → this WU). Iteration expected before PRD promotion. Updated 2026-05-08: focus-role
+  model and concurrent-work conventions now layer on top of [Work Organization Reform][wor]'s
+  Conventional Branch alignment and per-worktree isolation foundation.
 
 - **Created:** 2026-04-17 (originally as Work-Unit Mobility); split and renamed 2026-04-28.
 
@@ -232,6 +234,10 @@ template change, not a CLI/lint addition. Research-informed redesign at PRD time
 
 ### Upstream
 
+- **[Work Organization Reform][wor]:** delivers Conventional Branch alignment, per-worktree
+  isolation foundation, group-dir convention, and the consolidated boundary workflows. Focus-role
+  conventions and async-merge audit compose on top of the new branch and lifecycle conventions.
+  Hard upstream dependency.
 - **Worktree Foundation** (`plan-worktree-foundation.md`): mechanism layer — worktrees, shift, branch-gone detection,
   pause-pointer migration. This WU's conventions layer is built on top.
 - **Agile WU Lifecycle** (`plan-agile-wu-lifecycle.md`): tier model. Focus-role model applies to quick and standard tiers;
@@ -251,7 +257,8 @@ template change, not a CLI/lint addition. Research-informed redesign at PRD time
 
 ### Recommended sequencing
 
-`plan-worktree-foundation.md` → `plan-agile-wu-lifecycle.md` → **Concurrent Work Conventions**.
+[Work Organization Reform][wor] → `plan-worktree-foundation.md` → `plan-agile-wu-lifecycle.md` →
+**Concurrent Work Conventions**.
 
 ---
 
@@ -403,3 +410,4 @@ The PRD should explicitly address:
 [adr-016]: ../../reference/adr/adr-016-configurable-autonomy-interlocks-for-session-operations.md
 [team-coord]: ../../reference/strategies/arc/strategy-team-coordination.md
 [integrate-wu]: ../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md
+[wor]: ../technical/plan-work-organization-reform.md

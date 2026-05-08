@@ -7,7 +7,9 @@ the agility gap where ARC's uniform ceremony costs more than the work for short-
 
 - **State:** Draft — pre-PRD exploration captured during agile/mobility design discussion 2026-04-28.
   Three-tier model and constitutional reframing identified; external research and PRD-time
-  ratification expected.
+  ratification expected. Updated 2026-05-08: sweep-as-you-go foundation (formerly scope item 7a's
+  load-bearing pieces) moved to upstream [Work Organization Reform][wor] WU; this WU retains
+  tier-aware adaptations on top.
 
 - **Created:** 2026-04-28
 
@@ -142,41 +144,47 @@ get promoted: add the plan-*/PRD, restructure the task list into phases, continu
    Quality gates: T1 per commit. PR description as archive.
 
 7. **Ceremony scaling for activate / integrate / archive workflows.** Tier-aware branches in each
-   workflow, implemented against the metadata-state model (item 7a below):
-    - `activate-work-unit.md`: skip plan/PRD checks for atomic and quick; require for standard
-    - `integrate-work-unit.md`: skip clean-work-unit and completion-doc steps for atomic; lightweight
-      for quick (PR description as archive); full ceremony for standard. Integration-time updates
-      include the `**Integration:**` field per metadata-state model and a one-line ROADMAP/PROJECT-
-      STATUS touch (one WU's status line) — tracking docs are current at merge, not stale until sweep.
-    - `archive-work-unit.md`: refactored as the **sweep** workflow per item 7a — invoked with
-      configurable cadence rather than as mandatory post-merge ceremony
+   workflow, layered on top of [Work Organization Reform][wor]'s consolidated boundary workflows
+   and sweep-as-you-go foundation:
+    - `activate-work-unit.md` (post-WOR shape — state-transition workflow, not branch creation):
+      skip plan/PRD checks for atomic and quick; require for standard
+    - `integrate-work-unit.md` (post-WOR shape — single integration boundary with sweep-as-you-go
+      bundled): skip clean-work-unit and completion-doc steps for atomic; lightweight for quick
+      (PR description as archive); full ceremony for standard. Integration-time updates include
+      the `**Integration:**` field per metadata-state model and a one-line ROADMAP/PROJECT-STATUS
+      touch (one WU's status line) — tracking docs are current at merge, not stale until sweep.
+    - `archive-work-unit.md`: under default `archive.cadence: with-integration` (delivered by WOR)
+      collapses into `integrate-work-unit.md`; under deferred cadence retains its current shape as
+      separate post-integration ceremony. Tier-aware sweep ceremony applies in both cadences.
 
-7a. **Integration-workflow restructure consuming the metadata-state foundation.** Implements
-    [plan-session-operational-flow][plan-ops] § Scope → "Metadata-state foundation for WU lifecycle"
-    against the actual lifecycle workflows. Concrete deliverables:
+7a. **Tier-aware adaptations on top of WOR's foundation.** Implements [plan-session-operational-flow][plan-ops]
+    § Scope → "Metadata-state foundation for WU lifecycle" against the actual lifecycle workflows,
+    consuming [Work Organization Reform][wor]'s sweep-as-you-go foundation. Concrete deliverables
+    that remain in this WU's scope (post-2026-05-08 split):
 
     - **State + Integration field rollout.** `**State:**` enum:
       `Planning | In Progress | Complete | Paused | Superseded` (`Planning` introduced upstream in
       [plan-session-operational-flow][plan-ops] Phase 1; this WU operates on the post-introduction
-      enum); optional `**Integration:** Merged` marker added to template-status. Workflow updates:
-      `clean-work-unit.md` Mode 2 sets State to Complete (current); PR review state remains in the
-      PR; archival marks Integration as Merged before moving files.
-    - **Sweep cadence configuration.** Default sweep-as-you-go (sweep ops bundled in integration PR
-      as separate commit per multi-commit-PR norms); opt-in deferred (sweep batched with next-WU
-      planning or standalone). Config key `archive.cadence: with-integration | deferred | manual`
-      (final shape at PRD).
-    - **Sweep-as-you-go integration PR shape:** code commits → completion doc commit → status flip
-      + ROADMAP one-line touch commit → sweep commit (file moves + status file delete, isolated per
-      multi-commit-PR norms). Single PR, multi-commit, reviewers focus per-commit.
-    - **Deferred sweep variant:** integration PR omits the sweep commit; file stays in `active/`
-      until next batch ceremony (typically batch-with-next-planning per existing pattern, or
-      standalone sweep branch).
+      enum); optional `**Integration:** Merged` marker added to template-status. Workflow updates
+      compose with WOR's consolidated boundaries: `clean-work-unit.md` Mode 2 sets State to
+      Complete (current); PR review state remains in the PR; archival marks Integration as Merged
+      before moving files.
     - **Tier-aware sweep ceremony.** Atomic WUs: trivial sweep (single status file delete in
       integration PR). Quick: standard sweep. Standard: full sweep with ROADMAP/PROJECT-STATUS
-      updates.
+      updates. Layered on top of WOR's sweep-as-you-go shape.
     - **CodeRabbit-flagged contradictoriness fix.** `State: Complete` + integration-step
       `Next Action` no longer reads as contradictory; `Integration:` field carries the in-flight
       workflow position cleanly separated from execution-state.
+
+    **Moved to [Work Organization Reform][wor]** (load-bearing for per-worktree isolation; not
+    tier-specific):
+
+    - Sweep cadence configuration (`archive.cadence` config key)
+    - Sweep-as-you-go integration PR shape (code → completion → status flip → sweep commit
+      ordering)
+    - Deferred sweep variant (integration PR omits sweep; archive batches with next-WU planning)
+    - Per-worktree isolation invariant (status file on WU branch only, not on main while in
+      flight)
 
 8. **Atomic companion file retirement (or repurposing).** With cheap atomic-WU spin-up, the
    companion's "holding area before decision" role largely evaporates — noticed → fold into commit
@@ -262,12 +270,15 @@ PR. The word's meaning is consistent across modes; the framework's shape adapts.
 
 ### Upstream
 
+- **[Work Organization Reform][wor]:** delivers the consolidated boundary workflows (single
+  activate/integrate pair under single-branch-per-WU lifecycle), sweep-as-you-go foundation, and
+  per-worktree isolation invariant. This WU's tier-aware adaptations layer on top. Hard upstream
+  dependency.
 - **[Worktree Foundation][wf]:** clean activate/integrate workflows post-pointer-field retirement;
   the tier model's `arc start` command operates on the worktree-aware activation substrate. Pointer
   fields are retired in WF; the incidental category retirement here folds in cleanly afterward.
-- **[Session-Operational Flow][plan-ops]** (current planning): **direct dependency** on Phase 7
-  (metadata-state foundation — State + Integration field model + sweep cadence config). The
-  integration-workflow restructure (scope item 7a) is the implementation of that foundation. Phase 2
+- **[Session-Operational Flow][plan-ops]** (shipped): consumes Phase 7 (metadata-state foundation —
+  State + Integration field model). Sweep cadence config moved to WOR; this WU consumes it. Phase 2
   (status-file timing split) also informs which fields belong on commit vs handoff.
 
 ### Downstream
@@ -281,7 +292,8 @@ PR. The word's meaning is consistent across modes; the framework's shape adapts.
 
 ### Recommended sequencing
 
-[Worktree Foundation][wf] → **Agile WU Lifecycle** → [Concurrent Work Conventions][cwc].
+[Work Organization Reform][wor] → [Worktree Foundation][wf] → **Agile WU Lifecycle** →
+[Concurrent Work Conventions][cwc].
 
 ---
 
@@ -469,6 +481,7 @@ concrete examples for the strategy doc.
 [arc-modes]: ../feature/plan-arc-modes.md
 [wf]: plan-worktree-foundation.md
 [cwc]: ../feature/plan-concurrent-work-conventions.md
+[wor]: plan-work-organization-reform.md
 [plan-ops]: ../../reference/archive/2026-q2/technical/06_session-operational-flow/prd-session-operational-flow.md
 [qg-hooks]: plan-quality-gate-hooks.md
 [dev-rules]: ../../reference/constitution/DEV-RULES.ARC.md

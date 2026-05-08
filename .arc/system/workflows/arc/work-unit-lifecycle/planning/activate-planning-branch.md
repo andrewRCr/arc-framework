@@ -129,7 +129,17 @@ carry-over (mirrors `template-prd.md` precedent). Then populate the planning fie
 > Archival in batch flows lands in its own prior commits via [archive-work-unit][archive-work-unit]
 > — it doesn't co-stage here. See [DEV-RULES.ARC][dev-rules-arc] § Status-file commit shape.
 
-### 6) Proceed to Next Step
+### 6) Push Planning Branch (Optional)
+
+Set upstream for the planning branch:
+
+```bash
+git push -u origin {category}/plan-{name}
+```
+
+This is optional but recommended — establishes remote tracking early.
+
+### 7) Proceed to Next Step
 
 **Batch** (archival + planning on one branch):
 

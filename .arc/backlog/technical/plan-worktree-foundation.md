@@ -7,7 +7,8 @@ land in `plan-concurrent-work-conventions.md`.
 
 - **State:** Draft — pre-PRD exploration captured during agile/mobility expansion discussion 2026-04-28.
   Split from former Work-Unit Mobility WU; the conventions layer became Concurrent Work Conventions and
-  the agile-lifecycle layer became Agile WU Lifecycle.
+  the agile-lifecycle layer became Agile WU Lifecycle. Updated 2026-05-08 to consume per-worktree
+  isolation foundation from new upstream [Work Organization Reform][wor] WU — see § Dependencies.
 
 - **Created:** 2026-04-28
 
@@ -16,6 +17,15 @@ land in `plan-concurrent-work-conventions.md`.
   Polish, Coord Probe, Agile WU Lifecycle) consume worktree mechanics from a clean substrate. Resolves
   the long-standing concern that ROADMAP claims "parallelizable" downstream WUs without ARC actually
   having parallelism infrastructure — Worktree Foundation makes parallelism real.
+
+  **2026-05-08 update:** Pre-PRD sanity-check on the parallelism trio surfaced that per-worktree
+  isolation requires a status-file location and lifecycle reform that this WU was implicitly
+  assuming but not delivering. That foundation was carved out into [Work Organization
+  Reform][wor], which now sits upstream of this WU. Concrete consequence: scope item 4's
+  branch-gone resolution cascade consumes WOR's roster-cascade implementation; scope item 8's
+  main-on-main pattern composes with WOR's single-branch-per-WU model; the per-worktree isolation
+  goals throughout this WU are delivered structurally by WOR rather than enforced through
+  worktree-specific mechanism here.
 
 ---
 
@@ -111,11 +121,13 @@ cross-cutting section rather than inside the Local mode treatment. It's universa
     - **Branch-gone detection at session-init.** When fetch reveals current branch's upstream is
       `gone` (post-prune; today reported as `remote-unavailable / failureReason: error`), surface as a
       dedicated `branch-gone` worktree state with a tailored prompt instead of conflating with
-      genuine network failures. Resolution cascade: `git worktree list` (other active worktrees) →
-      `.arc/active/{category}/status-*.md` (active WU branches via `**Branch:**` field, filtered by
-      `(@identity)` ownership when team mode) → recently-active remote branches (post-fetch, within
-      `coord.recency_days`) → coord-probe (per `plan-coord-probe.md`) → fall back to `main`
-      with explicit confirmation. Per-worktree action varies: stranded in main / administrative
+      genuine network failures. Resolution cascade consumes [Work Organization Reform][wor]'s
+      cross-worktree roster-cascade implementation: `git worktree list` (other active worktrees) →
+      per-worktree status-file reads via the WOR cascade (active WU branches via `**Branch:**`
+      field, filtered by `(@identity)` ownership when team mode; cross-branch read replaces the
+      single-`active/`-directory listing assumption) → recently-active remote branches
+      (post-fetch, within `coord.recency_days`) → coord-probe (per `plan-coord-probe.md`) → fall
+      back to `main` with explicit confirmation. Per-worktree action varies: stranded in main / administrative
       worktree → propose switch to next admin or feature branch; stranded in WU worktree whose branch
       was merged externally → propose worktree removal + status-file archival cleanup.
       **Detect-stop-prompt as default for ambiguity:** when no high-confidence single signal emerges,
@@ -161,6 +173,13 @@ cross-cutting section rather than inside the Local mode treatment. It's universa
    the launchpad for admin operations (planning sessions, sweep ceremonies, occasional global edits). Admin
    work under `branch.protection: full` runs in short-lived branches from main worktree. Forward-references
    tier-aware archive ceremony from `plan-agile-wu-lifecycle.md` which inherits this convention.
+
+   **Atomic-tier launchpad role.** Under [Work Organization Reform][wor]'s single-branch-per-WU
+   model, atomic WUs still get their own branch (one branch per WU, all tiers) but no dedicated
+   worktree. The main worktree serves as the atomic launchpad: spin atomic from main worktree on a
+   short-lived branch, ship via PR, return — without disrupting any in-flight WU's worktree state.
+   This composes cleanly with the main-on-main pattern: main worktree handles admin ops + atomic
+   launches; WU worktrees stay dedicated to their respective WUs.
 
 9. **arc-modes cross-reference sweep.** Content migration plus shift references in
    `plan-arc-modes.md` converted to cross-WU links. Applies before modes advances to PRD.
@@ -276,6 +295,11 @@ files + identity ownership are authoritative. PRD work splits Step 7 into two ax
   concurrency model framing (Phase 1) for spawn-vs-continue semantics; consumes the metadata-state
   foundation (Phase 7) indirectly via `plan-agile-wu-lifecycle.md` for tier-aware archive ceremony
   forward-references. Surface-conflict avoidance on session-init workflow edits also applies.
+- **[Work Organization Reform][wor]:** delivers the per-worktree isolation foundation
+  (single-branch-per-WU lifecycle, sweep-as-you-go integration, status-file location-by-state
+  convention, cross-worktree roster cascade). This WU's worktree-mechanism work assumes the
+  isolation foundation; without WOR, worktrees inherit stale Planning-state status files from main
+  and isolation breaks structurally. Hard upstream dependency.
 
 ### Sibling (parallelizable)
 
@@ -294,8 +318,8 @@ files + identity ownership are authoritative. PRD work splits Step 7 into two ax
 
 ### Recommended sequencing
 
-Session-Operational Flow → **Worktree Foundation** ‖ User Sync UX Polish ‖ Coord Probe → Agile WU
-Lifecycle → Concurrent Work Conventions.
+Session-Operational Flow → Interlock Release Wrappers (WU1 + WU2) → [Work Organization Reform][wor]
+→ **Worktree Foundation** ‖ Coord Probe → Agile WU Lifecycle → Concurrent Work Conventions.
 
 ---
 
@@ -418,3 +442,4 @@ items as of 2026-04-28:
 [template-status]: ../../reference/templates/template-status.md
 [clean-work-unit]: ../../system/workflows/arc/work-unit-lifecycle/clean-work-unit.md
 [session-init]: ../../system/workflows/arc/session-lifecycle/session-init.md
+[wor]: plan-work-organization-reform.md
