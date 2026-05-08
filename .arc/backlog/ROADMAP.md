@@ -387,6 +387,27 @@ holistically. Plan documents for each remain in `backlog/` for reference.
   rewrite, repo public, community infrastructure, npm `1.0.0`. Plan:
   `feature/plan-wu5-public-release.md` (stub).
 
+**Architecture remediation (audit-derived; parallel candidates after worktree infrastructure
+lands).** Surfaced 2026-05-08 by an architecture audit
+(`reference/analysis/analysis-cli-architecture-solid-dry-audit.md`) during Interlock Release
+Wrappers WU1 Phase 1. All three are independent file scopes; intended to run in parallel via
+worktree once the parallelism trio + Coord Probe ship.
+
+- **Lib-Layer Type Extraction** — Move `ConfigSettings`, `ActiveLayout`,
+  `StatusFileCandidate`, `IOContext`, `UserIOContext`, `UserSessionInitStatusResult` from
+  `commands/*/types.ts` to neutral `lib/*/types.ts` modules. Resolves the lib → commands
+  inversion documented in audit § P1. Small (~1-2 sessions). Plan:
+  `technical/plan-lib-layer-type-extraction.md`.
+- **Sync Handler Decomposition** — Extract pure matrix logic and runtime execution from
+  `handlers/sync.ts`; restructure sync handler tests to follow the new boundaries; fold P2
+  manifest / ref-helper duplication. Audit § P1 (sync handler responsibilities) and matching
+  test-architecture / methodology findings. Medium (~3-5 sessions). Plan:
+  `technical/plan-sync-handler-decomposition.md`.
+- **User-Sync Module Split** — Split `commands/user/sync-status.ts` (~1.6k lines) into
+  focused `lib/user-sync/*` modules; restructure `user-status.test.ts` to follow; fold P2
+  user-notes / manifest helper duplication. Audit § P1 (user-sync status module SRP).
+  Medium-large (~4-6 sessions). Plan: `technical/plan-user-sync-module-split.md`.
+
 ---
 
 ## Dependency Analysis
