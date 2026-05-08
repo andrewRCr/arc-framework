@@ -125,6 +125,12 @@ Shared module both release wrappers call. Resolves interlock-state via existing
 for "is this commit/push currently authorized." Available for downstream consumers (status
 reporter, audit-log writer).
 
+Each interlock carries an `on-workflow` permissiveness tier above its primary trigger
+(`manual` < `on-{primary}` < `on-workflow`); the wrapper authorizes when configured permission
+overlaps its fixed scope (commit = any agent commit; push = ceremony only). Code 11
+(`interlock-not-authorized`) is defensive — primary UX is prompt-vs-bypass (raw git invokes the
+harness prompt; the wrapper bypasses it). See `notes-release-wrappers-foundation.md` § 1.5.
+
 **R4 — Refusal taxonomy.**
 Stable error codes 10–15 with identifiers and verbose messages explaining remediation. JSON
 `--json` mode emits structured envelope with `errorCode` field.
@@ -174,7 +180,7 @@ Schema (v1):
   "command": "release-commit",
   "args": ["-m", "<redacted>"],
   "wu": { "category": "technical", "name": "release-wrappers-foundation" },
-  "interlockState": { "commitInterlock": "on-task-approval", "pushInterlock": "on-handoff" },
+  "interlockState": { "commitInterlock": "on-task-approval", "pushInterlock": "on-sync" },
   "decision": "proceeded",
   "refusalCode": null,
   "outcome": { "kind": "commit", "hash": "abc1234" }
@@ -384,10 +390,10 @@ envelope; consumer workflows are WU2.
 Two **independent** config dimensions govern push-side behavior. Adopters reason about each
 separately:
 
-| Axis                  | Question                                           | Values                          |
-| --------------------- | -------------------------------------------------- | ------------------------------- |
-| `push_interlock`      | **WHEN** does the agent fire a push?               | `manual / on-handoff / on-sync` |
-| `arc.release.enabled` | **HOW** is a push invocation shaped when it fires? | `true / false`                  |
+| Axis                  | Question                                           | Values                           |
+| --------------------- | -------------------------------------------------- | -------------------------------- |
+| `push_interlock`      | **WHEN** does the agent fire a push?               | `manual / on-sync / on-workflow` |
+| `arc.release.enabled` | **HOW** is a push invocation shaped when it fires? | `true / false`                   |
 
 The 2×3 matrix is fully populated — every cell is coherent. Documentation in WU2 must hold
 this distinction: interlock controls the trigger; opt-in controls the transport. Don't

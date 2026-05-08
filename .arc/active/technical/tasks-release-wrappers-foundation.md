@@ -72,28 +72,48 @@ shape and edge-case enumerations.
   wrapper boundary; the multi-candidate path carries a disambiguation hint, the no-candidate path leaves `hint`
   undefined for the wrapper's default message.
 
-### `[ ]` **1.5 `interlock-validation.ts` — interlock-state resolution + authorization decision**
+### `[x]` **1.5 Interlock value extension + validation library**
 
-- _Goal:_ Authorization function that, given an operation kind (`"commit" | "push"`) and the resolved interlock
-  settings, returns an `AuthorizationDecision` — single source of truth for "is this commit/push currently authorized"
-  that downstream consumers (handlers, status reporter, audit-log writer) call without re-deriving the policy. Also
-  hosts `formatRefusal()` composer per F2-E (consistent refusal-message format across 2.1 / 3.2 / 5.1 from day one).
+- _Goal:_ Establish the `on-workflow` permissiveness tier across all three interlocks, amend the code 11 payload to
+  carry the offending setting + value for specific remediation messages, then deliver `interlock-validation.ts` as the
+  single source of truth for the wrapper-scope-vs-permission authorization rule. Also hosts `formatRefusal()` composer
+  per F2-E (consistent refusal-message format across 2.1 / 3.2 / 5.1 from day one).
 
-- _Design decisions:_ Branch-protection check (`branch.protection: full`) uses `branch.base` config as ground truth for
-  "the protected base"; both commit and push refuse on direct base-branch ops; `branch.protection: partial` does not
+- _Design decisions:_ Trigger-set values capture ascending permissiveness (`manual` < `on-{primary}` <
+  `on-workflow`). Wrapper authorization rule: **permission ∩ wrapper-scope ≠ ∅ → authorize, else refuse(11)**.
+  Code 11 is defensive backstop against agent invoking wrapper outside configured scope, not primary UX —
+  prompt-vs-bypass is the user-facing model. Branch-protection check (`branch.protection: full`) uses `branch.base`
+  config as ground truth; both commit and push refuse on direct base-branch ops; `branch.protection: partial` does not
   trigger refusal.
 
-    - File: `src/lib/release/interlock-validation.ts`
-    - Composes `resolveAllSettings` from `lib/config/resolved-settings.js` (after 1.2 extends it)
+- _Notes:_ See `notes-release-wrappers-foundation.md` § 1.5 for trigger-set ladder, wrapper-scope-vs-permission rule,
+  and prompt-vs-bypass framing.
 
-    Build `test-first` (one behavior at a time):
-    - Commit operation × each `commit_interlock` value → `authorize` or `refuse {code: 11}`
-    - Push operation × each `push_interlock` value → `authorize` or `refuse {code: 11}`
-    - Branch-protection check: `branch.protection: full` + current branch = `branch.base` → `refuse {code: 13, branch}`
-    - Branch-protection check: `branch.protection: partial` → no refusal regardless of branch
-    - `formatRefusal(decision)` composes consistent message format: identifier line + what-happened sentence +
-      remediation hint
-    - Integration via `resolveAllSettings` — single I/O round-trip surfaces all settings
+    - `[x]` **1.5.a Extend interlock value unions + consumer audit**
+
+        Added `on-workflow` to `CommitInterlock`, `PushInterlock`, `SyncInterlock` in
+        `src/lib/config/resolved-settings.ts`; `*_VALUES` arrays updated in lockstep. `HandoffSyncInterlock` in
+        `src/commands/status/types.ts` widened to match (forced by `handlers/status.ts:111` assignability).
+        `recommended-summary-line.ts` docstring and session-handoff workflow (package source + `.arc/` mirror)
+        updated to recognize `on-workflow` as a sync-ran arm. Existing negative checks (`pushInterlock === "manual"`
+        in `handlers/sync.ts`) remain correct under the wider union — both non-manual values fall through to "fire
+        push leg." TS exhaustiveness scan found no `switch` cases on these unions across `src/`. Three resolution
+        tests added covering commit / push / sync × `on-workflow` via git-config tier.
+
+    - `[x]` **1.5.b Amend `types.ts` for code 11 payload extension**
+
+        Code 11 in `AuthorizationDecision` now carries `setting:` as a discriminated pair (yaml key + typed value)
+        for either `session.commit_interlock` (CommitInterlock) or `session.push_interlock` (PushInterlock). Type-only
+        change; no behavioral test. Tsc clean.
+
+    - `[x]` **1.5.c Implement `interlock-validation.ts` per wrapper-scope-vs-permission rule**
+
+        Created `src/lib/release/interlock-validation.ts` exporting `authorizeRelease(opts)` (branch-protection
+        short-circuits before interlock check) and the `formatRefusal` const. Code 11 messages surface the
+        offending setting key+value and point adopters at raw `git` first (harness-prompt path) before
+        suggesting `on-workflow` escalation, per the prompt-vs-bypass framing. 19 tests cover commit/push × 3
+        values, branch-protection (including short-circuit invariant), and the three-line shape for all six
+        refusal codes.
 
 ### `[ ]` **1.6 `audit-log.ts` — JSONL append + sanitization**
 
@@ -128,10 +148,14 @@ shape and edge-case enumerations.
 
     - `[ ]` **1.6.c Append + schema-validate entry write**
 
+        Failure-mode split: schema violations **throw** (precondition violation; caller built a malformed
+        entry — should not occur in correctly-typed code, surfaces as test-time bug); I/O failures (disk
+        full, permission denied) **return** `{ ok: false, error: ... }` so the audit log being unwritable
+        doesn't propagate up and mask a successful commit/push.
+
         Build `test-first` (one behavior at a time):
         - Append-only JSONL semantics (no overwrite, line-per-entry)
-        - `schemaVersion: 1` lock — refuses entries violating v1 shape (throws / returns error result, see
-          implementation choice)
+        - `schemaVersion: 1` lock — refuses entries violating v1 shape by throwing
         - Discriminator `command` ∈ `{"release-commit", "release-push", "sync"}` enforced
         - `outcome.kind` shape matches command per PRD R7 table
         - `interlockState` discriminated union shape matches `command`
@@ -478,6 +502,23 @@ direction (package source primary, `.arc/` mirror).
 - _Note:_ Per F2-E, `formatRefusal()` was stubbed in 1.5 from the start; Phases 2 / 3 / 5.1 use it. By end of Phase 5,
   drift = whether any refusal-message call site bypassed the helper. If uniform → mark `[~]` superseded by 1.5's helper;
   if drift → reconcile via single edit pass through call sites.
+
+### `[ ]` **6.4 ADR-018: interlock value extension — trigger-set model + wrapper-scope-vs-permission rule**
+
+- _Goal:_ ADR formalizes the design rationale captured during 1.5 — the trigger-set permissiveness ladder
+  (`manual` < `on-{primary}` < `on-workflow`), the wrapper-scope-vs-permission authorization rule, and the
+  prompt-vs-bypass UX framing with two-layered (mechanical wrapper / agent judgment) trust model.
+
+- _Note:_ Distinct from ADR-017 (trust-model trade-off / harness-bypass property). ADR-017 covers _whether_
+  defense-in-depth applies; ADR-018 covers _how_ the wrapper-side authorization works once the user opts in.
+  Both internal-only per § Architecture Documentation.
+
+- _Notes:_ Source content in `notes-release-wrappers-foundation.md` § 1.5 — three sections (trigger-set ladder,
+  authorization rule, prompt-vs-bypass framing) graduate to ADR.
+
+- **Strategies:** strategy-adr-methodology.md
+
+    - File: `.arc/reference/adr/adr-018-interlock-value-extension.md`
 
 ---
 

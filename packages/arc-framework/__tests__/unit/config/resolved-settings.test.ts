@@ -314,3 +314,51 @@ describe("resolveAllSettings — composite behavior", () => {
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("arc-config.yml"));
   });
 });
+
+describe("resolveAllSettings — on-workflow value extension", () => {
+  let fixture: Fixture;
+  beforeEach(async () => { fixture = await createFixture(); });
+  afterEach(async () => { await rm(fixture.root, { recursive: true, force: true }); });
+
+  const ON_WORKFLOW_KEYS: Array<{
+    name: ResolvedKeyName;
+    gitConfigKey: string;
+    settingsKey:
+      | "session.commit_interlock"
+      | "session.push_interlock"
+      | "session.sync_interlock";
+  }> = [
+    {
+      name: "commitInterlock",
+      gitConfigKey: COMMIT_INTERLOCK_GIT_CONFIG_KEY,
+      settingsKey: "session.commit_interlock",
+    },
+    {
+      name: "pushInterlock",
+      gitConfigKey: PUSH_INTERLOCK_GIT_CONFIG_KEY,
+      settingsKey: "session.push_interlock",
+    },
+    {
+      name: "syncInterlock",
+      gitConfigKey: SYNC_INTERLOCK_GIT_CONFIG_KEY,
+      settingsKey: "session.sync_interlock",
+    },
+  ];
+
+  for (const key of ON_WORKFLOW_KEYS) {
+    it(`${key.name}: on-workflow as git-config override resolves`, async () => {
+      await writeFile(fixture.configPath, "pm.mode: arc-in-git\n");
+      const exec = buildExec({ [key.gitConfigKey]: "on-workflow" });
+
+      const result = await resolveAllSettings({
+        cwd: fixture.root,
+        exec,
+        readFile: realReadFile,
+      });
+
+      expect(result.resolved[key.name].value).toBe("on-workflow");
+      expect(result.resolved[key.name].source).toBe("git-config");
+      expect(result.settings[key.settingsKey]).toBe("on-workflow");
+    });
+  }
+});

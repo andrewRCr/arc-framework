@@ -31,7 +31,7 @@ arc status --session-handoff --json
 | `dirty`                  | `{state: clean / dirty, fileCount}`. Re-read from probe-2 for the SESSION-NOTES "Uncommitted Work" section            |
 | `worktree`               | Worktree sync vs `origin/<branch>` — same state vocabulary as session-init. Re-read from probe-2 for unpushed counts  |
 | `user`                   | Notes sync state (`value.state`: clean / remote-ahead / conflict / disabled / remote-unavailable)                     |
-| `syncInterlock`          | `{value, source}` — gates whether this workflow auto-invokes `arc sync` (`on-handoff` fires; `manual` skips)          |
+| `syncInterlock`          | `{value, source}` — gates handoff auto-invoke of `arc sync` (`on-handoff`/`on-workflow` fire; `manual` skips)         |
 | `active`                 | Active status file resolution + sessionType (same shape as session-init)                                              |
 | `head`                   | `{hash: string \| null}` — current HEAD short-hash. Re-read from probe-2 for the `Commit at Handoff` anchor           |
 | `pushability`            | Pushability pre-check matrix for the worktree push leg                                                                |
@@ -401,7 +401,8 @@ internally — push-ordering invariant, worktree+notes coherence, notes-vs-workt
 and partial-push recovery all live in the CLI, not in workflow prose. See [Session Operations
 Strategy][session-ops] § Push Toggles for the underlying model.
 
-- **`on-handoff`** (default) — auto-invoke and consume the structured output:
+- **`on-handoff`** (default) / **`on-workflow`** — auto-invoke and consume the structured
+  output. Both values fire sync at handoff.
 
     ```bash
     arc sync --json
@@ -446,9 +447,9 @@ skip arms):
 
 **Conditional top-level section** — when `recommendedSummaryLine` is non-null, prepend it
 verbatim above `**Sync:**`. Read from `arc sync --json`'s envelope when sync ran
-(`syncInterlock.value === "on-handoff"` and identity present); read from probe-2 otherwise
-(manual mode or identity absent). Both surfaces compose from canonical state — no agent-side
-counting or dispatch.
+(`syncInterlock.value` is `"on-handoff"` or `"on-workflow"` and identity present); read from
+probe-2 otherwise (manual mode or identity absent). Both surfaces compose from canonical state
+— no agent-side counting or dispatch.
 
 **Formatting guidance:**
 

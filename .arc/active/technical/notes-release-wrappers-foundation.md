@@ -110,6 +110,98 @@ export interface ResolvedReleaseModeSettings {
 
 `resolveAllSettings` adds the new resolver to its concurrent `Promise.all` fan-out.
 
+### § 1.5 — Interlock value extension: trigger-set permissiveness ladder
+
+Each of the three interlocks (`commit_interlock`, `push_interlock`, `sync_interlock`) gets a uniform third
+value, `on-workflow`, establishing a symmetric ascending permissiveness ladder:
+
+| Interlock | `manual` | `on-{primary}` | `on-workflow` |
+| --- | --- | --- | --- |
+| `commit_interlock` | ∅ (no agent autofire) | task-work commits | task-work + ceremony commits |
+| `push_interlock` | ∅ | sync-internal push | sync + ceremony pushes |
+| `sync_interlock` | ∅ | handoff workflow | handoff + future workflow-driven sync |
+
+The values capture trigger-sets, not single triggers. `commit_interlock: on-task-approval` already worked
+this way (`manual` = ∅ trigger set; `on-task-approval` = {task-approval} trigger set); `on-workflow`
+extends each axis to a superset including any agent-mediated workflow event.
+
+Today `sync_interlock: on-workflow` is behaviorally equivalent to `on-handoff` (no other workflow fires
+sync), but the value is reserved for forward-compatibility — workflows like the upcoming worktree work
+units may need to fire sync, and `on-workflow` captures that authorization without further config-axis
+evolution.
+
+Defaults are unchanged by this extension: `commit_interlock` and `push_interlock` default to `manual`
+(conservative); `sync_interlock` defaults to `on-handoff` (auto-sync at handoff is the out-of-box
+expectation). `on-workflow` is opt-in across all three.
+
+### § 1.5 — Wrapper-scope-vs-permission authorization rule
+
+Each release-wrapper command has a fixed scope describing what the agent uses it for:
+
+| Wrapper command | Scope |
+| --- | --- |
+| `arc release commit` | any commit the agent fires (task-work ∪ ceremony) |
+| `arc release push` | ceremony push only (sync uses its own internal push helper) |
+
+The wrapper authorizes when the configured permission overlaps the wrapper's scope:
+
+> **permission ∩ scope ≠ ∅ → authorize, else refuse(11)**
+
+Plays out as:
+
+- Commit × `on-task-approval`: {task-work} ∩ {any commit} = {task-work} → **authorize**
+- Commit × `on-workflow`: {task-work, ceremony} ∩ {any commit} → **authorize**
+- Push × `on-sync`: {sync push} ∩ {ceremony push} = ∅ → **refuse(11)**
+- Push × `on-workflow`: {sync, ceremony} ∩ {ceremony push} → **authorize**
+
+The wrapper performs **scope-coverage** checks, not **runtime-context** detection. It cannot distinguish
+"this commit is for task-work" from "this commit is for a ceremony" at invocation time, and does not need
+to — the rule operates on values alone.
+
+### § 1.5 — Prompt-vs-bypass framing + defensive code 11
+
+The user-facing model for the release-wrapper system is **"agent uses wrapper to bypass the harness
+prompt, or uses raw git which the harness prompts on"** — not "wrapper grants permission to commit."
+Configuration choices express which paths the user permits the agent to bypass-prompt on.
+
+Code 11 (`interlock-not-authorized`) is **defensive backstop**, not a primary UX path. It fires when the
+agent invokes the wrapper outside the configured scope (a layer-1 violation per the layered model below).
+In normal use, the agent's contract handles tool selection and code 11 should not fire. When it does,
+the audit log captures it for forensic review.
+
+The model is two-layered:
+
+1. **Wrapper layer (mechanical):** Does configured permission overlap wrapper scope? If no → refuse(11).
+   Defensive validation; covers the trustless case (`manual`) and scope-mismatch (push under `on-sync`).
+2. **Agent layer (judgment):** Within authorized scope, is using the wrapper appropriate for *this
+   specific invocation*? Codified in DEV-RULES.ARC and workflow docs; not wrapper-enforced.
+
+Example: Under `commit_interlock: on-task-approval`, the wrapper authorizes any agent commit invocation,
+but the agent's contract is to use the wrapper only for task-work commits and use raw `git commit` for
+ceremony commits — letting the harness prompt the user. Layer-2 violations (agent uses wrapper for
+ceremony under `on-task-approval`) surface via behavior drift, audit-log forensics, or user feedback,
+not via code 11.
+
+The remediation hint in code 11 messages reflects this framing: primary remediation is "use raw `git`
+instead" (the harness-prompt path); secondary is "set `<key>: on-workflow` to authorize" (escalate
+permission only if intentional).
+
+### § 1.6 — Schema-violation vs. I/O-failure error handling
+
+The audit-log writer splits failure modes by error class:
+
+- **Schema violations throw.** Calling `appendAuditEntry` with an entry whose shape doesn't match the v1
+  schema is a precondition violation — the caller built a malformed entry, which discriminated-union
+  typing should make structurally hard to hit in correctly-typed code. Throwing surfaces it loudly at
+  test time; in production it should never fire.
+- **I/O failures return `{ ok: false, error: ... }`.** Disk-full, permission-denied, and similar
+  operational failures need a path that the caller can swallow without aborting the wrapped operation.
+  Audit logging is sidecar to release wrappers and `arc sync`; an audit-log write failure should not
+  propagate up and mask a successful commit/push.
+
+The asymmetry is deliberate: programmer errors get loud (throw → test surface); operational errors get
+quiet (return → caller decides whether to surface or swallow).
+
 ### § 1.6 — Sanitization edge cases
 
 [F1-H] Behavior list extensions for `sanitizeArgs`:

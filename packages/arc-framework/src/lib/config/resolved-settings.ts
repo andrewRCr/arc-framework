@@ -47,37 +47,66 @@ import type { GitExec } from "../git/index.js";
 
 // --- Per-key constants and type guards ---
 
-/** Valid commit-interlock policy values. */
-export type CommitInterlock = "manual" | "on-task-approval";
+/**
+ * Valid commit-interlock policy values. Permissiveness ladder (ascending):
+ * `manual` (no agent autofire) < `on-task-approval` (agent fires on approved
+ * task work) < `on-workflow` (agent fires on any workflow-mediated event,
+ * including ceremony commits).
+ */
+export type CommitInterlock = "manual" | "on-task-approval" | "on-workflow";
 
 export const COMMIT_INTERLOCK_GIT_CONFIG_KEY = "arc.commitInterlock";
 export const COMMIT_INTERLOCK_YAML_KEY = "session.commit_interlock";
 export const DEFAULT_COMMIT_INTERLOCK: CommitInterlock = "manual";
-const COMMIT_INTERLOCK_VALUES: readonly CommitInterlock[] = ["manual", "on-task-approval"];
+const COMMIT_INTERLOCK_VALUES: readonly CommitInterlock[] = [
+  "manual",
+  "on-task-approval",
+  "on-workflow",
+];
 
 function isCommitInterlock(value: string): value is CommitInterlock {
   return (COMMIT_INTERLOCK_VALUES as readonly string[]).includes(value);
 }
 
-/** Valid push-interlock policy values. */
-export type PushInterlock = "manual" | "on-sync";
+/**
+ * Valid push-interlock policy values. Permissiveness ladder (ascending):
+ * `manual` (no agent autofire) < `on-sync` (agent fires push leg from sync) <
+ * `on-workflow` (agent fires push from any workflow-mediated path, including
+ * ceremony pushes via `arc release push`).
+ */
+export type PushInterlock = "manual" | "on-sync" | "on-workflow";
 
 export const PUSH_INTERLOCK_GIT_CONFIG_KEY = "arc.pushInterlock";
 export const PUSH_INTERLOCK_YAML_KEY = "session.push_interlock";
 export const DEFAULT_PUSH_INTERLOCK: PushInterlock = "manual";
-const PUSH_INTERLOCK_VALUES: readonly PushInterlock[] = ["manual", "on-sync"];
+const PUSH_INTERLOCK_VALUES: readonly PushInterlock[] = [
+  "manual",
+  "on-sync",
+  "on-workflow",
+];
 
 function isPushInterlock(value: string): value is PushInterlock {
   return (PUSH_INTERLOCK_VALUES as readonly string[]).includes(value);
 }
 
-/** Valid sync-interlock policy values. */
-export type SyncInterlock = "manual" | "on-handoff";
+/**
+ * Valid sync-interlock policy values. Permissiveness ladder (ascending):
+ * `manual` (no agent autofire) < `on-handoff` (agent fires sync at handoff) <
+ * `on-workflow` (agent fires sync at handoff or any other workflow-mediated
+ * event). Today `on-workflow` is behaviorally equivalent to `on-handoff` (no
+ * other workflow fires sync); reserved for forward-compatibility with future
+ * workflows that need to fire sync.
+ */
+export type SyncInterlock = "manual" | "on-handoff" | "on-workflow";
 
 export const SYNC_INTERLOCK_GIT_CONFIG_KEY = "arc.syncInterlock";
 export const SYNC_INTERLOCK_YAML_KEY = "session.sync_interlock";
 export const DEFAULT_SYNC_INTERLOCK: SyncInterlock = "on-handoff";
-const SYNC_INTERLOCK_VALUES: readonly SyncInterlock[] = ["manual", "on-handoff"];
+const SYNC_INTERLOCK_VALUES: readonly SyncInterlock[] = [
+  "manual",
+  "on-handoff",
+  "on-workflow",
+];
 
 function isSyncInterlock(value: string): value is SyncInterlock {
   return (SYNC_INTERLOCK_VALUES as readonly string[]).includes(value);
