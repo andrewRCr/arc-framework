@@ -24,27 +24,15 @@ test surface). 1.2 extends `lib/config/resolved-settings.ts` with the `release.*
 consumed by 4.2 (status) and 5.2 (probe migration). See `notes-release-wrappers-foundation.md` § Phase 1 for resolver
 shape and edge-case enumerations.
 
-### `[ ]` **1.1 `types.ts` — refusal codes, decision shapes, audit entry schema**
+### `[x]` **1.1 `types.ts` — refusal codes, decision shapes, audit entry schema**
 
 - _Goal:_ Public type surface that pins R4's refusal taxonomy, R3's authorization decision shape, R7's audit entry
   schema, and the shared `formatRefusal()` helper signature as a single source of truth callers import without reaching
   into module internals.
 
-- _Notes:_ See `notes-release-wrappers-foundation.md` § 1.1 for `AuthorizationDecision` per-code discriminated payloads;
-  `interlockState` discriminated union keyed by `command`; `formatRefusal()` signature.
-
-    - File: `src/lib/release/types.ts`
-    - Test-after acceptable per testing-methodology (type declarations validated by the compiler)
-    - `RefusalCode` enum with values `10 | 11 | 12 | 13 | 14 | 15`; `RefusalIdentifier` mapping (`"no-active-wu"`,
-      `"interlock-not-authorized"`, `"destructive-flag"`, `"branch-protection-violation"`,
-      `"pushability-precheck-failed"`, `"arg-grammar-fallthrough"`)
-    - Code 15 reserved-for-empirical (not runtime-emitted by the wrapper) — declared with doc-comment noting it surfaces
-      only via the documented harness-prompt empirical scenario
-    - `AuthorizationDecision` discriminated union with per-code refusal payloads (see notes file)
-    - `AuditEntry` interface: `schemaVersion: 1`, `timestamp` ISO 8601 via `new Date().toISOString()`, `command`
-      discriminator, `interlockState` discriminated union keyed by `command`, `outcome` discriminated union per command
-    - `formatRefusal(decision: AuthorizationDecision) → string` — shared message composer signature (implementation
-      lives in 1.5 or as a small adjacent module; signature pinned here so 2.1 / 3.2 / 5.1 import the same name)
+- _Outcome:_ Created `src/lib/release/types.ts`. Shared formatter exported as a `FormatRefusal` type alias rather than a
+  function declaration — the implementation lives in 1.5 (`interlock-validation.ts`) and binds via
+  `export const formatRefusal: FormatRefusal = ...` so the signature stays pinned in this module.
 
 ### `[ ]` **1.2 Extend `lib/config/resolved-settings.ts` with `release.*` key surface**
 
