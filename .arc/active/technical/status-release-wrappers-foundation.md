@@ -15,7 +15,7 @@
   resolution + authorization decision (line ~75)
 - **Blockers:** [none]
 
-- **Next Action:** Resume Phase 1 at Task 1.5 — but first review
-  `analysis-cli-architecture-solid-dry-audit.md` (see SESSION-NOTES).
+- **Next Action:** Resume Phase 1 at Task 1.5 — `interlock-validation.ts`
+  (interlock-state resolution + authorization decision).
 
 ---
