@@ -9,9 +9,8 @@
 - **Task List:** [none]
 - **Sibling Work Unit(s):** `plan-release-wrappers-ergonomics.md`
 
-- **Last Completed:** WU1 PRD generated (release-wrappers-foundation); parent plan
-  trimmed and renamed to scope WU2 (release-wrappers-ergonomics) — middle-ground
-  approach (CLI primitives + workflow-driven setup) folded in.
+- **Last Completed:** Pressure-test pass on WU1 PRD and WU2 plan; WU2 plan
+  rotated from `active/` to `backlog/`.
 - **Next Task:** [none]
 - **Blockers:** [none]
 
