@@ -5,17 +5,17 @@
 WU1 (`prd-release-wrappers-foundation.md`, sibling) delivers the mechanical foundation:
 `arc release commit` and `arc release push` work end-to-end for hand-configured adopters.
 Hand-configuration means manually editing harness permission files (`.claude/settings.json`,
-`~/.codex/policy/...`) and running `arc release record-enabled` to flip per-developer bypass
-state.
+`~/.codex/policy/...`) and running `arc release record-enabled` to flip per-developer
+opt-in state (`arc.release.enabled`).
 
 This works for the friction-tolerant minority but falls short of the broader adoption case.
-Adopters who would benefit from the wrapper's friction-reduction need:
+Adopters who would benefit from the release wrapper's friction-reduction need:
 
 1. A guided setup that explains the trust-model trade-off, detects their harness, helps install
    allowlist entries correctly, and verifies the result.
-2. Visible posture state — `arc status` and session-init orientation should surface "wrapper
-   allowlist active — ARC is sole authorization layer" when detected.
-3. Workflow integration that prefers the wrapper over raw git when the wrapper is active.
+2. Visible posture state — `arc status` and session-init orientation should surface
+   "release-wrapper allowlist active — ARC is sole authorization layer" when detected.
+3. Workflow integration that prefers the release wrapper over raw git when opt-in is recorded.
 4. Documentation that walks per-harness setup, the "when not to use this" guidance, and the
    strategy framing.
 
@@ -23,8 +23,8 @@ This work delivers that ergonomic surface — what makes WU1's mechanism approac
 typical adopter.
 
 **Why now:** WU1 is the gate; once it lands, adopters can hand-configure but the rough edges
-show immediately. WU2 should follow within the same release window so the wrapper system ships
-as a coherent capability rather than a primitive-with-promised-ergonomics.
+show immediately. WU2 should follow within the same release window so the release-wrapper
+system ships as a coherent capability rather than a primitive-with-promised-ergonomics.
 
 ## Approach: Middle-Ground (CLI primitives + workflow-driven setup)
 
@@ -38,9 +38,10 @@ equivalent per-harness write logic — was considered and rejected. Reasons:
    to write to? Existing rules to merge with?). Wrapper enforcement is per-invocation,
    error-irrecoverable, mechanical. The CLI's value is highest where errors are silent and
    consequential — runtime enforcement, not setup.
-3. **Adopter reality.** Most adopters reach setup during an agent session ("set up the wrapper
-   allowlist for me"). The agent already knows its harness, already has Edit tools tuned for
-   the format. CLI plugins would re-implement knowledge the agent has at runtime.
+3. **Adopter reality.** Most adopters reach setup during an agent session ("set up the
+   release-wrapper allowlist for me"). The agent already knows its harness, already has Edit
+   tools tuned for the format. CLI plugins would re-implement knowledge the agent has at
+   runtime.
 4. **Future harnesses.** opencode unblocks → update workflow markdown + add a small pattern
    formatter. No release needed for the hard part.
 
@@ -71,8 +72,8 @@ state-recording primitives.)
       running `arc release record-enabled`.
 
 **Critical safety property:** `record-enabled` is gated on `verify` returning pass. The agent
-writes the config; `verify` confirms; only on success does bypass-mode state record. A
-failed/incomplete edit cannot accidentally enable bypass mode.
+writes the config; `verify` confirms; only on success does opt-in state record
+(`arc.release.enabled: true`). A failed/incomplete edit cannot accidentally record opt-in.
 
 ## Scope
 
@@ -103,16 +104,23 @@ Pattern formatters per harness:
 - State recording (gated on verify pass; uses `arc release record-enabled`).
 - Rollback (`arc release setup --disable` flow: agent removes its entries; state recorded).
 
-**Workflow integration.** Updates to `process-task-loop.md` and `session-handoff.md`:
+**Workflow integration.** Updates to `process-task-loop.md`, `session-handoff.md`, and
+ceremony workflows (`activate-work-unit.md`, `activate-planning-branch.md`, recovery flows):
 
-- Agent prefers `arc release commit` / `arc release push` over raw git when bypass mode is
-  active for this identity.
-- The `arc sync` orchestrator invokes `arc release push` for the worktree leg internally when
-  wrapper is active.
+- Agent prefers `arc release commit` / `arc release push` over raw git when
+  `arc.release.enabled: true` (read once at session-init via the WU1 probe surface; branched
+  at workflow-author time — same model as `commit_interlock` today).
+- Ceremony workflows (activation, planning-branch activation, recovery) route their pushes
+  through `arc release push` when enabled — the primary consumer of the single-leg push
+  primitive.
+- `arc sync` continues to handle handoff push directly. Under WU1, sync's invocations are
+  already captured in the audit log; no internal re-routing through `arc release push`
+  needed.
 
-**Status integration.** `arc status` surfaces wrapper-active state when bypass mode is active.
-Session-init orientation includes a one-line note when wrapper is the sole authorization layer
-(loud, not silent — addresses the silent-trust-shift concern under § Adopter Friction).
+**Status integration.** `arc status` surfaces release-wrapper-active state when opt-in is
+recorded. Session-init orientation includes a one-line note when the release wrapper is the
+sole authorization layer (loud, not silent — addresses the silent-trust-shift concern under
+§ Adopter Friction).
 
 **Documentation.**
 
@@ -131,8 +139,8 @@ Session-init orientation includes a one-line note when wrapper is the sole autho
 ## Trust Model Trade-Off
 
 Inherited from the parent plan; carried forward intact for context. The trade-off itself
-doesn't change with the WU split — WU1 makes the wrapper *available*; WU2 makes it *engaged*.
-The trade-off lands at engagement.
+doesn't change with the WU split — WU1 makes the release wrapper *available*; WU2 makes it
+*engaged*. The trade-off lands at engagement.
 
 Today's protective layering for git mutating operations:
 
@@ -140,11 +148,12 @@ Today's protective layering for git mutating operations:
 2. Harness gate (catches operations regardless of whether ARC authorized them).
 3. User approval at the harness prompt.
 
-After wrapper + allowlist (when adopter opts in via WU2 setup):
+After release wrapper + allowlist (when adopter opts in via WU2 setup):
 
 1. ARC workflow (unchanged).
-2. Wrapper enforcement (refuses on invalid interlock state, missing WU, destructive flags).
-3. *(Harness gate bypassed for wrapper invocations only.)*
+2. Release-wrapper enforcement (refuses on invalid interlock state, missing WU, destructive
+   flags).
+3. *(Harness gate bypassed for release-wrapper invocations only.)*
 4. User approval at ARC interlock layer (where the trust decision is meaningful).
 
 **This is a per-user policy decision; ARC must not make it silently.** The setup workflow's
@@ -162,13 +171,13 @@ Wrong-setup scenarios stratified by severity:
 
 **Medium — mitigable:**
 
-- Adopter changes interlock setting later without realizing wrapper behavior shifts.
-  *Mitigation:* surface wrapper's posture in next session-init orientation when interlock
-  setting changes.
+- Adopter changes interlock setting later without realizing release-wrapper behavior shifts.
+  *Mitigation:* surface release-wrapper posture in next session-init orientation when
+  interlock setting changes.
 - Multi-developer repo, asymmetric allowlist between developers. Not really wrong — different
   setup per-developer; document as expected.
 - *Codex matcher grammar limits:* commits authored with command substitution, env-variable
-  prefixes, or output redirection fall through to harness prompt despite the wrapper
+  prefixes, or output redirection fall through to harness prompt despite the release-wrapper
   allowlist. Behavior is deterministic per input. *Mitigation:* setup helper documents the
   supported grammar; agent-issued invocations follow it by convention.
 - *Agent edit fidelity on permission files.* Claude Code or Codex agent botches a JSON merge
@@ -179,11 +188,13 @@ Wrong-setup scenarios stratified by severity:
 
 - *Silent trust-model shift:* adopter accepts the trust-model acknowledgment without
   internalizing it. *Mitigations:* setup helper requires explicit acknowledgment with verbose
-  framing; opt-in state is recorded; session-init orientation surfaces "wrapper allowlist
-  active — ARC sole authorization layer" when detected; status command surfaces same.
-- *Wrapper or interlock bug lets bad op through:* no harness safety net under the wrapper.
-  *Mitigations* (WU1-shipped): wrapper enforcement as security-tier code with exhaustive
-  matrix testing; audit log + authorization footer give forensic recovery.
+  framing; opt-in state is recorded; session-init orientation surfaces "release-wrapper
+  allowlist active — ARC sole authorization layer" when detected; status command surfaces
+  same.
+- *Release-wrapper or interlock bug lets bad op through:* no harness safety net under the
+  release wrapper. *Mitigations* (WU1-shipped): release-wrapper enforcement as security-tier
+  code with exhaustive matrix testing; audit log + authorization footer give forensic
+  recovery.
 - *Personal scripts (bespoke gates):* setup helper can't autoconfigure these. *Mitigation:*
   helper detects standard harness markers; for non-standard setups, prints canonical allowlist
   patterns and instructs manual installation.
@@ -196,8 +207,8 @@ occasionally bypasses safeguards in unexpected ways is exactly the kind of featu
 framework trust. Mitigations that hold the line:
 
 - Strictly opt-in. Never auto-enabled.
-- Loud, not silent. Orientation surfaces wrapper-active state; refusals are verbose and
-  explain remediation.
+- Loud, not silent. Orientation surfaces release-wrapper-active state; refusals are verbose
+  and explain remediation.
 - Easy off switch. `arc release setup --disable` rolls back; idempotent.
 - Hold the scope line. Commit and push only — no slippery slope to higher-blast-radius ops.
 - Documented "when not to use this." Tells users when to walk away.
@@ -224,10 +235,10 @@ grammar.
 
 **opencode.** Glob syntax exists but flag-parsing bug ([sst/opencode#6676]) means
 `arc release commit -m "..."` may not match patterns reliably. Compounded by silent
-config-validation failure ([sst/opencode#15507]). Wrapper itself works (WU1); auto-allowlist
-support deferred until upstream resolves. Adopter impact: opencode users get no improvement
-(no regression either) — wrapper invocations still flow through the existing harness prompt
-path.
+config-validation failure ([sst/opencode#15507]). Release wrapper itself works (WU1);
+auto-allowlist support deferred until upstream resolves. Adopter impact: opencode users get no
+improvement (no regression either) — release-wrapper invocations still flow through the
+existing harness prompt path.
 
 ## Alternatives
 
@@ -285,8 +296,8 @@ starts. No other siblings.
 - **Hard dependency:** WU1 (`prd-release-wrappers-foundation.md`) integrated before WU2
   starts.
 - **Soft preference:** Land before any future work that adds new mutating git operations to
-  ARC's surface — keeps the wrapper's scope-line decision (commit/push only) clean rather
-  than retroactive.
+  ARC's surface — keeps the release wrapper's scope-line decision (commit/push only) clean
+  rather than retroactive.
 
 **Scheduling.** After WU1 integrates. Pre-1.0 polish window. No parallel option.
 
