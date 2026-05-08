@@ -181,6 +181,11 @@ Schema (v1):
 }
 ```
 
+`wu.category` is optional — omitted under flat active layouts (post-work-organization-reform,
+contributor flat scope) where no category subdirectory exists. Layouts with no parseable WU name
+(today's lite layout, where the active root holds a single `status.md`) emit `wu: null`. The audit-log
+writer drops empty resolver fields rather than carrying empty strings.
+
 `command` discriminator: `release-commit` | `release-push` | `sync`.
 
 `outcome.kind` shapes by command:

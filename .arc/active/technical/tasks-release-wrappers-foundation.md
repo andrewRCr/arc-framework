@@ -58,21 +58,19 @@ shape and edge-case enumerations.
   matches return the canonical `PUSH_REFSPEC_FORCE_IDENTIFIER` (`"+refspec"`) for stable refusal-message lookup; the
   literal argv element varies per invocation and isn't a useful lookup key.
 
-### `[ ]` **1.4 `wu-resolution.ts` — active WU lookup with R6 semantics**
+### `[x]` **1.4 `wu-resolution.ts` — active WU lookup with R6 semantics**
 
 - _Goal:_ Resolver that returns either `{ status: "resolved", path, category, name }` for the unambiguous active WU, or
   `{ status: "refused", reason }` carrying disambiguation hint — accepts any `**State:**` value (Planning, In Progress,
   etc.); refuses only on no-candidate or multi-candidate ambiguity.
 
-    - File: `src/lib/release/wu-resolution.ts`
-    - Composes `readActiveStatusCandidates` from `lib/active/status-reader.ts`
-
-    Build `test-first` (one behavior at a time):
-    - Single candidate (any `**State:**` value, including `Planning`, `In Progress`, `Paused`) → `resolved` with path /
-      category / name
-    - Empty `.arc/active/` → `refused` with no-active-wu reason
-    - Multiple candidates → `refused` with disambiguation hint pointing to session-init disambiguation
-    - Lite-layout single status → `resolved`
+- _Outcome:_ Created `src/lib/release/wu-resolution.ts`. Lite layout returns `category=""` and `name=""` (the concepts
+  don't apply when the active root holds a single `status.md`); under the schema-v1 `AuditWorkUnit` shape pinned in
+  Task 1.1, 1.6's audit-log writer maps such empties to `wu: null` and omits an empty `category` under future flat
+  layouts (post-work-organization-reform, contributor flat scope). Refusal is a single shape
+  (`{status: "refused", hint?: string}`) — both no-candidate and multi-candidate cases map to refusal code 10 at the
+  wrapper boundary; the multi-candidate path carries a disambiguation hint, the no-candidate path leaves `hint`
+  undefined for the wrapper's default message.
 
 ### `[ ]` **1.5 `interlock-validation.ts` — interlock-state resolution + authorization decision**
 

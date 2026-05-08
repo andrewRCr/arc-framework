@@ -125,9 +125,22 @@ export type AuditOutcome =
   | { kind: "hook-failed"; hook: string; exitCode: number }
   | { kind: "refused" };
 
-/** Active-WU pointer captured in the audit entry. Null when no WU resolved at refusal time. */
+/**
+ * Active-WU pointer captured in the audit entry. Null when no WU
+ * resolved (refusal before resolution, or a layout that lacks a parseable
+ * name — e.g., today's lite-layout `active/status.md`).
+ */
 export interface AuditWorkUnit {
-  category: string;
+  /**
+   * Active-root subdirectory under which the status file lives — e.g.,
+   * `"technical"` for `active/technical/status-foo.md`. Omitted under
+   * flat active layouts where no category subdirectory exists
+   * (post-work-organization-reform, contributor flat scope). Empty
+   * strings from the resolver should be omitted at write time, not
+   * carried through.
+   */
+  category?: string;
+  /** WU name parsed from the status filename — `status-{name}.md`. */
   name: string;
 }
 
