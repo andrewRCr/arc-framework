@@ -180,29 +180,17 @@ _Design decisions:_ Handlers live in `src/handlers/release/` per existing conven
 `stdio: ['inherit', 'pipe', 'pipe']` (verbatim bubbling + captured stdout for hash extraction); validation reads use
 existing `GitExec` pattern. Refusal short-circuit order documented in `notes-release-wrappers-foundation.md` § 2.1.
 
-### `[ ]` **2.1 Refusal path — validation chain → exit codes 10–13 → audit refused entry**
+### `[x]` **2.1 Refusal path — validation chain → exit codes 10–13 → audit refused entry**
 
 - _Goal:_ `arc release commit` exits with the correct R4 code for each refusal scenario, prints remediation message via
   `formatRefusal()`, records the refusal as an audit entry, and the wrapped `git commit` invocation never fires.
 
-- _Notes:_ Refusal short-circuit order (12 → 10 → 13 → 11) documented in `notes-release-wrappers-foundation.md` § 2.1.
-
-    - Files: `src/handlers/release/commit.ts` (handler), `src/commands/release.ts` (public surface), `src/cli.ts`
-      (Commander wiring — register `arc release` namespace + `commit` sub-command)
-    - Code 15 (arg-grammar-fallthrough) is reserved-for-empirical and NOT a runtime check — omitted from the refusal
-      scenarios below
-
-    Build `test-first` (one behavior at a time):
-    - Code 12 (destructive-flag) — each commit-forbidden flag (`--amend`, `--allow-empty`, `--no-verify`) refuses with
-      audit entry carrying `flag` detail
-    - Code 10 (no-active-wu) — empty `.arc/active/` and multiple-candidate cases each refuse with audit entry;
-      multi-candidate carries disambiguation hint
-    - Code 13 (branch-protection-violation) — `branch.protection: full` + current branch = `branch.base` refuses with
-      audit entry; `partial` does not refuse
-    - Code 11 (interlock-not-authorized) — refuses + audit
-    - All refusal paths: wrapped `git commit` invocation never fires (validation reads via `GitExec` are expected and do
-      fire)
-    - Refusal-message format consistent across codes via `formatRefusal()`
+- _Outcome:_ `runReleaseCommit` orchestrator (`src/handlers/release/commit.ts`) composes the Phase 1 library into the
+  cascade with audit-write on every refusal; Commander adapter (`commit-cli.ts`) resolves I/O and delegates. Public
+  surface lives in `src/commands/release.ts`; CLI registers `arc release commit` with `allowUnknownOption` +
+  variadic `[args...]` for git-arg passthrough. Authorize branch rejects with a Task 2.2 sentinel — refusal-path tests
+  never reach it. 16 unit tests cover the four refusal codes, short-circuit ordering (12→10→13→11), audit-entry shape
+  with R14-redacted args, and the `spawnGit-never-fires` invariant.
 
 ### `[ ]` **2.2 Success path — git invocation, audit entry**
 

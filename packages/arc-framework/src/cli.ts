@@ -26,6 +26,7 @@ import { handleStatus } from "./handlers/status.js";
 import { handleSync } from "./handlers/sync.js";
 import { handleUserSync } from "./handlers/user-sync.js";
 import { handleLogAtomic } from "./handlers/log.js";
+import { handleReleaseCommit } from "./commands/release.js";
 
 const program = new Command();
 
@@ -213,6 +214,25 @@ program
   .option("--dry-run", "Print the matrix decision without invoking either leg")
   .option("--json", "Emit the structured result as JSON")
   .action(handleSync);
+
+// --- Release ---
+
+const releaseCmd = program
+  .command("release")
+  .description(
+    "Release wrappers — refuse on validation failure, audit-log every invocation",
+  );
+
+releaseCmd
+  .command("commit")
+  .description(
+    "Wrapper around `git commit` — applies the release-mode validation cascade",
+  )
+  .allowUnknownOption(true)
+  .argument("[args...]", "Arguments forwarded to `git commit`")
+  .action(async (args: string[]) => {
+    await handleReleaseCommit({ args });
+  });
 
 // --- Log ---
 
