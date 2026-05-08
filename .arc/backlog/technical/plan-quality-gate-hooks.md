@@ -149,9 +149,11 @@ existing husky setup to dogfood the new dispatch method. Not a framework-deliver
 **Gate-coverage drift detection.** Configured gate commands drift over time as projects add new scripts —
 additional typecheck variants (production vs. test tsconfig), evolving lint surfaces, separate test tiers.
 Initial-setup captures the configured set at one moment; nothing re-checks coverage as the project grows.
-Promoted to a first-class deliverable based on three confirmed recurrences in this repo's self-hosting
+Promoted to a first-class deliverable based on four confirmed recurrences in this repo's self-hosting
 codebase (2026-04-23 eslint+typecheck, 2026-05-05 `typecheck:test` not wired locally, 2026-05-06
-`typecheck:test` on test-mock signature) — the pattern is real, not hypothetical. Deliverable: an
+`typecheck:test` on test-mock signature, 2026-05-08 audit-log fixture used a stale `NotesPushPolicy`
+literal — caught by `typecheck:test` but missed by the project-default `typecheck` script) — the pattern
+is real, not hypothetical. Deliverable: an
 `arc check-gates` audit that compares detected ecosystem scripts (npm `package.json` scripts; equivalents
 for other ecosystems) against configured gate commands and flags omissions. Re-runnable any time;
 initial-setup invokes it implicitly. PRD finalizes cross-ecosystem detection heuristics and the
@@ -269,9 +271,9 @@ No external research blockers remain before PRD drafting.
 - Auto-re-stage behavior is safe when combined with ARC's existing structural CHECKs. Needs test
   coverage ensuring re-staged fixes don't re-trigger or loop.
 - **`arc check-gates` audit heuristics.** The drift-detection deliverable is now in scope (see § Scope >
-  In scope > Gate-coverage drift detection); three recurrences in this repo's self-hosting codebase
-  (2026-04-23, 2026-05-05, 2026-05-06 — all variants of "test typecheck never wired to local enforcement")
-  closed the "is this real?" question. Open at PRD time: cross-ecosystem detection (npm `package.json`
+  In scope > Gate-coverage drift detection); four recurrences in this repo's self-hosting codebase
+  (2026-04-23, 2026-05-05, 2026-05-06, 2026-05-08 — all variants of "test typecheck never wired to local
+  enforcement") closed the "is this real?" question. Open at PRD time: cross-ecosystem detection (npm `package.json`
   scripts vs. cargo `Cargo.toml` aliases vs. Make targets vs. justfile recipes), the heuristic for
   classifying detected scripts as gate-relevant vs. not (false-positive surface), and surfacing cadence —
   re-runnable command vs. opportunistic warning at session-init or push-gate dispatch.
