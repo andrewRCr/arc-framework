@@ -9,11 +9,13 @@
 - **Task List:** `tasks-release-wrappers-foundation.md`
 - **Sibling Work Unit(s):** `plan-release-wrappers-ergonomics.md`
 
-- **Last Completed:** PRD R8 cut — authorization footer removed from scope (YAGNI).
-- **Next Task:** Task 1.1 — `types.ts` — refusal codes, decision shapes,
-  audit entry schema (line ~27)
+- **Last Completed:** Tasks 1.1–1.4 (Phase 1 foundation: types, `release.*`
+  resolver extension, destructive-flag detector, active-WU resolver).
+- **Next Task:** Task 1.5 — `interlock-validation.ts` — interlock-state
+  resolution + authorization decision (line ~75)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Phase 1 — validation library foundation.
+- **Next Action:** Resume Phase 1 at Task 1.5 — but first review
+  `analysis-cli-architecture-solid-dry-audit.md` (see SESSION-NOTES).
 
 ---
