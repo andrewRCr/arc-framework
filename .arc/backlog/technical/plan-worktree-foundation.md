@@ -99,6 +99,15 @@ cross-cutting section rather than inside the Local mode treatment. It's universa
    work. Output ergonomics: spawn reports the path with an actionable invocation hint
    (e.g., `cd <path> && arc-resume`).
 
+   **Activation-time concurrency check (advisory).** Before creating the worktree, the spawning session reads
+   in-flight WUs (`git worktree list` plus identity-filtered status files) and assesses scope overlap with the
+   new WU per [Concurrent Work Conventions][cwc]'s strategy-doc heuristics — agent-led, judgment-based, advisory.
+   Surfaces concerns to user before spawn (e.g., "WU-X is currently in flight in `../arc-wu-x` and touches the
+   same module — proceed in parallel, or sequence after WU-X integrates?"); does not gate spawn. No probe
+   tooling, no `**Touches:**` field — relies on agent reading existing scope descriptions in the in-flight WUs'
+   `**Purpose:**` / spec content. Forward-compat: degrades to no-op when no other in-flight WUs exist
+   (single-WU world).
+
    **Tier-aware spawn applicability:**
 
    - **atomic** tier: no worktree, no spawn — atomic work happens in the current worktree on a side-branch (under
@@ -443,3 +452,4 @@ items as of 2026-04-28:
 [clean-work-unit]: ../../system/workflows/arc/work-unit-lifecycle/clean-work-unit.md
 [session-init]: ../../system/workflows/arc/session-lifecycle/session-init.md
 [wor]: plan-work-organization-reform.md
+[cwc]: ../feature/plan-concurrent-work-conventions.md
