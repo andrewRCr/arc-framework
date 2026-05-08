@@ -20,23 +20,26 @@ Current state at a glance. Updated when work is activated, completed, or archive
 
 **Currently Active:**
 
-- _Between work units._ User Sync UX Polish archived; next WU not yet activated.
+- Interlock Release Wrappers — Foundation (WU1, technical) — Mechanical foundation for
+  `arc release commit` and `arc release push`: validation library, audit log, authorization
+  footer, and opt-in state surface. End-to-end usable by hand-configured early adopters before
+  WU2's ergonomics layer ships. Spec: `active/technical/prd-release-wrappers-foundation.md`;
+  task list: `active/technical/tasks-release-wrappers-foundation.md`; branch:
+  `technical/release-wrappers-foundation`.
 
 **Next Priority:**
 
-- Interlock-Release Wrappers (technical) — Pre-1.0 polish for git-surface UX. Wrapper commands
-  (`arc release commit`, `arc release push`) that enforce ARC interlock state at the CLI
-  boundary and provide a permission-shape distinct from raw git for harness allowlist bypass.
-  Builds on User Sync UX Polish Phase 2 (paired-push semantics, pushability matrix) and
-  Phase 3.1 (resolver consolidation). Plan: `backlog/technical/plan-interlock-release-wrappers.md`
-- Then: Coord Probe and Worktree Foundation remain parallelizable siblings on the
-  session-operational frame; Agile WU Lifecycle (after Worktree Foundation), Concurrent Work
-  Conventions (after Agile WU Lifecycle), Quality Gate Tiers + Hook Integration (after
-  Concurrent Work Conventions)
+- Interlock Release Wrappers — Ergonomics (WU2, technical) — Adopter ergonomics layer atop
+  WU1: setup helper, per-harness workflow, status integration, workflow updates, strategy doc.
+  Strictly depends on WU1. Plan: `backlog/technical/plan-release-wrappers-ergonomics.md`.
+- Then: Work Organization Reform — Constitutional reform of WU lifecycle (single-branch-per-WU,
+  Conventional Branch alignment, sweep-as-you-go, group-dir convention). Upstream of the
+  parallelism trio. Plan: `backlog/technical/plan-work-organization-reform.md` (pre-PRD draft).
+- Then: Parallelism trio downstream of WOR — Worktree Foundation, then Agile WU Lifecycle,
+  then Concurrent Work Conventions; arc-plan Conductor parallelizable with the trio.
 - Then: ARCd Rebrand — Public product brand split (ARCd for product, ARC for
-  methodology) with absorbed config-key renames and CLI command cleanup
-- Then: arc-plan Conductor (parallelizable with Worktree Foundation and Agile WU
-  Lifecycle), ARC Operating Modes (ARC Lite + local/untracked)
+  methodology) with absorbed config-key renames and CLI command cleanup.
+- Then: ARC Operating Modes (ARC Lite + local/untracked).
 
 ## Completed Major Work
 

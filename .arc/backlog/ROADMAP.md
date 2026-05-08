@@ -204,7 +204,8 @@ this WU handles the architectural work.
   Session-Init Optimization lands; WU-B (auto-push instantiation against handoff-interior
   toggles) waits for Session-Operational Flow Phase 6. Unified if sequencing allows.
 
-**Interlock Release Wrappers** — Next, after User Sync UX Polish
+**Interlock Release Wrappers** — WU1 In Progress (Foundation); WU2 pending after WU1
+(Ergonomics)
 
 Closes the final friction point in session operations: the redundant harness-prompt + ARC-interlock
 duplicate authorization on every commit and push. Two CLI wrapper commands (`arc release commit`,
@@ -220,7 +221,8 @@ orientation when allowlist active. Per-harness viability researched 2026-05-03: 
 Codex CLI viable (Codex with a shell-wrapper caveat to verify); opencode auto-allowlist deferred
 pending upstream config-validation fixes.
 
-- Plan: `technical/plan-interlock-release-wrappers.md`
+- WU1 (Foundation): `active/technical/prd-release-wrappers-foundation.md` (active);
+  WU2 (Ergonomics): `backlog/technical/plan-release-wrappers-ergonomics.md` (planning)
 - Upstream: User Sync UX Polish (Phase 2 paired-push semantics + pushability matrix feeds
   push-wrapper validation; Phase 3.1 resolver consolidation is the base for the validation library;
   `pushWorktreeBranch` helper from Phase 2.R is the swappable seam), Interlock Foundation (ADR-016
