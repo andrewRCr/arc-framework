@@ -115,7 +115,7 @@ shape and edge-case enumerations.
         values, branch-protection (including short-circuit invariant), and the three-line shape for all six
         refusal codes.
 
-### `[ ]` **1.6 `audit-log.ts` — JSONL append + sanitization**
+### `[x]` **1.6 `audit-log.ts` — JSONL append + sanitization**
 
 - _Goal:_ Append-only audit-log writer that emits one schema-validated JSONL entry per release-wrapper or sync
   invocation to `.arc/user/{identity}/.internal/.audit-log.jsonl`, with R14 arg-sanitization rules applied at write
@@ -124,41 +124,48 @@ shape and edge-case enumerations.
 - _Note:_ Schema v1 locked; future bumps require `schemaVersion` increment and reader compatibility per PRD R7.
 
 - _Notes:_ See `notes-release-wrappers-foundation.md` § 1.6 for sanitization edge-case enumeration (attached-value
-  forms, multiple `-m`, `--file=path`).
+  forms, multiple `-m`, `--file=path`), error-handling split (schema-throws / I/O-returns), and the schema-validation
+  hand-rolled-vs-library decision with revisit triggers.
 
-    - File: `src/lib/release/audit-log.ts`
-    - Identity via `resolveUserIdentity()` exported from `handlers/shared.ts` (NOT `lib/git/identity.ts` — drift in PRD)
+    - `[x]` **1.6.a Path resolution + `.internal/` bootstrap**
 
-    - `[ ]` **1.6.a Path resolution + `.internal/` bootstrap**
+        Created `src/lib/release/audit-log.ts` exporting `resolveAuditLogPath({cwd, identity})`
+        (pure path math) and `ensureAuditLogParent({cwd, identity})` (idempotent `mkdir -p` on
+        `.arc/user/{identity}/.internal/`). Three tests cover the resolved path string, first-write
+        directory creation, and idempotence of repeat calls.
 
-        Build `test-first` (one behavior at a time):
-        - Path resolves to `.arc/user/{identity}/.internal/.audit-log.jsonl`
-        - First write creates `.internal/` directory (existence-tolerant)
-        - Subsequent writes find directory existing (no error)
+    - `[x]` **1.6.b Args sanitization (R14 rules)**
 
-    - `[ ]` **1.6.b Args sanitization (R14 rules)**
+        `sanitizeArgs(args)` exported from `audit-log.ts`. Three redaction branches: separated
+        `-m` / `--message` (consumes next argv as payload), attached-short `-m{value}`, attached-long
+        `--message={value}` — all replaced by `<redacted>` with flag shape preserved. Attached-short
+        arm guards against `--`-prefixed long flags so `--message-suffix` can't match. `--file` /
+        `--file=path`, push remotes/refspecs, and unrelated args fall through verbatim. Ten tests
+        cover each redaction branch, the multi-`-m` chain, and the verbatim cases.
 
-        Build `test-first` (one behavior at a time):
-        - `-m` / `--message` payload → replaced with `<redacted>` (preserves arg shape)
-        - Attached-value forms (`-m"foo"`, `--message=foo`) → redacted, shape preserved
-        - Multiple `-m` flags → each redacted independently
-        - `--file` paths and `--file=path` → kept verbatim
-        - Remote URLs (push args) → kept verbatim
-        - All other args → kept verbatim
+    - `[x]` **1.6.c Append + schema-validate entry write**
 
-    - `[ ]` **1.6.c Append + schema-validate entry write**
-
-        Failure-mode split: schema violations **throw** (precondition violation; caller built a malformed
-        entry — should not occur in correctly-typed code, surfaces as test-time bug); I/O failures (disk
-        full, permission denied) **return** `{ ok: false, error: ... }` so the audit log being unwritable
-        doesn't propagate up and mask a successful commit/push.
-
-        Build `test-first` (one behavior at a time):
-        - Append-only JSONL semantics (no overwrite, line-per-entry)
-        - `schemaVersion: 1` lock — refuses entries violating v1 shape by throwing
-        - Discriminator `command` ∈ `{"release-commit", "release-push", "sync"}` enforced
-        - `outcome.kind` shape matches command per PRD R7 table
-        - `interlockState` discriminated union shape matches `command`
+        `appendAuditEntry({cwd, identity, entry})` exported from `audit-log.ts`. Validates entry first
+        (throws on violation — precondition failure surfaced at test time), then composes
+        `ensureAuditLogParent` + `appendFile` inside a try/catch that returns `{ok: false, error}` on I/O
+        failure. Hand-rolled validator (rationale + revisit triggers in notes § 1.6) is shaped as a
+        TS assertion function (`validateEntry(entry: unknown): asserts entry is AuditEntry`) so
+        comparisons inside read as honest runtime narrowing rather than casts that fight the type
+        system; the same shape sets up cleanly for `arc audit` reading the JSONL back later.
+        Enforces: object-shape and required-field types (timestamp, args, interlockState, outcome,
+        decision), `schemaVersion === 1`, `command` ∈ {release-commit, release-push, sync},
+        `interlockState.command` matches top-level `command`, `outcome.kind` per PRD R7 table
+        (release-commit: commit/hook-failed/refused; release-push: push/hook-failed/refused;
+        sync: sync/refused), `wu.category` not empty-string, and `decision`↔`refusalCode`
+        bidirectional invariant. `validateOutcomeForCommand` uses an exhaustive `switch` with a
+        `: never` default so a new `AuditCommand` variant produces a TS error in the validator
+        until handled. Helper `toAuditWorkUnit(resolverResult)` co-located in this module maps the
+        resolver's `{category, name}` shape to `AuditWorkUnit | null` per Task 1.4's contract
+        (lite layout / future-flat-layout / full layout). 21 tests cover round-trip JSON for each
+        command, all schema violation paths, the hook-failed allowlist (commit/push allow it, sync
+        rejects), the `wu` mapper, and an I/O-failure case (`.internal` pre-existing as a file).
+        Tests for this subtask batched rather than strictly one-at-a-time — all hit one writer
+        with shared fixture, no independent discovery value per the test-first batching judgment.
 
 ---
 

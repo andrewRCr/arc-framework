@@ -202,6 +202,37 @@ The audit-log writer splits failure modes by error class:
 The asymmetry is deliberate: programmer errors get loud (throw → test surface); operational errors get
 quiet (return → caller decides whether to surface or swallow).
 
+### § 1.6 — Schema validation: hand-rolled, not library-based
+
+Decision: hand-roll v1 schema enforcement rather than adopting `zod` / `valibot` / `ajv`.
+
+Rationale:
+
+- Audit entries are constructed in-process by typed handler code against the `AuditEntry` discriminated
+  union — the compile-time check covers most of the surface. Runtime validation is defensive (test code
+  bypassing typing, future refactor that violates a discriminator), not external-input parsing.
+- Schema is small: one entry, three `command` branches, five `outcome.kind` variants. Hand-rolled is
+  ~50 lines.
+- Project ships with four prod deps (`@clack/prompts`, `commander`, `js-yaml`, `semver`) and zero
+  schema-library usage anywhere in `src/`. Net-new dependency for a single defensive check is heavy.
+
+Mitigation for the drift risk between `types.ts` and the validator:
+
+- Validator uses exhaustive switches with `: never` defaults on every discriminator (`command`,
+  `outcome.kind`, `interlockState.command`). Adding a variant in `types.ts` triggers a TS exhaustiveness
+  error in the validator until the new arm is handled.
+- 1.6.c includes a round-trip test (build valid entry per command via the typed API → append → parse
+  back → assert equality) that catches "updated types.ts, forgot validator" silently.
+
+Revisit triggers (any one tilts the decision toward a library):
+
+- Schema v2 lands — multi-version dispatch is where libraries shine.
+- External tooling parses the JSONL and needs a published schema.
+- A third unrelated runtime-validation site appears in the codebase (the dep cost amortizes across
+  consumers).
+
+Until then, hand-rolled is the right call.
+
 ### § 1.6 — Sanitization edge cases
 
 [F1-H] Behavior list extensions for `sanitizeArgs`:
