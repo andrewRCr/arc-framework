@@ -34,25 +34,19 @@ shape and edge-case enumerations.
   function declaration — the implementation lives in 1.5 (`interlock-validation.ts`) and binds via
   `export const formatRefusal: FormatRefusal = ...` so the signature stays pinned in this module.
 
-### `[ ]` **1.2 Extend `lib/config/resolved-settings.ts` with `release.*` key surface**
+### `[x]` **1.2 Extend `lib/config/resolved-settings.ts` with `release.*` key surface**
 
 - _Goal:_ `resolveAllSettings` resolves `release.enabled` via three-tier precedence
   (`git config arc.* → arc-config.yml → default`) alongside the existing release-mode keys, producing typed
   `{value, source}` provenance — single resolver consumed by 4.2 (status reporting) and 5.2 (session-init envelope
   migration).
 
-- _Notes:_ See `notes-release-wrappers-foundation.md` § 1.2 for full constants, type aliases, and
-  `ResolvedReleaseModeSettings` extension.
-
-    - File: `src/lib/config/resolved-settings.ts` (extends existing module)
-
-    Build `test-first` (one behavior at a time):
-    - `arc.releaseEnabled` git-config override → `release.enabled` yaml → default `"false"`, with `{value, source}`
-      provenance
-    - `releaseEnabled` included in `resolveAllSettings` concurrent fan-out (`Promise.all`)
-    - `ResolvedReleaseModeSettings` extends with `releaseEnabled` field
-    - `defaultsApplied` semantics preserved (yaml-absent only — a key may be `defaultsApplied` while resolved
-      `source: "git-config"`)
+- _Outcome:_ Extended `resolved-settings.ts` with the `ReleaseEnabled` type, `RELEASE_ENABLED_*` constants,
+  `resolveReleaseEnabled`, and a `releaseEnabled` field on `ResolvedReleaseModeSettings` (wired into the `Promise.all`
+  fan-out). Cross-cutting: `release.enabled` joined `ConfigSettings`, `DEFAULTS`, and `AGENT_CONSUMABLE_KEYS` in
+  `status-reader.ts`, keeping the raw reader and agent-consumable surface symmetric with the existing four release-mode
+  keys; the layering-boundary docblock now names five keys. The new key participates in the same yaml-absence
+  `defaultsApplied` semantic.
 
 ### `[ ]` **1.3 `destructive-flags.ts` — flag-list constants + detection**
 

@@ -26,6 +26,9 @@ import {
   NOTES_PUSH_GIT_CONFIG_KEY,
   NOTES_PUSH_YAML_KEY,
   DEFAULT_NOTES_PUSH_POLICY,
+  RELEASE_ENABLED_GIT_CONFIG_KEY,
+  RELEASE_ENABLED_YAML_KEY,
+  DEFAULT_RELEASE_ENABLED,
 } from "../../../src/lib/config/resolved-settings.js";
 
 interface Fixture {
@@ -55,7 +58,12 @@ function buildExec(overrides: Record<string, string | undefined>) {
   });
 }
 
-type ResolvedKeyName = "commitInterlock" | "pushInterlock" | "syncInterlock" | "notesPush";
+type ResolvedKeyName =
+  | "commitInterlock"
+  | "pushInterlock"
+  | "syncInterlock"
+  | "notesPush"
+  | "releaseEnabled";
 
 interface KeyDescriptor {
   name: ResolvedKeyName;
@@ -65,7 +73,8 @@ interface KeyDescriptor {
     | "session.commit_interlock"
     | "session.push_interlock"
     | "session.sync_interlock"
-    | "user.notes_push";
+    | "user.notes_push"
+    | "release.enabled";
   defaultValue: string;
   /** Valid value distinct from the default (used as the override sample). */
   overrideValue: string;
@@ -109,6 +118,17 @@ const KEY_DESCRIPTORS: KeyDescriptor[] = [
     defaultValue: DEFAULT_NOTES_PUSH_POLICY,
     overrideValue: "manual",
     yamlValue: "prompt",
+  },
+  {
+    name: "releaseEnabled",
+    gitConfigKey: RELEASE_ENABLED_GIT_CONFIG_KEY,
+    yamlKey: RELEASE_ENABLED_YAML_KEY,
+    settingsKey: "release.enabled",
+    defaultValue: DEFAULT_RELEASE_ENABLED,
+    // Boolean-shaped key — only "true" distinguishes from the "false" default.
+    // Per-tier discrimination relies on the `source` tag, not unique values.
+    overrideValue: "true",
+    yamlValue: "true",
   },
 ];
 
@@ -250,6 +270,19 @@ describe("resolveAllSettings — composite behavior", () => {
 
     expect(result.defaultsApplied).toContain("session.commit_interlock");
     expect(result.resolved.commitInterlock.source).toBe("git-config");
+  });
+
+  it("releaseEnabled: yaml-absence defaultsApplied semantic holds when git-config supplies the value", async () => {
+    await writeFile(fixture.configPath, "pm.mode: arc-in-git\n");
+    const result = await resolveAllSettings({
+      cwd: fixture.root,
+      exec: buildExec({ [RELEASE_ENABLED_GIT_CONFIG_KEY]: "true" }),
+      readFile: realReadFile,
+    });
+
+    expect(result.defaultsApplied).toContain("release.enabled");
+    expect(result.resolved.releaseEnabled.source).toBe("git-config");
+    expect(result.resolved.releaseEnabled.value).toBe("true");
   });
 
   it("does not throw when warn is omitted and invalid values are present at every tier", async () => {

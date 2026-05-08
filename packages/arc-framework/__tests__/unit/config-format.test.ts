@@ -40,6 +40,7 @@ const FULL_SETTINGS: ConfigSettings = {
   "session.sync_interlock": "on-handoff",
   "archive.cadence": "with-integration",
   "user.notes_push": "on-sync",
+  "release.enabled": "false",
 };
 
 const SESSION_INIT_SETTINGS: ConfigSessionInitSettings = {
@@ -81,7 +82,7 @@ function sessionInitResult(
 describe("buildConfigStatusSummary — counts + keys", () => {
   it("renders the agent-consumable headline with 20 settings", () => {
     const summary = buildConfigStatusSummary(fullResult());
-    expect(summary.split("\n")[0]).toBe("20 agent-consumable settings (hooks.* excluded):");
+    expect(summary.split("\n")[0]).toBe("21 agent-consumable settings (hooks.* excluded):");
   });
 
   it("lists every setting key with its value", () => {

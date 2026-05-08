@@ -31,6 +31,7 @@ export interface ConfigSettings {
   "session.sync_interlock": string;
   "archive.cadence": string;
   "user.notes_push": string;
+  "release.enabled": string;
 }
 
 /**

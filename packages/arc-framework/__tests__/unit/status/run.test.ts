@@ -112,6 +112,7 @@ function configResult(overrides: Partial<ConfigStatusResult> = {}): ConfigStatus
       "session.sync_interlock": "on-handoff",
       "archive.cadence": "with-integration",
       "user.notes_push": "on-sync",
+      "release.enabled": "false",
     },
     defaultsApplied: [],
     warnings: [],

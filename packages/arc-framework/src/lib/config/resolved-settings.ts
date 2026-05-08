@@ -1,5 +1,5 @@
 /**
- * Three-tier resolver wrapper for the four release-mode keys.
+ * Three-tier resolver wrapper for the release-mode keys.
  *
  * Composes {@link readConfigSettings} (yaml-only) with per-key
  * {@link resolveGitConfigOverride} calls so callers needing the resolved
@@ -7,23 +7,24 @@
  * `{ value, source }` pair so diagnostic surfaces (orchestrator `--json`
  * envelope, audit logs) carry provenance alongside the value.
  *
- * **Key surface.** Four keys with `git config arc.* → arc-config.yml → default`
+ * **Key surface.** Five keys with `git config arc.* → arc-config.yml → default`
  * precedence:
  *
  * - `arc.commitInterlock` / `session.commit_interlock`
  * - `arc.pushInterlock` / `session.push_interlock`
  * - `arc.syncInterlock` / `session.sync_interlock`
  * - `arc.notesPush` / `user.notes_push`
+ * - `arc.releaseEnabled` / `release.enabled`
  *
  * **Validator source-of-truth.** Per-key validators live here (passed once
  * into the generic helper). `status-reader.ts` deliberately omits these
- * four keys from its `ENUM_VALIDATORS` map — yaml values flow through the
+ * five keys from its `ENUM_VALIDATORS` map — yaml values flow through the
  * reader as raw strings, and validation lands once in this wrapper. Callers
  * that bypass the wrapper (`arc config status` reads the reader directly)
  * see raw yaml values without warnings; the operational read paths
  * (handlers, orchestrator) validate via the wrapper.
  *
- * **Spawn cost.** Four `git config --get` calls fire concurrently via
+ * **Spawn cost.** Five `git config --get` calls fire concurrently via
  * `Promise.all`, alongside the yaml read — roughly one round-trip latency.
  * Add caching only if profiling shows it.
  *
@@ -92,6 +93,22 @@ const NOTES_PUSH_VALUES: readonly NotesPushPolicy[] = ["manual", "prompt", "on-s
 
 function isNotesPushPolicy(value: string): value is NotesPushPolicy {
   return (NOTES_PUSH_VALUES as readonly string[]).includes(value);
+}
+
+/**
+ * Valid release-enabled opt-in flag values. String-typed for resolver
+ * consistency with the other release-mode keys; consumers convert to
+ * boolean (`value === "true"`) at the application boundary.
+ */
+export type ReleaseEnabled = "true" | "false";
+
+export const RELEASE_ENABLED_GIT_CONFIG_KEY = "arc.releaseEnabled";
+export const RELEASE_ENABLED_YAML_KEY = "release.enabled";
+export const DEFAULT_RELEASE_ENABLED: ReleaseEnabled = "false";
+const RELEASE_ENABLED_VALUES: readonly ReleaseEnabled[] = ["true", "false"];
+
+function isReleaseEnabled(value: string): value is ReleaseEnabled {
+  return (RELEASE_ENABLED_VALUES as readonly string[]).includes(value);
 }
 
 // --- Per-key resolver helpers ---
@@ -163,14 +180,29 @@ export async function resolveNotesPushPolicy(
   });
 }
 
+/** Resolve `arc.releaseEnabled` → `release.enabled` → default. */
+export async function resolveReleaseEnabled(
+  opts: ResolveSingleKeyOptions,
+): Promise<ResolvedConfigOverride<ReleaseEnabled>> {
+  return resolveGitConfigOverride<ReleaseEnabled>({
+    ...opts,
+    gitConfigKey: RELEASE_ENABLED_GIT_CONFIG_KEY,
+    yamlKey: RELEASE_ENABLED_YAML_KEY,
+    defaultValue: DEFAULT_RELEASE_ENABLED,
+    isValidValue: isReleaseEnabled,
+    validValues: RELEASE_ENABLED_VALUES,
+  });
+}
+
 // --- Composite wrapper ---
 
-/** Per-key `{value, source}` pairs for the four release-mode keys. */
+/** Per-key `{value, source}` pairs for the release-mode keys. */
 export interface ResolvedReleaseModeSettings {
   commitInterlock: ResolvedConfigOverride<CommitInterlock>;
   pushInterlock: ResolvedConfigOverride<PushInterlock>;
   syncInterlock: ResolvedConfigOverride<SyncInterlock>;
   notesPush: ResolvedConfigOverride<NotesPushPolicy>;
+  releaseEnabled: ResolvedConfigOverride<ReleaseEnabled>;
 }
 
 export interface ResolvedSettingsResult {
@@ -180,7 +212,7 @@ export interface ResolvedSettingsResult {
    * values per `readConfigSettings`.
    */
   settings: ConfigSettings;
-  /** Per-key `{value, source}` provenance for the four release-mode keys. */
+  /** Per-key `{value, source}` provenance for the release-mode keys. */
   resolved: ResolvedReleaseModeSettings;
   /**
    * Keys absent from `arc-config.yml` that received documented defaults.
@@ -213,10 +245,10 @@ export interface ResolveAllSettingsOptions {
  * Resolve the full release-mode key surface plus other agent-consumable
  * settings.
  *
- * Yaml read and four git-config-override resolutions fire concurrently. The
- * returned `settings` map mirrors `readConfigSettings`, with the four
- * release-mode keys substituted by their resolved values; `resolved` carries
- * the typed `{value, source}` pairs for callers that need provenance.
+ * Yaml read and five git-config-override resolutions fire concurrently. The
+ * returned `settings` map mirrors `readConfigSettings`, with the release-mode
+ * keys substituted by their resolved values; `resolved` carries the typed
+ * `{value, source}` pairs for callers that need provenance.
  */
 export async function resolveAllSettings(
   opts: ResolveAllSettingsOptions,
@@ -233,12 +265,13 @@ export async function resolveAllSettings(
     warn: collectOverrideWarning,
   };
 
-  const [base, commit, push, sync, notes] = await Promise.all([
+  const [base, commit, push, sync, notes, releaseEnabled] = await Promise.all([
     readConfigSettings(opts.cwd),
     resolveCommitInterlock(sharedOpts),
     resolvePushInterlock(sharedOpts),
     resolveSyncInterlock(sharedOpts),
     resolveNotesPushPolicy(sharedOpts),
+    resolveReleaseEnabled(sharedOpts),
   ]);
 
   const warnings = [...base.warnings, ...overrideWarnings];
@@ -254,6 +287,7 @@ export async function resolveAllSettings(
     "session.push_interlock": push.value,
     "session.sync_interlock": sync.value,
     "user.notes_push": notes.value,
+    "release.enabled": releaseEnabled.value,
   };
 
   return {
@@ -263,6 +297,7 @@ export async function resolveAllSettings(
       pushInterlock: push,
       syncInterlock: sync,
       notesPush: notes,
+      releaseEnabled,
     },
     defaultsApplied: base.defaultsApplied,
     warnings,
