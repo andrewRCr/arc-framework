@@ -5,8 +5,8 @@
 - **Base Branch:** `main`
 
 - **Purpose:** Deliver the mechanical foundation for `arc release commit` / `arc release push` — validation library,
-  audit log, authorization footer, and opt-in state surface — usable end-to-end by hand-configured early adopters before
-  WU2's ergonomics layer lands.
+  audit log, and opt-in state surface — usable end-to-end by hand-configured early adopters before WU2's ergonomics
+  layer lands.
 
 - **Notes:** Implementation rationale, design alternatives, and audit-derived design decisions live in
   `notes-release-wrappers-foundation.md`. Tasks below cross-reference sections of that file where load-bearing context
@@ -17,13 +17,12 @@
 ## **Phase 1:** Validation Library Foundation
 
 _Purpose:_ Land the pure-logic `src/lib/release/` core that all release-wrapper handlers consume — types,
-config-resolver extensions, refusal taxonomy, destructive-flag lists, WU resolution, interlock authorization, audit log,
-footer composition.
+config-resolver extensions, refusal taxonomy, destructive-flag lists, WU resolution, interlock authorization, audit log.
 
 _Design decisions:_ Test-first across all modules except `types.ts` per testing-methodology (type declarations have no
 test surface). 1.2 extends `lib/config/resolved-settings.ts` with the `release.*` key surface — foundational dependency
-consumed by 1.7 (footer), 4.2 (status), and 5.2 (probe migration). See `notes-release-wrappers-foundation.md` § Phase 1
-for resolver shape and edge-case enumerations.
+consumed by 4.2 (status) and 5.2 (probe migration). See `notes-release-wrappers-foundation.md` § Phase 1 for resolver
+shape and edge-case enumerations.
 
 ### `[ ]` **1.1 `types.ts` — refusal codes, decision shapes, audit entry schema**
 
@@ -49,10 +48,10 @@ for resolver shape and edge-case enumerations.
 
 ### `[ ]` **1.2 Extend `lib/config/resolved-settings.ts` with `release.*` key surface**
 
-- _Goal:_ `resolveAllSettings` resolves `release.enabled` and `release.footer` via three-tier precedence
+- _Goal:_ `resolveAllSettings` resolves `release.enabled` via three-tier precedence
   (`git config arc.* → arc-config.yml → default`) alongside the existing release-mode keys, producing typed
-  `{value, source}` provenance — single resolver consumed by 1.7 (footer composition), 4.2 (status reporting), and 5.2
-  (session-init envelope migration).
+  `{value, source}` provenance — single resolver consumed by 4.2 (status reporting) and 5.2 (session-init envelope
+  migration).
 
 - _Notes:_ See `notes-release-wrappers-foundation.md` § 1.2 for full constants, type aliases, and
   `ResolvedReleaseModeSettings` extension.
@@ -62,10 +61,8 @@ for resolver shape and edge-case enumerations.
     Build `test-first` (one behavior at a time):
     - `arc.releaseEnabled` git-config override → `release.enabled` yaml → default `"false"`, with `{value, source}`
       provenance
-    - `arc.releaseFooter` git-config override → `release.footer` yaml → default `"none"`, values
-      `"none" | "abbreviated" | "full"`, invalid values warn and fall through
-    - Both keys included in `resolveAllSettings` concurrent fan-out (`Promise.all`)
-    - `ResolvedReleaseModeSettings` extends with `releaseEnabled` and `releaseFooter` fields
+    - `releaseEnabled` included in `resolveAllSettings` concurrent fan-out (`Promise.all`)
+    - `ResolvedReleaseModeSettings` extends with `releaseEnabled` field
     - `defaultsApplied` semantics preserved (yaml-absent only — a key may be `defaultsApplied` while resolved
       `source: "git-config"`)
 
@@ -165,46 +162,13 @@ for resolver shape and edge-case enumerations.
         - `outcome.kind` shape matches command per PRD R7 table
         - `interlockState` discriminated union shape matches `command`
 
-### `[ ]` **1.7 `footer.ts` — trailer composition + opt-in-state lookup**
-
-- _Goal:_ Footer composer that, given a commit-message draft and resolved state, returns the message with `ARC-Release:`
-  trailer appended after existing trailers when the triple opt-in chain is satisfied (release wrapper used +
-  `arc.release.enabled: true` + footer mode non-`none`); returns the message unchanged otherwise.
-
-- _Approach:_ Use `git interpret-trailers --trailer "ARC-Release: ..."` for trailer composition (handles existing
-  trailer block detection, multi-line values, comment lines, conventional placement). Hand-rolled parser only as
-  fallback if a specific constraint surfaces.
-
-- _Note:_ Trailer key locked as `ARC-Release` per kickoff decision.
-
-    - File: `src/lib/release/footer.ts`
-    - Consumes `releaseEnabled` and `releaseFooter` resolvers from 1.2 (no resolver authoring here)
-
-    - `[ ]` **1.7.a `readReleaseEnabled` — opt-in flag consumer**
-
-        Build `test-first` (one behavior at a time):
-        - Returns `ResolvedConfigOverride<ReleaseEnabled>` from 1.2's resolver
-        - Boolean-shaped consumption: `value === "true"` → enabled; otherwise disabled
-        - Source provenance preserved for downstream consumers (audit, status)
-
-    - `[ ]` **1.7.b `composeFooter` — trailer placement + triple-opt-in gate**
-
-        Build `test-first` (one behavior at a time):
-        - All three opt-ins satisfied + mode `abbreviated` → trailer `ARC-Release: enabled` appended via
-          `git interpret-trailers`
-        - All three opt-ins satisfied + mode `full` → trailer carries `commit-interlock=`, `push-interlock=`,
-          `wu=<category>/<name>`
-        - Existing `Context:` trailer preserved; `ARC-Release:` placed in the trailer block (`git interpret-trailers`
-          handles ordering)
-        - Any opt-in tier fails (not enabled, mode `none`) → message returned unchanged
-
 ---
 
 ## **Phase 2:** `arc release commit` handler
 
 _Purpose:_ Wire `arc release commit` end-to-end across two scenario verticals — refusal path (validation chain → exit
 code → audit refused entry, never invoke wrapped git) and success path (git invocation → output passthrough → audit
-entry → footer composition).
+entry).
 
 _Design decisions:_ Handlers live in `src/handlers/release/` per existing convention; public surface re-exports in
 `src/commands/release.ts`. Wrapped `git commit` invocation uses `child_process.spawn` with
@@ -235,14 +199,13 @@ existing `GitExec` pattern. Refusal short-circuit order documented in `notes-rel
       fire)
     - Refusal-message format consistent across codes via `formatRefusal()`
 
-### `[ ]` **2.2 Success path + footer — git invocation, audit entry, footer trailer**
+### `[ ]` **2.2 Success path — git invocation, audit entry**
 
 - _Goal:_ `arc release commit` invokes `git commit` with forwarded args when authorized, bubbles git output and exit
-  code verbatim, records success or hook-failed audit entry, and stamps the configured footer when the triple opt-in
-  chain is satisfied.
+  code verbatim, and records success or hook-failed audit entry.
 
-- _Note:_ Resolve settings once at handler entry; thread the resolved `{value, source}` map through validation, footer
-  composition, and audit-entry write. Avoids two round-trips and prevents drift between read sites.
+- _Note:_ Resolve settings once at handler entry; thread the resolved `{value, source}` map through validation and
+  audit-entry write. Avoids two round-trips and prevents drift between read sites.
 
     - File: `src/handlers/release/commit.ts`
     - Wrapped invocation: `child_process.spawn('git', ['commit', ...args], { stdio: ['inherit', 'pipe', 'pipe'] })` —
@@ -256,9 +219,6 @@ existing `GitExec` pattern. Refusal short-circuit order documented in `notes-rel
     - Success → audit entry `{ kind: "commit", hash }` (hash extracted from spawned stdout or via `git rev-parse HEAD`
       post-success)
     - Hook failure → bubble git's non-zero exit code, audit entry `{ kind: "hook-failed", hook, exitCode }`
-    - Footer composition × triple-opt-in chain × footer-mode matrix (3 footer modes × enabled-state on/off) — all paths
-      produce expected output via 1.7.b
-    - Footer trailer placement after existing `Context:` trailer (verified via real `git interpret-trailers` invocation)
 
 ---
 
@@ -383,17 +343,17 @@ forward-compat per `notes-release-wrappers-foundation.md` § 4.2.
 
 ### `[ ]` **4.2 `arc release status` sub-command + `--json` envelope**
 
-- _Goal:_ `arc release status` prints the resolved opt-in state, footer mode, and three interlock states with provenance
+- _Goal:_ `arc release status` prints the resolved opt-in state and three interlock states with provenance
   (`git-config` / `yaml` / `default`); `--json` mode emits the same surface as a `schemaVersion: 1` envelope for
   downstream consumers (WU2 status integration, future CI use).
 
-- _Note:_ Consumes `ResolvedConfigOverride<...>` shape from 1.2's resolvers (`releaseEnabled`, `releaseFooter`, plus
-  existing release-mode keys via `resolveAllSettings`).
+- _Note:_ Consumes `ResolvedConfigOverride<...>` shape from 1.2's resolver (`releaseEnabled`, plus existing
+  release-mode keys via `resolveAllSettings`).
 
     - File: `src/handlers/release/record.ts` (shared with 4.1)
 
     Build `test-first` (one behavior at a time):
-    - Human output renders all five resolved values with provenance label (e.g.,
+    - Human output renders all four resolved values with provenance label (e.g.,
       `commit_interlock: on-task-approval (yaml)`)
     - `--json` envelope shape:
 
@@ -401,7 +361,6 @@ forward-compat per `notes-release-wrappers-foundation.md` § 4.2.
         {
           "schemaVersion": 1,
           "releaseEnabled": { "value": "...", "source": "..." },
-          "releaseFooter":  { "value": "...", "source": "..." },
           "commitInterlock": { "value": "...", "source": "..." },
           "pushInterlock":   { "value": "...", "source": "..." },
           "syncInterlock":   { "value": "...", "source": "..." }
@@ -421,8 +380,8 @@ three-tier resolution so downstream WU2 routing reads resolved values without re
 
 _Design decisions:_ 5.2 is the broader retrofit per F5-A — `runConfigSessionInitStatus` switches from yaml-only
 `readConfigSettings` to three-tier `resolveAllSettings` for the full release-mode key surface (commit/push/sync
-interlock + notes_push + release.enabled + release.footer). Latent inconsistency (handlers see resolved values; envelope
-shows yaml only) gets fixed; PRD's "config-once at session-init" model now matches code.
+interlock + notes_push + release.enabled). Latent inconsistency (handlers see resolved values; envelope shows yaml
+only) gets fixed; PRD's "config-once at session-init" model now matches code.
 
 ### `[ ]` **5.1 `arc sync` audit-log integration**
 
@@ -454,8 +413,8 @@ shows yaml only) gets fixed; PRD's "config-once at session-init" model now match
 
 - _Goal:_ Session-init envelope's `config.value.settings` carries resolved values (git-config → yaml → default) for the
   full release-mode key surface — `commit_interlock`, `push_interlock`, `sync_interlock`, `notes_push`,
-  `release.enabled`, `release.footer` — eliminating the latent yaml-only / handler-resolved inconsistency. WU2's
-  downstream workflow routing reads resolved values without re-probing.
+  `release.enabled` — eliminating the latent yaml-only / handler-resolved inconsistency. WU2's downstream workflow
+  routing reads resolved values without re-probing.
 
 - _Note:_ `defaultsApplied` semantics preserved (means "yaml-absent"); consumers needing true source-provenance check
   `resolved.<key>.source === "default"`. See `notes-release-wrappers-foundation.md` § 5.2.
@@ -464,7 +423,7 @@ shows yaml only) gets fixed; PRD's "config-once at session-init" model now match
       (envelope shape if `source` field is exposed)
 
     - `[ ]` **5.2.a Confirm 1.2 resolver-additions landed**
-        - Verify `resolveAllSettings` returns `releaseEnabled` and `releaseFooter` in `resolved`
+        - Verify `resolveAllSettings` returns `releaseEnabled` in `resolved`
         - Verify `ResolvedReleaseModeSettings` extension is consumable
 
     - `[ ]` **5.2.b Migrate `runConfigSessionInitStatus` to `resolveAllSettings`**
@@ -472,7 +431,7 @@ shows yaml only) gets fixed; PRD's "config-once at session-init" model now match
         Build `test-first` (one behavior at a time):
         - Probe envelope's `session.commit_interlock` / `push_interlock` / `sync_interlock` / `user.notes_push` reflect
           git-config override when set, yaml otherwise, default otherwise
-        - Probe envelope includes `release.enabled` and `release.footer` resolved values
+        - Probe envelope includes `release.enabled` resolved value
         - Probe envelope shape preserves backwards-compat for non-release-mode keys (`session.remote_sync` etc. still
           yaml-only)
         - `defaultsApplied` reflects yaml-absence (existing semantic)
@@ -562,8 +521,6 @@ direction (package source primary, `.arc/` mirror).
 - `[ ]` Audit log captures every release-wrapper invocation and every executed `arc sync` invocation with correct
   `decision` and `outcome`
 - `[ ]` Audit log entries are parseable by `jq` and queryable by `refusalCode`
-- `[ ]` Footer behavior under each `release.footer` × `arc.release.enabled` × commit-interlock matrix produces expected
-  output
 - `[ ]` `arc release commit --version` runs from Claude Code and Codex CLI with manual allowlist entries installed (no
   harness prompt for matching invocations)
 - `[ ]` Sample fall-through case (env-prefixed invocation, e.g., `FOO=bar arc release commit`) verifies the documented

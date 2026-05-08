@@ -230,7 +230,7 @@ pending upstream config-validation fixes.
 - Downstream: Work Organization Reform, parallelism trio downstream of WOR (parallelism trio
   benefits from low-friction commit/push surface during multi-WU work; no hard dependency)
 - **Scope note:** Pre-approved split into two sibling WUs at PRD-drafting time: WU1 (foundation —
-  wrappers, validation library, audit log, authorization footer, ADR; ~12-15 sessions) and WU2
+  wrappers, validation library, audit log, ADR; ~12-15 sessions) and WU2
   (adopter ergonomics — setup helper, per-harness detection, status integration, workflow updates,
   strategy doc; ~10-13 sessions). WU2 strictly depends on WU1.
 

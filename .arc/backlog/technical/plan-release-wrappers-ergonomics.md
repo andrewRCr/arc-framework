@@ -130,7 +130,7 @@ sole authorization layer (loud, not silent — addresses the silent-trust-shift 
 
 ### Out of scope
 
-- **WU1 functionality.** Wrappers, validation library, audit log, footer, ADR — already
+- **WU1 functionality.** Wrappers, validation library, audit log, ADR — already
   shipped.
 - **opencode auto-allowlist.** Stub printing deferral notice; full implementation deferred
   until upstream resolves [sst/opencode#6676] and [sst/opencode#15507].
@@ -193,8 +193,7 @@ Wrong-setup scenarios stratified by severity:
   same.
 - *Release-wrapper or interlock bug lets bad op through:* no harness safety net under the
   release wrapper. *Mitigations* (WU1-shipped): release-wrapper enforcement as security-tier
-  code with exhaustive matrix testing; audit log + authorization footer give forensic
-  recovery.
+  code with exhaustive matrix testing; audit log gives forensic recovery.
 - *Personal scripts (bespoke gates):* setup helper can't autoconfigure these. *Mitigation:*
   helper detects standard harness markers; for non-standard setups, prints canonical allowlist
   patterns and instructs manual installation.

@@ -90,19 +90,10 @@ export async function resolveReleaseEnabled(
     validValues: RELEASE_ENABLED_VALUES,
   });
 }
-
-// --- release.footer ---
-export type ReleaseFooterMode = "none" | "abbreviated" | "full";
-
-export const RELEASE_FOOTER_GIT_CONFIG_KEY = "arc.releaseFooter";
-export const RELEASE_FOOTER_YAML_KEY = "release.footer";
-export const DEFAULT_RELEASE_FOOTER: ReleaseFooterMode = "none";
-const RELEASE_FOOTER_VALUES: readonly ReleaseFooterMode[] = ["none", "abbreviated", "full"];
-// + isReleaseFooterMode + resolveReleaseFooter (mirrors above)
 ```
 
 `ReleaseEnabled` is string-typed (`"true" | "false"`) for resolver consistency with the existing
-release-mode key pattern; consumers (1.7's `readReleaseEnabled`) convert to boolean
+release-mode key pattern; consumers (4.2's status envelope) convert to boolean
 (`value === "true"`) at the application boundary.
 
 `ResolvedReleaseModeSettings` extends:
@@ -114,11 +105,10 @@ export interface ResolvedReleaseModeSettings {
   syncInterlock: ResolvedConfigOverride<SyncInterlock>;
   notesPush: ResolvedConfigOverride<NotesPushPolicy>;
   releaseEnabled: ResolvedConfigOverride<ReleaseEnabled>;     // NEW
-  releaseFooter: ResolvedConfigOverride<ReleaseFooterMode>;   // NEW
 }
 ```
 
-`resolveAllSettings` adds both new resolvers to its concurrent `Promise.all` fan-out.
+`resolveAllSettings` adds the new resolver to its concurrent `Promise.all` fan-out.
 
 ### § 1.6 — Sanitization edge cases
 
@@ -128,20 +118,6 @@ export interface ResolvedReleaseModeSettings {
 - Multiple `-m` flags chained (`-m subject -m body`) — each redacted independently
 - `--file` and `--file=path` — kept verbatim (path is not sensitive; content lives on disk)
 - Path normalization not performed (paths kept verbatim, no resolution to absolute)
-
-### § 1.7 — Footer composition edge cases (handled by `git interpret-trailers`)
-
-[F1-B, F1-I] Per F1-B resolution, footer composition delegates to `git interpret-trailers
---trailer "ARC-Release: ..."` which natively handles:
-
-- Message ending without newline
-- Message with body but no trailers (creates trailer block)
-- Multi-line trailer values (Co-authored-by-style)
-- Comment lines (`#` lines)
-- Conventional placement after existing trailers
-
-Hand-rolled fallback considered only if a specific constraint surfaces during 1.7.b
-implementation.
 
 ---
 
@@ -265,7 +241,6 @@ schemaVersion lock.
 {
   "schemaVersion": 1,
   "releaseEnabled": { "value": true, "source": "git-config" },
-  "releaseFooter": { "value": "full", "source": "yaml" },
   "commitInterlock": { "value": "on-task-approval", "source": "yaml" },
   "pushInterlock": { "value": "on-sync", "source": "yaml" },
   "syncInterlock": { "value": "on-handoff", "source": "default" }

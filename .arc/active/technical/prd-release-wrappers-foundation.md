@@ -2,8 +2,7 @@
 
 **Purpose:** Deliver the mechanical foundation for `arc release commit` and `arc release push` —
 release-wrapper commands that enforce ARC interlock state at the CLI boundary, with the validation
-library, audit log, authorization footer, and opt-in state surface needed for end-to-end use by
-hand-configured adopters.
+library, audit log, and opt-in state surface needed for end-to-end use by hand-configured adopters.
 
 ---
 
@@ -22,9 +21,9 @@ flow.
 
 This work delivers the **mechanical foundation** of the interlock-release-wrapper system: two new
 CLI commands under a `release` namespace, the shared validation library they call, the audit log
-(extended to cover `arc sync`), the authorization footer, and the opt-in state recording surface
-that lets hand-configured early adopters validate the system end-to-end. Adopter ergonomics —
-setup helper, per-harness workflow, status integration — land in a sibling work unit (WU2).
+(extended to cover `arc sync`), and the opt-in state recording surface that lets hand-configured
+early adopters validate the system end-to-end. Adopter ergonomics — setup helper, per-harness
+workflow, status integration — land in a sibling work unit (WU2).
 
 **Note on the push-side primitive.** `arc release commit` is a per-task primitive — high-frequency,
 direct invocation by every commit-time flow. `arc release push` is a **ceremony push primitive** —
@@ -50,10 +49,10 @@ Building on landed work is cheaper than retrofitting later.
    destructive flag, branch protection).
 3. **Make release-wrapper and `arc sync` invocations forensically traceable.** Per-invocation
    audit log entries across the three operations that cross the harness shell-pattern-gate
-   boundary; opt-in commit-message footer for distributed traceability of release-commit.
+   boundary.
 4. **Expose the per-developer opt-in state surface.** Enabled-state recording, status reporting,
-   and clearing — minimal ergonomics so footer behavior and posture-aware downstream features
-   can validate end-to-end before WU2 lands.
+   and clearing — minimal ergonomics so the opt-in flag (consumed by the probe for downstream
+   workflow routing) can be set and verified end-to-end before WU2 lands.
 5. **Preserve scope discipline.** Commit and push only; no slippery slope to higher-blast-radius
    git operations.
 
@@ -64,8 +63,7 @@ Adopter wants the friction-reduction benefit. Manually edits `.claude/settings.j
 `Bash(arc release commit:*)` and `Bash(arc release push:*)` to the allowlist. Runs
 `git config arc.release.enabled true`. From the next session forward,
 `arc release commit` invocations match the allowlist (no harness prompt), the release wrapper
-validates interlock state, commit lands; audit log entry recorded; if `release.footer: full` is
-set, footer trailer appears in commit message.
+validates interlock state, commit lands; audit log entry recorded.
 
 **S2 — Release wrapper refuses on missing active WU.**
 Agent invokes `arc release commit` with no resolved active WU. Release wrapper exits with code
@@ -92,19 +90,13 @@ Agent invokes `arc release push` on a branch mid-rebase. Release wrapper calls
 (`pushability-precheck-failed`); message identifies the blocking condition and remediation.
 Audit log records refusal with pushability detail.
 
-**S6 — Footer when release wrapper is enabled.**
-Adopter has `release.footer: full` in arc-config.yml and `arc.release.enabled: true` in
-personal git config. `arc release commit -m "..."` succeeds; resulting commit carries an
-`ARC-Release: enabled ...` trailer appended after any existing `Context:` trailer. Adopter
-without `arc.release.enabled` set sees no trailer regardless of footer config.
-
-**S7 — Planning-branch session commits.**
+**S6 — Planning-branch session commits.**
 On a planning branch (`**State:** Planning`, `**Task List:** [none]`), agent invokes
 `arc release commit` for a plan revision. Release wrapper resolves the active status file
 regardless of State, validates interlock, commit lands. Planning ceremony commits and
 task-execution commits flow through the same authorization path.
 
-**S8 — `arc sync` audit-log entry.**
+**S7 — `arc sync` audit-log entry.**
 At handoff, `arc sync` runs paired worktree+notes push. Audit log records the invocation:
 `command: "sync"`, `decision: "proceeded"`, `outcome.kind: "sync"` carrying matrix-cell name
 and per-leg results. Forensic record parallels release-commit / release-push entries; sync's
@@ -212,19 +204,6 @@ syncInterlock}` snapshot (the shape `handleSync` already constructs).
 Local-only by default; gitignored. Per-identity, never replicated to remote without explicit
 opt-in.
 
-**R8 — Authorization footer (configurable, opt-in, enabled-state-gated).**
-
-- Per-developer setting via `git config arc.releaseFooter`: `none | abbreviated | full`.
-  Falls back to project yaml default `release.footer:` if unset; falls back to hardcoded
-  default `none` if neither set. Resolved via `resolveGitConfigOverride<T>`.
-- Footer appears in commit message **only when `arc.release.enabled: true`** (see R10) AND
-  footer mode is non-`none`. Triple opt-in chain: release wrapper used + opt-in state
-  recorded (`arc.release.enabled: true`) + footer mode non-`none`.
-- `abbreviated` form: `ARC-Release: enabled`.
-- `full` form: `ARC-Release: enabled commit-interlock=<value> push-interlock=<value>
-  wu=<category>/<name>`.
-- Trailer appended after existing trailers (e.g., after `Context:`).
-
 **R9 — Release-wrapper × git-hook interaction.**
 Release wrapper invokes `git` normally; hooks fire as usual. On hook failure: bubble git's exit
 code unchanged; audit log records `outcome: { kind: "hook-failed", hook: <name>, exitCode: <n> }`.
@@ -237,12 +216,12 @@ Three sub-commands under the `release` namespace:
 - `arc release record-enabled` — writes `arc.release.enabled: true` to per-developer git
   config.
 - `arc release record-disabled` — clears the same config key.
-- `arc release status` — prints current opt-in state, resolved footer mode, resolved interlock
-  states.
+- `arc release status` — prints current opt-in state, resolved interlock states.
 
 These are minimal primitives only — they record/report state, they do not detect or write
-harness configs (deferred to WU2 setup helper). Their existence in WU1 is what lets the
-footer's enabled-state-gated behavior be end-to-end-validatable before WU2 lands.
+harness configs (deferred to WU2 setup helper). Their existence in WU1 is what lets
+hand-configured adopters set the opt-in flag (consumed by the probe surface) end-to-end
+before WU2 lands.
 
 **R11 — Documentation updates.**
 
@@ -258,7 +237,7 @@ Internal-only, in `reference/adr/`. Required content:
 - **Trust-model trade-off table.** Layered protection before vs. after release-wrapper opt-in.
 - **Gap rows.** What's lost when the harness gate is bypassed for release-wrapper invocations.
 - **Mitigations.** Per gap, the corresponding mitigation (interlock validation, audit log
-  coverage, footer eligibility, release-wrapper test-coverage tier).
+  coverage, release-wrapper test-coverage tier).
 - **Pre-existing precedent.** `arc sync` already crosses the same shell-pattern-gate boundary
   today — by invoking `git push` via Node `child_process`, the underlying invocation never
   surfaces to shell-pattern-based harness gates. The release wrappers formalize what has been
@@ -267,8 +246,8 @@ Internal-only, in `reference/adr/`. Required content:
   the release-wrapper authorization umbrella, not a pre-existing gap left un-addressed.
 - **Trust-model framing.** Adopter opt-in (allowlist entries + `arc.release.enabled: true`)
   controls **whether the harness prompts**. The release wrapper's authorization-carrying
-  property — validation, audit log, footer eligibility — is **unconditional** once the
-  release wrapper is invoked. Opt-in state controls harness behavior, not release-wrapper
+  property — validation and audit log — is **unconditional** once the release wrapper is
+  invoked. Opt-in state controls harness behavior, not release-wrapper
   behavior.
   Documentation must hold this line to avoid the "I turned it off but it still does things"
   confusion: there is no off switch on validation or audit logging, only on harness
@@ -325,7 +304,7 @@ Increases scanability when adopter hits multiple refusals.
 `user-sync-ux` is integrated and archived. Specific reuse points verified:
 
 - **`resolveGitConfigOverride<T>`** in `src/lib/config/resolve-override.ts` — generic resolver.
-  R8's footer setting and R3's interlock state both resolve via this. No adaptation needed.
+  R3's interlock state resolves via this. No adaptation needed.
 - **`resolveAllSettings`** convenience aggregator — reads and resolves all session-relevant
   settings; release wrapper calls this at invocation start.
 - **`pushWorktreeBranch`** in `src/lib/git/push-worktree.ts` — current signature
@@ -351,7 +330,6 @@ Validation library in `src/lib/release/`:
 - `wu-resolution.ts` — active WU lookup with R6 semantics.
 - `audit-log.ts` — JSONL append + sanitization. **Consumed by both release-wrapper handlers
   and `handlers/sync.ts`** (for sync-leg audit entries per R7).
-- `footer.ts` — trailer composition + opt-in-state lookup.
 
 Shared types in `src/lib/release/types.ts` — refusal codes, decision shapes, audit entry schema.
 
@@ -375,19 +353,14 @@ release-wrapper taxonomy.
 directory created on first audit-log write (existence-tolerant). Schema v1 lock in WU1; future
 schema bumps require `schemaVersion` increment + reader compatibility.
 
-### Footer composition with existing `Context:` trailer
-
-`Context:` trailer convention is established in this repo. Release wrapper appends
-`ARC-Release:` after any existing trailers. Implementation: read commit message draft, parse
-trailer block (last paragraph if `Key: value` lines), append new trailer key. If no trailer
-block, append a blank line + new trailer. Avoids mangling pre-existing trailers including
-multi-line values.
-
 ### Release-wrapper opt-in signal source
 
-`arc.release.enabled` per-developer git-config key. Read at release-wrapper invocation;
-gates footer stamping (R8). Set/cleared by R10 sub-commands. WU2's setup helper writes this
-key as part of its enable flow; for WU1, hand-configured adopters set it manually.
+`arc.release.enabled` per-developer git-config key. Records the adopter's explicit opt-in to
+the trust-model trade-off; read by the session-init probe (see § Probe surface) for downstream
+WU2 workflow routing. Has no direct effect on WU1 wrapper invocations — they run
+unconditionally; opt-in state is observability and downstream-routing substrate. Set/cleared
+by R10 sub-commands. WU2's setup helper writes it as part of its enable flow; for WU1,
+hand-configured adopters set it manually.
 
 ### Probe surface for routing decisions
 
@@ -439,7 +412,6 @@ Treat as security-tier code per plan's risk analysis. Exhaustive matrix coverage
 
 - Refusal taxonomy × invocation context (each refusal scenario has a passing integration
   test).
-- Opt-in state × footer mode × interlock state (footer composition correctness).
 - Release-wrapper × hook-failure interaction (audit-log entry correctness, exit-code
   bubbling).
 - Sync × audit-log integration (every matrix cell records the expected audit entry shape;
@@ -459,8 +431,6 @@ matches that weight.
   unchanged.
 - Audit log captures every release-wrapper invocation **and every `arc sync` invocation**
   with correct decision and outcome; schema validates across all three command discriminators.
-- Footer behavior under each `release.footer` setting × `arc.release.enabled` state ×
-  commit-interlock state matrix produces expected output.
 - Release-wrapper invocations under each `commit_interlock` and `push_interlock` value produce
   the expected authorize/refuse decision.
 - Sync's matrix-cell decisions surface in audit-log entries with correct `outcome.kind: "sync"`
@@ -487,11 +457,6 @@ matches that weight.
 - No ad-hoc redaction or refusal-message drift between handlers (R14, R15 enforced).
 
 ## Open Questions
-
-### Resolve before starting
-
-- **Footer key name finalization.** `ARC-Release` proposed. Alternatives: `Authorized-By`,
-  `Release`. Decide pre-implementation; locks the trailer convention.
 
 ### Resolve during work
 
