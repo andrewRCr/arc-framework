@@ -24,8 +24,8 @@ Verify environment and probe ARC state in a single Bash chain — both non-destr
 pwd && arc status --session-init --json
 ```
 
-`pwd` should match the repo root (`/home/andrew/dev/arc-framework`). The probe returns a single JSON envelope
-the agent consumes:
+`pwd` should match the repo root (`/home/andrew/dev/arc-framework`).
+The probe returns a single JSON envelope the agent consumes:
 
 | Field                       | Contents                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 |-----------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------                                                                                                                                                                                                                                      |
