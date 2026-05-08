@@ -48,21 +48,15 @@ shape and edge-case enumerations.
   keys; the layering-boundary docblock now names five keys. The new key participates in the same yaml-absence
   `defaultsApplied` semantic.
 
-### `[ ]` **1.3 `destructive-flags.ts` — flag-list constants + detection**
+### `[x]` **1.3 `destructive-flags.ts` — flag-list constants + detection**
 
 - _Goal:_ Detection function that, given an argv array, returns the matched destructive-flag identifier (or null) for
   refusal-message construction — single source of truth for R5's commit-side and push-side forbidden-flag lists.
 
-- _Note:_ `+refspec` syntax requires pattern detection (leading `+` on a refspec arg), not exact-string match.
-
-    - File: `src/lib/release/destructive-flags.ts`
-
-    Build `test-first` (one behavior at a time):
-    - Commit-list constant matches R5: `--amend`, `--allow-empty`, `--no-verify`
-    - Push-list constant matches R5: `--force`, `-f`, `--force-with-lease`, `--delete`, `-d`, `--mirror`
-    - `+refspec` syntax detection — argv containing `+main:main` matches; `main:main` does not
-    - Detection function returns matched identifier on first match
-    - Detection function returns null when no destructive flag present
+- _Outcome:_ Created `src/lib/release/destructive-flags.ts`. Two detectors (`detectCommitDestructive` /
+  `detectPushDestructive`) rather than one with a list parameter — keeps the `+refspec` pattern push-only. Refspec
+  matches return the canonical `PUSH_REFSPEC_FORCE_IDENTIFIER` (`"+refspec"`) for stable refusal-message lookup; the
+  literal argv element varies per invocation and isn't a useful lookup key.
 
 ### `[ ]` **1.4 `wu-resolution.ts` — active WU lookup with R6 semantics**
 
