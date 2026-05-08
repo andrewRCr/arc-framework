@@ -74,13 +74,23 @@ parent satisfies.
 
 > [!IMPORTANT]
 > `workflow-interlock`: Stop after the Pass 1 deliverable is drafted. Surface the phase
-> decomposition for review; await direction before proceeding to Pass 2.
+> decomposition with reflection woven in; await direction before proceeding to Pass 2.
 
-User reviews boundaries:
+**Surface the deliverable with reflection woven in.** Before surfacing, trace through the
+lenses below as your own checks — don't present them as a separate review section. Weave
+observations into the deliverable presentation: clean lenses get a one-line confirmation
+in passing; borderline calls get a brief lean + rationale + explicit ask ("keeping X as one
+parent because Y — thoughts?"). Surface non-obvious judgments where reasonable people might
+differ; this is what catches asymmetries the user would otherwise raise cold.
 
-- Is every PRD requirement covered by some task?
-- Does any single parent overcommit? (subtask-count signal flags asymmetry)
-- Is the phase ordering right?
+**Internal lenses for this pass:**
+
+- **Coverage** — every PRD requirement covered by some task
+- **Asymmetry** — single parents overcommitting (subtask-count signal flags candidates)
+- **Ordering** — phase sequence minimizes dependencies
+
+**Iterative.** User feedback can prompt revision before declaring this pass complete.
+Proceed to the next pass only when the deliverable has settled.
 
 ### Pass 2: Content fill
 
@@ -145,14 +155,23 @@ consult it for project-specific test patterns and coverage expectations.
 - Test-first lists where applicable
 
 > [!IMPORTANT]
-> `workflow-interlock`: Stop after the Pass 2 draft is written. Surface for review; await
-> direction before proceeding to Pass 3.
+> `workflow-interlock`: Stop after the Pass 2 draft is written. Surface with reflection woven
+> in; await direction before proceeding to Pass 3.
 
-User reviews content:
+Same surfacing discipline as Pass 1 — weave observations into the deliverable, don't present
+a separate review section. Surface borderline calls explicitly with the agent's lean and
+rationale.
 
-- Does each Goal articulate outcome (not change)?
-- Does each task have meaningful intent, not just step-shape?
-- Do peer descriptors (when present) carry framing the Goal can't?
+**Internal lenses for this pass:**
+
+- **Goal articulation** — does each Goal name the outcome the task targets, not the change
+  being made?
+- **Meaningful intent** — does each task carry intent the title alone doesn't, or is it just
+  step-shape?
+- **Peer descriptor framing** — where present, do peer descriptors carry framing the Goal
+  can't?
+
+**Iterative.** User feedback can prompt revision before declaring this pass complete.
 
 ### Pass 3: Grounding audit
 
@@ -178,18 +197,42 @@ Generation-time framing differs from the skill's typical pre-impl use:
 #### Step 3.2: Apply corrections
 
 For each "fix before starting" finding, edit the task body in place — update file paths,
-clarify scope, add subtasks for masked design decisions, etc. "Carry as context" findings get
-captured (in the task body or in `notes-{name}.md` per scope) but don't block.
+clarify scope, add subtasks for masked design decisions, etc.
+
+**Generation-time durable-capture discipline.** "Carry as context" findings need a durable
+home before save — at generation time, no implementing-session context exists to absorb them
+later. Routing convention:
+
+- **Inline `_Note:_` peer descriptor on the affected parent / leaf** — brief one-liners
+  (≤ 2 lines) where context fits next to the task without bulking the body
+- **`notes-{name}.md` companion file** — substantive findings (multi-bullet, design rationale,
+  alternatives, edge-case enumerations, mapping tables) where inline would crowd the task list.
+  Each affected task body cross-refs via `_Notes:_ See \`notes-{name}.md\` § <section>`
+
+Differs from pre-impl audit invocations during task-list execution, where carry-as-context
+lives in the implementing agent's session memory. Generation-time durability is mandatory —
+the implementing agent will be a different session, possibly different agent, weeks or months
+from now.
 
 > [!IMPORTANT]
 > `workflow-interlock`: Stop after the audit findings and corrections are applied per phase.
-> Surface for review; await direction before declaring the task list impl-ready.
+> Surface findings with reflection woven in; await direction before declaring the task list
+> impl-ready.
 
-User reviews readiness:
+Same surfacing discipline — weave observations into the findings presentation. Per-finding
+shape (category → severity → finding → recommendation) keeps fix-before-starting and
+carry-as-context handled distinctly.
 
-- Are all "fix before starting" findings addressed?
-- Are "carry as context" findings appropriately captured?
-- Is the task list genuinely impl-ready, or does another Pass 2 / Pass 3 cycle help?
+**Internal lenses for this pass:**
+
+- **Fix-before-starting addressed** — every "fix before starting" finding applied as a
+  task-body edit
+- **Carry-as-context durably captured** — every carry-as-context finding has a durable home
+  (inline `_Note:_` or `notes-{name}.md` cross-reference)
+- **Impl-ready vs another cycle** — does the task list genuinely settle here, or does
+  another Pass 2 / Pass 3 cycle help?
+
+**Iterative.** User feedback can prompt revision before declaring impl-ready.
 
 ### Step 4: Write and Save Task List
 
@@ -227,6 +270,8 @@ file (`notes-{name}.md`), not in the task list.
 - [ ] Backticks for all technical terms: `field_name`, `ClassName`, `/api/endpoint/`
 - [ ] No time estimates anywhere (no duration emojis, minute counts)
 - [ ] Verification phase as final phase (single task pointing to `verify-work-unit.md`)
+- [ ] All "carry as context" findings from Pass 3 are durably captured (inline `_Note:_` or
+      cross-reference to `notes-{name}.md` companion file)
 - [ ] Atomic companion file created alongside task list (`atomic-{name}.md`, same directory)
 - [ ] Success Criteria section at bottom with checkboxes (checked during verification phase)
 
