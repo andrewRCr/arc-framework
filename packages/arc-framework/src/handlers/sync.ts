@@ -75,6 +75,9 @@ import { inferRecommendedSummaryLine } from "../lib/handoff/recommended-summary-
 import { createUserIOContext } from "../lib/io-context.js";
 import { resolveArcRoot } from "../lib/paths.js";
 import type { ResolvedConfigOverride } from "../lib/config/resolve-override.js";
+import { appendAuditEntry, toAuditWorkUnit } from "../lib/release/audit-log.js";
+import type { AuditEntry, AuditOutcome } from "../lib/release/types.js";
+import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { createSyncOutput, type SyncOutput } from "../lib/sync-output.js";
 import { pushWithInteractiveRecovery } from "./push-recovery.js";
 import {
@@ -142,6 +145,24 @@ interface MatrixInput {
   worktreeBehind: number;
   branch: string | null;
 }
+
+/**
+ * Sync cells that map to a refused audit decision. All are pushability
+ * pre-check failures — `pushability-precheck-failed` (refusal code 14)
+ * covers the full set per the release-wrapper refusal taxonomy. The
+ * `notes-blocked` cell is intentionally absent: its worktree leg fires
+ * (proceeded), with the per-leg notes record carrying the partial state.
+ */
+const REFUSED_SYNC_CELLS: ReadonlySet<string> = new Set([
+  "blocked-diverged",
+  "blocked-remote-ahead",
+  "blocked-no-upstream",
+  "blocked-detached-head",
+  "blocked-no-remote",
+  "blocked-remote-unavailable",
+]);
+
+const SYNC_REFUSAL_CODE_PUSHABILITY = 14 as const;
 
 /**
  * Worktree states that block notes push when notes auto-push runs under a
@@ -215,6 +236,14 @@ function decideNotes(input: MatrixInput): NotesAction {
     : { kind: "save+prompt" };
 }
 
+/**
+ * `(worktree=push, notes=save+notes-blocked)` is structurally unreachable.
+ * `decideNotes` only emits `save+notes-blocked` when the worktree won't push
+ * (`pushInterlock === "manual"` or the worktree state is in
+ * `WORKTREE_PUSH_BLOCK_STATES`); in either case `decideWorktree` does not
+ * return `push`. The combination has no `cellNameFor` arm and would fall
+ * through to the `save-only` default if ever constructed.
+ */
 function cellNameFor(worktree: WorktreeAction, notes: NotesAction): string {
   if (worktree.kind === "skip-blocked-worktree") {
     return worktree.reason === "diverged" ? "blocked-diverged" : `blocked-${worktree.reason}`;
@@ -222,7 +251,6 @@ function cellNameFor(worktree: WorktreeAction, notes: NotesAction): string {
   if (worktree.kind === "push" && notes.kind === "save+push") return "paired-push";
   if (worktree.kind === "push" && notes.kind === "save-only") return "worktree-only";
   if (worktree.kind === "push" && notes.kind === "save+prompt") return "worktree+notes-prompt";
-  if (worktree.kind === "push" && notes.kind === "save+notes-blocked") return "worktree-push+notes-blocked";
   if (notes.kind === "save+push") return "notes-only";
   if (notes.kind === "save+prompt") return "notes-prompt";
   if (notes.kind === "save+notes-blocked") return "notes-blocked";
@@ -375,6 +403,8 @@ export async function handleSync(opts: SyncOptions = {}): Promise<void> {
     interlockState,
     recommendedSummaryLine,
   };
+
+  await writeSyncAuditEntry({ cwd, identity, outcome, interlockState });
 
   if (opts.json === true) {
     process.stdout.write(`${JSON.stringify(outcome, null, 2)}\n`);
@@ -856,6 +886,61 @@ async function pushNotesLeg(ctx: ExecuteContext): Promise<LegOutcomeRecord> {
       );
       return { action: "push", result: "failed", detail: "nontty-conflict" };
   }
+}
+
+/**
+ * Write one audit-log entry for a completed sync execution. Sidecar to the
+ * orchestrator: per the release-wrapper failure-mode split, schema
+ * violations throw (programmer error surfaced at test time) and I/O
+ * failures swallow into `{ ok: false }` inside `appendAuditEntry` — neither
+ * propagates back to the caller, so an unwritable audit log can never
+ * mask a successful or refused sync. Identity-absent / no-arc-project /
+ * dry-run paths skip this write upstream.
+ */
+async function writeSyncAuditEntry(args: {
+  cwd: string;
+  identity: string;
+  outcome: SyncOutcome;
+  interlockState: InterlockState;
+}): Promise<void> {
+  const wu = await resolveActiveWu({ cwd: args.cwd });
+  const wuAudit = wu.status === "resolved" ? toAuditWorkUnit(wu) : null;
+  const refused = REFUSED_SYNC_CELLS.has(args.outcome.cell);
+
+  const auditOutcome: AuditOutcome = {
+    kind: "sync",
+    cell: args.outcome.cell,
+    worktree: encodeLegToken(args.outcome.worktree),
+    notes: encodeLegToken(args.outcome.notes),
+    exitCode: args.outcome.exitCode,
+  };
+
+  const entry: AuditEntry = {
+    schemaVersion: 1,
+    timestamp: new Date().toISOString(),
+    command: "sync",
+    args: [],
+    wu: wuAudit,
+    interlockState: { command: "sync", ...args.interlockState },
+    decision: refused ? "refused" : "proceeded",
+    refusalCode: refused ? SYNC_REFUSAL_CODE_PUSHABILITY : null,
+    outcome: auditOutcome,
+  };
+
+  await appendAuditEntry({ cwd: args.cwd, identity: args.identity, entry });
+}
+
+/**
+ * Compress a `LegOutcomeRecord` into the audit-entry string-token shape:
+ * `action:result` when no detail, `action:result:detail` when set. Detail
+ * may itself contain colons (e.g., `notes-blocked-by-worktree:diverged`);
+ * readers split on the first two colons and treat the remainder as
+ * detail payload.
+ */
+function encodeLegToken(record: LegOutcomeRecord): string {
+  return record.detail !== undefined
+    ? `${record.action}:${record.result}:${record.detail}`
+    : `${record.action}:${record.result}`;
 }
 
 /**

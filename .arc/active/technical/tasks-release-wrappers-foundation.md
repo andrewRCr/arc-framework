@@ -338,60 +338,21 @@ _Design decisions:_ 5.2 is the broader retrofit per F5-A — `runConfigSessionIn
 interlock + notes_push + release.enabled). Latent inconsistency (handlers see resolved values; envelope shows yaml
 only) gets fixed; PRD's "config-once at session-init" model now matches code.
 
-### `[ ]` **5.1 `arc sync` audit-log integration**
+### `[x]` **5.1 `arc sync` audit-log integration**
 
 - _Goal:_ Every executed `arc sync` invocation emits one audit-log entry — success cells carry `outcome.kind: "sync"`
   with matrix-cell name and per-leg results; refused cells map onto R4's refusal taxonomy via `refusalCode`; entries
   validate against `schemaVersion: 1`.
 
-- _Note:_ Sync's process exit code stays at 1 for backwards compatibility; only the audit-log entry adopts the
-  release-wrapper taxonomy. Existing `outcome.exitCode` flows into audit entry verbatim; `refusalCode` added separately
-  for refused cells.
-
-- _Notes:_ See `notes-release-wrappers-foundation.md` § 5.1 for full sync-cell → refusal-code mapping table, per-path
-  audit-entry timing decisions (identity-absent, no-arc-project, dry-run, execute), and the `outcome.worktree` /
-  `outcome.notes` string-shape contract.
-
-- _Design decisions:_
-    - **Testability via module mocking, not deps extraction.** sync's existing test surface
-      (`__tests__/unit/sync-orchestrator.test.ts`, 1074 lines) module-mocks at boundaries
-      (`resolveAllSettings`, `runPairedPush`, `pushWithInteractiveRecovery`, etc.); add
-      `vi.mock("../../src/lib/release/audit-log.js", ...)` in the same file rather than
-      refactoring `handleSync` to take a deps argument. The release commit/push handlers use
-      deps injection because they were designed test-first with that shape; sync was designed
-      with module mocking. Both patterns coexist — don't migrate sync mid-feature.
-    - **`outcome.worktree` / `outcome.notes` string shape:** `action:result` for plain
-      success/skip records, `action:result:detail` when `LegOutcomeRecord.detail` is set.
-      Encodes the rich per-leg state into a single grep-able token without losing the detail
-      threads (e.g., `push:blocked:notes-blocked-by-worktree:diverged`). Documented in
-      `notes-release-wrappers-foundation.md` § 5.1.
-    - **`args: []` for sync.** sync isn't argv-forwarding (commit/push are wrappers; sync is
-      a top-level orchestrator). Flag state lands in `interlockState` via the resolved-policy
-      snapshot, not in `args`. Explicit empty array preserves the schema shape without
-      synthesizing flag tokens that would falsely imply argv parity with commit/push.
-
-    - File: `src/handlers/sync.ts` (augmented to call `lib/release/audit-log.ts` from 1.6);
-      tests in `__tests__/unit/sync-orchestrator.test.ts` (existing sync coverage extends).
-
-    Build `test-first` (one behavior at a time — vertical slices per
-    [strategy-testing-methodology][testing-methodology]):
-    - Each non-refused matrix cell (`paired-push`, `worktree-only`, `notes-only`, `save-only`, `notes-prompt`,
-      `worktree+notes-prompt`, `worktree-push+notes-blocked`, `notes-blocked`) → audit entry with
-      `outcome.kind: "sync"`, correct `cell` name, per-leg results, `exitCode`
-    - Refused cells (all six `blocked-*` varieties) → entry with `decision: "refused"` and
-      `refusalCode: "pushability-precheck-failed"` (code 14)
-    - `notes-blocked` cell carries `decision: "proceeded"` (worktree leg fired) even though
-      `outcome.exitCode: 1` — audit decision and process exit are intentionally split per the
-      back-compat note above
-    - `interlockState` field carries `{pushInterlock, notesPush, syncInterlock}` snapshot per sync's command
-      discriminator (`notesPush.value` post-degradation, `notesPush.source` from pre-degradation
-      origin — reuses the pre-built `interlockState` from line 320)
-    - `wu` field populated from `resolveActiveWu({cwd})` (`null` on resolver `refused`)
-    - Schema validation — every entry parses against `schemaVersion: 1`
-    - Identity-absent / no-arc-project / dry-run paths skip audit-entry write (documented gaps)
-    - Audit-write failure (e.g., disk full, permissions) returns `{ok: false, error}` from the
-      writer and must not change `process.exitCode` — sidecar discipline per
-      `notes-release-wrappers-foundation.md` line 199
+- _Outcome:_ `handleSync` writes one audit entry per executed invocation via the new `writeSyncAuditEntry` helper
+  in `src/handlers/sync.ts`; refused cells split `decision: "refused"` + `refusalCode: 14` from `outcome.exitCode`
+  (process exit stays at 1 for back-compat). Tests in `__tests__/unit/sync-orchestrator.test.ts` cover all reachable
+  matrix cells, skip paths (identity-absent / no-arc-project / dry-run), the I/O-failure sidecar invariant
+  (audit failure leaves `process.exitCode` untouched), and schema round-trip through the real `appendAuditEntry`.
+  Cleanup folded: dead `(worktree=push, notes=save+notes-blocked) → "worktree-push+notes-blocked"` branch removed
+  from `cellNameFor` (unreachable since `50e880ca`; constraint comment documents the
+  `WORKTREE_PUSH_BLOCK_STATES` / `NOTES_BLOCK_WORKTREE_STATES` asymmetry). Pre-existing planning-artifact `§`
+  citations across four other test files captured to `ATOMIC-INBOX.md` for sweep + future-prevention design.
 
 ### `[ ]` **5.2 Migrate session-init config envelope to three-tier resolution**
 
