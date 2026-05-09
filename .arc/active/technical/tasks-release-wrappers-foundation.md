@@ -491,6 +491,46 @@ direction (package source primary, `.arc/` mirror).
 
     - File: `.arc/reference/adr/adr-018-interlock-value-extension.md`
 
+### `[ ]` **6.5 Sweep meta-project references + strengthen pre-commit CHECK 9**
+
+- _Goal:_ Remove DEV-RULES.ARC § Documentation Boundaries violations from the WU's existing code/tests and close the
+  regex gap in CHECK 9 that let them ship. Both halves are needed: a clean surface eliminates the priming that drives
+  recurring session drift; the strengthened hook prevents recurrence.
+
+- _Note:_ Existing violations predate the meta-ref rule's broadening at commits `b5f55c51` and `f3fda6e8`. CHECK 9's
+  current regex misses `PRD R\d+`, bare `[RB]\d+`, and section-symbol citations (`§`), and exempts test files
+  entirely. The test exemption is protective of legitimate fixture data (parsers consuming
+  `Context: tasks-foo.md (Task 4.2)` literal strings) and is preserved via tiered patterns.
+
+    - Files:
+        - `.arc/system/githooks/pre-commit` (and `packages/arc-framework/arc/system/githooks/pre-commit` mirror)
+        - `.arc/system/arc-config.yml` (and package-source mirror)
+        - `packages/arc-framework/src/lib/release/wu-resolution.ts`
+        - `packages/arc-framework/src/lib/release/audit-log.ts`
+        - `packages/arc-framework/src/lib/release/destructive-flags.ts`
+        - `packages/arc-framework/__tests__/unit/release/wu-resolution.test.ts`
+        - `packages/arc-framework/__tests__/unit/release/audit-log.test.ts`
+        - `packages/arc-framework/__tests__/unit/release/destructive-flags.test.ts`
+        - `packages/arc-framework/__tests__/unit/handlers/release/commit.test.ts`
+        - `packages/arc-framework/__tests__/unit/sync.test.ts`
+
+    - `[x]` **6.5.a Strengthen pre-commit CHECK 9 with tiered patterns**
+
+        Tiered regex implemented in `.arc/system/githooks/pre-commit` (and package-source mirror): strict patterns
+        (`PRD R[0-9]+`, `\b[RB][0-9]+\b`, and `§` followed by space) apply to all staged code including tests, with
+        `META-PRD` lines filtered as a known false positive; broad patterns (existing `[Tt]ask [0-9]+\.[0-9]+`,
+        `[Pp]hase [0-9]+`, `\.arc/` plus new movable-artifact `(tasks|plan|prd|status|notes|atomic)-[a-z][a-z0-9-]+\.md`)
+        skip test files via existing `hooks.test_patterns`, preserving parser-test fixture data. New
+        `hooks.strict_meta_ref_patterns` config key added to both arc-config.yml copies; this project's override of
+        broad continues to drop `\.arc/`. Live-probed against synthetic src and test files: strict caught in both,
+        broad caught only in src, `META-PRD` and Context-footer fixture lines correctly bypassed.
+
+    - `[ ]` **6.5.b Sweep meta-project references**
+
+        Replace meta-refs in the 8 release/test files listed above with substantive descriptions of what the code does
+        or what each test verifies. Preserve all technical content; only the planning-ID / PRD / § citations change.
+        The strengthened CHECK 9 from 6.5.a gates the staging step — added lines must pass cleanly.
+
 ---
 
 ## **Phase 7:** Verification
