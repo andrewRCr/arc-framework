@@ -293,12 +293,15 @@ forward-compat per `notes-release-wrappers-foundation.md` § 4.2.
         `__tests__/unit/git/git.test.ts` — two `gitConfigUnset` paths plus three scope values via `it.each`;
         the no-arg `gitConfigSet` test stays as the behavior-unchanged guard.
 
-    - `[ ]` **4.1.b `record-enabled` sub-command**
+    - `[x]` **4.1.b `record-enabled` sub-command**
 
-        Build `test-first` (one behavior at a time):
-        - First invocation writes `arc.release.enabled = true` to local git config
-        - Second invocation is no-op success (key already set to `true`; re-write is idempotent)
-        - git-config write failure surfaces with message naming the key and underlying git error
+        Orchestrator `runReleaseRecordEnabled` in `src/handlers/release/record.ts` uses check-then-set via
+        `gitConfigGet` for idempotence — returns no-op when `arc.release.enabled` is already `"true"`, otherwise
+        writes via `gitConfigSet(..., "true", "local")`. Set failures are caught and surfaced through the injectable
+        `writeStderr` sink as `Failed to set arc.release.enabled: <git-error>` with non-zero exit. Commander adapter
+        `handleReleaseRecordEnabled` wires the real `gitExec`; sub-command registered on `arc release` in
+        `src/cli.ts` and re-exported from `src/commands/release.ts`. Three tests in
+        `__tests__/unit/handlers/release/record.test.ts` cover the three behaviors.
 
     - `[ ]` **4.1.c `record-disabled` sub-command**
         - _Note:_ Idempotent on never-enabled state — check-then-unset (`gitConfigGet` returns undefined → no-op

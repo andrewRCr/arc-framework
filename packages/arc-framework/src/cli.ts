@@ -26,7 +26,11 @@ import { handleStatus } from "./handlers/status.js";
 import { handleSync } from "./handlers/sync.js";
 import { handleUserSync } from "./handlers/user-sync.js";
 import { handleLogAtomic } from "./handlers/log.js";
-import { handleReleaseCommit, handleReleasePush } from "./commands/release.js";
+import {
+  handleReleaseCommit,
+  handleReleasePush,
+  handleReleaseRecordEnabled,
+} from "./commands/release.js";
 
 const program = new Command();
 
@@ -243,6 +247,13 @@ releaseCmd
   .argument("[args...]", "Arguments forwarded to `git push`")
   .action(async (args: string[]) => {
     await handleReleasePush({ args });
+  });
+
+releaseCmd
+  .command("record-enabled")
+  .description("Record per-developer opt-in for release-mode wrappers")
+  .action(async () => {
+    await handleReleaseRecordEnabled();
   });
 
 // --- Log ---

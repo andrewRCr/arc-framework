@@ -31,3 +31,12 @@ export type {
   SpawnPushOptions,
   SpawnPushOutcome,
 } from "../handlers/release/push.js";
+
+export {
+  handleReleaseRecordEnabled,
+  runReleaseRecordEnabled,
+} from "../handlers/release/record.js";
+export type {
+  RunReleaseRecordDeps,
+  RunReleaseRecordResult,
+} from "../handlers/release/record.js";
