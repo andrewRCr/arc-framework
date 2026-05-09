@@ -537,5 +537,4 @@ direction (package source primary, `.arc/` mirror).
 - `[ ]` All quality gates pass (tests, linting, type checking, markdown linting, build)
 - `[ ]` Ready for integration
 
-[testing-methodology]: ../../reference/strategies/project/strategy-testing-methodology.md
 [verify-work-unit]: ../../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md
