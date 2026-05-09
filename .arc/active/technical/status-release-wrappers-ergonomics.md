@@ -5,17 +5,16 @@
 - **State:** Planning
 - **Branch:** technical/plan-release-wrappers-ergonomics
 
-- **Spec:** `plan-release-wrappers-ergonomics.md`
+- **Spec:** `prd-release-wrappers-ergonomics.md`
 - **Task List:** [none]
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** archive-work-unit on release-wrappers-foundation — files moved to
-  `archive/2026-q2/technical/08_release-wrappers-foundation/`, completion-doc PR field filled
-  with PR #30 URL, PROJECT-STATUS and ROADMAP updated
+- **Last Completed:** 1_create-prd — plan iterated through arc-plan facilitation to
+  formalization-ready, PRD drafted with R1–R18 across P0/P1/P2 priorities, plan retired
+  with substantive exploration content distilled to `notes-release-wrappers-ergonomics.md`
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Refresh `plan-release-wrappers-ergonomics.md` against the actually-delivered
-  foundation implementation, iterate plan to PRD-ready, then run `1_create-prd.md`
+- **Next Action:** Run `2_generate-tasks.md`
 
 ---
