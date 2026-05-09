@@ -409,7 +409,7 @@ direction (package source primary, `.arc/` mirror).
   pairs, and sync precedent in Context; trust-model framing and bypass universality in Decision; mitigations and risks
   in Consequences; alternatives close it out. Tier 1 markdown lint clean.
 
-### `[ ]` **6.2 DEV-RULES.ARC, QUICK-REFERENCE, AGENT-BRIEF.ARC updates**
+### `[x]` **6.2 DEV-RULES.ARC, QUICK-REFERENCE, AGENT-BRIEF.ARC updates**
 
 - _Goal:_ Adopter-facing documentation accurately reflects release-wrapper invocation paths — DEV-RULES.ARC § Commit
   Discipline names the wrapper as authorized invocation; QUICK-REFERENCE lists all five new commands; AGENT-BRIEF.ARC
@@ -461,7 +461,15 @@ direction (package source primary, `.arc/` mirror).
         first (`QUICK-REFERENCE.template.md`); `.arc/` mirror diverges only in link style (template inline,
         instance reference-style, with new `[dev-rules-arc]` ref appended).
 
-    - `[ ]` **6.2.c AGENT-BRIEF.ARC release-wrapper invocation shape**
+    - `[x]` **6.2.c AGENT-BRIEF.ARC release-wrapper invocation shape**
+
+        Single bullet added under `## How ARC Works` (peer to Session lifecycle / Work pipeline / Methods
+        and extensions / Quality gates) naming `arc release commit` / `arc release push` as the canonical
+        commit/push invocation shape when active and pointing at DEV-RULES.ARC § Commit Discipline for the
+        rule. Concurrent trim to that DEV-RULES.ARC bullet (6.2.a's contribution) drops the audit-log path
+        detail, refusal-code mention, and forward-ref to AGENT-BRIEF.ARC — applies the session-init lens
+        (every-session load context = rule + orientation only; reference detail routes to QUICK-REFERENCE
+        and on-demand strategy docs). Edits through package source first; both `.arc/` mirrors byte-identical.
 
 ### `[ ]` **6.3 Refusal-message template harmonization** (conditional)
 
