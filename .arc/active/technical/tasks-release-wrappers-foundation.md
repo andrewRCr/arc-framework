@@ -220,23 +220,22 @@ substrate. `pushWorktreeBranch` grows `args?: string[]` and `inheritStdio?: bool
 and retain capturing behavior. Result callback dropped from R2's signature widen unless a concrete need surfaces (see
 `notes-release-wrappers-foundation.md` § 3.1).
 
-### `[ ]` **3.1 Widen `pushWorktreeBranch` signature**
+### `[x]` **3.1 Widen `pushWorktreeBranch` signature**
 
 - _Goal:_ `pushWorktreeBranch` accepts optional `args?: string[]` passthrough and `inheritStdio?: boolean` for verbatim
   bubbling; existing call sites in `handlers/sync.ts` and `commands/user/paired-push.ts` continue to compile and behave
   unchanged (capture-stdout default).
 
-- _Note:_ Result callback (mentioned in PRD R2) dropped from signature widen — caller can
-  `await result; auditLog(result)` inline. Revisit if a concrete need surfaces during impl.
-
-    - File: `src/lib/git/push-worktree.ts`
-
-    Build `test-first` (one behavior at a time):
-    - `args` passthrough — provided args are appended to `git push origin <branch>`
-    - `inheritStdio: true` — wrapped invocation switches to `child_process.spawn` with stdio inheritance; stderr
-      captured for refStatus parsing
-    - `inheritStdio: false` (default) / unset — existing capturing behavior preserved
-    - Existing call sites (no new args) — behavior unchanged; existing tests pass
+- _Outcome:_ Two new options on `PushWorktreeBranchOptions`: `args?: readonly string[]` (appended after
+  `origin <branch>`) and `inheritStdio?: boolean` (switches to `spawn('git', ['push', ...], { stdio: ['inherit',
+  'inherit', 'pipe'] })` with stderr captured + teed to `process.stderr` for refStatus parsing). Result widened
+  with `stdout: string, stderr: string` always populated — capture mode pulls both from the executor (surfacing
+  `.stdout`/`.stderr` off rejected exec errors when present); inherit-stdio mode populates stderr only.
+  Existing call sites (`sync.ts:695`, `paired-push.ts:114`) compile and behave unchanged; `paired-push.test.ts`
+  swapped three `.toEqual` → `.toMatchObject` on `result.worktree` since the helper's wider runtime shape now
+  flows through the typed-narrower `PairedPushLegOutcome` view. 9 new tests cover args passthrough,
+  captured-stream surfacing on exec success and on rejected exec errors, and the inherit-stdio
+  delegate/exit-0/non-zero-exit paths.
 
 ### `[ ]` **3.2 Refusal path — validation + pushability → exit codes 10–14 → audit refused entry**
 
