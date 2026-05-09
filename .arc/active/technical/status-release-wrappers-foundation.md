@@ -9,16 +9,17 @@
 - **Task List:** `tasks-release-wrappers-foundation.md`
 - **Sibling Work Unit(s):** `plan-release-wrappers-ergonomics.md`
 
-- **Last Completed:** Task 4.2 — `arc release status` sub-command + `--json`
-  envelope (renders resolved opt-in flag and three interlock states with
-  provenance; closes Phase 4). Phase 4 opt-in state surface is now complete:
-  record-enabled / record-disabled / status sub-commands.
-- **Next Task:** Task 5.1 — `arc sync` audit-log integration (line ~341)
+- **Last Completed:** Task 5.1 — `arc sync` audit-log integration. Audit-log
+  surface now spans commit + push + sync; full reachable-cell coverage plus
+  removal of the unreachable `worktree-push+notes-blocked` cell name.
+- **Next Task:** Task 5.2 — Migrate session-init config envelope to three-tier
+  resolution (line ~396)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 5.1 — `arc sync` audit-log integration. Design
-  decisions and vertical-slicing approach resolved at f8c64159; start with the
-  simplest cell to validate the audit-write hookup, then expand. See
-  SESSION-NOTES § Additional Context for the recommended first slice.
+- **Next Action:** Start Task 5.2 — switch `runConfigSessionInitStatus` from
+  yaml-only `readConfigSettings` to three-tier `resolveAllSettings` for the full
+  release-mode key surface. Subtasks 5.2.a (verify 1.2 resolver-additions) →
+  5.2.b (migrate handler, test-first) → 5.2.c (regression coverage for existing
+  envelope consumers).
 
 ---
