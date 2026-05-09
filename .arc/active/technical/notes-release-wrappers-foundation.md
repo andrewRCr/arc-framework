@@ -406,6 +406,33 @@ correctly.
 `notes-blocked` is mixed: worktree leg fires, notes leg blocks. No top-level refusal code;
 per-leg result captures the partial state in `outcome.kind: "sync"`.
 
+### § 5.1 — `outcome.worktree` / `outcome.notes` string-shape contract
+
+[F5-E] `AuditOutcome.kind === "sync"` declares `worktree: string` and `notes: string`. Sync's
+runtime per-leg state is `LegOutcomeRecord = { action, result, detail? }`. The audit-entry
+encoding compresses this into a single grep-able token.
+
+**Format rule:** `action:result` when `detail` is absent; `action:result:detail` when set.
+
+Examples (`LegOutcomeRecord` → audit string):
+
+- `{ action: "push", result: "success" }` → `push:success`
+- `{ action: "skip", result: "skipped", detail: "not-configured" }` → `skip:skipped:not-configured`
+- `{ action: "skip", result: "blocked", detail: "diverged" }` → `skip:blocked:diverged`
+- `{ action: "push", result: "blocked", detail: "notes-blocked-by-worktree:diverged" }` →
+  `push:blocked:notes-blocked-by-worktree:diverged`
+- `{ action: "save+push", result: "success" }` → `save+push:success`
+- `{ action: "save+push", result: "success", detail: "recovered:auto-rebase" }` →
+  `save+push:success:recovered:auto-rebase`
+
+`detail` may itself contain colons (e.g., `notes-blocked-by-worktree:diverged`); audit-log
+readers must split on the first two colons to recover `action` / `result` and treat the
+remainder as the detail payload.
+
+The compression preserves the rich detail thread without nesting JSON-in-string, keeps entries
+visually compact in the JSONL log, and stays grep-friendly for ad-hoc filtering
+(`grep ':blocked:' .audit-log.jsonl`).
+
 ### § 5.1 — Audit-entry timing per `handleSync` exit path
 
 [F5-D] `handleSync` exit paths:
