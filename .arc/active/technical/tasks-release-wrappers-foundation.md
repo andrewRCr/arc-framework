@@ -491,7 +491,7 @@ direction (package source primary, `.arc/` mirror).
 
     - File: `.arc/reference/adr/adr-018-interlock-value-extension.md`
 
-### `[ ]` **6.5 Sweep meta-project references + strengthen pre-commit CHECK 9**
+### `[x]` **6.5 Sweep meta-project references + strengthen pre-commit CHECK 9**
 
 - _Goal:_ Remove DEV-RULES.ARC § Documentation Boundaries violations from the WU's existing code/tests and close the
   regex gap in CHECK 9 that let them ship. Both halves are needed: a clean surface eliminates the priming that drives
@@ -525,11 +525,14 @@ direction (package source primary, `.arc/` mirror).
         broad continues to drop `\.arc/`. Live-probed against synthetic src and test files: strict caught in both,
         broad caught only in src, `META-PRD` and Context-footer fixture lines correctly bypassed.
 
-    - `[ ]` **6.5.b Sweep meta-project references**
+    - `[x]` **6.5.b Sweep meta-project references**
 
-        Replace meta-refs in the 8 release/test files listed above with substantive descriptions of what the code does
-        or what each test verifies. Preserve all technical content; only the planning-ID / PRD / § citations change.
-        The strengthened CHECK 9 from 6.5.a gates the staging step — added lines must pass cleanly.
+        24 sites cleaned across the 8 files (3 src, 5 test): PRD R-codes, bare requirement-ID R/B numerals,
+        section-symbol citations, movable-artifact cross-references (`notes-{...}.md`), and a `Task 2.2` mention now
+        describe what the code does or what each test verifies. Three lines of legitimate test fixture data
+        (`tasks-sample.md` inside status-file body strings, `.arc/active/.../status-foo.md` inside path fixtures)
+        preserved by the broad-tier test exemption from 6.5.a — exactly the case the tiered design protects. All
+        quality gates pass; strengthened CHECK 9 stages cleanly on the swept content.
 
 ---
 

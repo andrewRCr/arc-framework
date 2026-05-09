@@ -1,6 +1,6 @@
 /**
  * Active-work-unit resolver consumed by the release commit and push
- * handlers (PRD R6).
+ * handlers.
  *
  * Composes {@link readActiveStatusCandidates} from the active-status
  * reader. Accepts any `**State:**` value — Planning, In Progress,

@@ -2,13 +2,13 @@
  * Unit tests for the `arc release commit` refusal-path orchestrator.
  *
  * Covers the four runtime refusal codes in their documented short-circuit
- * order (12 → 10 → 13 → 11 per `notes-release-wrappers-foundation.md` § 2.1):
- * each refusal returns the matched exit code, formats the message via the
- * shared `formatRefusal` composer, records the refusal as an audit entry,
- * and never spawns the wrapped `git commit` subprocess.
+ * order (12 → 10 → 13 → 11): each refusal returns the matched exit code,
+ * formats the message via the shared `formatRefusal` composer, records
+ * the refusal as an audit entry, and never spawns the wrapped
+ * `git commit` subprocess.
  *
- * The success path lives in Task 2.2 and is not exercised here — tests pass
- * inputs that always resolve to refusal.
+ * The authorize/success path is exercised by sibling tests; this file
+ * passes inputs that always resolve to refusal.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
@@ -389,7 +389,7 @@ describe("runReleaseCommit — code 11 (interlock-not-authorized)", () => {
   });
 });
 
-// --- Cascade short-circuit order (§ 2.1: 12 → 10 → 13 → 11) ---
+// --- Cascade short-circuit order (12 → 10 → 13 → 11) ---
 
 describe("runReleaseCommit — short-circuit order", () => {
   let fixture: Fixture;

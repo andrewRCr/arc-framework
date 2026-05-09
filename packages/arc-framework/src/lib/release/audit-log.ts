@@ -1,17 +1,17 @@
 /**
- * Audit-log writer for the release-wrapper validation library (PRD R7,
- * R14).
+ * Audit-log writer for the release-wrapper validation library.
  *
  * Emits one schema-validated JSONL entry per `arc release commit`,
  * `arc release push`, and `arc sync` invocation under
  * `.arc/user/{identity}/.internal/.audit-log.jsonl` — append-only,
- * gitignored, per-identity. Argv sanitization (R14) redacts `-m` /
- * `--message` payloads at write time.
+ * gitignored, per-identity. Argv sanitization redacts `-m` /
+ * `--message` payloads at write time so commit-message content never
+ * lands on disk in the audit log.
  *
- * Failure-mode split per `notes-release-wrappers-foundation.md` § 1.6:
- * schema violations throw (precondition violation surfaced at test
- * time); I/O failures return `{ ok: false, error }` so an unwritable
- * audit log never masks a successful commit/push/sync.
+ * Failure-mode split: schema violations throw (precondition violation
+ * surfaced at test time); I/O failures return `{ ok: false, error }`
+ * so an unwritable audit log never masks a successful
+ * commit/push/sync.
  *
  * @module
  */
@@ -51,10 +51,11 @@ export async function ensureAuditLogParent(ctx: AuditLogContext): Promise<void> 
 const REDACTED = "<redacted>";
 
 /**
- * Apply PRD R14 redaction to a wrapped-git argv: replace any commit-message
- * payload (`-m`, `--message`) — separated, attached-short, or attached-long —
- * with `<redacted>`, preserving flag shape so the audit entry remains
- * structurally faithful. Non-message args (including `--file` paths and push
+ * Redact commit-message payloads from a wrapped-git argv: replace any
+ * `-m` / `--message` value — separated (`-m subj`), attached-short
+ * (`-msubj`), or attached-long (`--message=subj`) — with `<redacted>`,
+ * preserving flag shape so the audit entry remains structurally
+ * faithful. Non-message args (including `--file` paths and push
  * remotes/refspecs) are kept verbatim.
  */
 export function sanitizeArgs(args: readonly string[]): string[] {
@@ -100,8 +101,8 @@ export function toAuditWorkUnit(
 
 /**
  * Append one audit entry to the per-identity JSONL log. Schema-validates the
- * entry (throws on violation per § 1.6 — precondition failure surfaced at test
- * time) before any I/O. Filesystem errors return `{ ok: false, error }` so an
+ * entry (throws on violation — precondition failure surfaced at test time)
+ * before any I/O. Filesystem errors return `{ ok: false, error }` so an
  * unwritable audit log never masks a successful commit/push/sync.
  */
 export async function appendAuditEntry(opts: {

@@ -130,7 +130,8 @@ function setPolicy(policy: "on-sync" | "prompt" | "manual") {
 
 /**
  * Re-establish construction-time defaults after `vi.resetAllMocks()`.
- * See DEV-RULES.PROJECT § Mock hygiene.
+ * Each test starts from a known mock state so default-driven branches
+ * stay stable across the suite.
  */
 function resetMockDefaults() {
   mockIsCancel.mockReturnValue(false);

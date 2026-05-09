@@ -1,8 +1,9 @@
 /**
  * Unit tests for the destructive-flag detector consumed by the release
- * commit/push handlers (R5). Asserts that the constants match the PRD's
- * refusal lists exactly and that detection returns the matched
- * identifier on first hit, including the `+refspec` push-side pattern.
+ * commit/push handlers. Asserts that the exported constants match the
+ * documented refusal lists exactly and that detection returns the
+ * matched identifier on first hit, including the `+refspec` push-side
+ * pattern.
  */
 
 import { describe, it, expect } from "vitest";
@@ -15,8 +16,8 @@ import {
   detectPushDestructive,
 } from "../../../src/lib/release/destructive-flags.js";
 
-describe("destructive-flags — R5 commit list", () => {
-  it("matches the PRD R5 commit list exactly", () => {
+describe("destructive-flags — commit refusal list", () => {
+  it("exports the documented commit refusal list exactly", () => {
     expect([...COMMIT_DESTRUCTIVE_FLAGS]).toEqual([
       "--amend",
       "--allow-empty",
@@ -25,8 +26,8 @@ describe("destructive-flags — R5 commit list", () => {
   });
 });
 
-describe("destructive-flags — R5 push list", () => {
-  it("matches the PRD R5 push list exactly", () => {
+describe("destructive-flags — push refusal list", () => {
+  it("exports the documented push refusal list exactly", () => {
     expect([...PUSH_DESTRUCTIVE_FLAGS]).toEqual([
       "--force",
       "-f",

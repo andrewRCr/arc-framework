@@ -1,6 +1,6 @@
 /**
- * Destructive-flag refusal lists and detection for the release commit and
- * push wrappers (R5). Single source of truth — every refusal taxonomy
+ * Destructive-flag refusal lists and detection for the release commit
+ * and push wrappers. Single source of truth — every refusal-taxonomy
  * code-12 callsite imports the lists from here.
  *
  * The push detector also recognizes the `+refspec` syntax (a leading `+`
@@ -11,13 +11,13 @@
  */
 
 /**
- * Flags that `arc release commit` refuses unconditionally per PRD R5.
+ * Flags that `arc release commit` refuses unconditionally.
  *
  * - `--amend`: amends route through raw git; the wrapper is the
  *   single-decision point for new commits.
  * - `--allow-empty`: smell signal; raw git for empty-commit intent.
- * - `--no-verify`: already forbidden by DEV-RULES.ARC; mechanical
- *   enforcement here.
+ * - `--no-verify`: bypasses pre-commit gates; refused here so the
+ *   wrapper never lets a commit slip past hook validation.
  */
 export const COMMIT_DESTRUCTIVE_FLAGS = [
   "--amend",
@@ -26,7 +26,7 @@ export const COMMIT_DESTRUCTIVE_FLAGS = [
 ] as const;
 
 /**
- * Flags that `arc release push` refuses per PRD R5. The `+refspec`
+ * Flags that `arc release push` refuses unconditionally. The `+refspec`
  * pattern is detected separately — see {@link PUSH_REFSPEC_FORCE_IDENTIFIER}.
  */
 export const PUSH_DESTRUCTIVE_FLAGS = [

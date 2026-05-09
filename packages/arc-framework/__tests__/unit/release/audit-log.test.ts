@@ -1,11 +1,11 @@
 /**
- * Unit tests for the release-wrapper audit-log writer (PRD R7 / R14).
+ * Unit tests for the release-wrapper audit-log writer.
  *
  * Covers path resolution under `.arc/user/{identity}/.internal/`,
- * idempotent parent-directory bootstrap, R14 argv sanitization, and
- * append-only schema-validated JSONL writes with the schema-violation
- * vs. I/O-failure error split documented in
- * `notes-release-wrappers-foundation.md` § 1.6.
+ * idempotent parent-directory bootstrap, commit-message argv
+ * sanitization, and append-only schema-validated JSONL writes with the
+ * schema-violation vs. I/O-failure error split (validation throws;
+ * filesystem errors return `{ ok: false, error }`).
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
@@ -64,7 +64,7 @@ describe("ensureAuditLogParent", () => {
   });
 });
 
-describe("sanitizeArgs — R14 redaction rules", () => {
+describe("sanitizeArgs — commit-message redaction rules", () => {
   it("redacts the `-m` payload (separated form)", () => {
     expect(sanitizeArgs(["commit", "-m", "subject"])).toEqual([
       "commit",
@@ -335,7 +335,7 @@ describe("appendAuditEntry — schema enforcement (throws on violation)", () => 
     ).resolves.toEqual({ ok: true });
   });
 
-  it("rejects hook-failed outcome for sync (not in PRD R7 table)", async () => {
+  it("rejects hook-failed outcome for sync (sync has no hook-failed arm)", async () => {
     const entry = syncEntry({
       outcome: { kind: "hook-failed", hook: "pre-push", exitCode: 1 },
     });

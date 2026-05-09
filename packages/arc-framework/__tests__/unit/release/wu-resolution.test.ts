@@ -1,6 +1,6 @@
 /**
  * Unit tests for the active-WU resolver consumed by the release commit
- * and push handlers (R6).
+ * and push handlers.
  *
  * Composes `readActiveStatusCandidates` from the active-status reader;
  * accepts any `**State:**` value and refuses only on no-candidate or
