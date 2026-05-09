@@ -498,22 +498,19 @@ direction (package source primary, `.arc/` mirror).
   matrix-cell prose surface (different format, intentionally — sync isn't a release-wrapper refusal). 1.5's
   upfront helper stubbing per F2-E held; no reconciliation needed. Superseded by 1.5's `formatRefusal()`.
 
-### `[ ]` **6.4 ADR-018: interlock value extension — trigger-set model + wrapper-scope-vs-permission rule**
+### `[x]` **6.4 ADR-018: interlock value extension — trigger-set model + wrapper-scope-vs-permission rule**
 
 - _Goal:_ ADR formalizes the design rationale captured during 1.5 — the trigger-set permissiveness ladder
   (`manual` < `on-{primary}` < `on-workflow`), the wrapper-scope-vs-permission authorization rule, and the
   prompt-vs-bypass UX framing with two-layered (mechanical wrapper / agent judgment) trust model.
 
-- _Note:_ Distinct from ADR-017 (trust-model trade-off / harness-bypass property). ADR-017 covers _whether_
-  defense-in-depth applies; ADR-018 covers _how_ the wrapper-side authorization works once the user opts in.
-  Both internal-only per § Architecture Documentation.
-
-- _Notes:_ Source content in `notes-release-wrappers-foundation.md` § 1.5 — three sections (trigger-set ladder,
-  authorization rule, prompt-vs-bypass framing) graduate to ADR.
-
-- **Strategies:** strategy-adr-methodology.md
-
-    - File: `.arc/reference/adr/adr-018-interlock-value-extension.md`
+- _Outcome:_ ADR-018 written at `.arc/reference/adr/adr-018-interlock-value-extension.md`. Three section topics from
+  notes § 1.5 (trigger-set permissiveness ladder, scope-coverage authorization rule, prompt-vs-bypass framing with
+  two-layered trust model) graduate onto the standard ADR template — ladder and value-extension framing in Context;
+  scope-coverage rule plus two-layered authorization in Decision; layer-2 drift and `on-workflow` forward-compat in
+  Consequences; per-axis values, runtime-context detection, and permission-grant framing in Alternatives. Distinct
+  from ADR-017 per the WHETHER/HOW split (017: defense-in-depth applicability; 018: wrapper-side authorization
+  mechanics). Tier 1 markdown lint clean.
 
 ### `[x]` **6.5 Sweep meta-project references + strengthen pre-commit CHECK 9**
 
