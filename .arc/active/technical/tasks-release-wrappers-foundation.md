@@ -426,7 +426,13 @@ direction (package source primary, `.arc/` mirror).
         - `.arc/reference/QUICK-REFERENCE.md`
         - `.arc/system/briefs/AGENT-BRIEF.ARC.md`
 
-    - `[ ]` **6.2.a DEV-RULES.ARC § Commit Discipline addition**
+    - `[x]` **6.2.a DEV-RULES.ARC § Commit Discipline addition**
+
+        New `Release-wrapper invocation` bullet inserted between `Push triggering` and `Merge to integration / main`,
+        with two sub-points: (a) `arc release commit` / `arc release push` are an authorized invocation path
+        and validate + audit unconditionally; (b) `arc.release.enabled: true` plus harness allowlist entries adds
+        the per-invocation harness-prompt bypass, with the canonical invocation shape forward-referenced to
+        AGENT-BRIEF.ARC (6.2.c). Edit went through package source first; `.arc/` mirror is byte-identical.
 
     - `[ ]` **6.2.b QUICK-REFERENCE new commands section**
 
