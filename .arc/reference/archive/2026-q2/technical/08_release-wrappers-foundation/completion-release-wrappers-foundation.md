@@ -3,7 +3,7 @@
 - **Started**: 2026-05-08
 - **Completed**: 2026-05-09
 - **Branch**: `technical/release-wrappers-foundation`
-- **Pull Request**: {pending until archival}
+- **Pull Request**: <https://github.com/andrewRCr/arc-framework/pull/30>
 
 - **Context**: First of two work units carved from `plan-release-wrappers.md` during planning
   (foundation here, ergonomics in sibling `plan-release-wrappers-ergonomics.md`). Delivers the

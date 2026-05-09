@@ -204,7 +204,7 @@ this WU handles the architectural work.
   Session-Init Optimization lands; WU-B (auto-push instantiation against handoff-interior
   toggles) waits for Session-Operational Flow Phase 6. Unified if sequencing allows.
 
-**Interlock Release Wrappers** — WU1 In Progress (Foundation); WU2 pending after WU1
+**Interlock Release Wrappers** — WU1 ✅ Complete (Foundation, May 2026); WU2 In Planning
 (Ergonomics)
 
 Closes the final friction point in session operations: the redundant harness-prompt + ARC-interlock
@@ -221,8 +221,10 @@ orientation when allowlist active. Per-harness viability researched 2026-05-03: 
 Codex CLI viable (Codex with a shell-wrapper caveat to verify); opencode auto-allowlist deferred
 pending upstream config-validation fixes.
 
-- WU1 (Foundation): `active/technical/prd-release-wrappers-foundation.md` (active);
-  WU2 (Ergonomics): `backlog/technical/plan-release-wrappers-ergonomics.md` (planning)
+- WU1 (Foundation): `archive/2026-q2/technical/08_release-wrappers-foundation/` (PR #30,
+  merged 2026-05-09);
+  WU2 (Ergonomics): `active/technical/plan-release-wrappers-ergonomics.md` (planning on
+  `technical/plan-release-wrappers-ergonomics`)
 - Upstream: User Sync UX Polish (Phase 2 paired-push semantics + pushability matrix feeds
   push-wrapper validation; Phase 3.1 resolver consolidation is the base for the validation library;
   `pushWorktreeBranch` helper from Phase 2.R is the swappable seam), Interlock Foundation (ADR-016
@@ -497,6 +499,15 @@ Phase A ──► Phase B ──► Phase C (Work Units):
 
 ## Change Log
 
+- **2026-05-09**: Interlock Release Wrappers — Foundation (WU1) complete (merged via PR #30)
+  and archived to `archive/2026-q2/technical/08_release-wrappers-foundation/`. Delivered the
+  `arc release commit` / `arc release push` wrappers, validation library
+  (`src/lib/release/`), JSONL audit log shared with `arc sync`, opt-in state surface
+  (`arc release opt-in` / `opt-out` / `status`), full release-mode key resolution in the
+  session-init envelope, ADR-017 (release-wrapper trust model), ADR-018 (trigger-set
+  interlock authorization), and CHECK 9 tiered meta-reference patterns. Ergonomics WU2
+  activated to planning on `technical/plan-release-wrappers-ergonomics` (batch branch
+  carrying foundation archival + ergonomics planning).
 - **2026-05-08**: Work Organization Reform inserted between Interlock Release Wrappers and the
   parallelism trio. Surfaced during pre-PRD sanity-check on the parallelism trio when worktree-DX
   evaluation traced the four boundary workflows and identified a structural per-worktree isolation
