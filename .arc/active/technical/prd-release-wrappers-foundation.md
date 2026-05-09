@@ -224,9 +224,11 @@ No retry. Hook output passes through unchanged.
 
 Three sub-commands under the `release` namespace:
 
-- `arc release record-enabled` — writes `arc.release.enabled: true` to per-developer git
-  config.
-- `arc release record-disabled` — clears the same config key.
+- `arc release opt-in` — writes `arc.release.enabled: true` to per-developer git config
+  (idempotent on already-`true`).
+- `arc release opt-out` — writes `arc.release.enabled: false` to per-developer git config
+  (idempotent on already-`false`). Symmetric with opt-in: a developer in a project with
+  yaml `release.enabled: true` can override out locally without yaml's value re-asserting.
 - `arc release status` — prints current opt-in state, resolved interlock states.
 
 These are minimal primitives only — they record/report state, they do not detect or write
@@ -332,7 +334,7 @@ Release-wrapper command handlers in `src/commands/release/`:
 
 - `commit.ts` — handler for `arc release commit`.
 - `push.ts` — handler for `arc release push`.
-- `record.ts` — handlers for `record-enabled` / `record-disabled` / `status`.
+- `record.ts` — handlers for `opt-in` / `opt-out` / `status`.
 
 Validation library in `src/lib/release/`:
 

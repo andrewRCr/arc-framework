@@ -5,7 +5,7 @@
 WU1 (`prd-release-wrappers-foundation.md`, sibling) delivers the mechanical foundation:
 `arc release commit` and `arc release push` work end-to-end for hand-configured adopters.
 Hand-configuration means manually editing harness permission files (`.claude/settings.json`,
-`~/.codex/policy/...`) and running `arc release record-enabled` to flip per-developer
+`~/.codex/policy/...`) and running `arc release opt-in` to flip per-developer
 opt-in state (`arc.release.enabled`).
 
 This works for the friction-tolerant minority but falls short of the broader adoption case.
@@ -55,9 +55,9 @@ The middle-ground splits responsibility:
 - `arc release setup verify [--harness <name>]` — read configs, confirm canonical patterns are
   present; return structured pass/fail.
 - `arc release setup --enable` / `--disable` — orchestration porcelain that drives the workflow,
-  verify, and record-enabled (or removal and record-disabled).
+  verify, and opt-in (or removal and opt-out).
 
-(Note: `arc release record-enabled` / `record-disabled` / `status` ship in WU1 as minimal
+(Note: `arc release opt-in` / `opt-out` / `status` ship in WU1 as minimal
 state-recording primitives.)
 
 **Workflow provides** (judgment-driven, agent-executed):
@@ -69,9 +69,9 @@ state-recording primitives.)
     - For each detected harness: running `print-patterns`; reading existing config; merging
       entries; writing.
     - Running `arc release setup verify`. On pass, prompting user to confirm; on user-confirm
-      running `arc release record-enabled`.
+      running `arc release opt-in`.
 
-**Critical safety property:** `record-enabled` is gated on `verify` returning pass. The agent
+**Critical safety property:** `opt-in` is gated on `verify` returning pass. The agent
 writes the config; `verify` confirms; only on success does opt-in state record
 (`arc.release.enabled: true`). A failed/incomplete edit cannot accidentally record opt-in.
 
@@ -86,7 +86,7 @@ writes the config; `verify` confirms; only on success does opt-in state record
 - `verify [--harness <name>]` — read-only config inspection, confirm canonical patterns
   present.
 - `--enable` / `--disable` — orchestration porcelain that runs the workflow, verify, and
-  record-enabled (or record-disabled).
+  opt-in (or opt-out).
 
 Pattern formatters per harness:
 
@@ -101,7 +101,7 @@ Pattern formatters per harness:
 - Harness detection (uses `arc release setup status`).
 - Per-harness section: agent reads existing config, merges canonical entries, writes.
 - Verification step (mandatory; uses `arc release setup verify`).
-- State recording (gated on verify pass; uses `arc release record-enabled`).
+- State recording (gated on verify pass; uses `arc release opt-in`).
 - Rollback (`arc release setup --disable` flow: agent removes its entries; state recorded).
 
 **Workflow integration.** Updates to `process-task-loop.md`, `session-handoff.md`, and

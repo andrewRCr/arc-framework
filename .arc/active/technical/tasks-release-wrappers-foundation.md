@@ -266,17 +266,17 @@ and retain capturing behavior. Result callback dropped from R2's signature widen
 
 ## **Phase 4:** Opt-in state surface
 
-_Purpose:_ Land R10's three sub-commands (`record-enabled`, `record-disabled`, `status`) plus R13's `--json` envelope.
+_Purpose:_ Land R10's three sub-commands (`opt-in`, `opt-out`, `status`) plus R13's `--json` envelope.
 Minimal primitives only — no harness detection (WU2 scope).
 
 _Design decisions:_ 4.1.a extends `lib/git/exec.ts` with a missing primitive (`gitConfigUnset`) and widens
 `gitConfigSet` with explicit scope; 4.1.b/c consume those helpers. `--json` envelope carries `schemaVersion: 1` for
 forward-compat per `notes-release-wrappers-foundation.md` § 4.2.
 
-### `[x]` **4.1 `record-enabled` / `record-disabled` sub-commands**
+### `[x]` **4.1 `opt-in` / `opt-out` sub-commands**
 
-- _Goal:_ `arc release record-enabled` writes `arc.release.enabled: true` to per-developer git config (idempotent on
-  repeat); `arc release record-disabled` clears the same key (idempotent on absent key); both surface git-config write
+- _Goal:_ `arc release opt-in` writes `arc.release.enabled: true` to per-developer git config (idempotent on
+  repeat); `arc release opt-out` clears the same key (idempotent on absent key); both surface git-config write
   failures with clear remediation messages.
 
     - `[x]` **4.1.a Extend `lib/git/exec.ts` — `gitConfigUnset` + scoped `gitConfigSet`**
@@ -290,26 +290,27 @@ forward-compat per `notes-release-wrappers-foundation.md` § 4.2.
         `__tests__/unit/git/git.test.ts` — two `gitConfigUnset` paths plus three scope values via `it.each`;
         the no-arg `gitConfigSet` test stays as the behavior-unchanged guard.
 
-    - `[x]` **4.1.b `record-enabled` sub-command**
+    - `[x]` **4.1.b `opt-in` sub-command**
 
-        Orchestrator `runReleaseRecordEnabled` in `src/handlers/release/record.ts` uses check-then-set via
+        Orchestrator `runReleaseOptIn` in `src/handlers/release/record.ts` uses check-then-set via
         `gitConfigGet` for idempotence — returns no-op when `arc.release.enabled` is already `"true"`, otherwise
         writes via `gitConfigSet(..., "true", "local")`. Set failures are caught and surfaced through the injectable
         `writeStderr` sink as `Failed to set arc.release.enabled: <git-error>` with non-zero exit. Commander adapter
-        `handleReleaseRecordEnabled` wires the real `gitExec`; sub-command registered on `arc release` in
+        `handleReleaseOptIn` wires the real `gitExec`; sub-command registered on `arc release` in
         `src/cli.ts` and re-exported from `src/commands/release.ts`. Three tests in
         `__tests__/unit/handlers/release/record.test.ts` cover the three behaviors.
 
-    - `[x]` **4.1.c `record-disabled` sub-command**
+    - `[x]` **4.1.c `opt-out` sub-command**
 
-        Orchestrator `runReleaseRecordDisabled` in `src/handlers/release/record.ts` delegates to
-        `gitConfigUnset` — the lib helper's check-then-unset semantics carry idempotence for the
-        absent-key and never-enabled paths without a separate orchestrator pre-check. Unset failures
-        are caught and surfaced through the injectable `writeStderr` sink as
-        `Failed to unset arc.release.enabled: <git-error>` with non-zero exit. Commander adapter
-        `handleReleaseRecordDisabled` wires the real `gitExec`; sub-command registered on
-        `arc release` in `src/cli.ts` and re-exported from `src/commands/release.ts`. Four tests in
-        `__tests__/unit/handlers/release/record.test.ts` cover the four behaviors.
+        Orchestrator `runReleaseOptOut` in `src/handlers/release/record.ts` mirrors `runReleaseOptIn`'s
+        check-then-set shape — returns no-op when `arc.release.enabled` is already `"false"`, otherwise
+        writes via `gitConfigSet(..., "false", "local")`. Writing `"false"` (rather than unsetting) keeps
+        the per-developer override symmetric: a developer in a project with yaml `release.enabled: true`
+        can override out locally without yaml's value re-asserting. Set failures are caught and surfaced
+        through the injectable `writeStderr` sink as `Failed to set arc.release.enabled: <git-error>` with
+        non-zero exit. Commander adapter `handleReleaseOptOut` wires the real `gitExec`; sub-command
+        registered on `arc release` in `src/cli.ts` and re-exported from `src/commands/release.ts`. Tests
+        in `__tests__/unit/handlers/release/record.test.ts` cover the symmetric behaviors.
 
 ### `[x]` **4.2 `arc release status` sub-command + `--json` envelope**
 
@@ -426,6 +427,22 @@ direction (package source primary, `.arc/` mirror).
         - `.arc/reference/QUICK-REFERENCE.md`
         - `.arc/system/briefs/AGENT-BRIEF.ARC.md`
 
+    - `[x]` **6.2.0 Rename release-mode opt-in CLI verbs + make opt-out symmetric**
+
+        Surfaced during 6.2 doc-writing — the original `record-enabled` / `record-disabled` verbs
+        underdelivered on the per-developer-override scope, and `record-disabled` actually unset the local
+        key (so a developer in a project with yaml `release.enabled: true` couldn't override out — yaml
+        re-asserted). Renamed CLI commands to `arc release opt-in` / `arc release opt-out`, functions to
+        `runReleaseOptIn` / `runReleaseOptOut` plus their `handleReleaseOptIn` / `handleReleaseOptOut`
+        Commander adapters, shared type alias to `RunReleaseOptDeps` / `RunReleaseOptResult`. Changed
+        opt-out to write `"false"` explicitly via the same check-then-set shape as opt-in — the
+        per-developer override is now symmetric. Code: `record.ts`, `commands/release.ts`, `cli.ts`,
+        `record.test.ts`. Docs: QUICK-REFERENCE x2, PRD R10 + § Architecture placement,
+        `plan-release-wrappers-ergonomics.md`, this task list (4.1 metadata + 6.2.b outcome reference).
+        Git-config key (`arc.release.enabled`) and yaml key (`release.enabled`) unchanged. `gitConfigUnset`
+        lib helper retained as a general-purpose primitive (no current consumer). Tier 2 gates clean
+        (lint:ts, typecheck, 1462 tests).
+
     - `[x]` **6.2.a DEV-RULES.ARC § Commit Discipline addition**
 
         New `Release-wrapper invocation` bullet inserted between `Push triggering` and `Merge to integration / main`,
@@ -437,8 +454,8 @@ direction (package source primary, `.arc/` mirror).
     - `[x]` **6.2.b QUICK-REFERENCE new commands section**
 
         New `### Release Wrappers` subsection added to `## ARC CLI Commands`, between Session State Portability
-        and Atomic Work History. Lists all five commands (`arc release commit` / `push` / `record-enabled` /
-        `record-disabled` / `status [--json]`) with comment-prefixed bash examples matching the section's
+        and Atomic Work History. Lists all five commands (`arc release commit` / `push` / `opt-in` /
+        `opt-out` / `status [--json]`) with comment-prefixed bash examples matching the section's
         existing convention; one closing paragraph names refusal codes 10–14 and the audit-log path, and
         cross-references DEV-RULES.ARC § Commit Discipline for the trust model. Edit through package source
         first (`QUICK-REFERENCE.template.md`); `.arc/` mirror diverges only in link style (template inline,

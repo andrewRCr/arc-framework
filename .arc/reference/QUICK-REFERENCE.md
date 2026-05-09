@@ -283,10 +283,11 @@ arc release commit -m "feat(scope): subject"
 arc release push
 
 # Record per-developer opt-in (writes `arc.release.enabled: true` to local git config)
-arc release record-enabled
+arc release opt-in
 
-# Clear the opt-in flag (idempotent on absent)
-arc release record-disabled
+# Record per-developer opt-out (writes `arc.release.enabled: false` to local git config —
+# overrides yaml `release.enabled: true` for this clone, idempotent on already-`false`)
+arc release opt-out
 
 # Show resolved opt-in flag and interlock states with provenance
 arc release status

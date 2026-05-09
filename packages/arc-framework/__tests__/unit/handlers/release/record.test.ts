@@ -1,17 +1,18 @@
 /**
- * Unit tests for the `arc release record-enabled` / `record-disabled` /
- * `status` sub-command orchestrators.
+ * Unit tests for the `arc release opt-in` / `opt-out` / `status`
+ * sub-command orchestrators.
  *
- * Covers idempotent local-scope writes and clears of `arc.release.enabled`,
- * with key-naming + underlying-error surfacing on git-config failures, plus
- * human / `--json` rendering of the resolved opt-in + interlock surface.
+ * Covers idempotent local-scope writes of `arc.release.enabled` (true on
+ * opt-in, false on opt-out — symmetric override surface), with key-naming
+ * + underlying-error surfacing on git-config failures, plus human / `--json`
+ * rendering of the resolved opt-in + interlock surface.
  */
 
 import { describe, it, expect, vi } from "vitest";
 
 import {
-  runReleaseRecordDisabled,
-  runReleaseRecordEnabled,
+  runReleaseOptIn,
+  runReleaseOptOut,
   runReleaseStatus,
 } from "../../../../src/handlers/release/record.js";
 import type { ResolvedSettingsResult } from "../../../../src/lib/config/resolved-settings.js";
@@ -37,14 +38,14 @@ function buildSettings(overrides: {
   };
 }
 
-describe("runReleaseRecordEnabled", () => {
+describe("runReleaseOptIn", () => {
   it("writes arc.release.enabled = true to local config on first invocation", async () => {
     const exec = vi
       .fn()
       .mockRejectedValueOnce(new Error("exit code 1")) // --get returns undefined (absent)
       .mockResolvedValueOnce({ stdout: "" }); // --local set succeeds
 
-    const result = await runReleaseRecordEnabled({ exec });
+    const result = await runReleaseOptIn({ exec });
 
     expect(result.exitCode).toBe(0);
     expect(exec).toHaveBeenCalledWith("git", [
@@ -58,11 +59,28 @@ describe("runReleaseRecordEnabled", () => {
   it("returns no-op success when key is already set to 'true' (skips --local set)", async () => {
     const exec = vi.fn().mockResolvedValueOnce({ stdout: "true\n" });
 
-    const result = await runReleaseRecordEnabled({ exec });
+    const result = await runReleaseOptIn({ exec });
 
     expect(result.exitCode).toBe(0);
     expect(exec).toHaveBeenCalledTimes(1);
     expect(exec).not.toHaveBeenCalledWith("git", [
+      "config",
+      "--local",
+      "arc.release.enabled",
+      "true",
+    ]);
+  });
+
+  it("overwrites a stale 'false' to 'true' on opt-in", async () => {
+    const exec = vi
+      .fn()
+      .mockResolvedValueOnce({ stdout: "false\n" }) // --get returns "false"
+      .mockResolvedValueOnce({ stdout: "" }); // --local set succeeds
+
+    const result = await runReleaseOptIn({ exec });
+
+    expect(result.exitCode).toBe(0);
+    expect(exec).toHaveBeenCalledWith("git", [
       "config",
       "--local",
       "arc.release.enabled",
@@ -77,7 +95,7 @@ describe("runReleaseRecordEnabled", () => {
       .mockRejectedValueOnce(new Error("permission denied")); // --local set fails
 
     const stderr: string[] = [];
-    const result = await runReleaseRecordEnabled({
+    const result = await runReleaseOptIn({
       exec,
       writeStderr: (msg) => {
         stderr.push(msg);
@@ -90,65 +108,64 @@ describe("runReleaseRecordEnabled", () => {
   });
 });
 
-describe("runReleaseRecordDisabled", () => {
-  it("unsets arc.release.enabled when key is present", async () => {
+describe("runReleaseOptOut", () => {
+  it("writes arc.release.enabled = false to local config when key is absent", async () => {
     const exec = vi
       .fn()
-      .mockResolvedValueOnce({ stdout: "true\n" }) // --get returns "true"
-      .mockResolvedValueOnce({ stdout: "" }); // --unset succeeds
+      .mockRejectedValueOnce(new Error("exit code 1")) // --get returns undefined (absent)
+      .mockResolvedValueOnce({ stdout: "" }); // --local set succeeds
 
-    const result = await runReleaseRecordDisabled({ exec });
+    const result = await runReleaseOptOut({ exec });
 
     expect(result.exitCode).toBe(0);
     expect(exec).toHaveBeenCalledWith("git", [
       "config",
-      "--unset",
+      "--local",
       "arc.release.enabled",
+      "false",
     ]);
   });
 
-  it("returns no-op success when key is absent (idempotent on repeat)", async () => {
+  it("overwrites 'true' with 'false' to override yaml-set opt-in locally", async () => {
     const exec = vi
       .fn()
-      .mockRejectedValueOnce(new Error("exit code 1")); // --get returns undefined (absent)
+      .mockResolvedValueOnce({ stdout: "true\n" }) // --get returns "true"
+      .mockResolvedValueOnce({ stdout: "" }); // --local set succeeds
 
-    const result = await runReleaseRecordDisabled({ exec });
+    const result = await runReleaseOptOut({ exec });
+
+    expect(result.exitCode).toBe(0);
+    expect(exec).toHaveBeenCalledWith("git", [
+      "config",
+      "--local",
+      "arc.release.enabled",
+      "false",
+    ]);
+  });
+
+  it("returns no-op success when key is already set to 'false' (skips --local set)", async () => {
+    const exec = vi.fn().mockResolvedValueOnce({ stdout: "false\n" });
+
+    const result = await runReleaseOptOut({ exec });
 
     expect(result.exitCode).toBe(0);
     expect(exec).toHaveBeenCalledTimes(1);
     expect(exec).not.toHaveBeenCalledWith("git", [
       "config",
-      "--unset",
+      "--local",
       "arc.release.enabled",
+      "false",
     ]);
   });
 
-  it("succeeds silently when wrappers were never enabled (no --unset call)", async () => {
-    const exec = vi
-      .fn()
-      .mockRejectedValueOnce(new Error("exit code 1")); // --get returns undefined (never set)
-
-    const stderr: string[] = [];
-    const result = await runReleaseRecordDisabled({
-      exec,
-      writeStderr: (msg) => {
-        stderr.push(msg);
-      },
-    });
-
-    expect(result.exitCode).toBe(0);
-    expect(stderr).toEqual([]);
-    expect(exec).toHaveBeenCalledTimes(1);
-  });
-
-  it("surfaces git-config unset failure with key name and underlying error", async () => {
+  it("surfaces git-config write failure with key name and underlying error", async () => {
     const exec = vi
       .fn()
       .mockResolvedValueOnce({ stdout: "true\n" }) // --get returns "true"
-      .mockRejectedValueOnce(new Error("permission denied")); // --unset fails
+      .mockRejectedValueOnce(new Error("permission denied")); // --local set fails
 
     const stderr: string[] = [];
-    const result = await runReleaseRecordDisabled({
+    const result = await runReleaseOptOut({
       exec,
       writeStderr: (msg) => {
         stderr.push(msg);

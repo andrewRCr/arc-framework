@@ -33,16 +33,16 @@ export type {
 } from "../handlers/release/push.js";
 
 export {
-  handleReleaseRecordDisabled,
-  handleReleaseRecordEnabled,
+  handleReleaseOptIn,
+  handleReleaseOptOut,
   handleReleaseStatus,
-  runReleaseRecordDisabled,
-  runReleaseRecordEnabled,
+  runReleaseOptIn,
+  runReleaseOptOut,
   runReleaseStatus,
 } from "../handlers/release/record.js";
 export type {
-  RunReleaseRecordDeps,
-  RunReleaseRecordResult,
+  RunReleaseOptDeps,
+  RunReleaseOptResult,
   RunReleaseStatusDeps,
   RunReleaseStatusResult,
 } from "../handlers/release/record.js";

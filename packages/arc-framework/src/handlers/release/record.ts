@@ -1,14 +1,21 @@
 /**
- * `arc release record-enabled` / `record-disabled` / `status` sub-command
- * orchestrators.
+ * `arc release opt-in` / `opt-out` / `status` sub-command orchestrators.
  *
- * `record-enabled` writes `arc.release.enabled = true` to per-developer git
- * config (local scope) — idempotent on repeat. `record-disabled` clears the
- * same key — idempotent on absent. Both surface git-config failures via
- * the injectable `writeStderr` sink with a key-naming message and the
- * underlying git error. `status` renders the resolved opt-in flag and three
- * interlock states with provenance — human-readable lines or a
- * `schemaVersion: 1` JSON envelope.
+ * `opt-in` writes `arc.release.enabled: true` to per-developer git config
+ * (local scope) — idempotent on already-`true`. `opt-out` writes
+ * `arc.release.enabled: false` to the same scope — idempotent on
+ * already-`false`. Both follow the same pre-check shape: read existing,
+ * skip if matching, otherwise set; failures surface via the injectable
+ * `writeStderr` sink with the key name and the underlying git error.
+ *
+ * `opt-out` writes `false` rather than unsetting because the local-scope
+ * key is the per-developer override of the project's yaml `release.enabled`.
+ * Unsetting would fall back to yaml — meaning a developer in a project that
+ * yaml-opted in could never personally override out. Writing `false`
+ * explicitly makes the override symmetric.
+ *
+ * `status` renders the resolved opt-in flag and three interlock states with
+ * provenance — human-readable lines or a `schemaVersion: 1` JSON envelope.
  *
  * @module
  */
@@ -19,7 +26,6 @@ import { resolveAllSettings, type ResolvedSettingsResult } from "../../lib/confi
 import {
   gitConfigGet,
   gitConfigSet,
-  gitConfigUnset,
   type GitExec,
 } from "../../lib/git/index.js";
 import { gitExec } from "../../lib/io-context.js";
@@ -28,18 +34,18 @@ import { ARC_PROJECT_ROOT_ERROR } from "../shared.js";
 
 const RELEASE_ENABLED_KEY = "arc.release.enabled";
 
-export interface RunReleaseRecordDeps {
+export interface RunReleaseOptDeps {
   exec: GitExec;
   /** Sink for failure messages. Defaults to `process.stderr.write`. */
   writeStderr?: (msg: string) => void;
 }
 
-export interface RunReleaseRecordResult {
+export interface RunReleaseOptResult {
   exitCode: number;
 }
 
 /**
- * Run the `arc release record-enabled` sub-command. Writes
+ * Run the `arc release opt-in` sub-command. Writes
  * `arc.release.enabled = true` to local git config when absent or set to a
  * non-`true` value; returns no-op success when already `true`. The pre-check
  * via `gitConfigGet` makes the operation idempotent without relying on
@@ -47,9 +53,9 @@ export interface RunReleaseRecordResult {
  * via `writeStderr` with the key name and underlying git error before
  * exiting non-zero.
  */
-export async function runReleaseRecordEnabled(
-  deps: RunReleaseRecordDeps,
-): Promise<RunReleaseRecordResult> {
+export async function runReleaseOptIn(
+  deps: RunReleaseOptDeps,
+): Promise<RunReleaseOptResult> {
   const writeStderr = deps.writeStderr ?? ((msg) => {
     process.stderr.write(msg);
   });
@@ -66,49 +72,51 @@ export async function runReleaseRecordEnabled(
 }
 
 /**
- * Commander adapter for `arc release record-enabled`. Resolves the real
- * `gitExec` and delegates; surfaces non-zero orchestrator results via
+ * Commander adapter for `arc release opt-in`. Resolves the real `gitExec`
+ * and delegates; surfaces non-zero orchestrator results via
  * `process.exitCode`.
  */
-export async function handleReleaseRecordEnabled(): Promise<void> {
-  const result = await runReleaseRecordEnabled({ exec: gitExec });
+export async function handleReleaseOptIn(): Promise<void> {
+  const result = await runReleaseOptIn({ exec: gitExec });
   if (result.exitCode !== 0) {
     process.exitCode = result.exitCode;
   }
 }
 
 /**
- * Run the `arc release record-disabled` sub-command. Clears
- * `arc.release.enabled` from git config when present; returns no-op success
- * when the key is absent (idempotent on repeat, and silent when wrappers
- * were never enabled). `gitConfigUnset` performs its own check-then-unset
- * via `gitConfigGet`, so only real `--unset` failures propagate — those
- * are surfaced via `writeStderr` with the key name and underlying git error
- * before exiting non-zero.
+ * Run the `arc release opt-out` sub-command. Writes
+ * `arc.release.enabled = false` to local git config when absent or set to a
+ * non-`false` value; returns no-op success when already `false`. Mirrors
+ * `runReleaseOptIn`'s pre-check shape so the two halves of the override
+ * surface stay symmetric — a developer in a project with yaml
+ * `release.enabled: true` can opt out locally without yaml's value
+ * re-asserting.
  */
-export async function runReleaseRecordDisabled(
-  deps: RunReleaseRecordDeps,
-): Promise<RunReleaseRecordResult> {
+export async function runReleaseOptOut(
+  deps: RunReleaseOptDeps,
+): Promise<RunReleaseOptResult> {
   const writeStderr = deps.writeStderr ?? ((msg) => {
     process.stderr.write(msg);
   });
+  const existing = await gitConfigGet(deps.exec, RELEASE_ENABLED_KEY);
+  if (existing === "false") return { exitCode: 0 };
   try {
-    await gitConfigUnset(deps.exec, RELEASE_ENABLED_KEY);
+    await gitConfigSet(deps.exec, RELEASE_ENABLED_KEY, "false", "local");
     return { exitCode: 0 };
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
-    writeStderr(`Failed to unset ${RELEASE_ENABLED_KEY}: ${detail}\n`);
+    writeStderr(`Failed to set ${RELEASE_ENABLED_KEY}: ${detail}\n`);
     return { exitCode: 1 };
   }
 }
 
 /**
- * Commander adapter for `arc release record-disabled`. Resolves the real
- * `gitExec` and delegates; surfaces non-zero orchestrator results via
+ * Commander adapter for `arc release opt-out`. Resolves the real `gitExec`
+ * and delegates; surfaces non-zero orchestrator results via
  * `process.exitCode`.
  */
-export async function handleReleaseRecordDisabled(): Promise<void> {
-  const result = await runReleaseRecordDisabled({ exec: gitExec });
+export async function handleReleaseOptOut(): Promise<void> {
+  const result = await runReleaseOptOut({ exec: gitExec });
   if (result.exitCode !== 0) {
     process.exitCode = result.exitCode;
   }

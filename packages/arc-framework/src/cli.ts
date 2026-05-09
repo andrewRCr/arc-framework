@@ -28,9 +28,9 @@ import { handleUserSync } from "./handlers/user-sync.js";
 import { handleLogAtomic } from "./handlers/log.js";
 import {
   handleReleaseCommit,
+  handleReleaseOptIn,
+  handleReleaseOptOut,
   handleReleasePush,
-  handleReleaseRecordDisabled,
-  handleReleaseRecordEnabled,
   handleReleaseStatus,
 } from "./commands/release.js";
 
@@ -252,17 +252,17 @@ releaseCmd
   });
 
 releaseCmd
-  .command("record-enabled")
-  .description("Record per-developer opt-in for release-mode wrappers")
+  .command("opt-in")
+  .description("Record per-developer opt-in for release-mode wrappers (writes `arc.release.enabled: true`)")
   .action(async () => {
-    await handleReleaseRecordEnabled();
+    await handleReleaseOptIn();
   });
 
 releaseCmd
-  .command("record-disabled")
-  .description("Clear per-developer opt-in for release-mode wrappers")
+  .command("opt-out")
+  .description("Record per-developer opt-out for release-mode wrappers (writes `arc.release.enabled: false`)")
   .action(async () => {
-    await handleReleaseRecordDisabled();
+    await handleReleaseOptOut();
   });
 
 releaseCmd
