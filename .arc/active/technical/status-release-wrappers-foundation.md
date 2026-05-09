@@ -9,21 +9,20 @@
 - **Task List:** `tasks-release-wrappers-foundation.md`
 - **Sibling Work Unit(s):** `plan-release-wrappers-ergonomics.md`
 
-- **Last Completed:** Task 3.1 — `pushWorktreeBranch` widened with
-  `args?: readonly string[]` + `inheritStdio?: boolean`; result shape
-  carries `stdout`/`stderr` in both modes (Task 2.2 success-path landed
-  in the prior commit).
-- **Next Task:** Task 3.2 — Refusal path: validation + pushability →
-  exit codes 10–14 → audit refused entry (line ~240)
+- **Last Completed:** Task 3.3 — `arc release push` success path:
+  authorize branch invokes wrapped `git push` + writes `kind: "push"`
+  audit (parsed `refStatus`) on exit 0 / `kind: "hook-failed"` audit
+  with hook attribution on non-zero. Phase 3 closes.
+- **Next Task:** Task 4.1.a — Extend `lib/git/exec.ts` with
+  `gitConfigUnset` + scoped `gitConfigSet` (line ~285)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 3.2 — implement `arc release push`
-  refusal cascade (12 → 10 → 13 → 14 → 11) in
-  `src/handlers/release/push.ts` and register the `push` sub-command on
-  `arc release` in `src/cli.ts`. Reuse the Phase 1 lib +
-  `formatRefusal()`; route code 14 through `runPushabilityStatus`
-  (block conditions + `force-push-required` advisory refuse;
-  `auto-fixed` passes through). Code 15 reserved-for-empirical (no
-  runtime check).
+- **Next Action:** Begin Task 4.1.a — add `gitConfigUnset(exec, key)`
+  (uses `git config --unset <key>`; key-absent path returns no-op
+  success without throwing) and widen `gitConfigSet` with optional
+  `scope?: "local" | "global" | "system"` defaulting to `"local"`.
+  Existing call sites pass no scope — behavior must stay unchanged.
+  Test-first per the four behaviors enumerated in
+  `tasks-release-wrappers-foundation.md` § 4.1.a.
 
 ---
