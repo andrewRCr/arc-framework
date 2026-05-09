@@ -562,3 +562,178 @@ describe("runReleasePush — short-circuit order", () => {
     expect(result.exitCode).toBe(14);
   });
 });
+
+// --- Success path: wrapped push invocation + audit attribution ---
+
+describe("runReleasePush — success path", () => {
+  let fixture: Fixture;
+  beforeEach(async () => { fixture = await createFixture(); });
+  afterEach(async () => { await rm(fixture.root, { recursive: true, force: true }); });
+
+  function authorizingSettings(): ResolvedSettingsResult {
+    return buildSettings({ pushInterlock: "on-workflow" });
+  }
+
+  it("forwards branch + argv to spawnPush when authorized and bubbles exit 0", async () => {
+    await writeStatus(fixture.root, "technical", "sample");
+    const argv = ["origin", "feature/x"];
+    const { deps, spawnPush } = buildDeps(fixture.root, {
+      argv,
+      settings: authorizingSettings(),
+      currentBranch: "feature/x",
+      spawnPush: () => Promise.resolve({
+        status: "success",
+        stdout: "",
+        stderr: "To origin\n   abc1234..def5678  feature/x -> feature/x\n",
+      }),
+    });
+
+    const result = await runReleasePush(deps);
+
+    expect(spawnPush).toHaveBeenCalledTimes(1);
+    expect(spawnPush).toHaveBeenCalledWith({
+      branch: "feature/x",
+      args: argv,
+      cwd: fixture.root,
+    });
+    expect(result.exitCode).toBe(0);
+  });
+
+  it("writes a proceeded audit entry with kind: push and parsed refStatus", async () => {
+    await writeStatus(fixture.root, "technical", "sample");
+    const { deps } = buildDeps(fixture.root, {
+      argv: [],
+      settings: authorizingSettings(),
+      currentBranch: "feature/x",
+      spawnPush: () => Promise.resolve({
+        status: "success",
+        stdout: "",
+        stderr: "To origin\n   abc1234..def5678  feature/x -> feature/x\nDone\n",
+      }),
+    });
+
+    await runReleasePush(deps);
+
+    const entries = await readAuditEntries(fixture.root);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      command: "release-push",
+      decision: "proceeded",
+      refusalCode: null,
+      outcome: { kind: "push", refStatus: "abc1234..def5678  feature/x -> feature/x" },
+      wu: { category: "technical", name: "sample" },
+    });
+  });
+
+  it("falls back to refStatus: 'ok' when stderr has no parseable ref-status line", async () => {
+    await writeStatus(fixture.root, "technical", "sample");
+    const { deps } = buildDeps(fixture.root, {
+      settings: authorizingSettings(),
+      spawnPush: () => Promise.resolve({
+        status: "success",
+        stdout: "",
+        stderr: "Everything up-to-date\n",
+      }),
+    });
+
+    await runReleasePush(deps);
+
+    const [entry] = await readAuditEntries(fixture.root);
+    expect(entry?.outcome).toMatchObject({ kind: "push", refStatus: "ok" });
+  });
+
+  it("bubbles non-zero exit and writes hook-failed entry attributed to pre-push", async () => {
+    await writeStatus(fixture.root, "technical", "sample");
+    const { deps } = buildDeps(fixture.root, {
+      settings: authorizingSettings(),
+      spawnPush: () => Promise.resolve({
+        status: "failed",
+        exitCode: 1,
+        stdout: "",
+        stderr: "pre-push hook rejected: commits failed lint\n",
+      }),
+    });
+
+    const result = await runReleasePush(deps);
+
+    expect(result.exitCode).toBe(1);
+    const entries = await readAuditEntries(fixture.root);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      command: "release-push",
+      decision: "proceeded",
+      refusalCode: null,
+      outcome: { kind: "hook-failed", hook: "pre-push", exitCode: 1 },
+    });
+  });
+
+  it.each<[string, string]>([
+    ["non-fast-forward", "! [rejected]        feature/x -> feature/x (non-fast-forward)\n"],
+    ["remote rejected", "remote rejected feature/x (branch policy)\n"],
+    ["bracketed rejected", "! [rejected]        main -> main (fetch first)\n"],
+  ])("attributes server-side reject (%s) to hook: 'server'", async (_, stderr) => {
+    await writeStatus(fixture.root, "technical", "sample");
+    const { deps } = buildDeps(fixture.root, {
+      settings: authorizingSettings(),
+      spawnPush: () => Promise.resolve({
+        status: "failed",
+        exitCode: 1,
+        stdout: "",
+        stderr,
+      }),
+    });
+
+    await runReleasePush(deps);
+
+    const [entry] = await readAuditEntries(fixture.root);
+    expect(entry?.outcome).toMatchObject({
+      kind: "hook-failed",
+      hook: "server",
+      exitCode: 1,
+    });
+  });
+
+  it("falls back to hook: 'unknown' when no marker matches", async () => {
+    await writeStatus(fixture.root, "technical", "sample");
+    const { deps } = buildDeps(fixture.root, {
+      settings: authorizingSettings(),
+      spawnPush: () => Promise.resolve({
+        status: "failed",
+        exitCode: 128,
+        stdout: "",
+        stderr: "fatal: unable to access 'origin': network error\n",
+      }),
+    });
+
+    const result = await runReleasePush(deps);
+
+    expect(result.exitCode).toBe(128);
+    const [entry] = await readAuditEntries(fixture.root);
+    expect(entry?.outcome).toMatchObject({
+      kind: "hook-failed",
+      hook: "unknown",
+      exitCode: 128,
+    });
+  });
+
+  it("writes the audit entry with release-push interlockState (push + sync)", async () => {
+    await writeStatus(fixture.root, "technical", "sample");
+    const { deps } = buildDeps(fixture.root, {
+      settings: authorizingSettings(),
+      spawnPush: () => Promise.resolve({
+        status: "success",
+        stdout: "",
+        stderr: "Everything up-to-date\n",
+      }),
+    });
+
+    await runReleasePush(deps);
+
+    const [entry] = await readAuditEntries(fixture.root);
+    expect(entry?.interlockState).toMatchObject({
+      command: "release-push",
+      pushInterlock: { value: "on-workflow", source: "default" },
+      syncInterlock: { value: "on-handoff", source: "default" },
+    });
+  });
+});

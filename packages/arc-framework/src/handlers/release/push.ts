@@ -48,7 +48,6 @@ import type {
   PushabilityCondition,
   PushabilityResult,
 } from "../../lib/git/pushability.js";
-import type { PushWorktreeBranchResult } from "../../lib/git/push-worktree.js";
 import type { ResolvedSettingsResult } from "../../lib/config/resolved-settings.js";
 
 /**
@@ -67,12 +66,22 @@ export interface SpawnPushOptions {
 }
 
 /**
- * Wrapped `git push` invocation. Refusal-cascade tests assert this dep is
- * never called. The CLI adapter binds {@link pushWorktreeBranch} with
- * `inheritStdio: true`; the orchestrator's authorize branch invokes it
- * and produces a `kind: "push"` or `kind: "hook-failed"` audit entry.
+ * Outcome of a wrapped `git push` invocation. The orchestrator pins
+ * `exitCode` on the failed arm so audit attribution doesn't depend on
+ * parsing it back out of an `Error.message`; the CLI adapter reshapes
+ * `pushWorktreeBranch`'s result into this shape at the dep boundary.
  */
-export type SpawnPush = (opts: SpawnPushOptions) => Promise<PushWorktreeBranchResult>;
+export type SpawnPushOutcome =
+  | { status: "success"; stdout: string; stderr: string }
+  | { status: "failed"; exitCode: number; stdout: string; stderr: string };
+
+/**
+ * Wrapped `git push` invocation. Refusal-cascade tests assert this dep is
+ * never called. The CLI adapter binds the helper with `inheritStdio: true`;
+ * the orchestrator's authorize branch invokes it and produces a
+ * `kind: "push"` or `kind: "hook-failed"` audit entry.
+ */
+export type SpawnPush = (opts: SpawnPushOptions) => Promise<SpawnPushOutcome>;
 
 export interface ReleasePushDeps {
   cwd: string;
@@ -112,9 +121,11 @@ export type AppendAudit = (opts: {
  * Run the release-push cascade and return the resulting exit code.
  * Refusal paths emit a refusal message via `writeStderr`, persist an
  * audit entry, and return the matched refusal code. The authorize
- * branch's wrapped-push invocation lands on the success-path commit
- * that follows this cascade; until then the branch returns 0 without
- * invoking `spawnPush`.
+ * branch invokes `spawnPush`, attributes the outcome (exit 0 → audit
+ * `kind: "push"` with parsed `refStatus`; non-zero → `kind: "hook-failed"`
+ * with hook attribution from captured stderr), writes one
+ * `decision: "proceeded"` audit entry, and bubbles git's exit code
+ * verbatim.
  */
 export async function runReleasePush(
   deps: ReleasePushDeps,
@@ -176,11 +187,68 @@ export async function runReleasePush(
     return refuse(interlockDecision, { wu: wuAudit, deps, writeStderr, appendAudit });
   }
 
-  // Authorize branch: refusal-cascade tests pin `spawnPush` as never
-  // called on every refusal path; the wrapped-push invocation + audit
-  // write land on the next commit. Returning 0 keeps the cascade
-  // type-checked end-to-end without firing `spawnPush` here.
-  return { exitCode: 0 };
+  // Authorize: run wrapped `git push`, attribute the outcome, audit, exit.
+  const spawned = await deps.spawnPush({
+    branch: deps.currentBranch,
+    args: deps.argv,
+    cwd: deps.cwd,
+  });
+  const outcome: AuditOutcome = spawned.status === "success"
+    ? { kind: "push", refStatus: parseRefStatus(spawned.stderr) }
+    : {
+        kind: "hook-failed",
+        hook: detectPushHook(`${spawned.stdout}\n${spawned.stderr}`),
+        exitCode: spawned.exitCode,
+      };
+
+  await appendAudit({
+    cwd: deps.cwd,
+    identity: deps.identity,
+    entry: buildAuditEntry({
+      deps,
+      wu: wuAudit,
+      decision: "proceeded",
+      refusalCode: null,
+      outcome,
+    }),
+  });
+
+  return { exitCode: spawned.status === "success" ? 0 : spawned.exitCode };
+}
+
+/**
+ * Parse a coarse `refStatus` summary from the captured `git push` stderr.
+ * Matches the first whitespace-led line containing `->` (the per-ref
+ * status line, e.g., `   abc..def  main -> main`); falls back to `"ok"`
+ * when no ref-status line surfaces. The audit entry's `refStatus` field
+ * is forensic, not load-bearing — coarse capture beats brittle parsing.
+ */
+function parseRefStatus(stderr: string): string {
+  for (const line of stderr.split("\n")) {
+    if (line.includes("->") && /^\s/.test(line)) {
+      return line.trim();
+    }
+  }
+  return "ok";
+}
+
+/**
+ * Best-effort hook attribution for a non-zero `git push` exit. Pre-push
+ * hook output identifies via "pre-push" substrings; server-side rejects
+ * (non-fast-forward, remote rejected, branch policy) identify via the
+ * "rejected" / "non-fast-forward" / "remote rejected" patterns. Returns
+ * `"unknown"` when no marker surfaces — the audit shape is preserved
+ * either way.
+ */
+function detectPushHook(output: string): string {
+  if (output.includes("pre-push")) return "pre-push";
+  if (
+    output.includes("non-fast-forward")
+    || output.includes("remote rejected")
+    || output.includes("[rejected]")
+    || output.includes(" rejected ")
+  ) return "server";
+  return "unknown";
 }
 
 /**

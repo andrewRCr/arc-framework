@@ -249,23 +249,18 @@ and retain capturing behavior. Result callback dropped from R2's signature widen
   re-deriving the gates inline; commit cascade keeps `authorizeRelease` unchanged. 26 unit tests cover each refusal
   code, all four short-circuit pairs, and pushability disposition handling.
 
-### `[ ]` **3.3 Success path — push invocation, audit entry**
+### `[x]` **3.3 Success path — push invocation, audit entry**
 
 - _Goal:_ `arc release push` invokes `pushWorktreeBranch` with `inheritStdio: true` and passthrough args when
   authorized, bubbles server output verbatim, records success or hook-failed audit entry.
 
-- _Notes:_ See `notes-release-wrappers-foundation.md` § 3.3 for hook-fail vs server-reject distinction (stderr pattern
-  matching) and `refStatus` capture strategy.
-
-    - File: `src/handlers/release/push.ts`
-
-    Build `test-first` (one behavior at a time):
-    - Validation + pushability pass → push fires via 3.1's widened helper with passthrough args
-    - Success → audit entry `{ kind: "push", refStatus }` (refStatus parsed from captured stderr)
-    - Hook failure (pre-push) → bubble git's non-zero exit code, audit entry
-      `{ kind: "hook-failed", hook: "pre-push", exitCode }`
-    - Server reject (e.g., non-fast-forward) → audit entry
-      `{ kind: "hook-failed", hook: "server" | "unknown", exitCode }` (best-effort attribution)
+- _Outcome:_ Authorize branch invokes `spawnPush` (branch + argv + cwd) and writes a single `proceeded` audit entry
+  — `kind: "push"` with `refStatus` parsed from captured stderr (first whitespace-led `->` line; falls back to
+  `"ok"`) on exit 0; `kind: "hook-failed"` with hook attribution (`pre-push` / `server` / `unknown` via stderr
+  pattern match) on non-zero. Orchestrator owns `SpawnPushOutcome` (exit code as a first-class field); CLI adapter
+  reshapes `pushWorktreeBranch`'s `Error.message`-encoded exit code at the dep boundary so audit attribution doesn't
+  depend on parsing the message back. 9 new unit tests cover both refStatus arms, all three hook attributions, and
+  the release-push interlockState audit shape.
 
 ---
 

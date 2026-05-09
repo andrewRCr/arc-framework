@@ -94,11 +94,38 @@ export async function handleReleasePush(opts: HandleReleasePushOptions): Promise
  * Wrapped `git push` invocation. Delegates to {@link pushWorktreeBranch}
  * with `inheritStdio: true`: stdout streams verbatim to the user's
  * terminal, stderr is captured + teed for `refStatus` parsing post-push.
+ *
+ * Reshapes the helper's `failed` arm — which folds the exit code into
+ * `error.message` — into the orchestrator's first-class `exitCode` field
+ * so audit attribution doesn't depend on parsing the message back out.
  */
-const realSpawnPush: SpawnPush = ({ branch, args }) =>
-  pushWorktreeBranch({
+const realSpawnPush: SpawnPush = async ({ branch, args }) => {
+  const result = await pushWorktreeBranch({
     exec: gitExec,
     branch,
     args,
     inheritStdio: true,
   });
+  if (result.status === "success") {
+    return { status: "success", stdout: result.stdout, stderr: result.stderr };
+  }
+  return {
+    status: "failed",
+    exitCode: extractExitCode(result.error),
+    stdout: result.stdout,
+    stderr: result.stderr,
+  };
+};
+
+/**
+ * Recover the integer exit code from the helper's failure-mode `Error`,
+ * whose `message` is `git push exited with code N`. Falls back to 1 when
+ * the message doesn't match — defensive only; the helper's format is the
+ * fixed source of truth for inherit-stdio failures.
+ */
+function extractExitCode(error: Error): number {
+  const match = /exited with code (\d+)/.exec(error.message);
+  if (match?.[1] === undefined) return 1;
+  const parsed = Number.parseInt(match[1], 10);
+  return Number.isFinite(parsed) ? parsed : 1;
+}

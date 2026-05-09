@@ -29,4 +29,5 @@ export type {
   RunPushability,
   SpawnPush,
   SpawnPushOptions,
+  SpawnPushOutcome,
 } from "../handlers/release/push.js";
