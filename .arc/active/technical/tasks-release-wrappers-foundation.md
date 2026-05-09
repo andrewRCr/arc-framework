@@ -282,13 +282,16 @@ forward-compat per `notes-release-wrappers-foundation.md` § 4.2.
     - Files: `src/handlers/release/record.ts`, `src/cli.ts` (sub-command registration on `arc release`)
     - Adds `gitConfigUnset` and widened `gitConfigSet` to `src/lib/git/exec.ts` per 4.1.a
 
-    - `[ ]` **4.1.a Extend `lib/git/exec.ts` — `gitConfigUnset` + scoped `gitConfigSet`**
+    - `[x]` **4.1.a Extend `lib/git/exec.ts` — `gitConfigUnset` + scoped `gitConfigSet`**
 
-        Build `test-first` (one behavior at a time):
-        - `gitConfigUnset(exec, key)` — key present → unsets via `git config --unset <key>`
-        - `gitConfigUnset(exec, key)` — key absent → returns no-op success (no error thrown)
-        - `gitConfigSet` widened: optional `scope?: "local" | "global" | "system"` parameter, default `"local"`
-        - Existing `gitConfigSet` call sites (no scope arg) — behavior unchanged
+        `gitConfigUnset(exec, key)` added with check-then-unset semantics — `gitConfigGet` pre-check returns
+        no-op success on absent keys without invoking `--unset`, so real `--unset` failures propagate for
+        4.1.c's handler-level error surfacing. `gitConfigSet` widened with `scope?: GitConfigScope`
+        (`"local" | "global" | "system"`); the parameter has no TypeScript default, leaving existing call
+        sites flag-free under git's local default while explicit values add `--<scope>`. Both functions plus
+        the `GitConfigScope` type re-exported from `src/lib/git/index.ts`. Five tests added in
+        `__tests__/unit/git/git.test.ts` — two `gitConfigUnset` paths plus three scope values via `it.each`;
+        the no-arg `gitConfigSet` test stays as the behavior-unchanged guard.
 
     - `[ ]` **4.1.b `record-enabled` sub-command**
 

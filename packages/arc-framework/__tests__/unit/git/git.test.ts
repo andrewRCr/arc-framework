@@ -4,6 +4,7 @@ import {
   isGitRepo,
   gitConfigGet,
   gitConfigSet,
+  gitConfigUnset,
   gitMergeFile,
   configureNotesRefspec,
 } from "../../../src/lib/git/exec.js";
@@ -63,13 +64,56 @@ describe("gitConfigGet", () => {
 });
 
 describe("gitConfigSet", () => {
-  it("writes a config value", async () => {
+  it("writes a config value with no scope flag when scope is omitted", async () => {
     const mockExec = vi.fn().mockResolvedValue({ stdout: "" });
     await gitConfigSet(mockExec, "arc.identity", "andrew");
     expect(mockExec).toHaveBeenCalledWith("git", [
       "config",
       "arc.identity",
       "andrew",
+    ]);
+  });
+
+  it.each(["local", "global", "system"] as const)(
+    "adds --%s flag when scope is %s",
+    async (scope) => {
+      const mockExec = vi.fn().mockResolvedValue({ stdout: "" });
+      await gitConfigSet(mockExec, "arc.release.enabled", "true", scope);
+      expect(mockExec).toHaveBeenCalledWith("git", [
+        "config",
+        `--${scope}`,
+        "arc.release.enabled",
+        "true",
+      ]);
+    },
+  );
+});
+
+describe("gitConfigUnset", () => {
+  it("unsets a config value via --unset when key is present", async () => {
+    const mockExec = vi
+      .fn()
+      .mockResolvedValueOnce({ stdout: "true\n" }) // --get returns existing value
+      .mockResolvedValueOnce({ stdout: "" }); // --unset succeeds
+    await gitConfigUnset(mockExec, "arc.release.enabled");
+    expect(mockExec).toHaveBeenCalledWith("git", [
+      "config",
+      "--unset",
+      "arc.release.enabled",
+    ]);
+  });
+
+  it("returns no-op success when key is absent (skips --unset)", async () => {
+    const mockExec = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("exit code 1")); // --get fails (absent key)
+    await expect(
+      gitConfigUnset(mockExec, "missing.key"),
+    ).resolves.toBeUndefined();
+    expect(mockExec).not.toHaveBeenCalledWith("git", [
+      "config",
+      "--unset",
+      "missing.key",
     ]);
   });
 });
