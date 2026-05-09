@@ -9,17 +9,18 @@
 - **Task List:** `tasks-release-wrappers-foundation.md`
 - **Sibling Work Unit(s):** `plan-release-wrappers-ergonomics.md`
 
-- **Last Completed:** Task 5.1 — `arc sync` audit-log integration. Audit-log
-  surface now spans commit + push + sync; full reachable-cell coverage plus
-  removal of the unreachable `worktree-push+notes-blocked` cell name.
-- **Next Task:** Task 5.2 — Migrate session-init config envelope to three-tier
-  resolution (line ~396)
+- **Last Completed:** Task 5.2 — Migrate session-init config envelope to
+  three-tier resolution. Phase 5 complete; envelope's `config.value.settings`
+  now resolves all five release-mode keys (commit/push/sync interlocks,
+  user.notes_push, release.enabled) at session-init.
+- **Next Task:** Task 6.1 — ADR-017: defense-in-depth at harness vs ARC layer
+  (line ~400)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 5.2 — switch `runConfigSessionInitStatus` from
-  yaml-only `readConfigSettings` to three-tier `resolveAllSettings` for the full
-  release-mode key surface. Subtasks 5.2.a (verify 1.2 resolver-additions) →
-  5.2.b (migrate handler, test-first) → 5.2.c (regression coverage for existing
-  envelope consumers).
+- **Next Action:** Start Task 6.1 — Draft ADR-017 mapping PRD R12's six
+  required content sections onto the standard ADR template (Status / Context
+  / Decision / Consequences / Alternatives) per `notes-release-wrappers-foundation.md`
+  § 6.1. Phase 6 also covers DEV-RULES.ARC, QUICK-REFERENCE, and AGENT-BRIEF.ARC
+  documentation updates (Tasks 6.2.a-c).
 
 ---
