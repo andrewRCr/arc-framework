@@ -7,8 +7,7 @@
  * this module gives callers the single source of truth for the names and
  * shapes — internal modules are not reached into directly.
  *
- * Type declarations only; no runtime. Validated by the compiler per the
- * project test-first method's exemption for type-only modules.
+ * Type declarations only; no runtime. Compiler-validated.
  *
  * @module
  */

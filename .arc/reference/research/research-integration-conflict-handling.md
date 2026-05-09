@@ -900,5 +900,5 @@ actual merge state, and (4) serializing when conflicts are costly.
 [augment-multi-agent]: https://www.augmentcode.com/guides/multi-agent-ai-system-code-development
 [steve-kinney-worktrees]: https://stevekinney.com/courses/ai-development/git-worktrees
 [addyosmani-agent-orchestra]: https://addyosmani.com/blog/code-agent-orchestra/
-[arc-pr-sizing]: /home/andrew/dev/arc-framework/.arc/reference/research/research-pr-sizing-and-wu-boundary-estimation.md
-[arc-mechanism-layer]: /home/andrew/dev/arc-framework/.arc/reference/research/research-concurrent-work-mechanism-layer.md
+[arc-pr-sizing]: research-pr-sizing-and-wu-boundary-estimation.md
+[arc-mechanism-layer]: research-concurrent-work-mechanism-layer.md

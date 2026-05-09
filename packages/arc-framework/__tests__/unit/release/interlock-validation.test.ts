@@ -276,7 +276,7 @@ describe("formatRefusal — three-line shape", () => {
     expect(lines[0]).toBe("Refused: interlock-not-authorized (code 11)");
     expect(lines[1]).toContain("session.commit_interlock");
     expect(lines[1]).toContain("manual");
-    // Raw-git-first; config-escalate-second per § 1.5.
+    // Remediation orders raw `git` first, config escalation second.
     expect(lines[2]).toMatch(/^Use raw `git/);
     expect(lines[2]).toContain("on-workflow");
   });

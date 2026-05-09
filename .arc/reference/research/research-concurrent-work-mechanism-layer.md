@@ -582,7 +582,7 @@ acceptable.
 [bedroom-coder]: https://www.thebedroomcoder.co.uk/posts/git-workflows-for-solo-developers
 [mikkel-paulson]: https://mikkel.ca/blog/git-is-my-buddy-effective-git-as-a-solo-developer/
 [swarthmore-git]: https://blogs.swarthmore.edu/its/2019/06/17/utilizing-git-for-solo-development/
-[arc-pr-sizing]: /home/andrew/dev/arc-framework/.arc/reference/research/research-pr-sizing-and-wu-boundary-estimation.md
+[arc-pr-sizing]: research-pr-sizing-and-wu-boundary-estimation.md
 [google-sadowski]: https://storage.googleapis.com/gweb-research2023-media/pubtools/4476.pdf
 [tensorflow-rfc]: https://www.tensorflow.org/community/contribute/rfc_process
 [turborepo-hashbased]: https://turbo.build/repo/docs

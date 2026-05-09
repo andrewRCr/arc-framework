@@ -1,9 +1,9 @@
 /**
  * `arc release opt-in` / `opt-out` / `status` sub-command orchestrators.
  *
- * `opt-in` writes `arc.release.enabled: true` to per-developer git config
+ * `opt-in` writes `arc.releaseEnabled: true` to per-developer git config
  * (local scope) — idempotent on already-`true`. `opt-out` writes
- * `arc.release.enabled: false` to the same scope — idempotent on
+ * `arc.releaseEnabled: false` to the same scope — idempotent on
  * already-`false`. Both follow the same pre-check shape: read existing,
  * skip if matching, otherwise set; failures surface via the injectable
  * `writeStderr` sink with the key name and the underlying git error.
@@ -22,7 +22,11 @@
 
 import { readFile } from "node:fs/promises";
 
-import { resolveAllSettings, type ResolvedSettingsResult } from "../../lib/config/resolved-settings.js";
+import {
+  RELEASE_ENABLED_GIT_CONFIG_KEY,
+  resolveAllSettings,
+  type ResolvedSettingsResult,
+} from "../../lib/config/resolved-settings.js";
 import {
   gitConfigGet,
   gitConfigSet,
@@ -31,8 +35,6 @@ import {
 import { gitExec } from "../../lib/io-context.js";
 import { resolveArcRoot } from "../../lib/paths.js";
 import { ARC_PROJECT_ROOT_ERROR } from "../shared.js";
-
-const RELEASE_ENABLED_KEY = "arc.release.enabled";
 
 export interface RunReleaseOptDeps {
   exec: GitExec;
@@ -46,7 +48,7 @@ export interface RunReleaseOptResult {
 
 /**
  * Run the `arc release opt-in` sub-command. Writes
- * `arc.release.enabled = true` to local git config when absent or set to a
+ * `arc.releaseEnabled = true` to local git config when absent or set to a
  * non-`true` value; returns no-op success when already `true`. The pre-check
  * via `gitConfigGet` makes the operation idempotent without relying on
  * git's exit-code semantics, and lets a real `--local` set failure surface
@@ -59,14 +61,14 @@ export async function runReleaseOptIn(
   const writeStderr = deps.writeStderr ?? ((msg) => {
     process.stderr.write(msg);
   });
-  const existing = await gitConfigGet(deps.exec, RELEASE_ENABLED_KEY);
+  const existing = await gitConfigGet(deps.exec, RELEASE_ENABLED_GIT_CONFIG_KEY);
   if (existing === "true") return { exitCode: 0 };
   try {
-    await gitConfigSet(deps.exec, RELEASE_ENABLED_KEY, "true", "local");
+    await gitConfigSet(deps.exec, RELEASE_ENABLED_GIT_CONFIG_KEY, "true", "local");
     return { exitCode: 0 };
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
-    writeStderr(`Failed to set ${RELEASE_ENABLED_KEY}: ${detail}\n`);
+    writeStderr(`Failed to set ${RELEASE_ENABLED_GIT_CONFIG_KEY}: ${detail}\n`);
     return { exitCode: 1 };
   }
 }
@@ -85,7 +87,7 @@ export async function handleReleaseOptIn(): Promise<void> {
 
 /**
  * Run the `arc release opt-out` sub-command. Writes
- * `arc.release.enabled = false` to local git config when absent or set to a
+ * `arc.releaseEnabled = false` to local git config when absent or set to a
  * non-`false` value; returns no-op success when already `false`. Mirrors
  * `runReleaseOptIn`'s pre-check shape so the two halves of the override
  * surface stay symmetric — a developer in a project with yaml
@@ -98,14 +100,14 @@ export async function runReleaseOptOut(
   const writeStderr = deps.writeStderr ?? ((msg) => {
     process.stderr.write(msg);
   });
-  const existing = await gitConfigGet(deps.exec, RELEASE_ENABLED_KEY);
+  const existing = await gitConfigGet(deps.exec, RELEASE_ENABLED_GIT_CONFIG_KEY);
   if (existing === "false") return { exitCode: 0 };
   try {
-    await gitConfigSet(deps.exec, RELEASE_ENABLED_KEY, "false", "local");
+    await gitConfigSet(deps.exec, RELEASE_ENABLED_GIT_CONFIG_KEY, "false", "local");
     return { exitCode: 0 };
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
-    writeStderr(`Failed to set ${RELEASE_ENABLED_KEY}: ${detail}\n`);
+    writeStderr(`Failed to set ${RELEASE_ENABLED_GIT_CONFIG_KEY}: ${detail}\n`);
     return { exitCode: 1 };
   }
 }

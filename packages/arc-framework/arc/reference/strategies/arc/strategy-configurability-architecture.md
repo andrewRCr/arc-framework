@@ -253,7 +253,7 @@ interlock's `on-X` value names its own trigger. The interlock model these settin
 lives in [Session Operations Strategy][session-ops] § Interlock Model and § Handoff-Interior
 Toggle Pattern.
 
-**Release-wrapper opt-in** (`arc.release.enabled`) is a separate config axis from the interlocks
+**Release-wrapper opt-in** is a separate config axis from the interlocks
 — orthogonal to WHEN the agent fires (interlock-governed), it controls HOW the invocation is
 shaped. Resolution layers per-developer git-config (`arc.releaseEnabled`, local scope) over the
 project-wide yaml setting (`release.enabled`); default `false`. See [Session Operations

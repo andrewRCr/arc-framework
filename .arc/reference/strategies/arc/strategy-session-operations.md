@@ -403,7 +403,7 @@ summary without firing sync. `on-workflow` adds release on workflow-driven sync 
 `on-handoff`). The sync orchestrator routes worktree-push and notes-push per their own
 interlock settings — see § Handoff-Interior Toggle Pattern for the cascade.
 
-**Release-wrapper layer.** When configured (`arc.release.enabled: true` plus the corresponding
+**Release-wrapper layer.** When configured (`release.enabled: true` plus the corresponding
 harness allowlist entries), `arc release commit` and `arc release push` provide a CLI-boundary
 mechanical authorization layer over the interlock model. The wrapper validates that configured
 permission overlaps the wrapper's scope — refuses with a stable exit code when not — and writes

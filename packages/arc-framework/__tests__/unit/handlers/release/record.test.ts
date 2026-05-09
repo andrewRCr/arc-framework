@@ -2,7 +2,7 @@
  * Unit tests for the `arc release opt-in` / `opt-out` / `status`
  * sub-command orchestrators.
  *
- * Covers idempotent local-scope writes of `arc.release.enabled` (true on
+ * Covers idempotent local-scope writes of `arc.releaseEnabled` (true on
  * opt-in, false on opt-out — symmetric override surface), with key-naming
  * + underlying-error surfacing on git-config failures, plus human / `--json`
  * rendering of the resolved opt-in + interlock surface.
@@ -39,7 +39,7 @@ function buildSettings(overrides: {
 }
 
 describe("runReleaseOptIn", () => {
-  it("writes arc.release.enabled = true to local config on first invocation", async () => {
+  it("writes arc.releaseEnabled = true to local config on first invocation", async () => {
     const exec = vi
       .fn()
       .mockRejectedValueOnce(new Error("exit code 1")) // --get returns undefined (absent)
@@ -51,7 +51,7 @@ describe("runReleaseOptIn", () => {
     expect(exec).toHaveBeenCalledWith("git", [
       "config",
       "--local",
-      "arc.release.enabled",
+      "arc.releaseEnabled",
       "true",
     ]);
   });
@@ -66,7 +66,7 @@ describe("runReleaseOptIn", () => {
     expect(exec).not.toHaveBeenCalledWith("git", [
       "config",
       "--local",
-      "arc.release.enabled",
+      "arc.releaseEnabled",
       "true",
     ]);
   });
@@ -83,7 +83,7 @@ describe("runReleaseOptIn", () => {
     expect(exec).toHaveBeenCalledWith("git", [
       "config",
       "--local",
-      "arc.release.enabled",
+      "arc.releaseEnabled",
       "true",
     ]);
   });
@@ -103,13 +103,13 @@ describe("runReleaseOptIn", () => {
     });
 
     expect(result.exitCode).not.toBe(0);
-    expect(stderr.join("")).toContain("arc.release.enabled");
+    expect(stderr.join("")).toContain("arc.releaseEnabled");
     expect(stderr.join("")).toContain("permission denied");
   });
 });
 
 describe("runReleaseOptOut", () => {
-  it("writes arc.release.enabled = false to local config when key is absent", async () => {
+  it("writes arc.releaseEnabled = false to local config when key is absent", async () => {
     const exec = vi
       .fn()
       .mockRejectedValueOnce(new Error("exit code 1")) // --get returns undefined (absent)
@@ -121,7 +121,7 @@ describe("runReleaseOptOut", () => {
     expect(exec).toHaveBeenCalledWith("git", [
       "config",
       "--local",
-      "arc.release.enabled",
+      "arc.releaseEnabled",
       "false",
     ]);
   });
@@ -138,7 +138,7 @@ describe("runReleaseOptOut", () => {
     expect(exec).toHaveBeenCalledWith("git", [
       "config",
       "--local",
-      "arc.release.enabled",
+      "arc.releaseEnabled",
       "false",
     ]);
   });
@@ -153,7 +153,7 @@ describe("runReleaseOptOut", () => {
     expect(exec).not.toHaveBeenCalledWith("git", [
       "config",
       "--local",
-      "arc.release.enabled",
+      "arc.releaseEnabled",
       "false",
     ]);
   });
@@ -173,7 +173,7 @@ describe("runReleaseOptOut", () => {
     });
 
     expect(result.exitCode).not.toBe(0);
-    expect(stderr.join("")).toContain("arc.release.enabled");
+    expect(stderr.join("")).toContain("arc.releaseEnabled");
     expect(stderr.join("")).toContain("permission denied");
   });
 });

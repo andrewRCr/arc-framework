@@ -204,7 +204,7 @@ on-sync` releases push when an `arc sync` event fires — typically handoff-driv
 integration branch should agree when mid-session pushes are expected versus when handoff-driven
 push is sufficient.
 
-**Release-wrapper opt-in is per-developer.** `arc.release.enabled` writes to local git config
+**Release-wrapper opt-in is per-developer.** `arc release opt-in` writes `arc.releaseEnabled` to local git config
 (per-clone, never pushed); teammates can have different opt-in states without affecting each
 other. The wrappers themselves run unconditionally regardless; opt-in changes only harness-
 prompt behavior on the developer's machine. Projects that yaml-set `release.enabled: true` adopt
