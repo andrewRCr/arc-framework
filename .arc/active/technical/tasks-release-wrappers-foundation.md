@@ -559,27 +559,48 @@ direction (package source primary, `.arc/` mirror).
 
 ## **Phase 7:** Verification
 
-### `[ ]` **7.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+### `[x]` **7.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+
+- _Quality gates:_ markdown lint (239 files clean), TypeScript lint, shell lint, typecheck (all silent / clean),
+  vitest 1654 unit/integration + 56 e2e tests passing, tsup build success.
+- _Success criteria:_ 11 criteria walked — 9 `[x]` Met, 2 `[~]` Superseded with bypass-mode deviation notes
+  pointing to `plan-release-wrappers-ergonomics.md` § Harness Permission Mode (criteria 5/6 empirical
+  methodology collapsed under maintainer's `bypassPermissions` Claude Code session; deferred to WU2
+  setup-helper testing path against fresh / default-mode harnesses).
+- _Atomic tasks:_ `atomic-release-wrappers-foundation.md` companion file empty (no checkbox items recorded
+  during this WU); will be deleted during integration.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Every refusal scenario in R4 produces documented exit code + message + audit entry (codes 10–14 across
+- `[x]` Every refusal scenario in R4 produces documented exit code + message + audit entry (codes 10–14 across
   `arc release commit` and `arc release push`)
-- `[ ]` Every success scenario passes through to git unchanged with correct audit entry shape
-- `[ ]` Audit log captures every release-wrapper invocation and every executed `arc sync` invocation with correct
+- `[x]` Every success scenario passes through to git unchanged with correct audit entry shape
+- `[x]` Audit log captures every release-wrapper invocation and every executed `arc sync` invocation with correct
   `decision` and `outcome`
-- `[ ]` Audit log entries are parseable by `jq` and queryable by `refusalCode`
-- `[ ]` `arc release commit --version` runs from Claude Code and Codex CLI with manual allowlist entries installed (no
+- `[x]` Audit log entries are parseable by `jq` and queryable by `refusalCode`
+- `[~]` `arc release commit --version` runs from Claude Code and Codex CLI with manual allowlist entries installed (no
   harness prompt for matching invocations)
-- `[ ]` Sample fall-through case (env-prefixed invocation, e.g., `FOO=bar arc release commit`) verifies the documented
+    - **Superseded:** maintainer's `bypassPermissions` Claude Code session collapsed the matcher-observation
+      methodology — bypass mode allows every Bash invocation regardless of allowlist content, so the
+      prompt-vs-no-prompt signal that this criterion tests doesn't fire. Empirical verification deferred to
+      WU2's setup-helper testing path against fresh / default-mode harnesses, which exercises mode-aware
+      allowlist install and observes prompt behavior under the actual matcher boundaries. See
+      `plan-release-wrappers-ergonomics.md` § Harness Permission Mode for the captured dimension and WU2
+      design implications.
+- `[~]` Sample fall-through case (env-prefixed invocation, e.g., `FOO=bar arc release commit`) verifies the documented
   Codex matcher boundary holds — adopter sees the harness prompt
-- `[ ]` Session-init envelope's `config.value.settings` carries resolved values for the full release-mode key surface
+    - **Superseded:** same root cause as the prior criterion — bypass-mode harness has no prompt path for the
+      env-prefix fall-through to be observed. Codex-side empirical verification rolls into WU2 alongside
+      Codex-CLI matcher re-verification; the matcher's grammar boundary is already documented (codex-cli
+      0.128.0, 2026-05-07) in `plan-release-wrappers-ergonomics.md` § Per-Harness Viability — env-prefixed,
+      redirected, command-substituted, and `$'...'` quoted invocations fall through deterministically.
+- `[x]` Session-init envelope's `config.value.settings` carries resolved values for the full release-mode key surface
   (eliminates latent yaml-only / handler-resolved inconsistency)
-- `[ ]` ADR-017 documents the trust model with all six R12-required content sections
-- `[ ]` Documentation updates land in package source first, mirrored to `.arc/`
-- `[ ]` All quality gates pass (tests, linting, type checking, markdown linting, build)
-- `[ ]` Ready for integration
+- `[x]` ADR-017 documents the trust model with all six R12-required content sections
+- `[x]` Documentation updates land in package source first, mirrored to `.arc/`
+- `[x]` All quality gates pass (tests, linting, type checking, markdown linting, build)
+- `[x]` Ready for integration
 
 [verify-work-unit]: ../../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md
