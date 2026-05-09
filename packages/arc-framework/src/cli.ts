@@ -31,6 +31,7 @@ import {
   handleReleasePush,
   handleReleaseRecordDisabled,
   handleReleaseRecordEnabled,
+  handleReleaseStatus,
 } from "./commands/release.js";
 
 const program = new Command();
@@ -262,6 +263,14 @@ releaseCmd
   .description("Clear per-developer opt-in for release-mode wrappers")
   .action(async () => {
     await handleReleaseRecordDisabled();
+  });
+
+releaseCmd
+  .command("status")
+  .description("Show resolved release-mode opt-in and interlock state")
+  .option("--json", "Emit a schemaVersion 1 JSON envelope")
+  .action(async (opts: { json?: boolean }) => {
+    await handleReleaseStatus({ json: opts.json });
   });
 
 // --- Log ---

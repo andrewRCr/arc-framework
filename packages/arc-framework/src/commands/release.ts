@@ -35,10 +35,14 @@ export type {
 export {
   handleReleaseRecordDisabled,
   handleReleaseRecordEnabled,
+  handleReleaseStatus,
   runReleaseRecordDisabled,
   runReleaseRecordEnabled,
+  runReleaseStatus,
 } from "../handlers/release/record.js";
 export type {
   RunReleaseRecordDeps,
   RunReleaseRecordResult,
+  RunReleaseStatusDeps,
+  RunReleaseStatusResult,
 } from "../handlers/release/record.js";

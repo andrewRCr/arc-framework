@@ -311,35 +311,20 @@ forward-compat per `notes-release-wrappers-foundation.md` § 4.2.
         `arc release` in `src/cli.ts` and re-exported from `src/commands/release.ts`. Four tests in
         `__tests__/unit/handlers/release/record.test.ts` cover the four behaviors.
 
-### `[ ]` **4.2 `arc release status` sub-command + `--json` envelope**
+### `[x]` **4.2 `arc release status` sub-command + `--json` envelope**
 
 - _Goal:_ `arc release status` prints the resolved opt-in state and three interlock states with provenance
   (`git-config` / `yaml` / `default`); `--json` mode emits the same surface as a `schemaVersion: 1` envelope for
   downstream consumers (WU2 status integration, future CI use).
 
-- _Note:_ Consumes `ResolvedConfigOverride<...>` shape from 1.2's resolver (`releaseEnabled`, plus existing
-  release-mode keys via `resolveAllSettings`).
-
-    - File: `src/handlers/release/record.ts` (shared with 4.1)
-
-    Build `test-first` (one behavior at a time):
-    - Human output renders all four resolved values with provenance label (e.g.,
-      `commit_interlock: on-task-approval (yaml)`)
-    - `--json` envelope shape:
-
-        ```json
-        {
-          "schemaVersion": 1,
-          "releaseEnabled": { "value": "...", "source": "..." },
-          "commitInterlock": { "value": "...", "source": "..." },
-          "pushInterlock":   { "value": "...", "source": "..." },
-          "syncInterlock":   { "value": "...", "source": "..." }
-        }
-        ```
-
-    - Provenance threading distinguishes git-config override from yaml default from hardcoded default
-    - `arc.release.enabled` resolved as boolean-shaped value (`"true"` / `"false"` string from resolver, surfaced as
-      boolean `true` / `false` in envelope)
+- _Outcome:_ Orchestrator `runReleaseStatus` in `src/handlers/release/record.ts` takes a pre-resolved
+  `ResolvedSettingsResult` and renders four `<key>: <value> (<source>)` lines or a `schemaVersion: 1` envelope
+  under `--json`. `releaseEnabled` is converted from the resolver's `"true"` / `"false"` string to a JSON
+  boolean at the envelope boundary so downstream consumers get native types. Adapter `handleReleaseStatus`
+  streams `resolveAllSettings` warnings to stderr to keep `--json` stdout pure; sub-command registered with
+  `--json` flag in `src/cli.ts` and re-exported from `src/commands/release.ts`. Four tests in
+  `__tests__/unit/handlers/release/record.test.ts` cover human rendering, JSON envelope shape, provenance
+  threading across all three sources, and the boolean-conversion contract.
 
 ---
 
