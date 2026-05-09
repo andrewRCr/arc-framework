@@ -154,14 +154,14 @@ export async function runReleaseCommit(
   // Authorize: run wrapped `git commit`, attribute the outcome, audit, exit.
   const spawned = await deps.spawnGit({ args: deps.argv, cwd: deps.cwd });
   const outcome: AuditOutcome = spawned.exitCode === 0
-    ? { kind: "commit", hash: await deps.resolveHead({ cwd: deps.cwd }) }
+    ? { kind: "commit", hash: await safeResolveHead(deps, writeStderr) }
     : {
         kind: "hook-failed",
         hook: detectCommitHook(`${spawned.stdout}\n${spawned.stderr}`),
         exitCode: spawned.exitCode,
       };
 
-  await appendAudit({
+  const auditResult = await appendAudit({
     cwd: deps.cwd,
     identity: deps.identity,
     entry: buildAuditEntry({
@@ -172,8 +172,42 @@ export async function runReleaseCommit(
       outcome,
     }),
   });
+  surfaceAuditFailure(auditResult, writeStderr);
 
   return { exitCode: spawned.exitCode };
+}
+
+/**
+ * Resolve HEAD post-success, surfacing executor failure to stderr without
+ * propagating. A throw here would mask a successful `git commit` and skip
+ * the audit-emit path; capturing the failure as `"unknown"` keeps the audit
+ * shape and exit code aligned with what git actually did.
+ */
+async function safeResolveHead(
+  deps: ReleaseCommitDeps,
+  writeStderr: (msg: string) => void,
+): Promise<string> {
+  try {
+    return await deps.resolveHead({ cwd: deps.cwd });
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    writeStderr(`warn: HEAD resolution failed; audit hash recorded as "unknown" (${detail})\n`);
+    return "unknown";
+  }
+}
+
+/**
+ * Surface a failed audit-write to stderr without propagating. Audit logging
+ * is sidecar to the wrapper outcome — a write failure shouldn't mask a
+ * successful commit, but it must be visible so the operator can investigate
+ * the gap rather than silently losing the entry.
+ */
+function surfaceAuditFailure(
+  result: { ok: true } | { ok: false; error: Error },
+  writeStderr: (msg: string) => void,
+): void {
+  if (result.ok) return;
+  writeStderr(`warn: audit-log write failed: ${result.error.message}\n`);
 }
 
 /**
@@ -210,7 +244,8 @@ async function refuse(
     refusalCode: decision.code,
     outcome: { kind: "refused" },
   });
-  await ctx.appendAudit({ cwd: ctx.deps.cwd, identity: ctx.deps.identity, entry });
+  const auditResult = await ctx.appendAudit({ cwd: ctx.deps.cwd, identity: ctx.deps.identity, entry });
+  surfaceAuditFailure(auditResult, ctx.writeStderr);
 
   return { exitCode: decision.code };
 }

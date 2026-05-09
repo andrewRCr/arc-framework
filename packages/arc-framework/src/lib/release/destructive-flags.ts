@@ -48,29 +48,46 @@ export const PUSH_DESTRUCTIVE_FLAGS = [
 export const PUSH_REFSPEC_FORCE_IDENTIFIER = "+refspec";
 
 /**
+ * Match `argv` against a destructive-flag list, recognizing both the bare
+ * flag token and the `<flag>=<value>` parameterized form. Git documents
+ * `--force-with-lease[=<refname>[:<expect>]]`; treat any
+ * `--force-with-lease=...` argv element as the same safety category. The
+ * normalized identifier (the bare flag) is returned so refusal-message
+ * lookup keys stay stable across attached-value variants.
+ */
+function matchDestructive(token: string, flags: readonly string[]): string | null {
+  for (const flag of flags) {
+    if (token === flag) return flag;
+    if (token.startsWith(`${flag}=`)) return flag;
+  }
+  return null;
+}
+
+/**
  * Return the matched commit-side destructive-flag identifier on first hit
- * across `argv`, or null when none match.
+ * across `argv`, or null when none match. Matches both bare flag tokens
+ * and `<flag>=<value>` parameterized forms (see {@link matchDestructive}).
  */
 export function detectCommitDestructive(argv: readonly string[]): string | null {
   for (const token of argv) {
-    if ((COMMIT_DESTRUCTIVE_FLAGS as readonly string[]).includes(token)) {
-      return token;
-    }
+    const match = matchDestructive(token, COMMIT_DESTRUCTIVE_FLAGS);
+    if (match !== null) return match;
   }
   return null;
 }
 
 /**
  * Return the matched push-side destructive-flag identifier on first hit
- * across `argv`, or null when none match. Recognizes the `+refspec`
- * pattern (any token whose first character is `+` and that has a body
- * after the `+`), returning {@link PUSH_REFSPEC_FORCE_IDENTIFIER}.
+ * across `argv`, or null when none match. Matches both bare flag tokens
+ * and `<flag>=<value>` parameterized forms (see {@link matchDestructive}).
+ * Also recognizes the `+refspec` pattern (any token whose first character
+ * is `+` and that has a body after the `+`), returning
+ * {@link PUSH_REFSPEC_FORCE_IDENTIFIER}.
  */
 export function detectPushDestructive(argv: readonly string[]): string | null {
   for (const token of argv) {
-    if ((PUSH_DESTRUCTIVE_FLAGS as readonly string[]).includes(token)) {
-      return token;
-    }
+    const match = matchDestructive(token, PUSH_DESTRUCTIVE_FLAGS);
+    if (match !== null) return match;
     if (token.length > 1 && token.startsWith("+")) {
       return PUSH_REFSPEC_FORCE_IDENTIFIER;
     }

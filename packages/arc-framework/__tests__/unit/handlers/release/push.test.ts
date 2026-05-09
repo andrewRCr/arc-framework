@@ -206,6 +206,7 @@ describe("runReleasePush — code 12 (destructive-flag)", () => {
       decision: "refused",
       refusalCode: 12,
       outcome: { kind: "refused" },
+      args: [flag],
     });
   });
 

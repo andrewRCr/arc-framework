@@ -61,7 +61,14 @@ export async function runReleaseOptIn(
   const writeStderr = deps.writeStderr ?? ((msg) => {
     process.stderr.write(msg);
   });
-  const existing = await gitConfigGet(deps.exec, RELEASE_ENABLED_GIT_CONFIG_KEY);
+  let existing: string | undefined;
+  try {
+    existing = await gitConfigGet(deps.exec, RELEASE_ENABLED_GIT_CONFIG_KEY);
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    writeStderr(`Failed to read ${RELEASE_ENABLED_GIT_CONFIG_KEY}: ${detail}\n`);
+    return { exitCode: 1 };
+  }
   if (existing === "true") return { exitCode: 0 };
   try {
     await gitConfigSet(deps.exec, RELEASE_ENABLED_GIT_CONFIG_KEY, "true", "local");
@@ -100,7 +107,14 @@ export async function runReleaseOptOut(
   const writeStderr = deps.writeStderr ?? ((msg) => {
     process.stderr.write(msg);
   });
-  const existing = await gitConfigGet(deps.exec, RELEASE_ENABLED_GIT_CONFIG_KEY);
+  let existing: string | undefined;
+  try {
+    existing = await gitConfigGet(deps.exec, RELEASE_ENABLED_GIT_CONFIG_KEY);
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    writeStderr(`Failed to read ${RELEASE_ENABLED_GIT_CONFIG_KEY}: ${detail}\n`);
+    return { exitCode: 1 };
+  }
   if (existing === "false") return { exitCode: 0 };
   try {
     await gitConfigSet(deps.exec, RELEASE_ENABLED_GIT_CONFIG_KEY, "false", "local");

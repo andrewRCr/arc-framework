@@ -82,9 +82,10 @@ function sessionInitResult(
 }
 
 describe("buildConfigStatusSummary — counts + keys", () => {
-  it("renders the agent-consumable headline with 20 settings", () => {
+  it("renders the agent-consumable headline with the FULL_SETTINGS count", () => {
     const summary = buildConfigStatusSummary(fullResult());
-    expect(summary.split("\n")[0]).toBe("21 agent-consumable settings (hooks.* excluded):");
+    const expectedCount = Object.keys(FULL_SETTINGS).filter((k) => !k.startsWith("hooks.")).length;
+    expect(summary.split("\n")[0]).toBe(`${expectedCount} agent-consumable settings (hooks.* excluded):`);
   });
 
   it("lists every setting key with its value", () => {

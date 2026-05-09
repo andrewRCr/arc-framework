@@ -18,6 +18,12 @@ export interface GitExecOptions {
    * subprocess is killed and the promise rejects with an `AbortError`.
    */
   signal?: AbortSignal;
+  /**
+   * Working directory for the spawned process. Forwarded to
+   * `child_process.execFile` so callers can pin the invocation against a
+   * resolved repo root regardless of `process.cwd()`.
+   */
+  cwd?: string;
 }
 
 /** Executable function signature matching child_process.execFile patterns. */

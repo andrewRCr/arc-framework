@@ -36,6 +36,13 @@ import type { GitExec } from "./exec.js";
 export interface PushWorktreeSpawnArgs {
   branch: string;
   args: readonly string[];
+  /**
+   * Working directory for the spawned `git push`. When undefined the spawn
+   * inherits the parent process's cwd; when provided the spawn runs against
+   * that directory so callers can pin the wrapper to a resolved repo root
+   * regardless of `process.cwd()` drift.
+   */
+  cwd?: string;
 }
 
 export interface PushWorktreeSpawnResult {
@@ -57,6 +64,12 @@ export interface PushWorktreeBranchOptions {
   branch: string;
   /** Args appended after `origin <branch>`. Default: `[]`. */
   args?: readonly string[];
+  /**
+   * Working directory for the wrapped `git push`. Forwarded to the
+   * underlying `exec` (capture mode) or `spawn` (inherit-stdio mode). When
+   * undefined the underlying call inherits the parent process's cwd.
+   */
+  cwd?: string;
   /**
    * When `true`, switch from `exec`-based capture to `child_process.spawn`
    * with `stdio: ['inherit', 'inherit', 'pipe']`: stdout streams to the
@@ -89,11 +102,11 @@ export type PushWorktreeBranchResult =
 export async function pushWorktreeBranch(
   options: PushWorktreeBranchOptions,
 ): Promise<PushWorktreeBranchResult> {
-  const { exec, branch, args = [], inheritStdio = false } = options;
+  const { exec, branch, args = [], cwd, inheritStdio = false } = options;
 
   if (inheritStdio) {
     const spawnPush = options.spawnPush ?? defaultSpawnPush;
-    const result = await spawnPush({ branch, args });
+    const result = await spawnPush({ branch, args, cwd });
     if (result.exitCode === 0) {
       return { status: "success", stdout: "", stderr: result.stderr };
     }
@@ -106,7 +119,9 @@ export async function pushWorktreeBranch(
   }
 
   try {
-    const { stdout, stderr } = await exec("git", ["push", "origin", branch, ...args]);
+    const { stdout, stderr } = cwd === undefined
+      ? await exec("git", ["push", "origin", branch, ...args])
+      : await exec("git", ["push", "origin", branch, ...args], { cwd });
     return { status: "success", stdout, stderr: stderr ?? "" };
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));
@@ -121,10 +136,11 @@ export async function pushWorktreeBranch(
   }
 }
 
-const defaultSpawnPush: PushWorktreeSpawn = ({ branch, args }) =>
+const defaultSpawnPush: PushWorktreeSpawn = ({ branch, args, cwd }) =>
   new Promise((resolve, reject) => {
     const proc = spawn("git", ["push", "origin", branch, ...args], {
       stdio: ["inherit", "inherit", "pipe"],
+      ...(cwd === undefined ? {} : { cwd }),
     });
     let stderr = "";
     proc.stderr.on("data", (chunk: Buffer) => {

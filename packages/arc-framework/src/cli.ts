@@ -323,6 +323,7 @@ function isHandoffCritical(cmd: Command): boolean {
   const parentName = cmd.parent?.name();
   if (parentName === "arc" && name === "sync") return true;
   if (parentName === "user" && (name === "save" || name === "push" || name === "sync")) return true;
+  if (parentName === "release" && (name === "commit" || name === "push")) return true;
   if (parentName === "arc" && name === "status") {
     const opts = cmd.opts();
     if (opts.json === true && (opts.sessionInit === true || opts.sessionHandoff === true)) {

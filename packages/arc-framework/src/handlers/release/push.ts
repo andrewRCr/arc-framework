@@ -201,7 +201,7 @@ export async function runReleasePush(
         exitCode: spawned.exitCode,
       };
 
-  await appendAudit({
+  const auditResult = await appendAudit({
     cwd: deps.cwd,
     identity: deps.identity,
     entry: buildAuditEntry({
@@ -212,8 +212,23 @@ export async function runReleasePush(
       outcome,
     }),
   });
+  surfaceAuditFailure(auditResult, writeStderr);
 
   return { exitCode: spawned.status === "success" ? 0 : spawned.exitCode };
+}
+
+/**
+ * Surface a failed audit-write to stderr without propagating. Audit logging
+ * is sidecar to the wrapper outcome — a write failure shouldn't mask a
+ * successful push, but it must be visible so the operator can investigate
+ * the gap rather than silently losing the entry.
+ */
+function surfaceAuditFailure(
+  result: { ok: true } | { ok: false; error: Error },
+  writeStderr: (msg: string) => void,
+): void {
+  if (result.ok) return;
+  writeStderr(`warn: audit-log write failed: ${result.error.message}\n`);
 }
 
 /**
@@ -285,7 +300,8 @@ async function refuse(
     refusalCode: decision.code,
     outcome: { kind: "refused" },
   });
-  await ctx.appendAudit({ cwd: ctx.deps.cwd, identity: ctx.deps.identity, entry });
+  const auditResult = await ctx.appendAudit({ cwd: ctx.deps.cwd, identity: ctx.deps.identity, entry });
+  surfaceAuditFailure(auditResult, ctx.writeStderr);
 
   return { exitCode: decision.code };
 }

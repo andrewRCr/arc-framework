@@ -99,11 +99,12 @@ export async function handleReleasePush(opts: HandleReleasePushOptions): Promise
  * `error.message` — into the orchestrator's first-class `exitCode` field
  * so audit attribution doesn't depend on parsing the message back out.
  */
-const realSpawnPush: SpawnPush = async ({ branch, args }) => {
+const realSpawnPush: SpawnPush = async ({ branch, args, cwd }) => {
   const result = await pushWorktreeBranch({
     exec: gitExec,
     branch,
     args,
+    cwd,
     inheritStdio: true,
   });
   if (result.status === "success") {
