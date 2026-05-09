@@ -271,6 +271,35 @@ arc sync
 See [Session Operations Strategy][session-ops] § Session State Portability for the portability
 model, `arc sync` direction semantics, and `user.notes_push` push policy.
 
+### Release Wrappers
+
+```bash
+# Wrapped `git commit` — validates interlock state and branch protection, refuses
+# destructive flags (--amend, --no-verify, --allow-empty), writes one audit entry
+arc release commit -m "feat(scope): subject"
+
+# Wrapped `git push` (worktree leg) — validates pushability matrix and interlock,
+# refuses destructive flags (--force, --force-with-lease, --mirror, +refspec, --delete)
+arc release push
+
+# Record per-developer opt-in (writes `arc.release.enabled: true` to local git config)
+arc release record-enabled
+
+# Clear the opt-in flag (idempotent on absent)
+arc release record-disabled
+
+# Show resolved opt-in flag and interlock states with provenance
+arc release status
+
+# Same as above as a structured envelope (`schemaVersion: 1`)
+arc release status --json
+```
+
+Refusal exit codes 10–14 cover `no-active-wu`, `interlock-not-authorized`, `destructive-flag`,
+`branch-protection-violation`, and `pushability-precheck-failed`; audit entries land at
+`.arc/user/{identity}/.internal/.audit-log.jsonl`. See [DEV-RULES.ARC][dev-rules-arc] §
+Commit Discipline for the trust model and opt-in semantics.
+
 ### Atomic Work History
 
 ```bash
@@ -297,3 +326,4 @@ token. Write tokens expire at 90 days max — rotate before expiry.
 
 [quality-gates]: strategies/arc/strategy-quality-gates.md
 [session-ops]: strategies/arc/strategy-session-operations.md
+[dev-rules-arc]: constitution/DEV-RULES.ARC.md

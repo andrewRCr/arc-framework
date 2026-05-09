@@ -434,7 +434,15 @@ direction (package source primary, `.arc/` mirror).
         the per-invocation harness-prompt bypass, with the canonical invocation shape forward-referenced to
         AGENT-BRIEF.ARC (6.2.c). Edit went through package source first; `.arc/` mirror is byte-identical.
 
-    - `[ ]` **6.2.b QUICK-REFERENCE new commands section**
+    - `[x]` **6.2.b QUICK-REFERENCE new commands section**
+
+        New `### Release Wrappers` subsection added to `## ARC CLI Commands`, between Session State Portability
+        and Atomic Work History. Lists all five commands (`arc release commit` / `push` / `record-enabled` /
+        `record-disabled` / `status [--json]`) with comment-prefixed bash examples matching the section's
+        existing convention; one closing paragraph names refusal codes 10–14 and the audit-log path, and
+        cross-references DEV-RULES.ARC § Commit Discipline for the trust model. Edit through package source
+        first (`QUICK-REFERENCE.template.md`); `.arc/` mirror diverges only in link style (template inline,
+        instance reference-style, with new `[dev-rules-arc]` ref appended).
 
     - `[ ]` **6.2.c AGENT-BRIEF.ARC release-wrapper invocation shape**
 
