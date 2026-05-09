@@ -471,6 +471,22 @@ direction (package source primary, `.arc/` mirror).
         (every-session load context = rule + orientation only; reference detail routes to QUICK-REFERENCE
         and on-demand strategy docs). Edits through package source first; both `.arc/` mirrors byte-identical.
 
+    - `[x]` **6.2.d Update existing strategies that cover the interlock model**
+
+        Three on-demand-loaded strategies brought up to current:
+        `strategy-configurability-architecture.md` § Session interlocks now enumerates the `on-workflow`
+        third tier for all three interlocks, names the ascending-permissiveness ladder (`manual` <
+        `on-{primary}` < `on-workflow` as trigger sets, not single triggers), and adds an orthogonal
+        `arc.release.enabled` paragraph framing it as the WHEN/HOW separation against the interlocks.
+        `strategy-session-operations.md` § Interlock Model paragraphs gain `on-workflow` mentions for
+        commit / push / sync, plus a new `Release-wrapper layer` paragraph naming the CLI-boundary
+        mechanical authorization layer (with `[config-arch]` link ref appended).
+        `strategy-team-coordination.md` § Interlock-Release Coordination notes `on-workflow` on the
+        commit-on-task-approval and push-separation paragraphs, and adds a `Release-wrapper opt-in
+        is per-developer` paragraph capturing the per-clone-local nature of `arc.release.enabled`
+        and team-mode implications. Edits through package source first; `.arc/` mirrors byte-identical.
+        Scope held tight — no duplication of WU2's deeper invocation framing.
+
 ### `[ ]` **6.3 Refusal-message template harmonization** (conditional)
 
 - _Goal:_ Verify refusal-message format consistency at end of P0 work; if drift surfaced (call sites bypassed the

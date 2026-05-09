@@ -190,17 +190,26 @@ mode, that state is local only. Handoffs should either commit the reviewed work 
 the uncommitted state clearly in SESSION-NOTES so the next developer does not assume the branch
 already carries it.
 
-**Commit-on-task-approval mode.** With `session.commit_interlock: on-task-approval`, approved tasks
-usually land as task-sized commits immediately after review. This reduces invisible local state
-but increases commit frequency on shared branches. Concurrent pairs should pull before starting
-or committing nearby task-list edits, and should expect straightforward checkbox/completion-note
-conflicts when two owned tasks complete close together.
+**Commit-on-task-approval mode.** With `session.commit_interlock: on-task-approval` (or
+`on-workflow`, which adds release on workflow-ceremony commits), approved tasks usually land as
+task-sized commits immediately after review. This reduces invisible local state but increases
+commit frequency on shared branches. Concurrent pairs should pull before starting or committing
+nearby task-list edits, and should expect straightforward checkbox/completion-note conflicts when
+two owned tasks complete close together.
 
 **Push remains separate.** A local commit is not team-visible until pushed. `session.push_interlock:
 on-sync` releases push when an `arc sync` event fires — typically handoff-driven sync (via
-`session.sync_interlock: on-handoff`), or explicit mid-session `arc sync` invocation. Teams that
-depend on a shared integration branch should agree when mid-session pushes are expected versus
-when handoff-driven push is sufficient.
+`session.sync_interlock: on-handoff`), or explicit mid-session `arc sync` invocation;
+`on-workflow` adds release on workflow-driven push events. Teams that depend on a shared
+integration branch should agree when mid-session pushes are expected versus when handoff-driven
+push is sufficient.
+
+**Release-wrapper opt-in is per-developer.** `arc.release.enabled` writes to local git config
+(per-clone, never pushed); teammates can have different opt-in states without affecting each
+other. The wrappers themselves run unconditionally regardless; opt-in changes only harness-
+prompt behavior on the developer's machine. Projects that yaml-set `release.enabled: true` adopt
+wrappers as a project-wide expectation, but each teammate can still override locally with
+`arc release opt-out`.
 
 ---
 
