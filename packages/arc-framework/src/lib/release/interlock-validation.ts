@@ -63,7 +63,17 @@ export function authorizeRelease(opts: AuthorizeReleaseOptions): AuthorizationDe
   return checkInterlock(opts);
 }
 
-function checkBranchProtection(opts: AuthorizeReleaseOptions): AuthorizationDecision | null {
+/**
+ * Branch-protection gate. Returns the code 13 refusal when
+ * `branch.protection: full` and the current branch matches the configured
+ * base; null otherwise. Exported so the push cascade can sequence branch
+ * protection (13) → pushability (14) → interlock (11) without re-deriving
+ * the check inline. Return type narrows to the code 13 arm so callers
+ * forward the result without re-narrowing the discriminator.
+ */
+export function checkBranchProtection(
+  opts: AuthorizeReleaseOptions,
+): Extract<AuthorizationDecision, { code: 13 }> | null {
   if (opts.settings.settings["branch.protection"] !== "full") return null;
   if (opts.currentBranch !== opts.settings.settings["branch.base"]) return null;
   return {
@@ -74,7 +84,13 @@ function checkBranchProtection(opts: AuthorizeReleaseOptions): AuthorizationDeci
   };
 }
 
-function checkInterlock(opts: AuthorizeReleaseOptions): AuthorizationDecision {
+/**
+ * Interlock gate. Returns an `authorize` decision when the configured
+ * interlock value covers the wrapper's scope; otherwise a code 11 refusal
+ * carrying the offending setting key + value. Exported so the push cascade
+ * can defer this check until after pushability (14).
+ */
+export function checkInterlock(opts: AuthorizeReleaseOptions): AuthorizationDecision {
   if (opts.operation === "commit") {
     const value = opts.settings.resolved.commitInterlock.value;
     if (value === "on-task-approval" || value === "on-workflow") {

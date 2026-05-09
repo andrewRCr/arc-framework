@@ -237,32 +237,17 @@ and retain capturing behavior. Result callback dropped from R2's signature widen
   captured-stream surfacing on exec success and on rejected exec errors, and the inherit-stdio
   delegate/exit-0/non-zero-exit paths.
 
-### `[ ]` **3.2 Refusal path — validation + pushability → exit codes 10–14 → audit refused entry**
+### `[x]` **3.2 Refusal path — validation + pushability → exit codes 10–14 → audit refused entry**
 
 - _Goal:_ `arc release push` exits with the correct R4 code for each refusal scenario, prints remediation message via
   `formatRefusal()`, records the refusal as an audit entry, and the wrapped push invocation never fires.
 
-- _Note:_ Pushability advisory `force-push-required` always refuses (never auto-passes), inheriting the contract from
-  `pushability.ts`'s preamble.
-
-- _Notes:_ See `notes-release-wrappers-foundation.md` § 3.2 for `runPushabilityStatus` invocation parameters and
-  disposition handling (block / advisory / auto-fixed).
-
-    - Files: `src/handlers/release/push.ts`, `src/cli.ts` (`push` sub-command on `arc release`)
-    - Code 15 omitted (reserved-for-empirical per F2-B)
-    - Refusal short-circuit order: 12 → 10 → 13 → 14 → 11 (cheapest → most-expensive I/O)
-
-    Build `test-first` (one behavior at a time):
-    - Code 12 (destructive-flag) — each push-forbidden flag (`--force`, `-f`, `--force-with-lease`, `+refspec`,
-      `--delete`, `-d`, `--mirror`) refuses + audit
-    - Code 10 (no-active-wu)
-    - Code 13 (branch-protection-violation)
-    - Code 14 (pushability-precheck-failed) — each `runPushabilityStatus` blocking condition (`rebase-in-progress`,
-      `detached-head`, `no-upstream-branch`, `worktree-not-aligned-with-origin`, advisory `force-push-required`) refuses
-    - Code 14 — `auto-fixed` disposition (e.g., `missing-notes-refspec`) does NOT refuse (passes through; defensive —
-      won't surface for `target: "worktree"` anyway)
-    - Code 11 (interlock-not-authorized)
-    - All refusal paths: wrapped push never fires
+- _Outcome:_ Cascade `12 → 10 → 13 → 14 → 11` wired in `runReleasePush`. Pushability gating filters refusal-causing
+  conditions (`block` ∪ advisory `force-push-required`; `auto-fixed` passes through). Interlock-validation library
+  exposes `checkBranchProtection` (narrowed return: code-13-refuse-or-null) and `checkInterlock` alongside the existing
+  `authorizeRelease` so the push cascade can sequence pushability between branch-protection and interlock without
+  re-deriving the gates inline; commit cascade keeps `authorizeRelease` unchanged. 26 unit tests cover each refusal
+  code, all four short-circuit pairs, and pushability disposition handling.
 
 ### `[ ]` **3.3 Success path — push invocation, audit entry**
 

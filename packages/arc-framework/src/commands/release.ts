@@ -19,3 +19,14 @@ export type {
   SpawnGitResult,
   AppendAudit,
 } from "../handlers/release/commit.js";
+
+export { handleReleasePush } from "../handlers/release/push-cli.js";
+export type { HandleReleasePushOptions } from "../handlers/release/push-cli.js";
+export { runReleasePush } from "../handlers/release/push.js";
+export type {
+  ReleasePushDeps,
+  ReleasePushResult,
+  RunPushability,
+  SpawnPush,
+  SpawnPushOptions,
+} from "../handlers/release/push.js";
