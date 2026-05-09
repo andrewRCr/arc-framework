@@ -5,7 +5,18 @@ Implementation rationale, design alternatives, and audit-derived design decision
 where load-bearing context exceeds inline-note scope.
 
 Sections are organized by phase and parent task. Each entry carries its source finding ID
-(F1-A, F2-D, etc.) for traceability back to the Pass 3 audit.
+(F1-A, F2-D, etc.) for traceability back to the Pass 3 audit. Sections § 1.5 and § 6.1
+graduated to ADR-018 and ADR-017 respectively; the notes-file versions preserve the
+working-context flavor while the ADRs carry the polished decision record.
+
+## Contents
+
+- [Phase 1 — Validation Library Foundation](#phase-1--validation-library-foundation)
+- [Phase 2 — `arc release commit` handler](#phase-2--arc-release-commit-handler)
+- [Phase 3 — `arc release push` handler](#phase-3--arc-release-push-handler)
+- [Phase 4 — Opt-in state surface](#phase-4--opt-in-state-surface)
+- [Phase 5 — Sync audit-log retrofit + probe surface](#phase-5--sync-audit-log-retrofit--probe-surface)
+- [Phase 6 — Documentation + ADR](#phase-6--documentation--adr)
 
 ---
 
