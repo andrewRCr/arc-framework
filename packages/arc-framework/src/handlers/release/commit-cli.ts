@@ -10,15 +10,16 @@
  * @module
  */
 
+import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 
 import { resolveAllSettings } from "../../lib/config/resolved-settings.js";
 import { formatError, UserFacingError } from "../../lib/errors.js";
-import { gitExec } from "../../lib/io-context.js";
+import { execFileAsync, gitExec } from "../../lib/io-context.js";
 import { resolveArcRoot } from "../../lib/paths.js";
 import { ARC_PROJECT_ROOT_ERROR, resolveCurrentBranchName, resolveUserIdentity } from "../shared.js";
 
-import { runReleaseCommit, type SpawnGit } from "./commit.js";
+import { runReleaseCommit, type ResolveHead, type SpawnGit } from "./commit.js";
 
 export interface HandleReleaseCommitOptions {
   args: readonly string[];
@@ -27,8 +28,9 @@ export interface HandleReleaseCommitOptions {
 /**
  * `arc release commit` Commander entry point. Resolves the I/O surface
  * needed by the orchestrator and delegates. Refusal paths print to
- * stderr and exit with the matched refusal code (10–13); the success
- * path is not yet implemented.
+ * stderr and exit with the matched refusal code (10–13); the authorize
+ * path forwards to a wrapped `git commit` invocation that bubbles git's
+ * stdout, stderr, and exit code verbatim.
  */
 export async function handleReleaseCommit(opts: HandleReleaseCommitOptions): Promise<void> {
   let identity: string;
@@ -65,6 +67,7 @@ export async function handleReleaseCommit(opts: HandleReleaseCommitOptions): Pro
     settings,
     currentBranch,
     spawnGit: realSpawnGit,
+    resolveHead: realResolveHead,
   });
 
   if (result.exitCode !== 0) {
@@ -73,13 +76,35 @@ export async function handleReleaseCommit(opts: HandleReleaseCommitOptions): Pro
 }
 
 /**
- * Real wrapped-`git commit` invocation. Stubbed: the orchestrator's
- * authorization branch already rejects internally, so the refusal
- * cascade never reaches this stub. A user who invokes the wrapper with
- * an authorizing config sees the rejection surface as a top-level CLI
- * error — the spawn-and-capture wiring is not yet implemented.
+ * Wrapped `git commit` invocation. Inherits stdin so the editor (commit-message
+ * prompt, interactive rebase) works as expected; pipes stdout and stderr so the
+ * captured streams support hash extraction and hook-failure attribution while
+ * being teed verbatim to the user's terminal.
  */
-const realSpawnGit: SpawnGit = () =>
-  Promise.reject(
-    new Error("`arc release commit` success path is not yet implemented"),
-  );
+const realSpawnGit: SpawnGit = ({ args, cwd }) =>
+  new Promise((resolve, reject) => {
+    const proc = spawn("git", ["commit", ...args], {
+      stdio: ["inherit", "pipe", "pipe"],
+      cwd,
+    });
+    let stdout = "";
+    let stderr = "";
+    proc.stdout.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString();
+      process.stdout.write(chunk);
+    });
+    proc.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
+      process.stderr.write(chunk);
+    });
+    proc.on("error", reject);
+    proc.on("close", (code) => {
+      resolve({ exitCode: code ?? 1, stdout, stderr });
+    });
+  });
+
+/** Resolves `HEAD` post-success for the audit entry's `hash` field. */
+const realResolveHead: ResolveHead = async ({ cwd }) => {
+  const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd });
+  return stdout.trim();
+};

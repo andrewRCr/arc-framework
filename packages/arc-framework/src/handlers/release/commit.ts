@@ -1,5 +1,5 @@
 /**
- * `arc release commit` handler — refusal-path orchestrator.
+ * `arc release commit` handler — orchestrator for refusal and success paths.
  *
  * Composes the destructive-flag detector, active-WU resolver, and
  * `authorizeRelease` interlock check into a short-circuit cascade
@@ -9,18 +9,19 @@
  * `decision: "refused"` audit entry. The wrapped `git commit`
  * subprocess never fires on a refusal path.
  *
- * The authorization branch returns a rejected promise — callers that
- * reach it have a pre-resolved authorize decision but no implementation
- * of the wrapped-git invocation, output passthrough, hash extraction,
- * or success/hook-failed audit-entry write. That work is intentionally
- * left for a follow-up so this module's surface is small and unit-tests
- * exercise only the refusal cascade.
+ * On authorization, the wrapped-git invocation runs via the injected
+ * `spawnGit`. Exit code 0 resolves HEAD via `resolveHead` and writes a
+ * `proceeded` / `outcome.kind: "commit"` audit entry. Non-zero attributes
+ * a hook from the captured stdout/stderr (best-effort substring match;
+ * defaults to `"unknown"`) and writes `proceeded` / `outcome.kind:
+ * "hook-failed"`. Git's exit code is bubbled verbatim either way.
  *
  * **Settings resolution.** Callers pass a pre-resolved
  * `ResolvedSettingsResult`. Resolving once at the handler boundary and
  * threading the result through validation and audit-entry write keeps
- * this orchestrator I/O-narrow (only WU resolution and audit-log write
- * happen here) and prevents drift between read sites.
+ * this orchestrator I/O-narrow (only WU resolution, the wrapped spawn,
+ * HEAD resolution, and audit-log write happen here) and prevents drift
+ * between read sites.
  *
  * @module
  */
@@ -46,12 +47,7 @@ import type {
 } from "../../lib/release/types.js";
 import type { ResolvedSettingsResult } from "../../lib/config/resolved-settings.js";
 
-/**
- * Subprocess result shape returned by the wrapped-git invocation. The
- * refusal cascade never spawns `git commit`, so this surface is unused
- * by the current orchestrator — declared here to keep the dependency
- * shape stable for the success-path wiring.
- */
+/** Subprocess result shape returned by the wrapped-git invocation. */
 export interface SpawnGitResult {
   exitCode: number;
   stdout: string;
@@ -65,6 +61,13 @@ export interface SpawnGitOptions {
 }
 
 export type SpawnGit = (opts: SpawnGitOptions) => Promise<SpawnGitResult>;
+
+/**
+ * Resolves the just-committed HEAD hash post-success. Real impl runs
+ * `git rev-parse HEAD`; tests inject a stub. Called only when `spawnGit`
+ * resolves with `exitCode: 0`.
+ */
+export type ResolveHead = (opts: { cwd: string }) => Promise<string>;
 
 /**
  * Audit-entry writer signature. Defaulted to {@link appendAuditEntry}; tests
@@ -88,6 +91,11 @@ export interface ReleaseCommitDeps {
    * authorizes the operation; the refusal cascade never calls this.
    */
   spawnGit: SpawnGit;
+  /**
+   * HEAD resolver invoked post-success to capture the committed hash for
+   * the audit entry. Called only on `spawnGit` exit code 0.
+   */
+  resolveHead: ResolveHead;
   /** Sink for refusal messages. Defaults to `process.stderr.write`. */
   writeStderr?: (msg: string) => void;
   /** Audit-entry writer. Defaults to {@link appendAuditEntry}. */
@@ -102,8 +110,8 @@ export interface ReleaseCommitResult {
  * Run the release-commit cascade and return the resulting exit code.
  * Refusal paths emit a refusal message via `writeStderr`, persist an
  * audit entry, and return the matched refusal code. The authorization
- * branch returns a rejected promise — the wrapped-git invocation is not
- * yet implemented.
+ * branch invokes `spawnGit`, writes a `commit` or `hook-failed` audit
+ * entry from the result, and bubbles git's exit code verbatim.
  */
 export async function runReleaseCommit(
   deps: ReleaseCommitDeps,
@@ -137,18 +145,49 @@ export async function runReleaseCommit(
     currentBranch: deps.currentBranch,
   });
 
+  const wuAudit = toAuditWorkUnit(wu);
+
   if (decision.kind === "refuse") {
-    return refuse(decision, {
-      wu: toAuditWorkUnit(wu),
-      deps,
-      writeStderr,
-      appendAudit,
-    });
+    return refuse(decision, { wu: wuAudit, deps, writeStderr, appendAudit });
   }
 
-  return Promise.reject(
-    new Error("release-commit success path is not yet implemented"),
-  );
+  // Authorize: run wrapped `git commit`, attribute the outcome, audit, exit.
+  const spawned = await deps.spawnGit({ args: deps.argv, cwd: deps.cwd });
+  const outcome: AuditOutcome = spawned.exitCode === 0
+    ? { kind: "commit", hash: await deps.resolveHead({ cwd: deps.cwd }) }
+    : {
+        kind: "hook-failed",
+        hook: detectCommitHook(`${spawned.stdout}\n${spawned.stderr}`),
+        exitCode: spawned.exitCode,
+      };
+
+  await appendAudit({
+    cwd: deps.cwd,
+    identity: deps.identity,
+    entry: buildAuditEntry({
+      deps,
+      wu: wuAudit,
+      decision: "proceeded",
+      refusalCode: null,
+      outcome,
+    }),
+  });
+
+  return { exitCode: spawned.exitCode };
+}
+
+/**
+ * Best-effort hook attribution for a non-zero `git commit` exit. Pattern-matches
+ * captured output for known commit-side hook names. Order matters: longer names
+ * checked first to avoid `commit-msg` swallowing `prepare-commit-msg`. Returns
+ * `"unknown"` when no hook keyword surfaces — the audit shape is preserved
+ * either way.
+ */
+function detectCommitHook(output: string): string {
+  if (output.includes("prepare-commit-msg")) return "prepare-commit-msg";
+  if (output.includes("commit-msg")) return "commit-msg";
+  if (output.includes("pre-commit")) return "pre-commit";
+  return "unknown";
 }
 
 interface RefuseContext {

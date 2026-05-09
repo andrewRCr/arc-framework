@@ -119,16 +119,21 @@ interface BuildDepsOptions {
   settings?: ResolvedSettingsResult;
   currentBranch?: string;
   spawnGit?: ReleaseCommitDeps["spawnGit"];
+  resolveHead?: ReleaseCommitDeps["resolveHead"];
 }
 
 function buildDeps(root: string, opts: BuildDepsOptions = {}): {
   deps: ReleaseCommitDeps;
   stderr: string[];
   spawnGit: ReturnType<typeof vi.fn>;
+  resolveHead: ReturnType<typeof vi.fn>;
 } {
   const stderr: string[] = [];
   const spawnGit = vi.fn(opts.spawnGit ?? (() => {
     throw new Error("spawnGit must not be called on a refusal path");
+  }));
+  const resolveHead = vi.fn(opts.resolveHead ?? (() => {
+    throw new Error("resolveHead must not be called without an authorized success");
   }));
   const deps: ReleaseCommitDeps = {
     cwd: root,
@@ -138,8 +143,9 @@ function buildDeps(root: string, opts: BuildDepsOptions = {}): {
     currentBranch: opts.currentBranch ?? "feature/x",
     writeStderr: (msg) => { stderr.push(msg); },
     spawnGit,
+    resolveHead,
   };
-  return { deps, stderr, spawnGit };
+  return { deps, stderr, spawnGit, resolveHead };
 }
 
 async function readAuditEntries(root: string): Promise<AuditEntry[]> {
@@ -427,5 +433,163 @@ describe("runReleaseCommit — short-circuit order", () => {
     });
     const result = await runReleaseCommit(deps);
     expect(result.exitCode).toBe(13);
+  });
+});
+
+// --- Success path: git invocation + audit entry ---
+
+describe("runReleaseCommit — success path", () => {
+  let fixture: Fixture;
+  beforeEach(async () => { fixture = await createFixture(); });
+  afterEach(async () => { await rm(fixture.root, { recursive: true, force: true }); });
+
+  const FULL_HASH = "1a2b3c4d5e6f7890abcdef1234567890abcdef12";
+
+  function authorizingSettings(): ResolvedSettingsResult {
+    return buildSettings({ commitInterlock: "on-task-approval" });
+  }
+
+  it("forwards argv to spawnGit when authorized and bubbles exit code 0", async () => {
+    await writeStatus(fixture.root, "technical", "sample");
+    const argv = ["-m", "subject"];
+    const { deps, spawnGit } = buildDeps(fixture.root, {
+      argv,
+      settings: authorizingSettings(),
+      spawnGit: () => Promise.resolve({
+        exitCode: 0,
+        stdout: "[feature/x 1a2b3c4] subject\n",
+        stderr: "",
+      }),
+      resolveHead: () => Promise.resolve(FULL_HASH),
+    });
+
+    const result = await runReleaseCommit(deps);
+
+    expect(spawnGit).toHaveBeenCalledTimes(1);
+    expect(spawnGit).toHaveBeenCalledWith({ args: argv, cwd: fixture.root });
+    expect(result.exitCode).toBe(0);
+  });
+
+  it("writes a proceeded audit entry with kind: commit and the resolved hash", async () => {
+    await writeStatus(fixture.root, "technical", "sample");
+    const { deps, resolveHead } = buildDeps(fixture.root, {
+      argv: ["-m", "subject"],
+      settings: authorizingSettings(),
+      spawnGit: () => Promise.resolve({
+        exitCode: 0,
+        stdout: "[feature/x 1a2b3c4] subject\n",
+        stderr: "",
+      }),
+      resolveHead: () => Promise.resolve(FULL_HASH),
+    });
+
+    await runReleaseCommit(deps);
+
+    expect(resolveHead).toHaveBeenCalledWith({ cwd: fixture.root });
+    const entries = await readAuditEntries(fixture.root);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      command: "release-commit",
+      decision: "proceeded",
+      refusalCode: null,
+      outcome: { kind: "commit", hash: FULL_HASH },
+      wu: { category: "technical", name: "sample" },
+    });
+    // -m payload still redacted on the success path.
+    expect(entries[0]?.args).toEqual(["-m", "<redacted>"]);
+  });
+
+  it("bubbles non-zero git exit code and writes a hook-failed entry attributed via stderr", async () => {
+    await writeStatus(fixture.root, "technical", "sample");
+    const { deps, resolveHead } = buildDeps(fixture.root, {
+      argv: ["-m", "subject"],
+      settings: authorizingSettings(),
+      spawnGit: () => Promise.resolve({
+        exitCode: 1,
+        stdout: "",
+        stderr: "pre-commit hook failed: lint errors\n",
+      }),
+    });
+
+    const result = await runReleaseCommit(deps);
+
+    expect(result.exitCode).toBe(1);
+    expect(resolveHead).not.toHaveBeenCalled();
+
+    const entries = await readAuditEntries(fixture.root);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      command: "release-commit",
+      decision: "proceeded",
+      refusalCode: null,
+      outcome: { kind: "hook-failed", hook: "pre-commit", exitCode: 1 },
+    });
+  });
+
+  it("attributes commit-msg hook rejection from captured output", async () => {
+    await writeStatus(fixture.root, "technical", "sample");
+    const { deps } = buildDeps(fixture.root, {
+      argv: ["-m", "subject"],
+      settings: authorizingSettings(),
+      spawnGit: () => Promise.resolve({
+        exitCode: 1,
+        stdout: "",
+        stderr: "Aborting commit due to commit-msg hook rejection\n",
+      }),
+    });
+
+    await runReleaseCommit(deps);
+
+    const [entry] = await readAuditEntries(fixture.root);
+    expect(entry?.outcome).toMatchObject({
+      kind: "hook-failed",
+      hook: "commit-msg",
+      exitCode: 1,
+    });
+  });
+
+  it("attributes prepare-commit-msg ahead of commit-msg when both substrings appear", async () => {
+    await writeStatus(fixture.root, "technical", "sample");
+    const { deps } = buildDeps(fixture.root, {
+      argv: ["-m", "subject"],
+      settings: authorizingSettings(),
+      spawnGit: () => Promise.resolve({
+        exitCode: 1,
+        stdout: "",
+        stderr: "prepare-commit-msg hook exited with status 2\n",
+      }),
+    });
+
+    await runReleaseCommit(deps);
+
+    const [entry] = await readAuditEntries(fixture.root);
+    expect(entry?.outcome).toMatchObject({
+      kind: "hook-failed",
+      hook: "prepare-commit-msg",
+      exitCode: 1,
+    });
+  });
+
+  it("falls back to hook: 'unknown' when no hook keyword matches", async () => {
+    await writeStatus(fixture.root, "technical", "sample");
+    const { deps } = buildDeps(fixture.root, {
+      argv: ["-m", "subject"],
+      settings: authorizingSettings(),
+      spawnGit: () => Promise.resolve({
+        exitCode: 128,
+        stdout: "",
+        stderr: "fatal: pathspec did not match any files\n",
+      }),
+    });
+
+    const result = await runReleaseCommit(deps);
+
+    expect(result.exitCode).toBe(128);
+    const [entry] = await readAuditEntries(fixture.root);
+    expect(entry?.outcome).toMatchObject({
+      kind: "hook-failed",
+      hook: "unknown",
+      exitCode: 128,
+    });
   });
 });

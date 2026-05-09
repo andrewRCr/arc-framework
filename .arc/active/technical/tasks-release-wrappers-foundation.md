@@ -192,26 +192,20 @@ existing `GitExec` pattern. Refusal short-circuit order documented in `notes-rel
   never reach it. 16 unit tests cover the four refusal codes, short-circuit ordering (12→10→13→11), audit-entry shape
   with R14-redacted args, and the `spawnGit-never-fires` invariant.
 
-### `[ ]` **2.2 Success path — git invocation, audit entry**
+### `[x]` **2.2 Success path — git invocation, audit entry**
 
 - _Goal:_ `arc release commit` invokes `git commit` with forwarded args when authorized, bubbles git output and exit
   code verbatim, and records success or hook-failed audit entry.
 
-- _Note:_ Resolve settings once at handler entry; thread the resolved `{value, source}` map through validation and
-  audit-entry write. Avoids two round-trips and prevents drift between read sites.
-
-    - File: `src/handlers/release/commit.ts`
-    - Wrapped invocation: `child_process.spawn('git', ['commit', ...args], { stdio: ['inherit', 'pipe', 'pipe'] })` —
-      captures stdout for hash extraction, inherits stdin and stderr for verbatim user output. Stderr also captured if
-      hook-failure attribution needs parsing.
-    - Audit entry written post-git regardless of outcome (success → `kind: "commit"`; hook failure →
-      `kind: "hook-failed"`)
-
-    Build `test-first` (one behavior at a time):
-    - Validation passes → forwards args to `git commit`, bubbles output and exit code verbatim
-    - Success → audit entry `{ kind: "commit", hash }` (hash extracted from spawned stdout or via `git rev-parse HEAD`
-      post-success)
-    - Hook failure → bubble git's non-zero exit code, audit entry `{ kind: "hook-failed", hook, exitCode }`
+- _Outcome:_ Orchestrator authorize branch calls `deps.spawnGit({ args, cwd })`, then attributes the outcome
+  (exit 0 → `kind: "commit"` with `resolveHead`-resolved hash; non-zero → `kind: "hook-failed"` with hook
+  pattern-matched from captured stdout+stderr — `prepare-commit-msg` checked before `commit-msg` to avoid substring
+  shadowing, `pre-commit` next, `unknown` fallback) and writes one `decision: "proceeded"` audit entry. Real impl in
+  `commit-cli.ts` runs `spawn('git', ['commit', ...args], { stdio: ['inherit', 'pipe', 'pipe'] })` with both pipes teed
+  to the user terminal as captured, and resolves HEAD via `execFileAsync('git', ['rev-parse', 'HEAD'])` for the full
+  hash. 6 new tests batched (tightly-coupled behaviors on a single orchestrator branch) cover argv/cwd forwarding,
+  audit-entry shape with R14-redacted `-m` payload, hook-attribution priority, `unknown` fallback, and non-zero
+  exit-code passthrough — refusal-path `spawnGit-never-fires` invariant from 2.1 preserved.
 
 ---
 
