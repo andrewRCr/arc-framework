@@ -367,19 +367,22 @@ only) gets fixed; PRD's "config-once at session-init" model now matches code.
     - Files: `src/commands/config/status.ts` (`runConfigSessionInitStatus`), potentially `src/commands/config/types.ts`
       (envelope shape if `source` field is exposed)
 
-    - `[ ]` **5.2.a Confirm 1.2 resolver-additions landed**
-        - Verify `resolveAllSettings` returns `releaseEnabled` in `resolved`
-        - Verify `ResolvedReleaseModeSettings` extension is consumable
+    - `[x]` **5.2.a Confirm 1.2 resolver-additions landed**
+        - `resolveAllSettings` parallel-resolves `releaseEnabled` and includes it in `resolved`
+          (`resolved-settings.ts:297,303,329`)
+        - `ResolvedReleaseModeSettings` exported with all five release-mode fields; already
+          consumed by `handlers/release/record.ts` and covered in `resolved-settings.test.ts`
 
-    - `[ ]` **5.2.b Migrate `runConfigSessionInitStatus` to `resolveAllSettings`**
-
-        Build `test-first` (one behavior at a time):
-        - Probe envelope's `session.commit_interlock` / `push_interlock` / `sync_interlock` / `user.notes_push` reflect
-          git-config override when set, yaml otherwise, default otherwise
-        - Probe envelope includes `release.enabled` resolved value
-        - Probe envelope shape preserves backwards-compat for non-release-mode keys (`session.remote_sync` etc. still
-          yaml-only)
-        - `defaultsApplied` reflects yaml-absence (existing semantic)
+    - `[x]` **5.2.b Migrate `runConfigSessionInitStatus` to `resolveAllSettings`**
+        - `commands/config/status.ts` switched from `readConfigSettings` to `resolveAllSettings`;
+          `SESSION_INIT_KEYS` and `ConfigSessionInitSettings` extended by `user.notes_push` and
+          `release.enabled` (10 → 12 keys). Live `arc status --session-init --json` confirms shape.
+        - `ConfigSessionInitOptions` gained optional `exec` / `readFile` for test DI; default
+          callers (`handlers/config.ts`, session-init probe wiring) unchanged via `{ cwd }`.
+        - Integration tests in `config.test.ts` updated for the 12-key shape; new test pins
+          git-config override winning over yaml across all five release-mode keys. Invalid-yaml
+          test flipped from "yaml-only verbatim" to "warn-and-fall-back" since validation now
+          rides through the resolver.
 
     - `[ ]` **5.2.c Regression coverage for existing envelope consumers**
 

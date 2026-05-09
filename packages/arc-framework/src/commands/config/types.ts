@@ -38,6 +38,11 @@ export interface ConfigSettings {
  * Init-gating subset — fields that affect session-init decisions before a
  * dedicated workflow or method loads (sync probe, planning branch under
  * full protection, capture routing, commit format for first commit).
+ *
+ * Release-mode keys (`session.commit_interlock`, `session.push_interlock`,
+ * `session.sync_interlock`, `user.notes_push`, `release.enabled`) carry
+ * three-tier-resolved values (git-config → yaml → default); other keys
+ * carry raw yaml values per `readConfigSettings`.
  */
 export interface ConfigSessionInitSettings {
   "session.remote_sync": string;
@@ -47,6 +52,8 @@ export interface ConfigSessionInitSettings {
   "session.commit_interlock": string;
   "session.push_interlock": string;
   "session.sync_interlock": string;
+  "user.notes_push": string;
+  "release.enabled": string;
   "branch.protection": string;
   "pm.mode": string;
   "commit.format": string;
@@ -79,4 +86,8 @@ export interface ConfigStatusOptions {
 
 export interface ConfigSessionInitOptions {
   cwd: string;
+  /** Optional git-exec injection for tests; defaults to the real `gitExec`. */
+  exec?: import("../../lib/git/index.js").GitExec;
+  /** Optional file-reader injection for tests; defaults to `node:fs/promises` `readFile`. */
+  readFile?: (path: string) => Promise<string>;
 }

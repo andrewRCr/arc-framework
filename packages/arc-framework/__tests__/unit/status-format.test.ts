@@ -168,6 +168,8 @@ function makeSessionInitResult(
           "session.commit_interlock": "manual",
           "session.push_interlock": "manual",
           "session.sync_interlock": "on-handoff",
+          "user.notes_push": "on-sync",
+          "release.enabled": "false",
           "branch.protection": "partial",
           "pm.mode": "none",
           "commit.format": "conventional",

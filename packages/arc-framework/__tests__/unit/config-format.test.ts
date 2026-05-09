@@ -51,6 +51,8 @@ const SESSION_INIT_SETTINGS: ConfigSessionInitSettings = {
   "session.commit_interlock": "manual",
   "session.push_interlock": "manual",
   "session.sync_interlock": "on-handoff",
+  "user.notes_push": "on-sync",
+  "release.enabled": "false",
   "branch.protection": "full",
   "pm.mode": "arc-in-git",
   "commit.format": "conventional",
@@ -128,7 +130,7 @@ describe("buildConfigSessionInitSummary — narrow subset", () => {
     expect(summary.split("\n")[0]).toBe("Init-gating settings:");
   });
 
-  it("lists only the 10 init-gating keys", () => {
+  it("lists only the 12 init-gating keys", () => {
     const summary = buildConfigSessionInitSummary(sessionInitResult());
     expect(summary).toContain("session.remote_sync: enabled");
     expect(summary).toContain("session.init_pull.worktree: prompt");
@@ -136,12 +138,13 @@ describe("buildConfigSessionInitSummary — narrow subset", () => {
     expect(summary).toContain("session.commit_interlock: manual");
     expect(summary).toContain("session.push_interlock: manual");
     expect(summary).toContain("session.sync_interlock: on-handoff");
+    expect(summary).toContain("user.notes_push: on-sync");
+    expect(summary).toContain("release.enabled: false");
     expect(summary).toContain("branch.protection: full");
     expect(summary).toContain("pm.mode: arc-in-git");
     expect(summary).toContain("commit.format: conventional");
     expect(summary).toContain("commit.context_footer: required");
     expect(summary).not.toContain("branch.base:");
-    expect(summary).not.toContain("user.notes_push:");
   });
 
   it("marks defaulted keys", () => {
