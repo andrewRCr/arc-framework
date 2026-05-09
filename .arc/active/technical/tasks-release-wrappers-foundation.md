@@ -354,18 +354,12 @@ only) gets fixed; PRD's "config-once at session-init" model now matches code.
   `WORKTREE_PUSH_BLOCK_STATES` / `NOTES_BLOCK_WORKTREE_STATES` asymmetry). Pre-existing planning-artifact `§`
   citations across four other test files captured to `ATOMIC-INBOX.md` for sweep + future-prevention design.
 
-### `[ ]` **5.2 Migrate session-init config envelope to three-tier resolution**
+### `[x]` **5.2 Migrate session-init config envelope to three-tier resolution**
 
 - _Goal:_ Session-init envelope's `config.value.settings` carries resolved values (git-config → yaml → default) for the
   full release-mode key surface — `commit_interlock`, `push_interlock`, `sync_interlock`, `notes_push`,
   `release.enabled` — eliminating the latent yaml-only / handler-resolved inconsistency. WU2's downstream workflow
   routing reads resolved values without re-probing.
-
-- _Note:_ `defaultsApplied` semantics preserved (means "yaml-absent"); consumers needing true source-provenance check
-  `resolved.<key>.source === "default"`. See `notes-release-wrappers-foundation.md` § 5.2.
-
-    - Files: `src/commands/config/status.ts` (`runConfigSessionInitStatus`), potentially `src/commands/config/types.ts`
-      (envelope shape if `source` field is exposed)
 
     - `[x]` **5.2.a Confirm 1.2 resolver-additions landed**
         - `resolveAllSettings` parallel-resolves `releaseEnabled` and includes it in `resolved`
@@ -384,12 +378,14 @@ only) gets fixed; PRD's "config-once at session-init" model now matches code.
           test flipped from "yaml-only verbatim" to "warn-and-fall-back" since validation now
           rides through the resolver.
 
-    - `[ ]` **5.2.c Regression coverage for existing envelope consumers**
-
-        Build `test-first` (one behavior at a time):
-        - Workflow-method consumers (session-init.md `config.value.settings.session.*`) see resolved values without
-          re-probing
-        - Existing session-init integration tests pass with resolved values substituted for yaml-only
+    - `[x]` **5.2.c Regression coverage for existing envelope consumers**
+        - New orchestration-level test in `status.test.ts` pins the agent-readable envelope path:
+          `runSessionInitStatus` carries git-config overrides through to
+          `result.config.value.settings.<release-mode-key>` for all five keys without any
+          consumer-side re-probe. Closes the gap that 5.2.b's probe-direct test left at the
+          orchestrator boundary.
+        - Existing 13 status orchestration tests pass unchanged; full suite (1405 unit + 56
+          integration/e2e) green after the migration.
 
 ---
 

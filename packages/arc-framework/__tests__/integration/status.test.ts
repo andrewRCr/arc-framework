@@ -19,8 +19,8 @@
  * the probes together, not the probes themselves.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdir, mkdtemp, writeFile, rm } from "node:fs/promises";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { mkdir, mkdtemp, readFile as nodeReadFile, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -726,4 +726,82 @@ describe("runSessionInitStatus — sessionType envelope coverage", () => {
       expect(result.active.value.sessionType).toBeNull();
     }
   });
+});
+
+describe("runSessionInitStatus — release-mode key resolution at envelope path", () => {
+  let fixture: Fixture;
+  beforeEach(async () => {
+    fixture = await createFixture();
+    await writeFile(
+      fixture.configPath,
+      [
+        "pm.mode: arc-in-git",
+        "branch.protection: full",
+        "commit.format: conventional",
+        "commit.context_footer: required",
+        "session.remote_sync: enabled",
+        "session.commit_interlock: manual",
+        "session.push_interlock: manual",
+        "session.sync_interlock: manual",
+        "user.notes_push: on-sync",
+        "release.enabled: false",
+      ].join("\n"),
+    );
+  });
+  afterEach(async () => {
+    await rm(fixture.root, { recursive: true, force: true });
+  });
+
+  it(
+    "orchestrated envelope carries git-config overrides at config.value.settings.<key> "
+    + "so session-init.md consumers read resolved values without re-probing",
+    async () => {
+      const overrides: Record<string, string> = {
+        "arc.commitInterlock": "on-task-approval",
+        "arc.pushInterlock": "on-sync",
+        "arc.syncInterlock": "on-handoff",
+        "arc.notesPush": "prompt",
+        "arc.releaseEnabled": "true",
+      };
+      const exec = vi.fn().mockImplementation((cmd: string, args: string[]) => {
+        if (cmd === "git" && args[0] === "config" && args[1] === "--get") {
+          const key = args[2];
+          const value = key === undefined ? undefined : overrides[key];
+          if (value === undefined) return Promise.reject(new Error("exit 1"));
+          return Promise.resolve({ stdout: `${value}\n` });
+        }
+        return Promise.reject(new Error(`unexpected exec call: ${cmd} ${(args ?? []).join(" ")}`));
+      });
+      const probes: SessionInitProbes = {
+        user: async (identity) => stubUserSessionInit(identity),
+        worktree: async () => ({ state: "skipped", ahead: 0, behind: 0, branch: "main" }),
+        dirty: async () => ({ state: "clean", fileCount: 0 }),
+        extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
+        config: () => runConfigSessionInitStatus({
+          cwd: fixture.root,
+          exec,
+          readFile: (path) => nodeReadFile(path, "utf-8"),
+        }),
+        active: () => runActiveSessionInitStatus({
+          cwd: fixture.root,
+          exec: makeGitExec(fixture.root),
+        }),
+        domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
+      };
+      const result = await runSessionInitStatus({
+        identity: "andrew",
+        role: "maintainer",
+        probes,
+      });
+      expect(result.config.ok).toBe(true);
+      if (result.config.ok) {
+        // The literal envelope path agents consume from session-init.md.
+        expect(result.config.value.settings["session.commit_interlock"]).toBe("on-task-approval");
+        expect(result.config.value.settings["session.push_interlock"]).toBe("on-sync");
+        expect(result.config.value.settings["session.sync_interlock"]).toBe("on-handoff");
+        expect(result.config.value.settings["user.notes_push"]).toBe("prompt");
+        expect(result.config.value.settings["release.enabled"]).toBe("true");
+      }
+    },
+  );
 });
