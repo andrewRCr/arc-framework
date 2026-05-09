@@ -9,11 +9,13 @@
 - **Task List:** [none]
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** [none]
+- **Last Completed:** archive-work-unit on release-wrappers-foundation — files moved to
+  `archive/2026-q2/technical/08_release-wrappers-foundation/`, completion-doc PR field filled
+  with PR #30 URL, PROJECT-STATUS and ROADMAP updated
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run archive-work-unit on release-wrappers-foundation, then proceed to
-  `1_create-prd.md` for the ergonomics WU (per batch-branch convention)
+- **Next Action:** Refresh `plan-release-wrappers-ergonomics.md` against the actually-delivered
+  foundation implementation, iterate plan to PRD-ready, then run `1_create-prd.md`
 
 ---
