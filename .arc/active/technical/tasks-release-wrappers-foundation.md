@@ -487,14 +487,16 @@ direction (package source primary, `.arc/` mirror).
         and team-mode implications. Edits through package source first; `.arc/` mirrors byte-identical.
         Scope held tight — no duplication of WU2's deeper invocation framing.
 
-### `[ ]` **6.3 Refusal-message template harmonization** (conditional)
+### `[~]` **6.3 Refusal-message template harmonization** (conditional)
 
 - _Goal:_ Verify refusal-message format consistency at end of P0 work; if drift surfaced (call sites bypassed the
   `formatRefusal()` helper from 1.5), reconcile to shared format.
 
-- _Note:_ Per F2-E, `formatRefusal()` was stubbed in 1.5 from the start; Phases 2 / 3 / 5.1 use it. By end of Phase 5,
-  drift = whether any refusal-message call site bypassed the helper. If uniform → mark `[~]` superseded by 1.5's helper;
-  if drift → reconcile via single edit pass through call sites.
+- _Outcome:_ No drift. Audit across `src/handlers/release/` and `src/lib/release/` confirms the only two
+  user-facing refusal-message emission points — `commit.ts:204` and `push.ts:279` — both call
+  `formatRefusal(decision)` directly through `ctx.writeStderr`. Sync's blocked-cell user output uses its own
+  matrix-cell prose surface (different format, intentionally — sync isn't a release-wrapper refusal). 1.5's
+  upfront helper stubbing per F2-E held; no reconciliation needed. Superseded by 1.5's `formatRefusal()`.
 
 ### `[ ]` **6.4 ADR-018: interlock value extension — trigger-set model + wrapper-scope-vs-permission rule**
 
