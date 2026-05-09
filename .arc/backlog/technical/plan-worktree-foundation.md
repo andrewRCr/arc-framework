@@ -106,7 +106,9 @@ cross-cutting section rather than inside the Local mode treatment. It's universa
    same module — proceed in parallel, or sequence after WU-X integrates?"); does not gate spawn. No probe
    tooling, no `**Touches:**` field — relies on agent reading existing scope descriptions in the in-flight WUs'
    `**Purpose:**` / spec content. Forward-compat: degrades to no-op when no other in-flight WUs exist
-   (single-WU world).
+   (single-WU world). When this WU ships before [Concurrent Work Conventions][cwc] codifies the heuristics,
+   the check falls back to general agent judgment over `**Purpose:**` / spec text — the check shape is stable;
+   the heuristics document calibrates what counts as overlap.
 
    **Tier-aware spawn applicability:**
 

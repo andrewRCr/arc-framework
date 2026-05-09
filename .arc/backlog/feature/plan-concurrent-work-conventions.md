@@ -175,7 +175,10 @@ the posture as "tolerated" or "principled at modest scale."
       `**Sibling Work Unit(s):**` declarations, and either proceeds, surfaces concerns to user,
       or suggests sequencing change. Non-deterministic; advisory; no probe tooling. The strategy
       doc gives the judgment heuristics; the workflow step (in `plan-worktree-foundation.md`'s
-      spawn scope) fires the check.
+      spawn scope) fires the check. Scope boundary: the check applies only to worktree-based
+      spawn, not to the metadata-only shift available for atomic detours — the latter stays in
+      the current worktree and is bounded by review-increment discipline rather than
+      cross-WU concurrency overlap.
 
     - **Branch and rebase discipline.** Periodic-rebase-onto-main vs end-of-flight rebase
       trade-off (lifetime threshold around 2 days per industry research); rerere setup for

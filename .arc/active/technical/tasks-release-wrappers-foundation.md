@@ -275,9 +275,10 @@ forward-compat per `notes-release-wrappers-foundation.md` § 4.2.
 
 ### `[x]` **4.1 `opt-in` / `opt-out` sub-commands**
 
-- _Goal:_ `arc release opt-in` writes `arc.release.enabled: true` to per-developer git config (idempotent on
-  repeat); `arc release opt-out` clears the same key (idempotent on absent key); both surface git-config write
-  failures with clear remediation messages.
+- _Goal:_ `arc release opt-in` writes `arc.releaseEnabled: true` to per-developer git config (idempotent on
+  repeat); `arc release opt-out` writes `arc.releaseEnabled: false` to the same key (idempotent on already-`false`)
+  for symmetric override against yaml-set `release.enabled: true`; both surface git-config write failures with
+  clear remediation messages.
 
     - `[x]` **4.1.a Extend `lib/git/exec.ts` — `gitConfigUnset` + scoped `gitConfigSet`**
 

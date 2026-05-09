@@ -437,14 +437,19 @@ The configurable interlocks use independent config axes.
 - `session.commit_interlock: manual` (default) — commit-interlock engaged by default; user explicitly
   invokes commit.
 - `session.commit_interlock: on-task-approval` — commit-interlock releases on task approval.
+- `session.commit_interlock: on-workflow` — extends `on-task-approval` with release on
+  workflow-driven commit events (handoff, integration prep, planning ceremonies). See § Release
+  Wrappers and Workflow-Driven Triggers above.
 - `session.push_interlock: manual` (default) — push-interlock engaged by default; user explicitly
   invokes push.
 - `session.push_interlock: on-sync` — push-interlock releases when an `arc sync` event fires
   (per-commit release is not offered).
+- `session.push_interlock: on-workflow` — adds release on workflow-driven push events.
 - `session.sync_interlock: on-handoff` (default) — handoff invokes `arc sync` as part of the
   handoff ceremony.
 - `session.sync_interlock: manual` — handoff surfaces unpushed state without invoking sync;
   sync requires explicit invocation.
+- `session.sync_interlock: on-workflow` — adds release on workflow-driven sync triggers.
 
 ### Approval-Signal Architecture
 

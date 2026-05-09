@@ -51,8 +51,9 @@ Building on landed work is cheaper than retrofitting later.
    audit log entries across the three operations that cross the harness shell-pattern-gate
    boundary.
 4. **Expose the per-developer opt-in state surface.** Enabled-state recording, status reporting,
-   and clearing — minimal ergonomics so the opt-in flag (consumed by the probe for downstream
-   workflow routing) can be set and verified end-to-end before WU2 lands.
+   and explicit `arc.releaseEnabled: false` opt-out — minimal ergonomics so the opt-in flag
+   (consumed by the probe for downstream workflow routing) can be set and verified end-to-end
+   before WU2 lands.
 5. **Preserve scope discipline.** Commit and push only; no slippery slope to higher-blast-radius
    git operations.
 
