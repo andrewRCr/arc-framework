@@ -397,24 +397,16 @@ _Design decisions:_ ADR lands first so the trust framing stabilizes before the a
 internal-only (no package-source counterpart per § Architecture Documentation); other docs follow package-project sync
 direction (package source primary, `.arc/` mirror).
 
-### `[ ]` **6.1 ADR-017: defense-in-depth at harness vs ARC layer**
+### `[x]` **6.1 ADR-017: defense-in-depth at harness vs ARC layer**
 
 - _Goal:_ ADR in `.arc/reference/adr/` formalizes the trust-model trade-off with all six R12 content sections — adopters
   and future contributors can reason about the bypass property and its mitigations without reverse-engineering it from
   code.
 
-- _Note:_ ADR is internal-only — ships only to `.arc/reference/adr/`; no package-source counterpart per § Architecture
-  Documentation in DEV-RULES.PROJECT.
-
-- _Notes:_ See `notes-release-wrappers-foundation.md` § 6.1 for R12 six-section → standard ADR template integration
-  mapping.
-
-- **Strategies:** strategy-adr-methodology.md
-
-    - File: `.arc/reference/adr/adr-017-release-wrapper-trust-model.md`
-    - Required content per R12: trust-model trade-off table, gap rows + mitigations, pre-existing precedent (sync's same
-      shell-pattern-gate boundary), trust-model framing (opt-in controls harness behavior, not wrapper behavior), bypass
-      universality
+- _Outcome:_ ADR-017 written at `.arc/reference/adr/adr-017-release-wrapper-trust-model.md`. R12's six content sections
+  map onto the standard ADR template per `notes-release-wrappers-foundation.md` § 6.1 — trade-off table, gap/mitigation
+  pairs, and sync precedent in Context; trust-model framing and bypass universality in Decision; mitigations and risks
+  in Consequences; alternatives close it out. Tier 1 markdown lint clean.
 
 ### `[ ]` **6.2 DEV-RULES.ARC, QUICK-REFERENCE, AGENT-BRIEF.ARC updates**
 
