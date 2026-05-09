@@ -38,7 +38,7 @@ QUICK-REFERENCE, and three on-demand strategies.
   interlock provenance, and active-WU pointer. jq-parseable, grep-friendly.
 
 - _Opt-in state surface_ — three sub-commands (`arc release opt-in` / `opt-out` / `status`)
-  record/report the per-developer `arc.release.enabled` git-config flag. Symmetric opt-in/opt-out
+  record/report the per-developer `arc.releaseEnabled` git-config flag. Symmetric opt-in/opt-out
   (opt-out writes explicit `"false"` rather than unsetting), so per-developer override holds
   against yaml-set `release.enabled: true`.
 
