@@ -9,14 +9,14 @@
 - **Task List:** `tasks-release-wrappers-foundation.md`
 - **Sibling Work Unit(s):** `plan-release-wrappers-ergonomics.md`
 
-- **Last Completed:** integrate-work-unit Step 6 complete — pre-merge review
-  (diff-review + CodeRabbit). Surfaced and fixed a git-config-key mismatch
-  in the opt-in surface (`arc.release.enabled` → canonical
-  `arc.releaseEnabled`); strategy-doc and research-doc cleanup; two
-  WU-introduced dev-rule violations corrected. Bundled at `2ca58d46`.
+- **Last Completed:** integrate-work-unit Step 6 + 6b/6c — pre-merge review
+  fixes (`2ca58d46`), completion-doc + status pre-advance (`432f8901`),
+  plus incidental workflow + template tightening from the same review
+  (`c9413f2b`, `9ab2bbba`). Detail in SESSION-NOTES.
 - **Next Task:** [none] (task list complete; integration in progress)
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 8 — address PR review findings
+- **Next Action:** integrate-work-unit Step 6 — second CodeRabbit pass to
+  verify fixes, then template-driven PR-body draft + Step 7 push and PR
 
 ---
