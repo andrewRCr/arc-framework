@@ -9,15 +9,13 @@
 - **Task List:** `tasks-release-wrappers-foundation.md`
 - **Sibling Work Unit(s):** `plan-release-wrappers-ergonomics.md`
 
-- **Last Completed:** Task 7.1 — verification complete. Tier 3 gates clean
-  (md/ts/sh lint, typecheck, 1654 unit/integration + 56 e2e tests, build);
-  11 PRD success criteria walked (9 met, 2 superseded with bypass-mode
-  deviation note pointing to `plan-release-wrappers-ergonomics.md`
-  § Harness Permission Mode); atomic companion empty (no checkbox items
-  recorded during this WU).
-- **Next Task:** [none] (task list complete; integration phase next)
+- **Last Completed:** integrate-work-unit Phase 1 complete — clean-work-unit
+  Mode 2 (status `**State:** Complete`, notes TOC, atomic companion deleted),
+  `completion-release-wrappers-foundation.md` authored per the standard
+  template, committed at `7b9d3827`.
+- **Next Task:** [none] (task list complete; integration in progress)
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — verify completion
+- **Next Action:** integrate-work-unit Step 5 — pre-merge inbox review
 
 ---
