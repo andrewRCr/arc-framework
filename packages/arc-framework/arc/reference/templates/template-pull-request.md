@@ -195,6 +195,13 @@ verified, omit the section.
 handoff continuity belong in the WU's status file and SESSION-NOTES, not the PR body. The reader is
 reviewing a change set. See [DEV-RULES.ARC][dev-rules-arc] § Write for the reader.
 
+**Gitignored-file references.** SESSION-NOTES, ATOMIC-INBOX, and other gitignored files aren't
+visible to reviewers (or anyone outside the developer's clone). Don't cite them as evidence,
+context, or "see X for rationale" — the reference resolves to nothing for the audience. If the
+substance matters for review, restate it inline; if it's workflow continuity, it doesn't belong
+in the PR body at all. Tracked artifacts (status files, plans, ADRs, completion docs, strategies)
+are fine to reference.
+
 **Success-criteria status and pre-merge-review meta-narration.** PRD success-criteria status
 ("X of Y met + supersessions") and "I reviewed locally before pushing" are post-hoc retrospective
 signals (archive-reader audience), not review signals. They live in the WU's durable record, not
