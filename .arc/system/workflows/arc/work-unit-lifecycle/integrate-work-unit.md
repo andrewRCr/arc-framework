@@ -294,10 +294,16 @@ gh pr create --base {parent-branch} --head {branch-name}
 **PR title:** follow [template-pull-request § PR Title Format][template-pull-request].
 Implementation PRs use no bracket prefix — Conventional Commits type carries the signal.
 
-Use `completion-{name}.md` as PR description template — copy/adapt sections for the PR body.
-When adapting, do not add new sections describing post-merge workflow continuity or next
-actions — those belong in the status file and SESSION-NOTES, not the PR body. The reader is
-reviewing a change set. See [DEV-RULES.ARC][dev-rules-arc] § Write for the reader.
+**PR body:** load [template-pull-request.md][template-pull-request] before drafting — the
+template defines the canonical body shape (Spec / Summary / Changes / optional Test Plan /
+Out of Scope / Follow-Up Work) and its anti-patterns. The completion doc is the content
+source (what landed); the template is the body structure — they carry different audiences
+(archive-reader vs. reviewer) and don't share a section layout. Map completion-doc material
+into the template's shape rather than transcribing sections verbatim.
+
+Do not add sections describing post-merge workflow continuity or next actions — those belong
+in the status file and SESSION-NOTES, not the PR body. See [DEV-RULES.ARC][dev-rules-arc]
+§ Write for the reader.
 
 Leave the completion doc's `**Pull Request:**` field as `{pending until archival}`. The PR URL is active
 context during review, and [archive-work-unit][archive-work-unit] fills the durable archive link after merge.

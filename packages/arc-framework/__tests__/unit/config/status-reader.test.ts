@@ -29,8 +29,8 @@ async function createFixture(): Promise<Fixture> {
 }
 
 describe("readConfigSettings — AGENT_CONSUMABLE_KEYS", () => {
-  it("enumerates the 20 agent-consumable keys", () => {
-    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(20);
+  it("enumerates the 21 agent-consumable keys", () => {
+    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(21);
   });
 
   it("excludes all hooks.* keys", () => {
@@ -133,6 +133,7 @@ describe("readConfigSettings — user-supplied values", () => {
       "session.sync_interlock: manual",
       "archive.cadence: manual",
       "user.notes_push: manual",
+      "release.enabled: true",
     ].join("\n");
     await writeFile(fixture.configPath, content);
 
@@ -148,6 +149,7 @@ describe("readConfigSettings — user-supplied values", () => {
     expect(result.settings["session.push_interlock"]).toBe("on-sync");
     expect(result.settings["session.sync_interlock"]).toBe("manual");
     expect(result.settings["archive.cadence"]).toBe("manual");
+    expect(result.settings["release.enabled"]).toBe("true");
     expect(result.defaultsApplied).toHaveLength(0);
     expect(result.warnings).toHaveLength(0);
   });

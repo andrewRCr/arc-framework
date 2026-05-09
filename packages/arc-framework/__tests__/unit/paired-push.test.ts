@@ -190,7 +190,7 @@ describe("runPairedPush", () => {
         warnings: [],
       },
     });
-    expect(result.worktree).toEqual({ status: "success" });
+    expect(result.worktree).toMatchObject({ status: "success" });
     expect(result.notes).toEqual({ status: "success" });
     expect(mockRunUserSave).toHaveBeenCalledWith({
       cwd: "/repo",
@@ -263,7 +263,7 @@ describe("runPairedPush", () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.save?.status).toBe("success");
-    expect(result.worktree).toEqual({ status: "success" });
+    expect(result.worktree).toMatchObject({ status: "success" });
     expect(result.notes).toEqual({ status: "failed", error: notesError });
 
     expect(mockRecordPartialPushMarker).toHaveBeenCalledTimes(1);
@@ -290,7 +290,7 @@ describe("runPairedPush", () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.save?.status).toBe("success");
-    expect(result.worktree).toEqual({ status: "failed", error: worktreeError });
+    expect(result.worktree).toMatchObject({ status: "failed", error: worktreeError });
     expect(result.notes).toEqual({
       status: "skipped",
       reason: "preceding-leg-failed",

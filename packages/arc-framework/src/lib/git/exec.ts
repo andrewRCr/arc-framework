@@ -18,6 +18,12 @@ export interface GitExecOptions {
    * subprocess is killed and the promise rejects with an `AbortError`.
    */
   signal?: AbortSignal;
+  /**
+   * Working directory for the spawned process. Forwarded to
+   * `child_process.execFile` so callers can pin the invocation against a
+   * resolved repo root regardless of `process.cwd()`.
+   */
+  cwd?: string;
 }
 
 /** Executable function signature matching child_process.execFile patterns. */
@@ -100,19 +106,46 @@ export async function gitConfigGet(
   }
 }
 
+/** Git config scope (`--local` / `--global` / `--system`). */
+export type GitConfigScope = "local" | "global" | "system";
+
 /**
- * Sets a git config value.
+ * Sets a git config value. When `scope` is provided, the corresponding
+ * `--<scope>` flag is passed to git. When omitted, no scope flag is added —
+ * git's effective default (local, when inside a repo) applies.
  *
  * @param exec - Injectable command executor
  * @param key - Git config key
  * @param value - Value to set
+ * @param scope - Optional explicit scope (`local` / `global` / `system`)
  */
 export async function gitConfigSet(
   exec: GitExec,
   key: string,
   value: string,
+  scope?: GitConfigScope,
 ): Promise<void> {
-  await exec("git", ["config", key, value]);
+  const args = ["config"];
+  if (scope) args.push(`--${scope}`);
+  args.push(key, value);
+  await exec("git", args);
+}
+
+/**
+ * Unsets a git config key. Idempotent — returns no-op success when the key
+ * is absent (pre-checked via `gitConfigGet`); real `--unset` failures
+ * propagate.
+ *
+ * @param exec - Injectable command executor
+ * @param key - Git config key to clear
+ */
+export async function gitConfigUnset(
+  exec: GitExec,
+  key: string,
+): Promise<void> {
+  const existing = await gitConfigGet(exec, key);
+  if (existing === undefined) return;
+  await exec("git", ["config", "--unset", key]);
 }
 
 /**

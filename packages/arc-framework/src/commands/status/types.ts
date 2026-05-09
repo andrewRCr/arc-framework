@@ -129,11 +129,13 @@ export interface StatusProbes {
 /**
  * Sync-interlock slot in the session-handoff envelope — narrow projection of
  * `session.sync_interlock`. Gates whether the handoff workflow auto-invokes
- * `arc sync` (`on-handoff`) or surfaces unpushed state without firing
- * (`manual`).
+ * `arc sync`: `on-handoff` and `on-workflow` both fire (the latter is the
+ * permissive workflow-mediated tier; today behaviorally equivalent at handoff
+ * but reserved for forward-compatibility); `manual` skips and surfaces
+ * unpushed state without firing.
  */
 export interface HandoffSyncInterlock {
-  value: "manual" | "on-handoff";
+  value: "manual" | "on-handoff" | "on-workflow";
   source: "git-config" | "yaml" | "default";
 }
 

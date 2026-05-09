@@ -387,17 +387,31 @@ sync and push interlocks chain.
 bounded user-scoped convenience, not an autonomy mode.
 
 **Commit-interlock.** Under `session.commit_interlock: manual` (the default), the user explicitly
-invokes commit. `on-task-approval` releases the interlock on task approval.
+invokes commit. `on-task-approval` releases the interlock on task approval; `on-workflow` extends
+release to workflow-ceremony commits as well.
 
 **Push-interlock.** Under `session.push_interlock: manual` (the default), the user explicitly
 invokes push. `on-sync` releases the interlock when an `arc sync` event fires — sync invocations
 include handoff-driven sync (via `session.sync_interlock: on-handoff`) and explicit mid-session
-`arc sync` calls. Per-commit push release is not offered.
+`arc sync` calls. `on-workflow` adds release on workflow-driven push events. Per-commit push
+release is not offered.
 
 **Sync-interlock.** Under `session.sync_interlock: on-handoff` (the default), handoff invokes
 `arc sync` as part of the handoff ceremony. `manual` surfaces unpushed state in the handoff
-summary without firing sync. The sync orchestrator routes worktree-push and notes-push per their
-own interlock settings — see § Handoff-Interior Toggle Pattern for the cascade.
+summary without firing sync. `on-workflow` adds release on workflow-driven sync triggers
+(forward-compatible with upcoming worktree work units; today behaviorally equivalent to
+`on-handoff`). The sync orchestrator routes worktree-push and notes-push per their own
+interlock settings — see § Handoff-Interior Toggle Pattern for the cascade.
+
+**Release-wrapper layer.** When configured (`release.enabled: true` plus the corresponding
+harness allowlist entries), `arc release commit` and `arc release push` provide a CLI-boundary
+mechanical authorization layer over the interlock model. The wrapper validates that configured
+permission overlaps the wrapper's scope — refuses with a stable exit code when not — and writes
+a per-invocation audit entry. The wrappers run unconditionally regardless of opt-in; the flag
+changes harness-prompt behavior, not wrapper behavior. The interlock model is unchanged; the
+wrapper adds mechanical CLI-boundary enforcement of the same authorization rule. See
+[Configurability Architecture Strategy][config-arch] § Session interlocks for the orthogonality
+between interlock state (WHEN) and release-wrapper opt-in (HOW).
 
 **Integration-interlock.** Merge to integration / main requires explicit human approval. Agents must not
 infer merge approval from task approval, review completion, passing checks, or general "proceed" language.
@@ -423,14 +437,19 @@ The configurable interlocks use independent config axes.
 - `session.commit_interlock: manual` (default) — commit-interlock engaged by default; user explicitly
   invokes commit.
 - `session.commit_interlock: on-task-approval` — commit-interlock releases on task approval.
+- `session.commit_interlock: on-workflow` — extends `on-task-approval` with release on
+  workflow-driven commit events (handoff, integration prep, planning ceremonies). See § Release
+  Wrappers and Workflow-Driven Triggers above.
 - `session.push_interlock: manual` (default) — push-interlock engaged by default; user explicitly
   invokes push.
 - `session.push_interlock: on-sync` — push-interlock releases when an `arc sync` event fires
   (per-commit release is not offered).
+- `session.push_interlock: on-workflow` — adds release on workflow-driven push events.
 - `session.sync_interlock: on-handoff` (default) — handoff invokes `arc sync` as part of the
   handoff ceremony.
 - `session.sync_interlock: manual` — handoff surfaces unpushed state without invoking sync;
   sync requires explicit invocation.
+- `session.sync_interlock: on-workflow` — adds release on workflow-driven sync triggers.
 
 ### Approval-Signal Architecture
 
@@ -847,6 +866,7 @@ When `arc user load` or session-init's SESSION-NOTES load fails, recover by erro
 [template-status]: ../../templates/template-status.md
 [strategy-index]: ../STRATEGY-INDEX.md
 [workflow-authoring]: strategy-workflow-authoring.md
+[config-arch]: strategy-configurability-architecture.md
 [dev-rules-arc]: ../../constitution/DEV-RULES.ARC.md
 [dev-rules-project]: ../../constitution/DEV-RULES.PROJECT.md
 [prepare-commits]: ../../../system/workflows/arc/supplemental/prepare-commits.md

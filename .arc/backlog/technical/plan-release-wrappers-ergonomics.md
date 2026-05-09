@@ -5,7 +5,7 @@
 WU1 (`prd-release-wrappers-foundation.md`, sibling) delivers the mechanical foundation:
 `arc release commit` and `arc release push` work end-to-end for hand-configured adopters.
 Hand-configuration means manually editing harness permission files (`.claude/settings.json`,
-`~/.codex/policy/...`) and running `arc release record-enabled` to flip per-developer
+`~/.codex/policy/...`) and running `arc release opt-in` to flip per-developer
 opt-in state (`arc.release.enabled`).
 
 This works for the friction-tolerant minority but falls short of the broader adoption case.
@@ -55,9 +55,9 @@ The middle-ground splits responsibility:
 - `arc release setup verify [--harness <name>]` — read configs, confirm canonical patterns are
   present; return structured pass/fail.
 - `arc release setup --enable` / `--disable` — orchestration porcelain that drives the workflow,
-  verify, and record-enabled (or removal and record-disabled).
+  verify, and opt-in (or removal and opt-out).
 
-(Note: `arc release record-enabled` / `record-disabled` / `status` ship in WU1 as minimal
+(Note: `arc release opt-in` / `opt-out` / `status` ship in WU1 as minimal
 state-recording primitives.)
 
 **Workflow provides** (judgment-driven, agent-executed):
@@ -69,9 +69,9 @@ state-recording primitives.)
     - For each detected harness: running `print-patterns`; reading existing config; merging
       entries; writing.
     - Running `arc release setup verify`. On pass, prompting user to confirm; on user-confirm
-      running `arc release record-enabled`.
+      running `arc release opt-in`.
 
-**Critical safety property:** `record-enabled` is gated on `verify` returning pass. The agent
+**Critical safety property:** `opt-in` is gated on `verify` returning pass. The agent
 writes the config; `verify` confirms; only on success does opt-in state record
 (`arc.release.enabled: true`). A failed/incomplete edit cannot accidentally record opt-in.
 
@@ -86,7 +86,7 @@ writes the config; `verify` confirms; only on success does opt-in state record
 - `verify [--harness <name>]` — read-only config inspection, confirm canonical patterns
   present.
 - `--enable` / `--disable` — orchestration porcelain that runs the workflow, verify, and
-  record-enabled (or record-disabled).
+  opt-in (or opt-out).
 
 Pattern formatters per harness:
 
@@ -101,7 +101,7 @@ Pattern formatters per harness:
 - Harness detection (uses `arc release setup status`).
 - Per-harness section: agent reads existing config, merges canonical entries, writes.
 - Verification step (mandatory; uses `arc release setup verify`).
-- State recording (gated on verify pass; uses `arc release record-enabled`).
+- State recording (gated on verify pass; uses `arc release opt-in`).
 - Rollback (`arc release setup --disable` flow: agent removes its entries; state recorded).
 
 **Workflow integration.** Updates to `process-task-loop.md`, `session-handoff.md`, and
@@ -130,7 +130,7 @@ sole authorization layer (loud, not silent — addresses the silent-trust-shift 
 
 ### Out of scope
 
-- **WU1 functionality.** Wrappers, validation library, audit log, footer, ADR — already
+- **WU1 functionality.** Wrappers, validation library, audit log, ADR — already
   shipped.
 - **opencode auto-allowlist.** Stub printing deferral notice; full implementation deferred
   until upstream resolves [sst/opencode#6676] and [sst/opencode#15507].
@@ -159,6 +159,135 @@ After release wrapper + allowlist (when adopter opts in via WU2 setup):
 **This is a per-user policy decision; ARC must not make it silently.** The setup workflow's
 mandatory trust-model acknowledgment is what holds this line in WU2.
 
+This framing assumes a default-prompt harness; see § Harness Permission Mode for how the
+trade-off composes under bypass-mode harnesses, with implications for setup-helper behavior,
+status surface, and documentation framing.
+
+## Harness Permission Mode (Default-Prompt vs. Bypass)
+
+The Trust Model Trade-Off above frames the decision against a default-prompt harness — one
+that prompts on every Bash invocation absent a matching allowlist entry. Two distinct adopter
+postures change how the trade-off composes, with concrete implications for WU2's setup helper,
+status surface, and documentation framing.
+
+**Default-prompt mode (the assumed baseline).** Harness gates every Bash invocation; allowlist
+entries skip the prompt for matching shapes. Default behavior across Claude Code, Codex CLI,
+opencode, etc. The parent plan's "redundant friction" framing lands here: ARC interlock
+authorizes, harness prompt re-asks, user re-confirms. The wrapper bypasses the re-prompt for
+documented invocation shapes; both wrapper value layers (per ADR-017) materialize.
+
+**Bypass mode (`bypassPermissions`, dangerous mode, equivalents).** Harness allows every Bash
+invocation without prompting. Adopters who run this way typically pair it with a user-level
+safety hook (denylist approach — `~/.claude/hooks/safety-gate.sh` or Codex-equivalent) that
+catches known-dangerous shapes at the OS boundary while letting routine work flow without
+per-invocation prompts. Encountered on this codebase's maintainer machine during WU1 Phase 7
+verification (deviation note on superseded success criteria captures the empirical-test
+collapse — the matcher-observation methodology assumes a prompting-default harness, which
+bypass mode breaks). Plausibly common among power users running long autonomous sessions; no
+distribution data, but not assumed rare.
+
+### Value-prop differs by mode
+
+The release wrapper has two value layers per ADR-017:
+
+- **Unconditional layer (validation + audit).** Validates interlock state, refuses on
+  destructive flags / branch-protection violations / pushability failures; appends a JSONL
+  audit entry on every invocation. Fires regardless of `arc.release.enabled` or harness mode.
+- **Conditional layer (harness-prompt bypass).** Allowlist entry causes the harness matcher
+  to skip the per-invocation prompt for wrapper invocations. Requires a default-prompt harness
+  with allowlist entries installed.
+
+Default-prompt users get both layers. Bypass-mode users get only the unconditional layer —
+there was no harness prompt to skip. The wrapper still adds substantial value (mechanical
+interlock validation no denylist hook covers, forensic audit log no harness logging produces),
+but the value-prop reduces. `arc.release.enabled: true` for bypass-mode users records explicit
+opt-in to the validation + audit layer (and signals downstream workflow routing) without
+changing harness behavior.
+
+### Setup-helper implications
+
+`arc release setup --enable` should recognize the harness mode it's running under and adapt:
+
+- **Default-prompt mode** (Claude Code with explicit `permissions.allow`, Codex with active
+  `prefix_rule()` patterns). Full flow as documented elsewhere in this plan: detect harnesses
+  → write per-harness allowlist patterns → verify → opt-in.
+- **Bypass mode** (`permissions.defaultMode: "bypassPermissions"` in Claude Code, Codex's
+  analogous bypass config). Allowlist write becomes a no-op. Setup helper should:
+    - Surface the detected mode explicitly: "Detected bypass-permissions mode in <harness>;
+      allowlist write skipped — wrapper invocations already pass through without prompting."
+    - Skip the allowlist write for that harness (or write anyway as future-compat for mode
+      changes — design call at WU2 PRD; default to skip-with-explanation feels right).
+    - Still write `arc.release.enabled: true` if the user opts in. Downstream workflow routing
+      (preferring `arc release commit` over raw git) still benefits.
+    - Adapt the trust-model acknowledgment text. Default-prompt version frames "you're
+      removing the harness gate for these invocations"; bypass-mode version reframes to
+      "you're opting in to wrapper validation + audit as layered protection above your
+      existing safety-hook posture; ARC interlock becomes the canonical authorization signal
+      for matching invocations."
+- **Mixed mode** — multiple harnesses, different modes per harness. Per-harness handling.
+  Plausible: bypass-mode Claude Code + default-prompt Codex on the same machine.
+
+User-level safety-gate hooks (`~/.claude/hooks/safety-gate.sh`, Codex-equivalent) are out of
+the helper's detection scope. They run alongside whatever mode is set; their existence doesn't
+change harness gate behavior. Strategy doc should acknowledge them as a parallel,
+complementary layer — denylist at OS boundary, wrapper validates ARC-state correctness at CLI
+boundary, the two compose without conflict.
+
+### `arc release setup status` should surface harness mode
+
+The status command (extending or renaming WU1's `arc release status` — design call at WU2
+PRD) should report detected harness mode alongside opt-in state. Adopters reading status
+should see which value layers apply to them:
+
+```text
+Release wrapper opt-in: enabled (arc.release.enabled = true)
+Detected harnesses:
+  Claude Code (default-prompt) — allowlist active for arc release commit/push
+  Codex CLI (default-prompt) — allowlist active for arc release commit/push
+Active value layers: validation + audit + harness-prompt bypass
+```
+
+Under bypass:
+
+```text
+Release wrapper opt-in: enabled (arc.release.enabled = true)
+Detected harnesses:
+  Claude Code (bypassPermissions) — no harness gate to bypass
+Active value layers: validation + audit
+```
+
+Mode detection is harness-specific. Claude Code: inspect `~/.claude/settings.json` and
+project-level `.claude/settings.json` for `permissions.defaultMode === "bypassPermissions"`.
+Codex CLI: equivalent config inspection (TBD at WU2 PRD).
+
+### Documentation framing widens
+
+Strategy doc and per-harness setup guides should frame the value prop against both modes:
+
+- Lead with the unconditional layer (validation + audit) as the universal benefit.
+- Position the conditional layer (prompt bypass) as additional benefit for default-prompt
+  users.
+- Name bypass-mode explicitly; don't assume default-prompt as single adopter shape.
+- Acknowledge user-level safety-gate hooks as a parallel layer that composes with wrapper
+  validation, not replaces it.
+
+The "when not to use this" guidance gains a bypass-mode note: bypass-mode users without
+`arc.release.enabled` get the same harness behavior whether or not they invoke the wrapper,
+but they lose the validation + audit layer's protections. There's no "validation off"
+justification under bypass mode the way there might be under default-prompt (where the
+harness prompt itself is the user's review surface) — the validation + audit layer is the
+primary value prop for bypass-mode adopters.
+
+### Provenance
+
+Surfaced during WU1 Phase 7 verification (2026-05-09) when the empirical test for success
+criteria #5 / #6 (`arc release commit --version` runs no-prompt under installed allowlist
+entries) couldn't run meaningfully against the maintainer's `bypassPermissions` Claude Code
+session. Criteria marked `[~]` Superseded with deviation note pointing here; ADR-017
+amendment (Tier 2, dated annotation in Consequences) optional post-WU2 if integration
+surfaces broader insights worth bundling. Until then, this plan-doc section is the canonical
+capture so WU2 PRD doesn't re-derive the bypass-mode dimension.
+
 ## Adopter Friction Analysis
 
 Wrong-setup scenarios stratified by severity:
@@ -168,6 +297,10 @@ Wrong-setup scenarios stratified by severity:
 - Adopter runs setup but skips verify → not gated; verify is mandatory in the workflow.
 - Adopter forgets one harness in a multi-harness setup → `status` surfaces detected harnesses
   on subsequent runs.
+- Bypass-mode adopter installs allowlist entries that are no-ops (allowlist write doesn't
+  change behavior under `bypassPermissions`). Harmless; entries don't conflict with bypass
+  mode. *Mitigation:* setup helper detects mode and either skips the write with explanation
+  or proceeds with a no-op-warning, per § Harness Permission Mode.
 
 **Medium — mitigable:**
 
@@ -183,6 +316,11 @@ Wrong-setup scenarios stratified by severity:
 - *Agent edit fidelity on permission files.* Claude Code or Codex agent botches a JSON merge
   or Starlark insertion. *Mitigation:* mandatory verify step catches; setup loops back rather
   than recording opt-in state.
+- *Bypass-mode adopter doesn't recognize the wrapper still adds value.* Default-prompt-framed
+  messaging may read as irrelevant ("I don't see harness prompts anyway; why install a
+  wrapper?"). *Mitigation:* setup helper's bypass-mode branch surfaces the validation + audit
+  value prop explicitly; strategy doc leads with the unconditional layer. See § Harness
+  Permission Mode.
 
 **High — requires deliberate design:**
 
@@ -193,8 +331,7 @@ Wrong-setup scenarios stratified by severity:
   same.
 - *Release-wrapper or interlock bug lets bad op through:* no harness safety net under the
   release wrapper. *Mitigations* (WU1-shipped): release-wrapper enforcement as security-tier
-  code with exhaustive matrix testing; audit log + authorization footer give forensic
-  recovery.
+  code with exhaustive matrix testing; audit log gives forensic recovery.
 - *Personal scripts (bespoke gates):* setup helper can't autoconfigure these. *Mitigation:*
   helper detects standard harness markers; for non-standard setups, prints canonical allowlist
   patterns and instructs manual installation.

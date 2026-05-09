@@ -248,24 +248,46 @@ fi
 # ============================================================================
 # CHECK 9: No meta-project references in production code
 # ============================================================================
-# Per DEV-RULES.ARC.md § Documentation Boundaries:
-# Never reference task IDs, phase numbers, or .arc/ documentation in production code
+# Per DEV-RULES.ARC.md § Documentation Boundaries: code, tests, and durable
+# documentation must not reference planning IDs (task X.Y, phase N, requirement
+# R-codes, behavior B-codes), spec citations (§ Section), or .arc/ paths.
+#
+# Tiered patterns:
+#   - Strict (all staged code, including tests): patterns rare enough in
+#     legitimate fixture data that test exemption is unsafe (PRD R-codes,
+#     bare R/B numeric IDs, § citations). META-PRD lines are filtered as a
+#     known false positive (real framework template filename).
+#   - Broad (non-test files only): patterns that legitimately appear in test
+#     fixtures (Context-footer parsers consume "Context: tasks-foo.md (Task
+#     4.2)" strings). The test_patterns exemption preserves those.
 skip_extensions=$(arc_config_get "hooks.skip_extensions" "md|yml|yaml|json|toml|txt|csv|lock|conf|cfg|ini|env|license|makefile")
 test_patterns=$(arc_config_get "hooks.test_patterns" "__tests__/|\.test\.|\.spec\.|/test/|/tests/")
-meta_ref_patterns=$(arc_config_get "hooks.meta_ref_patterns" "[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+|\.arc/")
+strict_meta_ref_patterns=$(arc_config_get "hooks.strict_meta_ref_patterns" "PRD R[0-9]+|\b[RB][0-9]+\b|§ ")
+meta_ref_patterns=$(arc_config_get "hooks.meta_ref_patterns" "[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+|\.arc/|(tasks|plan|prd|status|notes|atomic)-[a-z][a-z0-9-]+\.md")
 meta_project_refs=$(git diff --cached --name-only --diff-filter=ACMR | \
     grep -v "^\.arc/" | \
     grep -v "^packages/.*/arc/" | \
     grep -v "^README\.md" | \
     grep -vE "(^|/)(\.[a-z]*ignore|\.gitattributes)$" | \
-    grep -vE "$test_patterns" | \
     grep -vE "\.($skip_extensions)$" | \
     while IFS= read -r file; do
-        # Check only added lines for meta-project references
-        refs=$(git diff --cached -U0 -- "$file" 2>/dev/null | grep -E '^\+' | grep -nE "$meta_ref_patterns" || true)
-        if [ -n "$refs" ]; then
+        added=$(git diff --cached -U0 -- "$file" 2>/dev/null | grep -E '^\+' || true)
+        [ -z "$added" ] && continue
+
+        # Strict patterns apply to all staged code. META-PRD lines excluded.
+        strict_refs=$(echo "$added" | grep -nE "$strict_meta_ref_patterns" | grep -v 'META-PRD' || true)
+
+        # Broad patterns skip test files (legitimate fixture data).
+        if echo "$file" | grep -qvE "$test_patterns"; then
+            broad_refs=$(echo "$added" | grep -nE "$meta_ref_patterns" || true)
+        else
+            broad_refs=""
+        fi
+
+        combined=$(printf '%s\n%s' "$strict_refs" "$broad_refs" | grep -v '^$' || true)
+        if [ -n "$combined" ]; then
             echo "$file:"
-            echo "$refs" | sed 's/^/     /'
+            echo "$combined" | sed 's/^/     /'
         fi
     done)
 

@@ -1,5 +1,5 @@
 /**
- * Three-tier resolver wrapper for the four release-mode keys.
+ * Three-tier resolver wrapper for the release-mode keys.
  *
  * Composes {@link readConfigSettings} (yaml-only) with per-key
  * {@link resolveGitConfigOverride} calls so callers needing the resolved
@@ -7,23 +7,24 @@
  * `{ value, source }` pair so diagnostic surfaces (orchestrator `--json`
  * envelope, audit logs) carry provenance alongside the value.
  *
- * **Key surface.** Four keys with `git config arc.* → arc-config.yml → default`
+ * **Key surface.** Five keys with `git config arc.* → arc-config.yml → default`
  * precedence:
  *
  * - `arc.commitInterlock` / `session.commit_interlock`
  * - `arc.pushInterlock` / `session.push_interlock`
  * - `arc.syncInterlock` / `session.sync_interlock`
  * - `arc.notesPush` / `user.notes_push`
+ * - `arc.releaseEnabled` / `release.enabled`
  *
  * **Validator source-of-truth.** Per-key validators live here (passed once
  * into the generic helper). `status-reader.ts` deliberately omits these
- * four keys from its `ENUM_VALIDATORS` map — yaml values flow through the
+ * five keys from its `ENUM_VALIDATORS` map — yaml values flow through the
  * reader as raw strings, and validation lands once in this wrapper. Callers
  * that bypass the wrapper (`arc config status` reads the reader directly)
  * see raw yaml values without warnings; the operational read paths
  * (handlers, orchestrator) validate via the wrapper.
  *
- * **Spawn cost.** Four `git config --get` calls fire concurrently via
+ * **Spawn cost.** Five `git config --get` calls fire concurrently via
  * `Promise.all`, alongside the yaml read — roughly one round-trip latency.
  * Add caching only if profiling shows it.
  *
@@ -46,37 +47,66 @@ import type { GitExec } from "../git/index.js";
 
 // --- Per-key constants and type guards ---
 
-/** Valid commit-interlock policy values. */
-export type CommitInterlock = "manual" | "on-task-approval";
+/**
+ * Valid commit-interlock policy values. Permissiveness ladder (ascending):
+ * `manual` (no agent autofire) < `on-task-approval` (agent fires on approved
+ * task work) < `on-workflow` (agent fires on any workflow-mediated event,
+ * including ceremony commits).
+ */
+export type CommitInterlock = "manual" | "on-task-approval" | "on-workflow";
 
 export const COMMIT_INTERLOCK_GIT_CONFIG_KEY = "arc.commitInterlock";
 export const COMMIT_INTERLOCK_YAML_KEY = "session.commit_interlock";
 export const DEFAULT_COMMIT_INTERLOCK: CommitInterlock = "manual";
-const COMMIT_INTERLOCK_VALUES: readonly CommitInterlock[] = ["manual", "on-task-approval"];
+const COMMIT_INTERLOCK_VALUES: readonly CommitInterlock[] = [
+  "manual",
+  "on-task-approval",
+  "on-workflow",
+];
 
 function isCommitInterlock(value: string): value is CommitInterlock {
   return (COMMIT_INTERLOCK_VALUES as readonly string[]).includes(value);
 }
 
-/** Valid push-interlock policy values. */
-export type PushInterlock = "manual" | "on-sync";
+/**
+ * Valid push-interlock policy values. Permissiveness ladder (ascending):
+ * `manual` (no agent autofire) < `on-sync` (agent fires push leg from sync) <
+ * `on-workflow` (agent fires push from any workflow-mediated path, including
+ * ceremony pushes via `arc release push`).
+ */
+export type PushInterlock = "manual" | "on-sync" | "on-workflow";
 
 export const PUSH_INTERLOCK_GIT_CONFIG_KEY = "arc.pushInterlock";
 export const PUSH_INTERLOCK_YAML_KEY = "session.push_interlock";
 export const DEFAULT_PUSH_INTERLOCK: PushInterlock = "manual";
-const PUSH_INTERLOCK_VALUES: readonly PushInterlock[] = ["manual", "on-sync"];
+const PUSH_INTERLOCK_VALUES: readonly PushInterlock[] = [
+  "manual",
+  "on-sync",
+  "on-workflow",
+];
 
 function isPushInterlock(value: string): value is PushInterlock {
   return (PUSH_INTERLOCK_VALUES as readonly string[]).includes(value);
 }
 
-/** Valid sync-interlock policy values. */
-export type SyncInterlock = "manual" | "on-handoff";
+/**
+ * Valid sync-interlock policy values. Permissiveness ladder (ascending):
+ * `manual` (no agent autofire) < `on-handoff` (agent fires sync at handoff) <
+ * `on-workflow` (agent fires sync at handoff or any other workflow-mediated
+ * event). Today `on-workflow` is behaviorally equivalent to `on-handoff` (no
+ * other workflow fires sync); reserved for forward-compatibility with future
+ * workflows that need to fire sync.
+ */
+export type SyncInterlock = "manual" | "on-handoff" | "on-workflow";
 
 export const SYNC_INTERLOCK_GIT_CONFIG_KEY = "arc.syncInterlock";
 export const SYNC_INTERLOCK_YAML_KEY = "session.sync_interlock";
 export const DEFAULT_SYNC_INTERLOCK: SyncInterlock = "on-handoff";
-const SYNC_INTERLOCK_VALUES: readonly SyncInterlock[] = ["manual", "on-handoff"];
+const SYNC_INTERLOCK_VALUES: readonly SyncInterlock[] = [
+  "manual",
+  "on-handoff",
+  "on-workflow",
+];
 
 function isSyncInterlock(value: string): value is SyncInterlock {
   return (SYNC_INTERLOCK_VALUES as readonly string[]).includes(value);
@@ -92,6 +122,22 @@ const NOTES_PUSH_VALUES: readonly NotesPushPolicy[] = ["manual", "prompt", "on-s
 
 function isNotesPushPolicy(value: string): value is NotesPushPolicy {
   return (NOTES_PUSH_VALUES as readonly string[]).includes(value);
+}
+
+/**
+ * Valid release-enabled opt-in flag values. String-typed for resolver
+ * consistency with the other release-mode keys; consumers convert to
+ * boolean (`value === "true"`) at the application boundary.
+ */
+export type ReleaseEnabled = "true" | "false";
+
+export const RELEASE_ENABLED_GIT_CONFIG_KEY = "arc.releaseEnabled";
+export const RELEASE_ENABLED_YAML_KEY = "release.enabled";
+export const DEFAULT_RELEASE_ENABLED: ReleaseEnabled = "false";
+const RELEASE_ENABLED_VALUES: readonly ReleaseEnabled[] = ["true", "false"];
+
+function isReleaseEnabled(value: string): value is ReleaseEnabled {
+  return (RELEASE_ENABLED_VALUES as readonly string[]).includes(value);
 }
 
 // --- Per-key resolver helpers ---
@@ -163,14 +209,29 @@ export async function resolveNotesPushPolicy(
   });
 }
 
+/** Resolve `arc.releaseEnabled` → `release.enabled` → default. */
+export async function resolveReleaseEnabled(
+  opts: ResolveSingleKeyOptions,
+): Promise<ResolvedConfigOverride<ReleaseEnabled>> {
+  return resolveGitConfigOverride<ReleaseEnabled>({
+    ...opts,
+    gitConfigKey: RELEASE_ENABLED_GIT_CONFIG_KEY,
+    yamlKey: RELEASE_ENABLED_YAML_KEY,
+    defaultValue: DEFAULT_RELEASE_ENABLED,
+    isValidValue: isReleaseEnabled,
+    validValues: RELEASE_ENABLED_VALUES,
+  });
+}
+
 // --- Composite wrapper ---
 
-/** Per-key `{value, source}` pairs for the four release-mode keys. */
+/** Per-key `{value, source}` pairs for the release-mode keys. */
 export interface ResolvedReleaseModeSettings {
   commitInterlock: ResolvedConfigOverride<CommitInterlock>;
   pushInterlock: ResolvedConfigOverride<PushInterlock>;
   syncInterlock: ResolvedConfigOverride<SyncInterlock>;
   notesPush: ResolvedConfigOverride<NotesPushPolicy>;
+  releaseEnabled: ResolvedConfigOverride<ReleaseEnabled>;
 }
 
 export interface ResolvedSettingsResult {
@@ -180,7 +241,7 @@ export interface ResolvedSettingsResult {
    * values per `readConfigSettings`.
    */
   settings: ConfigSettings;
-  /** Per-key `{value, source}` provenance for the four release-mode keys. */
+  /** Per-key `{value, source}` provenance for the release-mode keys. */
   resolved: ResolvedReleaseModeSettings;
   /**
    * Keys absent from `arc-config.yml` that received documented defaults.
@@ -213,10 +274,10 @@ export interface ResolveAllSettingsOptions {
  * Resolve the full release-mode key surface plus other agent-consumable
  * settings.
  *
- * Yaml read and four git-config-override resolutions fire concurrently. The
- * returned `settings` map mirrors `readConfigSettings`, with the four
- * release-mode keys substituted by their resolved values; `resolved` carries
- * the typed `{value, source}` pairs for callers that need provenance.
+ * Yaml read and five git-config-override resolutions fire concurrently. The
+ * returned `settings` map mirrors `readConfigSettings`, with the release-mode
+ * keys substituted by their resolved values; `resolved` carries the typed
+ * `{value, source}` pairs for callers that need provenance.
  */
 export async function resolveAllSettings(
   opts: ResolveAllSettingsOptions,
@@ -233,12 +294,13 @@ export async function resolveAllSettings(
     warn: collectOverrideWarning,
   };
 
-  const [base, commit, push, sync, notes] = await Promise.all([
+  const [base, commit, push, sync, notes, releaseEnabled] = await Promise.all([
     readConfigSettings(opts.cwd),
     resolveCommitInterlock(sharedOpts),
     resolvePushInterlock(sharedOpts),
     resolveSyncInterlock(sharedOpts),
     resolveNotesPushPolicy(sharedOpts),
+    resolveReleaseEnabled(sharedOpts),
   ]);
 
   const warnings = [...base.warnings, ...overrideWarnings];
@@ -254,6 +316,7 @@ export async function resolveAllSettings(
     "session.push_interlock": push.value,
     "session.sync_interlock": sync.value,
     "user.notes_push": notes.value,
+    "release.enabled": releaseEnabled.value,
   };
 
   return {
@@ -263,6 +326,7 @@ export async function resolveAllSettings(
       pushInterlock: push,
       syncInterlock: sync,
       notesPush: notes,
+      releaseEnabled,
     },
     defaultsApplied: base.defaultsApplied,
     warnings,

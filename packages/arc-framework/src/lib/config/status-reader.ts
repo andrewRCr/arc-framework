@@ -6,15 +6,16 @@
  * without maintaining bespoke one-key readers. `hooks.*` keys are excluded —
  * shell-consumed by git hooks, not by agents.
  *
- * **Layering boundary.** The four release-mode keys
+ * **Layering boundary.** The five release-mode keys
  * (`session.commit_interlock`, `session.push_interlock`,
- * `session.sync_interlock`, `user.notes_push`) are deliberately omitted from
- * `ENUM_VALIDATORS`. Yaml values for those keys flow through this reader as
- * raw strings; validation belongs to `resolveAllSettings` (the wrapper that
- * composes this reader with per-key `resolveGitConfigOverride` calls). Single
- * source of truth per key — no double-validation across yaml and git-config
- * tiers. Callers needing resolved values use the wrapper; callers consuming
- * raw yaml (`arc config status`) stay on this reader.
+ * `session.sync_interlock`, `user.notes_push`, `release.enabled`) are
+ * deliberately omitted from `ENUM_VALIDATORS`. Yaml values for those keys
+ * flow through this reader as raw strings; validation belongs to
+ * `resolveAllSettings` (the wrapper that composes this reader with per-key
+ * `resolveGitConfigOverride` calls). Single source of truth per key — no
+ * double-validation across yaml and git-config tiers. Callers needing
+ * resolved values use the wrapper; callers consuming raw yaml
+ * (`arc config status`) stay on this reader.
  *
  * @module
  */
@@ -52,14 +53,16 @@ const DEFAULTS: ConfigSettings = {
   "session.sync_interlock": "on-handoff",
   "archive.cadence": "with-integration",
   "user.notes_push": "on-sync",
+  "release.enabled": "false",
 };
 
 /**
  * Per-key allowed value sets for keys validated at parse time. Keys absent
  * from this map are passed through verbatim — shell-side `validate-config.sh`
- * remains the broader enum gate. The four release-mode keys
- * (`session.{commit,push,sync}_interlock`, `user.notes_push`) are
- * intentionally absent — see the module-level layering-boundary note.
+ * remains the broader enum gate. The five release-mode keys
+ * (`session.{commit,push,sync}_interlock`, `user.notes_push`,
+ * `release.enabled`) are intentionally absent — see the module-level
+ * layering-boundary note.
  */
 const ENUM_VALIDATORS: Partial<Record<keyof ConfigSettings, readonly string[]>> = {
   "session.init_pull.worktree": ["manual", "prompt"],

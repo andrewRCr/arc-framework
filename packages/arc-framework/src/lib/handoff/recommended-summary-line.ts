@@ -15,10 +15,11 @@ import type { WorktreeSyncState } from "../git/worktree-sync.js";
 /**
  * Context discriminator: did `arc sync` run, or was its auto-invoke skipped?
  *
- * - `sync-ran` — `syncInterlock.value === "on-handoff"` and identity present.
- *   The sync envelope's surface is limited to the `Reconcile required:` line
- *   for the diverged cell; other cells return `null` here (worktree-vs-remote
- *   surfaces are owned by sync's own output).
+ * - `sync-ran` — `syncInterlock.value` is `"on-handoff"` or `"on-workflow"`
+ *   (both fire at handoff) and identity present. The sync envelope's surface
+ *   is limited to the `Reconcile required:` line for the diverged cell; other
+ *   cells return `null` here (worktree-vs-remote surfaces are owned by sync's
+ *   own output).
  * - `sync-skipped` — `syncInterlock.value === "manual"` or identity absent.
  *   The handoff probe envelope surfaces the diverged Reconcile line and the
  *   `Worktree:` unpushed-count line on `local-ahead`.

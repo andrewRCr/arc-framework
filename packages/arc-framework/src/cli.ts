@@ -26,6 +26,13 @@ import { handleStatus } from "./handlers/status.js";
 import { handleSync } from "./handlers/sync.js";
 import { handleUserSync } from "./handlers/user-sync.js";
 import { handleLogAtomic } from "./handlers/log.js";
+import {
+  handleReleaseCommit,
+  handleReleaseOptIn,
+  handleReleaseOptOut,
+  handleReleasePush,
+  handleReleaseStatus,
+} from "./commands/release.js";
 
 const program = new Command();
 
@@ -214,6 +221,58 @@ program
   .option("--json", "Emit the structured result as JSON")
   .action(handleSync);
 
+// --- Release ---
+
+const releaseCmd = program
+  .command("release")
+  .description(
+    "Release wrappers — refuse on validation failure, audit-log every invocation",
+  );
+
+releaseCmd
+  .command("commit")
+  .description(
+    "Wrapper around `git commit` — applies the release-mode validation cascade",
+  )
+  .allowUnknownOption(true)
+  .argument("[args...]", "Arguments forwarded to `git commit`")
+  .action(async (args: string[]) => {
+    await handleReleaseCommit({ args });
+  });
+
+releaseCmd
+  .command("push")
+  .description(
+    "Wrapper around `git push` — applies the release-mode push validation cascade",
+  )
+  .allowUnknownOption(true)
+  .argument("[args...]", "Arguments forwarded to `git push`")
+  .action(async (args: string[]) => {
+    await handleReleasePush({ args });
+  });
+
+releaseCmd
+  .command("opt-in")
+  .description("Record per-developer opt-in for release-mode wrappers (writes `arc.release.enabled: true`)")
+  .action(async () => {
+    await handleReleaseOptIn();
+  });
+
+releaseCmd
+  .command("opt-out")
+  .description("Record per-developer opt-out for release-mode wrappers (writes `arc.release.enabled: false`)")
+  .action(async () => {
+    await handleReleaseOptOut();
+  });
+
+releaseCmd
+  .command("status")
+  .description("Show resolved release-mode opt-in and interlock state")
+  .option("--json", "Emit a schemaVersion 1 JSON envelope")
+  .action(async (opts: { json?: boolean }) => {
+    await handleReleaseStatus({ json: opts.json });
+  });
+
 // --- Log ---
 
 const logCmd = program
@@ -264,6 +323,7 @@ function isHandoffCritical(cmd: Command): boolean {
   const parentName = cmd.parent?.name();
   if (parentName === "arc" && name === "sync") return true;
   if (parentName === "user" && (name === "save" || name === "push" || name === "sync")) return true;
+  if (parentName === "release" && (name === "commit" || name === "push")) return true;
   if (parentName === "arc" && name === "status") {
     const opts = cmd.opts();
     if (opts.json === true && (opts.sessionInit === true || opts.sessionHandoff === true)) {

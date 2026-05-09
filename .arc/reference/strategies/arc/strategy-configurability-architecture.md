@@ -231,16 +231,33 @@ Most config settings are straightforward toggles. Some carry deeper implications
 
 - **`session.commit_interlock: manual`** (default) — commit requires explicit user invocation.
 - **`session.commit_interlock: on-task-approval`** — task approval releases the commit interlock.
+- **`session.commit_interlock: on-workflow`** — task approval and workflow-ceremony commits both
+  release the commit interlock.
 - **`session.sync_interlock: on-handoff`** (default) — handoff invokes `arc sync` as part of the
   handoff ceremony.
 - **`session.sync_interlock: manual`** — handoff surfaces unpushed state without invoking sync.
+- **`session.sync_interlock: on-workflow`** — handoff and other workflow-driven sync triggers
+  both release the sync interlock (forward-compatible with upcoming worktree work units; today
+  behaviorally equivalent to `on-handoff`).
 - **`session.push_interlock: manual`** (default) — push requires explicit user invocation.
 - **`session.push_interlock: on-sync`** — an `arc sync` event releases the push interlock.
+- **`session.push_interlock: on-workflow`** — sync events and other workflow-driven push events
+  both release the push interlock.
+
+The three values per interlock form an ascending permissiveness ladder: `manual` (zero triggers)
+< `on-{primary}` (the named trigger) < `on-workflow` (`on-{primary}` plus other agent-mediated
+workflow events). Trigger sets, not single triggers.
 
 The three interlocks chain: handoff event → sync, sync event → push (and notes-push). Each
 interlock's `on-X` value names its own trigger. The interlock model these settings configure
 lives in [Session Operations Strategy][session-ops] § Interlock Model and § Handoff-Interior
 Toggle Pattern.
+
+**Release-wrapper opt-in** is a separate config axis from the interlocks
+— orthogonal to WHEN the agent fires (interlock-governed), it controls HOW the invocation is
+shaped. Resolution layers per-developer git-config (`arc.releaseEnabled`, local scope) over the
+project-wide yaml setting (`release.enabled`); default `false`. See [Session Operations
+Strategy][session-ops] § Interlock Model for the wrapper layer.
 
 ### Handoff-interior toggles
 

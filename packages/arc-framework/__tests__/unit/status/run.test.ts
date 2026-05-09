@@ -112,6 +112,7 @@ function configResult(overrides: Partial<ConfigStatusResult> = {}): ConfigStatus
       "session.sync_interlock": "on-handoff",
       "archive.cadence": "with-integration",
       "user.notes_push": "on-sync",
+      "release.enabled": "false",
     },
     defaultsApplied: [],
     warnings: [],
@@ -168,6 +169,8 @@ function configSessionInit(
       "session.commit_interlock": "manual",
       "session.push_interlock": "manual",
       "session.sync_interlock": "on-handoff",
+      "user.notes_push": "on-sync",
+      "release.enabled": "false",
       "branch.protection": "partial",
       "pm.mode": "none",
       "commit.format": "conventional",
@@ -530,6 +533,7 @@ describe("runSessionInitStatus — orchestration", () => {
         "commit.context_footer",
         "commit.format",
         "pm.mode",
+        "release.enabled",
         "session.commit_interlock",
         "session.init_load.notes",
         "session.init_pull.notes",
@@ -537,6 +541,7 @@ describe("runSessionInitStatus — orchestration", () => {
         "session.push_interlock",
         "session.remote_sync",
         "session.sync_interlock",
+        "user.notes_push",
       ]);
     }
   });

@@ -84,19 +84,29 @@ hooks.task_numbering: error
 #   default: md|yml|yaml|json|toml|txt|csv|lock|conf|cfg|ini|env|license|makefile
 hooks.skip_extensions: md|yml|yaml|json|toml|txt|csv|lock|conf|cfg|ini|env|license|makefile
 
-# Test directory/file patterns excluded from meta-project reference checking.
-# Files matching these patterns are not production code and may legitimately
-# reference tasks, phases, or .arc/ paths. Pipe-separated regex alternation.
+# Test directory/file patterns excluded from BROAD meta-project reference
+# checking (see hooks.meta_ref_patterns below). Files matching these patterns
+# may legitimately contain task / phase / artifact-name strings as fixture data
+# (e.g., commit-footer parsers). The STRICT patterns below still apply to test
+# files. Pipe-separated regex alternation.
 #   default: __tests__/|\.test\.|\.spec\.|/test/|/tests/
 hooks.test_patterns: __tests__/|\.test\.|\.spec\.|/test/|/tests/
 
-# Patterns scanned in production code for meta-project references.
-# The pre-commit hook flags files matching these patterns as errors.
-# Reduce to remove checks that cause false positives for your project
-# (e.g., tooling that legitimately operates on .arc/ paths).
-# Pipe-separated regex alternation.
-#   default: '[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+|\.arc/'
-hooks.meta_ref_patterns: '[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+|\.arc/'
+# Strict meta-project reference patterns scanned in ALL staged code, including
+# tests. These cover patterns rare enough in legitimate fixture data that the
+# test exemption is unsafe — PRD R-codes, bare requirement / behavior numeric
+# IDs, and section-symbol citations. META-PRD lines are filtered as a known
+# false positive (real framework template filename). Pipe-separated regex.
+#   default: 'PRD R[0-9]+|\b[RB][0-9]+\b|§ '
+hooks.strict_meta_ref_patterns: 'PRD R[0-9]+|\b[RB][0-9]+\b|§ '
+
+# Broad meta-project reference patterns scanned in production code only — test
+# files (see hooks.test_patterns) are exempted because parser tests legitimately
+# consume task / phase / artifact-name strings as fixture input.
+# Reduce to remove checks that cause false positives for your project (e.g.,
+# tooling that legitimately operates on .arc/ paths). Pipe-separated regex.
+#   default: '[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+|\.arc/|(tasks|plan|prd|status|notes|atomic)-[a-z][a-z0-9-]+\.md'
+hooks.meta_ref_patterns: '[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+|\.arc/|(tasks|plan|prd|status|notes|atomic)-[a-z][a-z0-9-]+\.md'
 
 # Subject line hard limit for commit-msg hook.
 # Aligns with GitHub's truncation point and `git log --oneline` width.

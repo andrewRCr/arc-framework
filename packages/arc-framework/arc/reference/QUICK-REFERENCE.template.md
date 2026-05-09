@@ -217,6 +217,37 @@ See [Session Operations Strategy](strategies/arc/strategy-session-operations.md)
 State Portability for the portability model, `arc sync` direction semantics, and
 `user.notes_push` push policy.
 
+### Release Wrappers
+
+```bash
+# Wrapped `git commit` — validates interlock state and branch protection, refuses
+# destructive flags (--amend, --no-verify, --allow-empty), writes one audit entry
+arc release commit -m "feat(scope): subject"
+
+# Wrapped `git push` (worktree leg) — validates pushability matrix and interlock,
+# refuses destructive flags (--force, --force-with-lease, --mirror, +refspec, --delete)
+arc release push
+
+# Record per-developer opt-in (writes `arc.release.enabled: true` to local git config)
+arc release opt-in
+
+# Record per-developer opt-out (writes `arc.release.enabled: false` to local git config —
+# overrides yaml `release.enabled: true` for this clone, idempotent on already-`false`)
+arc release opt-out
+
+# Show resolved opt-in flag and interlock states with provenance
+arc release status
+
+# Same as above as a structured envelope (`schemaVersion: 1`)
+arc release status --json
+```
+
+Refusal exit codes 10–14 cover `no-active-wu`, `interlock-not-authorized`, `destructive-flag`,
+`branch-protection-violation`, and `pushability-precheck-failed`; audit entries land at
+`.arc/user/{identity}/.internal/.audit-log.jsonl`. See
+[DEV-RULES.ARC](constitution/DEV-RULES.ARC.md) § Commit Discipline for the trust model and
+opt-in semantics.
+
 ### Atomic Work History
 
 ```bash

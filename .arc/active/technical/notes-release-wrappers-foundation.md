@@ -5,7 +5,18 @@ Implementation rationale, design alternatives, and audit-derived design decision
 where load-bearing context exceeds inline-note scope.
 
 Sections are organized by phase and parent task. Each entry carries its source finding ID
-(F1-A, F2-D, etc.) for traceability back to the Pass 3 audit.
+(F1-A, F2-D, etc.) for traceability back to the Pass 3 audit. Sections § 1.5 and § 6.1
+graduated to ADR-018 and ADR-017 respectively; the notes-file versions preserve the
+working-context flavor while the ADRs carry the polished decision record.
+
+## Contents
+
+- [Phase 1 — Validation Library Foundation](#phase-1--validation-library-foundation)
+- [Phase 2 — `arc release commit` handler](#phase-2--arc-release-commit-handler)
+- [Phase 3 — `arc release push` handler](#phase-3--arc-release-push-handler)
+- [Phase 4 — Opt-in state surface](#phase-4--opt-in-state-surface)
+- [Phase 5 — Sync audit-log retrofit + probe surface](#phase-5--sync-audit-log-retrofit--probe-surface)
+- [Phase 6 — Documentation + ADR](#phase-6--documentation--adr)
 
 ---
 
@@ -90,19 +101,10 @@ export async function resolveReleaseEnabled(
     validValues: RELEASE_ENABLED_VALUES,
   });
 }
-
-// --- release.footer ---
-export type ReleaseFooterMode = "none" | "abbreviated" | "full";
-
-export const RELEASE_FOOTER_GIT_CONFIG_KEY = "arc.releaseFooter";
-export const RELEASE_FOOTER_YAML_KEY = "release.footer";
-export const DEFAULT_RELEASE_FOOTER: ReleaseFooterMode = "none";
-const RELEASE_FOOTER_VALUES: readonly ReleaseFooterMode[] = ["none", "abbreviated", "full"];
-// + isReleaseFooterMode + resolveReleaseFooter (mirrors above)
 ```
 
 `ReleaseEnabled` is string-typed (`"true" | "false"`) for resolver consistency with the existing
-release-mode key pattern; consumers (1.7's `readReleaseEnabled`) convert to boolean
+release-mode key pattern; consumers (4.2's status envelope) convert to boolean
 (`value === "true"`) at the application boundary.
 
 `ResolvedReleaseModeSettings` extends:
@@ -114,11 +116,133 @@ export interface ResolvedReleaseModeSettings {
   syncInterlock: ResolvedConfigOverride<SyncInterlock>;
   notesPush: ResolvedConfigOverride<NotesPushPolicy>;
   releaseEnabled: ResolvedConfigOverride<ReleaseEnabled>;     // NEW
-  releaseFooter: ResolvedConfigOverride<ReleaseFooterMode>;   // NEW
 }
 ```
 
-`resolveAllSettings` adds both new resolvers to its concurrent `Promise.all` fan-out.
+`resolveAllSettings` adds the new resolver to its concurrent `Promise.all` fan-out.
+
+### § 1.5 — Interlock value extension: trigger-set permissiveness ladder
+
+Each of the three interlocks (`commit_interlock`, `push_interlock`, `sync_interlock`) gets a uniform third
+value, `on-workflow`, establishing a symmetric ascending permissiveness ladder:
+
+| Interlock | `manual` | `on-{primary}` | `on-workflow` |
+| --- | --- | --- | --- |
+| `commit_interlock` | ∅ (no agent autofire) | task-work commits | task-work + ceremony commits |
+| `push_interlock` | ∅ | sync-internal push | sync + ceremony pushes |
+| `sync_interlock` | ∅ | handoff workflow | handoff + future workflow-driven sync |
+
+The values capture trigger-sets, not single triggers. `commit_interlock: on-task-approval` already worked
+this way (`manual` = ∅ trigger set; `on-task-approval` = {task-approval} trigger set); `on-workflow`
+extends each axis to a superset including any agent-mediated workflow event.
+
+Today `sync_interlock: on-workflow` is behaviorally equivalent to `on-handoff` (no other workflow fires
+sync), but the value is reserved for forward-compatibility — workflows like the upcoming worktree work
+units may need to fire sync, and `on-workflow` captures that authorization without further config-axis
+evolution.
+
+Defaults are unchanged by this extension: `commit_interlock` and `push_interlock` default to `manual`
+(conservative); `sync_interlock` defaults to `on-handoff` (auto-sync at handoff is the out-of-box
+expectation). `on-workflow` is opt-in across all three.
+
+### § 1.5 — Wrapper-scope-vs-permission authorization rule
+
+Each release-wrapper command has a fixed scope describing what the agent uses it for:
+
+| Wrapper command | Scope |
+| --- | --- |
+| `arc release commit` | any commit the agent fires (task-work ∪ ceremony) |
+| `arc release push` | ceremony push only (sync uses its own internal push helper) |
+
+The wrapper authorizes when the configured permission overlaps the wrapper's scope:
+
+> **permission ∩ scope ≠ ∅ → authorize, else refuse(11)**
+
+Plays out as:
+
+- Commit × `on-task-approval`: {task-work} ∩ {any commit} = {task-work} → **authorize**
+- Commit × `on-workflow`: {task-work, ceremony} ∩ {any commit} → **authorize**
+- Push × `on-sync`: {sync push} ∩ {ceremony push} = ∅ → **refuse(11)**
+- Push × `on-workflow`: {sync, ceremony} ∩ {ceremony push} → **authorize**
+
+The wrapper performs **scope-coverage** checks, not **runtime-context** detection. It cannot distinguish
+"this commit is for task-work" from "this commit is for a ceremony" at invocation time, and does not need
+to — the rule operates on values alone.
+
+### § 1.5 — Prompt-vs-bypass framing + defensive code 11
+
+The user-facing model for the release-wrapper system is **"agent uses wrapper to bypass the harness
+prompt, or uses raw git which the harness prompts on"** — not "wrapper grants permission to commit."
+Configuration choices express which paths the user permits the agent to bypass-prompt on.
+
+Code 11 (`interlock-not-authorized`) is **defensive backstop**, not a primary UX path. It fires when the
+agent invokes the wrapper outside the configured scope (a layer-1 violation per the layered model below).
+In normal use, the agent's contract handles tool selection and code 11 should not fire. When it does,
+the audit log captures it for forensic review.
+
+The model is two-layered:
+
+1. **Wrapper layer (mechanical):** Does configured permission overlap wrapper scope? If no → refuse(11).
+   Defensive validation; covers the trustless case (`manual`) and scope-mismatch (push under `on-sync`).
+2. **Agent layer (judgment):** Within authorized scope, is using the wrapper appropriate for *this
+   specific invocation*? Codified in DEV-RULES.ARC and workflow docs; not wrapper-enforced.
+
+Example: Under `commit_interlock: on-task-approval`, the wrapper authorizes any agent commit invocation,
+but the agent's contract is to use the wrapper only for task-work commits and use raw `git commit` for
+ceremony commits — letting the harness prompt the user. Layer-2 violations (agent uses wrapper for
+ceremony under `on-task-approval`) surface via behavior drift, audit-log forensics, or user feedback,
+not via code 11.
+
+The remediation hint in code 11 messages reflects this framing: primary remediation is "use raw `git`
+instead" (the harness-prompt path); secondary is "set `<key>: on-workflow` to authorize" (escalate
+permission only if intentional).
+
+### § 1.6 — Schema-violation vs. I/O-failure error handling
+
+The audit-log writer splits failure modes by error class:
+
+- **Schema violations throw.** Calling `appendAuditEntry` with an entry whose shape doesn't match the v1
+  schema is a precondition violation — the caller built a malformed entry, which discriminated-union
+  typing should make structurally hard to hit in correctly-typed code. Throwing surfaces it loudly at
+  test time; in production it should never fire.
+- **I/O failures return `{ ok: false, error: ... }`.** Disk-full, permission-denied, and similar
+  operational failures need a path that the caller can swallow without aborting the wrapped operation.
+  Audit logging is sidecar to release wrappers and `arc sync`; an audit-log write failure should not
+  propagate up and mask a successful commit/push.
+
+The asymmetry is deliberate: programmer errors get loud (throw → test surface); operational errors get
+quiet (return → caller decides whether to surface or swallow).
+
+### § 1.6 — Schema validation: hand-rolled, not library-based
+
+Decision: hand-roll v1 schema enforcement rather than adopting `zod` / `valibot` / `ajv`.
+
+Rationale:
+
+- Audit entries are constructed in-process by typed handler code against the `AuditEntry` discriminated
+  union — the compile-time check covers most of the surface. Runtime validation is defensive (test code
+  bypassing typing, future refactor that violates a discriminator), not external-input parsing.
+- Schema is small: one entry, three `command` branches, five `outcome.kind` variants. Hand-rolled is
+  ~50 lines.
+- Project ships with four prod deps (`@clack/prompts`, `commander`, `js-yaml`, `semver`) and zero
+  schema-library usage anywhere in `src/`. Net-new dependency for a single defensive check is heavy.
+
+Mitigation for the drift risk between `types.ts` and the validator:
+
+- Validator uses exhaustive switches with `: never` defaults on every discriminator (`command`,
+  `outcome.kind`, `interlockState.command`). Adding a variant in `types.ts` triggers a TS exhaustiveness
+  error in the validator until the new arm is handled.
+- 1.6.c includes a round-trip test (build valid entry per command via the typed API → append → parse
+  back → assert equality) that catches "updated types.ts, forgot validator" silently.
+
+Revisit triggers (any one tilts the decision toward a library):
+
+- Schema v2 lands — multi-version dispatch is where libraries shine.
+- External tooling parses the JSONL and needs a published schema.
+- A third unrelated runtime-validation site appears in the codebase (the dep cost amortizes across
+  consumers).
+
+Until then, hand-rolled is the right call.
 
 ### § 1.6 — Sanitization edge cases
 
@@ -128,20 +252,6 @@ export interface ResolvedReleaseModeSettings {
 - Multiple `-m` flags chained (`-m subject -m body`) — each redacted independently
 - `--file` and `--file=path` — kept verbatim (path is not sensitive; content lives on disk)
 - Path normalization not performed (paths kept verbatim, no resolution to absolute)
-
-### § 1.7 — Footer composition edge cases (handled by `git interpret-trailers`)
-
-[F1-B, F1-I] Per F1-B resolution, footer composition delegates to `git interpret-trailers
---trailer "ARC-Release: ..."` which natively handles:
-
-- Message ending without newline
-- Message with body but no trailers (creates trailer block)
-- Multi-line trailer values (Co-authored-by-style)
-- Comment lines (`#` lines)
-- Conventional placement after existing trailers
-
-Hand-rolled fallback considered only if a specific constraint surfaces during 1.7.b
-implementation.
 
 ---
 
@@ -265,7 +375,6 @@ schemaVersion lock.
 {
   "schemaVersion": 1,
   "releaseEnabled": { "value": true, "source": "git-config" },
-  "releaseFooter": { "value": "full", "source": "yaml" },
   "commitInterlock": { "value": "on-task-approval", "source": "yaml" },
   "pushInterlock": { "value": "on-sync", "source": "yaml" },
   "syncInterlock": { "value": "on-handoff", "source": "default" }
@@ -307,6 +416,33 @@ correctly.
 
 `notes-blocked` is mixed: worktree leg fires, notes leg blocks. No top-level refusal code;
 per-leg result captures the partial state in `outcome.kind: "sync"`.
+
+### § 5.1 — `outcome.worktree` / `outcome.notes` string-shape contract
+
+[F5-E] `AuditOutcome.kind === "sync"` declares `worktree: string` and `notes: string`. Sync's
+runtime per-leg state is `LegOutcomeRecord = { action, result, detail? }`. The audit-entry
+encoding compresses this into a single grep-able token.
+
+**Format rule:** `action:result` when `detail` is absent; `action:result:detail` when set.
+
+Examples (`LegOutcomeRecord` → audit string):
+
+- `{ action: "push", result: "success" }` → `push:success`
+- `{ action: "skip", result: "skipped", detail: "not-configured" }` → `skip:skipped:not-configured`
+- `{ action: "skip", result: "blocked", detail: "diverged" }` → `skip:blocked:diverged`
+- `{ action: "push", result: "blocked", detail: "notes-blocked-by-worktree:diverged" }` →
+  `push:blocked:notes-blocked-by-worktree:diverged`
+- `{ action: "save+push", result: "success" }` → `save+push:success`
+- `{ action: "save+push", result: "success", detail: "recovered:auto-rebase" }` →
+  `save+push:success:recovered:auto-rebase`
+
+`detail` may itself contain colons (e.g., `notes-blocked-by-worktree:diverged`); audit-log
+readers must split on the first two colons to recover `action` / `result` and treat the
+remainder as the detail payload.
+
+The compression preserves the rich detail thread without nesting JSON-in-string, keeps entries
+visually compact in the JSONL log, and stays grep-friendly for ad-hoc filtering
+(`grep ':blocked:' .audit-log.jsonl`).
 
 ### § 5.1 — Audit-entry timing per `handleSync` exit path
 

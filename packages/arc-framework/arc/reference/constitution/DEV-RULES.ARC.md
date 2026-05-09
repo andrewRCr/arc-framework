@@ -38,6 +38,13 @@ documentation style — live in [DEV-RULES.PROJECT][dev-rules-project]. Contribu
       invocation; `on-handoff` mode fires push at handoff only — never per commit.
     - Per-mode behavior lives in the [session-handoff workflow][session-handoff].
 
+- **Release-wrapper invocation** · `[configurable]`:
+    - `arc release commit` / `arc release push` are an authorized invocation path. The wrapper validates
+      interlock state and writes a per-invocation audit entry regardless of opt-in.
+    - With `arc.release.enabled: true` plus the corresponding harness allowlist entries, the wrapper
+      additionally bypasses the per-invocation harness prompt — the canonical shape for commit/push under
+      workflow guidance when active. Default: `arc.release.enabled: false`.
+
 - **Merge to integration / main requires explicit approval** (the *integration-interlock*). Agents
   must not infer merge approval from task approval, review completion, passing checks, or general
   "proceed" language. Integration may happen only when the user explicitly authorizes it.

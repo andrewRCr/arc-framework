@@ -204,7 +204,8 @@ this WU handles the architectural work.
   Session-Init Optimization lands; WU-B (auto-push instantiation against handoff-interior
   toggles) waits for Session-Operational Flow Phase 6. Unified if sequencing allows.
 
-**Interlock Release Wrappers** — Next, after User Sync UX Polish
+**Interlock Release Wrappers** — WU1 In Progress (Foundation); WU2 pending after WU1
+(Ergonomics)
 
 Closes the final friction point in session operations: the redundant harness-prompt + ARC-interlock
 duplicate authorization on every commit and push. Two CLI wrapper commands (`arc release commit`,
@@ -220,7 +221,8 @@ orientation when allowlist active. Per-harness viability researched 2026-05-03: 
 Codex CLI viable (Codex with a shell-wrapper caveat to verify); opencode auto-allowlist deferred
 pending upstream config-validation fixes.
 
-- Plan: `technical/plan-interlock-release-wrappers.md`
+- WU1 (Foundation): `active/technical/prd-release-wrappers-foundation.md` (active);
+  WU2 (Ergonomics): `backlog/technical/plan-release-wrappers-ergonomics.md` (planning)
 - Upstream: User Sync UX Polish (Phase 2 paired-push semantics + pushability matrix feeds
   push-wrapper validation; Phase 3.1 resolver consolidation is the base for the validation library;
   `pushWorktreeBranch` helper from Phase 2.R is the swappable seam), Interlock Foundation (ADR-016
@@ -228,7 +230,7 @@ pending upstream config-validation fixes.
 - Downstream: Work Organization Reform, parallelism trio downstream of WOR (parallelism trio
   benefits from low-friction commit/push surface during multi-WU work; no hard dependency)
 - **Scope note:** Pre-approved split into two sibling WUs at PRD-drafting time: WU1 (foundation —
-  wrappers, validation library, audit log, authorization footer, ADR; ~12-15 sessions) and WU2
+  wrappers, validation library, audit log, ADR; ~12-15 sessions) and WU2
   (adopter ergonomics — setup helper, per-harness detection, status integration, workflow updates,
   strategy doc; ~10-13 sessions). WU2 strictly depends on WU1.
 
@@ -384,6 +386,27 @@ holistically. Plan documents for each remain in `backlog/` for reference.
 - **WU5: Public Release (1.0)** — Docs site (MkDocs Material + GitHub Pages), full README
   rewrite, repo public, community infrastructure, npm `1.0.0`. Plan:
   `feature/plan-wu5-public-release.md` (stub).
+
+**Architecture remediation (audit-derived; parallel candidates after worktree infrastructure
+lands).** Surfaced 2026-05-08 by an architecture audit
+(`reference/analysis/analysis-cli-architecture-solid-dry-audit.md`) during Interlock Release
+Wrappers WU1 Phase 1. All three are independent file scopes; intended to run in parallel via
+worktree once the parallelism trio + Coord Probe ship.
+
+- **Lib-Layer Type Extraction** — Move `ConfigSettings`, `ActiveLayout`,
+  `StatusFileCandidate`, `IOContext`, `UserIOContext`, `UserSessionInitStatusResult` from
+  `commands/*/types.ts` to neutral `lib/*/types.ts` modules. Resolves the lib → commands
+  inversion documented in audit § P1. Small (~1-2 sessions). Plan:
+  `technical/plan-lib-layer-type-extraction.md`.
+- **Sync Handler Decomposition** — Extract pure matrix logic and runtime execution from
+  `handlers/sync.ts`; restructure sync handler tests to follow the new boundaries; fold P2
+  manifest / ref-helper duplication. Audit § P1 (sync handler responsibilities) and matching
+  test-architecture / methodology findings. Medium (~3-5 sessions). Plan:
+  `technical/plan-sync-handler-decomposition.md`.
+- **User-Sync Module Split** — Split `commands/user/sync-status.ts` (~1.6k lines) into
+  focused `lib/user-sync/*` modules; restructure `user-status.test.ts` to follow; fold P2
+  user-notes / manifest helper duplication. Audit § P1 (user-sync status module SRP).
+  Medium-large (~4-6 sessions). Plan: `technical/plan-user-sync-module-split.md`.
 
 ---
 

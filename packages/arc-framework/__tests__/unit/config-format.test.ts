@@ -40,6 +40,7 @@ const FULL_SETTINGS: ConfigSettings = {
   "session.sync_interlock": "on-handoff",
   "archive.cadence": "with-integration",
   "user.notes_push": "on-sync",
+  "release.enabled": "false",
 };
 
 const SESSION_INIT_SETTINGS: ConfigSessionInitSettings = {
@@ -50,6 +51,8 @@ const SESSION_INIT_SETTINGS: ConfigSessionInitSettings = {
   "session.commit_interlock": "manual",
   "session.push_interlock": "manual",
   "session.sync_interlock": "on-handoff",
+  "user.notes_push": "on-sync",
+  "release.enabled": "false",
   "branch.protection": "full",
   "pm.mode": "arc-in-git",
   "commit.format": "conventional",
@@ -79,9 +82,10 @@ function sessionInitResult(
 }
 
 describe("buildConfigStatusSummary — counts + keys", () => {
-  it("renders the agent-consumable headline with 20 settings", () => {
+  it("renders the agent-consumable headline with the FULL_SETTINGS count", () => {
     const summary = buildConfigStatusSummary(fullResult());
-    expect(summary.split("\n")[0]).toBe("20 agent-consumable settings (hooks.* excluded):");
+    const expectedCount = Object.keys(FULL_SETTINGS).filter((k) => !k.startsWith("hooks.")).length;
+    expect(summary.split("\n")[0]).toBe(`${expectedCount} agent-consumable settings (hooks.* excluded):`);
   });
 
   it("lists every setting key with its value", () => {
@@ -127,7 +131,7 @@ describe("buildConfigSessionInitSummary — narrow subset", () => {
     expect(summary.split("\n")[0]).toBe("Init-gating settings:");
   });
 
-  it("lists only the 10 init-gating keys", () => {
+  it("lists only the 12 init-gating keys", () => {
     const summary = buildConfigSessionInitSummary(sessionInitResult());
     expect(summary).toContain("session.remote_sync: enabled");
     expect(summary).toContain("session.init_pull.worktree: prompt");
@@ -135,12 +139,13 @@ describe("buildConfigSessionInitSummary — narrow subset", () => {
     expect(summary).toContain("session.commit_interlock: manual");
     expect(summary).toContain("session.push_interlock: manual");
     expect(summary).toContain("session.sync_interlock: on-handoff");
+    expect(summary).toContain("user.notes_push: on-sync");
+    expect(summary).toContain("release.enabled: false");
     expect(summary).toContain("branch.protection: full");
     expect(summary).toContain("pm.mode: arc-in-git");
     expect(summary).toContain("commit.format: conventional");
     expect(summary).toContain("commit.context_footer: required");
     expect(summary).not.toContain("branch.base:");
-    expect(summary).not.toContain("user.notes_push:");
   });
 
   it("marks defaulted keys", () => {
