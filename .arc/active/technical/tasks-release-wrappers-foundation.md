@@ -273,14 +273,11 @@ _Design decisions:_ 4.1.a extends `lib/git/exec.ts` with a missing primitive (`g
 `gitConfigSet` with explicit scope; 4.1.b/c consume those helpers. `--json` envelope carries `schemaVersion: 1` for
 forward-compat per `notes-release-wrappers-foundation.md` § 4.2.
 
-### `[ ]` **4.1 `record-enabled` / `record-disabled` sub-commands**
+### `[x]` **4.1 `record-enabled` / `record-disabled` sub-commands**
 
 - _Goal:_ `arc release record-enabled` writes `arc.release.enabled: true` to per-developer git config (idempotent on
   repeat); `arc release record-disabled` clears the same key (idempotent on absent key); both surface git-config write
   failures with clear remediation messages.
-
-    - Files: `src/handlers/release/record.ts`, `src/cli.ts` (sub-command registration on `arc release`)
-    - Adds `gitConfigUnset` and widened `gitConfigSet` to `src/lib/git/exec.ts` per 4.1.a
 
     - `[x]` **4.1.a Extend `lib/git/exec.ts` — `gitConfigUnset` + scoped `gitConfigSet`**
 
@@ -303,15 +300,16 @@ forward-compat per `notes-release-wrappers-foundation.md` § 4.2.
         `src/cli.ts` and re-exported from `src/commands/release.ts`. Three tests in
         `__tests__/unit/handlers/release/record.test.ts` cover the three behaviors.
 
-    - `[ ]` **4.1.c `record-disabled` sub-command**
-        - _Note:_ Idempotent on never-enabled state — check-then-unset (`gitConfigGet` returns undefined → no-op
-          success).
+    - `[x]` **4.1.c `record-disabled` sub-command**
 
-        Build `test-first` (one behavior at a time):
-        - First invocation (key present) unsets `arc.release.enabled`
-        - Second invocation (key absent) is no-op success
-        - First-time invocation when never enabled — succeeds silently
-        - git-config unset failure surfaces with message naming the key and underlying git error
+        Orchestrator `runReleaseRecordDisabled` in `src/handlers/release/record.ts` delegates to
+        `gitConfigUnset` — the lib helper's check-then-unset semantics carry idempotence for the
+        absent-key and never-enabled paths without a separate orchestrator pre-check. Unset failures
+        are caught and surfaced through the injectable `writeStderr` sink as
+        `Failed to unset arc.release.enabled: <git-error>` with non-zero exit. Commander adapter
+        `handleReleaseRecordDisabled` wires the real `gitExec`; sub-command registered on
+        `arc release` in `src/cli.ts` and re-exported from `src/commands/release.ts`. Four tests in
+        `__tests__/unit/handlers/release/record.test.ts` cover the four behaviors.
 
 ### `[ ]` **4.2 `arc release status` sub-command + `--json` envelope**
 

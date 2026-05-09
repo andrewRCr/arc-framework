@@ -33,7 +33,9 @@ export type {
 } from "../handlers/release/push.js";
 
 export {
+  handleReleaseRecordDisabled,
   handleReleaseRecordEnabled,
+  runReleaseRecordDisabled,
   runReleaseRecordEnabled,
 } from "../handlers/release/record.js";
 export type {

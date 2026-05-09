@@ -29,6 +29,7 @@ import { handleLogAtomic } from "./handlers/log.js";
 import {
   handleReleaseCommit,
   handleReleasePush,
+  handleReleaseRecordDisabled,
   handleReleaseRecordEnabled,
 } from "./commands/release.js";
 
@@ -254,6 +255,13 @@ releaseCmd
   .description("Record per-developer opt-in for release-mode wrappers")
   .action(async () => {
     await handleReleaseRecordEnabled();
+  });
+
+releaseCmd
+  .command("record-disabled")
+  .description("Clear per-developer opt-in for release-mode wrappers")
+  .action(async () => {
+    await handleReleaseRecordDisabled();
   });
 
 // --- Log ---
