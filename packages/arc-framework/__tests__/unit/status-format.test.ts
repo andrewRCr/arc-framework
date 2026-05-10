@@ -179,6 +179,19 @@ function makeSessionInitResult(
         warnings: [],
       },
     },
+    releaseRouting: {
+      ok: true,
+      value: {
+        taskCommit: "raw",
+        workflowCommit: "raw",
+        workflowPush: "raw",
+        rationale: {
+          releaseEnabled: false,
+          commitInterlock: "manual",
+          pushInterlock: "manual",
+        },
+      },
+    },
     active: {
       ok: true,
       value: {
@@ -281,6 +294,7 @@ describe("buildSessionInitStatusSummary — scoped mode", () => {
     expect(summary).toContain("Worktree:");
     expect(summary).toContain("Extensions:");
     expect(summary).toContain("Config:");
+    expect(summary).toContain("Release Routing:");
     expect(summary).toContain("Active:");
   });
 
@@ -292,6 +306,9 @@ describe("buildSessionInitStatusSummary — scoped mode", () => {
     expect(summary).toContain("Init-gating settings");
     expect(summary).toContain("session.commit_interlock: manual");
     expect(summary).toContain("session.push_interlock: manual");
+    expect(summary).toContain("taskCommit: raw");
+    expect(summary).toContain("workflowCommit: raw");
+    expect(summary).toContain("workflowPush: raw");
     expect(summary).toContain("Resolved: .arc/active/technical/status-foo.md");
   });
 
@@ -352,6 +369,17 @@ describe("buildSessionInitStatusSummary — scoped mode", () => {
       }),
     );
     expect(summary).toContain("(unavailable) git config fetch failed");
+  });
+
+  it("renders Release Routing between Config and Active", () => {
+    const summary = buildSessionInitStatusSummary(makeSessionInitResult());
+    const lines = summary.split("\n");
+    const idxOfLine = (label: string): number => lines.findIndex((l) => l === label);
+    const configIdx = idxOfLine("Config:");
+    const releaseRoutingIdx = idxOfLine("Release Routing:");
+    const activeIdx = idxOfLine("Active:");
+    expect(releaseRoutingIdx).toBeGreaterThan(configIdx);
+    expect(activeIdx).toBeGreaterThan(releaseRoutingIdx);
   });
 
   it("renders the Domain Rules section after the Active section", () => {

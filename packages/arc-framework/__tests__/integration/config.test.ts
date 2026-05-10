@@ -16,6 +16,7 @@ import {
   runConfigSessionInitStatus,
   runConfigStatus,
 } from "../../src/commands/config.js";
+import type { ConfigSessionInitSettings } from "../../src/commands/config.js";
 
 /**
  * Build a mock GitExec returning the given map of git-config values.
@@ -36,6 +37,21 @@ function buildExec(overrides: Record<string, string | undefined>) {
 
 const realReadFile = (path: string): Promise<string> => nodeReadFile(path, "utf-8");
 const noGitConfigExec = buildExec({});
+const SESSION_INIT_SCOPED_KEYS = [
+  "branch.protection",
+  "commit.context_footer",
+  "commit.format",
+  "pm.mode",
+  "release.enabled",
+  "session.commit_interlock",
+  "session.init_load.notes",
+  "session.init_pull.notes",
+  "session.init_pull.worktree",
+  "session.push_interlock",
+  "session.remote_sync",
+  "session.sync_interlock",
+  "user.notes_push",
+] as const satisfies ReadonlyArray<keyof ConfigSessionInitSettings>;
 
 interface Fixture {
   root: string;
@@ -136,7 +152,7 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
     await rm(fixture.root, { recursive: true, force: true });
   });
 
-  it("returns only the 12 init-gating keys with yaml values when no git-config override is set", async () => {
+  it(`returns only the ${SESSION_INIT_SCOPED_KEYS.length} init-gating keys with yaml values when no git-config override is set`, async () => {
     await writeFile(
       fixture.configPath,
       [
@@ -148,6 +164,7 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
         "session.remote_sync: disabled",
         "session.init_pull.worktree: manual",
         "session.init_pull.notes: always",
+        "session.init_load.notes: manual",
         "session.commit_interlock: on-task-approval",
         "session.push_interlock: on-sync",
         "session.sync_interlock: manual",
@@ -162,25 +179,13 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
     });
     expect(result.mode).toBe("session-init");
     const keys = Object.keys(result.settings).sort();
-    expect(keys).toEqual([
-      "branch.protection",
-      "commit.context_footer",
-      "commit.format",
-      "pm.mode",
-      "release.enabled",
-      "session.commit_interlock",
-      "session.init_pull.notes",
-      "session.init_pull.worktree",
-      "session.push_interlock",
-      "session.remote_sync",
-      "session.sync_interlock",
-      "user.notes_push",
-    ]);
+    expect(keys).toEqual([...SESSION_INIT_SCOPED_KEYS].sort());
     // Non-release-mode keys are pass-through from readConfigSettings (yaml-only).
     expect(result.settings["session.remote_sync"]).toBe("disabled");
     expect(result.settings["pm.mode"]).toBe("arc-in-git");
     expect(result.settings["session.init_pull.worktree"]).toBe("manual");
     expect(result.settings["session.init_pull.notes"]).toBe("always");
+    expect(result.settings["session.init_load.notes"]).toBe("manual");
     // Release-mode keys reflect yaml when no git-config override is set.
     expect(result.settings["session.commit_interlock"]).toBe("on-task-approval");
     expect(result.settings["session.push_interlock"]).toBe("on-sync");
@@ -231,6 +236,7 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
     expect(result.settings["session.remote_sync"]).toBe("enabled");
     expect(result.settings["session.init_pull.worktree"]).toBe("prompt");
     expect(result.settings["session.init_pull.notes"]).toBe("prompt");
+    expect(result.settings["session.init_load.notes"]).toBe("prompt");
     expect(result.settings["session.commit_interlock"]).toBe("manual");
     expect(result.settings["session.push_interlock"]).toBe("manual");
     expect(result.settings["session.sync_interlock"]).toBe("on-handoff");
@@ -241,6 +247,7 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
     expect(result.defaultsApplied).toContain("session.remote_sync");
     expect(result.defaultsApplied).toContain("session.init_pull.worktree");
     expect(result.defaultsApplied).toContain("session.init_pull.notes");
+    expect(result.defaultsApplied).toContain("session.init_load.notes");
     expect(result.defaultsApplied).toContain("session.commit_interlock");
     expect(result.defaultsApplied).toContain("session.push_interlock");
     expect(result.defaultsApplied).toContain("session.sync_interlock");
@@ -260,6 +267,7 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
         "session.remote_sync: enabled",
         "session.init_pull.worktree: prompt",
         "session.init_pull.notes: prompt",
+        "session.init_load.notes: prompt",
         "session.commit_interlock: manual",
         "session.push_interlock: manual",
         "session.sync_interlock: on-handoff",
@@ -274,22 +282,8 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
     });
     // Non-scoped keys may be defaulted under the hood, but scoped defaults list excludes them.
     expect(result.defaultsApplied).toHaveLength(0);
-    const scopedKeys = [
-      "session.remote_sync",
-      "session.init_pull.worktree",
-      "session.init_pull.notes",
-      "session.commit_interlock",
-      "session.push_interlock",
-      "session.sync_interlock",
-      "user.notes_push",
-      "release.enabled",
-      "branch.protection",
-      "pm.mode",
-      "commit.format",
-      "commit.context_footer",
-    ];
     for (const key of result.defaultsApplied) {
-      expect(scopedKeys).toContain(key);
+      expect(SESSION_INIT_SCOPED_KEYS).toContain(key as keyof ConfigSessionInitSettings);
     }
   });
 

@@ -54,9 +54,13 @@ import { runHeadHashStatus } from "../lib/git/head-hash.js";
 import { runPushabilityStatus } from "../lib/git/pushability.js";
 import { runWorktreeSyncStatus } from "../lib/git/worktree-sync.js";
 import { deriveRestateCandidates } from "../lib/handoff/restate-candidates.js";
-import { readConfigSettings } from "../lib/config/status-reader.js";
-import { resolveSyncInterlock } from "../lib/config/resolved-settings.js";
+import {
+  resolveAllSettings,
+  type ResolvedSettingsResult,
+} from "../lib/config/resolved-settings.js";
 import { createUserIOContext, gitExec } from "../lib/io-context.js";
+import { resolveReleaseRouting } from "../lib/release/routing.js";
+import type { ReleaseRoutingValue } from "../lib/release/routing.js";
 import { requireArcProjectRoot } from "./shared.js";
 
 export interface StatusCliOptions {
@@ -86,6 +90,14 @@ async function readIdentityPointers(): Promise<{
   };
 }
 
+function releaseRoutingFromSettings(settings: ResolvedSettingsResult): ReleaseRoutingValue {
+  return resolveReleaseRouting({
+    releaseEnabled: settings.resolved.releaseEnabled.value === "true",
+    commitInterlock: settings.resolved.commitInterlock.value,
+    pushInterlock: settings.resolved.pushInterlock.value,
+  });
+}
+
 export async function handleStatus(opts: StatusCliOptions): Promise<void> {
   if (opts.sessionInit && opts.sessionHandoff) {
     process.stderr.write(
@@ -102,13 +114,13 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
   const { identity, role } = await readIdentityPointers();
 
   if (opts.sessionHandoff) {
-    const { settings } = await readConfigSettings(cwd);
-    const remoteSyncEnabled = settings["session.remote_sync"] === "enabled";
+    const resolvedSettings = await resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
+    const remoteSyncEnabled = resolvedSettings.settings["session.remote_sync"] === "enabled";
     const probes: SessionHandoffProbes = {
       dirty: () => runDirtyStateStatus({ exec: gitExec }),
       worktree: () => runWorktreeSyncStatus({ exec: gitExec, remoteSyncEnabled }),
       user: (id) => runUserSessionInitStatus({ cwd, io, identity: id, remoteSyncEnabled }),
-      syncInterlock: () => resolveSyncInterlock({ cwd, exec: gitExec, readFile: io.readFile }),
+      syncInterlock: () => Promise.resolve(resolvedSettings.resolved.syncInterlock),
       active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec: gitExec }),
       head: () => runHeadHashStatus({ exec: gitExec }),
       pushability: () => runPushabilityStatus({
@@ -124,6 +136,7 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
               .catch(() => null);
         return deriveRestateCandidates({ exec: gitExec, sessionNotes });
       },
+      releaseRouting: () => Promise.resolve(releaseRoutingFromSettings(resolvedSettings)),
     };
     if (!json) {
       process.stderr.write(
@@ -138,16 +151,17 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
   }
 
   if (opts.sessionInit) {
-    const { settings } = await readConfigSettings(cwd);
-    const remoteSyncEnabled = settings["session.remote_sync"] === "enabled";
+    const resolvedSettings = await resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
+    const remoteSyncEnabled = resolvedSettings.settings["session.remote_sync"] === "enabled";
     const probes: SessionInitProbes = {
       user: (id) => runUserSessionInitStatus({ cwd, io, identity: id, remoteSyncEnabled }),
       worktree: () => runWorktreeSyncStatus({ exec: gitExec, remoteSyncEnabled }),
       dirty: () => runDirtyStateStatus({ exec: gitExec }),
       extensions: () => runExtensionsSessionInitStatus({ cwd }),
-      config: () => runConfigSessionInitStatus({ cwd }),
+      config: () => runConfigSessionInitStatus({ cwd, resolvedSettings }),
       active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec: gitExec }),
       domainRules: () => runDomainRulesSessionInitStatus({ cwd }),
+      releaseRouting: () => Promise.resolve(releaseRoutingFromSettings(resolvedSettings)),
     };
     const result = await runSessionInitStatus({ identity, role, probes });
     if (json) {

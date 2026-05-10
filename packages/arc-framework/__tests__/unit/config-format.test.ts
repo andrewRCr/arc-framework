@@ -131,20 +131,11 @@ describe("buildConfigSessionInitSummary — narrow subset", () => {
     expect(summary.split("\n")[0]).toBe("Init-gating settings:");
   });
 
-  it("lists only the 12 init-gating keys", () => {
+  it(`lists only the ${Object.keys(SESSION_INIT_SETTINGS).length} init-gating keys`, () => {
     const summary = buildConfigSessionInitSummary(sessionInitResult());
-    expect(summary).toContain("session.remote_sync: enabled");
-    expect(summary).toContain("session.init_pull.worktree: prompt");
-    expect(summary).toContain("session.init_pull.notes: prompt");
-    expect(summary).toContain("session.commit_interlock: manual");
-    expect(summary).toContain("session.push_interlock: manual");
-    expect(summary).toContain("session.sync_interlock: on-handoff");
-    expect(summary).toContain("user.notes_push: on-sync");
-    expect(summary).toContain("release.enabled: false");
-    expect(summary).toContain("branch.protection: full");
-    expect(summary).toContain("pm.mode: arc-in-git");
-    expect(summary).toContain("commit.format: conventional");
-    expect(summary).toContain("commit.context_footer: required");
+    for (const [key, value] of Object.entries(SESSION_INIT_SETTINGS)) {
+      expect(summary).toContain(`${key}: ${value}`);
+    }
     expect(summary).not.toContain("branch.base:");
   });
 

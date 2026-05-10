@@ -23,61 +23,39 @@ _Design decisions:_ Routing primitive lives at
 `.internal/` directory convention). All three subtasks are independent of each other — could
 parallelize but listed in dependency-priority order.
 
-### `[ ]` **1.1 Routing primitive (R12.1)**
+### `[x]` **1.1 Routing primitive (R12.1)**
 
 - _Goal:_ Session-init and session-handoff envelopes carry a fully-resolved `releaseRouting` slot
   that workflows and skills consult without re-deriving the authorization rule.
 
-- _Approach:_ Pure resolver function over resolved interlock values + `releaseEnabled`; mirrors
-  `resolveAllSettings` shape. Slot lands at envelope root alongside existing slots.
+    - `[x]` **1.1.a Routing slot schema types**
+        - Added `ReleaseRoute`, `ReleaseRoutingValue`, `ReleaseRoutingRationale`, and
+          `ReleaseRoutingSlot` in `lib/release/routing.ts`, then threaded the value type into the
+          session-init and session-handoff status envelope contracts.
 
-    - `[ ]` **1.1.a Routing slot schema types**
-        - Define `ReleaseRoutingSlot`, `ReleaseRoutingValue`, `ReleaseRoutingRationale` types
-          per PRD R12.1.
-        - Three classes: `taskCommit`, `workflowCommit`, `workflowPush` ∈ `"wrapper" | "raw"`.
-        - `rationale` field carries `releaseEnabled`, `commitInterlock`, `pushInterlock` snapshots.
+    - `[x]` **1.1.b Resolver implementation (`resolveReleaseRouting`)**
+        - Added a pure resolver that maps `release.enabled`, commit interlock, and push interlock
+          into `taskCommit`, `workflowCommit`, and `workflowPush` routes, preserving the input
+          rationale and safe-defaulting unknown interlock values to `raw`.
 
-    - `[ ]` **1.1.b Resolver implementation (`resolveReleaseRouting`)**
+    - `[x]` **1.1.c Lift `resolveAllSettings` to handler scope**
+        - `handleStatus` now resolves release-mode settings once for session-init and
+          session-handoff, reusing the same snapshot for config output, sync interlock, and
+          `releaseRouting`; `runConfigSessionInitStatus` accepts the pre-resolved snapshot while
+          preserving its standalone fallback.
 
-        Build `test-first` (one behavior at a time):
+    - `[x]` **1.1.d Wire `releaseRouting` slot into session-init envelope**
+        - Session-init now emits top-level `releaseRouting` with slot-level failure isolation and
+          interactive summary rendering. The config session-init subset also carries
+          `session.init_load.notes`, matching the workflow's load-dispatch contract.
 
-        - `releaseEnabled: false` → all classes resolve `raw` regardless of interlock values
-        - `releaseEnabled: true` + `commit_interlock: manual` → `taskCommit: raw`,
-          `workflowCommit: raw`
-        - `releaseEnabled: true` + `commit_interlock: on-task-approval` → `taskCommit: wrapper`,
-          `workflowCommit: raw`
-        - `releaseEnabled: true` + `commit_interlock: on-workflow` → `taskCommit: wrapper`,
-          `workflowCommit: wrapper`
-        - `releaseEnabled: true` + `push_interlock: manual` → `workflowPush: raw`
-        - `releaseEnabled: true` + `push_interlock: on-sync` → `workflowPush: raw`
-        - `releaseEnabled: true` + `push_interlock: on-workflow` → `workflowPush: wrapper`
-        - `rationale` carries inputs verbatim across all combinations
-        - Unknown interlock value (forward-compat) → safe-default `raw` for that class
+    - `[x]` **1.1.e Wire `releaseRouting` slot into session-handoff envelope**
+        - Session-handoff now emits the same top-level `releaseRouting` shape from the shared
+          resolved-settings snapshot, alongside the existing handoff slots.
 
-    - `[ ]` **1.1.c Lift `resolveAllSettings` to handler scope**
-        - _Goal:_ `resolveAllSettings` runs once at session-init / session-handoff handler scope;
-          `config` probe and `releaseRouting` resolution consume the shared result.
-        - _Rationale:_ Existing handler runs probes independently in parallel; today
-          `resolveAllSettings` is buried inside `runConfigSessionInitStatus`. Routing needs the
-          same resolved values without paying a second spawn round-trip — particularly load-bearing
-          for the handoff-optimization "cheap recompute" path that follows in a later WU.
-        - Restructure: lift the call out of the `config` probe; pass the resolved result into the
-          probe constructors that need it.
-        - Session-handoff handler currently has no `resolveAllSettings` call (only narrow
-          `resolveSyncInterlock`); the lift adds one to handoff's handler scope as well.
-        - No public-API change; internal-handler-tier refactor only.
-
-    - `[ ]` **1.1.d Wire `releaseRouting` slot into session-init envelope**
-        - Slot lands at envelope root alongside `extensions`, `config`, `active`, etc.
-        - Pure derivation over the lifted resolved values from 1.1.c — no additional I/O.
-        - Probe-failure path: slot present with `{ok: false, error: ...}` per existing slot
-          convention; consumers fall back to `raw` per canonical rule R12.2.
-        - Integration test: full session-init envelope contains expected `releaseRouting` shape
-          across at least two config combinations (default-config + full-opt-in).
-
-    - `[ ]` **1.1.e Wire `releaseRouting` slot into session-handoff envelope**
-        - Same shape and resolution as 1.1.d, in the handoff probe shape.
-        - Integration test mirrors 1.1.d shape.
+- _Outcome:_ Workflows now receive an explicit route decision for task commits, workflow commits,
+  and workflow pushes from both session envelopes, with the resolved input rationale attached for
+  debugging and future release-status rendering.
 
 ### `[ ]` **1.2 Marker storage library (R9)**
 

@@ -86,6 +86,8 @@ export interface ConfigStatusOptions {
 
 export interface ConfigSessionInitOptions {
   cwd: string;
+  /** Optional pre-resolved settings from a parent orchestrator; avoids duplicate release-mode probes. */
+  resolvedSettings?: import("../../lib/config/resolved-settings.js").ResolvedSettingsResult;
   /** Optional git-exec injection for tests; defaults to the real `gitExec`. */
   exec?: import("../../lib/git/index.js").GitExec;
   /** Optional file-reader injection for tests; defaults to `node:fs/promises` `readFile`. */

@@ -47,6 +47,7 @@ import type { HeadHashResult } from "../../../src/lib/git/head-hash.js";
 import type { PushabilityResult } from "../../../src/lib/git/pushability.js";
 import type { WorktreeSyncStatusResult } from "../../../src/lib/git/worktree-sync.js";
 import type { RestateCandidatesResult } from "../../../src/lib/handoff/restate-candidates.js";
+import type { ReleaseRoutingValue } from "../../../src/lib/release/routing.js";
 
 // --- Fixtures ---
 
@@ -270,6 +271,7 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
     config: vi.fn(async () => configSessionInit()),
     active: vi.fn(async () => activeSessionInit()),
     domainRules: vi.fn(async () => domainRulesSessionInit()),
+    releaseRouting: vi.fn(async () => releaseRouting()),
     ...overrides,
   };
 }
@@ -299,6 +301,20 @@ function restateCandidates(
   };
 }
 
+function releaseRouting(overrides: Partial<ReleaseRoutingValue> = {}): ReleaseRoutingValue {
+  return {
+    taskCommit: "raw",
+    workflowCommit: "raw",
+    workflowPush: "raw",
+    rationale: {
+      releaseEnabled: false,
+      commitInterlock: "manual",
+      pushInterlock: "manual",
+    },
+    ...overrides,
+  };
+}
+
 function sessionHandoffProbes(
   overrides: Partial<SessionHandoffProbes> = {},
 ): SessionHandoffProbes {
@@ -311,6 +327,7 @@ function sessionHandoffProbes(
     head: vi.fn(async () => headHash()),
     pushability: vi.fn(async () => ({ allowed: true, conditions: [] })),
     restateCandidates: vi.fn(async () => restateCandidates()),
+    releaseRouting: vi.fn(async () => releaseRouting()),
     ...overrides,
   };
 }
@@ -467,6 +484,7 @@ describe("runSessionInitStatus — orchestration", () => {
     expect(probes.config).toHaveBeenCalledTimes(1);
     expect(probes.active).toHaveBeenCalledTimes(1);
     expect(probes.domainRules).toHaveBeenCalledTimes(1);
+    expect(probes.releaseRouting).toHaveBeenCalledTimes(1);
   });
 
   it("exposes the domainRules slot with ok=true on success", async () => {
@@ -515,6 +533,41 @@ describe("runSessionInitStatus — orchestration", () => {
     expect(result.extensions.ok).toBe(true);
     expect(result.config.ok).toBe(true);
     expect(result.active.ok).toBe(true);
+  });
+
+  it("exposes the releaseRouting slot with ok=true on success", async () => {
+    const probes = sessionInitProbes({
+      releaseRouting: vi.fn(async () =>
+        releaseRouting({
+          taskCommit: "wrapper",
+          workflowCommit: "raw",
+          workflowPush: "wrapper",
+          rationale: {
+            releaseEnabled: true,
+            commitInterlock: "on-task-approval",
+            pushInterlock: "on-workflow",
+          },
+        }),
+      ),
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.releaseRouting.ok).toBe(true);
+    if (result.releaseRouting.ok) {
+      expect(result.releaseRouting.value).toEqual({
+        taskCommit: "wrapper",
+        workflowCommit: "raw",
+        workflowPush: "wrapper",
+        rationale: {
+          releaseEnabled: true,
+          commitInterlock: "on-task-approval",
+          pushInterlock: "on-workflow",
+        },
+      });
+    }
   });
 
   it("returns the session-init-scoped shape with mode=session-init", async () => {
@@ -704,6 +757,7 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
       "identity",
       "mode",
       "recommendedCombinedPrompt",
+      "releaseRouting",
       "user",
       "worktree",
     ]);
@@ -896,8 +950,38 @@ describe("runSessionHandoffStatus — orchestration", () => {
     expect(probes.head).toHaveBeenCalledTimes(1);
     expect(probes.pushability).toHaveBeenCalledTimes(1);
     expect(probes.restateCandidates).toHaveBeenCalledTimes(1);
+    expect(probes.releaseRouting).toHaveBeenCalledTimes(1);
     expect(probes.user).toHaveBeenCalledWith("andrew");
     expect(probes.active).toHaveBeenCalledWith("andrew", "maintainer");
+  });
+
+  it("exposes the releaseRouting slot with ok=true on success", async () => {
+    const probes = sessionHandoffProbes({
+      releaseRouting: vi.fn(async () =>
+        releaseRouting({
+          taskCommit: "wrapper",
+          workflowCommit: "wrapper",
+          workflowPush: "raw",
+          rationale: {
+            releaseEnabled: true,
+            commitInterlock: "on-workflow",
+            pushInterlock: "on-sync",
+          },
+        }),
+      ),
+    });
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+
+    expect(result.releaseRouting.ok).toBe(true);
+    if (result.releaseRouting.ok) {
+      expect(result.releaseRouting.value.taskCommit).toBe("wrapper");
+      expect(result.releaseRouting.value.workflowCommit).toBe("wrapper");
+      expect(result.releaseRouting.value.workflowPush).toBe("raw");
+    }
   });
 
   it("returns the full set of expected slots", async () => {
@@ -916,6 +1000,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       "mode",
       "pushability",
       "recommendedSummaryLine",
+      "releaseRouting",
       "restateCandidates",
       "syncInterlock",
       "user",

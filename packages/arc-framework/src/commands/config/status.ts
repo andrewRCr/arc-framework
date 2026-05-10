@@ -34,6 +34,7 @@ const SESSION_INIT_KEYS = [
   "session.remote_sync",
   "session.init_pull.worktree",
   "session.init_pull.notes",
+  "session.init_load.notes",
   "session.commit_interlock",
   "session.push_interlock",
   "session.sync_interlock",
@@ -77,11 +78,12 @@ export async function runConfigSessionInitStatus(
 ): Promise<ConfigSessionInitResult> {
   const exec = options.exec ?? gitExec;
   const readFile = options.readFile ?? ((path: string) => nodeReadFile(path, "utf-8"));
-  const { settings, defaultsApplied, warnings } = await resolveAllSettings({
-    cwd: options.cwd,
-    exec,
-    readFile,
-  });
+  const { settings, defaultsApplied, warnings } = options.resolvedSettings
+    ?? await resolveAllSettings({
+      cwd: options.cwd,
+      exec,
+      readFile,
+    });
   const scoped = {} as ConfigSessionInitSettings;
   for (const key of SESSION_INIT_KEYS) {
     scoped[key] = settings[key];
