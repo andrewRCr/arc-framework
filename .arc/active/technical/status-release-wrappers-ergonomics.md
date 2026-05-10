@@ -9,10 +9,10 @@
 - **Task List:** `tasks-release-wrappers-ergonomics.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task 4.1 — Author `setup-release-wrapper.md` (R1, R3, R8)
-- **Next Task:** Task 5.1 — Canonical rule in DEV-RULES.ARC § Commit Discipline (R12.2) (line ~370)
+- **Last Completed:** Task 5.4 — Permissiveness-ladder fixup for non-routing interlock gates
+- **Next Task:** Task 6.1 — New strategy doc `strategy-interlock-release-wrappers.md` (R14.1) (line ~536)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 5.1 — Canonical rule in DEV-RULES.ARC § Commit Discipline (R12.2)
+- **Next Action:** Start Task 6.1 — New strategy doc `strategy-interlock-release-wrappers.md` (R14.1)
 
 ---
