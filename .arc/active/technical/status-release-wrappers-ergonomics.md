@@ -9,10 +9,10 @@
 - **Task List:** `tasks-release-wrappers-ergonomics.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Work unit activated
-- **Next Task:** Task 1.1 — Routing primitive (R12.1) (line ~26)
+- **Last Completed:** Task 1.1 — Routing primitive (R12.1)
+- **Next Task:** Task 1.2 — Marker storage library (R9) (line ~60)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Phase 1
+- **Next Action:** Start Task 1.2 — Marker storage library (R9)
 
 ---
