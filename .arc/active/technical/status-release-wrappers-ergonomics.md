@@ -9,10 +9,10 @@
 - **Task List:** `tasks-release-wrappers-ergonomics.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task 2.3 — `arc release setup install` command (R4, R16)
-- **Next Task:** Task 2.4 — `arc release setup uninstall` command (R5, R16) (line ~194)
+- **Last Completed:** Task 3.1 — `arc release status` extension (R10)
+- **Next Task:** Task 4.1 — Author `setup-release-wrapper.md` (R1, R3, R8) (line ~279)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 2.4 — `arc release setup uninstall` command (R5, R16)
+- **Next Action:** Start Task 4.1 — Author `setup-release-wrapper.md` (R1, R3, R8)
 
 ---
