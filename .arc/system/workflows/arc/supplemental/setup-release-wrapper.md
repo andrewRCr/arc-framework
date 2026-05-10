@@ -257,9 +257,9 @@ For paste-ready output, run `arc release setup print-patterns --harness codex`.
 ## Agent-Adaptive Path
 
 For any harness outside the reference-implementation set (Claude Code, Codex CLI), the agent translates
-the six-element contract against the harness's own conventions. This is a universal route — not a
-fallback for unknown harnesses; the contract is the deliverable, and the reference implementations are
-convenience helpers on top.
+the six-element contract against the harness's own conventions. See
+`strategy-interlock-release-wrappers.md` § Agent-Adaptive Path for the architectural framing
+(workflow-as-contract, universal-route positioning).
 
 **Procedure:**
 

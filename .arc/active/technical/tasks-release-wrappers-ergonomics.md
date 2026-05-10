@@ -533,52 +533,63 @@ _Design decisions:_ Strategy doc lands first — initial-setup section (6.2) and
 (Path 1 between "Customization Beyond Config" and "Optional: Verify Installation"; Path 2 between
 "Configuration Review" and "Optional: Verify Installation"). Cross-references are small touches.
 
-### `[ ]` **6.1 New strategy doc `strategy-interlock-release-wrappers.md` (R14.1)**
+### `[x]` **6.1 New strategy doc `strategy-interlock-release-wrappers.md` (R14.1)**
 
 - _Goal:_ Domain strategy doc at `.arc/reference/strategies/arc/strategy-interlock-release-wrappers.md`
   carrying trust-model framing across modes, when-to-use / when-not-to-use guidance, per-harness
   setup notes (reference-implementation), agent-adaptive path framing, and acknowledgment of
   user-level safety-gate hooks as a parallel layer.
 
-- _Note:_ Strategy ships to adopters via `npx arc update` (packaged from `strategies/arc/`). Per
-  DEV-RULES.PROJECT § Architecture Documentation, ADR citations are forbidden in adopter-facing
-  surfaces. PRD and notes contain ADR-017 / ADR-018 references — translate to operational framing
-  when authoring (e.g., "both wrapper value layers — validation + audit (unconditional) and
-  harness-prompt bypass (conditional)" instead of "per ADR-017").
+    - `[x]` **6.1.a Strategy file scaffold + trust model framing**
+        - Top-level structure landed: Overview, Trust Model, When Not to Use This, Per-Harness
+          Reference Implementations, Agent-Adaptive Path, Safety-Gate Hooks (Parallel Layer),
+          Strategic Awareness.
+        - Trust Model carries two-value-layer treatment — unconditional (validation + audit) leads
+          as the universal benefit; conditional (harness-prompt bypass) framed as friction
+          reduction for default-prompt users.
 
-- _Approach:_ Lead with the unconditional layer (validation + audit) as the universal benefit per
-  notes § Strategy Doc Framing Notes. Position harness-prompt bypass as additional benefit for
-  default-prompt users; name bypass mode explicitly. Acknowledge user-level safety-gate hooks as
-  parallel, complementary layer (denylist at OS boundary; wrapper validates ARC-state at CLI
-  boundary).
+    - `[x]` **6.1.b Per-mode when-to-use guidance**
+        - Default-prompt and bypass-mode framing folded into § Trust Model § Per-Mode Framing
+          rather than separate H3s under a When-to-use section. Co-locates mode treatment with
+          the value-layer framing it modifies; bypass mode named explicitly.
 
-    - `[ ]` **6.1.a Strategy file scaffold + trust model framing**
-        - Top-level structure: When to use this, Trust model, When not to use this, Per-harness
-          setup, Agent-adaptive path, Safety-gate hooks (parallel layer), Troubleshooting.
-        - Trust model section frames unconditional + conditional layers per notes guidance.
+    - `[x]` **6.1.c Reference-implementation per-harness notes**
+        - Claude Code and Codex CLI subsections under § Per-Harness Reference Implementations.
+        - Architectural framing only — patterns, paths, mode-detection mechanics, and Codex's
+          full supported / fall-through matcher table all defer to `setup-release-wrapper.md`
+          § Per-Harness Reference Notes per boundary discipline.
 
-    - `[ ]` **6.1.b Per-mode when-to-use guidance**
-        - Default-prompt mode subsection.
-        - Bypass mode subsection — distinct from default-prompt; primary value prop is
-          validation + audit (notes § Strategy Doc Framing Notes).
+    - `[x]` **6.1.d Agent-adaptive path framing**
+        - § Agent-Adaptive Path carries workflow-as-contract framing (universal route; contract
+          is the deliverable; reference impls are convenience helpers on top).
+        - opencode subsection acknowledges upstream limits ([sst/opencode#6676],
+          [sst/opencode#15507]); unconditional layer fires regardless, conditional layer behavior
+          gated on upstream resolution.
 
-    - `[ ]` **6.1.c Reference-implementation per-harness notes**
-        - Claude Code subsection — pattern, mode detection, paste-ready snippet via
-          `arc release setup print-patterns --harness claude-code`.
-        - Codex CLI subsection — same shape.
+    - `[x]` **6.1.e Safety-gate hooks parallel-layer note**
+        - § Safety-Gate Hooks (Parallel Layer) — strategy-only content (workflow doesn't cover).
+        - Comparison table (boundary / coverage / mechanism); composition asserted as
+          conflict-free; bypass-mode pairing convention noted.
 
-    - `[ ]` **6.1.d Agent-adaptive path framing**
-        - Universal-route framing — works for any harness; agent translates contract against its
-          own conventions.
-        - opencode caveats subsection (per PRD Non-Goals + notes opencode references).
+    - `[x]` **6.1.f Strategic awareness (re-scoped from Troubleshooting)**
+        - Section re-scoped per boundary discipline — operational troubleshooting (verify
+          failures, fix-on-spot cases) stays in the setup workflow; § Strategic Awareness carries
+          known characteristics adopters should anticipate.
+        - Four items: trust-model shift acceptance, interlock-setting routing impact,
+          multi-developer asymmetric setup, wrapper/interlock implementation-bug class.
 
-    - `[ ]` **6.1.e Safety-gate hooks parallel-layer note**
-        - Per notes § Strategy Doc Framing Notes — denylist at OS boundary, wrapper validates ARC
-          state at CLI boundary; layers compose without conflict.
-
-    - `[ ]` **6.1.f Troubleshooting**
-        - Wrong-setup scenarios stratified by severity per notes § Adopter Friction Analysis.
-        - Each scenario: symptom, mitigation, remediation command.
+- _Outcome:_ New strategy doc (~270 lines) at canonical and package-source locations,
+  byte-identical. Boundary discipline applied throughout — strategy carries architecture and
+  rationale, setup workflow carries procedure; cross-references are mostly workflow → strategy
+  with one strategy → workflow pointer per per-harness / agent-adaptive section. Bundled small
+  workflow trim: setup workflow's agent-adaptive intro lost an architectural sentence
+  (workflow-as-contract framing) that now lives in the strategy doc, replaced with a pointer.
+  No ADR citations in the reader-facing surface — translated to operational framing throughout.
+  Neutral framing discipline established: zero "adopter" mentions (that term reads as
+  maintainer-voice positioning); subject-shift to system/action where natural, "user" /
+  "developer" where actor noun needed. Other strategies carry the term too — sweep routed to
+  ATOMIC-INBOX (configurability-architecture 5 mentions, file-classification 4,
+  workflow-authoring 1, session-operations 1).
 
 ### `[ ]` **6.2 Initial-setup section in `01_verify-and-configure.md` (R2)**
 
