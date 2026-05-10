@@ -132,7 +132,7 @@ arc:
      - **Fifth**: ⛔ **MANDATORY STOP** - Wait for user approval before proceeding
        - **Structured prompt** — end the completion report with `<Prefix> <Target>?`:
            - **Prefix:** `Proceed` (default — `session.commit_interlock: manual`) or
-             `Commit and proceed` (when `session.commit_interlock: on-task-approval`).
+             `Commit and proceed` (when `session.commit_interlock ∈ {on-task-approval, on-workflow}`).
            - **Target:** `to Task X.Y` (next task in phase) · `to Phase N+1, Task N+1.1` (current
              task ends the phase) · `to integrate-work-unit` (verification complete — WU end).
        - **Response semantics:** Short affirmative ("y", "yes", "ok") as first word advances.

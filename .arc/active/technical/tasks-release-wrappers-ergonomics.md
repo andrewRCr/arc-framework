@@ -479,7 +479,7 @@ conventions throughout).
   Routing primitive (Task 1.1) handles the ladder internally — this task targets surfaces upstream
   of routing (prompt shape, deferred-review default, sync push-leg trigger).
 
-    - `[ ]` **5.4.a `process-task-loop.md` prompt-prefix selector**
+    - `[x]` **5.4.a `process-task-loop.md` prompt-prefix selector**
         - L121 currently fires `Commit and proceed` only under
           `commit_interlock: on-task-approval`.
         - Extend: also under `on-workflow`.
