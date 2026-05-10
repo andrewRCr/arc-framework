@@ -166,8 +166,8 @@ arc:
      Complete only the specified work — update the task list and run quality gates after each
      task, but continue to the next without waiting for approval. Leave the task list updated,
      quality gates passing, and changes uncommitted (user decides commit boundaries when they
-     return). Under `session.commit_interlock: on-task-approval`, deferred review safe-accumulates by
-     default — no per-task commit release within the deferred range. See
+     return). Under `session.commit_interlock ∈ {on-task-approval, on-workflow}`, deferred review
+     safe-accumulates by default — no per-task commit release within the deferred range. See
      [strategy-session-operations][session-ops] § Deferred-Review × Commit-Interlock Release for the explicit
      opt-in syntax.
 

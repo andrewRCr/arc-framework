@@ -484,7 +484,7 @@ conventions throughout).
           `commit_interlock: on-task-approval`.
         - Extend: also under `on-workflow`.
 
-    - `[ ]` **5.4.b `process-task-loop.md` deferred-review safe-accumulation**
+    - `[x]` **5.4.b `process-task-loop.md` deferred-review safe-accumulation**
         - L155 currently safe-accumulates only under `on-task-approval`.
         - Extend: also under `on-workflow`.
 
