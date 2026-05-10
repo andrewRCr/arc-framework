@@ -17,7 +17,8 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** `integrate-planning-branch.md` — PR
-  `technical/plan-release-wrappers-ergonomics` to `main`, then activate (next session)
+- **Next Action:** integrate-planning-branch Step 1 — verify readiness, then PR
+  `technical/plan-release-wrappers-ergonomics` to `main`; full workflow runs through PR, merge,
+  and transition to activation
 
 ---
