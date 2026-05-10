@@ -347,34 +347,94 @@ When interlock setting changes since the last session and would shift wrapper-ro
 orientation surfaces a posture-change note in the next session-init (covered by existing session-
 operations infrastructure; this requirement is cross-reference acknowledgment, not new mechanism).
 
-**R12 — Workflow integration: ADR-018-aware wrapper routing.**
-Updates to ARC workflow files apply consistent routing logic per ADR-018. Agent prefers
-`arc release commit` / `arc release push` over raw `git commit` / `git push` when **both**:
+**R12 — Workflow integration: structured routing model.**
+Workflow integration ships as a structured-routing surface rather than per-workflow prose dispatch.
+The CLI handler computes routing once at session-init from `release.enabled × interlock values ×
+class` per the table below; workflows and skills consult the resolved value via a class tag at
+each fire site.
 
-1. `release.enabled === true` (read from session-init envelope's
-   `config.value.settings["release.enabled"]`, coerced to boolean).
-2. The resolved interlock value authorizes the wrapper for the invocation context per scope-coverage:
-    - Task-work commits: `commit_interlock ∈ {on-task-approval, on-workflow}` authorizes.
-    - Ceremony commits: `commit_interlock === on-workflow` authorizes; otherwise raw `git commit`.
-    - Ceremony pushes: `push_interlock === on-workflow` authorizes.
+**Class taxonomy.** Three classes cover all routing-relevant fire sites:
 
-Workflow-author guidance: each updated workflow names the commit / push class it fires (task-work
-vs. ceremony) and branches at workflow-author time on the resolved interlock × `release.enabled`
-from the session-init envelope. Same authoring model as `commit_interlock` resolution today.
+| Class            | Fire sites                                              | Authorized when                                                              |
+|------------------|---------------------------------------------------------|------------------------------------------------------------------------------|
+| `taskCommit`     | per-task commits (process-task-loop via arc-commit)     | `release.enabled` AND `commit_interlock ∈ {on-task-approval, on-workflow}`   |
+| `workflowCommit` | ceremony commits (activate / integrate / handoff / etc.)| `release.enabled` AND `commit_interlock` is `on-workflow`                    |
+| `workflowPush`   | ceremony pushes (handoff / activation / integration)    | `release.enabled` AND `push_interlock` is `on-workflow`                      |
+
+Otherwise (and on missing slot, missing class, or unrecognized value): `raw`.
 
 `arc sync` continues to handle its own internal push (single-leg sync push). WU1's audit retrofit
 captures sync invocations on the audit umbrella; no internal re-routing through `arc release push`.
 
-Sub-requirements (concrete workflow files):
+Sub-requirements:
 
-- **R12.1 — `process-task-loop.md`** — task-work commit branching at the per-task commit step.
-- **R12.2 — `session-handoff.md`** — handoff push branching at the handoff-push step.
-- **R12.3 — `activate-work-unit.md`** — ceremony commit + push branching at the activation step.
-- **R12.4 — `activate-planning-branch.md`** — ceremony commit + push branching at the planning-
-  branch activation step.
-- **R12.5 — Recovery-flow workflows** — specific files identified at task-generation time. Likely
-  candidates: `manage-incidental-work.md`, integrate-work-unit's recovery paths, and any
-  `prepare-commits.md` reference to commit invocation. Task generation enumerates the exact set.
+- **R12.1 — `releaseRouting` envelope slot.**
+  Session-init and session-handoff probe envelopes grow a top-level `releaseRouting` slot:
+
+  ```jsonc
+  "releaseRouting": {
+    "ok": true,
+    "value": {
+      "taskCommit":     "wrapper" | "raw",
+      "workflowCommit": "wrapper" | "raw",
+      "workflowPush":   "wrapper" | "raw",
+      "rationale": {
+        "releaseEnabled":  boolean,
+        "commitInterlock": string,
+        "pushInterlock":   string
+      }
+    }
+  }
+  ```
+
+  Handler computes from resolved settings; `rationale` carries inputs for debugging and
+  `arc release status` rendering (R10).
+
+- **R12.2 — Canonical rule in DEV-RULES.ARC § Commit Discipline.**
+  New sub-section `Interlock release-wrapper routing` (with `[configurable]` marker) carries the
+  rule, the three-class table, the `raw` fallback, and the destructive-flag carve-out.
+  Self-contained — reads without external lookup.
+
+- **R12.3 — arc-commit skill amendment (Step 4).**
+  Skill Step 4 (commit execution) references the canonical rule with class tag `taskCommit`.
+  Consolidates task-work routing — workflows that invoke the skill (process-task-loop) need no
+  per-site class tag.
+
+- **R12.4 — `process-task-loop.md` zero-edit confirmation.**
+  Task-work commit routing is handled via the arc-commit skill (R12.3); no per-workflow class tag
+  required. Recorded for completeness; no file change beyond audit-trail confirmation.
+
+- **R12.5 — `session-handoff.md` `workflowPush` class tag.**
+  Handoff push step takes a `workflowPush` class tag; verb-elided shape (inline prose, no `git
+  push` literal).
+
+- **R12.6 — `activate-work-unit.md` class tags.**
+  Activation commit (`workflowCommit`) and push (`workflowPush`) class tags; verb-elided shape at
+  both sites (commit message body in `text` codeblock; push args inline prose).
+
+- **R12.7 — `activate-planning-branch.md` class tags.**
+  Same pattern as R12.6 for planning-branch activation.
+
+- **R12.8 — Recovery-flow workflow class tags.**
+  Class tags applied across:
+
+    - `integrate-work-unit.md` — ceremony pushes (×2; `workflowPush`).
+    - `archive-work-unit.md` — ceremony commit (`workflowCommit`); destructive delete-push unchanged.
+    - `deactivate-work-unit.md` — ceremony commit (`workflowCommit`) + push (`workflowPush`);
+      destructive delete-push unchanged.
+    - `rotate-branch.md` — non-destructive ceremony pushes (`workflowPush`); `--delete` and
+      `--force-with-lease` invocations unchanged.
+    - `integrate-planning-branch.md` — ceremony commits and pushes (mixed classes per fire site);
+      destructive delete-push unchanged.
+
+- **R12.9 — `project/address-pr-review.md` `workflowPush` class tag.**
+  Project workflow ceremony push takes a `workflowPush` class tag.
+
+**Workflow-author guidance.** Each fire site declares its class via a backtick-wrapped class tag
+at the directive line. Verb is elided — the canonical rule (R12.2) supplies the verb; the workflow
+supplies content (commit message body in `text` codeblock; push args inline prose).
+Destructive-flag invocations stay literal — they route raw deterministically and are NOT
+class-tagged.
 
 **R13 — Empirical-test surface.**
 Discrete deliverable absorbing WU1's deferred success criteria 5/6 (`arc release commit --version`
@@ -418,6 +478,11 @@ tier (integration vs. e2e) determined at task generation per the test methodolog
   per-developer asymmetric setup acknowledgment (multi-developer repos where setup state diverges
   per developer; document as expected, parallel to existing per-developer interlock-setting
   variation).
+- **R14.5 — Cross-reference update:** `strategy-workflow-authoring.md` adds workflow-author
+  guidance for the routing-class declaration shape — when to class-tag a fire site, the
+  verb-elision pattern (commit message body in `text` codeblock; push args inline prose), the
+  destructive-flag exclusion, and the canonical-rule reference. Forward-compat for new workflows
+  added after WU2 ships.
 
 **R15 — `cli.ts` description-string accuracy sweep.**
 Foundation tech-debt cleared during ergonomics work. Sweep release-subcommand description strings in
@@ -510,10 +575,26 @@ queries with normalized name lookups).
 
 ### ADR-018 authorization rule integration
 
-Workflow integration (R12) operationalizes ADR-018's scope-coverage rule at workflow-author time.
-Workflow authors specify the commit / push class their workflow fires; the routing branch evaluates
-`release.enabled × resolved interlock value` against the class's authorized values. Same authoring
-model as `commit_interlock` resolution today, extended to include the wrapper-routing decision.
+Workflow integration (R12) operationalizes ADR-018's scope-coverage rule via a structured routing
+surface, not per-workflow prose dispatch. The CLI handler computes the resolution once at session-
+init (R12.1); the canonical rule (R12.2) lives in DEV-RULES.ARC § Interlock release-wrapper routing
+as the single source of truth; the arc-commit skill (R12.3) and per-workflow class tags
+(R12.4–R12.9) consult the resolved value.
+
+Three motivations for the structured shape over the alternative of per-workflow conditional prose:
+
+- **DRY-ness.** The authorization table lives once (in the handler, mirrored in DEV-RULES);
+  workflows tag the class but never re-derive the rule. Adding a new authorized configuration
+  requires only handler + DEV-RULES edits — workflow files untouched.
+- **Forward-compat with plan-instruction-optimization.** That WU's Pillar 3 thesis —
+  "deterministic state belongs in the envelope; judgment stays in the workflow" — directly applies
+  here. Routing-resolution is deterministic; pre-computing it in the envelope follows the
+  established pattern (`recommendedAction`, `recommendedCombinedPrompt`) rather than propagating
+  prose-dispatch into 10 fire sites another WU would then compress.
+- **Literal-anchor risk elimination.** Late-session attention drift biases agents toward neighbor
+  literals over prior-paragraph rules. Verb-elided fire sites (commit message body in `text`
+  codeblock; push args inline prose) have no `git commit` / `git push` literal to inadvertently
+  copy when the routing rule directs the wrapper.
 
 ### Storage layout consistency
 
