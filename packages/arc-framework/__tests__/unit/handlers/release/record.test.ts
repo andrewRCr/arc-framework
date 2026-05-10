@@ -16,6 +16,7 @@ import {
   runReleaseStatus,
 } from "../../../../src/handlers/release/record.js";
 import type { ResolvedSettingsResult } from "../../../../src/lib/config/resolved-settings.js";
+import type { HarnessEntry, MarkerReadResult } from "../../../../src/lib/release/setup-marker.js";
 import type { ConfigSettings } from "../../../../src/commands/config/types.js";
 
 function buildSettings(overrides: {
@@ -35,6 +36,16 @@ function buildSettings(overrides: {
     },
     defaultsApplied: [],
     warnings: [],
+  };
+}
+
+function marker(harnesses: HarnessEntry[]): MarkerReadResult {
+  return {
+    ok: true,
+    marker: {
+      schemaVersion: 1,
+      harnesses,
+    },
   };
 }
 
@@ -202,7 +213,7 @@ describe("runReleaseStatus", () => {
     expect(output).toContain("sync_interlock: on-handoff (default)");
   });
 
-  it("emits a schemaVersion 1 envelope with four typed value/source pairs in --json mode", async () => {
+  it("emits a schemaVersion 2 envelope with posture fields in --json mode", async () => {
     const settings = buildSettings({
       releaseEnabled: { value: "true", source: "git-config" },
       commitInterlock: { value: "on-task-approval", source: "yaml" },
@@ -212,6 +223,9 @@ describe("runReleaseStatus", () => {
     const stdout: string[] = [];
     const result = await runReleaseStatus({
       settings,
+      marker: marker([
+        { name: "claude-code", mode: "default-prompt", installedAt: "2026-05-10T00:00:00.000Z" },
+      ]),
       json: true,
       writeStdout: (msg) => {
         stdout.push(msg);
@@ -225,14 +239,134 @@ describe("runReleaseStatus", () => {
       commitInterlock: { value: string; source: string };
       pushInterlock: { value: string; source: string };
       syncInterlock: { value: string; source: string };
+      harnesses: Array<{ name: string; mode: string; installedAt: string; annotation?: string }>;
+      activeValueLayers: string;
+      releaseRouting: {
+        taskCommit: string;
+        workflowCommit: string;
+        workflowPush: string;
+        rationale: {
+          releaseEnabled: boolean;
+          commitInterlock: string;
+          pushInterlock: string;
+        };
+      };
     };
     expect(envelope).toEqual({
-      schemaVersion: 1,
+      schemaVersion: 2,
       releaseEnabled: { value: true, source: "git-config" },
       commitInterlock: { value: "on-task-approval", source: "yaml" },
       pushInterlock: { value: "on-sync", source: "yaml" },
       syncInterlock: { value: "on-handoff", source: "default" },
+      harnesses: [
+        {
+          name: "claude-code",
+          mode: "default-prompt",
+          installedAt: "2026-05-10T00:00:00.000Z",
+        },
+      ],
+      activeValueLayers: "validation + audit + harness-prompt bypass",
+      releaseRouting: {
+        taskCommit: "wrapper",
+        workflowCommit: "raw",
+        workflowPush: "raw",
+        rationale: {
+          releaseEnabled: true,
+          commitInterlock: "on-task-approval",
+          pushInterlock: "on-sync",
+        },
+      },
     });
+  });
+
+  it("projects empty marker and opt-in false as no harnesses and no active value layers", async () => {
+    const stdout: string[] = [];
+    await runReleaseStatus({
+      settings: buildSettings({ releaseEnabled: { value: "false", source: "default" } }),
+      marker: marker([]),
+      json: true,
+      writeStdout: (msg) => {
+        stdout.push(msg);
+      },
+    });
+
+    const envelope = JSON.parse(stdout.join("")) as {
+      harnesses: unknown[];
+      activeValueLayers: string;
+      releaseRouting: { taskCommit: string; workflowCommit: string; workflowPush: string };
+    };
+    expect(envelope.harnesses).toEqual([]);
+    expect(envelope.activeValueLayers).toBe("none");
+    expect(envelope.releaseRouting).toEqual(expect.objectContaining({
+      taskCommit: "raw",
+      workflowCommit: "raw",
+      workflowPush: "raw",
+    }));
+  });
+
+  it("annotates bypass harnesses and mixed-mode value layers", async () => {
+    const stdout: string[] = [];
+    await runReleaseStatus({
+      settings: buildSettings({ releaseEnabled: { value: "true", source: "git-config" } }),
+      marker: marker([
+        { name: "claude-code", mode: "bypass", installedAt: "2026-05-10T00:00:00.000Z" },
+        { name: "codex", mode: "default-prompt", installedAt: "2026-05-10T01:00:00.000Z" },
+      ]),
+      json: true,
+      writeStdout: (msg) => {
+        stdout.push(msg);
+      },
+    });
+
+    const envelope = JSON.parse(stdout.join("")) as {
+      harnesses: Array<{ name: string; mode: string; annotation?: string }>;
+      activeValueLayers: string;
+    };
+    expect(envelope.harnesses).toEqual([
+      expect.objectContaining({
+        name: "claude-code",
+        mode: "bypass",
+        annotation: "no harness gate to bypass",
+      }),
+      expect.objectContaining({
+        name: "codex",
+        mode: "default-prompt",
+      }),
+    ]);
+    expect(envelope.harnesses[1]).not.toHaveProperty("annotation");
+    expect(envelope.activeValueLayers).toBe(
+      "validation + audit + harness-prompt bypass (codex only)",
+    );
+  });
+
+  it("renders harnesses, value layers, and routing in human mode", async () => {
+    const stdout: string[] = [];
+    await runReleaseStatus({
+      settings: buildSettings({
+        releaseEnabled: { value: "true", source: "git-config" },
+        commitInterlock: { value: "on-workflow", source: "yaml" },
+        pushInterlock: { value: "on-workflow", source: "yaml" },
+      }),
+      marker: marker([
+        { name: "claude-code", mode: "default-prompt", installedAt: "2026-05-10T00:00:00.000Z" },
+        { name: "codex", mode: "bypass", installedAt: "2026-05-10T01:00:00.000Z" },
+      ]),
+      writeStdout: (msg) => {
+        stdout.push(msg);
+      },
+    });
+
+    const output = stdout.join("");
+    expect(output).toContain("harnesses:");
+    expect(output).toContain("claude-code (default-prompt) — installed 2026-05-10");
+    expect(output).toContain("codex (bypass) — no harness gate to bypass");
+    expect(output).toContain(
+      "active_value_layers: validation + audit + harness-prompt bypass (claude-code only)",
+    );
+    expect(output).toContain("release_routing:");
+    expect(output).toContain("task_commit: wrapper");
+    expect(output).toContain("workflow_commit: wrapper");
+    expect(output).toContain("workflow_push: wrapper");
   });
 
   it("threads provenance distinguishing git-config / yaml / default", async () => {

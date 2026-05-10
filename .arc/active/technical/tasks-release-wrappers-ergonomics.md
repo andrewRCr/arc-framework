@@ -234,56 +234,33 @@ discipline at `session-init.md` Step 6); legitimate routing-shift posture-change
 absorbed into handoff-opt's `releaseRoutingAtLastHandoff` infrastructure (Approach item 5). No
 session-init orientation work in this WU.
 
-### `[ ]` **3.1 `arc release status` extension (R10)**
+### `[x]` **3.1 `arc release status` extension (R10)**
 
 - _Goal:_ Single-source posture surface — opt-in flag, interlock states, harnesses + modes,
   active value layers, resolved routing per class. JSON envelope at `schemaVersion: 2`;
   human-readable mode renders new fields after existing interlock block.
 
-- _Approach:_ Extend existing `runReleaseStatus` in `record.ts`; reuse marker library (1.2) and
-  routing primitive (1.1) — no new computation, projection only.
+    - `[x]` **3.1.a Envelope schema bump + harnesses projection**
+        - Bumped `arc release status --json` to `schemaVersion: 2`, reads the per-identity setup
+          marker, projects harness entries with mode/install timestamp, and annotates bypass-mode
+          entries as having no harness gate to bypass.
 
-    - `[ ]` **3.1.a Envelope schema bump + harnesses projection**
+    - `[x]` **3.1.b `activeValueLayers` derivation**
+        - Added active-value-layer derivation for opt-out, default-prompt, bypass-only, and mixed-mode
+          posture, including the mixed-mode `(... only)` harness attribution.
 
-        Build `test-first` (one behavior at a time):
+    - `[x]` **3.1.c Routing rendering**
+        - Added flat `releaseRouting` to the JSON envelope and a human-readable `release_routing`
+          block, both sourced from the existing routing primitive rather than duplicating authorization
+          logic.
 
-        - JSON envelope `schemaVersion: 2` (additive bump per PRD R10)
-        - Empty marker + opt-in false → `harnesses: []`, `activeValueLayers: "none"`
-        - Default-prompt entry + opt-in true → `harnesses[0].mode === "default-prompt"`,
-          annotation absent
-        - Bypass entry + opt-in true → `harnesses[0].mode === "bypass"`, annotation
-          `"no harness gate to bypass"`
-        - Mixed-mode entries → both rendered with per-entry annotations
+    - `[x]` **3.1.d Human-readable rendering**
+        - Extended human mode after the interlock block with harness posture, active value layers, and
+          routing lines; current opt-out state renders `harnesses: []`, `active_value_layers: none`,
+          and raw routing.
 
-    - `[ ]` **3.1.b `activeValueLayers` derivation**
-
-        Build `test-first` (one behavior at a time):
-
-        - Opt-in false → `"none"` (wrapper still works mechanically; no posture engaged)
-        - Default-prompt + opt-in true → `"validation + audit + harness-prompt bypass"`
-        - Bypass + opt-in true → `"validation + audit"`
-        - Mixed-mode + opt-in true → `"validation + audit + harness-prompt bypass (X only)"` per
-          notes example
-
-    - `[ ]` **3.1.c Routing rendering**
-        - JSON: `releaseRouting` field at envelope root with flat shape —
-          `{taskCommit, workflowCommit, workflowPush, rationale}` directly, no `{ok, value}`
-          wrapper. Symmetric with the existing `arc release status --json` envelope (where
-          `releaseEnabled`, `commitInterlock`, etc. are flat). Differs from session-init's
-          `releaseRouting` slot shape (which uses `{ok, value}` per probe-orchestration
-          convention); status command computes routing inline from already-resolved settings —
-          no probe-failure path to surface.
-        - Human-readable: `release_routing` block after interlock block — three lines, one per
-          class, format `class_name: wrapper|raw`.
-
-    - `[ ]` **3.1.d Human-readable rendering**
-
-        Build `test-first` (one behavior at a time):
-
-        - Default-prompt with allowlist active → output matches notes § Status Surface Examples
-          exactly
-        - Bypass mode → output matches notes § Status Surface Examples exactly
-        - Opt-in not recorded → `harnesses: []`, `active_value_layers: none`, routing all `raw`
+- _Outcome:_ `arc release status` now serves as the single posture surface for wrapper opt-in,
+  harness setup state, active value layers, and route-class decisions while preserving JSON stdout purity.
 
 ---
 
