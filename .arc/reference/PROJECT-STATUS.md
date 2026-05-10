@@ -11,30 +11,29 @@ Current state at a glance. Updated when work is activated, completed, or archive
 
 **Last Completed:**
 
-- User Sync UX Polish (technical) — Collapsed `arc status` and `arc sync` onto a single five-state
-  spine, hardened the paired-push contract against cross-machine resume bugs and partial-publish
-  hazards, aligned the user-notes vocabulary across config keys and command surfaces, and pushed
-  judgment-heavy workflow decisions into pre-composed envelope strings so prose renders rather
-  than decides.
-    - Archive: `archive/2026-q2/technical/07_user-sync-ux/`
+- Interlock Release Wrappers — Foundation (WU1, technical) — Mechanical foundation for
+  `arc release commit` and `arc release push`: interlock-validating wrappers with refusal
+  taxonomy (codes 10–14), shared validation library, JSONL audit log umbrella covering both
+  wrappers and the `arc sync` retrofit, opt-in state surface, and full release-mode key
+  resolution in the session-init envelope. ADR-017 (release-wrapper trust model) and ADR-018
+  (trigger-set interlock authorization) shipped alongside.
+    - Archive: `archive/2026-q2/technical/08_release-wrappers-foundation/`
 
 **Currently Active:**
 
-- Interlock Release Wrappers — Foundation (WU1, technical) — Mechanical foundation for
-  `arc release commit` and `arc release push`: validation library, audit log, authorization
-  footer, and opt-in state surface. End-to-end usable by hand-configured early adopters before
-  WU2's ergonomics layer ships. Spec: `active/technical/prd-release-wrappers-foundation.md`;
-  task list: `active/technical/tasks-release-wrappers-foundation.md`; branch:
-  `technical/release-wrappers-foundation`.
+- Interlock Release Wrappers — Ergonomics (WU2, technical) — Planning. Adopter ergonomics
+  layer atop WU1: setup helper (`arc release setup`), per-harness workflow, status
+  integration, workflow updates, strategy doc. Plan:
+  `active/technical/plan-release-wrappers-ergonomics.md`; branch:
+  `technical/plan-release-wrappers-ergonomics` (batch branch carrying WU1 archival + WU2
+  planning).
 
 **Next Priority:**
 
-- Interlock Release Wrappers — Ergonomics (WU2, technical) — Adopter ergonomics layer atop
-  WU1: setup helper, per-harness workflow, status integration, workflow updates, strategy doc.
-  Strictly depends on WU1. Plan: `backlog/technical/plan-release-wrappers-ergonomics.md`.
-- Then: Work Organization Reform — Constitutional reform of WU lifecycle (single-branch-per-WU,
-  Conventional Branch alignment, sweep-as-you-go, group-dir convention). Upstream of the
-  parallelism trio. Plan: `backlog/technical/plan-work-organization-reform.md` (pre-PRD draft).
+- After Ergonomics: Work Organization Reform — Constitutional reform of WU lifecycle
+  (single-branch-per-WU, Conventional Branch alignment, sweep-as-you-go, group-dir
+  convention). Upstream of the parallelism trio. Plan:
+  `backlog/technical/plan-work-organization-reform.md` (pre-PRD draft).
 - Then: Parallelism trio downstream of WOR — Worktree Foundation, then Agile WU Lifecycle,
   then Concurrent Work Conventions; arc-plan Conductor parallelizable with the trio.
 - Then: ARCd Rebrand — Public product brand split (ARCd for product, ARC for
@@ -42,6 +41,39 @@ Current state at a glance. Updated when work is activated, completed, or archive
 - Then: ARC Operating Modes (ARC Lite + local/untracked).
 
 ## Completed Major Work
+
+### Interlock Release Wrappers — Foundation (May 2026)
+
+Mechanical foundation for `arc release commit` and `arc release push` — interlock-validating
+wrappers around `git commit` / `git push`, JSONL audit log shared with `arc sync`, opt-in
+state surface, and full release-mode key resolution in the session-init envelope.
+
+- `arc release commit` and `arc release push` wrap `git commit` / `git push` with mechanical
+  interlock validation, refusal taxonomy (codes 10–14), and audit-log emission per invocation
+- Validation library `src/lib/release/` (interlock-validation, destructive-flags,
+  wu-resolution, audit-log, types) shared by both wrappers and consumed by `handlers/sync.ts`
+  for the audit retrofit; `formatRefusal()` as single-source-of-truth refusal-message format
+- Append-only JSONL audit log at `.arc/user/{identity}/.internal/.audit-log.jsonl` — v1 schema
+  with discriminated `command` field (`release-commit` / `release-push` / `sync`),
+  per-command `outcome.kind`, sanitized argv (commit-message bodies redacted), resolved
+  interlock provenance, active-WU pointer; jq-parseable, grep-friendly
+- Opt-in state surface: `arc release opt-in` / `opt-out` / `status` record/report the
+  per-developer `arc.releaseEnabled` git-config flag with symmetric write semantics — opt-out
+  writes explicit `"false"` rather than unsetting, so per-developer override holds against
+  yaml-set `release.enabled: true`
+- Session-init envelope expanded with full release-mode key surface (`commit_interlock`,
+  `push_interlock`, `sync_interlock`, `notes_push`, `release.enabled`); three-tier resolution
+  (yaml → git-config → default) consistent across all five keys
+- Sync audit-log retrofit: `arc sync` joins the audit-log umbrella; refused-cell paths map
+  onto the wrapper refusal taxonomy; per-leg state compresses into `action:result[:detail]`
+  tokens
+- ADR-017 (release-wrapper trust model — defense-in-depth at harness vs. ARC layer;
+  sync-as-precedent framing; bypass-universality clause) and ADR-018 (trigger-set interlock
+  authorization — `manual < on-{primary} < on-workflow` permissiveness ladder, scope-coverage
+  authorization rule, prompt-vs-bypass UX framing)
+- Pre-commit CHECK 9 strengthened with tiered meta-reference patterns: strict tier
+  (`PRD R[0-9]+`, `[RB][0-9]+`, plus `§` followed by a literal space) applies to all staged
+  code including tests; broad tier skips test files via `hooks.test_patterns`
 
 ### User Sync UX Polish (May 2026)
 
