@@ -44,6 +44,10 @@ export {
   handleReleaseSetupPrintPatterns,
   runReleaseSetupPrintPatterns,
 } from "../handlers/release/setup/print-patterns.js";
+export {
+  handleReleaseSetupVerify,
+  runReleaseSetupVerify,
+} from "../handlers/release/setup/verify.js";
 export type {
   RunReleaseOptDeps,
   RunReleaseOptResult,
@@ -54,3 +58,7 @@ export type {
   RunReleaseSetupPrintPatternsOptions,
   RunReleaseSetupPrintPatternsResult,
 } from "../handlers/release/setup/print-patterns.js";
+export type {
+  RunReleaseSetupVerifyOptions,
+  RunReleaseSetupVerifyResult,
+} from "../handlers/release/setup/verify.js";

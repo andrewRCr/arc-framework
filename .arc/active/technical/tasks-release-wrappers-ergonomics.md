@@ -135,32 +135,25 @@ verify.
 - _Outcome:_ `arc release setup print-patterns` now provides the canonical allowlist pattern surface
   that setup/install/uninstall workflows can reference without duplicating harness-specific formats.
 
-### `[ ]` **2.2 `arc release setup verify` command (R7)**
+### `[x]` **2.2 `arc release setup verify` command (R7)**
 
 - _Goal:_ Read-only post-install verification helper. Confirms `arc.releaseEnabled` is recorded;
-  under default-prompt mode runs the behavioral test; under bypass mode reports based on opt-in
+  reports recorded harness/mode posture; under default-prompt mode prints the direct prompt-
+  observation command for the agent workflow to run; under bypass mode reports based on opt-in
   state alone. Does NOT gate opt-in (the workflow's verify step holds the safety property per PRD R7).
 
-- _Approach:_ Reads marker (R9) for harness mode; reads git-config for `arc.releaseEnabled`;
-  conditionally invokes the behavioral test via subprocess.
+    - `[x]` **2.2.a Sub-subcommand wiring + state reads**
+        - Registered `release setup verify` with optional `--harness <name>`; the handler resolves
+          ARC root, identity, release settings, and marker state before delegating to a pure renderer.
 
-    - `[ ]` **2.2.a Sub-subcommand wiring + state reads**
-        - `verify` with optional `--harness <name>` flag.
-        - Read marker via 1.2 library; read `arc.releaseEnabled` via existing config resolver.
+    - `[x]` **2.2.b Verify behavior**
+        - Added the read-only posture report: not-engaged non-error, default-prompt direct
+          prompt-observation instructions, bypass-mode skip rationale, harness filtering, all-harness
+          rendering, and marker-read error surfacing.
 
-    - `[ ]` **2.2.b Verify behavior**
-
-        Build `test-first` (one behavior at a time):
-
-        - Opt-in absent → reports "not engaged" non-error
-        - Opt-in present + harness in default-prompt mode → invokes behavioral test
-          (`arc release commit --version` subprocess), reports prompt observed vs. absent
-        - Opt-in present + harness in bypass mode → skips behavioral test; reports based on
-          opt-in state (per PRD R7)
-        - `--harness` flag overrides marker-recorded mode for the test run
-        - All-harnesses run (no `--harness`) → iterates marker entries, reports per-harness
-        - `arc release commit --version` runs without side effects (no commit created, no editor
-          opened) — verifying the test invocation is benign across the wrapper's interlock cascade
+- _Outcome:_ PRD R7/R8 and Task 2.2 now match the actual harness boundary: CLI `verify` reports
+  setup posture and the direct test command, while prompt observation remains a workflow-mediated
+  outer-harness step rather than a nested subprocess.
 
 ### `[ ]` **2.3 `arc release setup install` command (R4, R16)**
 

@@ -32,6 +32,7 @@ import {
   handleReleaseOptOut,
   handleReleasePush,
   handleReleaseSetupPrintPatterns,
+  handleReleaseSetupVerify,
   handleReleaseStatus,
 } from "./commands/release.js";
 
@@ -293,6 +294,14 @@ setupCmd
   )
   .action((opts: { harness?: string; format?: string }) => {
     handleReleaseSetupPrintPatterns(opts);
+  });
+
+setupCmd
+  .command("verify")
+  .description("Report recorded release-wrapper setup posture")
+  .option("--harness <name>", "Filter verification report to a harness")
+  .action(async (opts: { harness?: string }) => {
+    await handleReleaseSetupVerify(opts);
   });
 
 // --- Log ---

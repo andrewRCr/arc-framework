@@ -225,8 +225,12 @@ Canonical text emitter. Sub-subcommand under `arc release setup`. Behavior:
 Read-only post-install verification helper. Sub-subcommand under `arc release setup`. Behavior:
 
 - Confirms `arc.releaseEnabled` is recorded.
-- Under default-prompt mode (per marker entry or user-supplied via flag): runs a behavioral test
-  (e.g., `arc release commit --version` invocation observed for prompt presence).
+- Reads the harness/mode marker and reports each recorded harness entry, or the selected entry when
+  `--harness <name>` is provided.
+- Under default-prompt mode: reports that direct harness prompt observation is required and prints
+  the exact direct-run command (`arc release commit --version`). It does not spawn that command
+  internally, because nested CLI subprocesses cannot observe the outer agent harness permission
+  prompt boundary.
 - Under bypass mode: skips behavioral test (not meaningful); reports verify based on
   `arc.releaseEnabled` state alone.
 - Does **not** gate opt-in on its own. The setup workflow's verify step (agent-reported install
@@ -237,7 +241,9 @@ Read-only post-install verification helper. Sub-subcommand under `arc release se
 For any harness in default-prompt mode (whether reference-implementation or agent-adaptive), the
 setup workflow's verify step requires a passing behavioral test. Test methodology: agent invokes
 `arc release commit --version` (or equivalent test invocation), observes whether the harness prompts.
-Pass = no prompt observed (allowlist match working). Fail = prompt observed (allowlist mismatch).
+This invocation must happen directly through the agent harness, not as a subprocess spawned by
+`arc release setup verify`. Pass = no prompt observed (allowlist match working). Fail = prompt
+observed (allowlist mismatch).
 
 Bypass mode skips the behavioral test (no prompt to observe regardless). Under bypass, verify shape
 narrows to agent-reported install success + user confirmation (allowlist write may have been a no-op
