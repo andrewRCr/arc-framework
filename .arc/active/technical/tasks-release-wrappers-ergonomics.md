@@ -57,44 +57,27 @@ parallelize but listed in dependency-priority order.
   and workflow pushes from both session envelopes, with the resolved input rationale attached for
   debugging and future release-status rendering.
 
-### `[ ]` **1.2 Marker storage library (R9)**
+### `[x]` **1.2 Marker storage library (R9)**
 
 - _Goal:_ Per-developer per-machine marker file at `.arc/user/{identity}/.internal/release-setup.json`
   with library API for read / upsert / remove of harness entries; schema-versioned for
   forward-compatibility.
 
-- _Approach:_ Mirror `audit-log.ts` conventions — same `.internal/` directory, same identity-context
-  shape, same parent-directory creation pattern.
+    - `[x]` **1.2.a Schema types**
+        - Added `MarkerSchemaV1`, `HarnessEntry`, harness mode types, and runtime guards for marker
+          validation at read boundaries.
 
-- _Note:_ Filename `release-setup.json` (no leading dot) diverges from audit-log's `.audit-log.jsonl`
-  per PRD R9. Both live under `.internal/` (already hidden); the leading dot on the audit log was a
-  separate convention call.
+    - `[x]` **1.2.b Path resolution helpers**
+        - Added `resolveMarkerPath(ctx)` and idempotent `ensureMarkerParent(ctx)` for the
+          `.arc/user/{identity}/.internal/` marker location.
 
-    - `[ ]` **1.2.a Schema types**
-        - `MarkerSchemaV1` envelope; `HarnessEntry` per PRD R9 (`name`, `mode`, `installedAt`).
-        - Type guards for runtime validation at read boundaries.
+    - `[x]` **1.2.c Library API — read / upsert / remove**
+        - Added `readMarker`, `upsertHarness`, and `removeHarness` with empty default reads, typed
+          malformed/version/schema errors, atomic JSON writes, replacement by harness name, no-op
+          absent removal, sibling preservation, and empty-marker persistence.
 
-    - `[ ]` **1.2.b Path resolution helpers**
-        - `resolveMarkerPath(ctx)`, `ensureMarkerParent(ctx)` mirroring `audit-log.ts` shape.
-
-    - `[ ]` **1.2.c Library API — read / upsert / remove**
-
-        Build `test-first` (one behavior at a time):
-
-        - `readMarker` on missing file → empty default `{schemaVersion: 1, harnesses: []}`
-        - `readMarker` on null identity → empty default (no crash)
-        - `readMarker` on valid file → parsed marker
-        - `readMarker` on malformed JSON → typed error, not crash
-        - `readMarker` on schema-version mismatch → typed error with version surfaced
-        - `upsertHarness` appends new entry (no name collision)
-        - `upsertHarness` replaces existing entry (name match, all fields updated)
-        - `removeHarness` removes by name; preserves siblings
-        - `removeHarness` on already-absent name → no-op success
-        - Empty `harnesses` array post-remove preserves `{schemaVersion: 1, harnesses: []}`
-          (per PRD R5)
-        - `schemaVersion` preserved on every write
-        - Missing parent directory created on first write
-        - Concurrent-write safety: writes are atomic at the fs level (write-temp + rename)
+- _Outcome:_ `setup-marker.ts` now mirrors the release audit-log storage convention while using the shared
+  atomic JSON writer for schema-v1 marker persistence under `.arc/user/{identity}/.internal/`.
 
 ### `[ ]` **1.3 `cli.ts` description-string accuracy sweep (R15)**
 
