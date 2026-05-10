@@ -31,6 +31,7 @@ import {
   handleReleaseOptIn,
   handleReleaseOptOut,
   handleReleasePush,
+  handleReleaseSetupInstall,
   handleReleaseSetupPrintPatterns,
   handleReleaseSetupVerify,
   handleReleaseStatus,
@@ -282,6 +283,18 @@ releaseCmd
 const setupCmd = releaseCmd
   .command("setup")
   .description("Set up release-wrapper harness integration");
+
+setupCmd
+  .command("install")
+  .description("Set up release-wrapper harness integration")
+  .option("--harness <name>", "Harness name for single-harness install flow")
+  .addOption(
+    new Option("--mode <mode>", "Harness mode")
+      .choices(["default-prompt", "bypass"]),
+  )
+  .action(async (opts: { harness?: string; mode?: string }) => {
+    await handleReleaseSetupInstall(opts);
+  });
 
 setupCmd
   .command("print-patterns")

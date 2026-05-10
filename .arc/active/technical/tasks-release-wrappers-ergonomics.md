@@ -173,17 +173,12 @@ verify.
   agent-reported install success, prompts user trust-model acknowledgment, then transitions state.
   Not a literal subprocess invocation of the workflow doc — workflow execution is agent-mediated.
 
-    - `[ ]` **2.3.a State-read shell + idempotency four-way branch**
+    - `[x]` **2.3.a State-read shell + idempotency four-way branch**
 
-        Build `test-first` (one behavior at a time):
-
-        - Fresh state (no opt-in, empty marker) → proceeds to single-harness install flow
-        - Existing opt-in + non-empty marker → surfaces idempotency prompt with current state
-        - Idempotency choice `re-verify` → reruns behavioral tests against current entries;
-          refreshes `installedAt` on success
-        - Idempotency choice `update markers` → re-detects modes for installed harnesses
-        - Idempotency choice `add harness` → install flow only for harnesses not in marker
-        - Idempotency choice `exit` → no-op acknowledged
+        - Added `release setup install` shell routing: fresh state proceeds to the single-harness
+          flow, existing installs surface recorded harness state plus the four idempotency choices,
+          and `re-verify` / `update markers` route to workflow-mediated follow-up paths rather than
+          nested subprocess prompt observation.
 
     - `[ ]` **2.3.b Single-harness install flow + trust-model acknowledgment**
 

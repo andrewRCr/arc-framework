@@ -184,10 +184,11 @@ Orchestration porcelain (full guided flow). Sub-subcommand under `arc release se
   user-confirm.
 - Idempotent against existing opt-in state: when invoked with opt-in already recorded, surfaces
   current state (detected harnesses, modes, last-install timestamp) and offers a four-way choice:
-    - **Re-verify** — rerun behavioral tests against current marker entries; refresh
-      `installedAt` timestamps on success.
-    - **Update markers** — re-detect modes for already-installed harnesses (handles mode-flip on
-      developer machine since install).
+    - **Re-verify** — rerun the workflow-mediated verify path against current marker entries.
+      Default-prompt prompt observation happens as a direct outer-harness invocation, not a nested
+      CLI subprocess; `installedAt` refresh happens only after workflow-confirmed success.
+    - **Update markers** — re-detect modes for already-installed harnesses through the
+      workflow-mediated mode-detection path (handles mode-flip on developer machine since install).
     - **Add harness** — run install flow only for harnesses not yet in the marker.
     - **Exit** — no-op acknowledged.
 - On partial-success in multi-harness flows (R5 specifies the failure surface): workflow surfaces
