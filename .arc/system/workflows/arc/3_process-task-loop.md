@@ -204,8 +204,9 @@ arc:
   4. Await user instructions on how to proceed.
      User may choose to commit changes or request modifications. Under
      `session.commit_interlock: manual`, task approval advances work only; committing remains an
-     explicit user-invoked action. Under `on-task-approval`, the commit-interlock releases on task
-     approval per [Configurability Architecture Strategy][config-arch] § Session interlocks; on
+     explicit user-invoked action. Under `on-task-approval` (or `on-workflow`, which subsumes it),
+     the commit-interlock releases on task approval per
+     [Configurability Architecture Strategy][config-arch] § Session interlocks; on
      approval signal, invoke the [arc-commit skill][arc-commit-skill] — it owns the
      simple-vs-complex path decision and loads the format methods. After the commit lands, start
      the bundle's named target immediately without re-prompting. Complexity criteria bump to

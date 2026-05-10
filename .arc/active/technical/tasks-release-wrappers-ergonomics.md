@@ -465,7 +465,7 @@ conventions throughout).
     - `[x]` **5.3.j `project/address-pr-review.md` (R12.9)**
         - Ceremony push (L149) → `workflowPush` + inline prose.
 
-### `[ ]` **5.4 Permissiveness-ladder fixup for non-routing interlock gates**
+### `[x]` **5.4 Permissiveness-ladder fixup for non-routing interlock gates**
 
 - _Goal:_ Workflow text and code that gate behavior on raw interlock values via strict equality
   against the lower-permissiveness tier (`on-task-approval`, `on-sync`) extend to also accept the
@@ -473,11 +473,17 @@ conventions throughout).
   `on-workflow` falls through to default-conservative at sites the routing primitive doesn't
   cover.
 
-- _Approach:_ Mechanical OR-extension per site. Pattern reference: `recommended-summary-line.ts`
-  already implements the OR-shape for sync_interlock
-  (`syncInterlock.value === "on-handoff" || === "on-workflow"`); mirror across remaining sites.
-  Routing primitive (Task 1.1) handles the ladder internally — this task targets surfaces upstream
-  of routing (prompt shape, deferred-review default, sync push-leg trigger).
+- _Outcome:_ Three workflow-side edits in `process-task-loop.md` (5.4.a prompt-prefix selector;
+  5.4.b deferred-review safe-accumulation; 5.4.d-found L207 commit-interlock release
+  description) — each extended to set notation `∈ {on-task-approval, on-workflow}` or
+  equivalent OR-prose. Zero src-side edits required: 5.4.c found push-leg gating via
+  `pushInterlock === "manual"` (negative check, already subsumes both tiers); 5.4.d source
+  audit surfaced no remaining strict-equality sites needing extension (matches were type
+  definitions, defaults, legacy migration, or `notes_push` — different config key). Three
+  out-of-scope strategy-doc gaps surfaced by 5.4.d (`strategy-session-operations.md` L504 +
+  L510, `strategy-team-coordination.md` L182) routed to 6.3.b / 6.3.c task expansion per
+  user direction (strategies are reference material; cross-reference / language-update touches
+  belong in Phase 6).
 
     - `[x]` **5.4.a `process-task-loop.md` prompt-prefix selector**
         - L121 currently fires `Commit and proceed` only under
@@ -488,16 +494,28 @@ conventions throughout).
         - L155 currently safe-accumulates only under `on-task-approval`.
         - Extend: also under `on-workflow`.
 
-    - `[ ]` **5.4.c Sync push-leg trigger**
+    - `[x]` **5.4.c Sync push-leg trigger**
         - Audit `lib/sync/` and any sync-workflow text for strict
           `pushInterlock === "on-sync"` checks gating the push leg.
         - Extend: also accept `on-workflow` per the ladder.
+        - _Outcome:_ Zero src-side edits required. `handlers/sync.ts` (no `lib/sync/` dir
+          exists; sync logic lives in the handler) gates push-leg behavior on
+          `pushInterlock === "manual"` (negative check at L207, L227) — already subsumes both
+          `on-sync` and `on-workflow`. The hypothesized strict equality on `"on-sync"` is
+          absent; the routing primitive (Task 1.1) handles per-class wrapper-vs-raw separately.
 
-    - `[ ]` **5.4.d Audit sweep**
+    - `[x]` **5.4.d Audit sweep**
         - Grep `.ts` and `.md` under `packages/arc-framework/src/` and `.arc/system/workflows/`
           for strict equality against `"on-task-approval"`, `"on-sync"`, `"on-handoff"` in
           interlock-value contexts. Extend any missed sites; document findings in completion
           notes.
+        - _Outcome:_ Source-side audit clean — strict-equality sites (`routing.ts:52`,
+          `interlock-validation.ts:96`) already use OR-shape including `on-workflow`;
+          remaining matches are type definitions, defaults, legacy migrations, and
+          `notes_push` policy (different config key, no `on-workflow` tier). Workflow-side
+          audit found one additional site: `process-task-loop.md` L207 commit-interlock
+          release description — extended to also accept `on-workflow`. Out-of-scope strategy
+          docs surfaced three gaps routed to 6.3.b / 6.3.c expansion (see those subtasks).
 
 - _Acceptance:_ With `commit_interlock: on-workflow` (or `push_interlock: on-workflow`), behavior
   at non-routing surfaces is at-least-as-permissive as the lower tier — no autonomy regression
@@ -603,11 +621,22 @@ _Design decisions:_ Strategy doc lands first — initial-setup section (6.2) and
         - Update for the harness/mode marker (R9) as a per-developer per-machine state surface.
         - Note R11's deferral of routing-shift orientation surfacing to
           `plan-handoff-optimization.md` so the strategy doc carries the cross-WU reference.
+        - **Permissiveness-ladder gap-fix** (surfaced by Task 5.4.d audit): extend two outdated
+          tier references to include `on-workflow` per the ADR-018 ladder:
+            - L504 (contributor handoff cadence) — `whether session.commit_interlock is manual or
+              on-task-approval` → add `on-workflow` to the non-manual set.
+            - L510 (Deferred-Review × Commit-Interlock Release) — `under
+              session.commit_interlock: on-task-approval` → set notation
+              `∈ {on-task-approval, on-workflow}`, mirroring process-task-loop.md L155 (Task 5.4.b).
 
     - `[ ]` **6.3.c `strategy-team-coordination.md` (R14.4)**
         - Per-developer asymmetric setup acknowledgment — multi-developer repos with diverging
           setup state per developer; document as expected, parallel to existing per-developer
           interlock-setting variation.
+        - **Permissiveness-ladder gap-fix** (surfaced by Task 5.4.d audit): extend L182
+          (task-ownership behavior under commit-on-task-approval) to also apply under
+          `on-workflow` per the ADR-018 ladder. L193-194 and L201-203 already correctly
+          mention `on-workflow`; only L182 needs the extension.
 
     - `[ ]` **6.3.d `strategy-workflow-authoring.md` (R14.5)**
         - Workflow-author guidance for routing-class declaration shape — when to class-tag a fire
