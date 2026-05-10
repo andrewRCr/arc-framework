@@ -49,22 +49,35 @@ parallelize but listed in dependency-priority order.
         - `releaseEnabled: true` + `commit_interlock: on-workflow` → `taskCommit: wrapper`,
           `workflowCommit: wrapper`
         - `releaseEnabled: true` + `push_interlock: manual` → `workflowPush: raw`
-        - `releaseEnabled: true` + `push_interlock: on-handoff` → `workflowPush: raw`
+        - `releaseEnabled: true` + `push_interlock: on-sync` → `workflowPush: raw`
         - `releaseEnabled: true` + `push_interlock: on-workflow` → `workflowPush: wrapper`
         - `rationale` carries inputs verbatim across all combinations
         - Unknown interlock value (forward-compat) → safe-default `raw` for that class
 
-    - `[ ]` **1.1.c Wire into session-init envelope**
-        - Resolver runs after `resolveAllSettings`; slot lands at envelope root alongside
-          `extensions`, `config`, `active`, etc.
-        - Probe-failure fallback: slot omitted on probe failure (consumers handle missing-slot via
-          raw-default per canonical rule R12.2).
+    - `[ ]` **1.1.c Lift `resolveAllSettings` to handler scope**
+        - _Goal:_ `resolveAllSettings` runs once at session-init / session-handoff handler scope;
+          `config` probe and `releaseRouting` resolution consume the shared result.
+        - _Rationale:_ Existing handler runs probes independently in parallel; today
+          `resolveAllSettings` is buried inside `runConfigSessionInitStatus`. Routing needs the
+          same resolved values without paying a second spawn round-trip — particularly load-bearing
+          for the handoff-optimization "cheap recompute" path that follows in a later WU.
+        - Restructure: lift the call out of the `config` probe; pass the resolved result into the
+          probe constructors that need it.
+        - Session-handoff handler currently has no `resolveAllSettings` call (only narrow
+          `resolveSyncInterlock`); the lift adds one to handoff's handler scope as well.
+        - No public-API change; internal-handler-tier refactor only.
+
+    - `[ ]` **1.1.d Wire `releaseRouting` slot into session-init envelope**
+        - Slot lands at envelope root alongside `extensions`, `config`, `active`, etc.
+        - Pure derivation over the lifted resolved values from 1.1.c — no additional I/O.
+        - Probe-failure path: slot present with `{ok: false, error: ...}` per existing slot
+          convention; consumers fall back to `raw` per canonical rule R12.2.
         - Integration test: full session-init envelope contains expected `releaseRouting` shape
           across at least two config combinations (default-config + full-opt-in).
 
-    - `[ ]` **1.1.d Wire into session-handoff envelope**
-        - Same resolution + slot placement as 1.1.c, in the handoff probe shape.
-        - Integration test mirrors 1.1.c shape.
+    - `[ ]` **1.1.e Wire `releaseRouting` slot into session-handoff envelope**
+        - Same shape and resolution as 1.1.d, in the handoff probe shape.
+        - Integration test mirrors 1.1.d shape.
 
 ### `[ ]` **1.2 Marker storage library (R9)**
 
@@ -74,6 +87,10 @@ parallelize but listed in dependency-priority order.
 
 - _Approach:_ Mirror `audit-log.ts` conventions — same `.internal/` directory, same identity-context
   shape, same parent-directory creation pattern.
+
+- _Note:_ Filename `release-setup.json` (no leading dot) diverges from audit-log's `.audit-log.jsonl`
+  per PRD R9. Both live under `.internal/` (already hidden); the leading dot on the audit log was a
+  separate convention call.
 
     - `[ ]` **1.2.a Schema types**
         - `MarkerSchemaV1` envelope; `HarnessEntry` per PRD R9 (`name`, `mode`, `installedAt`).
@@ -87,6 +104,7 @@ parallelize but listed in dependency-priority order.
         Build `test-first` (one behavior at a time):
 
         - `readMarker` on missing file → empty default `{schemaVersion: 1, harnesses: []}`
+        - `readMarker` on null identity → empty default (no crash)
         - `readMarker` on valid file → parsed marker
         - `readMarker` on malformed JSON → typed error, not crash
         - `readMarker` on schema-version mismatch → typed error with version surfaced
@@ -98,16 +116,18 @@ parallelize but listed in dependency-priority order.
           (per PRD R5)
         - `schemaVersion` preserved on every write
         - Missing parent directory created on first write
-        - Concurrent-write safety: writes are atomic at the fs level (write-then-rename pattern
-          per audit-log precedent)
+        - Concurrent-write safety: writes are atomic at the fs level (write-temp + rename)
 
 ### `[ ]` **1.3 `cli.ts` description-string accuracy sweep (R15)**
 
-- _Goal:_ Release-subcommand description strings in `cli.ts:226+` reference the actual storage
+- _Goal:_ Release-subcommand description strings in `cli.ts:256-263` reference the actual storage
   shape WU1 shipped — `arc.releaseEnabled` (per-developer git-config key) or `release.enabled`
   (yaml key) per context.
 
-- _Note:_ Doc-comment and Commander `.description()` text only; no code-flow change.
+- _Note:_ Doc-comment and Commander `.description()` text only; no code-flow change. Inaccurate
+  strings live at `cli.ts:256` (opt-in description) and `cli.ts:263` (opt-out description); both
+  currently say `arc.release.enabled` (with dot) where the handler actually writes
+  `arc.releaseEnabled` (camelCase, per `record.ts`).
 
 ---
 
@@ -122,8 +142,20 @@ _Design decisions:_ Order runs simplest → most complex within the phase — `p
 the bulk (idempotency four-way choice, multi-harness partial-success); `uninstall` mirrors
 `install` minus the install logic. R16 (`--json` for install/uninstall) and R17 (`--format=raw`
 for print-patterns) fold into their parent commands rather than standing as separate parents.
-Sub-subcommands wire as `releaseCmd.command("setup").command("...")`. Handlers live at
-`packages/arc-framework/src/handlers/release/setup/`.
+Handlers live at `packages/arc-framework/src/handlers/release/setup/`.
+
+Sub-subcommand parent registration: Task 2.1.a registers
+`const setupCmd = releaseCmd.command("setup")...` once (with parent description text covering
+the subcommand tree generally); subsequent subcommands (2.2, 2.3, 2.4) attach via
+`setupCmd.command(...)`. This is the first 3-deep subcommand in `cli.ts` — no precedent to copy
+from.
+
+Mode/harness input shape: `--harness <name>` is **required** on install (single-harness dispatch
+path) and uninstall — single harness per invocation, multi-harness orchestration runs agent-side
+via repeated invocation. `--harness <name>` is **optional** on verify (read-only; absent →
+all-harnesses iteration). `--mode <default-prompt|bypass>` is required on install's
+single-harness dispatch (fresh install or idempotency `add harness`); not used on uninstall or
+verify.
 
 **Strategies:** strategy-testing-methodology.md
 
@@ -153,6 +185,8 @@ Sub-subcommands wire as `releaseCmd.command("setup").command("...")`. Handlers l
         - Unknown `--harness foo` → falls through to abstract contract with warning to stderr
           surfacing the unknown name
         - `--format=raw` strips harness-specific wrapping; emits only canonical bash-pattern strings
+        - `--format=raw` with no `--harness` → emits canonical bash-pattern strings
+          harness-agnostic (no wrapping; same pattern set the per-harness formatters wrap)
 
 ### `[ ]` **2.2 `arc release setup verify` command (R7)**
 
@@ -178,6 +212,8 @@ Sub-subcommands wire as `releaseCmd.command("setup").command("...")`. Handlers l
           opt-in state (per PRD R7)
         - `--harness` flag overrides marker-recorded mode for the test run
         - All-harnesses run (no `--harness`) → iterates marker entries, reports per-harness
+        - `arc release commit --version` runs without side effects (no commit created, no editor
+          opened) — verifying the test invocation is benign across the wrapper's interlock cascade
 
 ### `[ ]` **2.3 `arc release setup install` command (R4, R16)**
 
@@ -189,7 +225,9 @@ Sub-subcommands wire as `releaseCmd.command("setup").command("...")`. Handlers l
 - _Approach:_ The CLI is the state-management shell; the workflow doc (R1) is the user-facing
   ceremony. Install delegates the harness write to the agent (workflow-mediated); install owns the
   state transitions (marker + git-config flag) at workflow's verify-pass and user-confirm
-  signals.
+  signals. Inputs: `--harness <name>` (required for non-idempotency paths) and
+  `--mode <default-prompt|bypass>` (required when writing a new marker entry); single harness per
+  invocation. Multi-harness orchestration runs agent-side via repeated invocation per 2.3.c.
 
 - _Note:_ "Drives the workflow" means surfaces the contract elements the agent reads, accepts
   agent-reported install success, prompts user trust-model acknowledgment, then transitions state.
@@ -211,25 +249,28 @@ Sub-subcommands wire as `releaseCmd.command("setup").command("...")`. Handlers l
 
         Build `test-first` (one behavior at a time):
 
-        - Mode-detection per PRD R3 three-tier ladder (delegated to workflow doc; CLI surfaces
-          tier transitions)
-        - Default-prompt mode → trust-shift acknowledgment prompt (text variant from
+        - On the single-harness dispatch path (fresh install or idempotency `add harness`):
+          missing `--harness` or `--mode` exits with structured error
+        - `--mode default-prompt` → trust-shift acknowledgment prompt (text variant from
           `notes-release-wrappers-ergonomics.md` § Trust-Model Acknowledgment Text Variants)
-        - Bypass mode → audit-only acknowledgment prompt (same notes section)
+        - `--mode bypass` → audit-only acknowledgment prompt (same notes section)
         - User accepts → proceeds to harness write (workflow-driven) → behavioral test (when
           default-prompt) → marker upsert → opt-in record
         - User declines → aborts with no state change
 
-    - `[ ]` **2.3.c Multi-harness orchestration + partial-success**
+    - `[ ]` **2.3.c Marker behavior under agent-side multi-harness orchestration**
 
         Build `test-first` (one behavior at a time):
 
-        - Multi-harness install enumerates known reference-implementation harnesses present
-        - All-success path → marker entries written for each; opt-in recorded once
-        - Partial-failure path → user-choice prompt (record verified only / retry failed / abort)
-        - Partial accept → marker entries for verified harnesses only; opt-in recorded
-        - Partial retry → re-runs failed harness in isolation; combines outcome
-        - Abort → no state change despite partial verifies
+        - Multi-harness install runs agent-side: agent loops `arc release setup install
+          --harness <name> --mode <mode>` per harness; CLI per-invocation is independent
+        - Marker reflects partial state mid-loop: entries for harnesses installed so far;
+          subsequent invocations append/upsert without disturbing siblings
+        - Opt-in flag (`arc.releaseEnabled`) set on first successful install; subsequent
+          successful installs are idempotent on the flag (no re-write)
+        - Partial-success user-choice surface (record partial / retry / abort) lives in the
+          workflow doc (Phase 4) — CLI exposes the marker read state that the workflow
+          consults; CLI doesn't enumerate harnesses or coordinate the loop
 
     - `[ ]` **2.3.d `--json` mode (R16)**
         - `schemaVersion: 1` envelope; per-harness install results, opt-in state post-op,
@@ -242,7 +283,11 @@ Sub-subcommands wire as `releaseCmd.command("setup").command("...")`. Handlers l
   set; conservative on user-curated drift); marker entry removed; opt-out flag recorded via
   WU1's `arc release opt-out` primitive. Idempotent.
 
-- _Approach:_ Mirror install's shell shape; replace install logic with cleanup logic.
+- _Approach:_ Mirror install's shell shape; replace install logic with cleanup logic. Inputs:
+  `--harness <name>` (required); single harness per invocation. Multi-harness orchestration runs
+  agent-side via repeated invocation, mirroring install. Canonical pattern set sourced from
+  `arc release setup print-patterns --harness <name>` so install and uninstall reference the same
+  pattern source — drift between the two paths is structurally prevented.
 
     - `[ ]` **2.4.a State-read shell + idempotency**
         - Read marker + opt-in state.
@@ -252,30 +297,37 @@ Sub-subcommands wire as `releaseCmd.command("setup").command("...")`. Handlers l
 
         Build `test-first` (one behavior at a time):
 
-        - Single-harness uninstall: agent removes canonical patterns from harness file;
-          marker entry removed; opt-out recorded
-        - Multi-harness uninstall: iterates marker; failures surface user-choice (continue
-          partial / retry / abort)
+        - Required-flag check: missing `--harness` exits with structured error before any
+          state read
+        - Single-harness uninstall: agent removes canonical patterns (sourced from
+          `print-patterns`) from harness file; marker entry removed; opt-out recorded
         - Conservative cleanup: agent refuses to touch user-curated entries that drift from
           canonical pattern set (workflow-driven; CLI surfaces the refusal verbatim)
         - Empty `harnesses` array post-uninstall → marker preserved as
           `{schemaVersion: 1, harnesses: []}` per PRD R5
+        - Opt-out flag (`arc.releaseEnabled = false`) recorded only when removing the last
+          marker entry; uninstalls that leave siblings preserve the existing flag state
 
     - `[ ]` **2.4.c `--json` mode (R16)**
         - Same envelope shape as 2.3.d, mirrored for uninstall result fields.
 
 ---
 
-## **Phase 3:** Posture surfacing — `arc release status` extension + session-init orientation
+## **Phase 3:** Posture surfacing — `arc release status` extension
 
-_Purpose:_ Make installed setup observable end-to-end. Extends `arc release status` to surface
-harnesses, active value layers, AND resolved routing per class (R10). Adds session-init
-orientation surface for engaged-state notice (R11).
+_Purpose:_ Make installed setup observable on demand via `arc release status` — harnesses, active
+value layers, AND resolved routing per class (R10).
 
 _Design decisions:_ Sequenced before the setup workflow (Phase 4) so the workflow's verify step
 has a complete `arc release status` to reference. Status envelope bumps `schemaVersion 1 → 2`
 (additive). Routing slot already computed by Phase 1's primitive (R12.1) — Phase 3 just renders
-it. Session-init orientation reads the routing slot + marker to surface mode-aware text per PRD R11.
+it.
+
+PRD R11 (session-init orientation surface) deferred to `plan-handoff-optimization.md` —
+always-on engaged-state line dropped as configuration-state noise (excluded by orientation
+discipline at `session-init.md` Step 6); legitimate routing-shift posture-change surface
+absorbed into handoff-opt's `releaseRoutingAtLastHandoff` infrastructure (Approach item 5). No
+session-init orientation work in this WU.
 
 ### `[ ]` **3.1 `arc release status` extension (R10)**
 
@@ -309,7 +361,13 @@ it. Session-init orientation reads the routing slot + marker to surface mode-awa
           notes example
 
     - `[ ]` **3.1.c Routing rendering**
-        - JSON: `releaseRouting` field at envelope root (mirrors session-init slot shape).
+        - JSON: `releaseRouting` field at envelope root with flat shape —
+          `{taskCommit, workflowCommit, workflowPush, rationale}` directly, no `{ok, value}`
+          wrapper. Symmetric with the existing `arc release status --json` envelope (where
+          `releaseEnabled`, `commitInterlock`, etc. are flat). Differs from session-init's
+          `releaseRouting` slot shape (which uses `{ok, value}` per probe-orchestration
+          convention); status command computes routing inline from already-resolved settings —
+          no probe-failure path to surface.
         - Human-readable: `release_routing` block after interlock block — three lines, one per
           class, format `class_name: wrapper|raw`.
 
@@ -321,31 +379,6 @@ it. Session-init orientation reads the routing slot + marker to surface mode-awa
           exactly
         - Bypass mode → output matches notes § Status Surface Examples exactly
         - Opt-in not recorded → `harnesses: []`, `active_value_layers: none`, routing all `raw`
-
-### `[ ]` **3.2 Session-init orientation surface (R11)**
-
-- _Goal:_ Session-init orientation includes a one-line note when release wrapper is engaged
-  (`release.enabled === true`); mode-aware text per PRD R11. Silent when not engaged.
-
-- _Approach:_ Orientation rendering reads the routing slot's `rationale.releaseEnabled` plus the
-  marker (for mode awareness). Doc edit to `session-init.md` Step 6 to surface the line.
-
-    - `[ ]` **3.2.a Marker-aware orientation field on probe envelope**
-        - `arc status --session-init --json` envelope adds a marker-summary field (or extends an
-          existing slot) so orientation has mode info without re-reading the file from the
-          workflow doc.
-        - Build `test-first`: empty marker → field absent / null; populated marker → per-harness
-          mode summary present.
-
-    - `[ ]` **3.2.b Orientation doc edit + mode-aware text**
-        - `session-init.md` Step 6 grows a conditional one-line surface above
-          `**Active work state:**` when `release.enabled === true`.
-        - Mode-aware text per PRD R11:
-            - All-default-prompt → `"Release wrapper engaged — ARC sole authorization layer for
-              matching invocations."`
-            - All-bypass → `"Release wrapper engaged — validation + audit layer (no harness-prompt
-              bypass under bypass mode)."`
-            - Mixed-mode → composite line naming which harnesses fall under which layer.
 
 ---
 
@@ -366,8 +399,9 @@ the strategy doc. Agent-adaptive path framed as a universal route, not a fallbac
 - _Goal:_ Workflow file delivers the six-element contract, the three-tier mode-detection ladder,
   per-harness reference notes for Claude Code and Codex CLI, agent-adaptive framing for other
   harnesses, mode-conditioned trust-model acknowledgment, mandatory behavioral-test verify
-  protocol, state-recording protocol, and rollback protocol — invokable standalone via
-  `arc release setup install` and as a step in `01_verify-and-configure.md` (R2).
+  protocol, state-recording protocol, and rollback protocol — applicable when the agent drives
+  release-wrapper setup, either standalone (user invokes `arc release setup install`) or as a
+  step within `01_verify-and-configure.md` (R2).
 
 - _Approach:_ Build the workflow from the contract outward. The six elements are the spine;
   everything else (tiers, per-harness notes, acknowledgment, verify) hangs off the spine. Frontmatter
@@ -409,8 +443,10 @@ the strategy doc. Agent-adaptive path framed as a universal route, not a fallbac
         - Default-prompt branch — trust-shift framing (drawn from notes § Trust-Model
           Acknowledgment Text Variants).
         - Bypass branch — audit-only framing (same notes section).
-        - Each branch culminates in explicit accept prompt; rejection path documents
-          `arc release setup install --abort` equivalent.
+        - Each branch culminates in explicit accept prompt; rejection path documents how the
+          agent backs out of the workflow without recording state — declining the trust-model
+          prompt before any `arc release setup install` invocation, or selecting `exit` from
+          the four-way idempotency choice. No state to roll back since none was written.
 
     - `[ ]` **4.1.g Behavioral-test verify protocol (R8)**
         - Default-prompt mode → mandatory `arc release commit --version` invocation; pass = no
@@ -420,10 +456,14 @@ the strategy doc. Agent-adaptive path framed as a universal route, not a fallbac
         - Failure path → loop back to remediation, do not record opt-in.
 
     - `[ ]` **4.1.h State-recording + rollback protocol**
-        - State recording: agent calls `arc release setup install` to write opt-in flag + marker
-          entry on verify-pass + user-confirm.
-        - Rollback: agent calls `arc release setup uninstall` to remove harness entries + marker
-          entry + opt-out flag.
+        - State recording: agent calls `arc release setup install --harness <name> --mode <mode>`
+          to upsert the marker entry on verify-pass + user-confirm. Opt-in flag
+          (`arc.releaseEnabled = true`) is written on the first successful install; subsequent
+          installs are flag-idempotent.
+        - Rollback: agent calls `arc release setup uninstall --harness <name>` per harness to
+          remove the marker entry (canonical patterns sourced from `print-patterns`). Opt-out
+          flag (`arc.releaseEnabled = false`) flips only when removing the last marker entry;
+          uninstalls that leave siblings preserve the engaged state for those siblings.
 
 ---
 
@@ -442,6 +482,11 @@ The verb-elision shape is documented in `notes-release-wrappers-ergonomics.md` a
 workflow-author guidance — for commits, message body in `text` codeblock with no verb prefix; for
 pushes, inline prose with class tag and args.
 
+Class-tag syntax: PRD R12 specifies "backtick-wrapped class tag at the directive line" but
+doesn't pin exact placement (tag at end of sentence vs. trailing annotation vs. fence-adjacent).
+Implementer settles the syntax shape once on the first fire site (5.3.b or 5.3.c), then applies
+consistently across all subsequent sites for visual coherence.
+
 **Strategies:** strategy-task-list-formatting.md (no impact, but workflow markdown follows ARC
 conventions throughout).
 
@@ -449,7 +494,7 @@ conventions throughout).
 
 - _Goal:_ DEV-RULES.ARC § Commit Discipline gains a new sub-section
   `Interlock release-wrapper routing` (with `[configurable]` marker) carrying the rule, the
-  three-class table, the `raw` fallback (including missing-slot fallback for older CLI versions),
+  three-class table, the `raw` fallback (probe-failure, missing-class, unrecognized-value arms),
   and the destructive-flag carve-out — self-contained without external lookup.
 
 - _Note:_ Section is a sibling of existing § Commit Discipline sub-sections (Commit control,
@@ -479,7 +524,10 @@ conventions throughout).
         - Audit trail only; mark `[x]` after manual inspection.
 
     - `[ ]` **5.3.b `session-handoff.md` (R12.5)**
-        - Handoff push step → `workflowPush` class tag + verb-elided inline prose.
+        - Handoff ceremony commit (L130, `chore(status): handoff`) → `workflowCommit` +
+          `text` codeblock with message body.
+        - No push fire site: handoff push is delegated to `arc sync` (orchestrator at
+          L389-413), which PRD R12 carves out from routing scope.
 
     - `[ ]` **5.3.c `activate-work-unit.md` (R12.6)**
         - Activation commit (L197) → `workflowCommit` + `text` codeblock with message body.
@@ -490,6 +538,9 @@ conventions throughout).
         - Planning-branch activation push (L137) → `workflowPush` + inline prose.
         - Destructive `git push origin --delete` (L56, L76) and rename push-then-delete pattern
           (L75-76) — no class tag; literal preserved.
+        - _Note:_ L75 push (`--set-upstream origin {new}`) is non-destructive on its own; stays
+          literal as part of the rename idiom paired with L76's destructive delete. Splitting
+          would break the prose-flow coupling.
 
     - `[ ]` **5.3.e `integrate-work-unit.md` (R12.8)**
         - Two ceremony pushes (L290 with `-u`, L335 bare) → `workflowPush` + inline prose.
@@ -535,6 +586,12 @@ _Design decisions:_ Strategy doc lands first — initial-setup section (6.2) and
   carrying trust-model framing across modes, when-to-use / when-not-to-use guidance, per-harness
   setup notes (reference-implementation), agent-adaptive path framing, and acknowledgment of
   user-level safety-gate hooks as a parallel layer.
+
+- _Note:_ Strategy ships to adopters via `npx arc update` (packaged from `strategies/arc/`). Per
+  DEV-RULES.PROJECT § Architecture Documentation, ADR citations are forbidden in adopter-facing
+  surfaces. PRD and notes contain ADR-017 / ADR-018 references — translate to operational framing
+  when authoring (e.g., "both wrapper value layers — validation + audit (unconditional) and
+  harness-prompt bypass (conditional)" instead of "per ADR-017").
 
 - _Approach:_ Lead with the unconditional layer (validation + audit) as the universal benefit per
   notes § Strategy Doc Framing Notes. Position harness-prompt bypass as additional benefit for
@@ -608,8 +665,9 @@ _Design decisions:_ Strategy doc lands first — initial-setup section (6.2) and
           configurability surface (`release.enabled` × interlock values × routing).
 
     - `[ ]` **6.3.b `strategy-session-operations.md` (R14.3)**
-        - Update for session-init orientation surfacing (engaged-state note per R11) and the
-          harness/mode marker as part of session-init posture reading.
+        - Update for the harness/mode marker (R9) as a per-developer per-machine state surface.
+        - Note R11's deferral of routing-shift orientation surfacing to
+          `plan-handoff-optimization.md` so the strategy doc carries the cross-WU reference.
 
     - `[ ]` **6.3.c `strategy-team-coordination.md` (R14.4)**
         - Per-developer asymmetric setup acknowledgment — multi-developer repos with diverging
@@ -625,40 +683,44 @@ _Design decisions:_ Strategy doc lands first — initial-setup section (6.2) and
 
 ## **Phase 7:** Empirical verification + ADR-017 amendment
 
-_Purpose:_ Run the deferred empirical surface (WU1 success criteria 5/6) using project-scoped
-mode override; optionally amend ADR-017 if integration surfaces broader insights worth bundling.
+_Purpose:_ Run the deferred empirical surface (WU1 success criteria 5/6) live at WU verification;
+optionally amend ADR-017 if integration surfaces broader insights worth bundling.
 
-_Design decisions:_ Test tier (integration vs. e2e) determined here per testing-methodology
-strategy — leaning e2e since the test exercises the full toolchain (CLI + harness + git). Codex
-matcher boundary re-verification pins specific codex-cli version at impl-time. R18 is P2 / nice-
-to-have — explicit "skip unless..." gate; can be marked `[~]` Superseded if scope doesn't warrant.
+_Design decisions:_ Empirical verification runs **live, in-session** at WU completion — maintainer
+performs the steps on their machine, reports observations verbally, outcomes captured in WU
+completion notes. No persistent test artifact, no `__tests__/` test surface. Rationale: this is
+once-and-done verification per the WU's lifecycle; building automation infrastructure for a single
+maintainer-eyes-on test would be over-investment for the cadence. PRD R13's "test surface lives in
+`packages/arc-framework/__tests__/`" framing is amended to "live verification + completion-notes
+capture" accordingly.
 
-**Strategies:** strategy-testing-methodology.md
+R18 is P2 / nice-to-have — explicit "skip unless..." gate; can be marked `[~]` Superseded if scope
+doesn't warrant.
 
-### `[ ]` **7.1 Empirical-test surface (R13)**
+### `[ ]` **7.1 Live empirical verification (R13)**
 
-- _Goal:_ Cross-mode empirical tests verify (a) `arc release commit --version` runs no-prompt
-  under installed allowlist with project-scoped default-mode override on a maintainer machine
-  with global bypass mode, and (b) Codex matcher boundary still holds (`bash -lc` / `zsh -lc`
-  unwrapping; `prefix_rule()` patterns match canonical wrapper invocation).
+- _Goal:_ Confirm at WU verification (a) `arc release commit --version` runs no-prompt under
+  installed allowlist with project-scoped default-mode override, and (b) Codex matcher boundary
+  still holds (`bash -lc` / `zsh -lc` unwrapping; `prefix_rule()` patterns match canonical wrapper
+  invocation).
 
-- _Approach:_ Project-scoped mode override per PRD R13 — fresh test repo with
-  `permissions.defaultMode: "default"` written to project-scoped `.claude/settings.json`
-  overrides user-scoped bypassPermissions for the test session. Codex equivalent uses project-
-  scoped policy override.
+- _Approach:_ Maintainer runs the steps live on their machine, observes outcomes, reports.
+  Outcomes recorded in WU completion notes alongside the verification phase. No automated test
+  fixture, no `__tests__/` test surface for this requirement.
 
-    - `[ ]` **7.1.a Test fixture: project-scoped Claude Code mode override**
-        - Fresh test repo setup helper; project `.claude/settings.json` with
+    - `[ ]` **7.1.a Project-scoped Claude Code mode override**
+        - Fresh scratch repo on maintainer machine; project `.claude/settings.json` with
           `permissions.defaultMode: "default"`.
-        - Verifies the override actually takes effect (sanity test before behavioral assertions).
+        - Confirm override takes effect (sanity check before behavioral observations).
 
-    - `[ ]` **7.1.b Behavioral observation tests**
-        - `arc release commit --version` under installed allowlist → no prompt.
-        - `arc release commit --version` without allowlist → prompt fires.
-        - Both observations under project-scoped override on a globally-bypass maintainer machine.
+    - `[ ]` **7.1.b Behavioral observations (Claude Code)**
+        - With allowlist installed (canonical patterns from `print-patterns`):
+          `arc release commit --version` → expect no harness prompt.
+        - Without allowlist: `arc release commit --version` → expect harness prompt fires.
+        - Observations recorded in completion notes.
 
     - `[ ]` **7.1.c Codex matcher boundary re-verification**
-        - Pin codex-cli version at impl-time; document in test header.
+        - Note codex-cli version at run time; record in completion notes.
         - Confirm `bash -lc` / `zsh -lc` unwrapping still occurs.
         - Confirm `prefix_rule()` patterns match canonical wrapper invocation shape.
         - Confirm fall-through paths (env-prefix, command-substitution, `$'...'`) still prompt.
@@ -720,8 +782,6 @@ to-have — explicit "skip unless..." gate; can be marked `[~]` Superseded if sc
   harness list with modes, active value layers per mode, resolved routing per class
 - `[ ]` Marker file is durable across sessions (subsequent `arc release status` reads the
   persisted file correctly)
-- `[ ]` Session-init orientation surfaces the engaged-wrapper note when applicable; silent when
-  not engaged
 - `[ ]` `releaseRouting` envelope slot present at session-init and session-handoff; resolves
   correctly across release.enabled × interlock × class matrix
 

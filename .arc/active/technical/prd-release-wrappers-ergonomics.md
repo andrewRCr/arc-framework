@@ -203,7 +203,9 @@ Symmetric removal. Sub-subcommand under `arc release setup`. Behavior:
   install; conservative cleanup — refuses to touch user-curated entries that drift from the
   canonical pattern set).
 - Removes the harness's marker entry.
-- Records `arc.releaseEnabled = false` via WU1's `arc release opt-out` primitive.
+- Records `arc.releaseEnabled = false` via WU1's `arc release opt-out` primitive **only when
+  removing the last marker entry**; uninstalls that leave siblings preserve the existing
+  opt-in flag (symmetric with the install-side flag-set-on-first-install behavior).
 - Idempotent on already-uninstalled state.
 - When marker `harnesses` array becomes empty post-uninstall, file remains as
   `{ "schemaVersion": 1, "harnesses": [] }` (clean-slate signal preserves schema-version anchor).
@@ -332,20 +334,27 @@ active_value_layers: validation + audit
 **Design decision recorded:** no separate `arc release setup status` command. WU1's
 `arc release status` is the single source.
 
-**R11 — Session-init orientation surface.**
-Session-init orientation includes a one-line note when release wrapper is engaged
-(`release.enabled === true`). Mode-aware text:
+**R11 — Session-init orientation surface (deferred to handoff-optimization WU).**
+Session-init orientation does **not** carry an always-on engaged-state line for release wrappers.
+Static engagement is configuration-state — the orientation discipline (per `session-init.md`
+Step 6: *"Never include: configuration overrides, active-extensions list (any state), defaults
+active"*) excludes that class of surface. The user opted in deliberately at setup with explicit
+acknowledgment; subsequent sessions don't need a daily reminder. On-demand posture is what
+`arc release status` (R10) is for.
 
-- Default-prompt with allowlist active: `"Release wrapper engaged — ARC sole authorization layer
-  for matching invocations."`
-- Bypass mode: `"Release wrapper engaged — validation + audit layer (no harness-prompt bypass under
-  bypass mode)."`
+What **does** belong at session-init is **routing-shift detection** — when this session's
+resolved `releaseRouting` differs from the previous session's resolved value (because interlock
+keys changed in git-config / yaml since last handoff), orient the user to the change. This is a
+state-shift signal, not a config-state surface, and matches what orientation is designed to carry.
 
-When opt-in is not recorded, no orientation line surfaces (silence is the engaged-or-not signal).
+The mechanism is deferred to `plan-handoff-optimization.md` (Approach item 5,
+`releaseRoutingAtLastHandoff` slot). That WU adds a snapshot at handoff via `git show` against
+the post-handoff status-file, mirroring the `statusFieldsAtLastHandoff` pattern; session-init
+handler diffs against this session's `releaseRouting` and surfaces a posture-change line when
+values differ. Specific surface text deferred to that WU.
 
-When interlock setting changes since the last session and would shift wrapper-routing behavior,
-orientation surfaces a posture-change note in the next session-init (covered by existing session-
-operations infrastructure; this requirement is cross-reference acknowledgment, not new mechanism).
+This WU ships `releaseRouting` (R12.1) — the slot the handoff WU snapshots. No session-init
+orientation work in this WU.
 
 **R12 — Workflow integration: structured routing model.**
 Workflow integration ships as a structured-routing surface rather than per-workflow prose dispatch.
@@ -361,7 +370,7 @@ each fire site.
 | `workflowCommit` | ceremony commits (activate / integrate / handoff / etc.)| `release.enabled` AND `commit_interlock` is `on-workflow`                    |
 | `workflowPush`   | ceremony pushes (handoff / activation / integration)    | `release.enabled` AND `push_interlock` is `on-workflow`                      |
 
-Otherwise (and on missing slot, missing class, or unrecognized value): `raw`.
+Otherwise (and on probe failure, missing class, or unrecognized value): `raw`.
 
 `arc sync` continues to handle its own internal push (single-leg sync push). WU1's audit retrofit
 captures sync invocations on the audit umbrella; no internal re-routing through `arc release push`.
@@ -404,9 +413,11 @@ Sub-requirements:
   Task-work commit routing is handled via the arc-commit skill (R12.3); no per-workflow class tag
   required. Recorded for completeness; no file change beyond audit-trail confirmation.
 
-- **R12.5 — `session-handoff.md` `workflowPush` class tag.**
-  Handoff push step takes a `workflowPush` class tag; verb-elided shape (inline prose, no `git
-  push` literal).
+- **R12.5 — `session-handoff.md` `workflowCommit` class tag.**
+  Handoff ceremony commit (`chore(status): handoff`) takes a `workflowCommit` class tag;
+  verb-elided shape (commit message body in `text` codeblock, no `git commit` literal).
+  Handoff has no `git push` fire site — push is delegated to `arc sync`, which the
+  carve-out above keeps out of routing scope.
 
 - **R12.6 — `activate-work-unit.md` class tags.**
   Activation commit (`workflowCommit`) and push (`workflowPush`) class tags; verb-elided shape at
@@ -436,14 +447,22 @@ supplies content (commit message body in `text` codeblock; push args inline pros
 Destructive-flag invocations stay literal — they route raw deterministically and are NOT
 class-tagged.
 
-**R13 — Empirical-test surface.**
+**R13 — Live empirical verification.**
 Discrete deliverable absorbing WU1's deferred success criteria 5/6 (`arc release commit --version`
-runs no-prompt under installed allowlist; env-prefix fall-through prompts in Codex). Methodology:
+runs no-prompt under installed allowlist; env-prefix fall-through prompts in Codex).
 
-- **Project-scoped mode override.** Fresh test repo with `permissions.defaultMode: "default"`
+**Mechanism.** Maintainer runs the verification live on their machine at WU completion;
+observations captured in WU completion notes. No automated test fixture, no `__tests__/` test
+surface. Rationale: once-and-done per WU lifecycle; harness-prompt observation requires interactive
+agent behavior that doesn't fit existing test tier conventions cleanly, and the cost of building
+automation for a single maintainer-eyes-on test exceeds the value at this cadence.
+
+Methodology:
+
+- **Project-scoped mode override.** Fresh scratch repo with `permissions.defaultMode: "default"`
   written to project-scoped `.claude/settings.json` (Claude Code's permission resolution prefers
-  project scope; project setting overrides user-scoped bypassPermissions for the test session) or
-  Codex equivalent project-scoped policy override. Avoids cross-machine requirement.
+  project scope; project setting overrides user-scoped bypassPermissions for the verification
+  session) or Codex equivalent project-scoped policy override. Avoids cross-machine requirement.
 - **Behavioral observation.** `arc release commit --version` / `arc release push --version`
   invocations against the project-scoped default-mode harness, observing prompt presence vs.
   absence with allowlist installed vs. not.
@@ -452,11 +471,8 @@ runs no-prompt under installed allowlist; env-prefix fall-through prompts in Cod
   unwrapping still occurs; `prefix_rule()` patterns still match the canonical wrapper invocation
   shape.
 - **User-level safety-gate hooks** (`~/.claude/hooks/safety-gate.sh`, Codex equivalent) remain
-  active across mode flips. Tests focus on harness-prompt presence, not safety-gate denials —
-  the two layers compose without conflict.
-
-Test surface lives in `packages/arc-framework/__tests__/` per existing test-tier conventions; exact
-tier (integration vs. e2e) determined at task generation per the test methodology strategy.
+  active across mode flips. Verification focuses on harness-prompt presence, not safety-gate
+  denials — the two layers compose without conflict.
 
 **R14 — Documentation.**
 
@@ -471,9 +487,10 @@ tier (integration vs. e2e) determined at task generation per the test methodolog
   the new domain strategy. Interlock release wrappers are a configurability surface
   (`release.enabled` × interlock values × wrapper routing); the architecture-level strategy doc
   cross-references the domain-level strategy.
-- **R14.3 — Cross-reference update:** `strategy-session-operations.md` updates for WU2's session-
-  init orientation surfacing (the engaged-state note per R11) and the harness/mode marker as part
-  of session-init posture reading.
+- **R14.3 — Cross-reference update:** `strategy-session-operations.md` updates for the
+  harness/mode marker (R9) as a per-developer per-machine state surface. Note R11's deferral of
+  routing-shift orientation surfacing to `plan-handoff-optimization.md` so the strategy doc
+  carries the cross-WU reference for future readers.
 - **R14.4 — Cross-reference update:** `strategy-team-coordination.md` adds a small note for
   per-developer asymmetric setup acknowledgment (multi-developer repos where setup state diverges
   per developer; document as expected, parallel to existing per-developer interlock-setting
@@ -664,8 +681,6 @@ relevant harnesses; tests verify that property holds for the scope of the test h
   list with modes, active value layers per mode.
 - Marker file is durable across sessions (subsequent `arc release status` reads the persisted file
   correctly).
-- Session-init orientation surfaces the engaged-wrapper note when applicable; silent when not
-  engaged.
 
 ### Code quality
 

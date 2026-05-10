@@ -97,6 +97,19 @@ lowest:
    CLI poorly without an indexer. Likely stays agent-side; flagged for completeness
    but not pursued unless a low-cost approximation surfaces.
 
+5. **Routing-shift posture surface for session-init.** Companion slot
+   `releaseRoutingAtLastHandoff: { taskCommit, workflowCommit, workflowPush }` populated
+   alongside `statusFieldsAtLastHandoff` (item 2) — same `git show <last-handoff-hash>`
+   reference frame. Session-init handler compares the snapshot against this session's
+   resolved `releaseRouting` (PRD R12.1, shipped in Release Wrappers — Adopter Ergonomics
+   WU); when the values differ (interlock keys edited in git-config / yaml since last
+   handoff), session-init surfaces a one-line posture-change note in orientation. Silent
+   when no shift. Absorbs the deferred posture-shift surface from
+   `prd-release-wrappers-ergonomics.md` R11 — that WU dropped the always-on
+   release-wrapper engaged line as orientation noise (configuration-state surface, not
+   action-needed surface) and deferred the legitimate state-shift surface to this WU's
+   delta-detection infrastructure.
+
 ---
 
 ## Scope
@@ -111,6 +124,14 @@ lowest:
 - **Add `statusFieldsAtLastHandoff` slot** (item 2) — handler-side population from
   `git show`; workflow guidance update for the skip-threshold check to consume the
   new slot.
+
+- **Add `releaseRoutingAtLastHandoff` slot + session-init posture-change surface**
+  (item 5) — companion slot to item 2, same `git show` reference frame. Session-init
+  handler computes delta against current `releaseRouting`; surfaces a one-line
+  posture-change note in orientation when values differ. Silent when no shift.
+  Workflow update: `session-init.md` Step 6 conditional top-level section for the
+  routing-shift line. Absorbs the posture-shift work deferred from Release Wrappers —
+  Adopter Ergonomics WU.
 
 - **Structured Persistent Context triggers** (item 3) — schema design for trigger
   types, CLI evaluator, migration of existing entries across the repo, workflow doc
@@ -145,6 +166,11 @@ lowest:
 - **User Sync UX Polish** (✅ Complete) — handoff-interior toggle pattern lives
   here; this WU composes against that substrate.
 
+- **Release Wrappers — Adopter Ergonomics** (planned, PRD active) — ships
+  `releaseRouting` envelope slot (PRD R12.1) that this WU's `releaseRoutingAtLastHandoff`
+  snapshot compares against. Release-wrappers WU explicitly defers the posture-shift
+  orientation surface to this WU; PRD R11 references this plan for the mechanism.
+
 - **Worktree Foundation** (planned) — independent. Worktree-aware handoff would
   ride on Worktree Foundation if it lands first; otherwise this WU's scope stays
   on the single-worktree handoff path.
@@ -158,6 +184,8 @@ lowest:
 - Probe-2 replacement (item 1): ~1 session — CLI helper + workflow update + tests.
 - Status-field-delta slot (item 2): ~0.5–1 session — slot population is mechanical;
   workflow guidance is the prose lift.
+- Routing-shift posture surface (item 5): ~0.25 session — slot population mirrors
+  item 2; session-init Step 6 conditional surface is a small addition.
 - Structured Persistent Context triggers (item 3): ~1–1.5 sessions — schema, evaluator,
   migration of existing entries (audit time, not scope time), and authoring doc.
 - Verification + buffer: ~0.5 session.
