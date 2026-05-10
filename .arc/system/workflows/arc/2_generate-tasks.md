@@ -31,6 +31,14 @@ fill (Pass 2), and grounding audit (Pass 3) — each pass has a deliverable the 
 the next begins. This prevents the one-shot-to-impl-ready pattern that masks design decisions and
 ungrounded assumptions until impl time.
 
+**The task list file lives on disk from Pass 1 onward.** Pass 1 creates `tasks-{name}.md` (and the
+empty `atomic-{name}.md` companion) at the destination path resolved per Step 4's `Destination
+path` rule. Passes 2 and 3 edit the file in place. Step 4 collapses to pre-save checklist
+verification + ceremony commit. The file is in-progress until Step 4's checklist passes — staging
+discipline keeps it from landing in commits before then. On-disk iteration keeps partial work
+durable across handoffs and lets each pass's review happen against the rendered file rather than
+reproduced conversation.
+
 ### Pass 1: Structural decomposition
 
 Identify phases and parent-task skeletons. Boundaries first; no content fill yet.
@@ -62,15 +70,22 @@ parent satisfies.
 - **Always end with a verification phase** — single task pointing to `verify-work-unit.md`. See
   [task-list-formatting strategy][task-list-formatting] § Verification Phase for conventions
 
-**Pass 1 deliverable:**
+**Save before stopping.** Create `tasks-{name}.md` at the Step 4 destination path with the
+Pass 1 file shape below; create the empty companion `atomic-{name}.md` in the same directory
+(skeleton per [`template-tasks.md`][template-tasks] § Atomic Companion File). Both stay on disk
+through Passes 2-3 and Step 4.
 
+**Pass 1 file shape:**
+
+- Header per [`template-tasks.md`][template-tasks] Feature/Technical variant — PRD ref,
+  Branch(es), Base Branch, Purpose; fill from PRD
 - Phase shapes: `## **Phase X:**` headings with `_Purpose:_` line; optional `_Design decisions:_`
   block stating key calls
 - Parent-task skeletons (titles only — H3 headings with backtick-wrapped marker per
   [strategy-task-list-formatting § Parent Tasks][task-list-formatting]), each citing R-ID
   anchors (which PRD requirements does this parent satisfy?)
 - Rough subtask-count signal per parent (1 / 2-3 / many) — flags decomposition asymmetry
-- No task bodies, no descriptions, no Goals yet
+- **No task bodies, no descriptions, no Goals yet.** Those land in Pass 2.
 
 > [!IMPORTANT]
 > `workflow-interlock`: Stop after the Pass 1 deliverable is drafted. Surface the phase
@@ -137,7 +152,11 @@ Structure for the full pattern.
 **If your project has a testing methodology strategy** (e.g., `strategy-testing-methodology.md`),
 consult it for project-specific test patterns and coverage expectations.
 
-**Pass 2 deliverable:**
+**Edit the file in place; save before stopping.** Open `tasks-{name}.md` from Pass 1 and add task
+bodies. The Pass 1 file shape (header, phase preambles, parent-task skeletons) stays as-is unless
+restructure is needed.
+
+**Pass 2 additions to the file:**
 
 - Full task bodies with `_Goal:_` first on every parent
 - Peer descriptors (`_Context:_`, `_Rationale:_`, `_Approach:_`, `_Shape:_`, `_Note:_`) where
@@ -187,8 +206,9 @@ Generation-time framing differs from the skill's typical pre-impl use:
 
 #### Step 3.2: Apply corrections
 
-For each "fix before starting" finding, edit the task body in place — update file paths,
-clarify scope, add subtasks for masked design decisions, etc.
+For each "fix before starting" finding, edit `tasks-{name}.md` in place — update file paths,
+clarify scope, add subtasks for masked design decisions, etc. Save after each phase's
+corrections land.
 
 **Generation-time durable-capture discipline.** "Carry as context" findings need a durable
 home before save — at generation time, no implementing-session context exists to absorb them
@@ -225,13 +245,14 @@ carry-as-context handled distinctly.
 
 **Iterative.** User feedback can prompt revision before declaring impl-ready.
 
-### Step 4: Write and Save Task List
+### Step 4: Pre-save verification + ceremony commit
 
-Combine phases and sub-tasks into the final task list following the format described below.
-Implementation notes, technical context, and design rationale belong in the dedicated notes
-file (`notes-{name}.md`), not in the task list.
+By Step 4, `tasks-{name}.md` and `atomic-{name}.md` are already on disk (created at Pass 1,
+iterated through Passes 2-3). Implementation notes, technical context, and design rationale belong
+in the dedicated notes file (`notes-{name}.md`), not in the task list. Step 4 verifies the file
+against the pre-save checklist and bundles the commit.
 
-**Before saving, verify the draft against this checklist:**
+**Verify the file against this checklist:**
 
 - [ ] Header includes `**Purpose:**` field — one-line summary; full Scope lives in the PRD
       (Feature/Technical only; Incidental retains `## Context` + `## Scope`)
@@ -266,27 +287,23 @@ file (`notes-{name}.md`), not in the task list.
 - [ ] Atomic companion file created alongside task list (`atomic-{name}.md`, same directory)
 - [ ] Success Criteria section at bottom with checkboxes (checked during verification phase)
 
-**Save to** (location depends on [`arc-config.yml`][arc-config] → `pm.mode`):
+**Destination path** (referenced by Pass 1's file creation; depends on
+[`arc-config.yml`][arc-config] → `pm.mode`):
 
 - **arc-in-git** (backlog pipeline): `.arc/backlog/{category}/tasks-{{WORK_NAME}}.md`
 - **none / external** (no backlog): `.arc/active/{category}/tasks-{{WORK_NAME}}.md`
   (create the directory first if it doesn't exist: `mkdir -p .arc/active/{category}/`)
 
-Name should match the PRD (e.g., `prd-api-modernization.md` → `tasks-api-modernization.md`).
+Name matches the PRD (e.g., `prd-api-modernization.md` → `tasks-api-modernization.md`).
 
-**Create companion file** alongside the task list: `atomic-{name}.md` (same directory, same
-name stem). This is the capture surface for atomic tasks discovered during implementation —
-see [process-task-loop § Where to Capture Atomic Tasks](3_process-task-loop.md#where-to-capture-atomic-tasks).
-Create an empty file with a header:
-
-```markdown
-# Atomic Tasks: [Work Name]
-```
+**Companion file** at `atomic-{name}.md` (same directory, same name stem) — created at Pass 1
+as the empty capture surface for atomic tasks discovered during implementation. Skeleton per
+[`template-tasks.md`][template-tasks] § Atomic Companion File; see
+[process-task-loop § Where to Capture Atomic Tasks](3_process-task-loop.md#where-to-capture-atomic-tasks).
 
 > [!IMPORTANT]
-> `workflow-interlock`: Stop after the task list and atomic companion are saved. Surface the
-> task list location for review; await direction before updating the status file and bundling
-> the commit.
+> `workflow-interlock`: Stop after the pre-save checklist passes. Surface the task list location
+> for review; await direction before updating the status file and bundling the commit.
 
 See [Task Processing Loop](3_process-task-loop.md) for how task lists are executed.
 
