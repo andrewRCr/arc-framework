@@ -276,7 +276,7 @@ adapts those to its voice rather than re-stating them. Per-harness reference not
 Codex CLI) embedded inline so the agent has the patterns at workflow-read time without re-loading
 the strategy doc. Agent-adaptive path framed as a universal route, not a fallback.
 
-### `[ ]` **4.1 Author `setup-release-wrapper.md` (R1, R3, R8)**
+### `[x]` **4.1 Author `setup-release-wrapper.md` (R1, R3, R8)**
 
 - _Goal:_ Workflow file delivers the six-element contract, the three-tier mode-detection ladder,
   per-harness reference notes for Claude Code and Codex CLI, agent-adaptive framing for other
@@ -285,67 +285,58 @@ the strategy doc. Agent-adaptive path framed as a universal route, not a fallbac
   release-wrapper setup, either standalone (user invokes `arc release setup install`) or as a
   step within `01_verify-and-configure.md` (R2).
 
-- _Approach:_ Build the workflow from the contract outward. The six elements are the spine;
-  everything else (tiers, per-harness notes, acknowledgment, verify) hangs off the spine. Frontmatter
-  declares the workflow's audience (collaborative — agent-readable but with human review at
-  acceptance points).
+    - `[x]` **4.1.a Frontmatter + scaffolding**
+        - Frontmatter set (`purpose`, `audience: collaborative`); no method dependencies declared.
+        - Section structure: When to use → Process (contract + tiers + install/skip + verify +
+          record) → Per-Harness Reference Notes → Agent-Adaptive Path → Trust-Model
+          Acknowledgment → State-Recording Protocol → Rollback Protocol → Next Step.
 
-    - `[ ]` **4.1.a Frontmatter + scaffolding**
-        - YAML frontmatter (`purpose`, `audience: collaborative`, no method dependencies).
-        - Section skeleton: When to use, Process (six contract elements + tiers + verify), Per-
-          harness reference notes, Agent-adaptive framing, Trust-model acknowledgment, State-
-          recording protocol, Rollback protocol, Next step pointers.
+    - `[x]` **4.1.b Six contract elements (R1)**
+        - Six elements rendered as Process subsections: canonical command shape, prefix-match
+          semantics, scope, mode awareness, side effects, verification expectations. Each
+          carries one paragraph + concrete example.
 
-    - `[ ]` **4.1.b Six contract elements (R1)**
-        - Canonical command shape, prefix-match semantics, scope, mode awareness, side effects,
-          verification expectations.
-        - Each element a sub-section with one paragraph + concrete example.
+    - `[x]` **4.1.c Three-tier mode-detection ladder (R3)**
+        - Tier 1/2/3 ladder integrated into Process Step 1. Tier 1 surfaces detection cleanly;
+          Tier 2 offers the three investigation choices (docs / config-path / user-direct);
+          Tier 3 carries the exact user-prompt text per PRD R3.
 
-    - `[ ]` **4.1.c Three-tier mode-detection ladder (R3)**
-        - Tier 1 (agent knows) — reference-implementation patterns inline; brief surface text
-          format.
-        - Tier 2 (agent uncertain but can investigate) — surfacing prose for the three
-          investigation choices.
-        - Tier 3 (user-direct) — exact prompt text per PRD R3.
+    - `[x]` **4.1.d Per-harness reference notes (Claude Code, Codex CLI)**
+        - Claude Code: mode detection via `permissions.defaultMode`; JSON allowlist patterns;
+          install target `.claude/settings.json` (project-scoped preferred).
+        - Codex CLI: mode detection via `approval_policy` with in-session detection caveat
+          (added from external-research pass); kwargs-form Starlark patterns; install target
+          `~/.codex/rules/default.rules`; matcher boundary with reliable-vs-fall-through
+          examples drawn from `research-codex-prefix-rule-matcher.md`.
 
-    - `[ ]` **4.1.d Per-harness reference notes (Claude Code, Codex CLI)**
-        - Inline patterns per `notes-release-wrappers-ergonomics.md` § Reference-Implementation
-          Pattern Specifics.
-        - Mode-detection notes (where to look in each harness's config).
-        - Brief link to `arc release setup print-patterns --harness <name>` for paste-ready
-          format.
+    - `[x]` **4.1.e Agent-adaptive path framing**
+        - Universal-route framing landed (not fallback for unknown harnesses). opencode caveat
+          block included with both upstream issue references (sst/opencode#6676,
+          sst/opencode#15507) and the documented limitation.
 
-    - `[ ]` **4.1.e Agent-adaptive path framing**
-        - Universal-route framing per PRD R1 — agent translates contract against its harness's
-          own conventions; not a fallback for unknown harnesses.
-        - opencode-specific caveat block (per notes § Reference-Implementation Pattern Specifics
-          → opencode) — bug references, agent-adaptive path with surfacing.
+    - `[x]` **4.1.f Mode-conditioned trust-model acknowledgment**
+        - Both mode framings landed in a dedicated § Trust-Model Acknowledgment section —
+          default-prompt (trust-shift) and bypass (audit-only). Process Step 2 references the
+          section; rejection path documented inline (no state written, no rollback required).
 
-    - `[ ]` **4.1.f Mode-conditioned trust-model acknowledgment**
-        - Default-prompt branch — trust-shift framing (drawn from notes § Trust-Model
-          Acknowledgment Text Variants).
-        - Bypass branch — audit-only framing (same notes section).
-        - Each branch culminates in explicit accept prompt; rejection path documents how the
-          agent backs out of the workflow without recording state — declining the trust-model
-          prompt before any `arc release setup install` invocation, or selecting `exit` from
-          the four-way idempotency choice. No state to roll back since none was written.
+    - `[x]` **4.1.g Behavioral-test verify protocol (R8)**
+        - Default-prompt: mandatory `arc release commit --version` invocation through the
+          harness (not nested CLI subprocess); pass/fail loop described. Bypass: behavioral
+          test skipped; verify on agent-report + user confirmation. Failure path loops back
+          to install rather than recording opt-in.
 
-    - `[ ]` **4.1.g Behavioral-test verify protocol (R8)**
-        - Default-prompt mode → mandatory `arc release commit --version` invocation; pass = no
-          prompt observed, fail = prompt observed.
-        - Bypass mode → behavioral test skipped; verify based on agent-reported install + user
-          confirmation alone.
-        - Failure path → loop back to remediation, do not record opt-in.
+    - `[x]` **4.1.h State-recording + rollback protocol**
+        - State-recording section covers marker-file schema (v1), opt-in flag mechanics,
+          four-way idempotency (re-verify / update markers / add harness / exit), and
+          multi-harness partial-success handling. Rollback section covers conservative cleanup
+          (canonical pattern match), last-harness opt-out flip, and clean-slate marker
+          preservation.
 
-    - `[ ]` **4.1.h State-recording + rollback protocol**
-        - State recording: agent calls `arc release setup install --harness <name> --mode <mode>`
-          to upsert the marker entry on verify-pass + user-confirm. Opt-in flag
-          (`arc.releaseEnabled = true`) is written on the first successful install; subsequent
-          installs are flag-idempotent.
-        - Rollback: agent calls `arc release setup uninstall --harness <name>` per harness to
-          remove the marker entry (canonical patterns sourced from `print-patterns`). Opt-out
-          flag (`arc.releaseEnabled = false`) flips only when removing the last marker entry;
-          uninstalls that leave siblings preserve the engaged state for those siblings.
+- _Outcome:_ Shipped `setup-release-wrapper.md` at both `.arc/system/workflows/arc/supplemental/`
+  and the package-source twin. External-research pass on Codex tightened the mode-detection
+  section (concrete `approval_policy` values) and surfaced an upstream defect in
+  `print-patterns --harness codex` (positional vs kwargs form), which spun out as an atomic fix
+  landed at `33928b2a`. Empirical codex-cli verification still pending at R13.
 
 ---
 
