@@ -384,13 +384,18 @@ conventions throughout).
   5.2 references the rule by section/bullet name (no `arc.methods` declaration); 5.3 unchanged
   (workflows still carry class tags as textual triggers).
 
-### `[ ]` **5.2 arc-commit skill amendment (R12.3)**
+### `[x]` **5.2 arc-commit skill amendment (R12.3)**
 
 - _Goal:_ arc-commit skill Step 4 references the canonical rule with class tag `taskCommit`,
   consolidating task-work routing without per-workflow class tags at task-commit sites.
 
-- _Approach:_ One added clause in Step 4 — minimal change. No structural rework of the skill
-  body.
+- _Outcome:_ Step 4 Simple-path commit clause amended in all four locations — canonical
+  (`.arc/system/skills/arc-commit/SKILL.md`), package source
+  (`packages/arc-framework/arc/system/skills/arc-commit/SKILL.md`), and this laptop's
+  hand-synced harness copies (`.claude/skills/arc-commit/SKILL.md`,
+  `.codex/skills/arc-commit/SKILL.md`). Desktop machine's gitignored harness copies are
+  stale until next desktop session — captured as a Persistent Context entry in
+  SESSION-NOTES.md for cross-machine continuity.
 
 ### `[ ]` **5.3 Workflow class-tag integration (R12.4–R12.9)**
 
