@@ -49,6 +49,10 @@ export {
   runReleaseSetupPrintPatterns,
 } from "../handlers/release/setup/print-patterns.js";
 export {
+  handleReleaseSetupUninstall,
+  runReleaseSetupUninstall,
+} from "../handlers/release/setup/uninstall.js";
+export {
   handleReleaseSetupVerify,
   runReleaseSetupVerify,
 } from "../handlers/release/setup/verify.js";
@@ -69,6 +73,13 @@ export type {
   RunReleaseSetupPrintPatternsOptions,
   RunReleaseSetupPrintPatternsResult,
 } from "../handlers/release/setup/print-patterns.js";
+export type {
+  CleanupVerification,
+  CleanupVerificationOptions,
+  CleanupVerificationResult,
+  RunReleaseSetupUninstallOptions,
+  RunReleaseSetupUninstallResult,
+} from "../handlers/release/setup/uninstall.js";
 export type {
   RunReleaseSetupVerifyOptions,
   RunReleaseSetupVerifyResult,

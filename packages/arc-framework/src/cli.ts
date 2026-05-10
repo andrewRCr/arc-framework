@@ -33,6 +33,7 @@ import {
   handleReleasePush,
   handleReleaseSetupInstall,
   handleReleaseSetupPrintPatterns,
+  handleReleaseSetupUninstall,
   handleReleaseSetupVerify,
   handleReleaseStatus,
 } from "./commands/release.js";
@@ -308,6 +309,15 @@ setupCmd
   )
   .action((opts: { harness?: string; format?: string }) => {
     handleReleaseSetupPrintPatterns(opts);
+  });
+
+setupCmd
+  .command("uninstall")
+  .description("Remove release-wrapper harness integration")
+  .option("--harness <name>", "Harness name for single-harness uninstall flow")
+  .option("--json", "Emit a schemaVersion 1 JSON envelope")
+  .action(async (opts: { harness?: string; json?: boolean }) => {
+    await handleReleaseSetupUninstall(opts);
   });
 
 setupCmd

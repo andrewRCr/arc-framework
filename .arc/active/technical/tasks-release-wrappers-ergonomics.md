@@ -191,39 +191,30 @@ verify.
   ceremony while preserving the harness boundary: trust/verification stay explicit, marker state is
   durable across repeated harness installs, and JSON consumers get a clean envelope.
 
-### `[ ]` **2.4 `arc release setup uninstall` command (R5, R16)**
+### `[x]` **2.4 `arc release setup uninstall` command (R5, R16)**
 
 - _Goal:_ Symmetric removal — agent removes harness-side entries (matched by canonical pattern
   set; conservative on user-curated drift); marker entry removed; opt-out flag recorded via
   WU1's `arc release opt-out` primitive. Idempotent.
 
-- _Approach:_ Mirror install's shell shape; replace install logic with cleanup logic. Inputs:
-  `--harness <name>` (required); single harness per invocation. Multi-harness orchestration runs
-  agent-side via repeated invocation, mirroring install. Canonical pattern set sourced from
-  `arc release setup print-patterns --harness <name>` so install and uninstall reference the same
-  pattern source — drift between the two paths is structurally prevented.
+    - `[x]` **2.4.a State-read shell + idempotency**
+        - Added delayed marker-read orchestration for uninstall: required `--harness` validation runs
+          before marker state reads, current marker/opt-in posture renders consistently with install, and
+          already-absent harness entries return no-op success without cleanup, marker writes, or opt-out.
 
-    - `[ ]` **2.4.a State-read shell + idempotency**
-        - Read marker + opt-in state.
-        - No-op success on already-uninstalled state (no marker entries, opt-in already false).
+    - `[x]` **2.4.b Cleanup orchestration**
+        - Added workflow-mediated cleanup confirmation using canonical raw patterns sourced through
+          `print-patterns`, conservative refusal surfacing, marker removal, last-entry opt-out, sibling
+          preservation, and Commander wiring for `arc release setup uninstall`.
 
-    - `[ ]` **2.4.b Cleanup orchestration**
+    - `[x]` **2.4.c `--json` mode (R16)**
+        - Added a `schemaVersion: 1` uninstall envelope with release-enabled before/after state,
+          per-harness uninstall results, cleanup action/result fields, and human progress routed to
+          stderr in JSON mode so stdout remains parseable.
 
-        Build `test-first` (one behavior at a time):
-
-        - Required-flag check: missing `--harness` exits with structured error before any
-          state read
-        - Single-harness uninstall: agent removes canonical patterns (sourced from
-          `print-patterns`) from harness file; marker entry removed; opt-out recorded
-        - Conservative cleanup: agent refuses to touch user-curated entries that drift from
-          canonical pattern set (workflow-driven; CLI surfaces the refusal verbatim)
-        - Empty `harnesses` array post-uninstall → marker preserved as
-          `{schemaVersion: 1, harnesses: []}` per PRD R5
-        - Opt-out flag (`arc.releaseEnabled = false`) recorded only when removing the last
-          marker entry; uninstalls that leave siblings preserve the existing flag state
-
-    - `[ ]` **2.4.c `--json` mode (R16)**
-        - Same envelope shape as 2.3.d, mirrored for uninstall result fields.
+- _Outcome:_ `arc release setup uninstall` now mirrors install's workflow-mediated boundary: the CLI
+  supplies the canonical cleanup contract, records only verified rollback state, preserves sibling harness
+  opt-in posture, and gives scripting consumers a parseable uninstall envelope.
 
 ---
 
