@@ -207,21 +207,36 @@ session.init_load.notes: prompt
 # See DEV-RULES.ARC § Commit Discipline.
 #   manual           - Each commit requires explicit approval. (default)
 #   on-task-approval - Task approval implicitly authorizes the task commit.
+#   on-workflow      - Task approval plus workflow-ceremony commits implicitly authorize.
 session.commit_interlock: manual
 
 # Push interlock release policy.
 # See DEV-RULES.ARC § Commit Discipline.
-#   manual  - Each push requires explicit approval. (default)
-#   on-sync - `arc sync` invocation implicitly authorizes the push.
+#   manual      - Each push requires explicit approval. (default)
+#   on-sync     - `arc sync` invocation implicitly authorizes the push.
+#   on-workflow - `arc sync` plus workflow-mediated pushes implicitly authorize.
 session.push_interlock: manual
 
 # Sync interlock release policy.
 # `arc sync` is the orchestrator that routes worktree push and user-notes push
 # per `session.push_interlock` and `user.notes_push`. This setting controls when
 # `arc sync` itself fires.
-#   manual     - Each `arc sync` invocation requires explicit user invocation.
-#   on-handoff - Handoff implicitly invokes `arc sync`. (default)
+#   manual      - Each `arc sync` invocation requires explicit user invocation.
+#   on-handoff  - Handoff implicitly invokes `arc sync`. (default)
+#   on-workflow - Reserved for future workflows that fire sync; behaviorally
+#                 equivalent to on-handoff today.
 session.sync_interlock: on-handoff
+
+# --- Release Wrappers ---
+
+# Release-wrapper opt-in flag. When `true`, `arc release commit` /
+# `arc release push` are surfaced as the canonical commit/push surface in
+# `arc release status` and the session-init envelope; downstream workflow
+# guidance routes between wrapper and raw git accordingly.
+# Per-developer override: `git config arc.releaseEnabled <value>`
+#   true  - Wrappers canonical for commit/push.
+#   false - Raw git canonical; wrappers available but not preferred. (default)
+release.enabled: false
 
 # --- User Directory ---
 
