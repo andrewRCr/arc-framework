@@ -309,6 +309,83 @@ describe("runReleaseSetupInstall", () => {
     }));
   });
 
+  it("appends sibling harness entries without rewriting an already-enabled opt-in flag", async () => {
+    const stdout: string[] = [];
+    const upsertHarness = vi.fn<(entry: HarnessEntry) => Promise<MarkerWriteResult>>()
+      .mockResolvedValue(marker([
+        existingHarness(),
+        { name: "codex", mode: "default-prompt", installedAt: "2026-05-10T12:00:00.000Z" },
+      ]) as MarkerWriteResult);
+    const recordOptIn = vi.fn<() => Promise<{ exitCode: number }>>().mockResolvedValue({ exitCode: 0 });
+
+    const result = await runReleaseSetupInstall({
+      settings: buildSettings({ value: "true", source: "git-config" }),
+      marker: marker([existingHarness()]),
+      chooseIdempotency: async () => "add-harness",
+      harness: "codex",
+      mode: "default-prompt",
+      now: () => "2026-05-10T12:00:00.000Z",
+      acknowledgeTrust: async () => true,
+      workflowVerification: async () => true,
+      upsertHarness,
+      recordOptIn,
+      writeStdout: (msg) => stdout.push(msg),
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(upsertHarness).toHaveBeenCalledWith({
+      name: "codex",
+      mode: "default-prompt",
+      installedAt: "2026-05-10T12:00:00.000Z",
+    });
+    expect(recordOptIn).not.toHaveBeenCalled();
+    expect(stdout.join("")).toContain("opt_in: already recorded");
+  });
+
+  it("emits a schemaVersion 1 JSON envelope with install result and post-op opt-in state", async () => {
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+
+    const result = await runReleaseSetupInstall({
+      settings: buildSettings({ value: "false", source: "default" }),
+      marker: marker([]),
+      harness: "claude-code",
+      mode: "default-prompt",
+      json: true,
+      now: () => "2026-05-10T12:00:00.000Z",
+      acknowledgeTrust: async () => true,
+      workflowVerification: async () => true,
+      upsertHarness: async (entry) => marker([entry]) as MarkerWriteResult,
+      recordOptIn: async () => ({ exitCode: 0 }),
+      writeStdout: (msg) => stdout.push(msg),
+      writeStderr: (msg) => stderr.push(msg),
+    });
+
+    expect(result.exitCode).toBe(0);
+    const envelope = JSON.parse(stdout.join("")) as {
+      schemaVersion: number;
+      command: string;
+      releaseEnabled: { before: boolean; after: boolean };
+      harnesses: Array<{ name: string; mode: string; result: string }>;
+      exitCode: number;
+    };
+    expect(envelope).toEqual(expect.objectContaining({
+      schemaVersion: 1,
+      command: "install",
+      releaseEnabled: expect.objectContaining({ before: false, after: true }),
+      exitCode: 0,
+    }));
+    expect(envelope.harnesses).toEqual([
+      expect.objectContaining({
+        name: "claude-code",
+        mode: "default-prompt",
+        result: "recorded",
+      }),
+    ]);
+    expect(stdout.join("").trim()).toMatch(/^\{/);
+    expect(stderr.join("")).toContain("release_setup_install: fresh");
+  });
+
   it("surfaces marker read errors on stderr", async () => {
     const stderr: string[] = [];
 

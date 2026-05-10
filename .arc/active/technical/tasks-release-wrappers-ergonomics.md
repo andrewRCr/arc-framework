@@ -155,23 +155,12 @@ verify.
   setup posture and the direct test command, while prompt observation remains a workflow-mediated
   outer-harness step rather than a nested subprocess.
 
-### `[ ]` **2.3 `arc release setup install` command (R4, R16)**
+### `[x]` **2.3 `arc release setup install` command (R4, R16)**
 
 - _Goal:_ Orchestration porcelain driving the supplemental setup workflow (R1). Captures
   trust-model acknowledgment, writes harness/mode marker on workflow's verify-pass, records
   `arc.releaseEnabled = true` on user-confirm, handles idempotency four-way and multi-harness
   partial-success per PRD R4.
-
-- _Approach:_ The CLI is the state-management shell; the workflow doc (R1) is the user-facing
-  ceremony. Install delegates the harness write to the agent (workflow-mediated); install owns the
-  state transitions (marker + git-config flag) at workflow's verify-pass and user-confirm
-  signals. Inputs: `--harness <name>` (required for non-idempotency paths) and
-  `--mode <default-prompt|bypass>` (required when writing a new marker entry); single harness per
-  invocation. Multi-harness orchestration runs agent-side via repeated invocation per 2.3.c.
-
-- _Note:_ "Drives the workflow" means surfaces the contract elements the agent reads, accepts
-  agent-reported install success, prompts user trust-model acknowledgment, then transitions state.
-  Not a literal subprocess invocation of the workflow doc — workflow execution is agent-mediated.
 
     - `[x]` **2.3.a State-read shell + idempotency four-way branch**
 
@@ -186,24 +175,21 @@ verify.
           confirmation, marker upsert, and opt-in recording for the single-harness install path.
           Declined acknowledgments and unconfirmed workflow verification abort without state changes.
 
-    - `[ ]` **2.3.c Marker behavior under agent-side multi-harness orchestration**
+    - `[x]` **2.3.c Marker behavior under agent-side multi-harness orchestration**
 
-        Build `test-first` (one behavior at a time):
+        - Kept multi-harness orchestration per-invocation: repeated calls append/upsert marker
+          entries through the marker library, preserve siblings, and skip opt-in writes when
+          `arc.releaseEnabled` is already recorded. Partial state remains visible through the
+          existing-install state report; user-choice coordination stays in the workflow.
 
-        - Multi-harness install runs agent-side: agent loops `arc release setup install
-          --harness <name> --mode <mode>` per harness; CLI per-invocation is independent
-        - Marker reflects partial state mid-loop: entries for harnesses installed so far;
-          subsequent invocations append/upsert without disturbing siblings
-        - Opt-in flag (`arc.releaseEnabled`) set on first successful install; subsequent
-          successful installs are idempotent on the flag (no re-write)
-        - Partial-success user-choice surface (record partial / retry / abort) lives in the
-          workflow doc (Phase 4) — CLI exposes the marker read state that the workflow
-          consults; CLI doesn't enumerate harnesses or coordinate the loop
+    - `[x]` **2.3.d `--json` mode (R16)**
+        - Added a `schemaVersion: 1` JSON envelope for install with per-harness results, pre/post
+          opt-in state, action result, and exit code. Human progress and error lines route to
+          stderr in JSON mode so stdout remains parseable.
 
-    - `[ ]` **2.3.d `--json` mode (R16)**
-        - `schemaVersion: 1` envelope; per-harness install results, opt-in state post-op,
-          exit code.
-        - Behavioral tests' verbose output redirected to stderr; stdout stays JSON-clean.
+- _Outcome:_ `arc release setup install` now owns the state transitions around the workflow-mediated
+  ceremony while preserving the harness boundary: trust/verification stay explicit, marker state is
+  durable across repeated harness installs, and JSON consumers get a clean envelope.
 
 ### `[ ]` **2.4 `arc release setup uninstall` command (R5, R16)**
 

@@ -292,7 +292,8 @@ setupCmd
     new Option("--mode <mode>", "Harness mode")
       .choices(["default-prompt", "bypass"]),
   )
-  .action(async (opts: { harness?: string; mode?: string }) => {
+  .option("--json", "Emit a schemaVersion 1 JSON envelope")
+  .action(async (opts: { harness?: string; mode?: string; json?: boolean }) => {
     await handleReleaseSetupInstall(opts);
   });
 

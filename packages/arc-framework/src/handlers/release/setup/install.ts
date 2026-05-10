@@ -72,6 +72,8 @@ export interface RunReleaseSetupInstallOptions {
   harness?: string;
   /** Optional mode for downstream single-harness flow. */
   mode?: string;
+  /** Emit a schemaVersion 1 JSON envelope on stdout. */
+  json?: boolean;
   /** Resolved release-mode settings, including `arc.releaseEnabled`. */
   settings: ResolvedSettingsResult;
   /** Pre-read marker result for the current identity and repository root. */
@@ -98,6 +100,25 @@ export interface RunReleaseSetupInstallResult {
   exitCode: number;
 }
 
+interface SetupInstallJsonEnvelope {
+  schemaVersion: 1;
+  command: "install";
+  releaseEnabled: {
+    before: boolean;
+    source: string;
+    after: boolean;
+  };
+  harnesses: Array<{
+    name: string;
+    mode: HarnessMode;
+    installedAt?: string;
+    result: "existing" | "recorded";
+  }>;
+  idempotencyAction?: SetupInstallIdempotencyChoice | "cancelled";
+  result: string;
+  exitCode: number;
+}
+
 /**
  * Run the setup install state-read shell.
  *
@@ -113,48 +134,59 @@ export async function runReleaseSetupInstall(
   const writeStderr = opts.writeStderr ?? ((msg) => {
     process.stderr.write(msg);
   });
+  const humanStdout = opts.json === true ? writeStderr : writeStdout;
 
   if (!opts.marker.ok) {
     writeStderr(formatMarkerReadError(opts.marker.error));
-    return { exitCode: 1 };
+    return finish(opts, null, writeStdout, 1);
   }
 
   const releaseEnabled = opts.settings.resolved.releaseEnabled.value === "true";
   const harnesses = opts.marker.marker.harnesses;
   const hasRecordedHarnesses = harnesses.length > 0;
+  const report = buildJsonEnvelope({
+    releaseEnabled,
+    releaseEnabledSource: opts.settings.resolved.releaseEnabled.source,
+    harnesses,
+  });
 
   renderCurrentState({
     releaseEnabled,
     releaseEnabledSource: opts.settings.resolved.releaseEnabled.source,
     harnesses,
-    writeStdout,
+    writeStdout: humanStdout,
   });
 
   if (!releaseEnabled && !hasRecordedHarnesses) {
-    writeStdout("release_setup_install: fresh\n");
-    return runSingleHarnessInstall(opts, { writeStdout, writeStderr });
+    humanStdout("release_setup_install: fresh\n");
+    return runSingleHarnessInstall(opts, { writeStdout: humanStdout, writeStderr }, report, writeStdout);
   }
 
   if (releaseEnabled && hasRecordedHarnesses) {
-    writeStdout("release_setup_install: existing\n");
-    writeStdout("idempotency_prompt: required\n");
+    humanStdout("release_setup_install: existing\n");
+    humanStdout("idempotency_prompt: required\n");
 
     const choice = await opts.chooseIdempotency?.({ harnesses }) ?? null;
     if (choice === null) {
-      writeStdout("idempotency_action: cancelled\n");
-      writeStdout("result: no-op acknowledged\n");
-      return { exitCode: 0 };
+      humanStdout("idempotency_action: cancelled\n");
+      humanStdout("result: no-op acknowledged\n");
+      report.idempotencyAction = "cancelled";
+      report.result = "no-op acknowledged";
+      return finish(opts, report, writeStdout, 0);
     }
 
-    renderIdempotencyChoice(choice, writeStdout);
+    report.idempotencyAction = choice;
+    renderIdempotencyChoice(choice, humanStdout);
     if (choice === "add-harness") {
-      return runSingleHarnessInstall(opts, { writeStdout, writeStderr });
+      return runSingleHarnessInstall(opts, { writeStdout: humanStdout, writeStderr }, report, writeStdout);
     }
-    return { exitCode: 0 };
+    report.result = choice;
+    return finish(opts, report, writeStdout, 0);
   }
 
-  writeStdout("release_setup_install: state-mismatch\n");
-  return runSingleHarnessInstall(opts, { writeStdout, writeStderr });
+  humanStdout("release_setup_install: state-mismatch\n");
+  report.result = "state-mismatch";
+  return runSingleHarnessInstall(opts, { writeStdout: humanStdout, writeStderr }, report, writeStdout);
 }
 
 /**
@@ -165,6 +197,7 @@ export async function runReleaseSetupInstall(
 export async function handleReleaseSetupInstall(opts: {
   harness?: string;
   mode?: string;
+  json?: boolean;
 }): Promise<void> {
   const cwd = resolveArcRoot(process.cwd());
   if (cwd === null) {
@@ -196,9 +229,10 @@ export async function handleReleaseSetupInstall(opts: {
     marker,
     harness: opts.harness,
     mode: opts.mode,
+    json: opts.json,
     chooseIdempotency: promptForIdempotency,
-    acknowledgeTrust: promptForTrustAcknowledgment,
-    workflowVerification: promptForWorkflowVerification,
+    acknowledgeTrust: opts.json === true ? undefined : promptForTrustAcknowledgment,
+    workflowVerification: opts.json === true ? undefined : promptForWorkflowVerification,
     upsertHarness: (entry) => upsertHarness({ cwd, identity }, entry),
     recordOptIn: () => runReleaseOptIn({ exec: gitExec }),
   });
@@ -237,11 +271,16 @@ async function runSingleHarnessInstall(
     writeStdout: (msg: string) => void;
     writeStderr: (msg: string) => void;
   },
+  report: SetupInstallJsonEnvelope,
+  writeJsonStdout: (msg: string) => void,
 ): Promise<RunReleaseSetupInstallResult> {
   renderSingleHarnessNextAction(io.writeStdout);
 
   const input = validateSingleHarnessInput(opts, io.writeStderr);
-  if (!input.ok) return input.result;
+  if (!input.ok) {
+    report.result = "error";
+    return finish(opts, report, writeJsonStdout, input.result.exitCode);
+  }
 
   const acknowledgeTrust = opts.acknowledgeTrust ?? (() => Promise.resolve(null));
   const workflowVerification = opts.workflowVerification ?? (() => Promise.resolve(null));
@@ -256,7 +295,8 @@ async function runSingleHarnessInstall(
   if (trustAccepted !== true) {
     io.writeStdout("trust_acknowledgment: declined\n");
     io.writeStdout("result: aborted\n");
-    return { exitCode: 0 };
+    report.result = "aborted";
+    return finish(opts, report, writeJsonStdout, 0);
   }
   io.writeStdout("trust_acknowledgment: accepted\n");
 
@@ -268,13 +308,15 @@ async function runSingleHarnessInstall(
   if (workflowVerified !== true) {
     io.writeStdout("workflow_verification: not confirmed\n");
     io.writeStdout("result: aborted\n");
-    return { exitCode: 0 };
+    report.result = "aborted";
+    return finish(opts, report, writeJsonStdout, 0);
   }
   io.writeStdout("workflow_verification: confirmed\n");
 
   if (markerUpsert === undefined || recordOptIn === undefined) {
     io.writeStderr("Install state recording is unavailable.\n");
-    return { exitCode: 1 };
+    report.result = "error";
+    return finish(opts, report, writeJsonStdout, 1);
   }
 
   const markerResult = await markerUpsert({
@@ -284,17 +326,33 @@ async function runSingleHarnessInstall(
   });
   if (!markerResult.ok) {
     io.writeStderr(formatMarkerReadError(markerResult.error));
-    return { exitCode: 1 };
+    report.result = "error";
+    return finish(opts, report, writeJsonStdout, 1);
   }
   io.writeStdout("marker: upserted\n");
+  report.harnesses = markerResult.marker.harnesses.map((entry) => ({
+    name: entry.name,
+    mode: entry.mode,
+    installedAt: entry.installedAt,
+    result: entry.name === input.harness ? "recorded" : "existing",
+  }));
 
-  const optInResult = await recordOptIn();
-  if (optInResult.exitCode !== 0) {
-    return optInResult;
+  if (opts.settings.resolved.releaseEnabled.value === "true") {
+    io.writeStdout("opt_in: already recorded\n");
+    report.releaseEnabled.after = true;
+  } else {
+    const optInResult = await recordOptIn();
+    if (optInResult.exitCode !== 0) {
+      report.result = "error";
+      return finish(opts, report, writeJsonStdout, optInResult.exitCode);
+    }
+    io.writeStdout("opt_in: recorded\n");
+    report.releaseEnabled.after = true;
   }
-  io.writeStdout("opt_in: recorded\n");
+
   io.writeStdout("result: install recorded\n");
-  return { exitCode: 0 };
+  report.result = "install recorded";
+  return finish(opts, report, writeJsonStdout, 0);
 }
 
 function validateSingleHarnessInput(
@@ -337,6 +395,45 @@ function buildTrustAcknowledgmentMessage(mode: HarnessMode): string {
     "Opt-in records that the release wrapper's validation and audit layer is engaged",
     "above your existing safety posture. Do you accept this audit-only opt-in?",
   ].join(" ");
+}
+
+function buildJsonEnvelope(opts: {
+  releaseEnabled: boolean;
+  releaseEnabledSource: string;
+  harnesses: readonly HarnessEntry[];
+}): SetupInstallJsonEnvelope {
+  return {
+    schemaVersion: 1,
+    command: "install",
+    releaseEnabled: {
+      before: opts.releaseEnabled,
+      source: opts.releaseEnabledSource,
+      after: opts.releaseEnabled,
+    },
+    harnesses: opts.harnesses.map((entry) => ({
+      name: entry.name,
+      mode: entry.mode,
+      installedAt: entry.installedAt,
+      result: "existing",
+    })),
+    result: "not-run",
+    exitCode: 0,
+  };
+}
+
+function finish(
+  opts: RunReleaseSetupInstallOptions,
+  report: SetupInstallJsonEnvelope | null,
+  writeStdout: (msg: string) => void,
+  exitCode: number,
+): RunReleaseSetupInstallResult {
+  if (report !== null) {
+    report.exitCode = exitCode;
+    if (opts.json === true) {
+      writeStdout(`${JSON.stringify(report, null, 2)}\n`);
+    }
+  }
+  return { exitCode };
 }
 
 function renderIdempotencyChoice(
