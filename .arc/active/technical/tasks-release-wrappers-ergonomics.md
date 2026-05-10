@@ -591,30 +591,72 @@ _Design decisions:_ Strategy doc lands first — initial-setup section (6.2) and
   ATOMIC-INBOX (configurability-architecture 5 mentions, file-classification 4,
   workflow-authoring 1, session-operations 1).
 
-### `[ ]` **6.2 Initial-setup section in `01_verify-and-configure.md` (R2)**
+### `[x]` **6.2 Initial-setup section in `01_verify-and-configure.md` (R2)**
 
 - _Goal:_ Lightweight section in the existing initial-setup workflow surfaces release-wrapper
   setup at onboarding — three-way user choice (set up now / defer / never) without gatekeeping
   onboarding completion.
 
-- _Approach:_ Section content is minimal per PRD R2 — brief description + three-way choice +
-  pointer to `arc release setup install` for the now path. Strictly informational. Section title
-  TBD at impl-time (e.g., "Optional: Interlock Release Wrapper Setup" — confirm at write-time per
-  PRD § Open Questions).
+    - `[x]` **6.2.a Section content draft**
+        - Section title: `Optional: Set Up Release Wrappers` — verb-leading; matches the file's
+          existing `Optional: Verify Installation` pattern (Optional-prefix for non-gating
+          informational sections).
+        - One-paragraph description defines wrappers in newcomer-friendly terms (working
+          definition without prerequisite ARC vocabulary), names the per-mode value
+          composition (default-prompt: harness-prompt removal; bypass: validation + audit as
+          canonical authorization signal), names the per-developer per-machine opt-in
+          trade-off. Pointer to strategy doc for full framing.
+        - Three-way choice (Set up now / Defer / Skip entirely) with concrete next-step prose
+          per option.
 
-    - `[ ]` **6.2.a Section content draft**
-        - Brief description (one paragraph): what interlock release wrappers are, what
-          installation does, the trust-model trade-off in one or two lines.
-        - Three-way user choice block.
+    - `[x]` **6.2.b Path 1 placement (Fresh Install)**
+        - Section inserted between `### Customization Beyond Config` and
+          `### Optional: Verify Installation`. Description back-references
+          `§ Configuration Walkthrough` (Path-1's review-section name) for interlock-value
+          continuity.
 
-    - `[ ]` **6.2.b Path 1 placement (Fresh Install)**
-        - Insert section between "Customization Beyond Config" and "Optional: Verify
-          Installation" per PRD R2.
+    - `[x]` **6.2.c Path 2 placement (Join Existing)**
+        - Section inserted between `### Configuration Review` and
+          `### Optional: Verify Installation`. Body verbatim with Path 1 except the
+          back-reference points to `§ Configuration Review` (Path-2's review-section name).
 
-    - `[ ]` **6.2.c Path 2 placement (Join Existing)**
-        - Insert section between "Configuration Review" and "Optional: Verify Installation" per
-          PRD R2.
-        - Same content as 6.2.b — both paths share the section body verbatim.
+- _Outcome:_ One ~28-line section, verbatim across both paths (no path-specific back-
+  reference; the abstracted "settings reviewed during initial configuration" phrasing
+  works for both Path 1's "Configuration Walkthrough" and Path 2's "Configuration
+  Review"). Friction-story framing leads — harness prompt or custom user-level hook
+  prompt becomes redundant once ARC's interlock layer has authorized; wrapper closes
+  the gap. Trust-model trade-off named; defer is named as the reasonable default.
+  Two pointers (intent-labeled): strategy doc for trust-model + when-to-use; setup
+  workflow for the procedure. New `[interlock-strategy]` and `[setup-workflow]` link
+  references added to the file's link block. Neutral framing throughout (zero "adopter"
+  mentions per the Task 6.1 discipline).
+
+  **Bundled cross-doc fix (third pattern surfacing):** The original framing
+  pre-section work assumed two patterns — default-prompt with allowlist install vs.
+  bypass with no friction-reduction lever. Drafting the section surfaced a third
+  pattern (bypass + custom user-level hook with denylist logic, common in power-user
+  postures), where friction reduction arrives automatically because denylist patterns
+  target `git commit` / `git push`, not the wrapper subcommands (precedent: `arc sync`
+  has worked this way since it landed). To correctly account for this pattern:
+
+    - **Strategy doc:** § Safety-Gate Hooks (Parallel Layer) renamed to § Custom
+      User-Level Hooks (Parallel Layer) — "safety-gate" was non-standard coined
+      terminology. Section body re-termed throughout. New § Friction reduction across
+      layers subsection added articulating the allowlist/denylist asymmetry,
+      automatic-passthrough common case, and the broad-pattern edge case (denylist
+      refinement as the analogous lever). § Bypass-mode framing in Trust Model and
+      § When Not to Use This re-termed for consistency.
+    - **Setup workflow:** "safety-hook" mentions in Step 2's bypass-mode acknowledgment
+      re-termed to "custom user-level hooks." New "Custom user-level hook awareness"
+      block added to Step 3's bypass arm — surfaces that wrapper invocations typically
+      pass through denylists silently, no hook update required in the common case;
+      points to strategy doc for the full framing.
+    - All three files synced to package source.
+
+  **Forward note:** This project hasn't yet run `arc release setup install` against
+  itself (Phase 5 just landed the routing primitive; ergonomics WU's setup paths are
+  what's being authored). Flag at next-session handoff: run setup against this repo
+  before resuming task work to dogfood the new flow.
 
 ### `[ ]` **6.3 Cross-reference updates (R14.2–R14.5)**
 

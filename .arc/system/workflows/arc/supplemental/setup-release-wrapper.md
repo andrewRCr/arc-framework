@@ -128,6 +128,15 @@ the install half is a no-op:
 > Bypass mode detected. Allowlist install skipped — there is no harness prompt to remove. The
 > validation + audit layer is the engaged value prop; opt-in records that acceptance.
 
+**Custom user-level hook awareness.** If the local posture includes a custom user-level hook
+intercepting commits and pushes (e.g., a denylist script that prompts on `git commit` /
+`git push`), surface that wrapper invocations typically pass through such denylists silently —
+patterns target `git commit` / `git push`, not `arc release commit` / `arc release push`. No
+hook update is required in the common case; the friction-reduction value materializes
+automatically. See `strategy-interlock-release-wrappers.md` § Custom User-Level Hooks (Parallel
+Layer) for the framing. Edge case (broad pattern catches wrapper, e.g., wildcard on
+`arc release *`): refine the denylist to exclude wrapper subcommands.
+
 ### Step 4: Verify
 
 **Default-prompt — mandatory behavioral test.** Invoke `arc release commit --version` directly through
@@ -314,12 +323,12 @@ prompt.
 > would be a no-op — there's no harness prompt to skip. Skipping that step.
 >
 > Opt-in still records your decision to engage the wrapper's validation + audit layer as a layered
-> protection above your existing safety-hook posture. The wrapper validates interlock state, refuses
-> destructive flags, and audits every invocation. Under bypass mode this layer is your primary review
-> surface for `arc release commit` / `arc release push`.
+> protection above any custom user-level hooks you've installed. The wrapper validates interlock state,
+> refuses destructive flags, and audits every invocation. Under bypass mode this layer is your primary
+> review surface for `arc release commit` / `arc release push`.
 >
-> Other git invocations remain governed by your existing safety-hook posture. The two layers compose
-> without conflict.
+> Other git invocations remain governed by whatever custom user-level hooks you've installed (if any).
+> The two layers compose without conflict.
 >
 > You can disable any time via `arc release setup uninstall`. Do you accept this opt-in?
 

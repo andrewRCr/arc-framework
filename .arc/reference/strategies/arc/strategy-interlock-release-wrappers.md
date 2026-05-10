@@ -3,7 +3,7 @@
 **Purpose:** Architectural reference for ARC's interlock release wrappers — `arc release commit`
 and `arc release push`. Carries the trust model, value-layer composition, when-to-use /
 when-not-to-use guidance per harness mode, the universal route for any harness, the relationship
-to user-level safety-gate hooks, and strategic awareness around the wrapper system.
+to custom user-level hooks, and strategic awareness around the wrapper system.
 
 **Scope:** What the wrappers are, why they exist, when to engage them, and how they compose with
 adjacent layers. Setup procedure (detection, install, verify, record state, rollback) lives in
@@ -18,7 +18,7 @@ adjacent layers. Setup procedure (detection, install, verify, record state, roll
 - [When Not to Use This](#when-not-to-use-this) — non-fit cases
 - [Per-Harness Reference Implementations](#per-harness-reference-implementations) — Claude Code, Codex CLI
 - [Agent-Adaptive Path](#agent-adaptive-path) — universal route for any harness
-- [Safety-Gate Hooks (Parallel Layer)](#safety-gate-hooks-parallel-layer) — composition with denylist hooks
+- [Custom User-Level Hooks (Parallel Layer)](#custom-user-level-hooks-parallel-layer) — composition with denylist hooks
 - [Strategic Awareness](#strategic-awareness) — known characteristics worth anticipating
 
 ---
@@ -90,8 +90,9 @@ The trust shift: ARC's interlock layer becomes the canonical authorization point
 acceptance that ARC's mechanical enforcement is the review surface for matching invocations
 rather than the harness prompt.
 
-**Bypass mode** (`bypassPermissions`, dangerous mode, equivalents — typically paired with
-denylist safety-gate hooks). The harness allows Bash invocations without prompting. Allowlist
+**Bypass mode** (`bypassPermissions`, dangerous mode, equivalents — often paired with
+custom user-level hooks running denylist logic for selective prompting). The harness
+allows Bash invocations without prompting. Allowlist
 install is a no-op — there is no harness prompt to skip — so the conditional layer doesn't
 engage. The unconditional layer (validation + audit) is the primary value prop.
 
@@ -117,12 +118,14 @@ per-developer git-config local; it persists across sessions until cleared via
 available indefinitely.
 
 **Under bypass mode, when validation + audit isn't the right fit.** The unconditional layer is
-the only value layer that engages under bypass. A posture leaning entirely on safety-gate hooks
-at the OS boundary may make the additional CLI-boundary validation feel duplicative — though the
-layers cover different concerns (denylist coverage vs. ARC-state correctness; see § Safety-Gate
-Hooks). There is no "validation off" justification under bypass mode the way there might be
-under default-prompt (where the harness prompt itself is a review surface). Either the
-unconditional layer earns its place for this posture, or it doesn't.
+the only mechanical value layer the wrapper itself engages under bypass — friction reduction
+arrives differently depending on whether custom user-level hooks are in play (see § Custom
+User-Level Hooks for the interaction). A posture leaning entirely on custom user-level hooks
+for command vetting may make the additional CLI-boundary validation feel duplicative — though
+the layers cover different concerns (broad command vetting vs. ARC-state correctness). There
+is no "validation off" justification under bypass mode the way there might be under
+default-prompt (where the harness prompt itself is a review surface). Either the unconditional
+layer earns its place for this posture, or it doesn't.
 
 ## Per-Harness Reference Implementations
 
@@ -190,26 +193,49 @@ inconsistently until upstream resolves. Setup workflow surfaces the limitations 
 opencode is detected. A polished convenience-helper formatter for opencode lands when upstream
 resolves; the agent-adaptive path is available immediately.
 
-## Safety-Gate Hooks (Parallel Layer)
+## Custom User-Level Hooks (Parallel Layer)
 
-User-level safety-gate hooks (`~/.claude/hooks/safety-gate.sh`, Codex equivalent) and the
-interlock release wrappers are complementary layers, not alternatives. They cover different
-concerns at different boundaries:
+Custom user-level hooks — scripts the developer installs at the harness's hook surface (e.g.,
+`~/.claude/hooks/<name>.sh`, Codex equivalent) that intercept commands and prompt selectively
+based on the developer's own criteria — and the interlock release wrappers are complementary
+layers, not alternatives. They cover different concerns at different boundaries:
 
-| Layer              | Boundary     | Coverage                                            | Mechanism                                |
-|--------------------|--------------|-----------------------------------------------------|------------------------------------------|
-| Safety-gate hooks  | OS boundary  | Broad — denylist any command surface                | Pre-execution hook intercepts shell call |
-| Interlock wrappers | CLI boundary | Narrow — `arc release commit` / `arc release push`  | Wrapper validates ARC state, then spawns |
+| Layer                   | Boundary       | Coverage                                            | Mechanism                                |
+|-------------------------|----------------|-----------------------------------------------------|------------------------------------------|
+| Custom user-level hooks | Harness layer  | Broad — any command pattern the hook matches        | Pre-execution hook intercepts shell call |
+| Interlock wrappers      | CLI boundary   | Narrow — `arc release commit` / `arc release push`  | Wrapper validates ARC state, then spawns |
 
-The two compose without conflict. A safety-gate hook denying `git push --force` continues to
-fire even when the wrapper is engaged — wrapper invocations don't bypass the hook layer.
-Conversely, the wrapper's interlock validation and destructive-flag refusal fire even when the
-safety-gate hook allows the invocation.
+The two compose without conflict. A custom hook denying `git push --force` continues to fire
+even when the wrapper is engaged — wrapper invocations don't bypass the hook layer. Conversely,
+the wrapper's interlock validation and destructive-flag refusal fire even when the hook allows
+the invocation.
 
-Under bypass mode, pairing both layers is typical — denylist hooks cover the broad surface that
+Under bypass mode, pairing both layers is typical — custom hooks cover the broad surface that
 bypass mode otherwise leaves un-prompted, while wrapper validation provides the ARC-state
 correctness check for release operations. Under default-prompt mode, either or both works; the
 layers compose identically either way.
+
+### Friction reduction across layers
+
+The conditional value layer (harness-prompt bypass, § Trust Model) extends naturally across the
+harness/hook split because of the asymmetry between allowlist and denylist mechanics.
+Default-prompt harnesses gate everything by default and require explicit allowlist entries to
+skip the prompt — `arc release setup install` writes those entries for matching wrapper
+invocations. Custom user-level hooks usually run as denylists — specific patterns trigger the
+prompt, unrecognized commands fall through silently. Wrapper invocations
+(`arc release commit`, `arc release push`) typically aren't on the denylist by default, so they
+pass through without prompting in the common case. This mirrors how `arc sync` has worked since
+it landed: a denylist that matches `git push` does not match `arc sync`, so sync invocations
+execute silently while raw `git push` prompts as before.
+
+Edge case: if a custom hook uses a broad pattern that matches wrapper commands (e.g., a
+wildcard catching `arc release *`), refinement to exclude `arc release commit` /
+`arc release push` is the analogous lever to allowlist install on default-prompt harnesses.
+The wrapper still works mechanically without that refinement; it just continues to receive the
+hook's prompt.
+
+Validation + audit fires regardless of either layer's prompt behavior — the unconditional layer
+is independent of the friction-reduction question.
 
 ## Strategic Awareness
 

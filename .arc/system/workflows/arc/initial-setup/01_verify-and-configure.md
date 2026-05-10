@@ -114,6 +114,38 @@ DEV-RULES.PROJECT (defined in the next workflow). These grow organically as proj
 patterns emerge. See [Configurability Architecture Strategy][config-arch] for the
 full model.
 
+### Optional: Set Up Interlock Release Wrappers
+
+Most setups ask for confirmation before every `git commit` / `git push` — through the
+agent harness's per-invocation prompt, a custom user-level hook, or both. Once ARC's
+interlock layer (the `commit_interlock` / `push_interlock` settings reviewed during
+initial configuration) is already authorizing each commit and push at the workflow
+level, that per-invocation confirmation can become redundant.
+
+The release wrappers (`arc release commit` and `arc release push`) close that gap:
+ARC's interlock validation becomes the per-invocation authorization point for those
+specific commands, and the wrappers run without re-asking for confirmation that ARC has
+already given. Raw `git commit` / `git push` continue to prompt as before — only
+wrapper invocations are affected.
+
+The trade-off is trust: ARC's mechanical validation replaces the prompting layer as the
+review surface for matching invocations. Setup is a per-developer per-machine opt-in,
+and it's reasonable to defer until ARC's commit and push flow feels familiar.
+
+See [Interlock Release Wrappers Strategy][interlock-strategy] for the full trust-model
+framing, when-to-use guidance, and prompt-source layer interactions. The [Set Up
+Release Wrappers Workflow][setup-workflow] carries the step-by-step procedure that
+`arc release setup install` drives.
+
+Three options:
+
+- **Set up now** — run `arc release setup install`. The setup workflow detects the
+  harness, walks through trust-model acknowledgment, and verifies before recording
+  opt-in.
+- **Defer** — continue initial setup; run `arc release setup install` whenever ready.
+- **Skip entirely** — continue initial setup; `arc release setup install` remains
+  available regardless of this choice. The framework doesn't gate the feature out.
+
 ### Optional: Verify Installation
 
 Run `/arc-verify` to confirm that the installation is complete and consistent — file
@@ -155,6 +187,30 @@ initial setup — review each value, what it controls, and what it means for you
 Adjustments are committed to the repo like any other code change. The config file's inline
 comments document all available values.
 
+### Optional: Set Up Release Wrappers
+
+ARC's release wrappers — `arc release commit` and `arc release push` — wrap
+`git commit` / `git push` with mechanical interlock validation (the same interlock
+values reviewed during § Configuration Review), refuse destructive flags, and write one
+audit-log entry per invocation. Setup translates a small allowlist into the harness's
+permission surface so the wrappers run without per-invocation harness prompts under
+default-prompt harnesses; under bypass-mode harnesses, setup records opt-in to engage
+the validation + audit layer as the canonical authorization signal for matching
+invocations. The trade-off is a per-developer per-machine opt-in.
+
+See [Interlock Release Wrappers Strategy][interlock-strategy] for the full trust-model
+framing, when-to-use guidance, and per-harness setup notes.
+
+Three options:
+
+- **Set up now** — run `arc release setup install`. The setup workflow detects the
+  harness, walks through trust-model acknowledgment, writes the allowlist, verifies with
+  a behavioral test under default-prompt mode, and records opt-in.
+- **Defer** — continue initial setup; run `arc release setup install` whenever ready.
+  Available indefinitely.
+- **Skip entirely** — continue initial setup; `arc release setup install` remains
+  available regardless of this choice. The framework doesn't gate the feature out.
+
 ### Optional: Verify Installation
 
 Run `/arc-verify` to confirm that the installation is complete and consistent.
@@ -171,3 +227,5 @@ skip [02_define-project.md](02_define-project.md) unless documents need updating
 ---
 
 [config-arch]: ../../../../reference/strategies/arc/strategy-configurability-architecture.md
+[interlock-strategy]: ../../../../reference/strategies/arc/strategy-interlock-release-wrappers.md
+[setup-workflow]: ../supplemental/setup-release-wrapper.md
