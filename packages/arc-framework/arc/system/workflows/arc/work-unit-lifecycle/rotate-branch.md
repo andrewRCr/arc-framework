@@ -31,10 +31,9 @@ Before initiating rotation:
 
 - Update `**Branch(es):**` field in the task list header to include the next branch name (if known)
 
-**Create pull request:**
+**Create pull request:** Push the branch upstream (`workflowPush`): `-u origin {current-branch}`. Then create the PR:
 
 ```bash
-git push -u origin {current-branch}
 gh pr create --base {parent-or-base-branch} --head {current-branch}
 ```
 
@@ -62,8 +61,9 @@ gh pr merge {pr-number} --merge
 # Or locally
 git switch {parent-or-base-branch}
 git merge {current-branch} --no-ff
-git push
 ```
+
+Then push (`workflowPush`) the merged result.
 
 Delete the merged branch:
 

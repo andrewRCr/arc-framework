@@ -83,12 +83,18 @@ disposition lands on the base branch via merge.
 - **Status file**: leave in place. Downstream [`activate-work-unit.md`][activate-work-unit] Step 4
   transition path handles `State: Planning → In Progress` and the field deltas.
 
-```bash
-# arc-in-git only
-git rm .arc/active/{category}/plan-{name}.md
-git commit -m "docs(arc): graduate plan-{name} to PRD
+**arc-in-git only:**
 
-Context: tasks-{name}.md (planning)"
+```bash
+git rm .arc/active/{category}/plan-{name}.md
+```
+
+Then commit (`workflowCommit`):
+
+```text
+docs(arc): graduate plan-{name} to PRD
+
+Context: tasks-{name}.md (planning)
 ```
 
 #### Shelved path · planning did not graduate
@@ -101,27 +107,42 @@ Context: tasks-{name}.md (planning)"
 - **Status file**: `git rm .arc/active/{category}/status-{name}.md` — no WU follows; the
   planning-state pointer serves no purpose.
 
+**arc-in-git** — status removal + plan-doc move stage together as a bundled ceremony commit per
+DEV-RULES.ARC § Status-file commit shape (staging-as-test):
+
 ```bash
-# arc-in-git: status removal + plan-doc move stage together — bundled ceremony commit
-# per DEV-RULES.ARC § Status-file commit shape (staging-as-test).
 git rm .arc/active/{category}/status-{name}.md
 git mv .arc/active/{category}/plan-{name}.md .arc/backlog/{category}/
-git commit -m "docs(arc): shelve plan-{name} back to backlog
+```
 
-Context: planning (no associated task list)"
+Then commit (`workflowCommit`):
 
-# none / external: plan-doc stays in active/; status removal is the entire staged
-# change → dedicated chore(status): commit.
+```text
+docs(arc): shelve plan-{name} back to backlog
+
+Context: planning (no associated task list)
+```
+
+**none / external** — plan-doc stays in `active/`; status removal is the entire staged change →
+dedicated `chore(status):` commit:
+
+```bash
 git rm .arc/active/{category}/status-{name}.md
-git commit -m "chore(status): retire shelved {name}
+```
 
-Context: planning (no associated task list)"
+Then commit (`workflowCommit`):
+
+```text
+chore(status): retire shelved {name}
+
+Context: planning (no associated task list)
 ```
 
 ### 3) Push and Create PR
 
+Push the planning branch upstream (`workflowPush`): `-u origin {planning-branch}`. Then create the PR:
+
 ```bash
-git push -u origin {planning-branch}
 gh pr create --base {base-branch} --head {planning-branch}
 ```
 

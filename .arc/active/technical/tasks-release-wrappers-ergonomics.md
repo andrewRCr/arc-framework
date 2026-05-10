@@ -397,33 +397,41 @@ conventions throughout).
   stale until next desktop session — captured as a Persistent Context entry in
   SESSION-NOTES.md for cross-machine continuity.
 
-### `[ ]` **5.3 Workflow class-tag integration (R12.4–R12.9)**
+### `[x]` **5.3 Workflow class-tag integration (R12.4–R12.9)**
 
 - _Goal:_ Each routing-relevant fire site across 10 workflow files is class-tagged with verb
   elided per PRD R12 workflow-author guidance. Destructive-flag invocations remain literal (no
   class tag, no shape change). Behavior under default config is unchanged — all routing resolves
   to `raw`.
 
-- _Approach:_ Mechanical shape-edit per file. Each subtask handles one file; no
-  cross-file dependencies. Could batch via deferred-review at execution time.
+- _Outcome:_ Settled syntax shape on first edit site (5.3.b session-handoff): commit fire
+  sites use directive line ending `(`<className>`):` followed by `text` codeblock with
+  message body (verb elided — `git commit -m "..."` literal removed); push fire sites use
+  inline prose with `(`<className>`)` at the directive plus backticked args (verb elided —
+  `git push` literal removed). Pattern applied uniformly across all 9 file edits
+  (5.3.b–5.3.j); 5.3.a confirmed zero-edit (process-task-loop delegates to arc-commit skill
+  at L209). Synced to package source for the 8 workflows with
+  `packages/arc-framework/arc/system/workflows/` counterparts; project-only workflow (5.3.j)
+  edited in `.arc/` only. All destructive-flag invocations preserved literal as spec'd. Tier
+  2 markdown lint clean across 241 files.
 
-    - `[ ]` **5.3.a `process-task-loop.md` zero-edit confirmation (R12.4)**
+    - `[x]` **5.3.a `process-task-loop.md` zero-edit confirmation (R12.4)**
         - Verify task-work commit routing flows through arc-commit skill (R12.3) without per-
           site class tag in the workflow body.
         - Audit trail only; mark `[x]` after manual inspection.
 
-    - `[ ]` **5.3.b `session-handoff.md` (R12.5)**
+    - `[x]` **5.3.b `session-handoff.md` (R12.5)**
         - Handoff ceremony commit (L130, `chore(status): handoff`) → `workflowCommit` +
           `text` codeblock with message body.
         - No push fire site: handoff push is delegated to `arc sync` (orchestrator at
           L389-413), which PRD R12 carves out from routing scope.
 
-    - `[ ]` **5.3.c `activate-work-unit.md` (R12.6)**
+    - `[x]` **5.3.c `activate-work-unit.md` (R12.6)**
         - Activation commit (L197) → `workflowCommit` + `text` codeblock with message body.
         - Activation push (L214) → `workflowPush` + inline prose.
         - PRD-creation commit (L59) → `workflowCommit` + `text` codeblock with message body.
 
-    - `[ ]` **5.3.d `activate-planning-branch.md` (R12.7)**
+    - `[x]` **5.3.d `activate-planning-branch.md` (R12.7)**
         - Planning-branch activation push (L137) → `workflowPush` + inline prose.
         - Destructive `git push origin --delete` (L56, L76) and rename push-then-delete pattern
           (L75-76) — no class tag; literal preserved.
@@ -431,30 +439,30 @@ conventions throughout).
           literal as part of the rename idiom paired with L76's destructive delete. Splitting
           would break the prose-flow coupling.
 
-    - `[ ]` **5.3.e `integrate-work-unit.md` (R12.8)**
+    - `[x]` **5.3.e `integrate-work-unit.md` (R12.8)**
         - Two ceremony pushes (L290 with `-u`, L335 bare) → `workflowPush` + inline prose.
 
-    - `[ ]` **5.3.f `archive-work-unit.md` (R12.8)**
+    - `[x]` **5.3.f `archive-work-unit.md` (R12.8)**
         - Archive ceremony commit (L227) → `workflowCommit` + `text` codeblock.
         - Destructive delete-push (L115) — no class tag; literal preserved.
 
-    - `[ ]` **5.3.g `deactivate-work-unit.md` (R12.8)**
+    - `[x]` **5.3.g `deactivate-work-unit.md` (R12.8)**
         - Deactivation commits (L133, L177) → `workflowCommit` + `text` codeblock each.
         - Deactivation pushes (L142, L186) → `workflowPush` + inline prose.
         - Destructive delete-push (L82) — no class tag; literal preserved.
 
-    - `[ ]` **5.3.h `rotate-branch.md` (R12.8)**
+    - `[x]` **5.3.h `rotate-branch.md` (R12.8)**
         - Non-destructive pushes (L37 with `-u`, L65 bare) → `workflowPush` + inline prose.
         - Destructive `git push --force-with-lease` (L93) and `git push origin --delete` (L72) —
           no class tag; literal preserved.
 
-    - `[ ]` **5.3.i `integrate-planning-branch.md` (R12.8)**
+    - `[x]` **5.3.i `integrate-planning-branch.md` (R12.8)**
         - Ceremony commits (L89 graduation, L109 shelving, L116 retire) → `workflowCommit` +
           `text` codeblock each.
         - Ceremony push (L124) → `workflowPush` + inline prose.
         - Destructive delete-push (L159) — no class tag; literal preserved.
 
-    - `[ ]` **5.3.j `project/address-pr-review.md` (R12.9)**
+    - `[x]` **5.3.j `project/address-pr-review.md` (R12.9)**
         - Ceremony push (L149) → `workflowPush` + inline prose.
 
 ### `[ ]` **5.4 Permissiveness-ladder fixup for non-routing interlock gates**

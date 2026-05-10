@@ -56,9 +56,14 @@ Planning artifacts should already be on the base branch — merged via planning 
 
 ```bash
 git add .arc/backlog/{category}/prd-{name}.md .arc/backlog/{category}/tasks-{name}.md
-git commit -m "docs(arc): create PRD and task list for {Work Name}
+```
 
-Context: planning (atomic / no associated task list)"
+Then commit (`workflowCommit`):
+
+```text
+docs(arc): create PRD and task list for {Work Name}
+
+Context: planning (atomic / no associated task list)
 ```
 
 ### Step 2: Create Implementation Branch
@@ -193,13 +198,17 @@ git add .arc/active/{category}/prd-{name}.md \
        .arc/active/{category}/tasks-{name}.md \
        .arc/active/{category}/atomic-{name}.md \
        .arc/active/{category}/status-{name}.md
+```
 
-git commit -m "docs(arc): activate {work-name} work unit
+Then commit (`workflowCommit`):
+
+```text
+docs(arc): activate {work-name} work unit
 
 - Create status file with State: In Progress
 - Move planning artifacts to active/ (arc-in-git)
 
-Context: status-{name}.md (activation)"
+Context: status-{name}.md (activation)
 ```
 
 **Note:** Stage only the files actually modified. With `arc-in-git`, also stage PROJECT-STATUS.md and
@@ -208,11 +217,7 @@ produced additional changes, stage those as well.
 
 ### Step 8: Push Feature Branch (Optional)
 
-Set upstream for the feature branch:
-
-```bash
-git push -u origin {feature|technical}/{branch-name}
-```
+Set upstream for the feature branch (`workflowPush`): `-u origin {feature|technical}/{branch-name}`.
 
 This is optional but recommended - establishes remote tracking early.
 

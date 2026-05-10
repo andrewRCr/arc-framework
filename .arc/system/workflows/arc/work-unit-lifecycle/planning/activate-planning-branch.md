@@ -131,11 +131,7 @@ carry-over (mirrors `template-prd.md` precedent). Then populate the planning fie
 
 ### 6) Push Planning Branch (Optional)
 
-Set upstream for the planning branch:
-
-```bash
-git push -u origin {category}/plan-{name}
-```
+Set upstream for the planning branch (`workflowPush`): `-u origin {category}/plan-{name}`.
 
 This is optional but recommended — establishes remote tracking early.
 
