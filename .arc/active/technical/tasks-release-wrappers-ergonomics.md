@@ -469,14 +469,18 @@ the strategy doc. Agent-adaptive path framed as a universal route, not a fallbac
 
 ## **Phase 5:** Routing rule + workflow class-tag integration
 
-_Purpose:_ Land the canonical routing rule, amend the arc-commit skill, and apply class tags
-across the 10 ceremony fire sites with verb-elided shapes.
+_Purpose:_ Land the canonical routing rule, amend the arc-commit skill, apply class tags across
+the 10 ceremony fire sites with verb-elided shapes, and extend non-routing interlock-value
+gates to honor the permissiveness ladder.
 
 _Design decisions:_ Canonical rule (5.1) lands first — it's referenced by 5.2 and 5.3 downstream.
 arc-commit skill (5.2) consolidates task-work routing — eliminates per-workflow class tags at
 task-commit sites. Per-workflow class tags (5.3) are mechanical shape-edits; one subtask per
 file. Destructive-flag invocations stay literal at every site (no class tag, no shape change) per
-PRD R12 workflow-author guidance.
+PRD R12 workflow-author guidance. Permissiveness-ladder fixup (5.4) is independent of routing —
+targets non-routing consumer surfaces (prompt shape, deferred-review default, sync push trigger)
+that strict-equality-check lower-tier values; without it, `on-workflow` falls through to
+default-conservative at these sites.
 
 The verb-elision shape is documented in `notes-release-wrappers-ergonomics.md` and PRD R12
 workflow-author guidance — for commits, message body in `text` codeblock with no verb prefix; for
@@ -567,6 +571,44 @@ conventions throughout).
 
     - `[ ]` **5.3.j `project/address-pr-review.md` (R12.9)**
         - Ceremony push (L149) → `workflowPush` + inline prose.
+
+### `[ ]` **5.4 Permissiveness-ladder fixup for non-routing interlock gates**
+
+- _Goal:_ Workflow text and code that gate behavior on raw interlock values via strict equality
+  against the lower-permissiveness tier (`on-task-approval`, `on-sync`) extend to also accept the
+  upper tier (`on-workflow`) per the ADR-018 ladder. Closes the regression where setting
+  `on-workflow` falls through to default-conservative at sites the routing primitive doesn't
+  cover.
+
+- _Approach:_ Mechanical OR-extension per site. Pattern reference: `recommended-summary-line.ts`
+  already implements the OR-shape for sync_interlock
+  (`syncInterlock.value === "on-handoff" || === "on-workflow"`); mirror across remaining sites.
+  Routing primitive (Task 1.1) handles the ladder internally — this task targets surfaces upstream
+  of routing (prompt shape, deferred-review default, sync push-leg trigger).
+
+    - `[ ]` **5.4.a `process-task-loop.md` prompt-prefix selector**
+        - L121 currently fires `Commit and proceed` only under
+          `commit_interlock: on-task-approval`.
+        - Extend: also under `on-workflow`.
+
+    - `[ ]` **5.4.b `process-task-loop.md` deferred-review safe-accumulation**
+        - L155 currently safe-accumulates only under `on-task-approval`.
+        - Extend: also under `on-workflow`.
+
+    - `[ ]` **5.4.c Sync push-leg trigger**
+        - Audit `lib/sync/` and any sync-workflow text for strict
+          `pushInterlock === "on-sync"` checks gating the push leg.
+        - Extend: also accept `on-workflow` per the ladder.
+
+    - `[ ]` **5.4.d Audit sweep**
+        - Grep `.ts` and `.md` under `packages/arc-framework/src/` and `.arc/system/workflows/`
+          for strict equality against `"on-task-approval"`, `"on-sync"`, `"on-handoff"` in
+          interlock-value contexts. Extend any missed sites; document findings in completion
+          notes.
+
+- _Acceptance:_ With `commit_interlock: on-workflow` (or `push_interlock: on-workflow`), behavior
+  at non-routing surfaces is at-least-as-permissive as the lower tier — no autonomy regression
+  at flip time.
 
 ---
 
