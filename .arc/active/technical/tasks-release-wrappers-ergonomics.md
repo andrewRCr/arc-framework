@@ -367,15 +367,22 @@ consistently across all subsequent sites for visual coherence.
 **Strategies:** strategy-task-list-formatting.md (no impact, but workflow markdown follows ARC
 conventions throughout).
 
-### `[ ]` **5.1 Canonical rule in DEV-RULES.ARC § Commit Discipline (R12.2)**
+### `[x]` **5.1 Canonical rule in DEV-RULES.ARC § Commit Discipline (R12.2)**
 
 - _Goal:_ DEV-RULES.ARC § Commit Discipline gains a new sub-section
   `Interlock release-wrapper routing` (with `[configurable]` marker) carrying the rule, the
   three-class table, the `raw` fallback (probe-failure, missing-class, unrecognized-value arms),
   and the destructive-flag carve-out — self-contained without external lookup.
 
-- _Note:_ Section is a sibling of existing § Commit Discipline sub-sections (Commit control,
-  Commit format, Atomicity). Lands as a new H3 under § Commit Discipline.
+- _Outcome:_ Landed as peer sub-bullet `Workflow class-tag routing` under § Commit Control,
+  sibling to the existing `Release-wrapper invocation` bullet (~14 lines, ~250 tokens) — not
+  the originally-specced standalone H3 (~40 lines, ~600 tokens). Method shape evaluated and
+  rejected: adopter override semantics ill-fit a runtime-resolved value; per-workflow re-load
+  worse than constitutional once-per-session for default-disabled adopters. PRD R12.2 amended
+  to reflect placement; rationale and forward-compat signals captured in
+  `notes-release-wrappers-ergonomics.md` § Routing-Rule Placement Decision. Downstream:
+  5.2 references the rule by section/bullet name (no `arc.methods` declaration); 5.3 unchanged
+  (workflows still carry class tags as textual triggers).
 
 ### `[ ]` **5.2 arc-commit skill amendment (R12.3)**
 

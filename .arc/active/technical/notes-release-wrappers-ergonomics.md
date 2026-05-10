@@ -9,6 +9,7 @@
 - [Adopter Friction Analysis](#adopter-friction-analysis)
 - [Reference-Implementation Pattern Specifics](#reference-implementation-pattern-specifics)
 - [Bypass-Mode Provenance](#bypass-mode-provenance)
+- [Routing-Rule Placement Decision](#routing-rule-placement-decision)
 
 ## Approach Rationale: Why Workflow-as-Contract
 
@@ -326,6 +327,64 @@ PRD R18 carries this as P2 / nice-to-have.
 The dual-mode framing is now load-bearing throughout WU2: § Problem / Motivation in the plan-doc
 led with the duality, the PRD's Introduction carries it forward, and the setup workflow (PRD R1)
 is mode-aware throughout.
+
+## Routing-Rule Placement Decision
+
+PRD R12.2 originally specced the canonical routing rule as a new H3 sub-section under § Commit
+Discipline (`Interlock release-wrapper routing`, ~40 lines: opening prose, three-class table,
+class-declaration paragraph, four-arm `raw` fallback, destructive carve-out). First-pass
+implementation landed that shape. Pulled back at task review: the H3 added ~600 tokens of
+constitutional context every session for a default-disabled feature. Three alternatives evaluated:
+
+1. **Trim in place** — keep H3, compress to 6-8 lines. Smaller cost; still loads every session
+   regardless of opt-in.
+2. **Method file, conditionally loaded** — new `system/methods/release-wrapper-routing.md`
+   declared in arc-commit + 9 ceremony workflows' frontmatter (`arc.methods`).
+3. **Strategy doc only** — push to planned `strategy-interlock-release-wrappers.md` (PRD R14.1);
+   thin pointer in DEV-RULES.ARC.
+
+Method shape rejected on three grounds:
+
+- **Override semantics ill-fit.** Methods exist for "adopter overrides framework's implementation
+  of a contract." Routing is a runtime lookup of a CLI-resolved value — there's no real
+  override surface (adopters enable / disable, no third option).
+- **Per-workflow re-load is worse than constitutional once-per-session.** Per
+  `system/methods/README.md`, methods load on-demand at workflow trigger points, no shared cache
+  across workflows in a session. With class tags in arc-commit + 9 ceremony workflows, a typical
+  session would re-load the method 5+ times. Default-disabled adopters pay this cost too — the
+  method loads to apply the rule, even when every class resolves to `raw`.
+- **Conditional method declaration doesn't exist.** No mechanism for "load this method only when
+  `releaseRouting` shows wrapper resolution"; would need new infrastructure.
+
+Strategy-only rejected: agent-discretion lookup ("consult when…") is less reliable for fire-time
+mid-workflow consultation than auto-recalled constitutional rules. The strategy doc still lands
+per PRD R14.1, but as architecture/rationale carrier — not the canonical operational rule.
+
+**Landed shape:** new peer sub-bullet `Workflow class-tag routing` under § Commit Discipline →
+Commit control, sibling to the existing `Release-wrapper invocation` bullet. ~14 lines, ~250
+tokens. Loaded once per session for everyone; class tags in workflow bodies are the textual
+triggers; agent recalls the rule at fire time the same way it recalls atomicity, --no-verify
+prohibition, and other commit-discipline rules.
+
+**Forward-compat signals:**
+
+- `plan-instruction-optimization.md` Pillar 2 (Skill Cache Discipline) is still settling the
+  arc-commit method-reload pattern (lean B: cache-hint in skill body, fallback A: session-init
+  load-set inclusion). Constitutional placement of the routing rule sidesteps that decision —
+  not a method, no caching question.
+- Plan does NOT cover method caching across workflows. If/when that question surfaces, this
+  rule's placement is independent (constitutional, not method).
+- `plan-handoff-optimization.md` Approach item 5 adds `releaseRoutingAtLastHandoff` for
+  change-detection — orthogonal to placement; reads the resolved values from the envelope slot
+  regardless of where the rule's text lives.
+- `plan-arc-modes.md` Lite/Local: constitutional rules are mode-agnostic; methods would need
+  per-mode loading consideration. Constitutional avoids that future audit.
+
+**Generalization:** This is a sibling case to "where does a fire-time-applicable operational rule
+live?" The methods system is the right answer for contract-implementation rules with adopter
+override surface. Constitutional placement is right for runtime-state-lookup rules with no
+override surface. The shape choice should follow the rule's character, not the framework's
+default loading mechanism.
 
 ---
 

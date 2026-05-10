@@ -406,10 +406,14 @@ Sub-requirements:
   Handler computes from resolved settings; `rationale` carries inputs for debugging and
   `arc release status` rendering (R10).
 
-- **R12.2 — Canonical rule in DEV-RULES.ARC § Commit Discipline.**
-  New sub-section `Interlock release-wrapper routing` (with `[configurable]` marker) carries the
-  rule, the three-class table, the `raw` fallback, and the destructive-flag carve-out.
-  Self-contained — reads without external lookup.
+- **R12.2 — Canonical rule in DEV-RULES.ARC § Commit Discipline → Commit control.**
+  New peer sub-bullet `Workflow class-tag routing` (with `[configurable]` marker), sibling to the
+  existing `Release-wrapper invocation` bullet, carrying the rule, the three-class authorization
+  conditions, the `raw` fallback (probe-failure, missing-class, unrecognized-value arms), and the
+  destructive-flag carve-out. Self-contained — reads without external lookup. Constitutional
+  placement chosen over a method file: load-once-per-session beats per-workflow re-load for
+  default-disabled adopters; method override semantics ill-fit a runtime-resolved value. See
+  `notes-release-wrappers-ergonomics.md` § Routing-Rule Placement Decision.
 
 - **R12.3 — arc-commit skill amendment (Step 4).**
   Skill Step 4 (commit execution) references the canonical rule with class tag `taskCommit`.

@@ -45,6 +45,22 @@ documentation style — live in [DEV-RULES.PROJECT][dev-rules-project]. Contribu
       additionally bypasses the per-invocation harness prompt — the canonical shape for commit/push under
       workflow guidance when active. Default: `arc.release.enabled: false`.
 
+- **Workflow class-tag routing** · `[configurable]`:
+    - Workflow fire sites may carry a backtick-wrapped class tag (`` `taskCommit` ``,
+      `` `workflowCommit` ``, `` `workflowPush` ``). At fire time, look up
+      `releaseRouting.value.<class>` from the session-init envelope: `wrapper` invokes
+      `arc release commit` / `arc release push` (workflow supplies the message body in a `text`
+      codeblock or push args inline); `raw` (default; also on probe failure, missing tag, or
+      unrecognized class) invokes raw `git`.
+    - Class authorization (when `wrapper` resolves): `taskCommit` requires `release.enabled` AND
+      `commit_interlock ∈ {on-task-approval, on-workflow}`; `workflowCommit` requires
+      `release.enabled` AND `commit_interlock: on-workflow`; `workflowPush` requires
+      `release.enabled` AND `push_interlock: on-workflow`.
+    - Destructive flags (`--delete`, `--force`, `--force-with-lease`) stay literal — never
+      class-tagged; the wrapper refuses them by design.
+    - `arc sync` handles its own internal push (single-leg sync push); sync invocations are
+      captured on the audit umbrella but do not re-route through `arc release push`.
+
 - **Merge to integration / main requires explicit approval** (the *integration-interlock*). Agents
   must not infer merge approval from task approval, review completion, passing checks, or general
   "proceed" language. Integration may happen only when the user explicitly authorizes it.
