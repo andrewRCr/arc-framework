@@ -79,16 +79,14 @@ parallelize but listed in dependency-priority order.
 - _Outcome:_ `setup-marker.ts` now mirrors the release audit-log storage convention while using the shared
   atomic JSON writer for schema-v1 marker persistence under `.arc/user/{identity}/.internal/`.
 
-### `[ ]` **1.3 `cli.ts` description-string accuracy sweep (R15)**
+### `[x]` **1.3 `cli.ts` description-string accuracy sweep (R15)**
 
 - _Goal:_ Release-subcommand description strings in `cli.ts:256-263` reference the actual storage
   shape WU1 shipped — `arc.releaseEnabled` (per-developer git-config key) or `release.enabled`
   (yaml key) per context.
 
-- _Note:_ Doc-comment and Commander `.description()` text only; no code-flow change. Inaccurate
-  strings live at `cli.ts:256` (opt-in description) and `cli.ts:263` (opt-out description); both
-  currently say `arc.release.enabled` (with dot) where the handler actually writes
-  `arc.releaseEnabled` (camelCase, per `record.ts`).
+- _Outcome:_ Updated the opt-in / opt-out Commander help text to name the local git-config key
+  `arc.releaseEnabled` with the value written by each command.
 
 ---
 

@@ -253,14 +253,18 @@ releaseCmd
 
 releaseCmd
   .command("opt-in")
-  .description("Record per-developer opt-in for release-mode wrappers (writes `arc.release.enabled: true`)")
+  .description(
+    "Record per-developer opt-in for release-mode wrappers (writes local git config `arc.releaseEnabled = true`)",
+  )
   .action(async () => {
     await handleReleaseOptIn();
   });
 
 releaseCmd
   .command("opt-out")
-  .description("Record per-developer opt-out for release-mode wrappers (writes `arc.release.enabled: false`)")
+  .description(
+    "Record per-developer opt-out for release-mode wrappers (writes local git config `arc.releaseEnabled = false`)",
+  )
   .action(async () => {
     await handleReleaseOptOut();
   });
