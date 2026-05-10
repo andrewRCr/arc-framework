@@ -9,10 +9,10 @@
 - **Task List:** `tasks-release-wrappers-ergonomics.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task 1.1 — Routing primitive (R12.1)
-- **Next Task:** Task 1.2 — Marker storage library (R9) (line ~60)
+- **Last Completed:** Task 2.1 — `arc release setup print-patterns` command (R6, R17)
+- **Next Task:** Task 2.2 — `arc release setup verify` command (R7) (line ~138)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 1.2 — Marker storage library (R9)
+- **Next Action:** Start Task 2.2 — `arc release setup verify` command (R7)
 
 ---
