@@ -180,18 +180,11 @@ verify.
           and `re-verify` / `update markers` route to workflow-mediated follow-up paths rather than
           nested subprocess prompt observation.
 
-    - `[ ]` **2.3.b Single-harness install flow + trust-model acknowledgment**
+    - `[x]` **2.3.b Single-harness install flow + trust-model acknowledgment**
 
-        Build `test-first` (one behavior at a time):
-
-        - On the single-harness dispatch path (fresh install or idempotency `add harness`):
-          missing `--harness` or `--mode` exits with structured error
-        - `--mode default-prompt` → trust-shift acknowledgment prompt (text variant from
-          `notes-release-wrappers-ergonomics.md` § Trust-Model Acknowledgment Text Variants)
-        - `--mode bypass` → audit-only acknowledgment prompt (same notes section)
-        - User accepts → proceeds to harness write (workflow-driven) → behavioral test (when
-          default-prompt) → marker upsert → opt-in record
-        - User declines → aborts with no state change
+        - Added required-flag validation, mode-conditioned trust acknowledgment, workflow-verification
+          confirmation, marker upsert, and opt-in recording for the single-harness install path.
+          Declined acknowledgments and unconfirmed workflow verification abort without state changes.
 
     - `[ ]` **2.3.c Marker behavior under agent-side multi-harness orchestration**
 

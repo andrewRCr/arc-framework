@@ -13,16 +13,21 @@ import * as p from "@clack/prompts";
 import { readFile } from "node:fs/promises";
 
 import { resolveAllSettings, type ResolvedSettingsResult } from "../../../lib/config/resolved-settings.js";
-import { resolveIdentity } from "../../../lib/git/index.js";
 import { gitExec } from "../../../lib/io-context.js";
 import { resolveArcRoot } from "../../../lib/paths.js";
 import {
+  isHarnessMode,
   readMarker,
+  upsertHarness,
+  type HarnessMode,
   type HarnessEntry,
   type MarkerReadResult,
   type MarkerStorageError,
+  type MarkerWriteResult,
 } from "../../../lib/release/setup-marker.js";
-import { ARC_PROJECT_ROOT_ERROR } from "../../shared.js";
+import { ARC_PROJECT_ROOT_ERROR, isHandledError, resolveUserIdentity } from "../../shared.js";
+
+import { runReleaseOptIn, type RunReleaseOptResult } from "../record.js";
 
 export type SetupInstallIdempotencyChoice =
   | "re-verify"
@@ -38,6 +43,30 @@ export type ChooseIdempotency = (
   opts: ChooseIdempotencyOptions,
 ) => Promise<SetupInstallIdempotencyChoice | null>;
 
+export interface TrustAcknowledgmentOptions {
+  harness: string;
+  mode: HarnessMode;
+  message: string;
+}
+
+export type TrustAcknowledgment = (
+  opts: TrustAcknowledgmentOptions,
+) => Promise<boolean | null>;
+
+export interface WorkflowVerificationOptions {
+  harness: string;
+  mode: HarnessMode;
+  requiresPromptObservation: boolean;
+}
+
+export type WorkflowVerification = (
+  opts: WorkflowVerificationOptions,
+) => Promise<boolean | null>;
+
+export type UpsertHarnessEntry = (entry: HarnessEntry) => Promise<MarkerWriteResult>;
+
+export type RecordOptIn = () => Promise<RunReleaseOptResult>;
+
 export interface RunReleaseSetupInstallOptions {
   /** Optional harness name for downstream single-harness flow. */
   harness?: string;
@@ -49,6 +78,16 @@ export interface RunReleaseSetupInstallOptions {
   marker: MarkerReadResult;
   /** Interactive idempotency-choice provider. */
   chooseIdempotency?: ChooseIdempotency;
+  /** Mode-conditioned trust-model acknowledgment provider. */
+  acknowledgeTrust?: TrustAcknowledgment;
+  /** Workflow-mediated install/verify confirmation provider. */
+  workflowVerification?: WorkflowVerification;
+  /** Marker upsert operation, injected for tests. */
+  upsertHarness?: UpsertHarnessEntry;
+  /** Opt-in record operation, injected for tests. */
+  recordOptIn?: RecordOptIn;
+  /** Timestamp provider for marker entries. Defaults to current time. */
+  now?: () => string;
   /** Sink for rendered output. Defaults to `process.stdout.write`. */
   writeStdout?: (msg: string) => void;
   /** Sink for errors. Defaults to `process.stderr.write`. */
@@ -93,8 +132,7 @@ export async function runReleaseSetupInstall(
 
   if (!releaseEnabled && !hasRecordedHarnesses) {
     writeStdout("release_setup_install: fresh\n");
-    renderSingleHarnessNextAction(writeStdout);
-    return { exitCode: 0 };
+    return runSingleHarnessInstall(opts, { writeStdout, writeStderr });
   }
 
   if (releaseEnabled && hasRecordedHarnesses) {
@@ -109,12 +147,14 @@ export async function runReleaseSetupInstall(
     }
 
     renderIdempotencyChoice(choice, writeStdout);
+    if (choice === "add-harness") {
+      return runSingleHarnessInstall(opts, { writeStdout, writeStderr });
+    }
     return { exitCode: 0 };
   }
 
   writeStdout("release_setup_install: state-mismatch\n");
-  writeStdout("next_action: single-harness install flow\n");
-  return { exitCode: 0 };
+  return runSingleHarnessInstall(opts, { writeStdout, writeStderr });
 }
 
 /**
@@ -133,7 +173,14 @@ export async function handleReleaseSetupInstall(opts: {
     return;
   }
 
-  const identity = await resolveIdentity({ exec: gitExec });
+  let identity: string;
+  try {
+    identity = await resolveUserIdentity();
+  } catch (err) {
+    if (isHandledError(err)) return;
+    throw err;
+  }
+
   const settings = await resolveAllSettings({
     cwd,
     exec: gitExec,
@@ -150,6 +197,10 @@ export async function handleReleaseSetupInstall(opts: {
     harness: opts.harness,
     mode: opts.mode,
     chooseIdempotency: promptForIdempotency,
+    acknowledgeTrust: promptForTrustAcknowledgment,
+    workflowVerification: promptForWorkflowVerification,
+    upsertHarness: (entry) => upsertHarness({ cwd, identity }, entry),
+    recordOptIn: () => runReleaseOptIn({ exec: gitExec }),
   });
   if (result.exitCode !== 0) {
     process.exitCode = result.exitCode;
@@ -178,6 +229,114 @@ function renderCurrentState(opts: {
 
 function renderSingleHarnessNextAction(writeStdout: (msg: string) => void): void {
   writeStdout("next_action: single-harness install flow\n");
+}
+
+async function runSingleHarnessInstall(
+  opts: RunReleaseSetupInstallOptions,
+  io: {
+    writeStdout: (msg: string) => void;
+    writeStderr: (msg: string) => void;
+  },
+): Promise<RunReleaseSetupInstallResult> {
+  renderSingleHarnessNextAction(io.writeStdout);
+
+  const input = validateSingleHarnessInput(opts, io.writeStderr);
+  if (!input.ok) return input.result;
+
+  const acknowledgeTrust = opts.acknowledgeTrust ?? (() => Promise.resolve(null));
+  const workflowVerification = opts.workflowVerification ?? (() => Promise.resolve(null));
+  const markerUpsert = opts.upsertHarness;
+  const recordOptIn = opts.recordOptIn;
+
+  const trustAccepted = await acknowledgeTrust({
+    harness: input.harness,
+    mode: input.mode,
+    message: buildTrustAcknowledgmentMessage(input.mode),
+  });
+  if (trustAccepted !== true) {
+    io.writeStdout("trust_acknowledgment: declined\n");
+    io.writeStdout("result: aborted\n");
+    return { exitCode: 0 };
+  }
+  io.writeStdout("trust_acknowledgment: accepted\n");
+
+  const workflowVerified = await workflowVerification({
+    harness: input.harness,
+    mode: input.mode,
+    requiresPromptObservation: input.mode === "default-prompt",
+  });
+  if (workflowVerified !== true) {
+    io.writeStdout("workflow_verification: not confirmed\n");
+    io.writeStdout("result: aborted\n");
+    return { exitCode: 0 };
+  }
+  io.writeStdout("workflow_verification: confirmed\n");
+
+  if (markerUpsert === undefined || recordOptIn === undefined) {
+    io.writeStderr("Install state recording is unavailable.\n");
+    return { exitCode: 1 };
+  }
+
+  const markerResult = await markerUpsert({
+    name: input.harness,
+    mode: input.mode,
+    installedAt: opts.now?.() ?? new Date().toISOString(),
+  });
+  if (!markerResult.ok) {
+    io.writeStderr(formatMarkerReadError(markerResult.error));
+    return { exitCode: 1 };
+  }
+  io.writeStdout("marker: upserted\n");
+
+  const optInResult = await recordOptIn();
+  if (optInResult.exitCode !== 0) {
+    return optInResult;
+  }
+  io.writeStdout("opt_in: recorded\n");
+  io.writeStdout("result: install recorded\n");
+  return { exitCode: 0 };
+}
+
+function validateSingleHarnessInput(
+  opts: RunReleaseSetupInstallOptions,
+  writeStderr: (msg: string) => void,
+):
+  | { ok: true; harness: string; mode: HarnessMode }
+  | { ok: false; result: RunReleaseSetupInstallResult } {
+  const harness = opts.harness?.trim();
+  if (harness === undefined || harness === "") {
+    writeStderr("error: missing required option --harness\n");
+    return { ok: false, result: { exitCode: 1 } };
+  }
+
+  if (opts.mode === undefined || opts.mode === "") {
+    writeStderr("error: missing required option --mode\n");
+    return { ok: false, result: { exitCode: 1 } };
+  }
+
+  if (!isHarnessMode(opts.mode)) {
+    writeStderr("error: invalid --mode; expected default-prompt or bypass\n");
+    return { ok: false, result: { exitCode: 1 } };
+  }
+
+  return { ok: true, harness, mode: opts.mode };
+}
+
+function buildTrustAcknowledgmentMessage(mode: HarnessMode): string {
+  if (mode === "default-prompt") {
+    return [
+      "Installing the release-wrapper allowlist creates a trust shift.",
+      "Matching arc release commit/push invocations rely on ARC interlock enforcement",
+      "instead of the harness prompt. Other git commands are unchanged.",
+      "Do you accept this trust shift?",
+    ].join(" ");
+  }
+
+  return [
+    "Bypass mode has no harness prompt to skip, so setup is audit-only.",
+    "Opt-in records that the release wrapper's validation and audit layer is engaged",
+    "above your existing safety posture. Do you accept this audit-only opt-in?",
+  ].join(" ");
 }
 
 function renderIdempotencyChoice(
@@ -218,6 +377,31 @@ async function promptForIdempotency(): Promise<SetupInstallIdempotencyChoice | n
   });
   if (p.isCancel(choice)) return null;
   return choice;
+}
+
+async function promptForTrustAcknowledgment(
+  opts: TrustAcknowledgmentOptions,
+): Promise<boolean | null> {
+  const accepted = await p.confirm({
+    message: `${opts.message}\n\nHarness: ${opts.harness}`,
+    initialValue: false,
+  });
+  if (p.isCancel(accepted)) return null;
+  return accepted;
+}
+
+async function promptForWorkflowVerification(
+  opts: WorkflowVerificationOptions,
+): Promise<boolean | null> {
+  const prompt = opts.requiresPromptObservation
+    ? `Confirm harness write and direct prompt observation passed for ${opts.harness}.`
+    : `Confirm bypass-mode setup workflow completed for ${opts.harness}.`;
+  const verified = await p.confirm({
+    message: prompt,
+    initialValue: false,
+  });
+  if (p.isCancel(verified)) return null;
+  return verified;
 }
 
 function formatMarkerReadError(error: MarkerStorageError): string {
