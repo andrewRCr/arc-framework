@@ -40,9 +40,17 @@ export {
   runReleaseOptOut,
   runReleaseStatus,
 } from "../handlers/release/record.js";
+export {
+  handleReleaseSetupPrintPatterns,
+  runReleaseSetupPrintPatterns,
+} from "../handlers/release/setup/print-patterns.js";
 export type {
   RunReleaseOptDeps,
   RunReleaseOptResult,
   RunReleaseStatusDeps,
   RunReleaseStatusResult,
 } from "../handlers/release/record.js";
+export type {
+  RunReleaseSetupPrintPatternsOptions,
+  RunReleaseSetupPrintPatternsResult,
+} from "../handlers/release/setup/print-patterns.js";

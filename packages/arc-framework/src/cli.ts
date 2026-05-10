@@ -31,6 +31,7 @@ import {
   handleReleaseOptIn,
   handleReleaseOptOut,
   handleReleasePush,
+  handleReleaseSetupPrintPatterns,
   handleReleaseStatus,
 } from "./commands/release.js";
 
@@ -275,6 +276,23 @@ releaseCmd
   .option("--json", "Emit a schemaVersion 1 JSON envelope")
   .action(async (opts: { json?: boolean }) => {
     await handleReleaseStatus({ json: opts.json });
+  });
+
+const setupCmd = releaseCmd
+  .command("setup")
+  .description("Set up release-wrapper harness integration");
+
+setupCmd
+  .command("print-patterns")
+  .description("Print release-wrapper allowlist patterns for a harness")
+  .option("--harness <name>", "Harness name: claude-code, codex, or agent-adaptive")
+  .addOption(
+    new Option("--format <format>", "Output format")
+      .choices(["harness", "raw"])
+      .default("harness"),
+  )
+  .action((opts: { harness?: string; format?: string }) => {
+    handleReleaseSetupPrintPatterns(opts);
   });
 
 // --- Log ---

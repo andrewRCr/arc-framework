@@ -118,34 +118,22 @@ verify.
 
 **Strategies:** strategy-testing-methodology.md
 
-### `[ ]` **2.1 `arc release setup print-patterns` command (R6, R17)**
+### `[x]` **2.1 `arc release setup print-patterns` command (R6, R17)**
 
 - _Goal:_ Paste-ready canonical patterns emitted per harness in native format; abstract
   six-element contract emitted for unknown harnesses; `--format=raw` strips wrapping for tooling
   consumers.
 
-- _Approach:_ Stateless emitter; pure functions over harness-name and format. Reference patterns
-  match `notes-release-wrappers-ergonomics.md` § Reference-Implementation Pattern Specifics
-  verbatim — that section is the spec.
+    - `[x]` **2.1.a Sub-subcommand wiring + flag handling**
+        - Registered the `release setup` parent and `print-patterns` child with `--harness <name>`
+          plus `--format <harness|raw>` validation.
 
-    - `[ ]` **2.1.a Sub-subcommand wiring + flag handling**
-        - `releaseCmd.command("setup")` parent registration.
-        - `print-patterns` with `--harness <name>` and `--format <format>` (default
-          harness-formatted; `raw` strips wrapping).
+    - `[x]` **2.1.b Per-harness formatters**
+        - Added Claude Code JSON output, Codex Starlark output, abstract contract fallback, unknown-harness
+          warning, and raw canonical command-pattern output.
 
-    - `[ ]` **2.1.b Per-harness formatters**
-
-        Build `test-first` (one behavior at a time):
-
-        - `--harness claude-code` → JSON snippet for `permissions.allow` array (matches notes spec
-          exactly)
-        - `--harness codex` → Starlark `prefix_rule()` calls (matches notes spec exactly)
-        - No `--harness` → abstract six-element contract (the agent-adaptive translation prompt)
-        - Unknown `--harness foo` → falls through to abstract contract with warning to stderr
-          surfacing the unknown name
-        - `--format=raw` strips harness-specific wrapping; emits only canonical bash-pattern strings
-        - `--format=raw` with no `--harness` → emits canonical bash-pattern strings
-          harness-agnostic (no wrapping; same pattern set the per-harness formatters wrap)
+- _Outcome:_ `arc release setup print-patterns` now provides the canonical allowlist pattern surface
+  that setup/install/uninstall workflows can reference without duplicating harness-specific formats.
 
 ### `[ ]` **2.2 `arc release setup verify` command (R7)**
 
