@@ -57,8 +57,8 @@ export function runReleaseSetupPrintPatterns(
   }
 
   if (opts.harness === "codex") {
-    writeStdout("prefix_rule([\"arc\", \"release\", \"commit\"])\n");
-    writeStdout("prefix_rule([\"arc\", \"release\", \"push\"])\n");
+    writeStdout("prefix_rule(pattern=[\"arc\", \"release\", \"commit\"])\n");
+    writeStdout("prefix_rule(pattern=[\"arc\", \"release\", \"push\"])\n");
     return { exitCode: 0 };
   }
 

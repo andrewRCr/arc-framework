@@ -266,14 +266,16 @@ mode; absent or any other value indicates default-prompt.
 
 ### Codex CLI
 
-Starlark `prefix_rule()` with explicit list patterns. Codex unwraps `bash -lc` / `zsh -lc` shell
-wrappings via `commands_for_exec_policy` before `prefix_rule` matching.
+Starlark `prefix_rule()` with explicit list patterns. Codex's Starlark loader requires keyword
+arguments (`pattern=`, optional `decision="allow"`); positional invocation does not work. Codex
+unwraps `bash -lc` / `zsh -lc` shell wrappings via `commands_for_exec_policy` before `prefix_rule`
+matching.
 
-Canonical patterns (Starlark for `~/.codex/policy/...`):
+Canonical patterns (Starlark for `~/.codex/rules/default.rules`):
 
 ```python
-prefix_rule(["arc", "release", "commit"])
-prefix_rule(["arc", "release", "push"])
+prefix_rule(pattern=["arc", "release", "commit"])
+prefix_rule(pattern=["arc", "release", "push"])
 ```
 
 Realistic invocation shape (`arc release commit -m "..."`) matches reliably. Verified empirically

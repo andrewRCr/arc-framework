@@ -39,8 +39,8 @@ describe("runReleaseSetupPrintPatterns", () => {
     });
 
     expect(result.exitCode).toBe(0);
-    expect(stdout.join("")).toBe(`prefix_rule(["arc", "release", "commit"])
-prefix_rule(["arc", "release", "push"])
+    expect(stdout.join("")).toBe(`prefix_rule(pattern=["arc", "release", "commit"])
+prefix_rule(pattern=["arc", "release", "push"])
 `);
   });
 
