@@ -1351,16 +1351,18 @@ doesn't warrant.
   fall-through shapes now match. `setup-release-wrapper.md` § Codex CLI amended accordingly
   in both copies.
 
-### `[ ]` **7.2 ADR-017 Tier 2 amendment (R18, P2 optional)**
+### `[~]` **7.2 ADR-017 Tier 2 amendment (R18, P2 optional)**
 
 - _Goal:_ Optional Tier 2 amendment to ADR-017's Consequences capturing the harness-mode dimension
   surfaced during WU1 Phase 7 verification, now formalized in WU2's mode-aware setup.
 
-- _Note:_ Skip unless WU2 integration surfaces broader insights worth bundling. Mark `[~]`
-  Superseded with a short rationale if not pursued. P2 status; not gating WU2 ship.
-
-- _Approach:_ Tier 2 dated annotation per ADR methodology — no decision change, no supersession;
-  expanded operational rationale.
+- _Outcome:_ Skipped. 6.R.1.b's per-developer-scope amendment already covered the WU2-era
+  ADR-017 update; WU2's operational expansions (mode-aware setup, workflow-as-contract
+  architecture, workflow-mediated verify) ship as durable adopter-facing docs
+  (`setup-release-wrapper.md`, `strategy-interlock-release-wrappers.md`). No decision shift
+  warrants a second amendment; the candidate insights would either duplicate the shipped
+  workflow/strategy docs or fail the "future reader needs this from the ADR" test.
+  Matcher-boundary observation (7.1.c) is captured in that task's workflow doc amendment.
 
 ---
 
