@@ -77,12 +77,7 @@ describe("framework sync (self-hosting drift check)", () => {
     manifest = loaded;
 
     const cfg = manifest.install_config;
-    if (!cfg.repo_root) {
-      throw new Error(
-        "manifest.install_config.repo_root missing — run `arc init` or `arc update` to populate it",
-      );
-    }
-    tokens = buildTokenMap({ project_name: cfg.project_name }, cfg.repo_root);
+    tokens = buildTokenMap({ project_name: cfg.project_name });
     conditionals = buildConfigMap({
       pm_mode: cfg.pm_mode,
       tools: cfg.tools,

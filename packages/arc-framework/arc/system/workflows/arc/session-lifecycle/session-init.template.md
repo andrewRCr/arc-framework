@@ -24,7 +24,7 @@ Verify environment and probe ARC state in a single Bash chain — both non-destr
 pwd && arc status --session-init --json
 ```
 
-`pwd` should match the repo root (`{{REPO_ROOT}}`).
+`pwd` should be the current repository root — the directory containing `.arc/`.
 The probe returns a single JSON envelope the agent consumes:
 
 | Field                       | Contents                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |

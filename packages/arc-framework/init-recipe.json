@@ -96,9 +96,6 @@
     "system/workflows/project/README.md",
     "user/README.md"
   ],
-  "computed_tokens": {
-    "REPO_ROOT": "Auto-detected from working directory at init time"
-  },
   "prompts": [
     {
       "id": "project_name",

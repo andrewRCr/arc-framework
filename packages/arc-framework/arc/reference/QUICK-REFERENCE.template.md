@@ -4,7 +4,7 @@ Command patterns and environment context for {{PROJECT_NAME}}.
 
 ## Environment & Path Context
 
-**Repository Root**: `{{REPO_ROOT}}`
+**Repository Root**: Current checkout root (the directory containing `.arc/`).
 **All commands in this document assume you are at repository root.**
 
 **On-demand sections**: `Command Patterns`, `Quality Gate Commands`, `ARC CLI Commands` —

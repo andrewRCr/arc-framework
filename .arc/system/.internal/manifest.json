@@ -8,8 +8,7 @@
       "claude",
       "codex"
     ],
-    "team_mode": false,
-    "repo_root": "/home/andrew/dev/arc-framework"
+    "team_mode": false
   },
   "files": {
     "README.md": {
@@ -25,7 +24,7 @@
     "reference/QUICK-REFERENCE.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "5215b5e164ca90e40003ec9d4b4321be863a86c2075264c61cef75f0b3d2a96a"
+      "pristine_hash": "f9ba4167a4ae446878af33993df9970967acd238eb08a21fc63fafa372c8c9bb"
     },
     "reference/META-PRD.md": {
       "classification": "Scaffolded",
@@ -390,7 +389,7 @@
     "system/workflows/arc/session-lifecycle/session-init.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "dfb53bfdb0d585fc73e4c5a50ae2ad697e6ba549c94ec90e1e31247cf1312c36"
+      "pristine_hash": "725fd67acafc51f057c3cfefc9b0ef8079b9e7c41f9e6b51018ddc4804c92c53"
     },
     "system/workflows/arc/session-lifecycle/session-loop.md": {
       "classification": "Framework",

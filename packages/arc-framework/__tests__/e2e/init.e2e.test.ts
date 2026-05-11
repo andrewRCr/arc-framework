@@ -95,6 +95,7 @@ describe("init", () => {
     expect(manifest.install_config.pm_mode).toBe("none");
     expect(manifest.install_config.tools).toEqual([]);
     expect(manifest.install_config.team_mode).toBe(false);
+    expect(manifest.install_config).not.toHaveProperty("repo_root");
     expect(Object.keys(manifest.files).length).toBeGreaterThan(0);
 
     // pristine.json exists and has entries

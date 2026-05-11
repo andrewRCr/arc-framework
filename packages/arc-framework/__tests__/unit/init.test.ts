@@ -27,7 +27,12 @@ import {
   buildPostInitMessage,
 } from "../../src/commands/init.js";
 import type { IOContext, InitResult } from "../../src/commands/init.js";
-import { buildConfigMap, buildConfigKeyOverrides, buildTokenMap } from "../../src/lib/config/index.js";
+import {
+  buildConfigMap,
+  buildConfigKeyOverrides,
+  buildInstallConfig,
+  buildTokenMap,
+} from "../../src/lib/config/index.js";
 import {
   resolveFileList, toOutputPath, classifyFile, fileLayer, buildManifestFiles, needsRendering,
 } from "../../src/lib/classification.js";
@@ -151,13 +156,44 @@ describe("buildConfigKeyOverrides", () => {
 
 describe("buildTokenMap", () => {
   it("maps PROJECT_NAME from prompt result", () => {
-    const tokens = buildTokenMap({ project_name: "My App", tools: [], pm_mode: "none", team_mode: false } as InitPromptResult, "/home/user/repo");
+    const tokens = buildTokenMap({
+      project_name: "My App",
+      tools: [],
+      pm_mode: "none",
+      team_mode: false,
+    } as InitPromptResult);
     expect(tokens["PROJECT_NAME"]).toBe("My App");
   });
 
-  it("maps REPO_ROOT from cwd", () => {
-    const tokens = buildTokenMap({ project_name: "My App", tools: [], pm_mode: "none", team_mode: false } as InitPromptResult, "/home/user/repo");
-    expect(tokens["REPO_ROOT"]).toBe("/home/user/repo");
+  it("does not include machine-local path tokens", () => {
+    const tokens = buildTokenMap({
+      project_name: "My App",
+      tools: [],
+      pm_mode: "none",
+      team_mode: false,
+    } as InitPromptResult);
+    expect(tokens).not.toHaveProperty("REPO_ROOT");
+  });
+});
+
+// --- buildInstallConfig ---
+
+describe("buildInstallConfig", () => {
+  it("stores portable install settings only", () => {
+    const config = buildInstallConfig({
+      project_name: "My App",
+      pm_mode: "none",
+      tools: ["claude"],
+      team_mode: false,
+    });
+
+    expect(config).toEqual({
+      project_name: "My App",
+      pm_mode: "none",
+      tools: ["claude"],
+      team_mode: false,
+    });
+    expect(config).not.toHaveProperty("repo_root");
   });
 });
 
@@ -397,7 +433,6 @@ describe("runInit", () => {
 
   const minimalRecipe: Recipe = {
     include_files: ["README.md", "system/arc-config.yml"],
-    computed_tokens: { REPO_ROOT: "Auto-detected" },
     prompts: [
       { id: "project_name", type: "text", message: "Project name?", token: "PROJECT_NAME" },
       { id: "tools", type: "multiselect", message: "Tools?", options: ["claude"] },
@@ -622,7 +657,6 @@ describe("runInit", () => {
     });
     const recipe: Recipe = {
       include_files: ["README.md", "system/arc-config.yml"],
-      computed_tokens: { REPO_ROOT: "Auto-detected" },
       prompts: minimalRecipe.prompts,
       conditions: {},
     };
@@ -652,7 +686,6 @@ describe("runInit", () => {
       pm_mode: "none",
       tools: ["claude"],
       team_mode: false,
-      repo_root: "/project",
     });
 
     const files = manifest.files as Record<string, { classification: string; pristine_hash: string }>;

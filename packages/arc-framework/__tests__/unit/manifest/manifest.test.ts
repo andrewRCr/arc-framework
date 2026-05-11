@@ -99,6 +99,21 @@ describe("validateManifest", () => {
     expect(result.errors.some((e) => e.includes("tools"))).toBe(true);
   });
 
+  it("rejects machine-local repo_root in install_config", () => {
+    const data = {
+      ...validManifest(),
+      install_config: {
+        project_name: "App",
+        pm_mode: "none",
+        tools: [],
+        repo_root: "/home/user/project",
+      },
+    };
+    const result = validateManifest(data);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes("repo_root"))).toBe(true);
+  });
+
   it("accepts valid install_config with all required fields", () => {
     const result = validateManifest(validManifest());
     expect(result.valid).toBe(true);
