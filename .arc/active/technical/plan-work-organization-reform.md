@@ -34,9 +34,9 @@ conventions; not a worktree-mechanism WU.
   cleanly and consolidates the boundary workflows in the process.
 
 > [!NOTE]
-> **Inline folds on touched workflows.** When this WU edits a workflow that emits a commit or
-> push, several adjacent items fold in at the same edit — not as a separate sweep, only inline
-> with the touches:
+> **Inline folds on touched workflows and lifecycle docs.** When this WU edits a workflow
+> or lifecycle-adjacent document already in scope, several adjacent items fold in at the same
+> edit — not as a separate sweep, only inline with the touches:
 >
 > 1. **Commit/push class-tag routing** (per the `user/{identity}/ATOMIC-INBOX.md` entry
 >    "Audit workflow/extension/method/skill fire-sites for wrapper-vs-raw consistency",
@@ -64,10 +64,24 @@ conventions; not a worktree-mechanism WU.
 >    entirely from both step targets, so the fold lands as a natural step deletion rather than
 >    a step rewrite. Replaces the standalone `arc sync: auto-set-upstream when push is
 >    authorized` ATOMIC-INBOX entry (2026-04-30).
+> 4. **`integrate-work-unit` post-PR-create handoff guidance** (per the
+>    `user/{identity}/ATOMIC-INBOX.md` entry "Retire the `integrate-work-unit`
+>    post-PR-create handoff warning", surfaced 2026-05-07): when `integrate-work-unit.md`
+>    is reworked for sweep-as-you-go, replace the stale warning with skip-threshold-aware
+>    language. Handoff in the PR-create-to-first-review window is fine when pre-advance
+>    plus handoff skip-threshold produce no branch commit; caution remains only for handoff
+>    after Step 8/review-fix work has started if minimizing review cycles matters.
+> 5. **Lifecycle `Next Action` pointer contract** (per the `user/{identity}/ATOMIC-INBOX.md`
+>    entry "Clarify lifecycle `Next Action` pointers when project-specific workflows
+>    implement a step"): when session-init/session-handoff/status-pointer guidance is touched,
+>    preserve the ARC lifecycle workflow prefix as the session-type inference contract
+>    (`integrate-work-unit Step 8 — ...`). Project-specific workflow detail belongs in
+>    SESSION-NOTES or trailing detail, not as the leading status-file prefix.
 >
 > Scope discipline: inline-with-touches only. Items 1 and 2 are audit-derived corrections;
-> item 3 is a substantive behavior change that rides the workflow trim. Workflows untouched by
-> this WU stay for their respective inbox entries.
+> item 3 is a substantive behavior change that rides the workflow trim; items 4 and 5 are
+> lifecycle-contract cleanups that ride the same workflow/doc surfaces. Workflows and docs
+> untouched by this WU stay for their respective inbox entries.
 
 ---
 
@@ -289,6 +303,9 @@ PR review at integration) while removing planning-merge ceremony and structural 
     - `DEV-RULES.ARC.md` — branch-naming and lifecycle references; atomic-tier infra-edit smell flag
     - `template-status.md` — clarify location-by-state convention (always `active/`, branch carries it)
     - `template-pull-request.md` — retire `[PLAN]:` PR-prefix; remove planning-PR variant
+    - `session-init.md` / `session-handoff.md` — preserve lifecycle workflow prefixes in status-file
+      `Next Action` pointers; route project-specific workflow details to SESSION-NOTES or trailing detail
+    - `integrate-work-unit.md` — replace stale post-PR-create handoff warning with skip-threshold-aware guidance
     - Any other workflow / strategy that references `feature/`/`technical/` prefixes or the
       planning-branch separate-merge pattern
 
