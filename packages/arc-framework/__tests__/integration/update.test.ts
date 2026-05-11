@@ -165,8 +165,8 @@ describe("update integration — baseline (real recipe)", () => {
 
     // Simulate an adopter who once had the legacy aggregate files but upgraded
     // to the post-restructure layout. The aggregate files are no longer in the
-    // recipe or manifest, but may linger on disk. PRD § Won't Do excludes
-    // migration code — `arc update` must leave them untouched.
+    // recipe or manifest, but may linger on disk. The update contract excludes
+    // migration code here — `arc update` must leave them untouched.
     const legacyMethodsPath = join(tempDir, ".arc/system/methods/arc-methods.md");
     const legacyExtensionsPath = join(
       tempDir, ".arc/system/extensions/arc-extensions.md",

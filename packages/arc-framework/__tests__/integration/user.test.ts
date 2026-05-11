@@ -1397,8 +1397,8 @@ describe("user status", () => {
   // probe end-to-end against a bare-remote fixture and routes its verdict
   // into `detailLines` via `formatWorktreeQualifierLine`. The qualifier
   // vocabulary itself is unit-covered exhaustively at
-  // `__tests__/unit/user-status.test.ts` § "buildUserStatusResult worktree
-  // qualifier" — these tests prove the wiring through the real exec layer.
+  // `__tests__/unit/user-status.test.ts` in the worktree qualifier coverage;
+  // these tests prove the wiring through the real exec layer.
 
   it("emits a worktree drift qualifier when origin is ahead", async () => {
     // Advance HEAD, push to bare, then reset local one commit back so origin

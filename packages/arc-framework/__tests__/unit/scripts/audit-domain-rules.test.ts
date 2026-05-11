@@ -10,9 +10,8 @@
  * guaranteed by the parser's case contract (uppercase filename + lowercase
  * domain with exact match), so no dedicated audit check is needed.
  *
- * Behaviors batched per test-first § batching judgment: scenarios exercise
- * one `audit()` with shared mkdtemp fixtures; one-at-a-time slicing offers
- * no independent discovery value.
+ * Scenarios exercise one `audit()` with shared mkdtemp fixtures because
+ * separate one-at-a-time fixtures offer no independent discovery value.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";

@@ -124,7 +124,7 @@ const { handleUserPush, handleUserFetch, handleUserPull, handleUserLoad, handleU
 
 /**
  * Re-establish construction-time defaults after `vi.resetAllMocks()`.
- * See DEV-RULES.PROJECT § Mock hygiene.
+ * `vi.resetAllMocks()` clears implementations as well as call history.
  */
 function resetMockDefaults() {
   mockIsCancel.mockReturnValue(false);
