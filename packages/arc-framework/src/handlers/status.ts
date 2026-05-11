@@ -114,13 +114,24 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
   const { identity, role } = await readIdentityPointers();
 
   if (opts.sessionHandoff) {
-    const resolvedSettings = await resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
-    const remoteSyncEnabled = resolvedSettings.settings["session.remote_sync"] === "enabled";
+    // Cache the resolution promise instead of awaiting eagerly: a thrown
+    // settings-resolution error now surfaces as a per-probe failure (via the
+    // orchestrator's `safeProbe` wrapper) rather than aborting the whole
+    // command and breaking the composite-result contract.
+    const resolvedSettingsP = resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
     const probes: SessionHandoffProbes = {
       dirty: () => runDirtyStateStatus({ exec: gitExec }),
-      worktree: () => runWorktreeSyncStatus({ exec: gitExec, remoteSyncEnabled }),
-      user: (id) => runUserSessionInitStatus({ cwd, io, identity: id, remoteSyncEnabled }),
-      syncInterlock: () => Promise.resolve(resolvedSettings.resolved.syncInterlock),
+      worktree: async () => {
+        const resolved = await resolvedSettingsP;
+        const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
+        return runWorktreeSyncStatus({ exec: gitExec, remoteSyncEnabled });
+      },
+      user: async (id) => {
+        const resolved = await resolvedSettingsP;
+        const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
+        return runUserSessionInitStatus({ cwd, io, identity: id, remoteSyncEnabled });
+      },
+      syncInterlock: async () => (await resolvedSettingsP).resolved.syncInterlock,
       active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec: gitExec }),
       head: () => runHeadHashStatus({ exec: gitExec }),
       pushability: () => runPushabilityStatus({
@@ -136,7 +147,7 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
               .catch(() => null);
         return deriveRestateCandidates({ exec: gitExec, sessionNotes });
       },
-      releaseRouting: () => Promise.resolve(releaseRoutingFromSettings(resolvedSettings)),
+      releaseRouting: async () => releaseRoutingFromSettings(await resolvedSettingsP),
     };
     if (!json) {
       process.stderr.write(
@@ -151,17 +162,26 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
   }
 
   if (opts.sessionInit) {
-    const resolvedSettings = await resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
-    const remoteSyncEnabled = resolvedSettings.settings["session.remote_sync"] === "enabled";
+    // See sessionHandoff branch above for the rationale on caching the
+    // resolution promise rather than awaiting eagerly.
+    const resolvedSettingsP = resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
     const probes: SessionInitProbes = {
-      user: (id) => runUserSessionInitStatus({ cwd, io, identity: id, remoteSyncEnabled }),
-      worktree: () => runWorktreeSyncStatus({ exec: gitExec, remoteSyncEnabled }),
+      user: async (id) => {
+        const resolved = await resolvedSettingsP;
+        const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
+        return runUserSessionInitStatus({ cwd, io, identity: id, remoteSyncEnabled });
+      },
+      worktree: async () => {
+        const resolved = await resolvedSettingsP;
+        const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
+        return runWorktreeSyncStatus({ exec: gitExec, remoteSyncEnabled });
+      },
       dirty: () => runDirtyStateStatus({ exec: gitExec }),
       extensions: () => runExtensionsSessionInitStatus({ cwd }),
-      config: () => runConfigSessionInitStatus({ cwd, resolvedSettings }),
+      config: async () => runConfigSessionInitStatus({ cwd, resolvedSettings: await resolvedSettingsP }),
       active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec: gitExec }),
       domainRules: () => runDomainRulesSessionInitStatus({ cwd }),
-      releaseRouting: () => Promise.resolve(releaseRoutingFromSettings(resolvedSettings)),
+      releaseRouting: async () => releaseRoutingFromSettings(await resolvedSettingsP),
     };
     const result = await runSessionInitStatus({ identity, role, probes });
     if (json) {
