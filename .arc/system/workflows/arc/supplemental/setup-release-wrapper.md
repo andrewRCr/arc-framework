@@ -153,9 +153,10 @@ the architectural framing. Edge case (broad pattern catches wrapper, e.g., wildc
 
 ### Step 4: Verify
 
-**Default-prompt — mandatory behavioral test.** Invoke `arc release commit --version` directly through
+**Default-prompt — mandatory behavioral test.** Invoke `arc release commit --help` directly through
 the harness. The invocation must NOT be a nested CLI subprocess — nested invocations don't observe the
-outer harness's permission boundary. Observe the prompt presence:
+outer harness's permission boundary. `--help` is Commander's built-in flag and exits before the wrapper
+cascade runs, so the test stays side-effect-free regardless of repo state. Observe the prompt presence:
 
 - **Pass** — no harness prompt observed. Allowlist match working. Confirm to the install command's
   verify prompt; it advances to Step 5.

@@ -72,7 +72,7 @@ export function runReleaseSetupPrintPatterns(
 3. Scope: install in this developer's harness permission surface on this machine.
 4. Mode awareness: default-prompt mode removes the harness prompt; bypass mode is audit-only.
 5. Side effects: edit only harness allowlist/config; this emitter writes no ARC state.
-6. Verification expectations: run a prompt-observation check such as \`arc release commit --version\`.
+6. Verification expectations: run a prompt-observation check such as \`arc release commit --help\`.
 `);
   return { exitCode: 0 };
 }

@@ -138,7 +138,7 @@ export interface StatusProbes {
  */
 export interface HandoffSyncInterlock {
   value: "manual" | "on-handoff" | "on-workflow";
-  source: "git-config" | "yaml" | "default";
+  source: "git-config" | "default";
 }
 
 /**

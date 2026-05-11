@@ -268,7 +268,11 @@ function makeResolvedReleaseModeSessionHandoffProbes(
     dirty: async () => ({ state: "clean", fileCount: 0 }),
     worktree: async () => ({ state: "skipped", ahead: 0, behind: 0, branch: "main" }),
     user: async (identity) => stubUserSessionInit(identity),
-    syncInterlock: async () => (await resolvedSettings()).resolved.syncInterlock,
+    syncInterlock: async () => {
+      const resolved = (await resolvedSettings()).resolved.syncInterlock;
+      const source = resolved.source === "yaml" ? "default" : resolved.source;
+      return { value: resolved.value, source };
+    },
     active: () => runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
     head: async () => ({ hash: "abc1234" }),
     pushability: async () => ({ allowed: true, conditions: [] }),

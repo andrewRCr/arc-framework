@@ -129,6 +129,16 @@ describe("buildConfigSessionInitSummary — narrow subset", () => {
       expect(summary).toContain(`${key}: ${value}`);
     }
     expect(summary).not.toContain("branch.base:");
+
+    // Exclusivity: the rendered key set must equal the configured init-gating
+    // set — extra keys would silently slip past the inclusion checks above.
+    const renderedKeys = summary
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0 && line !== "Init-gating settings:")
+      .map((line) => line.split(":")[0]?.trim())
+      .filter((key): key is string => key !== undefined && key.length > 0);
+    expect([...renderedKeys].sort()).toEqual(Object.keys(SESSION_INIT_SETTINGS).sort());
   });
 
   it("marks defaulted keys", () => {

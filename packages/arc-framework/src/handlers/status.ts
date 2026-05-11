@@ -131,7 +131,15 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
         const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
         return runUserSessionInitStatus({ cwd, io, identity: id, remoteSyncEnabled });
       },
-      syncInterlock: async () => (await resolvedSettingsP).resolved.syncInterlock,
+      syncInterlock: async () => {
+        // syncInterlock is per-developer-only; the generic resolver type
+        // still permits a "yaml" source, but no runtime path produces it
+        // for this key. Coerce defensively to keep HandoffSyncInterlock's
+        // narrower source union honest.
+        const resolved = (await resolvedSettingsP).resolved.syncInterlock;
+        const source = resolved.source === "yaml" ? "default" : resolved.source;
+        return { value: resolved.value, source };
+      },
       active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec: gitExec }),
       head: () => runHeadHashStatus({ exec: gitExec }),
       pushability: () => runPushabilityStatus({

@@ -1207,7 +1207,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
   it("returns sync interlock with provenance from the syncInterlock probe", async () => {
     const probes = sessionHandoffProbes({
       syncInterlock: vi.fn(async () =>
-        handoffSyncInterlock({ value: "manual", source: "yaml" })),
+        handoffSyncInterlock({ value: "manual", source: "git-config" })),
     });
     const result = await runSessionHandoffStatus({
       identity: "andrew",
@@ -1216,7 +1216,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
     });
     expect(result.syncInterlock.ok).toBe(true);
     if (result.syncInterlock.ok) {
-      expect(result.syncInterlock.value).toEqual({ value: "manual", source: "yaml" });
+      expect(result.syncInterlock.value).toEqual({ value: "manual", source: "git-config" });
     }
   });
 
