@@ -56,7 +56,7 @@ export interface RunReleaseSetupUninstallOptions {
   harness?: string;
   /** Emit a schemaVersion 1 JSON envelope on stdout. */
   json?: boolean;
-  /** Resolved release-mode settings, including `arc.releaseEnabled`. */
+  /** Resolved release-mode settings, including `arc.releaseOptedIn`. */
   settings: ResolvedSettingsResult;
   /** Marker read operation, delayed until after required option validation. */
   readMarker: ReadMarker;
@@ -81,7 +81,7 @@ export interface RunReleaseSetupUninstallResult {
 interface SetupUninstallJsonEnvelope {
   schemaVersion: 1;
   command: "uninstall";
-  releaseEnabled: {
+  releaseOptedIn: {
     before: boolean;
     source: string;
     after: boolean;
@@ -127,17 +127,17 @@ export async function runReleaseSetupUninstall(
     return finish(opts, null, writeStdout, 1);
   }
 
-  const releaseEnabled = opts.settings.resolved.releaseEnabled.value === "true";
+  const releaseOptedIn = opts.settings.resolved.releaseOptedIn.value === "true";
   const report = buildJsonEnvelope({
     harness,
-    releaseEnabled,
-    releaseEnabledSource: opts.settings.resolved.releaseEnabled.source,
+    releaseOptedIn,
+    releaseOptedInSource: opts.settings.resolved.releaseOptedIn.source,
     harnesses: marker.marker.harnesses,
   });
 
   renderCurrentState({
-    releaseEnabled,
-    releaseEnabledSource: opts.settings.resolved.releaseEnabled.source,
+    releaseOptedIn,
+    releaseOptedInSource: opts.settings.resolved.releaseOptedIn.source,
     harnesses: marker.marker.harnesses,
     writeStdout: humanStdout,
   });
@@ -206,15 +206,15 @@ export async function runReleaseSetupUninstall(
 
   if (markerResult.marker.harnesses.length > 0) {
     humanStdout("opt_out: preserved (sibling harnesses remain)\n");
-    report.releaseEnabled.after = releaseEnabled;
+    report.releaseOptedIn.after = releaseOptedIn;
     humanStdout("result: uninstall recorded\n");
     report.result = "uninstall recorded";
     return finish(opts, report, writeStdout, 0);
   }
 
-  if (!releaseEnabled) {
+  if (!releaseOptedIn) {
     humanStdout("opt_out: already recorded\n");
-    report.releaseEnabled.after = false;
+    report.releaseOptedIn.after = false;
     humanStdout("result: uninstall recorded\n");
     report.result = "uninstall recorded";
     return finish(opts, report, writeStdout, 0);
@@ -234,7 +234,7 @@ export async function runReleaseSetupUninstall(
 
   humanStdout("opt_out: recorded\n");
   humanStdout("result: uninstall recorded\n");
-  report.releaseEnabled.after = false;
+  report.releaseOptedIn.after = false;
   report.result = "uninstall recorded";
   return finish(opts, report, writeStdout, 0);
 }
@@ -294,12 +294,12 @@ export async function handleReleaseSetupUninstall(opts: {
 }
 
 function renderCurrentState(opts: {
-  releaseEnabled: boolean;
-  releaseEnabledSource: string;
+  releaseOptedIn: boolean;
+  releaseOptedInSource: string;
   harnesses: readonly HarnessEntry[];
   writeStdout: (msg: string) => void;
 }): void {
-  opts.writeStdout(`release_enabled: ${String(opts.releaseEnabled)} (${opts.releaseEnabledSource})\n`);
+  opts.writeStdout(`release_opted_in: ${String(opts.releaseOptedIn)} (${opts.releaseOptedInSource})\n`);
   if (opts.harnesses.length === 0) {
     opts.writeStdout("harnesses: none recorded\n");
     return;
@@ -334,8 +334,8 @@ function resolveCanonicalPatterns(harness: string): string[] {
 
 function buildJsonEnvelope(opts: {
   harness: string;
-  releaseEnabled: boolean;
-  releaseEnabledSource: string;
+  releaseOptedIn: boolean;
+  releaseOptedInSource: string;
   harnesses: readonly HarnessEntry[];
 }): SetupUninstallJsonEnvelope {
   const harnesses: SetupUninstallJsonEnvelope["harnesses"] = opts.harnesses.map((entry) => ({
@@ -354,10 +354,10 @@ function buildJsonEnvelope(opts: {
   return {
     schemaVersion: 1,
     command: "uninstall",
-    releaseEnabled: {
-      before: opts.releaseEnabled,
-      source: opts.releaseEnabledSource,
-      after: opts.releaseEnabled,
+    releaseOptedIn: {
+      before: opts.releaseOptedIn,
+      source: opts.releaseOptedInSource,
+      after: opts.releaseOptedIn,
     },
     harnesses,
     result: "not-run",

@@ -98,9 +98,9 @@ function buildReleaseRoutingSummary(value: ReleaseRoutingValue): string {
     `workflowCommit: ${value.workflowCommit}`,
     `workflowPush: ${value.workflowPush}`,
     "Rationale:",
-    `  release.enabled: ${String(value.rationale.releaseEnabled)}`,
-    `  session.commit_interlock: ${value.rationale.commitInterlock}`,
-    `  session.push_interlock: ${value.rationale.pushInterlock}`,
+    `  arc.releaseOptedIn: ${String(value.rationale.releaseOptedIn)}`,
+    `  arc.commitInterlock: ${value.rationale.commitInterlock}`,
+    `  arc.pushInterlock: ${value.rationale.pushInterlock}`,
   ].join("\n");
 }
 

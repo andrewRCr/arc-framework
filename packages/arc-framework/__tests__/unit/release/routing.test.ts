@@ -1,9 +1,9 @@
 /**
  * Unit tests for release-wrapper routing classification.
  *
- * The resolver is pure logic over the resolved release-enabled flag and
- * interlock values; status envelopes and workflow docs consume this output
- * instead of re-deriving routing rules at each fire site.
+ * The resolver is pure logic over the resolved release-wrappers opt-in flag
+ * and interlock values; status envelopes and workflow docs consume this
+ * output instead of re-deriving routing rules at each fire site.
  */
 
 import { describe, expect, it } from "vitest";
@@ -13,7 +13,7 @@ import { resolveReleaseRouting } from "../../../src/lib/release/routing.js";
 describe("resolveReleaseRouting", () => {
   it("returns raw for every class when release wrappers are disabled", () => {
     const result = resolveReleaseRouting({
-      releaseEnabled: false,
+      releaseOptedIn: false,
       commitInterlock: "on-workflow",
       pushInterlock: "on-workflow",
     });
@@ -23,7 +23,7 @@ describe("resolveReleaseRouting", () => {
       workflowCommit: "raw",
       workflowPush: "raw",
       rationale: {
-        releaseEnabled: false,
+        releaseOptedIn: false,
         commitInterlock: "on-workflow",
         pushInterlock: "on-workflow",
       },
@@ -32,7 +32,7 @@ describe("resolveReleaseRouting", () => {
 
   it("keeps commit classes raw when commit interlock is manual", () => {
     const result = resolveReleaseRouting({
-      releaseEnabled: true,
+      releaseOptedIn: true,
       commitInterlock: "manual",
       pushInterlock: "manual",
     });
@@ -43,7 +43,7 @@ describe("resolveReleaseRouting", () => {
 
   it("routes task commits through the wrapper under on-task-approval", () => {
     const result = resolveReleaseRouting({
-      releaseEnabled: true,
+      releaseOptedIn: true,
       commitInterlock: "on-task-approval",
       pushInterlock: "manual",
     });
@@ -54,7 +54,7 @@ describe("resolveReleaseRouting", () => {
 
   it("routes task and workflow commits through the wrapper under on-workflow", () => {
     const result = resolveReleaseRouting({
-      releaseEnabled: true,
+      releaseOptedIn: true,
       commitInterlock: "on-workflow",
       pushInterlock: "manual",
     });
@@ -66,14 +66,14 @@ describe("resolveReleaseRouting", () => {
   it("keeps workflow pushes raw under manual and on-sync", () => {
     expect(
       resolveReleaseRouting({
-        releaseEnabled: true,
+        releaseOptedIn: true,
         commitInterlock: "manual",
         pushInterlock: "manual",
       }).workflowPush,
     ).toBe("raw");
     expect(
       resolveReleaseRouting({
-        releaseEnabled: true,
+        releaseOptedIn: true,
         commitInterlock: "manual",
         pushInterlock: "on-sync",
       }).workflowPush,
@@ -82,7 +82,7 @@ describe("resolveReleaseRouting", () => {
 
   it("routes workflow pushes through the wrapper only under push on-workflow", () => {
     const result = resolveReleaseRouting({
-      releaseEnabled: true,
+      releaseOptedIn: true,
       commitInterlock: "manual",
       pushInterlock: "on-workflow",
     });
@@ -92,13 +92,13 @@ describe("resolveReleaseRouting", () => {
 
   it("preserves rationale inputs verbatim", () => {
     const result = resolveReleaseRouting({
-      releaseEnabled: true,
+      releaseOptedIn: true,
       commitInterlock: "future-commit-mode",
       pushInterlock: "future-push-mode",
     });
 
     expect(result.rationale).toEqual({
-      releaseEnabled: true,
+      releaseOptedIn: true,
       commitInterlock: "future-commit-mode",
       pushInterlock: "future-push-mode",
     });
@@ -106,7 +106,7 @@ describe("resolveReleaseRouting", () => {
 
   it("safe-defaults unknown interlock values to raw for their classes", () => {
     const result = resolveReleaseRouting({
-      releaseEnabled: true,
+      releaseOptedIn: true,
       commitInterlock: "future-commit-mode",
       pushInterlock: "future-push-mode",
     });

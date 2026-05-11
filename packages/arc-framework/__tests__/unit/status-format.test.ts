@@ -186,7 +186,7 @@ function makeSessionInitResult(
         workflowCommit: "raw",
         workflowPush: "raw",
         rationale: {
-          releaseEnabled: false,
+          releaseOptedIn: false,
           commitInterlock: "manual",
           pushInterlock: "manual",
         },

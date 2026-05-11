@@ -26,7 +26,7 @@ import { ARC_PROJECT_ROOT_ERROR } from "../../shared.js";
 export interface RunReleaseSetupVerifyOptions {
   /** Optional harness name to filter the marker report. */
   harness?: string;
-  /** Resolved release-mode settings, including `arc.releaseEnabled`. */
+  /** Resolved release-mode settings, including `arc.releaseOptedIn`. */
   settings: ResolvedSettingsResult;
   /** Pre-read marker result for the current identity and repository root. */
   marker: MarkerReadResult;
@@ -61,14 +61,14 @@ export function runReleaseSetupVerify(
     return { exitCode: 1 };
   }
 
-  const releaseEnabled = opts.settings.resolved.releaseEnabled.value === "true";
-  writeStdout(`release_setup: ${releaseEnabled ? "engaged" : "not engaged"}\n`);
+  const releaseOptedIn = opts.settings.resolved.releaseOptedIn.value === "true";
+  writeStdout(`release_setup: ${releaseOptedIn ? "engaged" : "not engaged"}\n`);
   writeStdout(
-    `release_enabled: ${String(releaseEnabled)} (${opts.settings.resolved.releaseEnabled.source})\n`,
+    `release_opted_in: ${String(releaseOptedIn)} (${opts.settings.resolved.releaseOptedIn.source})\n`,
   );
   writeStdout("behavioral_test_subprocess: not run\n");
 
-  if (!releaseEnabled) return { exitCode: 0 };
+  if (!releaseOptedIn) return { exitCode: 0 };
 
   const selected = selectHarnesses(opts.marker.marker.harnesses, opts.harness);
   if (opts.harness !== undefined && selected.length === 0) {

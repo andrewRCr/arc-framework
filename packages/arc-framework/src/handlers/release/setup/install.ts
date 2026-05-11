@@ -74,7 +74,7 @@ export interface RunReleaseSetupInstallOptions {
   mode?: string;
   /** Emit a schemaVersion 1 JSON envelope on stdout. */
   json?: boolean;
-  /** Resolved release-mode settings, including `arc.releaseEnabled`. */
+  /** Resolved release-mode settings, including `arc.releaseOptedIn`. */
   settings: ResolvedSettingsResult;
   /** Pre-read marker result for the current identity and repository root. */
   marker: MarkerReadResult;
@@ -103,7 +103,7 @@ export interface RunReleaseSetupInstallResult {
 interface SetupInstallJsonEnvelope {
   schemaVersion: 1;
   command: "install";
-  releaseEnabled: {
+  releaseOptedIn: {
     before: boolean;
     source: string;
     after: boolean;
@@ -141,28 +141,28 @@ export async function runReleaseSetupInstall(
     return finish(opts, null, writeStdout, 1);
   }
 
-  const releaseEnabled = opts.settings.resolved.releaseEnabled.value === "true";
+  const releaseOptedIn = opts.settings.resolved.releaseOptedIn.value === "true";
   const harnesses = opts.marker.marker.harnesses;
   const hasRecordedHarnesses = harnesses.length > 0;
   const report = buildJsonEnvelope({
-    releaseEnabled,
-    releaseEnabledSource: opts.settings.resolved.releaseEnabled.source,
+    releaseOptedIn,
+    releaseOptedInSource: opts.settings.resolved.releaseOptedIn.source,
     harnesses,
   });
 
   renderCurrentState({
-    releaseEnabled,
-    releaseEnabledSource: opts.settings.resolved.releaseEnabled.source,
+    releaseOptedIn,
+    releaseOptedInSource: opts.settings.resolved.releaseOptedIn.source,
     harnesses,
     writeStdout: humanStdout,
   });
 
-  if (!releaseEnabled && !hasRecordedHarnesses) {
+  if (!releaseOptedIn && !hasRecordedHarnesses) {
     humanStdout("release_setup_install: fresh\n");
     return runSingleHarnessInstall(opts, { writeStdout: humanStdout, writeStderr }, report, writeStdout);
   }
 
-  if (releaseEnabled && hasRecordedHarnesses) {
+  if (releaseOptedIn && hasRecordedHarnesses) {
     humanStdout("release_setup_install: existing\n");
     humanStdout("idempotency_prompt: required\n");
 
@@ -242,12 +242,12 @@ export async function handleReleaseSetupInstall(opts: {
 }
 
 function renderCurrentState(opts: {
-  releaseEnabled: boolean;
-  releaseEnabledSource: string;
+  releaseOptedIn: boolean;
+  releaseOptedInSource: string;
   harnesses: readonly HarnessEntry[];
   writeStdout: (msg: string) => void;
 }): void {
-  opts.writeStdout(`release_enabled: ${String(opts.releaseEnabled)} (${opts.releaseEnabledSource})\n`);
+  opts.writeStdout(`release_opted_in: ${String(opts.releaseOptedIn)} (${opts.releaseOptedInSource})\n`);
   if (opts.harnesses.length === 0) {
     opts.writeStdout("harnesses: none recorded\n");
     return;
@@ -337,9 +337,9 @@ async function runSingleHarnessInstall(
     result: entry.name === input.harness ? "recorded" : "existing",
   }));
 
-  if (opts.settings.resolved.releaseEnabled.value === "true") {
+  if (opts.settings.resolved.releaseOptedIn.value === "true") {
     io.writeStdout("opt_in: already recorded\n");
-    report.releaseEnabled.after = true;
+    report.releaseOptedIn.after = true;
   } else {
     const optInResult = await recordOptIn();
     if (optInResult.exitCode !== 0) {
@@ -347,7 +347,7 @@ async function runSingleHarnessInstall(
       return finish(opts, report, writeJsonStdout, optInResult.exitCode);
     }
     io.writeStdout("opt_in: recorded\n");
-    report.releaseEnabled.after = true;
+    report.releaseOptedIn.after = true;
   }
 
   io.writeStdout("result: install recorded\n");
@@ -398,17 +398,17 @@ function buildTrustAcknowledgmentMessage(mode: HarnessMode): string {
 }
 
 function buildJsonEnvelope(opts: {
-  releaseEnabled: boolean;
-  releaseEnabledSource: string;
+  releaseOptedIn: boolean;
+  releaseOptedInSource: string;
   harnesses: readonly HarnessEntry[];
 }): SetupInstallJsonEnvelope {
   return {
     schemaVersion: 1,
     command: "install",
-    releaseEnabled: {
-      before: opts.releaseEnabled,
-      source: opts.releaseEnabledSource,
-      after: opts.releaseEnabled,
+    releaseOptedIn: {
+      before: opts.releaseOptedIn,
+      source: opts.releaseOptedInSource,
+      after: opts.releaseOptedIn,
     },
     harnesses: opts.harnesses.map((entry) => ({
       name: entry.name,

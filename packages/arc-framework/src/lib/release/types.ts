@@ -66,8 +66,8 @@ export const REFUSAL_IDENTIFIERS: Readonly<Record<RefusalCode, RefusalIdentifier
  *
  * Code 11 carries the offending interlock setting (key + resolved value) so
  * `formatRefusal()` can compose specific remediation text without re-deriving
- * from caller context. The setting is keyed by yaml key, paired with the
- * value-typed resolved value.
+ * from caller context. The setting is keyed by the per-developer git-config
+ * key, paired with the value-typed resolved value.
  */
 export type AuthorizationDecision =
   | { kind: "authorize" }
@@ -77,8 +77,8 @@ export type AuthorizationDecision =
       code: 11;
       identifier: "interlock-not-authorized";
       setting:
-        | { key: "session.commit_interlock"; value: CommitInterlock }
-        | { key: "session.push_interlock"; value: PushInterlock };
+        | { key: "arc.commitInterlock"; value: CommitInterlock }
+        | { key: "arc.pushInterlock"; value: PushInterlock };
     }
   | { kind: "refuse"; code: 12; identifier: "destructive-flag"; flag: string }
   | { kind: "refuse"; code: 13; identifier: "branch-protection-violation"; branch: string }

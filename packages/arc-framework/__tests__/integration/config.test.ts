@@ -194,35 +194,23 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
     expect(result.settings["release.enabled"]).toBe("true");
   });
 
-  it("git-config override wins over yaml for release-mode keys", async () => {
+  it("git-config override wins over yaml for the dual-scope notesPush key", async () => {
     await writeFile(
       fixture.configPath,
       [
         "pm.mode: arc-in-git",
-        "session.commit_interlock: manual",
-        "session.push_interlock: manual",
-        "session.sync_interlock: manual",
         "user.notes_push: on-sync",
-        "release.enabled: false",
       ].join("\n"),
     );
     const exec = buildExec({
-      "arc.commitInterlock": "on-task-approval",
-      "arc.pushInterlock": "on-sync",
-      "arc.syncInterlock": "on-handoff",
       "arc.notesPush": "prompt",
-      "arc.releaseEnabled": "true",
     });
     const result = await runConfigSessionInitStatus({
       cwd: fixture.root,
       exec,
       readFile: realReadFile,
     });
-    expect(result.settings["session.commit_interlock"]).toBe("on-task-approval");
-    expect(result.settings["session.push_interlock"]).toBe("on-sync");
-    expect(result.settings["session.sync_interlock"]).toBe("on-handoff");
     expect(result.settings["user.notes_push"]).toBe("prompt");
-    expect(result.settings["release.enabled"]).toBe("true");
     // Non-release-mode keys remain yaml-only — no git-config probe.
     expect(result.settings["pm.mode"]).toBe("arc-in-git");
   });
@@ -305,28 +293,4 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
     expect(result.warnings.some((e) => e.includes("session.init_pull.worktree"))).toBe(true);
   });
 
-  describe("session interlock settings", () => {
-    it("warns and falls back to default when yaml carries an invalid release-mode value", async () => {
-      await writeFile(
-        fixture.configPath,
-        [
-          "pm.mode: arc-in-git",
-          "session.commit_interlock: automatic",
-          "session.push_interlock: auto",
-        ].join("\n"),
-      );
-      const result = await runConfigSessionInitStatus({
-        cwd: fixture.root,
-        exec: noGitConfigExec,
-        readFile: realReadFile,
-      });
-      // Release-mode keys go through resolveAllSettings — invalid yaml values
-      // warn and fall through to the documented default rather than passing
-      // through verbatim.
-      expect(result.settings["session.commit_interlock"]).toBe("manual");
-      expect(result.settings["session.push_interlock"]).toBe("manual");
-      expect(result.warnings.some((w) => w.includes("session.commit_interlock"))).toBe(true);
-      expect(result.warnings.some((w) => w.includes("session.push_interlock"))).toBe(true);
-    });
-  });
 });

@@ -779,84 +779,158 @@ history (research findings, naming options weighed, what was wrong before, why t
           Tier 1 lint clean. Distinct from any Phase 7 ADR-017 amendment that may surface
           from integration insights — both can land as separate dated amendments.
 
-### `[ ]` **6.R.2 Resolver code — collapse yaml fallback + rename**
+### `[x]` **6.R.2 Resolver code — collapse yaml fallback + rename**
 
 - _Goal:_ Drop yaml-fallback in the resolver for the four collapsed keys; rename `releaseEnabled`
   → `releaseOptedIn` across constants, types, internal naming, and consumers — code substrate
   matches the new architecture.
 
-- _Note:_ 6.R.4.b removes the four yaml keys; co-bundle 6.R.4.b's commit with 6.R.2's, or
-  ensure 6.R.2 lands first. The transient state where yaml keys are removed but the resolver
-  still tries to read them is non-erroring (silently falls back to default) but behaviorally
-  inconsistent.
+- _Outcome:_ Substrate, consumers, and verification audit landed together as one commit alongside
+  6.R.3 (the pre-commit hook gates test typecheck, so test-side rename echoes are coupled to the
+  substrate change). 6.R.4.b is still pending; the resolver's `git-config → default` precedence
+  for the four collapsed keys silently ignores any yaml entries that remain, so the lifecycle
+  ordering is robust against the deferral.
 
-    - `[ ]` **6.R.2.a Resolver substrate — `resolved-settings.ts`**
-        - Make `yamlKey` optional in `resolveGitConfigOverride` helper (or split into a
-          single-tier sibling if optional gets unwieldy — settle during execution).
-        - Update `resolveCommitInterlock` / `resolvePushInterlock` / `resolveSyncInterlock`:
-          drop `yamlKey` parameter; precedence becomes `git config arc.* → default`.
-        - Rename `RELEASE_ENABLED_GIT_CONFIG_KEY` → `RELEASE_OPTED_IN_GIT_CONFIG_KEY`;
-          remove `RELEASE_ENABLED_YAML_KEY`; rename type `ReleaseEnabled` → `ReleaseOptedIn`;
-          rename `resolveReleaseEnabled` → `resolveReleaseOptedIn`; drop yaml fallback.
-        - Update `ResolvedReleaseModeSettings` interface field `releaseEnabled` →
-          `releaseOptedIn`; update `resolveAllSettings` composite — substitution map for the
-          four collapsed keys disappears (yaml-side keys are gone), `releaseOptedIn`
-          substitution replaces the previous `releaseEnabled` substitution.
-        - Update file-header doc comment (the "Five keys with `git config arc.* →
-          arc-config.yml → default` precedence" block) to reflect the new shape: four
-          single-tier keys + `notesPush` as the sole remaining dual-scope key.
+    - `[x]` **6.R.2.a Resolver substrate — `resolved-settings.ts`**
+        - `yamlKey` made optional in `resolveGitConfigOverride` (yaml tier skipped when
+          omitted). Picked optional-parameter over a single-tier sibling helper — the
+          yaml block became one `if` wrap; no duplication earned a separate function.
+        - `resolveCommitInterlock` / `resolvePushInterlock` / `resolveSyncInterlock`
+          dropped their `yamlKey` parameter; precedence is now
+          `git config arc.* → default`. The three `*_INTERLOCK_YAML_KEY` constants —
+          unused after the drop — were removed alongside.
+        - Release-flag rename: `RELEASE_ENABLED_GIT_CONFIG_KEY` →
+          `RELEASE_OPTED_IN_GIT_CONFIG_KEY` (underlying key string `arc.releaseEnabled`
+          → `arc.releaseOptedIn`); `RELEASE_ENABLED_YAML_KEY` removed; type
+          `ReleaseEnabled` → `ReleaseOptedIn`; constants and validator
+          (`DEFAULT_RELEASE_OPTED_IN`, `RELEASE_OPTED_IN_VALUES`, `isReleaseOptedIn`)
+          renamed in lockstep; `resolveReleaseEnabled` → `resolveReleaseOptedIn`; yaml
+          fallback dropped.
+        - `ResolvedReleaseModeSettings.releaseEnabled` → `releaseOptedIn`.
+          `resolveAllSettings` composite: substitution map for the four collapsed keys
+          dropped from the returned `settings` object — only `user.notes_push`
+          substitution remains. Resolved-field rename (`releaseEnabled` →
+          `releaseOptedIn`) propagated through destructuring and the returned
+          `resolved` object.
+        - File-header doc comment updated to reflect the new shape: four
+          per-developer-only single-tier keys (`commitInterlock`, `pushInterlock`,
+          `syncInterlock`, `releaseOptedIn`) plus `notesPush` as the sole remaining
+          dual-scope key. `ResolvedSettingsResult` field doc comments also updated to
+          match.
+        - `resolve-override.ts` updated to support the optional yamlKey path —
+          module header and `resolveGitConfigOverride` doc-comment record the
+          two-tier-vs-three-tier behavior.
 
-    - `[ ]` **6.R.2.b Consumer updates**
-        - `lib/release/routing.ts` — `releaseEnabled` field in `ReleaseRoutingRationale` and
-          `ResolveReleaseRoutingOptions` → `releaseOptedIn`; rename in resolver function body.
-        - `handlers/release/record.ts` — opt-in / opt-out commands write `arc.releaseOptedIn`
-          via the renamed constant; update doc comments and prose-style references.
-        - `commands/status/format.ts` — rationale field rename in formatted output.
-        - `handlers/status.ts` — `releaseEnabled` field reference in envelope build → rename.
-        - `cli.ts` — opt-in / opt-out command help text update (current lines ~261, ~270).
-        - Verify `lib/release/audit-log.ts`, `lib/release/interlock-validation.ts` carry no
-          references (Pass 1 audit B finding).
+    - `[x]` **6.R.2.b Consumer updates**
+        - `lib/release/routing.ts` — `ReleaseRoutingRationale.releaseEnabled` and
+          `ResolveReleaseRoutingOptions.releaseEnabled` → `releaseOptedIn`; renamed inside
+          `resolveReleaseRouting` body; module docstring updated to "release-wrappers
+          opt-in flag" phrasing.
+        - `handlers/release/record.ts` — import renamed to
+          `RELEASE_OPTED_IN_GIT_CONFIG_KEY`; opt-in / opt-out write the renamed key;
+          `ReleaseStatusJsonEnvelope.releaseEnabled` field → `releaseOptedIn` (schemaVersion
+          2 envelope); local `releaseEnabledValue` → `releaseOptedInValue`; output line
+          `release_enabled:` → `release_opted_in:`; `deriveActiveValueLayers` parameter
+          renamed; doc-comment prose updated (the "yaml override" framing replaced with
+          per-developer-only framing).
+        - `commands/status/format.ts` — rationale field rename and label refresh:
+          `release.enabled:` → `arc.releaseOptedIn:`. `session.commit_interlock:` /
+          `session.push_interlock:` labels also refreshed to `arc.commitInterlock:` /
+          `arc.pushInterlock:` for consistency — the dotted-yaml labels referenced retired
+          keys.
+        - `handlers/status.ts` — `releaseEnabled` field reference in envelope build →
+          `releaseOptedIn`.
+        - `cli.ts` — opt-in / opt-out command help text now references
+          `arc.releaseOptedIn` (lines ~261, ~270).
+        - `handlers/release/setup/{install,uninstall,verify}.ts` — folded in (not
+          explicitly listed but identical-shape consumers): docstring references, JSON
+          envelope `releaseEnabled` field renames (schemaVersion 1), local variables,
+          parameter names, output strings.
+        - `lib/release/audit-log.ts` verified clean (Pass 1 audit B holds).
+          `lib/release/interlock-validation.ts` + `lib/release/types.ts` setting-key
+          literals folded into 6.R.2.c below.
+        - Yaml-tier-view files (`lib/config/status-reader.ts`,
+          `commands/config/{status,types}.ts`) left untouched — they declare the
+          yaml-tier surface for `arc config status` and tie to 6.R.4.b's yaml-key
+          removal (when yaml loses the keys, `ConfigSettings` interface + `DEFAULTS`
+          map drop in lockstep).
 
-    - `[ ]` **6.R.2.c Verification audit — no orphaned yaml-key reads**
-        - Grep `packages/arc-framework/src/` for `session.commit_interlock`,
-          `session.push_interlock`, `session.sync_interlock`, `release.enabled` outside the
-          resolver wrapper.
-        - Confirm wrapper is the sole surface; if any direct reads found, route through the
-          resolver.
-        - Marker file sanity check: confirm `lib/release/setup-marker.ts` doesn't reference
-          the flag name (Pass 1 audit E).
+    - `[x]` **6.R.2.c Verification audit — no orphaned yaml-key reads**
+        - `lib/release/setup-marker.ts` clean (Pass 1 audit E confirmed).
+        - `lib/release/types.ts` + `lib/release/interlock-validation.ts`:
+          `AuthorizationDecision` code-11 `setting.key` type literals updated from
+          `"session.commit_interlock" | "session.push_interlock"` →
+          `"arc.commitInterlock" | "arc.pushInterlock"`; refusal-message remediation
+          now reads `Use raw \`git ${op}\` instead. Or run
+          \`git config --local arc.commitInterlock on-task-approval\` ...` so the
+          user-facing direction names the actual configurable surface.
+        - Yaml-tier-view declarations (`lib/config/status-reader.ts`,
+          `commands/config/{status,types}.ts`, `commands/update.ts`'s migration anchor)
+          intentionally left in place — these tie to 6.R.4.b's yaml-key removal and
+          would create churn now without serving the architecture.
 
-### `[ ]` **6.R.3 Test coverage updates**
+### `[x]` **6.R.3 Test coverage updates**
 
 - _Goal:_ Tests across the affected surface reflect the new resolver shape — dual-scope
   precedence assertions removed for the four collapsed keys, git-config-only resolution covered,
   rename propagated, status/format/config-format test fixtures aligned.
 
-    - `[ ]` **6.R.3.a Resolver tests — `__tests__/unit/config/resolved-settings.test.ts`**
-        - Drop dual-scope precedence test cases for the four collapsed keys (e.g., the
-          existing "yaml-absence defaultsApplied semantic" test for `releaseEnabled` — that
-          semantic disappears after collapse).
-        - Update test fixture data: `name: "releaseEnabled"` → `"releaseOptedIn"`,
-          `settingsKey: "release.enabled"` → no settingsKey for the four collapsed keys.
-        - Rename `releaseEnabled` field references → `releaseOptedIn` throughout assertions
-          and mock setups.
+- _Outcome:_ Bundled into the 6.R.2 commit because the project's `typecheck:test` pre-commit gate
+  couples src and test typechecking. Test suite green: 1715 unit + 56 e2e.
 
-    - `[ ]` **6.R.3.b Status reader tests — `__tests__/unit/config/status-reader.test.ts`**
-        - Remove yaml-tier read assertions for `release.enabled` — the key no longer exists in
-          yaml; the test would fail or become meaningless.
-        - Confirm parallel coverage for the three interlock keys gets the same treatment.
+    - `[x]` **6.R.3.a Resolver tests — `__tests__/unit/config/resolved-settings.test.ts`**
+        - File rewritten around a per-developer / dual-scope split. `PER_DEV_KEYS`
+          parameterizes the four collapsed keys; `DUAL_SCOPE_KEYS` carries notesPush
+          alone. New per-dev test asserts that an `ignoredYamlKey` entry in
+          `arc-config.yml` does not influence resolution — guards against accidental
+          yaml-fallback regression.
+        - Dropped imports of the removed YAML-key constants and the obsolete
+          "`releaseEnabled`: yaml-absence defaultsApplied semantic" test.
+        - Composite test "git-config override does not appear in defaultsApplied"
+          dropped — the substitution it asserted no longer exists.
 
-    - `[ ]` **6.R.3.c Format tests — `__tests__/unit/status-format.test.ts` + `__tests__/unit/config-format.test.ts`**
-        - Drop `release.enabled` keys from fixture settings maps.
-        - Rename `releaseEnabled: false` → `releaseOptedIn: false` in rationale fixtures.
+    - `[x]` **6.R.3.b Status reader tests — `__tests__/unit/config/status-reader.test.ts`**
+        - No edits needed today: status-reader still declares the four collapsed keys
+          in `ConfigSettings` / DEFAULTS, so the existing yaml-tier read assertions
+          continue to pass. Task description's "remove yaml-tier read assertions for
+          `release.enabled`" applies after 6.R.4.b removes the keys from yaml; covered
+          as part of that change.
 
-    - `[ ]` **6.R.3.d Add git-config-only resolution coverage**
-        - For each of the four collapsed keys: assert resolver returns documented default
-          when `git config arc.*` absent (no yaml fallback consulted).
-        - Assert resolver returns git-config value when set; cover invalid-value warning
-          behavior on git-config tier.
-        - Confirm `resolveAllSettings` composite still composes correctly with simplified
-          per-key resolvers.
+    - `[x]` **6.R.3.c Format tests — `__tests__/unit/status-format.test.ts` + `__tests__/unit/config-format.test.ts`**
+        - `status-format.test.ts`: rationale field rename `releaseEnabled` →
+          `releaseOptedIn`. Settings-map fixtures kept as-is (`release.enabled`,
+          `session.*_interlock` keys still in `ConfigSettings`).
+        - `config-format.test.ts`: no edits — fixture settings maps drive the
+          formatter's iteration over `ConfigSettings`; assertions hold against current
+          shape.
+
+    - `[x]` **6.R.3.d Git-config-only resolution coverage**
+        - Added per-key tests in `resolved-settings.test.ts` (under
+          `per-developer-only keys: yaml is not consulted`): git-config-set →
+          resolved git-config value; git-config absent → default; matching yaml entry
+          ignored; invalid git-config → warns and falls back to default.
+
+- _Additional consumer-side test updates folded in (rename echoes outside 6.R.3.a-d):_
+    - `integration/status.test.ts`: rename echoes; the
+      "orchestrated envelope" test reframed around `releaseRouting.value.rationale`
+      (resolved values) + `settings.user.notes_push` (dual-scope). Two
+      `routes-all-classes-through-wrappers` tests switched their setup from yaml
+      writes to git-config injection via the exec mock.
+    - `integration/config.test.ts`: "git-config override wins over yaml" narrowed to
+      notesPush (the only remaining dual-scope key). "Warns and falls back to default
+      when yaml carries an invalid release-mode value" deleted — the resolver no
+      longer reads yaml for the four collapsed keys, so no warning fires.
+    - `integration/multi-clone.test.ts` + `e2e/sync-purity.e2e.test.ts`: three
+      `session.push_interlock` yaml overrides switched to `git config --local
+      arc.pushInterlock on-sync` calls.
+    - Handler/release tests (`commit`, `push`, `record`, `routing`,
+      `interlock-validation`, `setup/{install,uninstall,verify}`): rename echoes for
+      `releaseEnabled` → `releaseOptedIn` (fixture fields, output strings, JSON
+      envelope schemas, `arc.releaseEnabled` git-config key string,
+      `release_enabled:` line label). `interlock-validation.test.ts` setting-key
+      assertions updated to match 6.R.2.c's `arc.commitInterlock` /
+      `arc.pushInterlock` literals.
+    - `status/run.test.ts`: rename echoes in `releaseRouting` rationale fixtures.
 
 ### `[ ]` **6.R.4 Discoverability surfaces**
 

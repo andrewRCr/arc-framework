@@ -18,7 +18,7 @@ import type {
 } from "../../../../../src/lib/release/setup-marker.js";
 
 function buildSettings(
-  releaseEnabled: { value: "true" | "false"; source: "git-config" | "yaml" | "default" },
+  releaseOptedIn: { value: "true" | "false"; source: "git-config" | "yaml" | "default" },
 ): ResolvedSettingsResult {
   return {
     settings: {} as ConfigSettings,
@@ -27,7 +27,7 @@ function buildSettings(
       pushInterlock: { value: "manual", source: "default" },
       syncInterlock: { value: "on-handoff", source: "default" },
       notesPush: { value: "on-sync", source: "default" },
-      releaseEnabled,
+      releaseOptedIn,
     },
     defaultsApplied: [],
     warnings: [],
@@ -61,7 +61,7 @@ describe("runReleaseSetupVerify", () => {
     expect(result.exitCode).toBe(0);
     const output = stdout.join("");
     expect(output).toContain("release_setup: not engaged");
-    expect(output).toContain("release_enabled: false (default)");
+    expect(output).toContain("release_opted_in: false (default)");
     expect(output).toContain("behavioral_test_subprocess: not run");
   });
 

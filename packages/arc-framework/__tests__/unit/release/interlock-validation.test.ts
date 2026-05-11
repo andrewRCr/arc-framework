@@ -17,7 +17,7 @@ import type {
   PushInterlock,
   SyncInterlock,
   NotesPushPolicy,
-  ReleaseEnabled,
+  ReleaseOptedIn,
 } from "../../../src/lib/config/resolved-settings.js";
 import type { ConfigSettings } from "../../../src/commands/config/types.js";
 import type { AuthorizationDecision } from "../../../src/lib/release/types.js";
@@ -64,7 +64,7 @@ function buildSettings(overrides: FixtureOverrides = {}): ResolvedSettingsResult
   };
 
   const notesPush: NotesPushPolicy = "on-sync";
-  const releaseEnabled: ReleaseEnabled = "true";
+  const releaseOptedIn: ReleaseOptedIn = "true";
 
   return {
     settings,
@@ -73,7 +73,7 @@ function buildSettings(overrides: FixtureOverrides = {}): ResolvedSettingsResult
       pushInterlock: { value: pushInterlock, source: "default" },
       syncInterlock: { value: syncInterlock, source: "default" },
       notesPush: { value: notesPush, source: "default" },
-      releaseEnabled: { value: releaseEnabled, source: "default" },
+      releaseOptedIn: { value: releaseOptedIn, source: "default" },
     },
     defaultsApplied: [],
     warnings: [],
@@ -93,7 +93,7 @@ describe("authorizeRelease — commit × commit_interlock", () => {
       kind: "refuse",
       code: 11,
       identifier: "interlock-not-authorized",
-      setting: { key: "session.commit_interlock", value: "manual" },
+      setting: { key: "arc.commitInterlock", value: "manual" },
     });
   });
 
@@ -129,7 +129,7 @@ describe("authorizeRelease — push × push_interlock", () => {
       kind: "refuse",
       code: 11,
       identifier: "interlock-not-authorized",
-      setting: { key: "session.push_interlock", value: "manual" },
+      setting: { key: "arc.pushInterlock", value: "manual" },
     });
   });
 
@@ -143,7 +143,7 @@ describe("authorizeRelease — push × push_interlock", () => {
       kind: "refuse",
       code: 11,
       identifier: "interlock-not-authorized",
-      setting: { key: "session.push_interlock", value: "on-sync" },
+      setting: { key: "arc.pushInterlock", value: "on-sync" },
     });
   });
 
@@ -269,12 +269,12 @@ describe("formatRefusal — three-line shape", () => {
       kind: "refuse",
       code: 11,
       identifier: "interlock-not-authorized",
-      setting: { key: "session.commit_interlock", value: "manual" },
+      setting: { key: "arc.commitInterlock", value: "manual" },
     };
     const lines = formatRefusal(decision).split("\n");
     expect(lines).toHaveLength(3);
     expect(lines[0]).toBe("Refused: interlock-not-authorized (code 11)");
-    expect(lines[1]).toContain("session.commit_interlock");
+    expect(lines[1]).toContain("arc.commitInterlock");
     expect(lines[1]).toContain("manual");
     // Remediation orders raw `git` first, config escalation second.
     expect(lines[2]).toMatch(/^Use raw `git/);
@@ -286,10 +286,10 @@ describe("formatRefusal — three-line shape", () => {
       kind: "refuse",
       code: 11,
       identifier: "interlock-not-authorized",
-      setting: { key: "session.push_interlock", value: "on-sync" },
+      setting: { key: "arc.pushInterlock", value: "on-sync" },
     };
     const lines = formatRefusal(decision).split("\n");
-    expect(lines[1]).toContain("session.push_interlock");
+    expect(lines[1]).toContain("arc.pushInterlock");
     expect(lines[1]).toContain("on-sync");
   });
 

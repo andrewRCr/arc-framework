@@ -20,7 +20,7 @@ import type {
 } from "../../../../../src/lib/release/setup-marker.js";
 
 function buildSettings(
-  releaseEnabled: { value: "true" | "false"; source: "git-config" | "yaml" | "default" },
+  releaseOptedIn: { value: "true" | "false"; source: "git-config" | "yaml" | "default" },
 ): ResolvedSettingsResult {
   return {
     settings: {} as ConfigSettings,
@@ -29,7 +29,7 @@ function buildSettings(
       pushInterlock: { value: "manual", source: "default" },
       syncInterlock: { value: "on-handoff", source: "default" },
       notesPush: { value: "on-sync", source: "default" },
-      releaseEnabled,
+      releaseOptedIn,
     },
     defaultsApplied: [],
     warnings: [],
@@ -190,14 +190,14 @@ describe("runReleaseSetupUninstall", () => {
     const envelope = JSON.parse(stdout.join("")) as {
       schemaVersion: number;
       command: string;
-      releaseEnabled: { before: boolean; after: boolean };
+      releaseOptedIn: { before: boolean; after: boolean };
       harnesses: Array<{ name: string; mode?: string; result: string }>;
       exitCode: number;
     };
     expect(envelope).toEqual(expect.objectContaining({
       schemaVersion: 1,
       command: "uninstall",
-      releaseEnabled: expect.objectContaining({ before: true, after: false }),
+      releaseOptedIn: expect.objectContaining({ before: true, after: false }),
       exitCode: 0,
     }));
     expect(envelope.harnesses).toEqual([

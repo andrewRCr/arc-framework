@@ -92,7 +92,7 @@ async function readIdentityPointers(): Promise<{
 
 function releaseRoutingFromSettings(settings: ResolvedSettingsResult): ReleaseRoutingValue {
   return resolveReleaseRouting({
-    releaseEnabled: settings.resolved.releaseEnabled.value === "true",
+    releaseOptedIn: settings.resolved.releaseOptedIn.value === "true",
     commitInterlock: settings.resolved.commitInterlock.value,
     pushInterlock: settings.resolved.pushInterlock.value,
   });

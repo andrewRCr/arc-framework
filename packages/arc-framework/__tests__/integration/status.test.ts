@@ -205,7 +205,7 @@ function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
     domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
     releaseRouting: async () =>
       resolveReleaseRouting({
-        releaseEnabled: false,
+        releaseOptedIn: false,
         commitInterlock: "manual",
         pushInterlock: "manual",
       }),
@@ -214,7 +214,7 @@ function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
 
 function routingFromSettings(settings: ResolvedSettingsResult): ReturnType<typeof resolveReleaseRouting> {
   return resolveReleaseRouting({
-    releaseEnabled: settings.resolved.releaseEnabled.value === "true",
+    releaseOptedIn: settings.resolved.releaseOptedIn.value === "true",
     commitInterlock: settings.resolved.commitInterlock.value,
     pushInterlock: settings.resolved.pushInterlock.value,
   });
@@ -455,7 +455,7 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
       domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
       releaseRouting: async () =>
         resolveReleaseRouting({
-          releaseEnabled: false,
+          releaseOptedIn: false,
           commitInterlock: "manual",
           pushInterlock: "manual",
         }),
@@ -611,7 +611,7 @@ function makeRealWorktreeProbes(
     domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
     releaseRouting: async () =>
       resolveReleaseRouting({
-        releaseEnabled: false,
+        releaseOptedIn: false,
         commitInterlock: "manual",
         pushInterlock: "manual",
       }),
@@ -848,15 +848,15 @@ describe("runSessionInitStatus — release-mode key resolution at envelope path"
   });
 
   it(
-    "orchestrated envelope carries git-config overrides at config.value.settings.<key> "
-    + "so session-init.md consumers read resolved values without re-probing",
+    "orchestrated envelope surfaces resolved per-developer values at releaseRouting.rationale.* "
+    + "and dual-scope notesPush at config.value.settings.user.notes_push",
     async () => {
       const overrides: Record<string, string> = {
         "arc.commitInterlock": "on-task-approval",
         "arc.pushInterlock": "on-sync",
         "arc.syncInterlock": "on-handoff",
         "arc.notesPush": "prompt",
-        "arc.releaseEnabled": "true",
+        "arc.releaseOptedIn": "true",
       };
       const exec = vi.fn().mockImplementation((cmd: string, args: string[]) => {
         if (cmd === "git" && args[0] === "config" && args[1] === "--get") {
@@ -875,12 +875,7 @@ describe("runSessionInitStatus — release-mode key resolution at envelope path"
       });
       expect(result.config.ok).toBe(true);
       if (result.config.ok) {
-        // The literal envelope path agents consume from session-init.md.
-        expect(result.config.value.settings["session.commit_interlock"]).toBe("on-task-approval");
-        expect(result.config.value.settings["session.push_interlock"]).toBe("on-sync");
-        expect(result.config.value.settings["session.sync_interlock"]).toBe("on-handoff");
         expect(result.config.value.settings["user.notes_push"]).toBe("prompt");
-        expect(result.config.value.settings["release.enabled"]).toBe("true");
       }
       expect(result.releaseRouting.ok).toBe(true);
       if (result.releaseRouting.ok) {
@@ -889,7 +884,7 @@ describe("runSessionInitStatus — release-mode key resolution at envelope path"
           workflowCommit: "raw",
           workflowPush: "raw",
           rationale: {
-            releaseEnabled: true,
+            releaseOptedIn: true,
             commitInterlock: "on-task-approval",
             pushInterlock: "on-sync",
           },
@@ -913,7 +908,7 @@ describe("runSessionInitStatus — release-mode key resolution at envelope path"
         workflowCommit: "raw",
         workflowPush: "raw",
         rationale: {
-          releaseEnabled: false,
+          releaseOptedIn: false,
           commitInterlock: "manual",
           pushInterlock: "manual",
         },
@@ -922,23 +917,22 @@ describe("runSessionInitStatus — release-mode key resolution at envelope path"
   });
 
   it("session-init releaseRouting routes all classes through wrappers for full workflow opt-in", async () => {
-    await writeFile(
-      fixture.configPath,
-      [
-        "pm.mode: arc-in-git",
-        "branch.protection: full",
-        "commit.format: conventional",
-        "commit.context_footer: required",
-        "session.remote_sync: enabled",
-        "session.commit_interlock: on-workflow",
-        "session.push_interlock: on-workflow",
-        "session.sync_interlock: manual",
-        "user.notes_push: on-sync",
-        "release.enabled: true",
-      ].join("\n"),
-    );
+    const overrides: Record<string, string> = {
+      "arc.commitInterlock": "on-workflow",
+      "arc.pushInterlock": "on-workflow",
+      "arc.releaseOptedIn": "true",
+    };
+    const exec = vi.fn().mockImplementation((cmd: string, args: string[]) => {
+      if (cmd === "git" && args[0] === "config" && args[1] === "--get") {
+        const key = args[2];
+        const value = key === undefined ? undefined : overrides[key];
+        if (value === undefined) return Promise.reject(new Error("exit 1"));
+        return Promise.resolve({ stdout: `${value}\n` });
+      }
+      return Promise.reject(new Error(`unexpected exec call: ${cmd} ${(args ?? []).join(" ")}`));
+    });
 
-    const probes = makeResolvedReleaseModeSessionInitProbes(fixture);
+    const probes = makeResolvedReleaseModeSessionInitProbes(fixture, exec);
     const result = await runSessionInitStatus({
       identity: "andrew",
       role: "maintainer",
@@ -952,7 +946,7 @@ describe("runSessionInitStatus — release-mode key resolution at envelope path"
         workflowCommit: "wrapper",
         workflowPush: "wrapper",
         rationale: {
-          releaseEnabled: true,
+          releaseOptedIn: true,
           commitInterlock: "on-workflow",
           pushInterlock: "on-workflow",
         },
@@ -1000,7 +994,7 @@ describe("runSessionHandoffStatus — releaseRouting envelope path", () => {
         workflowCommit: "raw",
         workflowPush: "raw",
         rationale: {
-          releaseEnabled: false,
+          releaseOptedIn: false,
           commitInterlock: "manual",
           pushInterlock: "manual",
         },
@@ -1009,23 +1003,22 @@ describe("runSessionHandoffStatus — releaseRouting envelope path", () => {
   });
 
   it("routes all releaseRouting classes through wrappers for full workflow opt-in", async () => {
-    await writeFile(
-      fixture.configPath,
-      [
-        "pm.mode: arc-in-git",
-        "branch.protection: full",
-        "commit.format: conventional",
-        "commit.context_footer: required",
-        "session.remote_sync: enabled",
-        "session.commit_interlock: on-workflow",
-        "session.push_interlock: on-workflow",
-        "session.sync_interlock: manual",
-        "user.notes_push: on-sync",
-        "release.enabled: true",
-      ].join("\n"),
-    );
+    const overrides: Record<string, string> = {
+      "arc.commitInterlock": "on-workflow",
+      "arc.pushInterlock": "on-workflow",
+      "arc.releaseOptedIn": "true",
+    };
+    const exec = vi.fn().mockImplementation((cmd: string, args: string[]) => {
+      if (cmd === "git" && args[0] === "config" && args[1] === "--get") {
+        const key = args[2];
+        const value = key === undefined ? undefined : overrides[key];
+        if (value === undefined) return Promise.reject(new Error("exit 1"));
+        return Promise.resolve({ stdout: `${value}\n` });
+      }
+      return Promise.reject(new Error(`unexpected exec call: ${cmd} ${(args ?? []).join(" ")}`));
+    });
 
-    const probes = makeResolvedReleaseModeSessionHandoffProbes(fixture);
+    const probes = makeResolvedReleaseModeSessionHandoffProbes(fixture, exec);
     const result = await runSessionHandoffStatus({
       identity: "andrew",
       role: "maintainer",
@@ -1039,7 +1032,7 @@ describe("runSessionHandoffStatus — releaseRouting envelope path", () => {
         workflowCommit: "wrapper",
         workflowPush: "wrapper",
         rationale: {
-          releaseEnabled: true,
+          releaseOptedIn: true,
           commitInterlock: "on-workflow",
           pushInterlock: "on-workflow",
         },

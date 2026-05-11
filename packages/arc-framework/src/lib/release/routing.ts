@@ -1,9 +1,10 @@
 /**
  * Release-wrapper routing classification.
  *
- * Status envelopes resolve this once from the final release-enabled and
- * interlock settings so downstream workflows and skills consult a structured
- * class result instead of repeating authorization logic at each fire site.
+ * Status envelopes resolve this once from the final release-wrappers opt-in
+ * flag and interlock settings so downstream workflows and skills consult a
+ * structured class result instead of repeating authorization logic at each
+ * fire site.
  *
  * @module
  */
@@ -13,7 +14,7 @@ export type ReleaseRoute = "wrapper" | "raw";
 
 /** Inputs captured alongside the route result for diagnostics. */
 export interface ReleaseRoutingRationale {
-  releaseEnabled: boolean;
+  releaseOptedIn: boolean;
   commitInterlock: string;
   pushInterlock: string;
 }
@@ -32,30 +33,30 @@ export type ReleaseRoutingSlot =
   | { ok: false; error: { kind: "runtime"; message: string } };
 
 export interface ResolveReleaseRoutingOptions {
-  releaseEnabled: boolean;
+  releaseOptedIn: boolean;
   commitInterlock: string;
   pushInterlock: string;
 }
 
 /**
- * Resolve route classes from the final release-enabled flag and interlock
- * values. Unknown interlock values safe-default to raw for forward
+ * Resolve route classes from the final release-wrappers opt-in flag and
+ * interlock values. Unknown interlock values safe-default to raw for forward
  * compatibility.
  *
- * @param opts - Final release-enabled flag and interlock values
+ * @param opts - Final opt-in flag and interlock values
  * @returns Routing decisions plus the input rationale snapshot
  */
 export function resolveReleaseRouting(
   opts: ResolveReleaseRoutingOptions,
 ): ReleaseRoutingValue {
-  const taskCommit: ReleaseRoute = opts.releaseEnabled
+  const taskCommit: ReleaseRoute = opts.releaseOptedIn
       && (opts.commitInterlock === "on-task-approval" || opts.commitInterlock === "on-workflow")
     ? "wrapper"
     : "raw";
-  const workflowCommit: ReleaseRoute = opts.releaseEnabled && opts.commitInterlock === "on-workflow"
+  const workflowCommit: ReleaseRoute = opts.releaseOptedIn && opts.commitInterlock === "on-workflow"
     ? "wrapper"
     : "raw";
-  const workflowPush: ReleaseRoute = opts.releaseEnabled && opts.pushInterlock === "on-workflow"
+  const workflowPush: ReleaseRoute = opts.releaseOptedIn && opts.pushInterlock === "on-workflow"
     ? "wrapper"
     : "raw";
 
@@ -64,7 +65,7 @@ export function resolveReleaseRouting(
     workflowCommit,
     workflowPush,
     rationale: {
-      releaseEnabled: opts.releaseEnabled,
+      releaseOptedIn: opts.releaseOptedIn,
       commitInterlock: opts.commitInterlock,
       pushInterlock: opts.pushInterlock,
     },

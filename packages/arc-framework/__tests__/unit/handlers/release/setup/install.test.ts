@@ -23,7 +23,7 @@ import type {
 } from "../../../../../src/lib/release/setup-marker.js";
 
 function buildSettings(
-  releaseEnabled: { value: "true" | "false"; source: "git-config" | "yaml" | "default" },
+  releaseOptedIn: { value: "true" | "false"; source: "git-config" | "yaml" | "default" },
 ): ResolvedSettingsResult {
   return {
     settings: {} as ConfigSettings,
@@ -32,7 +32,7 @@ function buildSettings(
       pushInterlock: { value: "manual", source: "default" },
       syncInterlock: { value: "on-handoff", source: "default" },
       notesPush: { value: "on-sync", source: "default" },
-      releaseEnabled,
+      releaseOptedIn,
     },
     defaultsApplied: [],
     warnings: [],
@@ -108,7 +108,7 @@ describe("runReleaseSetupInstall", () => {
     expect(result.exitCode).toBe(0);
     const output = stdout.join("");
     expect(output).toContain("release_setup_install: existing");
-    expect(output).toContain("release_enabled: true (git-config)");
+    expect(output).toContain("release_opted_in: true (git-config)");
     expect(output).toContain("harness: claude-code");
     expect(output).toContain("mode: default-prompt");
     expect(output).toContain("installed_at: 2026-05-10T00:00:00.000Z");
@@ -365,14 +365,14 @@ describe("runReleaseSetupInstall", () => {
     const envelope = JSON.parse(stdout.join("")) as {
       schemaVersion: number;
       command: string;
-      releaseEnabled: { before: boolean; after: boolean };
+      releaseOptedIn: { before: boolean; after: boolean };
       harnesses: Array<{ name: string; mode: string; result: string }>;
       exitCode: number;
     };
     expect(envelope).toEqual(expect.objectContaining({
       schemaVersion: 1,
       command: "install",
-      releaseEnabled: expect.objectContaining({ before: false, after: true }),
+      releaseOptedIn: expect.objectContaining({ before: false, after: true }),
       exitCode: 0,
     }));
     expect(envelope.harnesses).toEqual([

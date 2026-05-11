@@ -307,7 +307,7 @@ function releaseRouting(overrides: Partial<ReleaseRoutingValue> = {}): ReleaseRo
     workflowCommit: "raw",
     workflowPush: "raw",
     rationale: {
-      releaseEnabled: false,
+      releaseOptedIn: false,
       commitInterlock: "manual",
       pushInterlock: "manual",
     },
@@ -543,7 +543,7 @@ describe("runSessionInitStatus — orchestration", () => {
           workflowCommit: "raw",
           workflowPush: "wrapper",
           rationale: {
-            releaseEnabled: true,
+            releaseOptedIn: true,
             commitInterlock: "on-task-approval",
             pushInterlock: "on-workflow",
           },
@@ -562,7 +562,7 @@ describe("runSessionInitStatus — orchestration", () => {
         workflowCommit: "raw",
         workflowPush: "wrapper",
         rationale: {
-          releaseEnabled: true,
+          releaseOptedIn: true,
           commitInterlock: "on-task-approval",
           pushInterlock: "on-workflow",
         },
@@ -963,7 +963,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
           workflowCommit: "wrapper",
           workflowPush: "raw",
           rationale: {
-            releaseEnabled: true,
+            releaseOptedIn: true,
             commitInterlock: "on-workflow",
             pushInterlock: "on-sync",
           },

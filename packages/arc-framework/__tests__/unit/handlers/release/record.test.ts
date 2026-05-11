@@ -2,7 +2,7 @@
  * Unit tests for the `arc release opt-in` / `opt-out` / `status`
  * sub-command orchestrators.
  *
- * Covers idempotent local-scope writes of `arc.releaseEnabled` (true on
+ * Covers idempotent local-scope writes of `arc.releaseOptedIn` (true on
  * opt-in, false on opt-out — symmetric override surface), with key-naming
  * + underlying-error surfacing on git-config failures, plus human / `--json`
  * rendering of the resolved opt-in + interlock surface.
@@ -20,7 +20,7 @@ import type { HarnessEntry, MarkerReadResult } from "../../../../src/lib/release
 import type { ConfigSettings } from "../../../../src/commands/config/types.js";
 
 function buildSettings(overrides: {
-  releaseEnabled?: { value: "true" | "false"; source: "git-config" | "yaml" | "default" };
+  releaseOptedIn?: { value: "true" | "false"; source: "git-config" | "yaml" | "default" };
   commitInterlock?: { value: "manual" | "on-task-approval" | "on-workflow"; source: "git-config" | "yaml" | "default" };
   pushInterlock?: { value: "manual" | "on-sync" | "on-workflow"; source: "git-config" | "yaml" | "default" };
   syncInterlock?: { value: "manual" | "on-handoff" | "on-workflow"; source: "git-config" | "yaml" | "default" };
@@ -32,7 +32,7 @@ function buildSettings(overrides: {
       pushInterlock: overrides.pushInterlock ?? { value: "manual", source: "default" },
       syncInterlock: overrides.syncInterlock ?? { value: "on-handoff", source: "default" },
       notesPush: { value: "on-sync", source: "default" },
-      releaseEnabled: overrides.releaseEnabled ?? { value: "false", source: "default" },
+      releaseOptedIn: overrides.releaseOptedIn ?? { value: "false", source: "default" },
     },
     defaultsApplied: [],
     warnings: [],
@@ -50,7 +50,7 @@ function marker(harnesses: HarnessEntry[]): MarkerReadResult {
 }
 
 describe("runReleaseOptIn", () => {
-  it("writes arc.releaseEnabled = true to local config on first invocation", async () => {
+  it("writes arc.releaseOptedIn = true to local config on first invocation", async () => {
     const exec = vi
       .fn()
       .mockRejectedValueOnce(new Error("exit code 1")) // --get returns undefined (absent)
@@ -62,7 +62,7 @@ describe("runReleaseOptIn", () => {
     expect(exec).toHaveBeenCalledWith("git", [
       "config",
       "--local",
-      "arc.releaseEnabled",
+      "arc.releaseOptedIn",
       "true",
     ]);
   });
@@ -77,7 +77,7 @@ describe("runReleaseOptIn", () => {
     expect(exec).not.toHaveBeenCalledWith("git", [
       "config",
       "--local",
-      "arc.releaseEnabled",
+      "arc.releaseOptedIn",
       "true",
     ]);
   });
@@ -94,7 +94,7 @@ describe("runReleaseOptIn", () => {
     expect(exec).toHaveBeenCalledWith("git", [
       "config",
       "--local",
-      "arc.releaseEnabled",
+      "arc.releaseOptedIn",
       "true",
     ]);
   });
@@ -114,13 +114,13 @@ describe("runReleaseOptIn", () => {
     });
 
     expect(result.exitCode).not.toBe(0);
-    expect(stderr.join("")).toContain("arc.releaseEnabled");
+    expect(stderr.join("")).toContain("arc.releaseOptedIn");
     expect(stderr.join("")).toContain("permission denied");
   });
 });
 
 describe("runReleaseOptOut", () => {
-  it("writes arc.releaseEnabled = false to local config when key is absent", async () => {
+  it("writes arc.releaseOptedIn = false to local config when key is absent", async () => {
     const exec = vi
       .fn()
       .mockRejectedValueOnce(new Error("exit code 1")) // --get returns undefined (absent)
@@ -132,7 +132,7 @@ describe("runReleaseOptOut", () => {
     expect(exec).toHaveBeenCalledWith("git", [
       "config",
       "--local",
-      "arc.releaseEnabled",
+      "arc.releaseOptedIn",
       "false",
     ]);
   });
@@ -149,7 +149,7 @@ describe("runReleaseOptOut", () => {
     expect(exec).toHaveBeenCalledWith("git", [
       "config",
       "--local",
-      "arc.releaseEnabled",
+      "arc.releaseOptedIn",
       "false",
     ]);
   });
@@ -164,7 +164,7 @@ describe("runReleaseOptOut", () => {
     expect(exec).not.toHaveBeenCalledWith("git", [
       "config",
       "--local",
-      "arc.releaseEnabled",
+      "arc.releaseOptedIn",
       "false",
     ]);
   });
@@ -184,7 +184,7 @@ describe("runReleaseOptOut", () => {
     });
 
     expect(result.exitCode).not.toBe(0);
-    expect(stderr.join("")).toContain("arc.releaseEnabled");
+    expect(stderr.join("")).toContain("arc.releaseOptedIn");
     expect(stderr.join("")).toContain("permission denied");
   });
 });
@@ -192,7 +192,7 @@ describe("runReleaseOptOut", () => {
 describe("runReleaseStatus", () => {
   it("renders four resolved values with provenance labels in human mode", async () => {
     const settings = buildSettings({
-      releaseEnabled: { value: "true", source: "git-config" },
+      releaseOptedIn: { value: "true", source: "git-config" },
       commitInterlock: { value: "on-task-approval", source: "yaml" },
       pushInterlock: { value: "on-sync", source: "yaml" },
       syncInterlock: { value: "on-handoff", source: "default" },
@@ -207,7 +207,7 @@ describe("runReleaseStatus", () => {
 
     expect(result.exitCode).toBe(0);
     const output = stdout.join("");
-    expect(output).toContain("release_enabled: true (git-config)");
+    expect(output).toContain("release_opted_in: true (git-config)");
     expect(output).toContain("commit_interlock: on-task-approval (yaml)");
     expect(output).toContain("push_interlock: on-sync (yaml)");
     expect(output).toContain("sync_interlock: on-handoff (default)");
@@ -215,7 +215,7 @@ describe("runReleaseStatus", () => {
 
   it("emits a schemaVersion 2 envelope with posture fields in --json mode", async () => {
     const settings = buildSettings({
-      releaseEnabled: { value: "true", source: "git-config" },
+      releaseOptedIn: { value: "true", source: "git-config" },
       commitInterlock: { value: "on-task-approval", source: "yaml" },
       pushInterlock: { value: "on-sync", source: "yaml" },
       syncInterlock: { value: "on-handoff", source: "default" },
@@ -235,7 +235,7 @@ describe("runReleaseStatus", () => {
     expect(result.exitCode).toBe(0);
     const envelope = JSON.parse(stdout.join("")) as {
       schemaVersion: number;
-      releaseEnabled: { value: boolean; source: string };
+      releaseOptedIn: { value: boolean; source: string };
       commitInterlock: { value: string; source: string };
       pushInterlock: { value: string; source: string };
       syncInterlock: { value: string; source: string };
@@ -246,7 +246,7 @@ describe("runReleaseStatus", () => {
         workflowCommit: string;
         workflowPush: string;
         rationale: {
-          releaseEnabled: boolean;
+          releaseOptedIn: boolean;
           commitInterlock: string;
           pushInterlock: string;
         };
@@ -254,7 +254,7 @@ describe("runReleaseStatus", () => {
     };
     expect(envelope).toEqual({
       schemaVersion: 2,
-      releaseEnabled: { value: true, source: "git-config" },
+      releaseOptedIn: { value: true, source: "git-config" },
       commitInterlock: { value: "on-task-approval", source: "yaml" },
       pushInterlock: { value: "on-sync", source: "yaml" },
       syncInterlock: { value: "on-handoff", source: "default" },
@@ -271,7 +271,7 @@ describe("runReleaseStatus", () => {
         workflowCommit: "raw",
         workflowPush: "raw",
         rationale: {
-          releaseEnabled: true,
+          releaseOptedIn: true,
           commitInterlock: "on-task-approval",
           pushInterlock: "on-sync",
         },
@@ -282,7 +282,7 @@ describe("runReleaseStatus", () => {
   it("projects empty marker and opt-in false as no harnesses and no active value layers", async () => {
     const stdout: string[] = [];
     await runReleaseStatus({
-      settings: buildSettings({ releaseEnabled: { value: "false", source: "default" } }),
+      settings: buildSettings({ releaseOptedIn: { value: "false", source: "default" } }),
       marker: marker([]),
       json: true,
       writeStdout: (msg) => {
@@ -307,7 +307,7 @@ describe("runReleaseStatus", () => {
   it("annotates bypass harnesses and mixed-mode value layers", async () => {
     const stdout: string[] = [];
     await runReleaseStatus({
-      settings: buildSettings({ releaseEnabled: { value: "true", source: "git-config" } }),
+      settings: buildSettings({ releaseOptedIn: { value: "true", source: "git-config" } }),
       marker: marker([
         { name: "claude-code", mode: "bypass", installedAt: "2026-05-10T00:00:00.000Z" },
         { name: "codex", mode: "default-prompt", installedAt: "2026-05-10T01:00:00.000Z" },
@@ -343,7 +343,7 @@ describe("runReleaseStatus", () => {
     const stdout: string[] = [];
     await runReleaseStatus({
       settings: buildSettings({
-        releaseEnabled: { value: "true", source: "git-config" },
+        releaseOptedIn: { value: "true", source: "git-config" },
         commitInterlock: { value: "on-workflow", source: "yaml" },
         pushInterlock: { value: "on-workflow", source: "yaml" },
       }),
@@ -371,7 +371,7 @@ describe("runReleaseStatus", () => {
 
   it("threads provenance distinguishing git-config / yaml / default", async () => {
     const settings = buildSettings({
-      releaseEnabled: { value: "true", source: "git-config" },
+      releaseOptedIn: { value: "true", source: "git-config" },
       commitInterlock: { value: "on-task-approval", source: "yaml" },
       pushInterlock: { value: "manual", source: "default" },
       syncInterlock: { value: "on-handoff", source: "default" },
@@ -385,15 +385,15 @@ describe("runReleaseStatus", () => {
     });
 
     const output = stdout.join("");
-    expect(output).toMatch(/release_enabled:.*\(git-config\)/);
+    expect(output).toMatch(/release_opted_in:.*\(git-config\)/);
     expect(output).toMatch(/commit_interlock:.*\(yaml\)/);
     expect(output).toMatch(/push_interlock:.*\(default\)/);
     expect(output).toMatch(/sync_interlock:.*\(default\)/);
   });
 
-  it("surfaces release_enabled as a JSON boolean, not the resolver's string form", async () => {
+  it("surfaces release_opted_in as a JSON boolean, not the resolver's string form", async () => {
     const settings = buildSettings({
-      releaseEnabled: { value: "false", source: "default" },
+      releaseOptedIn: { value: "false", source: "default" },
     });
     const stdout: string[] = [];
     await runReleaseStatus({
@@ -405,9 +405,9 @@ describe("runReleaseStatus", () => {
     });
 
     const envelope = JSON.parse(stdout.join("")) as {
-      releaseEnabled: { value: unknown };
+      releaseOptedIn: { value: unknown };
     };
-    expect(envelope.releaseEnabled.value).toBe(false);
-    expect(typeof envelope.releaseEnabled.value).toBe("boolean");
+    expect(envelope.releaseOptedIn.value).toBe(false);
+    expect(typeof envelope.releaseOptedIn.value).toBe("boolean");
   });
 });
