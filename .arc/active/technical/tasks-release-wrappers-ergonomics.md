@@ -698,6 +698,283 @@ _Design decisions:_ Strategy doc lands first — initial-setup section (6.2) and
 
 ---
 
+## **Phase 6.R:** Configuration scope refactor — collapse interlocks + release-flag to per-dev only
+
+_Purpose:_ Mid-WU course-correction surfaced during Phase 6 — the dual-scope yaml-plus-git-config
+pattern misapplied to autonomy/opt-in keys (interlocks, release flag) creates a discoverability
+trap and pushes maintainer preferences onto contributors. Collapse the four affected keys to
+per-developer git-config only; rename `release.enabled` → `arc.releaseOptedIn` to eliminate the
+"feature switch" misread; add a discoverability surface for all per-dev `arc.*` keys; backfill
+docs (PRD, ADR, strategies, briefs) so the architecture reads coherently.
+
+_Design decisions:_ Collapse scope is exactly the four keys whose semantics are personal autonomy
+or personal opt-in (`session.*_interlock` ×3, `release.enabled`); `user.notes_push` deferred
+(team.mode coupling). Rename `releaseEnabled` → `releaseOptedIn` to capture signifier-not-switch
+semantics. Discoverability home is a new section in `strategy-configurability-architecture.md`.
+ADR-017 receives an amendment (not supersession) clarifying the scope shift. See
+`notes-release-wrappers-ergonomics.md` § Phase 6.R Configuration Scope Refactor for full design
+history (research findings, naming options weighed, what was wrong before, why this is right).
+
+### `[ ]` **6.R.1 Design capture — notes file + ADR-017 amendment**
+
+- _Goal:_ Record the design decision in the two persistent surfaces — WU notes for full design
+  history (research findings, alternatives weighed, why per-dev-only and why `releaseOptedIn`),
+  and ADR-017 receiving an amendment that clarifies the original "adopter opt-in" framing
+  implementing per-developer in practice.
+
+    - `[ ]` **6.R.1.a Notes file design history (`notes-release-wrappers-ergonomics.md`)**
+        - New section: `## Phase 6.R: Configuration Scope Refactor — Design History`.
+        - Content: research summary (5–8 dev tools surveyed for dual-scope idiomaticity);
+          discoverability gap that triggered the audit; naming candidates weighed
+          (`canonical`, `useWrapper`, `releaseOptedIn` and why the third won); convergence
+          on per-dev-only for the four keys; `notes_push` deferral rationale (team.mode
+          coupling); ADR-017 amendment relationship.
+        - Soft-target ~40-60 lines; references but doesn't reproduce the source material.
+
+    - `[ ]` **6.R.1.b ADR-017 amendment — per-developer scope clarification**
+        - File: `.arc/reference/adr/adr-017-release-wrapper-trust-model.md` (single copy —
+          ADRs are internal-only per DEV-RULES.PROJECT § Architecture Documentation).
+        - Add new amendment section after existing Decision (parallel to existing
+          `2026-05-01 — Configuration shape refinement` block in ADR-016).
+        - Captures: original "adopter opt-in" framing was conceptually right but
+          project-level implementation predated WU2's per-developer setup path; the trust
+          model lives per-harness/per-machine, so opt-in lives there too; collapsed yaml
+          surface and rename to `releaseOptedIn`.
+        - Cross-reference notes file for full history.
+        - Note: distinct from Phase 7's potential ADR-017 amendment (which is about
+          integration-surfaced insights) — both can land as separate amendments.
+
+### `[ ]` **6.R.2 Resolver code — collapse yaml fallback + rename**
+
+- _Goal:_ Drop yaml-fallback in the resolver for the four collapsed keys; rename `releaseEnabled`
+  → `releaseOptedIn` across constants, types, internal naming, and consumers — code substrate
+  matches the new architecture.
+
+- _Note:_ 6.R.4.b removes the four yaml keys; co-bundle 6.R.4.b's commit with 6.R.2's, or
+  ensure 6.R.2 lands first. The transient state where yaml keys are removed but the resolver
+  still tries to read them is non-erroring (silently falls back to default) but behaviorally
+  inconsistent.
+
+    - `[ ]` **6.R.2.a Resolver substrate — `resolved-settings.ts`**
+        - Make `yamlKey` optional in `resolveGitConfigOverride` helper (or split into a
+          single-tier sibling if optional gets unwieldy — settle during execution).
+        - Update `resolveCommitInterlock` / `resolvePushInterlock` / `resolveSyncInterlock`:
+          drop `yamlKey` parameter; precedence becomes `git config arc.* → default`.
+        - Rename `RELEASE_ENABLED_GIT_CONFIG_KEY` → `RELEASE_OPTED_IN_GIT_CONFIG_KEY`;
+          remove `RELEASE_ENABLED_YAML_KEY`; rename type `ReleaseEnabled` → `ReleaseOptedIn`;
+          rename `resolveReleaseEnabled` → `resolveReleaseOptedIn`; drop yaml fallback.
+        - Update `ResolvedReleaseModeSettings` interface field `releaseEnabled` →
+          `releaseOptedIn`; update `resolveAllSettings` composite — substitution map for the
+          four collapsed keys disappears (yaml-side keys are gone), `releaseOptedIn`
+          substitution replaces the previous `releaseEnabled` substitution.
+        - Update file-header doc comment (the "Five keys with `git config arc.* →
+          arc-config.yml → default` precedence" block) to reflect the new shape: four
+          single-tier keys + `notesPush` as the sole remaining dual-scope key.
+
+    - `[ ]` **6.R.2.b Consumer updates**
+        - `lib/release/routing.ts` — `releaseEnabled` field in `ReleaseRoutingRationale` and
+          `ResolveReleaseRoutingOptions` → `releaseOptedIn`; rename in resolver function body.
+        - `handlers/release/record.ts` — opt-in / opt-out commands write `arc.releaseOptedIn`
+          via the renamed constant; update doc comments and prose-style references.
+        - `commands/status/format.ts` — rationale field rename in formatted output.
+        - `handlers/status.ts` — `releaseEnabled` field reference in envelope build → rename.
+        - `cli.ts` — opt-in / opt-out command help text update (current lines ~261, ~270).
+        - Verify `lib/release/audit-log.ts`, `lib/release/interlock-validation.ts` carry no
+          references (Pass 1 audit B finding).
+
+    - `[ ]` **6.R.2.c Verification audit — no orphaned yaml-key reads**
+        - Grep `packages/arc-framework/src/` for `session.commit_interlock`,
+          `session.push_interlock`, `session.sync_interlock`, `release.enabled` outside the
+          resolver wrapper.
+        - Confirm wrapper is the sole surface; if any direct reads found, route through the
+          resolver.
+        - Marker file sanity check: confirm `lib/release/setup-marker.ts` doesn't reference
+          the flag name (Pass 1 audit E).
+
+### `[ ]` **6.R.3 Test coverage updates**
+
+- _Goal:_ Tests across the affected surface reflect the new resolver shape — dual-scope
+  precedence assertions removed for the four collapsed keys, git-config-only resolution covered,
+  rename propagated, status/format/config-format test fixtures aligned.
+
+    - `[ ]` **6.R.3.a Resolver tests — `__tests__/unit/config/resolved-settings.test.ts`**
+        - Drop dual-scope precedence test cases for the four collapsed keys (e.g., the
+          existing "yaml-absence defaultsApplied semantic" test for `releaseEnabled` — that
+          semantic disappears after collapse).
+        - Update test fixture data: `name: "releaseEnabled"` → `"releaseOptedIn"`,
+          `settingsKey: "release.enabled"` → no settingsKey for the four collapsed keys.
+        - Rename `releaseEnabled` field references → `releaseOptedIn` throughout assertions
+          and mock setups.
+
+    - `[ ]` **6.R.3.b Status reader tests — `__tests__/unit/config/status-reader.test.ts`**
+        - Remove yaml-tier read assertions for `release.enabled` — the key no longer exists in
+          yaml; the test would fail or become meaningless.
+        - Confirm parallel coverage for the three interlock keys gets the same treatment.
+
+    - `[ ]` **6.R.3.c Format tests — `__tests__/unit/status-format.test.ts` + `__tests__/unit/config-format.test.ts`**
+        - Drop `release.enabled` keys from fixture settings maps.
+        - Rename `releaseEnabled: false` → `releaseOptedIn: false` in rationale fixtures.
+
+    - `[ ]` **6.R.3.d Add git-config-only resolution coverage**
+        - For each of the four collapsed keys: assert resolver returns documented default
+          when `git config arc.*` absent (no yaml fallback consulted).
+        - Assert resolver returns git-config value when set; cover invalid-value warning
+          behavior on git-config tier.
+        - Confirm `resolveAllSettings` composite still composes correctly with simplified
+          per-key resolvers.
+
+### `[ ]` **6.R.4 Discoverability surfaces**
+
+- _Goal:_ Per-developer configuration surface becomes discoverable — strategy doc carries the
+  canonical reference table, `arc-config.yml` header points to it.
+
+    - `[ ]` **6.R.4.a Strategy doc — `## Personal Configuration via Git Config` section**
+        - File: `strategy-configurability-architecture.md` (both copies — `.arc/` +
+          `packages/arc-framework/arc/`).
+        - Placement: H3 subsection inside the existing `## Configuration` section, after the
+          existing dual-scope discussion ("arc-config.yml is project-level... per-developer
+          override" content).
+        - Content: brief framing (1–2 paragraphs naming the dual-scope-vs-per-dev-only
+          distinction); reference table covering all per-dev `arc.*` keys.
+        - Table columns: git-config key, what it controls, valid values, default, scope notes.
+        - Keys: `arc.identity`, `arc.role`, `arc.tools`, `arc.commitInterlock`,
+          `arc.pushInterlock`, `arc.syncInterlock`, `arc.notesPush`, `arc.releaseOptedIn`.
+        - `arc.notesPush` row notes its dual-scope-with-yaml status (the lone exception) and
+          links to ADR-017 amendment for the deferred-decision context.
+
+    - `[ ]` **6.R.4.b `arc-config.yml` — remove four collapsed keys; add top-level pointer**
+        - Both copies (`.arc/system/arc-config.yml` +
+          `packages/arc-framework/arc/system/arc-config.yml`).
+        - Remove the entire `# --- Session Interlocks ---` block (the three interlock keys are
+          the section's only entries).
+        - Remove `release.enabled` entry; either retire the `# --- Release Wrappers ---` section
+          entirely or collapse it to a single-line pointer at the section header.
+        - Add top-of-file pointer (after the existing comment header block, before the first
+          setting): "Personal preferences (autonomy cadence, release-wrapper opt-in) live in
+          git-config local. See `strategy-configurability-architecture.md` § Personal
+          Configuration via Git Config for the per-developer key reference."
+        - _Note:_ `# --- Release Wrappers ---` section retire vs. one-line pointer is an
+          execution-time call; both are reasonable. Lean: retire entirely (cleanest), since
+          the strategy-doc reference table is the discoverable surface.
+
+### `[ ]` **6.R.5 Setup workflow + handlers**
+
+- _Goal:_ Setup workflow and CLI surfaces consistently use `releaseOptedIn`; install/uninstall
+  records the renamed flag via the renamed constant; marker file schema confirmed unaffected.
+
+    - `[ ]` **6.R.5.a Workflow text — `setup-release-wrapper.md`**
+        - Both copies (`.arc/` + `packages/arc-framework/arc/`).
+        - Replace `arc.releaseEnabled` references → `arc.releaseOptedIn` throughout.
+        - Review § State-Recording Protocol for accuracy under collapsed scope (the protocol
+          still describes git-config writes correctly; no behavioral change).
+        - Review § Trust-Model Acknowledgment text — no references to the flag name expected,
+          but verify.
+
+    - `[ ]` **6.R.5.b Install / uninstall handlers — `record.ts`**
+        - Function bodies and call sites now reference `RELEASE_OPTED_IN_GIT_CONFIG_KEY`
+          (renamed in 6.R.2.a); confirm no string-literal `arc.releaseEnabled` references
+          remain.
+        - Update handler-internal doc comments.
+        - Multi-harness partial-success and idempotency logic unchanged.
+
+    - `[ ]` **6.R.5.c CLI help text + command summaries**
+        - `cli.ts` opt-in / opt-out command summaries (current lines ~261, ~270) — update help
+          strings to reference `arc.releaseOptedIn`.
+        - Grep CLI surface for any other `arc.releaseEnabled` mentions.
+
+    - `[ ]` **6.R.5.d Marker file schema sanity check**
+        - Inspect `lib/release/setup-marker.ts` and the schema documented in
+          `setup-release-wrapper.md` § State-Recording Protocol.
+        - Confirm marker doesn't embed the flag name (Pass 1 audit E expected outcome — no
+          schema change).
+        - If a reference does exist (unexpected), update accordingly.
+
+### `[ ]` **6.R.6 Cross-doc sweep**
+
+- _Goal:_ Framework reference and brief documents read coherently with the post-collapse
+  architecture — no orphaned references to project-level interlocks or `releaseEnabled`.
+
+- _Note:_ Pass 3 grep enumerated the file list below; sweep subtasks may grow if additional
+  references surface during execution. Re-run the grep at execution-start.
+
+    - `[ ]` **6.R.6.a `DEV-RULES.ARC.md` (both copies)**
+        - § Commit Discipline references `arc.release.enabled` (current lines ~22, ~44, ~46) →
+          `arc.releaseOptedIn`.
+        - Workflow class-tag routing rule cites `release.enabled` and the three interlock keys
+          (current lines ~55-58) — rename releaseEnabled, scope-rephrase interlocks.
+        - Contributor commit release language references `session.commit_interlock` (current
+          line ~94) — confirm reads correctly under per-dev-only or rephrase.
+
+    - `[ ]` **6.R.6.b `AGENT-BRIEF.ARC.md` (both copies)**
+        - Current line ~22 `arc.release.enabled: true` reference → `arc.releaseOptedIn`.
+        - Grep for other commit-interlock references; update for clarity.
+
+    - `[ ]` **6.R.6.c Lifecycle workflows (both copies)**
+        - `session-init.md` — references `session.commit_interlock` etc. as config settings;
+          envelope description (Step 1 table around current lines ~37) describes
+          `releaseRouting.value.rationale.releaseEnabled` field — rename per envelope shape
+          change in 6.R.2.b.
+        - `session-handoff.md`, `process-task-loop.md`, `activate-work-unit.md`,
+          `integrate-work-unit.md` — grep for the renamed key + interlock yaml-key prose;
+          update where references describe the value's location (e.g., "from `arc-config.yml`")
+          rather than the value itself.
+
+    - `[ ]` **6.R.6.d Other reference docs**
+        - `QUICK-REFERENCE.md` — `arc.release.enabled` references at current lines ~285,
+          ~288–289 (both copies).
+        - `strategy-session-operations.md` — coordinate with 6.3.b's permissiveness-ladder
+          updates; ensure prose reflects per-dev-only after both passes.
+        - `strategy-team-coordination.md` — coordinate with 6.3.c outputs.
+        - `strategy-quality-gates.md` and others as grep surfaces.
+
+### `[ ]` **6.R.7 PRD update**
+
+- _Goal:_ PRD reads as if the per-developer-only architecture was planned from the start — no
+  dual-scope framing residue, `releaseOptedIn` naming consistent throughout, R-anchor numbering
+  preserved.
+
+    - `[ ]` **6.R.7.a Identify rework scope — surface to user before edits land**
+        - Grep `prd-release-wrappers-ergonomics.md` for `releaseEnabled`, `release.enabled`,
+          `commit_interlock`, `push_interlock`, `sync_interlock`.
+        - Classify each occurrence: rename-only (mechanical), scope-rephrase (the surrounding
+          framing assumed dual-scope and needs adjustment), or section-rewrite (the larger
+          architectural framing needs reworking).
+        - Surface the classification to user; settle on rewrite shape before applying.
+
+    - `[ ]` **6.R.7.b Apply rewrites**
+        - Mechanical renames first (`releaseEnabled` → `releaseOptedIn` throughout).
+        - Scope-rephrase passes — adjust surrounding framing where dual-scope language was
+          load-bearing; describe the per-dev-only architecture as if planned.
+        - Section rewrites where needed — likely the routing-resolution table, configuration
+          discussion, and any "adopter opt-in" / "project flag" framing.
+        - Preserve R-anchor numbering immutably (no renumbering — audit-trail discipline).
+
+### `[ ]` **6.R.8 WU-internal cleanup**
+
+- _Goal:_ WU artifacts (this task list, ATOMIC-INBOX) carry no stale references — completed
+  prior tasks annotated where renamed/collapsed keys appear; obsolete atomic-inbox entry retired.
+
+    - `[ ]` **6.R.8.a Task list amendment — annotate stale references**
+        - Scan completed Phases 1-5 + Phase 6 (6.1, 6.2) in
+          `tasks-release-wrappers-ergonomics.md` for `releaseEnabled`, `release.enabled`, the
+          three interlock yaml-key names.
+        - Where references appear in completed tasks, add `_Note:_` peer descriptors on the
+          affected parent calling out the post-6.R rename or scope change (e.g., "Note:
+          `releaseEnabled` was renamed to `releaseOptedIn` in 6.R; original wording preserved
+          for audit-trail").
+        - Don't rewrite original task descriptions or completion notes (audit-trail discipline
+          per `strategy-task-list-formatting.md` § Revision Numbering).
+
+    - `[ ]` **6.R.8.b ATOMIC-INBOX entry retirement**
+        - File: `.arc/user/andrew/ATOMIC-INBOX.md`.
+        - Delete the `### \`[ ]\` **Flip project interlocks to on-workflow + release.enabled to true**`
+          entry — the work it described (project-level config flips) is no longer atomic-tier
+          or even possible (the keys are gone).
+        - Personal-scope per-dev preference setting (`git config arc.commitInterlock on-workflow`
+          etc.) doesn't warrant atomic capture; it's normal personal config.
+
+---
+
 ## **Phase 7:** Empirical verification + ADR-017 amendment
 
 _Purpose:_ Run the deferred empirical surface (WU1 success criteria 5/6) live at WU verification;
