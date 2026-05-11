@@ -131,8 +131,8 @@ arc:
      - **Fourth**: **REPORT** completed work to user with summary of changes
      - **Fifth**: ⛔ **MANDATORY STOP** - Wait for user approval before proceeding
        - **Structured prompt** — end the completion report with `<Prefix> <Target>?`:
-           - **Prefix:** `Proceed` (default — `session.commit_interlock: manual`) or
-             `Commit and proceed` (when `session.commit_interlock ∈ {on-task-approval, on-workflow}`).
+           - **Prefix:** `Proceed` (default — `arc.commitInterlock: manual`) or
+             `Commit and proceed` (when `arc.commitInterlock ∈ {on-task-approval, on-workflow}`).
            - **Target:** `to Task X.Y` (next task in phase) · `to Phase N+1, Task N+1.1` (current
              task ends the phase) · `to integrate-work-unit` (verification complete — WU end).
        - **Response semantics:** Short affirmative ("y", "yes", "ok") as first word advances.
@@ -166,7 +166,7 @@ arc:
      Complete only the specified work — update the task list and run quality gates after each
      task, but continue to the next without waiting for approval. Leave the task list updated,
      quality gates passing, and changes uncommitted (user decides commit boundaries when they
-     return). Under `session.commit_interlock ∈ {on-task-approval, on-workflow}`, deferred review
+     return). Under `arc.commitInterlock ∈ {on-task-approval, on-workflow}`, deferred review
      safe-accumulates by default — no per-task commit release within the deferred range. See
      [strategy-session-operations][session-ops] § Deferred-Review × Commit-Interlock Release for the explicit
      opt-in syntax.
@@ -217,7 +217,7 @@ arc:
 
   4. Await user instructions on how to proceed.
      User may choose to commit changes or request modifications. Under
-     `session.commit_interlock: manual`, task approval advances work only; committing remains an
+     `arc.commitInterlock: manual`, task approval advances work only; committing remains an
      explicit user-invoked action. Under `on-task-approval` (or `on-workflow`, which subsumes it),
      the commit-interlock releases on task approval per
      [Configurability Architecture Strategy][config-arch] § Session interlocks; on

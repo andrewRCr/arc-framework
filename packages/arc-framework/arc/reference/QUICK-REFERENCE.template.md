@@ -228,11 +228,11 @@ arc release commit -m "feat(scope): subject"
 # refuses destructive flags (--force, --force-with-lease, --mirror, +refspec, --delete)
 arc release push
 
-# Record per-developer opt-in (writes `arc.release.enabled: true` to local git config)
+# Record per-developer opt-in (writes `arc.releaseOptedIn: true` to local git config)
 arc release opt-in
 
-# Record per-developer opt-out (writes `arc.release.enabled: false` to local git config —
-# overrides yaml `release.enabled: true` for this clone, idempotent on already-`false`)
+# Record per-developer opt-out (writes `arc.releaseOptedIn: false` to local git config —
+# captures explicit decline, idempotent on already-`false`)
 arc release opt-out
 
 # Show resolved opt-in flag and interlock states with provenance

@@ -986,45 +986,60 @@ history (research findings, naming options weighed, what was wrong before, why t
   handlers, `cli.ts` help strings) and the marker schema. The audit itself was the work; the
   workflow doc was the only surface where rename echoes had been deferred.
 
-### `[ ]` **6.R.6 Cross-doc sweep**
+### `[x]` **6.R.6 Cross-doc sweep**
 
 - _Goal:_ Framework reference and brief documents read coherently with the post-collapse
   architecture — no orphaned references to project-level interlocks or `releaseEnabled`.
 
-- _Note:_ Pass 3 grep enumerated the file list below; sweep subtasks may grow if additional
-  references surface during execution. Re-run the grep at execution-start.
+    - `[x]` **6.R.6.a `DEV-RULES.ARC.md` (both copies)**
+        - 11 references renamed per copy: `arc.release.enabled` / `release.enabled` →
+          `arc.releaseOptedIn` (×5); `session.commit_interlock` / `commit_interlock` →
+          `arc.commitInterlock` (×4); `session.push_interlock` / `push_interlock` →
+          `arc.pushInterlock` (×2). Covers § Commit Discipline (Release-wrapper invocation,
+          Workflow class-tag routing, Contributor commit release) plus the bullets defining
+          _commit-interlock_ / _push-interlock_ concepts at lines 32, 37 — pulled in for
+          surface consistency though not explicitly anchored in the task.
 
-    - `[ ]` **6.R.6.a `DEV-RULES.ARC.md` (both copies)**
-        - § Commit Discipline references `arc.release.enabled` (current lines ~22, ~44, ~46) →
-          `arc.releaseOptedIn`.
-        - Workflow class-tag routing rule cites `release.enabled` and the three interlock keys
-          (current lines ~55-58) — rename releaseEnabled, scope-rephrase interlocks.
-        - Contributor commit release language references `session.commit_interlock` (current
-          line ~94) — confirm reads correctly under per-dev-only or rephrase.
+    - `[x]` **6.R.6.b `AGENT-BRIEF.ARC.md` (both copies)**
+        - Line 22 `arc.release.enabled: true` → `arc.releaseOptedIn: true` in both copies.
+          Grep confirmed no other commit-interlock references in either copy.
 
-    - `[ ]` **6.R.6.b `AGENT-BRIEF.ARC.md` (both copies)**
-        - Current line ~22 `arc.release.enabled: true` reference → `arc.releaseOptedIn`.
-        - Grep for other commit-interlock references; update for clarity.
+    - `[x]` **6.R.6.c Lifecycle workflows (both copies)**
+        - `process-task-loop.md` (canonical) + `process-task-loop.template.md` (package):
+          4 references each to `session.commit_interlock` → `arc.commitInterlock` (structured
+          prompt prefix bullets, deferred-review safe-accumulate clause, await-user-instructions
+          paragraph).
+        - `session-init.md`, `session-handoff.md`, `activate-work-unit.md`,
+          `integrate-work-unit.md`: grep returned no remaining references. Already clean from
+          6.R.2.b envelope work and prior strategy-doc batch.
 
-    - `[ ]` **6.R.6.c Lifecycle workflows (both copies)**
-        - `session-init.md` — references `session.commit_interlock` etc. as config settings;
-          envelope description (Step 1 table around current lines ~37) describes
-          `releaseRouting.value.rationale.releaseEnabled` field — rename per envelope shape
-          change in 6.R.2.b.
-        - `session-handoff.md`, `process-task-loop.md`, `activate-work-unit.md`,
-          `integrate-work-unit.md` — grep for the renamed key + interlock yaml-key prose;
-          update where references describe the value's location (e.g., "from `arc-config.yml`")
-          rather than the value itself.
+    - `[x]` **6.R.6.d Other reference docs**
+        - `QUICK-REFERENCE.md` (canonical) + `QUICK-REFERENCE.template.md` (package): 3
+          references per copy renamed (`arc.release.enabled: true/false` → `arc.releaseOptedIn:
+          true/false`). The opt-out comment's parenthetical "overrides yaml `release.enabled:
+          true` for this clone" rephrased to "captures explicit decline" — the yaml key no
+          longer exists, so the original framing was stale.
+        - `strategy-quality-gates.md` (both copies): grep returned no references; clean.
+        - Historical surfaces (ADRs, `PROJECT-STATUS.md`, archived WUs under
+          `.arc/reference/archive/`) left as-is by convention; ADR-017 amendment in Task
+          6.R.1.b is the canonical current-state record.
 
-    - `[ ]` **6.R.6.d Other reference docs**
-        - _Note:_ `strategy-configurability-architecture.md`, `strategy-session-operations.md`,
-          `strategy-team-coordination.md`, `strategy-workflow-authoring.md`, and
-          `strategy-interlock-release-wrappers.md` already swept as part of 6.3.a–d's batch
-          (which absorbed 6.R.4.a + in-file 6.R cleanup across the strategy-doc surface). Skip
-          those files in this sweep; remaining scope as listed below.
-        - `QUICK-REFERENCE.md` — `arc.release.enabled` references at current lines ~285,
-          ~288–289 (both copies).
-        - `strategy-quality-gates.md` and others as grep surfaces.
+    - `[x]` **6.R.6.e Validator script sweep — `validate-config.sh` (both copies)**
+        - Discovery during this sweep: validator still accepted the three collapsed interlock
+          yaml keys as legal (`validate_enum` calls at lines 128-130 plus the `known_keys`
+          typo-protection list at line 169). Gap from 6.R.2 substrate scope — yaml entries
+          would validate clean while the resolver silently ignored them.
+        - Dropped the `# Session interlocks` block (three `validate_enum` calls) and removed
+          `session.commit_interlock` / `session.push_interlock` / `session.sync_interlock`
+          from the `known_keys` list. Both copies in sync. Validator run + shellcheck clean
+          post-edit.
+
+- _Outcome:_ Five surfaces edited across both copies — DEV-RULES.ARC, AGENT-BRIEF.ARC,
+  process-task-loop, QUICK-REFERENCE, validate-config.sh. Lifecycle workflows (session-init,
+  session-handoff, activate, integrate) and strategy-quality-gates were already clean —
+  6.R.2.b envelope work and the 6.3.a-d strategy batch had swept them. Historical surfaces
+  (ADRs, PROJECT-STATUS, archive WUs) left as-is. The 6.R.6.e validator-script discovery
+  was a 6.R.2 substrate gap that the doc sweep surfaced; folded in by user approval.
 
 ### `[ ]` **6.R.7 PRD update**
 
