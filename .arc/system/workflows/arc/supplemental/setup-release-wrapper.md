@@ -264,24 +264,18 @@ and the canonical patterns cannot match.
 **Install target.** Codex's user-scoped permission rules file (typically `~/.codex/rules/default.rules`).
 Append the patterns; do not overwrite existing rules.
 
-**Matcher boundary.** Verified against codex-cli 0.128.0; behavior is deterministic per input.
-
-Reliable matches (unwrap succeeds):
+**Matcher boundary.** Codex unwraps `bash -lc` / `zsh -lc` shell wrappings via a narrow
+word-only grammar before `prefix_rule` matching. Unwrap behavior is empirical and may widen
+across codex-cli versions — use plain positional invocation shapes for reliable matching:
 
 - Plain positional: `arc release commit -m "fix: foo"`
 - Special characters inside double quotes: `arc release commit -m "fix: foo & bar"`
-- Sequences joined by `&&` or `;` where every simple command in the sequence is allowed:
+- Sequences joined by `&&` or `;` where every simple command is allowed:
   `arc release commit -m "msg" && arc release push origin main`
 
-Predictable fall-through to harness prompt (unwrap fails):
-
-- Environment-prefixed: `FOO=bar arc release commit ...`
-- Output-redirected: `arc release commit ... > out`
-- Command-substituted: `arc release commit -m $(date)` or `-m "$(printf 'subj\nbody')"`
-- ANSI-C `$'...'` quoted: `arc release commit -m $'subj\nbody'`
-
-Surface the matcher grammar to the user when relevant; agent-issued invocations follow the supported
-word-only shape by convention.
+Other shell shapes (environment prefixes, output redirection, command substitution, `$'...'`
+quoting) may or may not unwrap depending on codex-cli version. Agent-issued invocations
+follow the plain positional shape by convention — robust across matcher-grammar shifts.
 
 For paste-ready output, run `arc release setup print-patterns --harness codex`.
 

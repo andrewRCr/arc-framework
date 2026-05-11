@@ -1308,33 +1308,48 @@ capture" accordingly.
 R18 is P2 / nice-to-have — explicit "skip unless..." gate; can be marked `[~]` Superseded if scope
 doesn't warrant.
 
-### `[ ]` **7.1 Live empirical verification (R13)**
+### `[x]` **7.1 Live empirical verification (R13)**
 
 - _Goal:_ Confirm at WU verification (a) `arc release commit --version` runs no-prompt under
   installed allowlist with project-scoped default-mode override, and (b) Codex matcher boundary
   still holds (`bash -lc` / `zsh -lc` unwrapping; `prefix_rule()` patterns match canonical wrapper
   invocation).
 
-- _Approach:_ Maintainer runs the steps live on their machine, observes outcomes, reports.
-  Outcomes recorded in WU completion notes alongside the verification phase. No automated test
-  fixture, no `__tests__/` test surface for this requirement.
+    - `[x]` **7.1.a Project-scoped Claude Code mode override**
+        - Scratch repo at `~/scratch/arc-verify-7.1-claude/` with project
+          `.claude/settings.json` carrying `permissions.defaultMode: "default"`.
+        - Mode override confirmed: `mkdir test-sanity-dir` prompted as expected —
+          project-scope `default` mode overrides user-level `bypassPermissions`.
 
-    - `[ ]` **7.1.a Project-scoped Claude Code mode override**
-        - Fresh scratch repo on maintainer machine; project `.claude/settings.json` with
-          `permissions.defaultMode: "default"`.
-        - Confirm override takes effect (sanity check before behavioral observations).
+    - `[x]` **7.1.b Behavioral observations (Claude Code)**
+        - With allowlist installed (canonical `Bash(arc release commit:*)` /
+          `Bash(arc release push:*)` patterns): `arc release commit --version` and
+          `arc release push --version` both ran with no prompt (output `0.1.0`).
+        - Without allowlist (`settings.no-allowlist.json` swapped in): both wrapper
+          invocations prompted as expected. Match boundary holds on the Claude side.
 
-    - `[ ]` **7.1.b Behavioral observations (Claude Code)**
-        - With allowlist installed (canonical patterns from `print-patterns`):
-          `arc release commit --version` → expect no harness prompt.
-        - Without allowlist: `arc release commit --version` → expect harness prompt fires.
-        - Observations recorded in completion notes.
+    - `[x]` **7.1.c Codex matcher boundary re-verification**
+        - Verified at codex-cli 0.130.0 (last verified 0.128.0 on 2026-05-07). Reliable matches
+          all passed no-prompt (plain positional, special chars in double quotes, `&&`/`;`
+          sequences).
+        - Matcher unwrap widened between 0.128.0 → 0.130.0: all four historically documented
+          fall-through shapes (env-prefix, output-redirect, command-substitution, `$'...'`
+          quoting) now match the canonical patterns with no prompt. The `prefix_rule()`
+          patterns themselves are intact — only the pre-matcher unwrap grammar widened.
+          Validation + audit security property unchanged; widening is friction-reducing UX.
+        - Amended `setup-release-wrapper.md` § Codex CLI § Matcher boundary in both copies
+          (`.arc/system/workflows/` and `packages/arc-framework/arc/system/workflows/`):
+          dropped the codex-cli version pin and the historical fall-through enumeration,
+          reframed as prescriptive guidance ("use plain positional invocation shapes for
+          reliable matching; other shell shapes are codex-version-dependent"). User-facing
+          workflow stays forward-looking; this outcome carries the internal empirical record.
 
-    - `[ ]` **7.1.c Codex matcher boundary re-verification**
-        - Note codex-cli version at run time; record in completion notes.
-        - Confirm `bash -lc` / `zsh -lc` unwrapping still occurs.
-        - Confirm `prefix_rule()` patterns match canonical wrapper invocation shape.
-        - Confirm fall-through paths (env-prefix, command-substitution, `$'...'`) still prompt.
+- _Outcome:_ Wrapper invocation passes the verify boundary across both reference-implementation
+  harnesses: Claude Code with project-scoped default-mode + canonical allowlist gates as
+  expected (no-prompt with allowlist, prompt without); Codex reliable-match shapes all hold
+  at 0.130.0. Matcher unwrap grammar widened since 0.128.0 — all four historically documented
+  fall-through shapes now match. `setup-release-wrapper.md` § Codex CLI amended accordingly
+  in both copies.
 
 ### `[ ]` **7.2 ADR-017 Tier 2 amendment (R18, P2 optional)**
 
