@@ -121,19 +121,24 @@ Update session state files before ending session:
     approval for the workflow's bundled actions, including the `chore(status): handoff` commit.
     No separate per-commit prompt fires under either push-interlock mode — push behavior is gated
     by `arc sync` internally (see § Sync), where remote-side consequences justify granular gating.
-    Stage the status file, lint it (catches authoring errors before the chore-commit lands),
-    and commit unconditionally:
+    Stage the status file and lint it (catches authoring errors before the chore-commit lands):
 
     ```bash
     git add <resolved-status-file-path>
     <project markdown lint on the staged file>  # fix + re-stage on failure
-    git commit -m "chore(status): handoff
-
-    Context: <status-file>.md (handoff)"
     ```
 
-    The new HEAD becomes the `**Commit at Handoff:**` value written in step 5. If no field
-    cleared the skip threshold, the file is clean and no commit fires.
+    Then invoke `workflowCommit` with message body:
+
+    ```text
+    chore(status): handoff
+
+    Context: <status-file>.md (handoff)
+    ```
+
+    When the previous block staged a change, the new HEAD becomes the `**Commit at Handoff:**`
+    value written in step 5. When no field cleared the skip threshold, nothing is staged and the
+    commit is a no-op — step 5 carries the prior `Commit at Handoff:` value forward.
 
     Contributors (`arc.role = contributor`) skip the commit — their personal active status file at
     `.arc/user/{identity}/active/status-{name}.md` is gitignored, so the field update lands

@@ -92,12 +92,8 @@ function buildSettings(overrides: SettingsOverrides = {}): ResolvedSettingsResul
     "session.init_pull.worktree": "prompt",
     "session.init_pull.notes": "prompt",
     "session.init_load.notes": "prompt",
-    "session.commit_interlock": commitInterlock,
-    "session.push_interlock": pushInterlock,
-    "session.sync_interlock": "on-handoff",
     "archive.cadence": "with-integration",
     "user.notes_push": "on-sync",
-    "release.enabled": "true",
   };
 
   return {
@@ -107,7 +103,7 @@ function buildSettings(overrides: SettingsOverrides = {}): ResolvedSettingsResul
       pushInterlock: { value: pushInterlock, source: "default" },
       syncInterlock: { value: "on-handoff", source: "default" },
       notesPush: { value: "on-sync", source: "default" },
-      releaseEnabled: { value: "true", source: "default" },
+      releaseOptedIn: { value: "true", source: "default" },
     },
     defaultsApplied: [],
     warnings: [],
@@ -373,7 +369,7 @@ describe("runReleaseCommit — code 11 (interlock-not-authorized)", () => {
 
     const composed = stderr.join("");
     expect(composed).toContain("Refused: interlock-not-authorized (code 11)");
-    expect(composed).toContain("session.commit_interlock");
+    expect(composed).toContain("arc.commitInterlock");
     expect(composed).toContain("manual");
 
     const [entry] = await readAuditEntries(fixture.root);

@@ -142,8 +142,12 @@ export async function runSessionInitStatus(
   const configTask = safeProbe(() => probes.config());
   const activeTask = safeProbe(() => probes.active(identity, role));
   const domainRulesTask = safeProbe(() => probes.domainRules());
+  const releaseRoutingTask = safeProbe(() => probes.releaseRouting());
 
-  const [user, worktree, dirty, extensions, config, active, domainRules] = await Promise.all([
+  const [
+    user, worktree, dirty, extensions, config, active, domainRules,
+    releaseRouting,
+  ] = await Promise.all([
     userTask,
     worktreeTask,
     dirtyTask,
@@ -151,6 +155,7 @@ export async function runSessionInitStatus(
     configTask,
     activeTask,
     domainRulesTask,
+    releaseRoutingTask,
   ]);
 
   // Cross-channel qualifier: when the notes-clean verdict is true only
@@ -201,6 +206,7 @@ export async function runSessionInitStatus(
     config,
     active,
     domainRules,
+    releaseRouting,
     recommendedCombinedPrompt: recommendations.recommendedCombinedPrompt,
   };
 }
@@ -268,10 +274,11 @@ export async function runSessionHandoffStatus(
   const headTask = safeProbe(() => probes.head());
   const pushabilityTask = safeProbe(() => probes.pushability());
   const restateCandidatesTask = safeProbe(() => probes.restateCandidates());
+  const releaseRoutingTask = safeProbe(() => probes.releaseRouting());
 
   const [
     dirty, worktree, user, syncInterlock, active, head, pushability,
-    restateCandidates,
+    restateCandidates, releaseRouting,
   ] = await Promise.all([
     dirtyTask,
     worktreeTask,
@@ -281,6 +288,7 @@ export async function runSessionHandoffStatus(
     headTask,
     pushabilityTask,
     restateCandidatesTask,
+    releaseRoutingTask,
   ]);
 
   const branch = worktree.ok ? worktree.value.branch : null;
@@ -308,6 +316,7 @@ export async function runSessionHandoffStatus(
     head,
     pushability,
     restateCandidates,
+    releaseRouting,
     recommendedSummaryLine,
   };
 }

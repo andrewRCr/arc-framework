@@ -105,8 +105,9 @@ export interface RunPushabilityStatusOptions {
    * - `target: "notes"` — notes would otherwise reference an unpushed or
    *   stale base commit.
    * - `target: "worktree"` — single-leg worktree push call sites can refuse
-   *   when local is ahead/behind/diverged from origin without re-deriving
-   *   alignment from the worktree-sync state machine.
+   *   when local is behind or diverged from origin without re-deriving
+   *   alignment from the worktree-sync state machine. Local-ahead is allowed:
+   *   publishing local-ahead commits is the purpose of a worktree push.
    *
    * Suppressed on `target: "both"` — paired-push commits to push the
    * worktree leg first, resolving alignment by virtue of the flow.
@@ -176,7 +177,7 @@ export async function runPushabilityStatus(
   // leg first, resolving alignment by virtue of the flow.
   if (target !== "both" && typeof worktreeBranch === "string" && worktreeBranch !== "") {
     const alignment = await probeWorktreeAlignment(exec, worktreeBranch);
-    if (alignment !== null) {
+    if (alignment !== null && shouldSurfaceAlignmentCondition(target, alignment)) {
       conditions.push({
         kind: "worktree-not-aligned-with-origin",
         disposition: "block",
@@ -188,6 +189,16 @@ export async function runPushabilityStatus(
 
   const allowed = !conditions.some((c) => c.disposition === "block");
   return { allowed, conditions };
+}
+
+function shouldSurfaceAlignmentCondition(
+  target: PushabilityTarget,
+  alignment: WorktreeAlignmentDetail,
+): boolean {
+  if (target === "worktree" && alignment.state === "local-ahead") {
+    return false;
+  }
+  return true;
 }
 
 /**

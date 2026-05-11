@@ -15,3 +15,17 @@ Atomic Task Completion for the full protocol.
 ---
 
 ## Tasks
+
+- [x] **Fix `print-patterns --harness codex` to emit Starlark kwargs form**
+    - _Goal:_ The codex emitter at
+      `packages/arc-framework/src/handlers/release/setup/print-patterns.ts:60-61` outputs
+      positional `prefix_rule([...])`. Codex's Starlark loader requires kwargs — `pattern=[...]`,
+      with `decision` defaulting to `"allow"`. Switch to the kwargs form, update the matching
+      unit test (string-match in `__tests__/` likely needs adjustment), and validate empirically
+      at WU2 R13 by loading the emitted patterns through codex-cli to confirm acceptance.
+    - _Outcome:_ Switched the codex branch to `prefix_rule(pattern=[...])`; updated the matching
+      unit test assertion. `notes-release-wrappers-ergonomics.md` § Reference-Implementation
+      Pattern Specifics → Codex CLI synced (kwargs form + corrected install path
+      `~/.codex/rules/default.rules`). Empirical confirmation against codex-cli completed during
+      WU2 R13; the emitted `prefix_rule(pattern=[...])` form loads and matches canonical wrapper
+      invocations.

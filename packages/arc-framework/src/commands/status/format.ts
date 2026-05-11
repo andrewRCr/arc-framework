@@ -25,6 +25,7 @@ import {
 } from "../user/format.js";
 
 import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
+import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
 
 import type {
   Probe,
@@ -91,6 +92,18 @@ function buildWorktreeSessionInitSummary(value: WorktreeSyncStatusResult): strin
   }
 }
 
+function buildReleaseRoutingSummary(value: ReleaseRoutingValue): string {
+  return [
+    `taskCommit: ${value.taskCommit}`,
+    `workflowCommit: ${value.workflowCommit}`,
+    `workflowPush: ${value.workflowPush}`,
+    "Rationale:",
+    `  arc.releaseOptedIn: ${String(value.rationale.releaseOptedIn)}`,
+    `  arc.commitInterlock: ${value.rationale.commitInterlock}`,
+    `  arc.pushInterlock: ${value.rationale.pushInterlock}`,
+  ].join("\n");
+}
+
 /** Build the Clack summary for `arc status --session-init`. */
 export function buildSessionInitStatusSummary(result: SessionInitProbeResult): string {
   const sections: string[] = [
@@ -99,6 +112,7 @@ export function buildSessionInitStatusSummary(result: SessionInitProbeResult): s
     renderSlot("Worktree", result.worktree, buildWorktreeSessionInitSummary),
     renderSlot("Extensions", result.extensions, buildExtensionsSessionInitSummary),
     renderSlot("Config", result.config, buildConfigSessionInitSummary),
+    renderSlot("Release Routing", result.releaseRouting, buildReleaseRoutingSummary),
     renderSlot("Active", result.active, buildActiveSessionInitSummary),
     renderSlot("Domain Rules", result.domainRules, buildDomainRulesSessionInitSummary),
   ];

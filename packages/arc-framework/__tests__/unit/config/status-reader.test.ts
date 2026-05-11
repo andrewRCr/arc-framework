@@ -29,8 +29,8 @@ async function createFixture(): Promise<Fixture> {
 }
 
 describe("readConfigSettings — AGENT_CONSUMABLE_KEYS", () => {
-  it("enumerates the 21 agent-consumable keys", () => {
-    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(21);
+  it("enumerates the 17 agent-consumable keys", () => {
+    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(17);
   });
 
   it("excludes all hooks.* keys", () => {
@@ -48,10 +48,11 @@ describe("readConfigSettings — AGENT_CONSUMABLE_KEYS", () => {
     expect(AGENT_CONSUMABLE_KEYS).toContain("session.init_load.notes");
   });
 
-  it("includes the session interlock keys", () => {
-    expect(AGENT_CONSUMABLE_KEYS).toContain("session.commit_interlock");
-    expect(AGENT_CONSUMABLE_KEYS).toContain("session.push_interlock");
-    expect(AGENT_CONSUMABLE_KEYS).toContain("session.sync_interlock");
+  it("excludes the per-developer-only keys (interlocks + release flag)", () => {
+    expect(AGENT_CONSUMABLE_KEYS).not.toContain("session.commit_interlock");
+    expect(AGENT_CONSUMABLE_KEYS).not.toContain("session.push_interlock");
+    expect(AGENT_CONSUMABLE_KEYS).not.toContain("session.sync_interlock");
+    expect(AGENT_CONSUMABLE_KEYS).not.toContain("release.enabled");
   });
 
   it("includes archive.cadence", () => {
@@ -80,9 +81,6 @@ describe("readConfigSettings — default fallback", () => {
     expect(result.settings["platform.type"]).toBe("github");
     expect(result.settings["team.mode"]).toBe("false");
     expect(result.settings["session.remote_sync"]).toBe("enabled");
-    expect(result.settings["session.commit_interlock"]).toBe("manual");
-    expect(result.settings["session.push_interlock"]).toBe("manual");
-    expect(result.settings["session.sync_interlock"]).toBe("on-handoff");
     expect(result.settings["archive.cadence"]).toBe("with-integration");
     expect(result.settings["user.notes_push"]).toBe("on-sync");
   });
@@ -128,12 +126,8 @@ describe("readConfigSettings — user-supplied values", () => {
       "session.init_pull.worktree: manual",
       "session.init_pull.notes: always",
       "session.init_load.notes: always",
-      "session.commit_interlock: on-task-approval",
-      "session.push_interlock: on-sync",
-      "session.sync_interlock: manual",
       "archive.cadence: manual",
       "user.notes_push: manual",
-      "release.enabled: true",
     ].join("\n");
     await writeFile(fixture.configPath, content);
 
@@ -145,11 +139,7 @@ describe("readConfigSettings — user-supplied values", () => {
     expect(result.settings["session.init_pull.worktree"]).toBe("manual");
     expect(result.settings["session.init_pull.notes"]).toBe("always");
     expect(result.settings["session.init_load.notes"]).toBe("always");
-    expect(result.settings["session.commit_interlock"]).toBe("on-task-approval");
-    expect(result.settings["session.push_interlock"]).toBe("on-sync");
-    expect(result.settings["session.sync_interlock"]).toBe("manual");
     expect(result.settings["archive.cadence"]).toBe("manual");
-    expect(result.settings["release.enabled"]).toBe("true");
     expect(result.defaultsApplied).toHaveLength(0);
     expect(result.warnings).toHaveLength(0);
   });
@@ -356,43 +346,6 @@ describe("readConfigSettings — user.notes_push", () => {
       await writeFile(fixture.configPath, `user.notes_push: ${value}\n`);
       const result = await readConfigSettings(fixture.root);
       expect(result.settings["user.notes_push"]).toBe(value);
-      expect(result.warnings).toHaveLength(0);
-    }
-  });
-});
-
-describe("readConfigSettings — session interlock independence", () => {
-  let fixture: Fixture;
-  beforeEach(async () => {
-    fixture = await createFixture();
-  });
-  afterEach(async () => {
-    await rm(fixture.root, { recursive: true, force: true });
-  });
-
-  it("accepts every commit/push interlock combination without coupling the axes", async () => {
-    const combinations = [
-      ["manual", "manual"],
-      ["manual", "on-sync"],
-      ["on-task-approval", "manual"],
-      ["on-task-approval", "on-sync"],
-    ] as const;
-
-    for (const [commitInterlock, pushInterlock] of combinations) {
-      await writeFile(
-        fixture.configPath,
-        [
-          `session.commit_interlock: ${commitInterlock}`,
-          `session.push_interlock: ${pushInterlock}`,
-        ].join("\n"),
-      );
-
-      const result = await readConfigSettings(fixture.root);
-
-      expect(result.settings["session.commit_interlock"]).toBe(commitInterlock);
-      expect(result.settings["session.push_interlock"]).toBe(pushInterlock);
-      expect(result.defaultsApplied).not.toContain("session.commit_interlock");
-      expect(result.defaultsApplied).not.toContain("session.push_interlock");
       expect(result.warnings).toHaveLength(0);
     }
   });

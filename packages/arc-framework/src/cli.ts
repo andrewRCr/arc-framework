@@ -31,6 +31,10 @@ import {
   handleReleaseOptIn,
   handleReleaseOptOut,
   handleReleasePush,
+  handleReleaseSetupInstall,
+  handleReleaseSetupPrintPatterns,
+  handleReleaseSetupUninstall,
+  handleReleaseSetupVerify,
   handleReleaseStatus,
 } from "./commands/release.js";
 
@@ -253,14 +257,18 @@ releaseCmd
 
 releaseCmd
   .command("opt-in")
-  .description("Record per-developer opt-in for release-mode wrappers (writes `arc.release.enabled: true`)")
+  .description(
+    "Record per-developer opt-in for release-mode wrappers (writes local git config `arc.releaseOptedIn = true`)",
+  )
   .action(async () => {
     await handleReleaseOptIn();
   });
 
 releaseCmd
   .command("opt-out")
-  .description("Record per-developer opt-out for release-mode wrappers (writes `arc.release.enabled: false`)")
+  .description(
+    "Record per-developer opt-out for release-mode wrappers (writes local git config `arc.releaseOptedIn = false`)",
+  )
   .action(async () => {
     await handleReleaseOptOut();
   });
@@ -268,9 +276,56 @@ releaseCmd
 releaseCmd
   .command("status")
   .description("Show resolved release-mode opt-in and interlock state")
-  .option("--json", "Emit a schemaVersion 1 JSON envelope")
+  .option("--json", "Emit a schemaVersion 2 JSON envelope")
   .action(async (opts: { json?: boolean }) => {
     await handleReleaseStatus({ json: opts.json });
+  });
+
+const setupCmd = releaseCmd
+  .command("setup")
+  .description("Set up release-wrapper harness integration");
+
+setupCmd
+  .command("install")
+  .description("Set up release-wrapper harness integration")
+  .option("--harness <name>", "Harness name for single-harness install flow")
+  .addOption(
+    new Option("--mode <mode>", "Harness mode")
+      .choices(["default-prompt", "bypass"]),
+  )
+  .option("--json", "Emit a schemaVersion 1 JSON envelope")
+  .action(async (opts: { harness?: string; mode?: string; json?: boolean }) => {
+    await handleReleaseSetupInstall(opts);
+  });
+
+setupCmd
+  .command("print-patterns")
+  .description("Print release-wrapper allowlist patterns for a harness")
+  .option("--harness <name>", "Harness name: claude-code, codex, or agent-adaptive")
+  .addOption(
+    new Option("--format <format>", "Output format")
+      .choices(["harness", "raw"])
+      .default("harness"),
+  )
+  .action((opts: { harness?: string; format?: string }) => {
+    handleReleaseSetupPrintPatterns(opts);
+  });
+
+setupCmd
+  .command("uninstall")
+  .description("Remove release-wrapper harness integration")
+  .option("--harness <name>", "Harness name for single-harness uninstall flow")
+  .option("--json", "Emit a schemaVersion 1 JSON envelope")
+  .action(async (opts: { harness?: string; json?: boolean }) => {
+    await handleReleaseSetupUninstall(opts);
+  });
+
+setupCmd
+  .command("verify")
+  .description("Report recorded release-wrapper setup posture")
+  .option("--harness <name>", "Filter verification report to a harness")
+  .action(async (opts: { harness?: string }) => {
+    await handleReleaseSetupVerify(opts);
   });
 
 // --- Log ---

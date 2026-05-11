@@ -42,7 +42,8 @@ disable-model-invocation: false
      active-extensions list established at session init, load and execute its `.actions`;
      otherwise, skip. Run `git diff --cached --stat` to verify staging matches intent —
      pre-staged files can silently slip in; intended files can be left out. Commit using the
-     loaded format guidance.
+     loaded format guidance — `taskCommit` invocation routing per DEV-RULES.ARC § Commit
+     Discipline → Commit control.
    - **Complex path:** follow
      `.arc/system/workflows/arc/supplemental/prepare-commits.md` to analyze and split
      changes into atomic commits.

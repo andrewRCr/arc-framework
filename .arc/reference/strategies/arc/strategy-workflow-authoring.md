@@ -15,7 +15,7 @@ For canonical structure, see [`template-workflow.md`][template-workflow].
 
 - [Frontmatter Schema](#frontmatter-schema) — fields, namespaces, enforcement
 - [Author-side Declaration Rule](#author-side-declaration-rule) — trigger contract
-- [Body Conventions](#body-conventions) — structure, links, interlock markers
+- [Body Conventions](#body-conventions) — structure, links, interlock markers, routing class tags
 
 ---
 
@@ -83,9 +83,9 @@ mark the gate with a callout block. The callout makes the stop point scannable i
 gives the agent a recognizable trigger to fire on.
 
 **Types:** Three always-stop (`task-`, `workflow-`, `integration-`) and two configurable (`commit-`,
-`push-`, governed by `session.{commit,push}_interlock`). See [DEV-RULES.ARC][dev-rules-arc] § Commit
-Discipline for behavioral rules and [AGENT-BRIEF.ARC][agent-brief-arc] § Vocabulary for the interlock
-concept.
+`push-`, governed by `arc.commitInterlock` and `arc.pushInterlock`). See [DEV-RULES.ARC][dev-rules-arc]
+§ Commit Discipline for behavioral rules and [AGENT-BRIEF.ARC][agent-brief-arc] § Vocabulary for the
+interlock concept.
 
 **Canonical shape:**
 
@@ -104,6 +104,56 @@ concept.
 **Placement:** At the START of the gated step or section. The agent reads the marker and stops before
 executing the gated work — for step-level gates, immediately under the step heading; for cascade
 boundaries (e.g., a destructive sub-step sequence), at the entry point of the cascade.
+
+### Routing class tags
+
+Workflow fire sites for commits and pushes may carry a backtick-wrapped class tag —
+`` `taskCommit` ``, `` `workflowCommit` ``, `` `workflowPush` `` — that lets the agent route
+through the release-wrapper layer when configured. Untagged sites invoke raw `git`. The
+canonical routing rule lives in [DEV-RULES.ARC][dev-rules-arc] § Commit Discipline; this
+section covers author-side declaration shape.
+
+**When to class-tag.** Tag sites that fit the class semantics:
+
+- `taskCommit` — per-task commits inside the task execution loop
+- `workflowCommit` — ceremony commits (activate / integrate / handoff / archive)
+- `workflowPush` — ceremony pushes (handoff / activation / integration / rotate-branch)
+
+Ad-hoc commits, recovery operations, and push paths that should always run raw remain
+unannotated; they route as `raw` regardless of opt-in state.
+
+**Verb-elision pattern.** The class tag annotates the verb so the workflow text stays
+single-shape across raw and wrapper modes — the agent supplies `git commit -m` or
+`arc release commit` per the resolved routing.
+
+- **Commit fire sites:** annotate the verb with the tag, then provide the message body in a
+  `text` codeblock immediately below — no `git commit -m` literal:
+
+    ````markdown
+    Then commit (`workflowCommit`):
+
+    ```text
+    chore(status): handoff
+
+    Context: status-name.md (handoff)
+    ```
+    ````
+
+- **Push fire sites:** annotate the verb with the tag, then provide push args as inline
+  backticked prose — no `git push` literal:
+
+    ```markdown
+    Push the branch upstream (`workflowPush`): `-u origin {branch-name}`.
+    ```
+
+**Destructive flags stay literal.** Flags like `--delete`, `--force`, and `--force-with-lease`
+are never class-tagged — the wrapper refuses them by design. Workflows needing destructive
+operations write the literal `git push --delete <ref>` (or equivalent) inline, outside any
+class-tag annotation.
+
+**Sync push exception.** `arc sync` handles its own internal push; sync invocations are captured
+on the audit umbrella but do not re-route through `arc release push`. Workflows that invoke
+`arc sync` rely on its internal handling and do not class-tag the implicit push.
 
 ---
 

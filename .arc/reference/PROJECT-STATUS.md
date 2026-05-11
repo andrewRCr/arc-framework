@@ -21,12 +21,12 @@ Current state at a glance. Updated when work is activated, completed, or archive
 
 **Currently Active:**
 
-- Interlock Release Wrappers — Ergonomics (WU2, technical) — Planning. Adopter ergonomics
+- Interlock Release Wrappers — Ergonomics (WU2, technical) — In Progress. Adopter ergonomics
   layer atop WU1: setup helper (`arc release setup`), per-harness workflow, status
-  integration, workflow updates, strategy doc. Plan:
-  `active/technical/plan-release-wrappers-ergonomics.md`; branch:
-  `technical/plan-release-wrappers-ergonomics` (batch branch carrying WU1 archival + WU2
-  planning).
+  integration, structured ADR-018-aware routing, documentation surfaces. Spec:
+  `active/technical/prd-release-wrappers-ergonomics.md`; tasks:
+  `active/technical/tasks-release-wrappers-ergonomics.md` (8 phases / 22 parent tasks /
+  57 leaf subtasks); branch: `technical/release-wrappers-ergonomics`.
 
 **Next Priority:**
 

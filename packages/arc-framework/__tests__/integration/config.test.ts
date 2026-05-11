@@ -16,6 +16,7 @@ import {
   runConfigSessionInitStatus,
   runConfigStatus,
 } from "../../src/commands/config.js";
+import type { ConfigSessionInitSettings } from "../../src/commands/config.js";
 
 /**
  * Build a mock GitExec returning the given map of git-config values.
@@ -36,6 +37,17 @@ function buildExec(overrides: Record<string, string | undefined>) {
 
 const realReadFile = (path: string): Promise<string> => nodeReadFile(path, "utf-8");
 const noGitConfigExec = buildExec({});
+const SESSION_INIT_SCOPED_KEYS = [
+  "branch.protection",
+  "commit.context_footer",
+  "commit.format",
+  "pm.mode",
+  "session.init_load.notes",
+  "session.init_pull.notes",
+  "session.init_pull.worktree",
+  "session.remote_sync",
+  "user.notes_push",
+] as const satisfies ReadonlyArray<keyof ConfigSessionInitSettings>;
 
 interface Fixture {
   root: string;
@@ -74,8 +86,6 @@ describe("runConfigStatus — full mode", () => {
       "session.remote_sync: enabled",
       "session.init_pull.worktree: prompt",
       "session.init_pull.notes: prompt",
-      "session.commit_interlock: manual",
-      "session.push_interlock: manual",
       "archive.cadence: manual",
       "user.notes_push: on-sync",
     ].join("\n");
@@ -87,8 +97,6 @@ describe("runConfigStatus — full mode", () => {
     expect(result.settings["branch.protection"]).toBe("full");
     expect(result.settings["session.init_pull.worktree"]).toBe("prompt");
     expect(result.settings["session.init_pull.notes"]).toBe("prompt");
-    expect(result.settings["session.commit_interlock"]).toBe("manual");
-    expect(result.settings["session.push_interlock"]).toBe("manual");
     expect(result.settings["archive.cadence"]).toBe("manual");
     expect(result.warnings).toHaveLength(0);
     // Empty values in the file fall through to defaults per shell-aligned parser behavior.
@@ -136,7 +144,7 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
     await rm(fixture.root, { recursive: true, force: true });
   });
 
-  it("returns only the 12 init-gating keys with yaml values when no git-config override is set", async () => {
+  it(`returns only the ${SESSION_INIT_SCOPED_KEYS.length} init-gating keys with yaml values when no git-config override is set`, async () => {
     await writeFile(
       fixture.configPath,
       [
@@ -148,11 +156,8 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
         "session.remote_sync: disabled",
         "session.init_pull.worktree: manual",
         "session.init_pull.notes: always",
-        "session.commit_interlock: on-task-approval",
-        "session.push_interlock: on-sync",
-        "session.sync_interlock: manual",
+        "session.init_load.notes: manual",
         "user.notes_push: prompt",
-        "release.enabled: true",
       ].join("\n"),
     );
     const result = await runConfigSessionInitStatus({
@@ -162,62 +167,34 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
     });
     expect(result.mode).toBe("session-init");
     const keys = Object.keys(result.settings).sort();
-    expect(keys).toEqual([
-      "branch.protection",
-      "commit.context_footer",
-      "commit.format",
-      "pm.mode",
-      "release.enabled",
-      "session.commit_interlock",
-      "session.init_pull.notes",
-      "session.init_pull.worktree",
-      "session.push_interlock",
-      "session.remote_sync",
-      "session.sync_interlock",
-      "user.notes_push",
-    ]);
-    // Non-release-mode keys are pass-through from readConfigSettings (yaml-only).
+    expect(keys).toEqual([...SESSION_INIT_SCOPED_KEYS].sort());
+    // Non-`user.notes_push` keys are pass-through from readConfigSettings (yaml-only).
     expect(result.settings["session.remote_sync"]).toBe("disabled");
     expect(result.settings["pm.mode"]).toBe("arc-in-git");
     expect(result.settings["session.init_pull.worktree"]).toBe("manual");
     expect(result.settings["session.init_pull.notes"]).toBe("always");
-    // Release-mode keys reflect yaml when no git-config override is set.
-    expect(result.settings["session.commit_interlock"]).toBe("on-task-approval");
-    expect(result.settings["session.push_interlock"]).toBe("on-sync");
-    expect(result.settings["session.sync_interlock"]).toBe("manual");
+    expect(result.settings["session.init_load.notes"]).toBe("manual");
+    // user.notes_push reflects yaml when no git-config override is set.
     expect(result.settings["user.notes_push"]).toBe("prompt");
-    expect(result.settings["release.enabled"]).toBe("true");
   });
 
-  it("git-config override wins over yaml for release-mode keys", async () => {
+  it("git-config override wins over yaml for the dual-scope notesPush key", async () => {
     await writeFile(
       fixture.configPath,
       [
         "pm.mode: arc-in-git",
-        "session.commit_interlock: manual",
-        "session.push_interlock: manual",
-        "session.sync_interlock: manual",
         "user.notes_push: on-sync",
-        "release.enabled: false",
       ].join("\n"),
     );
     const exec = buildExec({
-      "arc.commitInterlock": "on-task-approval",
-      "arc.pushInterlock": "on-sync",
-      "arc.syncInterlock": "on-handoff",
       "arc.notesPush": "prompt",
-      "arc.releaseEnabled": "true",
     });
     const result = await runConfigSessionInitStatus({
       cwd: fixture.root,
       exec,
       readFile: realReadFile,
     });
-    expect(result.settings["session.commit_interlock"]).toBe("on-task-approval");
-    expect(result.settings["session.push_interlock"]).toBe("on-sync");
-    expect(result.settings["session.sync_interlock"]).toBe("on-handoff");
     expect(result.settings["user.notes_push"]).toBe("prompt");
-    expect(result.settings["release.enabled"]).toBe("true");
     // Non-release-mode keys remain yaml-only — no git-config probe.
     expect(result.settings["pm.mode"]).toBe("arc-in-git");
   });
@@ -231,21 +208,15 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
     expect(result.settings["session.remote_sync"]).toBe("enabled");
     expect(result.settings["session.init_pull.worktree"]).toBe("prompt");
     expect(result.settings["session.init_pull.notes"]).toBe("prompt");
-    expect(result.settings["session.commit_interlock"]).toBe("manual");
-    expect(result.settings["session.push_interlock"]).toBe("manual");
-    expect(result.settings["session.sync_interlock"]).toBe("on-handoff");
+    expect(result.settings["session.init_load.notes"]).toBe("prompt");
     expect(result.settings["user.notes_push"]).toBe("on-sync");
-    expect(result.settings["release.enabled"]).toBe("false");
     expect(result.settings["pm.mode"]).toBe("none");
     expect(result.settings["branch.protection"]).toBe("partial");
     expect(result.defaultsApplied).toContain("session.remote_sync");
     expect(result.defaultsApplied).toContain("session.init_pull.worktree");
     expect(result.defaultsApplied).toContain("session.init_pull.notes");
-    expect(result.defaultsApplied).toContain("session.commit_interlock");
-    expect(result.defaultsApplied).toContain("session.push_interlock");
-    expect(result.defaultsApplied).toContain("session.sync_interlock");
+    expect(result.defaultsApplied).toContain("session.init_load.notes");
     expect(result.defaultsApplied).toContain("user.notes_push");
-    expect(result.defaultsApplied).toContain("release.enabled");
     expect(result.warnings).toHaveLength(1);
   });
 
@@ -260,11 +231,8 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
         "session.remote_sync: enabled",
         "session.init_pull.worktree: prompt",
         "session.init_pull.notes: prompt",
-        "session.commit_interlock: manual",
-        "session.push_interlock: manual",
-        "session.sync_interlock: on-handoff",
+        "session.init_load.notes: prompt",
         "user.notes_push: on-sync",
-        "release.enabled: false",
       ].join("\n"),
     );
     const result = await runConfigSessionInitStatus({
@@ -274,22 +242,8 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
     });
     // Non-scoped keys may be defaulted under the hood, but scoped defaults list excludes them.
     expect(result.defaultsApplied).toHaveLength(0);
-    const scopedKeys = [
-      "session.remote_sync",
-      "session.init_pull.worktree",
-      "session.init_pull.notes",
-      "session.commit_interlock",
-      "session.push_interlock",
-      "session.sync_interlock",
-      "user.notes_push",
-      "release.enabled",
-      "branch.protection",
-      "pm.mode",
-      "commit.format",
-      "commit.context_footer",
-    ];
     for (const key of result.defaultsApplied) {
-      expect(scopedKeys).toContain(key);
+      expect(SESSION_INIT_SCOPED_KEYS).toContain(key as keyof ConfigSessionInitSettings);
     }
   });
 
@@ -311,28 +265,4 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
     expect(result.warnings.some((e) => e.includes("session.init_pull.worktree"))).toBe(true);
   });
 
-  describe("session interlock settings", () => {
-    it("warns and falls back to default when yaml carries an invalid release-mode value", async () => {
-      await writeFile(
-        fixture.configPath,
-        [
-          "pm.mode: arc-in-git",
-          "session.commit_interlock: automatic",
-          "session.push_interlock: auto",
-        ].join("\n"),
-      );
-      const result = await runConfigSessionInitStatus({
-        cwd: fixture.root,
-        exec: noGitConfigExec,
-        readFile: realReadFile,
-      });
-      // Release-mode keys go through resolveAllSettings — invalid yaml values
-      // warn and fall through to the documented default rather than passing
-      // through verbatim.
-      expect(result.settings["session.commit_interlock"]).toBe("manual");
-      expect(result.settings["session.push_interlock"]).toBe("manual");
-      expect(result.warnings.some((w) => w.includes("session.commit_interlock"))).toBe(true);
-      expect(result.warnings.some((w) => w.includes("session.push_interlock"))).toBe(true);
-    });
-  });
 });

@@ -19,7 +19,7 @@ loaded when workflow YAML frontmatter declares them.
 `quality-gate-commands` method.
 
 **Release wrappers:** `arc release commit` / `arc release push` are the canonical commit/push
-invocation shape when active (`arc.release.enabled: true` plus harness allowlist) — see
+invocation shape when active (`arc.releaseOptedIn: true` plus harness allowlist) — see
 DEV-RULES.ARC § Commit Discipline.
 
 ## Vocabulary

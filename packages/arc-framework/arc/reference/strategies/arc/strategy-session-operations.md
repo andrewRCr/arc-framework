@@ -106,10 +106,11 @@ branch rather than rejecting the composite. Mirrors the session-init field table
 | `dirty`           | Working-tree porcelain check (`value.state`: clean / dirty; `value.fileCount` carries the entry count, 0 when clean)                                                      |
 | `worktree`        | Worktree sync state vs. `origin/<current-branch>` — same shape as session-init's `worktree` slot                                                                          |
 | `user`            | Notes-sync state — same shape as session-init's `user` slot; identity-missing short-circuit applies when `arc.identity` is absent                                         |
-| `syncInterlock`   | `{value, source}` — resolved `session.sync_interlock`. Gates whether handoff invokes `arc sync` (`on-handoff`) or surfaces unpushed state without firing (`manual`)       |
+| `syncInterlock`   | `{value, source}` — resolved `arc.syncInterlock`. Gates whether handoff invokes `arc sync` (`on-handoff`) or surfaces unpushed state without firing (`manual`)            |
 | `active`          | Active status file resolution — same shape as session-init's `active` slot                                                                                                |
 | `head`            | Current `HEAD` short-hash (`value.hash`) — anchors the `Commit at Handoff` field written by the handoff workflow                                                          |
 | `pushability`     | Pushability pre-check matrix for the worktree push leg (`target: "worktree"`). Cross-reference with `worktree` for the full divergence picture                            |
+| `releaseRouting`  | Resolved release-wrapper routing per class-tag (`taskCommit` / `workflowCommit` / `workflowPush` to `wrapper` or `raw`), plus `rationale` snapshot                        |
 
 Push-interlock and notes-push policy are not surfaced as handoff envelope slots — `arc sync` owns
 their resolution internally. The handoff workflow gates on `syncInterlock` (whether to invoke
@@ -360,7 +361,7 @@ domain, see [DEV-RULES.ARC][dev-rules-arc] § Commit Discipline and § Session M
 
 An **interlock** is an active control mechanism that holds session-operational progress until released
 by an approval signal — semantics drawn from safety-engineering and control-systems usage. ARC names
-four: `task-interlock`, `commit-interlock`, `push-interlock`, `integration-interlock`.
+five: `task-interlock`, `commit-interlock`, `sync-interlock`, `push-interlock`, `integration-interlock`.
 
 **Verb pairing.** Interlocks `release` (approval lifts the hold), `engage` (the default state — held
 until released), and `hold` (a quality-gate failure or other condition reasserts the engaged state
@@ -379,39 +380,50 @@ The five interlocks attach to the operational junctions a unit of work passes th
 | `integration-interlock`   | Invariant       |
 
 All five interlocks are engaged by default. The configurable three release under explicit
-`session.commit_interlock`, `session.sync_interlock`, and `session.push_interlock` settings; see
+`arc.commitInterlock`, `arc.syncInterlock`, and `arc.pushInterlock` settings; see
 § Configurability Architecture for the enums and § Handoff-Interior Toggle Pattern for how the
 sync and push interlocks chain.
 
 **Task-interlock.** Every review increment receives explicit human approval. Deferred review is a
 bounded user-scoped convenience, not an autonomy mode.
 
-**Commit-interlock.** Under `session.commit_interlock: manual` (the default), the user explicitly
+**Commit-interlock.** Under `arc.commitInterlock: manual` (the default), the user explicitly
 invokes commit. `on-task-approval` releases the interlock on task approval; `on-workflow` extends
 release to workflow-ceremony commits as well.
 
-**Push-interlock.** Under `session.push_interlock: manual` (the default), the user explicitly
+**Push-interlock.** Under `arc.pushInterlock: manual` (the default), the user explicitly
 invokes push. `on-sync` releases the interlock when an `arc sync` event fires — sync invocations
-include handoff-driven sync (via `session.sync_interlock: on-handoff`) and explicit mid-session
+include handoff-driven sync (via `arc.syncInterlock: on-handoff`) and explicit mid-session
 `arc sync` calls. `on-workflow` adds release on workflow-driven push events. Per-commit push
 release is not offered.
 
-**Sync-interlock.** Under `session.sync_interlock: on-handoff` (the default), handoff invokes
+**Sync-interlock.** Under `arc.syncInterlock: on-handoff` (the default), handoff invokes
 `arc sync` as part of the handoff ceremony. `manual` surfaces unpushed state in the handoff
 summary without firing sync. `on-workflow` adds release on workflow-driven sync triggers
 (forward-compatible with upcoming worktree work units; today behaviorally equivalent to
 `on-handoff`). The sync orchestrator routes worktree-push and notes-push per their own
 interlock settings — see § Handoff-Interior Toggle Pattern for the cascade.
 
-**Release-wrapper layer.** When configured (`release.enabled: true` plus the corresponding
-harness allowlist entries), `arc release commit` and `arc release push` provide a CLI-boundary
-mechanical authorization layer over the interlock model. The wrapper validates that configured
-permission overlaps the wrapper's scope — refuses with a stable exit code when not — and writes
-a per-invocation audit entry. The wrappers run unconditionally regardless of opt-in; the flag
-changes harness-prompt behavior, not wrapper behavior. The interlock model is unchanged; the
-wrapper adds mechanical CLI-boundary enforcement of the same authorization rule. See
+**Release-wrapper layer.** When invoked, `arc release commit` and `arc release push` provide a
+CLI-boundary mechanical authorization layer over the interlock model — the wrapper validates that
+configured permission overlaps the wrapper's scope, refuses with a stable exit code when not, and
+writes a per-invocation audit entry. Wrapper-internal behavior runs unconditionally on invocation;
+`arc.releaseOptedIn` (paired with the harness allowlist) changes harness-prompt behavior at the
+calling layer, not the wrapper itself. Whether the wrapper is invoked at a given fire-site is
+resolved per route class (`wrapper` vs `raw`) by the releaseRouting layer from `arc.releaseOptedIn`,
+`arc.commitInterlock`, `arc.pushInterlock`, and the workflow's class-tag declaration; off-workflow
+commits use raw `git` regardless of opt-in. The interlock model itself is unchanged; the wrapper
+adds mechanical CLI-boundary enforcement of the same authorization rule. See
 [Configurability Architecture Strategy][config-arch] § Session interlocks for the orthogonality
-between interlock state (WHEN) and release-wrapper opt-in (HOW).
+between interlock state (WHEN), wrapper routing (whether to engage the wrapper at a fire-site),
+and wrapper-internal authorization (HOW the wrapper validates when engaged).
+
+Static wrapper engagement is configuration-state and stays out of session-init orientation by
+design — orientation surfaces actionable session-shifts, not steady configuration. Routing-shift
+detection — flagging when the resolved wrapper routing has changed between sessions because
+interlock keys were edited in git-config since last handoff — is the orientation-worthy
+state-shift signal; the snapshot-at-handoff plus diff-at-init mechanism is specified in
+`plan-handoff-optimization.md` and surfaces in orientation when that work integrates.
 
 **Integration-interlock.** Merge to integration / main requires explicit human approval. Agents must not
 infer merge approval from task approval, review completion, passing checks, or general "proceed" language.
@@ -434,22 +446,22 @@ The configurable interlocks use independent config axes.
 
 **Enum values:**
 
-- `session.commit_interlock: manual` (default) — commit-interlock engaged by default; user explicitly
+- `arc.commitInterlock: manual` (default) — commit-interlock engaged by default; user explicitly
   invokes commit.
-- `session.commit_interlock: on-task-approval` — commit-interlock releases on task approval.
-- `session.commit_interlock: on-workflow` — extends `on-task-approval` with release on
+- `arc.commitInterlock: on-task-approval` — commit-interlock releases on task approval.
+- `arc.commitInterlock: on-workflow` — extends `on-task-approval` with release on
   workflow-driven commit events (handoff, integration prep, planning ceremonies). See § Release
   Wrappers and Workflow-Driven Triggers above.
-- `session.push_interlock: manual` (default) — push-interlock engaged by default; user explicitly
+- `arc.pushInterlock: manual` (default) — push-interlock engaged by default; user explicitly
   invokes push.
-- `session.push_interlock: on-sync` — push-interlock releases when an `arc sync` event fires
+- `arc.pushInterlock: on-sync` — push-interlock releases when an `arc sync` event fires
   (per-commit release is not offered).
-- `session.push_interlock: on-workflow` — adds release on workflow-driven push events.
-- `session.sync_interlock: on-handoff` (default) — handoff invokes `arc sync` as part of the
+- `arc.pushInterlock: on-workflow` — adds release on workflow-driven push events.
+- `arc.syncInterlock: on-handoff` (default) — handoff invokes `arc sync` as part of the
   handoff ceremony.
-- `session.sync_interlock: manual` — handoff surfaces unpushed state without invoking sync;
+- `arc.syncInterlock: manual` — handoff surfaces unpushed state without invoking sync;
   sync requires explicit invocation.
-- `session.sync_interlock: on-workflow` — adds release on workflow-driven sync triggers.
+- `arc.syncInterlock: on-workflow` — adds release on workflow-driven sync triggers.
 
 ### Approval-Signal Architecture
 
@@ -458,7 +470,7 @@ structured prompt — not parsed from arbitrary user prose.
 
 **Per-interlock prompt variants:**
 
-- `task-interlock` (`session.commit_interlock: manual`): `Proceed to Task X.Y?`
+- `task-interlock` (`arc.commitInterlock: manual`): `Proceed to Task X.Y?`
 - `task-interlock` + `commit-interlock` bundled (`on-task-approval`): `Commit and proceed to Task
   X.Y?`
 - Boundary-aware variants: `Proceed to Phase N+1, Task N+1.1?` at phase boundaries; `Proceed to
@@ -477,7 +489,7 @@ session lifecycle.
 
 ### Commit-Interlock Release
 
-Under `session.commit_interlock: on-task-approval`, the approval signal that advances the task
+Under `arc.commitInterlock: on-task-approval`, the approval signal that advances the task
 also releases the commit-interlock. First-word affirmatives (`y` / `yes` / `yeah`) release the
 interlock; redirect grammar is preserved (`y, also <X>` / `y; <redirect>`) and queues the
 redirect after the commit path completes.
@@ -501,17 +513,18 @@ and lifecycle ceremony, not contributor-local progress. Contributor status files
 `user/{identity}/active/`, are gitignored, and remain local session state.
 
 The contributor handoff cadence is mode-independent: contributor status files update at handoff
-whether `session.commit_interlock` is `manual` or `on-task-approval`. This keeps commit release
-focused on reviewed code changes while preserving the session-state contract that handoff is the
-single update point for contributor-local active status.
+regardless of `arc.commitInterlock` value (`manual`, `on-task-approval`, or `on-workflow`). This
+keeps commit release focused on reviewed code changes while preserving the session-state
+contract that handoff is the single update point for contributor-local active status.
 
 ### Deferred-Review × Commit-Interlock Release
 
-Deferred review safe-accumulates by default under `session.commit_interlock: on-task-approval`.
-Within a deferred range, per-task completion still updates the task list and runs quality gates,
-but it does not release the commit-interlock after each task. Deferred review exists because the
-user is unavailable for per-task approval; committing each task without that approval would turn
-the deferral into an unreviewed commit cascade and violate the interlock model.
+Deferred review safe-accumulates by default under `arc.commitInterlock ∈ {on-task-approval,
+on-workflow}`. Within a deferred range, per-task completion still updates the task list and runs
+quality gates, but it does not release the commit-interlock after each task. Deferred review
+exists because the user is unavailable for per-task approval; committing each task without that
+approval would turn the deferral into an unreviewed commit cascade and violate the interlock
+model.
 
 Per-task commit release within a deferred range requires explicit opt-in at deferral time, using
 language such as "work through 5.2-5.4 with commit on each task approval while I'm away." The
@@ -724,9 +737,9 @@ shape; toggles declare `prompt` support explicitly.
 **Three-layer cascade.** Handoff-interior operations chain through interlocks. Each link names
 its trigger:
 
-1. **handoff event → sync.** `session.sync_interlock: on-handoff` releases the sync interlock
+1. **handoff event → sync.** `arc.syncInterlock: on-handoff` releases the sync interlock
    when handoff fires. `arc sync` is the orchestrator that routes worktree-push and notes-push.
-2. **sync event → push.** `session.push_interlock: on-sync` releases the push interlock when a
+2. **sync event → push.** `arc.pushInterlock: on-sync` releases the push interlock when a
    sync event fires.
 3. **sync event → notes-push.** `user.notes_push: on-sync` releases notes-push when a sync event
    fires.
@@ -740,10 +753,14 @@ direct invocation authorizes the downstream cascade (push and notes-push under t
 configurations). The trigger doesn't have to come from handoff; any sync invocation counts as a
 sync event for the layers below.
 
-**Per-developer override.** Each toggle defines a matching `git config` key for personal override —
-e.g., `arc.notesPush` for `user.notes_push`, `arc.pushInterlock` for `session.push_interlock`,
-`arc.syncInterlock` for `session.sync_interlock`. Document the override in the toggle's
-primary-domain section.
+**Per-developer configuration.** Session interlocks and the release-wrapper opt-in are
+canonical per-developer git-config keys with no project-level counterpart —
+`arc.commitInterlock`, `arc.pushInterlock`, `arc.syncInterlock`, `arc.releaseOptedIn`. The
+handoff-interior `user.notes_push` toggle is dual-scope: project-level default in
+`arc-config.yml`, per-developer override via `arc.notesPush`. New handoff-interior toggles
+following this pattern document the override in the toggle's primary-domain section. See
+[Configurability Architecture Strategy][config-arch] § Personal Configuration via Git Config
+for the full key reference and defaults.
 
 **Composite handoff probe.** `arc status --session-handoff --json` returns the handoff envelope —
 dirty state, worktree state, notes-sync state, sync-interlock mode, pushability pre-check matrix,
@@ -828,7 +845,7 @@ are missing or stale. Overwrite prompts default to confirm and accept `--yes` on
 **Push policy** (`user.notes_push` in `arc-config.yml`):
 
 - `on-sync` — solo default. Notes push fires when an `arc sync` event releases the toggle
-  (handoff-driven sync via `session.sync_interlock: on-handoff`, or explicit `arc sync`
+  (handoff-driven sync via `arc.syncInterlock: on-handoff`, or explicit `arc sync`
   invocation).
 - `prompt` — team default. Conscious choice each sync event.
 - `manual` — full control. Push only when explicitly requested.
@@ -838,9 +855,17 @@ of the [handoff-interior toggle pattern](#handoff-interior-toggle-pattern).
 
 ### Scope
 
-Any file in the `user/{identity}/` directory — session notes, inbox items (arc-in-git),
-personal scratch notes — travels through one mechanism. New file types added to the user
-directory are automatically included without additional plumbing.
+Files at the top of `user/{identity}/` — session notes, inbox items (arc-in-git), personal
+scratch notes — travel through one mechanism. New file types added to that surface are
+automatically included without additional plumbing.
+
+`user/{identity}/.internal/` is per-machine and excluded from notes serialization (the
+serializer's dotfile rule covers it). It carries state that should not synchronize across
+machines: the release-wrapper marker file recording installed harnesses and modes per
+machine, the per-invocation audit log, sync-state tracking, and pre-load backups. Each
+machine runs `arc release setup install` independently — harness allowlist install is
+itself per-machine, so the marker recording it must also be per-machine. See
+[Interlock Release Wrappers Strategy][interlock-release-wrappers] for the setup workflow.
 
 ### SESSION-NOTES Load Error Recovery
 
@@ -867,6 +892,7 @@ When `arc user load` or session-init's SESSION-NOTES load fails, recover by erro
 [strategy-index]: ../STRATEGY-INDEX.md
 [workflow-authoring]: strategy-workflow-authoring.md
 [config-arch]: strategy-configurability-architecture.md
+[interlock-release-wrappers]: strategy-interlock-release-wrappers.md
 [dev-rules-arc]: ../../constitution/DEV-RULES.ARC.md
 [dev-rules-project]: ../../constitution/DEV-RULES.PROJECT.md
 [prepare-commits]: ../../../system/workflows/arc/supplemental/prepare-commits.md

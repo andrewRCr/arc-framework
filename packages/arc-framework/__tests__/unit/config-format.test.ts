@@ -35,12 +35,8 @@ const FULL_SETTINGS: ConfigSettings = {
   "session.init_pull.worktree": "prompt",
   "session.init_pull.notes": "prompt",
   "session.init_load.notes": "prompt",
-  "session.commit_interlock": "manual",
-  "session.push_interlock": "manual",
-  "session.sync_interlock": "on-handoff",
   "archive.cadence": "with-integration",
   "user.notes_push": "on-sync",
-  "release.enabled": "false",
 };
 
 const SESSION_INIT_SETTINGS: ConfigSessionInitSettings = {
@@ -48,11 +44,7 @@ const SESSION_INIT_SETTINGS: ConfigSessionInitSettings = {
   "session.init_pull.worktree": "prompt",
   "session.init_pull.notes": "prompt",
   "session.init_load.notes": "prompt",
-  "session.commit_interlock": "manual",
-  "session.push_interlock": "manual",
-  "session.sync_interlock": "on-handoff",
   "user.notes_push": "on-sync",
-  "release.enabled": "false",
   "branch.protection": "full",
   "pm.mode": "arc-in-git",
   "commit.format": "conventional",
@@ -131,21 +123,22 @@ describe("buildConfigSessionInitSummary — narrow subset", () => {
     expect(summary.split("\n")[0]).toBe("Init-gating settings:");
   });
 
-  it("lists only the 12 init-gating keys", () => {
+  it(`lists only the ${Object.keys(SESSION_INIT_SETTINGS).length} init-gating keys`, () => {
     const summary = buildConfigSessionInitSummary(sessionInitResult());
-    expect(summary).toContain("session.remote_sync: enabled");
-    expect(summary).toContain("session.init_pull.worktree: prompt");
-    expect(summary).toContain("session.init_pull.notes: prompt");
-    expect(summary).toContain("session.commit_interlock: manual");
-    expect(summary).toContain("session.push_interlock: manual");
-    expect(summary).toContain("session.sync_interlock: on-handoff");
-    expect(summary).toContain("user.notes_push: on-sync");
-    expect(summary).toContain("release.enabled: false");
-    expect(summary).toContain("branch.protection: full");
-    expect(summary).toContain("pm.mode: arc-in-git");
-    expect(summary).toContain("commit.format: conventional");
-    expect(summary).toContain("commit.context_footer: required");
+    for (const [key, value] of Object.entries(SESSION_INIT_SETTINGS)) {
+      expect(summary).toContain(`${key}: ${value}`);
+    }
     expect(summary).not.toContain("branch.base:");
+
+    // Exclusivity: the rendered key set must equal the configured init-gating
+    // set — extra keys would silently slip past the inclusion checks above.
+    const renderedKeys = summary
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0 && line !== "Init-gating settings:")
+      .map((line) => line.split(":")[0]?.trim())
+      .filter((key): key is string => key !== undefined && key.length > 0);
+    expect([...renderedKeys].sort()).toEqual(Object.keys(SESSION_INIT_SETTINGS).sort());
   });
 
   it("marks defaulted keys", () => {
@@ -184,8 +177,8 @@ describe("JSON round-trip — typed result shape is stable", () => {
     const roundTripped = JSON.parse(JSON.stringify(result)) as ConfigSessionInitResult;
     expect(roundTripped.mode).toBe("session-init");
     expect(roundTripped.settings["pm.mode"]).toBe("arc-in-git");
-    expect(roundTripped.settings["session.commit_interlock"]).toBe("manual");
-    expect(roundTripped.settings["session.push_interlock"]).toBe("manual");
+    expect(roundTripped.settings["session.remote_sync"]).toBe("enabled");
+    expect(roundTripped.settings["user.notes_push"]).toBe("on-sync");
     expect(roundTripped.defaultsApplied).toEqual(["pm.mode"]);
   });
 });

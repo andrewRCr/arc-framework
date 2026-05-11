@@ -34,6 +34,7 @@ import type { HeadHashResult } from "../../lib/git/head-hash.js";
 import type { PushabilityResult } from "../../lib/git/pushability.js";
 import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
 import type { RestateCandidatesResult } from "../../lib/handoff/restate-candidates.js";
+import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
 import type { RecommendedAction } from "../../lib/session-init/recommended-action.js";
 
 export type { RecommendedAction };
@@ -104,6 +105,7 @@ export interface SessionInitProbeResult {
   config: Probe<ConfigSessionInitResult>;
   active: Probe<ActiveSessionInitResult>;
   domainRules: Probe<DomainRulesSessionInitResult>;
+  releaseRouting: Probe<ReleaseRoutingValue>;
   /**
    * Per-channel offer text composed when both the worktree and user slots
    * resolve to `recommendedAction === "prompt"`. Null when only one channel
@@ -128,15 +130,15 @@ export interface StatusProbes {
 
 /**
  * Sync-interlock slot in the session-handoff envelope — narrow projection of
- * `session.sync_interlock`. Gates whether the handoff workflow auto-invokes
- * `arc sync`: `on-handoff` and `on-workflow` both fire (the latter is the
- * permissive workflow-mediated tier; today behaviorally equivalent at handoff
- * but reserved for forward-compatibility); `manual` skips and surfaces
- * unpushed state without firing.
+ * the per-developer `arc.syncInterlock`. Gates whether the handoff workflow
+ * auto-invokes `arc sync`: `on-handoff` and `on-workflow` both fire (the
+ * latter is the permissive workflow-mediated tier; today behaviorally
+ * equivalent at handoff but reserved for forward-compatibility); `manual`
+ * skips and surfaces unpushed state without firing.
  */
 export interface HandoffSyncInterlock {
   value: "manual" | "on-handoff" | "on-workflow";
-  source: "git-config" | "yaml" | "default";
+  source: "git-config" | "default";
 }
 
 /**
@@ -188,6 +190,8 @@ export interface SessionHandoffResult {
    * emits empty arrays plus a `baseline-unknown` soft signal.
    */
   restateCandidates: Probe<RestateCandidatesResult>;
+  /** Resolved release-wrapper routing decisions for workflow fire-site classes. */
+  releaseRouting: Probe<ReleaseRoutingValue>;
   /**
    * State-aware top-of-Confirm-Handoff line, populated only when sync
    * auto-invoke would skip (`syncInterlock.value === "manual"` or identity
@@ -219,6 +223,7 @@ export interface SessionInitProbes {
     role: string | null,
   ) => Promise<ActiveSessionInitResult>;
   domainRules: () => Promise<DomainRulesSessionInitResult>;
+  releaseRouting: () => Promise<ReleaseRoutingValue>;
 }
 
 /** Probe functions in session-handoff mode — bound to cwd and any required I/O. */
@@ -234,6 +239,7 @@ export interface SessionHandoffProbes {
   head: () => Promise<HeadHashResult>;
   pushability: () => Promise<PushabilityResult>;
   restateCandidates: () => Promise<RestateCandidatesResult>;
+  releaseRouting: () => Promise<ReleaseRoutingValue>;
 }
 
 export interface RunStatusOptions {

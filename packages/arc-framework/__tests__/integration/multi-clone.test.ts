@@ -212,23 +212,13 @@ describe("user-notes paired-push cross-clone regression", () => {
           });
         }
 
-        // Override clone A's session.push_interlock so handleSync dispatches
-        // the paired cell. user.notes_push is left at its default (on-sync) —
-        // relied on here.
-        const cloneAConfigPath = join(
-          harness.cloneA, ".arc", "system", "arc-config.yml",
+        // Set clone A's push interlock so handleSync dispatches the paired
+        // cell. `user.notes_push` is left at its default (on-sync) — relied
+        // on here.
+        await execFileAsync(
+          "git", ["config", "--local", "arc.pushInterlock", "on-sync"],
+          { cwd: harness.cloneA },
         );
-        const configContent = await readFile(cloneAConfigPath, "utf-8");
-        const updatedConfig = configContent.replace(
-          /^session\.push_interlock:[^\n]*$/m,
-          "session.push_interlock: on-sync",
-        );
-        if (updatedConfig === configContent) {
-          throw new Error(
-            "Expected to override session.push_interlock in clone A's arc-config.yml",
-          );
-        }
-        await writeFile(cloneAConfigPath, updatedConfig, "utf-8");
 
         const cloneANotesPath = join(
           harness.cloneA, ".arc", "user", identity, "SESSION-NOTES.md",

@@ -25,7 +25,9 @@ any review source, use the [review-triage method][review-triage] for classificat
 
 1. Launch the `coderabbit:code-reviewer` subagent against the aggregate diff vs parent branch
 2. Process findings using the [review-triage method][review-triage] (fix-now/defer/reject/silent-fix)
-3. If fixes were made, optionally run a second pass to verify — use judgment based on fix scope
+3. **`workflow-interlock`:** Stop after surfacing findings and recommended dispositions. Await direction
+   before applying review fixes
+4. If fixes were made, optionally run a second pass to verify — use judgment based on fix scope
 
 **Auth prerequisite.** The subagent invokes the CodeRabbit CLI underneath, which requires a one-time
 `coderabbit auth login` (browser flow). If a run fails on authentication, verify with

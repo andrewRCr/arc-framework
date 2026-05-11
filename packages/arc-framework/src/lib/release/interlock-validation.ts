@@ -100,7 +100,7 @@ export function checkInterlock(opts: AuthorizeReleaseOptions): AuthorizationDeci
       kind: "refuse",
       code: 11,
       identifier: "interlock-not-authorized",
-      setting: { key: "session.commit_interlock", value },
+      setting: { key: "arc.commitInterlock", value },
     };
   }
 
@@ -113,7 +113,7 @@ export function checkInterlock(opts: AuthorizeReleaseOptions): AuthorizationDeci
     kind: "refuse",
     code: 11,
     identifier: "interlock-not-authorized",
-    setting: { key: "session.push_interlock", value },
+    setting: { key: "arc.pushInterlock", value },
   };
 }
 
@@ -150,7 +150,7 @@ function composeBody(
       ];
     }
     case 11: {
-      const op = decision.setting.key === "session.commit_interlock" ? "commit" : "push";
+      const op = decision.setting.key === "arc.commitInterlock" ? "commit" : "push";
       return [
         `\`${decision.setting.key}\` is set to \`${decision.setting.value}\`; this ${op} is outside the authorized scope.`,
         composeInterlockRemediation(decision.setting.key, op),
@@ -173,20 +173,28 @@ function composeBody(
         "Resolve the conditions above and retry, or use raw `git push`.",
       ];
     }
-    case 15:
+    case 15: {
+      if (decision.detail?.reason === "positional-ref-mismatch") {
+        const { attempted, expected } = decision.detail;
+        return [
+          `Positional push target \`${attempted.remote} ${attempted.branch}\` does not match the wrapper's target \`${expected.remote} ${expected.branch}\`.`,
+          "Drop the positional pair (the wrapper supplies it), or use raw `git push` to target a different ref.",
+        ];
+      }
       return [
         "Invocation shape did not match release-wrapper grammar.",
         "Use raw `git` for this operation.",
       ];
+    }
   }
 }
 
 function composeInterlockRemediation(
-  key: "session.commit_interlock" | "session.push_interlock",
+  key: "arc.commitInterlock" | "arc.pushInterlock",
   op: ReleaseOperation,
 ): string {
-  if (key === "session.commit_interlock") {
-    return `Use raw \`git ${op}\` instead. Or set \`${key}\` to \`on-task-approval\` or \`on-workflow\` to authorize.`;
+  if (key === "arc.commitInterlock") {
+    return `Use raw \`git ${op}\` instead. Or run \`git config --local ${key} on-task-approval\` (or \`on-workflow\`) to authorize.`;
   }
-  return `Use raw \`git ${op}\` instead. Or set \`${key}: on-workflow\` to authorize.`;
+  return `Use raw \`git ${op}\` instead. Or run \`git config --local ${key} on-workflow\` to authorize.`;
 }

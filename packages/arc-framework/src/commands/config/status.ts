@@ -8,11 +8,10 @@
  *   the session-init harness.
  *
  * The full view reads through {@link readConfigSettings} (yaml-only); the
- * session-init variant reads through {@link resolveAllSettings} so the
- * release-mode key surface (`session.commit_interlock`, `push_interlock`,
- * `sync_interlock`, `user.notes_push`, `release.enabled`) reflects
- * git-config overrides without requiring downstream re-probes. Both then
- * filter to the narrow key set documented in the types module.
+ * session-init variant reads through {@link resolveAllSettings} so
+ * `user.notes_push` reflects any git-config override without requiring a
+ * downstream re-probe. Both then filter to the narrow key set documented
+ * in the types module.
  *
  * @module
  */
@@ -34,11 +33,8 @@ const SESSION_INIT_KEYS = [
   "session.remote_sync",
   "session.init_pull.worktree",
   "session.init_pull.notes",
-  "session.commit_interlock",
-  "session.push_interlock",
-  "session.sync_interlock",
+  "session.init_load.notes",
   "user.notes_push",
-  "release.enabled",
   "branch.protection",
   "pm.mode",
   "commit.format",
@@ -64,24 +60,24 @@ export async function runConfigStatus(
  * Narrow slice of settings that gate session-init decisions before a
  * dedicated workflow or method loads: sync probe gate, planning-branch
  * routing under full protection, capture routing, first-commit format,
- * and the release-mode key surface (interlocks, notes-push, release
- * enablement).
+ * and `user.notes_push`.
  *
- * Release-mode keys are three-tier-resolved (git-config → yaml → default)
- * so downstream consumers read final values without re-probing.
- * `defaultsApplied` retains its yaml-absence semantics — a release-mode
- * key may appear there while its resolved source is `"git-config"`.
+ * `user.notes_push` is three-tier-resolved (git-config → yaml → default) so
+ * downstream consumers read its final value without re-probing.
+ * `defaultsApplied` retains its yaml-absence semantics — `user.notes_push`
+ * may appear there while its resolved source is `"git-config"`.
  */
 export async function runConfigSessionInitStatus(
   options: ConfigSessionInitOptions,
 ): Promise<ConfigSessionInitResult> {
   const exec = options.exec ?? gitExec;
   const readFile = options.readFile ?? ((path: string) => nodeReadFile(path, "utf-8"));
-  const { settings, defaultsApplied, warnings } = await resolveAllSettings({
-    cwd: options.cwd,
-    exec,
-    readFile,
-  });
+  const { settings, defaultsApplied, warnings } = options.resolvedSettings
+    ?? await resolveAllSettings({
+      cwd: options.cwd,
+      exec,
+      readFile,
+    });
   const scoped = {} as ConfigSessionInitSettings;
   for (const key of SESSION_INIT_KEYS) {
     scoped[key] = settings[key];

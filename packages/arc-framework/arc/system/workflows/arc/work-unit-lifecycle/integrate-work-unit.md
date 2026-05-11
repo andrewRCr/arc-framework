@@ -286,8 +286,9 @@ afterward.
 > `workflow-interlock`: Stop before creating the PR. Surface PR title/body readiness, branch state,
 > and review plan; await direction before pushing or opening the PR.
 
+Push the branch upstream (`workflowPush`): `-u origin {branch-name}`. Then create the PR:
+
 ```bash
-git push -u origin {branch-name}
 gh pr create --base {parent-branch} --head {branch-name}
 ```
 
@@ -332,8 +333,9 @@ gh pr merge {pr-number} --merge   # default; use --squash or --rebase per config
 # Or locally
 git checkout parent-branch
 git merge child-branch --no-ff
-git push
 ```
+
+Then push (`workflowPush`) the merged result: `origin {parent-branch}`.
 
 If merged via PR, switch to the parent branch and pull before proceeding:
 

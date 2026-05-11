@@ -40,9 +40,47 @@ export {
   runReleaseOptOut,
   runReleaseStatus,
 } from "../handlers/release/record.js";
+export {
+  handleReleaseSetupInstall,
+  runReleaseSetupInstall,
+} from "../handlers/release/setup/install.js";
+export {
+  handleReleaseSetupPrintPatterns,
+  runReleaseSetupPrintPatterns,
+} from "../handlers/release/setup/print-patterns.js";
+export {
+  handleReleaseSetupUninstall,
+  runReleaseSetupUninstall,
+} from "../handlers/release/setup/uninstall.js";
+export {
+  handleReleaseSetupVerify,
+  runReleaseSetupVerify,
+} from "../handlers/release/setup/verify.js";
 export type {
   RunReleaseOptDeps,
   RunReleaseOptResult,
   RunReleaseStatusDeps,
   RunReleaseStatusResult,
 } from "../handlers/release/record.js";
+export type {
+  ChooseIdempotency,
+  ChooseIdempotencyOptions,
+  RunReleaseSetupInstallOptions,
+  RunReleaseSetupInstallResult,
+  SetupInstallIdempotencyChoice,
+} from "../handlers/release/setup/install.js";
+export type {
+  RunReleaseSetupPrintPatternsOptions,
+  RunReleaseSetupPrintPatternsResult,
+} from "../handlers/release/setup/print-patterns.js";
+export type {
+  CleanupVerification,
+  CleanupVerificationOptions,
+  CleanupVerificationResult,
+  RunReleaseSetupUninstallOptions,
+  RunReleaseSetupUninstallResult,
+} from "../handlers/release/setup/uninstall.js";
+export type {
+  RunReleaseSetupVerifyOptions,
+  RunReleaseSetupVerifyResult,
+} from "../handlers/release/setup/verify.js";

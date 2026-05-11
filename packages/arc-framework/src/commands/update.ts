@@ -131,7 +131,6 @@ function translateLegacyNotesPushValue(value: string): string {
 function migrateUserSyncPush(yamlContent: string): UserSyncPushMigrationResult {
   const legacyKey = "user.sync_push";
   const newKey = "user.notes_push";
-  const pushInterlockKey = "session.push_interlock";
 
   const lines = yamlContent.split("\n");
   const hasNewKey = lines.some((line) => parseConfigLine(line)?.key === newKey);
@@ -181,12 +180,6 @@ function migrateUserSyncPush(yamlContent: string): UserSyncPushMigrationResult {
           translateLegacyNotesPushValue(trimmedValue),
         ),
       );
-      changed = true;
-      continue;
-    }
-
-    if (parsed.key === pushInterlockKey && trimmedValue === "on-handoff") {
-      migratedLines.push(formatConfigLine(parsed, pushInterlockKey, "on-sync"));
       changed = true;
       continue;
     }

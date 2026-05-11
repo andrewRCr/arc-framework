@@ -105,9 +105,11 @@ describe("arc sync --json stdout purity", () => {
   it("paired-push cell: pure stdout JSON, exit 0", async () => {
     const harness = await setupClonesWithIdentity(identity);
     try {
-      await installArcInClone(harness.cloneA, {
-        "session.push_interlock": "on-sync",
-      });
+      await installArcInClone(harness.cloneA);
+      await execFileAsync(
+        "git", ["config", "--local", "arc.pushInterlock", "on-sync"],
+        { cwd: harness.cloneA },
+      );
       await writeFile(
         join(harness.cloneA, ".arc", "user", identity, "SESSION-NOTES.md"),
         "# paired purity\n",
@@ -161,9 +163,11 @@ describe("arc sync --json stdout purity", () => {
       );
       await execFileAsync("git", ["push", "origin", "main"], { cwd: harness.cloneB });
 
-      await installArcInClone(harness.cloneA, {
-        "session.push_interlock": "on-sync",
-      });
+      await installArcInClone(harness.cloneA);
+      await execFileAsync(
+        "git", ["config", "--local", "arc.pushInterlock", "on-sync"],
+        { cwd: harness.cloneA },
+      );
 
       const result = await runCli(["sync", "--json"], { cwd: harness.cloneA });
 

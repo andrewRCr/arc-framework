@@ -2,23 +2,21 @@
 
 ## Work Unit Metadata
 
-- **State:** Planning
-- **Branch:** technical/plan-release-wrappers-ergonomics
+- **State:** Complete
+- **Branch:** technical/release-wrappers-ergonomics
 
 - **Spec:** `prd-release-wrappers-ergonomics.md`
 - **Task List:** `tasks-release-wrappers-ergonomics.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** 2_generate-tasks Pass 3 + Step 4 — grounding audit complete across 7
-  substantive phases; corrections applied to PRD (R5 opt-out conditional, R11 deferred to
-  handoff-opt, R12 missing-slot drop, R12.5 workflowPush → workflowCommit, R13 live
-  verification, R14.3 cross-ref); `plan-handoff-optimization.md` grows Approach item 5 capturing
-  the deferred routing-shift surface; pre-save checklist passes; task list impl-ready
-- **Next Task:** [none]
+- **Last Completed:** integrate-work-unit Step 8 — first PR review cycle complete. Option C wrapper
+  arg-grammar landed (`feat(release): accept positional remote/branch in arc release push`); 7 of 8
+  inline findings fixed across 5 commits, 1 rejected with reply + thread resolved; completion doc
+  refreshed. Pushed `d8ec01f5`.
+- **Next Task:** [post-PR review cycle ongoing; status pre-advanced past PR creation]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-planning-branch Step 1 — verify readiness, then PR
-  `technical/plan-release-wrappers-ergonomics` to `main`; full workflow runs through PR, merge,
-  and transition to activation
+- **Next Action:** integrate-work-unit Step 8 — verify CR's next review pass (per
+  `address-pr-review.md` Step 7) and address any new findings; otherwise advance to Step 9 (merge).
 
 ---

@@ -27,10 +27,13 @@ import type { PushabilityCondition } from "../git/index.js";
  * Numeric exit code emitted on refusal. Stable surface: test suites,
  * harness gates, and downstream tooling match on these values.
  *
- * Code 15 (`arg-grammar-fallthrough`) is reserved-for-empirical — it is
- * not runtime-emitted by the wrapper, and surfaces only via the
- * documented harness-prompt empirical scenario. Do not add a runtime
- * check that emits it.
+ * Code 15 (`arg-grammar-fallthrough`) is runtime-emitted by `arc release
+ * push` when positional `<remote> <branch>` arguments do not match the
+ * wrapper's fixed target (`origin <current-branch>`). The detail payload
+ * carries the attempted and expected refs so the refusal message can name
+ * both. Arg-grammar issues outside this narrow check still fall through to
+ * git's parser; the code's name preserves the broader category for future
+ * detections.
  */
 export type RefusalCode = 10 | 11 | 12 | 13 | 14 | 15;
 
@@ -66,8 +69,8 @@ export const REFUSAL_IDENTIFIERS: Readonly<Record<RefusalCode, RefusalIdentifier
  *
  * Code 11 carries the offending interlock setting (key + resolved value) so
  * `formatRefusal()` can compose specific remediation text without re-deriving
- * from caller context. The setting is keyed by yaml key, paired with the
- * value-typed resolved value.
+ * from caller context. The setting is keyed by the per-developer git-config
+ * key, paired with the value-typed resolved value.
  */
 export type AuthorizationDecision =
   | { kind: "authorize" }
@@ -77,8 +80,8 @@ export type AuthorizationDecision =
       code: 11;
       identifier: "interlock-not-authorized";
       setting:
-        | { key: "session.commit_interlock"; value: CommitInterlock }
-        | { key: "session.push_interlock"; value: PushInterlock };
+        | { key: "arc.commitInterlock"; value: CommitInterlock }
+        | { key: "arc.pushInterlock"; value: PushInterlock };
     }
   | { kind: "refuse"; code: 12; identifier: "destructive-flag"; flag: string }
   | { kind: "refuse"; code: 13; identifier: "branch-protection-violation"; branch: string }
@@ -88,7 +91,16 @@ export type AuthorizationDecision =
       identifier: "pushability-precheck-failed";
       conditions: PushabilityCondition[];
     }
-  | { kind: "refuse"; code: 15; identifier: "arg-grammar-fallthrough" };
+  | {
+      kind: "refuse";
+      code: 15;
+      identifier: "arg-grammar-fallthrough";
+      detail?: {
+        reason: "positional-ref-mismatch";
+        attempted: { remote: string; branch: string };
+        expected: { remote: string; branch: string };
+      };
+    };
 
 // --- Audit entry ---
 

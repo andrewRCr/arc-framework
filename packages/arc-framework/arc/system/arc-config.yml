@@ -8,6 +8,10 @@
 #
 # Format: Flat key-value pairs with dotted grouping. Parsed by githooks using
 # line-based shell matching (grep + cut) — no nested structures.
+#
+# Personal preferences (autonomy cadence, release-wrapper opt-in) live in git-config local.
+# See strategy-configurability-architecture.md § Personal Configuration via Git Config for
+# the per-developer key reference.
 
 # --- Branch Model ---
 
@@ -200,28 +204,6 @@ session.init_pull.notes: prompt
 #   always - Load automatically (the pre-load backup snapshot is the safety net).
 # See session-init.md § Conditional Sync Pulls for the load cascade and dirty-tree refusal under `always`.
 session.init_load.notes: prompt
-
-# --- Session Interlocks ---
-
-# Commit interlock release policy.
-# See DEV-RULES.ARC § Commit Discipline.
-#   manual           - Each commit requires explicit approval. (default)
-#   on-task-approval - Task approval implicitly authorizes the task commit.
-session.commit_interlock: manual
-
-# Push interlock release policy.
-# See DEV-RULES.ARC § Commit Discipline.
-#   manual  - Each push requires explicit approval. (default)
-#   on-sync - `arc sync` invocation implicitly authorizes the push.
-session.push_interlock: manual
-
-# Sync interlock release policy.
-# `arc sync` is the orchestrator that routes worktree push and user-notes push
-# per `session.push_interlock` and `user.notes_push`. This setting controls when
-# `arc sync` itself fires.
-#   manual     - Each `arc sync` invocation requires explicit user invocation.
-#   on-handoff - Handoff implicitly invokes `arc sync`. (default)
-session.sync_interlock: on-handoff
 
 # --- User Directory ---
 

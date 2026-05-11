@@ -179,37 +179,45 @@ and integration approval keep the same meanings. It changes the coordination con
 other developers may be waiting on the branch or task list state.
 
 **Task ownership before approval.** Before reporting a task complete, verify the task's `(@name)`
-marker still names the current developer. Under `session.commit_interlock: on-task-approval`,
-approval may immediately produce a commit, so a stale ownership marker becomes committed shared
-state instead of a local note. Reassignment remains a task-list edit; make it before the completion
-report when ownership changed during the work.
+marker still names the current developer. Under `arc.commitInterlock ∈ {on-task-approval,
+on-workflow}`, approval may immediately produce a commit, so a stale ownership marker becomes
+committed shared state instead of a local note. Reassignment remains a task-list edit; make it
+before the completion report when ownership changed during the work.
 
-**Manual commit mode.** With `session.commit_interlock: manual`, task completion can leave code
+**Manual commit mode.** With `arc.commitInterlock: manual`, task completion can leave code
 and task-list checkbox updates uncommitted until the user explicitly asks for a commit. In team
 mode, that state is local only. Handoffs should either commit the reviewed work first or describe
 the uncommitted state clearly in SESSION-NOTES so the next developer does not assume the branch
 already carries it.
 
-**Commit-on-task-approval mode.** With `session.commit_interlock: on-task-approval` (or
+**Commit-on-task-approval mode.** With `arc.commitInterlock: on-task-approval` (or
 `on-workflow`, which adds release on workflow-ceremony commits), approved tasks usually land as
 task-sized commits immediately after review. This reduces invisible local state but increases
 commit frequency on shared branches. Concurrent pairs should pull before starting or committing
 nearby task-list edits, and should expect straightforward checkbox/completion-note conflicts when
 two owned tasks complete close together.
 
-**Push remains separate.** A local commit is not team-visible until pushed. `session.push_interlock:
+**Push remains separate.** A local commit is not team-visible until pushed. `arc.pushInterlock:
 on-sync` releases push when an `arc sync` event fires — typically handoff-driven sync (via
-`session.sync_interlock: on-handoff`), or explicit mid-session `arc sync` invocation;
+`arc.syncInterlock: on-handoff`), or explicit mid-session `arc sync` invocation;
 `on-workflow` adds release on workflow-driven push events. Teams that depend on a shared
 integration branch should agree when mid-session pushes are expected versus when handoff-driven
 push is sufficient.
 
-**Release-wrapper opt-in is per-developer.** `arc release opt-in` writes `arc.releaseEnabled` to local git config
-(per-clone, never pushed); teammates can have different opt-in states without affecting each
-other. The wrappers themselves run unconditionally regardless; opt-in changes only harness-
-prompt behavior on the developer's machine. Projects that yaml-set `release.enabled: true` adopt
-wrappers as a project-wide expectation, but each teammate can still override locally with
-`arc release opt-out`.
+**Release-wrapper opt-in is per-developer.** `arc release setup install` writes
+`arc.releaseOptedIn` to local git config (per-clone, never pushed); teammates have independent
+opt-in states and independent installed-harness sets. The wrappers themselves run unconditionally
+regardless; opt-in changes only harness-prompt behavior on the developer's machine. There is no
+project-wide opt-in switch — each teammate decides per machine whether to install per-harness
+allowlists and which mode (default-prompt or bypass) to use.
+
+**Asymmetric setup is expected.** Multi-developer repos commonly carry diverging release-wrapper
+setup state per developer: different installed harnesses, different opt-in states, different
+per-machine modes. This parallels the per-developer variation already accepted for interlock
+settings (`arc.commitInterlock`, `arc.pushInterlock`, `arc.syncInterlock`) — autonomy and
+interaction-cadence preferences are individual, not project-wide. See [Interlock Release
+Wrappers Strategy][interlock-release-wrappers] for trust-model framing and per-harness setup
+notes.
 
 ---
 
@@ -398,6 +406,7 @@ them if they're useful, skip them if they'd drift from the tracker.
 
 [work-org]: strategy-work-organization.md
 [dev-methodology]: ../../constitution/DEV-RULES.ARC.md
+[interlock-release-wrappers]: strategy-interlock-release-wrappers.md
 [process-task-loop]: ../../../system/workflows/arc/3_process-task-loop.md
 [session-handoff]: ../../../system/workflows/arc/session-lifecycle/session-handoff.md
 [session-init]: ../../../system/workflows/arc/session-lifecycle/session-init.md

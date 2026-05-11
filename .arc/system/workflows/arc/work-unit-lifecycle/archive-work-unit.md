@@ -221,17 +221,17 @@ Archival commits use type/scope `docs(arc)` or `docs(archive)` with Context foot
 > **Batch branch note:** When archiving on a batch branch (full protection), the commit lands on
 > that branch instead of the base branch. The steps are identical — only the branch context differs.
 
-**Example:**
+**Example** (`workflowCommit`):
 
-```bash
-git commit -m "docs(arc): archive auth-edge-cases
+```text
+docs(arc): archive auth-edge-cases
 
 Archival of completed incidental work:
 - Fixed token refresh race condition and session expiry handling
 - Added retry logic for intermittent auth failures
 - All quality gates passed
 
-Context: status-auth-edge-cases.md (archival)"
+Context: status-auth-edge-cases.md (archival)
 ```
 
 ### 8) Next Step

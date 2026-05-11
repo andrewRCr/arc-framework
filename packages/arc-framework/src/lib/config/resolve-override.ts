@@ -2,7 +2,9 @@
  * Git-config-backed arc-config override resolution.
  *
  * Provides shared precedence handling for settings with personal git-config
- * overrides over project yaml defaults.
+ * overrides — either three-tier (`git config → arc-config.yml → default`) when
+ * a `yamlKey` is supplied, or two-tier (`git config → default`) when omitted
+ * for per-developer-only keys.
  *
  * @module
  */
@@ -30,8 +32,12 @@ export interface ResolveGitConfigOverrideOptions<T extends string> {
   cwd: string;
   /** Git config key for the per-developer override. */
   gitConfigKey: string;
-  /** Dotted yaml key in `arc-config.yml`. */
-  yamlKey: string;
+  /**
+   * Dotted yaml key in `arc-config.yml`. Omit for per-developer-only keys —
+   * the yaml tier is skipped and resolution falls through directly from
+   * git-config to default.
+   */
+  yamlKey?: string;
   /** Value returned when neither configured source supplies a valid value. */
   defaultValue: T;
   /** Per-key validator for values read from git config or yaml. */
@@ -51,11 +57,12 @@ function expectedValues(values: readonly string[]): string {
 }
 
 /**
- * Resolve a setting from git config, then `arc-config.yml`, then a default.
+ * Resolve a setting from git config, then optionally `arc-config.yml`, then a
+ * default.
  *
  * Invalid values warn and fall through to the next tier. Missing or unreadable
  * `arc-config.yml` falls through silently because the project default remains
- * available.
+ * available. When `yamlKey` is omitted, the yaml tier is skipped entirely.
  *
  * @param opts - Resolution inputs, keys, validator, and warning sink
  * @returns The resolved value and its source tier
@@ -77,21 +84,24 @@ export async function resolveGitConfigOverride<T extends string>(
     );
   }
 
-  try {
-    const configPath = join(opts.cwd, ...ARC_CONFIG_SEGMENTS);
-    const content = await opts.readFile(configPath);
-    const yamlValue = parseArcConfig(content)[opts.yamlKey];
-    if (hasConfiguredValue(yamlValue)) {
-      if (opts.isValidValue(yamlValue)) {
-        return { value: yamlValue, source: "yaml" };
+  if (opts.yamlKey !== undefined) {
+    const yamlKey = opts.yamlKey;
+    try {
+      const configPath = join(opts.cwd, ...ARC_CONFIG_SEGMENTS);
+      const content = await opts.readFile(configPath);
+      const yamlValue = parseArcConfig(content)[yamlKey];
+      if (hasConfiguredValue(yamlValue)) {
+        if (opts.isValidValue(yamlValue)) {
+          return { value: yamlValue, source: "yaml" };
+        }
+        warn(
+          `Ignoring invalid value "${yamlValue}" for ${yamlKey} in `
+          + `arc-config.yml - expected one of: ${expected}.`,
+        );
       }
-      warn(
-        `Ignoring invalid value "${yamlValue}" for ${opts.yamlKey} in `
-        + `arc-config.yml - expected one of: ${expected}.`,
-      );
+    } catch {
+      // arc-config.yml unreadable - fall through to default silently.
     }
-  } catch {
-    // arc-config.yml unreadable - fall through to default silently.
   }
 
   return { value: opts.defaultValue, source: "default" };

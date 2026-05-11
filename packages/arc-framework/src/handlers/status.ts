@@ -54,9 +54,13 @@ import { runHeadHashStatus } from "../lib/git/head-hash.js";
 import { runPushabilityStatus } from "../lib/git/pushability.js";
 import { runWorktreeSyncStatus } from "../lib/git/worktree-sync.js";
 import { deriveRestateCandidates } from "../lib/handoff/restate-candidates.js";
-import { readConfigSettings } from "../lib/config/status-reader.js";
-import { resolveSyncInterlock } from "../lib/config/resolved-settings.js";
+import {
+  resolveAllSettings,
+  type ResolvedSettingsResult,
+} from "../lib/config/resolved-settings.js";
 import { createUserIOContext, gitExec } from "../lib/io-context.js";
+import { resolveReleaseRouting } from "../lib/release/routing.js";
+import type { ReleaseRoutingValue } from "../lib/release/routing.js";
 import { requireArcProjectRoot } from "./shared.js";
 
 export interface StatusCliOptions {
@@ -86,6 +90,14 @@ async function readIdentityPointers(): Promise<{
   };
 }
 
+function releaseRoutingFromSettings(settings: ResolvedSettingsResult): ReleaseRoutingValue {
+  return resolveReleaseRouting({
+    releaseOptedIn: settings.resolved.releaseOptedIn.value === "true",
+    commitInterlock: settings.resolved.commitInterlock.value,
+    pushInterlock: settings.resolved.pushInterlock.value,
+  });
+}
+
 export async function handleStatus(opts: StatusCliOptions): Promise<void> {
   if (opts.sessionInit && opts.sessionHandoff) {
     process.stderr.write(
@@ -102,13 +114,41 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
   const { identity, role } = await readIdentityPointers();
 
   if (opts.sessionHandoff) {
-    const { settings } = await readConfigSettings(cwd);
-    const remoteSyncEnabled = settings["session.remote_sync"] === "enabled";
+    if (!json) {
+      process.stderr.write(
+        "Error: --session-handoff currently requires --json (interactive rendering not yet implemented).\n",
+      );
+      process.exitCode = 1;
+      return;
+    }
+    // Cache the resolution promise instead of awaiting eagerly: a thrown
+    // settings-resolution error now surfaces as a per-probe failure (via the
+    // orchestrator's `safeProbe` wrapper) rather than aborting the whole
+    // command and breaking the composite-result contract. The mode-validation
+    // early-return above runs first to avoid leaving an unawaited rejection on
+    // the non-JSON exit path.
+    const resolvedSettingsP = resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
     const probes: SessionHandoffProbes = {
       dirty: () => runDirtyStateStatus({ exec: gitExec }),
-      worktree: () => runWorktreeSyncStatus({ exec: gitExec, remoteSyncEnabled }),
-      user: (id) => runUserSessionInitStatus({ cwd, io, identity: id, remoteSyncEnabled }),
-      syncInterlock: () => resolveSyncInterlock({ cwd, exec: gitExec, readFile: io.readFile }),
+      worktree: async () => {
+        const resolved = await resolvedSettingsP;
+        const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
+        return runWorktreeSyncStatus({ exec: gitExec, remoteSyncEnabled });
+      },
+      user: async (id) => {
+        const resolved = await resolvedSettingsP;
+        const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
+        return runUserSessionInitStatus({ cwd, io, identity: id, remoteSyncEnabled });
+      },
+      syncInterlock: async () => {
+        // syncInterlock is per-developer-only; the generic resolver type
+        // still permits a "yaml" source, but no runtime path produces it
+        // for this key. Coerce defensively to keep HandoffSyncInterlock's
+        // narrower source union honest.
+        const resolved = (await resolvedSettingsP).resolved.syncInterlock;
+        const source = resolved.source === "yaml" ? "default" : resolved.source;
+        return { value: resolved.value, source };
+      },
       active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec: gitExec }),
       head: () => runHeadHashStatus({ exec: gitExec }),
       pushability: () => runPushabilityStatus({
@@ -124,30 +164,34 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
               .catch(() => null);
         return deriveRestateCandidates({ exec: gitExec, sessionNotes });
       },
+      releaseRouting: async () => releaseRoutingFromSettings(await resolvedSettingsP),
     };
-    if (!json) {
-      process.stderr.write(
-        "Error: --session-handoff currently requires --json (interactive rendering not yet implemented).\n",
-      );
-      process.exitCode = 1;
-      return;
-    }
     const result = await runSessionHandoffStatus({ identity, role, probes });
     process.stdout.write(`${JSON.stringify(result)}\n`);
     return;
   }
 
   if (opts.sessionInit) {
-    const { settings } = await readConfigSettings(cwd);
-    const remoteSyncEnabled = settings["session.remote_sync"] === "enabled";
+    // See sessionHandoff branch above for the rationale on caching the
+    // resolution promise rather than awaiting eagerly.
+    const resolvedSettingsP = resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
     const probes: SessionInitProbes = {
-      user: (id) => runUserSessionInitStatus({ cwd, io, identity: id, remoteSyncEnabled }),
-      worktree: () => runWorktreeSyncStatus({ exec: gitExec, remoteSyncEnabled }),
+      user: async (id) => {
+        const resolved = await resolvedSettingsP;
+        const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
+        return runUserSessionInitStatus({ cwd, io, identity: id, remoteSyncEnabled });
+      },
+      worktree: async () => {
+        const resolved = await resolvedSettingsP;
+        const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
+        return runWorktreeSyncStatus({ exec: gitExec, remoteSyncEnabled });
+      },
       dirty: () => runDirtyStateStatus({ exec: gitExec }),
       extensions: () => runExtensionsSessionInitStatus({ cwd }),
-      config: () => runConfigSessionInitStatus({ cwd }),
+      config: async () => runConfigSessionInitStatus({ cwd, resolvedSettings: await resolvedSettingsP }),
       active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec: gitExec }),
       domainRules: () => runDomainRulesSessionInitStatus({ cwd }),
+      releaseRouting: async () => releaseRoutingFromSettings(await resolvedSettingsP),
     };
     const result = await runSessionInitStatus({ identity, role, probes });
     if (json) {

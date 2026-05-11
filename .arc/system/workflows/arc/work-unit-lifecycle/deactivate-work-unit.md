@@ -127,19 +127,19 @@ these local files are scaffold that should be removed.
           .arc/active/{category}/atomic-{name}.md
    ```
 
-4. **Commit:**
+4. **Commit** (`workflowCommit`):
 
-   ```bash
-   git commit -m "docs(arc): deactivate {work-name} work unit
+   ```text
+   docs(arc): deactivate {work-name} work unit
 
-   Context: tasks-{name}.md (deactivation)"
+   Context: tasks-{name}.md (deactivation)
    ```
 
-5. **Push and open a PR** (full protection only): Push the housekeeping branch and merge via PR.
-   Under partial protection, the commit is already on base — nothing more to do.
+5. **Push and open a PR** (full protection only): Push (`workflowPush`)
+   `-u origin chore/deactivate-{name}` and merge via PR. Under partial protection, the
+   commit is already on base — nothing more to do.
 
    ```bash
-   git push -u origin chore/deactivate-{name}
    gh pr create --base {base-branch} --head chore/deactivate-{name}
    ```
 
@@ -171,19 +171,19 @@ mode.
           .arc/active/{category}/atomic-{name}.md
    ```
 
-4. **Commit:**
+4. **Commit** (`workflowCommit`):
 
-   ```bash
-   git commit -m "docs(arc): deactivate {work-name} work unit
+   ```text
+   docs(arc): deactivate {work-name} work unit
 
-   Context: tasks-{name}.md (deactivation)"
+   Context: tasks-{name}.md (deactivation)
    ```
 
-5. **Push and open a PR** (full protection only): Push the housekeeping branch and merge via PR.
-   Under partial protection, the commit is already on base — nothing more to do.
+5. **Push and open a PR** (full protection only): Push (`workflowPush`)
+   `-u origin chore/deactivate-{name}` and merge via PR. Under partial protection, the
+   commit is already on base — nothing more to do.
 
    ```bash
-   git push -u origin chore/deactivate-{name}
    gh pr create --base {base-branch} --head chore/deactivate-{name}
    ```
 

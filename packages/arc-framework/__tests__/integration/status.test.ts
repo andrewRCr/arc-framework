@@ -38,10 +38,12 @@ import {
   runExtensionsStatus,
 } from "../../src/commands/extensions.js";
 import {
+  runSessionHandoffStatus,
   runSessionInitStatus,
   runStatus,
 } from "../../src/commands/status.js";
 import type {
+  SessionHandoffProbes,
   SessionInitProbes,
   StatusProbes,
 } from "../../src/commands/status.js";
@@ -50,6 +52,12 @@ import type {
   UserStatusResult,
 } from "../../src/commands/user/types.js";
 import { runWorktreeSyncStatus } from "../../src/lib/git/worktree-sync.js";
+import {
+  resolveAllSettings,
+  type ResolvedSettingsResult,
+} from "../../src/lib/config/resolved-settings.js";
+import { resolveReleaseRouting } from "../../src/lib/release/routing.js";
+import type { GitExec } from "../../src/lib/git/index.js";
 import { execFileAsync, makeGitExec } from "../helpers/integration.js";
 
 interface Fixture {
@@ -195,6 +203,85 @@ function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
     config: () => runConfigSessionInitStatus({ cwd: fixture.root }),
     active: () => runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
     domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
+    releaseRouting: async () =>
+      resolveReleaseRouting({
+        releaseOptedIn: false,
+        commitInterlock: "manual",
+        pushInterlock: "manual",
+      }),
+  };
+}
+
+function routingFromSettings(settings: ResolvedSettingsResult): ReturnType<typeof resolveReleaseRouting> {
+  return resolveReleaseRouting({
+    releaseOptedIn: settings.resolved.releaseOptedIn.value === "true",
+    commitInterlock: settings.resolved.commitInterlock.value,
+    pushInterlock: settings.resolved.pushInterlock.value,
+  });
+}
+
+function makeResolvedReleaseModeSessionInitProbes(
+  fixture: Fixture,
+  exec: GitExec = makeGitExec(fixture.root),
+): SessionInitProbes {
+  let resolvedPromise: Promise<ResolvedSettingsResult> | null = null;
+  const resolvedSettings = (): Promise<ResolvedSettingsResult> => {
+    resolvedPromise ??= resolveAllSettings({
+      cwd: fixture.root,
+      exec,
+      readFile: (path) => nodeReadFile(path, "utf-8"),
+    });
+    return resolvedPromise;
+  };
+
+  return {
+    user: async (identity) => stubUserSessionInit(identity),
+    worktree: async () => ({ state: "skipped", ahead: 0, behind: 0, branch: "main" }),
+    dirty: async () => ({ state: "clean", fileCount: 0 }),
+    extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
+    config: async () =>
+      runConfigSessionInitStatus({
+        cwd: fixture.root,
+        resolvedSettings: await resolvedSettings(),
+      }),
+    active: () => runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
+    domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
+    releaseRouting: async () => routingFromSettings(await resolvedSettings()),
+  };
+}
+
+function makeResolvedReleaseModeSessionHandoffProbes(
+  fixture: Fixture,
+  exec: GitExec = makeGitExec(fixture.root),
+): SessionHandoffProbes {
+  let resolvedPromise: Promise<ResolvedSettingsResult> | null = null;
+  const resolvedSettings = (): Promise<ResolvedSettingsResult> => {
+    resolvedPromise ??= resolveAllSettings({
+      cwd: fixture.root,
+      exec,
+      readFile: (path) => nodeReadFile(path, "utf-8"),
+    });
+    return resolvedPromise;
+  };
+
+  return {
+    dirty: async () => ({ state: "clean", fileCount: 0 }),
+    worktree: async () => ({ state: "skipped", ahead: 0, behind: 0, branch: "main" }),
+    user: async (identity) => stubUserSessionInit(identity),
+    syncInterlock: async () => {
+      const resolved = (await resolvedSettings()).resolved.syncInterlock;
+      const source = resolved.source === "yaml" ? "default" : resolved.source;
+      return { value: resolved.value, source };
+    },
+    active: () => runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
+    head: async () => ({ hash: "abc1234" }),
+    pushability: async () => ({ allowed: true, conditions: [] }),
+    restateCandidates: async () => ({
+      commitsSinceHandoff: [],
+      tasksClosedSinceHandoff: [],
+      noteFileChangesSinceHandoff: [],
+    }),
+    releaseRouting: async () => routingFromSettings(await resolvedSettings()),
   };
 }
 
@@ -370,6 +457,12 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
       active: (identity, role) =>
         runActiveSessionInitStatus({ cwd: fixture.root, identity, role, exec: makeGitExec(fixture.root) }),
       domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
+      releaseRouting: async () =>
+        resolveReleaseRouting({
+          releaseOptedIn: false,
+          commitInterlock: "manual",
+          pushInterlock: "manual",
+        }),
     };
     const result = await runSessionInitStatus({
       identity: "alice",
@@ -520,6 +613,12 @@ function makeRealWorktreeProbes(
     config: () => runConfigSessionInitStatus({ cwd: fixture.root }),
     active: () => runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
     domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
+    releaseRouting: async () =>
+      resolveReleaseRouting({
+        releaseOptedIn: false,
+        commitInterlock: "manual",
+        pushInterlock: "manual",
+      }),
   };
 }
 
@@ -740,11 +839,7 @@ describe("runSessionInitStatus — release-mode key resolution at envelope path"
         "commit.format: conventional",
         "commit.context_footer: required",
         "session.remote_sync: enabled",
-        "session.commit_interlock: manual",
-        "session.push_interlock: manual",
-        "session.sync_interlock: manual",
         "user.notes_push: on-sync",
-        "release.enabled: false",
       ].join("\n"),
     );
   });
@@ -753,15 +848,15 @@ describe("runSessionInitStatus — release-mode key resolution at envelope path"
   });
 
   it(
-    "orchestrated envelope carries git-config overrides at config.value.settings.<key> "
-    + "so session-init.md consumers read resolved values without re-probing",
+    "orchestrated envelope surfaces resolved per-developer values at releaseRouting.rationale.* "
+    + "and dual-scope notesPush at config.value.settings.user.notes_push",
     async () => {
       const overrides: Record<string, string> = {
         "arc.commitInterlock": "on-task-approval",
         "arc.pushInterlock": "on-sync",
         "arc.syncInterlock": "on-handoff",
         "arc.notesPush": "prompt",
-        "arc.releaseEnabled": "true",
+        "arc.releaseOptedIn": "true",
       };
       const exec = vi.fn().mockImplementation((cmd: string, args: string[]) => {
         if (cmd === "git" && args[0] === "config" && args[1] === "--get") {
@@ -772,22 +867,7 @@ describe("runSessionInitStatus — release-mode key resolution at envelope path"
         }
         return Promise.reject(new Error(`unexpected exec call: ${cmd} ${(args ?? []).join(" ")}`));
       });
-      const probes: SessionInitProbes = {
-        user: async (identity) => stubUserSessionInit(identity),
-        worktree: async () => ({ state: "skipped", ahead: 0, behind: 0, branch: "main" }),
-        dirty: async () => ({ state: "clean", fileCount: 0 }),
-        extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
-        config: () => runConfigSessionInitStatus({
-          cwd: fixture.root,
-          exec,
-          readFile: (path) => nodeReadFile(path, "utf-8"),
-        }),
-        active: () => runActiveSessionInitStatus({
-          cwd: fixture.root,
-          exec: makeGitExec(fixture.root),
-        }),
-        domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
-      };
+      const probes = makeResolvedReleaseModeSessionInitProbes(fixture, exec);
       const result = await runSessionInitStatus({
         identity: "andrew",
         role: "maintainer",
@@ -795,13 +875,164 @@ describe("runSessionInitStatus — release-mode key resolution at envelope path"
       });
       expect(result.config.ok).toBe(true);
       if (result.config.ok) {
-        // The literal envelope path agents consume from session-init.md.
-        expect(result.config.value.settings["session.commit_interlock"]).toBe("on-task-approval");
-        expect(result.config.value.settings["session.push_interlock"]).toBe("on-sync");
-        expect(result.config.value.settings["session.sync_interlock"]).toBe("on-handoff");
         expect(result.config.value.settings["user.notes_push"]).toBe("prompt");
-        expect(result.config.value.settings["release.enabled"]).toBe("true");
+      }
+      expect(result.releaseRouting.ok).toBe(true);
+      if (result.releaseRouting.ok) {
+        expect(result.releaseRouting.value).toEqual({
+          taskCommit: "wrapper",
+          workflowCommit: "raw",
+          workflowPush: "raw",
+          rationale: {
+            releaseOptedIn: true,
+            commitInterlock: "on-task-approval",
+            pushInterlock: "on-sync",
+          },
+        });
       }
     },
   );
+
+  it("session-init releaseRouting defaults all classes to raw when release wrappers are disabled", async () => {
+    const probes = makeResolvedReleaseModeSessionInitProbes(fixture);
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+
+    expect(result.releaseRouting.ok).toBe(true);
+    if (result.releaseRouting.ok) {
+      expect(result.releaseRouting.value).toEqual({
+        taskCommit: "raw",
+        workflowCommit: "raw",
+        workflowPush: "raw",
+        rationale: {
+          releaseOptedIn: false,
+          commitInterlock: "manual",
+          pushInterlock: "manual",
+        },
+      });
+    }
+  });
+
+  it("session-init releaseRouting routes all classes through wrappers for full workflow opt-in", async () => {
+    const overrides: Record<string, string> = {
+      "arc.commitInterlock": "on-workflow",
+      "arc.pushInterlock": "on-workflow",
+      "arc.releaseOptedIn": "true",
+    };
+    const exec = vi.fn().mockImplementation((cmd: string, args: string[]) => {
+      if (cmd === "git" && args[0] === "config" && args[1] === "--get") {
+        const key = args[2];
+        const value = key === undefined ? undefined : overrides[key];
+        if (value === undefined) return Promise.reject(new Error("exit 1"));
+        return Promise.resolve({ stdout: `${value}\n` });
+      }
+      return Promise.reject(new Error(`unexpected exec call: ${cmd} ${(args ?? []).join(" ")}`));
+    });
+
+    const probes = makeResolvedReleaseModeSessionInitProbes(fixture, exec);
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+
+    expect(result.releaseRouting.ok).toBe(true);
+    if (result.releaseRouting.ok) {
+      expect(result.releaseRouting.value).toEqual({
+        taskCommit: "wrapper",
+        workflowCommit: "wrapper",
+        workflowPush: "wrapper",
+        rationale: {
+          releaseOptedIn: true,
+          commitInterlock: "on-workflow",
+          pushInterlock: "on-workflow",
+        },
+      });
+    }
+  });
+});
+
+describe("runSessionHandoffStatus — releaseRouting envelope path", () => {
+  let fixture: Fixture;
+  beforeEach(async () => {
+    fixture = await createFixture();
+    await writeFile(
+      fixture.configPath,
+      [
+        "pm.mode: arc-in-git",
+        "branch.protection: full",
+        "commit.format: conventional",
+        "commit.context_footer: required",
+        "session.remote_sync: enabled",
+        "user.notes_push: on-sync",
+      ].join("\n"),
+    );
+  });
+  afterEach(async () => {
+    await rm(fixture.root, { recursive: true, force: true });
+  });
+
+  it("defaults all releaseRouting classes to raw when release wrappers are disabled", async () => {
+    const probes = makeResolvedReleaseModeSessionHandoffProbes(fixture);
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+
+    expect(result.releaseRouting.ok).toBe(true);
+    if (result.releaseRouting.ok) {
+      expect(result.releaseRouting.value).toEqual({
+        taskCommit: "raw",
+        workflowCommit: "raw",
+        workflowPush: "raw",
+        rationale: {
+          releaseOptedIn: false,
+          commitInterlock: "manual",
+          pushInterlock: "manual",
+        },
+      });
+    }
+  });
+
+  it("routes all releaseRouting classes through wrappers for full workflow opt-in", async () => {
+    const overrides: Record<string, string> = {
+      "arc.commitInterlock": "on-workflow",
+      "arc.pushInterlock": "on-workflow",
+      "arc.releaseOptedIn": "true",
+    };
+    const exec = vi.fn().mockImplementation((cmd: string, args: string[]) => {
+      if (cmd === "git" && args[0] === "config" && args[1] === "--get") {
+        const key = args[2];
+        const value = key === undefined ? undefined : overrides[key];
+        if (value === undefined) return Promise.reject(new Error("exit 1"));
+        return Promise.resolve({ stdout: `${value}\n` });
+      }
+      return Promise.reject(new Error(`unexpected exec call: ${cmd} ${(args ?? []).join(" ")}`));
+    });
+
+    const probes = makeResolvedReleaseModeSessionHandoffProbes(fixture, exec);
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+
+    expect(result.releaseRouting.ok).toBe(true);
+    if (result.releaseRouting.ok) {
+      expect(result.releaseRouting.value).toEqual({
+        taskCommit: "wrapper",
+        workflowCommit: "wrapper",
+        workflowPush: "wrapper",
+        rationale: {
+          releaseOptedIn: true,
+          commitInterlock: "on-workflow",
+          pushInterlock: "on-workflow",
+        },
+      });
+    }
+  });
 });
