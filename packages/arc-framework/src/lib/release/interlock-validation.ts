@@ -173,11 +173,19 @@ function composeBody(
         "Resolve the conditions above and retry, or use raw `git push`.",
       ];
     }
-    case 15:
+    case 15: {
+      if (decision.detail?.reason === "positional-ref-mismatch") {
+        const { attempted, expected } = decision.detail;
+        return [
+          `Positional push target \`${attempted.remote} ${attempted.branch}\` does not match the wrapper's target \`${expected.remote} ${expected.branch}\`.`,
+          "Drop the positional pair (the wrapper supplies it), or use raw `git push` to target a different ref.",
+        ];
+      }
       return [
         "Invocation shape did not match release-wrapper grammar.",
         "Use raw `git` for this operation.",
       ];
+    }
   }
 }
 

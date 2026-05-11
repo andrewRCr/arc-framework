@@ -29,6 +29,7 @@ import {
   sanitizeArgs,
   toAuditWorkUnit,
 } from "../../lib/release/audit-log.js";
+import { normalizeReleasePushArgs } from "../../lib/release/arg-grammar.js";
 import { detectPushDestructive } from "../../lib/release/destructive-flags.js";
 import {
   checkBranchProtection,
@@ -142,6 +143,27 @@ export async function runReleasePush(
     );
   }
 
+  // Step 1b (no I/O): positional `<remote> <branch>` arg-grammar check (15).
+  // Strips matched positionals before they reach the wrapped spawn (which
+  // already prepends `origin <current-branch>`); refuses on mismatch.
+  const normalized = normalizeReleasePushArgs(deps.argv, deps.currentBranch);
+  if (normalized.kind === "mismatch") {
+    return refuse(
+      {
+        kind: "refuse",
+        code: 15,
+        identifier: "arg-grammar-fallthrough",
+        detail: {
+          reason: "positional-ref-mismatch",
+          attempted: normalized.attempted,
+          expected: normalized.expected,
+        },
+      },
+      { wu: null, deps, writeStderr, appendAudit },
+    );
+  }
+  const spawnArgs = normalized.args;
+
   // Step 2 (fs probe): resolve active WU.
   const wu = await resolveActiveWu({ cwd: deps.cwd });
   if (wu.status === "refused") {
@@ -188,9 +210,11 @@ export async function runReleasePush(
   }
 
   // Authorize: run wrapped `git push`, attribute the outcome, audit, exit.
+  // `spawnArgs` carries `deps.argv` with any matched positional ref-pairs
+  // stripped — the audit entry still reflects the original argv.
   const spawned = await deps.spawnPush({
     branch: deps.currentBranch,
-    args: deps.argv,
+    args: spawnArgs,
     cwd: deps.cwd,
   });
   const outcome: AuditOutcome = spawned.status === "success"

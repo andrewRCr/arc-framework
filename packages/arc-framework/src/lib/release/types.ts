@@ -27,10 +27,13 @@ import type { PushabilityCondition } from "../git/index.js";
  * Numeric exit code emitted on refusal. Stable surface: test suites,
  * harness gates, and downstream tooling match on these values.
  *
- * Code 15 (`arg-grammar-fallthrough`) is reserved-for-empirical — it is
- * not runtime-emitted by the wrapper, and surfaces only via the
- * documented harness-prompt empirical scenario. Do not add a runtime
- * check that emits it.
+ * Code 15 (`arg-grammar-fallthrough`) is runtime-emitted by `arc release
+ * push` when positional `<remote> <branch>` arguments do not match the
+ * wrapper's fixed target (`origin <current-branch>`). The detail payload
+ * carries the attempted and expected refs so the refusal message can name
+ * both. Arg-grammar issues outside this narrow check still fall through to
+ * git's parser; the code's name preserves the broader category for future
+ * detections.
  */
 export type RefusalCode = 10 | 11 | 12 | 13 | 14 | 15;
 
@@ -88,7 +91,16 @@ export type AuthorizationDecision =
       identifier: "pushability-precheck-failed";
       conditions: PushabilityCondition[];
     }
-  | { kind: "refuse"; code: 15; identifier: "arg-grammar-fallthrough" };
+  | {
+      kind: "refuse";
+      code: 15;
+      identifier: "arg-grammar-fallthrough";
+      detail?: {
+        reason: "positional-ref-mismatch";
+        attempted: { remote: string; branch: string };
+        expected: { remote: string; branch: string };
+      };
+    };
 
 // --- Audit entry ---
 

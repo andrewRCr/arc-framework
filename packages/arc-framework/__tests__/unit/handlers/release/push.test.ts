@@ -241,6 +241,75 @@ describe("runReleasePush — code 12 (destructive-flag)", () => {
   });
 });
 
+// --- Code 15: arg-grammar-fallthrough (positional ref-mismatch) ---
+
+describe("runReleasePush — code 15 (arg-grammar-fallthrough)", () => {
+  let fixture: Fixture;
+  beforeEach(async () => { fixture = await createFixture(); });
+  afterEach(async () => { await rm(fixture.root, { recursive: true, force: true }); });
+
+  it("refuses with code 15 when positional `<remote> <branch>` does not match current target", async () => {
+    const { deps, spawnPush, runPushability } = buildDeps(fixture.root, {
+      argv: ["origin", "other-branch"],
+      currentBranch: "feature/x",
+    });
+
+    const result = await runReleasePush(deps);
+
+    expect(result.exitCode).toBe(15);
+    expect(spawnPush).not.toHaveBeenCalled();
+    // Arg-grammar check is argv-only — must short-circuit before any I/O probe.
+    expect(runPushability).not.toHaveBeenCalled();
+  });
+
+  it("refuses with code 15 on `-u origin <other-branch>` — the documented failure mode", async () => {
+    const { deps, stderr } = buildDeps(fixture.root, {
+      argv: ["-u", "origin", "other-branch"],
+      currentBranch: "feature/x",
+    });
+
+    const result = await runReleasePush(deps);
+
+    expect(result.exitCode).toBe(15);
+    const composed = stderr.join("");
+    expect(composed).toContain("Refused: arg-grammar-fallthrough (code 15)");
+    expect(composed).toContain("origin other-branch");
+    expect(composed).toContain("origin feature/x");
+  });
+
+  it("writes a refused audit entry with the original argv preserved", async () => {
+    await writeStatus(fixture.root, "technical", "sample");
+    const { deps } = buildDeps(fixture.root, {
+      argv: ["origin", "other-branch"],
+      currentBranch: "feature/x",
+    });
+
+    await runReleasePush(deps);
+
+    const entries = await readAuditEntries(fixture.root);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      command: "release-push",
+      decision: "refused",
+      refusalCode: 15,
+      outcome: { kind: "refused" },
+      args: ["origin", "other-branch"],
+    });
+  });
+
+  it("does not require an active WU for the code 15 decision (argv-only)", async () => {
+    // No status file written — code 15 fires before code 10.
+    const { deps } = buildDeps(fixture.root, {
+      argv: ["origin", "other-branch"],
+      currentBranch: "feature/x",
+    });
+
+    const result = await runReleasePush(deps);
+
+    expect(result.exitCode).toBe(15);
+  });
+});
+
 // --- Code 10: no-active-wu (fs probe) ---
 
 describe("runReleasePush — code 10 (no-active-wu)", () => {
@@ -512,6 +581,28 @@ describe("runReleasePush — short-circuit order", () => {
     expect(result.exitCode).toBe(12);
   });
 
+  it("12 fires before 15 (destructive flag wins over arg-grammar)", async () => {
+    // Argv carries both a destructive flag and a mismatched positional pair.
+    // Code 12 should win — destructive intent is the higher-priority signal.
+    const { deps } = buildDeps(fixture.root, {
+      argv: ["--force", "origin", "other-branch"],
+      currentBranch: "feature/x",
+    });
+    const result = await runReleasePush(deps);
+    expect(result.exitCode).toBe(12);
+  });
+
+  it("15 fires before 10 (arg-grammar wins over no-active-wu)", async () => {
+    // No status file written — code 10 would normally fire. Argv-only checks
+    // (15) must short-circuit ahead of the fs probe (10).
+    const { deps } = buildDeps(fixture.root, {
+      argv: ["origin", "other-branch"],
+      currentBranch: "feature/x",
+    });
+    const result = await runReleasePush(deps);
+    expect(result.exitCode).toBe(15);
+  });
+
   it("10 fires before 13 (no-active-wu wins over branch-protection)", async () => {
     const settings = buildSettings({
       branchProtection: "full",
@@ -573,7 +664,7 @@ describe("runReleasePush — success path", () => {
 
   it("forwards branch + argv to spawnPush when authorized and bubbles exit 0", async () => {
     await writeStatus(fixture.root, "technical", "sample");
-    const argv = ["origin", "feature/x"];
+    const argv = ["--dry-run"];
     const { deps, spawnPush } = buildDeps(fixture.root, {
       argv,
       settings: authorizingSettings(),
@@ -594,6 +685,53 @@ describe("runReleasePush — success path", () => {
       cwd: fixture.root,
     });
     expect(result.exitCode).toBe(0);
+  });
+
+  it("strips a matching positional `<remote> <branch>` pair before spawnPush", async () => {
+    await writeStatus(fixture.root, "technical", "sample");
+    const { deps, spawnPush } = buildDeps(fixture.root, {
+      argv: ["origin", "feature/x"],
+      settings: authorizingSettings(),
+      currentBranch: "feature/x",
+      spawnPush: () => Promise.resolve({
+        status: "success",
+        stdout: "",
+        stderr: "Everything up-to-date\n",
+      }),
+    });
+
+    await runReleasePush(deps);
+
+    expect(spawnPush).toHaveBeenCalledWith({
+      branch: "feature/x",
+      args: [],
+      cwd: fixture.root,
+    });
+
+    const [entry] = await readAuditEntries(fixture.root);
+    expect(entry?.args).toEqual(["origin", "feature/x"]);
+  });
+
+  it("strips a matching `-u origin <branch>` triple but preserves the flag", async () => {
+    await writeStatus(fixture.root, "technical", "sample");
+    const { deps, spawnPush } = buildDeps(fixture.root, {
+      argv: ["-u", "origin", "feature/x"],
+      settings: authorizingSettings(),
+      currentBranch: "feature/x",
+      spawnPush: () => Promise.resolve({
+        status: "success",
+        stdout: "",
+        stderr: "Everything up-to-date\n",
+      }),
+    });
+
+    await runReleasePush(deps);
+
+    expect(spawnPush).toHaveBeenCalledWith({
+      branch: "feature/x",
+      args: ["-u"],
+      cwd: fixture.root,
+    });
   });
 
   it("writes a proceeded audit entry with kind: push and parsed refStatus", async () => {
