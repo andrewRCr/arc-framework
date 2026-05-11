@@ -1195,6 +1195,67 @@ history (research findings, naming options weighed, what was wrong before, why t
         - Personal-scope per-dev preference setting (`git config arc.commitInterlock on-workflow`
           etc.) doesn't warrant atomic capture; it's normal personal config.
 
+### `[x]` **6.R.10 Dogfooding install + workflow refinements**
+
+- _Goal:_ Run `arc release setup install` against this repo end-to-end on the developer's
+  local machines; capture and apply workflow refinements that surface empirically during
+  install. Five refinement axes: (a) bypass-mode + custom-user-level-hook framing parity;
+  (b) laptop install for both reference-implementation harnesses; (c) codex granular
+  `approval_policy` form coverage; (d) agent-driven invocation path + install-command-shape
+  surfacing; (e) Step 5 cross-reference to per-dev config catalog. Desktop installs roll
+  forward into the persistent context for the next session.
+
+    - `[x]` **6.R.10.a Workflow amendment — bypass-mode + custom-hook framing parity**
+        - `setup-release-wrapper.md` (both copies): hoisted "Custom user-level hook
+          awareness" out of Step 3's default-prompt-only nesting; rephrased as "both modes"
+          with mode-conditioned sub-bullets (default-prompt = friction-reduction value
+          prop; bypass = validation + audit layer becomes engaged review surface above the
+          custom hook's continued coverage of raw git). Lint clean.
+
+    - `[x]` **6.R.10.b Laptop install — claude-code + codex (both bypass)**
+        - Claude Code: `arc release setup install --harness claude-code --mode bypass` ran
+          cleanly; marker entry recorded; `arc.releaseOptedIn = true` (local) set.
+        - Codex: `arc release setup install --harness codex --mode bypass` ran cleanly;
+          marker appended (two-harness entry now); rules file unchanged (bypass skip-write
+          held per workflow Step 3); opt-in flag retained idempotently.
+
+    - `[x]` **6.R.10.c Workflow amendment — codex granular `approval_policy` form coverage**
+        - Added a fourth bullet to the codex mode-detection list under § Per-Harness
+          Reference Notes → Codex CLI, documenting the granular form
+          (`approval_policy = { granular = { ... } }`). Mapping: granular form with no
+          documented axis gating shell command execution → bypass-mode equivalent
+          (ordinary commands run per `sandbox_mode`). Tier 3 fallback when `sandbox_mode`
+          is restrictive enough that shell execution still prompts. Both copies edited
+          identically; byte-identical post-edit.
+
+    - `[x]` **6.R.10.d Workflow amendment — agent-driven invocation path**
+        - Added "Agent-driven" as a third "When to use" entry alongside standalone +
+          onboarding. Includes the canonical install-command shape
+          (`npx arc release setup install --harness <name> --mode <mode>`) that the
+          agent surfaces to the user for interactive invocation, with `<mode>`
+          pre-filled from Step 1 detection. Body line updated from "at both entry
+          points" → "across entry points" to reflect the three-path surface.
+
+    - `[x]` **6.R.10.e Workflow amendment — Step 5 catalog cross-reference**
+        - Extended Step 5's `arc.releaseOptedIn` description with a cross-reference to
+          `strategy-configurability-architecture.md` § Personal Configuration via Git
+          Config — the canonical catalog for the rest of the per-developer git-config
+          keys (commit / push / sync interlocks, notes-push policy). Cross-reference
+          target verified to exist in both copies.
+
+- _Outcome:_ Four workflow amendments landed across the same single file
+  (`setup-release-wrapper.md`) in both copies (`.arc/system/workflows/...` and
+  `packages/arc-framework/arc/system/workflows/...`), byte-identical between copies.
+  Net coverage gains: bypass-mode + custom-hook framing parity (6.R.10.a); codex granular
+  `approval_policy` form documented (6.R.10.c); agent-driven entry path with explicit
+  install-command-shape surfacing (6.R.10.d); Step 5 cross-reference to the per-developer
+  config catalog (6.R.10.e). Dogfooding installs landed on the laptop for both
+  reference-implementation harnesses (6.R.10.b); desktop installs deferred to the next
+  session via the existing SESSION-NOTES persistent-context entry, narrowed at handoff
+  from "both machines pending" to "desktop pending." Empirical confirmation: `arc release
+  status` shows engaged posture; marker carries both harnesses; `arc.releaseOptedIn`
+  local-flag set.
+
 ---
 
 ## **Phase 7:** Empirical verification + ADR-017 amendment

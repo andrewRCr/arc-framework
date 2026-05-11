@@ -10,8 +10,13 @@ audience: collaborative (human and agent)
 - Standalone — user invokes `arc release setup install` directly.
 - Onboarding — invoked from the release-wrapper section in
   `.arc/system/workflows/arc/initial-setup/01_verify-and-configure.md`.
+- Agent-driven — agent initiates the install on the user's behalf during another workflow or
+  session task (e.g., a dogfooding step). The agent surfaces the canonical install-command
+  shape — `npx arc release setup install --harness <name> --mode <mode>` — for the user to
+  invoke interactively, with `<mode>` pre-filled from Step 1 detection. The user accepts the
+  prompts; the agent participates in Steps 1, 3, 4 otherwise identically to the standalone path.
 
-The workflow body is identical at both entry points; only the surrounding context differs. The actual
+The workflow body is identical across entry points; only the surrounding context differs. The actual
 orchestration (idempotency surface, prompt capture, marker write, opt-in flag) lives in the
 `arc release setup install` command — this workflow is the contract carrier and reference companion that
 the resident agent consults while the install command drives the interactive flow.
@@ -128,13 +133,22 @@ the install half is a no-op:
 > Bypass mode detected. Allowlist install skipped — there is no harness prompt to remove. The
 > validation + audit layer is the engaged value prop; opt-in records that acceptance.
 
-**Custom user-level hook awareness.** If the local posture includes a custom user-level hook
-intercepting commits and pushes (e.g., a denylist script that prompts on `git commit` /
-`git push`), surface that wrapper invocations typically pass through such denylists silently —
-patterns target `git commit` / `git push`, not `arc release commit` / `arc release push`. No
-hook update is required in the common case; the friction-reduction value materializes
-automatically. See `strategy-interlock-release-wrappers.md` § Custom User-Level Hooks (Parallel
-Layer) for the framing. Edge case (broad pattern catches wrapper, e.g., wildcard on
+**Custom user-level hook awareness — both modes.** If the local posture includes a custom
+user-level hook intercepting commits and pushes (e.g., a denylist script that prompts on
+`git commit` / `git push`), surface that wrapper invocations typically pass through such
+denylists silently — patterns target `git commit` / `git push`, not `arc release commit` /
+`arc release push`. No hook update is required in the common case; the two layers compose
+without conflict.
+
+- **Default-prompt:** The friction-reduction value materializes automatically — one less
+  prompt per matching wrapper invocation, layered above the unchanged custom-hook coverage
+  of raw git.
+- **Bypass:** The custom hook continues to gate raw git commands; wrapper invocations pass
+  through unmolested. ARC's validation + audit layer is the engaged review surface for
+  matching invocations — the value prop the audit-only opt-in records.
+
+See `strategy-interlock-release-wrappers.md` § Custom User-Level Hooks (Parallel Layer) for
+the architectural framing. Edge case (broad pattern catches wrapper, e.g., wildcard on
 `arc release *`): refine the denylist to exclude wrapper subcommands.
 
 ### Step 4: Verify
@@ -166,7 +180,10 @@ writes:
 - The harness/mode marker entry at `.arc/user/{identity}/.internal/release-setup.json` (per-developer,
   per-machine, gitignored).
 - `arc.releaseOptedIn = true` (per-developer git-config local flag) on the first successful install.
-  Subsequent installs are flag-idempotent — the flag is not re-written if already set.
+  Subsequent installs are flag-idempotent — the flag is not re-written if already set. This workflow
+  writes only this key; for the full per-developer git-config key catalog (commit / push / sync
+  interlocks, notes-push policy) and how to set those values, see
+  `strategy-configurability-architecture.md` § Personal Configuration via Git Config.
 
 The agent's role ends with the verification confirmation in Step 4. Recording mechanics, idempotency
 choices, and multi-harness partial-success handling live under § State-Recording Protocol.
@@ -214,6 +231,13 @@ For paste-ready output, run `arc release setup print-patterns --harness claude-c
 - `"never"` — bypass-mode equivalent. No per-invocation prompt.
 - `"on-request"` — default-prompt mode. Approval requested per command.
 - `"untrusted"` — conditional, per-project trust level.
+- `{ granular = { ... } }` — granular form with per-axis approval toggles (`sandbox_approval`,
+  `rules`, `mcp_elicitations`, `request_permissions`, `skill_approval`, and similar). None of
+  the documented axes gate ordinary bash command execution; ordinary commands run per
+  `sandbox_mode`. Treat granular configurations as bypass-mode equivalent when no axis gates
+  shell command execution. If `sandbox_mode` is restrictive enough to prompt on
+  `arc release commit` / `arc release push` shell execution, drop to Tier 3 and confirm with
+  the user.
 
 Per-invocation flags (`--ask-for-approval never`, `--dangerously-bypass-approvals-and-sandbox`)
 override config but represent session-scoped posture, not durable mode. Treat as transient when
