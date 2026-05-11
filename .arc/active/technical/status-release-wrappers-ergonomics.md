@@ -9,13 +9,15 @@
 - **Task List:** `tasks-release-wrappers-ergonomics.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task 6.3.a — `strategy-configurability-architecture.md` cross-ref + sweep
-  (6.R.4.a bundled — same-file batch)
-- **Next Task:** Task 6.3.b — `strategy-session-operations.md` (R14.3) (line ~677)
+- **Last Completed:** Task 6.R.1 — Design capture (notes file + ADR-017 amendment;
+  6.R.1.a–b complete). Phase 6 fully complete (6.1–6.3).
+- **Next Task:** Task 6.R.2.a — Resolver substrate `resolved-settings.ts` (line ~793)
 - **Blockers:** [none]
 
-- **Next Action:** Continue Phase 6 — Task 6.3.b with post-6.R-aware framing; bundle with the
-  session-operations portion of 6.R.6.d's sweep (see SESSION-NOTES § Additional Context for
-  the per-file coordination guidance)
+- **Next Action:** Begin Phase 6.R Step 2 — code refactor for the four collapsed keys plus
+  the `releaseEnabled` → `releaseOptedIn` rename. Start with 6.R.2.a (resolver substrate);
+  6.R.2.b (consumer updates) and 6.R.2.c (verification audit — no orphaned yaml-key reads)
+  follow. Per Task 6.R.2 _Note:_, co-bundle 6.R.4.b's yaml-key removal commit with 6.R.2's
+  (or ensure 6.R.2 lands first) to avoid the transient inconsistent state.
 
 ---
