@@ -114,10 +114,19 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
   const { identity, role } = await readIdentityPointers();
 
   if (opts.sessionHandoff) {
+    if (!json) {
+      process.stderr.write(
+        "Error: --session-handoff currently requires --json (interactive rendering not yet implemented).\n",
+      );
+      process.exitCode = 1;
+      return;
+    }
     // Cache the resolution promise instead of awaiting eagerly: a thrown
     // settings-resolution error now surfaces as a per-probe failure (via the
     // orchestrator's `safeProbe` wrapper) rather than aborting the whole
-    // command and breaking the composite-result contract.
+    // command and breaking the composite-result contract. The mode-validation
+    // early-return above runs first to avoid leaving an unawaited rejection on
+    // the non-JSON exit path.
     const resolvedSettingsP = resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
     const probes: SessionHandoffProbes = {
       dirty: () => runDirtyStateStatus({ exec: gitExec }),
@@ -157,13 +166,6 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
       },
       releaseRouting: async () => releaseRoutingFromSettings(await resolvedSettingsP),
     };
-    if (!json) {
-      process.stderr.write(
-        "Error: --session-handoff currently requires --json (interactive rendering not yet implemented).\n",
-      );
-      process.exitCode = 1;
-      return;
-    }
     const result = await runSessionHandoffStatus({ identity, role, probes });
     process.stdout.write(`${JSON.stringify(result)}\n`);
     return;
