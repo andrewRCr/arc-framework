@@ -28,6 +28,10 @@ parallelize but listed in dependency-priority order.
 - _Goal:_ Session-init and session-handoff envelopes carry a fully-resolved `releaseRouting` slot
   that workflows and skills consult without re-deriving the authorization rule.
 
+- _Note:_ Post-6.R, the `release.enabled` yaml-key was dropped; the per-developer git-config key
+  was renamed to `arc.releaseOptedIn` and the resolver substrate updated in 6.R.2. Original
+  wording preserved for audit-trail.
+
     - `[x]` **1.1.a Routing slot schema types**
         - Added `ReleaseRoute`, `ReleaseRoutingValue`, `ReleaseRoutingRationale`, and
           `ReleaseRoutingSlot` in `lib/release/routing.ts`, then threaded the value type into the
@@ -84,6 +88,11 @@ parallelize but listed in dependency-priority order.
 - _Goal:_ Release-subcommand description strings in `cli.ts:256-263` reference the actual storage
   shape WU1 shipped — `arc.releaseEnabled` (per-developer git-config key) or `release.enabled`
   (yaml key) per context.
+
+- _Note:_ Post-6.R, `arc.releaseEnabled` was renamed to `arc.releaseOptedIn` and the
+  `release.enabled` yaml-key was dropped (key collapsed to per-developer git-config only). The
+  cli.ts description strings were re-swept in 6.R.6.d to match the new naming. Original wording
+  preserved for audit-trail.
 
 - _Outcome:_ Updated the opt-in / opt-out Commander help text to name the local git-config key
   `arc.releaseEnabled` with the value written by each command.
@@ -142,6 +151,9 @@ verify.
   observation command for the agent workflow to run; under bypass mode reports based on opt-in
   state alone. Does NOT gate opt-in (the workflow's verify step holds the safety property per PRD R7).
 
+- _Note:_ Post-6.R, `arc.releaseEnabled` was renamed to `arc.releaseOptedIn` (per-developer
+  git-config key). Original wording preserved for audit-trail.
+
     - `[x]` **2.2.a Sub-subcommand wiring + state reads**
         - Registered `release setup verify` with optional `--harness <name>`; the handler resolves
           ARC root, identity, release settings, and marker state before delegating to a pure renderer.
@@ -161,6 +173,9 @@ verify.
   trust-model acknowledgment, writes harness/mode marker on workflow's verify-pass, records
   `arc.releaseEnabled = true` on user-confirm, handles idempotency four-way and multi-harness
   partial-success per PRD R4.
+
+- _Note:_ Post-6.R, `arc.releaseEnabled` was renamed to `arc.releaseOptedIn` (per-developer
+  git-config key). Original wording preserved for audit-trail.
 
     - `[x]` **2.3.a State-read shell + idempotency four-way branch**
 
@@ -472,6 +487,11 @@ conventions throughout).
   upper tier (`on-workflow`) per the ADR-018 ladder. Closes the regression where setting
   `on-workflow` falls through to default-conservative at sites the routing primitive doesn't
   cover.
+
+- _Note:_ Post-6.R, the yaml keys `commit_interlock` / `push_interlock` referenced in subtask
+  examples were collapsed to per-developer git-config `arc.commitInterlock` / `arc.pushInterlock`.
+  The permissiveness-ladder semantics this task addresses are unchanged — only the configuration
+  surface shifted. Original wording preserved for audit-trail.
 
 - _Outcome:_ Three workflow-side edits in `process-task-loop.md` (5.4.a prompt-prefix selector;
   5.4.b deferred-review safe-accumulation; 5.4.d-found L207 commit-interlock release
@@ -1149,51 +1169,65 @@ history (research findings, naming options weighed, what was wrong before, why t
   remains the canonical surface for resolved per-dev interlock state. Code now matches the
   docs that 6.R.6 swept.
 
-### `[ ]` **6.R.8 PRD update**
+### `[x]` **6.R.8 PRD update**
 
 - _Goal:_ PRD reads as if the per-developer-only architecture was planned from the start — no
   dual-scope framing residue, `releaseOptedIn` naming consistent throughout, R-anchor numbering
   preserved.
 
-    - `[ ]` **6.R.8.a Identify rework scope — surface to user before edits land**
-        - Grep `prd-release-wrappers-ergonomics.md` for `releaseEnabled`, `release.enabled`,
-          `commit_interlock`, `push_interlock`, `sync_interlock`.
-        - Classify each occurrence: rename-only (mechanical), scope-rephrase (the surrounding
-          framing assumed dual-scope and needs adjustment), or section-rewrite (the larger
-          architectural framing needs reworking).
-        - Surface the classification to user; settle on rewrite shape before applying.
+    - `[x]` **6.R.8.a Identify rework scope**
+        - Grep surfaced 33 occurrences across the five strings. Classification: ~20 mechanical
+          renames (camelCase `arc.releaseEnabled`, dot-form `release.enabled`, yaml-style
+          interlock keys at multiple sites, plus one rationale-field rename at line 398);
+          four section-rewrites (two R10 example blocks, R12 routing table, R15 dual-shape
+          description); remaining scope-rephrase sites (Scenario 5, R10 existing-surface
+          enumeration) folded into the mechanical renames.
+        - User delegated judgment for the deferred batch — no pre-edit user surface step
+          (planning-artifact scope, reviewed at commit on return).
 
-    - `[ ]` **6.R.8.b Apply rewrites**
-        - Mechanical renames first (`releaseEnabled` → `releaseOptedIn` throughout).
-        - Scope-rephrase passes — adjust surrounding framing where dual-scope language was
-          load-bearing; describe the per-dev-only architecture as if planned.
-        - Section rewrites where needed — likely the routing-resolution table, configuration
-          discussion, and any "adopter opt-in" / "project flag" framing.
-        - Preserve R-anchor numbering immutably (no renumbering — audit-trail discipline).
+    - `[x]` **6.R.8.b Apply rewrites**
+        - Five `replace_all` sweeps for the mechanical renames (`arc.releaseEnabled` →
+          `arc.releaseOptedIn`; `release.enabled` → `arc.releaseOptedIn`; `commit_interlock`
+          → `arc.commitInterlock`; `push_interlock` → `arc.pushInterlock`; `sync_interlock`
+          → `arc.syncInterlock`) plus one-off `"releaseEnabled"` → `"releaseOptedIn"` in the
+          R12.1 rationale JSON shape.
+        - Section-rewrites at: two R10 `arc release status` example blocks (display labels
+          swapped to `arc.X` form, yaml provenance markers shifted to `git-config:local`
+          since the keys are git-config-only post-6.R); R12 routing table (three rows ×
+          two key references each); R15 description (dual-shape "or `release.enabled` (yaml
+          key)" framing collapsed to single per-developer-only target).
+        - R-anchor numbering preserved verbatim (R1-R18) — no renumbering per audit-trail
+          discipline.
+        - Incidental fix while in the file: § Technical Considerations → ADR-018 authorization
+          rule integration carried a stale section reference (`§ Interlock release-wrapper
+          routing`) for R12.2's canonical-rule placement; corrected to the actual name
+          (`§ Commit Discipline → Workflow class-tag routing`).
 
-### `[ ]` **6.R.9 WU-internal cleanup**
+- _Outcome:_ PRD body, examples, routing table, and envelope JSON now read as if the
+  per-developer-only architecture was planned from the start — no dual-scope residue; naming
+  consistent on `arc.releaseOptedIn` / `arc.commitInterlock` / `arc.pushInterlock` /
+  `arc.syncInterlock` throughout; R-anchor numbering preserved.
+
+### `[x]` **6.R.9 WU-internal cleanup**
 
 - _Goal:_ WU artifacts (this task list, ATOMIC-INBOX) carry no stale references — completed
   prior tasks annotated where renamed/collapsed keys appear; obsolete atomic-inbox entry retired.
 
-    - `[ ]` **6.R.9.a Task list amendment — annotate stale references**
-        - Scan completed Phases 1-5 + Phase 6 (6.1, 6.2) in
-          `tasks-release-wrappers-ergonomics.md` for `releaseEnabled`, `release.enabled`, the
-          three interlock yaml-key names.
-        - Where references appear in completed tasks, add `_Note:_` peer descriptors on the
-          affected parent calling out the post-6.R rename or scope change (e.g., "Note:
-          `releaseEnabled` was renamed to `releaseOptedIn` in 6.R; original wording preserved
-          for audit-trail").
-        - Don't rewrite original task descriptions or completion notes (audit-trail discipline
-          per `strategy-task-list-formatting.md` § Revision Numbering).
+    - `[x]` **6.R.9.a Task list amendment — annotate stale references**
+        - Five affected parents in scope (Phases 1-5 + 6.1, 6.2): 1.1, 1.3, 2.2, 2.3, 5.4.
+          Each carries a `_Note:_` peer descriptor placed between `_Goal:_` and subtasks,
+          identifying the specific keys that shifted post-6.R and pointing forward to the
+          substrate-change subtask (6.R.2 or 6.R.6.d). Original wording preserved per
+          audit-trail discipline; no completion-note rewrites.
+        - Phase 6.3 sat outside the scoped phase enumeration (the cross-doc-sweep completion
+          notes describe past corrections that already self-describe their target keys);
+          untouched per the explicit scope.
 
-    - `[ ]` **6.R.9.b ATOMIC-INBOX entry retirement**
-        - File: `.arc/user/andrew/ATOMIC-INBOX.md`.
-        - Delete the `### \`[ ]\` **Flip project interlocks to on-workflow + release.enabled to true**`
-          entry — the work it described (project-level config flips) is no longer atomic-tier
-          or even possible (the keys are gone).
-        - Personal-scope per-dev preference setting (`git config arc.commitInterlock on-workflow`
-          etc.) doesn't warrant atomic capture; it's normal personal config.
+    - `[x]` **6.R.9.b ATOMIC-INBOX entry retirement**
+        - Deleted the `### \`[ ]\` **Flip project interlocks to on-workflow + release.enabled
+          to true**` entry from `.arc/user/andrew/ATOMIC-INBOX.md`. The yaml-key flips it
+          captured are no longer atomic-tier or possible — those keys collapsed in 6.R;
+          per-dev preference setting is normal personal config, not atomic capture material.
 
 ### `[x]` **6.R.10 Dogfooding install + workflow refinements**
 

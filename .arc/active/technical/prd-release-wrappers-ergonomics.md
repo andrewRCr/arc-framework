@@ -14,7 +14,7 @@ WU1 (`prd-release-wrappers-foundation.md`, archived at
 commit` and `arc release push`, which wrap `git commit` / `git push` at the CLI boundary and enforce
 ARC interlock state (commit-interlock, push-interlock; ADR-018) before invoking git. Hand-configured
 adopters can use them end-to-end: manually edit harness permission files, run `arc release opt-in` to
-flip the per-developer `arc.releaseEnabled` git-config flag.
+flip the per-developer `arc.releaseOptedIn` git-config flag.
 
 This works for the friction-tolerant minority. Adopters who would benefit from the wrapper need a
 guided setup. But "guided setup" doesn't have a single shape, because adopters arrive in two distinct
@@ -51,7 +51,7 @@ flow as shorthand once context is established. This PRD follows the convention.
 - Mode-aware setup that distinguishes default-prompt and bypass postures, conditions trust-model
   framing accordingly, and produces the right outcome for each (allowlist install vs. record-only
   audit-validation opt-in).
-- Workflow integration that prefers the wrapper over raw git when (a) `release.enabled === true` and
+- Workflow integration that prefers the wrapper over raw git when (a) `arc.releaseOptedIn === true` and
   (b) the resolved interlock value authorizes the invocation context per ADR-018's scope-coverage rule.
 - Visible posture state — `arc release status` and session-init orientation surface the engaged
   release-wrapper state with mode-aware text so users know what authorization layers are active.
@@ -67,7 +67,7 @@ user for explicit accept. On accept: agent reads `.claude/settings.json`, merges
 (`Bash(arc release commit:*)`, `Bash(arc release push:*)`), writes file, re-reads to confirm.
 Behavioral test: agent runs `arc release commit --version`, observes no harness prompt. Agent reports
 install + verification success. User confirms. `arc release setup install` records
-`arc.releaseEnabled = true` plus marker entry `{name: "claude-code", mode: "default-prompt",
+`arc.releaseOptedIn = true` plus marker entry `{name: "claude-code", mode: "default-prompt",
 installedAt: "..."}`.
 
 **Scenario 2 — Bypass-mode Claude Code adopter, post-onboarding standalone.**
@@ -76,7 +76,7 @@ detects Claude Code with `permissions.defaultMode: "bypassPermissions"` (tier-1)
 acknowledgment reframes to audit-only: "you're opting in to wrapper validation + audit as a layered
 protection above your existing safety-hook posture; ARC interlock becomes the canonical authorization
 signal for matching invocations." User accepts. Workflow skips allowlist write with explanation.
-Records `arc.releaseEnabled = true` plus marker entry `{name: "claude-code", mode: "bypass",
+Records `arc.releaseOptedIn = true` plus marker entry `{name: "claude-code", mode: "bypass",
 installedAt: "..."}`. Status command thereafter reports "release wrapper opt-in: enabled" + "Claude
 Code (bypassPermissions) — no harness gate to bypass" + "Active value layers: validation + audit".
 
@@ -84,7 +84,7 @@ Code (bypassPermissions) — no harness gate to bypass" + "Active value layers: 
 User has Claude Code + Codex CLI. Workflow runs install for both. Claude Code installs and verifies
 clean. Codex install fails (Starlark syntax error from agent edit). Workflow surfaces failure: "Codex
 install failed at verification: <error>. Record opt-in for Claude Code only, retry Codex now, or
-abort?" User picks "Claude Code only". State records: `arc.releaseEnabled = true`; marker has Claude
+abort?" User picks "Claude Code only". State records: `arc.releaseOptedIn = true`; marker has Claude
 Code success entry only. Status thereafter reports Codex as not-installed; user can rerun setup at any
 time.
 
@@ -101,12 +101,12 @@ installedAt: "..."}` — free-form name accepted.
 
 **Scenario 5 — Workflow integration in a task-work commit.**
 Active agent in a task-execution session, committing task work. Resolved settings (from session-init
-envelope): `release.enabled = true`, `commit_interlock = on-task-approval`. ADR-018 authorization
-rule: `commit_interlock === on-task-approval` authorizes wrapper for task-work commits. Agent prefers
+envelope): `arc.releaseOptedIn = true`, `arc.commitInterlock = on-task-approval`. ADR-018 authorization
+rule: `arc.commitInterlock === on-task-approval` authorizes wrapper for task-work commits. Agent prefers
 `arc release commit` over raw `git commit`. Wrapper validates, audits, invokes git, returns.
 
 **Scenario 6 — Workflow integration in a ceremony commit.**
-Same agent, same session, now firing a handoff commit. `commit_interlock` is still `on-task-approval`.
+Same agent, same session, now firing a handoff commit. `arc.commitInterlock` is still `on-task-approval`.
 ADR-018: `on-task-approval` does not authorize ceremony commits (would need `on-workflow`). Agent uses
 raw `git commit` (harness-prompt path). Wrapper bypassed; harness gates appropriately.
 
@@ -126,7 +126,7 @@ throughout. Carries:
 - Mode-conditioned acknowledgment scripting (default-prompt = trust-shift; bypass = audit-only).
 - Verify protocol (agent-reported install success + behavioral test under default-prompt mode + user
   confirmation).
-- State-recording protocol (call `arc release setup install` to write `arc.releaseEnabled` and
+- State-recording protocol (call `arc release setup install` to write `arc.releaseOptedIn` and
   marker entry).
 - Rollback protocol (call `arc release setup uninstall` to remove harness-side entries, marker entry,
   and opt-out flag).
@@ -180,7 +180,7 @@ Orchestration porcelain (full guided flow). Sub-subcommand under `arc release se
 - Drives the supplemental setup workflow (R1).
 - Captures user trust-model acknowledgment (mode-conditioned per R1).
 - Writes the harness/mode marker entry (R8) on workflow's verify-pass.
-- Records `arc.releaseEnabled = true` via WU1's `arc release opt-in` primitive on workflow's
+- Records `arc.releaseOptedIn = true` via WU1's `arc release opt-in` primitive on workflow's
   user-confirm.
 - Idempotent against existing opt-in state: when invoked with opt-in already recorded, surfaces
   current state (detected harnesses, modes, last-install timestamp) and offers a four-way choice:
@@ -204,7 +204,7 @@ Symmetric removal. Sub-subcommand under `arc release setup`. Behavior:
   install; conservative cleanup — refuses to touch user-curated entries that drift from the
   canonical pattern set).
 - Removes the harness's marker entry.
-- Records `arc.releaseEnabled = false` via WU1's `arc release opt-out` primitive **only when
+- Records `arc.releaseOptedIn = false` via WU1's `arc release opt-out` primitive **only when
   removing the last marker entry**; uninstalls that leave siblings preserve the existing
   opt-in flag (symmetric with the install-side flag-set-on-first-install behavior).
 - Idempotent on already-uninstalled state.
@@ -225,7 +225,7 @@ Canonical text emitter. Sub-subcommand under `arc release setup`. Behavior:
 **R7 — `arc release setup verify [--harness <name>]` command.**
 Read-only post-install verification helper. Sub-subcommand under `arc release setup`. Behavior:
 
-- Confirms `arc.releaseEnabled` is recorded.
+- Confirms `arc.releaseOptedIn` is recorded.
 - Reads the harness/mode marker and reports each recorded harness entry, or the selected entry when
   `--harness <name>` is provided.
 - Under default-prompt mode: reports that direct harness prompt observation is required and prints
@@ -233,7 +233,7 @@ Read-only post-install verification helper. Sub-subcommand under `arc release se
   internally, because nested CLI subprocesses cannot observe the outer agent harness permission
   prompt boundary.
 - Under bypass mode: skips behavioral test (not meaningful); reports verify based on
-  `arc.releaseEnabled` state alone.
+  `arc.releaseOptedIn` state alone.
 - Does **not** gate opt-in on its own. The setup workflow's verify step (agent-reported install
   success + behavioral test under default-prompt + user confirmation) holds the safety property.
   The `verify` command is a complement for ad-hoc post-install checking.
@@ -295,7 +295,7 @@ breaking shape change forces `schemaVersion: 2`.
 
 **R10 — `arc release status` extension.**
 WU1's `arc release status` extends in WU2 — single source of release posture. New fields on top of
-WU1's existing surface (opt-in flag, `commit_interlock` / `push_interlock` / `sync_interlock` with
+WU1's existing surface (opt-in flag, `arc.commitInterlock` / `arc.pushInterlock` / `arc.syncInterlock` with
 provenance):
 
 - `harnesses` — array projected from the marker file (R9). Each entry shows name, mode, install
@@ -314,10 +314,10 @@ Human-readable mode (default): renders the new fields after the existing interlo
 under default-prompt with active allowlist:
 
 ```text
-release_enabled: true (git-config:local)
-commit_interlock: on-task-approval (yaml)
-push_interlock: manual (default)
-sync_interlock: on-handoff (default)
+arc.releaseOptedIn: true (git-config:local)
+arc.commitInterlock: on-task-approval (git-config:local)
+arc.pushInterlock: manual (default)
+arc.syncInterlock: on-handoff (default)
 
 harnesses:
   claude-code (default-prompt) — installed 2026-05-09
@@ -328,10 +328,10 @@ active_value_layers: validation + audit + harness-prompt bypass
 Under bypass:
 
 ```text
-release_enabled: true (git-config:local)
-commit_interlock: on-task-approval (yaml)
-push_interlock: manual (default)
-sync_interlock: on-handoff (default)
+arc.releaseOptedIn: true (git-config:local)
+arc.commitInterlock: on-task-approval (git-config:local)
+arc.pushInterlock: manual (default)
+arc.syncInterlock: on-handoff (default)
 
 harnesses:
   claude-code (bypassPermissions) — no harness gate to bypass
@@ -365,17 +365,17 @@ orientation work in this WU.
 
 **R12 — Workflow integration: structured routing model.**
 Workflow integration ships as a structured-routing surface rather than per-workflow prose dispatch.
-The CLI handler computes routing once at session-init from `release.enabled × interlock values ×
+The CLI handler computes routing once at session-init from `arc.releaseOptedIn × interlock values ×
 class` per the table below; workflows and skills consult the resolved value via a class tag at
 each fire site.
 
 **Class taxonomy.** Three classes cover all routing-relevant fire sites:
 
-| Class            | Fire sites                                              | Authorized when                                                              |
-|------------------|---------------------------------------------------------|------------------------------------------------------------------------------|
-| `taskCommit`     | per-task commits (process-task-loop via arc-commit)     | `release.enabled` AND `commit_interlock ∈ {on-task-approval, on-workflow}`   |
-| `workflowCommit` | ceremony commits (activate / integrate / handoff / etc.)| `release.enabled` AND `commit_interlock` is `on-workflow`                    |
-| `workflowPush`   | ceremony pushes (handoff / activation / integration)    | `release.enabled` AND `push_interlock` is `on-workflow`                      |
+| Class            | Fire sites                                              | Authorized when                                                                    |
+|------------------|---------------------------------------------------------|------------------------------------------------------------------------------------|
+| `taskCommit`     | per-task commits (process-task-loop via arc-commit)     | `arc.releaseOptedIn` AND `arc.commitInterlock ∈ {on-task-approval, on-workflow}`   |
+| `workflowCommit` | ceremony commits (activate / integrate / handoff / etc.)| `arc.releaseOptedIn` AND `arc.commitInterlock` is `on-workflow`                    |
+| `workflowPush`   | ceremony pushes (handoff / activation / integration)    | `arc.releaseOptedIn` AND `arc.pushInterlock` is `on-workflow`                      |
 
 Otherwise (and on probe failure, missing class, or unrecognized value): `raw`.
 
@@ -395,7 +395,7 @@ Sub-requirements:
       "workflowCommit": "wrapper" | "raw",
       "workflowPush":   "wrapper" | "raw",
       "rationale": {
-        "releaseEnabled":  boolean,
+        "releaseOptedIn":  boolean,
         "commitInterlock": string,
         "pushInterlock":   string
       }
@@ -496,7 +496,7 @@ Methodology:
   complementary layer.
 - **R14.2 — Cross-reference update:** `strategy-configurability-architecture.md` adds reference to
   the new domain strategy. Interlock release wrappers are a configurability surface
-  (`release.enabled` × interlock values × wrapper routing); the architecture-level strategy doc
+  (`arc.releaseOptedIn` × interlock values × wrapper routing); the architecture-level strategy doc
   cross-references the domain-level strategy.
 - **R14.3 — Cross-reference update:** `strategy-session-operations.md` updates for the
   harness/mode marker (R9) as a per-developer per-machine state surface. Note R11's deferral of
@@ -514,10 +514,10 @@ Methodology:
 
 **R15 — `cli.ts` description-string accuracy sweep.**
 Foundation tech-debt cleared during ergonomics work. Sweep release-subcommand description strings in
-`packages/arc-framework/src/cli.ts:226+` for `arc.release.enabled` references; replace with
-`arc.releaseEnabled` (per-developer git-config key) or `release.enabled` (yaml key) per context.
-No code-flow change; doc-comment and Commander `.description()` text only. Aligns code-side
-documentation with the storage shape WU1 actually shipped.
+`packages/arc-framework/src/cli.ts:226+` for stale `arc.arc.releaseOptedIn` references; replace with
+`arc.releaseOptedIn` — the per-developer git-config key carrying the opt-in flag. No code-flow
+change; doc-comment and Commander `.description()` text only. Aligns code-side documentation with
+the per-developer-only storage shape.
 
 ### P1 — should-have
 
@@ -560,7 +560,7 @@ Lands only if WU2 integration surfaces broader insights worth bundling.
   design (matches per-machine allowlist install reality). New clones on other machines correctly
   show "not set up here" until the developer re-runs setup; that's the right behavior, not a
   portability gap.
-- **Per-harness gating in workflow integration.** `release.enabled === true` is the gate for
+- **Per-harness gating in workflow integration.** `arc.releaseOptedIn === true` is the gate for
   preferring the wrapper. Per-harness verification status (from the marker) does not gate routing
   decisions — the wrapper still works mechanically without allowlist install (validation + audit
   layer fires); it just doesn't bypass the harness prompt for unverified harnesses, which is the
@@ -597,7 +597,7 @@ uniform experience.
 ### Marker storage choice
 
 Sidecar JSON over git-config for the harness/mode marker (R9). Matches WU1's audit-log precedent;
-schema evolution is free; git-config stays focused on scalars (`arc.releaseEnabled` and the existing
+schema evolution is free; git-config stays focused on scalars (`arc.releaseOptedIn` and the existing
 WU1 surface). Multi-harness ergonomics are clean (one fs read + JSON parse vs. multiple git-config
 queries with normalized name lookups).
 
@@ -605,8 +605,9 @@ queries with normalized name lookups).
 
 Workflow integration (R12) operationalizes ADR-018's scope-coverage rule via a structured routing
 surface, not per-workflow prose dispatch. The CLI handler computes the resolution once at session-
-init (R12.1); the canonical rule (R12.2) lives in DEV-RULES.ARC § Interlock release-wrapper routing
-as the single source of truth; the arc-commit skill (R12.3) and per-workflow class tags
+init (R12.1); the canonical rule (R12.2) lives in DEV-RULES.ARC § Commit Discipline →
+Workflow class-tag routing as the single source of truth; the arc-commit skill (R12.3) and
+per-workflow class tags
 (R12.4–R12.9) consult the resolved value.
 
 Three motivations for the structured shape over the alternative of per-workflow conditional prose:
@@ -673,7 +674,7 @@ relevant harnesses; tests verify that property holds for the scope of the test h
 - `arc release setup uninstall` symmetric path: removes harness-side entries (matched by canonical
   pattern set), removes marker entry, records opt-out.
 - Workflow-integration changes route through the wrapper for task-work commits when
-  `commit_interlock ∈ {on-task-approval, on-workflow}` and `release.enabled === true`; route
+  `arc.commitInterlock ∈ {on-task-approval, on-workflow}` and `arc.releaseOptedIn === true`; route
   through raw git otherwise. Verified across the R12.1–R12.5 workflows.
 
 ### Empirical (deferred from WU1 criteria 5/6)
