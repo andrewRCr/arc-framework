@@ -227,6 +227,40 @@ choose the wrapper-trust path.
   harness prompt is re-asking. The status quo is the documented "before opt-in" column of the trade-off table,
   preserved as the default for adopters who prefer it.
 
+## Amending This Document
+
+**2026-05-10 — Per-developer scope clarification.** Ergonomics WU work surfaced that the "adopter opt-in"
+framing in the original Context and Decision was conceptually right but implementation-incomplete: at
+write-time there was no per-developer setup path, so opt-in lived as a project-level yaml flag
+(`release.enabled`) plus a parallel per-developer git-config flag (`arc.releaseEnabled`). Subsequent setup
+work in this WU added the per-harness, per-machine path the trust model actually requires — allowlist install
+is a per-machine action against the resident harness, and the trust-shift acknowledgment is a personal
+acceptance.
+
+The trust model itself stands unchanged. Scope clarification: opt-in lives where the trust model lives.
+Collapse the yaml `release.enabled` flag (mechanically inert without per-dev setup; pushing it onto
+unconfigured contributors violates the trust-shift acknowledgment principle from this ADR's Context). Rename
+the remaining per-developer git-config key to `arc.releaseOptedIn` — declarative `is`-framing matching the
+existing `arc release opt-in` / `opt-out` command vocabulary, avoiding the "feature switch" misread carried
+by `enabled`.
+
+The same per-dev-only collapse applies to the three session interlocks (`arc.commitInterlock`,
+`arc.pushInterlock`, `arc.syncInterlock`) — autonomy and interaction-cadence preferences are inherently
+personal across the dev-tool ecosystem and have no team-coordination value (interlocks gate when the agent
+prompts the local developer; they have zero effect on what lands in the repo). `user.notes_push` remains
+dual-scope as the lone exception: `team.mode` flips its default (solo → `on-sync`, team → `prompt`), and
+the slim coordination story warrants a deferral pass to revisit if the coupling proves uncompelling on
+closer examination.
+
+For the full design history — external research findings on dual-scope idiomaticity across eight
+representative dev tools, the `release.enabled` semantic walkthrough, naming convergence on
+`releaseOptedIn`, and the `user.notes_push` deferral rationale — see
+`notes-release-wrappers-ergonomics.md` § Phase 6.R: Configuration Scope Refactor — Design History.
+
+This is a scope-clarification amendment, not a reversal of the decision. The trust-model framing, two-layer
+authorization model, wrapper authorization scaffolding, sync forensic umbrella, and bypass-universality
+clause are unchanged.
+
 ---
 
 [adr-016]: adr-016-configurable-autonomy-interlocks-for-session-operations.md

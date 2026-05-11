@@ -742,7 +742,7 @@ ADR-017 receives an amendment (not supersession) clarifying the scope shift. See
 `notes-release-wrappers-ergonomics.md` § Phase 6.R Configuration Scope Refactor for full design
 history (research findings, naming options weighed, what was wrong before, why this is right).
 
-### `[ ]` **6.R.1 Design capture — notes file + ADR-017 amendment**
+### `[x]` **6.R.1 Design capture — notes file + ADR-017 amendment**
 
 - _Goal:_ Record the design decision in the two persistent surfaces — WU notes for full design
   history (research findings, alternatives weighed, why per-dev-only and why `releaseOptedIn`),
@@ -758,24 +758,26 @@ history (research findings, naming options weighed, what was wrong before, why t
           notes.
         - Contents H2 ToC updated.
 
-    - `[ ]` **6.R.1.b ADR-017 amendment — per-developer scope clarification**
-        - _Note:_ Pass 2 plan for 6.R.4.a called for an ADR-017 amendment link in the strategy
-          doc's `arc.notesPush` row; dropped during 6.3.a's bundled execution per
-          DEV-RULES.PROJECT § Architecture Documentation (ADRs are internal-only; can't be
-          linked from adopter-facing strategy docs). This amendment should still capture the
-          `arc.notesPush` deferral context — the strategy doc points at the deferral but
-          doesn't elaborate.
-        - File: `.arc/reference/adr/adr-017-release-wrapper-trust-model.md` (single copy —
-          ADRs are internal-only per DEV-RULES.PROJECT § Architecture Documentation).
-        - Add new amendment section after existing Decision (parallel to existing
-          `2026-05-01 — Configuration shape refinement` block in ADR-016).
-        - Captures: original "adopter opt-in" framing was conceptually right but
-          project-level implementation predated WU2's per-developer setup path; the trust
-          model lives per-harness/per-machine, so opt-in lives there too; collapsed yaml
-          surface and rename to `releaseOptedIn`.
-        - Cross-reference notes file for full history.
-        - Note: distinct from Phase 7's potential ADR-017 amendment (which is about
-          integration-surfaced insights) — both can land as separate amendments.
+    - `[x]` **6.R.1.b ADR-017 amendment — per-developer scope clarification**
+        - New `## Amending This Document` H2 added to ADR-017 (mirroring ADR-016's pattern)
+          carrying a single dated amendment block (`2026-05-10 — Per-developer scope
+          clarification`). Captures: the original "adopter opt-in" framing was conceptually
+          right but implementation-incomplete (no per-developer setup path existed at
+          ADR-017 write-time); the per-harness/per-machine setup work in this WU added the
+          path the trust model actually requires; yaml `release.enabled` collapses; rename
+          to `arc.releaseOptedIn` (declarative `is`-framing matching `arc release opt-in` /
+          `opt-out` vocabulary, avoiding the "feature switch" misread of `enabled`).
+          Per-dev-only collapse extended to the three session interlocks with the
+          ecosystem-conventional rationale (autonomy / interaction-cadence preferences are
+          inherently personal). `arc.notesPush` deferral context captured (lone dual-scope
+          exception due to `team.mode` default-flip; slim coordination story; revisit if
+          uncompelling). Cross-reference to `notes-release-wrappers-ergonomics.md` § Phase
+          6.R: Configuration Scope Refactor — Design History added for full history.
+          Closing reassertion preserved: scope-clarification amendment, not a reversal —
+          trust-model framing, two-layer authorization model, wrapper authorization
+          scaffolding, sync forensic umbrella, and bypass-universality clause unchanged.
+          Tier 1 lint clean. Distinct from any Phase 7 ADR-017 amendment that may surface
+          from integration insights — both can land as separate dated amendments.
 
 ### `[ ]` **6.R.2 Resolver code — collapse yaml fallback + rename**
 
