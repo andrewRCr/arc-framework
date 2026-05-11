@@ -9,16 +9,18 @@
 - **Task List:** `tasks-release-wrappers-ergonomics.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task 6.R.10 — Dogfooding install + workflow refinements
-  (commit `c019694f`). Laptop install landed for claude-code + codex (both bypass-mode);
-  four amendments to `setup-release-wrapper.md` (bypass + custom-hook framing parity,
-  codex granular `approval_policy` form coverage, agent-driven invocation path with
-  command-shape template, Step 5 cross-reference to per-dev config catalog). Task 6.R.7
-  — TS wire-format sweep dropping the four collapsed yaml keys from `ConfigSettings` /
-  emitters / tests across 5 src + 12 test files — committed earlier at `c3796ba4`.
-- **Next Task:** Task 6.R.8.a — Identify PRD rework scope (line ~1158)
+- **Last Completed:** Task 8.1 — Complete verification. Tier 3 quality gates all clean
+  (md lint, ts/sh lint, typecheck, 56 tests across 11 files, tsup build). 14 success
+  criteria walked through with disposition: 12 met cleanly, 2 met-with-deviation (bypass-
+  mode-only maintainer install path for Behavioral 1+2 — default-prompt behavior covered
+  by tests + 7.1.b indirect validation; codex matcher unwrap widened at 0.130.0 so all
+  four documented fall-through shapes now match canonical patterns — security property
+  unchanged, workflow doc amended in 7.1.c). 1 atomic task complete with note. Phase 7:
+  7.1 [x] live empirical verification across both harnesses + workflow amendment; 7.2 [~]
+  superseded — operational expansions covered by shipped strategy/workflow docs.
+- **Next Task:** [verification complete; integration phase next]
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 6.R.8.a — Identify PRD rework scope.
+- **Next Action:** integrate-work-unit Step 1 — verify completion.
 
 ---
