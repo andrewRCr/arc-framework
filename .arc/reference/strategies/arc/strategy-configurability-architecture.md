@@ -152,8 +152,8 @@ with the current developer's local git-config — per-developer keys (`arc.commi
 logic (workflows, hooks, fire-point directives) consumes the resolved view, not the raw YAML. The agent
 also enumerates active extensions in the same probe:
 
-1. **Platform**: If `platform.type` differs from `github`, reference QUICK-REFERENCE § Platform Commands for
-   platform-appropriate commands
+1. **Platform**: Check `platform.type`; use QUICK-REFERENCE § Platform Commands for platform-appropriate PR/MR
+   and issue commands. The section lists GitHub defaults and is project-editable for other platforms.
 2. **Active extensions**: Run `grep -l "^active: true" system/extensions/*.md` and map hits to extension
    basenames — this is the active-extensions list consulted by fire-point directives in downstream workflows.
    Methods are not enumerated at session init; method defaults and overrides always load on-demand when

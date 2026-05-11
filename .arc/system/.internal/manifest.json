@@ -24,7 +24,7 @@
     "reference/QUICK-REFERENCE.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "f9ba4167a4ae446878af33993df9970967acd238eb08a21fc63fafa372c8c9bb"
+      "pristine_hash": "8f61630a75f78bfa49d82c02124432b408ec8d95a8a0b4f5378ac2141d340969"
     },
     "reference/META-PRD.md": {
       "classification": "Scaffolded",
@@ -109,7 +109,7 @@
     "reference/strategies/arc/strategy-configurability-architecture.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "99d7c4d8709e8146e7f81ceefac9e0cd99d5f259d7e021aa29555e5e13595530"
+      "pristine_hash": "186237a95d3defa74c7b4e09cfbd24b20e76e32833f1da63dc3c4caaa4096227"
     },
     "reference/strategies/arc/strategy-session-operations.md": {
       "classification": "Framework",

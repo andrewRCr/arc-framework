@@ -310,6 +310,22 @@ arc log --atomic
 
 ---
 
+## Platform Commands
+
+ARC workflows use GitHub CLI (`gh`) examples by default. For GitLab, Bitbucket,
+Azure DevOps, or another platform, replace these commands with your team's CLI
+equivalents.
+
+| Operation    | Command                                           |
+|--------------|---------------------------------------------------|
+| Create PR/MR | `gh pr create --base {base} --head {branch}`      |
+| List PRs/MRs | `gh pr list --head {branch} --base {base}`        |
+| View PR/MR   | `gh pr view --json number,url,state`              |
+| Merge PR/MR  | `gh pr merge {pr-number} --merge`                 |
+| Create issue | `gh issue create`                                 |
+
+---
+
 ## npm Publishing
 
 **Auth model:** Token-only. Use a granular access token from npmjs.com with "Bypass 2FA"
