@@ -40,6 +40,22 @@ describe("normalizeReleasePushArgs — pass-through cases", () => {
     expect(result).toEqual({ kind: "ok", args: ["-o", "push-option-value"] });
   });
 
+  it("consumes the token after `-o` as a push-option value, not a positional", () => {
+    const result = normalizeReleasePushArgs(
+      ["-o", "ci.skip", "origin", CURRENT],
+      CURRENT,
+    );
+    expect(result).toEqual({ kind: "ok", args: ["-o", "ci.skip"] });
+  });
+
+  it("consumes the token after `--push-option` as a push-option value, not a positional", () => {
+    const result = normalizeReleasePushArgs(
+      ["--push-option", "ci.skip", "origin", CURRENT],
+      CURRENT,
+    );
+    expect(result).toEqual({ kind: "ok", args: ["--push-option", "ci.skip"] });
+  });
+
   it("passes `-u` alone through when no positional pair follows", () => {
     const result = normalizeReleasePushArgs(["-u"], CURRENT);
     expect(result).toEqual({ kind: "ok", args: ["-u"] });

@@ -15,7 +15,9 @@
  * - `-u <remote> <branch>` / `--set-upstream <remote> <branch>` — the flag
  *   is preserved; only the positional pair is stripped
  *
- * Single positional tokens (no following non-flag) pass through unchanged;
+ * Value-taking flags (`-o` / `--push-option`) consume the following token as
+ * their value, preventing it from being misread as the start of a positional
+ * pair. Single positional tokens (no following non-flag) pass through unchanged;
  * other flags and flag-with-`=value` forms also pass through. Arg-grammar
  * issues outside this narrow scope continue to fall through to git's own
  * parser.
@@ -33,6 +35,7 @@ export type NormalizeReleasePushArgsResult =
     };
 
 const SET_UPSTREAM_FLAGS: ReadonlySet<string> = new Set(["-u", "--set-upstream"]);
+const VALUE_TAKING_FLAGS: ReadonlySet<string> = new Set(["-o", "--push-option"]);
 const EXPECTED_REMOTE = "origin";
 
 /**
@@ -56,6 +59,18 @@ export function normalizeReleasePushArgs(
   while (i < argv.length) {
     const arg = argv[i];
     if (arg === undefined) break;
+
+    if (VALUE_TAKING_FLAGS.has(arg)) {
+      out.push(arg);
+      const value = argv[i + 1];
+      if (value !== undefined) {
+        out.push(value);
+        i += 2;
+      } else {
+        i += 1;
+      }
+      continue;
+    }
 
     if (SET_UPSTREAM_FLAGS.has(arg)) {
       const pair = readPositionalPair(argv, i + 1);
