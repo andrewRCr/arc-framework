@@ -468,7 +468,8 @@ class-tagged.
 
 **R13 — Live empirical verification.**
 Discrete deliverable absorbing WU1's deferred success criteria 5/6 (`arc release commit --version`
-runs no-prompt under installed allowlist; env-prefix fall-through prompts in Codex).
+runs no-prompt under installed allowlist; Codex canonical wrapper shapes match reliably, while
+noncanonical shell forms are version-dependent).
 
 **Mechanism.** Maintainer runs the verification live on their machine at WU completion;
 observations captured in WU completion notes. No automated test fixture, no `__tests__/` test
@@ -486,9 +487,9 @@ Methodology:
   invocations against the project-scoped default-mode harness, observing prompt presence vs.
   absence with allowlist installed vs. not.
 - **Codex matcher boundary re-verification.** Re-verify against then-current codex-cli at WU2
-  verification (last verified at codex-cli 0.128.0, 2026-05-07). Confirm: `bash -lc` / `zsh -lc`
-  unwrapping still occurs; `prefix_rule()` patterns still match the canonical wrapper invocation
-  shape.
+  verification (last verified at codex-cli 0.128.0, 2026-05-07). Confirm that `prefix_rule()`
+  patterns still match canonical wrapper invocation shapes. Treat noncanonical shell forms as
+  version-dependent observations rather than stable acceptance boundaries.
 - **User-level safety-gate hooks** (`~/.claude/hooks/safety-gate.sh`, Codex equivalent) remain
   active across mode flips. Verification focuses on harness-prompt presence, not safety-gate
   denials — the two layers compose without conflict.
@@ -691,9 +692,9 @@ relevant harnesses; tests verify that property holds for the scope of the test h
   with global bypassPermissions enabled; behavioral test (`arc release commit --version`) observed
   no-prompt under installed allowlist; with allowlist removed, harness-prompt fires.
 - Codex matcher boundary re-verified against then-current codex-cli at WU2 verification:
-  `bash -lc` / `zsh -lc` unwrapping still occurs; `prefix_rule()` patterns still match canonical
-  wrapper invocation shape; env-prefix / command-substitution / `$'...'` quoted invocations still
-  fall through to harness prompt.
+  `prefix_rule()` patterns still match canonical wrapper invocation shapes. Noncanonical shell
+  forms are version-dependent observations; at codex-cli 0.130.0, the historically documented
+  fall-through forms now match after shell unwrapping widened.
 
 ### Forensic
 

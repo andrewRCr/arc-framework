@@ -12,7 +12,7 @@ audience: collaborative (human and agent)
   `.arc/system/workflows/arc/initial-setup/01_verify-and-configure.md`.
 - Agent-driven — agent initiates the install on the user's behalf during another workflow or
   session task (e.g., a dogfooding step). The agent surfaces the canonical install-command
-  shape — `npx arc release setup install --harness <name> --mode <mode>` — for the user to
+  shape — `arc release setup install --harness <name> --mode <mode>` — for the user to
   invoke interactively, with `<mode>` pre-filled from Step 1 detection. The user accepts the
   prompts; the agent participates in Steps 1, 3, 4 otherwise identically to the standalone path.
 

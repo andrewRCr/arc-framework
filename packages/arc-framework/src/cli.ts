@@ -276,7 +276,7 @@ releaseCmd
 releaseCmd
   .command("status")
   .description("Show resolved release-mode opt-in and interlock state")
-  .option("--json", "Emit a schemaVersion 1 JSON envelope")
+  .option("--json", "Emit a schemaVersion 2 JSON envelope")
   .action(async (opts: { json?: boolean }) => {
     await handleReleaseStatus({ json: opts.json });
   });

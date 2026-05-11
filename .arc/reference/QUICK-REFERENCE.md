@@ -292,7 +292,7 @@ arc release opt-out
 # Show resolved opt-in flag and interlock states with provenance
 arc release status
 
-# Same as above as a structured envelope (`schemaVersion: 1`)
+# Same as above as a structured envelope (`schemaVersion: 2`)
 arc release status --json
 ```
 
