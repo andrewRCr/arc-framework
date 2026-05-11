@@ -658,13 +658,10 @@ _Design decisions:_ Strategy doc lands first — initial-setup section (6.2) and
   what's being authored). Flag at next-session handoff: run setup against this repo
   before resuming task work to dogfood the new flow.
 
-### `[ ]` **6.3 Cross-reference updates (R14.2–R14.5)**
+### `[x]` **6.3 Cross-reference updates (R14.2–R14.5)**
 
 - _Goal:_ Four strategy docs gain cross-references to the new domain strategy and the structured
   routing surface, ensuring discoverability from related-domain entry points.
-
-- _Approach:_ Small touches — each strategy doc gets a cross-reference block addition where
-  topically relevant. No restructuring of existing content.
 
     - `[x]` **6.3.a `strategy-configurability-architecture.md` (R14.2)**
         - Cross-reference to new domain strategy added (Related Documentation entry +
@@ -674,31 +671,57 @@ _Design decisions:_ Strategy doc lands first — initial-setup section (6.2) and
           section renamed; Behavioral defaults table + Configurability path definitions +
           Personal settings callout updated). Both copies in sync; Tier 1 lint clean.
 
-    - `[ ]` **6.3.b `strategy-session-operations.md` (R14.3)**
-        - Update for the harness/mode marker (R9) as a per-developer per-machine state surface.
-        - Note R11's deferral of routing-shift orientation surfacing to
-          `plan-handoff-optimization.md` so the strategy doc carries the cross-WU reference.
-        - **Permissiveness-ladder gap-fix** (surfaced by Task 5.4.d audit): extend two outdated
-          tier references to include `on-workflow` per the ADR-018 ladder:
-            - L504 (contributor handoff cadence) — `whether session.commit_interlock is manual or
-              on-task-approval` → add `on-workflow` to the non-manual set.
-            - L510 (Deferred-Review × Commit-Interlock Release) — `under
-              session.commit_interlock: on-task-approval` → set notation
-              `∈ {on-task-approval, on-workflow}`, mirroring process-task-loop.md L155 (Task 5.4.b).
+    - `[x]` **6.3.b `strategy-session-operations.md` (R14.3)**
+        - R9 marker surfaced as per-machine state in § Session State Portability § Scope
+          (`user/{identity}/.internal/` carries release-wrapper marker + audit-log + sync-state +
+          pre-load backups; excluded from notes serialization by the dotfile rule; per-machine
+          install rationale named); R11 routing-shift orientation deferral noted at the
+          wrapper-layer paragraph in § Interlock Model with cross-WU pointer to
+          `plan-handoff-optimization.md`. Bundled session-operations portion of 6.R.6.d's sweep
+          (~25 stale `session.<X>` / `release.enabled` references corrected to `arc.X` per-dev
+          key forms across 13 locations; Per-developer override paragraph in § Handoff-Interior
+          Toggle Pattern restructured to acknowledge post-6.R reality — `arc.commitInterlock` and
+          `arc.releaseOptedIn` added per pre-existing documentation gap; framing shifted from
+          "override" to canonical-per-dev for keys with no yaml counterpart). L504/L510
+          permissiveness-ladder gap-fix landed (contributor handoff cadence non-manual set
+          extended to `on-workflow`; Deferred-Review × Commit-Interlock Release set notation
+          `∈ {on-task-approval, on-workflow}`). New `[interlock-release-wrappers]` link reference
+          added. Both copies in sync; Tier 1 lint clean.
 
-    - `[ ]` **6.3.c `strategy-team-coordination.md` (R14.4)**
-        - Per-developer asymmetric setup acknowledgment — multi-developer repos with diverging
-          setup state per developer; document as expected, parallel to existing per-developer
-          interlock-setting variation.
-        - **Permissiveness-ladder gap-fix** (surfaced by Task 5.4.d audit): extend L182
-          (task-ownership behavior under commit-on-task-approval) to also apply under
-          `on-workflow` per the ADR-018 ladder. L193-194 and L201-203 already correctly
-          mention `on-workflow`; only L182 needs the extension.
+    - `[x]` **6.3.c `strategy-team-coordination.md` (R14.4)**
+        - **Asymmetric setup is expected** paragraph added to § Interlock-Release Coordination
+          calling out per-developer divergence in installed harnesses, opt-in states, and
+          per-machine modes — explicitly paralleled to per-developer interlock-setting variation
+          (`arc.commitInterlock`, `arc.pushInterlock`, `arc.syncInterlock`); pointer to
+          interlock-release-wrappers strategy added with new `[interlock-release-wrappers]` link
+          reference. Release-wrapper opt-in paragraph rewritten for post-6.R per-dev-only reality
+          (no project-wide opt-in switch; `arc release setup install` writes `arc.releaseOptedIn`;
+          dropped stale "yaml-set `release.enabled`" framing). Bundled team-coordination portion
+          of 6.R.6.d's sweep (6 stale `session.<X>` / `arc.releaseEnabled` references corrected
+          to post-6.R key forms at L182, L187, L193, L200-202, L207). L182 permissiveness-ladder
+          gap-fix landed (task-ownership extended to `arc.commitInterlock ∈ {on-task-approval,
+          on-workflow}`). Both copies in sync; Tier 1 lint clean.
 
-    - `[ ]` **6.3.d `strategy-workflow-authoring.md` (R14.5)**
-        - Workflow-author guidance for routing-class declaration shape — when to class-tag a fire
-          site, the verb-elision pattern (commit message body in `text` codeblock; push args
-          inline prose), the destructive-flag exclusion, and the canonical-rule reference.
+    - `[x]` **6.3.d `strategy-workflow-authoring.md` (R14.5)**
+        - New `### Routing class tags` section added under § Body Conventions covering the
+          full author-side declaration shape: class-tag semantics (`taskCommit`,
+          `workflowCommit`, `workflowPush`) and when to apply them; verb-elision pattern with
+          worked examples (commit body in nested `text` codeblock; push args inline backticked
+          prose); destructive-flag exclusion (`--delete`, `--force`, `--force-with-lease` stay
+          literal — wrapper refuses by design); `arc sync` push exception. Canonical routing
+          rule cross-referenced to DEV-RULES.ARC § Commit Discipline. Bonus stale shorthand
+          `session.{commit,push}_interlock` at L86 corrected to `arc.commitInterlock` and
+          `arc.pushInterlock` (audit miss; this file's only stale form). Both copies in sync;
+          Tier 1 lint clean.
+
+- _Outcome:_ Strategy-doc surface fully aligned with post-6.R per-dev-only architecture across
+  the four R14-targeted docs plus the bonus `strategy-interlock-release-wrappers.md`.
+  Cross-references to the new domain strategy added (configurability-arch, session-ops,
+  team-coordination); routing-class declaration guidance landed (workflow-authoring); R9 marker
+  and R11 routing-shift orientation deferral surfaced (session-ops). Bundled the strategy-doc
+  portion of 6.R.6.d's sweep and the permissiveness-ladder gap-fixes from Task 5.4.d audit
+  (L182/L504/L510). 6.R.6.d's remaining scope shrinks to QUICK-REFERENCE.md and any other
+  reference docs grep surfaces.
 
 ---
 
@@ -921,14 +944,13 @@ history (research findings, naming options weighed, what was wrong before, why t
           rather than the value itself.
 
     - `[ ]` **6.R.6.d Other reference docs**
-        - _Note:_ `strategy-configurability-architecture.md` already swept as part of 6.3.a's
-          batch (which absorbed 6.R.4.a + in-file 6.R cleanup). Skip that file in this sweep;
-          remaining scope as listed below.
+        - _Note:_ `strategy-configurability-architecture.md`, `strategy-session-operations.md`,
+          `strategy-team-coordination.md`, `strategy-workflow-authoring.md`, and
+          `strategy-interlock-release-wrappers.md` already swept as part of 6.3.a–d's batch
+          (which absorbed 6.R.4.a + in-file 6.R cleanup across the strategy-doc surface). Skip
+          those files in this sweep; remaining scope as listed below.
         - `QUICK-REFERENCE.md` — `arc.release.enabled` references at current lines ~285,
           ~288–289 (both copies).
-        - `strategy-session-operations.md` — coordinate with 6.3.b's permissiveness-ladder
-          updates; ensure prose reflects per-dev-only after both passes.
-        - `strategy-team-coordination.md` — coordinate with 6.3.c outputs.
         - `strategy-quality-gates.md` and others as grep surfaces.
 
 ### `[ ]` **6.R.7 PRD update**

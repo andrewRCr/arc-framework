@@ -32,7 +32,7 @@ destructive flags, and writes one audit-log entry per invocation regardless of o
 
 Opt-in is deliberate: running `arc release setup install` once per machine translates the
 workflow's contract into the resident harness's permission surface and records the per-developer
-opt-in flag (`arc.releaseEnabled = true`) plus a per-harness marker entry. Opt-in is per-developer
+opt-in flag (`arc.releaseOptedIn = true`) plus a per-harness marker entry. Opt-in is per-developer
 and per-machine — different developers in the same repo make the choice independently, and
 switching machines requires re-running setup on the new machine.
 
@@ -49,8 +49,8 @@ distinction: which layer engages depends on the harness's permission mode.
 **Unconditional — validation + audit.** Fires on every wrapper invocation regardless of opt-in
 flag or harness mode. Three components:
 
-- **Interlock validation.** Resolves the configured interlock value (`commit_interlock`,
-  `push_interlock`) against the wrapper's command scope on the permissiveness ladder
+- **Interlock validation.** Resolves the configured interlock value (`arc.commitInterlock`,
+  `arc.pushInterlock`) against the wrapper's command scope on the permissiveness ladder
   (`manual` → `on-{primary}` → `on-workflow`). On scope-mismatch, refuses with exit code 11 and
   an audit entry; never invokes git.
 - **Destructive-flag refusal.** Commit-side: `--amend`, `--allow-empty`, `--no-verify`.
@@ -112,7 +112,7 @@ works mechanically without opt-in (validation + audit fire), but the prompt cont
 too — both the harness prompt and ARC's interlock validation engage, which reads as redundant
 rather than complementary.
 
-**When the durable opt-in needs more deliberation.** The flag (`arc.releaseEnabled`) is
+**When the durable opt-in needs more deliberation.** The flag (`arc.releaseOptedIn`) is
 per-developer git-config local; it persists across sessions until cleared via
 `arc release setup uninstall`. Deferring is first-class — `arc release setup install` remains
 available indefinitely.
