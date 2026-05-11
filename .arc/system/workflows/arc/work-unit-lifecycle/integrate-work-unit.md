@@ -335,7 +335,7 @@ git checkout parent-branch
 git merge child-branch --no-ff
 ```
 
-Then push (`workflowPush`) the merged result.
+Then push (`workflowPush`) the merged result: `origin {parent-branch}`.
 
 If merged via PR, switch to the parent branch and pull before proceeding:
 

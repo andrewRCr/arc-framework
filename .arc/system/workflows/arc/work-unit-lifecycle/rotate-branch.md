@@ -63,7 +63,7 @@ git switch {parent-or-base-branch}
 git merge {current-branch} --no-ff
 ```
 
-Then push (`workflowPush`) the merged result.
+Then push (`workflowPush`) the merged result: `origin {parent-or-base-branch}`.
 
 Delete the merged branch:
 
