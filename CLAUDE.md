@@ -2,4 +2,9 @@
 
 In this self-hosting repository, invoke ARC CLI commands as `npx arc ...`, not `arc ...`.
 
-This applies to all ARC commands, including session lifecycle commands such as `arc status --session-init --json`.
+**Scope:** development-time invocation only. The rule applies to commands you run in
+this repo (sessions, scripts, manual probes — including session lifecycle calls such
+as `arc status --session-init --json`). It does **not** apply to content under
+`packages/arc-framework/arc/**` or `.arc/**` (workflows, strategies, briefs,
+templates) — that content ships to adopters who install the CLI globally and invoke
+it as bare `arc ...`.

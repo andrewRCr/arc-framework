@@ -128,7 +128,7 @@ Update session state files before ending session:
     <project markdown lint on the staged file>  # fix + re-stage on failure
     ```
 
-    Then commit unconditionally (`workflowCommit`) with message body:
+    Then invoke `workflowCommit` with message body:
 
     ```text
     chore(status): handoff
@@ -136,8 +136,9 @@ Update session state files before ending session:
     Context: <status-file>.md (handoff)
     ```
 
-    The new HEAD becomes the `**Commit at Handoff:**` value written in step 5. If no field
-    cleared the skip threshold, the file is clean and no commit fires.
+    When the previous block staged a change, the new HEAD becomes the `**Commit at Handoff:**`
+    value written in step 5. When no field cleared the skip threshold, nothing is staged and the
+    commit is a no-op — step 5 carries the prior `Commit at Handoff:` value forward.
 
     Contributors (`arc.role = contributor`) skip the commit — their personal active status file at
     `.arc/user/{identity}/active/status-{name}.md` is gitignored, so the field update lands

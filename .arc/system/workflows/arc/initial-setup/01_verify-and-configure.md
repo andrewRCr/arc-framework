@@ -118,7 +118,7 @@ full model.
 
 Most setups ask for confirmation before every `git commit` / `git push` — through the
 agent harness's per-invocation prompt, a custom user-level hook, or both. Once ARC's
-interlock layer (the `commit_interlock` / `push_interlock` settings reviewed during
+interlock layer (the `arc.commitInterlock` / `arc.pushInterlock` settings reviewed during
 initial configuration) is already authorizing each commit and push at the workflow
 level, that per-invocation confirmation can become redundant.
 

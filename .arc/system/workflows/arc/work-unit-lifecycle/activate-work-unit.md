@@ -55,7 +55,9 @@ Planning artifacts should already be on the base branch — merged via planning 
 **If artifacts are not yet on the base branch** (partial protection, just-created artifacts):
 
 ```bash
-git add .arc/backlog/{category}/prd-{name}.md .arc/backlog/{category}/tasks-{name}.md
+git add .arc/backlog/{category}/prd-{name}.md \
+        .arc/backlog/{category}/tasks-{name}.md \
+        .arc/backlog/{category}/atomic-{name}.md
 ```
 
 Then commit (`workflowCommit`):

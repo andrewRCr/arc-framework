@@ -145,8 +145,12 @@ a configurability path (how teams adapt it).
 
 ### Agent discovery
 
-The agent learns about the active configuration during session initialization. After loading standard documents,
-the agent reads `arc-config.yml` and enumerates active extensions:
+The agent learns about the active configuration during session initialization. The session-init probe
+(`arc status --session-init --json`) resolves **final settings** by merging project YAML (`arc-config.yml`)
+with the current developer's local git-config — per-developer keys (`arc.commitInterlock`, `arc.pushInterlock`,
+`arc.syncInterlock`, `arc.releaseOptedIn`, `arc.notesPush`) take precedence in the resolution. Downstream
+logic (workflows, hooks, fire-point directives) consumes the resolved view, not the raw YAML. The agent
+also enumerates active extensions in the same probe:
 
 1. **Platform**: If `platform.type` differs from `github`, reference QUICK-REFERENCE § Platform Commands for
    platform-appropriate commands

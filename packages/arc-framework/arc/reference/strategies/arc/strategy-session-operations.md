@@ -110,6 +110,7 @@ branch rather than rejecting the composite. Mirrors the session-init field table
 | `active`          | Active status file resolution — same shape as session-init's `active` slot                                                                                                |
 | `head`            | Current `HEAD` short-hash (`value.hash`) — anchors the `Commit at Handoff` field written by the handoff workflow                                                          |
 | `pushability`     | Pushability pre-check matrix for the worktree push leg (`target: "worktree"`). Cross-reference with `worktree` for the full divergence picture                            |
+| `releaseRouting`  | Resolved release-wrapper routing per class-tag (`taskCommit` / `workflowCommit` / `workflowPush` to `wrapper` or `raw`), plus `rationale` snapshot                        |
 
 Push-interlock and notes-push policy are not surfaced as handoff envelope slots — `arc sync` owns
 their resolution internally. The handoff workflow gates on `syncInterlock` (whether to invoke
