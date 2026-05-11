@@ -78,11 +78,11 @@ describe("gitConfigSet", () => {
     "adds --%s flag when scope is %s",
     async (scope) => {
       const mockExec = vi.fn().mockResolvedValue({ stdout: "" });
-      await gitConfigSet(mockExec, "arc.release.enabled", "true", scope);
+      await gitConfigSet(mockExec, "arc.releaseOptedIn", "true", scope);
       expect(mockExec).toHaveBeenCalledWith("git", [
         "config",
         `--${scope}`,
-        "arc.release.enabled",
+        "arc.releaseOptedIn",
         "true",
       ]);
     },
@@ -95,11 +95,11 @@ describe("gitConfigUnset", () => {
       .fn()
       .mockResolvedValueOnce({ stdout: "true\n" }) // --get returns existing value
       .mockResolvedValueOnce({ stdout: "" }); // --unset succeeds
-    await gitConfigUnset(mockExec, "arc.release.enabled");
+    await gitConfigUnset(mockExec, "arc.releaseOptedIn");
     expect(mockExec).toHaveBeenCalledWith("git", [
       "config",
       "--unset",
-      "arc.release.enabled",
+      "arc.releaseOptedIn",
     ]);
   });
 

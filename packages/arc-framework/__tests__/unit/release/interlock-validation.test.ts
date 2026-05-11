@@ -55,12 +55,8 @@ function buildSettings(overrides: FixtureOverrides = {}): ResolvedSettingsResult
     "session.init_pull.worktree": "prompt",
     "session.init_pull.notes": "prompt",
     "session.init_load.notes": "prompt",
-    "session.commit_interlock": commitInterlock,
-    "session.push_interlock": pushInterlock,
-    "session.sync_interlock": syncInterlock,
     "archive.cadence": "with-integration",
     "user.notes_push": "on-sync",
-    "release.enabled": "true",
   };
 
   const notesPush: NotesPushPolicy = "on-sync";

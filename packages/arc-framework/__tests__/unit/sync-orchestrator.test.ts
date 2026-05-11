@@ -143,8 +143,6 @@ const resolvedState: ResolvedSettingsState = {
 function syncResolvedSettingsMock(): void {
   mockResolveAllSettings.mockResolvedValue({
     settings: {
-      "session.push_interlock": resolvedState.pushInterlock,
-      "session.sync_interlock": resolvedState.syncInterlock,
       "user.notes_push": resolvedState.notesPush,
       "session.remote_sync": "enabled",
     },

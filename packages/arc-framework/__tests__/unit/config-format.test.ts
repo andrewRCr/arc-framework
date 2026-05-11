@@ -35,12 +35,8 @@ const FULL_SETTINGS: ConfigSettings = {
   "session.init_pull.worktree": "prompt",
   "session.init_pull.notes": "prompt",
   "session.init_load.notes": "prompt",
-  "session.commit_interlock": "manual",
-  "session.push_interlock": "manual",
-  "session.sync_interlock": "on-handoff",
   "archive.cadence": "with-integration",
   "user.notes_push": "on-sync",
-  "release.enabled": "false",
 };
 
 const SESSION_INIT_SETTINGS: ConfigSessionInitSettings = {
@@ -48,11 +44,7 @@ const SESSION_INIT_SETTINGS: ConfigSessionInitSettings = {
   "session.init_pull.worktree": "prompt",
   "session.init_pull.notes": "prompt",
   "session.init_load.notes": "prompt",
-  "session.commit_interlock": "manual",
-  "session.push_interlock": "manual",
-  "session.sync_interlock": "on-handoff",
   "user.notes_push": "on-sync",
-  "release.enabled": "false",
   "branch.protection": "full",
   "pm.mode": "arc-in-git",
   "commit.format": "conventional",
@@ -175,8 +167,8 @@ describe("JSON round-trip — typed result shape is stable", () => {
     const roundTripped = JSON.parse(JSON.stringify(result)) as ConfigSessionInitResult;
     expect(roundTripped.mode).toBe("session-init");
     expect(roundTripped.settings["pm.mode"]).toBe("arc-in-git");
-    expect(roundTripped.settings["session.commit_interlock"]).toBe("manual");
-    expect(roundTripped.settings["session.push_interlock"]).toBe("manual");
+    expect(roundTripped.settings["session.remote_sync"]).toBe("enabled");
+    expect(roundTripped.settings["user.notes_push"]).toBe("on-sync");
     expect(roundTripped.defaultsApplied).toEqual(["pm.mode"]);
   });
 });

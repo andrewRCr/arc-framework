@@ -42,14 +42,10 @@ const SESSION_INIT_SCOPED_KEYS = [
   "commit.context_footer",
   "commit.format",
   "pm.mode",
-  "release.enabled",
-  "session.commit_interlock",
   "session.init_load.notes",
   "session.init_pull.notes",
   "session.init_pull.worktree",
-  "session.push_interlock",
   "session.remote_sync",
-  "session.sync_interlock",
   "user.notes_push",
 ] as const satisfies ReadonlyArray<keyof ConfigSessionInitSettings>;
 
@@ -90,8 +86,6 @@ describe("runConfigStatus — full mode", () => {
       "session.remote_sync: enabled",
       "session.init_pull.worktree: prompt",
       "session.init_pull.notes: prompt",
-      "session.commit_interlock: manual",
-      "session.push_interlock: manual",
       "archive.cadence: manual",
       "user.notes_push: on-sync",
     ].join("\n");
@@ -103,8 +97,6 @@ describe("runConfigStatus — full mode", () => {
     expect(result.settings["branch.protection"]).toBe("full");
     expect(result.settings["session.init_pull.worktree"]).toBe("prompt");
     expect(result.settings["session.init_pull.notes"]).toBe("prompt");
-    expect(result.settings["session.commit_interlock"]).toBe("manual");
-    expect(result.settings["session.push_interlock"]).toBe("manual");
     expect(result.settings["archive.cadence"]).toBe("manual");
     expect(result.warnings).toHaveLength(0);
     // Empty values in the file fall through to defaults per shell-aligned parser behavior.
@@ -165,11 +157,7 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
         "session.init_pull.worktree: manual",
         "session.init_pull.notes: always",
         "session.init_load.notes: manual",
-        "session.commit_interlock: on-task-approval",
-        "session.push_interlock: on-sync",
-        "session.sync_interlock: manual",
         "user.notes_push: prompt",
-        "release.enabled: true",
       ].join("\n"),
     );
     const result = await runConfigSessionInitStatus({
@@ -180,18 +168,14 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
     expect(result.mode).toBe("session-init");
     const keys = Object.keys(result.settings).sort();
     expect(keys).toEqual([...SESSION_INIT_SCOPED_KEYS].sort());
-    // Non-release-mode keys are pass-through from readConfigSettings (yaml-only).
+    // Non-`user.notes_push` keys are pass-through from readConfigSettings (yaml-only).
     expect(result.settings["session.remote_sync"]).toBe("disabled");
     expect(result.settings["pm.mode"]).toBe("arc-in-git");
     expect(result.settings["session.init_pull.worktree"]).toBe("manual");
     expect(result.settings["session.init_pull.notes"]).toBe("always");
     expect(result.settings["session.init_load.notes"]).toBe("manual");
-    // Release-mode keys reflect yaml when no git-config override is set.
-    expect(result.settings["session.commit_interlock"]).toBe("on-task-approval");
-    expect(result.settings["session.push_interlock"]).toBe("on-sync");
-    expect(result.settings["session.sync_interlock"]).toBe("manual");
+    // user.notes_push reflects yaml when no git-config override is set.
     expect(result.settings["user.notes_push"]).toBe("prompt");
-    expect(result.settings["release.enabled"]).toBe("true");
   });
 
   it("git-config override wins over yaml for the dual-scope notesPush key", async () => {
@@ -225,22 +209,14 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
     expect(result.settings["session.init_pull.worktree"]).toBe("prompt");
     expect(result.settings["session.init_pull.notes"]).toBe("prompt");
     expect(result.settings["session.init_load.notes"]).toBe("prompt");
-    expect(result.settings["session.commit_interlock"]).toBe("manual");
-    expect(result.settings["session.push_interlock"]).toBe("manual");
-    expect(result.settings["session.sync_interlock"]).toBe("on-handoff");
     expect(result.settings["user.notes_push"]).toBe("on-sync");
-    expect(result.settings["release.enabled"]).toBe("false");
     expect(result.settings["pm.mode"]).toBe("none");
     expect(result.settings["branch.protection"]).toBe("partial");
     expect(result.defaultsApplied).toContain("session.remote_sync");
     expect(result.defaultsApplied).toContain("session.init_pull.worktree");
     expect(result.defaultsApplied).toContain("session.init_pull.notes");
     expect(result.defaultsApplied).toContain("session.init_load.notes");
-    expect(result.defaultsApplied).toContain("session.commit_interlock");
-    expect(result.defaultsApplied).toContain("session.push_interlock");
-    expect(result.defaultsApplied).toContain("session.sync_interlock");
     expect(result.defaultsApplied).toContain("user.notes_push");
-    expect(result.defaultsApplied).toContain("release.enabled");
     expect(result.warnings).toHaveLength(1);
   });
 
@@ -256,11 +232,7 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
         "session.init_pull.worktree: prompt",
         "session.init_pull.notes: prompt",
         "session.init_load.notes: prompt",
-        "session.commit_interlock: manual",
-        "session.push_interlock: manual",
-        "session.sync_interlock: on-handoff",
         "user.notes_push: on-sync",
-        "release.enabled: false",
       ].join("\n"),
     );
     const result = await runConfigSessionInitStatus({

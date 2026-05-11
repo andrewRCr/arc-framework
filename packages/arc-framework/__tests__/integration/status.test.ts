@@ -835,11 +835,7 @@ describe("runSessionInitStatus — release-mode key resolution at envelope path"
         "commit.format: conventional",
         "commit.context_footer: required",
         "session.remote_sync: enabled",
-        "session.commit_interlock: manual",
-        "session.push_interlock: manual",
-        "session.sync_interlock: manual",
         "user.notes_push: on-sync",
-        "release.enabled: false",
       ].join("\n"),
     );
   });
@@ -967,11 +963,7 @@ describe("runSessionHandoffStatus — releaseRouting envelope path", () => {
         "commit.format: conventional",
         "commit.context_footer: required",
         "session.remote_sync: enabled",
-        "session.commit_interlock: manual",
-        "session.push_interlock: manual",
-        "session.sync_interlock: manual",
         "user.notes_push: on-sync",
-        "release.enabled: false",
       ].join("\n"),
     );
   });

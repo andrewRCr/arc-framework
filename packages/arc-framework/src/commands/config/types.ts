@@ -26,12 +26,8 @@ export interface ConfigSettings {
   "session.init_pull.worktree": string;
   "session.init_pull.notes": string;
   "session.init_load.notes": string;
-  "session.commit_interlock": string;
-  "session.push_interlock": string;
-  "session.sync_interlock": string;
   "archive.cadence": string;
   "user.notes_push": string;
-  "release.enabled": string;
 }
 
 /**
@@ -39,21 +35,15 @@ export interface ConfigSettings {
  * dedicated workflow or method loads (sync probe, planning branch under
  * full protection, capture routing, commit format for first commit).
  *
- * Release-mode keys (`session.commit_interlock`, `session.push_interlock`,
- * `session.sync_interlock`, `user.notes_push`, `release.enabled`) carry
- * three-tier-resolved values (git-config → yaml → default); other keys
- * carry raw yaml values per `readConfigSettings`.
+ * `user.notes_push` carries a three-tier-resolved value (git-config → yaml
+ * → default); other keys carry raw yaml values per `readConfigSettings`.
  */
 export interface ConfigSessionInitSettings {
   "session.remote_sync": string;
   "session.init_pull.worktree": string;
   "session.init_pull.notes": string;
   "session.init_load.notes": string;
-  "session.commit_interlock": string;
-  "session.push_interlock": string;
-  "session.sync_interlock": string;
   "user.notes_push": string;
-  "release.enabled": string;
   "branch.protection": string;
   "pm.mode": string;
   "commit.format": string;

@@ -588,19 +588,6 @@ describe("update integration — arc-config migration", () => {
     },
   );
 
-  it("migrates session.push_interlock: on-handoff to on-sync", async () => {
-    const result = await runArcConfigUpdate(
-      "session.push_interlock: on-handoff\n",
-      "session.push_interlock: on-sync\n",
-    );
-
-    expect(result.conflicts).toEqual([]);
-    expect(result.migrated).toEqual([configPath]);
-    expect(await readFile(join(tempDir, ".arc", configPath), "utf-8")).toBe(
-      "session.push_interlock: on-sync\n",
-    );
-  });
-
   it("removes the legacy user.sync_push key after migration", async () => {
     await runArcConfigUpdate("user.sync_push: always\n");
 
@@ -610,7 +597,6 @@ describe("update integration — arc-config migration", () => {
 
   it("is idempotent for already-migrated config", async () => {
     const migratedConfig = [
-      "session.push_interlock: on-sync",
       "user.notes_push: on-sync",
       "",
     ].join("\n");

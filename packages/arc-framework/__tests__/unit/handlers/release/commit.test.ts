@@ -92,12 +92,8 @@ function buildSettings(overrides: SettingsOverrides = {}): ResolvedSettingsResul
     "session.init_pull.worktree": "prompt",
     "session.init_pull.notes": "prompt",
     "session.init_load.notes": "prompt",
-    "session.commit_interlock": commitInterlock,
-    "session.push_interlock": pushInterlock,
-    "session.sync_interlock": "on-handoff",
     "archive.cadence": "with-integration",
     "user.notes_push": "on-sync",
-    "release.enabled": "true",
   };
 
   return {

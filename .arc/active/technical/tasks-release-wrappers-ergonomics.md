@@ -1041,13 +1041,121 @@ history (research findings, naming options weighed, what was wrong before, why t
   (ADRs, PROJECT-STATUS, archive WUs) left as-is. The 6.R.6.e validator-script discovery
   was a 6.R.2 substrate gap that the doc sweep surfaced; folded in by user approval.
 
-### `[ ]` **6.R.7 PRD update**
+### `[x]` **6.R.7 TS wire-format sweep — drop collapsed keys from output emitters**
+
+- _Goal:_ The TS-side `config.settings` wire format (consumed by `arc config status` and the
+  `arc status --json` envelope's `config.value.settings` slot) still emits the four collapsed
+  yaml keys (`session.commit_interlock` / `push_interlock` / `sync_interlock`,
+  `release.enabled`). Resolver substrate is correct post-6.R.2 and yaml templates are clean
+  (both copies), but the output emitter, its types, and tests carry stale references — strings
+  are inert (resolver no longer reads yaml for these keys) yet `arc config status` renders
+  them as yaml-tier, contradicting the per-dev-only architecture. Discovered during 6.R.6
+  cross-doc sweep; substrate-tier follow-on to 6.R.2 that 6.R.6's docs-only scope didn't
+  absorb.
+
+- _Design decisions:_ Pre-1.0, no adopters — drop the `update.ts` `session.push_interlock` →
+  `on-sync` migration branch alongside (back-compat not earned). Keep the `user.sync_push` →
+  `user.notes_push` migration intact (different concern, out of scope). Keep
+  `__tests__/unit/config/resolved-settings.test.ts` `ignoredYamlKey` cases — they validate the
+  resolver invariant (yaml ignored for these keys) independent of wire shape. Placement before
+  6.R.8 PRD update: substrate aligns before the PRD freezes, matching 6.R.2 (substrate) →
+  6.R.6 (docs) pattern.
+
+    - `[x]` **6.R.7.a Production code sweep**
+        - `src/lib/config/status-reader.ts`: dropped the four collapsed keys from `DEFAULTS`
+          (cascading to `AGENT_CONSUMABLE_KEYS`); collapsed module-level layering-boundary
+          and `ENUM_VALIDATORS` comments from the "five release-mode keys" framing to
+          single-key (`user.notes_push`).
+        - `src/commands/config/types.ts`: dropped the four collapsed keys from `ConfigSettings`
+          and `ConfigSessionInitSettings`; rewrote the `ConfigSessionInitSettings` doc comment
+          to describe `user.notes_push` as the single three-tier-resolved key.
+        - `src/commands/config/status.ts`: dropped the four collapsed keys from
+          `SESSION_INIT_KEYS`; rewrote the module-level and `runConfigSessionInitStatus`
+          doc comments analogously.
+        - `src/commands/update.ts`: removed the `pushInterlockKey === "session.push_interlock"`
+          → `on-sync` migration branch and its constant from `migrateUserSyncPush`. The
+          `user.sync_push` → `user.notes_push` migration stays.
+        - `src/commands/status/types.ts` § `HandoffSyncInterlock`: TSDoc updated to refer to
+          the per-dev `arc.syncInterlock`. The `source` field union retains `"yaml"` for
+          structural compatibility with `ConfigOverrideSource` at the assignment site
+          (`handlers/status.ts:123`); `"yaml"` is unreachable post-6.R.2 but the type stays
+          assignable from the wider source union.
+
+    - `[x]` **6.R.7.b Test sweep**
+        - Initial five-file scope expanded by five files mid-task as additional fixture surfaces
+          turned up under a second-pass grep. Final ten-file edit:
+            - `__tests__/unit/config-format.test.ts`: dropped four-key fixtures from
+              `FULL_SETTINGS` / `SESSION_INIT_SETTINGS`; rebuilt the JSON round-trip assertion
+              to read non-collapsed keys.
+            - `__tests__/unit/status-format.test.ts`: dropped four keys from `okConfig` /
+              `configSessionInit` fixtures; updated agent-consumable-settings count assertion
+              (21 → 17); replaced two collapsed-key `toContain` assertions with non-collapsed
+              keys (`session.remote_sync`, `user.notes_push`).
+            - `__tests__/unit/sync-orchestrator.test.ts`: dropped `session.push_interlock` /
+              `session.sync_interlock` from `syncResolvedSettingsMock`'s `settings` map. The
+              `resolved.*` slot (which handlers actually consume) was already correct.
+            - `__tests__/unit/config/status-reader.test.ts`: changed "includes session interlock
+              keys" → "excludes the per-developer-only keys"; updated agent-consumable count
+              (21 → 17); dropped collapsed-key assertions from defaults-fallback and on-disk
+              tests; dropped the entire `session interlock independence` describe block (its
+              invariant is covered by `resolved-settings.test.ts` `ignoredYamlKey` cases).
+            - `__tests__/unit/release/interlock-validation.test.ts`: dropped four keys from the
+              `buildSettings` fixture.
+            - `__tests__/unit/status/run.test.ts`: dropped four keys from the full + session-init
+              config fixtures; dropped four entries from the sorted key-list assertion in the
+              session-init test (13 → 9 keys).
+            - `__tests__/unit/handlers/release/push.test.ts` and
+              `__tests__/unit/handlers/release/commit.test.ts`: dropped four keys from the
+              shared `buildSettings` fixture.
+            - `__tests__/unit/git/git.test.ts`: replaced `arc.release.enabled` test-fixture
+              literal with `arc.releaseOptedIn` for naming consistency (test exercises
+              `gitConfigSet` / `gitConfigUnset` helper machinery, not a specific key contract).
+            - `__tests__/integration/config.test.ts`: dropped four keys from
+              `SESSION_INIT_SCOPED_KEYS`; dropped collapsed-key yaml inputs and matching
+              assertions across the "every key", session-init readback, defaults-fallback, and
+              defaults-filter tests.
+            - `__tests__/integration/status.test.ts`: dropped collapsed-key yaml entries from
+              two `beforeEach` config setups under the release-mode envelope describes. Yaml
+              entries were inert post-6.R.2 but read as if dual-scope was still live.
+            - `__tests__/integration/update.test.ts`: deleted the
+              "migrates session.push_interlock: on-handoff to on-sync" test (the migration
+              branch was removed in 6.R.7.a); updated the idempotency fixture to use
+              `user.notes_push` only.
+        - `__tests__/unit/config/resolved-settings.test.ts` `ignoredYamlKey` cases preserved —
+          load-bearing resolver invariant (yaml entries for the collapsed keys are silently
+          ignored at the resolver tier).
+
+    - `[x]` **6.R.7.c Quality gates and empirical confirmation**
+        - All gates clean: typecheck (zero errors), `lint:ts` (zero violations), unit +
+          integration suite (1713 passed), e2e suite (56 passed), `lint:md` (zero violations).
+        - Empirical 1 — `npx arc config status`: renders "17 agent-consumable settings" (down
+          from 21); none of the four collapsed keys appear in the output.
+        - Empirical 2 — `npx arc status --session-init --json`: `config.value.settings` keys
+          collapse to nine (`branch.protection`, `commit.context_footer`, `commit.format`,
+          `pm.mode`, `session.init_load.notes`, `session.init_pull.notes`,
+          `session.init_pull.worktree`, `session.remote_sync`, `user.notes_push`).
+          `releaseRouting.value.rationale` continues to surface the resolved per-dev values
+          (`releaseOptedIn: false`, `commitInterlock: on-task-approval`,
+          `pushInterlock: on-sync` on this machine).
+
+- _Outcome:_ Production sweep landed across five files exactly as scoped; test sweep expanded
+  to ten files (initial five plus `status/run.test.ts`, `handlers/release/{push,commit}.test.ts`,
+  `git/git.test.ts`, and the two `integration/{config,status,update}.test.ts` files) once the
+  second-pass grep surfaced additional `ConfigSettings`-typed fixtures, integration yaml
+  inputs, and one orphaned migration test. The five-file initial scope reflected the prior
+  session's SESSION-NOTES discovery; the second-pass coverage caught the rest. Net wire-format
+  change: `arc config status` headline drops 21 → 17; the session-init envelope's
+  `config.value.settings` slot collapses to nine keys; `releaseRouting.value.rationale.*`
+  remains the canonical surface for resolved per-dev interlock state. Code now matches the
+  docs that 6.R.6 swept.
+
+### `[ ]` **6.R.8 PRD update**
 
 - _Goal:_ PRD reads as if the per-developer-only architecture was planned from the start — no
   dual-scope framing residue, `releaseOptedIn` naming consistent throughout, R-anchor numbering
   preserved.
 
-    - `[ ]` **6.R.7.a Identify rework scope — surface to user before edits land**
+    - `[ ]` **6.R.8.a Identify rework scope — surface to user before edits land**
         - Grep `prd-release-wrappers-ergonomics.md` for `releaseEnabled`, `release.enabled`,
           `commit_interlock`, `push_interlock`, `sync_interlock`.
         - Classify each occurrence: rename-only (mechanical), scope-rephrase (the surrounding
@@ -1055,7 +1163,7 @@ history (research findings, naming options weighed, what was wrong before, why t
           architectural framing needs reworking).
         - Surface the classification to user; settle on rewrite shape before applying.
 
-    - `[ ]` **6.R.7.b Apply rewrites**
+    - `[ ]` **6.R.8.b Apply rewrites**
         - Mechanical renames first (`releaseEnabled` → `releaseOptedIn` throughout).
         - Scope-rephrase passes — adjust surrounding framing where dual-scope language was
           load-bearing; describe the per-dev-only architecture as if planned.
@@ -1063,12 +1171,12 @@ history (research findings, naming options weighed, what was wrong before, why t
           discussion, and any "adopter opt-in" / "project flag" framing.
         - Preserve R-anchor numbering immutably (no renumbering — audit-trail discipline).
 
-### `[ ]` **6.R.8 WU-internal cleanup**
+### `[ ]` **6.R.9 WU-internal cleanup**
 
 - _Goal:_ WU artifacts (this task list, ATOMIC-INBOX) carry no stale references — completed
   prior tasks annotated where renamed/collapsed keys appear; obsolete atomic-inbox entry retired.
 
-    - `[ ]` **6.R.8.a Task list amendment — annotate stale references**
+    - `[ ]` **6.R.9.a Task list amendment — annotate stale references**
         - Scan completed Phases 1-5 + Phase 6 (6.1, 6.2) in
           `tasks-release-wrappers-ergonomics.md` for `releaseEnabled`, `release.enabled`, the
           three interlock yaml-key names.
@@ -1079,7 +1187,7 @@ history (research findings, naming options weighed, what was wrong before, why t
         - Don't rewrite original task descriptions or completion notes (audit-trail discipline
           per `strategy-task-list-formatting.md` § Revision Numbering).
 
-    - `[ ]` **6.R.8.b ATOMIC-INBOX entry retirement**
+    - `[ ]` **6.R.9.b ATOMIC-INBOX entry retirement**
         - File: `.arc/user/andrew/ATOMIC-INBOX.md`.
         - Delete the `### \`[ ]\` **Flip project interlocks to on-workflow + release.enabled to true**`
           entry — the work it described (project-level config flips) is no longer atomic-tier

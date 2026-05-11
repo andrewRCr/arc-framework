@@ -88,12 +88,8 @@ function okConfig(): Probe<ConfigStatusResult> {
         "session.init_pull.worktree": "prompt",
         "session.init_pull.notes": "prompt",
         "session.init_load.notes": "prompt",
-        "session.commit_interlock": "manual",
-        "session.push_interlock": "manual",
-        "session.sync_interlock": "on-handoff",
         "archive.cadence": "with-integration",
         "user.notes_push": "on-sync",
-        "release.enabled": "false",
       },
       defaultsApplied: [],
       warnings: [],
@@ -165,11 +161,7 @@ function makeSessionInitResult(
           "session.init_pull.worktree": "prompt",
           "session.init_pull.notes": "prompt",
           "session.init_load.notes": "prompt",
-          "session.commit_interlock": "manual",
-          "session.push_interlock": "manual",
-          "session.sync_interlock": "on-handoff",
           "user.notes_push": "on-sync",
-          "release.enabled": "false",
           "branch.protection": "partial",
           "pm.mode": "none",
           "commit.format": "conventional",
@@ -253,7 +245,7 @@ describe("buildStatusSummary — full mode", () => {
     // Extensions full formatter headline: "N active · N inactive · N orphaned refs"
     expect(summary).toContain("1 active · 0 inactive · 0 orphaned refs");
     // Config formatter: "N agent-consumable settings"
-    expect(summary).toContain("21 agent-consumable settings");
+    expect(summary).toContain("17 agent-consumable settings");
     // Active formatter: "0 active work units"
     expect(summary).toContain("0 active work units");
   });
@@ -304,8 +296,8 @@ describe("buildSessionInitStatusSummary — scoped mode", () => {
     expect(summary).toContain("clean (in sync with origin)");
     expect(summary).toContain("1 active extensions");
     expect(summary).toContain("Init-gating settings");
-    expect(summary).toContain("session.commit_interlock: manual");
-    expect(summary).toContain("session.push_interlock: manual");
+    expect(summary).toContain("session.remote_sync: enabled");
+    expect(summary).toContain("user.notes_push: on-sync");
     expect(summary).toContain("taskCommit: raw");
     expect(summary).toContain("workflowCommit: raw");
     expect(summary).toContain("workflowPush: raw");
