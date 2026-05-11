@@ -666,9 +666,13 @@ _Design decisions:_ Strategy doc lands first — initial-setup section (6.2) and
 - _Approach:_ Small touches — each strategy doc gets a cross-reference block addition where
   topically relevant. No restructuring of existing content.
 
-    - `[ ]` **6.3.a `strategy-configurability-architecture.md` (R14.2)**
-        - Cross-reference to the new domain strategy. Interlock release wrappers as a
-          configurability surface (`release.enabled` × interlock values × routing).
+    - `[x]` **6.3.a `strategy-configurability-architecture.md` (R14.2)**
+        - Cross-reference to new domain strategy added (Related Documentation entry +
+          release-wrapper opt-in inline pointer + link reference). Bundled 6.R.4.a (new `##
+          Personal Configuration via Git Config` H3 + 8-key reference table) and in-file 6.R
+          sweep (~12 stale references corrected to `arc.X` per-dev key forms; Config scope
+          section renamed; Behavioral defaults table + Configurability path definitions +
+          Personal settings callout updated). Both copies in sync; Tier 1 lint clean.
 
     - `[ ]` **6.3.b `strategy-session-operations.md` (R14.3)**
         - Update for the harness/mode marker (R9) as a per-developer per-machine state surface.
@@ -732,6 +736,12 @@ history (research findings, naming options weighed, what was wrong before, why t
         - Contents H2 ToC updated.
 
     - `[ ]` **6.R.1.b ADR-017 amendment — per-developer scope clarification**
+        - _Note:_ Pass 2 plan for 6.R.4.a called for an ADR-017 amendment link in the strategy
+          doc's `arc.notesPush` row; dropped during 6.3.a's bundled execution per
+          DEV-RULES.PROJECT § Architecture Documentation (ADRs are internal-only; can't be
+          linked from adopter-facing strategy docs). This amendment should still capture the
+          `arc.notesPush` deferral context — the strategy doc points at the deferral but
+          doesn't elaborate.
         - File: `.arc/reference/adr/adr-017-release-wrapper-trust-model.md` (single copy —
           ADRs are internal-only per DEV-RULES.PROJECT § Architecture Documentation).
         - Add new amendment section after existing Decision (parallel to existing
@@ -828,19 +838,10 @@ history (research findings, naming options weighed, what was wrong before, why t
 - _Goal:_ Per-developer configuration surface becomes discoverable — strategy doc carries the
   canonical reference table, `arc-config.yml` header points to it.
 
-    - `[ ]` **6.R.4.a Strategy doc — `## Personal Configuration via Git Config` section**
-        - File: `strategy-configurability-architecture.md` (both copies — `.arc/` +
-          `packages/arc-framework/arc/`).
-        - Placement: H3 subsection inside the existing `## Configuration` section, after the
-          existing dual-scope discussion ("arc-config.yml is project-level... per-developer
-          override" content).
-        - Content: brief framing (1–2 paragraphs naming the dual-scope-vs-per-dev-only
-          distinction); reference table covering all per-dev `arc.*` keys.
-        - Table columns: git-config key, what it controls, valid values, default, scope notes.
-        - Keys: `arc.identity`, `arc.role`, `arc.tools`, `arc.commitInterlock`,
-          `arc.pushInterlock`, `arc.syncInterlock`, `arc.notesPush`, `arc.releaseOptedIn`.
-        - `arc.notesPush` row notes its dual-scope-with-yaml status (the lone exception) and
-          links to ADR-017 amendment for the deferred-decision context.
+    - `[x]` **6.R.4.a Strategy doc — `## Personal Configuration via Git Config` section**
+        - Bundled into 6.3.a's pass (same-file batch). Section landed inside `## Configuration`
+          after Config scope subsection; 8-key reference table covers identity, role, tools,
+          three interlocks, notesPush, releaseOptedIn. Both copies in sync.
 
     - `[ ]` **6.R.4.b `arc-config.yml` — remove four collapsed keys; add top-level pointer**
         - Both copies (`.arc/system/arc-config.yml` +
@@ -920,6 +921,9 @@ history (research findings, naming options weighed, what was wrong before, why t
           rather than the value itself.
 
     - `[ ]` **6.R.6.d Other reference docs**
+        - _Note:_ `strategy-configurability-architecture.md` already swept as part of 6.3.a's
+          batch (which absorbed 6.R.4.a + in-file 6.R cleanup). Skip that file in this sweep;
+          remaining scope as listed below.
         - `QUICK-REFERENCE.md` — `arc.release.enabled` references at current lines ~285,
           ~288–289 (both copies).
         - `strategy-session-operations.md` — coordinate with 6.3.b's permissiveness-ladder

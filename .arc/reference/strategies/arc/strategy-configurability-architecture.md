@@ -111,9 +111,9 @@ a configurability path (how teams adapt it).
 | Branch naming conventions               | P6        | `feature/`, `technical/`, etc.      | Behavioral guidance — any consistent scheme           |
 | Per-WU status + user/{identity}/ state  | P5        | Two-file session state in user dir  | Method override — substitute session mechanism        |
 | Session init/handoff ceremonies         | P5        | Structured document loading         | Behavioral guidance — ceremony adapted to agent type  |
-| Commit interlock release                | P5        | Manual commit                       | Config setting — `session.commit_interlock`           |
-| Sync interlock release                  | P5        | Sync at handoff                     | Config setting — `session.sync_interlock`             |
-| Push interlock release                  | P5        | Manual push                         | Config setting — `session.push_interlock`             |
+| Commit interlock release                | P5        | Manual commit                       | Per-developer git config — `arc.commitInterlock`      |
+| Sync interlock release                  | P5        | Sync at handoff                     | Per-developer git config — `arc.syncInterlock`        |
+| Push interlock release                  | P5        | Manual push                         | Per-developer git config — `arc.pushInterlock`        |
 
 #### Design commitment conventions
 
@@ -127,6 +127,9 @@ a configurability path (how teams adapt it).
 
 - **Config setting** — A value in `arc-config.yml` that hooks, workflows, or agents read at runtime to change
   behavior. See [Configuration](#configuration).
+- **Per-developer git config** — A value in git-config local (`git config arc.<key>`) that ARC reads
+  per-developer rather than project-wide. Personal preferences (autonomy interlocks, release-wrapper opt-in)
+  live here. See [Personal Configuration via Git Config](#personal-configuration-via-git-config).
 - **Method override** — A populated `.override` section in a file under `system/methods/` that substitutes
   ARC's default implementation with the team's alternative. See [Method Overrides](#method-overrides).
 - **Extension** — Additional steps added at preset workflow points via files under `system/extensions/`. See
@@ -203,16 +206,49 @@ the prose in strategy or workflow documents.
 programmatically by hooks, workflows, or agent processing, AND (b) the alternative — editing framework files
 directly — would create update safety or maintenance problems.
 
-### Config scope: project-wide by design
+### Config scope and per-developer overrides
 
-`arc-config.yml` is a **project-level** file — all settings apply to the entire team. There is no per-developer
-layering mechanism.
+`arc-config.yml` is a **project-level** file — most settings apply to the entire team. Personal preferences
+(autonomy / interaction-cadence settings, opt-ins requiring per-machine setup) live in git-config local instead,
+where each developer configures them independently.
 
-- Every current setting (`branch.*`, `commit.*`, `merge.*`, `hooks.*`, `platform.*`) is inherently project-wide.
-  Per-developer variation would create inconsistency.
-- Per-developer values (e.g., identity) route through **git config** (`git config arc.identity alice`).
-- Project-level defaults that individuals may want to override (e.g., `user.notes_push`) follow the same pattern:
-  `arc-config.yml` sets the team default, git config provides a personal override.
+- **Project-only settings** — `branch.*`, `commit.*`, `merge.*`, `hooks.*`, `platform.*`, `pm.mode`, `team.mode`,
+  `archive.cadence`, `review.pre_merge`, `session.init_pull.*`, `session.init_load.notes`, `session.remote_sync`.
+  These are inherently project-wide; per-developer variation would create inconsistency.
+- **Per-developer settings** — identity, role, autonomy interlocks, release-wrapper opt-in. These route through
+  **git config** (`git config arc.<key>`). See [Personal Configuration via Git
+  Config](#personal-configuration-via-git-config) below for the full key reference.
+- **Dual-scope (one key)** — `user.notes_push` is the lone setting carrying both a project-level default in
+  `arc-config.yml` and a per-developer git-config override (`arc.notesPush`). Other settings are exclusively
+  one tier or the other.
+
+### Personal Configuration via Git Config
+
+Personal preferences live in git-config local rather than `arc-config.yml`. Each developer configures them
+independently; they have no project-level counterpart (with the lone exception of `arc.notesPush`, which
+overrides a yaml-side default).
+
+| Git-config key            | Controls                                          | Values                                         | Default       |
+|---------------------------|---------------------------------------------------|------------------------------------------------|---------------|
+| `arc.identity`            | Developer identity                                | Free-form (no spaces)                          | (required)    |
+| `arc.role`                | Maintainer vs. contributor                        | `maintainer` / `contributor`                   | `maintainer`  |
+| `arc.tools`               | Installed AI harnesses for skill scaffolding      | Comma-separated harness names                  | (none)        |
+| `arc.commitInterlock`     | When the agent fires per-task commits             | `manual` / `on-task-approval` / `on-workflow`  | `manual`      |
+| `arc.pushInterlock`       | When the agent fires pushes                       | `manual` / `on-sync` / `on-workflow`           | `manual`      |
+| `arc.syncInterlock`       | When the agent invokes session sync               | `manual` / `on-handoff` / `on-workflow`        | `on-handoff`  |
+| `arc.notesPush`           | Personal user-directory notes push behavior       | `manual` / `prompt` / `on-sync`                | `on-sync`     |
+| `arc.releaseOptedIn`      | Per-developer release-wrapper opt-in flag         | `true` / `false`                               | `false`       |
+
+`arc.notesPush` is dual-scope: it overrides the project-level `user.notes_push` value in `arc-config.yml`. The
+other entries are per-developer only — there is no project-level counterpart to override.
+
+`arc.releaseOptedIn` is set by `arc release setup install` (per-harness setup + opt-in recording) or
+`arc release opt-in` (opt-in recording only). See [Interlock Release Wrappers
+Strategy][interlock-release-wrappers] for the trust model and per-harness setup notes.
+
+`arc.identity`, `arc.role`, and `arc.tools` are managed by `arc init` (project bootstrap) or `arc join`
+(joining an existing project). The autonomy interlocks have no setup helper today — set them via direct
+`git config arc.<key> <value>` edits as preference.
 
 ### Settings with behavioral implications
 
@@ -227,21 +263,23 @@ Most config settings are straightforward toggles. Some carry deeper implications
 - **`squash`** (escape hatch, tier 3) — Individual commits collapse into one per branch. Traceability shifts:
   PR descriptions must carry the traceability that individual commits would normally provide.
 
-**Session interlocks** govern how approval propagates through the commit, sync, and push interlocks:
+**Session interlocks** govern how approval propagates through the commit, sync, and push
+interlocks. All three are per-developer settings via git config — see [Personal Configuration
+via Git Config](#personal-configuration-via-git-config) above for the key reference.
 
-- **`session.commit_interlock: manual`** (default) — commit requires explicit user invocation.
-- **`session.commit_interlock: on-task-approval`** — task approval releases the commit interlock.
-- **`session.commit_interlock: on-workflow`** — task approval and workflow-ceremony commits both
+- **`arc.commitInterlock: manual`** (default) — commit requires explicit user invocation.
+- **`arc.commitInterlock: on-task-approval`** — task approval releases the commit interlock.
+- **`arc.commitInterlock: on-workflow`** — task approval and workflow-ceremony commits both
   release the commit interlock.
-- **`session.sync_interlock: on-handoff`** (default) — handoff invokes `arc sync` as part of the
+- **`arc.syncInterlock: on-handoff`** (default) — handoff invokes `arc sync` as part of the
   handoff ceremony.
-- **`session.sync_interlock: manual`** — handoff surfaces unpushed state without invoking sync.
-- **`session.sync_interlock: on-workflow`** — handoff and other workflow-driven sync triggers
+- **`arc.syncInterlock: manual`** — handoff surfaces unpushed state without invoking sync.
+- **`arc.syncInterlock: on-workflow`** — handoff and other workflow-driven sync triggers
   both release the sync interlock (forward-compatible with upcoming worktree work units; today
   behaviorally equivalent to `on-handoff`).
-- **`session.push_interlock: manual`** (default) — push requires explicit user invocation.
-- **`session.push_interlock: on-sync`** — an `arc sync` event releases the push interlock.
-- **`session.push_interlock: on-workflow`** — sync events and other workflow-driven push events
+- **`arc.pushInterlock: manual`** (default) — push requires explicit user invocation.
+- **`arc.pushInterlock: on-sync`** — an `arc sync` event releases the push interlock.
+- **`arc.pushInterlock: on-workflow`** — sync events and other workflow-driven push events
   both release the push interlock.
 
 The three values per interlock form an ascending permissiveness ladder: `manual` (zero triggers)
@@ -255,8 +293,9 @@ Toggle Pattern.
 
 **Release-wrapper opt-in** is a separate config axis from the interlocks
 — orthogonal to WHEN the agent fires (interlock-governed), it controls HOW the invocation is
-shaped. Resolution layers per-developer git-config (`arc.releaseEnabled`, local scope) over the
-project-wide yaml setting (`release.enabled`); default `false`. See [Session Operations
+shaped. Per-developer git config (`arc.releaseOptedIn`, local scope); default `false`. See
+[Interlock Release Wrappers Strategy][interlock-release-wrappers] for trust-model framing,
+when-to-use guidance, and per-harness setup notes; see [Session Operations
 Strategy][session-ops] § Interlock Model for the wrapper layer.
 
 ### Handoff-interior toggles
@@ -290,8 +329,10 @@ Config settings divide into two categories based on how changes take effect:
 - `platform.type` — Agent platform awareness
 - `review.pre_merge` — Pre-merge review toggle
 
-**Personal settings** (role, tools) route through `git config` and are managed by `arc join` and
-`arc join --reconfigure`, not through `arc-config.yml`.
+**Personal settings** route through `git config` (identity, role, tools, autonomy interlocks, release-wrapper
+opt-in) and are managed by `arc init` / `arc join` (identity, role, tools), `arc release setup install` /
+`arc release opt-in` (release-wrapper opt-in), or direct `git config arc.<key>` edits (autonomy interlocks). See
+[Personal Configuration via Git Config](#personal-configuration-via-git-config) for the full key reference.
 
 ### Tier 3 in config
 
@@ -476,10 +517,14 @@ the [Agent Hooks](https://andrewrcr.github.io/arc-framework/customization/hooks/
   boundaries let teams add project-specific checks.
 - **[Work Organization Strategy][work-org]** — Branch model, work categories, archival. Branch-related config
   settings interact with conventions defined there.
+- **[Interlock Release Wrappers Strategy][interlock-release-wrappers]** — Trust-model framing for release
+  wrappers, per-harness setup notes, and when-to-use guidance. Cross-references the per-developer
+  `arc.releaseOptedIn` opt-in flag.
 
 ---
 
 [session-ops]: strategy-session-operations.md
+[interlock-release-wrappers]: strategy-interlock-release-wrappers.md
 [dev-rules-arc]: ../../constitution/DEV-RULES.ARC.md
 [quality-gates]: strategy-quality-gates.md
 [work-org]: strategy-work-organization.md
