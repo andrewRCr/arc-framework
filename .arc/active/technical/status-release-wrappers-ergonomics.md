@@ -19,8 +19,6 @@
 - **Next Task:** Task 6.R.8.a — Identify PRD rework scope (line ~1158)
 - **Blockers:** [none]
 
-- **Next Action:** Evaluate the release-wrapper triggered-only discipline question
-  (per SESSION-NOTES § Additional Context) before resuming task list. Then begin
-  Task 6.R.8.a.
+- **Next Action:** Begin Task 6.R.8.a — Identify PRD rework scope.
 
 ---
