@@ -169,8 +169,10 @@ it when encountering method references, extension fire points, or platform-speci
 
 ### Design: `arc-config.yml`
 
-`arc-config.yml` is the single configuration file for all convention-level settings. It uses dotted keys for
-logical grouping within a flat-file, shell-parseable format.
+`arc-config.yml` is the project-level configuration file for convention-level settings shared across the team.
+Personal preferences (autonomy interlocks, opt-ins requiring per-machine setup) live in per-developer git-config
+instead — see § Config scope and per-developer overrides for the split. The file uses dotted keys for logical
+grouping within a flat-file, shell-parseable format.
 
 ```yaml
 # ARC Framework Configuration
