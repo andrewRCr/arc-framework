@@ -11,36 +11,81 @@ Current state at a glance. Updated when work is activated, completed, or archive
 
 **Last Completed:**
 
-- Interlock Release Wrappers — Foundation (WU1, technical) — Mechanical foundation for
-  `arc release commit` and `arc release push`: interlock-validating wrappers with refusal
-  taxonomy (codes 10–14), shared validation library, JSONL audit log umbrella covering both
-  wrappers and the `arc sync` retrofit, opt-in state surface, and full release-mode key
-  resolution in the session-init envelope. ADR-017 (release-wrapper trust model) and ADR-018
-  (trigger-set interlock authorization) shipped alongside.
-    - Archive: `archive/2026-q2/technical/08_release-wrappers-foundation/`
+- Interlock Release Wrappers — Ergonomics (WU2, technical) — Adopter ergonomics layer atop the
+  WU1 mechanical foundation: `arc release setup` subcommand tree (verify / install / uninstall /
+  print-patterns) with per-developer marker storage, `arc release status` posture reporting with
+  route-class resolution, structured `releaseRouting` session-init envelope slot, workflow class-tag
+  routing (`taskCommit` / `workflowCommit` / `workflowPush`) consulted at fire-sites, per-developer
+  configuration collapse (interlocks + opt-in moved to git-config-only, renamed to
+  `arc.releaseOptedIn`), adopter setup workflow + strategy doc + initial-setup integration, and
+  wrapper arg-grammar forgiveness for positional `<remote> <branch>` pairs / `-u` triples /
+  value-taking push flags (`-o`, `--push-option`).
+    - Archive: `archive/2026-q2/technical/09_release-wrappers-ergonomics/`
 
 **Currently Active:**
 
-- Interlock Release Wrappers — Ergonomics (WU2, technical) — In Progress. Adopter ergonomics
-  layer atop WU1: setup helper (`arc release setup`), per-harness workflow, status
-  integration, structured ADR-018-aware routing, documentation surfaces. Spec:
-  `active/technical/prd-release-wrappers-ergonomics.md`; tasks:
-  `active/technical/tasks-release-wrappers-ergonomics.md` (8 phases / 22 parent tasks /
-  57 leaf subtasks); branch: `technical/release-wrappers-ergonomics`.
+- Work Organization Reform (technical) — Planning. Constitutional reform of WU lifecycle:
+  single-branch-per-WU model (planning branch IS WU branch through entire lifecycle), Conventional
+  Branch alignment (retire `feature/`/`technical/` prefixes for `feat/`/`fix/`/`chore/`/etc.),
+  sweep-as-you-go integration foundation, status-file location-by-state convention, optional
+  group dirs in `backlog/` for codified multi-WU groups. Delivers per-worktree isolation as a
+  structural precondition for Worktree Foundation. Spec:
+  `active/technical/plan-work-organization-reform.md`; branch:
+  `technical/plan-work-organization-reform`.
 
 **Next Priority:**
 
-- After Ergonomics: Work Organization Reform — Constitutional reform of WU lifecycle
-  (single-branch-per-WU, Conventional Branch alignment, sweep-as-you-go, group-dir
-  convention). Upstream of the parallelism trio. Plan:
-  `backlog/technical/plan-work-organization-reform.md` (pre-PRD draft).
-- Then: Parallelism trio downstream of WOR — Worktree Foundation, then Agile WU Lifecycle,
-  then Concurrent Work Conventions; arc-plan Conductor parallelizable with the trio.
-- Then: ARCd Rebrand — Public product brand split (ARCd for product, ARC for
-  methodology) with absorbed config-key renames and CLI command cleanup.
+- After Work Organization Reform: Worktree Foundation — Mechanism layer for parallel and mobile
+  work; extracts shift lifecycle (mode-universal infrastructure), adds worktree-aware shift,
+  gives session-init worktree context awareness including branch-gone detection. Plan:
+  `backlog/technical/plan-worktree-foundation.md`.
+- Then: Parallelism trio downstream of Worktree Foundation — Agile WU Lifecycle, then Concurrent
+  Work Conventions; Coord Probe and arc-plan Conductor parallelizable.
+- Then: Per-Developer Configuration Storage Architecture — three-tier storage model (global
+  `~/.arc/config.yml` for identity; in-repo gitignored per-user file synced via user-notes for
+  interlocks/opt-in; per-machine `.local/` for install markers + audit log). Plan:
+  `backlog/technical/plan-config-storage-architecture.md`.
+- Then: ARCd Rebrand — Public product brand split (ARCd for product, ARC for methodology) with
+  absorbed config-key renames and CLI command cleanup.
 - Then: ARC Operating Modes (ARC Lite + local/untracked).
 
 ## Completed Major Work
+
+### Interlock Release Wrappers — Ergonomics (May 2026)
+
+Adopter ergonomics layer atop the WU1 mechanical foundation. Turns the wrappers into a
+usable-by-default surface: setup commands, harness allowlist contracts, posture reporting,
+structured workflow routing, and a per-developer configuration model that matches the
+wrappers' per-machine trust reality.
+
+- `arc release setup` subcommand tree (`verify` / `install` / `uninstall` / `print-patterns`)
+  backed by per-developer marker storage at `.arc/user/{identity}/.internal/release-setup.json`;
+  workflow-as-contract pattern keeps the CLI focused on validation/status while reference
+  harness implementations (Claude Code, Codex CLI) carry the per-harness write details
+- `arc release status` extended with harness setup state, active value layers, opt-in/interlock
+  provenance, and resolved route classes; surfaces the wrapper-vs-raw decision per fire-site
+- `releaseRouting` session-init envelope slot carrying `{taskCommit, workflowCommit,
+  workflowPush}` route classes + provenance; workflows and skills consult one resolved
+  decision surface instead of re-deriving wrapper eligibility per fire-site
+- Workflow class-tag routing rule codified in DEV-RULES.ARC: backtick-wrapped class tags
+  (`` `taskCommit` ``, `` `workflowCommit` ``, `` `workflowPush` ``) at fire-sites resolve to
+  `wrapper` vs `raw` via the envelope; off-workflow commits stay raw `git` regardless of opt-in
+- Per-developer configuration collapse (Phase 6.R mid-WU scope correction): four formerly
+  dual-scope keys (`commit.commit_interlock`, `commit.push_interlock`, `session.sync_interlock`,
+  `release.enabled`) moved to git-config-only storage; opt-in key renamed to `arc.releaseOptedIn`;
+  ADR-017 amended to reflect the per-developer trust-model alignment
+- Adopter documentation: `setup-release-wrapper.md` workflow (harness-agnostic contract with
+  Claude Code + Codex reference implementations inline), `strategy-interlock-release-wrappers.md`,
+  initial-setup workflow integration, cross-references across ARC's workflow and strategy surfaces
+- Wrapper arg-grammar forgiveness: `arc release push` accepts positional `<remote> <branch>`
+  pairs and `-u <remote> <branch>` triples, validating against the wrapper's fixed
+  `origin <current-branch>` target (matching pairs stripped, mismatches refuse with code 15);
+  value-taking flags (`-o`, `--push-option`) consume their value token so it isn't misread as
+  the start of a positional pair. Lets workflow prose share one invocation shape across
+  `wrapper` and `raw` routing
+- Empirical matcher verification: Claude Code project-scoped default-mode tests confirmed
+  allowlist behavior; Codex verification confirmed canonical wrapper patterns still match and
+  that previously-documented fall-through shell shapes now match after matcher unwrapping widened
 
 ### Interlock Release Wrappers — Foundation (May 2026)
 

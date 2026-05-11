@@ -204,8 +204,7 @@ this WU handles the architectural work.
   Session-Init Optimization lands; WU-B (auto-push instantiation against handoff-interior
   toggles) waits for Session-Operational Flow Phase 6. Unified if sequencing allows.
 
-**Interlock Release Wrappers** — WU1 ✅ Complete (Foundation, May 2026); WU2 In Progress
-(Ergonomics)
+**Interlock Release Wrappers** — ✅ Complete (WU1 Foundation + WU2 Ergonomics, May 2026)
 
 Closes the final friction point in session operations: the redundant harness-prompt + ARC-interlock
 duplicate authorization on every commit and push. Two CLI wrapper commands (`arc release commit`,
@@ -222,10 +221,8 @@ Codex CLI viable (Codex with a shell-wrapper caveat to verify); opencode auto-al
 pending upstream config-validation fixes.
 
 - WU1 (Foundation): `archive/2026-q2/technical/08_release-wrappers-foundation/` (PR #30,
-  merged 2026-05-09);
-  WU2 (Ergonomics): `active/technical/prd-release-wrappers-ergonomics.md` and
-  `active/technical/tasks-release-wrappers-ergonomics.md` (in progress on
-  `technical/release-wrappers-ergonomics`)
+  merged 2026-05-09); WU2 (Ergonomics): `archive/2026-q2/technical/09_release-wrappers-ergonomics/`
+  (PR #32, merged 2026-05-11)
 - Upstream: User Sync UX Polish (Phase 2 paired-push semantics + pushability matrix feeds
   push-wrapper validation; Phase 3.1 resolver consolidation is the base for the validation library;
   `pushWorktreeBranch` helper from Phase 2.R is the swappable seam), Interlock Foundation (ADR-016
@@ -500,6 +497,18 @@ Phase A ──► Phase B ──► Phase C (Work Units):
 
 ## Change Log
 
+- **2026-05-11**: Interlock Release Wrappers — Ergonomics (WU2) complete (merged via PR #32)
+  and archived to `archive/2026-q2/technical/09_release-wrappers-ergonomics/`. Delivered the
+  `arc release setup` subcommand tree with per-developer marker storage, `arc release status`
+  posture reporting with route-class resolution, the `releaseRouting` session-init envelope
+  slot, workflow class-tag routing rule (`taskCommit` / `workflowCommit` / `workflowPush`),
+  per-developer configuration collapse (four formerly dual-scope keys to git-config-only;
+  opt-in key renamed to `arc.releaseOptedIn`), adopter setup workflow + strategy doc + initial-
+  setup integration, and wrapper arg-grammar forgiveness (positional `<remote> <branch>` pairs,
+  `-u` triples, value-taking push flags). ADR-017 amendment captures the per-developer trust-
+  model alignment. Work Organization Reform activated to planning on
+  `technical/plan-work-organization-reform` (batch branch carrying ergonomics archival +
+  WOR planning).
 - **2026-05-09**: Interlock Release Wrappers — Ergonomics (WU2) planning branch merged
   via PR #31 and activated to implementation on `technical/release-wrappers-ergonomics`.
   PRD covers R1–R18 across P0/P1/P2 (setup workflow, CLI subcommand tree, sidecar marker

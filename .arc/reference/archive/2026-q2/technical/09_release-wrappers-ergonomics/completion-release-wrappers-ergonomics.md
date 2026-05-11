@@ -3,7 +3,7 @@
 - **Started**: 2026-05-09
 - **Completed**: 2026-05-11
 - **Branch**: technical/release-wrappers-ergonomics
-- **Pull Request**: {pending until archival}
+- **Pull Request**: <https://github.com/andrewRCr/arc-framework/pull/32>
 
 - **Context**: Follow-on work for interlock release wrappers, focused on adopter setup,
   posture visibility, and workflow routing ergonomics.
