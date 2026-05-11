@@ -951,37 +951,40 @@ history (research findings, naming options weighed, what was wrong before, why t
           first setting; references `strategy-configurability-architecture.md` § Personal
           Configuration via Git Config for the per-developer key reference.
 
-### `[ ]` **6.R.5 Setup workflow + handlers**
+### `[x]` **6.R.5 Setup workflow + handlers**
 
 - _Goal:_ Setup workflow and CLI surfaces consistently use `releaseOptedIn`; install/uninstall
   records the renamed flag via the renamed constant; marker file schema confirmed unaffected.
 
-    - `[ ]` **6.R.5.a Workflow text — `setup-release-wrapper.md`**
-        - Both copies (`.arc/` + `packages/arc-framework/arc/`).
-        - Replace `arc.releaseEnabled` references → `arc.releaseOptedIn` throughout.
-        - Review § State-Recording Protocol for accuracy under collapsed scope (the protocol
-          still describes git-config writes correctly; no behavioral change).
-        - Review § Trust-Model Acknowledgment text — no references to the flag name expected,
-          but verify.
+    - `[x]` **6.R.5.a Workflow text — `setup-release-wrapper.md`**
+        - `arc.releaseEnabled` → `arc.releaseOptedIn` rename echoed at 4 occurrences per copy
+          (Side effects bullet, Step 5 Record state, § State-Recording Protocol § Opt-in flag,
+          Rollback Protocol). Both copies in sync.
+        - § State-Recording Protocol git-config write description accurate under collapsed scope
+          (no behavioral change). § Trust-Model Acknowledgment: no flag-name references (as
+          expected); no edits needed there.
 
-    - `[ ]` **6.R.5.b Install / uninstall handlers — `record.ts`**
-        - Function bodies and call sites now reference `RELEASE_OPTED_IN_GIT_CONFIG_KEY`
-          (renamed in 6.R.2.a); confirm no string-literal `arc.releaseEnabled` references
-          remain.
-        - Update handler-internal doc comments.
-        - Multi-harness partial-success and idempotency logic unchanged.
+    - `[x]` **6.R.5.b Install / uninstall handlers — `record.ts`**
+        - Audit confirmed `record.ts`, `setup/install.ts`, `setup/uninstall.ts`, and
+          `setup/verify.ts` use `RELEASE_OPTED_IN_GIT_CONFIG_KEY` + `releaseOptedIn` consistently
+          after 6.R.2.a propagation. No string-literal `arc.releaseEnabled` remains; handler
+          doc comments already refer to `arc.releaseOptedIn`. No edits needed.
 
-    - `[ ]` **6.R.5.c CLI help text + command summaries**
-        - `cli.ts` opt-in / opt-out command summaries (current lines ~261, ~270) — update help
-          strings to reference `arc.releaseOptedIn`.
-        - Grep CLI surface for any other `arc.releaseEnabled` mentions.
+    - `[x]` **6.R.5.c CLI help text + command summaries**
+        - `cli.ts` opt-in / opt-out help strings already reference `arc.releaseOptedIn` (lines
+          261, 270) from the 6.R.2.a propagation. Broader grep across `src/` confirmed no
+          `arc.releaseEnabled` mentions remain in the CLI surface. No edits needed.
 
-    - `[ ]` **6.R.5.d Marker file schema sanity check**
-        - Inspect `lib/release/setup-marker.ts` and the schema documented in
-          `setup-release-wrapper.md` § State-Recording Protocol.
-        - Confirm marker doesn't embed the flag name (Pass 1 audit E expected outcome — no
-          schema change).
-        - If a reference does exist (unexpected), update accordingly.
+    - `[x]` **6.R.5.d Marker file schema sanity check**
+        - `lib/release/setup-marker.ts` schema (`schemaVersion: 1` envelope with `harnesses`
+          array of `name` / `mode` / `installedAt`) does not embed the flag name — Pass 1
+          audit E outcome confirmed. § State-Recording Protocol schema example in the workflow
+          doc matches. No edits needed.
+
+- _Outcome:_ Of the four subtasks, only the workflow doc (6.R.5.a) required edits — 6.R.2.a's
+  rename propagation had already swept the code surfaces (`record.ts`, install/uninstall/verify
+  handlers, `cli.ts` help strings) and the marker schema. The audit itself was the work; the
+  workflow doc was the only surface where rename echoes had been deferred.
 
 ### `[ ]` **6.R.6 Cross-doc sweep**
 

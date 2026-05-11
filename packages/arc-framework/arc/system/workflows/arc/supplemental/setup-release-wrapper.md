@@ -65,7 +65,7 @@ route lives under § Agent-Adaptive Path.
    acknowledgment, and recording.
 
 5. **Side effects.** The agent edits the harness's permission surface (default-prompt only). The CLI
-   writes ARC state (`arc.releaseEnabled` git-config flag and the harness/mode marker file) when the
+   writes ARC state (`arc.releaseOptedIn` git-config flag and the harness/mode marker file) when the
    workflow's verify step passes and the user confirms. No other side effects.
 
 6. **Verification expectations.** Default-prompt mode requires a passing behavioral test before opt-in
@@ -165,7 +165,7 @@ writes:
 
 - The harness/mode marker entry at `.arc/user/{identity}/.internal/release-setup.json` (per-developer,
   per-machine, gitignored).
-- `arc.releaseEnabled = true` (per-developer git-config local flag) on the first successful install.
+- `arc.releaseOptedIn = true` (per-developer git-config local flag) on the first successful install.
   Subsequent installs are flag-idempotent — the flag is not re-written if already set.
 
 The agent's role ends with the verification confirmation in Step 4. Recording mechanics, idempotency
@@ -354,7 +354,7 @@ Fields: `name` is free-form (reference-implementation values are `"claude-code"`
 agent-adaptive harnesses use whatever name agent and user agreed on at install). `mode` is one of
 `"default-prompt"` | `"bypass"`. `installedAt` is ISO-8601 UTC.
 
-**Opt-in flag** — `arc.releaseEnabled` (per-developer git-config local). Set to `true` on the first
+**Opt-in flag** — `arc.releaseOptedIn` (per-developer git-config local). Set to `true` on the first
 successful install. The flag is idempotent: subsequent successful installs do not re-write it.
 
 ### Idempotency: four-way choice
@@ -399,7 +399,7 @@ The workflow drives the rollback. Per-harness behavior:
    user-curated entries that drift from the canonical pattern set, and surface the drift for manual
    cleanup.
 2. CLI removes the harness's marker entry from `.arc/user/{identity}/.internal/release-setup.json`.
-3. CLI records `arc.releaseEnabled = false` only when removing the last marker entry — uninstalls that
+3. CLI records `arc.releaseOptedIn = false` only when removing the last marker entry — uninstalls that
    leave sibling harnesses preserve the existing opt-in flag (symmetric with the install-side
    set-on-first-install behavior).
 
