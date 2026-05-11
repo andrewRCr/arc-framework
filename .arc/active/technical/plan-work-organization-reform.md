@@ -33,6 +33,42 @@ conventions; not a worktree-mechanism WU.
   fix. Discussion converged on a single-branch-per-WU lifecycle model that resolves all three concerns
   cleanly and consolidates the boundary workflows in the process.
 
+> [!NOTE]
+> **Inline folds on touched workflows.** When this WU edits a workflow that emits a commit or
+> push, several adjacent items fold in at the same edit — not as a separate sweep, only inline
+> with the touches:
+>
+> 1. **Commit/push class-tag routing** (per the `user/{identity}/ATOMIC-INBOX.md` entry
+>    "Audit workflow/extension/method/skill fire-sites for wrapper-vs-raw consistency",
+>    2026-05-11): categorize each touched fire-site (ceremony / review-fix / sweep /
+>    off-ceremony) and settle the class tag — `` `taskCommit` `` / `` `workflowCommit` `` /
+>    `` `workflowPush` `` or intentionally untagged. The broader sweep across untouched
+>    workflows stays with the inbox entry's own future WU.
+> 2. **Workflow-interlock markers**: verify the workflow's interlock stops
+>    (`workflow-interlock`, `integration-interlock`, etc.) sit at the codified points and use
+>    canonical marker prose. Drift gets corrected inline rather than as a separate cleanup
+>    later.
+> 3. **`arc sync` / `arc release push` auto-set-upstream behavior.** Substantive code change
+>    (not just an audit pointer) that rides this WU's reshape of `activate-planning-branch.md`
+>    Step 6 and `activate-work-unit.md` Step 8 — the "optional first push" steps retire once
+>    new-branch pushability auto-sets upstream when push is authorized. Design: extend the
+>    pushability matrix so the `blocked-no-upstream` cell resolves to an `upstream-init`
+>    outcome when `pushInterlock` permits the worktree leg, running `git push -u origin <branch>`
+>    at the `pushWorktreeBranch` seam instead of refusing. Both `arc sync` (matrix dispatch)
+>    and `arc release push` (handler consumes pushability via the same seam) benefit; the
+>    refusal hit during this WU's own activation push validated the friction is real. Watchouts
+>    retained from the original capture: branch-protection refusals stay (existing invariant);
+>    stacked-PR / multi-remote flows still opt out via raw `git push -u <other-remote> <branch>`;
+>    remote-unavailable handling unchanged; notes-leg paired-push contract unchanged. Forward
+>    compat: WOR's single-branch-per-WU lifecycle retires the "optional first push" surface
+>    entirely from both step targets, so the fold lands as a natural step deletion rather than
+>    a step rewrite. Replaces the standalone `arc sync: auto-set-upstream when push is
+>    authorized` ATOMIC-INBOX entry (2026-04-30).
+>
+> Scope discipline: inline-with-touches only. Items 1 and 2 are audit-derived corrections;
+> item 3 is a substantive behavior change that rides the workflow trim. Workflows untouched by
+> this WU stay for their respective inbox entries.
+
 ---
 
 ## Problem / Motivation
