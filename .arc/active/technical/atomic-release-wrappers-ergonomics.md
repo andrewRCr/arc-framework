@@ -26,5 +26,6 @@ Atomic Task Completion for the full protocol.
     - _Outcome:_ Switched the codex branch to `prefix_rule(pattern=[...])`; updated the matching
       unit test assertion. `notes-release-wrappers-ergonomics.md` § Reference-Implementation
       Pattern Specifics → Codex CLI synced (kwargs form + corrected install path
-      `~/.codex/rules/default.rules`). Empirical confirmation against codex-cli still pending at
-      WU2 R13.
+      `~/.codex/rules/default.rules`). Empirical confirmation against codex-cli completed during
+      WU2 R13; the emitted `prefix_rule(pattern=[...])` form loads and matches canonical wrapper
+      invocations.

@@ -95,8 +95,8 @@ the status renderer.
 **Default-prompt with allowlist active:**
 
 ```text
-release_enabled: true (git-config:local)
-commit_interlock: on-task-approval (yaml)
+release_opted_in: true (git-config)
+commit_interlock: on-task-approval (git-config)
 push_interlock: manual (default)
 sync_interlock: on-handoff (default)
 
@@ -104,28 +104,36 @@ harnesses:
   claude-code (default-prompt) — installed 2026-05-09
   codex       (default-prompt) — installed 2026-05-09
 active_value_layers: validation + audit + harness-prompt bypass
+release_routing:
+  task_commit: wrapper
+  workflow_commit: raw
+  workflow_push: raw
 ```
 
 **Bypass mode:**
 
 ```text
-release_enabled: true (git-config:local)
-commit_interlock: on-task-approval (yaml)
+release_opted_in: true (git-config)
+commit_interlock: on-task-approval (git-config)
 push_interlock: manual (default)
 sync_interlock: on-handoff (default)
 
 harnesses:
-  claude-code (bypassPermissions) — no harness gate to bypass
+  claude-code (bypass) — no harness gate to bypass
 active_value_layers: validation + audit
+release_routing:
+  task_commit: wrapper
+  workflow_commit: raw
+  workflow_push: raw
 ```
 
 **Mixed (one default-prompt, one bypass on the same machine):**
 
 ```text
-release_enabled: true (git-config:local)
+release_opted_in: true (git-config)
 ...
 harnesses:
-  claude-code (bypassPermissions) — no harness gate to bypass
+  claude-code (bypass)          — no harness gate to bypass
   codex       (default-prompt)    — installed 2026-05-09
 active_value_layers: validation + audit + harness-prompt bypass (codex only)
 ```
@@ -133,7 +141,7 @@ active_value_layers: validation + audit + harness-prompt bypass (codex only)
 **Opt-in not recorded:**
 
 ```text
-release_enabled: false (default)
+release_opted_in: false (default)
 ...
 harnesses: []
 active_value_layers: none
@@ -281,12 +289,11 @@ prefix_rule(pattern=["arc", "release", "push"])
 ```
 
 Realistic invocation shape (`arc release commit -m "..."`) matches reliably. Verified empirically
-against codex-cli 0.128.0 (2026-05-07). Predictable fall-through to harness prompt for
-env-prefixed (`FOO=bar arc release commit ...`), redirected (`arc release commit ... > out`),
-command-substituted (`arc release commit -m $(date)`), or `$'...'` quoted invocations. Setup
-workflow documents the supported grammar.
-
-Re-verify against then-current codex-cli at WU2 verification (PRD R13's empirical surface).
+against codex-cli 0.130.0 during WU2 verification. `prefix_rule()` patterns match the canonical
+wrapper invocation shape; Codex shell-unwrapping widened since 0.128.0, so the historically
+documented fall-through forms now match too. Setup workflow guidance therefore stays prescriptive:
+agents should use plain positional invocation shapes for reliable matching, and noncanonical shell
+forms are codex-version-dependent rather than a stable negative boundary.
 
 ### opencode (agent-adaptive path)
 

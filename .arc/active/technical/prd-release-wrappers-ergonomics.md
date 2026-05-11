@@ -314,28 +314,36 @@ Human-readable mode (default): renders the new fields after the existing interlo
 under default-prompt with active allowlist:
 
 ```text
-arc.releaseOptedIn: true (git-config:local)
-arc.commitInterlock: on-task-approval (git-config:local)
-arc.pushInterlock: manual (default)
-arc.syncInterlock: on-handoff (default)
+release_opted_in: true (git-config)
+commit_interlock: on-task-approval (git-config)
+push_interlock: manual (default)
+sync_interlock: on-handoff (default)
 
 harnesses:
   claude-code (default-prompt) — installed 2026-05-09
   codex       (default-prompt) — installed 2026-05-09
 active_value_layers: validation + audit + harness-prompt bypass
+release_routing:
+  task_commit: wrapper
+  workflow_commit: raw
+  workflow_push: raw
 ```
 
 Under bypass:
 
 ```text
-arc.releaseOptedIn: true (git-config:local)
-arc.commitInterlock: on-task-approval (git-config:local)
-arc.pushInterlock: manual (default)
-arc.syncInterlock: on-handoff (default)
+release_opted_in: true (git-config)
+commit_interlock: on-task-approval (git-config)
+push_interlock: manual (default)
+sync_interlock: on-handoff (default)
 
 harnesses:
-  claude-code (bypassPermissions) — no harness gate to bypass
+  claude-code (bypass) — no harness gate to bypass
 active_value_layers: validation + audit
+release_routing:
+  task_commit: wrapper
+  workflow_commit: raw
+  workflow_push: raw
 ```
 
 **Design decision recorded:** no separate `arc release setup status` command. WU1's
@@ -711,32 +719,40 @@ relevant harnesses; tests verify that property holds for the scope of the test h
 
 None. All load-bearing design decisions are settled in the plan iteration that fed this PRD.
 
-### Resolve during work
+### Resolved during work
 
 - **Agent edit fidelity per harness.** Reference-implementation harnesses (Claude Code Edit on
   strict JSON; Codex Edit on Starlark) and agent-adaptive harnesses both depend on agent edit
   precision. Empirical question per harness, validated at task-time via the behavioral-test surface
   (R13). Workflow-mediated verify catches incorrect writes regardless of harness; setup loops back
-  to remediation rather than recording opt-in.
+  to remediation rather than recording opt-in. Resolution: reference-implementation installs were
+  verified through the workflow-mediated behavioral surface; agent-adaptive handling remains the
+  documented contract path for harnesses without reference implementations.
 - **`arc release setup uninstall` cleanup robustness when user has hand-edited helper-written
   entries** (or, under agent-adaptive path, when the agent translates cleanup against its earlier
   translation). Mitigation: cleanup matches by exact pattern set; doesn't touch user-curated
   entries; if patterns drift from canonical, cleanup is conservative (refuse + prompt manual
-  cleanup). Specific cleanup-fallback behavior validated at task-time.
+  cleanup). Resolution: uninstall uses exact-pattern removal and conservative fallback semantics,
+  with coverage for missing and preserved sibling entries.
 - **opencode resolution timeline** for [sst/opencode#6676] and [sst/opencode#15507]. When upstream
   lands, opencode graduates from agent-adaptive-with-caveats to reference-implementation in a
-  follow-up. Not blocking WU2 ship.
+  follow-up. Resolution: not blocking WU2 ship; opencode remains on the agent-adaptive path with
+  explicit caveats until upstream behavior changes.
 - **Codex matcher empirical re-verification cadence.** Re-run against the then-current codex-cli at
-  WU2 verification (R13's empirical surface). Specific codex-cli version pinned at task-time.
+  WU2 verification (R13's empirical surface). Resolution: re-ran against codex-cli 0.130.0; reliable
+  canonical shapes still match, and the historical fall-through shapes now match after Codex widened
+  shell unwrapping. The setup workflow now frames noncanonical shell forms as version-dependent.
 - **Mode-detection coverage for unknown harnesses.** Reference-implementation harnesses get
   documented mode-detection patterns in the workflow; agent-adaptive harnesses rely on the agent's
   own knowledge or fall through to user-direct (R3 tier 3). Misdetection at install time is a risk
-  the user-confirmation step in the workflow mitigates.
+  the user-confirmation step in the workflow mitigates. Resolution: the reference harnesses carry
+  documented mode checks; unknown harnesses keep the agent-adaptive and user-direct fallback path.
 - **Section title and exact wording for R2's lightweight integration.** Placement is concrete (Paths
   1 and 2 of `01_verify-and-configure.md` at the slots specified in R2). Section title (e.g.,
   "Optional: Interlock Release Wrapper Setup" vs. "Optional: Engage Release Wrappers") and the
   brief-description prose are determined at task-generation time when the actual workflow edit
-  lands.
+  lands. Resolution: landed as `Optional: Set Up Release Wrappers`, with concise mode-aware setup
+  language in the initial-setup workflow.
 
 ---
 

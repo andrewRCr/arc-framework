@@ -1446,9 +1446,7 @@ doesn't warrant.
     - **Note:** Verified at verification time — output shows `release_opted_in: true`, all four
       interlocks with provenance, harness list (both `claude-code` + `codex` at `bypass`),
       `active_value_layers: validation + audit`, and `release_routing` block per class. PRD R10
-      example blocks use illustrative dot-form labels (`arc.releaseOptedIn:`) that don't exactly
-      match the actual underscore-form output (`release_opted_in:`); carry as a small
-      docs-cleanup item for integration phase.
+      example blocks were aligned to the actual underscore-form output during integration prep.
 - `[x]` Marker file is durable across sessions (subsequent `arc release status` reads the
   persisted file correctly)
     - **Note:** Marker at `.arc/user/{identity}/.internal/release-setup.json` carries
