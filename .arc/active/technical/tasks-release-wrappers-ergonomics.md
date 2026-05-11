@@ -932,7 +932,7 @@ history (research findings, naming options weighed, what was wrong before, why t
       `arc.pushInterlock` literals.
     - `status/run.test.ts`: rename echoes in `releaseRouting` rationale fixtures.
 
-### `[ ]` **6.R.4 Discoverability surfaces**
+### `[x]` **6.R.4 Discoverability surfaces**
 
 - _Goal:_ Per-developer configuration surface becomes discoverable — strategy doc carries the
   canonical reference table, `arc-config.yml` header points to it.
@@ -942,20 +942,14 @@ history (research findings, naming options weighed, what was wrong before, why t
           after Config scope subsection; 8-key reference table covers identity, role, tools,
           three interlocks, notesPush, releaseOptedIn. Both copies in sync.
 
-    - `[ ]` **6.R.4.b `arc-config.yml` — remove four collapsed keys; add top-level pointer**
-        - Both copies (`.arc/system/arc-config.yml` +
-          `packages/arc-framework/arc/system/arc-config.yml`).
-        - Remove the entire `# --- Session Interlocks ---` block (the three interlock keys are
-          the section's only entries).
-        - Remove `release.enabled` entry; either retire the `# --- Release Wrappers ---` section
-          entirely or collapse it to a single-line pointer at the section header.
-        - Add top-of-file pointer (after the existing comment header block, before the first
-          setting): "Personal preferences (autonomy cadence, release-wrapper opt-in) live in
-          git-config local. See `strategy-configurability-architecture.md` § Personal
-          Configuration via Git Config for the per-developer key reference."
-        - _Note:_ `# --- Release Wrappers ---` section retire vs. one-line pointer is an
-          execution-time call; both are reasonable. Lean: retire entirely (cleanest), since
-          the strategy-doc reference table is the discoverable surface.
+    - `[x]` **6.R.4.b `arc-config.yml` — remove four collapsed keys; add top-level pointer**
+        - Both copies in sync. `# --- Session Interlocks ---` block (three interlock keys) and
+          `# --- Release Wrappers ---` block (`release.enabled`) removed entirely — retired the
+          latter rather than collapsing to a one-line pointer, since the strategy-doc reference
+          table is the discoverable surface.
+        - Top-of-file pointer added as a 3-line comment after the existing header, before the
+          first setting; references `strategy-configurability-architecture.md` § Personal
+          Configuration via Git Config for the per-developer key reference.
 
 ### `[ ]` **6.R.5 Setup workflow + handlers**
 
