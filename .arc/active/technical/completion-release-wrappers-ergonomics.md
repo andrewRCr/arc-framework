@@ -37,6 +37,11 @@ defaults.
   interlock cadence settings, renamed the opt-in key to `arc.releaseOptedIn`, and documented
   per-developer configuration discovery.
 
+- _Wrapper arg-grammar forgiveness_ — `arc release push` accepts positional `<remote> <branch>`
+  pairs and `-u <remote> <branch>` triples, validating against the wrapper's fixed target
+  (`origin <current-branch>`); matching pairs are stripped, mismatches refuse with code 15.
+  Lets workflow prose share one invocation shape across `wrapper` and `raw` routing.
+
 ## Implementation Highlights
 
 - _Workflow-as-contract setup_ — The setup workflow carries the harness-agnostic contract while
