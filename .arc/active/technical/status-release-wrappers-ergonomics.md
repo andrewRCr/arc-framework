@@ -9,15 +9,19 @@
 - **Task List:** `tasks-release-wrappers-ergonomics.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task 6.R.1 — Design capture (notes file + ADR-017 amendment;
-  6.R.1.a–b complete). Phase 6 fully complete (6.1–6.3).
-- **Next Task:** Task 6.R.2.a — Resolver substrate `resolved-settings.ts` (line ~793)
+- **Last Completed:** Tasks 6.R.2 + 6.R.3 — resolver collapse + `releaseOptedIn` rename,
+  consumer propagation, code-11 setting-key cleanup, and the test reshape (per-dev vs.
+  dual-scope split, git-config-only coverage, integration-test git-config injection).
+- **Next Task:** Task 6.R.4.b — `arc-config.yml` cleanup, remove four collapsed keys + add
+  top-level pointer (line ~945)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Phase 6.R Step 2 — code refactor for the four collapsed keys plus
-  the `releaseEnabled` → `releaseOptedIn` rename. Start with 6.R.2.a (resolver substrate);
-  6.R.2.b (consumer updates) and 6.R.2.c (verification audit — no orphaned yaml-key reads)
-  follow. Per Task 6.R.2 _Note:_, co-bundle 6.R.4.b's yaml-key removal commit with 6.R.2's
-  (or ensure 6.R.2 lands first) to avoid the transient inconsistent state.
+- **Next Action:** Begin Phase 6.R Step 4 — remove the four collapsed yaml keys from both
+  copies of `arc-config.yml` (`.arc/system/` + `packages/arc-framework/arc/system/`),
+  retire or collapse the `# --- Session Interlocks ---` and `# --- Release Wrappers ---`
+  blocks, and add the top-of-file pointer to `strategy-configurability-architecture.md`
+  § Personal Configuration via Git Config. After this lands, the `commands/config/*` +
+  `lib/config/status-reader.ts` yaml-tier surfaces can be tightened in lockstep — see
+  6.R.6 cross-doc sweep for the surrounding cleanup.
 
 ---
