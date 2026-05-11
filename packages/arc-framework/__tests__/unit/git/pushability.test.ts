@@ -417,7 +417,7 @@ describe("runPushabilityStatus", () => {
       ).toBeUndefined();
     });
 
-    it("local-ahead → blocks single-leg worktree push with ahead-count guidance", async () => {
+    it("local-ahead → allows single-leg worktree push", async () => {
       const responses = worktreeResponses();
       responses[`${REV_LIST_LEFT_RIGHT_PREFIX} HEAD...origin/feature/x`] = {
         stdout: "2\t0\n",
@@ -433,10 +433,10 @@ describe("runPushabilityStatus", () => {
         worktreeBranch: "feature/x",
       });
 
-      expect(result.allowed).toBe(false);
-      const cond = result.conditions.find((c) => c.kind === "worktree-not-aligned-with-origin");
-      expect(cond?.disposition).toBe("block");
-      expect(cond?.worktreeAlignment).toEqual({ state: "local-ahead", ahead: 2, behind: 0 });
+      expect(result.allowed).toBe(true);
+      expect(
+        result.conditions.find((c) => c.kind === "worktree-not-aligned-with-origin"),
+      ).toBeUndefined();
     });
 
     it("behind → blocks single-leg worktree push with behind-specific guidance", async () => {
