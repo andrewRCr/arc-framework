@@ -9,12 +9,14 @@
 - **Task List:** `tasks-release-wrappers-ergonomics.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** integrate-work-unit Step 6 — pre-merge review complete. CodeRabbit findings
-  triaged and fixed; local stale schema-version help finding fixed; quality gates passed after
-  review fixes. Completion metadata checked and remains current.
-- **Next Task:** [push and PR creation next; status pre-advanced for post-PR review work]
+- **Last Completed:** integrate-work-unit Step 8 — first PR review cycle complete. Option C wrapper
+  arg-grammar landed (`feat(release): accept positional remote/branch in arc release push`); 7 of 8
+  inline findings fixed across 5 commits, 1 rejected with reply + thread resolved; completion doc
+  refreshed. Pushed `d8ec01f5`.
+- **Next Task:** [post-PR review cycle ongoing; status pre-advanced past PR creation]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 8 — address PR review findings.
+- **Next Action:** integrate-work-unit Step 8 — verify CR's next review pass (per
+  `address-pr-review.md` Step 7) and address any new findings; otherwise advance to Step 9 (merge).
 
 ---
