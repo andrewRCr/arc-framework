@@ -44,6 +44,10 @@ documentation style — live in [DEV-RULES.PROJECT][dev-rules-project]. Contribu
     - With `arc.releaseOptedIn: true` plus the corresponding harness allowlist entries, the wrapper
       additionally bypasses the per-invocation harness prompt — the canonical shape for commit/push under
       workflow guidance when active. Default: `arc.releaseOptedIn: false`.
+    - Wrappers fire at codified trigger points only — `taskCommit` at task approval under release-mode
+      interlocks, `workflowCommit` / `workflowPush` at workflow ceremony fire-sites. Off-workflow commits
+      (manual fixups, exploratory edits, anything not emitted by a workflow) use raw `git` even when
+      opt-in is on.
 
 - **Workflow class-tag routing** · `[configurable]`:
     - Workflow fire sites may carry a backtick-wrapped class tag (`` `taskCommit` ``,

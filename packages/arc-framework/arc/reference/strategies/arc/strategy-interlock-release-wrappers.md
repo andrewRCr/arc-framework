@@ -14,7 +14,7 @@ adjacent layers. Setup procedure (detection, install, verify, record state, roll
 ## Contents
 
 - [Overview](#overview) — what release wrappers are, what opt-in produces
-- [Trust Model](#trust-model) — two value layers, per-mode framing
+- [Trust Model](#trust-model) — two value layers, per-mode framing, triggered-commits scope
 - [When Not to Use This](#when-not-to-use-this) — non-fit cases
 - [Per-Harness Reference Implementations](#per-harness-reference-implementations) — Claude Code, Codex CLI
 - [Agent-Adaptive Path](#agent-adaptive-path) — universal route for any harness
@@ -99,6 +99,25 @@ engage. The unconditional layer (validation + audit) is the primary value prop.
 Opt-in under bypass records the decision to engage wrapper validation as the canonical
 authorization signal for matching invocations. Under bypass, this layer is the primary review
 surface for `arc release commit` / `arc release push`.
+
+### Scope: Triggered Commits Only
+
+The wrapper's authorization model rests on binding to codified trigger points — `taskCommit`
+at task approval under release-mode interlocks; `workflowCommit` / `workflowPush` at workflow
+ceremony fire-sites. Prior approvals (task approval, workflow invocation) authorize the
+downstream commit; the wrapper carries that authorization to git.
+
+Off-workflow invocations — manual fixups, exploratory edits, anything not emitted by a
+workflow — work mechanically (validation + audit fire as designed), but they sit outside the
+trust shift the wrapper claims. The audit log's forensic value, the trust-shift framing of
+opt-in, and the clarity of the wrapper's design intent all rest on the binding being
+trigger-bounded; ad-hoc invocations dilute each.
+
+For zero-friction posture on incidentals, harness bypass mode is the complementary layer —
+it operates one layer below the wrapper, gating raw git execution rather than ARC's commit
+authorization. The two layers cover different boundaries.
+
+The rule lives in [DEV-RULES.ARC § Commit Discipline][dev-rules-arc].
 
 ## When Not to Use This
 
@@ -290,5 +309,6 @@ structural blind spot for the identity-keyed audit-log destination.
 ---
 
 [setup-workflow]: ../../../system/workflows/arc/supplemental/setup-release-wrapper.md
+[dev-rules-arc]: ../../constitution/DEV-RULES.ARC.md
 [sst/opencode#6676]: https://github.com/sst/opencode/issues/6676
 [sst/opencode#15507]: https://github.com/sst/opencode/issues/15507
