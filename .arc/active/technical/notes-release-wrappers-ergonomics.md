@@ -10,6 +10,7 @@
 - [Reference-Implementation Pattern Specifics](#reference-implementation-pattern-specifics)
 - [Bypass-Mode Provenance](#bypass-mode-provenance)
 - [Routing-Rule Placement Decision](#routing-rule-placement-decision)
+- [Phase 6.R: Configuration Scope Refactor — Design History](#phase-6r-configuration-scope-refactor--design-history)
 
 ## Approach Rationale: Why Workflow-as-Contract
 
@@ -385,6 +386,84 @@ live?" The methods system is the right answer for contract-implementation rules 
 override surface. Constitutional placement is right for runtime-state-lookup rules with no
 override surface. The shape choice should follow the rule's character, not the framework's
 default loading mechanism.
+
+## Phase 6.R: Configuration Scope Refactor — Design History
+
+Mid-WU course-correction surfaced during Phase 6, after Tasks 6.1 and 6.2 landed and the
+maintainer was preparing to dogfood `arc release setup install`. The conversation that
+produced Phase 6.R is captured here so future readers can reconstruct why the architecture
+shifted mid-stream.
+
+**Trigger.** Maintainer asked whether to also flip the project-level config (`release.enabled:
+true` plus the three interlock keys to `on-workflow`) alongside the dogfooding step. The
+clarifying walkthrough surfaced that `release.enabled` (project yaml) and `arc.releaseEnabled`
+(per-dev git-config) read as the same lever despite controlling different things — and that
+the project-level lever was vestigial. Pressure-test then expanded to the three interlock
+keys, asking the same question: do project-level defaults earn their keep?
+
+**External research.** Surveyed 8 representative dev tools for dual-scope (project + per-dev
+override) idiomaticity: ESLint, Prettier, Cargo, npm, TypeScript, gh CLI, Ruff, direnv,
+EditorConfig. Findings: dual-scope is idiomatic for output-affecting settings (npm registry,
+Cargo dep paths); same-name-across-scopes is a documented discoverability anti-pattern that
+EditorConfig and direnv explicitly address. Critical finding: autonomy / interaction-cadence
+preferences (analog to ARC's interlocks) are conventionally personal-only across the
+ecosystem — ARC's interlocks-as-team-defaults pattern was framed as "novel" by the research.
+
+**Walkthrough verification of `release.enabled` semantics.** Verified the flag is consumed in
+exactly one place — `lib/release/routing.ts:51-60`'s `resolveReleaseRouting`. The wrapper
+itself doesn't read it (confirmed via grep across `audit-log.ts`, `interlock-validation.ts`).
+ADR-017 line 116 says it explicitly: "**`arc.release.enabled` is observability and routing
+substrate, not a wrapper kill-switch.**" The flag is a signifier (record of opt-in for routing
+decisions), not an enabler. "Enabled" implies an action / switch; the flag is declarative
+state. That's the source of the "feature switch" misread.
+
+**Convergence on per-dev-only for four keys.** Three interlocks (`session.commit_interlock`,
+`session.push_interlock`, `session.sync_interlock`): no team-coordination value (interlocks
+control when the agent prompts the local developer; they have zero effect on what lands in the
+repo, what reviewers see, or what CI runs); per-dev only. `release.enabled`: per-developer
+harness setup (allowlist install, trust-model acceptance) is the actual gating mechanism;
+project-level value is mechanically inert without per-dev setup, and pushing it onto
+unconfigured contributors violates ADR-017's trust-shift acknowledgment principle; per-dev
+only. Net result: dual-scope architecture collapses from five keys to one (`user.notes_push`).
+
+**`user.notes_push` deferral rationale.** `team.mode` flips notes_push default (solo:
+`on-sync`, team: `prompt`). That coupling makes notes_push slightly more team-policy than the
+other four — there's a coordination story even if it's thin. Decision: leave as the lone
+remaining dual-scope key; document the deferral in the ADR-017 amendment so a later pass can
+revisit if the coupling proves uncompelling on closer examination.
+
+**Naming convergence on `releaseOptedIn`.** Three candidates weighed after the rename was
+agreed on: `release.canonical` (matches existing comment language "Wrappers canonical for
+commit/push" but "canonical" implies a contest/alternative which is weak fit at the per-dev
+layer where there's no comparison axis); `release.useWrapper` (action-oriented — tells agents
+what to do — but reintroduces the switch-confusion risk because it reads as "this name LOOKS
+like the thing that does the enabling"); `release.releaseOptedIn` (matches existing codebase
+language: `arc release opt-in` / `opt-out` commands; declarative `is`-framing avoids switch
+confusion; captures signifier semantics). The third won because the switch-confusion risk on
+`useWrapper` outweighed the extra meaning carried by including "wrapper" in the name —
+docstrings and inline comments cover the meaning concern.
+
+**ADR-017 amendment relationship.** ADR-017 framed `arc.release.enabled` as adopter (project)
+opt-in to trust-model trade-off — the "adopter" framing was project-level because at ADR
+write-time there was no per-developer setup path. WU2 added per-dev setup precisely because
+the trust model lives per-harness, per-machine. The amendment in 6.R.1.b captures: the
+trust-model decision stands (no supersession); the scope clarification is that opt-in lives
+where the trust model lives (per-developer git-config). Yaml surface collapses; rename to
+`releaseOptedIn`. Distinct from any Phase 7 ADR-017 amendment that may surface from
+integration-time insights — both can land as separate amendments.
+
+**Process discipline note.** Phase 6.R was generated via the `2_generate-tasks.md` workflow's
+three-pass discipline (skeleton → bodies → grounding audit) explicitly, even though the
+workflow's typical use is fresh task-list generation. The audit pass surfaced six
+fix-before-starting findings that landed as task-body edits before the file save (test-scope
+expansion across four test files vs. just resolver tests was the most substantive); five
+carry-as-context findings routed inline as `_Note:_` peer descriptors or to this notes file.
+
+**Forward note for executors.** The numbering scheme `6.R.1`, `6.R.2`, ... establishes
+parent-task numbering inside an `X.R` phase as a precedent — `strategy-task-list-formatting.md`
+documents `X.R` as the phase identifier and `X.R.a` as children-of-revision-items but doesn't
+explicitly cover parent-task numbering inside a full R phase. Worth capturing the precedent in
+the strategy doc as a small atomic later if it recurs.
 
 ---
 

@@ -722,14 +722,14 @@ history (research findings, naming options weighed, what was wrong before, why t
   and ADR-017 receiving an amendment that clarifies the original "adopter opt-in" framing
   implementing per-developer in practice.
 
-    - `[ ]` **6.R.1.a Notes file design history (`notes-release-wrappers-ergonomics.md`)**
-        - New section: `## Phase 6.R: Configuration Scope Refactor — Design History`.
-        - Content: research summary (5–8 dev tools surveyed for dual-scope idiomaticity);
-          discoverability gap that triggered the audit; naming candidates weighed
-          (`canonical`, `useWrapper`, `releaseOptedIn` and why the third won); convergence
-          on per-dev-only for the four keys; `notes_push` deferral rationale (team.mode
-          coupling); ADR-017 amendment relationship.
-        - Soft-target ~40-60 lines; references but doesn't reproduce the source material.
+    - `[x]` **6.R.1.a Notes file design history (`notes-release-wrappers-ergonomics.md`)**
+        - New § Phase 6.R: Configuration Scope Refactor — Design History added; covers
+          trigger, external research findings, `release.enabled` semantic walkthrough,
+          convergence on per-dev-only for the four keys, `notes_push` deferral rationale,
+          naming convergence on `releaseOptedIn`, ADR-017 amendment relationship, plus
+          generate-tasks 3-pass process and `X.R` parent-task numbering precedent forward
+          notes.
+        - Contents H2 ToC updated.
 
     - `[ ]` **6.R.1.b ADR-017 amendment — per-developer scope clarification**
         - File: `.arc/reference/adr/adr-017-release-wrapper-trust-model.md` (single copy —
