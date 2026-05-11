@@ -40,7 +40,9 @@ defaults.
 - _Wrapper arg-grammar forgiveness_ — `arc release push` accepts positional `<remote> <branch>`
   pairs and `-u <remote> <branch>` triples, validating against the wrapper's fixed target
   (`origin <current-branch>`); matching pairs are stripped, mismatches refuse with code 15.
-  Lets workflow prose share one invocation shape across `wrapper` and `raw` routing.
+  Value-taking push flags (`-o` / `--push-option`) consume their value token so it isn't misread
+  as the start of a positional pair. Lets workflow prose share one invocation shape across
+  `wrapper` and `raw` routing.
 
 ## Implementation Highlights
 
