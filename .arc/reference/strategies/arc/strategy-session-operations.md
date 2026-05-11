@@ -361,7 +361,7 @@ domain, see [DEV-RULES.ARC][dev-rules-arc] § Commit Discipline and § Session M
 
 An **interlock** is an active control mechanism that holds session-operational progress until released
 by an approval signal — semantics drawn from safety-engineering and control-systems usage. ARC names
-four: `task-interlock`, `commit-interlock`, `push-interlock`, `integration-interlock`.
+five: `task-interlock`, `commit-interlock`, `sync-interlock`, `push-interlock`, `integration-interlock`.
 
 **Verb pairing.** Interlocks `release` (approval lifts the hold), `engage` (the default state — held
 until released), and `hold` (a quality-gate failure or other condition reasserts the engaged state
@@ -404,15 +404,19 @@ summary without firing sync. `on-workflow` adds release on workflow-driven sync 
 `on-handoff`). The sync orchestrator routes worktree-push and notes-push per their own
 interlock settings — see § Handoff-Interior Toggle Pattern for the cascade.
 
-**Release-wrapper layer.** When configured (`arc.releaseOptedIn: true` plus the corresponding
-harness allowlist entries), `arc release commit` and `arc release push` provide a CLI-boundary
-mechanical authorization layer over the interlock model. The wrapper validates that configured
-permission overlaps the wrapper's scope — refuses with a stable exit code when not — and writes
-a per-invocation audit entry. The wrappers run unconditionally regardless of opt-in; the flag
-changes harness-prompt behavior, not wrapper behavior. The interlock model is unchanged; the
-wrapper adds mechanical CLI-boundary enforcement of the same authorization rule. See
+**Release-wrapper layer.** When invoked, `arc release commit` and `arc release push` provide a
+CLI-boundary mechanical authorization layer over the interlock model — the wrapper validates that
+configured permission overlaps the wrapper's scope, refuses with a stable exit code when not, and
+writes a per-invocation audit entry. Wrapper-internal behavior runs unconditionally on invocation;
+`arc.releaseOptedIn` (paired with the harness allowlist) changes harness-prompt behavior at the
+calling layer, not the wrapper itself. Whether the wrapper is invoked at a given fire-site is
+resolved per route class (`wrapper` vs `raw`) by the releaseRouting layer from `arc.releaseOptedIn`,
+`arc.commitInterlock`, `arc.pushInterlock`, and the workflow's class-tag declaration; off-workflow
+commits use raw `git` regardless of opt-in. The interlock model itself is unchanged; the wrapper
+adds mechanical CLI-boundary enforcement of the same authorization rule. See
 [Configurability Architecture Strategy][config-arch] § Session interlocks for the orthogonality
-between interlock state (WHEN) and release-wrapper opt-in (HOW).
+between interlock state (WHEN), wrapper routing (whether to engage the wrapper at a fire-site),
+and wrapper-internal authorization (HOW the wrapper validates when engaged).
 
 Static wrapper engagement is configuration-state and stays out of session-init orientation by
 design — orientation surfaces actionable session-shifts, not steady configuration. Routing-shift
