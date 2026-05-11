@@ -13,7 +13,7 @@ conventions; not a worktree-mechanism WU.
 - **Created:** 2026-05-08
 
 - **Origin:** Surfaced during a pre-PRD sanity-check on the upcoming parallelism trio
-  ([Worktree Foundation][wf], [Concurrent Work Conventions][cwc], [Agile WU Lifecycle][awl]). The
+  (Worktree Foundation, Concurrent Work Conventions, Agile WU Lifecycle). The
   evaluation pulled three previously latent concerns into one coherent reform:
 
     1. **Branch-prefix friction.** Observed pattern of `technical/{name}` branches integrating as `feat:` PRs
@@ -148,7 +148,7 @@ PR review at integration) while removing planning-merge ceremony and structural 
       on the branch (sweep-as-you-go), PR merges. main goes from "didn't have these files" to
       "has them in archive/" in one merge.
 
-3. **Sweep-as-you-go integration model (foundation).** Lifted from [Agile WU Lifecycle][awl] scope
+3. **Sweep-as-you-go integration model (foundation).** Lifted from Agile WU Lifecycle scope
    item 7a's foundation layer:
 
     - Integration PR includes the sweep commits (file moves from `active/` to `archive/`, status file
@@ -160,7 +160,7 @@ PR review at integration) while removing planning-merge ceremony and structural 
     - Deferred-cadence variant retained: integration PR omits sweep; archival rides the next-WU
       planning batch (current pattern). Adopters who prefer staged sweep cadence keep that option.
     - Tier-aware sweep ceremony (atomic = trivial sweep, quick = standard, standard = full) is
-      [Agile WU Lifecycle][awl]'s scope; the foundation is delivered here.
+      Agile WU Lifecycle's scope; the foundation is delivered here.
 
 4. **Workflow consolidation.** Boundary workflows restructured around state transitions instead of
    branch creations:
@@ -204,7 +204,7 @@ PR review at integration) while removing planning-merge ceremony and structural 
     - **`backlog/` only.** `active/` stays flat; group identity tracked via the status file's
       `**Sibling Work Unit(s):**` field. Group-dir-on-activate rename costs outweigh the visual
       chunking benefit at active-side WU counts (typically 1-3, bounded at 3-4 under
-      [Concurrent Work Conventions][cwc]'s focus-role model).
+      Concurrent Work Conventions's focus-role model).
     - **Default = no group.** Single WUs go directly under `backlog/<plan-name>.md` at the root of
       the per-pm.mode root (whatever `backlog/`'s pm-mode-aware shape becomes post-category-retirement).
     - Migration from existing `backlog/{category}/` shape: existing planning artifacts flatten or
@@ -240,7 +240,7 @@ PR review at integration) while removing planning-merge ceremony and structural 
    or other load-bearing infra files. Such edits warrant quick-tier at minimum (multi-commit
    coordination, deliberate sequencing). Routes captured atomic surfaces (ATOMIC-INBOX) accordingly.
 
-10. **Roster cascade implementation.** Cross-worktree read for [Worktree Foundation][wf]'s
+10. **Roster cascade implementation.** Cross-worktree read for Worktree Foundation's
     branch-gone detection cascade. The cascade enumerates WUs via `git worktree list` and per-worktree
     status-file reads, not via a single `active/` directory listing on main. Specific implementation
     delivered here so WF can consume it cleanly.
@@ -267,18 +267,18 @@ PR review at integration) while removing planning-merge ceremony and structural 
 
 ### Out of scope
 
-- **Worktree mechanism, shift lifecycle, branch-gone detection mechanism, inbox sync** — [Worktree
-  Foundation][wf]. This WU delivers the per-worktree isolation foundation that WF builds on; WF
+- **Worktree mechanism, shift lifecycle, branch-gone detection mechanism, inbox sync** — Worktree
+  Foundation. This WU delivers the per-worktree isolation foundation that WF builds on; WF
   delivers the worktree-aware operations.
 - **Tier model, `arc start` command, ceremony scaling per tier, atomic-companion retirement,
-  incidental category retirement** — [Agile WU Lifecycle][awl]. AWL's scope item 7a shrinks to retain
+  incidental category retirement** — Agile WU Lifecycle. AWL's scope item 7a shrinks to retain
   only tier-aware adaptations on top of this WU's foundation.
-- **Focus-role model and concurrent-work conventions** — [Concurrent Work Conventions][cwc].
-- **External-tracker integration for "what's @teammate working on"** — [Coord Probe][coord-probe].
-- **Lite mode lifecycle.** Lite is single-WU-at-a-time per project ([plan-arc-modes][arc-modes] §
+- **Focus-role model and concurrent-work conventions** — Concurrent Work Conventions.
+- **External-tracker integration for "what's @teammate working on"** — Coord Probe.
+- **Lite mode lifecycle.** Lite is single-WU-at-a-time per project (`plan-arc-modes.md` §
   Lite Session Management) — no parallel-worktree concerns apply, no per-worktree isolation needed.
   Lite keeps its current shape and is unaffected by this reform.
-- **Backend storage tier mapping.** [plan-arc-backend][arc-backend] notes the worktree-per-WU concept
+- **Backend storage tier mapping.** `plan-arc-backend.md` notes the worktree-per-WU concept
   maps to per-WU materialized views in backend tier; the single-branch-per-WU model maps even cleaner
   (each WU is a coherent unit). Backend WU consumes this model as substrate but doesn't need
   modification.
@@ -342,7 +342,7 @@ want more.
 
 ### Sweep-as-you-go subsumed from Agile WU Lifecycle, not deferred
 
-[Agile WU Lifecycle][awl]'s scope item 7a originally bundled the metadata-state foundation
+Agile WU Lifecycle's scope item 7a originally bundled the metadata-state foundation
 (`State` + `Integration` field rollout, sweep cadence config, sweep-as-you-go shape, tier-aware sweep
 ceremony, deferred-sweep variant). The foundation pieces — sweep-as-you-go shape and sweep cadence
 config — are subsumed here because they're load-bearing for per-worktree isolation under
@@ -364,25 +364,25 @@ entries follow group-dir conventions if applicable.
 
 ### Upstream
 
-- **[Interlock Release Wrappers][irw]** (WU1 + WU2): closes session-operations friction before this
+- **Interlock Release Wrappers** (WU1 + WU2): closes session-operations friction before this
   WU lands. Branch-rename ergonomics under the new conventions benefit from low-friction commit/push
   surface. No hard mechanical dependency, but cleaner sequencing.
-- **[Session-Operational Flow][session-ops] § Phase 7 metadata-state foundation:** introduces the
+- **Session-Operational Flow § Phase 7 metadata-state foundation:** introduces the
   `**State:**` enum (`Planning | In Progress | Complete | ...`) that this WU consumes. Already
   shipped per ROADMAP.
 
 ### Downstream
 
-- **[Worktree Foundation][wf]:** consumes per-worktree isolation as a precondition. WF's scope items
+- **Worktree Foundation:** consumes per-worktree isolation as a precondition. WF's scope items
   4 (branch-gone detection) and 8 (main-on-main pattern) compose cleanly on top of single-branch-per-
   WU. WF's scope item 7 (pause-pointer reconciliation) was already independent.
-- **[Agile WU Lifecycle][awl]:** consumes the consolidated boundary workflows and sweep-as-you-go
+- **Agile WU Lifecycle:** consumes the consolidated boundary workflows and sweep-as-you-go
   foundation. AWL's scope item 7a shrinks to tier-aware adaptations only. Tier model and `arc start`
   command operate on top of single-branch-per-WU lifecycle.
-- **[Concurrent Work Conventions][cwc]:** consumes the new branch conventions and per-worktree
+- **Concurrent Work Conventions:** consumes the new branch conventions and per-worktree
   isolation. Focus-role model layers on cleanly.
-- **[ARCd Rebrand][rebrand]:** consumes stable branch-and-lifecycle terminology before rename pass.
-- **[ARC Operating Modes][arc-modes]:** consumes new conventions; Lite mode unaffected (single-WU
+- **ARCd Rebrand:** consumes stable branch-and-lifecycle terminology before rename pass.
+- **ARC Operating Modes:** consumes new conventions; Lite mode unaffected (single-WU
   model has no per-worktree concerns).
 
 ### Recommended sequencing
@@ -432,13 +432,13 @@ review back.
 
 ### Lite mode interaction
 
-[plan-arc-modes][arc-modes] § Lite Session Management is in active design. Lite is single-WU-at-a-time
+`plan-arc-modes.md` § Lite Session Management is in active design. Lite is single-WU-at-a-time
 and unaffected by this reform, but Lite's branching shape and lifecycle workflows need confirmation
 during PRD that the new conventions don't accidentally constrain Lite. Forward-compat check at PRD.
 
 ### Backend tier compatibility
 
-[plan-arc-backend][arc-backend] notes worktree-per-WU maps to per-WU materialized views. Backend WU
+`plan-arc-backend.md` notes worktree-per-WU maps to per-WU materialized views. Backend WU
 PRD should verify the single-branch-per-WU model maps cleanly (it should — each WU is a coherent
 branch-plus-artifacts unit, easier to materialize/dematerialize than a multi-branch lifecycle).
 
@@ -487,7 +487,7 @@ at PRD that the lean holds, or pick deferred as default with `with-integration` 
 
 ### Atomic-tier worktree handling under single-branch-per-WU
 
-Atomic WUs were specified in [Worktree Foundation][wf] as "no worktree, no spawn — atomic work
+Atomic WUs were specified in Worktree Foundation as "no worktree, no spawn — atomic work
 happens in the current worktree on a side-branch." Under single-branch-per-WU, atomic still gets a
 branch (one per WU), just no worktree. Open question: does the atomic land in the *current WU's
 worktree* (disrupting that WU's working state) or the *main worktree* (per WF scope item 8's
@@ -536,7 +536,7 @@ Phases (provisional):
    point (`pre-execution-graduation`); convention inventory entry in
    `strategy-configurability-architecture.md`.
 8. **Atomic-tier infra-edit smell flag** — DEV-RULES.ARC entry; documentation in strategy docs.
-9. **Roster cascade implementation** — cross-worktree read for [Worktree Foundation][wf]'s
+9. **Roster cascade implementation** — cross-worktree read for Worktree Foundation's
    branch-gone detection consumption.
 10. **Migration sweep** — flatten/group existing `backlog/feature/` and `backlog/technical/`
     contents; one-time cleanup of any leaked Planning-state status files in `active/` on main.
@@ -568,13 +568,3 @@ as of 2026-05-08:
   `[PLAN]:`, `integrate-planning-branch`, `activate-planning-branch` to enumerate touch surface.
 
 ---
-
-[wf]: plan-worktree-foundation.md
-[awl]: plan-agile-wu-lifecycle.md
-[cwc]: ../feature/plan-concurrent-work-conventions.md
-[arc-modes]: ../feature/plan-arc-modes.md
-[arc-backend]: ../feature/plan-arc-backend.md
-[coord-probe]: plan-coord-probe.md
-[rebrand]: prd-arcd-rebrand.md
-[irw]: prd-release-wrappers-foundation.md
-[session-ops]: ../../reference/archive/2026-q2/technical/06_session-operational-flow/prd-session-operational-flow.md
