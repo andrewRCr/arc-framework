@@ -164,12 +164,12 @@ PR review at integration) while removing planning-merge ceremony and structural 
 
 ### In scope
 
-1. **Branch convention reform — Conventional Branch alignment.** Retire `feature/`/`technical/`
-   category prefixes for branches and directory structure. Adopt Conventional Branch alignment for
-   execution branches (`feat/`, `fix/`, `refactor/`, `chore/`, `docs/`, `perf/`, etc. — full
-   conventional-commit type set) with `plan/<name>` for planning state. At activation, branches rotate
-   `plan/<name>` → `<type>/<name>` via local rename + remote replace. Type chosen at activation when
-   PRD/spec is settled and dominant intent is informed.
+1. **Branch convention reform — Conventional Branch alignment.** Retire all internal category
+   prefixes (`feature/`, `technical/`, `incidental/`) for branches and directory structure. Adopt
+   Conventional Branch alignment for execution branches (`feat/`, `fix/`, `refactor/`, `chore/`,
+   `docs/`, `perf/`, etc. — full conventional-commit type set) with `plan/<name>` for planning state.
+   At activation, branches rotate `plan/<name>` → `<type>/<name>` via local rename + remote replace.
+   Type chosen at activation when PRD/spec is settled and dominant intent is informed.
 
     Cascade:
 
@@ -186,15 +186,15 @@ PR review at integration) while removing planning-merge ceremony and structural 
 
     - **Initiate WU:** From base branch, `git checkout -b plan/<name>`. (Atomic-tier WUs may skip the
       planning state and create directly as `<type>/<name>` — atomic boundary detail belongs to AWL.)
-    - **Planning happens on this branch only:** plan-doc, PRD, tasks evolve in `active/{cat}/` (or
-      `backlog/{cat}/` for arc-in-git pre-branch incubation that gets `git mv`'d into `active/` on
+    - **Planning happens on this branch only:** plan-doc, PRD, tasks evolve in `active/` (or in
+      `backlog/plans/` for arc-in-git pre-branch incubation that gets `git mv`'d into `active/` on
       the branch). Never merged to main during planning.
     - **Activation = in-place state transition:** branch renames `plan/<name>` → `<type>/<name>`,
       status field flips `Planning → In Progress`, plan-doc `git rm` if graduated. All on the branch.
       No merge to main.
     - **Execution continues on the same branch:** tasks complete, commits accumulate, completion doc
       drafted at the end.
-    - **Integration = first and only merge to main:** sweep `active/{cat}/<files>` → `archive/<dated>/<files>`
+    - **Integration = first and only merge to main:** sweep `active/<files>` → `archive/<dated>/<files>`
       on the branch (sweep-as-you-go), PR merges. main goes from "didn't have these files" to
       "has them in archive/" in one merge.
 
@@ -231,8 +231,8 @@ PR review at integration) while removing planning-merge ceremony and structural 
       `archive-work-unit.md` retains its current shape as a separate post-integration ceremony.
 
 5. **Status-file location-by-state convention.** Status file always lives at
-   `active/{cat}/status-{name}.md` (no rotation in/out of backlog). What changes is *which branch
-   carries it*:
+   `active/status-{name}.md` (no category nesting under WOR; no rotation in/out of backlog). What
+   changes is *which branch carries it*:
 
     - **Planning state:** status file exists on the WU branch (`plan/<name>`) only. main does not
       have it.
@@ -292,8 +292,22 @@ PR review at integration) while removing planning-merge ceremony and structural 
 
 10. **Roster cascade implementation.** Cross-worktree read for Worktree Foundation's
     branch-gone detection cascade. The cascade enumerates WUs via `git worktree list` and per-worktree
-    status-file reads, not via a single `active/` directory listing on main. Specific implementation
-    delivered here so WF can consume it cleanly.
+    status-file reads, not via a single `active/` directory listing on main.
+
+    **Shape:** library function in `packages/arc-framework/src/lib/git/` (module name TBD at PRD —
+    candidates: `worktree-roster.ts`, `wu-roster.ts`). Returns a list of
+    `{worktreePath, branch, identity?, statusFilePath, state}` tuples. Synchronous read of
+    worktree list, async per-worktree status-file resolution; returns empty list when no worktrees
+    or no status files surface (clean degradation).
+
+    **Consumers (initial):** Worktree Foundation's branch-gone detection; session-init's
+    next-work-unit discovery (potentially — WF PRD decides); future `arc roster` or
+    `arc workspaces` CLI surface if added (not in this WU's scope). Specific API surface settled
+    at PRD; this WU ships the function plus tests, leaving consumer-side wiring to WF.
+
+    **Out of scope for this item:** identity-filter logic (lives in WF's branch-gone consumer);
+    recency-window filtering (consumer concern); team-mode `(@identity)` parsing (consumed from
+    the status file's `**Branch:**` field per WF item 4's existing description).
 
 11. **Documentation cascade.** Strategy and rules updates flowing from the model change:
 
