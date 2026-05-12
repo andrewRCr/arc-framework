@@ -9,10 +9,8 @@
 - **Task List:** [none]
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** archive-work-unit Step 7 — release-wrappers-ergonomics archived (PR #32,
-  `archive/2026-q2/technical/09_release-wrappers-ergonomics/`); plan-doc header note added for
-  inline folds (class-tag audit, interlock markers, auto-set-upstream behavior) on workflows
-  touched during this WU.
+- **Last Completed:** Atomic-inbox triage folded lifecycle items into WOR, aligned non-lifecycle wrapper
+  stops, and moved quality-gate-hooks dogfood + under-wrap enforcement into that plan.
 - **Next Task:** [none]
 - **Blockers:** [none]
 
