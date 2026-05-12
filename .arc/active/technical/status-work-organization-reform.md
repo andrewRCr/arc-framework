@@ -9,12 +9,15 @@
 - **Task List:** [none]
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Atomic-inbox triage folded lifecycle items into WOR, aligned non-lifecycle wrapper
-  stops, and moved quality-gate-hooks dogfood + under-wrap enforcement into that plan.
+- **Last Completed:** WOR iteration pass — scope item 14 (capture pipeline + `backlog/plans/`
+  interlude + vocabulary distinction), internal cleanup (notation, prefix enumeration, roster
+  cascade shape), hand-off contracts for downstream layering. Trio alignment with WOR +
+  movable-artifact ref-link compliance sweep across AWL/WF/CWC.
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Continue pre-PRD iteration on `plan-work-organization-reform.md` (facilitated
-  `/arc-plan` pass), or proceed directly to `1_create-prd.md` if the plan-doc is mature enough.
+- **Next Action:** Worktree-trio dev-ergonomics research before WOR PRD — pressure-test trio
+  shape against emerging multi-agent tooling; surface any WOR-bleed before PRD lands. Detail in
+  SESSION-NOTES Additional Context.
 
 ---
