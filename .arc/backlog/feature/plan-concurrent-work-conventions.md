@@ -321,7 +321,7 @@ template change, not a CLI/lint addition. Research-informed redesign at PRD time
 
 ### Upstream
 
-- **[Work Organization Reform][wor]:** delivers Conventional Branch alignment, per-worktree
+- **Work Organization Reform:** delivers Conventional Branch alignment, per-worktree
   isolation foundation, group-dir convention, the consolidated boundary workflows, and the
   `**Sibling Work Unit(s):**` field convention. Concurrent-work conventions and async-merge
   audit compose on top. Hard upstream dependency.
@@ -345,7 +345,7 @@ template change, not a CLI/lint addition. Research-informed redesign at PRD time
 
 ### Recommended sequencing
 
-[Work Organization Reform][wor] → `plan-worktree-foundation.md` → `plan-agile-wu-lifecycle.md` →
+Work Organization Reform → `plan-worktree-foundation.md` → `plan-agile-wu-lifecycle.md` →
 **Concurrent Work Conventions**.
 
 ---
@@ -406,7 +406,7 @@ other docs? PRD decision after research.
 The current ROADMAP shows parallel WUs at the same dependency depth (e.g., Worktree Foundation ‖
 User Sync UX Polish ‖ Coord Probe as the first wave after Session-Operational Flow). The cohort
 relationship is implicit — derivable from the upstream/downstream graph as "WUs at the same depth
-with no inter-dependencies." [Work Organization Reform][wor]'s group-dir convention partially
+with no inter-dependencies." Work Organization Reform's group-dir convention partially
 addresses this for codified groups in `backlog/`. Question: does explicit cohort/wave metadata
 (beyond WOR's group-dir) add value beyond what the graph already encodes?
 
@@ -482,4 +482,3 @@ The PRD should explicitly address:
 [adr-016]: ../../reference/adr/adr-016-configurable-autonomy-interlocks-for-session-operations.md
 [team-coord]: ../../reference/strategies/arc/strategy-team-coordination.md
 [integrate-wu]: ../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md
-[wor]: ../technical/plan-work-organization-reform.md
