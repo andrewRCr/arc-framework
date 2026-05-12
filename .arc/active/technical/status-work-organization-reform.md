@@ -9,15 +9,18 @@
 - **Task List:** [none]
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** WOR iteration pass — scope item 14 (capture pipeline + `backlog/plans/`
-  interlude + vocabulary distinction), internal cleanup (notation, prefix enumeration, roster
-  cascade shape), hand-off contracts for downstream layering. Trio alignment with WOR +
-  movable-artifact ref-link compliance sweep across AWL/WF/CWC.
+- **Last Completed:** WOR scope expansion — meta-file rename (status-* → meta-*) + Origin field
+  with Origin/Spec orthogonality framing + `backlog/plans/{planned,provisional}/` state-dir split
+  with graduation trigger; roadmap/PROJECT-STATUS boundary contract added as Open Question.
+  Downstream consistency touches on plan-arc-modes (pm.layer collapse direction), AWL (Spec-field
+  external URL retired, quick-tier reframed), completion-status consolidation (meta-* inherits).
+  Movable-artifact link-rule compliance sweep across touched files.
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Worktree-trio dev-ergonomics research before WOR PRD — pressure-test trio
-  shape against emerging multi-agent tooling; surface any WOR-bleed before PRD lands. Detail in
-  SESSION-NOTES Additional Context.
+- **Next Action:** Roadmap / PROJECT-STATUS boundary contract research — ~1-hour industry
+  pattern survey (Linux STATUS, Rust roadmap, K8s roadmap+changelog, PostgreSQL release-notes
+  vs roadmap) per WOR Open Questions. Worktree-trio dev-ergonomics research deferred to follow.
+  Detail in SESSION-NOTES Additional Context.
 
 ---
