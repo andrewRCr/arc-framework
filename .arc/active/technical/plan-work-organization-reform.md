@@ -248,18 +248,18 @@ PR review at integration) while removing planning-merge ceremony and structural 
 
     - Group dirs exist only for genuine multi-WU groups with a codified group identity (term TBD
       at PRD — "work unit group" or "WU cohort" are candidates).
-    - Members of a group co-locate at one level of nesting in `backlog/`: e.g.,
-      `backlog/<group-name>/plan-foo.md`, `backlog/<group-name>/plan-bar.md`. No deeper nesting
-      permitted.
+    - Group dirs sit at one level inside `backlog/plans/` (see item 14's `plans/` interlude);
+      their members sit directly inside the group dir. No nesting below the group dir. Example:
+      `backlog/plans/<group-name>/plan-foo.md`, `backlog/plans/<group-name>/plan-bar.md`.
     - **`backlog/` only.** `active/` stays flat; group identity tracked via the status file's
       `**Sibling Work Unit(s):**` field. Group-dir-on-activate rename costs outweigh the visual
       chunking benefit at active-side WU counts (typically 1-3, bounded at 3-4 under
       Concurrent Work Conventions's focus-role model).
-    - **Default = no group.** Single WUs go directly under `backlog/<plan-name>.md` at the root of
-      the per-pm.mode root (whatever `backlog/`'s pm-mode-aware shape becomes post-category-retirement).
-    - Migration from existing `backlog/{category}/` shape: existing planning artifacts flatten or
-      group-by-relation; existing sibling sets (e.g., the interlock-release-wrappers cluster, the
-      parallelism trio) pick up group-dir treatment.
+    - **Default = no group.** Single WUs go directly under `backlog/plans/plan-<name>.md` (at the
+      `plans/` interlude root, no group nesting).
+    - Migration from existing `backlog/{category}/` shape: existing planning artifacts flatten into
+      `plans/` or group-by-relation under `plans/<group-name>/`; existing sibling sets (e.g., the
+      interlock-release-wrappers cluster, the parallelism trio) pick up group-dir treatment.
 
 7. **Planning-checkpoint review opt-in.** Configuration surface for teams that value planning
    review even under single-branch-per-WU:
@@ -298,25 +298,144 @@ PR review at integration) while removing planning-merge ceremony and structural 
 11. **Documentation cascade.** Strategy and rules updates flowing from the model change:
 
     - `strategy-work-organization.md` — full rewrite of branching, lifecycle, and category sections
+    - `strategy-work-planning.md` — new section codifying the four-surface capture model
+      (per-user `USER-INBOX.md` + shared `ATOMIC-INBOX.md` / `BACKLOG-INBOX.md`), ceremony-only
+      write rule, drain conventions, read-staleness framing
     - `strategy-configurability-architecture.md` — convention inventory entry for planning-checkpoint
       review
-    - `DEV-RULES.ARC.md` — branch-naming and lifecycle references; atomic-tier infra-edit smell flag
+    - `DEV-RULES.ARC.md` — branch-naming and lifecycle references; atomic-tier infra-edit smell
+      flag; capture-routing rule constitutionalized (moved from `DEV-RULES.PROJECT.md`);
+      vocabulary distinction (WU as wrapper, atomic as work-character)
     - `template-status.md` — clarify location-by-state convention (always `active/`, branch carries it)
     - `template-pull-request.md` — retire `[PLAN]:` PR-prefix; remove planning-PR variant
     - `session-init.md` / `session-handoff.md` — preserve lifecycle workflow prefixes in status-file
       `Next Action` pointers; route project-specific workflow details to SESSION-NOTES or trailing detail
     - `integrate-work-unit.md` — replace stale post-PR-create handoff warning with skip-threshold-aware guidance
-    - Any other workflow / strategy that references `feature/`/`technical/` prefixes or the
-      planning-branch separate-merge pattern
+    - Any other workflow / strategy that references `feature/`/`technical/` prefixes, the
+      planning-branch separate-merge pattern, or `backlog/{category}/` paths
 
 12. **Companion ADR.** Constitutional shift documented as ADR (parallel scale to ADR-016). Records
     the single-branch-per-WU model decision, the Conventional Branch alignment, and the rationale for
     retiring the separate planning-PR.
 
-13. **Migration sweep.** One-time cleanup at WU activation for existing leaked Planning-state status
-    files in `active/` on main (if any remain at activation time). Existing in-flight WUs retain their
-    current paths through their natural integration; new WUs spun up post-conventions follow the new
-    model.
+13. **Migration sweep.** One-time cleanup at WU activation:
+
+    - Existing leaked Planning-state status files in `active/` on main (if any remain at activation
+      time). Existing in-flight WUs retain their current paths through their natural integration;
+      new WUs spun up post-conventions follow the new model.
+    - Per-user `ATOMIC-INBOX.md` → `USER-INBOX.md` rename. Existing content moves under the
+      `## Atomic` section of the new file. `## Backlog` section initially empty.
+    - `BACKLOG-FEATURE.md` + `BACKLOG-TECHNICAL.md` merge → `backlog/BACKLOG-INBOX.md`. Entries
+      reclassified during the migration pass (some may route to `backlog/ATOMIC-INBOX.md` instead
+      based on shape; some may promote directly to draft `plan-*` docs if matured during inventory).
+    - New empty `backlog/ATOMIC-INBOX.md` created.
+    - All existing `plan-*` docs in `backlog/` move into `backlog/plans/` (and into their group
+      dirs where applicable, per item 14's `plans/` interlude).
+
+14. **Capture pipeline and `backlog/` layout reform.** Redesign pre-plan-doc capture surfaces and
+    `backlog/` directory layout to handle multi-WU and worktree-era concurrency without backend
+    infrastructure, consolidate the retired `feature/`/`technical/` bucket inbox files, and codify
+    the vocabulary distinction between work-unit-as-wrapper and atomic-as-work-character.
+
+    **Four-surface capture model.** Capture splits by visibility and write cadence:
+
+    - **`user/{id}/USER-INBOX.md`** — per-user, gitignored, notes-synced. Replaces today's
+      `ATOMIC-INBOX.md` at this path. Two sections (`## Atomic`, `## Backlog`) routing to the two
+      shared destinations at drain time. Live writes during any session.
+    - **`backlog/ATOMIC-INBOX.md`** — project-shared, tracked. Receives atomic-character entries
+      (single-bounded; fold into commits or become atomic-tier WUs). Ceremony-only writes.
+    - **`backlog/BACKLOG-INBOX.md`** — project-shared, tracked. Consolidates retired
+      `BACKLOG-FEATURE.md` + `BACKLOG-TECHNICAL.md`. Receives multi-step entries (candidates for
+      plan-doc promotion). Ceremony-only writes.
+    - **`backlog/plans/...`** — mature `plan-*` docs (see `plans/` interlude below). Live writes
+      during planning sessions on the WU branch.
+
+    Naming rationale: prefix within each directory disambiguates the file from its neighbors.
+    `user/{id}/` has multiple non-inbox files (SESSION-NOTES, etc.) → `USER-` scope prefix.
+    `backlog/` has two inboxes distinguished by content → `ATOMIC-` / `BACKLOG-` type prefixes.
+    `BACKLOG-INBOX` in `backlog/` is mild path redundancy doing real semantic work: it marks this
+    file as *the* inbox of the directory's primary content (planned WUs), with `ATOMIC-INBOX`
+    named explicitly as the carve-out for items that don't fit that pipeline.
+
+    **Ceremony-only write rule.** The two shared inbox files at `backlog/` root are written only at
+    three lifecycle moments:
+
+    - **Activation absorption** — agent reads `backlog/ATOMIC-INBOX.md`, identifies entries the
+      activating WU's scope absorbs, stages deletions alongside activation. Captured atomic items
+      land as task list entries, commits within the activating WU, or atomic-tier WUs spawned
+      separately.
+    - **Integration drain** — agent reads per-user `USER-INBOX.md`, routes each remaining entry to:
+      drop / fold-into-this-WU-last-minute / push-to-`backlog/ATOMIC-INBOX.md` /
+      push-to-`backlog/BACKLOG-INBOX.md` / promote-to-`plan-*` doc. Writes the appropriate shared
+      inbox alongside integration sweep.
+    - **Planning-kickoff promotion** — when drafting a new `plan-*` doc, agent reads
+      `backlog/BACKLOG-INBOX.md` for entries the plan absorbs; stages deletions alongside plan-doc
+      creation.
+
+    Outside these moments, shared inboxes are read-only by convention. Hook-enforced check deferred
+    to a later atomic if drift surfaces. Absorbed entries are deleted, not marked — the routing
+    record lives in the deletion commit message plus the absorbing artifact (commit, task list,
+    plan-doc).
+
+    **`plans/` interlude.** `backlog/` root holds three top-level overview docs only:
+    `ATOMIC-INBOX.md`, `BACKLOG-INBOX.md`, `ROADMAP.md`. All `plan-*` docs and their group dirs
+    nest under `backlog/plans/`:
+
+    ```text
+    backlog/
+    ├── ATOMIC-INBOX.md
+    ├── BACKLOG-INBOX.md
+    ├── ROADMAP.md
+    └── plans/
+        ├── <group-name>/
+        │   └── plan-*.md
+        └── plan-*.md (standalone)
+    ```
+
+    Rationale: (a) backlog root stays scannable regardless of plan count, (b) the three top-level
+    docs read as a project-overview triad rather than being sandwiched between group dirs and
+    standalone plan files in dirs-first explorer sort, (c) `ROADMAP.md` no longer sits orphaned
+    among individual plan files.
+
+    **Vocabulary distinction — work unit vs atomic.** Codify in `DEV-RULES.ARC` (or
+    `AGENT-BRIEF.ARC.md` § Vocabulary):
+
+    - **Work unit** is the wrapper noun — any bounded chunk of work with a branch, status, and PR.
+      Invariant across tiers (atomic / quick / standard from Agile WU Lifecycle).
+    - **Atomic** describes work character — single-bounded, indivisible, no internal stages. Items
+      can be atomic (capture-tier), tasks can be atomic (companion-file scope), WUs can be
+      atomic-tier (minimal-ceremony WU).
+    - Capture inboxes distinguish by **work character** (atomic vs multi-step), not by wrapper
+      presence/absence. An atomic-character item may fold into existing commits OR become an
+      atomic-tier WU on its own branch.
+
+    **Read-staleness framing.** Shared inboxes represent *committed direction as of the last
+    ceremony*, not real-time capture. Live capture lives in per-user `USER-INBOX.md`; cross-team
+    visibility materializes at the next ceremony boundary. For "what's the current shared inbox
+    state across the project?" reads, workflows fetch and read against `origin/main` (local
+    working tree shows the branch's view; `origin/main` shows the project's latest committed
+    view).
+
+    Forward-compat: the future backend (`plan-arc-backend.md`) replaces the materialized inbox
+    files with a live-queried view. The conceptual model — per-user capture, ceremony-boundary
+    materialization, read-staleness as bounded-not-arbitrary — survives the transition cleanly.
+
+    Cascade:
+
+    - **Item 6** (group-dir convention): nesting rule rephrased to sit under `plans/` rather than
+      directly under `backlog/` (already applied above).
+    - **Item 11** (documentation cascade): adds touches for the four-surface model in
+      `strategy-work-planning.md` (or new strategy section), capture-routing constitutionalization
+      in `DEV-RULES.ARC`, vocabulary distinction codification.
+    - **Item 13** (migration sweep): expanded to include inbox renames, plan-doc moves into
+      `plans/`, and entry reclassification during merge (already applied above).
+    - **`DEV-RULES.PROJECT.md` § Capture Routing**: the routing rule becomes constitutional and
+      moves to `DEV-RULES.ARC`. Project-specific routing overrides remain in
+      `DEV-RULES.PROJECT.md` if needed.
+    - **Workflows touched**: `activate-work-unit.md` (absorption drain step at activation),
+      `integrate-work-unit.md` (escalation drain step at integration), `1_create-prd.md` or
+      planning-kickoff workflow equivalent (promotion drain step), `clean-work-unit.md` (no drain
+      step at handoff per design decision — handoff stays focused).
 
 ### Out of scope
 
