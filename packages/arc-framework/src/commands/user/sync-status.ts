@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { serialize, type SyncManifest } from "../../lib/git/index.js";
+import { serialize, shortHash, type SyncManifest } from "../../lib/git/index.js";
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
   runWorktreeSyncStatus,
@@ -141,7 +141,7 @@ export async function runUserStatus(
     diskStatus: diskInspection.diskStatus,
     refState: spine.refState,
     remoteChecked: !offline,
-    savedCommit: note ? note.commit.slice(0, 7) : null,
+    savedCommit: note ? await shortHash(io.exec, note.commit) : null,
     savedFromAncestor: note ? note.fromAncestor : false,
     ancestorDistance: note?.ancestorDistance ?? 0,
     noteHistoryDistance: note?.noteHistoryDistance,
@@ -303,12 +303,14 @@ async function inspectSessionLocalNoteFreshness(input: {
     return {
       state: "missing",
       commit: null,
+      commitShort: null,
       ancestorDistance: 0,
     };
   }
 
   const base = {
     commit: note.commit,
+    commitShort: await shortHash(input.io.exec, note.commit),
     ancestorDistance: note.ancestorDistance,
     noteHistoryDistance: note.noteHistoryDistance,
     reachableFromHead: note.reachableFromHead,
@@ -541,14 +543,14 @@ function renderSessionLocalNoteFreshness(
       return ["Latest local user note is current with HEAD."];
     case "ancestor":
       return [
-        `Latest local user note is from ${freshness.commit?.slice(0, 7)}, ${freshness.ancestorDistance} commit(s) behind HEAD.`,
+        `Latest local user note is from ${freshness.commitShort}, ${freshness.ancestorDistance} commit(s) behind HEAD.`,
       ];
     case "outside-head-ancestry": {
       const historyDetail = freshness.noteHistoryDistance === undefined
         ? ""
         : ` (${freshness.noteHistoryDistance} note update(s) back)`;
       return [
-        `Latest local user note is from ${freshness.commit?.slice(0, 7)}, outside current HEAD ancestry${historyDetail}.`,
+        `Latest local user note is from ${freshness.commitShort}, outside current HEAD ancestry${historyDetail}.`,
       ];
     }
   }
@@ -1521,19 +1523,19 @@ async function listRemoteUserIdentities(
 ): Promise<UserStatusRemoteIdentity[]> {
   try {
     const { stdout } = await io.exec("git", ["ls-remote", "origin"]);
-    return stdout
+    const rows = stdout
       .split("\n")
       .map((line) => line.trim())
       .filter((line) => line.length > 0)
       .map((line) => line.split(/\s+/u))
       .filter((parts): parts is [string, string] => parts.length >= 2)
-      .filter(([, ref]) => ref.startsWith("refs/notes/arc/user/"))
-      .map(([hash, ref]) => ({
-        identity: ref.slice("refs/notes/arc/user/".length),
-        ref,
-        hash: hash.slice(0, 7),
-      }))
-      .sort((left, right) => left.identity.localeCompare(right.identity));
+      .filter(([, ref]) => ref.startsWith("refs/notes/arc/user/"));
+    const identities = await Promise.all(rows.map(async ([hash, ref]) => ({
+      identity: ref.slice("refs/notes/arc/user/".length),
+      ref,
+      hash: await shortHash(io.exec, hash),
+    })));
+    return identities.sort((left, right) => left.identity.localeCompare(right.identity));
   } catch {
     return [];
   }

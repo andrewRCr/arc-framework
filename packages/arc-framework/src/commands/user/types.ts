@@ -518,6 +518,13 @@ export type UserSessionLocalNoteFreshnessState =
 export interface UserSessionLocalNoteFreshness {
   state: UserSessionLocalNoteFreshnessState;
   commit: string | null;
+  /**
+   * `commit` resolved through `git rev-parse --short` (honors `core.abbrev`).
+   * Display sites should use this instead of slicing `commit` to a fixed length
+   * so output matches what Git and Git-aware editors show. Null whenever
+   * `commit` is null (the `missing` state).
+   */
+  commitShort: string | null;
   ancestorDistance: number;
   noteHistoryDistance?: number;
   reachableFromHead?: boolean;
