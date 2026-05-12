@@ -530,6 +530,67 @@ provide no proportional benefit. New WUs spun up post-this-WU follow the new mod
 historical archive (`archive/2026-q*/{category}/`) retains category-organized layout; new archive
 entries follow group-dir conventions if applicable.
 
+### Boundary-materialization over append-only or backend-only
+
+The shared backlog inboxes write only at lifecycle ceremonies (activation absorption, integration
+drain, planning-kickoff promotion). Alternatives considered:
+
+- **Append-only structured convention with continuous writes.** Per-entry blocks (dated, authored),
+  conflict-tolerant additions. Rejected — works under solo and well-disciplined teams but breaks
+  the first time two writers edit the same existing entry simultaneously. The "discipline" load
+  is real and unbounded; concurrency safety relies on convention rather than mechanism.
+- **Per-WU intermediate captures merged at integration.** Each WU branch carries its own captures
+  file; integration sweeps merge into main's shared inbox. Rejected as redundant — the per-user
+  `USER-INBOX.md` already serves the "personal in-flight capture" role; a per-WU file added a tier
+  without distinct semantic value.
+- **Defer to the backend.** Document the staleness limitation and live with it pre-backend.
+  Rejected — worktree-era multi-WU is downstream of WOR; the current backlog inbox shape becomes
+  genuinely broken (not just suboptimal) the moment two worktrees both want to write.
+
+Boundary-materialization sacrifices write immediacy for write isolation. Shared inboxes represent
+*committed direction as of the last ceremony*, not real-time capture. Live capture lives in
+per-user `USER-INBOX.md`, made cross-team visible at the next ceremony boundary. The future
+backend replaces the materialized files with a live-queried view; the conceptual model — per-user
+capture, ceremony-boundary materialization, bounded read-staleness — survives the transition.
+
+### Work-unit-as-wrapper, atomic-as-work-character
+
+The worktree trio and tier model surfaced a vocabulary tangle: "atomic" was doing two jobs
+(item-shape AND tier-shape) and "work unit" was getting stretched ("is an atomic WU really a
+work unit?"). Separating the two concepts resolves both:
+
+- **Work unit** is the wrapper noun — applies to any bounded chunk of work with a branch, status,
+  and PR. Invariant across tiers (atomic / quick / standard from Agile WU Lifecycle).
+- **Atomic** describes work character — single-bounded, indivisible, no internal stages. Applies
+  to items (capture-tier), tasks (companion-file scope), and WUs (atomic-tier).
+
+Consequence for the capture pipeline: inboxes distinguish work *character* (atomic vs multi-step),
+not wrapper presence/absence. An atomic-character item may fold into commits OR become its own
+atomic-tier WU; both are valid paths from `ATOMIC-INBOX.md`.
+
+Alternative considered:
+
+- **Rename "work unit" entirely.** Industry alternatives (epic, story, initiative) don't fit ARC's
+  flat, technical-or-feature-agnostic shape. The compound noun does real work — explicit,
+  unoverloaded. Cost of renaming high; benefit unclear.
+
+### `plans/` interlude in `backlog/`
+
+`backlog/` root holds three top-level overview docs only (the two shared inboxes + `ROADMAP.md`);
+all `plan-*` docs and their group dirs nest under `backlog/plans/`. Alternatives considered:
+
+- **Flat layout (no interlude).** Plan-* docs and group dirs mixed at backlog/ root alongside the
+  inbox files. Rejected — in dirs-first explorer sort, inbox files end up sandwiched between
+  group subdirs (above) and standalone plan files (below), losing their "project-overview
+  entrypoint" position. `ROADMAP.md` also orphans among individual plans.
+- **`_inbox/` subdir for the inbox files only.** Inbox files grouped together but plans stay at
+  `backlog/` root. Rejected — solves the inbox-sandwich problem but leaves `ROADMAP.md` orphaned
+  and doesn't scale: with many plans, `backlog/` root remains noisy.
+
+The interlude pays a path-verbosity cost (one extra directory level on every `plan-*` reference)
+for two durable benefits: (a) `backlog/` root stays scannable regardless of plan count, (b) the
+three top-level overview docs read as a project-overview triad rather than a sandwich.
+
 ---
 
 ## Dependencies and Sequencing
@@ -676,6 +737,23 @@ per-cluster.
 
 Documentation-only (smell flag in DEV-RULES.ARC) or mechanical (pre-commit hook check)? Lean
 documentation; mechanical enforcement adds hook surface. PRD decision.
+
+### Worktree-trio dev-ergonomics pressure test (forward-compat watch)
+
+The parallelism trio (Worktree Foundation, Agile WU Lifecycle, Concurrent Work Conventions) is
+well-aligned as a set against current scope, but the trio's user-facing shape hasn't been
+pressure-tested against emerging tools in this space (conductor.build, Claude Code's agent view,
+similar) and against ARC's stance that task work should not be far from the human
+(primary-agent-as-orchestrator models are explicitly out of scope).
+
+This isn't a WOR PRD-blocker on its own — WOR delivers the per-worktree isolation foundation
+regardless of how the trio's ergonomics resolve. But forward-compat watch: trio PRDs should
+incorporate this pressure test, and if it surfaces shape changes that bleed back into WOR scope
+(e.g., affecting `plans/` interlude layout, group-dir convention, status-file location-by-state,
+or the capture pipeline drain steps), WOR's PRD readiness gates pause until the bleed is resolved.
+
+Document as a known forward-compat dependency on trio research; do not block this WU's PRD
+drafting on the research outcome.
 
 ---
 
