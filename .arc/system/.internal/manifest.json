@@ -109,17 +109,17 @@
     "reference/strategies/arc/strategy-configurability-architecture.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "186237a95d3defa74c7b4e09cfbd24b20e76e32833f1da63dc3c4caaa4096227"
+      "pristine_hash": "d09546210c84d303ae6662a05c1e6ee291f724a4b560c1e8eda623389a4ffcaf"
     },
     "reference/strategies/arc/strategy-session-operations.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "310c23c3f46b6c6a94a16e4c279c55b6f4e403ad0617024a2d9e163856c133c2"
+      "pristine_hash": "b9ba5961d188c903dc2b801fd7cede572bd1d839ab58774f8cbc4af06fdea3b2"
     },
     "reference/strategies/arc/strategy-file-classification.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "a6c4c90927b128496af1f9a523c889fa724f79ae5cfa9f0957635ed277272b3d"
+      "pristine_hash": "648d32e1835a80eb566d1e7644e1222937b818002c388d8c3a2e576a28970a56"
     },
     "reference/strategies/arc/strategy-quality-gates.md": {
       "classification": "Framework",

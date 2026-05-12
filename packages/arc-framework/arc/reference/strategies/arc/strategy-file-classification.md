@@ -15,12 +15,12 @@ strategy. For directory structure and work organization, see
 
 ### Framework
 
-ARC methodology files. Not customized by adopters — wholesale replaced during `arc update`.
-Adopter modifications are overwritten; customization uses the override surfaces below.
+ARC methodology files. Do not customize directly — wholesale replaced during `arc update`.
+Local modifications are overwritten; customization uses the override surfaces below.
 
 **Examples:** Workflows, strategies, READMEs, githooks, ADR template.
 
-**Update behavior:** Wholesale replaced. Adopter modifications overwritten. No conflicts possible.
+**Update behavior:** Wholesale replaced. Local modifications overwritten. No conflicts possible.
 
 **If you need to customize:** Framework files shouldn't be edited directly — changes are
 overwritten on every update. See [Configurability Architecture][config-arch] §
@@ -61,8 +61,8 @@ Never included in or affected by framework updates.
 
 ## Naming Conventions
 
-ARC uses consistent naming patterns across all files. Understanding these patterns helps adopters
-name their own artifacts and recognize what a file is from its name alone.
+ARC uses consistent naming patterns across all files. Understanding these patterns helps teams name
+their own artifacts and recognize what a file is from its name alone.
 
 ### ALL-CAPS vs. lowercase
 
@@ -146,7 +146,7 @@ can carry it — the common trait is that the source file contains placeholders 
 different output file. Configurable files that ship as functional content and are customized in
 place (e.g., `DEV-RULES.PROJECT.md`, `STRATEGY-INDEX.md`, `system/methods/commit-format.md`) don't use the suffix
 because no rendering transformation occurs — they're copied as-is during init and edited directly
-by adopters.
+by teams.
 
 The `template-` *prefix* (in `reference/templates/`) is different — those are copy-ready document
 templates used during work (e.g., `template-prd.md` is copied when creating a new PRD). They keep
@@ -172,7 +172,7 @@ Lowercase, hyphenated, functional names throughout. Work categories (`feature/`,
 quarter-based grouping (`2026-q1/`) and sequence-numbered directories (`01_work-name/`) for
 completion ordering.
 
-### Adopter guidance
+### Project guidance
 
 When creating project-specific artifacts:
 
@@ -188,7 +188,7 @@ When creating project-specific artifacts:
 
 ## Related Documentation
 
-- [Configurability Architecture Strategy][config-arch] — Customization mechanisms and adopter guidance
+- [Configurability Architecture Strategy][config-arch] — Customization mechanisms and project guidance
 - [Work Organization Strategy](strategy-work-organization.md) — Directory structure, work categories
 - [DEV-RULES.PROJECT](../../constitution/DEV-RULES.PROJECT.md) — Project quality standards
 
