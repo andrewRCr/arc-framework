@@ -149,7 +149,11 @@ get promoted: add the plan-*/PRD, restructure the task list into phases, continu
    workflow, layered on top of Work Organization Reform's consolidated boundary workflows
    and sweep-as-you-go foundation:
     - `activate-work-unit.md` (post-WOR shape — state-transition workflow, not branch creation):
-      skip plan/PRD checks for atomic and quick; require for standard
+      skip plan/PRD checks for atomic and quick; require for standard. Standard tier path
+      inherits Work Organization Reform's planning-checkpoint opt-in
+      (`review.planning_checkpoint` config + `pre-execution-graduation` extension) at the
+      state-transition fire-site; atomic and quick tiers bypass the planning workflow entirely
+      (via `arc start`), so the checkpoint doesn't apply to them.
     - `integrate-work-unit.md` (post-WOR shape — single integration boundary with sweep-as-you-go
       bundled): skip clean-work-unit and completion-doc steps for atomic; lightweight for quick
       (PR description as archive); full ceremony for standard. Integration-time updates include

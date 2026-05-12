@@ -225,7 +225,13 @@ PR review at integration) while removing planning-merge ceremony and structural 
       creation, no `git mv` from `backlog/` to `active/` on activation (the move happens at planning
       kickoff on the WU branch when applicable).
     - **`integrate-work-unit.md`** retains its role as the single integration boundary. Bundles the
-      sweep-as-you-go shape from scope item 3.
+      sweep-as-you-go shape from scope item 3. **Downstream layering contract:** WOR ships this
+      workflow with sweep-as-you-go bundled and tier-agnostic structure. Agile WU Lifecycle
+      layers tier-aware sweep ceremony (atomic trivial / quick standard / standard full);
+      Concurrent Work Conventions layers async-merge accommodation (handoff and cleanup
+      behavior during awaiting-review latency). WOR's edits preserve those extension points by
+      keeping the primary flow sync-merge plus tier-agnostic, with downstream-specified
+      additive treatment.
     - **`archive-work-unit.md`** under default `archive.cadence: with-integration` collapses into
       `integrate-work-unit.md` (sweep IS the archive operation). Under deferred cadence,
       `archive-work-unit.md` retains its current shape as a separate post-integration ceremony.
@@ -277,6 +283,13 @@ PR review at integration) while removing planning-merge ceremony and structural 
       validators, lint runs).
     - **Composition:** config and extension are independent axes — teams can have automated extension
       steps fire AND require human approval after, or either alone.
+    - **Fire-site:** the planning → execution state transition fires both the config check
+      (`review.planning_checkpoint`) and the `pre-execution-graduation` extension. Under WOR's
+      consolidated workflow shape (item 4), this is the renamed `activate-work-unit.md`
+      ("graduate-to-execution" per item 4's TBD naming). Single State-flip moment on the WU
+      branch; workflow halts there when config is `required` and resumes after explicit
+      approval. Atomic and quick tiers bypass planning entirely (Agile WU Lifecycle's
+      `arc start` path), so the checkpoint applies only to the standard-tier path.
     - **Convention inventory entry** added to `strategy-configurability-architecture.md`:
       "Planning checkpoint review | P2/P4 | No checkpoint stop | Config setting +
       Extension". Follows the existing `review.pre_merge` precedent.
