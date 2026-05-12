@@ -8,13 +8,13 @@ the agility gap where ARC's uniform ceremony costs more than the work for short-
 - **State:** Draft — pre-PRD exploration captured during agile/mobility design discussion 2026-04-28.
   Three-tier model and constitutional reframing identified; external research and PRD-time
   ratification expected. Updated 2026-05-08: sweep-as-you-go foundation (formerly scope item 7a's
-  load-bearing pieces) moved to upstream [Work Organization Reform][wor] WU; this WU retains
+  load-bearing pieces) moved to upstream Work Organization Reform WU; this WU retains
   tier-aware adaptations on top.
 
 - **Created:** 2026-04-28
 
-- **Origin:** Surfaced during the agile/mobility expansion discussion when [Worktree
-  Foundation][wf] (mechanism) and [Concurrent Work Conventions][cwc] (conventions) were carved out
+- **Origin:** Surfaced during the agile/mobility expansion discussion when Worktree
+  Foundation (mechanism) and Concurrent Work Conventions (conventions) were carved out
   of the original Work-Unit Mobility WU. The agility gap — small bounded work paying full ceremony
   cost — emerged as a third concern alongside concurrency. Solo-dev sequential work patterns shaped
   ARC's current uniform ceremony, which doesn't fit team practice where small WUs are spun up and
@@ -57,7 +57,7 @@ PR review for shared branches. That discipline drives quality and is invariant a
 What scales with WU size is **artifact ceremony**: planning artifacts (plan-*, PRD), task structure
 (phased vs flat vs none), and archival artifacts (completion doc vs PR description).
 
-This framing **explicitly answers the [plan-arc-modes.md][arc-modes] § Mode 1 rejection** of the
+This framing **explicitly answers the `plan-arc-modes.md` § Mode 1 rejection** of the
 "Required vs Available" model. That rejection was about making *execution discipline* optional — task
 interlocks removed, quality gates skipped, "trust the dev." This WU does none of that: execution
 discipline is enforced at every tier. What varies is where the spec lives, how tasks are organized,
@@ -114,7 +114,7 @@ get promoted: add the plan-*/PRD, restructure the task list into phases, continu
 
 3. **`**Spec:**` field on every status file** — pointer to where the work's specification lives.
    **Field introduction is upstream:** `**Spec:**` is introduced as a generic optional pointer in
-   [plan-session-operational-flow][plan-ops] Phase 1 (planning-session active surface scope, with
+   Session-Operational Flow Phase 1 (planning-session active surface scope, with
    `**Spec:** plan-{name}.md` value). This WU adds tier-specific value semantics and tier-aware
    validation on top of the already-introduced field.
    Values:
@@ -125,12 +125,14 @@ get promoted: add the plan-*/PRD, restructure the task list into phases, continu
     - `**Spec:** https://github.com/.../issues/123` — quick tier with external tracker
     - omitted for atomic — work is self-evident from PR description
 
-4. **`arc start <name>` command** for fast WU activation. Bounded subset of `activate-work-unit.md`
-   workflow — same logic, faster invocation. Flags:
+4. **`arc start <name>` command** for fast WU activation. Bounded subset of post-WOR
+   `activate-work-unit.md` workflow — same logic, faster invocation. Flags:
     - `--tier atomic | quick | standard` (default: `quick`)
-    - `--branch <branch>` (override default `<category>/<name>`)
-    - `--category feature | technical` (default: `feature`)
+    - `--type <conventional-commit-type>` (default: `feat`; per Work Organization Reform's
+      Conventional Branch alignment — `feat`, `fix`, `chore`, `docs`, `refactor`, `perf`, etc.)
+    - `--branch <branch>` (override default `<type>/<name>`)
     - `--spec <path-or-url>` (sets the Spec field)
+
    Standard tier reached via the planning workflow path (plan → PRD → activate), not via
    `arc start`.
 
@@ -144,7 +146,7 @@ get promoted: add the plan-*/PRD, restructure the task list into phases, continu
    Quality gates: T1 per commit. PR description as archive.
 
 7. **Ceremony scaling for activate / integrate / archive workflows.** Tier-aware branches in each
-   workflow, layered on top of [Work Organization Reform][wor]'s consolidated boundary workflows
+   workflow, layered on top of Work Organization Reform's consolidated boundary workflows
    and sweep-as-you-go foundation:
     - `activate-work-unit.md` (post-WOR shape — state-transition workflow, not branch creation):
       skip plan/PRD checks for atomic and quick; require for standard
@@ -153,18 +155,21 @@ get promoted: add the plan-*/PRD, restructure the task list into phases, continu
       (PR description as archive); full ceremony for standard. Integration-time updates include
       the `**Integration:**` field per metadata-state model and a one-line ROADMAP/PROJECT-STATUS
       touch (one WU's status line) — tracking docs are current at merge, not stale until sweep.
-    - `archive-work-unit.md`: under default `archive.cadence: with-integration` (delivered by WOR)
-      collapses into `integrate-work-unit.md`; under deferred cadence retains its current shape as
-      separate post-integration ceremony. Tier-aware sweep ceremony applies in both cadences.
+    - `archive-work-unit.md`: shape depends on Work Organization Reform's resolution of
+      the default `archive.cadence` open question. Under `with-integration` default (current
+      lean), this workflow collapses into `integrate-work-unit.md`; under `deferred` default, it
+      retains its current shape as a separate post-integration ceremony. Tier-aware sweep
+      ceremony applies in both cadences; the cadence-default decision affects the workflow's
+      existence-as-separate-doc, not the tier-awareness logic itself.
 
-7a. **Tier-aware adaptations on top of WOR's foundation.** Implements [plan-session-operational-flow][plan-ops]
+7a. **Tier-aware adaptations on top of WOR's foundation.** Implements Session-Operational Flow
     § Scope → "Metadata-state foundation for WU lifecycle" against the actual lifecycle workflows,
-    consuming [Work Organization Reform][wor]'s sweep-as-you-go foundation. Concrete deliverables
+    consuming Work Organization Reform's sweep-as-you-go foundation. Concrete deliverables
     that remain in this WU's scope (post-2026-05-08 split):
 
     - **State + Integration field rollout.** `**State:**` enum:
       `Planning | In Progress | Complete | Paused | Superseded` (`Planning` introduced upstream in
-      [plan-session-operational-flow][plan-ops] Phase 1; this WU operates on the post-introduction
+      Session-Operational Flow Phase 1; this WU operates on the post-introduction
       enum); optional `**Integration:** Merged` marker added to template-status. Workflow updates
       compose with WOR's consolidated boundaries: `clean-work-unit.md` Mode 2 sets State to
       Complete (current); PR review state remains in the PR; archival marks Integration as Merged
@@ -176,7 +181,7 @@ get promoted: add the plan-*/PRD, restructure the task list into phases, continu
       `Next Action` no longer reads as contradictory; `Integration:` field carries the in-flight
       workflow position cleanly separated from execution-state.
 
-    **Moved to [Work Organization Reform][wor]** (load-bearing for per-worktree isolation; not
+    **Moved to Work Organization Reform** (load-bearing for per-worktree isolation; not
     tier-specific):
 
     - Sweep cadence configuration (`archive.cadence` config key)
@@ -191,11 +196,14 @@ get promoted: add the plan-*/PRD, restructure the task list into phases, continu
    OR spin up atomic WU OR backlog. Open question: retire entirely or repurpose as session-scoped
    "noticed-pending-decision" capture that drains at handoff. PRD-time question.
 
-9. **Incidental category retirement.** With shift lifecycle handling "unplanned, interrupts another
-   WU" and tier model handling "lighter ceremony," the incidental category becomes redundant.
-   Categories reduce to `feature/` and `technical/`. Mechanical sweep across templates, workflows,
-   strategy docs, branch-prefix conventions. (The pointer-field migration is [Worktree
-   Foundation][wf] scope; the category nomenclature retirement lands here.)
+9. **Incidental concept retirement.** With shift lifecycle handling "unplanned, interrupts another
+   WU" and the tier model handling "lighter ceremony," the incidental concept becomes redundant.
+   Work Organization Reform retires the `incidental/` category prefix as part of its
+   broader category-prefix retirement (`feature/` / `technical/` / `incidental/` → Conventional
+   Branch alignment); this WU retires the remaining conceptual references in workflows, strategy
+   docs, and templates that frame incidental as a distinct WU shape. Mechanical sweep across
+   those surfaces. (The pointer-field migration is Worktree Foundation scope; the
+   conceptual retirement lands here.)
 
 10. **Documentation cascade.** [DEV-RULES.ARC][dev-rules] tier definitions and boundary tests;
     [strategy-task-list-formatting.md][tasklist-fmt] tier-aware task list shapes;
@@ -205,10 +213,10 @@ get promoted: add the plan-*/PRD, restructure the task list into phases, continu
 
 ### Out of scope
 
-- **Worktree mechanism and shift lifecycle** — [Worktree Foundation][wf].
-- **Focus-role model and concurrent-work conventions** — [Concurrent Work Conventions][cwc].
+- **Worktree mechanism and shift lifecycle** — Worktree Foundation.
+- **Focus-role model and concurrent-work conventions** — Concurrent Work Conventions.
 - **Tier-aware quality gate scaling beyond T1/T2/T3 split per tier table** — defer detailed gate
-  tier mapping to [Quality Gate Tiers and Hook Integration][qg-hooks] WU. This WU establishes that
+  tier mapping to Quality Gate Tiers and Hook Integration WU. This WU establishes that
   tiers exist; gate-tier mapping per WU tier is the gate-tiers WU's PRD work.
 - **Auto-promotion of tier based on commit count or duration thresholds.** Manual promotion only.
   Structural-detection nudges (warnings) may be considered at PRD time but auto-promotion is too
@@ -270,30 +278,30 @@ PR. The word's meaning is consistent across modes; the framework's shape adapts.
 
 ### Upstream
 
-- **[Work Organization Reform][wor]:** delivers the consolidated boundary workflows (single
+- **Work Organization Reform:** delivers the consolidated boundary workflows (single
   activate/integrate pair under single-branch-per-WU lifecycle), sweep-as-you-go foundation, and
   per-worktree isolation invariant. This WU's tier-aware adaptations layer on top. Hard upstream
   dependency.
-- **[Worktree Foundation][wf]:** clean activate/integrate workflows post-pointer-field retirement;
+- **Worktree Foundation:** clean activate/integrate workflows post-pointer-field retirement;
   the tier model's `arc start` command operates on the worktree-aware activation substrate. Pointer
   fields are retired in WF; the incidental category retirement here folds in cleanly afterward.
-- **[Session-Operational Flow][plan-ops]** (shipped): consumes Phase 7 (metadata-state foundation —
+- **Session-Operational Flow** (shipped): consumes Phase 7 (metadata-state foundation —
   State + Integration field model). Sweep cadence config moved to WOR; this WU consumes it. Phase 2
   (status-file timing split) also informs which fields belong on commit vs handoff.
 
 ### Downstream
 
-- **[Concurrent Work Conventions][cwc]:** tier model informs concurrency conventions (focus-role
+- **Concurrent Work Conventions:** tier model informs concurrency conventions (focus-role
   model probably doesn't apply to atomic tier; quick-tier WUs are short-lived enough that focus
   designation is less meaningful).
-- **[Quality Gate Tiers and Hook Integration][qg-hooks]:** gate-tier mapping per WU tier is that
+- **Quality Gate Tiers and Hook Integration:** gate-tier mapping per WU tier is that
   WU's PRD work; this WU establishes that tiers exist.
 - **ARCd Rebrand:** tier vocabulary absorbed into rename pass.
 
 ### Recommended sequencing
 
-[Work Organization Reform][wor] → [Worktree Foundation][wf] → **Agile WU Lifecycle** →
-[Concurrent Work Conventions][cwc].
+Work Organization Reform → Worktree Foundation → **Agile WU Lifecycle** →
+Concurrent Work Conventions.
 
 ---
 
@@ -402,8 +410,8 @@ mode's quick-tier PRD, and graduation Lite → Full preserves the spec shape for
 - *(Against)* "PRD" naming carries weight quick tier may not warrant — could rename for the reduced
   shape (Spec? Brief? compact-PRD?) but that fragments naming across modes.
 
-**Coordination:** depends on Lite mode's reduced PRD template shape, which is [plan-arc-modes][
-arc-modes] § The Lite PRD scope. If Lite PRD template lands first or in parallel, this WU adopts
+**Coordination:** depends on Lite mode's reduced PRD template shape, which is `plan-arc-modes.md`
+§ The Lite PRD scope. If Lite PRD template lands first or in parallel, this WU adopts
 it for quick tier directly. If Lite mode is still iterating, this WU may need to either wait or
 ship with the task-list-header fallback and migrate later.
 
@@ -433,7 +441,7 @@ Phases (provisional):
 3. **`arc start` command** — CLI subcommand implementation, default-tier semantics, flag handling,
    error semantics, tests.
 4. **Integration-workflow restructure** — implements the metadata-state foundation from
-   [plan-session-operational-flow][plan-ops] Phase 7. State + Integration field rollout in
+   Session-Operational Flow Phase 7. State + Integration field rollout in
    workflows; sweep cadence configuration; sweep-as-you-go integration PR shape (multi-commit with
    isolated sweep commit); deferred sweep variant; tier-aware sweep ceremony. Resolves CodeRabbit
    contradictoriness and stale-tracking-doc inbox concerns.
@@ -478,12 +486,6 @@ concrete examples for the strategy doc.
 
 ---
 
-[arc-modes]: ../feature/plan-arc-modes.md
-[wf]: plan-worktree-foundation.md
-[cwc]: ../feature/plan-concurrent-work-conventions.md
-[wor]: plan-work-organization-reform.md
-[plan-ops]: ../../reference/archive/2026-q2/technical/06_session-operational-flow/prd-session-operational-flow.md
-[qg-hooks]: plan-quality-gate-hooks.md
 [dev-rules]: ../../reference/constitution/DEV-RULES.ARC.md
 [strategy-work-org]: ../../reference/strategies/arc/strategy-work-organization.md
 [tasklist-fmt]: ../../reference/strategies/arc/strategy-task-list-formatting.md
