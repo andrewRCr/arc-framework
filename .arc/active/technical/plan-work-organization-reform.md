@@ -354,8 +354,25 @@ PR review at integration) while removing planning-merge ceremony and structural 
     - `session-init.md` / `session-handoff.md` — preserve lifecycle workflow prefixes in meta-file
       `Next Action` pointers; route project-specific workflow details to SESSION-NOTES or trailing detail
     - `integrate-work-unit.md` — replace stale post-PR-create handoff warning with skip-threshold-aware guidance
+    - `template-meta.md` (renamed from `template-status.md` per item 15) — phase-labeled
+      sections: life-phase fields plus archive-phase sections (PR URL, Completed date, Release
+      Notes Entry, Completion Notes per items 16-17); codified `**State:**` value-set, `**Owner:**`
+      field, `**Depends On:**` field per item 20
+    - `template-meta-prd.md` (new — META-PRD shape codification per item 18) — Mission, numbered
+      principles, anti-goals, problem statement, design tradeoffs sections
+    - `1_create-prd.md` — add alignment gate against META-PRD principles (item 18)
+    - `activate-work-unit.md` — add conditional supplementary META-PRD check (item 18) and
+      ROADMAP regeneration step (item 19)
+    - `archive-work-unit.md` — Tier-1 step for Release Notes Entry + Completion Notes
+      composition (item 16); ROADMAP regeneration step (item 19)
+    - `strategy-team-coordination.md` — clarify singular Owner + `(@name)` task-level
+      composition; deprecate concurrent multi-owner pattern (item 20)
+    - `strategy-work-organization.md` — document ROADMAP rendering algorithm (item 19) so
+      hand-maintenance can follow it pre-CLI; document archive shape new vs legacy (item 21)
     - Any other workflow / strategy that references `feature/`/`technical/` prefixes, the
-      planning-branch separate-merge pattern, `backlog/{category}/` paths, or `status-*.md` files
+      planning-branch separate-merge pattern, `backlog/{category}/` paths, `status-*.md` files,
+      `completion-*.md` files, `template-completion-doc.md`, `PROJECT-STATUS.md`,
+      `plan-roadmap-evolution.md`, or `plan-completion-status-consolidation.md`
 
 12. **Companion ADR.** Constitutional shift documented as ADR (parallel scale to ADR-016). Records
     the single-branch-per-WU model decision, the Conventional Branch alignment, and the rationale for
@@ -384,6 +401,29 @@ PR review at integration) while removing planning-merge ceremony and structural 
       `**Origin:** [Internal]` unless an external tracker reference exists in their prior `**Spec:**`
       field — in which case the external URL/ID migrates to `**Origin:**` and `**Spec:**` resets
       to its internal artifact reference (or `[no spec yet]` during planning state).
+    - **State value recodification** (per item 20): in-flight meta files' `**State:**` values
+      map to the new canonical set (`Provisional | Planned | Active | Integrating | Shipped`).
+      Existing values (`Planning`, `Draft`, `In Progress`, `Complete`, etc.) translate
+      mechanically per a one-time mapping table at activation. `**Integration:**` field removed
+      from in-flight meta files (folded into State).
+    - **Owner field backfill** (per item 20): in-flight meta files default `**Owner:**` to
+      `arc.identity` (single-developer repo). Multi-identity repos populate per current
+      ownership.
+    - **Depends On field initialization** (per item 20): in-flight meta files default
+      `**Depends On:** [none]`. Existing dep relationships (encoded today in `**Sibling Work
+      Unit(s):**` or in prose) extracted manually at activation time.
+    - **PROJECT-STATUS.md deletion** (per item 21). Content not directly carried forward to
+      Release Notes Entries or META-PRD logged in the deletion commit message as historical
+      record.
+    - **`plan-roadmap-evolution.md` deletion** (per item 19). Tiered-horizons direction
+      superseded by item 19's rendered-view shape.
+    - **`plan-completion-status-consolidation.md` deletion** (per item 16). Plan absorbed into
+      WOR; standalone WU retired.
+    - **`template-completion-doc.md` deletion** (per item 16). Content folded into
+      `template-meta.md` archive-phase sections.
+    - **META-PRD content rewrite** (per item 18). Existing `.arc/META-PRD.md` content replaced
+      with new shape (Mission + numbered principles + anti-goals + problem statement + design
+      tradeoffs). Dogfooding pass on the framework template.
 
 14. **Capture pipeline and `backlog/` layout reform.** Redesign pre-plan-doc capture surfaces and
     `backlog/` directory layout to handle multi-WU and worktree-era concurrency without backend
@@ -517,11 +557,12 @@ PR review at integration) while removing planning-merge ceremony and structural 
 15. **Meta-file rename — `status-{name}.md` → `meta-{name}.md`.** Rename the WU manifest file
     across the framework. Reflects the file's actual role: project-pointer metadata (primary
     content header is `## Work Unit Metadata`), not just current-state. The file carries metadata
-    fields (Branch, Spec, Origin, Sibling WUs, Task List), active-state pointers (Last Completed,
-    Next Task, Blockers, Next Action), and — downstream under
-    `plan-completion-status-consolidation.md` — archive-state fields (PR URL, Completed date,
-    Executive Summary). "Status" undersold the composite role; "meta" matches the content header
-    and the file's actual function as the durable WU manifest.
+    fields (Branch, Spec, Origin, Sibling WUs, Task List, plus Owner and Depends On per item 20),
+    active-state pointers (Last Completed, Next Task, Blockers, Next Action, State per item 20),
+    and — under item 16's absorption of `plan-completion-status-consolidation.md` — archive-phase
+    sections (PR URL, Completed date, Release Notes Entry, Completion Notes). "Status" undersold
+    the composite role; "meta" matches the content header and the file's actual function as the
+    durable WU manifest.
 
     Cascade:
 
@@ -555,6 +596,327 @@ PR review at integration) while removing planning-merge ceremony and structural 
     files to `meta-*.md` as part of item 13's migration sweep. Historical archives keep their
     `status-*.md` filenames — past archives are read-only and don't benefit from the rename.
 
+16. **Completion-doc consolidation — absorbed from `plan-completion-status-consolidation.md`.**
+    Eliminate `completion-{name}.md` as a distinct artifact. The meta file (per item 15's rename)
+    survives into archive as the durable WU manifest, carrying both life-phase content and
+    archive-phase content in phase-labeled sections of one template. Absorbs the standalone
+    `plan-completion-status-consolidation.md` plan-doc entirely — that plan retires as part of
+    WOR's migration sweep (item 13).
+
+    **Archive-phase sections of `meta-{name}.md`:**
+
+    - **Release Notes Entry** — structured, categorized record of what changed for users/adopters.
+      Categories: `Added | Changed | Removed | Fixed | Infrastructure`. One-paragraph summary plus
+      optional Breaking Changes callout. Composed at integration ceremony; this is the
+      aggregation-source slice that downstream release-tooling reads (per item 17).
+    - **Completion Notes** — narrative. Lessons learned, deferred items, plan-vs-shipped delta,
+      PRD success-criteria deviations, supersessions, decisions worth capturing for future
+      planners. Optional but encouraged; composed at archive ceremony.
+
+    **Template shape — single template, phase-labeled sections.** Life-phase fields (existing:
+    Branch, Spec, Origin, Sibling WUs, Task List, Last Completed, Next Task, Blockers, Next
+    Action, State, Integration, Owner, Depends On) and archive-phase sections (PR URL, Completed
+    date, Release Notes Entry, Completion Notes) coexist in one template, clearly labeled by
+    phase. Both shapes are short; one document covers both.
+
+    **Authorship-gap mitigation.** Tier-1 step in `archive-work-unit.md` ceremony: compose
+    Release Notes Entry + Completion Notes before archive completion. Matches the absorbed plan's
+    lean. Authorship happens close to merge while context is fresh.
+
+    **Workflow updates** (absorbed verbatim from `plan-completion-status-consolidation.md`,
+    refined for WOR's scope):
+
+    - `integrate-work-unit.md` — remove the completion-metadata creation step (today's Step 3)
+      and the completion freshness check (today's Step 6b); rewrite the push-and-PR step to drop
+      completion-doc-as-PR-source framing. PR URL captured at archive, not pre-merge — eliminates
+      the standalone PR-URL-fill-in commit currently sitting between PR creation and merge. Add
+      step: compose Release Notes Entry section on the meta file before commit.
+    - `archive-work-unit.md` — change "delete meta file" to "transform meta file" (clear
+      life-phase fields, populate archive-phase sections, compose summary). Tier-1 step at archive
+      for Release Notes Entry + Completion Notes composition.
+    - `clean-work-unit.md` — Mode 2 currently produces fields the completion doc reads; under the
+      new model those fields feed the Release Notes Entry composition instead.
+    - `template-completion-doc.md` — delete. Content folds into `template-meta.md` (renamed per
+      item 15) as the archive-phase sections.
+
+    **Migration: forward-only.** Existing archived WUs keep their `completion-{name}.md` files as
+    historical artifacts. New WUs use the consolidated model. Mixed-format archive during
+    transition is accepted (see item 21).
+
+    **Surface sweep additions** (folded into item 11 cascade): references to
+    `template-completion-doc.md` and `completion-*.md` files across workflows, strategies, rules,
+    briefs, and templates retire alongside item 11's existing cascade scope.
+
+17. **Per-WU Release Notes Entry contract — framework-universal, aggregation-optional.** Codifies
+    the per-WU completion record at integration ceremony as the framework's universal contract;
+    downstream aggregation into a public-facing CHANGELOG.md or equivalent is deferred to opt-in
+    tooling, not framework-default.
+
+    **Framework-scope (universal contract):**
+
+    - Every shipped WU has a Release Notes Entry section in its archived `meta-{name}.md` (per
+      item 16). Categorized (`Added | Changed | Removed | Fixed | Infrastructure`); one-paragraph
+      user-facing summary plus optional Breaking Changes callout.
+    - Composition fire-point: integration ceremony, when `**State:**` transitions
+      `Active → Integrating` (per item 20).
+    - Discipline enforced by `integrate-work-unit.md` workflow step (compose entry before
+      commit). Optional CLI validation hook (e.g., `arc state set integrating` checks
+      section presence) deferred to downstream tooling.
+    - Post-`Shipped` edits are errata only; no mechanical lock. Git history is the lock —
+      matches keep-a-changelog norms ("changelogs are append-only after publication; corrections
+      are documented in commits").
+
+    **Out of WOR scope (deferred to downstream WUs):**
+
+    - Public `CHANGELOG.md` at repo root — adopter-dependent. Some adopters publish via npm
+      and maintain a CHANGELOG.md; some don't. Generating one by default would pre-empt
+      adopters' format choice (KaC / Conventional Commits / changesets) and collide with
+      existing tooling. Framework provides the per-WU record; aggregation is per-adopter.
+    - Aggregation CLI command (`arc release notes` or similar) — opt-in framework feature in a
+      future WU after dogfooding this repo's own CHANGELOG composition.
+    - This repo's own public `CHANGELOG.md` (ARC ships as npm package) — project-specific
+      release engineering, scoped in a downstream WU (npm-release WU or similar). WOR codifies
+      the per-WU entry contract; this repo's aggregation tooling rides in its own WU.
+
+    **Composition with Conventional Commits (ARC's existing commit-format default).** Per-WU
+    Release Notes Entry sits at WU granularity; Conventional Commits sits at commit granularity.
+    They compose, not compete. ARC keeps Conventional Commits for commit-level format discipline
+    (per `commit-format.md` method); per-WU entry handles the WU-level user-facing summary that
+    aggregation tools would consume. Conventional Branches (downstream consideration in the
+    worktree-trio plans) is similarly orthogonal — branch-naming convention at branch-creation,
+    independent of either commit or WU granularity.
+
+18. **META-PRD redesign — shape (framework) + content (this repo).** ARC's existing `META-PRD.md`
+    artifact exists from early development as the "authoritative project-vision-goal" reference,
+    but has sat unreferenced and unmaintained — naive shape, no ceremony integration, no
+    discipline keeping it live. WOR reshapes META-PRD into a load-bearing alignment artifact and
+    rewrites this repo's content as the dogfooding pass.
+
+    **Shape — codified template for adopters.** META-PRD carries:
+
+    - **Mission** — 1-3 sentences. What this project is and why it exists.
+    - **Numbered design principles** (5-7) — quotable, referenceable as nouns in decision-making.
+      Discoverable: principle violations get cited by number ("this conflicts with principle 3").
+    - **Anti-goals** — explicit non-goals. What this project intentionally doesn't try to do.
+      Strongest differentiator between useful and ornamental vision docs per external research.
+    - **Problem statement** — why this project exists vs. existing alternatives.
+    - **Design tradeoffs** — why each principle is what it is. Prevents principles from feeling
+      arbitrary; explains the cost paid for each.
+
+    The shape ships as `template-meta-prd.md` (or equivalent — final naming at PRD) for adopter
+    use. Existing `META-PRD.md` in this repo is the dogfooding instance.
+
+    **Ceremony integration — the liveness mechanism.** External research's strongest finding:
+    vision docs rot in isolation; stay live when referenced as nouns in development ceremonies.
+    Three fire-points:
+
+    - **PRD creation gate** (`1_create-prd.md`). Hard alignment check: does this PRD serve a
+      META-PRD principle? If conflict, decide: course-correct the PRD, or propose META-PRD
+      clarification in the same PR (proven pattern from Node.js TSC, Rust RFC review).
+    - **Integration verification** (`integrate-work-unit.md`). Final flag check: if alignment
+      flagged earlier or scope drifted during impl, verify and propose action. Soft check;
+      rarely blocks if create-PRD check passed.
+    - **Activation supplementary check** (`activate-work-unit.md` / "graduate-to-execution" per
+      item 4). Conditional: fires only when META-PRD has been edited since the PRD was approved,
+      indicating context shift between shaping and activation. Light prompt, not default
+      ceremony cost.
+
+    **Update triggers** (consolidated):
+
+    - Event-driven: major release, scope shift, governance change. Codified release/PR-time
+      ceremony.
+    - Organic: when a PR conflicts with an unstated or stale principle, the submitter proposes a
+      META-PRD clarification in the same PR. Lowest-friction maintenance pattern; matches the
+      proven liveness mechanism across surveyed projects.
+    - Not cadence-driven by default — periodic review is acceptable but isn't the load-bearing
+      trigger.
+
+    **Content rewrite (this repo, dogfooded).** Existing META-PRD's content is replaced under
+    this WU. Net new prose; takes the new shape; codifies ARC's actual design principles and
+    anti-goals. The content rewrite is the dogfooding pass — surfaces shape ambiguities that
+    feed back into the framework template (shape v1 may revise to v1.1 based on content-rewrite
+    findings).
+
+    **Surface location.** META-PRD lives at `.arc/META-PRD.md` (existing location preserved).
+    Referenced from `AGENT-BRIEF.PROJECT.md`, `README.md`, and adopter-facing onboarding docs;
+    cited by number in PRD reviews and WU activations.
+
+19. **ROADMAP as rendered view — meta-file source of truth + dep-tier rendering.** Replaces the
+    retired `plan-roadmap-evolution.md` (collapsed into WOR; its tiered-horizons direction
+    conflicts with the rendered-view pattern). ROADMAP.md becomes a generated artifact rendered
+    from in-flight (`active/`) and planned (`backlog/plans/planned/`) meta-files.
+
+    **Source of truth.** Meta files carry the per-WU state (`**State:**`, `**Owner:**`,
+    `**Depends On:**` per item 20). ROADMAP.md is the rendered view; never hand-edited. Header
+    comment: "Generated by `arc roadmap render` — do not edit by hand. Last rendered from
+    commit <hash>."
+
+    **Render algorithm** (codified in WOR; CLI implementation deferred):
+
+    1. Walk `.arc/active/**` and `.arc/backlog/plans/planned/**` for `meta-*.md` files.
+    2. Parse `**State:**`, `**Owner:**`, `**Depends On:**`, title fields.
+    3. Topologically sort by `**Depends On:**` (resolved deps point to either Shipped WUs in
+       archive or other in-flight/planned WUs).
+    4. Group into tiers: In Flight (State: Active or Integrating) → Foundation (no unresolved
+       deps among planned WUs) → Tier 2+ (depend on Foundation tier) → Independent Tracks
+       (parallel-safe; no inter-deps with above).
+    5. Render markdown with tier sections, per-WU lines (name, Owner, brief Depends On).
+    6. Footer note pointing to `provisional/` for exploratory plan-docs not yet on roadmap.
+
+    **Parallelizability — inferred from absence of dependency.** External research's strongest
+    finding: no surveyed project expresses parallelism explicitly; all infer from absence of
+    blocking relationships (Bazel principle: explicit deps reveal parallelism). ROADMAP tiers
+    that contain multiple WUs with no inter-deps are parallel-safe for worktree-per-WU
+    activation. The renderer doesn't tag parallelism; the tier structure surfaces it.
+
+    **Regeneration fire-points** (ceremony-coupled, not continuous):
+
+    - WU graduation (`provisional/` → `planned/`, per item 14's graduation trigger).
+    - WU activation (`planned/` → `active/`, per item 4's renamed workflow).
+    - WU integration (`active/` → archive).
+    - Dep field edit on any planned/active meta-file.
+
+    Each ceremony's workflow includes a regenerate-ROADMAP step. Between ceremonies, ROADMAP is
+    the snapshot from the last fire — drift bounded by ceremony cadence, not by hand-discipline.
+
+    **CLI command deferred** to a downstream WU. Captured here explicitly so it isn't lost:
+    `arc roadmap render` (or equivalent CLI surface) ships as part of either Worktree Foundation,
+    Agile WU Lifecycle, or a dedicated tooling WU — sequencing decision at PRD time. **Interim
+    discipline (pre-CLI):** ROADMAP.md hand-maintained following the documented rendering
+    algorithm above. ARC currently has very few in-flight + planned WUs at any moment, so manual
+    rendering is trivial until automated. When the CLI ships, deterministic output should
+    produce minimal diff against hand-maintained ROADMAP — a useful sanity check.
+
+    **Render shape (illustrative):**
+
+    ```markdown
+    # ROADMAP
+
+    _Generated by `arc roadmap render` — do not edit by hand. Last rendered from commit abc123._
+
+    ## In Flight (active/)
+    - WU-foo (Owner: andrew) — depends on: (none)
+    - WU-bar (Owner: andrew) — depends on: WU-baz [Shipped]
+
+    ## Foundation (no unresolved deps)
+    - WU-worktree-foundation (Owner: andrew)
+
+    ## Tier 2 (depends on Foundation)
+    - WU-agile-lifecycle (Owner: andrew) — depends on: WU-worktree-foundation
+    - WU-concurrent-conventions (Owner: andrew) — depends on: WU-worktree-foundation
+
+    ## Independent Tracks (no inter-deps with above; parallel-safe)
+    - WU-some-other-thing (Owner: andrew)
+
+    ---
+    _Provisional exploration lives in `backlog/plans/provisional/` — not yet on roadmap._
+    ```
+
+    `plan-roadmap-evolution.md` retires as part of WOR's migration sweep (item 13). Its
+    tiered-horizons (Now / Next / Later) direction is superseded — Rust abandoned that pattern
+    at hundreds-of-contributors scale per external research; the rendered-from-source-of-truth
+    pattern subsumes everything tiered-horizons was trying to do.
+
+20. **Meta-file field codification — State values, Owner, Depends On.** Codifies and extends the
+    meta file's field set. Composes with item 15 (meta rename) and item 5 (location-by-state).
+
+    **`**State:**` codified value-set.** Today's values are uncodified (`Planning`, `Draft`,
+    `In Progress`, `Complete`, others ad-hoc). New canonical value-set, KEP-inspired:
+
+    | Value         | Meaning                                                        |
+    |---------------|----------------------------------------------------------------|
+    | `Provisional` | Plan-doc exists in `provisional/`; not committed to sequencing |
+    | `Planned`     | Plan-doc in `planned/`; on ROADMAP; not yet started            |
+    | `Active`      | WU under execution on its branch (per item 5)                  |
+    | `Integrating` | WU under integration ceremony (PR open or sweep in progress)   |
+    | `Shipped`     | WU merged + archived                                           |
+
+    **`**Integration:**` retired.** The existing `**Integration:**` field (today's `Merged` /
+    other values) folds into State. `Integrating` covers in-flight integration; `Shipped` covers
+    post-merge. Field disappears from the template.
+
+    **`**Owner:**` field added.** Singular per WU — exactly one identity at any moment.
+
+    - **Solo mode:** auto-populated from `arc.identity` config; tautological but codifies the
+      shape forward-compat.
+    - **Team mode:** explicit; identifies the WU-level point-of-contact / accountability lead.
+      Handoff during impl updates the Owner field (sequential ownership; per § Singular Owner
+      design decision below).
+    - **Composition with `(@name)` task-level convention** (existing): Owner = WU-level
+      shepherd; `(@name)` checkbox markers = task-level granularity *under* the Owner. Different
+      surfaces, different granularities; no collision (per `strategy-team-coordination.md`
+      which scopes `(@name)` to task lists only).
+
+    **`**Depends On:**` field added.** Bare WU-name list. Renders into ROADMAP's tier grouping
+    (per item 19). Operationally defined: X is `Depends On Y` if Y's `Shipped` state is required
+    before X can safely activate (worktree-per-WU under item 5 means deps are evaluated against
+    base-branch availability of dependency artifacts).
+
+    **`**Blocks:**` deferred.** The inverse field (X blocks Y means Y depends on X) is
+    redundant under explicit Depends On — adding both creates bidirectional maintenance burden
+    without surfacing new information. Skip for now; revisit if downstream tooling demands it.
+
+    **Worktree-foundation hard-block on unresolved deps.** WU activation under worktree-per-WU
+    hard-blocks if any of the activating WU's `**Depends On:**` entries are not yet `Shipped`.
+    Worktree Foundation enforces this at activation ceremony — per the locked sequencing
+    decision (WF is the next WU after WOR; no point designing the gate twice).
+
+    **Multi-dev concurrency model — singular Owner; concurrent same-WU co-ownership
+    deprecated.** Worktree-per-WU + KEP-style single-owner makes concurrent multi-owner
+    operationally redundant (per Design Decisions § Singular Owner below). Existing patterns
+    that survive: task-level distribution within a WU under singular Owner (via `(@name)`),
+    sequential handoff (Owner field updates). Patterns deprecated: two devs equally owning and
+    concurrently editing one WU's files. Light edit to `strategy-team-coordination.md` clarifies
+    this (per item 11 cascade).
+
+21. **Archive shape forward-only consolidation + PROJECT-STATUS retirement.** Locks the
+    forward-only migration position across all WOR-introduced changes; collapses archive's
+    category subdir under group-dir collapse symmetry with backlog; retires PROJECT-STATUS.md
+    entirely with its function decomposed across the other artifacts.
+
+    **All WOR changes apply forward-only.** Historical archive
+    (`.arc/reference/archive/2026-q*/{category}/`) is read-only: retains categorical layout,
+    `status-*` and `completion-*` filenames, and uncodified field values. No retroactive
+    migration of archived WUs; the format evolution itself becomes part of the historical
+    record visible in archive structure. Generalizes the position already in Design Decisions §
+    "Migration is forward-only" — extends it to cover Release Notes Entry / Completion Notes
+    sections (item 16), codified State values + Owner + Depends On fields (item 20), and the
+    archive group-dir collapse (this item).
+
+    **New archive shape — strict mirror of backlog group-dir collapse.** New archive entries
+    drop the `{category}/` subdir; structure becomes `archive/<dated>/{wu-name}/`. Temporal
+    grouping (`2026-q*`) stays — useful for "when did this ship." Archive shouldn't carry
+    vestigial categories the live system has rejected; symmetry with backlog wins.
+
+    **Backward-compat tooling requirement.** Anything that reads the archive — renderer (item
+    19), future `arc roadmap render`, completion-history aggregator (item 17 deferred), search
+    or audit tooling — must handle both legacy shape (`archive/<dated>/{category}/{wu-name}/`
+    with separate `status-*` / `completion-*` files) and new shape (`archive/<dated>/{wu-name}/`
+    with single `meta-*` file). Contract on downstream CLI work, not WOR's implementation
+    scope; WOR states the requirement so future WUs honor it.
+
+    **PROJECT-STATUS.md retirement.** `.arc/reference/PROJECT-STATUS.md` retires entirely. Its
+    function decomposes:
+
+    - **Completed-work history** → per-WU Release Notes Entry section (item 16); future opt-in
+      aggregation to a public CHANGELOG (item 17 deferred); the directory tree query (which WUs
+      have shipped) answers "what's been done."
+    - **Project direction / themes** → META-PRD (item 18). Mission + principles + anti-goals
+      carry the "where this project is going" content that PROJECT-STATUS was conflating with
+      historical record.
+    - **Done-vs-left snapshot** → query across `provisional/` + `planned/` + `active/` +
+      archive. The directory tree IS the snapshot; no separate hand-maintained doc.
+
+    No replacement artifact; the function lives across the artifacts above. Existing
+    PROJECT-STATUS.md content not directly carried forward by Release Notes Entries or META-PRD
+    is logged in the deletion commit message as historical record.
+
+    **Reference integrity sweep** (folds into item 11 cascade). Grep for references to
+    `PROJECT-STATUS.md`, `plan-roadmap-evolution.md`, `plan-completion-status-consolidation.md`,
+    `template-completion-doc.md`, and `completion-*.md` files across workflows, strategies,
+    rules, briefs, and templates. None should break under forward-only migration of archive (no
+    archived paths change); active references update or retire alongside the deletions.
+
 ### Out of scope
 
 - **Worktree mechanism, shift lifecycle, branch-gone detection mechanism, inbox sync** — Worktree
@@ -578,6 +940,22 @@ PR review at integration) while removing planning-merge ceremony and structural 
   their current `feature/{name}`/`technical/{name}` branches through natural integration. Migration
   is forward-only (new WUs use new conventions); historical branches keep their names. No
   retroactive rename ceremony.
+- **`arc roadmap render` CLI command implementation.** Item 19 codifies the rendering algorithm
+  and contract; the CLI command that mechanically renders ROADMAP.md ships in a downstream WU
+  (Worktree Foundation, Agile WU Lifecycle, or a dedicated tooling WU — sequencing decision at
+  PRD time). **Must not be lost in downstream WU sequencing** — captured explicitly here so
+  the dependency is visible at WOR PRD time. Interim hand-maintenance discipline per item 19.
+- **Public `CHANGELOG.md` aggregation tooling.** Item 17 codifies the per-WU Release Notes Entry
+  contract; aggregation into a public-facing CHANGELOG.md (whether for this repo's npm package
+  release or as opt-in framework feature for adopters) ships in a downstream WU. Adopter
+  release engineering is out of framework-default scope by intent (per item 17's framework-vs-
+  adopter boundary).
+- **Release-tooling for `**State:**` transitions.** Optional CLI validation (e.g.,
+  `arc state set integrating` checks Release Notes Entry section presence) deferred to downstream
+  tooling. Workflow-step discipline is the MVP enforcement mechanism per item 17.
+- **Retroactive backfill of Release Notes Entries on historical archives.** Historical archived
+  WUs are read-only per item 21; their `status-*` / `completion-*` files remain in place. No
+  effort to retrofit Release Notes Entry sections onto archived meta-files.
 
 ---
 
@@ -642,11 +1020,42 @@ Split logic: this WU lands the *model*; AWL lands the *tier-specific adaptations
 
 ### Migration is forward-only
 
-Existing in-flight WUs retain their current `feature/`/`technical/` branches through natural
-integration. Retroactive rename would force coordination across multiple in-flight branches and
-provide no proportional benefit. New WUs spun up post-this-WU follow the new model. The repo's
-historical archive (`archive/2026-q*/{category}/`) retains category-organized layout; new archive
-entries follow group-dir conventions if applicable.
+All WOR-introduced structural changes apply forward-only across the board. The principle:
+retroactive migration of historical artifacts rewrites the historical record without
+proportional benefit; the format evolution itself becomes part of that record, visible in
+archive structure.
+
+**In-flight WUs at WOR's activation:**
+
+- Retain their current `feature/`/`technical/` branches through natural integration (branch
+  rename would force coordination across multiple in-flight branches).
+- Rename `status-*` → `meta-*` mechanically (item 15; small, low-risk).
+- Backfill `**Origin:**` field per item 11 cascade.
+- Recodify `**State:**` values to the canonical set + retire `**Integration:**` field per item
+  20's mapping table.
+- Backfill `**Owner:**` field from `arc.identity` (item 20).
+- Initialize `**Depends On:** [none]` field (item 20); existing dep relationships extracted
+  manually at activation time.
+
+**Historical archive** (`.arc/reference/archive/2026-q*/{category}/`) is **read-only**:
+
+- Retains categorical layout (`{category}/` subdir preserved on existing archive entries).
+- Retains `status-*` and `completion-*` filenames.
+- Retains uncodified `**State:**` / `**Integration:**` values.
+- No retroactive Release Notes Entry backfill (item 21 deferral).
+- No content rewrite to match new META-PRD shape.
+
+**New archive entries** (post-WOR-activation) follow the new model:
+
+- Drop `{category}/` subdir — `archive/<dated>/{wu-name}/` (item 21 — strict mirror of
+  backlog's group-dir collapse).
+- Single `meta-*.md` with archive-phase sections (Release Notes Entry, Completion Notes) per
+  item 16; no separate `completion-*` file.
+- Codified `**State:** Shipped`; Owner + Depends On fields populated.
+
+**Backward-compat tooling requirement** (per item 21): renderer, future `arc roadmap render`,
+completion-history aggregator, search/audit tooling must handle both legacy and new shapes.
+Contract on downstream CLI work, stated in WOR so future WUs honor it.
 
 ### Boundary-materialization over append-only or backend-only
 
@@ -696,22 +1105,23 @@ Alternative considered:
 
 `status-*` files evolved beyond their original "current state" role. They now carry:
 
-- **Metadata** (Branch, Spec, Origin, Sibling WUs, Task List) — properties of the WU itself,
-  invariant during life
-- **Active-state pointers** (Last Completed, Next Task, Blockers, Next Action) — current state
-- **Archive-state fields** (PR URL, Completed date, Executive Summary) — populated post-merge per
-  `plan-completion-status-consolidation.md`
+- **Metadata** (Branch, Spec, Origin, Sibling WUs, Task List, Owner, Depends On per item 20) —
+  properties of the WU itself, invariant during life
+- **Active-state pointers** (Last Completed, Next Task, Blockers, Next Action, State per item 20)
+  — current state
+- **Archive-phase sections** (PR URL, Completed date, Release Notes Entry, Completion Notes) —
+  populated at integration/archive per item 16's absorbed completion-doc consolidation
 
 The file's primary content header is `## Work Unit Metadata`. "Status" undersells the composite
 role; "meta" matches the content header and the file's actual function as the durable WU
-manifest.
+manifest across both life-phase and archive-phase.
 
 Alternatives considered:
 
-- **Keep `status-*`.** Familiar; passes through completion-status consolidation by default.
-  Rejected: the consolidation plan locks in a passive default, not an analyzed decision. WOR is
-  the active decision moment, before downstream WUs inherit and the rename gets harder to walk
-  back.
+- **Keep `status-*`.** Familiar; would have passed through completion-status consolidation by
+  default in the pre-fold shape. Rejected: the rename moment is active, not passive. With
+  completion-status consolidation now absorbed into WOR (item 16), the rename and the lifecycle
+  extension land together rather than across two WUs.
 - **`metadata-*`.** Direct synonym but reads colder/more bureaucratic in prose. Composes worse
   with `{wu-name}` than the shorter `meta-`.
 - **`manifest-*`.** Captures the role but carries connotations from other domains (package
@@ -813,6 +1223,123 @@ for three durable benefits: (a) `backlog/` root stays scannable regardless of pl
 three top-level overview docs read as a project-overview triad rather than a sandwich, (c) the
 state-dir split aligns roadmap presence with directory presence by construction.
 
+### Single source of truth at the meta file; ROADMAP and CHANGELOG are rendered views
+
+Load-bearing principle across items 16, 17, 19, 20: the meta file is the canonical artifact per
+WU. Everything else (ROADMAP, future CHANGELOG aggregation, "done vs left" queries) is rendered
+or derived from meta files. External research's convergent finding across KEPs (Kubernetes),
+Project Goals (Rust), and changesets-pattern tooling: a per-WU persistent artifact carrying both
+forward intent (state, deps, owner) and backward record (release notes, completion notes) is
+the proven structural mechanism that avoids drift between artifacts.
+
+Alternatives considered:
+
+- **ROADMAP.md as hand-maintained source of truth + meta files as derived.** Rejected — drift
+  between roadmap and per-WU state is exactly the failure mode the rendered-view pattern
+  eliminates. Surveyed projects that try this (OpenStack blueprints in Launchpad, abandoned)
+  consistently report staleness.
+- **Separate "completion record" doc per WU + meta file lifecycle ending at integration.**
+  Today's shape (`completion-{name}.md` + `status-{name}.md`). Rejected — two artifacts where
+  one suffices; the meta file's content header (`## Work Unit Metadata`) is the natural home
+  for archive-phase content. Codifies the "doubles as" framing the absorbed
+  `plan-completion-status-consolidation.md` was already converging toward.
+- **Defer rendered-view pattern; keep ROADMAP hand-edited.** Rejected — without explicit dep
+  fields and a documented rendering algorithm, ROADMAP can't surface parallelizability for
+  worktree-per-WU operationally; the alignment axis (`planned/` ↔ ROADMAP) deteriorates into
+  hand-discipline.
+
+Consequence: every WU has exactly one persistent artifact (`meta-*.md`), with phase-labeled
+sections corresponding to its lifecycle position. Single artifact per WU; multiple rendered
+views derived from the artifact set.
+
+### META-PRD as load-bearing reference, not standalone document
+
+ARC's existing META-PRD has sat unreferenced and unmaintained because nothing in the
+development loop quoted it. External research's strongest finding on vision doc liveness: live
+vision docs are **referenced as nouns in ceremonies** — RFC gates, PR review checks, onboarding
+teaching tools. Stale vision docs sit unquoted in isolation.
+
+The decision: META-PRD's value comes from ceremony integration, not from periodic standalone
+review. Three fire-points per item 18 (PRD creation, integration verification, conditional
+activation) wire META-PRD into the development loop. Update triggers are organic (PR-time
+clarification when conflict surfaces) and event-driven (major release, scope shift), not
+cadence-driven.
+
+Alternatives considered:
+
+- **Quarterly META-PRD review cadence.** Rejected — surveyed projects that try cadence-driven
+  vision review without ceremony integration consistently let it slip (PSF mission review is
+  the rare counter-example; required dedicated governance role to sustain). Cadence without
+  reference becomes ceremony cost without payoff.
+- **Single repo-root mission statement; no separate META-PRD.** Rejected — ARC's PRD-per-WU
+  pattern needs a higher-level alignment artifact for the cross-WU principles question. README
+  doesn't carry that load.
+- **Fold META-PRD content into DEV-RULES.ARC.** Rejected — rules and principles are different
+  artifacts. Rules govern execution mechanics; principles govern design direction. Conflation
+  would dilute both.
+
+Consequence: META-PRD's redesign is shape-and-content under item 18. The shape ships as a
+framework template for adopters; the content is this repo's dogfooding pass.
+
+### Singular Owner per WU; concurrent same-WU co-ownership deprecated
+
+Worktree-per-WU (downstream Worktree Foundation) + KEP/Project-Goals single-owner convention
+together make concurrent multi-owner operationally redundant. The decision: `**Owner:**` field
+is singular; one identity at any moment.
+
+Existing patterns that survive:
+
+- **Task-level distribution under singular Owner.** `(@name)` checkbox markers (per existing
+  `strategy-team-coordination.md`) continue to express per-task collaboration. Owner shepherds
+  the WU; collaborators do tasks under that shepherding.
+- **Sequential handoff during impl.** Owner field updates when accountability transfers. Live
+  scenario in team mode.
+
+Patterns deprecated:
+
+- **Two devs equally owning and concurrently editing one WU's files.** Decomposes naturally
+  into separate WUs (different scope per dev) or task-level distribution (`(@name)` markers,
+  one Owner). Concurrent worktrees on the same WU is structurally incoherent under
+  worktree-per-WU.
+
+Alternatives considered:
+
+- **Plural Owner field (list).** Rejected — surveyed projects' single-owner pattern (KEP
+  author, Rust goal POC) is the proven structural shape. Plural ownership pushes accountability
+  into ambiguity; concurrent edits push toward merge conflict; both costs are real.
+- **Implicit Owner (whoever's branch the WU is on).** Rejected — works in solo mode by
+  accident; breaks the moment team mode handoff occurs mid-flight. Explicit Owner field
+  surfaces accountability transitions cleanly.
+
+`strategy-team-coordination.md` gets a light edit (item 11 cascade) clarifying this; the doc
+currently allows "multiple developers assigned to the same WU" which survives under the
+reframing (task-level under singular Owner), but the conceptual default needs explicit
+correction.
+
+### Release Notes Entry composability with Conventional Commits
+
+ARC's existing `commit-format.md` method defaults to Conventional Commits. Per-WU Release Notes
+Entry (item 17) sits at a different granularity and composes, not competes.
+
+| Mechanism                | Granularity | Source of truth         | Purpose                                         |
+|--------------------------|-------------|-------------------------|-------------------------------------------------|
+| Conventional Commits     | Per-commit  | Commit message          | Commit-level format discipline; scope/type tags |
+| Per-WU Release Notes     | Per-WU      | Section in `meta-*.md`  | WU-level user-facing summary; aggregation source|
+
+In ARC's WU-spans-many-commits model, each commit within a WU follows Conventional Commits;
+the WU's Release Notes Entry summarizes the aggregate at the right granularity for a release
+reader. Aggregation tooling (deferred per item 17) reads the per-WU entries, not commit
+history.
+
+External research's framing "Conventional Commits vs. changesets" was oppositional because
+projects often pick one *or* the other for CHANGELOG generation; ARC's KEP-analog model
+("WU artifact carries the summary") makes it neither — Conventional Commits stays at commit
+granularity (unchanged), per-WU entry handles the feature-level summary. Same composition
+logic applies to Conventional Branches (downstream worktree-trio consideration): branch-naming
+at branch-creation, orthogonal to commit format and WU-level summary.
+
+No conflict; no inconsistency introduced.
+
 ---
 
 ## Dependencies and Sequencing
@@ -830,7 +1357,9 @@ state-dir split aligns roadmap presence with directory presence by construction.
 
 - **Worktree Foundation:** consumes per-worktree isolation as a precondition. WF's scope items
   4 (branch-gone detection) and 8 (main-on-main pattern) compose cleanly on top of single-branch-per-
-  WU. WF's scope item 7 (pause-pointer reconciliation) was already independent.
+  WU. WF's scope item 7 (pause-pointer reconciliation) was already independent. **WF also
+  enforces item 20's hard-block on unresolved Depends On at activation ceremony** (per locked
+  sequencing decision — no point designing the gate twice).
 - **Agile WU Lifecycle:** consumes the consolidated boundary workflows and sweep-as-you-go
   foundation. AWL's scope item 7a shrinks to tier-aware adaptations only. Tier model and `arc start`
   command operate on top of single-branch-per-WU lifecycle.
@@ -839,6 +1368,28 @@ state-dir split aligns roadmap presence with directory presence by construction.
 - **ARCd Rebrand:** consumes stable branch-and-lifecycle terminology before rename pass.
 - **ARC Operating Modes:** consumes new conventions; Lite mode unaffected (single-WU
   model has no per-worktree concerns).
+
+### Downstream — CLI tooling capture (must not be lost)
+
+- **`arc roadmap render` CLI command** (item 19). Mechanically renders ROADMAP.md from
+  meta-file state. Sequencing target — one of WF, AWL, CWC, or a dedicated tooling WU — settled
+  at PRD time. Until the CLI ships, ROADMAP is hand-maintained following item 19's documented
+  algorithm.
+- **Release Notes Entry validation hook** (item 17 deferred). Optional CLI check
+  (e.g., `arc state set integrating` validates section presence on the meta file).
+  Workflow-step discipline is sufficient as MVP; CLI hook hardens later. Target downstream WU
+  TBD.
+- **Public CHANGELOG aggregation** (item 17 deferred). For this repo's npm release engineering
+  (composes per-WU Release Notes Entries into a public CHANGELOG.md at repo root). Scoped in a
+  downstream npm-release WU — project-specific, not framework-shipped by default. Captured here
+  so it doesn't get lost.
+
+### Absorbed / retired by WOR
+
+- **`plan-completion-status-consolidation.md`** — absorbed into item 16. Standalone plan-doc
+  retires; content folds into WOR. Deletion lands in item 13's migration sweep.
+- **`plan-roadmap-evolution.md`** — retired. Tiered-horizons (Now / Next / Later) direction
+  superseded by item 19's rendered-view shape. Deletion lands in item 13's migration sweep.
 
 ### Recommended sequencing
 
@@ -905,6 +1456,51 @@ post-integration-pre-archive window where main has Complete-state files in `acti
 sweep. Window is bounded and factually accurate (the WU IS complete), but worth documenting as a
 known transitional state for deferred-cadence adopters.
 
+### Per-WU Release Notes Entry authorship gap
+
+Item 16/17's Release Notes Entry composition happens at integration ceremony (per the
+absorbed completion-status consolidation plan's authorship-gap analysis: post-merge timing means
+the summary is composed later than today's pre-PR creation). Risk: with the integration
+workflow doing additional work, Release Notes Entry composition gets perfunctory or skipped.
+Mitigation: Tier-1 step in `archive-work-unit.md` blocks ceremony completion until the section
+is composed (per item 16's lean). Optional CLI validation hook (item 17 deferred) hardens this
+mechanically later. The user-facing summary discipline is the load-bearing concern; narrative
+Completion Notes are encouraged but not blocking.
+
+### META-PRD live-vs-stale tension
+
+Item 18's ceremony integration is the liveness mechanism, but the failure mode is real: agents
+running PRD review may treat the alignment check as procedural rather than substantive, and
+META-PRD drifts into ornament. Mitigation strategies (PRD-time refinement): (a) require the
+alignment check to *cite* a specific META-PRD principle by number when passing — not just
+"checked, passed"; (b) PR-time META-PRD-clarification proposals get fast-track review treatment
+to lower friction; (c) failure to cite during PRD review surfaces as a flag at integration
+verification. The mechanism only works if the agent and human treat META-PRD as a load-bearing
+reference, not box-check.
+
+### ROADMAP rendering CLI sequencing risk
+
+Item 19 codifies the rendering contract; CLI command implementation is deferred to a downstream
+WU. Risk: the CLI implementation gets lost in downstream WU sequencing (Worktree Foundation,
+Agile WU Lifecycle, Concurrent Work Conventions each have their own priority pressure), leaving
+ROADMAP hand-maintained indefinitely. Hand-maintenance discipline is acceptable interim per
+item 19 (current planned/active WU count is low) but degrades as the queue grows. Mitigation:
+the CLI command is captured in Out of Scope and in Dependencies and Sequencing below; PRD-time
+sequencing decision must commit a target downstream WU rather than leaving it floating. If no
+target WU absorbs it, scope a dedicated tooling WU.
+
+### Scope growth — research-driven absorption
+
+WOR's scope has expanded substantially from initial framing through three research-driven
+passes (worktree concerns, then plan-roadmap-evolution + completion-status consolidation
+absorption, then META-PRD redesign + CHANGELOG contract + dep fields). Scope-size estimate
+remains "Standard tier — Large" per the Scope Estimate section, but the load-bearing-decisions
+list and surface-sweep size both grew. PRD-time evaluation: does WOR need WU-split before PRD
+promotion? Pre-approved split is not yet declared; the decision moment is post-planning,
+pre-PRD-drafting. Lean: keep as one WU until PRD drafting surfaces a natural split boundary
+(e.g., constitutional foundation vs. workflow restructure vs. content rewrites), then split if
+warranted.
+
 ---
 
 ## Open Questions
@@ -960,45 +1556,44 @@ per-cluster.
 Documentation-only (smell flag in DEV-RULES.ARC) or mechanical (pre-commit hook check)? Lean
 documentation; mechanical enforcement adds hook surface. PRD decision.
 
-### Roadmap / PROJECT-STATUS boundary contract (pending research)
+### Release Notes Entry category set finalization
 
-The `provisional/` + `planned/` directory split (item 14) gives `ROADMAP.md` an alignment axis:
-entries on the roadmap should match entries in `planned/`. But `ROADMAP.md`'s shape today carries
-multiple horizons (near-term sequencing + mid/long-term direction), conflating two concerns that
-suggest a clean boundary with `PROJECT-STATUS.md`:
+Item 16/17 codifies `Added | Changed | Removed | Fixed | Infrastructure` as the canonical
+category set, adapted from Keep a Changelog for ARC's methodology/tooling domain. Open
+sub-questions at PRD time:
 
-- **ROADMAP** as near-term sequencing artifact — references WUs by name, internal-utility,
-  committed work only (sourced from `planned/`).
-- **PROJECT-STATUS** as higher-level direction artifact — public-readable, references completed
-  WUs by name only; future work expressed as natural-language goals/themes, not per-WU pointers.
+- **Should `Deprecated` be a separate category** (KaC default) or fold into `Changed`?
+- **Should `Security` be separate** (KaC default) or fold into `Fixed` / `Infrastructure`?
+- **Does `Infrastructure` need internal-vs-external split** (some changes are framework-internal
+  refactors with no adopter impact)?
 
-The current `plan-roadmap-evolution.md` proposes a tiered-horizons model (Now / Next / Later)
-within ROADMAP itself. That direction conflicts with the boundary above — tiered horizons still
-carry mid/long-term direction inside ROADMAP, recreating the drift trap the directory split was
-meant to eliminate.
+Lean: minimal category set as codified; add categories only when first WU genuinely doesn't
+fit. KaC's 6-category default is overkill for ARC's domain by current evidence.
 
-Resolution candidates:
+### META-PRD ceremony fire-point exact phrasing
 
-- **Two-doc separation by audience + time-direction.** ROADMAP = forward sequencing (named WUs);
-  PROJECT-STATUS = direction + completed-history. Co-evolution discipline needed but clean
-  boundary.
-- **Single-doc consolidation.** Collapse ROADMAP into PROJECT-STATUS (or vice versa). Reduces
-  surface but loaded.
-- **Refined separation per industry idiom.** Survey how mature OSS projects handle this — Linux
-  kernel STATUS files, Rust's roadmap pattern, Kubernetes' roadmap + changelog dual surface,
-  PostgreSQL release-notes vs roadmap. Adapt findings to ARC's solo-to-small-team scale.
+Item 18 names three fire-points (PRD creation gate, integration verification, conditional
+activation check). PRD-time decision: exact workflow-step phrasing for each — agent-readable
+prompt, halt-and-ask conditions, what counts as a "conflict" worth flagging vs. surfaceable
+drift. Lean: codify the prompts in each workflow's existing review/audit step rather than as
+new ceremony steps, to keep ceremony cost flat.
 
-**Research pass (~1 hour):** pattern-survey of forward-looking + backward-looking direction
-artifacts in comparable projects. Synthesis informs which shape best fits.
+### Owner field auto-population behavior
 
-**Scope impact:** if two-doc separation wins, expand WOR scope to codify the boundary contract
-(new scope item or item 14 expansion) and reposition `plan-roadmap-evolution.md` as the
-downstream implementation of WOR's settled contract (lane viz, format details, migration of
-existing entries). If consolidation wins, retire `plan-roadmap-evolution.md` and codify the
-collapsed shape in WOR. If some other pattern wins, scope accordingly.
+Item 20 specifies `**Owner:**` auto-populates from `arc.identity` in solo mode. PRD-time
+decision: does the template show the field with a `[arc.identity]` placeholder that the
+agent/CLI substitutes at meta-file creation, or does the CLI inject the value programmatically
+at template instantiation? Both work; the template-placeholder approach reads more
+human-friendly. Forward-compat for team mode: the field is always explicit, never inferred.
 
-This open question is the next major work item on the WOR plan-doc itself, ahead of PRD
-promotion.
+### Pre-release / unreleased aggregation pattern
+
+Item 17 codifies the per-WU Release Notes Entry contract. The pre-release window —
+"between Integrating and the next published release" — needs a discipline for ARC's own npm
+publishing (the dogfood pass). Options: maintain an `Unreleased` section in this repo's
+CHANGELOG.md that the npm-release WU manages, or aggregate only at release time. Decision
+belongs to the downstream npm-release WU; flagged here so the contract from item 17 doesn't
+need to specify the pre-release shape.
 
 ### Worktree-trio dev-ergonomics pressure test (forward-compat watch)
 
@@ -1044,35 +1639,67 @@ Phases (provisional):
    rename and clarification; `Origin:` field addition; in-flight `status-*.md` → `meta-*.md` rename
    sweep; `strategy-work-organization.md` documentation (incl. Origin/Spec orthogonality);
    per-worktree isolation invariant codified.
-6. **Group-dir + state-dir conventions** — codified-group rules; `backlog/plans/` interlude with
+6. **Meta-file field codification** — State value-set (`Provisional | Planned | Active |
+   Integrating | Shipped`); `**Integration:**` field retirement; `**Owner:**` field addition with
+   solo-mode auto-population; `**Depends On:**` field addition; in-flight meta-file backfill for
+   all three; template updates.
+7. **Completion-doc consolidation (absorbed from `plan-completion-status-consolidation.md`)** —
+   eliminate `completion-{name}.md`; meta file phase-labeled sections; archive-phase sections
+   (PR URL, Completed date, Release Notes Entry, Completion Notes); Tier-1 step in
+   `archive-work-unit.md` for summary composition; workflow edits (integrate, archive, clean);
+   `template-completion-doc.md` deletion; surface sweep.
+8. **Group-dir + state-dir conventions** — codified-group rules; `backlog/plans/` interlude with
    `planned/` + `provisional/` state-dir split; graduation trigger (roadmap inclusion = promotion);
    group-membership state-uniformity rule.
-7. **Planning-checkpoint review opt-in** — config setting (`review.planning_checkpoint`); extension
+9. **Planning-checkpoint review opt-in** — config setting (`review.planning_checkpoint`); extension
    point (`pre-execution-graduation`); convention inventory entry in
    `strategy-configurability-architecture.md`.
-8. **Atomic-tier infra-edit smell flag** — DEV-RULES.ARC entry; documentation in strategy docs.
-9. **Roster cascade implementation** — cross-worktree read for Worktree Foundation's
-   branch-gone detection consumption.
-10. **Migration sweep** — flatten/classify existing `backlog/feature/` and `backlog/technical/`
+10. **Atomic-tier infra-edit smell flag** — DEV-RULES.ARC entry; documentation in strategy docs.
+11. **Roster cascade implementation** — cross-worktree read for Worktree Foundation's
+    branch-gone detection consumption.
+12. **ROADMAP rendering contract** — render algorithm codified in `strategy-work-organization.md`;
+    ROADMAP.md regeneration steps added to graduate/activate/integrate workflows; interim
+    hand-maintenance discipline documented; `plan-roadmap-evolution.md` retirement (deletion plus
+    reference sweep). CLI command implementation deferred (downstream WU).
+13. **META-PRD redesign — shape + content** — `template-meta-prd.md` shape codification (Mission,
+    numbered principles, anti-goals, problem statement, design tradeoffs); ceremony integration
+    steps in `1_create-prd.md`, `activate-work-unit.md`, `integrate-work-unit.md`; this repo's
+    META-PRD content rewrite (dogfooding pass); README + AGENT-BRIEF.PROJECT references.
+14. **PROJECT-STATUS retirement + archive shape consolidation** — `.arc/reference/PROJECT-STATUS.md`
+    deletion (content not carried forward logged in commit message); new archive shape
+    `archive/<dated>/{wu-name}/` (drop `{category}/` subdir for new entries; historical
+    untouched); backward-compat tooling requirement codified; reference integrity sweep.
+15. **Migration sweep** — flatten/classify existing `backlog/feature/` and `backlog/technical/`
     contents into `backlog/plans/{planned,provisional}/` per ROADMAP-inclusion test; one-time
     cleanup of any leaked Planning-state `status-*.md` files in `active/` on main; inbox renames
     and merges (`ATOMIC-INBOX` → `USER-INBOX`, `BACKLOG-FEATURE`/`-TECHNICAL` → `BACKLOG-INBOX`);
-    in-flight meta-file rename and Origin-field backfill.
-11. **External research** — Conventional Branch spec adoption patterns, planning-review opt-in
+    in-flight meta-file rename, Origin-field backfill, State recodification, Owner backfill,
+    Depends On initialization; doc retirements (`plan-roadmap-evolution.md`,
+    `plan-completion-status-consolidation.md`, `template-completion-doc.md`, `PROJECT-STATUS.md`).
+16. **External research** — Conventional Branch spec adoption patterns, planning-review opt-in
     patterns from comparable methodologies, single-branch lifecycle examples (Stripe, Google, GitLab).
-    Validates conventions against industry idiom; informs PRD-time language refinement.
-12. **Documentation / tests / examples** — standard closing phase.
+    Roadmap/PROJECT-STATUS/META-PRD pattern survey already complete (Linux/Postgres,
+    Rust/Kubernetes, solo-to-small-team OSS; vision-doc idiomatic practice; CHANGELOG
+    conventions; dependency/parallelism expression). Remaining research validates Conventional
+    Branch and planning-review opt-in conventions against industry idiom.
+17. **Documentation / tests / examples** — standard closing phase.
 
 Phase 1 gates everything else. Phases 2-3 sequential (convention precedes workflows). Phase 4
-depends on Phase 3. Phases 5-9 mostly independent of each other; can parallel. Phase 10 depends on
-Phase 6's group-dir rules. Phase 11 informs Phase 1's language; can run alongside.
+depends on Phase 3. Phase 6 depends on Phase 5 (field codification rides the rename). Phase 7
+depends on Phases 5-6 (consolidation needs the meta rename + field set settled). Phase 12
+depends on Phase 6 (rendering reads codified fields). Phase 13 depends on Phase 12 (META-PRD
+ceremony integration touches the same workflows ROADMAP rendering does). Phase 14 depends on
+Phases 7 + 13 (PROJECT-STATUS function decomposition needs Release Notes Entry + META-PRD
+landed). Phase 15 depends on Phases 6, 7, 12, 13, 14 (consolidates all migrations). Phase 16
+can parallel; Phase 17 closes. Phases 8-11 mostly independent of the META-PRD/ROADMAP track;
+can parallel with 12-13.
 
 ---
 
 ## Activation Audit
 
 When this WU activates, audit plan content against current framework state for drift. Known concerns
-as of 2026-05-08:
+as of 2026-05-12:
 
 - **Existing in-flight WUs:** verify no WUs are mid-flight that would conflict with the migration
   pass. Recommended sequencing puts this WU after Interlock Release Wrappers WU2 ships, when no
@@ -1084,5 +1711,27 @@ as of 2026-05-08:
   any Planning-state files that escaped the new model. Migration pass cleans them up.
 - **Cross-references in active workflow / strategy docs:** grep `feature/`, `technical/`,
   `[PLAN]:`, `integrate-planning-branch`, `activate-planning-branch` to enumerate touch surface.
+- **Plans absorbed/retired by WOR:** verify `plan-completion-status-consolidation.md` and
+  `plan-roadmap-evolution.md` haven't drifted since absorption decision. Re-read at activation;
+  fold any new content into WOR scope or surface as scope deltas before PRD drafting.
+- **PROJECT-STATUS.md content audit:** grep `.arc/reference/PROJECT-STATUS.md` for content not
+  decomposed by item 21's mapping (Release Notes Entry / META-PRD / directory query). Anything
+  not covered surfaces as a scope-gap at PRD time. Today's known content overlaps with what the
+  new artifacts carry; audit confirms.
+- **META-PRD content survey:** read existing `.arc/META-PRD.md` before content rewrite (item 18,
+  Phase 13). Preserve any content that the new shape (Mission / principles / anti-goals /
+  problem / tradeoffs) genuinely subsumes; surface anything that doesn't fit the new shape as a
+  scope question — either revise the shape or carry the content forward in a different
+  artifact.
+- **Cross-references to retired artifacts:** grep `PROJECT-STATUS.md`, `plan-roadmap-evolution`,
+  `plan-completion-status-consolidation`, `template-completion-doc`, `completion-*.md` for
+  reference surface that needs update or retirement at PRD time.
+- **CLI tooling capture verification:** confirm Dependencies and Sequencing § "Downstream — CLI
+  tooling capture (must not be lost)" entries are captured in target downstream WU plan-docs
+  (or scoped as a new tooling WU). The `arc roadmap render` capture is particularly load-bearing
+  — interim hand-maintenance is acceptable but degrades over time.
+- **Scope-size review:** WOR's scope has grown through three research-driven absorptions; PRD
+  drafting should evaluate whether the WU needs split before PRD promotion. See Pressure Points
+  § "Scope growth — research-driven absorption."
 
 ---
