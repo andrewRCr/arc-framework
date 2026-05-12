@@ -126,10 +126,12 @@ distinct from per-commit conventional-commit types. In practice:
 ### Separate planning-branch PR adds ceremony without proportional value
 
 Today's flow requires two PRs per WU: a `[PLAN]:` PR delivering planning artifacts, then an
-implementation PR delivering execution. For solo + AI workflows (ARC's primary target), the
-planning-PR review surface is rarely used substantively — self-review at handoff and AI review on the
-PR cover the same ground. The two-PR cost is real (extra review cycle, branch-rotation friction at
-activation) without proportional benefit at the typical scale.
+implementation PR delivering execution. The two-PR cost is real and accrues per WU at any
+team size — an extra review cycle plus branch-rotation friction at activation. Substantive
+planning review, when adopters want it, is delivered better by an opt-in checkpoint at the
+planning → execution transition than by a second merge-able PR: the checkpoint composes with
+automated reviewers (CodeRabbit, custom validators, lint runs) more flexibly than a PR-review
+surface, and avoids materializing planning state in main's integrated history.
 
 Teams that *do* value planning review need an opt-in surface. ARC's configurability architecture
 (config + extension + method-override pattern) handles this cleanly without forcing the ceremony on
@@ -159,6 +161,22 @@ Under this model:
 The model satisfies execution-discipline invariants (mandatory stops, quality gates, atomic commits,
 PR review at integration) while removing planning-merge ceremony and structural leaks.
 
+### Positioning relative to agentic-coding practice
+
+Markdown-in-repo planning is idiomatic across current agentic-coding practice (Spec-Kit, BMAD-Method,
+AgentOS, Cursor Project Rules, CLAUDE.md / AGENTS.md conventions) — driven by agent-nativeness: agents
+read the same workspace as the developer, so co-located context has near-zero friction. ARC inherits
+that surface; what it adds is structural discipline (single-branch-per-WU lifecycle, planning →
+execution rotation without separate-PR ceremony, sweep-as-you-go integration, meta-file
+location-by-state). The substrate is conventional; the discipline is constructed.
+
+The worktree-trio direction (Worktree Foundation + Agile WU Lifecycle + Concurrent Work Conventions)
+tracks the convergent field response to *intra-WU* concurrency. *Inter-WU* coordination — cross-WU
+references where one WU depends on another's evolving planning state — is a distinct concern; the
+field's modal answer is out-of-band human coordination (Slack, standup, discussion). ARC treats
+out-of-band coordination as the interim default and defers any codified inter-WU sync mechanism to
+Concurrent Work Conventions downstream.
+
 ---
 
 ## Scope
@@ -167,10 +185,12 @@ PR review at integration) while removing planning-merge ceremony and structural 
 
 1. **Branch convention reform — Conventional Branch alignment.** Retire all internal category
    prefixes (`feature/`, `technical/`, `incidental/`) for branches and directory structure. Adopt
-   Conventional Branch alignment for execution branches (`feat/`, `fix/`, `refactor/`, `chore/`,
-   `docs/`, `perf/`, etc. — full conventional-commit type set) with `plan/<name>` for planning state.
-   At activation, branches rotate `plan/<name>` → `<type>/<name>` via local rename + remote replace.
-   Type chosen at activation when PRD/spec is settled and dominant intent is informed.
+   Conventional Branch alignment for execution branches — core 6 (`feat/`, `fix/`, `chore/`, `docs/`,
+   `refactor/`, `perf/`) as ARC's canonical set, with `plan/<name>` for planning state. Contested
+   types (`test/`, `style/`, `build/`, `ci/`) treated as adopter-extension territory, not baseline
+   (per Pressure Points § "Conventional Branch type-set decision" — external research closed the
+   question). At activation, branches rotate `plan/<name>` → `<type>/<name>` via local rename +
+   remote replace. Type chosen at activation when PRD/spec is settled and dominant intent is informed.
 
     Cascade:
 
@@ -992,6 +1012,12 @@ used for the `plan/` → `<type>/` rotation.
 `plan/<name>` is preserved as a separate branch state (not a conventional-commit type). Captures the
 phase-of-life signal cleanly.
 
+The Conventional Branch convention has an emergent spec (conventional-branch.github.io) that
+explicitly limits the canonical set to core types and rejects expansion on cognitive-load grounds.
+ARC's core-6 choice (scope item 1, Pressure Points § "Conventional Branch type-set decision") aligns
+with that intentional-scarcity philosophy. Contested types (`test/`, `style/`, `build/`, `ci/`) are
+treated as adopter-extension territory rather than baseline.
+
 ### Group dirs in `backlog/` only — strictness over symmetry
 
 Symmetric group dirs in `active/` were considered: every group's WUs co-locate in both `backlog/` and
@@ -1003,10 +1029,19 @@ holds 1-3 WUs typically and doesn't.
 
 ### Default `disabled` for planning-checkpoint review
 
-Solo + AI workflows (ARC's primary target) don't substantively use planning-PR review; defaulting to
-`required` would impose ceremony most adopters wouldn't benefit from. Default `disabled` matches
-ARC's tier-2 convention pattern: minimal ceremony default, configurability available for teams that
-want more.
+Defaults calibrate to the framework's current validation surface — solo dev with a focused tool
+set, where planning-PR review isn't substantively exercised. Team mode and concurrent-pair
+coordination are designed-for but not yet validated; the framework is built to scale across
+dev+agent-pair governance at any team size, with public-release positioning transparent about
+the validation scope. `required` is the opt-in for adopters who want a planning-review gate
+back. Default `disabled` matches ARC's general tier-2 convention pattern: minimal ceremony
+default, configurability available for teams that want more.
+
+The `disabled | required` framing reads as a **per-team governance stance**, not a per-task knob —
+chosen once at adoption based on the team's risk tolerance and review-bandwidth posture. Comparable
+methodologies (RFC processes, big-org design-doc culture) embed governance in project culture rather
+than per-task configuration; ARC's choice to expose it as config is the explicit-configurability
+axis, but the *decision shape* (one-time team stance) is consistent with field practice.
 
 ### Sweep-as-you-go subsumed from Agile WU Lifecycle, not deferred
 
@@ -1416,10 +1451,14 @@ planning PR exists). Mitigation: explicit migration note in adopter-facing relea
 
 ### Conventional Branch type-set decision
 
-Full Conventional Branch spec includes `feat/`, `fix/`, `chore/`, `docs/`, `refactor/`, `perf/`,
-`test/`, `style/`, `build/`, `ci/`. ARC may not need the full set (e.g., `style/` doesn't map well
-to ARC's WU shape). PRD-time decision: which subset is the canonical ARC set, and what's the
-guidance for adopters who want to extend or restrict.
+External research closes most of this gap: core 6 (`feat/`, `fix/`, `chore/`, `docs/`, `refactor/`,
+`perf/`) is held as ARC's canonical set; contested 4 (`test/`, `style/`, `build/`, `ci/`) treated as
+adopter-extension territory. Rationale: the Conventional Branch spec (conventional-branch.github.io)
+explicitly rejects expansion beyond core on cognitive-load grounds; the contested types lack
+documented adoption as branch prefixes in major project conventions and fail the WU-coherence test
+(work in those categories typically rides alongside feature/fix branches rather than forming
+standalone units). PRD-time work: codify the guidance shape — "ARC canonical: core 6;
+adopter-extension: contested 4 or any project-local addition."
 
 ### Group-dir migration from existing categories
 
@@ -1431,10 +1470,24 @@ changes for downstream reference.
 
 ### Planning-checkpoint review default
 
-Default `disabled` is correct for solo + AI but adopters used to the `[PLAN]:` PR pattern may expect
-the prior behavior by default. Mitigation: clear guidance in adopter-facing release notes and
-strategy doc on the `review.planning_checkpoint: required` opt-in for teams that want planning
-review back.
+Default `disabled` reflects current validation scope; adopters used to the `[PLAN]:` PR pattern
+may expect the prior behavior by default. Mitigation: clear guidance in adopter-facing release
+notes and strategy doc on the `review.planning_checkpoint: required` opt-in for teams that want
+planning review back.
+
+### Opt-in framing — codification ahead of curve
+
+Configurable planning-review (`review.planning_checkpoint: disabled | required`) is novel as a
+methodology-level config among comparable frameworks. RFC processes (Rust RFC, Python PEP, Kotlin
+KEEP, Ember RFC) and big-org design-doc culture (Google) gate review by *change scope* ("is this
+substantial?"), not by *team configuration*. AI-coding peers (Cursor Plan Mode, Aider `/architect`)
+have planning surfaces but no codified governance gate. ARC's opt-in config places it ahead of
+where AI-coding peers have codified governance, and bridges — rather than replicates — pre-agent
+RFC norms. Risk: adopters bringing pre-agent mental models may expect mandatory-or-not-applicable
+framing and read "configurable" as either under-discipline or over-engineering. Mitigation:
+strategy doc framing positions the choice as a per-team governance stance (see Design Decision §
+"Default `disabled`"), with explicit acknowledgment that the field is still codifying its
+conventions for agentic-coding governance.
 
 ### Lite mode interaction
 
@@ -1501,15 +1554,39 @@ pre-PRD-drafting. Lean: keep as one WU until PRD drafting surfaces a natural spl
 (e.g., constitutional foundation vs. workflow restructure vs. content rewrites), then split if
 warranted.
 
+### Inter-WU planning freshness — model raises but doesn't solve
+
+Single-branch-per-WU isolates each WU's planning artifacts to its branch (Working Thesis, scope
+item 5). Cross-WU references — one WU depending on another's evolving planning state — require the
+dependent worktree to see the upstream WU's current state, which it does not by default (it holds
+the upstream state as of its branch creation, plus whatever it fetches). Mechanisms available:
+cross-branch reads (`git show <branch>:<path>` — ergonomically rough), cross-worktree filesystem
+reads (requires colocated worktrees + naming convention), or out-of-band coordination (humans
+discuss the dependency at planning time).
+
+External research (2024-2026) confirms the field's modal answer is out-of-band coordination — there
+is no codified inter-WU planning-freshness pattern in agentic-coding practice (Spec-Kit, BMAD,
+Cursor, Claude Code adopter conventions). Emerging research proposals (consensus layer, task-graph
+orchestration) address project-wide governance rather than freshness specifically. Prior synthesis
+that framed "teams solve concurrency with worktrees + consensus layers" as field consensus was
+conflated; worktrees and consensus layers address intra-WU file reconciliation, not inter-WU
+planning state.
+
+Posture: WOR treats out-of-band human coordination as the interim default and defers any codified
+inter-WU sync mechanism to Concurrent Work Conventions WU downstream. CWC's remit (multi-pair
+coordination) is the natural home; codifying it here would be solving a problem the field hasn't
+named, and would overload WOR's already-large scope.
+
 ---
 
 ## Open Questions
 
 ### Conventional Branch type set
 
-Which subset of conventional-commit types becomes ARC's canonical branch-prefix set? Candidates:
-core (`feat`, `fix`, `chore`, `docs`, `refactor`, `perf`) vs extended (add `test`, `style`, `build`,
-`ci`). Adopter extension/restriction guidance.
+Closed by external research: core 6 (`feat`, `fix`, `chore`, `docs`, `refactor`, `perf`) is the
+canonical ARC set; contested 4 (`test`, `style`, `build`, `ci`) treated as adopter-extension.
+PRD-time work: validate the lean against any current-state evidence in this repo's branching
+history and codify the adopter-extension guidance phrasing.
 
 ### `plan/` graduation rename ergonomics
 
@@ -1693,6 +1770,80 @@ Phases 7 + 13 (PROJECT-STATUS function decomposition needs Release Notes Entry +
 landed). Phase 15 depends on Phases 6, 7, 12, 13, 14 (consolidates all migrations). Phase 16
 can parallel; Phase 17 closes. Phases 8-11 mostly independent of the META-PRD/ROADMAP track;
 can parallel with 12-13.
+
+---
+
+## External Research Citations
+
+Sources captured from research passes informing WOR's design. Interim retention — PRD graduation
+trims to load-bearing references only.
+
+### Conventional Branch type-set scrutiny
+
+- [Conventional Commits Specification](https://www.conventionalcommits.org/en/v1.0.0/)
+- [Conventional Branch Specification](https://conventional-branch.github.io/) — intentional-scarcity
+  philosophy; rejects expansion beyond core types
+- [DEV Community: Simplified Git conventions](https://dev.to/varbsan/a-simplified-convention-for-naming-branches-and-commits-in-git-il4)
+- [kindatechnical: Branch naming standards](https://kindatechnical.com/git-version-control/branch-naming-conventions.html)
+- [Pull Panda: CI/CD branch practices](https://pullpanda.io/blog/git-branch-naming-conventions-best-practices)
+- [ToolsMint 2026: Git branch conventions](https://www.toolsmint.com/learn/git-branch-naming-conventions)
+
+### Single-branch lifecycle / trunk-based context (pre-agent corpus, with conflation caveats)
+
+- [Trunk Based Development](https://trunkbaseddevelopment.com/)
+- [Short-Lived Feature Branches](https://trunkbaseddevelopment.com/short-lived-feature-branches/)
+- [Atlassian: Trunk-based development](https://www.atlassian.com/continuous-delivery/continuous-integration/trunk-based-development)
+- [How Google Does Monorepo (QE Unit)](https://qeunit.com/blog/how-google-does-monorepo/)
+- [Design Docs at Google](https://www.industrialempathy.com/posts/design-docs-at-google/)
+- [Adopting a Structured RFC Process at Diamond](https://blog.diamond.la/adopting-a-structured-rfc-process)
+- [Phil Calcado: A Structured RFC Process](https://philcalcado.com/2018/11/19/a_structured_rfc_process.html)
+- [Increment: Planning with RFCs](https://increment.com/planning/planning-with-requests-for-comments/)
+
+These sources document pre-agent industry idiom. ARC's single-branch-per-WU model is novel atop a
+different substrate (agent-native markdown-in-repo planning); these sources establish what mental
+model adopters trained on big-shop trunk-based dev will bring, not what ARC's pattern is measured
+against.
+
+### Planning-review opt-in patterns (pre-agent corpus)
+
+- [Rust RFC Process](https://rust-lang.github.io/rfcs/0002-rfc-process.html)
+- [Python PEP Guidelines](https://peps.python.org/pep-0001/)
+- [Kotlin language evolution](https://blog.jetbrains.com/kotlin/2024/10/the-evolution-of-the-kotlin-language-and-how-emyou-em-can-contribute/)
+- [Ember RFC Stages](https://rfcs.emberjs.com/id/0617-rfc-stages/)
+- [Cursor: Agent Best Practices](https://cursor.com/blog/agent-best-practices)
+- [Aider: Coding Conventions](https://aider.chat/docs/usage/conventions.html)
+- [SQLite Engineering](https://dev.to/lovestaco/sqlite-a-simple-database-with-serious-engineering-inside-31dp)
+
+### Agentic-coding idiom and planning-artifact storage (2024+)
+
+- [Anthropic: 2026 Agentic Coding Trends Report](https://resources.anthropic.com/hubfs/2026%20Agentic%20Coding%20Trends%20Report.pdf)
+- [Claude Code Best Practices](https://code.claude.com/docs/en/best-practices)
+- [On the Impact of AGENTS.md Files (arxiv)](https://arxiv.org/html/2601.20404v1) — 60K figure
+  sourced externally from agents.md, not from independent measurement
+- [Claude.md - On the Use of Agentic Coding Manifests (arxiv)](https://arxiv.org/html/2509.14744v1)
+- [GitHub Spec Kit overview](https://developer.microsoft.com/blog/spec-driven-development-spec-kit)
+- [Applied BMAD - Reclaiming Control](https://bennycheung.github.io/bmad-reclaiming-control-in-ai-dev)
+- [Linear MCP Server](https://github.com/tacticlaunch/mcp-linear)
+- [Notion hosted MCP server](https://www.notion.com/blog/notions-hosted-mcp-server-an-inside-look)
+- [Cognition: Devin 2.0](https://cognition.ai/blog/devin-2)
+- [Devin 2025 Performance Review](https://cognition.ai/blog/devin-annual-performance-review-2025)
+- [Why Cursor Rules Failed and Claude Skill Succeeded](https://lellansin.github.io/2026/01/27/Why-Cursor-Rules-Failed-and-Claude-Skill-Succeeded/)
+- [Karpathy: 2025 LLM Year in Review](https://karpathy.bearblog.dev/year-in-review-2025/)
+
+### Inter-WU planning concurrency
+
+- [AgenticFlict dataset (arxiv)](https://arxiv.org/html/2604.03551) — measures intra-WU code-level
+  merge conflicts only (27.67% rate); does not measure planning-artifact concurrency
+- [Scaling Human-AI Coding Collaboration Requires a Governable Consensus Layer (arxiv)](https://arxiv.org/html/2604.17883v1)
+  — project-wide structural governance scope; does not address inter-WU planning freshness
+- [Using Git Worktrees for Multi-Feature Development](https://www.nrmitchi.com/2025/10/using-git-worktrees-for-multi-feature-development-with-ai-agents/)
+- [Simon Willison: Parallel coding agents](https://simonwillison.net/2025/Oct/5/parallel-coding-agents/)
+- [Claude Code branching feature request (GitHub)](https://github.com/anthropics/claude-code/issues/32631)
+- [Worktrunk CLI](https://worktrunk.dev/)
+- [Cursor 2.0 hierarchical coordination](https://cursor.com/blog/scaling-agents)
+- [Slack engineering: managing agent context](https://slack.engineering/managing-context-in-long-run-agentic-applications/)
+- [SiliconAngle: Agentic coding comes to Slack (Dec 2025)](https://siliconangle.com/2025/12/08/agentic-coding-comes-slack-anthropic-launches-claude-code-integration/)
+- [MindStudio: Context rot in agentic systems](https://www.mindstudio.ai/blog/context-rot-ai-coding-agents-how-to-prevent)
 
 ---
 
