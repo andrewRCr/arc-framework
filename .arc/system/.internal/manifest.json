@@ -354,12 +354,12 @@
     "system/workflows/arc/1_create-prd.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "2ce0a696616d6dee68090583da54142c7ab35d498f9597562e2825cc447aa360"
+      "pristine_hash": "ee255d449fcb880f061b0f865f478614f302122a92df39c3378ac8f46cbc28fb"
     },
     "system/workflows/arc/2_generate-tasks.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "9a2c7764a8f869ff74dd25eb0d0041bd33310fa0360533ec18c336308f6d442a"
+      "pristine_hash": "d1a72c1babef67c1b36d83271a9d39eb321641fc18812c328690cb8561a39dac"
     },
     "system/workflows/arc/3_process-task-loop.md": {
       "classification": "Framework",
@@ -399,7 +399,7 @@
     "system/workflows/arc/supplemental/integrate-external-content.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "6b1bae5a7cb5e5a11089b6fdfb5d0d38cf7e47ad71e976dcebebb8c2d4346c62"
+      "pristine_hash": "6c7a43fe1740e30ca4a797fed7cc9e2f5de88bd1fabc596bbf71d9566ed3a65c"
     },
     "system/workflows/arc/supplemental/maintain-project-docs.md": {
       "classification": "Framework",

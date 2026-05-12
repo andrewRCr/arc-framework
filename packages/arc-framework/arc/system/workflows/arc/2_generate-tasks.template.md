@@ -312,7 +312,7 @@ as the empty capture surface for atomic tasks discovered during implementation. 
 
 > [!IMPORTANT]
 > `workflow-interlock`: Stop after the pre-save checklist passes. Surface the task list location
-> for review; await direction before updating the status file and bundling the commit.
+> for review; await direction before updating the status file and committing (`workflowCommit`).
 
 See [Task Processing Loop](3_process-task-loop.md) for how task lists are executed.
 

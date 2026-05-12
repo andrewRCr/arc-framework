@@ -87,7 +87,7 @@ compound names.
 
 > [!IMPORTANT]
 > `workflow-interlock`: Stop after the PRD is saved. Surface the PRD location for review;
-> await direction before retiring the plan, updating the status file, and bundling the commit.
+> await direction before retiring the plan, updating the status file, and committing (`workflowCommit`).
 
 If a `plan-*.md` document fed into this PRD, retire it now. Plan documents are ephemeral — they
 serve exploration and are deleted once the PRD captures the conclusions (see
