@@ -242,10 +242,17 @@ but consumers learn about it through different paths based on what they actually
 Manifest-only storage is sufficient because hooks, workflows, and agents do not need a read surface for
 `install.type` — they see its effects via already-resolved config keys and pre-rendered file content.
 
-**Still open:** Lite + `pm.layer: external` interaction. There's no reason you couldn't use Lite execution
-discipline with an external tracker — but what concrete value does `external` mode provide in Lite, given
-there's no integration workflow or lifecycle to hook into? May reduce to "different context footer
-pattern" rather than a mode. Evaluate during detail design.
+**Resolution direction (pending PRD ratification per WOR's Origin/Spec orthogonality framing):**
+the `pm.layer` value-set collapses to `arc-pm | none` and the `external` value retires. WOR's
+Design Decisions section (`plan-work-organization-reform.md` § Origin ⊥ Spec orthogonality)
+codifies the underlying principle: external trackers are intake (captured per-WU in the meta
+file's `**Origin:**` field), never substitution for ARC's planning pipeline. Tracker-integration
+behavior splits across two existing axes — per-WU `**Origin:**` and project-level
+`coord.adapter` (per `plan-coord-probe.md`) — rather than being conflated into a `pm.layer`
+value. Lite + external collapses cleanly: Lite uses `pm.layer: none` regardless of whether an
+external tracker is present; tracker presence (if any) is captured via `Origin:` on the
+session's commit-context footer or equivalent surface. Evaluate the concrete shape during this
+plan's detail design once WOR ships its framing.
 
 **Original options considered** (preserved for context):
 
@@ -3969,7 +3976,7 @@ ARC operations. Resolves Audit A sub-finding H3-N6.
 > activates, this content moves, and modes plan updates to reference the extracted content
 > via cross-WU links. No edits here in the meantime — the mobility plan carries the
 > extraction shape, rationale, and open questions (notably the pause-pointer reconciliation).
-> See [plan-work-unit-mobility.md][mobility-plan] § Extraction Scope.
+> See `plan-work-unit-mobility.md` § Extraction Scope.
 
 ### The Gap This Fills
 
@@ -4511,7 +4518,7 @@ Read them as "the WU's status file" under the restructure premise — the underl
 > **Scheduled for extraction to the Mobility WU** alongside the § Shift Lifecycle section
 > above. `/arc-status` travels with shift because its Full-only "In flight" block is
 > tightly coupled to shift vocabulary; the mode-universal core doesn't justify splitting
-> the skill. See [plan-work-unit-mobility.md][mobility-plan] § Extraction Scope.
+> the skill. See `plan-work-unit-mobility.md` § Extraction Scope.
 
 Cross-cutting section for `/arc-status`, the mid-session "warm orient" skill. Mode-universal
 (ships in both Lite and Full), complementary to the existing session-lifecycle skills
@@ -5632,8 +5639,8 @@ Session-init Local-axis pre-check.
 
 ### Lite mode value proposition under the tier model (PRD-time refinement)
 
-Surfaced 2026-04-28 during the agile/mobility design discussion that produced [Worktree
-Foundation][wf-plan], [Agile WU Lifecycle][awl-plan], and [Concurrent Work Conventions][cwc-plan].
+Surfaced 2026-04-28 during the agile/mobility design discussion that produced Worktree Foundation,
+Agile WU Lifecycle, and Concurrent Work Conventions.
 Agile WU Lifecycle introduces a three-tier WU model (atomic / quick / standard) with structurally
 differentiated artifact requirements — quick tier in particular has reduced ceremony comparable to
 some of what makes Lite mode distinct.
@@ -5690,8 +5697,8 @@ during dormancy. Known drift items as of 2026-04-28:
   Active Configuration" step are now stale.
 - **Shift lifecycle extraction and three-WU split** (2026-04-24, refined 2026-04-28): shift
   lifecycle was extracted from Operating Modes scope; original Work-Unit Mobility WU was further
-  split into [Worktree Foundation][wf-plan] (mechanism, including shift), [Agile WU Lifecycle][
-  awl-plan] (tier model), and [Concurrent Work Conventions][cwc-plan] (focus-role and async-merge).
+  split into Worktree Foundation (mechanism, including shift), Agile WU Lifecycle (tier model),
+  and Concurrent Work Conventions (focus-role and async-merge).
   Internal references to shift lifecycle as Modes-bundled scope redirect to
   `plan-worktree-foundation.md`; references to mobility's conventions layer redirect to
   `plan-concurrent-work-conventions.md`.
@@ -5721,7 +5728,3 @@ during dormancy. Known drift items as of 2026-04-28:
 [obsidian-enc]: https://forum.obsidian.md/t/can-i-encrypt-a-vault/33645
 [git-crypt]: https://github.com/AGWA/git-crypt
 [chezmoi-encryption]: https://www.chezmoi.io/user-guide/encryption/
-[wf-plan]: ../technical/plan-worktree-foundation.md
-[awl-plan]: ../technical/plan-agile-wu-lifecycle.md
-[cwc-plan]: plan-concurrent-work-conventions.md
-[mobility-plan]: plan-concurrent-work-conventions.md

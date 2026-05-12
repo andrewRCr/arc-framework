@@ -2,10 +2,11 @@
 
 **Purpose:** Rebuild ARC's WU lifecycle foundation around a single-branch-per-WU model with sweep-as-you-go
 integration, retire the `feature/`/`technical/` category prefixes in favor of Conventional Branch alignment,
-introduce optional group dirs in `backlog/` for codified multi-WU groups, and codify the status-file
-location-by-state convention. Delivers per-worktree isolation as a precondition for the parallelism trio
-(Worktree Foundation + Agile WU Lifecycle + Concurrent Work Conventions). Constitutional reform of WU
-conventions; not a worktree-mechanism WU.
+introduce optional group dirs in `backlog/` for codified multi-WU groups, and codify the meta-file
+location-by-state convention (renaming `status-{name}.md` → `meta-{name}.md` in the process).
+Delivers per-worktree isolation as a precondition for the parallelism trio (Worktree Foundation +
+Agile WU Lifecycle + Concurrent Work Conventions). Constitutional reform of WU conventions; not a
+worktree-mechanism WU.
 
 - **State:** Draft — pre-PRD exploration captured 2026-05-08 during worktree-DX sanity-check discussion.
   Identified as upstream foundation needed before the parallelism trio.
@@ -76,7 +77,7 @@ conventions; not a worktree-mechanism WU.
 >    implement a step"): when session-init/session-handoff/status-pointer guidance is touched,
 >    preserve the ARC lifecycle workflow prefix as the session-type inference contract
 >    (`integrate-work-unit Step 8 — ...`). Project-specific workflow detail belongs in
->    SESSION-NOTES or trailing detail, not as the leading status-file prefix.
+>    SESSION-NOTES or trailing detail, not as the leading meta-file prefix.
 >
 > Scope discipline: inline-with-touches only. Items 1 and 2 are audit-derived corrections;
 > item 3 is a substantive behavior change that rides the workflow trim; items 4 and 5 are
@@ -201,7 +202,7 @@ PR review at integration) while removing planning-merge ceremony and structural 
 3. **Sweep-as-you-go integration model (foundation).** Lifted from Agile WU Lifecycle scope
    item 7a's foundation layer:
 
-    - Integration PR includes the sweep commits (file moves from `active/` to `archive/`, status file
+    - Integration PR includes the sweep commits (file moves from `active/` to `archive/`, meta file
       delete) as separate commits per multi-commit-PR norms.
     - Single PR, multi-commit, reviewers focus per-commit (code commits → completion doc commit →
       sweep commit).
@@ -218,7 +219,7 @@ PR review at integration) while removing planning-merge ceremony and structural 
     - **Retire `integrate-planning-branch.md`** entirely. Planning doesn't integrate as a separate
       step under single-branch-per-WU.
     - **`activate-planning-branch.md`** becomes "initiate-work-unit" (or similar — final naming TBD
-      at PRD). Creates the WU branch and the initial planning-state status file on it. No assumption
+      at PRD). Creates the WU branch and the initial planning-state meta file on it. No assumption
       of later separate merge.
     - **`activate-work-unit.md`** becomes "graduate-to-execution" (or similar — final naming TBD).
       Operates only as a state transition + branch rename on the existing WU branch. No new branch
@@ -236,36 +237,45 @@ PR review at integration) while removing planning-merge ceremony and structural 
       `integrate-work-unit.md` (sweep IS the archive operation). Under deferred cadence,
       `archive-work-unit.md` retains its current shape as a separate post-integration ceremony.
 
-5. **Status-file location-by-state convention.** Status file always lives at
-   `active/status-{name}.md` (no category nesting under WOR; no rotation in/out of backlog). What
-   changes is *which branch carries it*:
+5. **Meta-file location-by-state convention.** Meta file always lives at
+   `active/meta-{name}.md` (no category nesting under WOR; no rotation in/out of backlog; rename
+   per item 15). What changes is *which branch carries it*:
 
-    - **Planning state:** status file exists on the WU branch (`plan/<name>`) only. main does not
+    - **Planning state:** meta file exists on the WU branch (`plan/<name>`) only. main does not
       have it.
-    - **In Progress state:** status file exists on the WU branch (`<type>/<name>`) only. main does
+    - **In Progress state:** meta file exists on the WU branch (`<type>/<name>`) only. main does
       not have it.
-    - **Complete state:** status file exists on the WU branch briefly between sweep and merge; sweep
+    - **Complete state:** meta file exists on the WU branch briefly between sweep and merge; sweep
       moves it to `archive/<dated>/` before the merge under sweep-as-you-go.
 
-    Per-worktree isolation: every worktree's `active/` contains exactly its own WU's status file,
-    because no other branch's status file is reachable from main.
+    Per-worktree isolation: every worktree's `active/` contains exactly its own WU's meta file,
+    because no other branch's meta file is reachable from main.
 
-6. **Group-dir convention for `backlog/`.** Optional, codified-group only. Strict rules:
+6. **Group-dir convention for `backlog/plans/`.** Optional, codified-group only. Strict rules:
 
     - Group dirs exist only for genuine multi-WU groups with a codified group identity (term TBD
       at PRD — "work unit group" or "WU cohort" are candidates).
-    - Group dirs sit at one level inside `backlog/plans/` (see item 14's `plans/` interlude);
-      their members sit directly inside the group dir. No nesting below the group dir. Example:
-      `backlog/plans/<group-name>/plan-foo.md`, `backlog/plans/<group-name>/plan-bar.md`.
-    - **`backlog/` only.** `active/` stays flat; group identity tracked via the status file's
+    - Group dirs sit at one level inside `backlog/plans/{planned,provisional}/` (see item 14's
+      `plans/` interlude); their members sit directly inside the group dir. No nesting below the
+      group dir. Example: `backlog/plans/planned/<group-name>/plan-foo.md`,
+      `backlog/plans/planned/<group-name>/plan-bar.md`.
+    - **`backlog/` only.** `active/` stays flat; group identity tracked via the meta file's
       `**Sibling Work Unit(s):**` field. Group-dir-on-activate rename costs outweigh the visual
       chunking benefit at active-side WU counts (typically 1-3, bounded at 3-4 under
       Concurrent Work Conventions's focus-role model).
-    - **Default = no group.** Single WUs go directly under `backlog/plans/plan-<name>.md` (at the
-      `plans/` interlude root, no group nesting).
-    - Migration from existing `backlog/{category}/` shape: existing planning artifacts flatten into
-      `plans/` or group-by-relation under `plans/<group-name>/`; existing sibling sets (e.g., the
-      interlock-release-wrappers cluster, the parallelism trio) pick up group-dir treatment.
+    - **Default = no group.** Single WUs go directly under
+      `backlog/plans/{planned,provisional}/plan-<name>.md` (at the respective state-dir root, no
+      group nesting).
+    - **Group membership is state-uniform.** A group's WUs sit in the same state-dir — either all
+      `planned/` (group committed/sequenced) or all `provisional/` (group co-explored). Mixed-state
+      groups would split awkwardly across dirs; the cleaner answer is group identity moves with
+      commitment state. Open question (PRD): graduation pattern when a single member is ready
+      before its siblings — promote-group-together vs. exit-group-and-graduate-alone.
+    - Migration from existing `backlog/{category}/` shape: existing planning artifacts route to
+      `provisional/` by default (current `plans/` contents are mostly substantive thinking, not
+      all yet sequenced on `ROADMAP.md`); known-committed entries (already on `ROADMAP.md`) route
+      to `planned/`; existing sibling sets (e.g., the interlock-release-wrappers cluster, the
+      parallelism trio) pick up group-dir treatment within their respective state-dir.
 
 7. **Planning-checkpoint review opt-in.** Configuration surface for teams that value planning
    review even under single-branch-per-WU:
@@ -305,13 +315,13 @@ PR review at integration) while removing planning-merge ceremony and structural 
 
 10. **Roster cascade implementation.** Cross-worktree read for Worktree Foundation's
     branch-gone detection cascade. The cascade enumerates WUs via `git worktree list` and per-worktree
-    status-file reads, not via a single `active/` directory listing on main.
+    meta-file reads, not via a single `active/` directory listing on main.
 
     **Shape:** library function in `packages/arc-framework/src/lib/git/` (module name TBD at PRD —
     candidates: `worktree-roster.ts`, `wu-roster.ts`). Returns a list of
-    `{worktreePath, branch, identity?, statusFilePath, state}` tuples. Synchronous read of
-    worktree list, async per-worktree status-file resolution; returns empty list when no worktrees
-    or no status files surface (clean degradation).
+    `{worktreePath, branch, identity?, metaFilePath, state}` tuples. Synchronous read of
+    worktree list, async per-worktree meta-file resolution; returns empty list when no worktrees
+    or no meta files surface (clean degradation).
 
     **Consumers (initial):** Worktree Foundation's branch-gone detection; session-init's
     next-work-unit discovery (potentially — WF PRD decides); future `arc roster` or
@@ -320,11 +330,13 @@ PR review at integration) while removing planning-merge ceremony and structural 
 
     **Out of scope for this item:** identity-filter logic (lives in WF's branch-gone consumer);
     recency-window filtering (consumer concern); team-mode `(@identity)` parsing (consumed from
-    the status file's `**Branch:**` field per WF item 4's existing description).
+    the meta file's `**Branch:**` field per WF item 4's existing description).
 
 11. **Documentation cascade.** Strategy and rules updates flowing from the model change:
 
-    - `strategy-work-organization.md` — full rewrite of branching, lifecycle, and category sections
+    - `strategy-work-organization.md` — full rewrite of branching, lifecycle, and category sections;
+      add section on Origin/Spec orthogonality and "ARC planning discipline applies regardless of
+      external tracker presence"
     - `strategy-work-planning.md` — new section codifying the four-surface capture model
       (per-user `USER-INBOX.md` + shared `ATOMIC-INBOX.md` / `BACKLOG-INBOX.md`), ceremony-only
       write rule, drain conventions, read-staleness framing
@@ -332,14 +344,18 @@ PR review at integration) while removing planning-merge ceremony and structural 
       review
     - `DEV-RULES.ARC.md` — branch-naming and lifecycle references; atomic-tier infra-edit smell
       flag; capture-routing rule constitutionalized (moved from `DEV-RULES.PROJECT.md`);
-      vocabulary distinction (WU as wrapper, atomic as work-character)
-    - `template-status.md` — clarify location-by-state convention (always `active/`, branch carries it)
+      vocabulary distinction (WU as wrapper, atomic as work-character); Origin/Spec orthogonality
+      codified (Origin = where the need came from; Spec = what we're building; always orthogonal —
+      external trackers go in Origin, never Spec)
+    - `template-status.md` → `template-meta.md` (rename per item 15). Clarify location-by-state
+      convention (always `active/`, branch carries it); add `**Origin:**` field with default
+      `[Internal]`; title updated to reflect metadata framing
     - `template-pull-request.md` — retire `[PLAN]:` PR-prefix; remove planning-PR variant
-    - `session-init.md` / `session-handoff.md` — preserve lifecycle workflow prefixes in status-file
+    - `session-init.md` / `session-handoff.md` — preserve lifecycle workflow prefixes in meta-file
       `Next Action` pointers; route project-specific workflow details to SESSION-NOTES or trailing detail
     - `integrate-work-unit.md` — replace stale post-PR-create handoff warning with skip-threshold-aware guidance
     - Any other workflow / strategy that references `feature/`/`technical/` prefixes, the
-      planning-branch separate-merge pattern, or `backlog/{category}/` paths
+      planning-branch separate-merge pattern, `backlog/{category}/` paths, or `status-*.md` files
 
 12. **Companion ADR.** Constitutional shift documented as ADR (parallel scale to ADR-016). Records
     the single-branch-per-WU model decision, the Conventional Branch alignment, and the rationale for
@@ -347,17 +363,27 @@ PR review at integration) while removing planning-merge ceremony and structural 
 
 13. **Migration sweep.** One-time cleanup at WU activation:
 
-    - Existing leaked Planning-state status files in `active/` on main (if any remain at activation
-      time). Existing in-flight WUs retain their current paths through their natural integration;
-      new WUs spun up post-conventions follow the new model.
+    - Existing leaked Planning-state `status-*.md` files in `active/` on main (if any remain at
+      activation time). Existing in-flight WUs retain their current paths through their natural
+      integration; new WUs spun up post-conventions follow the new model.
+    - **In-flight meta-file rename** (per item 15): `status-{name}.md` → `meta-{name}.md` for any
+      WUs active at WOR's activation. Mechanical rename committed as part of WOR's migration
+      commits. Historical archives keep their `status-*.md` filenames (read-only).
     - Per-user `ATOMIC-INBOX.md` → `USER-INBOX.md` rename. Existing content moves under the
       `## Atomic` section of the new file. `## Backlog` section initially empty.
     - `BACKLOG-FEATURE.md` + `BACKLOG-TECHNICAL.md` merge → `backlog/BACKLOG-INBOX.md`. Entries
       reclassified during the migration pass (some may route to `backlog/ATOMIC-INBOX.md` instead
       based on shape; some may promote directly to draft `plan-*` docs if matured during inventory).
     - New empty `backlog/ATOMIC-INBOX.md` created.
-    - All existing `plan-*` docs in `backlog/` move into `backlog/plans/` (and into their group
-      dirs where applicable, per item 14's `plans/` interlude).
+    - All existing `plan-*` docs in `backlog/` move into `backlog/plans/{planned,provisional}/`
+      (and into their group dirs where applicable, per item 14's `plans/` interlude).
+      Classification: entries currently sequenced on `ROADMAP.md` route to `planned/`; remaining
+      plan-docs route to `provisional/` by default. PRD-time review confirms or reclassifies
+      per-doc.
+    - **Origin field backfill** (per item 11 cascade): existing in-flight meta files default to
+      `**Origin:** [Internal]` unless an external tracker reference exists in their prior `**Spec:**`
+      field — in which case the external URL/ID migrates to `**Origin:**` and `**Spec:**` resets
+      to its internal artifact reference (or `[no spec yet]` during planning state).
 
 14. **Capture pipeline and `backlog/` layout reform.** Redesign pre-plan-doc capture surfaces and
     `backlog/` directory layout to handle multi-WU and worktree-era concurrency without backend
@@ -404,9 +430,9 @@ PR review at integration) while removing planning-merge ceremony and structural 
     record lives in the deletion commit message plus the absorbing artifact (commit, task list,
     plan-doc).
 
-    **`plans/` interlude.** `backlog/` root holds three top-level overview docs only:
-    `ATOMIC-INBOX.md`, `BACKLOG-INBOX.md`, `ROADMAP.md`. All `plan-*` docs and their group dirs
-    nest under `backlog/plans/`:
+    **`plans/` interlude with planned/+provisional/ split.** `backlog/` root holds three
+    top-level overview docs only: `ATOMIC-INBOX.md`, `BACKLOG-INBOX.md`, `ROADMAP.md`. All
+    `plan-*` docs and their group dirs nest under `backlog/plans/`, split into two state-dirs:
 
     ```text
     backlog/
@@ -414,15 +440,39 @@ PR review at integration) while removing planning-merge ceremony and structural 
     ├── BACKLOG-INBOX.md
     ├── ROADMAP.md
     └── plans/
-        ├── <group-name>/
-        │   └── plan-*.md
-        └── plan-*.md (standalone)
+        ├── planned/                   (committed + sequenced — on ROADMAP)
+        │   ├── <group-name>/
+        │   │   └── plan-*.md
+        │   └── plan-*.md (standalone)
+        └── provisional/               (drafted, not yet committed to sequencing)
+            ├── <group-name>/
+            │   └── plan-*.md
+            └── plan-*.md (standalone)
     ```
+
+    **Semantic axis.** Presence in `planned/` means the WU is sequenced on `ROADMAP.md` and
+    committed to. Presence in `provisional/` means the plan-doc exists as substantive thinking but
+    hasn't been committed to scheduling — could be next-up, could sit indefinitely, could be
+    dropped. The split serves two purposes: (a) gives `ROADMAP.md` an alignment axis (it should
+    reference only `planned/` entries; anything in `provisional/` doesn't belong on the roadmap),
+    (b) separates committed-direction from exploratory-thinking visually and structurally.
+
+    **Graduation trigger.** A plan-doc graduates `provisional/` → `planned/` when added to
+    `ROADMAP.md` as a sequenced entry. The roadmap inclusion IS the commitment signal; the
+    `git mv` rides the same commit that adds the roadmap entry. Symmetric inverse: a `planned/`
+    doc demoted off `ROADMAP.md` (deprioritized, parked indefinitely) demotes back to
+    `provisional/` via the same mechanism. No separate ceremony.
+
+    **Notation.** `plan-*` filename prefix is unchanged across the split. The `planned/` /
+    `provisional/` dirs hold the same artifact type; only the dir indicates lifecycle state. The
+    mild lexical collision (`planned/plan-foo.md`) is accepted; semantic ambiguity does not arise
+    in practice — the dir indicates state, the file is the plan-doc.
 
     Rationale: (a) backlog root stays scannable regardless of plan count, (b) the three top-level
     docs read as a project-overview triad rather than being sandwiched between group dirs and
     standalone plan files in dirs-first explorer sort, (c) `ROADMAP.md` no longer sits orphaned
-    among individual plan files.
+    among individual plan files, (d) the state-dir split eliminates the drift hazard of
+    "everything in `plans/` should be on the roadmap" being interpreted loosely.
 
     **Vocabulary distinction — work unit vs atomic.** Codify in `DEV-RULES.ARC` (or
     `AGENT-BRIEF.ARC.md` § Vocabulary):
@@ -464,6 +514,47 @@ PR review at integration) while removing planning-merge ceremony and structural 
       planning-kickoff workflow equivalent (promotion drain step), `clean-work-unit.md` (no drain
       step at handoff per design decision — handoff stays focused).
 
+15. **Meta-file rename — `status-{name}.md` → `meta-{name}.md`.** Rename the WU manifest file
+    across the framework. Reflects the file's actual role: project-pointer metadata (primary
+    content header is `## Work Unit Metadata`), not just current-state. The file carries metadata
+    fields (Branch, Spec, Origin, Sibling WUs, Task List), active-state pointers (Last Completed,
+    Next Task, Blockers, Next Action), and — downstream under
+    `plan-completion-status-consolidation.md` — archive-state fields (PR URL, Completed date,
+    Executive Summary). "Status" undersold the composite role; "meta" matches the content header
+    and the file's actual function as the durable WU manifest.
+
+    Cascade:
+
+    - `template-status.md` → `template-meta.md`. Title updated to reflect metadata framing
+      (final phrasing at PRD).
+    - All workflow, strategy, rules, brief, and template references updated:
+      `active/status-{name}.md` → `active/meta-{name}.md` everywhere.
+    - `arc status` CLI command name unchanged — its semantic ("show current ARC state") is
+      broader than the meta file's role; the command reads from the meta file but doesn't need
+      to share its prefix.
+    - Downstream consumers (`plan-completion-status-consolidation.md`,
+      `plan-agile-wu-lifecycle.md`, `plan-worktree-foundation.md`,
+      `plan-concurrent-work-conventions.md`) inherit the new naming. Consistency updates land in
+      those plan docs as part of WOR's planning sweep.
+
+    Sort-order benefit: with `atomic-*` companions retiring (AWL scope item 8) and the new
+    `meta-*` prefix, `active/` ordering becomes:
+
+    ```text
+    active/
+    ├── meta-{name}.md      (sorts first — agent's primary orientation target)
+    ├── plan-{name}.md      (during planning state)
+    ├── prd-{name}.md       (post-PRD)
+    └── tasks-{name}.md     (post-task-generation)
+    ```
+
+    Agent-bootstrap target leads any directory listing. Within a single WU's artifact group and
+    across the directory, the meta file is the natural entry point.
+
+    Migration: forward-only. Existing in-flight WUs at WOR's activation rename their `status-*.md`
+    files to `meta-*.md` as part of item 13's migration sweep. Historical archives keep their
+    `status-*.md` filenames — past archives are read-only and don't benefit from the rename.
+
 ### Out of scope
 
 - **Worktree mechanism, shift lifecycle, branch-gone detection mechanism, inbox sync** — Worktree
@@ -495,14 +586,14 @@ PR review at integration) while removing planning-merge ceremony and structural 
 ### Single-branch-per-WU as the load-bearing decision
 
 The single-branch-per-WU model is the central decision; everything else (branch conventions,
-sweep-as-you-go, workflow consolidation, status-file location) follows from it or composes with it.
+sweep-as-you-go, workflow consolidation, meta-file location) follows from it or composes with it.
 Alternative models considered:
 
-- **Status file in `backlog/` during planning.** Rejected — `backlog/` is pm.mode: arc-in-git only,
-  doesn't generalize to `none` / `external`. Also semantically odd — a status file in backlog while
-  the WU is actively being planned reads wrong.
-- **Status file gitignored (per-developer like SESSION-NOTES).** Rejected — loses cross-WU coordination
-  visibility. Status files are project state, not personal state.
+- **Meta file in `backlog/` during planning.** Rejected — `backlog/` is `pm.layer: arc-pm` only,
+  doesn't generalize to `none`. Also semantically odd — a meta file in backlog while the WU is
+  actively being planned reads wrong.
+- **Meta file gitignored (per-developer like SESSION-NOTES).** Rejected — loses cross-WU coordination
+  visibility. Meta files are project state, not personal state.
 - **Two branches with delayed planning-merge until activation.** Rejected — planning artifacts merge
   at activation moment instead of planning-integration moment, but main still gets them. Same leak,
   different timing.
@@ -528,7 +619,7 @@ phase-of-life signal cleanly.
 Symmetric group dirs in `active/` were considered: every group's WUs co-locate in both `backlog/` and
 `active/`. Rejected on cost — group-dir on activation introduces a file-move ceremony at activation,
 and active-side WU counts are bounded enough that visual chunking benefit is small. Group identity in
-`active/` lives in the status file's `**Sibling Work Unit(s):**` field, not in the directory tree.
+`active/` lives in the meta file's `**Sibling Work Unit(s):**` field, not in the directory tree.
 Asymmetry is intentional: `backlog/` accumulates over months and benefits from chunking; `active/`
 holds 1-3 WUs typically and doesn't.
 
@@ -601,10 +692,108 @@ Alternative considered:
   flat, technical-or-feature-agnostic shape. The compound noun does real work — explicit,
   unoverloaded. Cost of renaming high; benefit unclear.
 
+### Status → meta rename
+
+`status-*` files evolved beyond their original "current state" role. They now carry:
+
+- **Metadata** (Branch, Spec, Origin, Sibling WUs, Task List) — properties of the WU itself,
+  invariant during life
+- **Active-state pointers** (Last Completed, Next Task, Blockers, Next Action) — current state
+- **Archive-state fields** (PR URL, Completed date, Executive Summary) — populated post-merge per
+  `plan-completion-status-consolidation.md`
+
+The file's primary content header is `## Work Unit Metadata`. "Status" undersells the composite
+role; "meta" matches the content header and the file's actual function as the durable WU
+manifest.
+
+Alternatives considered:
+
+- **Keep `status-*`.** Familiar; passes through completion-status consolidation by default.
+  Rejected: the consolidation plan locks in a passive default, not an analyzed decision. WOR is
+  the active decision moment, before downstream WUs inherit and the rename gets harder to walk
+  back.
+- **`metadata-*`.** Direct synonym but reads colder/more bureaucratic in prose. Composes worse
+  with `{wu-name}` than the shorter `meta-`.
+- **`manifest-*`.** Captures the role but carries connotations from other domains (package
+  manifests, container manifests) that don't fit.
+- **`wu-*` / `unit-*`.** Too short, loses semantic content.
+
+Sort-order benefit: with `atomic-*` companions retiring per AWL, the new `meta-*` prefix puts the
+WU's primary orientation target first in `active/` listings (meta-, plan-, prd-, tasks-). Concrete
+UX win for any directory listing (CLI, IDE explorer, GitHub web view).
+
+Blast radius: wide (every workflow ref, strategy doc, template, brief, and migration of in-flight
+WUs), but narrower now than after AWL ships more meta-file work and consolidation ships its
+template rewrite. Renaming during WOR rides existing documentation cascade touches (item 11) and
+benefits from the migration sweep already shaped for other rename work (item 13's
+ATOMIC-INBOX → USER-INBOX, BACKLOG-FEATURE/TECHNICAL → BACKLOG-INBOX).
+
+The `arc status` CLI command keeps its name. Command semantic ("show current ARC state") is
+broader than the meta file's role; the command reads from the meta file but doesn't need to share
+its prefix.
+
+Prose-reading watchout: "the meta file" reads slightly more abstract than "the status file" in
+isolation, but composes cleanly with `{wu-name}` and habituates quickly. Document-hygiene note:
+workflow prose talking about "the meta level" or "metaprogramming" near meta-file references
+should disambiguate.
+
+### Origin ⊥ Spec orthogonality
+
+ARC's existing `**Spec:**` field (introduced upstream in plan-session-operational-flow, planned
+for tier-aware value semantics in `plan-agile-wu-lifecycle.md`) was specified to accept
+external-tracker URLs (`https://github.com/.../issues/123`) as one possible value alongside
+internal artifact references (`plan-*`, `prd-*`, `tasks-*`). That conflation was a category
+error.
+
+**The principle:**
+
+- **`Origin:`** — where the need for this WU came from. An external tracker issue, a customer
+  request, an internal initiative. Default: `[Internal]`. Accepted values: free-text (URL,
+  tracker ID, prose). Validated only loosely; structured-form deferred unless tooling demand
+  surfaces.
+- **`Spec:`** — what the WU is building. Always points at an ARC-owned planning artifact
+  (`plan-*.md` during planning state; `prd-*.md` post-PRD; `tasks-*.md` with Scope section for
+  quick tier under arc-in-git per AWL). Never points at an external tracker.
+
+They are orthogonal: a WU can have an external Origin AND an internal Spec; an internal Origin
+AND an internal Spec; an external Origin AND `[no spec yet]` (during early planning); etc.
+
+**ARC's planning discipline applies regardless of Origin.** Having a GitHub issue, Jira ticket,
+or Linear card doesn't substitute for plan-doc → PRD → task-list → execution. The external
+tracker is intake, not specification. Even simple atomic work has an Origin (which may be
+`[Internal]`); the work's spec is the work itself (atomic-tier framing per AWL).
+
+**Consequence for `pm.layer` semantics.** The current `pm.layer` value-set (renamed from
+`pm.mode` per plan-arc-modes) `arc-pm | external | none` collapses to `arc-pm | none`. The
+`external` value tried to encode two distinct concerns ("we have a tracker" AND "skip ARC's
+planning pipeline") and ended up coherent at neither. Under the new framing, tracker presence is
+a per-WU concern captured in `Origin:` (and the project-level adapter axis in `coord.adapter`
+per `plan-coord-probe.md`); planning-pipeline presence is the binary `pm.layer: arc-pm | none`.
+
+The `pm.layer` value-set update lands in `plan-arc-modes.md`, not WOR's direct scope. WOR ships
+the conceptual framing; `plan-arc-modes.md` consumes it and resolves its existing open question
+on "Lite + `pm.layer: external` interaction" (line ~245 of that plan).
+
+Alternatives considered:
+
+- **Keep Spec as the only field; codify "external URLs allowed."** Rejected — perpetuates the
+  conflation; AWL's quick-tier-spec-shape open question shows the design space straining under
+  the dual role.
+- **Add Origin only; leave Spec semantics ambiguous.** Rejected — Spec's role stays unclear
+  without explicit orthogonality codification.
+- **Introduce Origin and rename Spec.** Considered (e.g., Spec → Plan, Spec → Brief). Rejected as
+  scope creep; "Spec" is established ARC vocabulary and the semantic-tightening is what changes,
+  not the name.
+
+Migration handling lives in item 13 (Origin field backfill) + item 11 cascade (template addition,
+constitutional codification).
+
 ### `plans/` interlude in `backlog/`
 
 `backlog/` root holds three top-level overview docs only (the two shared inboxes + `ROADMAP.md`);
-all `plan-*` docs and their group dirs nest under `backlog/plans/`. Alternatives considered:
+all `plan-*` docs and their group dirs nest under `backlog/plans/`, with a second-level
+`planned/` / `provisional/` state-dir split (see item 14 for the detailed shape). Alternatives
+considered:
 
 - **Flat layout (no interlude).** Plan-* docs and group dirs mixed at backlog/ root alongside the
   inbox files. Rejected — in dirs-first explorer sort, inbox files end up sandwiched between
@@ -613,10 +802,16 @@ all `plan-*` docs and their group dirs nest under `backlog/plans/`. Alternatives
 - **`_inbox/` subdir for the inbox files only.** Inbox files grouped together but plans stay at
   `backlog/` root. Rejected — solves the inbox-sandwich problem but leaves `ROADMAP.md` orphaned
   and doesn't scale: with many plans, `backlog/` root remains noisy.
+- **Single-level `plans/` with no state-dir split.** Plan-docs co-mingled regardless of
+  roadmap-commitment state. Rejected — loses `ROADMAP.md`'s alignment axis (provisional thinking
+  drifts onto the roadmap; sequenced commitments lose their distinguishing signal). The split's
+  benefit (drift-resistance + roadmap-alignment-by-construction) outweighs the second-level
+  verbosity cost.
 
-The interlude pays a path-verbosity cost (one extra directory level on every `plan-*` reference)
-for two durable benefits: (a) `backlog/` root stays scannable regardless of plan count, (b) the
-three top-level overview docs read as a project-overview triad rather than a sandwich.
+The interlude pays a path-verbosity cost (two extra directory levels on every `plan-*` reference)
+for three durable benefits: (a) `backlog/` root stays scannable regardless of plan count, (b) the
+three top-level overview docs read as a project-overview triad rather than a sandwich, (c) the
+state-dir split aligns roadmap presence with directory presence by construction.
 
 ---
 
@@ -765,6 +960,46 @@ per-cluster.
 Documentation-only (smell flag in DEV-RULES.ARC) or mechanical (pre-commit hook check)? Lean
 documentation; mechanical enforcement adds hook surface. PRD decision.
 
+### Roadmap / PROJECT-STATUS boundary contract (pending research)
+
+The `provisional/` + `planned/` directory split (item 14) gives `ROADMAP.md` an alignment axis:
+entries on the roadmap should match entries in `planned/`. But `ROADMAP.md`'s shape today carries
+multiple horizons (near-term sequencing + mid/long-term direction), conflating two concerns that
+suggest a clean boundary with `PROJECT-STATUS.md`:
+
+- **ROADMAP** as near-term sequencing artifact — references WUs by name, internal-utility,
+  committed work only (sourced from `planned/`).
+- **PROJECT-STATUS** as higher-level direction artifact — public-readable, references completed
+  WUs by name only; future work expressed as natural-language goals/themes, not per-WU pointers.
+
+The current `plan-roadmap-evolution.md` proposes a tiered-horizons model (Now / Next / Later)
+within ROADMAP itself. That direction conflicts with the boundary above — tiered horizons still
+carry mid/long-term direction inside ROADMAP, recreating the drift trap the directory split was
+meant to eliminate.
+
+Resolution candidates:
+
+- **Two-doc separation by audience + time-direction.** ROADMAP = forward sequencing (named WUs);
+  PROJECT-STATUS = direction + completed-history. Co-evolution discipline needed but clean
+  boundary.
+- **Single-doc consolidation.** Collapse ROADMAP into PROJECT-STATUS (or vice versa). Reduces
+  surface but loaded.
+- **Refined separation per industry idiom.** Survey how mature OSS projects handle this — Linux
+  kernel STATUS files, Rust's roadmap pattern, Kubernetes' roadmap + changelog dual surface,
+  PostgreSQL release-notes vs roadmap. Adapt findings to ARC's solo-to-small-team scale.
+
+**Research pass (~1 hour):** pattern-survey of forward-looking + backward-looking direction
+artifacts in comparable projects. Synthesis informs which shape best fits.
+
+**Scope impact:** if two-doc separation wins, expand WOR scope to codify the boundary contract
+(new scope item or item 14 expansion) and reposition `plan-roadmap-evolution.md` as the
+downstream implementation of WOR's settled contract (lane viz, format details, migration of
+existing entries). If consolidation wins, retire `plan-roadmap-evolution.md` and codify the
+collapsed shape in WOR. If some other pattern wins, scope accordingly.
+
+This open question is the next major work item on the WOR plan-doc itself, ahead of PRD
+promotion.
+
 ### Worktree-trio dev-ergonomics pressure test (forward-compat watch)
 
 The parallelism trio (Worktree Foundation, Agile WU Lifecycle, Concurrent Work Conventions) is
@@ -776,7 +1011,7 @@ similar) and against ARC's stance that task work should not be far from the huma
 This isn't a WOR PRD-blocker on its own — WOR delivers the per-worktree isolation foundation
 regardless of how the trio's ergonomics resolve. But forward-compat watch: trio PRDs should
 incorporate this pressure test, and if it surfaces shape changes that bleed back into WOR scope
-(e.g., affecting `plans/` interlude layout, group-dir convention, status-file location-by-state,
+(e.g., affecting `plans/` interlude layout, group-dir convention, meta-file location-by-state,
 or the capture pipeline drain steps), WOR's PRD readiness gates pause until the bleed is resolved.
 
 Document as a known forward-compat dependency on trio research; do not block this WU's PRD
@@ -805,18 +1040,24 @@ Phases (provisional):
 4. **Sweep-as-you-go foundation** — `archive.cadence` config key; sweep commit shape; integration PR
    multi-commit ordering (code → completion → status flip → sweep); deferred-cadence variant
    preserved.
-5. **Status-file location-by-state convention** — `template-status.md` clarification;
-   `strategy-work-organization.md` documentation; per-worktree isolation invariant codified.
-6. **Group-dir convention** — codified-group rules; `backlog/`-only convention; migration of
-   existing planning artifacts.
+5. **Meta-file location-by-state convention + meta rename** — `template-status.md` → `template-meta.md`
+   rename and clarification; `Origin:` field addition; in-flight `status-*.md` → `meta-*.md` rename
+   sweep; `strategy-work-organization.md` documentation (incl. Origin/Spec orthogonality);
+   per-worktree isolation invariant codified.
+6. **Group-dir + state-dir conventions** — codified-group rules; `backlog/plans/` interlude with
+   `planned/` + `provisional/` state-dir split; graduation trigger (roadmap inclusion = promotion);
+   group-membership state-uniformity rule.
 7. **Planning-checkpoint review opt-in** — config setting (`review.planning_checkpoint`); extension
    point (`pre-execution-graduation`); convention inventory entry in
    `strategy-configurability-architecture.md`.
 8. **Atomic-tier infra-edit smell flag** — DEV-RULES.ARC entry; documentation in strategy docs.
 9. **Roster cascade implementation** — cross-worktree read for Worktree Foundation's
    branch-gone detection consumption.
-10. **Migration sweep** — flatten/group existing `backlog/feature/` and `backlog/technical/`
-    contents; one-time cleanup of any leaked Planning-state status files in `active/` on main.
+10. **Migration sweep** — flatten/classify existing `backlog/feature/` and `backlog/technical/`
+    contents into `backlog/plans/{planned,provisional}/` per ROADMAP-inclusion test; one-time
+    cleanup of any leaked Planning-state `status-*.md` files in `active/` on main; inbox renames
+    and merges (`ATOMIC-INBOX` → `USER-INBOX`, `BACKLOG-FEATURE`/`-TECHNICAL` → `BACKLOG-INBOX`);
+    in-flight meta-file rename and Origin-field backfill.
 11. **External research** — Conventional Branch spec adoption patterns, planning-review opt-in
     patterns from comparable methodologies, single-branch lifecycle examples (Stripe, Google, GitLab).
     Validates conventions against industry idiom; informs PRD-time language refinement.
