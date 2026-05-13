@@ -9,25 +9,26 @@
 - **Task List:** `tasks-work-organization-reform.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task generation Pass 1/Pass 2 + scope fold. `tasks-work-organization-reform.md`
-  shipped (37 parents across 7 phases) plus empty `atomic-work-organization-reform.md` companion. Three
-  scope folds absorbed mid-session: (a) extension fire-point family naming convention + 5-extension
-  family (`pre-activation` / `pre-commit-review` / `pre-pr-review` / `pre-push-review` /
-  `pre-merge-review`) with `arc-commit` and push-wrapper wiring; (b) meta-file H1/H2 + grouping
-  (`# Metadata:` H1, blank-line-grouped fields, content H2s at state transition); (c) instance-file
-  preamble slim across SESSION-NOTES + USER-INBOX + BACKLOG-INBOX + backlog/ATOMIC-INBOX. PRD updated:
-  R55-R59 across three new subsections, Goals 13-15, Success Criteria expansion 16 → 23 items.
-  `plan-review-method-family.md` cross-pointered for the 3-extension family at `integrate-work-unit`
-  (that plan ships the `review-response` middle; WOR ships the `pre-pr-review` + `pre-merge-review`
-  bookends).
+- **Last Completed:** Pass 3 audit corrections applied across phases 1-6 of
+  `tasks-work-organization-reform.md`. Substantive structural fixes: Tasks 3.4 / 3.5 DRY restructure
+  (archive-work-unit owns archival mechanics as cadence-invariant single source of truth; integrate
+  gains cadence dispatch in 3.4.g); Task 5.2.a corrected from speculative paths to actual push-execution
+  sites (`lib/git/push-worktree.ts` called from `handlers/release/push-cli.ts` and `handlers/sync.ts`);
+  Task 6.3.f parallelism-trio cohort list corrected to three members (ARCd Rebrand removed); Tasks
+  6.7.e and 6.7.f removed (one nonexistent file; one retained until Worktree Foundation ships). Phase 7
+  verification audit skipped — always same shape. Step 4 pre-save deferred — open design question
+  surfaced during audit blocks task list settling. Design question captured in
+  `notes-work-organization-reform.md` § Open Design Questions for fresh-session resolution.
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Resume task generation at Pass 3 — `arc-task-audit` phase-by-phase per
-  `2_generate-tasks.md` § Step 3.1. For each phase, apply fix-before-starting findings inline; route
-  carry-as-context findings to inline `_Note:_` peer descriptors or `notes-work-organization-reform.md`
-  per Pass 3 routing convention. After Pass 3 corrections settle across all seven phases, Step 4
-  pre-save checklist verifies the file and a ceremony commit closes task generation; WU then
-  transitions to execution sessionType.
+- **Next Action:** Resolve open design question captured in `notes-work-organization-reform.md`
+  § Open Design Questions — plan-doc optionality contract per pm.mode + WU tier, plus `meta-*` source
+  location for the ROADMAP renderer (Option A metadata block in plan body vs Option B `meta-*` sibling
+  stub alongside `plan-*` in backlog). R37/R38 gap surfaced at Pass 3: renderer walks `meta-*` files
+  in `backlog/plans/planned/**` but no backlog meta files exist today. Once design settles, expand Phase
+  6.5 in the task list with the metadata-backfill subtask, complete Pass 3 for Phase 6.5 corrections,
+  then run Step 4 pre-save checklist; ceremony commit closes task generation and the WU transitions
+  to execution sessionType.
 
 ---
