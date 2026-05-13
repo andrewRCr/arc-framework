@@ -32,6 +32,8 @@ permissive `OR` clause. See `notes-work-organization-reform.md` § Work-unit-as-
         - Next available number per `.arc/reference/adr/` listing — currently `adr-019`.
         - Title pattern parallels ADR-016 (`adr-016-configurable-autonomy-interlocks-for-session-operations.md`):
           something like `adr-019-single-branch-per-wu-and-conventional-branch-alignment.md`.
+        - _Note:_ Example title elides meta-file rename + commit-convention reform — illustrative only;
+          final title decision belongs to the ADR author, reflecting all four surfaces 1.1.b enumerates.
 
     - `[ ]` **1.1.b Document the four constitutional surfaces with decision rationale**
         - Single-branch-per-WU (replaces two-PR planning model).
@@ -74,16 +76,25 @@ permissive `OR` clause. See `notes-work-organization-reform.md` § Work-unit-as-
           fire only at lifecycle ceremonies (activation absorption, integration drain, planning-kickoff
           promotion). Outside these moments, shared inboxes are read-only by convention.
         - Personal `user/{identity}/USER-INBOX.md` writes anytime (per-user; no concurrency concern).
+        - _Note:_ `backlog/ATOMIC-INBOX.md` and `backlog/BACKLOG-INBOX.md` don't exist on disk until
+          Phase 6.4 migration. Constitutional rule lands here and activates at 6.4 landing — intentional
+          forward reference.
 
-    - `[ ]` **1.3.c Collapse `DEV-RULES.PROJECT.md § Capture Routing` to a redirect**
-        - One-line redirect pointing at DEV-RULES.ARC § Leave it cleaner. Project-specific overrides clause
-          retained but stub-shaped.
+    - `[ ]` **1.3.c Verify `DEV-RULES.PROJECT.md § Capture Routing` redirect remains aligned**
+        - Section is already a thin redirect to `DEV-RULES.ARC § Leave it cleaner` (4 lines, no local
+          table). Confirm the link target is still correct after 1.3.a's table edits.
+        - Per R24 ("Project-specific routing overrides remain in `DEV-RULES.PROJECT.md` if needed"):
+          add a stub overrides clause if desired; otherwise leave as-is.
 
 ### `[ ]` **1.4 Add atomic-tier infra-edit smell flag to DEV-RULES.ARC**
 
 - _Goal:_ A documentation-only smell flag in DEV-RULES.ARC § Task Execution (Task granularity neighborhood)
   flags atomic-tier work touching load-bearing infra (`.arc/system/`, `.arc/reference/strategies/`,
   `arc-config.yml`) as warranting quick-tier at minimum — multi-commit coordination, deliberate sequencing.
+
+- _Note:_ Companion-note destination is contingent on Agile WU Lifecycle (AWL) work. At execution, check
+  whether AWL's tier-scaling guidance has landed in `strategy-work-organization.md` or another doc. If AWL
+  hasn't landed yet, defer the companion note rather than seed tier-scaling content in WOR scope.
 
     - Atomic-tier items routed to ATOMIC-INBOX surfaces still apply the flag at drain time, not at capture.
     - Companion note in `strategy-work-organization.md` (or wherever tier scaling ultimately lands per AWL)
@@ -103,6 +114,11 @@ backlog organization + routing (arc-in-git PM mode territory). Per-worktree isol
 - _Goal:_ `strategy-work-organization.md` § Branching codifies the CB core-6 type set, the `plan/<name>`
   rotation pattern, the single-branch-per-WU model, and the CB-CC alignment rationale (intentional
   divergence on `test` / `revert`) — all subsequent boundary-workflow rewrites reference this section.
+
+- _Context:_ Existing file has § Branching as a subsection under § Incidental Work Model (line ~166).
+  The CB core-6 + single-branch-per-WU content is general, not incidental-specific. Elevate § Branching
+  to top-level (default), reshaping incidental-specific content into a child subsection. Decide final
+  shape at execution.
 
     - `[ ]` **2.1.a CB core-6 type set enumeration**
         - `feat/ | fix/ | chore/ | docs/ | refactor/ | perf/`; contested types (`test/`, `style/`, `build/`,
@@ -128,6 +144,10 @@ backlog organization + routing (arc-in-git PM mode territory). Per-worktree isol
   each worktree's `active/` contains only its own WU's meta file, because no other branch's meta file is
   reachable from main — and explains why it's load-bearing for the parallelism trio.
 
+- _Note:_ The acceptance test below is enforceable only after Worktree Foundation WU ships. WOR codifies
+  the invariant as precondition for the parallelism trio; strategy section describes the test without
+  running it.
+
     - Brief acceptance-test description: spawn worktree from main, assert `active/` empty except for the
       WU's own meta file.
 
@@ -136,6 +156,10 @@ backlog organization + routing (arc-in-git PM mode territory). Per-worktree isol
 - _Goal:_ `strategy-work-organization.md` § Archival codifies sweep-as-you-go as default integration shape
   with the new archive path (`archive/<dated>/{wu-name}/`); states tier-aware sweep ceremony as AWL scope;
   locks forward-only migration; documents the backward-compat tooling contract for downstream consumers.
+
+- _Context:_ Existing file has § Archive as a subsection under § Directory Structure (line ~367), not a
+  top-level § Archival. Elevate to top-level § Archival (default), absorbing the existing subsection
+  content; or extend in place if the subsection placement reads more naturally. Decide at execution.
 
     - `[ ]` **2.3.a Sweep-as-you-go default codification**
         - Default `archive.cadence: with-integration` — integration PR includes sweep commits; meta file
@@ -167,6 +191,9 @@ backlog organization + routing (arc-in-git PM mode territory). Per-worktree isol
           meta-files. Source of truth = meta files (`**State:**`, `**Owner:**`, `**Depends On:**`). ROADMAP
           header carries "Generated by `arc roadmap render` — do not edit by hand" note + last-rendered
           commit hash.
+        - _Note:_ This describes the end-state header (post-CLI); 2.4.d describes the interim
+          hand-maintenance shape. Strategy section must distinguish — current ROADMAP can't truthfully
+          carry "do not edit by hand" until `arc roadmap render` ships.
 
     - `[ ]` **2.4.b Render algorithm (6 steps)**
         - Walk `active/**` and `backlog/plans/planned/**` for `meta-*.md` files; parse fields; topologically
@@ -199,6 +226,9 @@ backlog organization + routing (arc-in-git PM mode territory). Per-worktree isol
         - Activation absorption / integration drain / planning-kickoff promotion fire-points; outside
           these, shared inboxes are read-only by convention. Absorbed entries deleted, not marked —
           routing record lives in deletion commit message + absorbing artifact.
+        - _Note:_ Verify current `user/{identity}/ATOMIC-INBOX.md` convention before codifying "deleted,
+          not marked." If today's behavior marks (strikethrough, `[absorbed]` tag, etc.), the rule is a
+          behavioral shift requiring migration treatment in Phase 6.4, not documentation-only.
 
     - `[ ]` **2.5.c `plans/{state}/` graduation semantics**
         - `provisional/` → `planned/` fires when WU added to ROADMAP (`git mv` rides the same commit as
@@ -224,6 +254,9 @@ backlog organization + routing (arc-in-git PM mode territory). Per-worktree isol
           step or git operation; event-names must reflect the actual local fire-point, not an upstream
           UI-level event; frequency must be wireable to match the name's semantic (if
           `pre-commit-review`, then every commit pathway).
+        - _Note:_ The `{pre|post}-{event}` pattern reflects current practice — `.arc/system/extensions/`
+          already ships both families (`pre-*` and `post-*`, e.g., `post-task-completion`,
+          `post-work-unit-archive`). R55 codifies existing convention, not new extensibility framing.
 
     - `[ ]` **2.6.c Reserved-for-future names registry**
         - Document `pre-push-review` as reserved (ships as no-default no-op file); future entries
@@ -241,10 +274,12 @@ keys, and the new extension point.
 
 _Design decisions:_ Capture-pipeline ceremony writes (R20, R21) fold into each affected workflow rather than
 a horizontal cross-cutting parent — workflow-level units stay coherent. R53 inline-fold audits stay one
-parent with five subtasks per § Inline-folds scope discipline. Boundary-workflow anchors deliberately
-multi-tag where a single workflow body delivers multiple R-IDs end-to-end (e.g., `integrate-work-unit` ships
-R5 + R14 + R17 + R30 + R31 + R34 + R39 + R41 under default cadence; `archive-work-unit` ships the same set
-under deferred cadence).
+parent with five subtasks per § Inline-folds scope discipline. `integrate-work-unit.md` owns composition
+(R14, R30, R31) regardless of cadence; `archive-work-unit.md` owns archival mechanics (state flip + sweep +
+ROADMAP regen) as a cadence-invariant single source of truth — DRY across cadences. Cadence dispatch lives
+in integrate (3.4.g), not archive. Within-phase ordering: 3.7 (config keys) ideally lands before 3.3 / 3.5
+runtime verification — workflow text can forward-reference, but runtime checks of `review.planning_checkpoint`
+halt and `archive.cadence` dispatch need both present.
 
 ### `[ ]` **3.1 Retire `integrate-planning-branch.md`**
 
@@ -324,6 +359,10 @@ under deferred cadence).
     - `[ ]` **3.3.h Regenerate ROADMAP (R39)**
         - Hand-maintain (interim, pre-CLI) per algorithm in 2.4. Commit ROADMAP update separately or ride
           the state-flip commit per atomicity discipline.
+        - _Note:_ Atomicity (DEV-RULES.ARC § Atomicity, "one logical change per commit") treats state-flip
+          and ROADMAP regen as distinct logical changes. Default recommendation: separate commit. Riding
+          the state-flip commit is acceptable only if the ROADMAP edit is trivial (e.g., single tier-line
+          move).
 
 ### `[ ]` **3.4 Restructure `integrate-work-unit.md` (sweep + composition + Release Notes Entry + ROADMAP regen)**
 
@@ -363,54 +402,52 @@ under deferred cadence).
           and need final deletion from the shared inbox), finalize deletions here. Rides with the
           completion-content commit or as separate commit per atomicity.
 
-    - `[ ]` **3.4.g Sweep commits (R5, R17, R41)**
-        - `git mv .arc/active/<cat>/meta-{name}.md .arc/archive/<dated>/{name}/meta-{name}.md`. Companion
-          files (`tasks-*`, `atomic-*`, `notes-*`, etc.) move alongside.
+    - `[ ]` **3.4.g Cadence dispatch — invoke `archive-work-unit.md` inline under `with-integration`**
+        - Read `archive.cadence` from `arc-config.yml`.
+        - `with-integration` (default): invoke `archive-work-unit.md` inline at this point. archive-work-unit
+          handles state flip `Integrating → Shipped`, sweep commits, and ROADMAP regen per its
+          cadence-invariant body (3.5). Returns; resume here with PR creation.
+        - `deferred` | `manual`: skip inline invocation; surface a note at workflow exit that archive runs
+          separately post-merge per user invocation.
 
-    - `[ ]` **3.4.h Regenerate ROADMAP (R39)**
-        - Active → archive transition is a regen fire-point. Hand-maintain per algorithm.
-
-    - `[ ]` **3.4.i PR creation + workflow-interlock**
+    - `[ ]` **3.4.h PR creation + workflow-interlock**
         - Single PR (no `[PLAN]:` prefix retired per R6). Multi-commit structure preserved for per-commit
           review.
 
-    - `[ ]` **3.4.j Pre-merge-review extension fire (R56)**
+    - `[ ]` **3.4.i Pre-merge-review extension fire (R56)**
         - Post-review-response, pre-merge fire-point. Extension defined in 3.8; this step is the
           fire-point reference. Sits between `review-response` (plan-review-method-family scope) and
           the actual merge action; halt-on-fail surfaces actionable message. Default-inactive
           extension; this wiring is structural even when extension is off.
 
-### `[ ]` **3.5 Restructure `archive-work-unit.md` (cadence-aware collapse; deferred-path runs full composition)**
+### `[ ]` **3.5 Restructure `archive-work-unit.md` (single source of truth for archival mechanics; cadence-invariant body)**
 
-- _Goal:_ `archive-work-unit.md` ships the archive ceremony as either (a) inline-invoked from
-  `integrate-work-unit.md` under default `archive.cadence: with-integration` (a no-op when already done
-  upstream) or (b) standalone ceremony under `archive.cadence: deferred` — full Release Notes Entry +
-  Completion Notes composition + sweep + ROADMAP regen, plus post-Shipped errata convention.
+- _Goal:_ `archive-work-unit.md` carries the archival mechanics — state flip `Integrating → Shipped`, sweep
+  commits, ROADMAP regen, post-Shipped errata convention. Invariant body regardless of invocation context:
+  invoked inline from `integrate-work-unit.md` under `with-integration` cadence (via 3.4.g), or standalone
+  post-merge under `deferred` / `manual`.
 
-    - _Approach:_ Cadence detection at top branches behavior. Under default, the composition + sweep
-      already happened in `integrate-work-unit.md`; this workflow only confirms archival and updates
-      State to Shipped. Under deferred, the workflow does the full archive composition pipeline.
+- _Approach:_ DRY — composition stays in integrate per R31; archive owns archival mechanics. Cadence
+  dispatch lives in integrate (3.4.g), not here. The workflow's pre-condition gate verifies state is already
+  `Integrating`; composition must have happened upstream.
 
     **Strategies:** `strategy-work-organization.md`
 
-    - `[ ]` **3.5.a Cadence detection**
-        - Read `archive.cadence` from `arc-config.yml`; branch on value (`with-integration` | `deferred` |
-          `manual`).
+    - `[ ]` **3.5.a Pre-condition check (state `Integrating`)**
+        - Verify meta file shows `**State:** Integrating`. Halt with surface if not — upstream composition
+          (in `integrate-work-unit.md`) is the prerequisite.
 
-    - `[ ]` **3.5.b State transition (cadence-conditional)**
-        - Under `with-integration`: meta file already moved + `**State:** Integrating`; flip to `Shipped`.
-        - Under `deferred`: flip `Active → Integrating → Shipped` here; do composition before sweep.
+    - `[ ]` **3.5.b State flip `Integrating → Shipped`**
+        - Edit meta file: `**State:** Integrating` → `**State:** Shipped`. Single direction; always.
 
-    - `[ ]` **3.5.c Release Notes Entry + Completion Notes composition (deferred-only)**
-        - Mirror 3.4.b + 3.4.c; under deferred, this workflow owns the composition.
+    - `[ ]` **3.5.c Sweep commits (R5, R17, R41)**
+        - `git mv .arc/active/<cat>/meta-{name}.md .arc/archive/<dated>/{name}/meta-{name}.md`. Companion
+          files (`tasks-*`, `atomic-*`, `notes-*`, etc.) move alongside.
 
-    - `[ ]` **3.5.d Sweep commits (R5, R41 — deferred-only)**
-        - Mirror 3.4.g; under deferred, this workflow performs the sweep.
+    - `[ ]` **3.5.d Regenerate ROADMAP (R39)**
+        - Archive transition is a regen fire-point. Hand-maintain (interim, pre-CLI) per algorithm in 2.4.
 
-    - `[ ]` **3.5.e Regenerate ROADMAP (R39 — deferred-only)**
-        - Mirror 3.4.h; archive transition is a regen fire-point under deferred.
-
-    - `[ ]` **3.5.f Post-Shipped errata convention note (R32)**
+    - `[ ]` **3.5.e Post-Shipped errata convention note (R32)**
         - Workflow body documents the convention: Release Notes Entry edits after `Shipped` are errata
           only; git history is the lock (matches keep-a-changelog norms); no mechanical enforcement.
 
@@ -543,6 +580,9 @@ under deferred cadence).
         - Substantive code change riding the workflow trim: `pushability` matrix `blocked-no-upstream`
           cell resolves to `upstream-init` when `pushInterlock` permits. Update CLI behavior + tests in
           `packages/arc-framework/src/lib/`; verify call sites in touched workflows.
+        - _Note:_ Verify the `pushability` matrix exists in `packages/arc-framework/src/lib/` before
+          implementation. If absent (matrix is a new abstraction), task scope expands to matrix design;
+          surface for re-scoping before starting.
 
     - `[ ]` **3.9.d `integrate-work-unit` post-PR-create handoff guidance refresh**
         - Update handoff guidance language to be skip-threshold-aware (no auto-handoff suggestion when
@@ -563,6 +603,11 @@ under deferred cadence).
       `pre-commit-review` rename in 3.8.b. Without arc-commit wiring, the new name would still
       mislead. Audit the skill's commit-creation step; insert the extension fire-point check before
       `git commit` is invoked.
+
+    - _Note:_ Behavioral change to the canonical commit pathway — recommend integration test in
+      `packages/arc-framework/__tests__/integration/` asserting `arc-commit` invokes the extension's
+      `.actions` when `active: true` and halts on fail. See `strategy-testing-methodology.md` for tier
+      placement.
 
     - `[ ]` **3.10.a Audit `arc-commit/SKILL.md` for the commit-creation step**
         - Locate the step that runs `git commit`; identify the right insertion point for extension
@@ -614,6 +659,9 @@ co-located.
           `**Integration:**` retired (folds into State).
         - `**Owner:**` singular; `[arc.identity]` placeholder substituted at meta-file creation.
         - `**Branch:**` (single value per single-branch-per-WU).
+        - _Note:_ Verify existing `template-status.md`'s placeholder convention before authoring;
+          stay consistent across templates and with the substitution logic in 3.2.b's
+          `init-work-unit.md`.
         - `**Spec:**` internal-only (ARC-owned planning artifacts; never external).
         - `**Origin:**` default `[Internal]`; orthogonal to Spec; external tracker URLs land here.
         - `**Depends On:**` bare WU-name list; default `[none]`; renders into ROADMAP tier grouping.
@@ -630,6 +678,10 @@ co-located.
           7-category Keep a Changelog set: Added / Changed / Removed / Fixed / Infrastructure /
           Deprecated / Security; optional Breaking Changes callout).
         - `## Completion Notes` (narrative summary of what shipped).
+        - _Note:_ How to represent content H2s in the template (absent during life-phase, present
+          after transition): HTML-commented examples, inline placeholder text, or pure prose
+          description? Decide at execution — prefer the form least likely to mislead readers about
+          whether the section is "present today."
 
     - `[ ]` **4.1.e Post-Shipped errata convention note (R32)**
         - Template includes a brief note: Release Notes Entry edits after `Shipped` are errata only;
@@ -676,13 +728,22 @@ co-located.
 
 ### `[ ]` **4.3 Rewrite `META-PRD.md` content per new shape**
 
-- _Goal:_ `.arc/META-PRD.md` content rewritten per the new `template-meta-prd` shape — Mission +
+- _Goal:_ `.arc/reference/META-PRD.md` content rewritten per the new `template-meta-prd` shape — Mission +
   5-7 numbered principles + anti-goals + problem statement + design tradeoffs — as the dogfooding pass
   that surfaces template ambiguities (template v1.1 revisions ride the same phase if needed).
 
-    - _Context:_ Existing `.arc/META-PRD.md` is the source material; preserve content the new shape
-      genuinely subsumes; surface content that doesn't fit as scope question. Per PRD § Open Questions,
-      template revisions feed back into 4.2.
+    - _Context:_ Existing `.arc/reference/META-PRD.md` (162 lines: § 1 Purpose through § 6 Technical
+      Requirements) is the source material; preserve content the new shape genuinely subsumes; surface
+      content that doesn't fit as scope question. Per PRD § Open Questions, template revisions feed back
+      into 4.2.
+
+    - _Note:_ PRD R35 carries the same wrong path (`.arc/META-PRD.md`). Correct in the PRD body too
+      when WOR integrates — PRDs ship to readers and the typo otherwise persists in shipped content.
+
+    - _Note:_ Current META-PRD has no "principles" section and no "design tradeoffs" section.
+      Distillation work for 4.3.c / 4.3.f pulls from § 1 Philosophical basis + § 2 Core Features +
+      this WU's `notes-work-organization-reform.md` design-decisions section + relevant ADRs. Expect
+      one iteration cycle with 4.2 per 4.3.g if shape ambiguities surface.
 
     - `[ ]` **4.3.a Read existing META-PRD; inventory content vs new-shape coverage**
         - Map existing sections to new-shape slots. Surface gaps (content with no home) before drafting.
@@ -728,6 +789,14 @@ fire-point wiring into the push wrapper, and CLI init/join preamble strip for in
   per-worktree meta-file resolution — synchronous worktree-list read; async per-worktree meta-file
   resolution; empty list returned when no worktrees or no meta files surface (clean degradation).
 
+- _Note:_ `git/worktree-sync.ts` may already parse `git worktree list` output. Audit for an existing
+  utility before re-implementing — reuse if available; factor if it covers ~90% of need.
+
+- _Note:_ State value-set (`Provisional | Planned | Active | Integrating | Shipped`) is codified in
+  4.1.c (`template-meta.md`). Import from a shared schema if one exists (`frontmatter/` or `manifest/`
+  modules are likely homes); otherwise hardcode with a comment pointing at the codifying template.
+  Avoid silent enum duplication.
+
     **Strategies:** `strategy-testing-methodology.md`
 
     Build `test-first` (one behavior at a time):
@@ -755,20 +824,33 @@ fire-point wiring into the push wrapper, and CLI init/join preamble strip for in
 
     **Strategies:** `strategy-testing-methodology.md`
 
-    - `[ ]` **5.2.a Locate push wrapper invocation in `packages/arc-framework/src/lib/release/`**
-        - Identify the function that executes the push (likely `release/push.ts` or
-          `release/wrapper.ts`); insert extension fire-point check before push execution.
+    - `[ ]` **5.2.a Identify insertion point for the extension fire**
+        - Push execution flows through `pushWorktreeBranch` in
+          `packages/arc-framework/src/lib/git/push-worktree.ts` (thin shell-exec wrapper). Called from two
+          handler sites: `packages/arc-framework/src/handlers/release/push-cli.ts` (`arc release push`)
+          and `packages/arc-framework/src/handlers/sync.ts` (`arc sync`).
+        - Design choice: insert the fire (a) inside `pushWorktreeBranch` — single-site; all callers
+          inherit automatically; mixes shell-exec wrapper with extension-fire concern; or (b) in both
+          handler call sites before invoking the wrapper, ideally via a shared pre-push helper —
+          separation-of-concerns; wrapper stays pure shell-exec. Default recommend (b); decide at
+          execution.
 
     - `[ ]` **5.2.b Extension fire-point check**
         - Read `.arc/system/extensions/pre-push-review.md` frontmatter; if `active: true`, surface
           `.actions` to the agent before push proceeds. Default `active: false` short-circuits with no
           overhead.
+        - _Note:_ "Surface `.actions` to the agent" needs to match how existing `pre-*` extensions
+          surface today — likely via `sync-output.ts` or stdout. Inspect a working extension consumer
+          (e.g., wherever `pre-stage-review`/`pre-merge-review` are wired) for the established pattern;
+          stay consistent.
 
     - `[ ]` **5.2.c Unit + integration test coverage**
         - Vitest tests: extension inactive → push proceeds without surfacing; extension active with
           empty actions → push proceeds with no-op fire; extension active with actions → actions
           surface; extension malformed → push proceeds with degraded warning (don't block push on
           extension parse error).
+        - _Note:_ Add a fifth case — extension file absent entirely (fresh install, file deleted).
+          Expected: push proceeds with no fire (treated equivalent to `active: false`); never error.
 
 ### `[ ]` **5.3 Update CLI init/join code to strip instance-file preamble injection**
 
@@ -845,11 +927,17 @@ coupled. Cross-reference sweep last so all retired surfaces have already been re
       edits land atomically per ARC commit discipline. Mapping table per `notes-work-organization-reform.md`
       § Migration Mapping Reference.
 
+    - _Note:_ At execution, discover all in-flight `status-*.md` files first; in practice this WU's own
+      `status-work-organization-reform.md` is the sole in-flight status file (verified at task generation
+      time). "Each WU's rename" is defensive language for the broader contract — most invocations migrate
+      a single file.
+
     - `[ ]` **6.3.a Per-WU rename: `git mv status-{name}.md meta-{name}.md`**
         - Plus any `archive/` references on the same branch (none expected during this WU; verify).
 
     - `[ ]` **6.3.b State recodification per mapping table**
-        - `Planning` → `Planning` (preserved during migration; recodifies further per branch state).
+        - `Planning` → `Planning` (preserved; transitions happen at workflow ceremonies —
+          `activate-work-unit` or `integrate-work-unit` — not at migration).
         - `Draft` → `Provisional`.
         - `In Progress` → `Active`.
         - `Active` → `Active`.
@@ -864,9 +952,10 @@ coupled. Cross-reference sweep last so all retired surfaces have already been re
     - `[ ]` **6.3.e Initialize `**Depends On:** [none]` (manual extraction for known dependencies)**
 
     - `[ ]` **6.3.f Initialize `**Cohort:** [standalone]` (or cohort name for known sibling sets)**
-        - Parallelism trio members (Worktree Foundation, Agile WU Lifecycle, Concurrent Work Conventions,
-          ARCd Rebrand) tagged `parallelism-trio`. Interlock-release-wrappers cluster tagged
-          `interlock-release-wrappers`. Others default `[standalone]`.
+        - Parallelism trio members (Worktree Foundation, Agile WU Lifecycle, Concurrent Work Conventions)
+          tagged `parallelism-trio`. ARCd Rebrand consumes WOR conventions but is a separate WU — defaults
+          to `[standalone]` or its own cohort per planning context. Interlock-release-wrappers cluster
+          tagged `interlock-release-wrappers`. Others default `[standalone]`.
 
 ### `[ ]` **6.4 Migrate capture pipeline files**
 
@@ -883,6 +972,9 @@ coupled. Cross-reference sweep last so all retired surfaces have already been re
         - Create `backlog/BACKLOG-INBOX.md`; migrate entries from both source files; reclassify per
           shape (some entries may route to `backlog/ATOMIC-INBOX.md`; some may promote directly to
           draft `plan-*` docs if matured). Delete source files.
+        - _Note:_ Reclassification is interactive — establish routing policy upfront (criteria for
+          BACKLOG-INBOX vs ATOMIC-INBOX vs plan-* promotion), then confirm per borderline entry. Record
+          routing decisions in the migration commit message.
 
     - `[ ]` **6.4.c Create new empty `backlog/ATOMIC-INBOX.md`**
         - Project-shared atomic surface; populates organically post-WOR.
@@ -893,13 +985,29 @@ coupled. Cross-reference sweep last so all retired surfaces have already been re
   `backlog/plans/{planned,provisional}/` per ROADMAP-inclusion test — on ROADMAP → `planned/`;
   not on ROADMAP → `provisional/`. Sibling sets pick up group-dir treatment within their state-dir.
 
-    - `[ ]` **6.5.a Inventory existing `backlog/feature/` + `backlog/technical/` contents**
-        - List all `plan-*.md`, `notes-*.md`, and other artifacts; cross-check against current ROADMAP.
+    - _Approach:_ Interactive — routing and cohort assignment can't be fully derived from existing state
+      (ROADMAP inclusion is a signal, not a complete classifier; cohort membership requires planning-context
+      knowledge). Inventory → user-confirmed routing per borderline plan (e.g., arc-rebrand, arc-backend) →
+      user-confirmed cohort assignment → file moves → cross-reference updates.
 
-    - `[ ]` **6.5.b Per-doc routing: on ROADMAP → `planned/`; not on ROADMAP → `provisional/`**
+    - _Note:_ This phase likely expands once the open design question in
+      `notes-work-organization-reform.md` § Plan-doc optionality and meta-* source for renderer resolves
+      (next session). Expected addition: a subtask backfilling meta-file metadata (Owner / Origin /
+      Depends On / Cohort) on each migrated plan — either as a metadata block in the plan body or as a
+      meta-* sibling stub, pending design.
+
+    - `[ ]` **6.5.a Inventory existing `backlog/feature/` + `backlog/technical/` contents**
+        - List all `plan-*.md`, `prd-*.md`, `notes-*.md`, and other companion artifacts; cross-check
+          against current ROADMAP and against planning-context knowledge for cohort membership.
+
+    - `[ ]` **6.5.b Per-doc routing (interactive — user confirms borderline cases)**
+        - Default rule: on ROADMAP → `planned/`; not on ROADMAP → `provisional/`. Borderline plans
+          (arc-rebrand, arc-backend, other not-yet-sequenced items) require explicit user confirmation
+          before routing.
         - `git mv` each plan-doc + its companions (`notes-*.md`, `prd-*.md`, `tasks-*.md`, `atomic-*.md`)
           into the resolved target. Group-dir assignment per cohort membership (parallelism-trio cohort
-          consolidates under `planned/parallelism-trio/`, etc.).
+          consolidates under `planned/parallelism-trio/`, etc.) — user confirms cohort assignment for each
+          known sibling set.
 
     - `[ ]` **6.5.c Cross-reference update in moved docs**
         - Plan-doc internal references (e.g., `[next-plan]: ../other-plan.md`) update to new paths.
@@ -913,11 +1021,16 @@ coupled. Cross-reference sweep last so all retired surfaces have already been re
     - Inspection from a fresh worktree branched off main: `active/` should be empty (or hold only inventory
       placeholders). Any leaks → `git rm` in a dedicated cleanup commit.
 
-### `[ ]` **6.7 Retire deprecated docs (`PROJECT-STATUS.md` + four others)**
+### `[ ]` **6.7 Retire deprecated docs (`PROJECT-STATUS.md` + three others)**
 
-- _Goal:_ Five deprecated docs retire — `PROJECT-STATUS.md` (function decomposes per R40 mapping; non-carried
-  content logged in deletion commit message), three planning artifacts retire after content absorption, two
-  research files retire after findings synthesis.
+- _Goal:_ Four deprecated docs retire — `PROJECT-STATUS.md` (function decomposes per R40 mapping;
+  non-carried content logged in deletion commit message), two planning artifacts retire after content
+  absorption, and `template-completion-doc.md` folds into the new meta-file archive-phase sections.
+
+- _Note:_ PRD R51 currently lists two research files for retirement (`research-commit-convention-reform.md`
+  and `research-worktree-tool-convergence.md`). The former doesn't exist (findings already absorbed
+  pre-WOR); the latter exists and is retained until Worktree Foundation lands. PRD R51 needs symmetric
+  correction at WOR integration — remove both research files from the retirement list.
 
     - `[ ]` **6.7.a Retire `.arc/reference/PROJECT-STATUS.md` (R40)**
         - Completed-work history → already in (or will be in) per-WU Release Notes Entry sections.
@@ -932,12 +1045,6 @@ coupled. Cross-reference sweep last so all retired surfaces have already been re
 
     - `[ ]` **6.7.d Retire `template-completion-doc.md` (R51)**
         - Folded into `template-meta.md` archive-phase sections (4.1).
-
-    - `[ ]` **6.7.e Retire `research-commit-convention-reform.md` (R51)**
-        - Findings synthesized into PRD R25-R29 + § Technical Considerations § Hook regex updates.
-
-    - `[ ]` **6.7.f Retire `research-worktree-tool-convergence.md` (R51)**
-        - Findings already absorbed into parallelism-trio WU plan-docs.
 
 ### `[ ]` **6.8 Cross-reference sweep**
 
