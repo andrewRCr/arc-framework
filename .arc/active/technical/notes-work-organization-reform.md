@@ -4,6 +4,7 @@
 
 - Design decisions and alternatives considered
 - Pressure points (depth beyond PRD Open Questions)
+- Open design questions (surfaced during Pass 3; pending resolution)
 - Migration mapping reference
 
 ---
@@ -383,6 +384,76 @@ External research (2024-2026) confirms field's modal answer is out-of-band coord
 codified inter-WU planning-freshness pattern in agentic-coding practice. WOR treats out-of-band
 human coordination as interim default and defers any codified inter-WU sync mechanism to
 Concurrent Work Conventions WU downstream.
+
+---
+
+## Open Design Questions
+
+Surfaced during Pass 3 task-generation audit; substantial enough to warrant fresh-session resolution
+rather than mid-Pass-3 mutation. Out of WOR's currently settled scope until resolved.
+
+### Plan-doc optionality and meta-* source for ROADMAP renderer
+
+**The gap.** R37/R38 specifies the ROADMAP renderer walks `meta-*.md` files in both `active/**` and
+`backlog/plans/planned/**`. Today's backlog contains only `plan-*.md` files; no `meta-*.md` lives at
+the backlog stage, and no WOR task creates them. Without resolution, the renderer covers only
+in-flight WUs — defeating R37/R38's programmatic-render value for backlog plans.
+
+**Two-layer question.**
+
+*Layer 1 — Where do backlog meta-files come from?*
+
+- **Option A.** Embed metadata block (`State` / `Owner` / `Origin` / `Depends On` / `Cohort`) in
+  plan-* body via `template-plan.md`. Renderer parses two file types; fields migrate to a fresh
+  meta-* at init-work-unit; block stripped from plan body at that moment.
+- **Option B.** Create a meta-* sibling stub alongside each backlog plan-*. Renderer walks meta-*
+  per R38 as-written. At init-work-unit, meta-* moves from `backlog/plans/planned/<cohort?>/` →
+  `active/<category>/`; task pointers and execution state populate at activation.
+
+Option B is more architecturally clean (single source of truth invariant; no new renderer parser
+path; literal R38 compliance), at the cost of one extra file per backlog item. Aligns with the
+existing multi-artifact-per-WU convention.
+
+*Layer 2 — When is plan-* doc optional vs required?*
+
+Current `template-plan.md` framing — "Using this template is not required ... Delete this file
+after the PRD is written and stable" — is incoherent under `pm.mode: arc-in-git`, where plan-* moves
+from `backlog/plans/planned/` to `active/<category>/` at init-work-unit (not deleted post-PRD).
+Proper contract:
+
+- `pm.mode: arc-in-git` (excluding Lite mode): plan-* not optional, unless an external origin
+  (GitHub issue, external tracker) carries sufficient shape to justify going straight to PRD —
+  typical for atomic-tier WUs sourced from external work.
+- `pm.mode: lite` (planned, not yet shipping per `plan-arc-modes.md`): plan-* optional.
+- `pm.mode: none`: plan-* optional.
+- PRD is **always** required (downstream of plan-* / external origin). An ARC task list needs a
+  structured, ARC-specified spec to build from — the spec form is mandatory even when the route to
+  it is flexible.
+
+WU tier interaction (per Worktree trio's atomic / quick / standard classification): atomic and
+quick tiers may collapse the plan → PRD → task list pipeline, but still need SOME spec for the
+task list. Tier classification likely informs spec-flow shape.
+
+**Cross-cutting implications.**
+
+- `template-plan.md` framing needs update to reflect the spec-flow contract per pm.mode + WU tier
+  (drop the blanket "optional" framing; route correctly with no gaps).
+- `1_create-prd.md` and `init-work-unit.md` need spec-flow guidance (plan required vs external
+  origin sufficient vs tier-collapsed pipeline).
+- PRD may need new R-ID for backlog meta-* source (and template-plan framing rule), or clarifier
+  on R37/R38 + R58.
+- Phase 6.5 in this WU's task list likely gains a backfill subtask once design resolves — current
+  6.5 acknowledges the open question via inline `_Note:_`.
+
+**Next-session entry point.**
+
+1. Resolve the meta-* source question (Option A vs B vs other).
+2. Codify the plan-* optionality contract per pm.mode + WU tier.
+3. Decide whether to expand WOR scope or spin out a follow-up WU (natural candidates: fold into
+   Agile WU Lifecycle, which already owns tier-aware ceremony scaling; or new standalone WU).
+4. Update `template-plan.md` and downstream workflows per the resolution.
+5. Apply Phase 6.5 backfill scope per resolution (interactive: per-plan `Depends On` + `Owner` +
+   `Cohort` assignment).
 
 ---
 
