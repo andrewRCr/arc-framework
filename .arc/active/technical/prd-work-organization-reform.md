@@ -117,8 +117,8 @@ integration. Two PRs total.
 Unit(s):**` field as a name list (maintenance burden when members change).
 
 **Under WOR:** Each cohort member's meta file declares `**Cohort:** parallelism-trio`; cohort membership
-tracked in backlog via group-dir `backlog/plans/planned/parallelism-trio/`; member discovery during
-planning by `ls` on the group dir, during execution by `grep` on meta files.
+tracked in backlog via cohort wrapper subdir `backlog/planned/parallelism-trio/<wu-name>/`; member
+discovery during planning by `ls` on the cohort dir, during execution by `grep` on meta files.
 
 ### UC4: Commit-convention discipline
 
@@ -182,8 +182,24 @@ multi-commit-PR norms.
 **R8.** `template-status.md` → `template-meta.md` rename. Template carries phase-labeled sections
 (life-phase fields + archive-phase sections); R58 specifies the H1 / H2 / field-grouping shape.
 
-**R9.** `**State:**` value-set codified: `Provisional | Planned | Active | Integrating | Shipped`.
-Existing `**Integration:**` field retired (folds into State).
+**R9.** `**State:**` value-set codified: `Planning | Active | Integrating | Shipped` (four values;
+strict state machine). Each value names one lifecycle phase; commitment level (provisional vs
+planned) lives in dir location, not in State. `**Integration:**` retired (folds into State as
+the `Integrating` value).
+
+State transitions fire at workflow ceremonies:
+
+- `init-work-unit` → creates meta with `State: Planning` (in backlog or directly on branch)
+- `activate-work-unit` → `Planning → Active` (branch rename + plan-doc removal fire alongside)
+- `integrate-work-unit` → `Active → Integrating` (PR opens; sweep fires)
+- archive ceremony → `Integrating → Shipped` (files move to `archive/`)
+
+Branch creation does not fire a State transition — a WU keeps `State: Planning` whether it lives
+in `backlog/{provisional,planned}/<wu>/` (no branch yet) or `active/<category>/` on a `plan/*`
+branch. The signal "branched, planning is happening on a real branch" lives in branch existence
+and prefix, not in State. session-init's sessionType inference reads a State and branch-prefix
+composite: `State: Planning` with branch `plan/*` → `sessionType: planning`; `State: Active` →
+`sessionType: execution`; `State: Integrating` → `sessionType: integration`.
 
 **R10.** `**Owner:**` field — singular per WU. Solo mode auto-populates from `arc.identity` via
 template-placeholder approach (`[arc.identity]` substituted at meta-file creation). Team-mode handoff
@@ -231,20 +247,56 @@ awaiting-review latency) is Concurrent Work Conventions' scope; WOR ships sync-m
 - `backlog/ATOMIC-INBOX.md` — project-shared, tracked. Atomic-character entries
 - `backlog/BACKLOG-INBOX.md` — project-shared, tracked. Multi-step entries (consolidates retired
   `BACKLOG-FEATURE.md` + `BACKLOG-TECHNICAL.md`)
-- `backlog/plans/{state}/` — mature `plan-*` docs
+- `backlog/{planned,provisional}/<wu-name>/` — per-WU subdirs for matured backlog WUs; carry
+  `meta-<name>.md` (always) plus `plan-<name>.md` and other companions when present
 
 **R20.** Ceremony-only write rule for shared inboxes: writes fire only at activation absorption,
 integration drain, planning-kickoff promotion. Outside these moments, shared inboxes are read-only by
 convention. Absorbed entries are deleted, not marked — routing record lives in deletion commit message
 plus absorbing artifact.
 
-**R21.** `backlog/plans/` interlude with state-dir split: `planned/` (committed + sequenced on ROADMAP)
-and `provisional/` (drafted, not yet committed). Graduation `provisional/` → `planned/` fires when WU
-added to ROADMAP (`git mv` rides the same commit as the ROADMAP entry); symmetric demotion supported.
+**R21.** Commitment-dir split at backlog root: `backlog/planned/` (committed + sequenced on
+ROADMAP) and `backlog/provisional/` (drafted, not yet committed). Each commitment dir holds
+per-WU subdirs; backlog root holds the two commitment dirs + `ATOMIC-INBOX.md` +
+`BACKLOG-INBOX.md` + `ROADMAP.md` only (no `plans/` interlude, no standalone plan-* files at
+the root level). Graduation `provisional/` → `planned/` fires when WU added to ROADMAP
+(`git mv` of the WU subdir rides the same commit as the ROADMAP entry); symmetric demotion
+supported. Graduation/demotion is a dir move only — `State: Planning` stays unchanged across
+the transition; commitment level lives in dir location, not in State.
 
-**R22.** Group-dir convention in `backlog/plans/{state}/<cohort>/`. Optional, codified-group only.
-`active/` stays flat (no cohort dirs in active; tracked via `**Cohort:**` field). Group-membership is
+**R22.** Cohort wrapper subdir convention: `backlog/{state}/<cohort>/<wu-name>/` for codified
+sibling sets (e.g., parallelism-trio). Optional — only for cohorts with formal codification.
+Standalone WUs sit directly at `backlog/{state}/<wu-name>/`. `active/` stays flat (no cohort
+dirs in active; tracked via `**Cohort:**` field on the meta file). Cohort membership is
 state-uniform (all members in same state-dir).
+
+**R22a.** Meta-* is the durable identity artifact across the entire WU lifecycle. Created at WU
+stub creation (alongside plan-doc, or alone for external-tracker-origin WUs); persists through
+all state transitions; lands in `archive/<dated>/<wu-name>/` at integration with archive-phase
+sections composed. Single source of truth for state, owner, dependencies, cohort, and (when
+applicable) spec pointer — workflows, programmatic elements, and renderers consume it across
+the lifecycle. ROADMAP renderer (R37/R38) walks `active/**` and `backlog/{planned,provisional}/**`
+for `meta-*.md` files via the same parser path.
+
+**R22b.** Spec-flow contract explicitly deferred. WOR codifies three invariants — `meta-*` always
+exists (R22a), task list structure is invariant across tiers, a parseable spec exists in some
+form before tasks are generated — and the two scaling axes that govern everything above them:
+**mode** (Lite vs Full; `pm.mode: arc-in-git` vs `none`) and **tier** (atomic / quick / standard
+per Agile WU Lifecycle). The actual optionality contract (which spec form applies under which
+mode × tier combination, plan-* required vs optional, verification model under tier collapse)
+ships in arc-plan Conductor + Agile WU Lifecycle. WOR's role is structural: provide the
+invariants and scaling hooks; don't codify rules downstream WUs will need to override. Guardrail
+against escape-hatching lives in tier classification (one-way promotion; explicit opt-in for
+atomic) and the tier-invariant disciplines (process-task-loop, quality gates, commit discipline)
+that stay uniform across tiers.
+
+**R22c.** `template-plan.md` framing reframe. Current "Using this template is not required ...
+Delete this file after the PRD is written and stable" framing retires. Replacement framing:
+plan-* is the pre-PRD synthesis artifact for substantive shaping work; under `pm.mode: arc-in-git`
+the file moves from `backlog/{state}/<wu-name>/` → `active/<category>/` at WU activation (not
+deleted post-PRD); applicability and required-vs-optional contract scale with mode and tier per
+arc-plan Conductor + AWL. Template framing acknowledges these axes without solving them — the
+contract lives downstream.
 
 ### Constitutional codifications (P0)
 
@@ -334,13 +386,15 @@ event-driven (major release, scope shift, governance change). Not cadence-driven
 ### ROADMAP as rendered view (P0)
 
 **R37.** ROADMAP.md becomes a generated artifact rendered from `active/**` and
-`backlog/plans/planned/**` meta-files. Source of truth is the meta files (`**State:**`, `**Owner:**`,
+`backlog/planned/**` meta-files. Source of truth is the meta files (`**State:**`, `**Owner:**`,
 `**Depends On:**`). ROADMAP header carries "Generated by `arc roadmap render` — do not edit by hand"
 note + last-rendered commit hash.
 
 **R38.** Render algorithm codified in `strategy-work-organization.md`:
 
-1. Walk `active/**` and `backlog/plans/planned/**` for `meta-*.md` files
+1. Walk `active/**` and `backlog/planned/**` for `meta-*.md` files (recursive glob handles both
+   standalone subdirs `backlog/planned/<wu-name>/` and cohort-wrapped subdirs
+   `backlog/planned/<cohort>/<wu-name>/`)
 2. Parse `**State:**`, `**Owner:**`, `**Depends On:**`, title fields
 3. Topologically sort by `**Depends On:**`
 4. Group into tiers (In Flight / Foundation / Tier 2+ / Independent Tracks)
@@ -500,9 +554,16 @@ procedures and `workflow-interlock` stops; hooks carry scriptable checks; comple
   `## Backlog` initially empty)
 - `BACKLOG-FEATURE.md` + `BACKLOG-TECHNICAL.md` merge → `backlog/BACKLOG-INBOX.md`
 - New empty `backlog/ATOMIC-INBOX.md`
-- `backlog/feature/` + `backlog/technical/` contents flatten/classify into
-  `backlog/plans/{planned,provisional}/` (per ROADMAP-inclusion test); existing sibling sets pick
-  up group-dir treatment within their respective state-dir
+- `backlog/feature/` + `backlog/technical/` contents migrate to per-WU subdirs under
+  `backlog/{planned,provisional}/<wu-name>/` (per ROADMAP-inclusion test); each migrated WU
+  gets a `meta-<name>.md` stub generated alongside (interactive backfill: `Origin` / `Owner` /
+  `Depends On` / `Cohort`; all backlog WUs get `State: Planning` regardless of commitment dir);
+  existing sibling sets pick up cohort wrapper subdir treatment within their respective
+  commitment dir (`backlog/{provisional,planned}/<cohort>/<wu-name>/`); two backlog-stage PRDs
+  (`prd-arcd-rebrand.md`, `prd-arcd-docs-site.md`) demote to plan-docs (`prd-*` → `plan-*`)
+  with content reshaped from PRD commitment-language to plan-doc exploratory framing; the
+  docs-site WU renames from `arcd-docs-site` to `docs-site-refresh` (the rebrand is decoupled
+  and provisional; docs-site work is committed; not a cohort — two standalone WUs)
 - `**Origin:**` backfill on in-flight meta files (default `[Internal]`; external URLs migrate from
   prior `**Spec:**` field when applicable)
 - `**State:**` value recodification per mapping table
@@ -633,7 +694,7 @@ Reviewers focus per-commit. Single PR; multi-commit structure preserves reviewab
 
 `**Cohort:**` field on the meta file is canonical; sibling membership is a derived view. Discovery:
 
-- During planning (members in `backlog/plans/{state}/<cohort>/`): `ls` on the group dir
+- During planning (members in `backlog/{state}/<cohort>/`): `ls` on the cohort wrapper dir
 - During execution (`active/` is flat): `grep -l "^\*\*Cohort:\*\* <name>" .arc/active/**/meta-*.md`
 - Across archive: `grep` extends to archive dirs
 

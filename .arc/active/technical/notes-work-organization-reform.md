@@ -180,23 +180,193 @@ Alternatives:
 - **Add Origin only; leave Spec ambiguous.** Rejected — Spec's role stays unclear.
 - **Introduce Origin and rename Spec.** Rejected as scope creep; "Spec" is established vocabulary.
 
-### `plans/` interlude in backlog
+### Per-WU subdir in backlog (supersedes earlier `plans/` interlude lean)
 
-`backlog/` root holds three top-level overview docs only (the two shared inboxes + ROADMAP.md); all
-`plan-*` docs and group dirs nest under `backlog/plans/{planned,provisional}/`. Alternatives:
+Each backlog WU lives in its own subdir: `backlog/{planned,provisional}/<wu-name>/` for
+standalone WUs; `backlog/{planned,provisional}/<cohort>/<wu-name>/` when cohort-grouped. The
+subdir holds `meta-<name>.md` (always) plus `plan-<name>.md` and other companions
+(`notes-*`, `prd-*`, etc.) when present. Backlog root carries `planned/`, `provisional/`,
+`ATOMIC-INBOX.md`, `BACKLOG-INBOX.md`, and `ROADMAP.md` — two state dirs plus three overview
+files, no other content.
 
-- **Flat layout.** Plan-* docs and group dirs mixed at backlog/ root alongside inbox files.
-  Rejected — in dirs-first explorer sort, inbox files end up sandwiched between group subdirs
-  (above) and standalone plan files (below), losing project-overview-entrypoint position. ROADMAP
-  orphans among individual plans.
-- **`_inbox/` subdir for inbox files only.** Plans stay at backlog/ root. Rejected — solves
-  inbox-sandwich but leaves ROADMAP orphaned; doesn't scale with many plans.
-- **Single-level `plans/` with no state-dir split.** Rejected — loses ROADMAP's alignment axis
-  (provisional thinking drifts onto roadmap; sequenced commitments lose distinguishing signal).
+Alternatives considered:
 
-Interlude pays path-verbosity cost (two extra directory levels on every `plan-*` reference) for
-three durable benefits: scannable backlog root; project-overview triad reads cleanly; state-dir
-split aligns roadmap presence with directory presence by construction.
+- **Flat layout (no state dirs).** Plan-* docs at `backlog/` root. Rejected — loses the
+  planned-vs-provisional alignment axis ROADMAP needs (provisional drift onto roadmap;
+  sequenced commitments lose distinguishing signal). Also re-introduces the dirs-first sort
+  sandwich problem (group dirs above, plan files below, inboxes wedged between).
+- **`plans/` interlude (`backlog/plans/{state}/...`).** Earlier lean. Rejected after Pass 3
+  pressure-test: the interlude was paying path-verbosity to keep backlog root scannable
+  given many sibling `plan-*` files. Per-WU subdir achieves the same scannability one level
+  shallower — every WU is one directory entry under `planned/`/`provisional/`, regardless of
+  companion file count. The interlude becomes redundant.
+- **Flat sibling files in state dirs (`backlog/{state}/meta-*.md` + `plan-*.md`).** Considered
+  during Pass 3 resolution. Rejected — at backlog scale (~26 plans pre-WOR), entry count
+  doubles when plans have meta companions; alphabetical sort interleaves meta and plan files
+  by name; the "what WUs are in the backlog" view becomes mental dedupe rather than a direct
+  listing. Subdirs make WU identity legible at the `ls` level.
+- **Conditional subdir promotion (flat when meta-only; subdir when companions appear).**
+  Rejected — introduces a lifecycle ceremony at the moment a plan-doc is generated
+  (flat → subdir promotion, path-reference churn), and forces renderer to handle both
+  layouts. Uniform structure beats conditional shape.
+
+Per-WU subdir benefits beyond legibility: symmetric with `archive/<dated>/<wu-name>/` (R41);
+cohort dirs nest cleanly without breaking the pattern (`<state>/<cohort>/<wu-name>/`); path
+stability across lifecycle (the WU identity directory exists in backlog through archive,
+disappearing only at the active-stage flat zone where WU count is bounded to 1-3 and chunking
+isn't needed); accommodates companion artifacts (notes, research, analysis) without
+restructuring. Single-file subdirs (meta-only WUs) are accepted as the trade — the directory
+listing entry count is identical to flat, just with directory shape instead of file shape;
+the precedent for single-artifact subdirs already exists in `archive/`.
+
+### Meta-* as durable invariant from inception through archive
+
+Meta file is the WU's identity artifact across the entire lifecycle, not a surface that
+appears at activation. Created at WU stub creation (alongside plan-doc, or alone for
+external-tracker-origin WUs), persists through all state transitions, lands in `archive/`
+at integration with archive-phase sections composed. ROADMAP renderer (R37/R38) walks
+`active/**` and `backlog/{planned,provisional}/**` for `meta-*.md` — same parser path
+everywhere; single source of truth across the lifecycle.
+
+This is the load-bearing invariant that makes spec-flow optionality (deferred to AWL +
+arc-plan conductor) work without breaking ARC's structural guarantees: regardless of whether
+a WU has a plan-doc, PRD, or even a task list at any given moment, the meta file exists and
+carries the WU's identity / state / dependencies / cohort. Workflows and programmatic
+elements consume the meta file's structured fields; ROADMAP renders from them; cross-WU
+references resolve through them.
+
+### Spec-flow contract deferral
+
+WOR lands three invariants — `meta-*` always exists, task list has invariant structure, a
+parseable spec exists in some form before tasks are generated — and the two scaling axes
+that govern everything above them: **mode** (Lite vs Full; `pm.mode: arc-in-git` vs `none`)
+and **work-shape tier** (atomic / quick / standard, per AWL). WOR explicitly **does not**
+codify the optionality contract (which spec form applies under which mode × tier
+combination, when `plan-*` is required vs optional, how task-list generation verifies against
+tier-collapsed specs). That contract is deferred to:
+
+- **Agile WU Lifecycle (AWL)** — tier classification, per-tier artifact requirements,
+  verification model under tier collapse
+- **arc-plan Conductor** — canonical planning entry verb, depth selection, status-file /
+  meta-file creation contract across all entry routes, spec-flow routing per mode + tier
+
+WOR's role is structural — make sure these invariants and scaling hooks exist so downstream
+WUs can populate them without breaking WOR's foundations. Specifically: don't codify rules
+that AWL + conductor will need to override (e.g., "PRD always required" or "plan-doc
+retires when PRD generated"), and update template-plan.md framing to acknowledge but not
+solve the optionality.
+
+Guardrail against escape-hatching ("I'll pick a lower tier to skip planning rigor") is not
+WOR's mechanism — it lives in tier classification (AWL: `arc start --tier`; default `quick`,
+explicit opt-in for atomic), one-way promotion (atomic → quick → standard easy; demotion
+hard/forbidden), conductor's escalation-suggestion behavior on novelty cues, and the
+tier-invariant disciplines that stay uniform across tiers (process-task-loop, quality gates,
+commit discipline). WOR preserves the structural cuts; AWL + conductor enforce the policy.
+
+### Conductor sequencing — after WOR, before the worktree trio
+
+arc-plan Conductor (plan: `feature/plan-arc-plan-conductor.md`) sequenced between WOR and
+the worktree trio (Worktree Foundation || Coord Probe → AWL → CWC) rather than its earlier
+holding-bucket position under "Post-Parallelism Trio: Sequencing TBD". Reasoning:
+
+- **Consumes WOR-delivered foundations.** Meta-* invariant, per-WU subdir convention,
+  State codification, sessionType inference all land in WOR; conductor reads them.
+- **Establishes scaling hooks the trio populates.** Depth selection slots (minimum /
+  standard / expanded) absorb AWL's tier-aware defaults; status-file creation contract
+  absorbs Worktree Foundation's spawn paths; spec-flow routing absorbs the contract that
+  AWL and conductor PRDs settle.
+- **Trio WUs simpler when conductor exists.** Each trio WU otherwise has to invent its own
+  planning entry surface, and conductor would later have to undo those local assumptions
+  as a refactor rather than a feature.
+- **Hard deps in both directions absent.** Conductor reads AWL's `**Tier:**` field —
+  defaults to "treat as standard" until AWL lands; conductor invokes WF's spawn —
+  defaults to "no spawn (current behavior)" until WF lands. Forward-compat both ways.
+
+ROADMAP entry updated to reflect new sequencing; conductor plan's stale upstream notes
+(referencing "Interlock Foundation WU current planning") get reconciled against WOR's
+settled scope at PRD-time.
+
+### State enum — 4 values, lifecycle phase only; commitment via dir
+
+State enum codified as `Planning | Active | Integrating | Shipped` (4 values; strict state
+machine). Each value names exactly one lifecycle phase. Commitment level (uncommitted vs
+committed-to-ROADMAP) lives entirely in dir location (`backlog/provisional/<wu>/` vs
+`backlog/planned/<wu>/`), not in State. The activity sub-mode within `Planning` state
+(backlog-planning vs on-branch-planning) is also dir-derived: backlog dirs vs `active/<category>/`.
+
+Alternatives considered:
+
+- **6-state enum (`Provisional | Planned | Planning | Active | Integrating | Shipped`).**
+  Rejected — `Planning` and `Planned` collision is too tight semantically. `Planned` carries
+  dual readings ("committed to ROADMAP" vs "planning is complete; ready for activation");
+  pairing it with a separate `Planning` state makes the ambiguity acute.
+- **5-state with `Accepted` rename (`Provisional | Accepted | Active | Integrating | Shipped`).**
+  Rejected — mixes concept-levels in one enum (Provisional/Accepted name commitment;
+  Active/Integrating/Shipped name lifecycle phase). Cleaner to put commitment in dir,
+  lifecycle in State.
+- **5-state with `Queued` rename (`Provisional | Queued | Active | Integrating | Shipped`).**
+  Rejected — `queued/` sorts after `provisional/` alphabetically, inverting today's ordering;
+  also same concept-level mixing as Accepted variant.
+- **Separate `Maturity` field for in-planning/PRD-ready/etc.** Rejected — observable from
+  artifact existence (meta-only vs meta+plan vs meta+plan+PRD vs meta+plan+PRD+tasks); a
+  field would double-track filesystem reality. Maturity also loses meaning post-activation,
+  so a field that goes N/A is poor design.
+- **`Planning` state covers backlog-only; on-branch-planning collapses to `Active`.**
+  Rejected — Active state would then cover both planning-on-branch and execution-on-branch,
+  forcing the execution-vs-planning distinction entirely into branch prefix and losing the
+  session-init signal at meta-file inspection time. Cleaner to let `Planning` span all
+  pre-execution phases (backlog or on-branch) and let branch prefix disambiguate.
+
+Key property: each WU is in exactly one State at any moment; transitions are well-defined
+edges firing at workflow ceremonies (`init-work-unit` / `activate-work-unit` /
+`integrate-work-unit` / archive). Branch creation and branch rename do NOT fire State
+transitions — they're internal to the `Planning` state. The `activate-work-unit` ceremony
+fires the `Planning → Active` transition; branch rename rides alongside but is not the State
+trigger.
+
+session-init's `sessionType` inference becomes a composite read:
+
+- `State: Planning` + branch `plan/*` (in `active/`) → `sessionType: planning`
+- `State: Planning` + no branch (in backlog) → no active session
+- `State: Active` (always on `<type>/*` branch) → `sessionType: execution`
+- `State: Integrating` → `sessionType: integration`
+- `State: Shipped` → no active session
+
+### Backlog-stage PRDs are anomalous
+
+Today's backlog contains two PRDs (`prd-arcd-rebrand.md` and `prd-arcd-docs-site.md`).
+PRDs in ARC are activation-coupled artifacts — they come into being via `1_create-prd.md`
+at WU activation, after the plan-doc has matured to formalization-ready shape. Pre-activation
+thinking lives in plan-docs. The two backlog-stage PRDs are historical anomalies from a
+prior workflow shape; WOR migration demotes them to plan-docs (file rename `prd-*` → `plan-*`
+with content reshaped from PRD commitment-language to plan-doc exploratory framing).
+
+The ARCd rebrand work is decoupled from the docs-site work — they're not a cohort, despite
+their current filename pairing. ARCd rebrand is provisional (no longer committed; may or may
+not happen); docs-site work is committed (still valid; needed after most of backlog clears).
+The docs-site WU renames to `docs-site-refresh` to drop the `arcd-` prefix and convey the
+"we have a docs site, this is an update + platform migration" framing (vs. "creating
+something new"). Routing at migration:
+
+- `prd-arcd-rebrand.md` → `backlog/provisional/arcd-rebrand/plan-arcd-rebrand.md` +
+  generated `meta-arcd-rebrand.md`
+- `prd-arcd-docs-site.md` → `backlog/planned/docs-site-refresh/plan-docs-site-refresh.md` +
+  generated `meta-docs-site-refresh.md`; any current ROADMAP entry for the docs-site work
+  updates to the new WU name
+
+Constitutionally, this surfaces a convention worth codifying separately: **PRDs are
+activation-coupled, not backlog-stage**. Captured here as design-decision context;
+strategy doc capture deferred (could land in `strategy-work-planning.md` or in arc-plan
+Conductor's PRD scope as part of the spec-flow contract — out of WOR direct scope).
+
+### `plans/` interlude design history (superseded by Per-WU subdir)
+
+Earlier WOR lean placed all plan content under `backlog/plans/{planned,provisional}/` to
+prevent a dirs-first sort sandwich where group dirs (above) flanked standalone plan files
+(below) with inbox files wedged between. Per-WU subdirs eliminate that scenario
+structurally (no standalone plan files at any backlog level), making the interlude
+redundant. Decision recorded here so future readers don't relitigate the path-verbosity
+trade — it was paid for a problem that the Per-WU subdir resolution removes.
 
 ### Single source of truth at meta file; ROADMAP and CHANGELOG as rendered views
 
@@ -389,72 +559,9 @@ Concurrent Work Conventions WU downstream.
 
 ## Open Design Questions
 
-Surfaced during Pass 3 task-generation audit; substantial enough to warrant fresh-session resolution
-rather than mid-Pass-3 mutation. Out of WOR's currently settled scope until resolved.
-
-### Plan-doc optionality and meta-* source for ROADMAP renderer
-
-**The gap.** R37/R38 specifies the ROADMAP renderer walks `meta-*.md` files in both `active/**` and
-`backlog/plans/planned/**`. Today's backlog contains only `plan-*.md` files; no `meta-*.md` lives at
-the backlog stage, and no WOR task creates them. Without resolution, the renderer covers only
-in-flight WUs — defeating R37/R38's programmatic-render value for backlog plans.
-
-**Two-layer question.**
-
-*Layer 1 — Where do backlog meta-files come from?*
-
-- **Option A.** Embed metadata block (`State` / `Owner` / `Origin` / `Depends On` / `Cohort`) in
-  `plan-*` body via `template-plan.md`. Renderer parses two file types; fields migrate to a fresh
-  `meta-*` at init-work-unit; block stripped from plan body at that moment.
-- **Option B.** Create a `meta-*` sibling stub alongside each backlog `plan-*`. Renderer walks
-  `meta-*` per R38 as-written. At init-work-unit, `meta-*` moves from
-  `backlog/plans/planned/<cohort?>/` → `active/<category>/`; task pointers and execution state
-  populate at activation.
-
-Option B is more architecturally clean (single source of truth invariant; no new renderer parser
-path; literal R38 compliance), at the cost of one extra file per backlog item. Aligns with the
-existing multi-artifact-per-WU convention.
-
-*Layer 2 — When is plan-* doc optional vs required?*
-
-Current `template-plan.md` framing — "Using this template is not required ... Delete this file
-after the PRD is written and stable" — is incoherent under `pm.mode: arc-in-git`, where plan-* moves
-from `backlog/plans/planned/` to `active/<category>/` at init-work-unit (not deleted post-PRD).
-Proper contract:
-
-- `pm.mode: arc-in-git` (excluding Lite mode): plan-* not optional, unless an external origin
-  (GitHub issue, external tracker) carries sufficient shape to justify going straight to PRD —
-  typical for atomic-tier WUs sourced from external work.
-- `pm.mode: lite` (planned, not yet shipping per `plan-arc-modes.md`): plan-* optional.
-- `pm.mode: none`: plan-* optional.
-- PRD is **always** required (downstream of plan-* / external origin). An ARC task list needs a
-  structured, ARC-specified spec to build from — the spec form is mandatory even when the route to
-  it is flexible.
-
-WU tier interaction (per Worktree trio's atomic / quick / standard classification): atomic and
-quick tiers may collapse the plan → PRD → task list pipeline, but still need SOME spec for the
-task list. Tier classification likely informs spec-flow shape.
-
-**Cross-cutting implications.**
-
-- `template-plan.md` framing needs update to reflect the spec-flow contract per pm.mode + WU tier
-  (drop the blanket "optional" framing; route correctly with no gaps).
-- `1_create-prd.md` and `init-work-unit.md` need spec-flow guidance (plan required vs external
-  origin sufficient vs tier-collapsed pipeline).
-- PRD may need new R-ID for backlog meta-* source (and template-plan framing rule), or clarifier
-  on R37/R38 + R58.
-- Phase 6.5 in this WU's task list likely gains a backfill subtask once design resolves — current
-  6.5 acknowledges the open question via inline `_Note:_`.
-
-**Next-session entry point.**
-
-1. Resolve the meta-* source question (Option A vs B vs other).
-2. Codify the plan-* optionality contract per pm.mode + WU tier.
-3. Decide whether to expand WOR scope or spin out a follow-up WU (natural candidates: fold into
-   Agile WU Lifecycle, which already owns tier-aware ceremony scaling; or new standalone WU).
-4. Update `template-plan.md` and downstream workflows per the resolution.
-5. Apply Phase 6.5 backfill scope per resolution (interactive: per-plan `Depends On` + `Owner` +
-   `Cohort` assignment).
+[none — Pass 3 audit's open question resolved 2026-05-13; see § Design Decisions §
+Per-WU subdir in backlog + meta-* as durable invariant from inception + Spec-flow contract
+deferral.]
 
 ---
 
@@ -462,16 +569,27 @@ task list. Tier classification likely informs spec-flow shape.
 
 ### `**State:**` value recodification
 
-Old → new mapping for in-flight WU meta files at WOR activation:
+Under the 4-state enum (`Planning | Active | Integrating | Shipped`), commitment level
+(provisional vs planned) lives in dir location, not in State. Old → new mapping for in-flight
+WU meta files at WOR activation:
 
-- `Planning` → `Planning` (pre-activation state preserved during migration; recodifies to
-  `Provisional` if plan-doc moves to `provisional/`, or stays `Planning` if branch-active)
-- `Draft` → `Provisional` (pre-sequencing plan-doc state)
-- `In Progress` → `Active` (execution underway)
+- `Planning` → `Planning` (preserved; covers both backlog-Planning and on-branch-Planning;
+  dir location distinguishes — `backlog/{provisional,planned}/<wu>/` vs `active/<category>/`)
+- `Draft` → `Planning` + dir `backlog/provisional/<wu>/` (pre-sequencing thinking)
+- `Planned` (any pre-WOR use) → `Planning` + dir `backlog/planned/<wu>/` (sequenced, committed)
+- `In Progress` → `Active` (execution underway on `<type>/*` branch)
 - `Active` → `Active` (already aligned; no change)
 - `Complete` + `**Integration:** Merged` → `Shipped` (post-merge, archived)
 - `Complete` + `**Integration:** (PR open)` → `Integrating` (PR open or sweep in progress)
 - Any `**Integration:**` field value folds into `**State:**`; field retires
+
+State transitions fire at workflow ceremonies (not on branch creation):
+
+- `init-work-unit` → creates meta with `State: Planning`
+- `activate-work-unit` → `Planning → Active` (branch rename + plan-doc removal ride alongside;
+  the rename itself is internal to Planning state until the State flip fires)
+- `integrate-work-unit` → `Active → Integrating`
+- archive ceremony → `Integrating → Shipped`
 
 ### `**Origin:**` backfill rule
 
@@ -491,13 +609,21 @@ Old → new mapping for in-flight WU meta files at WOR activation:
 
 ### Plan-doc relocations
 
-- `backlog/feature/plan-*.md` and `backlog/technical/plan-*.md` flatten/classify into
-  `backlog/plans/{planned,provisional}/`
-- Routing rule:
-    - On ROADMAP today → `planned/`
-    - Not on ROADMAP → `provisional/`
-- Sibling sets (parallelism trio, interlock-release-wrappers cluster, etc.) pick up group-dir
-  treatment within their state-dir: `backlog/plans/{state}/<cohort>/plan-*.md`
+- `backlog/feature/plan-*.md` and `backlog/technical/plan-*.md` migrate to per-WU subdirs
+  under `backlog/{planned,provisional}/<wu-name>/`. Each plan's companions (`notes-*.md`,
+  any `prd-*.md`, etc.) move into the same subdir.
+- Each migrated WU gets a `meta-<wu-name>.md` stub generated alongside its plan
+  (interactive backfill: `Origin` / `Owner` / `Depends On` / `Cohort`; all backlog WUs
+  land `State: Planning` per the 4-state enum — commitment level lives in dir, not State).
+- Routing rule (commitment-dir determination):
+    - On ROADMAP today → `backlog/planned/<wu-name>/`
+    - Not on ROADMAP → `backlog/provisional/<wu-name>/`
+- Backlog-stage PRDs (`prd-arcd-rebrand.md`, `prd-arcd-docs-site.md`) demote at migration:
+  rename `prd-*` → `plan-*` with content reshape from PRD commitment-language to plan-doc
+  exploratory framing. The docs-site WU additionally renames `arcd-docs-site` →
+  `docs-site-refresh`. Not a cohort — two standalone WUs.
+- Sibling sets (parallelism trio, interlock-release-wrappers cluster, etc.) pick up cohort
+  wrapper subdir within their state-dir: `backlog/{state}/<cohort>/<wu-name>/`.
 
 ### Workflow rename (filename + cross-refs)
 

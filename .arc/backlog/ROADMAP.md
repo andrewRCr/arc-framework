@@ -258,14 +258,44 @@ documents the constitutional shift (parallel scale to ADR-016).
 - Upstream: Interlock Release Wrappers WU2 (final session-operations friction closed before
   conventions reform lands), Session-Operational Flow Phase 7 (metadata-state foundation —
   `**State:**` enum consumed; sweep-cadence config lifted into this WU's scope)
-- Downstream: Worktree Foundation (per-worktree isolation foundation, cross-worktree roster
-  cascade), Agile WU Lifecycle (consolidated boundary workflows + sweep-as-you-go foundation;
-  AWL's scope item 7a shrinks to tier-aware adaptations only), Concurrent Work Conventions
-  (Conventional Branch alignment + per-worktree isolation + group-dir convention as substrate),
-  ARCd Rebrand (stable branch-and-lifecycle terminology), ARC Operating Modes (Lite mode unaffected
-  — single-WU model has no per-worktree concerns)
+- Downstream: arc-plan Conductor (consumes `meta-*` durable invariant + per-WU subdir convention
+  plus spec-flow scaling hooks; lands canonical planning entry verb before the worktree trio
+  populates its scaling slots), Worktree Foundation (per-worktree isolation foundation,
+  cross-worktree roster cascade), Agile WU Lifecycle (consolidated boundary workflows +
+  sweep-as-you-go foundation + spec-flow contract per tier; AWL's scope item 7a shrinks to
+  tier-aware adaptations only), Concurrent Work Conventions (Conventional Branch alignment +
+  per-worktree isolation + group-dir convention as substrate), ARCd Rebrand (stable
+  branch-and-lifecycle terminology), ARC Operating Modes (Lite mode unaffected — single-WU
+  model has no per-worktree concerns)
 
-**Worktree Foundation** — After Work Organization Reform; parallel with Coord Probe
+**arc-plan Conductor** — After Work Organization Reform; before the parallelism trio
+
+Promotes `arc-plan` from facilitation skill to canonical planning conductor — single discoverable
+entry verb for planning, depth selection (minimum / standard / expanded), and downstream
+orchestration of planning-branch activation, worktree spawn (when WF lands), and meta-file
+creation across all entry routes. Closes the spec-flow optionality contract WOR explicitly defers
+(per WOR R22b): defines when `plan-*` is required vs optional per mode + tier, when external-origin
+meta-only stubs are sufficient, and how task-list generation verifies against tier-collapsed
+specs. Consumes WOR's `meta-*` invariant plus per-WU subdir convention plus state codification; provides
+scaling hooks the trio populates (AWL fills tier-aware depth defaults and per-tier spec
+requirements; WF fills spawn invocation contract). PRD-time decision pending: land conductor with
+v1 scope (canonical entry verb + depth selection + meta-file creation contract + spec-flow
+routing) and defer v2 (refine-plan-loop, plan-splitting detection, expanded structure) to a
+follow-up, vs ship them together. Plan-doc upstream notes referencing "Interlock Foundation WU
+current planning" need reconciliation against WOR's settled scope at PRD-time.
+
+- Plan: `feature/plan-arc-plan-conductor.md` (pre-PRD draft, 2026-04-10; reframed 2026-04-29 as
+  canonical conductor; sequencing reconciled against WOR 2026-05-13)
+- Upstream: Work Organization Reform (meta-* invariant, per-WU subdir convention, State
+  codification, spec-flow scaling hooks via R22a/R22b/R22c)
+- Sibling: parallelizable with Coord Probe (no direct dependency in either direction)
+- Downstream: Worktree Foundation (conductor invokes spawn at planning entry; spawn contract
+  lands here, conductor consumes it), Agile WU Lifecycle (conductor reads `**Tier:**`; AWL fills
+  per-tier depth defaults + spec-flow contract per tier), Concurrent Work Conventions
+  (planning-entry-aware focus-role conventions on top of canonical conductor), ARCd Rebrand
+  (terminology absorbed into rename pass)
+
+**Worktree Foundation** — After arc-plan Conductor; parallel with Coord Probe
 
 Mechanism layer for parallel and mobile work — extracts shift lifecycle from arc-modes (mode-universal
 infrastructure), adds worktree-aware shift, gives session-init worktree context awareness including
@@ -277,9 +307,10 @@ ROADMAP claims "parallelizable" downstream WUs without ARC actually having paral
 
 - Plan: `technical/plan-worktree-foundation.md` (pre-PRD draft, iteration expected)
 - Upstream: Work Organization Reform (per-worktree isolation foundation, single-branch-per-WU
-  lifecycle, cross-worktree roster cascade — hard dependency), Session-Init Optimization (lean
-  session-init substrate to extend), Session-Operational Flow (avoid session-init workflow surface
-  conflicts)
+  lifecycle, cross-worktree roster cascade — hard dependency), arc-plan Conductor (canonical
+  planning entry verb the spawn flow plugs into; meta-file creation contract spawn consumes),
+  Session-Init Optimization (lean session-init substrate to extend), Session-Operational Flow
+  (avoid session-init workflow surface conflicts)
 - Sibling: Coord Probe (parallelizable; consumes branch-gone fire point as one cascade signal)
 - Downstream: Agile WU Lifecycle (tier-aware adaptations on top of consolidated workflows),
   Concurrent Work Conventions (mechanism layer entirely), Coord Probe (consumes branch-gone fire
@@ -374,10 +405,6 @@ holistically. Plan documents for each remain in `backlog/` for reference.
 - **ARCd Rebrand** — Public product brand split (ARCd as implementation surface; ARC preserved
   as methodology vocabulary); absorbs config-key renames (`pm.mode` → `pm.layer` etc.) and CLI
   cleanup (`arc status` → `arcd health`). Plan: `technical/plan-arcd-rebrand.md`.
-- **arc-plan Conductor** — Promote `arc-plan` from facilitation skill to canonical planning
-  conductor; selectable depth (minimum / standard / expanded); orchestrates planning-branch
-  activation, worktree spawn, status-file creation; adds `refine-plan-loop` workflow. Plan:
-  `feature/plan-arc-plan-conductor.md`.
 - **ARC Operating Modes** — ARC Lite (lightweight execution discipline, no lifecycle ceremony)
   and Local-only mode (untracked, for constrained environments). Plan:
   `feature/plan-arc-modes.md`.
@@ -440,11 +467,13 @@ Phase A ──► Phase B ──► Phase C (Work Units):
    │     │     │     │     │     │     │     │     │     │
    │     │     │     │     │     │     │     │     │     ├──► Interlock Release Wrappers (closes session-ops friction)
    │     │     │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     │     │     ├──► Work Organization Reform (per-worktree isolation foundation)
+   │     │     │     │     │     │     │     │     │     ├──► Work Organization Reform (per-worktree isolation foundation; meta-* durable invariant)
+   │     │     │     │     │     │     │     │     │     │
+   │     │     │     │     │     │     │     │     │     ├──► arc-plan Conductor (after WOR; before trio — canonical planning entry, spec-flow contract)
    │     │     │     │     │     │     │     │     │     │
    │     │     │     │     │     │     │     │     │     ├──► Coord Probe (parallel; consumes notes-discovery from User Sync UX)
    │     │     │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     │     │     ├──► Parallelism trio (after Work Organization Reform):
+   │     │     │     │     │     │     │     │     │     ├──► Parallelism trio (after arc-plan Conductor):
    │     │     │     │     │     │     │     │     │     │      • Worktree Foundation
    │     │     │     │     │     │     │     │     │     │      • Agile WU Lifecycle (after Worktree Foundation)
    │     │     │     │     │     │     │     │     │     │      • Concurrent Work Conventions (after Agile WU Lifecycle)
@@ -497,6 +526,20 @@ Phase A ──► Phase B ──► Phase C (Work Units):
 
 ## Change Log
 
+- **2026-05-13**: arc-plan Conductor resequenced from "Post-Parallelism Trio: Sequencing TBD"
+  to between Work Organization Reform and the parallelism trio. Surfaced during WOR Pass 3 open
+  design question resolution: WOR's `meta-*` durable invariant plus per-WU subdir convention plus
+  state codification establish the foundations the conductor consumes, and the spec-flow contract WOR
+  defers (R22b) lives naturally in the conductor + AWL. Conductor-first sequencing means the
+  trio WUs each plug into existing scaling hooks (depth selection, status-file creation contract,
+  spec-flow routing) instead of inventing their own planning entry surfaces. Hard dependencies
+  in both directions absent — conductor reads AWL's `**Tier:**` field (defaults to standard
+  until AWL lands); conductor invokes WF's spawn (defaults to no-spawn until WF lands).
+  Conductor plan's upstream notes referencing "Interlock Foundation WU current planning" need
+  reconciliation against WOR's settled scope at PRD-time. Same-day WOR Pass 3 resolution also
+  adopted per-WU subdirs in backlog (`backlog/{planned,provisional}/<wu-name>/`), dropped the
+  `plans/` interlude, and added new PRD R22a-c codifying meta-* as durable identity invariant +
+  explicit spec-flow contract deferral + template-plan.md framing reframe.
 - **2026-05-11**: Interlock Release Wrappers — Ergonomics (WU2) complete (merged via PR #32)
   and archived to `archive/2026-q2/technical/09_release-wrappers-ergonomics/`. Delivered the
   `arc release setup` subcommand tree with per-developer marker storage, `arc release status`
