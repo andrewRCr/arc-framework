@@ -991,10 +991,10 @@ coupled. Cross-reference sweep last so all retired surfaces have already been re
       user-confirmed cohort assignment → file moves → cross-reference updates.
 
     - _Note:_ This phase likely expands once the open design question in
-      `notes-work-organization-reform.md` § Plan-doc optionality and meta-* source for renderer resolves
-      (next session). Expected addition: a subtask backfilling meta-file metadata (Owner / Origin /
-      Depends On / Cohort) on each migrated plan — either as a metadata block in the plan body or as a
-      meta-* sibling stub, pending design.
+      `notes-work-organization-reform.md` § Plan-doc optionality and `meta-*` source for renderer
+      resolves (next session). Expected addition: a subtask backfilling meta-file metadata (Owner /
+      Origin / Depends On / Cohort) on each migrated plan — either as a metadata block in the plan
+      body or as a `meta-*` sibling stub, pending design.
 
     - `[ ]` **6.5.a Inventory existing `backlog/feature/` + `backlog/technical/` contents**
         - List all `plan-*.md`, `prd-*.md`, `notes-*.md`, and other companion artifacts; cross-check

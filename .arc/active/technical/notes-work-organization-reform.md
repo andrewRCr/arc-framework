@@ -404,11 +404,12 @@ in-flight WUs — defeating R37/R38's programmatic-render value for backlog plan
 *Layer 1 — Where do backlog meta-files come from?*
 
 - **Option A.** Embed metadata block (`State` / `Owner` / `Origin` / `Depends On` / `Cohort`) in
-  plan-* body via `template-plan.md`. Renderer parses two file types; fields migrate to a fresh
-  meta-* at init-work-unit; block stripped from plan body at that moment.
-- **Option B.** Create a meta-* sibling stub alongside each backlog plan-*. Renderer walks meta-*
-  per R38 as-written. At init-work-unit, meta-* moves from `backlog/plans/planned/<cohort?>/` →
-  `active/<category>/`; task pointers and execution state populate at activation.
+  `plan-*` body via `template-plan.md`. Renderer parses two file types; fields migrate to a fresh
+  `meta-*` at init-work-unit; block stripped from plan body at that moment.
+- **Option B.** Create a `meta-*` sibling stub alongside each backlog `plan-*`. Renderer walks
+  `meta-*` per R38 as-written. At init-work-unit, `meta-*` moves from
+  `backlog/plans/planned/<cohort?>/` → `active/<category>/`; task pointers and execution state
+  populate at activation.
 
 Option B is more architecturally clean (single source of truth invariant; no new renderer parser
 path; literal R38 compliance), at the cost of one extra file per backlog item. Aligns with the
