@@ -1672,22 +1672,21 @@ CHANGELOG.md that the npm-release WU manages, or aggregate only at release time.
 belongs to the downstream npm-release WU; flagged here so the contract from item 17 doesn't
 need to specify the pre-release shape.
 
-### Worktree-trio dev-ergonomics pressure test (forward-compat watch)
+### Worktree-trio dev-ergonomics pressure test (resolved 2026-05-12)
 
-The parallelism trio (Worktree Foundation, Agile WU Lifecycle, Concurrent Work Conventions) is
-well-aligned as a set against current scope, but the trio's user-facing shape hasn't been
-pressure-tested against emerging tools in this space (conductor.build, Claude Code's agent view,
-similar) and against ARC's stance that task work should not be far from the human
-(primary-agent-as-orchestrator models are explicitly out of scope).
+Convergence research against the agentic worktree-management tool landscape (Zed, Warp,
+Worktrunk, Conductor, emdash, Maestro, Super, Superset, T3code, Soloterm, Nora) closes this
+pressure test — see `research-worktree-tool-convergence.md` (§ External Research Citations,
+"Worktree-management tool landscape").
 
-This isn't a WOR PRD-blocker on its own — WOR delivers the per-worktree isolation foundation
-regardless of how the trio's ergonomics resolve. But forward-compat watch: trio PRDs should
-incorporate this pressure test, and if it surfaces shape changes that bleed back into WOR scope
-(e.g., affecting `plans/` interlude layout, group-dir convention, meta-file location-by-state,
-or the capture pipeline drain steps), WOR's PRD readiness gates pause until the bleed is resolved.
+Trio scope absorbs the design deltas at PRD time — Worktree Foundation absorbs the most
+(cold-start bootstrap primitive, two-entry-point shape, branch-naming method, worktree location
+convention); Agile WU Lifecycle adjusts `arc start` composition with the cold-start primitive;
+Concurrent Work Conventions calibrates anti-pattern guidance against field idiom.
 
-Document as a known forward-compat dependency on trio research; do not block this WU's PRD
-drafting on the research outcome.
+WOR's foundation holds without modification: single-branch-per-WU, location-by-state,
+sweep-as-you-go, Origin ⊥ Spec orthogonality, and the capture pipeline survive the research
+findings unchanged. WOR PRD-readiness is not gated by this pressure test.
 
 ---
 
@@ -1845,6 +1844,16 @@ against.
 - [SiliconAngle: Agentic coding comes to Slack (Dec 2025)](https://siliconangle.com/2025/12/08/agentic-coding-comes-slack-anthropic-launches-claude-code-integration/)
 - [MindStudio: Context rot in agentic systems](https://www.mindstudio.ai/blog/context-rot-ai-coding-agents-how-to-prevent)
 
+### Worktree-management tool landscape (2024-2026)
+
+- `research-worktree-tool-convergence.md` — convergence pass across 11 agentic
+  worktree-management tools surveyed 2026-05-12. Cluster 1 (multi-purpose with retrofitted agent
+  layer): Zed, Warp, Worktrunk. Cluster 2 (established dedicated agent-management apps):
+  Conductor, emdash, Maestro. Cluster 3 (newer dedicated apps): Super, Superset, T3code,
+  Soloterm, Nora. Per-tool reports, cross-cluster synthesis, and source URLs captured in the
+  research doc. Closes the worktree-trio dev-ergonomics pressure test (Open Questions §
+  Worktree-trio dev-ergonomics pressure test); trio plans absorb design deltas at PRD time.
+
 ---
 
 ## Activation Audit
@@ -1873,7 +1882,12 @@ as of 2026-05-12:
   Phase 13). Preserve any content that the new shape (Mission / principles / anti-goals /
   problem / tradeoffs) genuinely subsumes; surface anything that doesn't fit the new shape as a
   scope question — either revise the shape or carry the content forward in a different
-  artifact.
+  artifact. Fold in findings from `research-worktree-tool-convergence.md`: the input-agnostic
+  spec pipeline (§ 6.1) lands as an anti-goal ("ARC does not require a specific spec format;
+  meta-* normalizes any input — file pointer, URL, issue link, ARC artifact, or just a name
+  plus brief"); the audience-philosophy stance (§ 3.3, § 6.4) lands as a positioning note (ARC
+  optimizes for limited, thoughtful, restrained parallelism with deep human involvement,
+  intentionally non-default in the agentic worktree-tool ecosystem).
 - **Cross-references to retired artifacts:** grep `PROJECT-STATUS.md`, `plan-roadmap-evolution`,
   `plan-completion-status-consolidation`, `template-completion-doc`, `completion-*.md` for
   reference surface that needs update or retirement at PRD time.

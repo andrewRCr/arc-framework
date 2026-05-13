@@ -142,6 +142,14 @@ get promoted: add the plan-*/PRD, restructure the task list into phases, continu
    Standard tier reached via the planning workflow path (plan → PRD → activate), not via
    `arc start`.
 
+   **Composition with the cold-start primitive (`plan-worktree-foundation.md` item 11).**
+   `arc start` is the spawn-from-existing-session entry point — it creates the worktree (when
+   applicable per tier), scaffolds the meta file, and reports the new worktree path so a fresh
+   session can pick up via the cold-start primitive. Adopters working in tool-spawned worktrees
+   (Conductor, emdash, Maestro, Warp, Worktrunk, Zed, etc.) skip `arc start` and invoke the
+   cold-start primitive directly inside the tool-created worktree — same scaffolding logic,
+   different entry point. Both paths converge once the meta file is written.
+
 5. **Quick-tier task list shape.** Flat task list (no phases). Required `## Scope` prose section at
    the top (3-5 sentences, bounded by convention) when no external `**Spec:**` is set — fills the
    internal-spec gap under `pm.layer: arc-pm`. New section in [strategy-task-list-formatting.md][
@@ -503,6 +511,18 @@ time research validates the boundary tests against idiomatic practice and refine
 
 Research wouldn't change the boundary itself; it would inform PRD-time language and provide
 concrete examples for the strategy doc.
+
+### Worktree-management tool landscape (completed 2026-05-12)
+
+- `research-worktree-tool-convergence.md` — convergence pass across 11 agentic worktree-management
+  tools (Cluster 1: Zed, Warp, Worktrunk; Cluster 2: Conductor, emdash, Maestro; Cluster 3: Super,
+  Superset, T3code, Soloterm, Nora). Closes the question of whether `arc start` retains a clear
+  role alongside parallel workspace tools — yes, as the spawn-from-existing-session entry point,
+  paired with `plan-worktree-foundation.md` item 11's cold-start primitive (the tool-spawned-
+  worktree entry point). Both entry points produce the same scaffolded meta file; adopters pick
+  per WU based on origin. Tier model survives unchanged — tier selection at `arc start`
+  (`--tier atomic | quick | standard`) and at the cold-start primitive operates on the same
+  meta-* foundation.
 
 ---
 
