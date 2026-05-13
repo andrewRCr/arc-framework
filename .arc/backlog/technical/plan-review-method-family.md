@@ -48,11 +48,22 @@ feedback) / `review-triage` (classify). Each name unambiguous in isolation.
 
 ### Extensions (lifecycle fire points)
 
-- `pre-merge-review` — unchanged in name (fire-point name = WHEN; method name = WHAT). Invokes
-  `self-review` instead of `diff-review`.
-- `review-response` — new. Fires at `integrate-work-unit` Step 8. **Default: not configured.** Projects
-  that get PR review configure it; projects that don't (or handle review manually) leave it unconfigured
-  and Step 8 no-ops.
+Extension fire-point naming and the broader fire-point family are locked by Work Organization Reform
+(WOR) — see `prd-work-organization-reform.md` R55–R57. This plan retains scope over **method** naming
+and content (the WHAT side); the WHEN side is WOR territory. As a result, the prior `pre-merge-review`
+extension is renamed by WOR to `pre-pr-review` (its actual fire-point is pre-PR-creation push, not
+pre-merge), and a new `pre-merge-review` extension exists at the genuine pre-merge fire-point.
+
+Three-extension family at `integrate-work-unit.md` post-WOR:
+
+- `pre-pr-review` (WOR; renamed from `pre-merge-review`) — fires before PR creation push. Invokes
+  `self-review` instead of `diff-review` per this plan's method-rename.
+- `review-response` (this plan; new) — fires at `integrate-work-unit` Step 8. **Default: not
+  configured.** Projects that get PR review configure it; projects that don't (or handle review
+  manually) leave it unconfigured and Step 8 no-ops.
+- `pre-merge-review` (WOR new; name freed by the rename above) — fires after `review-response`
+  processes received feedback, before the actual merge action. **Default: not configured.**
+  Reserved for final-state-check use cases (all threads resolved, CI green, last review pass).
 
 ### Workflows
 
@@ -132,7 +143,10 @@ a plan doc and PRD.
 
 - `system/methods/`: rename `diff-review.md` → `self-review.md` (content carries forward); new
   `peer-review.md`; new `review-response.md`. Both copies (package source + project instance).
-- `system/extensions/`: new `review-response.md` extension shell.
+- `system/extensions/`: new `review-response.md` extension shell. WOR has already shipped renames
+  and additions for the surrounding family — `pre-pr-review.md` (renamed from `pre-merge-review.md`)
+  and a new `pre-merge-review.md` at the post-review-response fire-point — so this plan only adds
+  the middle of the three-extension family at integrate-work-unit.
 - `system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md`: Step 6 invocation reference
   (`diff-review` → `self-review`); Step 8 collapses inline content into extension fire point
   (`#review-response`).

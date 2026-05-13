@@ -74,6 +74,17 @@ conventions — CB and CC alignment together avoids two waves of DEV-RULES.ARC +
     meta-file state; CLI deferred but hand-maintenance discipline ships.
 12. **PROJECT-STATUS retirement.** Function decomposes across META-PRD, Release Notes Entries, and
     directory queries.
+13. **Extension fire-point family aligned with lifecycle events.** Five-extension family at WU
+    lifecycle (`pre-activation`, `pre-commit-review`, `pre-pr-review`, `pre-push-review`,
+    `pre-merge-review`) with fire-point names honest about WHEN — event-names reflect the actual
+    local fire-point, not an upstream UI-level event. Naming convention codified; reserved-for-future
+    names documented.
+14. **Meta-file shape minimizes redundancy.** `# Metadata: {wu-name}` H1 + blank-line-grouped field
+    blocks; content H2s reserved for archive-phase sections (Release Notes Entry, Completion Notes).
+    Session-init full-read replaces the `^## Work Unit Metadata` partial-read anchor.
+15. **Instance files carry no preamble.** SESSION-NOTES, USER-INBOX, BACKLOG-INBOX,
+    `backlog/ATOMIC-INBOX.md` read as content-only; orientation content lives in strategy docs and
+    workflows. CLI init/join code strips preamble injection.
 
 ---
 
@@ -169,7 +180,7 @@ multi-commit-PR norms.
 ### Meta-file evolution (P0)
 
 **R8.** `template-status.md` → `template-meta.md` rename. Template carries phase-labeled sections
-(life-phase fields + archive-phase sections).
+(life-phase fields + archive-phase sections); R58 specifies the H1 / H2 / field-grouping shape.
 
 **R9.** `**State:**` value-set codified: `Provisional | Planned | Active | Integrating | Shipped`.
 Existing `**Integration:**` field retired (folds into State).
@@ -379,9 +390,10 @@ wiring (Worktree Foundation's branch-gone detection) left to WF.
 planning flows directly into execution) | `required` (workflow stops at planning → execution
 graduation, awaits explicit approval).
 
-**R47.** Extension point `pre-execution-graduation` fires at the same checkpoint. Default no-op;
-teams populate `.actions` for automated review steps (CodeRabbit invocation, custom validators, lint
-runs). Composition: config + extension are independent axes.
+**R47.** Extension point `pre-activation` (renamed per R56 from the originally proposed
+`pre-execution-graduation`) fires at the same checkpoint. Default no-op; teams populate `.actions`
+for automated review steps (CodeRabbit invocation, custom validators, lint runs). Composition:
+config + extension are independent axes.
 
 **R48.** Convention inventory entry added to `strategy-configurability-architecture.md`: "Planning
 checkpoint review | P2/P4 | No checkpoint stop | Config setting + Extension." Follows
@@ -393,6 +405,90 @@ checkpoint review | P2/P4 | No checkpoint stop | Config setting + Extension." Fo
 shouldn't touch `.arc/system/`, `.arc/reference/strategies/`, `arc-config.yml`, or other load-bearing
 infra files. Such edits warrant quick-tier at minimum (multi-commit coordination, deliberate
 sequencing). Routes captured atomic surfaces (ATOMIC-INBOX) accordingly.
+
+### Extension fire-point family (P0)
+
+**R55.** Extension fire-point naming convention codified in `strategy-configurability-architecture.md`:
+
+- Pattern: `{pre|post}-{lifecycle-event-name}` where event-name is the next concrete workflow step or
+  git operation
+- Event-names must reflect the actual local fire-point, not an upstream UI-level event (e.g.,
+  `pre-pr-review` not `pre-merge-review` for the pre-PR-creation push fire)
+- Frequency must be wireable to match the name's semantic — if `pre-commit-review` is its name, it
+  must fire at every commit pathway, not just one workflow
+- Reserved-for-future names: family members defined in convention even when no default `.actions` yet
+  (e.g., `pre-push-review` reserved as the every-push fire-point name)
+
+**R56.** Five-extension fire-point family at WU lifecycle, with wiring:
+
+| Extension | Fire-point | Wired into | Default |
+| --- | --- | --- | --- |
+| `pre-activation` | `activate-work-unit.md` step 1 pre-condition gate | activate-work-unit | inactive |
+| `pre-commit-review` | After staging, before commit creation | `arc-commit` skill + `prepare-commits.md` | inactive |
+| `pre-pr-review` | `integrate-work-unit.md` pre-PR-creation push | integrate-work-unit | inactive |
+| `pre-push-review` | Any push via push wrapper | `arc release push` / `arc sync` push pathway | inactive; no default `.actions` |
+| `pre-merge-review` | `integrate-work-unit.md` post-review-response, pre-merge | integrate-work-unit | inactive; no default `.actions` |
+
+Renames from existing extensions:
+
+- `pre-execution-graduation` → `pre-activation` (R47's extension; renamed before file ships)
+- `pre-stage-review` → `pre-commit-review` (wiring extended from prepare-commits-only to
+  arc-commit + prepare-commits)
+- `pre-merge-review` (current) → `pre-pr-review` (frees the `pre-merge-review` name for the genuine
+  pre-merge fire-point)
+
+New files (no prior counterpart; default-no-op shells):
+
+- `pre-push-review.md`
+- `pre-merge-review.md` (name freed by current `pre-merge-review` → `pre-pr-review` rename)
+
+Three-extension family at `integrate-work-unit.md` aligns with `plan-review-method-family`'s
+`review-response` middle piece: `pre-pr-review` (WOR; before PR creation) → `review-response`
+(plan-review-method-family scope; processes received feedback) → `pre-merge-review` (WOR new; before
+actual merge). WOR ships the bookends; the method-family plan ships the middle.
+
+**R57.** Extension description/contract pass: while touching extensions for renames + new file
+creation, audit each extension file's description, contract block, and "Use for" framing to ensure
+alignment with the WOR family conventions and to clarify decision boundaries between extensions and
+adjacent mechanisms (e.g., `pre-commit-review` vs git pre-commit hook — extensions carry agent
+procedures and `workflow-interlock` stops; hooks carry scriptable checks; complement not duplicate).
+
+### Meta-file shape (P0)
+
+**R58.** Meta-file shape specification (supplements R8's "phase-labeled sections"):
+
+- H1: `# Metadata: {wu-name}`
+- Body: blank-line-separated field blocks within H1 (no internal `## Work Unit Metadata` H2 wrapper):
+    - Identity: `State`, `Owner`, `Branch`
+    - Reference: `Spec`, `Origin`
+    - Coordination: `Depends On`, `Cohort`
+    - Task pointers: `Task List`, `Last Completed`, `Next Task`, `Blockers`
+    - Directive: `Next Action`
+    - Post-integration block (added at integration ceremony): `PR URL`, `Completed`
+- Content H2s added at Active → Integrating transition: `## Release Notes Entry`, `## Completion
+  Notes`
+- Session-init's `^## Work Unit Metadata` partial-read anchor retires; meta file becomes a full-read
+  target (cost: 8 additional concise fields per read; benefit: regex-anchor maintenance retired and
+  archive-phase content gated by H2 boundary)
+- If named-section anchors become important later for cross-WU referencing, groups can be promoted to
+  H2 then — reversible
+
+### Instance-file orientation slimming (P0)
+
+**R59.** Instance files carry no preamble or "About this file" blocks:
+
+- Affected files: `user/{identity}/SESSION-NOTES.md`, `user/{identity}/USER-INBOX.md`,
+  `backlog/BACKLOG-INBOX.md`, `backlog/ATOMIC-INBOX.md`
+- Match the meta-file convention (no preamble) — files read as content-only
+- Authoritative orientation lives in strategy docs (`strategy-session-operations.md` for SESSION-NOTES;
+  `strategy-planning-module.md` for inboxes) and workflows (`session-handoff.md`, ceremony workflows
+  that write to shared inboxes)
+- CLI init/join code (`packages/arc-framework/src/lib/...`) strips preamble injection when seeding
+  these files
+- Workflow seeding (e.g., `session-handoff.md` SESSION-NOTES seed) loses preamble strings
+- Migration: existing instance files in this repo strip preamble in-place during the migration pass
+- No new template files — these files are CLI-created at init/join, not authored from
+  `reference/templates/`
 
 ### Migration sweep (P0)
 
@@ -413,6 +509,14 @@ sequencing). Routes captured atomic surfaces (ATOMIC-INBOX) accordingly.
 - `**Owner:**` backfill from `arc.identity`
 - `**Depends On:** [none]` initialization (existing dep relationships extracted manually)
 - `**Cohort:** [standalone]` initialization (or cohort name for known sibling sets)
+- Instance-file preamble strip per R59 — existing SESSION-NOTES, USER-INBOX (post-rename) lose
+  "About this file" / Lifecycle / Portability / Writing-guide blocks; meta-file convention applies
+- Extension renames per R56 — `pre-execution-graduation` → `pre-activation` (file shipping under new
+  name; no migration needed since file doesn't exist yet); `pre-stage-review` → `pre-commit-review`
+  (rename existing file in both copies); current `pre-merge-review` → `pre-pr-review` (rename existing
+  file in both copies); new `pre-push-review.md` and `pre-merge-review.md` files created
+- Meta-file shape migration per R58 — in-flight `meta-*.md` files restructure to `# Metadata:` H1 +
+  blank-line-grouped field blocks; existing `## Work Unit Metadata` H2 wrapper retires
 
 **R51.** Doc retirements:
 
@@ -429,7 +533,9 @@ sequencing). Routes captured atomic surfaces (ATOMIC-INBOX) accordingly.
 references to `feature/`, `technical/`, `[PLAN]:`, `integrate-planning-branch`,
 `activate-planning-branch`, `status-*.md`, `completion-*.md`, `template-completion-doc.md`,
 `PROJECT-STATUS.md`, `plan-roadmap-evolution.md`, `plan-completion-status-consolidation.md`,
-`docs(arc):` example usage. Update or retire.
+`docs(arc):` example usage, and the renamed extensions (`pre-execution-graduation`,
+`pre-stage-review`, and the old `pre-merge-review` for its pre-PR-creation semantic — distinguish
+from the new `pre-merge-review` at the post-review-response fire-point). Update or retire.
 
 **R53.** Inline-folds on touched workflows (per plan's `[!NOTE]` block — fold inline at the touch,
 not as separate sweeps):
@@ -484,6 +590,13 @@ Stored in `.arc/reference/adr/` (next available ADR number).
   ships; explicit allowlist of valid scopes deferred (evolution favored over fixed enumeration)
 - **Agent vs human commit attribution via trailers** — captured as forward-pointer from research;
   not WOR scope
+- **Method-naming reshape** (`diff-review` → `self-review`, new `peer-review` + `review-response`
+  methods, override-mechanic extension to workflow-pointer variant) — `plan-review-method-family`
+  scope. WOR locks extension fire-point naming convention; method-side naming + content continues in
+  that plan
+- **`review-response` extension `.actions` content + workflow-pointer override variant** — the
+  middle of the 3-extension family at `integrate-work-unit.md` (bookended by WOR's `pre-pr-review`
+  and `pre-merge-review`); ships in `plan-review-method-family`
 
 ---
 
@@ -551,6 +664,56 @@ Five items from plan's `[!NOTE]` block ride Phase 3 (boundary workflow restructu
 workflows are touched. These are not separate scope items — they fold inline at the touch (per R53).
 The broader sweeps across untouched workflows stay with their respective inbox entries' future WUs.
 
+### Extension fire-point family wiring locations
+
+Per R56, five extensions span the WU lifecycle. Wiring locations:
+
+- `pre-activation` — `activate-work-unit.md` step 1 pre-condition gate (after gate passes, before
+  state-flip + branch rename). Single-fire per WU.
+- `pre-commit-review` — `arc-commit` skill (canonical commit pathway; fires per commit when active)
+  AND `prepare-commits.md` workflow (complex-commit pathway). Wiring at both is what makes the
+  every-commit naming honest; arc-commit alone misses prepare-commits's distinct invocation.
+- `pre-pr-review` — `integrate-work-unit.md` pre-PR-creation push step. Single-fire per WU.
+- `pre-push-review` — push wrapper / `arc release push` / `arc sync` push pathway. Reserved
+  fire-point; no default `.actions` ships. When workflows push via the wrapper, the fire is
+  inherited; raw `git push` invocations bypass.
+- `pre-merge-review` — `integrate-work-unit.md` post-review-response, pre-merge step. The fire-point
+  sits between `review-response` (plan-review-method-family scope) and the actual merge button.
+  Single-fire per WU.
+
+The `arc-commit` wiring change is a substantive functional extension — the existing `pre-stage-review`
+extension only fires from `prepare-commits.md`, leaving the canonical commit pathway uncovered. Under
+the new convention, name and behavior align.
+
+### Meta-file shape restructure + session-init partial-read retirement
+
+Per R58:
+
+- H1 `# Metadata: {wu-name}` replaces `# Status: {wu-name}`
+- Internal `## Work Unit Metadata` H2 wrapper retires; fields live directly under H1 in blank-line-
+  separated blocks (identity / reference / coordination / task pointers / directive)
+- Content H2s (`## Release Notes Entry`, `## Completion Notes`) added at Active → Integrating
+  transition
+- `session-init.md` workflow's `^## Work Unit Metadata` partial-read anchor retires; meta file
+  becomes a full-read target. Cost is 8 additional concise fields per read; benefit is regex-anchor
+  maintenance retired and archive-phase content gated by H2 boundary
+
+If named-section anchors become important later for cross-WU referencing, groups can be promoted to
+H2 then — reversible.
+
+### Instance-file slimming approach
+
+Per R59:
+
+- Files affected: SESSION-NOTES, USER-INBOX, BACKLOG-INBOX, `backlog/ATOMIC-INBOX.md`
+- Files NOT affected: `meta-*.md` (already convention-aligned), `tasks-*.md` / `atomic-*.md` /
+  `notes-*.md` / `plan-*.md` / `prd-*.md` (template-authored; carry header conventions)
+- Slim approach: full preamble removal; no orientation pointer in-file (match meta-file convention)
+- Authoritative orientation lives in `strategy-session-operations.md` (SESSION-NOTES) and
+  `strategy-planning-module.md` (inboxes); workflows carry write discipline
+- CLI init/join in `packages/arc-framework/src/lib/` updated to strip preamble injection when seeding
+- Workflow seeding strings (e.g., session-handoff's SESSION-NOTES seed) audited and slimmed
+
 ### Dependencies and sequencing
 
 **Upstream:**
@@ -593,15 +756,17 @@ Captured here so PRD-time visibility prevents downstream loss:
 WOR ships as 7 phases (per § Scope Estimate in the retired plan-doc):
 
 1. **Constitutional foundation** — ADR + `DEV-RULES.ARC` (R1, R23-R24, R28, CB-CC alignment refs)
-2. **Strategy and convention codification** — strategy doc edits (R15, R20, R28, R38, R48, all
-   `strategy-*.md` references)
-3. **Boundary workflow restructure + ceremony fire-points** — workflow files (R4-R7, R16-R18,
-   R20-R21, R31, R34, R39, R53 inline-folds)
+2. **Strategy and convention codification** — strategy doc edits (R15, R20, R28, R38, R48, R55,
+   R56, R57, all `strategy-*.md` references)
+3. **Boundary workflow restructure + ceremony fire-points** — workflow files + extension family
+   wiring (R4-R7, R16-R18, R20-R21, R31, R34, R39, R47, R53 inline-folds, R56-R57 extension files
+   and wiring, `arc-commit` skill wiring for R56-R57's `pre-commit-review`)
 4. **Template evolution + META-PRD content rewrite** — templates + META-PRD content (R8-R14, R22,
-   R30, R33-R36)
-5. **Roster cascade implementation** — TypeScript code (R44-R45)
+   R30, R33-R36, R58 meta-file shape)
+5. **Roster cascade + push wrapper wiring + CLI seeding update** — TypeScript code (R44-R45, R56
+   push wrapper for `pre-push-review`, R59 CLI init/join preamble strip)
 6. **Migration & cross-reference sweep** — mechanical renames, retirements, doc cascade (R25-R27,
-   R29, R40-R43, R49-R52, hook regex)
+   R29, R40-R43, R49-R52, R59 instance-file slimming, hook regex, extension renames)
 7. **Verification** — `verify-work-unit.md` pointer + Tier-3 gates + per-worktree isolation
    acceptance test
 
@@ -626,40 +791,61 @@ consolidates all migrations after Phases 1-5 land. Phase 7 closes.
 
 ### Artifact shape
 
-4. **All in-flight WU meta files use new shape.** Template-meta with phase-labeled sections;
-   `**State:**` value-set codified; Owner, Depends On, Origin, Cohort fields present.
+4. **All in-flight WU meta files use new shape.** `# Metadata: {name}` H1 + blank-line-grouped
+   field blocks; `**State:**` value-set codified; Owner, Depends On, Origin, Cohort fields present;
+   no internal `## Work Unit Metadata` H2 wrapper.
 5. **Completion-doc consolidation complete.** `template-completion-doc.md` deleted; new archives use
-   meta-file archive-phase sections.
+   meta-file archive-phase sections (`## Release Notes Entry` + `## Completion Notes` H2s added at
+   Active → Integrating transition).
 6. **PROJECT-STATUS.md retired.** File deleted; function distributed across META-PRD + Release
    Notes Entries + directory queries.
 7. **META-PRD content reflects new shape.** Mission + numbered principles + anti-goals + problem +
    design tradeoffs.
 8. **ROADMAP.md regenerates deterministically from meta-file state per algorithm.** Header carries
    generated-by marker + last-rendered commit hash.
+9. **Instance files carry no preamble.** SESSION-NOTES, USER-INBOX, BACKLOG-INBOX,
+   `backlog/ATOMIC-INBOX.md` read as content-only; orientation lives in strategy docs + workflows.
+   CLI init/join strips preamble injection when seeding.
 
 ### Convention enforcement
 
-9. **`system/githooks/commit-msg` enforces tuned type set.** Hook refuses commits with types outside
-   `feat | fix | chore | docs | refactor | test | perf | revert`.
-10. **Hook refuses `arc` as scope.** Verified by attempt + rejection.
-11. **CB-CC alignment documented** in `strategy-work-organization.md` § branching with the
+10. **`system/githooks/commit-msg` enforces tuned type set.** Hook refuses commits with types outside
+    `feat | fix | chore | docs | refactor | test | perf | revert`.
+11. **Hook refuses `arc` as scope.** Verified by attempt + rejection.
+12. **CB-CC alignment documented** in `strategy-work-organization.md` § branching with the
     cognitive-load rationale + intentional divergence on `test`, `revert`.
+
+### Extension family
+
+13. **Five-extension fire-point family ships** with honest fire-point names per the codified
+    convention — `pre-activation`, `pre-commit-review`, `pre-pr-review`, `pre-push-review`,
+    `pre-merge-review`. Naming convention documented in `strategy-configurability-architecture.md`.
+14. **`pre-commit-review` wired into both `arc-commit` skill and `prepare-commits.md` workflow** —
+    every-commit-fires naming honored by every-commit-pathway wiring.
+15. **`pre-push-review` wired into push wrapper** — fires on any push routed through
+    `arc release push` / `arc sync` pathway.
+16. **New `pre-merge-review` wired into `integrate-work-unit.md`** at the post-review-response fire-
+    point — sits between `review-response` (plan-review-method-family scope) and the merge action.
+17. **Extension descriptions/contracts pass** — every touched extension file's description, contract
+    block, and "Use for" framing audited and aligned with the WOR family conventions.
 
 ### Reference integrity
 
-12. **No broken cross-references** after migration sweep. Grep across workflows, strategies, rules,
+18. **No broken cross-references** after migration sweep. Grep across workflows, strategies, rules,
     briefs, and templates for retired references returns no orphans.
-13. **Markdown lint passes** across the documentation surface (existing `npm run -s lint:md` policy).
+19. **Markdown lint passes** across the documentation surface (existing `npm run -s lint:md` policy).
 
 ### Code surface
 
-14. **Roster cascade function ships** in `packages/arc-framework/src/lib/git/` with Vitest unit +
+20. **Roster cascade function ships** in `packages/arc-framework/src/lib/git/` with Vitest unit +
     integration test coverage. Function returns documented tuple shape; consumer wiring left to WF.
-15. **Build + typecheck + test passes.** `npm run build`, `npm run typecheck`, `npm test` all green.
+21. **CLI init/join strips instance-file preamble injection** — package source updated; seeded files
+    in this repo migrated; lint passes.
+22. **Build + typecheck + test passes.** `npm run build`, `npm run typecheck`, `npm test` all green.
 
 ### ADR
 
-16. **Companion ADR landed** in `.arc/reference/adr/`. Records constitutional shift; parallel scale
+23. **Companion ADR landed** in `.arc/reference/adr/`. Records constitutional shift; parallel scale
     to ADR-016.
 
 ---
