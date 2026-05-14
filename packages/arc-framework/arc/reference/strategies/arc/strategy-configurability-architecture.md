@@ -103,6 +103,7 @@ a configurability path (how teams adapt it).
 | Zero-tolerance quality gates            | P4        | All errors must be fixed            | Behavioral guidance — adjust severity levels          |
 | Tiered quality gate system (Tier 1/2/3) | P4        | Per-task / per-unit / per-phase     | Behavioral guidance — adjust tier boundaries          |
 | Pre-merge aggregate review              | P4        | Lightweight diff review before push | Config setting — `review.pre_merge` + Method override |
+| Planning checkpoint review              | P2 / P4   | No checkpoint stop                  | Config setting + Extension                            |
 | Leave it cleaner (capture floor)        | P4        | Fix or document pre-existing issues | Method override — fix-now vs. capture-and-defer       |
 | Test-first assessment                   | P4        | Decision tree by change type        | Method override — substitute assessment criteria      |
 | Conventional commit format              | P6        | `type(scope): description`          | Config setting — `commit.format`                      |
@@ -365,6 +366,46 @@ framework updates.
 
 Each preset file includes: which workflow it extends, when it fires, what the contract allows, and an empty
 `.actions` section.
+
+### Naming convention
+
+Extension files follow `{pre|post}-{lifecycle-event-name}`, where the event-name is the next concrete workflow
+step or git operation:
+
+- `pre-*` fires before the named event; `post-*` fires after.
+- Event-names reflect the **actual local fire-point** — the literal workflow step or git operation — not an
+  upstream UI-level event. For example, `pre-pr-review` names the pre-PR-creation push fire-point, not the
+  GitHub-side "open PR" UI event; `pre-merge-review` names the genuine pre-merge fire-point at
+  `integrate-work-unit.md`, not "before the PR merges from the platform's perspective."
+- The fire-point's **frequency** must match the name's semantic. If an extension is named `pre-commit-review`,
+  it must fire at every commit pathway — wiring that catches one workflow's commit step while another's skips
+  it violates the convention. Names that promise broad coverage demand broad wiring.
+
+### Fire-point family
+
+Five extension fire-points span the work-unit lifecycle:
+
+| Extension           | Fire-point                                                | Wired into                                   | Default                         |
+|---------------------|-----------------------------------------------------------|----------------------------------------------|---------------------------------|
+| `pre-activation`    | `activate-work-unit.md` pre-condition gate                | `activate-work-unit.md`                      | inactive                        |
+| `pre-commit-review` | After staging, before commit creation                     | `arc-commit` skill + `prepare-commits.md`    | inactive                        |
+| `pre-pr-review`     | `integrate-work-unit.md` pre-PR-creation push             | `integrate-work-unit.md`                     | inactive                        |
+| `pre-push-review`   | Any push via the push wrapper                             | `arc release push` / `arc sync` push pathway | inactive; no default `.actions` |
+| `pre-merge-review`  | `integrate-work-unit.md` post-review-response, pre-merge  | `integrate-work-unit.md`                     | inactive; no default `.actions` |
+
+All extensions ship as inactive by default — teams populate `.actions` and flip `active: true` in frontmatter
+to opt in. Entries marked "no default `.actions`" ship as no-op shells without a provided action body; teams
+supplying their own actions activate them like any other extension.
+
+### Reserved names
+
+Some extension names ship as files but without a default `.actions` body — namespace reserved for project use
+or for future defaults. Two entries from the family above carry this status today:
+
+- `pre-push-review` — fires for any push via the push wrapper.
+- `pre-merge-review` — fires post-review-response, pre-merge at `integrate-work-unit.md`.
+
+New reserved names land here when codified, keeping the namespace coherent before defaults emerge.
 
 ### References in workflows
 

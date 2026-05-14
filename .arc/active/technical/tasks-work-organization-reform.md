@@ -340,30 +340,41 @@ parenthetical patterns); phase order reflects execution order.
   carry the structural references. Both copies (`.arc/` + package source) byte-identical. Tier 1 markdown lint clean
   (0 errors across 246 files).
 
-### `[ ]` **2.6 `strategy-configurability-architecture.md` — inventory + extension naming + reserved names**
+### `[x]` **2.6 `strategy-configurability-architecture.md` — inventory + extension naming + reserved names**
 
 - _Goal:_ `strategy-configurability-architecture.md` carries (a) the planning-checkpoint review convention-inventory
   entry per the `review.pre_merge` precedent, (b) the extension fire-point naming convention codification, and (c) the
   reserved-for-future extension names registry.
-    - `[ ]` **2.6.a Convention inventory entry: planning-checkpoint review**
-        - "Planning checkpoint review | P2/P4 | No checkpoint stop | Config setting + Extension." Mirrors
-          `review.pre_merge` shape.
+    - `[x]` **2.6.a Convention inventory entry: planning-checkpoint review**
+        - New row added to "Operational discipline conventions" table immediately after the `Pre-merge aggregate review`
+          row: `Planning checkpoint review | P2 / P4 | No checkpoint stop | Config setting + Extension`. Verbatim per
+          the R48 spec text (path column kept terse — the keynamed form `Config setting — \`review.planning_checkpoint\``
+          overflowed the existing column width and didn't match the R48 example shape; the `review.planning_checkpoint`
+          key naming lands in the Runtime settings list when Task 3.7 adds the YAML key).
 
-    - `[ ]` **2.6.b Extension fire-point naming convention**
-        - Pattern: `{pre|post}-{lifecycle-event-name}` where event-name is the next concrete workflow step or git
-          operation; event-names must reflect the actual local fire-point, not an upstream UI-level event; frequency
-          must be wireable to match the name's semantic (if `pre-commit-review`, then every commit pathway).
-        - _Note:_ The `{pre|post}-{event}` pattern reflects current practice — `.arc/system/extensions/` already ships
-          both families (`pre-*` and `post-*`, e.g., `post-task-completion`, `post-work-unit-archive`). R55 codifies
-          existing convention, not new extensibility framing.
+    - `[x]` **2.6.b Extension fire-point naming convention**
+        - New § Naming convention subsection placed between § Mechanism and § References in workflows. Codifies the
+          three rules: `{pre|post}-{event}` pattern; event-name reflects local fire-point not upstream UI event (with
+          `pre-pr-review` vs `pre-merge-review` as worked examples); frequency must match name's semantic (named
+          `pre-commit-review` must fire at every commit pathway). Audience-discipline pass: no R-ID references; no
+          "codifies existing convention" framing per audience boundaries.
 
-    - `[ ]` **2.6.c Reserved-for-future names registry**
-        - Document `pre-push-review` as reserved (ships as no-default no-op file); future entries listed here keep the
-          namespace coherent.
+    - `[x]` **2.6.c Reserved-for-future names registry**
+        - New § Reserved names subsection placed after § Fire-point family. Names both currently-reserved entries
+          (`pre-push-review` and `pre-merge-review`) per R56's "no default `.actions`" markings; describes the
+          namespace-reservation intent so new reserved names land here as the family grows.
 
-    - `[ ]` **2.6.d Family enumeration table**
-        - Table mirroring PRD R56: extension → fire-point → wired-into → default. Adopters reading the strategy doc see
-          the full family in one place.
+    - `[x]` **2.6.d Family enumeration table**
+        - New § Fire-point family subsection placed between § Naming convention and § Reserved names. Five-row table
+          mirroring R56: `pre-activation` / `pre-commit-review` / `pre-pr-review` / `pre-push-review` /
+          `pre-merge-review` with fire-point, wired-into, and default columns. Trailing paragraph notes the "inactive
+          by default" baseline and the "no default `.actions`" qualifier for the two reserved entries.
+
+- _Outcome:_ Strategy doc gains four pieces of content covering the extension family contract: one new inventory row
+  (Planning checkpoint review) and three new § Extension Points subsections (Naming convention → Fire-point family →
+  Reserved names) inserted in front of the existing § References in workflows / § Preset vs. custom sections.
+  Adopter-facing audience discipline preserved (no R-IDs in body; no transitional framing; no internal WU naming).
+  Both copies byte-identical. Tier 1 markdown lint clean; `lint:arc:triggers` audit still passes.
 
 ### `[ ]` **2.7 `strategy-work-organization.md` § Spec-Flow Invariants**
 
