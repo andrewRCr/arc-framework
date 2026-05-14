@@ -9,15 +9,17 @@
 - **Task List:** `tasks-work-organization-reform.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Work unit activated — planning PR #33 merged; PRD + companions moved
-  backlog/ → active/; impl branch created.
+- **Last Completed:** Phase 1 (Tasks 1.1-1.4) — constitutional foundation: ADR-019 authored;
+  AGENT-BRIEF.ARC § Vocabulary updated; DEV-RULES.ARC capture-routing rule + drain rule
+  constitutionalized; atomic-tier infra-edit smell flag added.
 
-- **Next Task:** Task 1.1 — Author companion ADR for WOR constitutional shift (line ~23)
+- **Next Task:** Task 2.1 — `strategy-work-organization.md` § Branching, single-branch-per-WU
+  with CB-CC alignment (line ~158)
 
 - **Blockers:** [none]
 
-- **Next Action:** Begin Phase 1 — author companion ADR (`adr-019-...`) covering the four
-  constitutional surfaces per Task 1.1.b (single-branch-per-WU, CB core-6 alignment,
-  meta-file evolution, commit-convention reform).
+- **Next Action:** Resume with `.arc/reference/` restructure deliberation (see SESSION-NOTES
+  § Remaining Work) — evaluate fold into WOR scope (PRD + task list amendments) vs reject;
+  upon resolution, proceed to Task 2.1.
 
 ---
