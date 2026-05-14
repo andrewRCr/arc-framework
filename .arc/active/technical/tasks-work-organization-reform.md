@@ -719,22 +719,37 @@ parenthetical patterns); phase order reflects execution order.
   refs to `#planning-branch-workflow` (inside § Branch Protection Modes) tactically retired in this commit
   (sentence-level removal); surrounding subsection content retires fully in 2.16. Both strategy-doc copies in sync.
 
-### `[ ]` **2.15 `strategy-work-organization.md` § Directory Structure reshape**
+### `[x]` **2.15 `strategy-work-organization.md` § Directory Structure reshape**
 
 - _Goal:_ § Directory Structure body rewrites to reflect current flat `active/<wu-name>/` layout (no category
   subdirs per R3) and new archive shape (`archive/<dated>/<wu-name>/` per 2.3.b). Existing body shows retired
   `feature/` / `technical/` / `incidental/` subdirs and old `{quarter}/{category}/{NN}_{name}/` archive paths.
 
-    - `[ ]` **2.15.a § Active Work code-block rewrite**
-        - Replace 3-category code-block with flat layout: `active/<wu-name>/` carrying `meta-<name>.md`,
-          optional `plan-<name>.md` / `prd-<name>.md` / `tasks-<name>.md`, and companions.
+    - `[x]` **2.15.a § Active Work code-block rewrite**
+        - Replaced 3-category code-block with flat layout: `active/<wu-name>/` carrying `meta-<name>.md` (always),
+          `prd-<name>.md` / `tasks-<name>.md` (when WU has them), and `notes-<name>.md` / `atomic-<name>.md` /
+          `completion-<name>.md` (optional). Added note that `plan-<name>.md` is the pre-PRD synthesis artifact
+          deleted at PRD creation per `1_create-prd.md`; never appears in `active/` (per amended R22c).
 
-    - `[ ]` **2.15.b § Alignment subsection rewrite**
-        - Update path examples to reflect single-branch + flat-active + new-archive paths. Drop the
-          Planned/Incidental split (no longer relevant under R1).
+    - `[x]` **2.15.b § Alignment subsection rewrite**
+        - Replaced Planned/Incidental split with single-branch alignment example: `feat/<name>` →
+          `active/<name>/` → `completed/<dated>/<name>/`. Forward-compat with R62 promotion (Task 6.9 will
+          execute the actual `reference/archive/` → `.arc/completed/` directory move).
 
-    - `[ ]` **2.15.c Both copies + lint**
-        - Apply identically to `.arc/` instance + package source. Tier 1 lint clean.
+    - `[x]` **2.15.c Both copies + lint**
+        - Applied identically to `.arc/` instance + package source. Tier 1 lint clean.
+
+    - `[x]` **2.15.d § Archival > Archive directory shape sync (scope expansion)**
+        - Mirrored the path + content updates from 2.15 into the adjacent § Archival > Archive directory shape
+          subsection (5-line code-block): path `reference/archive/<dated>/` → `completed/<dated>/`; dropped
+          `plan-*.md` from listing per amended R22c. Other archive-path refs in § Archival (sweep semantics) +
+          § ROADMAP wait for Task 6.7.l's full doc-surface sweep.
+
+- _Outcome:_ § Directory Structure rewrote to forward-compat WOR state — flat `active/<wu-name>/` layout, single-
+  branch alignment, `completed/<dated>/<wu-name>/` archive path (per R62, ahead of Task 6.9's actual directory
+  move). Plan-* presence note added per amended R22c (deleted at PRD creation; never in active/). § Archival's
+  Archive directory shape subsection mirrored to stay consistent with § Directory Structure. Both strategy-doc
+  copies in sync. Other archive-path refs (sweep prose, ROADMAP render note) deferred to Task 6.7.l's doc sweep.
 
 ### `[ ]` **2.16 `strategy-work-organization.md` § Branch Protection Modes reshape**
 
