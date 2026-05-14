@@ -689,6 +689,67 @@ parenthetical patterns); phase order reflects execution order.
           vitest integration test under `packages/arc-framework/__tests__/integration/`.
         - _Note:_ This locks regex-vs-method drift. Re-run on every regex/method edit going forward.
 
+### `[ ]` **2.14 `strategy-work-organization.md` § Planning Branch Workflow retirement**
+
+- _Goal:_ § Planning Branch Workflow codifies the two-branch model (separate planning branch → PR →
+  `activate-work-unit` creates distinct implementation branch). Under WOR's single-branch-per-WU +
+  `plan/<name>` rotation, this section is wholly stale. Section either retires entirely (remove heading, update
+  TOC, audit anchor refs from elsewhere) or collapses to a thin pointer to § Branching > § Planning branches.
+  Default lean: collapse matches 2.8's shape.
+
+    - `[ ]` **2.14.a Reshape decision + body rewrite**
+        - Choose retire-fully vs. collapse-to-pointer; apply. If collapse, point at § Branching's `plan/<name>`
+          rotation subsection.
+
+    - `[ ]` **2.14.b Anchor-reference audit**
+        - Audit `#planning-branch-workflow` refs elsewhere in the strategy doc and sibling strategies. Update
+          to point at § Branching's planning subsection or retire if the citing content is also stale.
+
+    - `[ ]` **2.14.c Both copies + lint**
+        - Apply identically to `.arc/` instance + package source. Tier 1 lint clean.
+
+### `[ ]` **2.15 `strategy-work-organization.md` § Directory Structure reshape**
+
+- _Goal:_ § Directory Structure body rewrites to reflect current flat `active/<wu-name>/` layout (no category
+  subdirs per R3) and new archive shape (`archive/<dated>/<wu-name>/` per 2.3.b). Existing body shows retired
+  `feature/` / `technical/` / `incidental/` subdirs and old `{quarter}/{category}/{NN}_{name}/` archive paths.
+
+    - `[ ]` **2.15.a § Active Work code-block rewrite**
+        - Replace 3-category code-block with flat layout: `active/<wu-name>/` carrying `meta-<name>.md`,
+          optional `plan-<name>.md` / `prd-<name>.md` / `tasks-<name>.md`, and companions.
+
+    - `[ ]` **2.15.b § Alignment subsection rewrite**
+        - Update path examples to reflect single-branch + flat-active + new-archive paths. Drop the
+          Planned/Incidental split (no longer relevant under R1).
+
+    - `[ ]` **2.15.c Both copies + lint**
+        - Apply identically to `.arc/` instance + package source. Tier 1 lint clean.
+
+### `[ ]` **2.16 `strategy-work-organization.md` § Branch Protection Modes reshape**
+
+- _Goal:_ § Branch Protection Modes aligns to single-branch-per-WU. Protection modes themselves (`partial` /
+  `full` config values) stay — those are real settings. Framing around "planning branches for delivering
+  artifacts and implementation branches" retires; § Fully Protected > Lifecycle transitions (batch) subsection
+  retires (tied entirely to the two-branch lifecycle).
+
+- _Context:_ Distinct from 2.14's § Planning Branch Workflow retirement — this section's protection-mode
+  framework persists; only the surrounding two-branch-model framing retires.
+
+    - `[ ]` **2.16.a Mode summary verification**
+        - Verify Mode Summary table cells correctly describe current state. Update any cells referencing the
+          retired two-branch model.
+
+    - `[ ]` **2.16.b Framing rewrite around single-branch model**
+        - Replace planning-vs-implementation-branch framing with single-branch-per-WU + `plan/<name>` rotation.
+          Update § Partially Protected > Documented exceptions list if any items are tied to retired flows.
+
+    - `[ ]` **2.16.c Batch transitions subsection retirement**
+        - Remove or thin-pointer-replace the § Fully Protected > Lifecycle transitions (batching) subsection —
+          single-branch model eliminates the need for the batch-branch pattern.
+
+    - `[ ]` **2.16.d Both copies + lint**
+        - Apply identically to `.arc/` instance + package source. Tier 1 lint clean.
+
 ## **Phase 3:** Boundary workflow restructure + ceremony fire-points
 
 _Purpose:_ Restructure activate / integrate / archive workflows for single-branch-per-WU; wire PROJECT-PRD alignment,
