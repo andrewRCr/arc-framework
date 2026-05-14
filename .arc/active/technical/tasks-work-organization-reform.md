@@ -785,6 +785,70 @@ halt and `archive.cadence` dispatch need both present.
           (3.8.b updates the reference). 3.10 doesn't change prepare-commits; just confirms the
           rename didn't break the existing fire-point reference.
 
+### `[ ]` **3.11 Lifecycle workflow alignment (deactivate restructure + clean update + rotate-branch retirement)**
+
+- _Goal:_ Three additional WU-lifecycle workflows align with WOR conventions per R52a:
+  `deactivate-work-unit.md` restructured for single-branch model with new case matrix;
+  `clean-work-unit.md` updated for 4-state enum + meta-* shape + redirected completion handoff;
+  `rotate-branch.md` retired (multi-branch premise eliminated by single-branch-per-WU per R1, R2, R4).
+
+- _Approach:_ Three subtasks per workflow. Sequence: deactivate restructure first (defines new case
+  matrix that downstream tasks can reference); clean update second (depends on 3.4.b/3.4.c
+  composition handoff being defined); rotate retirement last (mechanical `git rm` + cross-ref sweep).
+
+- _Note:_ `verify-work-unit.md` requires only the `status-` → `meta-` filename-token update — folds
+  into Task 6.3.i's propagation, not addressed here.
+
+    **Strategies:** `strategy-package-project-sync.md`
+
+    - `[ ]` **3.11.a Restructure `deactivate-work-unit.md` (single-branch model)**
+        - _Premise change:_ Activation under WOR doesn't move artifacts (in-place rename); there's
+          no separate impl branch to delete. Existing Case A/B/C/D matrix breaks under
+          single-branch-per-WU.
+        - _New case matrix:_
+            - **Case A** — Active WU, no work executed, not merged → state flip Active → Planning
+              plus branch rename `<type>/<name>` → `plan/<name>` (inverse of activation). Meta
+              file edits: State + Branch field. PR closed if open.
+            - **Case A-delete variant** — Active WU, no work executed, not merged, user wants
+              full WU deletion (not return to Planning) → branch deletion plus meta file removal
+              plus backlog/active artifact cleanup per `pm.mode`.
+            - **Case B** — Active WU, some work executed, not merged → routes to `arc-shift`
+              (worktree-foundation; future). Until then: complete via integrate-work-unit OR
+              abandon via clean-work-unit.
+            - **Case C** — Active WU, no work executed, merged to base → reversal PR (state-flip
+              plus branch-rename inverse, committed via PR). Rare.
+            - **Case D** — Active WU, some work executed, merged → integrate or clean.
+        - Footer convention: `Context: meta-{name}.md (deactivation)` per R29a (S9). Replaces
+          invalid `Context: tasks-{name}.md (deactivation)` (pre-existing bug; current hook regex
+          rejects).
+        - `manage-incidental-work.md` references retain as transitional forward-pointers per R49a
+          (workflow itself retains pending AWL; substrate retired).
+        - Sync to packages/.
+
+    - `[ ]` **3.11.b Update `clean-work-unit.md` (4-state alignment + meta-file shape + redirected handoff)**
+        - `status-{name}.md` → `meta-{name}.md` throughout (Step 1, Step 6, etc.).
+        - `**State:** Complete` references → `**State:** Integrating` per R9 4-state mapping (Step 1
+          status metadata update; Step 6 cross-references update).
+        - Remove retired-field references: `Interrupts:`, `Paused:`, `Paused To:`, `Spawned:` (Step 1
+          pointer-directionality block; Step 7 grep patterns).
+        - Update tasks-* "standard structure" header list (Step 3 Mode 2): header is `**Spec:**` only
+          per R58a chain model.
+        - Redirect completion-doc creation handoff (Step 7 context check + closing prose): instead of
+          pointing at `completion-{name}.md` creation in integrate-work-unit, point at meta file's
+          archive-phase composition (Tasks 3.4.b Release Notes Entry + 3.4.c Completion Notes).
+        - Verify Mode 2 archival prep flow still hangs together post-rewrite — particularly the
+          interaction with 3.4 / 3.5's restructured composition + sweep flow.
+        - Sync to packages/.
+
+    - `[ ]` **3.11.c Retire `rotate-branch.md`**
+        - `git rm .arc/system/workflows/arc/work-unit-lifecycle/rotate-branch.md` +
+          `packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/rotate-branch.md`.
+        - Inbound-reference sweep: grep for `rotate-branch` across `.arc/`,
+          `packages/arc-framework/arc/`; retire each reference (or redirect if any context still
+          applies — none expected under single-branch-per-WU).
+        - _Note:_ R51 lists `rotate-branch.md` in the doc-retirement set; R52's cross-ref sweep may
+          already cover the inbound-reference sweep. Coordinate at execution to avoid duplicate work.
+
 ## **Phase 4:** Template evolution + META-PRD content rewrite
 
 _Purpose:_ Encode the new meta-file shape, META-PRD template, and rewrite META-PRD content as a dogfooding
@@ -840,24 +904,10 @@ co-located.
           scope-section variant, etc.). Field name does not lock to "PRD." See PRD R58a § Spec
           field generalizability.
         - `**Depends On:**` bare WU-name list; default `[none]`; renders into ROADMAP tier grouping.
-        - `**Cohort:**` single name string; default `[standalone]`; source of truth for cohort
+        - `**Cohort:**` single name string; default `[none]`; source of truth for cohort
           membership (sibling list derived).
         - Active-state pointers preserved: `**Task List:**`, `**Last Completed:**`, `**Next Task:**`,
           `**Blockers:**`, `**Next Action:**`.
-
-    - `[ ]` **4.1.h Retired-from-prior-shape field acknowledgment (in template comments)**
-        - Template includes inline comment block (or surfaces in the template's intro) explicitly
-          enumerating fields retired from prior `template-status.md` per PRD R58: `Branch(es)`
-          plural form (use `Branch:` singular); `Base Branch:` (always `main` under
-          single-branch-per-WU; project-level config concern); `Sibling Work Unit(s):` (cohort
-          is SoT per R13; siblings derived); `Integration:` (folds into State per R9);
-          `Interrupts:` / `Paused At:` / `Paused To:` (incidental WU model substrate retirement
-          per R49a).
-        - Template includes inline note enumerating fields deliberately NOT added: `Worktree:`
-          (per-machine + derivable via R44 roster + WF location-template); `Tier:` (reserved
-          for AWL); `Created:` / state-transition dates (derivable from git log; metrics-flavor).
-        - Form: HTML comment block or template intro paragraph — chosen at execution to avoid
-          template-body clutter. Goal is forward-reader clarity, not rule restatement.
 
     - `[ ]` **4.1.d Codify post-integration metadata fields + content H2s**
         - Post-integration block within `# Metadata:` H1 body (added at integration ceremony):
@@ -884,6 +934,20 @@ co-located.
     - `[ ]` **4.1.g Retire `template-completion-doc.md`**
         - Bundled with 6.7 doc retirements; flag here that completion-doc content folded into
           archive-phase content H2s of `template-meta.md`.
+
+    - `[ ]` **4.1.h Retired-from-prior-shape field acknowledgment (in template comments)**
+        - Template includes inline comment block (or surfaces in the template's intro) explicitly
+          enumerating fields retired from prior `template-status.md` per PRD R58: `Branch(es)`
+          plural form (use `Branch:` singular); `Base Branch:` (always `main` under
+          single-branch-per-WU; project-level config concern); `Sibling Work Unit(s):` (cohort
+          is SoT per R13; siblings derived); `Integration:` (folds into State per R9);
+          `Interrupts:` / `Paused At:` / `Paused To:` (incidental WU model substrate retirement
+          per R49a).
+        - Template includes inline note enumerating fields deliberately NOT added: `Worktree:`
+          (per-machine + derivable via R44 roster + WF location-template); `Tier:` (reserved
+          for AWL); `Created:` / state-transition dates (derivable from git log; metrics-flavor).
+        - Form: HTML comment block or template intro paragraph — chosen at execution to avoid
+          template-body clutter. Goal is forward-reader clarity, not rule restatement.
 
 ### `[ ]` **4.2 Create `template-meta-prd.md`**
 
@@ -1131,8 +1195,8 @@ fire-point wiring into the push wrapper, and CLI init/join preamble strip for in
     - Resolves `identity` from meta file's `**Owner:**` field (verbatim string; no normalization).
     - Resolves `state` from `**State:**` field (validates against the codified value-set; surfaces
       unknown values as `unknown` rather than throwing).
-    - Resolves `cohort` from `**Cohort:**` field; `[standalone]` maps to `undefined` in the tuple
-      (not the string `"[standalone]"`).
+    - Resolves `cohort` from `**Cohort:**` field; `[none]` maps to `undefined` in the tuple
+      (not the string `"[none]"`).
     - Tolerates missing meta file (worktree exists, no `meta-*.md` in its `active/`) — returns a tuple
       with `metaFilePath` undefined and other meta-derived fields absent.
     - Tolerates malformed meta file (parse error) — surfaces a warning, returns a degraded tuple
@@ -1231,21 +1295,93 @@ coupled. Cross-reference sweep last so all retired surfaces have already been re
         - Attempt commits with retired type (`style:`) and `arc` scope; verify rejection. Attempt valid
           commit; verify pass.
 
-### `[ ]` **6.2 Codify `docs` discipline in `commit-format.md` method**
+### `[ ]` **6.2 Commit-format method update + footer-convention propagation (R27, R29a)**
 
-- _Goal:_ `commit-format.md` method carries the `docs` discipline principle — type chosen by intent (not
-  file extension), with concise type-definition lines (feat / fix / refactor / docs) + the rule of thumb.
-  No examples (methods stay token-lean per R27).
+- _Goal:_ `commit-format.md` method carries the `docs` discipline principle (R27);
+  `commit-context-format.md` method renames to `commit-footer.md` with full body rewrite per R29a
+  (chain naming, standalone anchor, parenthetical matrix updates, discreteness test); hook regex +
+  error examples align with the new matrix; smoke tests lock the matrix. The `status-` → `meta-`
+  filename-token portion of the regex stays at `status-` here and flips at Task 6.3.i atomically
+  with the in-flight file rename (6.3.a).
 
-    - Principle paragraph + four type-definition lines + rule of thumb. ~8-10 lines added; method's
-      token budget respected. `commit-context-format.md` and `arc-commit` skill stay out of scope.
+- _Sequencing-critical:_ Must land before Phase 3 lifecycle workflow restructures (3.3-3.5, 3.11)
+  which emit the new parenthetical patterns. Otherwise commits referencing the new patterns fail
+  hook validation.
+
+    **Strategies:** `strategy-package-project-sync.md`
+
+    - `[ ]` **6.2.a Codify `docs` discipline in `commit-format.md`** (R27)
+        - Principle paragraph + four type-definition lines (feat / fix / refactor / docs) + rule of
+          thumb. ~8-10 lines added; method's token budget respected.
+        - Sync to packages/.
+
+    - `[ ]` **6.2.b Rename `commit-context-format.md` → `commit-footer.md`**
+        - `git mv .arc/system/methods/commit-context-format.md .arc/system/methods/commit-footer.md`.
+        - Update method frontmatter `name:` field to `commit-footer`.
+        - Sync to `packages/arc-framework/arc/system/methods/`.
+        - _Note:_ Config key `commit.context_footer` retained (slot identity decoupled from
+          filename) — no `arc-config.yml` changes needed.
+
+    - `[ ]` **6.2.c Rewrite `commit-footer.md` method body per R29a**
+        - Chain naming in preamble: footer names the deepest spec-shaped artifact under edit along
+          the WU chain (Origin → Spec → Tasks → Atomic); falls back to `standalone` when no active WU.
+        - Discreteness test for `(incidental during X)` vs `standalone` codified as a single binary
+          check ("active WU?").
+        - Standalone anchor section replaces prior `{category} (no associated task list)` patterns;
+          parenthetical vocab `maintenance | planning | documentation | refactor`. Note off-WU
+          `(planning)` semantic (queue-shaping; ROADMAP / BACKLOG-INBOX edits) vs file-pointer
+          `(planning)` (spec iteration).
+        - Meta-* section: rename heading "Status-file references" → "Meta-file references"; add
+          `(maintenance)` and `(deactivation)` parentheticals; drop `(planning)`. Filename-token
+          example bodies stay at `status-` here; flip at 6.3.i.
+        - Tighten `(incidental - discovered during X)` → `(incidental during X)`.
+        - Drop `content` from off-WU category list.
+        - Sync to packages/.
+
+    - `[ ]` **6.2.d Update `system/githooks/commit-msg` regex + error examples (non-filename portion)**
+        - tasks-* parenthetical regex: `(incidental - discovered during .+)` → `(incidental during .+)`.
+        - meta-* (still `status-` filename token here; flips at 6.3.i) parenthetical regex: add
+          `deactivation` and (separately) `maintenance` to the alternation; drop `planning` (was
+          accepted previously).
+        - New standalone-anchor regex:
+          `^Context: standalone \((maintenance|planning|documentation|refactor)\)$`.
+        - Retires the prior off-WU regex:
+          `^Context: (planning|documentation|maintenance|refactor|content) \((atomic / )?no associated task list\)$`.
+        - Error-message example list updates to reflect the new matrix (lines 161-183 in current
+          hook).
+        - Sync to packages/.
+
+    - `[ ]` **6.2.e Update inbound references to renamed method**
+        - `system/methods/README.md`: method-list entry rename `commit-context-format` →
+          `commit-footer`.
+        - `system/workflows/arc/supplemental/prepare-commits.md`: frontmatter
+          `arc.methods: - commit-context-format` → `commit-footer`; body refs
+          `[arc-methods-ccf]` link target updates (rename file + rename anchor if conventional).
+        - `arc-commit` skill (`SKILL.md` Read-path reference).
+        - `reference/constitution/DEV-RULES.ARC.md`: reference link `[arc-methods-ccf]` updates target
+          (or rename anchor + target).
+        - Sync packages/ copies.
+        - _Note:_ `docs/**` references deferred to docs-content sweep (captured in
+          `plan-docs-content-sweep.md`).
+
+    - `[ ]` **6.2.f Footer-convention smoke tests (positive + negative cases)**
+        - Positive cases (one per matrix cell from R29a): `tasks-*` with all parentheticals;
+          `plan-*` / `prd-*` with `(planning)` / `(code review)`; `meta-*` with all ceremonies
+          plus `(maintenance)` plus `(incidental during X)` plus `(deactivation)`; standalone
+          with all 4 categories; `atomic-*`; contribution.
+        - Negative cases: `(content)` parenthetical (retired); `(maintenance)` on `plan-*`;
+          `(planning)` on `meta-*`; off-WU patterns using old `(no associated task list)` shape;
+          `(incidental - discovered during X)` form (now retired phrasing).
+        - Test fixture location: TBD at execution — extends 6.1.d's hook smoke-test pattern (shell
+          loop) or adds a vitest integration test under `packages/arc-framework/__tests__/integration/`.
+        - _Note:_ This locks regex-vs-method drift. Re-run on every regex/method edit going forward.
 
 ### `[ ]` **6.3 Migrate in-flight WU meta files (`status-*` → `meta-*` + field backfill + State recodification)**
 
 - _Goal:_ In-flight WU `status-*.md` files rename to `meta-*.md`; State recodified per mapping table; Owner
   backfilled from `arc.identity`; Origin defaulted to `[Internal]` (external URLs migrated from prior Spec
   where applicable); Depends On initialized to `[none]` (manual extraction for known dependencies); Cohort
-  initialized to `[standalone]` or cohort name for known sibling sets.
+  initialized to `[none]` or cohort name for known sibling sets.
 
     - _Approach:_ One commit per WU migration to keep blast radius bounded — each WU's rename + field
       edits land atomically per ARC commit discipline. Mapping table per `notes-work-organization-reform.md`
@@ -1280,11 +1416,11 @@ coupled. Cross-reference sweep last so all retired surfaces have already been re
 
     - `[ ]` **6.3.e Initialize `**Depends On:** [none]` (manual extraction for known dependencies)**
 
-    - `[ ]` **6.3.f Initialize `**Cohort:** [standalone]` (or cohort name for known sibling sets)**
+    - `[ ]` **6.3.f Initialize `**Cohort:** [none]` (or cohort name for known sibling sets)**
         - Parallelism trio members (Worktree Foundation, Agile WU Lifecycle, Concurrent Work Conventions)
           tagged `parallelism-trio`. ARCd Rebrand consumes WOR conventions but is a separate WU — defaults
-          to `[standalone]` or its own cohort per planning context. Interlock-release-wrappers cluster
-          tagged `interlock-release-wrappers`. Others default `[standalone]`.
+          to `[none]` or its own cohort per planning context. Interlock-release-wrappers cluster
+          tagged `interlock-release-wrappers`. Others default `[none]`.
 
     - `[ ]` **6.3.g Retired-field migration on in-flight meta files (per R58 + R49a)**
         - `**Branch(es):**` plural form → rename to `**Branch:**` singular (drop plural form);
@@ -1314,6 +1450,24 @@ coupled. Cross-reference sweep last so all retired surfaces have already been re
         - In-flight scope: this WU's own `tasks-work-organization-reform.md` +
           `prd-work-organization-reform.md` (no `plan-*` since WOR's plan retired pre-PRD per
           R51). Other in-flight WUs (if any at migration time) follow the same pattern.
+
+    - `[ ]` **6.3.i Footer-convention status→meta filename-token propagation (couples atomically with 6.3.a)**
+        - **Atomicity coupling:** This subtask MUST land in the same commit as 6.3.a (the file
+          rename) per ARC commit discipline — otherwise the hook regex (still expecting `status-`
+          when the file has been renamed) rejects valid `Context: meta-{name}.md (handoff)` commits,
+          OR commits referencing `Context: status-{name}.md` warn on file-not-found.
+        - Hook regex update: `^Context: status-[a-zA-Z0-9-]+\.md` → `^Context: meta-[a-zA-Z0-9-]+\.md`
+          on the meta-anchor regex (line ~283 in current `system/githooks/commit-msg`); also update
+          the file-existence loop to check for `meta-*.md` instead of `status-*.md`.
+        - Hook error-message example list: `Context: status-X.md (handoff)` examples (lines 174-178)
+          → `Context: meta-X.md (handoff)`.
+        - Method body filename-token examples: section heading "Status-file references" already
+          renamed to "Meta-file references" at 6.2.c; update example filenames `status-` → `meta-`
+          throughout the section body (the section-heading rename happened at 6.2.c, but example
+          filenames stayed at `status-` until this atomic-coupling moment).
+        - Sync to `packages/arc-framework/arc/system/githooks/commit-msg` + the renamed method.
+        - Smoke test: re-run 6.2.f's smoke suite; verify positive cases now use `meta-` shape and
+          negative cases include old `status-` prefix as a rejected pattern.
 
 ### `[ ]` **6.4 Migrate capture pipeline files**
 
@@ -1407,7 +1561,7 @@ coupled. Cross-reference sweep last so all retired surfaces have already been re
         - For each plan, user confirms the meta-file field values before file moves fire.
           Defaults applied automatically: `Owner: [arc.identity]`, `Origin: [Internal]`
           (unless external tracker reference present in plan body), `Depends On: [none]`
-          (unless plan body carries explicit upstream WU names), `Cohort: [standalone]`
+          (unless plan body carries explicit upstream WU names), `Cohort: [none]`
           (unless 6.5.b assigned to a named cohort).
         - **State value uniform:** all backlog WUs land `State: Planning` regardless of
           which commitment dir (`provisional/` or `planned/`) they route to. Under the
@@ -1500,12 +1654,12 @@ coupled. Cross-reference sweep last so all retired surfaces have already been re
         - Distinguish carefully from the new `pre-merge-review` at the post-review-response fire-point
           (must NOT be retired). Old `pre-merge-review` references update to `pre-pr-review`.
 
-    - `[ ]` **6.8.j Retired meta-file field references (per R58 + R49a) — retire entirely**
+    - `[ ]` **6.8.h Retired meta-file field references (per R58 + R49a) — retire entirely**
         - Grep patterns: `**Branch(es):**`, `**Base Branch:**`, `**Sibling Work Unit(s):**`,
           `**Integration:**`, `**Interrupts:**`, `**Paused At:**`, `**Paused To:**`.
         - Touch points already addressed by upstream tasks: in-flight meta-file migration (6.3.g);
           template-tasks header (4.6); template-prd header (4.7); template-meta retirement
-          acknowledgment (4.1.h). 6.8.j sweeps remaining doc surface: strategy docs (esp.
+          acknowledgment (4.1.h). 6.8.h sweeps remaining doc surface: strategy docs (esp.
           `strategy-work-organization.md` § Optional Pointer Fields if it survives 2.8's reshape),
           workflows (`process-task-loop.md`, `session-init.md`, `session-handoff.md`,
           `integrate-work-unit.md`, `archive-work-unit.md`, `activate-work-unit.md`,
@@ -1528,10 +1682,11 @@ coupled. Cross-reference sweep last so all retired surfaces have already been re
           `Incidental Work Model`, `Interrupts:`, `Paused At:`, `Paused To:`.
         - Touch points already addressed by upstream tasks: DEV-RULES.ARC § Leave it cleaner (1.3.d),
           `strategy-work-organization.md` § Incidental Work Model + § Work Categories (2.8),
-          `template-tasks.md` (4.6). 6.8.i sweeps the remaining surface: workflows
-          (`session-handoff.md`, `prepare-commits.md`, `process-task-loop.md`,
-          `integrate-work-unit.md`, `archive-work-unit.md`, `activate-work-unit.md`,
-          `deactivate-work-unit.md`), `commit-context-format.md` method, strategy docs
+          `template-tasks.md` (4.6), `deactivate-work-unit.md` (3.11.a — keeps refs as transitional
+          forward-pointers per R49a; verify alignment, no duplicate sweep work). 6.8.i sweeps the
+          remaining surface: workflows (`session-handoff.md`, `prepare-commits.md`,
+          `process-task-loop.md`, `integrate-work-unit.md`, `archive-work-unit.md`,
+          `activate-work-unit.md`), `commit-footer.md` method (renamed at 6.2.b), strategy docs
           (`strategy-file-classification.md`, `strategy-task-list-formatting.md`,
           `strategy-quality-gates.md`, `strategy-interlock-release-wrappers.md`).
         - Reference-link cleanup: `[manage-incidental]:` definitions remaining after upstream tasks
@@ -1540,7 +1695,7 @@ coupled. Cross-reference sweep last so all retired surfaces have already been re
           during ...)` Context modifier describe commits' _discovery context_, not the WU
           _incidental_ category — preserve as-is unless explicit re-scope decision flags them.
 
-    - `[ ]` **6.8.h Post-sweep verification grep — returns empty for all retired patterns**
+    - `[ ]` **6.8.j Post-sweep verification grep — returns empty for all retired patterns**
         - **Exception:** 6.8.i patterns retain references (transitional forward-pointer language);
           verify those references use the forward-pointer framing per R49a rather than the old
           incidental-WU-model framing. Post-sweep grep on the incidental patterns returns matches
@@ -1649,6 +1804,19 @@ integration readiness assessment.
   to `plan-*`; content reshaped from PRD commitment-language to plan-doc framing; docs-site WU
   additionally renamed `arcd-docs-site` → `docs-site-refresh`; routing per commitment
   (rebrand → provisional; docs-site-refresh → planned)
+- `[ ]` `commit-context-format` method renamed to `commit-footer` — file renamed in both copies;
+  inbound references updated (hook comment, prepare-commits frontmatter, arc-commit skill,
+  DEV-RULES.ARC reference link, methods/README); config key `commit.context_footer` retained
+- `[ ]` Hook regex accepts the new parenthetical matrix per R29a — smoke tests cover positive
+  cases (one per matrix cell) and negative cases (known-invalid patterns: `status-` prefix;
+  `(content)`; `(maintenance)` on `plan-*`; `(planning)` on `meta-*`; old
+  `(no associated task list)` shape); method documentation aligns with hook regex (no drift)
+- `[ ]` `**Cohort:**` field default value is `[none]` — not `[standalone]`; CLI tuple resolution
+  treats `[none]` as undefined cohort
+- `[ ]` Lifecycle workflow alignment complete — `deactivate-work-unit.md` restructured for
+  single-branch model with new case matrix; `clean-work-unit.md` updated for 4-state enum +
+  meta-* file shape + redirected completion handoff to integrate-work-unit composition;
+  `rotate-branch.md` retired
 - `[ ]` All quality gates pass (`npm run -s lint:md`, `npm run lint:ts`, `npm run typecheck`,
   `npm test`, `npm run build`)
 - `[ ]` Ready for integration
