@@ -14,8 +14,9 @@ For ARC methodology rules (commit discipline, task execution, session management
 - [Testing Requirements](#testing-requirements) — test strategy and coverage
 - [Code Quality Principles](#code-quality-principles) — engineering standards
 - [Documentation Standards](#documentation-standards) — markdown quality, style conventions
-- [Capture Routing](#capture-routing) — where deferred issues go
 - [Package-Project Sync](#package-project-sync) — two-copy discipline for framework files
+- [Audience Boundaries](#audience-boundaries) — adopter-facing vs. internal-dev-facing surfaces
+- [Capture Routing](#capture-routing) — where deferred issues go
 - [Architecture Documentation](#architecture-documentation) — ADRs and design records
 
 ---
@@ -129,6 +130,65 @@ copies can drift from canonical sources in `.arc/system/skills/` and
 self-hosting session, if a skill's behavior surprises you, suspect drift — hand-sync by copying
 the canonical `SKILL.md` into the harness subdirectory. Adopters aren't affected; their harness
 copies regenerate on every `arc update`.
+
+## Audience Boundaries
+
+The two-copy architecture (see § Package-Project Sync) creates two distinct audiences. Content
+appropriate for one is often inappropriate for the other.
+
+### Surface taxonomy
+
+**Adopter-facing** — read by users of ARC; ships via the package source:
+
+- `.arc/system/**`
+- `.arc/reference/strategies/arc/**`
+- `.arc/reference/constitution/DEV-RULES.ARC.md`
+- `.arc/reference/templates/**`
+- `.arc/reference/QUICK-REFERENCE.md`
+
+State what is. Don't describe how the methodology arrived at its current shape, what's
+in-flight, or what's coming.
+
+**Internal-dev-facing** — read only by people developing ARC; doesn't ship:
+
+- `.arc/reference/strategies/project/**`
+- `.arc/reference/adr/**`
+- `.arc/reference/PROJECT-PRD.md`
+- `.arc/reference/constitution/DEV-RULES.PROJECT.md` (this file)
+- `.arc/active/**`, `.arc/backlog/**`, `.arc/user/**`
+- `.arc/system/briefs/AGENT-BRIEF.PROJECT.md`
+- Any `notes-*.md` companion to a WU
+
+These reference internal WU names, in-flight scope, transitional state, and project-internal
+concerns freely.
+
+### Leak patterns to avoid in adopter-facing content
+
+- Transitional framing ("under the old model", "until X ships", "pre-CLI",
+  "now hand-maintained")
+- Project-internal migration concerns for ARC's own evolution ("forward-only migration",
+  "backward-compat tooling")
+- Forward-pointers to unplanned future scope — adopters don't share ARC's internal roadmap
+
+Route such concerns to internal-dev surfaces instead: WU notes for in-flight context; ADR or
+PROJECT-PRD for directional decisions; project strategies for conventions that don't apply to
+adopters.
+
+### Package-source mirror inheritance
+
+Anything mirrored to `packages/arc-framework/arc/**` is adopter-facing by definition (it ships).
+The `.arc/` copy inherits the classification.
+
+### Relationship to DEV-RULES.ARC § Documentation Boundaries
+
+Planning-artifact references — task IDs, R-IDs, phase numbers, ADR numbers, named processes /
+methods / workflows, `.arc/` doc paths — are handled by DEV-RULES.ARC § Documentation
+Boundaries; that rule prohibits them across code, tests, and durable documentation including
+strategies. This section adds the orthogonal **adopter vs. internal-dev** concerns above
+(transitional framing, project-internal migration, future-scope pointers) within methodology
+surfaces. Both apply.
+
+---
 
 ## Capture Routing
 
