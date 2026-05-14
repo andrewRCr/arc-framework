@@ -376,7 +376,7 @@ parenthetical patterns); phase order reflects execution order.
   Adopter-facing audience discipline preserved (no R-IDs in body; no transitional framing; no internal WU naming).
   Both copies byte-identical. Tier 1 markdown lint clean; `lint:arc:triggers` audit still passes.
 
-### `[ ]` **2.7 `strategy-work-organization.md` § Spec-Flow Invariants**
+### `[x]` **2.7 `strategy-work-organization.md` § Spec-Flow Invariants**
 
 - _Goal:_ A new § Spec-Flow Invariants section in `strategy-work-organization.md` codifies the three invariants WOR
   lands (`meta-*` always exists; task list structure invariant; parseable spec exists in some form before tasks) and the
@@ -385,42 +385,36 @@ parenthetical patterns); phase order reflects execution order.
   verification model under tier collapse) to arc-plan Conductor + AWL. Establishes the interface those downstream WUs
   consume.
 
-- _Context:_ This section is the load-bearing anchor for the WOR scope-expansion items (PRD R22a / R22b / R22c). Without
-  it, AWL and conductor have no codified anchor to land their contract on top of; with it, they pick up the invariants
-  and fill in the policy.
+    - `[x]` **2.7.a Three invariants codification**
+        - Landed as ordered list under § Spec-Flow Invariants > Invariants subsection. Meta-* identity-artifact framing
+          (R22a) carries the persistence claim; task list structural invariance enumerates the fixed shape (phase
+          headings, leaf format, completion markers, Success Criteria); spec-existence-before-task-generation decouples
+          form from existence.
 
-- _Placement:_ Section ordering decided at execution. Candidate placements within `strategy-work-organization.md`: after
-  § Work Unit State (sibling-level meta-concern), after § Planning Module (planning-pipeline-adjacent), or new top-level
-  section before § Team Coordination.
-    - `[ ]` **2.7.a Three invariants codification**
-        - `meta-*` always exists across entire WU lifecycle (PRD R22a) — created at WU stub creation; persists through
-          state transitions; single source of truth for state / owner / dependencies / cohort / spec pointer.
-        - Task list structural invariance — phase headings, leaf task format, completion markers, Success Criteria
-          section. Tier-aware ceremony (atomic / quick / standard scaling) is AWL scope; the structural shape stays
-          uniform.
-        - A parseable spec exists in some form before task-list generation — form varies by mode × tier; existence does
-          not.
+    - `[x]` **2.7.b Two scaling axes (mode + tier)**
+        - Mode axis described via the shipping `pm.mode` value set {`arc-in-git`, `external`, `none`} — Lite/Full ARC
+          naming kept internal until `plan-arc-modes.md` ships (audience-boundary judgment, see _Outcome_). Tier axis
+          named as atomic/quick/standard without per-tier-shape codification (routed to AWL).
 
-    - `[ ]` **2.7.b Two scaling axes (mode + tier)**
-        - **Mode axis** — Lite vs Full ARC; `pm.mode: arc-in-git` vs `none`. Different artifact sets per mode. Section
-          lists known modes with status (Full + arc-in-git shipping; others per `plan-arc-modes.md`; conceptual
-          `pm.layer` collapse framing landed in PRD R12, with the actual value-set change shipping in
-          `plan-arc-modes.md` scope).
-        - **Tier axis** — atomic / quick / standard per AWL's current lean (`technical/plan-agile-wu-lifecycle.md`).
-          Each tier carries different artifact requirements; strategy section flags the axis but routes the per-tier
-          contract to AWL rather than codifying tier shapes itself (AWL's per-tier design may still iterate before its
-          own PRD lands).
+    - `[x]` **2.7.c Spec-flow contract deferral (explicit)**
+        - Deferred-contract subsection states the per-mode × per-tier policy lives downstream of this strategy.
+          Forward-pointers to internal WU plans (`plan-arc-plan-conductor.md`, `plan-agile-wu-lifecycle.md`)
+          deliberately omitted from adopter-facing strategy per audience-boundary rule; phrased as "surfaces that
+          orchestrate per-mode and per-tier policy" instead.
 
-    - `[ ]` **2.7.c Spec-flow contract deferral (explicit)**
-        - State that the optionality contract (which spec form applies under which mode × tier combination) lives in
-          arc-plan Conductor + AWL — NOT WOR. WOR ships invariants + scaling hooks; downstream WUs land the policy.
-        - Forward-pointer to `feature/plan-arc-plan-conductor.md` and `technical/plan-agile-wu-lifecycle.md`.
+    - `[x]` **2.7.d Escape-hatch guardrail framing**
+        - Three guardrails codified under § Escape-hatch guardrails: tier is one-way (promotion easy, demotion
+          deliberate); atomic-tier requires explicit choice (not default); tier-invariant disciplines
+          (process-task-loop, quality gates, commit discipline) apply uniformly across tiers. Concrete `--tier atomic`
+          flag mechanic dropped in favor of intent-level phrasing (flag mechanic is AWL implementation detail).
 
-    - `[ ]` **2.7.d Escape-hatch guardrail framing**
-        - Note that tier classification (AWL) carries the discipline mechanism — one-way promotion (atomic → quick →
-          standard easy; demotion hard); explicit `--tier atomic` opt-in (default `quick`); conductor's
-          escalation-suggestion behavior on novelty cues; tier-invariant disciplines (process-task-loop, quality gates,
-          commit discipline). WOR preserves the structural cuts; AWL + conductor enforce policy.
+- _Outcome:_ § Spec-Flow Invariants landed in `strategy-work-organization.md` between § Work Unit State and § Branching
+  (TOC updated; both copies in sync). Codifies three invariants (meta-* persistence, task list structural invariance,
+  spec existence before task generation), two scaling axes (mode × tier), and explicit deferral of per-axis policy.
+  Adopter-safe phrasing throughout: no internal WU plan forward-pointers, no Lite/Full mode naming, no transitional
+  framing. Reverse-pointers added to `plan-arc-plan-conductor.md` (§ Strategy and constitution) and
+  `plan-agile-wu-lifecycle.md` (Scope item 10) so those WUs replace the abstract phrasing in § Deferred contract +
+  § Escape-hatch guardrails with concrete references when they land. Scaffold for R22a/b/c established.
 
 ### `[ ]` **2.8 `strategy-work-organization.md` § Incidental Work Model + § Work Categories transitional retirement**
 

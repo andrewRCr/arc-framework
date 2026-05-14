@@ -17,6 +17,7 @@ documentation.
 - [Decision Rules](#decision-rules)
 - [Task Lists and Branches](#task-lists-and-branches)
 - [Work Unit State](#work-unit-state)
+- [Spec-Flow Invariants](#spec-flow-invariants)
 - [Branching](#branching)
 - [Per-Worktree Isolation](#per-worktree-isolation)
 - [Archival](#archival)
@@ -158,6 +159,70 @@ Added to status files when the WU's state calls for cross-references. Omit other
 | `**Paused At:** <task-id>`                                | Parent WU status file (when interrupted)           | [manage-incidental-work][manage-incidental] — records the task at which work paused  |
 | `**Paused To:** {category}/{name}`                        | Parent WU status file                              | [manage-incidental-work][manage-incidental] — names the incidental that caused pause |
 | `**Superseded By:** tasks-{new-approach}.md (YYYY-MM-DD)` | WU status files with `State: Superseded (partial)` | [integrate-work-unit][integrate-work-unit] § Appendix — points to successor WU       |
+
+---
+
+## Spec-Flow Invariants
+
+Three structural invariants hold across the WU lifecycle regardless of mode or tier. Two axes
+govern variation above them. The per-axis policy — which spec form applies under which mode ×
+tier combination — lives downstream of this strategy.
+
+### Invariants
+
+1. **`meta-*` always exists.** The meta file is the durable identity artifact across the entire
+   WU lifecycle. It is created at WU stub creation (alongside any planning artifact, or alone for
+   external-tracker-origin WUs), persists through every state transition, and lands in the dated
+   archive at integration. Single source of truth for state, owner, dependencies, cohort, and
+   (when applicable) the spec pointer. Workflows, tooling, and renderers consume it across the
+   lifecycle.
+
+2. **Task list structure is invariant across tiers.** When a task list exists, its shape is fixed
+   — phase headings, leaf task format, completion markers, Success Criteria section. Tier-aware
+   ceremony scales the artifact's presence and rigor; the structural shape stays uniform.
+
+3. **A parseable spec exists in some form before task-list generation.** Spec form varies by mode
+   × tier — PRD, plan doc, atomic-companion description, external tracker entry — but existence
+   does not. Task generation always has something to read.
+
+### Scaling axes
+
+Variation above the invariants happens along two axes:
+
+- **Mode** — `pm.mode` ∈ {`arc-in-git`, `external`, `none`}. Mode determines which capture
+  surfaces and spec-artifact sets the framework installs. The invariants hold equally under all
+  three; the artifact set carrying them differs.
+
+- **Tier** — atomic / quick / standard. Each tier carries a different artifact set per WU; the
+  structural invariants apply uniformly across all three.
+
+### Deferred contract
+
+This strategy codifies the invariants and the scaling axes. The per-mode × per-tier optionality
+contract — which spec form applies under which combination, whether `plan-*` is required vs.
+optional, the verification model under tier collapse — is not codified here. The invariants
+establish what's stable; the contract that builds on them lives with the surfaces that
+orchestrate per-mode and per-tier policy.
+
+### Escape-hatch guardrails
+
+The structural cuts above raise a discipline question: how does the framework prevent
+escape-hatching to lower-ceremony tiers for work that warrants higher discipline? Three
+mechanisms:
+
+- **Tier is one-way.** Promotion (atomic → quick → standard) is straightforward; demotion is
+  deliberate. Work that grows beyond its initial tier rotates to the higher tier rather than
+  absorbing scope under a thinner shape.
+
+- **Atomic-tier requires explicit choice.** Atomic shape is the exception, not the path of least
+  resistance — work defaults to the heavier ceremony unless its scope genuinely warrants atomic.
+
+- **Tier-invariant disciplines stay uniform.** Process-task-loop, quality gates, and commit
+  discipline apply identically regardless of tier. Tier scales artifact ceremony, not engineering
+  rigor.
+
+The invariants supply the structural floor; the guardrails above keep that floor intact
+regardless of tier.
 
 ---
 

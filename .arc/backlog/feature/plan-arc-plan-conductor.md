@@ -621,6 +621,11 @@ future sessions something concrete to carry without creating a new tracked metad
 - Clarify that expanded depth does not create a new default artifact class
 - Cross-reference the conductor's role from `DEV-RULES.ARC` § Verification and Discovery (or a new
   § Planning Entry section if appropriate at PRD time)
+- Update `strategy-work-organization.md` § Spec-Flow Invariants > Deferred contract to name
+  `arc-plan` (and the conductor model defined in this WU) as the surface owning per-mode ×
+  per-tier spec-form selection. Currently phrased as "surfaces that orchestrate per-mode and
+  per-tier policy" — adopter-safe abstraction pending this WU per audience-boundary discipline
+  (no forward-pointers to unplanned future scope from adopter-facing strategies)
 
 ### Templates and examples
 

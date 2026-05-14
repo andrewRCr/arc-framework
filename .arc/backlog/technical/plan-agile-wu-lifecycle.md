@@ -226,8 +226,12 @@ get promoted: add the plan-*/PRD, restructure the task list into phases, continu
 10. **Documentation cascade.** [DEV-RULES.ARC][dev-rules] tier definitions and boundary tests;
     [strategy-task-list-formatting.md][tasklist-fmt] tier-aware task list shapes;
     [strategy-work-organization.md][strategy-work-org] tier integration with categories and branch
-    naming; [template-status.md][template-status] new fields; [template-tasks.md][template-tasks]
-    quick-tier shape variant; quality-gate-commands method tier awareness.
+    naming, plus § Spec-Flow Invariants updates — name AWL in § Deferred contract as the
+    tier-classification model home, and replace § Escape-hatch guardrails intent-level phrasing
+    with concrete `--tier atomic` flag default (currently abstracted pending this WU per
+    audience-boundary discipline); [template-status.md][template-status] new fields;
+    [template-tasks.md][template-tasks] quick-tier shape variant; quality-gate-commands method
+    tier awareness.
 
 ### Out of scope
 
