@@ -472,6 +472,22 @@ parenthetical patterns); phase order reflects execution order.
 
     - `[ ]` **2.10.e Sync to packages/**
 
+    - `[ ]` **2.10.f Codify one-shot template uniqueness principle (R63)**
+        - Add new content (placement at execution — likely a new subsection under § File Taxonomy or adjacent) to
+          `strategy-file-classification.md`: "Files instantiated once per project at CLI init / join time (driven by
+          `packages/arc-framework/src/lib/classification.ts`'s render list) do not get a parallel
+          `reference/templates/template-*.md` entry — the package-source `.template` is canonical."
+        - Enumerate governed files: META-PRD / PROJECT-PRD, TECHNICAL-OVERVIEW, PROJECT-STATUS (retiring per R40),
+          ROADMAP, BACKLOG-FEATURE / BACKLOG-TECHNICAL (consolidating into BACKLOG-INBOX per R50; principle carries to
+          the successor), AGENT-BRIEF.PROJECT, QUICK-REFERENCE. Note the `classification.ts` render list as the
+          canonical source.
+        - Cross-reference: agent-facing `template-*.md` in `reference/templates/` (PRDs, plans, tasks, meta files,
+          completion docs, ADRs, etc.) are a different mechanism — created repeatedly during work by agents /
+          workflows, bracket-placeholder convention; this principle does not apply.
+        - Optional adopter-customized starter templates (`template-dev-rules.md`, `template-contributing.md`) are a
+          third category — present in `reference/templates/` but not in the CLI render list; copied or referenced by
+          adopters as starting points for optional files. Distinguish in the strategy text.
+
 ### `[ ]` **2.11 `strategy-task-list-formatting.md` — `tasks-*` header convention update**
 
 - _Goal:_ `strategy-task-list-formatting.md` reflects R58a's chain-model header convention for `tasks-*` files — header
@@ -683,9 +699,12 @@ but runtime checks of `review.planning_checkpoint` halt and `archive.cadence` di
         - When `required`: workflow halts here, awaits explicit approval. When `disabled`: no halt. Per R47, independent
           of extension fire — extension runs first; if it passes, config decides.
 
-    - `[ ]` **3.3.d PROJECT-PRD supplementary check (R34 — conditional)**
-        - Sub-bullet within existing review step; fires only when PROJECT-PRD edited since PRD approved. Soft check;
-          rarely blocks.
+    - `[ ]` **3.3.d PROJECT-PRD + TECHNICAL-OVERVIEW supplementary checks (R34, R60 — conditional)**
+        - Two sub-bullets within existing review step.
+        - **PROJECT-PRD check (R34):** Fires only when PROJECT-PRD edited since PRD approved. Soft check; rarely blocks.
+        - **TECHNICAL-OVERVIEW check (R60):** Fires only when TECHNICAL-OVERVIEW edited since PRD approved AND PRD
+          touches technical surfaces (tech stack, architecture, runtime, dependencies, infrastructure). Soft check;
+          rarely blocks. Independent of PROJECT-PRD check — scope distinction is the trigger.
 
     - `[ ]` **3.3.e State-flip + plan-doc removal**
         - Edit meta file: `**State:** Planning` → `**State:** Active`. `git rm plan-{name}.md` if present (graduated
@@ -735,8 +754,11 @@ but runtime checks of `review.planning_checkpoint` halt and `archive.cadence` di
     - `[ ]` **3.4.c Completion Notes composition (R14)**
         - Narrative summary into meta file's Completion Notes section.
 
-    - `[ ]` **3.4.d PROJECT-PRD final flag check (R34 — sub-bullet)**
-        - Soft check; rarely blocks if 1_create-prd's check passed. Surface any conflicts discovered during execution.
+    - `[ ]` **3.4.d PROJECT-PRD + TECHNICAL-OVERVIEW final flag checks (R34, R60 — sub-bullets)**
+        - Two sub-bullets within existing review step. Both soft; rarely block if 1_create-prd's checks passed. Surface
+          any conflicts discovered during execution.
+        - **PROJECT-PRD:** Always evaluated at this step.
+        - **TECHNICAL-OVERVIEW:** Fires only when PRD touched technical surfaces.
 
     - `[ ]` **3.4.e Commit completion content**
         - Class-tagged `workflowCommit` if release-wrappers active; carries Release Notes Entry + Completion Notes
@@ -818,6 +840,18 @@ but runtime checks of `review.planning_checkpoint` halt and `archive.cadence` di
     - `[ ]` **3.6.c Promotion write (R20, R21)**
         - When a BACKLOG-INBOX entry promotes to a `plan-*` doc, delete the inbox entry in the same commit as the
           `plan-*` creation. Routing record lives in the deletion commit message.
+
+    - `[ ]` **3.6.d New step: `## Step N+1: TECHNICAL-OVERVIEW alignment check` (R60)**
+        - Explicit conditional step sibling to PROJECT-PRD alignment — fires only when PRD touches technical surfaces
+          (tech stack, architecture, runtime, dependencies, infrastructure). Halt-and-ask conditions: drift detected
+          (PRD introduces tech not in TECHNICAL-OVERVIEW); TECHNICAL-OVERVIEW edited since PRD approved. Independent of
+          PROJECT-PRD check — scope distinction is the trigger (PROJECT-PRD covers mission / principles / anti-goals;
+          TECHNICAL-OVERVIEW covers technical surfaces).
+
+    - `[ ]` **3.6.e Cite-section-by-name requirement on pass (TECHNICAL-OVERVIEW)**
+        - Step concludes by citing the specific TECHNICAL-OVERVIEW section the PRD aligns with (e.g., "checked against
+          § 2 Architecture Components — passes"). Parallel to 3.6.b for PROJECT-PRD; section-name citation rather than
+          numbered-principle citation reflects TECHNICAL-OVERVIEW's section-based structure.
 
 ### `[ ]` **3.7 Add `archive.cadence` + `review.planning_checkpoint` to `arc-config.yml`**
 
@@ -1108,13 +1142,19 @@ carries the update-discipline rule alongside the shape it codifies, keeping shap
         - Form: HTML comment block or template intro paragraph — chosen at execution to avoid template-body clutter.
           Goal is forward-reader clarity, not rule restatement.
 
-### `[ ]` **4.2 Create `template-project-prd.md`**
+### `[ ]` **4.2 Evolve `META-PRD.template.md` content shape (PROJECT-PRD shape codification)**
 
-- _Goal:_ `template-project-prd.md` ships the PROJECT-PRD shape as a codified template — Mission (1-3 sentences) +
-  numbered principles (5-7, quotable as nouns) + anti-goals + problem statement + design tradeoffs — plus the
-  update-trigger discipline (R36) embedded alongside the shape.
+- _Goal:_ `META-PRD.template.md` (package source) evolves in-place to ship the PROJECT-PRD shape — Mission (1-3
+  sentences) + numbered principles (5-7, quotable as nouns) + anti-goals + problem statement + design tradeoffs —
+  plus the update-trigger discipline (R36) embedded alongside the shape. Per R63 (one-shot template uniqueness), the
+  `.template` file is the canonical template surface; no parallel `template-project-prd.md` is created in
+  `reference/templates/`. File renames to `PROJECT-PRD.template.md` at Task 4.3.h (rides with the rendered-file rename).
 
     **Strategies:** `strategy-package-project-sync.md`
+
+    - _Path:_ Edit `packages/arc-framework/arc/reference/META-PRD.template.md` directly (single canonical copy in
+      package source). The rendered output in `.arc/reference/META-PRD.md` is updated separately at Task 4.3 (content
+      rewrite / dogfooding pass).
 
     - `[ ]` **4.2.a Mission section template**
         - 1-3 sentences; states the project's purpose at the highest level.
@@ -1136,7 +1176,10 @@ carries the update-discipline rule alongside the shape it codifies, keeping shap
         - Block describing when PROJECT-PRD updates fire: organic (PR-time clarification when conflict surfaces) +
           event-driven (major release, scope shift, governance change). Not cadence-driven.
 
-    - `[ ]` **4.2.g Sync to packages/**
+    - `[ ]` **4.2.g One-shot-template comment block (R63)**
+        - Brief comment block at top of template noting: "This file is rendered once at `arc init` / `arc join` time
+          (per `classification.ts`); evolution happens in this `.template` file. Per R63, there is no parallel
+          `reference/templates/template-project-prd.md`."
 
 ### `[ ]` **4.3 Rewrite `PROJECT-PRD.md` content per new shape**
 
@@ -1319,8 +1362,61 @@ carries the update-discipline rule alongside the shape it codifies, keeping shap
         - Verify pre-commit hook reports clean across both copies.
 
     - _Note:_ Composition with 4.3 (PROJECT-PRD content rewrite per new shape). 4.3 doesn't touch `template-prd.md`; 4.7
-      doesn't touch `PROJECT-PRD.md` content. The PRD shape per `template-project-prd.md` (Task 4.2) is a separate
-      template from `template-prd.md` (this task).
+      doesn't touch `PROJECT-PRD.md` content. The PROJECT-PRD shape lives in `META-PRD.template.md` / `PROJECT-PRD.template.md`
+      (Task 4.2; renames at 4.3.h) per R63 — distinct from `template-prd.md` (this task), which is the agent-facing
+      per-WU PRD template.
+
+### `[ ]` **4.8 Evolve `TECHNICAL-OVERVIEW.template.md` content shape (R60 template component)**
+
+- _Goal:_ `TECHNICAL-OVERVIEW.template.md` (package source) evolves in-place per R60 — existing architecture /
+  components / critical-path sections retained; new section added carrying update-trigger discipline (organic: PR-time
+  clarification when conflict surfaces; event-driven: tech-stack changes, major refactors, dependency upgrades, infra
+  shifts; not cadence-driven). Per R63, no parallel `reference/templates/template-technical-overview.md` is created —
+  the `.template` file is the canonical template surface.
+
+    **Strategies:** `strategy-package-project-sync.md`
+
+    - _Path:_ Edit `packages/arc-framework/arc/reference/TECHNICAL-OVERVIEW.template.md` directly. Rendered output in
+      `.arc/reference/TECHNICAL-OVERVIEW.md` updates separately at Task 4.9 (dogfooding rewrite).
+
+    - `[ ]` **4.8.a Audit existing template sections**
+        - Read current `TECHNICAL-OVERVIEW.template.md`. Confirm what stays (architecture overview + per-component
+          sections with framework / language / libraries / code-style / directory-structure fields); identify any
+          orientation gaps the new shape should fill.
+
+    - `[ ]` **4.8.b Add update-trigger discipline section**
+        - Block describing when TECHNICAL-OVERVIEW updates fire: organic (PR-time clarification when conflict surfaces)
+          plus event-driven (tech-stack changes, major refactors, dependency upgrades, infra shifts). Not
+          cadence-driven. Parallel to 4.2.f for PROJECT-PRD.
+
+    - `[ ]` **4.8.c One-shot-template comment block (R63)**
+        - Brief comment block at top of template noting: "This file is rendered once at `arc init` / `arc join` time
+          (per `classification.ts`); evolution happens in this `.template` file. Per R63, there is no parallel
+          `reference/templates/template-technical-overview.md`." Parallel to 4.2.g.
+
+### `[ ]` **4.9 Rewrite `TECHNICAL-OVERVIEW.md` content per new shape (R61 dogfooding pass)**
+
+- _Goal:_ `.arc/reference/TECHNICAL-OVERVIEW.md` content rewritten per the evolved `TECHNICAL-OVERVIEW.template.md`
+  shape — existing architecture / components content preserved or refreshed for accuracy; new update-trigger discipline
+  section added. Dogfooding pass parallel to Task 4.3 for PROJECT-PRD.
+
+    - _Context:_ Existing `.arc/reference/TECHNICAL-OVERVIEW.md` is the source material; verify content is still
+      accurate at execution time (ARC framework type, CLI package, dependencies, dev environment, etc.) and refresh as
+      needed. No filename rename (TECHNICAL-OVERVIEW name is already correct); inbound references unchanged.
+
+    - `[ ]` **4.9.a Read existing TECHNICAL-OVERVIEW; verify accuracy vs. current state**
+        - Audit each component section against current reality. Flag drift (e.g., outdated dependency versions, missing
+          new components such as recent CLI additions).
+
+    - `[ ]` **4.9.b Refresh component sections as needed**
+        - Update any drifted content. Preserve sections that are still accurate.
+
+    - `[ ]` **4.9.c Add update-trigger discipline section**
+        - New section per 4.8.b's template addition. Block describing when TECHNICAL-OVERVIEW updates fire.
+
+    - `[ ]` **4.9.d Feed template ambiguities back to `TECHNICAL-OVERVIEW.template.md` v1.1**
+        - If shape ambiguities surface during the rewrite, revise 4.8's template before declaring rewrite complete.
+          Parallel to 4.3.g for PROJECT-PRD.
 
 ## **Phase 5:** Roster cascade + push wrapper wiring + CLI seeding update + CLI propagation
 
@@ -1838,6 +1934,34 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           target together.
         - _Note:_ `manifest.json` + `pristine.json` regenerate via `arc update`; no manual edit needed.
 
+    - `[ ]` **6.7.l Archive → completed path sweep (per R62)**
+        - Grep patterns: `reference/archive`, `\.arc/reference/archive`, `[archive]:` reference-link definitions,
+          hardcoded archive paths in workflows / strategies / hooks / scripts / CLI code.
+        - Update to `completed/` / `\.arc/completed/` as appropriate. Surface: workflows (`archive-work-unit.md`,
+          `integrate-work-unit.md`, `verify-work-unit.md`, `clean-work-unit.md`, others), strategies
+          (`strategy-work-organization.md`, `strategy-file-classification.md`), hooks (`system/githooks/pre-commit`),
+          scripts (`system/scripts/validate-links.sh`), CLI code (`packages/arc-framework/src/` — path resolution /
+          classification touch points).
+        - **Exclusion:** content INSIDE `completed/` (formerly `archive/`) — historical archived documents retain their
+          original paths in their own bodies; sweep targets only references TO the directory, not references WITHIN it.
+        - **Sequencing:** Task 6.9.a (`git mv`) must complete before this subtask fires (directory must exist at new
+          path); 6.9.b verifies after this completes. R41 / R42 textual references in the PRD itself update at PRD
+          amendment time (already landed in this folded-in pass), not in this sweep.
+
+    - `[ ]` **6.7.m Supplemental collapse path sweep (per R62)**
+        - Grep patterns: `reference/research`, `reference/analysis`, `\.arc/reference/research`,
+          `\.arc/reference/analysis`, `[research]:` and `[analysis]:` reference-link definitions, hardcoded research /
+          analysis paths in strategies / templates / backlog plans.
+        - Update to `reference/supplemental/research/` and `reference/supplemental/analysis/` respectively. Surface:
+          strategies (`strategy-work-organization.md`, `strategy-work-planning.md`, `strategy-package-project-sync.md`,
+          others as discovered), templates (`template-completion-doc.md` — retiring per R51, but sweep cleanly before
+          retirement), backlog plans (`plan-arc-modes.md`, `plan-docs-content-sweep.md`, `plan-wu5-public-release.md`,
+          `plan-post-release-methodology.md`), ADRs (`adr-012` and any others), READMEs.
+        - **Exclusion:** content INSIDE `supplemental/` — research / analysis documents retain their original paths in
+          their own bodies; sweep targets only inbound references.
+        - **Sequencing:** Task 6.10.b / 6.10.c (`git mv`) must complete before this subtask fires; 6.10.e verifies after
+          this completes.
+
 ### `[ ]` **6.8 Slim instance-file preambles (SESSION-NOTES + USER-INBOX + BACKLOG-INBOX + backlog/ATOMIC-INBOX)**
 
 - _Goal:_ Existing instance files in this repo strip preamble blocks ("About this file" / Lifecycle / Portability /
@@ -1865,6 +1989,119 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           portability, writing guide); spot-check `strategy-planning-module.md` for inbox orientation content. If gaps
           exist, route to inbox for follow-up (not WOR scope to author new strategy content; this verifies existing
           coverage is sufficient).
+
+### `[ ]` **6.9 Archive directory promotion: `reference/archive/` → `.arc/completed/` (R62)**
+
+- _Goal:_ Promote `.arc/reference/archive/` to top-level `.arc/completed/` per R62. Pipeline visibility: `backlog/`
+  → `active/` → `completed/` becomes evident at directory-tree level (symmetric with existing `active/` and `backlog/`).
+
+    - _Approach:_ `git mv .arc/reference/archive .arc/completed` — directory rename + promotion in one operation.
+      Historical content (`archive/2026-q*/{category}/`) moves alongside, preserving R42's read-only categorical layout
+      intact (paths become `completed/2026-q*/{category}/`).
+
+    - _Sequencing:_ 6.9.a runs before 6.7.l (the inbound-reference sweep needs the directory to exist at its new path
+      to verify against). 6.9.b verifies after 6.7.l completes.
+
+    - `[ ]` **6.9.a Execute directory move**
+        - `git mv .arc/reference/archive .arc/completed`.
+        - Verify directory now exists at `.arc/completed/` with all historical content intact (currently three dated
+          subdirs: `2025-q4/`, `2026-q1/`, `2026-q2/`).
+
+    - `[ ]` **6.9.b Verify inbound references swept (post-6.7.l)**
+        - After 6.7.l completes, grep across the documentation surface for `reference/archive`,
+          `\.arc/reference/archive` — should return empty (excluding the WOR PRD / task list / status file themselves,
+          which legitimately discuss the rename).
+
+    - `[ ]` **6.9.c Update hooks / scripts if needed**
+        - Verify `system/githooks/pre-commit`, `system/scripts/validate-links.sh`, and any other tooling don't carry
+          stale `reference/archive/` references. `manifest.json` + `pristine.json` regenerate via `arc update`; manual
+          edits unnecessary except for hook scripts.
+
+### `[ ]` **6.10 Supplemental collapse: `reference/research/` + `reference/analysis/` → `reference/supplemental/` (R62)**
+
+- _Goal:_ Collapse `reference/research/` and `reference/analysis/` under `reference/supplemental/{research,analysis}/`
+  per R62. Mental model alignment with `system/workflows/arc/supplemental/`. Nested subdirectories preserved (research
+  vs. analysis remain categorically distinguishable).
+
+    - _Approach:_ Create `reference/supplemental/` parent dir; `git mv` research and analysis under it.
+
+    - _Sequencing:_ 6.10.a-c run before 6.7.m (the inbound-reference sweep). 6.10.e verifies after 6.7.m completes.
+
+    - `[ ]` **6.10.a Create `reference/supplemental/` parent**
+        - `mkdir .arc/reference/supplemental` (and `packages/arc-framework/arc/reference/supplemental/` if any package
+          source content lives there; verify at execution — current state is `.arc/`-only since research / analysis
+          aren't in the package render list).
+
+    - `[ ]` **6.10.b Execute research directory move**
+        - `git mv .arc/reference/research .arc/reference/supplemental/research`.
+
+    - `[ ]` **6.10.c Execute analysis directory move**
+        - `git mv .arc/reference/analysis .arc/reference/supplemental/analysis`.
+
+    - `[ ]` **6.10.d Author `supplemental/README.md` (optional)**
+        - Brief README explaining the parent directory's role: "Non-load-bearing reference material — research and
+          analysis artifacts that informed strategies and ADRs but aren't read at session-init or workflow-fire.
+          Distinct from `adr/` / `constitution/` / `strategies/` / `templates/` (load-bearing)." Optional; can be
+          deferred if existing per-subdir READMEs (`research/README.md`, `analysis/README.md`) carry sufficient framing.
+
+    - `[ ]` **6.10.e Verify inbound references swept (post-6.7.m)**
+        - After 6.7.m completes, grep across the documentation surface for `reference/research`, `reference/analysis`,
+          `\.arc/reference/research`, `\.arc/reference/analysis` — should return empty (excluding the WOR PRD / task
+          list / status file themselves).
+
+### `[ ]` **6.11 Create `plan-arc-in-git-as-default.md` (R64)**
+
+- _Goal:_ Create the exploratory `plan-*` doc capturing the "arc-in-git as default; modes scale around it" thesis per
+  R64. Lands in `backlog/feature/` (legacy layout); graduates to `backlog/provisional/arc-in-git-as-default/` once Task
+  6.4 completes the backlog restructure.
+
+    - _Context:_ Captures a strategic deliberation surfaced during WOR scope discussion. Not committed work — explicit
+      "exploratory" state in header. Implementation scope is conditional on thesis acceptance.
+
+    - _Companion read at execution:_ Skim `plan-arc-modes.md` (header / TOC, not full body) to ground the implication
+      inventory and confirm the doc reshapes (rather than duplicates) plan-arc-modes content.
+
+    - `[ ]` **6.11.a Author file at `backlog/feature/plan-arc-in-git-as-default.md`**
+        - Header carries explicit exploratory framing: "**State:** Exploratory / Not yet committed — thesis-stage, not
+          work-stage. This plan describes a deliberation to evaluate, not work to execute. Implementation sections are
+          conditional on thesis acceptance."
+
+    - `[ ]` **6.11.b Author Thesis section**
+        - Single paragraph stating the thesis: arc-in-git as default; modes scale rather than swap shapes. ARC remains
+          agnostic / generalizable rather than competing with external trackers; backlog can complement Jira / Linear
+          rather than replace or be replaced by them.
+
+    - `[ ]` **6.11.c Author Rationale section**
+        - Research findings on out-of-band team coordination (teams resolve concurrency via Slack / meetings, not
+          tooling); smaller WUs + ceremony-boundary updates as the actual decoupling mechanism for backlog drift; ARC's
+          "scale up / down rather than swap shapes" framing. Reference WOR's own reshape of capture surfaces (R20's
+          ceremony-only writes) as substrate for this thesis.
+
+    - `[ ]` **6.11.d Author Implication Inventory section**
+        - Per-mode implications:
+            - `pm.mode: external` — semantic shift from "no backlog" to "backlog complements external tracker"
+            - `pm.mode: none` — semantic shift; what survives, what doesn't
+            - `pm.mode: lite` — interaction with the question; whether Lite keeps a minimal backlog or remains
+              backlog-free
+            - `strategy-planning-module` — reshape implications (currently scoped to arc-in-git specifically)
+            - `plan-arc-modes` — consume / restructure implications (its mode framing may change)
+            - `plan-arc-backend` — interaction with the thesis (backend may be less necessary if the concurrency
+              problem is reframed)
+
+    - `[ ]` **6.11.e Author Decision Gate section**
+        - Explicit gates: what deciding requires (e.g., evaluation of `plan-arc-modes`' current direction; verification
+          that smaller WU pattern holds in practice; team-coordination research validation; concrete adopter feedback).
+        - Frame: "this decision is not made by this plan; this plan organizes the inputs needed to make it."
+
+    - `[ ]` **6.11.f Author Cross-References section**
+        - Backlog plan-\* docs touched if thesis accepted: `plan-arc-modes` (independent consumer); `plan-arc-backend`
+          (related); WOR (compatible with thesis but doesn't depend on it). Forward-link to ROADMAP / BACKLOG-INBOX as
+          relevant.
+
+    - `[ ]` **6.11.g ROADMAP / BACKLOG-INBOX entry decision**
+        - Exploratory state should NOT appear in ROADMAP (which renders committed work per R37). Default: skip both
+          ROADMAP and BACKLOG-INBOX inclusion — the file's exploratory header carries its own state signal. Revisit if
+          the thesis matures and warrants pipeline tracking.
 
 ## **Phase 7:** Verification
 
@@ -1964,6 +2201,20 @@ readiness assessment.
 - `[ ]` Phase 2 method/hook propagation lands before Phase 3 — commit-format `docs` discipline + `commit-context-format`
   → `commit-footer` rename + hook regex matrix + smoke tests (Task 2.13) execute before Phase 3 lifecycle workflow
   restructures emit the new parenthetical patterns
+- `[ ]` TECHNICAL-OVERVIEW content reflects new shape per R61 — existing architecture / components / critical-path
+  sections preserved or refreshed; new update-trigger discipline section added; v1.1 template revisions ride the same
+  Phase 4 work if shape ambiguities surface
+- `[ ]` TECHNICAL-OVERVIEW ceremony fire-points wired per R60 — `1_create-prd.md` carries the alignment check when PRDs
+  touch technical surfaces; `activate-work-unit.md` and `integrate-work-unit.md` carry supplementary checks
+- `[ ]` Reference directory restructure complete per R62 — `.arc/completed/` present (promoted from `reference/archive/`
+  with historical content intact); `.arc/reference/supplemental/{research,analysis}/` present (collapsed from sibling
+  directories); inbound-reference sweep clean
+- `[ ]` One-shot template uniqueness principle codified per R63 — `strategy-file-classification.md` carries the
+  principle + enumerated governed files; no `template-project-prd.md` or `template-technical-overview.md` created in
+  `reference/templates/`
+- `[ ]` `plan-arc-in-git-as-default.md` created per R64 — exploratory `plan-*` doc in `backlog/feature/` (graduates to
+  `backlog/provisional/<wu-name>/` once Task 6.4 completes); header explicitly marks exploratory state; Thesis +
+  Rationale + Implication Inventory + Decision Gate + Cross-References sections present
 - `[ ]` All quality gates pass (`npm run -s lint:md`, `npm run lint:ts`, `npm run typecheck`, `npm test`,
   `npm run build`)
 - `[ ]` Ready for integration

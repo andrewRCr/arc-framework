@@ -18,8 +18,7 @@
 
 - **Blockers:** [none]
 
-- **Next Action:** Resume with `.arc/reference/` restructure deliberation (see SESSION-NOTES
-  § Remaining Work) — evaluate fold into WOR scope (PRD + task list amendments) vs reject;
-  upon resolution, proceed to Task 2.1.
+- **Next Action:** Proceed to Task 2.1 — `strategy-work-organization.md` § Branching,
+  single-branch-per-WU + CB-CC alignment (line ~158 in `tasks-work-organization-reform.md`).
 
 ---
