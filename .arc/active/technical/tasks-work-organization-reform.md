@@ -155,99 +155,144 @@ organization + routing (arc-in-git PM mode territory). Per-worktree isolation in
 Phase 6) lands in Phase 2 because its execution must precede Phase 3 lifecycle workflow restructures (which emit the new
 parenthetical patterns); phase order reflects execution order.
 
-### `[ ]` **2.1 `strategy-work-organization.md` § Branching — single-branch-per-WU + CB-CC alignment**
+### `[x]` **2.1 `strategy-work-organization.md` § Branching — single-branch-per-WU + CB-CC alignment**
 
 - _Goal:_ `strategy-work-organization.md` § Branching codifies the CB core-6 type set, the `plan/<name>` rotation
   pattern, the single-branch-per-WU model, and the CB-CC alignment rationale (intentional divergence on `test` /
   `revert`) — all subsequent boundary-workflow rewrites reference this section.
 
-- _Context:_ Existing file has § Branching as a subsection under § Incidental Work Model (line ~166). The CB core-6 +
-  single-branch-per-WU content is general, not incidental-specific. Elevate § Branching to top-level (default),
-  reshaping incidental-specific content into a child subsection. Decide final shape at execution.
+    - `[x]` **2.1.a CB core-6 type set enumeration**
+        - Scope reframed (2026-05-14): type-set enumeration relocates from strategy to the new `branch-format` method
+          (Task 2.1.e below). Strategy § Branching now describes mechanism only — every WU branch carries a type
+          prefix; the type set lives in the method as adopter-overridable content. Default set landed in the method:
+          `feat | fix | chore | refactor | hotfix` (5 types per PRD R1 amendment).
 
-    - `[ ]` **2.1.a CB core-6 type set enumeration**
-        - `feat/ | fix/ | chore/ | docs/ | refactor/ | perf/`; contested types (`test/`, `style/`, `build/`, `ci/`)
-          treated as adopter-extension territory, not in ARC's canonical set.
+    - `[x]` **2.1.b `plan/<name>` rotation pattern**
+        - New § Planning branches: `plan/<name>` codifies the planning-life-phase prefix plus the 3-step rotation
+          (`git branch -m` → `git push origin <new>` → `git push origin --delete <old>`); frames the rotation as the
+          branch-side companion to the meta-file `State: Planning → Active` transition.
 
-    - `[ ]` **2.1.b `plan/<name>` rotation pattern**
-        - Planning branches use `plan/<name>` prefix; rotate to `<type>/<name>` at activation via local rename + remote
-          replace (3-step routing in `activate-work-unit.md`).
+    - `[x]` **2.1.c Single-branch-per-WU model**
+        - New § Single branch per work unit codifies one-branch-from-inception-through-integration; WU artifacts
+          (`meta-*`, `plan-*`, `prd-*`, `tasks-*`, companions) live in `active/` on the WU's branch throughout the
+          lifecycle; main carries no in-flight WU artifacts. Forward-points to § Per-Worktree Isolation for the
+          invariant this enables. Pre-WOR two-branch model narrative removed per audience discipline (adopter-facing
+          doc states what is, not what was).
 
-    - `[ ]` **2.1.c Single-branch-per-WU model**
-        - One WU = one branch from planning through integration; merges to main exactly once at integration. WU
-          artifacts (`meta-*.md`, `plan-*.md`, `prd-*.md`, `tasks-*.md`, companions) live in `active/` on the WU branch
-          through entire lifecycle; main carries no in-flight WU artifacts.
+    - `[x]` **2.1.d CB-CC alignment rationale + intentional divergence**
+        - Scope reframed (2026-05-14): original task language ("intentional divergence on test / revert") was built on
+          incorrect research about the Conventional Branch spec — the actual CB recommended set is
+          `feature|feat | bugfix|fix | chore | hotfix | release`, not the assumed `core-6` containing `docs/perf`. Per
+          PRD R28 amendment, CB-relationship framing now lives in the `branch-format` method preamble (honest
+          inspired-by-not-aligned-with framing with substantive divergence enumerated). Strategy § Branching no longer
+          carries a CB-CC alignment subsection; instead a brief note on `branch-format` and `commit-format` method
+          composition (independent axes) replaces it.
 
-    - `[ ]` **2.1.d CB-CC alignment rationale + intentional divergence**
-        - CB core-6 omits `test` and `revert` deliberately per CB spec's cognitive-load rationale (tests not branched
-          separately; reverts produce conventional commit shape but not branch shape). Document the divergence as
-          intentional, not oversight.
+    - `[x]` **2.1.e Create `branch-format` method (PRD R1 amendment)**
+        - New file `system/methods/branch-format.md` (both `.arc/` and package source). Parallel structure to
+          `commit-format.md`: frontmatter (name, description, related, override-active); H2 override / default split;
+          default content carries the 5-type set, per-type semantic, planning-prefix mechanics, branch-name conventions,
+          CB-relationship framing, override mechanism guidance. External link to canonical CB spec
+          (<https://conventional-branch.github.io/>). Scope absorbed into WOR mid-execution after verification surfaced
+          the gap in the original PRD.
 
-### `[ ]` **2.2 `strategy-work-organization.md` § Per-Worktree Isolation invariant**
+- _Outcome:_ § Branching landed as a thin top-level section (mechanism-only) between § Work Unit State and
+  § Incidental Work Model. New `branch-format` method file carries the type-set codification and adopter-override
+  mechanism. PRD R1 + R28 amended to correct the incorrect CB-alignment framing and capture the release-lifecycle gap
+  surfaced during execution. Both strategy-doc copies updated; both method-file copies created identically. Cross-doc
+  audit (PRD amendment + method file + strategy rewrite + WU notes Pressure Point capture) keeps the constitutional
+  story consistent.
+
+### `[x]` **2.2 `strategy-work-organization.md` § Per-Worktree Isolation invariant**
 
 - _Goal:_ A new Per-Worktree Isolation section in `strategy-work-organization.md` states the invariant — each worktree's
   `active/` contains only its own WU's meta file, because no other branch's meta file is reachable from main — and
   explains why it's load-bearing for the parallelism trio.
 
-- _Note:_ The acceptance test below is enforceable only after Worktree Foundation WU ships. WOR codifies the invariant
-  as precondition for the parallelism trio; strategy section describes the test without running it.
-    - Brief acceptance-test description: spawn worktree from main, assert `active/` empty except for the WU's own meta
-      file.
+- _Outcome:_ New top-level § Per-Worktree Isolation placed between § Branching and § Incidental Work Model, with three
+  parts: invariant statement (rooted in single-branch-per-WU + no main-side residency); § Concurrency under worktrees
+  (cross-WU coordination via meta-file fields, not filesystem co-residency); § Acceptance test (mechanical test
+  description). TOC updated; both copies edited identically. Audience corrections applied 2026-05-14 to remove internal
+  WU naming ("parallelism trio", "Worktree Foundation") from adopter-facing prose per DEV-RULES.PROJECT § Audience
+  Boundaries.
 
-### `[ ]` **2.3 `strategy-work-organization.md` § Archival — sweep-as-you-go + archive shape + tier-boundary note**
+### `[x]` **2.3 `strategy-work-organization.md` § Archival — sweep-as-you-go + archive shape + tier-boundary note**
 
 - _Goal:_ `strategy-work-organization.md` § Archival codifies sweep-as-you-go as default integration shape with the new
   archive path (`archive/<dated>/{wu-name}/`); states tier-aware sweep ceremony as AWL scope; locks forward-only
   migration; documents the backward-compat tooling contract for downstream consumers.
 
-- _Context:_ Existing file has § Archive as a subsection under § Directory Structure (line ~367), not a top-level §
-  Archival. Elevate to top-level § Archival (default), absorbing the existing subsection content; or extend in place if
-  the subsection placement reads more naturally. Decide at execution.
-    - `[ ]` **2.3.a Sweep-as-you-go default codification**
-        - Default `archive.cadence: with-integration` — integration PR includes sweep commits; meta file moves to
-          archive in the same PR. `deferred` and `manual` available for adopters who want them.
+    - `[x]` **2.3.a Sweep-as-you-go default codification**
+        - New § Archival § Sweep-as-you-go default enumerates the three `archive.cadence` values (`with-integration`
+          default; `deferred`; `manual`) with semantics each, plus the multi-commit structure of integration PRs under
+          `with-integration` (code → completion content → sweep commits). Workflow forward-pointer preserved.
 
-    - `[ ]` **2.3.b New archive shape (`archive/<dated>/{wu-name}/`; drop `{category}/`)**
-        - Symmetric with backlog's group-dir collapse; temporal grouping (`2026-q*`) retained.
+    - `[x]` **2.3.b New archive shape (`archive/<dated>/{wu-name}/`; drop `{category}/`)**
+        - New § Archival § Archive directory shape carries the path tree; cross-references the backlog's symmetric
+          per-WU subdir convention. Existing `### Archive` subsection under § Directory Structure removed (it described
+          the pre-WOR `{quarter}/{category}/{NN}_{name}/` layout); § Directory Structure now flows from § Active Work
+          straight to § Alignment.
 
-    - `[ ]` **2.3.c Tier-boundary note (forward-pointer to AWL / CWC)**
-        - One sentence: tier-aware sweep ceremony (atomic / quick / standard scaling) is AWL scope; async-merge
-          accommodation is CWC scope; WOR ships tier-agnostic foundation + sync-merge primary flow.
+    - `[x]` **2.3.c Tier-boundary note (forward-pointer to AWL / CWC)**
+        - Scope reframed (2026-05-14): adopter-facing strategy doesn't name internal future WUs by ID. New § Archival
+          § Tier and async-merge accommodations describes the current default (tier-uniform, sync-merge) and notes
+          tier-specific and async-merge variants as "reserved for codification in adjacent strategy work" without
+          identifying which downstream WU owns them.
 
-    - `[ ]` **2.3.d Forward-only migration discipline**
-        - Historical archive (`archive/2026-q*/{category}/`) is read-only — retains categorical layout, `status-*` /
-          `completion-*` filenames, uncodified field values. No retroactive content rewriting.
+    - `[x]` **2.3.d Forward-only migration discipline**
+        - Scope reframed (2026-05-14): subsection content described THIS PROJECT's own migration from pre-WOR to
+          post-WOR archive shape, which is a project-internal concern (adopters install post-change with no legacy
+          archive to migrate). Per DEV-RULES.PROJECT § Audience Boundaries, content removed from adopter-facing
+          strategy; substantive migration mapping already lives in `notes-work-organization-reform.md` § Migration
+          Mapping Reference where it belongs.
 
-    - `[ ]` **2.3.e Backward-compat tooling contract**
-        - Anything reading the archive (renderer, future CLI, search / audit) must handle both legacy shape
-          (`archive/2026-q*/{category}/status-*.md`) and new shape (`archive/<dated>/{wu-name}/meta-*.md`).
+    - `[x]` **2.3.e Backward-compat tooling contract**
+        - Scope reframed (2026-05-14): subsection content was a contract on THIS PROJECT's own future tooling about
+          handling its own legacy archive shape — also a project-internal concern. Per DEV-RULES.PROJECT § Audience
+          Boundaries, content removed from adopter-facing strategy. Substantive content (legacy-vs-new shape detail)
+          remains accessible in WU notes for downstream tooling-WU consumption.
 
-### `[ ]` **2.4 `strategy-work-organization.md` § ROADMAP rendered-view (algorithm + regeneration fire-points)**
+- _Outcome:_ New top-level § Archival landed between § Per-Worktree Isolation and § Incidental Work Model. Pre-WOR
+  `### Archive` subsection removed from § Directory Structure (its content described the retired
+  `{quarter}/{category}/{NN}_{name}/` layout). Audience corrections applied 2026-05-14: § Forward-only migration and
+  § Backward-compat tooling contract subsections removed entirely from adopter-facing strategy (project-internal
+  migration concerns; content lives in WU notes); § Tier and async-merge accommodations rewritten to drop internal WU
+  naming. TOC updated; both copies edited identically.
+
+### `[x]` **2.4 `strategy-work-organization.md` § ROADMAP rendered-view (algorithm + regeneration fire-points)**
 
 - _Goal:_ `strategy-work-organization.md` § ROADMAP codifies meta-file-as-source-of-truth + the render algorithm +
   ceremony-coupled regeneration fire-points + interim hand-maintenance discipline (pre-CLI).
-    - `[ ]` **2.4.a Source-of-truth shift**
-        - ROADMAP.md becomes a generated artifact rendered from `active/**` and `backlog/planned/**` meta-files. Source
-          of truth = meta files (`**State:**`, `**Owner:**`, `**Depends On:**`). ROADMAP header carries "Generated by
-          `arc roadmap render` — do not edit by hand" note + last-rendered commit hash.
-        - _Note:_ This describes the end-state header (post-CLI); 2.4.d describes the interim hand-maintenance shape.
-          Strategy section must distinguish — current ROADMAP can't truthfully carry "do not edit by hand" until
-          `arc roadmap render` ships.
 
-    - `[ ]` **2.4.b Render algorithm (6 steps)**
-        - Walk `active/**` and `backlog/planned/**` for `meta-*.md` files (recursive glob handles both standalone
-          `<wu-name>/` and cohort-wrapped `<cohort>/<wu-name>/` subdirs); parse fields; topologically sort by Depends
-          On; group into tiers (In Flight / Foundation / Tier 2+ / Independent Tracks); render markdown per tier; footer
-          pointing to `provisional/`.
+    - `[x]` **2.4.a Source-of-truth shift**
+        - New § ROADMAP § Source of truth enumerates the canonical meta-file fields ROADMAP renders from
+          (`**State:**`, `**Owner:**`, `**Depends On:**`, `**Cohort:**`, title) and describes the header convention
+          (`Generated from meta files — re-render at ceremony boundaries` + last-rendered commit reference). Audience
+          correction 2026-05-14: dropped "until `arc roadmap render` ships" transitional framing; strategy describes
+          the algorithm regardless of execution path (hand, script, or future CLI).
 
-    - `[ ]` **2.4.c Regeneration fire-points**
-        - WU graduation (`provisional/` → `planned/`); WU activation (`planned/` → `active/`); WU integration (`active/`
-          → archive); dep-field edit on any planned / active meta file. Each ceremony workflow includes a
-          regenerate-ROADMAP step.
+    - `[x]` **2.4.b Render algorithm (6 steps)**
+        - New § ROADMAP § Render algorithm numbers all six steps (walk → parse → topological sort → tier grouping →
+          markdown render → provisional footer). Tier definitions inlined (In Flight covers `Active | Integrating`;
+          Foundation, Tier 2+, Independent Tracks defined by dependency shape) so the algorithm is self-contained.
 
-    - `[ ]` **2.4.d Interim hand-maintenance discipline (pre-CLI)**
-        - Until `arc roadmap render` ships (deferred to downstream WU), maintain ROADMAP by hand per the documented
-          algorithm. Header note explicit about this transitional state.
+    - `[x]` **2.4.c Regeneration fire-points**
+        - New § ROADMAP § Regeneration fire-points enumerates all four triggers (graduation, activation, integration,
+          dep-field edit) as a bullet list with per-trigger semantics. Notes the ceremony-workflow integration
+          (regenerate-ROADMAP step rides each ceremony commit so ROADMAP stays consistent at every published
+          ceremony boundary).
+
+    - `[x]` **2.4.d Interim hand-maintenance discipline (pre-CLI)**
+        - Scope reframed (2026-05-14): "Interim (pre-CLI)" framing was project-internal — pegs the strategy doc to
+          this project's tooling timeline, which adopters don't share. Per DEV-RULES.PROJECT § Audience Boundaries,
+          subsection removed from adopter-facing strategy. The render algorithm and regeneration fire-points (2.4.b,
+          2.4.c) are tooling-agnostic; adopters use whatever execution path they have (hand, script, future CLI).
+          Hand-maintenance discipline guidance for THIS project's own tooling lives in WU notes.
+
+- _Outcome:_ New top-level § ROADMAP landed between § Archival and § Incidental Work Model. Three subsections
+  (Source of truth, Render algorithm, Regeneration fire-points) cover sub-elements 2.4.a–c; 2.4.d's interim
+  hand-maintenance content removed from adopter-facing strategy per audience discipline (the algorithm itself is
+  tooling-agnostic; "interim until X ships" framing is project-internal). TOC updated; both copies edited identically.
 
 ### `[ ]` **2.5 `strategy-planning-module.md` capture pipeline reform**
 

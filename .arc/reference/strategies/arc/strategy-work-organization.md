@@ -17,6 +17,10 @@ documentation.
 - [Decision Rules](#decision-rules)
 - [Task Lists and Branches](#task-lists-and-branches)
 - [Work Unit State](#work-unit-state)
+- [Branching](#branching)
+- [Per-Worktree Isolation](#per-worktree-isolation)
+- [Archival](#archival)
+- [ROADMAP](#roadmap)
 - [Incidental Work Model](#incidental-work-model)
 - [Branch Protection Modes](#branch-protection-modes)
 - [Planning Branch Workflow](#planning-branch-workflow)
@@ -157,6 +161,182 @@ Added to status files when the WU's state calls for cross-references. Omit other
 
 ---
 
+## Branching
+
+ARC's branch model uses a type prefix per branch ([Conventional Branch][cb-spec] style) plus a
+`plan/<name>` prefix for the planning life-phase. One work unit owns one branch through its
+entire lifecycle.
+
+### Branch type prefixes
+
+Branch type prefixes are codified in the [`branch-format`][branch-format-method] method. ARC's
+default type list and the override mechanism live in that file; the strategy describes only the
+mechanism (every WU branch carries a type prefix) and its composition with the
+[`commit-format`][commit-format-method] method. Branch typing and commit typing are independent
+axes: each method overrides independently, and commits within a WU may use any type from the
+project's commit-format type set regardless of the branch's prefix.
+
+### Planning branches: `plan/<name>`
+
+Planning work — discovery, plan-doc iteration, PRD authoring, task generation — runs on a
+`plan/<name>` branch. The prefix marks the WU's life-phase, distinct from the execution-phase
+type prefix the WU adopts at activation.
+
+At activation ([activate-work-unit][activate-work-unit]), the planning branch rotates to its
+execution-phase counterpart via local rename + remote replace:
+
+1. `git branch -m plan/<name> <type>/<name>` — local rename
+2. `git push origin <type>/<name>` — push under new name
+3. `git push origin --delete plan/<name>` — drop the old remote
+
+The rotation is the branch-side companion to the meta-file `State: Planning → Active` transition.
+Branch identity persists across the rename; commits, PR, and history carry forward.
+
+### Single branch per work unit
+
+One WU = one branch, from planning through integration. The branch is created at WU inception
+(as `plan/<name>`), rotated at activation (to `<type>/<name>`), and merged to main exactly once
+at integration. WU artifacts (`meta-<name>.md`, `plan-<name>.md`, `prd-<name>.md`,
+`tasks-<name>.md`, companions) live in `active/` on the WU's branch throughout the lifecycle;
+main carries no in-flight WU artifacts.
+
+This shape enables per-worktree isolation (see [§ Per-Worktree Isolation](#per-worktree-isolation)
+below): each WU's artifacts are reachable only on its own branch, so worktrees never see
+siblings' in-flight state.
+
+---
+
+## Per-Worktree Isolation
+
+Single-branch-per-WU (see [§ Branching](#branching)) produces a structural invariant across
+worktrees: **each worktree's `active/` contains only its own WU's meta file and that WU's
+companions**. No other in-flight WU's meta file is reachable, because every other WU lives on
+its own branch and no branch carries another WU's `active/` artifacts.
+
+The invariant follows from two prior decisions:
+
+- WU artifacts live in `active/` on the WU's branch only — main carries no in-flight WU
+  artifacts between inception and integration.
+- One WU = one branch = one worktree.
+
+### Concurrency under worktrees
+
+Per-worktree isolation enables independent concurrent work units. Each WU operates in its own
+worktree without seeing or conflicting with sibling WUs' in-flight planning, status, or task
+lists. Cross-WU coordination (dependency declarations, cohort grouping) materializes through
+fields on the meta file, not through filesystem co-residency.
+
+### Acceptance test
+
+The invariant is enforceable mechanically: spawn a worktree from `main`, assert that `active/`
+contains exactly the spawning WU's meta file plus its companions, and nothing else.
+
+---
+
+## Archival
+
+WU archival is the file-move ceremony that retires a shipped WU from `active/` to `archive/`.
+Archival rides on the integration PR by default (sweep-as-you-go), keeping the WU's entire
+lifecycle on one branch through one merge.
+
+### Sweep-as-you-go default
+
+`archive.cadence` in `arc-config.yml` controls when the file-move sweep fires:
+
+- **`with-integration`** (default) — sweep commits ride on the integration PR; the WU's meta
+  file and any companions move from `active/` to `archive/<dated>/<wu-name>/` as part of the
+  same merge that ships the code.
+- **`deferred`** — sweep fires at the next-WU planning batch instead, bundling archival of the
+  just-shipped WU with planning artifacts for the next one on a shared transition branch.
+- **`manual`** — sweep fires only on explicit invocation; no automatic ceremony coupling.
+
+Under `with-integration`, the integration PR carries a multi-commit structure: code commits →
+completion content (Release Notes Entry + Completion Notes composed into the meta file) → sweep
+commits (file moves from `active/` to `archive/<dated>/<wu-name>/`). Reviewers focus per-commit.
+
+See [integrate-work-unit.md][integrate-work-unit] and [archive-work-unit.md][archive-work-unit]
+for the full ceremony workflows.
+
+### Archive directory shape
+
+```text
+.arc/reference/archive/<dated>/
+  <wu-name>/
+    meta-*.md, plan-*.md, prd-*.md, tasks-*.md, notes-*.md, ...
+```
+
+Each shipped WU gets its own subdir directly under the temporal grouping. The `<dated>` segment
+follows a `<YYYY-q*>` convention (e.g., `2026-q2/`). Subdir contains all WU artifacts that
+existed at integration time, symmetric with the backlog's per-WU subdir convention (see
+[Planning Module Strategy](strategy-planning-module.md)).
+
+### Tier and async-merge accommodations
+
+The default is tier-uniform and assumes sync merge — the integration PR ships and archival
+completes before the WU's branch is reused for other work. Tier-specific sweep ceremony
+variations (light-ceremony archival for atomic-scale WUs; scaled coordination for larger-scope
+WUs) and async-merge accommodations (handoff and cleanup behavior during awaiting-review
+latency) are reserved for codification in adjacent strategy work. The default applies uniformly
+until those land.
+
+---
+
+## ROADMAP
+
+ROADMAP.md is a rendered artifact derived from `active/**` and `backlog/planned/**` meta files.
+The meta files are the source of truth for state, ownership, dependencies, and cohort
+membership; ROADMAP is a tier-grouped, topologically-sorted view of those fields.
+
+### Source of truth
+
+`active/**/<wu-name>/meta-<name>.md` and `backlog/planned/**/<wu-name>/meta-<name>.md` carry the
+canonical fields ROADMAP renders from:
+
+- `**State:**` — lifecycle phase (`Planning | Active | Integrating | Shipped`)
+- `**Owner:**` — single owner (per WU)
+- `**Depends On:**` — dependency list (bare WU names; `[none]` if independent)
+- `**Cohort:**` — cohort membership (`[none]` for solo WUs)
+- Title — H1 of the meta file
+
+ROADMAP's header carries a `Generated from meta files — re-render at ceremony boundaries` note
+plus the commit reference of the last regeneration. Edits to ROADMAP without a corresponding
+meta-file edit drift from the source of truth and should be avoided.
+
+### Render algorithm
+
+1. Walk `active/**` and `backlog/planned/**` recursively for `meta-*.md` files. The recursive
+   glob handles both standalone subdirs (`backlog/planned/<wu-name>/`) and cohort-wrapped
+   subdirs (`backlog/planned/<cohort>/<wu-name>/`).
+2. Parse `**State:**`, `**Owner:**`, `**Depends On:**`, `**Cohort:**`, and title from each
+   meta file.
+3. Topologically sort by `**Depends On:**` so dependencies precede dependents in the rendered
+   order.
+4. Group into tiers: **In Flight** (`State: Active | Integrating`), **Foundation** (planned
+   work with no dependencies on other planned work), **Tier 2+** (planned work with planned
+   dependencies; ordered by topological depth), **Independent Tracks** (planned work whose
+   dependencies have all shipped or are external).
+5. Render markdown per tier, with cohort members grouped within their tier.
+6. Footer note pointing to `backlog/provisional/` for pre-commitment thinking that hasn't been
+   sequenced.
+
+### Regeneration fire-points
+
+ROADMAP regenerates at ceremony boundaries, not on every meta-file edit:
+
+- **WU graduation** (`backlog/provisional/<wu>/` → `backlog/planned/<wu>/`) — adds the WU to
+  ROADMAP for the first time.
+- **WU activation** (`backlog/planned/<wu>/` → `active/<wu>/`, `State: Planning → Active`) —
+  moves the WU from a planned tier to In Flight.
+- **WU integration** (`active/<wu>/` → `archive/<dated>/<wu>/`, `State: Integrating → Shipped`)
+  — removes the WU from ROADMAP (shipped WUs aren't tracked there).
+- **Dependency-field edit** on any planned or active meta file — recomputes the topological
+  ordering when `**Depends On:**` changes.
+
+Each ceremony workflow (graduation, activation, integration) carries a regenerate-ROADMAP step,
+so ROADMAP stays consistent with meta-file state at every published ceremony commit.
+
+---
+
 ## Incidental Work Model
 
 Small discovered issues (type errors, missing tests, documentation gaps) are handled as inline
@@ -165,7 +345,8 @@ blockers that need their own task list, branch, and review cycle.
 
 ### Branching
 
-Every incidental work unit gets a stacked branch off the current branch (not the base branch):
+Incidental WU branching supplements the general rules in [§ Branching](#branching). Every
+incidental work unit gets a stacked branch off the current branch (not the base branch):
 
 ```text
 <base-branch>
@@ -364,29 +545,6 @@ via PR for review before implementation begins. This separates "decide what to b
     completion-<name>.md (created before PR)
 ```
 
-### Archive
-
-Archive preserves structure with global sequence numbering:
-
-```text
-.arc/reference/archive/{quarter}/
-  feature/
-    01_user-authentication/
-      prd-*, tasks-*, notes-*, completion-*
-  technical/
-    02_api-modernization/
-      prd-*, tasks-*, notes-*, completion-*
-  incidental/
-    03_type-safety/
-      tasks-*, notes-*, completion-*
-```
-
-`{NN}_` prefix indicates completion order (global across all categories). Gaps within a
-category show where other categories' work completed. Reset to 01 each quarter.
-
-See [integrate-work-unit.md][integrate-work-unit] and
-[archive-work-unit.md][archive-work-unit] for full integration and archival workflows.
-
 ### Alignment
 
 Branch, directory, and file naming align consistently:
@@ -424,3 +582,6 @@ installs, routing and graduation flow, inbox vs. companion file routing, and sca
 [config-arch]: strategy-configurability-architecture.md
 [activate-planning-branch]: ../../../system/workflows/arc/work-unit-lifecycle/planning/activate-planning-branch.md
 [integrate-planning-branch]: ../../../system/workflows/arc/work-unit-lifecycle/planning/integrate-planning-branch.md
+[branch-format-method]: ../../../system/methods/branch-format.md
+[commit-format-method]: ../../../system/methods/commit-format.md
+[cb-spec]: https://conventional-branch.github.io/

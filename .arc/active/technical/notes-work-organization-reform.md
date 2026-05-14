@@ -542,6 +542,27 @@ acceptable interim per PRD R38 (current planned/active WU count is low) but degr
 grows. Mitigation: CLI captured in PRD § Non-Goals and § CLI tooling capture (must not be lost);
 activation audit confirms downstream WU absorbs the entry.
 
+### Release-lifecycle model — currently unspecified
+
+WOR codifies the contribution-side of release activity (per-WU Release Notes Entries per R30–R32) but leaves the
+cut/aggregate/tag/announce side unspecified. ARC has no codified release lifecycle: no version-bump convention, no
+CHANGELOG aggregation workflow, no tag-cut ceremony, no notion of release branches vs. tag-on-main vs. continuous
+deployment as adopter-facing choice. Aggregation tooling is deferred ("reads per-WU entries, not commit history") but
+the workflow that invokes that tooling, and the lifecycle phase around it, is uncodified.
+
+Surfaced during WOR Phase 2 execution (2026-05-14) when verifying CB spec alignment for R1: CB's recommended set
+includes `release/` and `hotfix/`. `hotfix/` maps cleanly to atomic-tier WUs (urgent, low-ceremony, single-purpose) and
+ARC adopts it. `release/` doesn't map to any current ARC lifecycle phase — adopting the prefix without modeling the
+phase creates an orphan type (strategy can't describe what to do on a release branch).
+
+Resolution path: `release/` dropped from ARC's default branch type set (per R1 amendment). Adopters who need release
+branches today can add `release/` via `branch-format` method override. Canonical handling deferred to a future ARC WU
+that codifies release lifecycle — landing-pad plan-doc captures the gap as a discussion surface for the eventual
+scope/shape decision (release-branch model vs. tag-on-main vs. configurable).
+
+Mitigation in the interim: `branch-format` method preamble documents the gap explicitly; per-WU Release Notes Entries
+continue accumulating in archived meta files, ready for whatever aggregation/cut ceremony lands next.
+
 ### Inter-WU planning freshness — model raises but doesn't solve
 
 Single-branch-per-WU isolates each WU's planning artifacts to its branch. Cross-WU references (one

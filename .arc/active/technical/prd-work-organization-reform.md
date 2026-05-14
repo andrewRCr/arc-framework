@@ -136,9 +136,20 @@ Merge transitions main from "didn't have these files" to "has them in archive/" 
 
 ### Lifecycle and branch conventions (P0)
 
-**R1.** WU branches follow Conventional Branch core-6: `feat/<name>`, `fix/<name>`, `chore/<name>`, `docs/<name>`,
-`refactor/<name>`, `perf/<name>`. Contested types (`test/`, `style/`, `build/`, `ci/`) treated as adopter-extension; not
-in ARC's canonical set.
+**R1.** WU branches follow a CB-style type prefix. Type list is methodized as the new `branch-format` method
+(parallel to existing `commit-format`), making the type set adopter-overridable per project. ARC's default type set:
+`feat/<name>`, `fix/<name>`, `chore/<name>`, `refactor/<name>`, `hotfix/<name>` (5 types).
+
+**R1 amendment basis (2026-05-14):** Original R1 specified a "CB core-6" set of
+`feat | fix | chore | docs | refactor | perf` framed as alignment with the Conventional Branch spec. Verification
+against the canonical spec at <https://conventional-branch.github.io/> showed the framing was incorrect on multiple
+counts: CB's actual recommended set is `feature|feat | bugfix|fix | hotfix | release | chore` (5 prefixes); `docs`,
+`refactor`, `perf` are not in CB and originate from the Angular Conventional Commits extension. CB uses
+"recommended set" terminology, not "core" or "canonical." Amended set above reflects: strict CB types ARC's WU model
+actually supports (`feat | fix | chore | hotfix`) plus `refactor` (distinct from `fix` per ARC's planning practice;
+`chore` is too coarse). Drops `release/` per release-lifecycle gap (see Pressure Points § Release-lifecycle model).
+Drops `docs`, `perf` (bundled into `chore` per CB's actual recommendation; adopters who want finer granularity use
+method override).
 
 **R2.** Planning branches use `plan/<name>` prefix; rotate to `<type>/<name>` at activation via local rename + remote
 replace.
@@ -313,9 +324,12 @@ token-lean):
 Final placement decision (between `commit-format.md`, `commit-context-format.md`, and arc-commit skill) at task
 generation time — all three load each commit; only one carries the principle.
 
-**R28.** CB-CC alignment documented in `strategy-work-organization.md` § branching: CB-core-6 omits `test` and `revert`
-deliberately (tests not branched separately; reverts produce conventional commit shape but not branch shape). The
-divergence is intentional and cognitive-load-aware per CB spec rationale.
+**R28.** CB-relationship framing in `strategy-work-organization.md` § Branching and in the `branch-format` method
+preamble: ARC's default branch type set is **inspired by Conventional Branch and the Angular Conventional Commits
+extension**, not strict alignment with either. Substantive divergence documented (per R1 amendment): ARC adopts
+`feat | fix | chore | hotfix` from CB's recommended set; extends with `refactor` (Angular CC); drops `release` (no ARC
+release-lifecycle model yet — see Pressure Points); bundles `docs` and `perf` into `chore` per CB convention. The
+`commit-format` and `branch-format` methods compose independently — one mechanism per axis, both adopter-overridable.
 
 **R29.** Forward-only migration. Historical commits keep their existing type/scope tags (git history immutable). New
 conventions apply from WOR merge forward.
