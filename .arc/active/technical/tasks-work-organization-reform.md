@@ -502,58 +502,77 @@ parenthetical patterns); phase order reflects execution order.
   framed in generic terms without forward-pointers to AWL / arc-plan-conductor / arc-modes WU plan names; (3) 2.9.e
   reframed from "Retired duplications" to "Purpose statement lives on the spec" (state-what-IS framing).
 
-### `[ ]` **2.10 `strategy-file-classification.md` — `meta-*` file class + retired prefixes + retired work-categories**
+### `[x]` **2.10 `strategy-file-classification.md` — `meta-*` file class + retired prefixes + retired work-categories**
 
 - _Goal:_ `strategy-file-classification.md` reflects WOR's file-taxonomy shifts — `meta-*` file class introduced (per-WU
   pointer; replaces `status-*`); `completion-*` file class retired (folds into meta-file archive-phase sections per
   R14); `feature/` and `technical/` work-category labels retired per R1's CB core-6 alignment.
 
-- _Context (from grep, 2026-05-14):_ Existing file has three substantive WOR-affected touch points:
-    - Line ~90 — table entry defining `completion-` as a file-class with example `completion-api-modernization.md`.
-      Retire the row (file class folds into meta archive-phase sections per R14).
-    - Line ~100 — prose listing `prd-`, `tasks-`, `completion-`, `notes-` as work-unit-artifact file classes sharing a
-      slug. Update list: add `meta-`, drop `completion-`.
-    - Line ~170 — "Work categories (`feature/`, `technical/`, ...)" prose. Reshape to new CB core-6 categories (`feat/`,
-      `fix/`, `chore/`, `docs/`, `refactor/`, `perf/`, plus `plan/` for planning state) per R1 + R2.
+    - `[x]` **2.10.a Add `meta-` file class entry**
+        - Prefix-patterns table gained a new `meta-` row: `meta-` | Work-unit pointer | Agent |
+          `meta-api-modernization.md`. Positioned at the top of the WU-artifact cluster (above `prd-` / `tasks-`),
+          reflecting meta's role as the chain-of-authority anchor per Task 2.9's codification. Table column-divider
+          widths normalized to match the trimmed row content.
 
-    **Strategies:** none (this is a strategy doc edit)
+    - `[x]` **2.10.b Retire `completion-` file class entry**
+        - `completion-` row removed from the prefix-patterns table. No explicit "retired" note in the doc body —
+          adopter-facing convention is to describe what IS, not what WAS (per DEV-RULES.PROJECT § Audience Boundaries).
+          Completion content folds into meta-file archive-phase sections downstream (R14); strategy doesn't carry the
+          retirement framing.
 
-    - `[ ]` **2.10.a Add `meta-` file class entry**
-        - Insert new row in the file-class table: `meta-` | per-WU pointer (metadata + state + archive-phase sections) |
-          Agent | `meta-api-modernization.md`. Position adjacent to `prd-` / `tasks-` rows for visual grouping with
-          other WU-artifact classes.
+    - `[x]` **2.10.c Update WU-artifact prose listing**
+        - WU-artifact prose listing updated: `meta-`, `plan-`, `prd-`, `tasks-`, `notes-`, `atomic-` (complete current
+          WU-artifact set). Example expanded to show three artifacts sharing a slug (`meta-authentication.md`,
+          `prd-authentication.md`, `tasks-authentication.md`) for clearer demonstration.
 
-    - `[ ]` **2.10.b Retire `completion-` file class entry**
-        - Remove the `completion-` row. Brief note: completion content folds into meta-file archive-phase sections
-          (`## Release Notes Entry`, `## Completion Notes`) under R14.
+    - `[x]` **2.10.d Update work-categories prose**
+        - § Directory naming rewrote from the obsolete "work categories consistent across active/, backlog/, archive/"
+          framing to the WOR convention: WU directories are slug-named; branch-type prefixes from the `branch-format`
+          method namespace branches, not directories. Cross-references to `strategy-work-organization.md` § Directory
+          Structure and § Branching for the canonical convention. Default type set listed matches landed
+          `branch-format` method (`feat`, `fix`, `chore`, `refactor`, `hotfix`; plus `plan/` for planning-phase) — not
+          the task instruction's stale "CB core-6" enumeration (corrected per Task 2.1.a outcome).
 
-    - `[ ]` **2.10.c Update WU-artifact prose listing**
-        - Update the line that enumerates `prd-`, `tasks-`, `completion-`, `notes-` as shared-slug work-unit artifacts:
-          add `meta-`, `plan-`, `atomic-` (the complete WU artifact set under WOR); drop `completion-`.
+    - `[x]` **2.10.e Sync to packages/**
+        - Identical edits applied to `packages/arc-framework/arc/reference/strategies/arc/strategy-file-classification.md`.
+          Two copies verified byte-identical via diff.
 
-    - `[ ]` **2.10.d Update work-categories prose**
-        - Replace `feature/`, `technical/`, `incidental/` enumeration with CB core-6 (`feat/`, `fix/`, `chore/`,
-          `docs/`, `refactor/`, `perf/`) plus `plan/` for planning state. Cross-reference
-          `strategy-work-organization.md` § Branching (Task 2.1) for the canonical convention; this doc carries the
-          file-classification implications.
+    - `[x]` **2.10.f Codify one-shot template uniqueness principle (R63)**
+        - New § One-shot template uniqueness subsection landed under § Naming Conventions, between § Template suffix
+          `.template.md` and § Workflow numbering (template-handling cluster). Four parts: (1) principle statement (no
+          parallel `template-*.md` entry for one-shot rendered files); (2) governed-files enumeration (META-PRD,
+          TECHNICAL-OVERVIEW, PROJECT-STATUS, ROADMAP, BACKLOG-FEATURE, BACKLOG-TECHNICAL, AGENT-BRIEF.PROJECT,
+          QUICK-REFERENCE — current set, no "retiring per..." parentheticals); (3) distinction from agent-facing
+          `template-*.md` (bracket-placeholder convention; principle does not extend); (4) optional starter templates
+          (`template-dev-rules.md`, `template-contributing.md` — third category, not init-rendered).
+        - Audience-boundary corrections vs. PRD R63 vocabulary: (a) didn't name the CLI source path
+          (`packages/arc-framework/src/lib/classification.ts`) — replaced with "CLI's init / join render pipeline is
+          the canonical inventory" (source-tree paths are internal-dev perspective; adopter strategy describes
+          mechanism, not implementation); (b) governed-files list omits "(retiring per R40)" / "(consolidating into
+          BACKLOG-INBOX per R50)" parentheticals — current state only; (c) starter-templates subsection avoided
+          "adopter-customized" / "by adopters" framing → "Projects copy or reference them" (per user direction
+          mid-execution: "adopter" is framework-author perspective; the reader IS the "adopter").
 
-    - `[ ]` **2.10.e Sync to packages/**
-
-    - `[ ]` **2.10.f Codify one-shot template uniqueness principle (R63)**
-        - Add new content (placement at execution — likely a new subsection under § File Taxonomy or adjacent) to
-          `strategy-file-classification.md`: "Files instantiated once per project at CLI init / join time (driven by
-          `packages/arc-framework/src/lib/classification.ts`'s render list) do not get a parallel
-          `reference/templates/template-*.md` entry — the package-source `.template` is canonical."
-        - Enumerate governed files: META-PRD / PROJECT-PRD, TECHNICAL-OVERVIEW, PROJECT-STATUS (retiring per R40),
-          ROADMAP, BACKLOG-FEATURE / BACKLOG-TECHNICAL (consolidating into BACKLOG-INBOX per R50; principle carries to
-          the successor), AGENT-BRIEF.PROJECT, QUICK-REFERENCE. Note the `classification.ts` render list as the
-          canonical source.
-        - Cross-reference: agent-facing `template-*.md` in `reference/templates/` (PRDs, plans, tasks, meta files,
-          completion docs, ADRs, etc.) are a different mechanism — created repeatedly during work by agents /
-          workflows, bracket-placeholder convention; this principle does not apply.
-        - Optional adopter-customized starter templates (`template-dev-rules.md`, `template-contributing.md`) are a
-          third category — present in `reference/templates/` but not in the CLI render list; copied or referenced by
-          adopters as starting points for optional files. Distinguish in the strategy text.
+- _Outcome:_ `strategy-file-classification.md` realigned to WOR file taxonomy: `meta-` row added at top of WU-artifact
+  cluster, `completion-` row retired, WU-artifact prose listing updated, § Directory naming rewritten from
+  obsolete-work-categories framing to slug-named WU directories + branch-type-prefix-as-namespace model, new
+  § One-shot template uniqueness subsection codifying R63. Reference-link block gained `[branch-format-method]:`. Both
+  copies in sync; Tier 1 markdown lint clean across 246 files. Audience-boundary discipline applied throughout — six
+  corrections / non-leaks vs. internal-PRD vocabulary (PRD R-IDs avoided; CLI source path replaced with mechanism
+  description; "retiring per X" parentheticals dropped from governed-files list; "adopter-customized" framing replaced
+  with neutral "Projects" actor; "by adopters" replaced with "Projects copy or reference them"; default branch-type
+  set corrected to the landed 5-type set vs. task instruction's stale "CB core-6" enumeration). Three additional
+  pre-commit corrections from user review of staged content: (a) `strategy-` row's "Created By" cell changed from
+  `Framework` to `Framework / user` — the prefix covers both ARC framework strategies (shipped via `strategies/arc/`)
+  and project-specific strategies in `strategies/project/`; (b) `template-` row's "Created By" cell changed from
+  `Framework` to `Framework / user` symmetrically — projects can author their own `template-*.md` files too,
+  framework just ships a canonical set; (c) `working-*` row + entire § Working docs (optional) subsection retired —
+  stale leftover from an earlier dev experiment with no actual files in the repo and no other surface references (full
+  audit confirmed pre-removal). `Created By` column widened from 12 to 18 chars between pipes to fit
+  `Framework / user`. Folded in mid-execution: same audience-vocabulary cleanup applied to
+  `strategy-work-organization.md` (lines 39, 48 — Task 2.1 leftover phrases "adopter-override mechanism" → "override
+  mechanism"; "supports adopter override of the set" → "supports overriding the set"). Remaining adopter-facing
+  surfaces with "adopter" mentions captured for sweep at Task 6.7.n.
 
 ### `[ ]` **2.11 `strategy-task-list-formatting.md` — `tasks-*` header convention update**
 
@@ -2132,6 +2151,24 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           their own bodies; sweep targets only inbound references.
         - **Sequencing:** Task 6.10.b / 6.10.c (`git mv`) must complete before this subtask fires; 6.10.e verifies after
           this completes.
+
+    - `[ ]` **6.7.n Audience-vocabulary sweep: "adopter" → neutral framing**
+        - Replace "adopter" references in adopter-facing surfaces with neutral framing — "projects", "teams", or
+          actor-omitted phrasing as context fits. Rationale: "adopter" is framework-author perspective on the reader;
+          from the reader's viewpoint they're just running a project, not "adopting" something. Surfaced mid-Task-2.10
+          execution; small fold-in handled there for `strategy-file-classification.md` + two leftover phrases in
+          `strategy-work-organization.md`. 6.7.n sweeps the remaining surface.
+        - Grep pattern: `\badopter\b` (case-insensitive).
+        - Surface (adopter-facing only): `strategy-team-coordination.md`,
+          `system/workflows/arc/supplemental/setup-release-wrapper.md`, `system/extensions/README.md`,
+          `reference/templates/template-workflow.md`, `reference/QUICK-REFERENCE.md`. Touch points already addressed by
+          upstream tasks: `strategy-file-classification.md` (Task 2.10.f), `strategy-work-organization.md` (Task 2.10
+          mid-execution fold-in: lines 39 + 48 vocabulary cleanup).
+        - **Exclusion:** internal-dev-facing surfaces keep "adopter" — `reference/strategies/project/**`,
+          `DEV-RULES.PROJECT.md`, ADRs, internal WU notes / plans / PRDs all describe adopters from the framework-author
+          lens; that's their audience. Two-copy sync still required for adopter-facing surfaces.
+        - Post-sweep verification: grep on adopter-facing surface list returns empty (with the package-source mirror
+          checked alongside `.arc/`).
 
 ### `[ ]` **6.8 Slim instance-file preambles (SESSION-NOTES + USER-INBOX + BACKLOG-INBOX + backlog/ATOMIC-INBOX)**
 

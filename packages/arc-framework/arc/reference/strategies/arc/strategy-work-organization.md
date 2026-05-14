@@ -35,8 +35,8 @@ documentation.
 
 Work units are identified by their branch type prefix (`feat`, `fix`, `chore`, etc.) from the
 [`branch-format`][branch-format-method] method's type set. See [§ Branching](#branching) for
-the branch model and [`branch-format`][branch-format-method] for the type set and
-adopter-override mechanism.
+the branch model and [`branch-format`][branch-format-method] for the type set and override
+mechanism.
 
 ---
 
@@ -45,8 +45,8 @@ adopter-override mechanism.
 Branch-type selection for a new work unit follows the [`branch-format`][branch-format-method]
 method's type set. The method ships per-type semantic guidance (`feat` for new capability,
 `fix` for correction, `chore` for routine maintenance, `refactor` for restructuring without
-behavior change, `hotfix` for production-issue response) and supports adopter override of the
-set itself.
+behavior change, `hotfix` for production-issue response) and supports overriding the set
+itself.
 
 For routing deferred or discovered work — inline fix vs. atomic task vs. new work unit — see
 [DEV-RULES.ARC][dev-rules-arc] § Leave it cleaner.

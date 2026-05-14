@@ -83,56 +83,22 @@ you what kind."
 
 ### Prefix patterns
 
-| Prefix        | What It Is               | Created By | Example                           |
-|---------------|--------------------------|------------|-----------------------------------|
-| `prd-`        | Product Requirements Doc | User/agent | `prd-authentication.md`           |
-| `tasks-`      | Task list                | User/agent | `tasks-api-modernization.md`      |
-| `completion-` | Completion record        | Agent      | `completion-api-modernization.md` |
-| `notes-`      | Work unit notes          | Agent      | `notes-api-modernization.md`      |
-| `atomic-`     | Atomic companion file    | Agent      | `atomic-api-modernization.md`     |
-| `plan-`       | Work plan (pre-PRD)      | User/agent | `plan-api-migration.md`           |
-| `working-`    | Working doc for `plan-*` | User/agent | `working-modes-gap-resolution.md` |
-| `strategy-`   | Strategy document        | Framework  | `strategy-work-organization.md`   |
-| `research-`   | Research document        | User/agent | `research-context-loading.md`     |
-| `adr-`        | Architecture Decision    | User/agent | `adr-001-define-core-identity.md` |
-| `template-`   | Copy-ready template      | Framework  | `template-prd.md`                 |
+| Prefix      | What It Is               | Created By       | Example                           |
+|-------------|--------------------------|------------------|-----------------------------------|
+| `meta-`     | Work-unit pointer        | Agent            | `meta-api-modernization.md`       |
+| `prd-`      | Product Requirements Doc | User/agent       | `prd-authentication.md`           |
+| `tasks-`    | Task list                | User/agent       | `tasks-api-modernization.md`      |
+| `plan-`     | Work plan (pre-PRD)      | User/agent       | `plan-api-migration.md`           |
+| `notes-`    | Work unit notes          | Agent            | `notes-api-modernization.md`      |
+| `atomic-`   | Atomic companion file    | Agent            | `atomic-api-modernization.md`     |
+| `strategy-` | Strategy document        | Framework / user | `strategy-work-organization.md`   |
+| `research-` | Research document        | User/agent       | `research-context-loading.md`     |
+| `adr-`      | Architecture Decision    | User/agent       | `adr-001-define-core-identity.md` |
+| `template-` | Copy-ready template      | Framework / user | `template-prd.md`                 |
 
-Work unit artifacts (`prd-`, `tasks-`, `completion-`, `notes-`) share a slug across files — the
-slug is the work unit's identity. `prd-authentication.md` and `tasks-authentication.md` belong to
-the same work unit.
-
-### Working docs (optional)
-
-`working-*` is an optional convention for tracked working docs that support a `plan-*` doc when
-the plan itself isn't enough workspace. The plan doc is normally the primary working surface for
-pre-PRD exploration, so many efforts won't need a working doc — but deeper analytical or
-multi-axis work can benefit from separation.
-
-**Positioning:**
-
-- `plan-*` is the starting point and "working record of intent" — what the work is and why.
-- `working-*` is the workspace for refining that intent when the refinement is too large or too
-  noisy to stay in the plan doc itself.
-- `notes-*` is different polarity: `notes-*` captures extracted reference content from *retired*
-  `plan-*` docs (post-PRD-creation, durable). `working-*` is pre-resolution workspace that
-  drains into the plan.
-
-**Lifecycle:**
-
-- **Tracked** (committed to git), unlike `temp-*` files which are gitignored. Multi-session work
-  needs git history for traceability.
-- **Temporal, not archived** — when findings drain into the plan doc (or the eventual PRD), the
-  working doc can be deleted. Its reasoning lives in commit history and the plan itself. Unlike
-  `analysis-*` and `research-*` files in `reference/` which are durable reference, working docs
-  are not preserved long-term.
-- **Retention past drain** is at author's discretion — delete for cleanliness or keep as a
-  working record, either is valid.
-
-**When to use:** Reach for `working-*` when a plan refinement generates enough discrete findings
-or multi-session state that keeping it in the plan doc would hurt the plan's readability as
-intent. If the plan doc can carry the work without degrading, keep it there.
-
-**Location:** Alongside the plan doc being supported (same directory).
+Work unit artifacts (`meta-`, `plan-`, `prd-`, `tasks-`, `notes-`, `atomic-`) share a slug
+across files — the slug is the work unit's identity. `meta-authentication.md`,
+`prd-authentication.md`, and `tasks-authentication.md` all belong to the same work unit.
 
 ### Template suffix: `.template.md`
 
@@ -152,6 +118,28 @@ The `template-` *prefix* (in `reference/templates/`) is different — those are 
 templates used during work (e.g., `template-prd.md` is copied when creating a new PRD). They keep
 the prefix in use, not just at init time.
 
+### One-shot template uniqueness
+
+Files rendered exactly once per project at CLI initialization or repository-join time —
+produced from package-source `*.template.md` files with mustache-token replacement — do not
+have a parallel `reference/templates/template-*.md` entry. The package-source `.template`
+file is the canonical template; no second template surface exists for the same file class.
+
+**Governed files:** META-PRD, TECHNICAL-OVERVIEW, PROJECT-STATUS, ROADMAP, BACKLOG-FEATURE,
+BACKLOG-TECHNICAL, AGENT-BRIEF.PROJECT, QUICK-REFERENCE. The CLI's init / join render
+pipeline is the canonical inventory.
+
+**Distinction from agent-facing templates.** `template-*.md` files in `reference/templates/`
+(e.g., `template-prd.md`, `template-tasks.md`, `template-adr.md`) are copy-ready templates
+for content created repeatedly during work by agents and workflows. They use the
+bracket-placeholder convention. The two surfaces address different needs and do not
+duplicate — the one-shot principle does not extend to them.
+
+**Optional starter templates.** `template-dev-rules.md` and `template-contributing.md` are a
+third category: present in `reference/templates/` but not in the init render list. Projects
+copy or reference them as starting points for optional files; this principle does not govern
+them.
+
 ### Workflow numbering
 
 Core pipeline workflows are numbered to indicate execution sequence:
@@ -167,10 +155,14 @@ step."
 
 ### Directory naming
 
-Lowercase, hyphenated, functional names throughout. Work categories (`feature/`, `technical/`,
-`incidental/`) are consistent across `active/`, `backlog/`, and `archive/`. Archive adds
-quarter-based grouping (`2026-q1/`) and sequence-numbered directories (`01_work-name/`) for
-completion ordering.
+Lowercase, hyphenated, functional names throughout. Work units occupy directories named by
+their slug: branch `feat/api-modernization` corresponds to `active/api-modernization/` and to
+a slug-named directory in `backlog/` (planned or provisional) before activation and in the
+completed-work location after integration. Branch type prefixes from the
+[`branch-format`][branch-format-method] method (default set: `feat/`, `fix/`, `chore/`,
+`refactor/`, `hotfix/`; plus `plan/` for planning-phase branches) namespace branches, not
+directories. See [Work Organization Strategy](strategy-work-organization.md) § Directory
+Structure for the path shape and § Branching for branch type conventions.
 
 ### Project guidance
 
@@ -196,3 +188,4 @@ When creating project-specific artifacts:
 
 [config-arch]: strategy-configurability-architecture.md
 [config-arch-which]: strategy-configurability-architecture.md#which-mechanism-do-i-use
+[branch-format-method]: ../../../system/methods/branch-format.md
