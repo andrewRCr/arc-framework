@@ -33,73 +33,23 @@ documentation.
 
 ## Work Categories
 
-### Feature Work (User-Facing Capabilities)
-
-Planned work that adds user-visible capabilities from product vision.
-
-**Documentation:**
-
-- PRD: `.arc/active/feature/prd-<name>.md`
-- Tasks: `.arc/active/feature/tasks-<name>.md`
-- Notes: `.arc/active/feature/notes-<name>.md` (optional)
-- Atomic: `.arc/active/feature/atomic-<name>.md` (companion)
-- Status: `.arc/active/feature/status-<name>.md` (per-WU state pointer)
-- Git branch: `feature/<name>`
-
-### Technical Work (Infrastructure Improvements)
-
-Planned work that improves codebase quality, architecture, or developer experience.
-
-**Documentation:**
-
-- PRD: `.arc/active/technical/prd-<name>.md`
-- Tasks: `.arc/active/technical/tasks-<name>.md`
-- Notes: `.arc/active/technical/notes-<name>.md` (optional)
-- Atomic: `.arc/active/technical/atomic-<name>.md` (companion)
-- Status: `.arc/active/technical/status-<name>.md` (per-WU state pointer)
-- Git branch: `technical/<name>`
-
-### Incidental Work (Reactive Quality Improvements)
-
-Unplanned work discovered during feature/technical development. Gets task lists but not PRDs.
-See [Incidental Work Model](#incidental-work-model) for branching and lifecycle.
-
-**Documentation:**
-
-- Tasks: `.arc/active/incidental/tasks-<name>.md`
-- Notes: `.arc/active/incidental/notes-<name>.md` (optional)
-- Atomic: `.arc/active/incidental/atomic-<name>.md` (companion)
-- Status: `.arc/active/incidental/status-<name>.md` (per-WU state pointer)
-- Git branch: `incidental/<name>` (stacked on parent; see [Incidental Work Model](#incidental-work-model))
+Work units are identified by their branch type prefix (`feat`, `fix`, `chore`, etc.) from the
+[`branch-format`][branch-format-method] method's type set. See [§ Branching](#branching) for
+the branch model and [`branch-format`][branch-format-method] for the type set and
+adopter-override mechanism.
 
 ---
 
 ## Decision Rules
 
-**Step 1: "Was this planned in advance?"**
+Branch-type selection for a new work unit follows the [`branch-format`][branch-format-method]
+method's type set. The method ships per-type semantic guidance (`feat` for new capability,
+`fix` for correction, `chore` for routine maintenance, `refactor` for restructuring without
+behavior change, `hotfix` for production-issue response) and supports adopter override of the
+set itself.
 
-- **No** (discovered during work) → `incidental/` (see [Incidental Work Model](#incidental-work-model))
-- **Yes** (has PRD or formal planning) → Continue to Step 2
-
-**Step 2: "Does this add user-visible capability from product vision?"**
-
-- **Yes** → `feature/`
-- **No** → `technical/`
-
-| Scenario                              | Planned? | User-visible? | Category                                         |
-| ------------------------------------- | -------- | ------------- | ------------------------------------------------ |
-| User authentication                   | Yes      | Yes           | `feature/user-authentication`                    |
-| CI pipeline improvements              | Yes      | No            | `technical/ci-pipeline-improvements`             |
-| Type errors found during feature work | No       | —             | `incidental/type-safety`                         |
-| Bug found while testing               | No       | —             | `incidental/auth-token-expiration`               |
-
-**Edge cases:**
-
-- UX/polish: planned + substantial → `technical/`; reactive + small → `incidental/`
-- Refactoring: large + planned → `technical/`; discovered during feature work → `incidental/`
-- Documentation: planned project → `technical/` or `feature/`; quick updates → `incidental/`
-- Production issues: critical → `incidental/` with dedicated branch regardless of size;
-  non-critical → capture in backlog for triage
+For routing deferred or discovered work — inline fix vs. atomic task vs. new work unit — see
+[DEV-RULES.ARC][dev-rules-arc] § Leave it cleaner.
 
 ---
 
@@ -404,79 +354,12 @@ so ROADMAP stays consistent with meta-file state at every published ceremony com
 
 ## Incidental Work Model
 
-Small discovered issues (type errors, missing tests, documentation gaps) are handled as inline
-fixes or atomic tasks — not incidental work units. Incidental work units are multi-phase
-blockers that need their own task list, branch, and review cycle.
-
-### Branching
-
-Incidental WU branching supplements the general rules in [§ Branching](#branching). Every
-incidental work unit gets a stacked branch off the current branch (not the base branch):
-
-```text
-<base-branch>
-└── technical/service-layer-modernization
-    └── incidental/filter-integration-testing
-        └── incidental/pagination-buffer-tracking
-```
-
-Branch naming: `incidental/<name>` matching task list name (minus `tasks-` prefix).
-
-### Branch Lifecycle
-
-```text
-On Child Branch:
-1. Create branch off current: git checkout -b incidental/<name>
-2. Create task list: .arc/active/incidental/tasks-<name>.md
-3. Work on branch, commit with task references
-4. Complete work (all tasks done, quality gates pass)
-5. Clean task list (clean-work-unit.md Mode 2)
-6. Create completion-{name}.md (summary + PR description draft)
-7. Commit documentation changes
-
-Code Review & Merge:
-8. Run code review (local analysis, then PR-based if warranted)
-9. Create PR against parent branch
-10. Address review findings, merge PR
-
-On Parent Branch (After Merge):
-11. Delete merged branch (branch cleanup)
-12. Archive task list (all tasks complete):
-    git mv to .arc/reference/archive/{quarter}/incidental/{NN}_{name}/
-13. Commit archive changes, resume parent work
-```
-
-### Merge Strategy
-
-**Depth-first merging:** Complete deepest child first, merge up to parent.
-
-```bash
-# Example stack:
-<base-branch>
-└── technical/service-layer
-    └── incidental/filter-testing
-        └── incidental/pagination-fixes
-
-# Merge order:
-# 1. pagination-fixes → filter-testing (PR, merge, archive)
-# 2. filter-testing → service-layer (PR, merge, archive)
-# 3. service-layer → <base-branch> (PR, merge, archive)
-```
-
-Child work must be integrated into parent before parent can be considered complete.
-
-**Merge method:** Set via `merge.strategy` in arc-config.yml (default: `merge`). Merge commits
-preserve branch topology and granular commit history. With `rebase`, commits are replayed for
-linear history. With `squash`, individual commits collapse into one per branch — traceability
-shifts from commit messages to PR descriptions. See
-[Configurability Architecture][config-arch] § Merge Strategy for behavioral implications.
-
-### Handling Branch Updates
-
-If the parent branch updates while working on a child:
-
-- **Rebase** for clean history: `git rebase parent-branch`
-- **Merge** to preserve history: `git merge parent-branch`
+Handling unplanned work that surfaces during a WU — quick inline fixes, atomic tasks, and
+mid-execution interrupts requiring their own WU shape — follows the routing rules in
+[DEV-RULES.ARC][dev-rules-arc] § Leave it cleaner. For mid-execution interrupts that warrant
+a separate WU, see [manage-incidental-work][manage-incidental] for the interrupt protocol;
+capture interrupt work on the current branch with clear commit boundaries separating
+interrupt commits from primary task commits.
 
 ---
 
@@ -644,7 +527,7 @@ installs, routing and graduation flow, inbox vs. companion file routing, and sca
 [clean-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/clean-work-unit.md
 [create-prd]: ../../../system/workflows/arc/1_create-prd.md
 [manage-incidental]: ../../../system/workflows/arc/supplemental/manage-incidental-work.md
-[config-arch]: strategy-configurability-architecture.md
+[dev-rules-arc]: ../../constitution/DEV-RULES.ARC.md
 [activate-planning-branch]: ../../../system/workflows/arc/work-unit-lifecycle/planning/activate-planning-branch.md
 [integrate-planning-branch]: ../../../system/workflows/arc/work-unit-lifecycle/planning/integrate-planning-branch.md
 [branch-format-method]: ../../../system/methods/branch-format.md

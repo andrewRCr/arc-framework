@@ -416,48 +416,42 @@ parenthetical patterns); phase order reflects execution order.
   `plan-agile-wu-lifecycle.md` (Scope item 10) so those WUs replace the abstract phrasing in § Deferred contract +
   § Escape-hatch guardrails with concrete references when they land. Scaffold for R22a/b/c established.
 
-### `[ ]` **2.8 `strategy-work-organization.md` § Incidental Work Model + § Work Categories transitional retirement**
+### `[x]` **2.8 `strategy-work-organization.md` § Incidental Work Model + § Work Categories transitional retirement**
 
 - _Goal:_ The two existing top-level sections in `strategy-work-organization.md` that frame the incidental WU model and
   the category-based WU classification (`feature/` / `technical/` / `incidental/`) reshape under WOR's R49a transitional
   framing — substrate retires here; full content retirement awaits Worktree Foundation (shift lifecycle) + Agile WU
   Lifecycle (workflow + conceptual retirement).
 
-- _Context:_ Existing § Incidental Work Model documents `incidental/<name>` branch model, `active/incidental/` category
-  dir, status-file pointer fields (`Interrupts:` / `Paused At:` / `Paused To:`), and routes to
-  `manage-incidental-work.md`. All four are retired by WOR's R1 + R3 + R8-R14 + R58 + R15. § Work Categories describes
-  the prefix-based classification (planned vs reactive) that R1's CB core-6 alignment retires entirely. Both sections
-  become structurally orphaned under WOR but the workflow they reference (`manage-incidental-work.md`) still exists
-  pending AWL retirement.
+    - `[x]` **2.8.a § Incidental Work Model reshape**
+        - Body rewrote to describe current incidental-work handling: thin pointer to DEV-RULES.ARC § Leave it cleaner
+          for routing across quick fixes / atomic tasks / interrupts requiring their own WU, plus
+          `manage-incidental-work.md` for the mid-execution interrupt protocol with inline-on-current-branch framing
+          (placeholder for shift-state mechanics pending WF — see _Outcome_).
 
-- _Approach:_ Transitional forward-pointer reshape, not deletion. Each section collapses to a short paragraph naming
-  what WOR retired (with R49a as the citation) and what's pending (forward-pointers to WF for shift state + AWL for
-  workflow retirement). Full section deletion rides AWL's incidental retirement sweep.
+    - `[x]` **2.8.b § Work Categories reshape**
+        - Body rewrote to describe current categorization: work units identified by branch type prefix from the
+          `branch-format` method's type set. Forward-pointer to § Branching + the method. 3 prior subsections
+          (Feature/Technical/Incidental) removed.
 
-    **Strategies:** none (this is a strategy doc edit)
+    - `[x]` **2.8.c Reference-link cleanup**
+        - Removed `[config-arch]:` orphan (sole prior use was in the prior § Incidental Work Model § Merge Strategy
+          content). Added `[dev-rules-arc]:` for § Decision Rules and § Incidental Work Model forward-pointers. Other
+          links retain valid uses.
 
-    - `[ ]` **2.8.a § Incidental Work Model reshape**
-        - Replace section body with: brief framing of the WU pattern's historical role; explicit list of substrate
-          retired under WOR (branch prefix + category dir + pointer fields); forward-pointer to
-          `manage-incidental-work.md` for the transitional interrupt workflow (note: workflow's substrate is gone but
-          workflow itself remains pending WF/AWL); citation to PRD R49a; pointer to
-          `technical/plan-worktree-foundation.md` for shift-state replacement + `technical/plan-agile-wu-lifecycle.md`
-          for full retirement.
+    - `[x]` **2.8.d § Decision Rules reshape** (scope expansion 2026-05-14)
+        - Folded in during pre-implementation audit — section's prior content (3-category decision tree) had its
+          substrate removed by 2.8.b. Body rewrote to describe current branch-type selection per `branch-format`
+          method's per-type semantic guidance; pointer to DEV-RULES.ARC § Leave it cleaner for routing rules.
 
-    - `[ ]` **2.8.b § Work Categories reshape**
-        - Replace section body with brief framing that prefix-based categorization retires under R1's CB core-6
-          alignment; forward-pointer to the new § Branching section (Task 2.1 — CB core-6 type set, `plan/<name>`
-          rotation, single-branch-per-WU); citation to PRD R49a for the historical context.
-
-    - `[ ]` **2.8.c Reference-link cleanup**
-        - Audit reference-style link definitions at file end for `[manage-incidental]:` and similar. Retain links
-          pointing to surviving workflows; surface any orphan link definitions for retirement under 6.7.i's
-          cross-reference sweep.
-
-    - _Note:_ Coordinates with Task 2.1's _Context_ ("Existing file has § Branching as a subsection under § Incidental
-      Work Model... Elevate § Branching to top-level, reshaping incidental-specific content into a child subsection").
-      2.1 owns the § Branching elevation; 2.8 owns the parent § Incidental Work Model + § Work Categories reshape.
-      Execute in coordination (likely same session) to avoid mid-edit structural inconsistency.
+- _Outcome:_ Three sections rewrote to describe current state (no historical framing) — § Work Categories (branch-type
+  identification via `branch-format` method); § Decision Rules (branch-type selection per method's semantic guidance);
+  § Incidental Work Model (thin pointer to DEV-RULES.ARC § Leave it cleaner + `manage-incidental-work.md` for
+  interrupt protocol). Reference-link block: removed `[config-arch]:` orphan; added `[dev-rules-arc]:`. Both copies in
+  sync. Audience correction mid-execution 2026-05-14: initial drafts carried "retires under..." / "substrate retired:"
+  framing violating DEV-RULES.PROJECT § Audience Boundaries + DEV-RULES.ARC § Write for the reader; rewrote per Task
+  2.3's established precedent. Reverse-pointer added to `plan-worktree-foundation.md` Scope item 7 for shift-state
+  replacement of the inline-on-current-branch framing; AWL Scope item 9 covers full retirement.
 
 ### `[ ]` **2.9 `strategy-work-organization.md` § WU Artifact Headers (chain-model convention)**
 

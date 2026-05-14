@@ -185,6 +185,14 @@ cross-cutting section rather than inside the Local mode treatment. It's universa
    clean-work-unit] L97-100 KEEP/REMOVE rules, and 2-3 other workflow touchpoints. Resolves the
    pre-PRD blocker on the original Mobility plan.
 
+   **Reverse-pointer (from WOR 2.8 § Incidental Work Model reshape):** WOR collapses
+   `strategy-work-organization.md` § Incidental Work Model to a transitional pointer that frames
+   mid-execution interrupt handling abstractly ("capture on the current branch with clear commit
+   boundaries"). When this WU lands shift state, update that section to reference shift-state
+   mechanics concretely — the abstract framing was a placeholder pending this WU per
+   audience-boundary discipline (no forward-pointers to unplanned future scope from adopter-facing
+   strategies).
+
 8. **Main-on-main pattern (no separate admin worktree).** External research (2026-04-28) confirms mature
    git-using projects don't maintain a separate dedicated administrative worktree — main itself serves the
    role. Document this as ARC's stance: the main worktree stays on `main` as a stable reference and serves as
