@@ -1,6 +1,9 @@
 ---
 purpose: Create a planning branch for delivering planning artifacts (PRDs, task lists) to the base branch.
 audience: agent
+arc:
+  methods:
+    - branch-format
 ---
 
 # Workflow: Activate Planning Branch

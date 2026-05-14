@@ -2,6 +2,8 @@
 purpose: Transition a work unit to active — establish the implementation branch and update all tracking documents.
 audience: collaborative (human and agent)
 arc:
+  methods:
+    - branch-format
   extensions:
     - post-work-unit-activate
 ---
