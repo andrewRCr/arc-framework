@@ -294,38 +294,51 @@ parenthetical patterns); phase order reflects execution order.
   hand-maintenance content removed from adopter-facing strategy per audience discipline (the algorithm itself is
   tooling-agnostic; "interim until X ships" framing is project-internal). TOC updated; both copies edited identically.
 
-### `[ ]` **2.5 `strategy-planning-module.md` capture pipeline reform**
+### `[x]` **2.5 `strategy-planning-module.md` capture pipeline reform**
 
 - _Goal:_ `strategy-planning-module.md` codifies the four-surface capture model (per-user USER-INBOX, project-shared
   ATOMIC-INBOX + BACKLOG-INBOX, per-WU subdirs under `backlog/{planned,provisional}/`), ceremony-only writes to shared
   inboxes (operational restatement of DEV-RULES.ARC's constitutional rule), state-dir graduation semantics, and the
   cohort wrapper subdir convention (backlog-only, codified-cohorts only).
-    - `[ ]` **2.5.a Four-surface model description**
-        - `user/{identity}/USER-INBOX.md` (per-user, gitignored, notes-synced; § Atomic / § Backlog).
-        - `backlog/ATOMIC-INBOX.md` (project-shared, tracked; atomic-character entries).
-        - `backlog/BACKLOG-INBOX.md` (project-shared, tracked; multi-step entries).
-        - `backlog/{planned,provisional}/<wu-name>/` (per-WU subdirs; carry `meta-<name>.md` always plus
-          `plan-<name>.md` and other companions when present).
+    - `[x]` **2.5.a Four-surface model description**
+        - New § What It Installs table replaces the pre-WOR bucket-file shape (`BACKLOG-FEATURE.md` /
+          `BACKLOG-TECHNICAL.md`). Surfaces enumerated by ownership × work character: per-user `USER-INBOX.md` with
+          `## Atomic` / `## Backlog` sections; project-shared `backlog/ATOMIC-INBOX.md` and `backlog/BACKLOG-INBOX.md`;
+          per-WU subdirs `backlog/{planned,provisional}/<wu-name>/` carrying `meta-<name>.md` (always) plus
+          `plan-<name>.md` and other companions when present. ROADMAP listed separately as a generated view rather than
+          a capture surface, with cross-ref to `strategy-work-organization.md § ROADMAP` for the algorithm.
 
-    - `[ ]` **2.5.b Ceremony-only writes operational restatement**
-        - Activation absorption / integration drain / planning-kickoff promotion fire-points; outside these, shared
-          inboxes are read-only by convention. Absorbed entries deleted, not marked — routing record lives in deletion
-          commit message + absorbing artifact.
-        - _Note:_ Verify current `user/{identity}/ATOMIC-INBOX.md` convention before codifying "deleted, not marked." If
-          today's behavior marks (strikethrough, `[absorbed]` tag, etc.), the rule is a behavioral shift requiring
-          migration treatment in Phase 6.3, not documentation-only.
+    - `[x]` **2.5.b Ceremony-only writes operational restatement**
+        - New § Ceremony-Only Writes to Shared Inboxes enumerates the three fire-points (activation absorption /
+          integration drain / planning-kickoff promotion). "Absorbed entries deleted, not marked" stated as rule with
+          rationale (commit history = audit trail; no strikethrough / `[absorbed]` tags / status markers). One-sentence
+          rationale on write-isolation vs write-immediacy retained; no project-internal worktree-trio framing.
+        - _Note resolved:_ Pre-task verification of current per-user `user/{identity}/ATOMIC-INBOX.md` shows transient
+          "mark `[x]` then remove" behavior — not persistent strikethrough or `[absorbed]` tags. R20's "deleted, not
+          marked" rule governs **shared** inboxes (`backlog/ATOMIC-INBOX.md` / `BACKLOG-INBOX.md`), which don't yet
+          exist as artifacts. The rule is therefore purely net-new convention for surfaces being created in Phase 6.3,
+          not a behavioral shift on existing surfaces — no additional migration-treatment scope beyond the file
+          creates/renames already in 6.3.
 
-    - `[ ]` **2.5.c State-dir graduation semantics**
-        - Graduation `backlog/provisional/<wu-name>/` → `backlog/planned/<wu-name>/` fires when a maintainer commits to
-          a WU. The `git mv` of the WU subdir and the regenerated ROADMAP (which now picks up the WU per R37's
-          derived-from-`backlog/planned/` algorithm) ride the same commit. Symmetric demotion supported. **Note:**
-          ROADMAP is the derived surface under R37, not the trigger — the trigger is the maintainer decision; ROADMAP
-          regen is the observable effect.
+    - `[x]` **2.5.c State-dir graduation semantics**
+        - New § State-Dir Graduation describes `backlog/provisional/<wu-name>/` → `backlog/planned/<wu-name>/` as a
+          `git mv` co-committed with the regenerated ROADMAP. Trigger framed as the maintainer commitment; ROADMAP
+          regen as the observable effect (derived-surface framing preserved). `**State:**` invariant across graduation
+          (Planning stays; commitment lives in dir location). R37 reference dropped per DEV-RULES.ARC § Documentation
+          Boundaries; cross-ref to `strategy-work-organization.md § Work Unit State` covers the State enum.
 
-    - `[ ]` **2.5.d Cohort wrapper subdir convention (backlog-only, codified-cohorts only)**
-        - `backlog/{state}/<cohort>/<wu-name>/` for codified sibling sets (e.g., parallelism-trio); standalone WUs sit
-          directly at `backlog/{state}/<wu-name>/`. `active/` stays flat (cohort membership tracked via `**Cohort:**`
-          field on the meta file). Cohort membership is state-uniform (all members in same state-dir).
+    - `[x]` **2.5.d Cohort wrapper subdir convention**
+        - New § Cohort Wrapper Subdirs codifies `backlog/{state}/<cohort>/<wu-name>/` with three constraints
+          (backlog-only, codified-cohorts only, state-uniform). Internal WU naming ("parallelism-trio") dropped per
+          DEV-RULES.PROJECT § Audience Boundaries — example replaced with generic "formally tracked groups of WUs
+          intended to ship together" framing. Cross-ref to `**Cohort:**` field on the meta file.
+
+- _Outcome:_ Strategy doc fully restructured to post-WOR shape — five new sections (Four-surface table, Ceremony-only
+  writes, State-dir graduation, Cohort wrapper subdirs) folded between the existing intent-routing sections and the
+  scaling/fit sections. Bucket-file references (`BACKLOG-FEATURE` / `BACKLOG-TECHNICAL`) retired from install table.
+  R-ID references kept out of body prose; cross-links to `strategy-work-organization.md § ROADMAP` / § Work Unit State
+  carry the structural references. Both copies (`.arc/` + package source) byte-identical. Tier 1 markdown lint clean
+  (0 errors across 246 files).
 
 ### `[ ]` **2.6 `strategy-configurability-architecture.md` — inventory + extension naming + reserved names**
 
