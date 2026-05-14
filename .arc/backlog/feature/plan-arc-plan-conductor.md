@@ -13,17 +13,17 @@ freeform exploration.
 
 - **Created:** 2026-04-10 (revised 2026-04-29)
 
-- **Origin:** Live pressure from [plan-arc-modes][arc-modes] exposed a gap between ARC's
+- **Origin:** Live pressure from `plan-arc-modes.md` exposed a gap between ARC's
   intentionally light plan stage and the needs of large greenfield shaping work. The 2026-04-29
   conductor reframe emerged from interlock-foundation PRD discussion: that PRD's planning-session
   active-surface scope creates the status file at planning-branch activation, but no equivalent
   ceremony fires under partial protection or any path that bypasses planning-branch activation.
   `arc-plan` is the natural canonical invocation that closes the gap, while also providing the
-  orchestration layer that downstream WUs ([Worktree Foundation][wf], [Agile WU Lifecycle][awl])
+  orchestration layer that downstream WUs (`plan-worktree-foundation.md`, `plan-agile-wu-lifecycle.md`)
   consume.
 
 > **Cross-plan note:** Pointer references in this document use the per-WU `status-{name}.md` model
-> (Work-Status Restructure WU, shipped). Under [plan-completion-status-consolidation][plan-csc] the
+> (Work-Status Restructure WU, shipped). Under `plan-completion-status-consolidation.md` the
 > status file persists post-archive as the WU's terminal record, which strengthens the conductor's
 > case for treating it as the unified pointer artifact across the WU lifecycle.
 
@@ -43,7 +43,7 @@ to `plan-*.md` directly. The framework's planning-entry intent is implicit, not 
 
 ### 2. Status-file creation is branch-ceremony-coupled
 
-[plan-session-operational-flow][plan-ops]'s interlock foundation establishes that planning sessions
+`plan-session-operational-flow.md`'s interlock foundation establishes that planning sessions
 get a `status-{name}.md` as the active-surface pointer, with `State: Planning` and an optional
 `**Spec:**` field. But the creation step lives in `activate-planning-branch.md`, which only fires
 under `branch.protection: full` (or when explicitly invoked). Under partial protection, or any path
@@ -167,9 +167,9 @@ Depth is selectable at invocation (`--depth minimum|standard|expanded`) and adju
 
 ### 3. Status-file creation contract
 
-The conductor closes the planning-session active-surface gap left by [plan-session-operational-
-flow][plan-ops]'s branch-ceremony-coupled creation step. Three converging entry routes, all
-producing the same artifact:
+The conductor closes the planning-session active-surface gap left by
+`plan-session-operational-flow.md`'s branch-ceremony-coupled creation step. Three converging entry
+routes, all producing the same artifact:
 
 - **Planning-branch route** (`branch.protection: full` + planning ceremony) —
   `activate-planning-branch.md` creates the status file (interlock-foundation requirement)
@@ -187,7 +187,7 @@ consumes that foundation rather than redefining it.
 
 ### 4. Tier-aware orchestration
 
-The conductor reads tier intent (when [Agile WU Lifecycle][awl] lands) and adapts:
+The conductor reads tier intent (when `plan-agile-wu-lifecycle.md` lands) and adapts:
 
 - **Atomic tier** — planning ceremony is largely skipped; arc-plan invocation may not even be
   appropriate. If invoked, the conductor advises the atomic-tier path (no plan-doc, no PRD) and
@@ -204,7 +204,7 @@ Until that lands, the conductor defaults to standard-tier behavior.
 
 ### 5. Worktree orchestration
 
-When [Worktree Foundation][wf] lands the spawn-vs-continue model, the conductor invokes spawn
+When `plan-worktree-foundation.md` lands the spawn-vs-continue model, the conductor invokes spawn
 (creating a worktree + branch + status file scaffold) when planning a new WU that warrants its own
 worktree. The conductor doesn't redefine spawn semantics — it calls into the canonical spawn
 operation. Tier-aware spawn applicability per worktree-foundation: atomic skips, quick optional
@@ -654,7 +654,7 @@ future sessions something concrete to carry without creating a new tracked metad
 
 ### Upstream
 
-- **[plan-session-operational-flow][plan-ops] / Interlock Foundation WU (current planning):**
+- **`plan-session-operational-flow.md` / Interlock Foundation WU (current planning):**
   hard upstream dependency. Conductor consumes the status-file template additions (`**Spec:**`,
   `State: Planning`, `**Sibling Work Unit(s):**`), the planning-active-surface lifecycle plumbing
   in `activate-planning-branch` / `integrate-planning-branch`, the probe sessionType inference
@@ -664,26 +664,26 @@ future sessions something concrete to carry without creating a new tracked metad
 
 ### Sibling (parallelizable)
 
-- **[plan-completion-status-consolidation][plan-csc]:** strengthens the conductor's case for the
+- **`plan-completion-status-consolidation.md`:** strengthens the conductor's case for the
   status file as the unified pointer artifact (persisting post-archive). Either ordering works —
   conductor-first means status-file persistence is a forward-compatible enhancement;
   consolidation-first means the conductor inherits the persistent-pointer model from the start.
 
 ### Downstream
 
-- **[Worktree Foundation][wf]:** conductor invokes spawn-vs-continue when planning warrants its
+- **`plan-worktree-foundation.md`:** conductor invokes spawn-vs-continue when planning warrants its
   own worktree. Conductor doesn't redefine spawn semantics — calls into the canonical operation
   worktree-foundation establishes. Conductor ships before or after worktree-foundation; if before,
   worktree integration is a subsequent enhancement.
-- **[Agile WU Lifecycle][awl]:** conductor reads `**Tier:**` field for tier-aware orchestration
+- **`plan-agile-wu-lifecycle.md`:** conductor reads `**Tier:**` field for tier-aware orchestration
   (atomic skips, quick defaults to minimum, standard supports all depths). Until agile-wu-lifecycle
   lands the field, conductor defaults to standard-tier behavior.
 
 ### Recommended sequencing
 
-Interlock Foundation (WU-A of plan-ops) → **arc-plan Conductor** ‖ Worktree Foundation ‖ Agile WU
-Lifecycle. Conductor is parallelizable with the worktree and tier-model work; integration happens
-incrementally as those land.
+Interlock Foundation (WU-A of `plan-session-operational-flow.md`) → **arc-plan Conductor** ‖
+Worktree Foundation ‖ Agile WU Lifecycle. Conductor is parallelizable with the worktree and
+tier-model work; integration happens incrementally as those land.
 
 ---
 
@@ -693,16 +693,16 @@ This plan reframes a previously-narrow scope ("optional expanded planning path")
 identity ("canonical planning conductor with depth selection") that interacts with several
 recently-created backlog plans:
 
-- **[plan-session-operational-flow][plan-ops]** — interlock-foundation WU establishes the
+- **`plan-session-operational-flow.md`** — interlock-foundation WU establishes the
   status-file plumbing the conductor consumes. Hard upstream dependency.
-- **[plan-completion-status-consolidation][plan-csc]** — proposed status-file persistence into
+- **`plan-completion-status-consolidation.md`** — proposed status-file persistence into
   archive aligns with the conductor's treatment of the status file as the unified pointer.
-- **[plan-worktree-foundation][wf]** — spawn-vs-continue model the conductor invokes when planning
+- **`plan-worktree-foundation.md`** — spawn-vs-continue model the conductor invokes when planning
   warrants worktree isolation.
-- **[plan-agile-wu-lifecycle][awl]** — `**Tier:**` field the conductor reads for tier-aware
+- **`plan-agile-wu-lifecycle.md`** — `**Tier:**` field the conductor reads for tier-aware
   orchestration; `arc start` command and tier-aware activation paths the conductor coordinates
   with.
-- **[plan-arc-modes][arc-modes]** — original pressure source. The conductor model honors the modes
+- **`plan-arc-modes.md`** — original pressure source. The conductor model honors the modes
   plan's lean toward configurable adoption (Lite vs Full) — minimum depth suits Lite cleanly;
   expanded depth is Full-mode territory.
 
@@ -873,9 +873,3 @@ Sequencing: depends on Interlock Foundation WU landing the status-file plumbing 
 Parallelizable with Worktree Foundation and Agile WU Lifecycle.
 
 ---
-
-[arc-modes]: plan-arc-modes.md
-[plan-ops]: ../technical/plan-session-operational-flow.md
-[plan-csc]: ../technical/plan-completion-status-consolidation.md
-[wf]: ../technical/plan-worktree-foundation.md
-[awl]: ../technical/plan-agile-wu-lifecycle.md
