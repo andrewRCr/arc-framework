@@ -24,7 +24,6 @@ documentation.
 - [ROADMAP](#roadmap)
 - [Incidental Work Model](#incidental-work-model)
 - [Branch Protection Modes](#branch-protection-modes)
-- [Planning Branch Workflow](#planning-branch-workflow)
 - [Directory Structure](#directory-structure)
 - [Team Coordination](#team-coordination) *(→ dedicated strategy)*
 - [Planning Module](#planning-module) *(→ dedicated strategy)*
@@ -386,8 +385,7 @@ the base branch as a documented exception.
 **Documented exceptions** (direct base branch commits allowed):
 
 - Framework maintenance: Documentation updates, linting fixes
-- Solo planning artifacts: PRDs, task lists committed directly by the sole author (see
-  [Planning Branch Workflow](#planning-branch-workflow) mode-specific note)
+- Solo planning artifacts: PRDs, task lists committed directly by the sole author
 
 ### Fully Protected
 
@@ -398,8 +396,7 @@ All changes require branches and PR review. No direct base branch commits.
 **Lifecycle transitions:** Archival, planning, and activation all produce commits that can't go
 directly to the base branch. The natural pattern is **batching**: a single branch carries
 archival of the completed work unit alongside planning artifacts for the next one, merged via
-one PR. This avoids a standalone housekeeping PR for archival alone. See
-[Planning Branch Workflow](#planning-branch-workflow) for the batch lifecycle.
+one PR. This avoids a standalone housekeeping PR for archival alone.
 
 **Branches without work units:** Under full protection, even small atomic fixes need branches.
 These branches may not have task lists, PRDs, or other ARC artifacts — they're just branches
@@ -407,69 +404,6 @@ with commits and a PR. This is expected. The [integrate-work-unit][integrate-wor
 only applies to work units with task lists; branches without artifacts follow standard git
 lifecycle (merge, delete). See [manage-incidental-work][manage-incidental] for escalation
 guidance on when discovered work warrants a task list vs. a simple branch.
-
----
-
-## Planning Branch Workflow
-
-Planning branches (`planning/*`) deliver planning artifacts — PRDs, task lists, and notes —
-via PR for review before implementation begins. This separates "decide what to build" from
-"build it."
-
-### Lifecycle
-
-1. **Create planning branch** from base branch: `git checkout -b planning/<working-name>`
-2. **Create artifacts** in `backlog/{category}/`:
-   - `prd-<name>.md` (required for planned work)
-   - `tasks-<name>.md` (required)
-   - `notes-<name>.md` (optional)
-3. **Commit, push, and create PR** against base branch
-4. **Review** — team reviews plan, catches scoping issues before implementation starts
-5. **Merge and delete** planning branch (artifacts now on base branch)
-6. **Create implementation branch** via [activate-work-unit][activate-work-unit]
-   workflow (moves artifacts from `backlog/` to `active/`)
-
-### Key Points
-
-- **Name mismatch is normal.** The planning branch name need not match the final work unit
-  name. `planning/auth-exploration` might produce `feature/jwt-authentication` once scope
-  crystallizes during planning review.
-
-- **Artifacts live in backlog until activation.** Planning creates artifacts in
-  `backlog/{category}/`. The activate-work-unit workflow moves them to `active/{category}/`
-  when implementation begins.
-
-- **Delivery, not activation.** Planning branches deliver artifacts to the base branch. They
-  don't start the next work unit — moving files to `active/`, creating the WU's
-  `status-{name}.md`, and activation-triggered PM updates all happen post-merge during
-  [activate-work-unit][activate-work-unit]. For the PR and merge step, see
-  [integrate-planning-branch][integrate-planning-branch].
-
-- **Mode-specific behavior:**
-    - **Partially protected:** Planning branches are the default for planned work. Solo
-      developers who find the planning branch → PR → merge → activate cycle too heavy for
-      self-authored plans can commit planning artifacts directly to base (documented
-      exception above).
-    - **Fully protected:** Planning branches are required — all changes need branches and
-      PR review.
-
-- **Batch transitions (fully protected):** Under full protection, planning branches commonly
-  carry prior work unit archival alongside new planning artifacts — one branch and PR covers
-  both lifecycle transitions. The sequence:
-    1. Create planning branch ([activate-planning-branch][activate-planning-branch])
-    2. Archive completed work unit ([archive-work-unit][archive-work-unit])
-    3. Create PRD ([1_create-prd][create-prd])
-    4. Generate tasks ([2_generate-tasks][generate-tasks])
-    5. PR to base branch, merge ([integrate-planning-branch][integrate-planning-branch])
-    6. Activate new work unit from base branch ([activate-work-unit][activate-work-unit])
-
-  Each workflow's steps are unchanged — the batch branch is just the commit target instead of
-  the base branch. Activation happens after the batch PR merges (implementation branch is
-  created from the base branch, not the batch branch). The scope boundary is the PR merge:
-  archival-triggered PM updates (ROADMAP marking the completed WU) belong on the batch branch;
-  activation-triggered updates (ROADMAP marking the new WU, new `status-{name}.md` creation,
-  file moves) belong in step 6. See [integrate-planning-branch][integrate-planning-branch] for
-  operational detail.
 
 ---
 
@@ -520,16 +454,12 @@ installs, routing and graduation flow, inbox vs. companion file routing, and sca
 ---
 
 [team-coordination]: strategy-team-coordination.md
-[generate-tasks]: ../../../system/workflows/arc/2_generate-tasks.md
 [activate-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/activate-work-unit.md
 [integrate-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md
 [archive-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/archive-work-unit.md
 [clean-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/clean-work-unit.md
-[create-prd]: ../../../system/workflows/arc/1_create-prd.md
 [manage-incidental]: ../../../system/workflows/arc/supplemental/manage-incidental-work.md
 [dev-rules-arc]: ../../constitution/DEV-RULES.ARC.md
-[activate-planning-branch]: ../../../system/workflows/arc/work-unit-lifecycle/planning/activate-planning-branch.md
-[integrate-planning-branch]: ../../../system/workflows/arc/work-unit-lifecycle/planning/integrate-planning-branch.md
 [branch-format-method]: ../../../system/methods/branch-format.md
 [commit-format-method]: ../../../system/methods/commit-format.md
 [cb-spec]: https://conventional-branch.github.io/

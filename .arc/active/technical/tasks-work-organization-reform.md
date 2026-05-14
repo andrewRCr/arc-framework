@@ -689,7 +689,7 @@ parenthetical patterns); phase order reflects execution order.
           vitest integration test under `packages/arc-framework/__tests__/integration/`.
         - _Note:_ This locks regex-vs-method drift. Re-run on every regex/method edit going forward.
 
-### `[ ]` **2.14 `strategy-work-organization.md` § Planning Branch Workflow retirement**
+### `[x]` **2.14 `strategy-work-organization.md` § Planning Branch Workflow retirement**
 
 - _Goal:_ § Planning Branch Workflow codifies the two-branch model (separate planning branch → PR →
   `activate-work-unit` creates distinct implementation branch). Under WOR's single-branch-per-WU +
@@ -697,16 +697,27 @@ parenthetical patterns); phase order reflects execution order.
   TOC, audit anchor refs from elsewhere) or collapses to a thin pointer to § Branching > § Planning branches.
   Default lean: collapse matches 2.8's shape.
 
-    - `[ ]` **2.14.a Reshape decision + body rewrite**
-        - Choose retire-fully vs. collapse-to-pointer; apply. If collapse, point at § Branching's `plan/<name>`
-          rotation subsection.
+    - `[x]` **2.14.a Reshape decision + body rewrite**
+        - Chose full retirement over collapse-to-pointer — § Branching > § Planning branches already documents
+          the `plan/<name>` rotation as the single-branch model's planning life-phase; a separate pointer
+          section adds no value. Removed heading + body + TOC entry.
 
-    - `[ ]` **2.14.b Anchor-reference audit**
-        - Audit `#planning-branch-workflow` refs elsewhere in the strategy doc and sibling strategies. Update
-          to point at § Branching's planning subsection or retire if the citing content is also stale.
+    - `[x]` **2.14.b Anchor-reference audit**
+        - External: `activate-planning-branch.md` references `#branch-protection-modes` only (not this section);
+          fine. Internal: 2 dead `#planning-branch-workflow` refs remained inside § Branch Protection Modes
+          (lines 390, 402) — both inside content 2.16 will retire entirely. Left in place pending 2.16.
 
-    - `[ ]` **2.14.c Both copies + lint**
-        - Apply identically to `.arc/` instance + package source. Tier 1 lint clean.
+    - `[x]` **2.14.c Both copies + lint**
+        - Applied identically to `.arc/` instance + package source. Reference-link block cleaned: removed 4
+          orphans (`[generate-tasks]`, `[create-prd]`, `[activate-planning-branch]`, `[integrate-planning-branch]`).
+          Tier 1 lint clean.
+
+- _Outcome:_ § Planning Branch Workflow fully retired from `strategy-work-organization.md` — heading, body, and
+  TOC entry removed; 4 orphan reference-link defs cleaned (`[generate-tasks]`, `[create-prd]`,
+  `[activate-planning-branch]`, `[integrate-planning-branch]`). Single-branch-per-WU's planning life-phase model
+  lives in § Branching > § Planning branches as the sole adopter-facing codification. Two dead intra-doc anchor
+  refs to `#planning-branch-workflow` (inside § Branch Protection Modes) tactically retired in this commit
+  (sentence-level removal); surrounding subsection content retires fully in 2.16. Both strategy-doc copies in sync.
 
 ### `[ ]` **2.15 `strategy-work-organization.md` § Directory Structure reshape**
 
