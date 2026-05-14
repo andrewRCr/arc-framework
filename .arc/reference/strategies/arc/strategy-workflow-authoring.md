@@ -5,7 +5,7 @@ Conventions for authoring ARC workflow files — frontmatter schema, declaration
 **Scope:**
 
 - Framework workflows (`system/workflows/arc/`) — authored by framework contributors
-- Project workflows (`system/workflows/project/`) — authored by adopters
+- Project workflows (`system/workflows/project/`) — authored by the project team
 
 For canonical structure, see [`template-workflow.md`][template-workflow].
 

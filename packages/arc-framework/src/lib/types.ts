@@ -44,12 +44,6 @@ export interface InstallConfig {
   pm_mode: string;
   tools: string[];
   team_mode?: boolean;
-  /**
-   * Absolute path to the repo root at the time of the last install/update/reconfigure.
-   * Populated by init.ts, update.ts, and reconfigure.ts. Optional for back-compat
-   * with manifests written before this field was introduced.
-   */
-  repo_root?: string;
 }
 
 /** Top-level manifest structure (`.arc/system/.internal/manifest.json`). */

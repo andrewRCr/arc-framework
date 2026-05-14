@@ -51,6 +51,8 @@ export {
   type RunHeadHashStatusOptions,
 } from "./head-hash.js";
 
+export { shortHash } from "./short-hash.js";
+
 export {
   slugifyIdentity,
   resolveIdentity,

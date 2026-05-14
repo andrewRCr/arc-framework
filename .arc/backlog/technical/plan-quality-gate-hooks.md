@@ -142,9 +142,35 @@ choice (husky, lefthook, pre-commit.com, fallback) is adopter-impl, already hand
 Go (gofmt + golangci-lint), Python (pre-commit.com) — route to `notes-docs-content-sweep.md` for
 eventual docs-site placement. Not live framework reference docs; those stay stack-agnostic.
 
-**This repo's own adoption** — route to `user/andrew/ATOMIC-INBOX.md` as a separate atomic task
-after this WU's framework-level design lands. Mechanical configuration: wire lint-staged into our
-existing husky setup to dogfood the new dispatch method. Not a framework-delivery concern.
+**This repo's own adoption as dogfood.** After the framework-level dispatch shape lands, wire this
+repo into it in the same WU as a final validation phase. Mechanical configuration: install
+`lint-staged`; replace the `scripts/check-ts-quality.sh` stopgap with commit-gate dispatch through the
+new method shape; configure staged-file Markdown, TypeScript, and shell checks in the repo-local
+hook path. This is not a shipped ARC default and does not select a stack for adopters — it validates
+that the adopter-configurable path works on ARC's own JS/TS stack.
+
+**Changed-file Markdown under-wrap detector as repo dogfood.** Include this repo's custom under-wrap
+detector in the same dogfood phase, but only as a staged/changed-file commit-gate check. Do not register
+it as a normal repo-wide markdownlint rule yet; current repository history has too much existing
+under-wrap debt for global blocking enforcement to be useful.
+
+Prototype result from 2026-05-11:
+
+- Implementation shape: markdownlint custom rule using the `markdownit` parser, inspecting
+  `paragraph_open` token maps against `params.lines`. For each non-final physical line in a multi-line
+  paragraph, flag only when `line.length < min`, the first word of the next line exists, and joining
+  that first word would stay within the 120-char target.
+- Initial defaults: `min=75`, `max=120`, blockquotes skipped, lint-only/no auto-fix. Skip hard breaks,
+  reference definitions, table-like pipe rows, structural field clusters (`**Field:**` lines), and
+  standalone bold labels (`**Task level:**`) to avoid ARC-specific false positives.
+- Calibration against representative ARC artifacts: `min=70` found 52 candidates, `min=75` found 81,
+  and `min=80` found 162 across active/workflow/strategy/template/archive samples. `min=75` gave the
+  best first-pass signal.
+- Current-core samples at `min=75`: 18 candidates across task-list/workflow/DEV-RULES/WOR files; work
+  organization docs produced 16 more, while `docs/reference/task-lists.md` and `session-handoff.md`
+  produced zero.
+- Full current markdownlint scope at `min=75`: 458 candidates across 221 files. This confirms the
+  rule should be changed-file-only until a cleanup/baseline strategy exists.
 
 **Gate-coverage drift detection.** Configured gate commands drift over time as projects add new scripts —
 additional typecheck variants (production vs. test tsconfig), evolving lint surfaces, separate test tiers.
@@ -166,10 +192,10 @@ dispatch model subsumes it. Consolidation criterion: mechanical-and-now-hook-cov
 workflow; human-judgment-gated or scope-the-hook-can't-see → keep in workflow. Known triggers as of this
 WU: `session-handoff.md` step 3's status-file markdown lint substep (added as stopgap during
 user-sync-ux); `3_process-task-loop.md`'s Tier 1 / Tier 2 invocations; `verify-work-unit.md`'s Tier 3
-invocation. The catalog likely surfaces more. Cross-reference inbox during catalog: known downstream
-consumers in `user/andrew/ATOMIC-INBOX.md` (this-repo-scope) are the lint-staged adoption migration and
-the custom under-wrap markdownlint rule — neither migrates into this plan, but both are downstream of
-whatever shape this plan ships.
+invocation. The catalog likely surfaces more. Repo-local dogfood consumers in this plan are the
+lint-staged adoption migration and the custom under-wrap markdownlint prototype as a changed-file-only
+commit-gate check. They validate the framework dispatch shape but remain repo-local configuration, not
+shipped ARC defaults.
 
 ### Out of scope
 
@@ -291,7 +317,8 @@ Rough breakdown:
 - `arc check-gates` audit command + cross-ecosystem detection + tests: 1-1.5 days.
 - Docs-content-sweep routing entry: 0.25 day.
 - Config schema update + CI audit updates: 0.5 day.
-- Repo dogfooding (lint-staged wiring in atomic inbox — sibling task, not counted here).
+- Repo dogfooding: lint-staged wiring, stopgap replacement, and changed-file under-wrap check:
+  0.5-1 day.
 
 **Dependencies:**
 

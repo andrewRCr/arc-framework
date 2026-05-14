@@ -19,7 +19,8 @@
     "lint:sh": "bash arc/system/scripts/run-shellcheck.sh arc/system/githooks/pre-commit arc/system/githooks/commit-msg arc/system/scripts/*.sh"
   },
   "engines": {
-    "node": ">=24"
+    "node": ">=24",
+    "git": ">=2.28"
   },
   "dependencies": {
     "@clack/prompts": "^1.1.0",

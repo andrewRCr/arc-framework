@@ -8,8 +8,7 @@
       "claude",
       "codex"
     ],
-    "team_mode": false,
-    "repo_root": "/home/andrew/dev/arc-framework"
+    "team_mode": false
   },
   "files": {
     "README.md": {
@@ -25,7 +24,7 @@
     "reference/QUICK-REFERENCE.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "5215b5e164ca90e40003ec9d4b4321be863a86c2075264c61cef75f0b3d2a96a"
+      "pristine_hash": "8f61630a75f78bfa49d82c02124432b408ec8d95a8a0b4f5378ac2141d340969"
     },
     "reference/META-PRD.md": {
       "classification": "Scaffolded",
@@ -110,17 +109,17 @@
     "reference/strategies/arc/strategy-configurability-architecture.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "99d7c4d8709e8146e7f81ceefac9e0cd99d5f259d7e021aa29555e5e13595530"
+      "pristine_hash": "d09546210c84d303ae6662a05c1e6ee291f724a4b560c1e8eda623389a4ffcaf"
     },
     "reference/strategies/arc/strategy-session-operations.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "310c23c3f46b6c6a94a16e4c279c55b6f4e403ad0617024a2d9e163856c133c2"
+      "pristine_hash": "b9ba5961d188c903dc2b801fd7cede572bd1d839ab58774f8cbc4af06fdea3b2"
     },
     "reference/strategies/arc/strategy-file-classification.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "a6c4c90927b128496af1f9a523c889fa724f79ae5cfa9f0957635ed277272b3d"
+      "pristine_hash": "648d32e1835a80eb566d1e7644e1222937b818002c388d8c3a2e576a28970a56"
     },
     "reference/strategies/arc/strategy-quality-gates.md": {
       "classification": "Framework",
@@ -355,12 +354,12 @@
     "system/workflows/arc/1_create-prd.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "2ce0a696616d6dee68090583da54142c7ab35d498f9597562e2825cc447aa360"
+      "pristine_hash": "ee255d449fcb880f061b0f865f478614f302122a92df39c3378ac8f46cbc28fb"
     },
     "system/workflows/arc/2_generate-tasks.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "9a2c7764a8f869ff74dd25eb0d0041bd33310fa0360533ec18c336308f6d442a"
+      "pristine_hash": "d1a72c1babef67c1b36d83271a9d39eb321641fc18812c328690cb8561a39dac"
     },
     "system/workflows/arc/3_process-task-loop.md": {
       "classification": "Framework",
@@ -390,7 +389,7 @@
     "system/workflows/arc/session-lifecycle/session-init.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "dfb53bfdb0d585fc73e4c5a50ae2ad697e6ba549c94ec90e1e31247cf1312c36"
+      "pristine_hash": "725fd67acafc51f057c3cfefc9b0ef8079b9e7c41f9e6b51018ddc4804c92c53"
     },
     "system/workflows/arc/session-lifecycle/session-loop.md": {
       "classification": "Framework",
@@ -400,7 +399,7 @@
     "system/workflows/arc/supplemental/integrate-external-content.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "6b1bae5a7cb5e5a11089b6fdfb5d0d38cf7e47ad71e976dcebebb8c2d4346c62"
+      "pristine_hash": "6c7a43fe1740e30ca4a797fed7cc9e2f5de88bd1fabc596bbf71d9566ed3a65c"
     },
     "system/workflows/arc/supplemental/maintain-project-docs.md": {
       "classification": "Framework",

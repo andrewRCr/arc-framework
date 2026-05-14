@@ -114,7 +114,12 @@ the system.
     - For extensions: confirm the extension fires at the right hook point
     - For strategies: confirm the agent finds and consults it via STRATEGY-INDEX
     - For workflows: confirm the agent can reach it via cross-references
-3. Commit the changes
+
+> [!IMPORTANT]
+> `workflow-interlock`: Stop after verification. Surface modified files, quality results, and behavior
+> changes; await direction before committing.
+
+3. Commit the changes (`workflowCommit`)
 
 ---
 

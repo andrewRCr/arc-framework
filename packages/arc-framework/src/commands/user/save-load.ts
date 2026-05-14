@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { createHash } from "node:crypto";
 
 import { atomicWriteJson } from "../../lib/fs.js";
-import { deserialize, isSafeManifestPath, serialize, type SyncManifest } from "../../lib/git/index.js";
+import { deserialize, isSafeManifestPath, serialize, shortHash, type SyncManifest } from "../../lib/git/index.js";
 import { ensureDir } from "../../lib/template/index.js";
 import { notesRef } from "./shared.js";
 import {
@@ -77,7 +77,7 @@ export async function runUserSave(
 
   return {
     identity,
-    commit: commit.slice(0, 7),
+    commit: await shortHash(io.exec, commit),
     fileCount: Object.keys(result.manifest.files).length,
     warnings: result.warnings,
   };
@@ -116,7 +116,7 @@ export async function runUserLoad(
     parsed = JSON.parse(noteContent) as unknown;
   } catch {
     throw new Error(
-      `Corrupt git note on ${foundCommit.slice(0, 7)} — JSON parse failed. ` +
+      `Corrupt git note on ${await shortHash(io.exec, foundCommit)} — JSON parse failed. ` +
       "The note may have been manually edited or partially written. " +
       "Try a different ancestor with `arc user load`, or `arc user save` to overwrite.",
     );
@@ -129,7 +129,8 @@ export async function runUserLoad(
     raw.files === null
   ) {
     throw new Error(
-      `Unsupported note format on ${foundCommit.slice(0, 7)} (version ${JSON.stringify(raw.version ?? "unknown")}). ` +
+      `Unsupported note format on ${await shortHash(io.exec, foundCommit)} ` +
+      `(version ${JSON.stringify(raw.version ?? "unknown")}). ` +
       "This note may have been created by a newer version of ARC. " +
       "Update the CLI and try again, or `arc user save` to overwrite.",
     );
@@ -168,7 +169,7 @@ export async function runUserLoad(
   return {
     kind: "loaded",
     identity,
-    commit: foundCommit.slice(0, 7),
+    commit: await shortHash(io.exec, foundCommit),
     fileCount: Object.keys(manifest.files).length,
     fromAncestor,
     ancestorDistance: search.note.ancestorDistance,
@@ -184,7 +185,7 @@ async function verifyMaterializedUserDir(
   commit: string,
   manifest: SyncManifest,
 ): Promise<void> {
-  const shortCommit = commit.slice(0, 7);
+  const shortCommit = await shortHash(io.exec, commit);
   const expectedFiles: Record<string, string> = {};
   const readbackFiles: Record<string, string> = {};
 
@@ -220,7 +221,7 @@ async function verifySavedNote(
 ): Promise<void> {
   const ref = notesRef(identity);
   const readback = await io.readNote(ref, commit);
-  const shortCommit = commit.slice(0, 7);
+  const shortCommit = await shortHash(io.exec, commit);
 
   if (readback === null) {
     throw new UserSaveVerificationError(

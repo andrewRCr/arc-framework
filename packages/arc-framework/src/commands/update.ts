@@ -14,7 +14,12 @@ import { writeFile as fsWriteFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 
 import type { IOContext } from "./init.js";
-import { buildConfigMap, buildConfigKeyOverrides, buildTokenMap } from "../lib/config/index.js";
+import {
+  buildConfigMap,
+  buildConfigKeyOverrides,
+  buildInstallConfig,
+  buildTokenMap,
+} from "../lib/config/index.js";
 import { resolveFileList } from "../lib/classification.js";
 import {
   readManifest,
@@ -287,7 +292,7 @@ export async function runUpdate(
   // Rebuild config/token maps from stored install_config
   const { install_config: ic } = manifest;
   const config = buildConfigMap(ic);
-  const tokens = buildTokenMap(ic, cwd);
+  const tokens = buildTokenMap(ic);
   const configKeyOverrides = buildConfigKeyOverrides(ic);
 
   // Determine arc-in-git files for layer classification
@@ -378,7 +383,7 @@ export async function runUpdate(
     schema_version: MANIFEST_SCHEMA_VERSION,
     framework_version: getFrameworkVersion(),
     installed_at: manifest.installed_at,
-    install_config: { ...ic, repo_root: cwd },
+    install_config: buildInstallConfig(ic),
     files: applyResult.newManifestFiles,
   };
   await atomicWriteJson(manifestPath, newManifest);

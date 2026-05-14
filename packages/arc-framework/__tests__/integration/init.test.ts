@@ -142,9 +142,6 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
         content,
         `{{PROJECT_NAME}} residual in .arc/${file}`,
       ).not.toContain("{{PROJECT_NAME}}");
-      expect(content, `{{REPO_ROOT}} residual in .arc/${file}`).not.toContain(
-        "{{REPO_ROOT}}",
-      );
     }
   });
 
@@ -237,8 +234,8 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       pm_mode: "none",
       tools: ["claude"],
       team_mode: false,
-      repo_root: tempDir,
     });
+    expect(manifest.install_config).not.toHaveProperty("repo_root");
     expect(Object.keys(manifest.files).length).toBeGreaterThan(0);
   });
 

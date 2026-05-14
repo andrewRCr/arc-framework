@@ -4,7 +4,7 @@ Command patterns and environment context for the ARC framework.
 
 ## Environment & Path Context
 
-**Repository Root**: `/home/andrew/dev/arc-framework/`
+**Repository Root**: Current checkout root (the directory containing `.arc/`).
 **All commands in this document assume you are at repository root.**
 
 **On-demand sections**: `Command Patterns`, `Quality Gate Commands`, `ARC CLI Commands`,
@@ -307,6 +307,22 @@ Commit Discipline for the trust model and opt-in semantics.
 # Browse completed atomic work from commit history
 arc log --atomic
 ```
+
+---
+
+## Platform Commands
+
+ARC workflows use GitHub CLI (`gh`) examples by default. For GitLab, Bitbucket,
+Azure DevOps, or another platform, replace these commands with your team's CLI
+equivalents.
+
+| Operation    | Command                                           |
+|--------------|---------------------------------------------------|
+| Create PR/MR | `gh pr create --base {base} --head {branch}`      |
+| List PRs/MRs | `gh pr list --head {branch} --base {base}`        |
+| View PR/MR   | `gh pr view --json number,url,state`              |
+| Merge PR/MR  | `gh pr merge {pr-number} --merge`                 |
+| Create issue | `gh issue create`                                 |
 
 ---
 

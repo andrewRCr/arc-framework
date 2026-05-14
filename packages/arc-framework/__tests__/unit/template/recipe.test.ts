@@ -22,7 +22,7 @@ function validRecipe(): Recipe {
       "system/briefs/AGENT-BRIEF.PROJECT.template.md",
     ],
     computed_tokens: {
-      REPO_ROOT: "Auto-detected from working directory at init time",
+      COMPUTED_TOKEN: "Example computed token",
     },
     prompts: [
       {
@@ -225,16 +225,16 @@ describe("getInitTokenNames", () => {
 
   it("includes computed token names when provided", () => {
     const prompts = [{ token: "PROJECT_NAME" }];
-    const computed = { REPO_ROOT: "description" };
+    const computed = { COMPUTED_TOKEN: "description" };
     const tokens = getInitTokenNames(prompts, computed);
-    expect(tokens).toEqual(new Set(["PROJECT_NAME", "REPO_ROOT"]));
+    expect(tokens).toEqual(new Set(["PROJECT_NAME", "COMPUTED_TOKEN"]));
   });
 
   it("works with computed tokens and no prompt tokens", () => {
     const prompts: { token?: string }[] = [{ config_key: "pm.mode" } as { token?: string }];
-    const computed = { REPO_ROOT: "description" };
+    const computed = { COMPUTED_TOKEN: "description" };
     const tokens = getInitTokenNames(prompts, computed);
-    expect(tokens).toEqual(new Set(["REPO_ROOT"]));
+    expect(tokens).toEqual(new Set(["COMPUTED_TOKEN"]));
   });
 });
 

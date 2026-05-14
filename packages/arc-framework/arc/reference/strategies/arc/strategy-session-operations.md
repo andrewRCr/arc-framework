@@ -667,7 +667,7 @@ List / Next Action signals — preserving behavior for parenthetical-suffix vari
 
 **Status-field migration.** When lifecycle fields become stricter, update existing active status files directly
 as part of the work unit that introduces the rule. Keep structural validation strict for new commits instead of
-allowing legacy absence, and avoid one-off migration helpers until repeated adopter demand justifies the
+allowing legacy absence, and avoid one-off migration helpers until repeated project demand justifies the
 maintenance surface.
 
 **Disposition at integration.** [`integrate-planning-branch.md`][integrate-plan] Step 2 routes by

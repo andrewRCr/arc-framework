@@ -18,6 +18,12 @@ protection modes). This strategy layers team-specific patterns on top of that fo
 **Scope:** Team coordination conventions only. For per-developer workspace structure, see
 `user/README.md`.
 
+**Note on validation scope:** Team-mode conventions are designed against the dev+agent-pair
+governance model intended to scale across team sizes. Active validation to date has been solo-dev;
+team patterns will be refined as adopters exercise them at scale. Treat the patterns below as a
+deliberate starting point, not a settled standard. Field feedback on what works and what doesn't
+shapes the framework's evolution.
+
 ---
 
 ## Contents
@@ -347,6 +353,30 @@ branch. They share one `status-{name}.md`. Coordination mechanisms:
   doesn't depend on the shared status file for personal state.
 - **SESSION-NOTES.md:** No conflict possible — each developer writes to their own
   `user/{identity}/` directory.
+
+### Cross-WU Planning Dependencies
+
+Parallel work units on independent branches don't coordinate at the status-file layer (above), but
+**planning artifacts within those WUs can still create dependencies**: one developer's WU may
+reference design decisions, scope choices, or task structures in another's evolving plan-doc. Each
+WU's planning artifacts live on its branch — a developer's worktree holds a sibling WU's state as
+of her branch creation plus any explicit fetches, not the sibling's current state.
+
+Mechanisms:
+
+- **Out-of-band coordination (default):** Discuss the dependency at planning time — Slack, standup,
+  or direct conversation. This is the modal answer for inter-WU planning concurrency across
+  agentic-coding practice and remains the recommended default for ARC team adopters.
+- **Cross-branch reads:** `git show <branch>:<path>` retrieves a file from any branch without
+  checkout. Useful for ad-hoc reference but ergonomically rough as a steady-state pattern.
+- **Explicit sequencing:** If a WU pair's coupling is tight enough that planning-state drift would
+  cause real downstream rework, treat that as a signal to either (a) merge the WUs into one, or
+  (b) bring the coupling to the team for explicit sequencing decision (one WU graduates to
+  execution before the other begins planning).
+
+For most teams, out-of-band coordination is sufficient. Codified inter-WU sync primitives are a
+future-ARC concern — see `plan-arc-backend.md` for the architectural answer to coordination needs
+that exceed Git's affordances.
 
 ### Configuration Notes
 

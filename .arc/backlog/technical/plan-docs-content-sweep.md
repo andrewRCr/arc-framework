@@ -230,6 +230,57 @@ expansion), `arc-config.yml` (post-Phase 2 `session.autonomy` schema), `3_proces
 enforcement), DEV-RULES.ARC (post-Task 1.2 weave). Don't pre-author docs prose against
 intermediate task-list intent — wait until sources are at their final post-WU shape.
 
+#### 10. Work Organization Reform (from WOR, 2026-05-13)
+
+**What changed:** Broad methodology shift across WU lifecycle, file shapes, commit conventions,
+and capture pipeline. Retires several models adopters may have read about and replaces them with
+new conventions; introduces several new concepts that aren't currently covered in adopter prose.
+
+**Edit type:** Mixed — substantial conceptual rewrite (the retired models — multi-branch WUs,
+status-file shape, integrate-planning-branch flow, prior State values — were load-bearing in
+prior docs prose) plus mechanical updates (filename references, vocabulary alignment).
+
+**Major change areas to sweep** (non-exhaustive, areas to scan at sweep time):
+
+- **Single-branch-per-WU model** — `plan/<name>` rotation to `<type>/<name>` at activation;
+  replaces multi-branch / `[PLAN]:` PR pattern. `rotate-branch.md` workflow retired entirely.
+- **Meta file (`meta-{name}.md`) shape** — replaces `status-{name}.md`; H1 + blank-line-grouped
+  field blocks; new fields (`Origin`, `Cohort`, `Depends On`, `Owner`); per-worktree isolation
+  invariant.
+- **4-state enum** (`Planning | Active | Integrating | Shipped`) — replaces previous State
+  values (`Draft`, `In Progress`, `Complete` with `Integration:` field).
+- **Footer convention propagation** — method renamed `commit-context-format` → `commit-footer`;
+  new parenthetical matrix (chain naming Origin → Spec → Tasks → Atomic; `standalone` anchor
+  for off-WU work; `(incidental during X)` form; `(maintenance)` and `(deactivation)` on
+  meta-*; etc.).
+- **Capture pipeline restructure** — `USER-INBOX.md` (replaces `ATOMIC-INBOX.md`),
+  `BACKLOG-INBOX.md` (merges `BACKLOG-FEATURE` + `BACKLOG-TECHNICAL`), `backlog/ATOMIC-INBOX.md`.
+- **Backlog directory layout** — `backlog/{planned,provisional}/<wu-name>/` per-WU subdirs;
+  `backlog/feature/` and `backlog/technical/` retired.
+- **Release Notes Entry + Completion Notes** — meta file's archive-phase H2s; replaces
+  `completion-{name}.md` distinct artifact (`template-completion-doc.md` retired).
+- **Conventional Branch alignment + commit type-set tightening** — 8-type CC set
+  (`feat | fix | chore | docs | refactor | test | perf | revert`); `arc` scope refused;
+  `feature/` / `technical/` / `incidental/` branch prefixes retired.
+- **META-PRD redesign** — Mission + numbered principles + anti-goals + problem + design
+  tradeoffs shape; new template `template-meta-prd.md`.
+- **ROADMAP as rendered view** — generated from meta-file state; codified algorithm.
+- **Retired surfaces (filename / pattern level):** `PROJECT-STATUS.md`,
+  `integrate-planning-branch.md`, `activate-planning-branch.md` (renamed `init-work-unit.md`),
+  `rotate-branch.md`, `status-*.md` filename pattern, `completion-*.md` filename pattern,
+  `template-completion-doc.md`, `[PLAN]:` PR-prefix pattern, `commit-context-format.md` method
+  filename.
+
+**Nuance:** WOR is a large convention shift. Sweep should focus on conceptual model description
+first (how WUs flow through their lifecycle now under single-branch + 4-state + meta-* + sweep
+cadences), then mechanical updates (filename references, vocab alignment). Per existing
+drift-item nuance pattern, frame for readers arriving fresh — don't describe the retired model
+unless the retirement is itself the relevant detail. **Authoritative sources at sweep time:**
+PRD + companion ADR shipped with WOR (ADR lands in `.arc/reference/adr/`); post-WOR shape of
+strategies (`strategy-work-organization.md`, `strategy-task-list-formatting.md`,
+`strategy-configurability-architecture.md`); post-WOR template set (`template-meta.md`,
+`template-meta-prd.md`, `template-tasks.md`, `template-prd.md`, `template-plan.md`).
+
 ### Content Contributions
 
 #### 3. Operational-context extractions (from Session-Init Optimization WU, pending)

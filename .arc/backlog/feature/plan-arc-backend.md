@@ -36,11 +36,23 @@ where merge mechanics on text files stay human-scale. It fails or strains in sev
 - **Teams with strict tooling policies** prohibiting tool-specific directories in tracked
   repositories. Local mode addresses this for solo developers; teams need a shared equivalent.
 
+**Calibration note (2026-05):** External research into agentic-coding practice (2024-2026) confirms
+that the modal answer for inter-WU planning concurrency is out-of-band human coordination (Slack,
+standup, discussion), not codified sync mechanisms. Text-file concurrency at the planning-artifact
+level is mitigated by team discipline at most scales; no codified inter-WU planning-freshness
+pattern has emerged in the field (Spec-Kit, BMAD, Cursor, Claude Code adopter conventions). The
+backend tier's *pure sync* benefit is therefore less load-bearing for team adoption than this plan's
+initial framing implied. Primary value-prop remains **canonical storage outside the project repo** —
+serving adopters with governance / tooling-policy needs, private PM on public repos, or
+multi-machine workflow simplification. Concurrency primitives are a benefit and a differentiator
+for high-parallelism deployments, but not the load-bearing reason for the architecture at typical
+team scales.
+
 Each shape has been accumulating partial workarounds (`pm.mode: external`, coord-probe, Local mode
 backing store, planned `team.enabled` mode). None of them solve the actual concern coherently.
-**The architectural gap is canonical storage outside the project repo with concurrency-safe
-sharing semantics.** ARC needs to fill it deliberately rather than continue accumulating
-workaround surface.
+**The architectural gap is canonical storage outside the project repo, with concurrency-safe
+sharing semantics as a composable benefit.** ARC needs to fill it deliberately rather than continue
+accumulating workaround surface.
 
 ---
 

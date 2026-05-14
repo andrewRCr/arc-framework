@@ -145,7 +145,7 @@ If updated, commit the completion doc edit with `(code review)` context footer.
 
 ## 6) Push
 
-Push the review-fixup commits (`workflowPush`): `origin {BRANCH_NAME}`.
+Push the review-fixup commits: `origin {BRANCH_NAME}`.
 
 CR's next review pass kicks off. Replies posted in step 4 are in place, so CR sees resolved
 threads for defer/reject items and doesn't re-raise them.

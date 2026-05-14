@@ -4,7 +4,7 @@ Command patterns and environment context for {{PROJECT_NAME}}.
 
 ## Environment & Path Context
 
-**Repository Root**: `{{REPO_ROOT}}`
+**Repository Root**: Current checkout root (the directory containing `.arc/`).
 **All commands in this document assume you are at repository root.**
 
 **On-demand sections**: `Command Patterns`, `Quality Gate Commands`, `ARC CLI Commands` —
@@ -255,21 +255,18 @@ opt-in semantics.
 arc log --atomic
 ```
 
-<!-- arc:if platform.type != github -->
-
 ---
 
 ## Platform Commands
 
-<!-- CLI commands for your git hosting platform (e.g., glab for GitLab, tea for Gitea).
-     ARC workflows reference this section for platform-appropriate alternatives to the
-     GitHub defaults (`gh pr create`, `gh pr view`, `gh issue create`). Fill in what
-     your team uses. -->
+ARC workflows use GitHub CLI (`gh`) examples by default. For GitLab, Bitbucket,
+Azure DevOps, or another platform, replace these commands with your team's CLI
+equivalents.
 
-| Operation    | Command                    |
-|--------------|----------------------------|
-| Create PR/MR | `[platform CLI create]`    |
-| List PRs/MRs | `[platform CLI list]`      |
-| Create issue | `[platform CLI issue new]` |
-
-<!-- arc:endif -->
+| Operation    | Command                                           |
+|--------------|---------------------------------------------------|
+| Create PR/MR | `gh pr create --base {base} --head {branch}`      |
+| List PRs/MRs | `gh pr list --head {branch} --base {base}`        |
+| View PR/MR   | `gh pr view --json number,url,state`              |
+| Merge PR/MR  | `gh pr merge {pr-number} --merge`                 |
+| Create issue | `gh issue create`                                 |

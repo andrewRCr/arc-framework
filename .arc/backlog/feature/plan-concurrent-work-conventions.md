@@ -115,10 +115,13 @@ The plan's earlier shape proposed a `**Focus Role:**` status-file field with val
 `primary | companion | awaiting-external | parked`, blessed pairings, swap discipline, and per-WU
 tenure tracking. External research (2026-05-08) found no PM-tool precedent for this shape — every
 tool surveyed (Linear, Jira, GitHub Projects, Shortcut, Notion, Asana, Trello, Height) models
-active work via Status enum + Assignee, not role annotation. The underlying *concepts*
-(single-thread attention, single-active-focus, awaiting-review as a distinct state) are
-evidence-aligned across Kanban, Deep Work, GTD literature — but expressing them as a separate
-field invents net-new vocabulary adopters won't recognize.
+active work via Status enum + Assignee, not role annotation. The 2026-05-12 worktree-tool
+convergence pass reinforces from a second direction: no agent-workspace tool (Conductor, emdash,
+Maestro, Warp, Worktrunk, Zed, Super, Superset, T3code, Soloterm, Nora) models focus role either
+— concurrency UI is purely a workspace listing, not a discipline annotation. The underlying
+*concepts* (single-thread attention, single-active-focus, awaiting-review as a distinct state)
+are evidence-aligned across Kanban, Deep Work, GTD literature — but expressing them as a
+separate field invents net-new vocabulary adopters won't recognize.
 
 ARC adopts the lighter posture: rely on agent judgment + protocols, not field-encoded roles.
 
@@ -169,16 +172,18 @@ the posture as "tolerated" or "principled at modest scale."
       modules) → parallel-merge OK; high-overlap WUs (shared module, semantically related code)
       → serialize. Concrete examples per `research-integration-conflict-handling.md`.
 
-    - **Activation-time concurrency check.** Agent-led, judgment-based protocol: at WU activation
-      (spawn or resume), agent reads in-flight WUs (`git worktree list` + identity-filtered
-      status files), assesses scope overlap by reading their `**Purpose:**` / Spec content +
-      `**Sibling Work Unit(s):**` declarations, and either proceeds, surfaces concerns to user,
-      or suggests sequencing change. Non-deterministic; advisory; no probe tooling. The strategy
-      doc gives the judgment heuristics; the workflow step (in `plan-worktree-foundation.md`'s
-      spawn scope) fires the check. Scope boundary: the check applies only to worktree-based
-      spawn, not to the metadata-only shift available for atomic detours — the latter stays in
-      the current worktree and is bounded by review-increment discipline rather than
-      cross-WU concurrency overlap.
+    - **Activation-time concurrency check.** Agent-led, judgment-based protocol: at WU activation,
+      agent reads in-flight WUs (`git worktree list` + identity-filtered status files), assesses
+      scope overlap by reading their `**Purpose:**` / Spec content + `**Sibling Work Unit(s):**`
+      declarations, and either proceeds, surfaces concerns to user, or suggests sequencing change.
+      Non-deterministic; advisory; no probe tooling. The strategy doc gives the judgment
+      heuristics; the check fires from both of `plan-worktree-foundation.md`'s entry points —
+      `arc start` / spawn (item 4) for ARC-managed worktree creation, and the cold-start
+      primitive (item 11) for tool-spawned or manually-created worktrees. Same check, same
+      heuristics; entry point varies with WU origin. Scope boundary: the check applies only to
+      worktree-based activation, not to the metadata-only shift available for atomic detours —
+      the latter stays in the current worktree and is bounded by review-increment discipline
+      rather than cross-WU concurrency overlap.
 
     - **Branch and rebase discipline.** Periodic-rebase-onto-main vs end-of-flight rebase
       trade-off (lifetime threshold around 2 days per industry research); rerere setup for
@@ -192,7 +197,14 @@ the posture as "tolerated" or "principled at modest scale."
     - **Worktree operational guidance.** Performing merges from main (or dedicated merge)
       worktree; refetching / rebasing other worktrees post-merge; using `git worktree remove`
       instead of `rm -rf`; stale-reference recovery; cross-worktree state after rebase;
-      sync-all-worktrees recommendation.
+      sync-all-worktrees recommendation. **Tool composition:** when an external worktree-
+      management tool spawns worktrees (Conductor, emdash, Maestro, Warp, Worktrunk, Zed, etc.),
+      the tool typically owns cleanup, branch naming, and location conventions per its own UX.
+      Coexistence guidance: honor the tool's branch naming (advisory under ARC's branch-naming
+      method per `plan-worktree-foundation.md` item 10); defer cleanup to the tool when it
+      provides it; do not relocate tool-managed worktrees. ARC's structural discipline (meta-*
+      lifecycle, state machine, sweep-as-you-go integration) applies uniformly regardless of
+      who spawned the worktree.
 
     - **When to abandon parallelism.** Heuristics: conflict-resolution time exceeding ~30% of
       parallelism savings; rebase count exceeding ~3 due to upstream churn; semantic drift
@@ -206,8 +218,15 @@ the posture as "tolerated" or "principled at modest scale."
 
     - **Soft anti-pattern guidance.** Single-thread attention (only one active focus at a time);
       avoiding same-domain concurrents (informed by attention-residue research); review-
-      increment-boundary discipline for transitioning between WUs. Framed as judgment guidance,
-      not enforced rules.
+      increment-boundary discipline for transitioning between WUs. **Explicit calibration
+      against agentic worktree-tool idiom:** the surveyed tool ecosystem (Conductor, emdash,
+      Maestro, Warp, Worktrunk, Zed, Super, Superset, T3code, Soloterm, Nora) optimizes for
+      many simultaneous sessions, fast spawn, less per-WU review — the opposite posture from
+      ARC's. Adopters composing ARC with such a tool hold two postures in tension by design;
+      strategy-doc guidance surfaces this so adopters consciously pick which frame dominates
+      per session rather than letting the disciplines conflict silently. Framed as judgment
+      guidance, not enforced rules; phrasing TBD at PRD. See § Pressure Points "Tool-ecosystem
+      composition friction."
 
     - **Main-worktree-under-full-protection convention.** "Your main worktree is not always on
       main" framing — under `branch.protection: full`, main worktree specializes for admin /
@@ -321,7 +340,7 @@ template change, not a CLI/lint addition. Research-informed redesign at PRD time
 
 ### Upstream
 
-- **[Work Organization Reform][wor]:** delivers Conventional Branch alignment, per-worktree
+- **Work Organization Reform:** delivers Conventional Branch alignment, per-worktree
   isolation foundation, group-dir convention, the consolidated boundary workflows, and the
   `**Sibling Work Unit(s):**` field convention. Concurrent-work conventions and async-merge
   audit compose on top. Hard upstream dependency.
@@ -345,7 +364,7 @@ template change, not a CLI/lint addition. Research-informed redesign at PRD time
 
 ### Recommended sequencing
 
-[Work Organization Reform][wor] → `plan-worktree-foundation.md` → `plan-agile-wu-lifecycle.md` →
+Work Organization Reform → `plan-worktree-foundation.md` → `plan-agile-wu-lifecycle.md` →
 **Concurrent Work Conventions**.
 
 ---
@@ -385,6 +404,22 @@ files. Quality depends on (a) adequate scope description in `**Purpose:**` / Spe
 stamping. Mitigation: strategy doc provides concrete heuristics with worked examples; the check
 is advisory not gating, so false negatives still let work proceed and surface at integration.
 
+### Tool-ecosystem composition friction
+
+Adopters composing ARC with an agentic worktree-management tool (Conductor, emdash, Maestro,
+Warp, Worktrunk, Zed, etc.) hold two postures in tension by design — ARC optimizes for fewer,
+deeper, more-reviewed concurrent WUs; the tools optimize for many, faster, less-reviewed. Both
+work; the friction surfaces when adopters apply tool-native cadence (10+ simultaneous sessions,
+minimal per-WU review) to ARC-managed work and find ARC's per-task interlock and structured
+planning artifacts feel heavy, or apply ARC's cadence to tool-managed work and underutilize the
+tool's parallelism affordances.
+
+PRD-time question: does ARC ship onboarding guidance for this composition (e.g., "composing ARC
+with [tool]: here's how to make the disciplines reinforce rather than fight") in the strategy
+doc, or treat as adopter-handled with only the general anti-pattern guidance? Lean: light
+onboarding guidance in the strategy doc covering "pick which frame dominates per session" —
+without deep per-tool integration docs.
+
 ---
 
 ## Open Questions
@@ -406,7 +441,7 @@ other docs? PRD decision after research.
 The current ROADMAP shows parallel WUs at the same dependency depth (e.g., Worktree Foundation ‖
 User Sync UX Polish ‖ Coord Probe as the first wave after Session-Operational Flow). The cohort
 relationship is implicit — derivable from the upstream/downstream graph as "WUs at the same depth
-with no inter-dependencies." [Work Organization Reform][wor]'s group-dir convention partially
+with no inter-dependencies." Work Organization Reform's group-dir convention partially
 addresses this for codified groups in `backlog/`. Question: does explicit cohort/wave metadata
 (beyond WOR's group-dir) add value beyond what the graph already encodes?
 
@@ -479,7 +514,27 @@ The PRD should explicitly address:
 
 ---
 
+## External Research Citations
+
+Sources informing CWC's design. The 2026-05-08 redesign drew on
+`research-focus-wip-attention-discipline.md`, `research-active-work-coordination-vocabulary.md`,
+`research-concurrent-work-mechanism-layer.md`, and `research-integration-conflict-handling.md`
+(referenced in the header narrative). Additional research:
+
+### Worktree-management tool landscape (2026-05-12)
+
+- `research-worktree-tool-convergence.md` — convergence pass across 11 agentic
+  worktree-management tools (Cluster 1: Zed, Warp, Worktrunk; Cluster 2: Conductor, emdash,
+  Maestro; Cluster 3: Super, Superset, T3code, Soloterm, Nora). Substantive findings shaping
+  CWC: every surveyed tool optimizes for many simultaneous sessions, fast spawn, minimal
+  per-WU review (§ 3.3, § 6.4) — the opposite posture from ARC's; no tool models focus role
+  as a discipline annotation (§ 5.2 reinforced), confirming the 2026-05-08 focus-role
+  rejection from a second direction; tool ecosystem and ARC compose by sitting on top of the
+  same git-worktree substrate (§ 3.1) with no extension-point integration (§ 4.3). Per-tool
+  reports and source URLs captured in the research doc.
+
+---
+
 [adr-016]: ../../reference/adr/adr-016-configurable-autonomy-interlocks-for-session-operations.md
 [team-coord]: ../../reference/strategies/arc/strategy-team-coordination.md
 [integrate-wu]: ../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md
-[wor]: ../technical/plan-work-organization-reform.md

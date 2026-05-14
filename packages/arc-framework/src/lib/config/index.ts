@@ -7,6 +7,7 @@
  */
 
 import { CONFIG_KEY_PM_MODE, CONFIG_KEY_TEAM_MODE } from "../constants.js";
+import type { InstallConfig } from "../types.js";
 
 // --- Config Key Overrides ---
 
@@ -55,20 +56,43 @@ export function buildConfigMap(
 /**
  * Build the token substitution map from prompt results or install config.
  *
- * Only init-time tokens are included here. Guide-text placeholders in
- * template files are left untouched by the render engine.
+ * Only portable init-time tokens are included here. Machine-local values
+ * such as checkout paths are derived at runtime instead of committed into
+ * shared rendered files.
  *
  * @param source - Prompt results or stored install config
- * @param cwd - Repository root directory
  * @returns Token map for `{{TOKEN}}` substitution
  */
 export function buildTokenMap(
   source: { project_name: string },
-  cwd: string,
 ): Record<string, string> {
   return {
     PROJECT_NAME: source.project_name,
-    REPO_ROOT: cwd,
+  };
+}
+
+/**
+ * Build the portable install configuration stored in the tracked manifest.
+ *
+ * The manifest is shared project state, so it must not preserve machine-local
+ * values from input objects or command execution context.
+ *
+ * @param source - Prompt results or stored install config
+ * @returns Install config safe to commit and share across machines
+ */
+export function buildInstallConfig(
+  source: {
+    project_name: string;
+    pm_mode: string;
+    tools: string[];
+    team_mode?: boolean;
+  },
+): InstallConfig {
+  return {
+    project_name: source.project_name,
+    pm_mode: source.pm_mode,
+    tools: [...source.tools],
+    team_mode: source.team_mode ?? false,
   };
 }
 

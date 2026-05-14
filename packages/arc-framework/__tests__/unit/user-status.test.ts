@@ -1403,6 +1403,7 @@ describe("runUserSessionInitStatus", () => {
     expect(result.localNoteFreshness).toEqual({
       state: "ancestor",
       commit: staleNoteCommit,
+      commitShort: staleNoteCommit.slice(0, 7),
       ancestorDistance: 2,
       noteHistoryDistance: 0,
       reachableFromHead: true,

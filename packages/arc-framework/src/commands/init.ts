@@ -26,7 +26,12 @@ import {
   INTERNAL_DIR_SEGMENTS, MANIFEST_FILENAME, PRISTINE_FILENAME,
   MANIFEST_SCHEMA_VERSION,
 } from "../lib/constants.js";
-import { buildConfigMap, buildConfigKeyOverrides, buildTokenMap } from "../lib/config/index.js";
+import {
+  buildConfigMap,
+  buildConfigKeyOverrides,
+  buildInstallConfig,
+  buildTokenMap,
+} from "../lib/config/index.js";
 import {
   resolveFileList, toOutputPath, classifyFile, buildManifestFiles, needsRendering,
 } from "../lib/classification.js";
@@ -129,7 +134,7 @@ export async function runInit(
 
   // Build maps
   const config = buildConfigMap(prompts);
-  const tokens = buildTokenMap(prompts, cwd);
+  const tokens = buildTokenMap(prompts);
 
   // Resolve file list
   const templateFiles = resolveFileList(recipe, config);
@@ -194,13 +199,7 @@ export async function runInit(
     schema_version: MANIFEST_SCHEMA_VERSION,
     framework_version: getFrameworkVersion(),
     installed_at: new Date().toISOString(),
-    install_config: {
-      project_name: prompts.project_name,
-      pm_mode: prompts.pm_mode,
-      tools: prompts.tools,
-      team_mode: prompts.team_mode,
-      repo_root: cwd,
-    },
+    install_config: buildInstallConfig(prompts),
     files: manifestFiles,
   };
   await atomicWriteJson(join(internalDir, MANIFEST_FILENAME), manifest);

@@ -52,8 +52,8 @@ Config, extensions, and method overrides are the three customization mechanisms.
 "mechanism" in the same sense — it is existing project documentation that naturally absorbs platform command
 variation.
 
-Beyond mechanisms, adopters extend ARC through **content-level customization** — creating their own files that
-add domain-specific guidance, project-specific procedures, or extended standards:
+Beyond mechanisms, ARC supports **content-level customization** through project-owned files that add
+domain-specific guidance, project-specific procedures, or extended standards:
 
 | Content Channel       | What It Does                | Location              | Example                                        |
 |-----------------------|-----------------------------|-----------------------|------------------------------------------------|
@@ -61,12 +61,12 @@ add domain-specific guidance, project-specific procedures, or extended standards
 | Project workflows     | Project-specific procedures | `workflows/project/`  | Custom deploy workflow, release checklist      |
 | Domain-specific rules | Extended project standards  | `constitution/`       | `DEV-RULES.FRONTEND.md`, `DEV-RULES.AUTH.md`   |
 
-These are project-owned files — adopters create them, ARC doesn't ship them. `DEV-RULES.ARC.md` and
+These are project-owned files — teams create them, ARC doesn't ship them. `DEV-RULES.ARC.md` and
 `DEV-RULES.PROJECT.md` are loaded during session initialization; project strategies, workflows, and domain-specific
 rules are loaded on demand when work touches their domain.
 
 **Authoring project workflows.** Unlike `workflows/arc/` (framework-owned, wholesale replaced on update),
-`workflows/project/` is adopter territory. Project workflows may load ARC methods or extensions by declaring them
+`workflows/project/` is project-owned territory. Project workflows may load ARC methods or extensions by declaring them
 in the frontmatter's `arc.methods` / `arc.extensions` arrays — see [Workflow Authoring Strategy][workflow-authoring]
 for the schema and declaration rule, and [`template-workflow.md`][template-workflow] for canonical structure.
 Workflows with no method/extension dependencies can skip the schema.
@@ -138,7 +138,7 @@ a configurability path (how teams adapt it).
   DEV-RULES.PROJECT, QUICK-REFERENCE, agent-specific files — the file itself is the configuration. Changes
   are preserved across framework updates via three-way merge.
 - **Structural contract** — The convention defines artifact structure that workflows depend on. Templates
-  (PRD, task list, plan) are Framework files — adopters fill them in but don't redesign them. Workflows
+  (PRD, task list, plan) are Framework files — teams fill them in but don't redesign them. Workflows
   assume specific fields, headers, and formats.
 - **Behavioral guidance** — The convention is expressed as prose that agents and developers follow. Adjusted by
   editing the guidance in strategy or workflow documents.
@@ -152,8 +152,8 @@ with the current developer's local git-config — per-developer keys (`arc.commi
 logic (workflows, hooks, fire-point directives) consumes the resolved view, not the raw YAML. The agent
 also enumerates active extensions in the same probe:
 
-1. **Platform**: If `platform.type` differs from `github`, reference QUICK-REFERENCE § Platform Commands for
-   platform-appropriate commands
+1. **Platform**: Check `platform.type`; use QUICK-REFERENCE § Platform Commands for platform-appropriate PR/MR
+   and issue commands. The section lists GitHub defaults and is project-editable for other platforms.
 2. **Active extensions**: Run `grep -l "^active: true" system/extensions/*.md` and map hits to extension
    basenames — this is the active-extensions list consulted by fire-point directives in downstream workflows.
    Methods are not enumerated at session init; method defaults and overrides always load on-demand when
@@ -508,7 +508,7 @@ overrides) but at a different layer:
 
 Agent hooks are configured in the platform's native format (not in `arc-config.yml`). ARC does not ship hook
 configurations — the methodology describes what behaviors to trigger, and teams configure their platform
-accordingly. For detailed mapping of ARC behaviors to hook events, value assessment, and adopter guidance, see
+accordingly. For detailed mapping of ARC behaviors to hook events, value assessment, and implementation guidance, see
 the [Agent Hooks](https://andrewrcr.github.io/arc-framework/customization/hooks/) guide on the docs site.
 
 ---

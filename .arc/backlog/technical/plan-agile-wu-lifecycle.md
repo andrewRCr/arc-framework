@@ -8,13 +8,13 @@ the agility gap where ARC's uniform ceremony costs more than the work for short-
 - **State:** Draft — pre-PRD exploration captured during agile/mobility design discussion 2026-04-28.
   Three-tier model and constitutional reframing identified; external research and PRD-time
   ratification expected. Updated 2026-05-08: sweep-as-you-go foundation (formerly scope item 7a's
-  load-bearing pieces) moved to upstream [Work Organization Reform][wor] WU; this WU retains
+  load-bearing pieces) moved to upstream Work Organization Reform WU; this WU retains
   tier-aware adaptations on top.
 
 - **Created:** 2026-04-28
 
-- **Origin:** Surfaced during the agile/mobility expansion discussion when [Worktree
-  Foundation][wf] (mechanism) and [Concurrent Work Conventions][cwc] (conventions) were carved out
+- **Origin:** Surfaced during the agile/mobility expansion discussion when Worktree
+  Foundation (mechanism) and Concurrent Work Conventions (conventions) were carved out
   of the original Work-Unit Mobility WU. The agility gap — small bounded work paying full ceremony
   cost — emerged as a third concern alongside concurrency. Solo-dev sequential work patterns shaped
   ARC's current uniform ceremony, which doesn't fit team practice where small WUs are spun up and
@@ -57,7 +57,7 @@ PR review for shared branches. That discipline drives quality and is invariant a
 What scales with WU size is **artifact ceremony**: planning artifacts (plan-*, PRD), task structure
 (phased vs flat vs none), and archival artifacts (completion doc vs PR description).
 
-This framing **explicitly answers the [plan-arc-modes.md][arc-modes] § Mode 1 rejection** of the
+This framing **explicitly answers the `plan-arc-modes.md` § Mode 1 rejection** of the
 "Required vs Available" model. That rejection was about making *execution discipline* optional — task
 interlocks removed, quality gates skipped, "trust the dev." This WU does none of that: execution
 discipline is enforced at every tier. What varies is where the spec lives, how tasks are organized,
@@ -70,7 +70,7 @@ and how the work is archived. Those are scaling-dependent ceremony, not discipli
 | Tier         | Planning artifacts                                   | Task structure                             | Verification                                         | Archive                  |
 |--------------|------------------------------------------------------|--------------------------------------------|------------------------------------------------------|--------------------------|
 | **atomic**   | None                                                 | None (work IS the task)                    | Per-commit T1 gates                                  | PR description           |
-| **quick**    | None (spec via task list header or external tracker) | Flat task list (no phases)                 | Tasks complete + T2 gates                            | PR description           |
+| **quick**    | None (spec via task list header or compact PRD)      | Flat task list (no phases)                 | Tasks complete + T2 gates                            | PR description           |
 | **standard** | plan-\* + PRD                                        | Phased task list (with verification phase) | PRD success criteria + verification phase + T3 gates | Completion doc + archive |
 
 ### Boundary tests (objective)
@@ -109,81 +109,104 @@ get promoted: add the plan-*/PRD, restructure the task list into phases, continu
    tiered-artifacts/invariant-discipline framing. Companion ADR documenting the constitutional
    shift (parallel scale to ADR-016).
 
-2. **`**Tier:**` field on every status file** — source of truth, declared at activation. Existing
+2. **`**Tier:**` field on every meta file** — source of truth, declared at activation. Existing
    in-flight WUs migrate to `**Tier: standard**` (matches their current ceremony level).
 
-3. **`**Spec:**` field on every status file** — pointer to where the work's specification lives.
+3. **`**Spec:**` field on every meta file** — pointer to where the work's specification lives.
    **Field introduction is upstream:** `**Spec:**` is introduced as a generic optional pointer in
-   [plan-session-operational-flow][plan-ops] Phase 1 (planning-session active surface scope, with
+   Session-Operational Flow Phase 1 (planning-session active surface scope, with
    `**Spec:** plan-{name}.md` value). This WU adds tier-specific value semantics and tier-aware
    validation on top of the already-introduced field.
+
+   **Orthogonality with `**Origin:**`** (per WOR's Origin ⊥ Spec design decision): `**Spec:**`
+   always points at an ARC-owned planning artifact. External trackers (GitHub issues, Jira, Linear)
+   go in `**Origin:**`, never `**Spec:**`. The two fields are independent — a quick-tier WU can have
+   an external `**Origin:**` and an internal `**Spec:** tasks-{name}.md`.
+
    Values:
     - `**Spec:** plan-{name}.md` — planning state (introduced upstream)
     - `**Spec:** prd-{name}.md` — standard tier, in-repo PRD
-    - `**Spec:** tasks-{name}.md` — quick tier under arc-in-git, points to Scope section in the
-      task list header
-    - `**Spec:** https://github.com/.../issues/123` — quick tier with external tracker
-    - omitted for atomic — work is self-evident from PR description
+    - `**Spec:** tasks-{name}.md` — quick tier under `pm.layer: arc-pm`, points to Scope section in
+      the task list header (or to a compact PRD doc — see open question below)
+    - omitted for atomic — work is self-evident from PR description; `**Origin:**` carries any
+      external-tracker reference
 
-4. **`arc start <name>` command** for fast WU activation. Bounded subset of `activate-work-unit.md`
-   workflow — same logic, faster invocation. Flags:
+4. **`arc start <name>` command** for fast WU activation. Bounded subset of post-WOR
+   `activate-work-unit.md` workflow — same logic, faster invocation. Flags:
     - `--tier atomic | quick | standard` (default: `quick`)
-    - `--branch <branch>` (override default `<category>/<name>`)
-    - `--category feature | technical` (default: `feature`)
+    - `--type <conventional-commit-type>` (default: `feat`; per Work Organization Reform's
+      Conventional Branch alignment — `feat`, `fix`, `chore`, `docs`, `refactor`, `perf`, etc.)
+    - `--branch <branch>` (override default `<type>/<name>`)
     - `--spec <path-or-url>` (sets the Spec field)
+
    Standard tier reached via the planning workflow path (plan → PRD → activate), not via
    `arc start`.
 
+   **Composition with the cold-start primitive (`plan-worktree-foundation.md` item 11).**
+   `arc start` is the spawn-from-existing-session entry point — it creates the worktree (when
+   applicable per tier), scaffolds the meta file, and reports the new worktree path so a fresh
+   session can pick up via the cold-start primitive. Adopters working in tool-spawned worktrees
+   (Conductor, emdash, Maestro, Warp, Worktrunk, Zed, etc.) skip `arc start` and invoke the
+   cold-start primitive directly inside the tool-created worktree — same scaffolding logic,
+   different entry point. Both paths converge once the meta file is written.
+
 5. **Quick-tier task list shape.** Flat task list (no phases). Required `## Scope` prose section at
    the top (3-5 sentences, bounded by convention) when no external `**Spec:**` is set — fills the
-   internal-spec gap under arc-in-git. New section in [strategy-task-list-formatting.md][
+   internal-spec gap under `pm.layer: arc-pm`. New section in [strategy-task-list-formatting.md][
    tasklist-fmt] § Quick Tier.
 
-6. **Atomic-tier WU shape.** No task list. Status file minimal (Tier, State, Branch). Execution
+6. **Atomic-tier WU shape.** No task list. Meta file minimal (Tier, State, Branch, Origin). Execution
    discipline preserved at commit boundaries: each commit IS a review increment with mandatory stop.
    Quality gates: T1 per commit. PR description as archive.
 
 7. **Ceremony scaling for activate / integrate / archive workflows.** Tier-aware branches in each
-   workflow, layered on top of [Work Organization Reform][wor]'s consolidated boundary workflows
+   workflow, layered on top of Work Organization Reform's consolidated boundary workflows
    and sweep-as-you-go foundation:
     - `activate-work-unit.md` (post-WOR shape — state-transition workflow, not branch creation):
-      skip plan/PRD checks for atomic and quick; require for standard
+      skip plan/PRD checks for atomic and quick; require for standard. Standard tier path
+      inherits Work Organization Reform's planning-checkpoint opt-in
+      (`review.planning_checkpoint` config + `pre-execution-graduation` extension) at the
+      state-transition fire-site; atomic and quick tiers bypass the planning workflow entirely
+      (via `arc start`), so the checkpoint doesn't apply to them.
     - `integrate-work-unit.md` (post-WOR shape — single integration boundary with sweep-as-you-go
       bundled): skip clean-work-unit and completion-doc steps for atomic; lightweight for quick
       (PR description as archive); full ceremony for standard. Integration-time updates include
       the `**Integration:**` field per metadata-state model and a one-line ROADMAP/PROJECT-STATUS
       touch (one WU's status line) — tracking docs are current at merge, not stale until sweep.
-    - `archive-work-unit.md`: under default `archive.cadence: with-integration` (delivered by WOR)
-      collapses into `integrate-work-unit.md`; under deferred cadence retains its current shape as
-      separate post-integration ceremony. Tier-aware sweep ceremony applies in both cadences.
+    - `archive-work-unit.md`: shape depends on Work Organization Reform's resolution of
+      the default `archive.cadence` open question. Under `with-integration` default (current
+      lean), this workflow collapses into `integrate-work-unit.md`; under `deferred` default, it
+      retains its current shape as a separate post-integration ceremony. Tier-aware sweep
+      ceremony applies in both cadences; the cadence-default decision affects the workflow's
+      existence-as-separate-doc, not the tier-awareness logic itself.
 
-7a. **Tier-aware adaptations on top of WOR's foundation.** Implements [plan-session-operational-flow][plan-ops]
+7a. **Tier-aware adaptations on top of WOR's foundation.** Implements Session-Operational Flow
     § Scope → "Metadata-state foundation for WU lifecycle" against the actual lifecycle workflows,
-    consuming [Work Organization Reform][wor]'s sweep-as-you-go foundation. Concrete deliverables
+    consuming Work Organization Reform's sweep-as-you-go foundation. Concrete deliverables
     that remain in this WU's scope (post-2026-05-08 split):
 
     - **State + Integration field rollout.** `**State:**` enum:
       `Planning | In Progress | Complete | Paused | Superseded` (`Planning` introduced upstream in
-      [plan-session-operational-flow][plan-ops] Phase 1; this WU operates on the post-introduction
+      Session-Operational Flow Phase 1; this WU operates on the post-introduction
       enum); optional `**Integration:** Merged` marker added to template-status. Workflow updates
       compose with WOR's consolidated boundaries: `clean-work-unit.md` Mode 2 sets State to
       Complete (current); PR review state remains in the PR; archival marks Integration as Merged
       before moving files.
-    - **Tier-aware sweep ceremony.** Atomic WUs: trivial sweep (single status file delete in
+    - **Tier-aware sweep ceremony.** Atomic WUs: trivial sweep (single meta file delete in
       integration PR). Quick: standard sweep. Standard: full sweep with ROADMAP/PROJECT-STATUS
       updates. Layered on top of WOR's sweep-as-you-go shape.
     - **CodeRabbit-flagged contradictoriness fix.** `State: Complete` + integration-step
       `Next Action` no longer reads as contradictory; `Integration:` field carries the in-flight
       workflow position cleanly separated from execution-state.
 
-    **Moved to [Work Organization Reform][wor]** (load-bearing for per-worktree isolation; not
+    **Moved to Work Organization Reform** (load-bearing for per-worktree isolation; not
     tier-specific):
 
     - Sweep cadence configuration (`archive.cadence` config key)
     - Sweep-as-you-go integration PR shape (code → completion → status flip → sweep commit
       ordering)
     - Deferred sweep variant (integration PR omits sweep; archive batches with next-WU planning)
-    - Per-worktree isolation invariant (status file on WU branch only, not on main while in
+    - Per-worktree isolation invariant (meta file on WU branch only, not on main while in
       flight)
 
 8. **Atomic companion file retirement (or repurposing).** With cheap atomic-WU spin-up, the
@@ -191,11 +214,14 @@ get promoted: add the plan-*/PRD, restructure the task list into phases, continu
    OR spin up atomic WU OR backlog. Open question: retire entirely or repurpose as session-scoped
    "noticed-pending-decision" capture that drains at handoff. PRD-time question.
 
-9. **Incidental category retirement.** With shift lifecycle handling "unplanned, interrupts another
-   WU" and tier model handling "lighter ceremony," the incidental category becomes redundant.
-   Categories reduce to `feature/` and `technical/`. Mechanical sweep across templates, workflows,
-   strategy docs, branch-prefix conventions. (The pointer-field migration is [Worktree
-   Foundation][wf] scope; the category nomenclature retirement lands here.)
+9. **Incidental concept retirement.** With shift lifecycle handling "unplanned, interrupts another
+   WU" and the tier model handling "lighter ceremony," the incidental concept becomes redundant.
+   Work Organization Reform retires the `incidental/` category prefix as part of its
+   broader category-prefix retirement (`feature/` / `technical/` / `incidental/` → Conventional
+   Branch alignment); this WU retires the remaining conceptual references in workflows, strategy
+   docs, and templates that frame incidental as a distinct WU shape. Mechanical sweep across
+   those surfaces. (The pointer-field migration is Worktree Foundation scope; the
+   conceptual retirement lands here.)
 
 10. **Documentation cascade.** [DEV-RULES.ARC][dev-rules] tier definitions and boundary tests;
     [strategy-task-list-formatting.md][tasklist-fmt] tier-aware task list shapes;
@@ -205,10 +231,10 @@ get promoted: add the plan-*/PRD, restructure the task list into phases, continu
 
 ### Out of scope
 
-- **Worktree mechanism and shift lifecycle** — [Worktree Foundation][wf].
-- **Focus-role model and concurrent-work conventions** — [Concurrent Work Conventions][cwc].
+- **Worktree mechanism and shift lifecycle** — Worktree Foundation.
+- **Focus-role model and concurrent-work conventions** — Concurrent Work Conventions.
 - **Tier-aware quality gate scaling beyond T1/T2/T3 split per tier table** — defer detailed gate
-  tier mapping to [Quality Gate Tiers and Hook Integration][qg-hooks] WU. This WU establishes that
+  tier mapping to Quality Gate Tiers and Hook Integration WU. This WU establishes that
   tiers exist; gate-tier mapping per WU tier is the gate-tiers WU's PRD work.
 - **Auto-promotion of tier based on commit count or duration thresholds.** Manual promotion only.
   Structural-detection nudges (warnings) may be considered at PRD time but auto-promotion is too
@@ -239,9 +265,10 @@ work.
 ### Quick-tier scope section is prose, not frontmatter
 
 Frontmatter is for metadata; the scope is content. A `## Scope` prose section at the top of the
-quick-tier task list is human-readable, version-controlled, naturally bounded by convention. Adopters
-working under `pm.mode: external` typically point `**Spec:**` at the external ticket and the scope
-section is optional or pointing back to the ticket.
+quick-tier task list is human-readable, version-controlled, naturally bounded by convention. The
+scope section is the in-repo spec surface regardless of whether an external tracker is the WU's
+Origin — under WOR's Origin ⊥ Spec orthogonality, external trackers go in `**Origin:**`, not
+`**Spec:**`, and the internal spec always lives in an ARC-owned artifact.
 
 ### Atomic tier preserves task discipline at commit boundaries
 
@@ -260,8 +287,8 @@ simpler. Workflows that reference incidental migrate to use shift state and tier
 ### Atomic-the-character vs atomic-the-shape
 
 "Atomic" describes the work's character (single bounded concern). The shape it takes adapts to
-protection mode: under `partial`, atomic work goes direct-to-main with no branch or status file;
-under `full`, the same atomic intent becomes an atomic-tier WU with branch, minimal status file, and
+protection mode: under `partial`, atomic work goes direct-to-main with no branch or meta file;
+under `full`, the same atomic intent becomes an atomic-tier WU with branch, minimal meta file, and
 PR. The word's meaning is consistent across modes; the framework's shape adapts.
 
 ---
@@ -270,30 +297,30 @@ PR. The word's meaning is consistent across modes; the framework's shape adapts.
 
 ### Upstream
 
-- **[Work Organization Reform][wor]:** delivers the consolidated boundary workflows (single
+- **Work Organization Reform:** delivers the consolidated boundary workflows (single
   activate/integrate pair under single-branch-per-WU lifecycle), sweep-as-you-go foundation, and
   per-worktree isolation invariant. This WU's tier-aware adaptations layer on top. Hard upstream
   dependency.
-- **[Worktree Foundation][wf]:** clean activate/integrate workflows post-pointer-field retirement;
+- **Worktree Foundation:** clean activate/integrate workflows post-pointer-field retirement;
   the tier model's `arc start` command operates on the worktree-aware activation substrate. Pointer
   fields are retired in WF; the incidental category retirement here folds in cleanly afterward.
-- **[Session-Operational Flow][plan-ops]** (shipped): consumes Phase 7 (metadata-state foundation —
+- **Session-Operational Flow** (shipped): consumes Phase 7 (metadata-state foundation —
   State + Integration field model). Sweep cadence config moved to WOR; this WU consumes it. Phase 2
-  (status-file timing split) also informs which fields belong on commit vs handoff.
+  (meta-file timing split) also informs which fields belong on commit vs handoff.
 
 ### Downstream
 
-- **[Concurrent Work Conventions][cwc]:** tier model informs concurrency conventions (focus-role
+- **Concurrent Work Conventions:** tier model informs concurrency conventions (focus-role
   model probably doesn't apply to atomic tier; quick-tier WUs are short-lived enough that focus
   designation is less meaningful).
-- **[Quality Gate Tiers and Hook Integration][qg-hooks]:** gate-tier mapping per WU tier is that
+- **Quality Gate Tiers and Hook Integration:** gate-tier mapping per WU tier is that
   WU's PRD work; this WU establishes that tiers exist.
 - **ARCd Rebrand:** tier vocabulary absorbed into rename pass.
 
 ### Recommended sequencing
 
-[Work Organization Reform][wor] → [Worktree Foundation][wf] → **Agile WU Lifecycle** →
-[Concurrent Work Conventions][cwc].
+Work Organization Reform → Worktree Foundation → **Agile WU Lifecycle** →
+Concurrent Work Conventions.
 
 ---
 
@@ -333,7 +360,7 @@ form. Adopters using defaults run the command; adopters deviating read the workf
 
 ### Atomic-tier discoverability
 
-If atomic tier WUs have minimal status files and short lifetimes, session-init's "active WUs"
+If atomic tier WUs have minimal meta files and short lifetimes, session-init's "active WUs"
 enumeration could become noisy. Mitigation: tier-aware orientation summary ("3 active WUs: 1
 standard, 2 atomic"); auto-cleanup of completed-but-not-archived atomic WUs at session-init.
 
@@ -354,12 +381,14 @@ spin-up. Two paths:
 
 PRD-time decision after observing usage patterns under the new tier model.
 
-### Default tier under `pm.mode: external`
+### Default `**Origin:**` population with an external tracker present
 
-Under external PM mode, the team's tracker carries the spec. Should `arc start --tier quick` default
-to populating `**Spec:**` from the current branch's linked PR/issue (via coord-probe)? Or always
-require explicit `--spec`? Auto-population is convenient but risks pointing at the wrong ticket if
-inference is wrong. PRD decision.
+Under WOR's Origin ⊥ Spec orthogonality, external trackers populate `**Origin:**`, not `**Spec:**`
+(retired `pm.layer: external` value, framing collapsed per WOR's design decision). Should
+`arc start --tier quick` default to populating `**Origin:**` from the current branch's linked
+PR/issue (via coord-probe) when a `coord.adapter` is configured? Or always require explicit
+`--origin`? Auto-population is convenient but risks pointing at the wrong ticket if inference is
+wrong. PRD decision.
 
 ### Promotion mid-work UX
 
@@ -368,44 +397,51 @@ User starts atomic, scope grows, needs to promote. What's the command shape?
 - `arc promote-tier <name> --to quick` — explicit
 - Implicit: when a task list is created on an atomic-tier WU, automatically promote with
   notification
-- Manual: user edits status file and creates artifacts; framework detects on next session-init
+- Manual: user edits meta file and creates artifacts; framework detects on next session-init
 
 Likely manual + structural-detection nudges, but PRD decision.
 
 ### Tier-aware Spec field validation
 
 Should pre-commit hooks validate the `**Spec:**` field matches tier expectations (standard tier must
-point at PRD; quick must point at task list or external URL; atomic omits)? Validation adds
+point at PRD; quick must point at task list or compact PRD; atomic omits)? Validation adds
 strictness; relaxed handling tolerates in-flight transitions. Probably warn-not-block; PRD decision.
+External-tracker URLs (now in `**Origin:**`, not `**Spec:**`, per WOR's orthogonality framing) are
+out of this validation's scope.
 
 ### Quick-tier spec shape — task-list header vs reduced PRD doc
 
-Current scope item 5 specifies a `## Scope` prose section at the top of the quick-tier task list as
-the in-repo spec surface (when no external `**Spec:**` is set). Surfaced 2026-04-28 (post-initial-
-draft of this plan): an alternative shape is to **reuse Lite mode's reduced PRD template** — quick
-tier under arc-in-git points its `**Spec:**` field at a compact PRD doc rather than a section of
-the task list. This creates cross-mode parallelism: Lite project's PRD has the same shape as Full
-mode's quick-tier PRD, and graduation Lite → Full preserves the spec shape for the first quick WU.
+Under WOR's Origin ⊥ Spec orthogonality framing, `**Spec:**` always points at an ARC-owned
+artifact (external trackers go in `**Origin:**`). The remaining question is where the
+quick-tier internal spec lives:
+
+- **Task-list header `## Scope` section** (current scope item 5): in-repo spec surface as a
+  prose section at the top of `tasks-{name}.md`. Minimal — no separate doc.
+- **Reuse Lite mode's reduced PRD template**: quick tier under `pm.layer: arc-pm` points its
+  `**Spec:**` field at a compact PRD doc rather than a section of the task list. Creates
+  cross-mode parallelism: Lite project's PRD has the same shape as Full mode's quick-tier PRD, and
+  graduation Lite → Full preserves the spec shape for the first quick WU.
 
 **Tradeoffs:**
 
-- *(For)* Spec field semantics become uniform — always points at a doc OR external URL, never at a
+- *(For compact-PRD)* Spec field semantics become uniform — always points at a doc, never at a
   section-of-another-file. Cleaner contract for tooling and reviewers.
-- *(For)* Reuses Lite mode's reduced PRD template (when it lands) — no separate "scope section"
-  convention to maintain.
-- *(For)* Honors ARC's spec-directed principle more cleanly — "spec lives in a doc, regardless of
-  tier" is consistent with the principle.
-- *(Against)* Adds a doc to quick tier (currently zero docs besides task list + status file).
-- *(Against)* Spec budget (5-10 min for Lite's PRD) might be 20-50% of total work time for short
-  quick-tier work — boundary check: if you can't articulate the goal in ~5 minutes, you're probably
-  standard tier.
-- *(Against)* "PRD" naming carries weight quick tier may not warrant — could rename for the reduced
-  shape (Spec? Brief? compact-PRD?) but that fragments naming across modes.
+- *(For compact-PRD)* Reuses Lite mode's reduced PRD template (when it lands) — no separate
+  "scope section" convention to maintain.
+- *(For compact-PRD)* Honors ARC's spec-directed principle more cleanly — "spec lives in a doc,
+  regardless of tier" is consistent with the principle.
+- *(Against compact-PRD)* Adds a doc to quick tier (currently zero docs besides task list + meta
+  file).
+- *(Against compact-PRD)* Spec budget (5-10 min for Lite's PRD) might be 20-50% of total work time
+  for short quick-tier work — boundary check: if you can't articulate the goal in ~5 minutes,
+  you're probably standard tier.
+- *(Against compact-PRD)* "PRD" naming carries weight quick tier may not warrant — could rename
+  for the reduced shape (Spec? Brief? compact-PRD?) but that fragments naming across modes.
 
-**Coordination:** depends on Lite mode's reduced PRD template shape, which is [plan-arc-modes][
-arc-modes] § The Lite PRD scope. If Lite PRD template lands first or in parallel, this WU adopts
-it for quick tier directly. If Lite mode is still iterating, this WU may need to either wait or
-ship with the task-list-header fallback and migrate later.
+**Coordination:** depends on Lite mode's reduced PRD template shape, which is `plan-arc-modes.md`
+§ The Lite PRD scope. If Lite PRD template lands first or in parallel, this WU adopts it for
+quick tier directly. If Lite mode is still iterating, this WU may need to either wait or ship
+with the task-list-header fallback and migrate later.
 
 PRD decision informed by Lite mode's PRD template progress and external research on lightweight
 spec patterns.
@@ -413,7 +449,7 @@ spec patterns.
 ### Status template versioning during migration
 
 Adding `**Tier:**` and `**Spec:**` fields to template-status is a template change. Existing in-flight
-status files don't have the fields. Migration: assume `Tier: standard`, `Spec: prd-{name}.md` if
+meta files don't have the fields. Migration: assume `Tier: standard`, `Spec: prd-{name}.md` if
 PRD exists else `tasks-{name}.md`. Auto-migrate at session-init? Manual? PRD decision.
 
 ---
@@ -433,7 +469,7 @@ Phases (provisional):
 3. **`arc start` command** — CLI subcommand implementation, default-tier semantics, flag handling,
    error semantics, tests.
 4. **Integration-workflow restructure** — implements the metadata-state foundation from
-   [plan-session-operational-flow][plan-ops] Phase 7. State + Integration field rollout in
+   Session-Operational Flow Phase 7. State + Integration field rollout in
    workflows; sweep cadence configuration; sweep-as-you-go integration PR shape (multi-commit with
    isolated sweep commit); deferred sweep variant; tier-aware sweep ceremony. Resolves CodeRabbit
    contradictoriness and stale-tracking-doc inbox concerns.
@@ -476,14 +512,20 @@ time research validates the boundary tests against idiomatic practice and refine
 Research wouldn't change the boundary itself; it would inform PRD-time language and provide
 concrete examples for the strategy doc.
 
+### Worktree-management tool landscape (completed 2026-05-12)
+
+- `research-worktree-tool-convergence.md` — convergence pass across 11 agentic worktree-management
+  tools (Cluster 1: Zed, Warp, Worktrunk; Cluster 2: Conductor, emdash, Maestro; Cluster 3: Super,
+  Superset, T3code, Soloterm, Nora). Closes the question of whether `arc start` retains a clear
+  role alongside parallel workspace tools — yes, as the spawn-from-existing-session entry point,
+  paired with `plan-worktree-foundation.md` item 11's cold-start primitive (the tool-spawned-
+  worktree entry point). Both entry points produce the same scaffolded meta file; adopters pick
+  per WU based on origin. Tier model survives unchanged — tier selection at `arc start`
+  (`--tier atomic | quick | standard`) and at the cold-start primitive operates on the same
+  meta-* foundation.
+
 ---
 
-[arc-modes]: ../feature/plan-arc-modes.md
-[wf]: plan-worktree-foundation.md
-[cwc]: ../feature/plan-concurrent-work-conventions.md
-[wor]: plan-work-organization-reform.md
-[plan-ops]: ../../reference/archive/2026-q2/technical/06_session-operational-flow/prd-session-operational-flow.md
-[qg-hooks]: plan-quality-gate-hooks.md
 [dev-rules]: ../../reference/constitution/DEV-RULES.ARC.md
 [strategy-work-org]: ../../reference/strategies/arc/strategy-work-organization.md
 [tasklist-fmt]: ../../reference/strategies/arc/strategy-task-list-formatting.md
