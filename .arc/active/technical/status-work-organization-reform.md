@@ -2,21 +2,22 @@
 
 ## Work Unit Metadata
 
-- **State:** Planning
-- **Branch:** technical/plan-work-organization-reform
+- **State:** In Progress
+- **Branch:** technical/work-organization-reform
 
 - **Spec:** `prd-work-organization-reform.md`
 - **Task List:** `tasks-work-organization-reform.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Pre-integration audit + amendment pass (commit `c23cccdd`) — PRD +
-  task list amended with audit findings, including META-PRD → PROJECT-PRD rename.
+- **Last Completed:** Work unit activated — planning PR #33 merged; PRD + companions moved
+  backlog/ → active/; impl branch created.
 
-- **Next Task:** integrate-planning-branch graduation — PRD + task list + notes + status
-  file move to main via current ARC's two-PR flow.
+- **Next Task:** Task 1.1 — Author companion ADR for WOR constitutional shift (line ~23)
 
 - **Blockers:** [none]
 
-- **Next Action:** integrate-planning-branch Step 1 — verify readiness for PR and merge.
+- **Next Action:** Begin Phase 1 — author companion ADR (`adr-019-...`) covering the four
+  constitutional surfaces per Task 1.1.b (single-branch-per-WU, CB core-6 alignment,
+  meta-file evolution, commit-convention reform).
 
 ---

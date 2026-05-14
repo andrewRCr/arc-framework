@@ -24,14 +24,15 @@ Current state at a glance. Updated when work is activated, completed, or archive
 
 **Currently Active:**
 
-- Work Organization Reform (technical) — Planning. Constitutional reform of WU lifecycle:
+- Work Organization Reform (technical) — In Progress. Constitutional reform of WU lifecycle:
   single-branch-per-WU model (planning branch IS WU branch through entire lifecycle), Conventional
   Branch alignment (retire `feature/`/`technical/` prefixes for `feat/`/`fix/`/`chore/`/etc.),
-  sweep-as-you-go integration foundation, status-file location-by-state convention, optional
+  sweep-as-you-go integration foundation, meta-file location-by-state convention, optional
   group dirs in `backlog/` for codified multi-WU groups. Delivers per-worktree isolation as a
   structural precondition for Worktree Foundation. Spec:
-  `active/technical/plan-work-organization-reform.md`; branch:
-  `technical/plan-work-organization-reform`.
+  `active/technical/prd-work-organization-reform.md`; task list:
+  `active/technical/tasks-work-organization-reform.md`; branch:
+  `technical/work-organization-reform`.
 
 **Next Priority:**
 

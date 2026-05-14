@@ -234,8 +234,7 @@ pending upstream config-validation fixes.
   (adopter ergonomics — setup helper, per-harness detection, status integration, workflow updates,
   strategy doc; ~10-13 sessions). WU2 strictly depends on WU1.
 
-**Work Organization Reform** — After Interlock Release Wrappers (WU1 + WU2); upstream of the
-parallelism trio
+**Work Organization Reform** — In Progress (activated 2026-05-14); upstream of the parallelism trio
 
 Constitutional reform of WU lifecycle conventions: single-branch-per-WU model (planning branch IS
 WU branch through entire lifecycle, no separate planning-PR), Conventional Branch alignment for
@@ -254,7 +253,9 @@ contradiction (PR conventional-commit type vs branch category routinely contradi
 sibling-WU grouping (related WUs benefit from group-dir co-location in `backlog/`). Companion ADR
 documents the constitutional shift (parallel scale to ADR-016).
 
-- Plan: `technical/plan-work-organization-reform.md` (pre-PRD draft, iteration expected)
+- PRD: `active/technical/prd-work-organization-reform.md`; task list:
+  `active/technical/tasks-work-organization-reform.md`; branch:
+  `technical/work-organization-reform` (planning PR #33 merged 2026-05-14)
 - Upstream: Interlock Release Wrappers WU2 (final session-operations friction closed before
   conventions reform lands), Session-Operational Flow Phase 7 (metadata-state foundation —
   `**State:**` enum consumed; sweep-cadence config lifted into this WU's scope)
