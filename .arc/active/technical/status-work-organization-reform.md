@@ -9,17 +9,18 @@
 - **Task List:** `tasks-work-organization-reform.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Tasks 2.1-2.4 — adopter-facing § Branching / § Per-Worktree Isolation /
-  § Archival / § ROADMAP codified in `strategy-work-organization.md`; new `branch-format`
-  method created; PRD R1 + R28 amended after CB-spec verification; DEV-RULES.PROJECT
-  § Audience Boundaries added (constitutional, loaded every session); release-lifecycle gap
-  captured (notes Pressure Point + `plan-release-lifecycle.md` landing pad).
+- **Last Completed:** Tasks 2.5-2.6 — `strategy-planning-module.md` capture-pipeline reform
+  (four-surface model + ceremony-only writes + state-dir graduation + cohort wrapper);
+  `strategy-configurability-architecture.md` extension-family content (planning-checkpoint
+  inventory row + § Naming convention + § Fire-point family + § Reserved names); branch-format
+  method wired into `activate-planning-branch` / `activate-work-unit` frontmatter to clear the
+  `lint:arc:triggers` audit failure from prior handoff.
 
-- **Next Task:** Task 2.5 — `strategy-planning-module.md` capture pipeline reform (line ~297)
+- **Next Task:** Task 2.7 — `strategy-work-organization.md` § Spec-Flow Invariants (line ~379)
 
 - **Blockers:** [none]
 
-- **Next Action:** Proceed to Task 2.5 — `strategy-planning-module.md` capture pipeline reform
-  (line ~297 in `tasks-work-organization-reform.md`).
+- **Next Action:** Proceed to Task 2.7 — `strategy-work-organization.md` § Spec-Flow Invariants
+  (line ~379 in `tasks-work-organization-reform.md`).
 
 ---
