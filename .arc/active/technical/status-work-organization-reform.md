@@ -9,36 +9,29 @@
 - **Task List:** `tasks-work-organization-reform.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Pass 3 audit complete across all scope-expansion tasks (2026-05-13).
-  Audit corrections applied: Task 2.7 `**Strategies:**` field misuse fixed (dropped — task edits
-  a strategy doc, no consult-references needed); added `_Placement:_` peer descriptor for section
-  ordering; 2.7.b softened to "per AWL's current lean" rather than over-committing to AWL's
-  per-tier shapes. Task 4.5 `**Strategies:**` narrowed to `strategy-package-project-sync.md`
-  only; 4.5.a reframed to edit package-source first (Framework-file discipline); 4.5.c sync
-  step uses canonical mechanism, not `cp`. Task 6.5 expanded: 6.5.a enumerates companion types
-  and flags backlog-PRD anomaly; 6.5.b absorbs PRD demotion + docs-site WU rename
-  (`arcd-docs-site` → `docs-site-refresh`; rebrand stays as `arcd-rebrand` but routes to
-  provisional); 6.5.c State inference simplified (all backlog WUs land `State: Planning` per
-  new 4-state enum); 6.5.f added (backlog-root structure verification).
-  **State enum redesign:** Pass-3-surfaced R9 collision (`Planning` vs `Planned`) resolved
-  via 4-state enum (`Planning | Active | Integrating | Shipped`), strict state machine.
-  Commitment level (provisional vs planned) moves to dir-only signal; State enum stays
-  uniformly about lifecycle phase. PRD R9 + R21 rewritten; R50 migration mapping updated;
-  Task 4.1.c + 6.3.b + 5.1's State-enum-aware test + 6.5.c updated for new value set.
-  Migration mapping in notes file (§ State recodification) rewritten under 4-state model.
-  Design rationale captured in notes (§ State enum — 4 values + § Backlog-stage PRDs are
-  anomalous). Conductor sequencing capture in ROADMAP (between WOR and worktree trio) and
-  arc-plan Conductor entry slotted there.
-- **Next Task:** Evaluate three open threads surfaced post-Step-4 before WU activation —
-  see SESSION-NOTES § Remaining Work Before Returning to Task List for the threads. Any of
-  them may re-open planning (PRD / task list edits + another Pass cycle).
+- **Last Completed:** All three pre-activation evaluation threads closed in commit `ea0ec8e9`.
+  Thread (1) — incidental WU model substrate retirement (PRD R49a + Tasks 1.3.d, 2.8, 4.6,
+  6.8.i; § Non-Goals + § Dependencies clarified — WF item 7 + AWL item 9 shrink under R49a).
+  Thread (2) — `meta-*` field audit + cross-file header chain-model convention (PRD R58
+  expansion + new R58a + Tasks 2.9, 4.1.h, 4.5.b, 4.7, 6.3.g/h, 6.8.j; bullet-syntax
+  alignment per user direction; `Spec` field deliberately generalizable across tier × mode
+  variants for forward-compat with AWL / arc-plan Conductor / Lite mode). Thread (3) —
+  WOR-execution transitional Persistent Context entry composed and stashed in SESSION-NOTES
+  § Drafts Ready for Activation Session (promotes at activation). Forward-pointer captured in
+  `user/ATOMIC-INBOX.md` for YAML frontmatter / parsing convention research (post-WOR concern).
+
+- **Next Task:** Light `arc-task-audit` on session deltas — validate new/modified tasks
+  (1.3.d, 2.8, 2.9, 4.1.h, 4.5.b, 4.6 expansion, 4.7, 6.3.g/h, 6.8.i, 6.8.j) against
+  task-list-formatting strategy + prior Pass-3 corrections. Targeted audit, not full re-pass
+  (~15-30 min). If gaps surface, fix and proceed; if clean, proceed direct.
+
 - **Blockers:** [none]
 
-- **Next Action:** Evaluate three open threads in SESSION-NOTES (incidental-WU retirement
-  not accommodated in WOR scope; `Branch(es)` / `Base Branch` fields questionable under
-  worktree-trio; mid-execution intermediate-state persistent-context need). Each thread is
-  pre-activation evaluation; resolution may expand PRD / task list scope (then another Pass
-  cycle) or confirm WOR scope is fine as-is. Once threads settle, WU activates via
-  `activate-work-unit.md` and transitions to execution sessionType.
+- **Next Action:** integrate-planning-branch Step 1 — after light arc-task-audit on deltas
+  (above), graduate planning artifacts (PRD + task list + notes + status file) to main via
+  current ARC's two-PR flow, then `activate-work-unit.md` creates the impl branch
+  (`technical/work-organization-reform`). Note: WOR's single-branch-per-WU model retires this
+  flow but isn't shipped yet — follow current ARC as-written. Plan-doc retired pre-PRD per
+  R51; no plan-doc to graduate.
 
 ---
