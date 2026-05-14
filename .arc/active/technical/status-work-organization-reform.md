@@ -9,16 +9,17 @@
 - **Task List:** `tasks-work-organization-reform.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Phase 1 (Tasks 1.1-1.4) — constitutional foundation: ADR-019 authored;
-  AGENT-BRIEF.ARC § Vocabulary updated; DEV-RULES.ARC capture-routing rule + drain rule
-  constitutionalized; atomic-tier infra-edit smell flag added.
+- **Last Completed:** Tasks 2.1-2.4 — adopter-facing § Branching / § Per-Worktree Isolation /
+  § Archival / § ROADMAP codified in `strategy-work-organization.md`; new `branch-format`
+  method created; PRD R1 + R28 amended after CB-spec verification; DEV-RULES.PROJECT
+  § Audience Boundaries added (constitutional, loaded every session); release-lifecycle gap
+  captured (notes Pressure Point + `plan-release-lifecycle.md` landing pad).
 
-- **Next Task:** Task 2.1 — `strategy-work-organization.md` § Branching, single-branch-per-WU
-  with CB-CC alignment (line ~158)
+- **Next Task:** Task 2.5 — `strategy-planning-module.md` capture pipeline reform (line ~297)
 
 - **Blockers:** [none]
 
-- **Next Action:** Proceed to Task 2.1 — `strategy-work-organization.md` § Branching,
-  single-branch-per-WU + CB-CC alignment (line ~158 in `tasks-work-organization-reform.md`).
+- **Next Action:** Proceed to Task 2.5 — `strategy-planning-module.md` capture pipeline reform
+  (line ~297 in `tasks-work-organization-reform.md`).
 
 ---
