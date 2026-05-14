@@ -453,44 +453,54 @@ parenthetical patterns); phase order reflects execution order.
   2.3's established precedent. Reverse-pointer added to `plan-worktree-foundation.md` Scope item 7 for shift-state
   replacement of the inline-on-current-branch framing; AWL Scope item 9 covers full retirement.
 
-### `[ ]` **2.9 `strategy-work-organization.md` § WU Artifact Headers (chain-model convention)**
+### `[x]` **2.9 `strategy-work-organization.md` § WU Artifact Headers (chain-model convention)**
 
 - _Goal:_ A new § WU Artifact Headers section in `strategy-work-organization.md` codifies the cross-file header
   convention per PRD R58a — chain-of-authority model where each non-meta WU artifact carries its immediate-upstream
   pointer; meta-\* carries the full chain as canonical authority. Documents the principle, the per-file field set,
   drift-cost rationale, and the deliberate `Spec` generalizability across tier × mode variants.
 
-- _Context:_ Cross-file header conventions previously lived implicitly across `template-*` files with no centralized
-  articulation. WOR is the moment to codify since meta-\*'s shape (R58) becomes the anchor for the whole chain. Strategy
-  section makes the principle adopter-readable.
+    - `[x]` **2.9.a Principle: chain-of-authority direction**
+        - § Chain of authority subsection states `Origin → Spec → Task List → PR URL`. Each artifact is downstream of
+          its predecessor; downstream artifacts name only the immediate upstream; `meta-*` is the sole full-chain
+          carrier. Section intro paragraph defines each chain link (Origin / Spec / Task List / PR URL) inline so
+          downstream subsections can reference the vocabulary without re-defining it.
 
-- _Placement:_ After § Branching (Task 2.1) and § Per-Worktree Isolation (Task 2.2) — sits in the structural-conventions
-  cluster. Decide final ordering at execution.
-    - `[ ]` **2.9.a Principle: chain-of-authority direction**
-        - State the chain: `Origin → Spec → Task List → PR URL`. Each artifact downstream of its predecessor; downstream
-          artifacts carry the immediate-upstream pointer; meta-\* carries the full chain.
+    - `[x]` **2.9.b Per-file header field table**
+        - § Per-file header fields subsection carries the 5-row table mirroring PRD R58a (meta / plan / prd / tasks /
+          notes), three columns (File / Header field(s) / Substantive opening). `meta-*` row enumerates the full chain
+          explicitly (`Origin`, `Spec`, `Task List`, plus `PR URL` after integration) rather than citing R58 by ID
+          (audience-boundary: PRD R-IDs don't appear in adopter-facing prose). `atomic-*` omitted per scope.
 
-    - `[ ]` **2.9.b Per-file header field table**
-        - Table mirroring PRD R58a: file → header field(s) → substantive opening. Five rows (meta / plan / prd / tasks /
-          notes). atomic-\* omitted (retires under WF per the WF plan scope).
+    - `[x]` **2.9.c Bounded-duplication + drift-cost rationale**
+        - § Bounded duplication and drift cost subsection explains why principled redundancy is safe: `Origin` on
+          meta/plan/prd and `Spec` on meta/tasks are structurally immutable post-set (Origin at WU creation; tasks-\*
+          Spec at task-list creation; meta's Spec transitions exactly once at activation). Meta-authority and
+          self-describing-in-isolation principles articulated as paired consequences of the convention.
 
-    - `[ ]` **2.9.c Bounded-duplication + drift-cost rationale**
-        - Explain why principled redundancy (`Origin` on meta/plan/prd; `Spec` on meta/tasks) is acceptable: each
-          non-meta carries exactly one 1-hop pointer; values are structurally immutable (Origin set at WU creation;
-          tasks-\* Spec fixed at task-list creation); meta retains authority as the only artifact carrying the full
-          chain.
+    - `[x]` **2.9.d `Spec` field generalizability (deliberate forward-compat)**
+        - § `Spec` field generalizability subsection establishes that `**Spec:**` names whichever artifact is the
+          upstream spec — default pipeline pairs WUs with a PRD, but the field name does not lock to "PRD." Examples
+          (compact PRDs, scope-section variants, external-tracker-referenced specs) describe shape variants in
+          generic adopter-readable terms — no forward-pointers to internal WU plan names (AWL / arc-plan Conductor /
+          Lite / arc-modes) per DEV-RULES.PROJECT § Audience Boundaries. Original task instruction's "forward-pointers
+          to AWL + arc-plan-conductor + arc-modes plans for the downstream contract" reframed accordingly mid-execution.
 
-    - `[ ]` **2.9.d `Spec` field generalizability (deliberate forward-compat)**
-        - Document the `Spec` field's deliberate generalizability: today's standard tier uses PRD as the spec; future
-          tier variants per AWL (atomic / quick / standard) or future modes per arc-plan Conductor / Lite mode may use
-          lighter-templated spec artifacts (compact PRD, scope-section variant, external-tracker-referenced spec, etc.).
-          Field name `Spec:` is generalizable — does not lock to "PRD." Forward-pointers to AWL + arc-plan-conductor +
-          arc-modes plans for the downstream contract.
+    - `[x]` **2.9.e Retired-duplication rationale**
+        - § Purpose statement lives on the spec subsection reframes positively (vs. PRD R58a's "Retired duplications"
+          framing): WU purpose lives once on the spec artifact (PRD by default); duplicating it on `tasks-*` would carry
+          a prose field rather than a 1-hop pointer, a substantially larger drift surface than the immutable pointer
+          values above. `tasks-*` readers reach the purpose via `**Spec:**`. Audience-boundary correction: avoids
+          "retires" historical framing per DEV-RULES.PROJECT § Audience Boundaries — describes what IS, not what WAS.
 
-    - `[ ]` **2.9.e Retired-duplication rationale**
-        - Brief note: `**Purpose:**` field on `tasks-*` retires (was PRD-Purpose mirror; not a 1-hop pointer;
-          substantive-content drift surface). PRD remains canonical for purpose statement; tasks-\* readers reach it via
-          the `Spec:` pointer.
+- _Outcome:_ New top-level § WU Artifact Headers placed between § Per-Worktree Isolation and § Archival, completing the
+  structural-conventions cluster (Branching → Per-Worktree Isolation → WU Artifact Headers). Section carries five H3
+  subsections (Chain of authority / Per-file header fields / Bounded duplication and drift cost / `Spec` field
+  generalizability / Purpose statement lives on the spec). TOC updated. Both copies byte-identical; Tier 1 markdown
+  lint clean across 246 files. Audience-boundary discipline applied throughout — three corrections vs. PRD R58a's
+  internal-PRD vocabulary: (1) `meta-*` row enumerates fields rather than citing R58 by ID; (2) 2.9.d generalizability
+  framed in generic terms without forward-pointers to AWL / arc-plan-conductor / arc-modes WU plan names; (3) 2.9.e
+  reframed from "Retired duplications" to "Purpose statement lives on the spec" (state-what-IS framing).
 
 ### `[ ]` **2.10 `strategy-file-classification.md` — `meta-*` file class + retired prefixes + retired work-categories**
 

@@ -20,6 +20,7 @@ documentation.
 - [Spec-Flow Invariants](#spec-flow-invariants)
 - [Branching](#branching)
 - [Per-Worktree Isolation](#per-worktree-isolation)
+- [WU Artifact Headers](#wu-artifact-headers)
 - [Archival](#archival)
 - [ROADMAP](#roadmap)
 - [Incidental Work Model](#incidental-work-model)
@@ -244,6 +245,68 @@ fields on the meta file, not through filesystem co-residency.
 
 The invariant is enforceable mechanically: spawn a worktree from `main`, assert that `active/`
 contains exactly the spawning WU's meta file plus its companions, and nothing else.
+
+---
+
+## WU Artifact Headers
+
+A WU's tracked artifacts form a chain of authority: an `Origin` (the upstream issue, request,
+or discussion that prompted the work), a `Spec` (the artifact defining what to build), a
+`Task List` (the execution surface derived from the spec), and a `PR URL` (the integration
+record). Each non-meta artifact carries a single 1-hop pointer to its immediate upstream;
+`meta-*` carries the full chain.
+
+### Chain of authority
+
+`Origin → Spec → Task List → PR URL`. Each artifact is downstream of its predecessor.
+Downstream artifacts name only their immediate upstream in the header; `meta-*` is the only
+artifact carrying the full chain end-to-end.
+
+### Per-file header fields
+
+| File      | Header field(s)                                                            | Substantive opening                       |
+| --------- | -------------------------------------------------------------------------- | ----------------------------------------- |
+| `meta-*`  | Full chain: `Origin`, `Spec`, `Task List`, plus `PR URL` after integration | (none — meta is structural)               |
+| `plan-*`  | `**Origin:**` (default `[Internal]`)                                       | `**Purpose:**` follows as document thesis |
+| `prd-*`   | `**Origin:**` (default `[Internal]`)                                       | `**Purpose:**` follows as document thesis |
+| `tasks-*` | `**Spec:**` (the upstream spec artifact)                                   | (no thesis — derived execution surface)   |
+| `notes-*` | (none — companion to the entire WU; no formal upstream)                    | (free-form content)                       |
+
+### Bounded duplication and drift cost
+
+Each non-meta artifact carries exactly one 1-hop upstream pointer — no two-hop or full-chain
+duplication outside `meta-*`. The pointer values that do appear in more than one place are
+structurally immutable:
+
+- `Origin` appears on `meta-*`, `plan-*`, and `prd-*`. The value is set at WU creation and
+  effectively never changes.
+- `Spec` appears on `meta-*` and `tasks-*`. The `tasks-*` value is fixed at task-list
+  creation; `meta-*`'s value transitions exactly once (at activation, from `plan-*` to the
+  spec artifact). Both positions are immutable post-set.
+
+Drift risk across the redundant positions is therefore near-zero. `meta-*` retains authority
+as the only artifact holding the full chain at any state of the WU lifecycle — reading
+`meta-*` alone gives a complete trace from origin to delivered PR.
+
+Non-meta artifacts also remain **self-describing in isolation**: opening any of them cold
+tells the reader its immediate authority (`Origin` for plan/prd, `Spec` for tasks) without
+first having to consult `meta-*`.
+
+### `Spec` field generalizability
+
+`**Spec:**` names the upstream spec artifact regardless of artifact type. The default ARC
+pipeline pairs each WU with a PRD (`prd-*.md`) as its spec, but the field name does not lock
+to "PRD." Projects may pair WUs with lighter-templated specs — compact PRDs, scope-section
+variants, external-tracker-referenced specs — and `**Spec:**` still names whichever artifact
+carries the spec for that WU.
+
+### Purpose statement lives on the spec
+
+The WU's purpose statement is substantive content, not an upstream pointer. It lives once on
+the spec artifact (PRD by default) and not on `tasks-*` — duplicating it would carry a prose
+field rather than a 1-hop pointer, a substantially larger drift surface than the
+effectively-immutable pointer values above. Readers of `tasks-*` reach the purpose statement
+via the `**Spec:**` pointer.
 
 ---
 
