@@ -26,17 +26,18 @@ DEV-RULES.ARC § Commit Discipline.
 
 Precise meanings — assume the technical sense.
 
-- **Work unit (WU):** Bounded work plus its artifact group — `status-{name}.md` plus any present
-  `plan-*`, `tasks-*`, `atomic-*` companions. Typically branch-scoped (1 WU : 1 branch by default);
-  multi-branch patterns exist (stacked PRs, team mode). Not "any chunk of work".
+- **Work unit (WU):** Wrapper noun — a bounded chunk of work with one branch, a status file, and
+  one PR. Tier-invariant (atomic / quick / standard). Artifact group: `status-{name}.md` plus any
+  present `plan-*`, `tasks-*`, `atomic-*` companions. Not "any chunk of work".
+- **Atomic:** Work _character_ — single-bounded, indivisible, no internal stages. Applies at all
+  scales: items (inbox entries), tasks (`atomic-{name}.md` companions), WUs (atomic-tier). Inboxes
+  route by character, not wrapper presence. Not "atomic" in the concurrency sense.
 - **Interlock:** Configurable control point gating an action — fires automatically, on user approval, or
   only on explicit invocation, per type and config. Always-stop: `task-`, `workflow-`, `integration-`.
   Configurable: `commit-`, `push-`.
 - **Review increment:** One leaf task = one autonomous chunk. Default stop after each leaf.
   **Deferred review** = user-scoped batch ("proceed to 3.4", "do 3.4.a-c") that suspends per-leaf stops
   within scope; commit-interlock auto-fire also suspends when `on-task-approval`.
-- **Atomic:** Small, indivisible-by-design work — atomic tasks (`atomic-{name}.md` companions),
-  `ATOMIC-INBOX.md`, future atomic work units. Not "atomic" in the concurrency sense.
 
 ## Key Documents
 

@@ -20,7 +20,7 @@ _Design decisions:_ Branch / archival / capture conventions deliberately route t
 Vocabulary (existing section; orientation layer) rather than DEV-RULES.ARC, per R23's permissive `OR` clause. See
 `notes-work-organization-reform.md` § Work-unit-as-wrapper for the split rationale.
 
-### `[ ]` **1.1 Author companion ADR for WOR constitutional shift**
+### `[x]` **1.1 Author companion ADR for WOR constitutional shift**
 
 - _Goal:_ The constitutional shift lands as a single ADR (parallel scale to ADR-016) — single-branch-per-WU, CB
   alignment + planning-PR retirement, meta-file rename + field codification, and commit-convention reform + CB-CC
@@ -28,34 +28,48 @@ Vocabulary (existing section; orientation layer) rather than DEV-RULES.ARC, per 
 
     **Strategies:** `strategy-adr-methodology.md`
 
-    - `[ ]` **1.1.a Determine ADR number and create file from `template-adr.md`**
-        - Next available number per `.arc/reference/adr/` listing — currently `adr-019`.
-        - Title pattern parallels ADR-016 (`adr-016-configurable-autonomy-interlocks-for-session-operations.md`):
-          something like `adr-019-single-branch-per-wu-and-conventional-branch-alignment.md`.
-        - _Note:_ Example title elides meta-file rename + commit-convention reform — illustrative only; final title
-          decision belongs to the ADR author, reflecting all four surfaces 1.1.b enumerates.
+    - `[x]` **1.1.a Determine ADR number and create file from `template-adr.md`**
+        - `adr-019-work-unit-lifecycle-reform.md` created. Title:
+          "Reform Work Unit Lifecycle Around Single-Branch Model and Aligned Conventions" — umbrella framing rather
+          than enumerating all four surfaces in the title (filename short for scannability; title carries the
+          conceptual unifier; surfaces enumerated in § Decision body per 1.1.b).
 
-    - `[ ]` **1.1.b Document the four constitutional surfaces with decision rationale**
-        - Single-branch-per-WU (replaces two-PR planning model).
-        - CB core-6 alignment (`feat/ | fix/ | chore/ | docs/ | refactor/ | perf/`) plus `plan/<name>` for planning
-          state; intentional divergence from CC types `test` and `revert`.
-        - Meta-file evolution (`status-*.md` → `meta-*.md`; field codification: State / Owner / Depends On / Origin /
-          Cohort; archive-phase sections replacing `completion-*.md`).
-        - Commit-convention reform (CC type set tightened to 8; `arc` scope denylist; `docs` discipline).
+    - `[x]` **1.1.b Document the four constitutional surfaces with decision rationale**
+        - § Decision opens with constitutional surface 1 (single-branch-per-WU model + boundary-workflow
+          restructure + `[PLAN]:` PR-prefix retirement); surface 2 (CB core-6 alignment + `plan/<name>` planning
+          branch + intentional CB-CC divergence on `test`/`revert`); surface 3 (`status-*` → `meta-*` rename +
+          5-field codification + archive-phase consolidation + per-worktree isolation invariant); surface 4
+          (CC type set tightened to 8 + `arc` scope denylist + `docs` discipline + `Context:` footer chain
+          extension). Vocabulary distinction (R23) and capture-routing constitutionalization (R24) follow as
+          companion codifications; cascading rules (sweep-as-you-go, ROADMAP, PROJECT-STATUS retirement,
+          forward-only migration, Release Notes Entry, atomic-tier smell flag) close the Decision section.
 
-    - `[ ]` **1.1.c Capture alternatives considered**
-        - Reference `notes-work-organization-reform.md` § Design Decisions; condense per ADR conventions rather than
-          duplicate. Three load-bearing rejections: meta file in `backlog/` during planning; meta file gitignored;
-          two-branch model with delayed planning-merge.
+    - `[x]` **1.1.c Capture alternatives considered**
+        - § Context closes with six alternatives-rejected entries: the three load-bearing structural rejections
+          (meta file in `backlog/` during planning; meta file gitignored; two-branch with delayed planning-merge)
+          plus three companion rejections covered by WOR's other surfaces (no-prefix execution branches; maintain
+          legacy prefixes + tighten CC independently; keep `status-{name}.md` + rely on `**Integration:**`
+          field). Final entry frames the "rename work unit entirely" rejection as resolved by the wrapper/character
+          vocabulary split rather than retained as standalone rejection — forward-pointer to § Decision rather
+          than full duplication.
 
-### `[ ]` **1.2 Extend `AGENT-BRIEF.ARC.md` § Vocabulary (WU-as-wrapper + atomic-as-character)**
+### `[x]` **1.2 Extend `AGENT-BRIEF.ARC.md` § Vocabulary (WU-as-wrapper + atomic-as-character)**
 
 - _Goal:_ `AGENT-BRIEF.ARC.md` § Vocabulary makes the wrapper-vs-character split first-class — work unit is the wrapper
   noun (any bounded chunk with branch/status/PR; invariant across tiers); atomic is the work character (single-bounded,
   indivisible, no internal stages; applies to items, tasks, WUs). Inboxes distinguish by character, not by wrapper
   presence.
-    - Update existing Work unit and Atomic definitions to match R23's wording.
-    - DEV-RULES.ARC references existing terms but doesn't redefine them — no DEV-RULES edit needed for this.
+
+    _Outcome:_ Work unit reframed as wrapper noun with structural cardinality ("one branch, a status file, and
+    one PR") and tier invariance; legacy "multi-branch patterns (stacked PRs, team mode)" caveat dropped (WOR
+    R1-R5 + R10 foreclose on it). Atomic rewritten as character descriptor with scale enumeration (items /
+    tasks / WUs) and inbox-routing-by-character note. Atomic entry repositioned directly below Work unit to make
+    the wrapper/character pairing visually adjacent. Filename token references (`status-{name}.md`,
+    `atomic-{name}.md`) retained pre-WOR pending Phase 4.1 + 6.3 migrations. Worktree dimension deliberately
+    omitted until Worktree Foundation ships and agents gain worktree-aware tooling. Brevity-tuned for
+    every-session load (~85 words across both bullets vs. ~130 in initial draft). Both package source and
+    `.arc/` instance copies updated; copies verified identical. DEV-RULES.ARC unchanged (references the terms
+    but doesn't redefine them, per task scope).
 
 ### `[ ]` **1.3 Constitutionalize capture-routing in DEV-RULES.ARC § Leave it cleaner**
 
