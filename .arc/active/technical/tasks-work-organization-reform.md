@@ -574,36 +574,43 @@ parenthetical patterns); phase order reflects execution order.
   mechanism"; "supports adopter override of the set" → "supports overriding the set"). Remaining adopter-facing
   surfaces with "adopter" mentions captured for sweep at Task 6.7.n.
 
-### `[ ]` **2.11 `strategy-task-list-formatting.md` — `tasks-*` header convention update**
+### `[x]` **2.11 `strategy-task-list-formatting.md` — `tasks-*` header convention update**
 
 - _Goal:_ `strategy-task-list-formatting.md` reflects R58a's chain-model header convention for `tasks-*` files — header
   reduces to `**Spec:**` only; `**PRD:**` field name retires (renamed to `Spec` for vocabulary alignment with `meta-*`);
   `**Branch(es):**`, `**Base Branch:**`, `**Purpose:**` retire from `tasks-*` header per R58 + R58a.
 
-- _Context (from grep, 2026-05-14):_ Existing file has two substantive WOR-affected touch points:
-    - Line ~14 — "planned feature/technical work" prose framing. Update to CB core-6 framing per R1 (cross-reference
-      `strategy-work-organization.md` § Branching).
-    - Lines ~68-69 — explicit list of `tasks-*` header field labels (`**PRD:**`, `**Branch(es):**`, `**Purpose:**`).
-      Update to reflect R58a's chain-model: `tasks-*` carries `**Spec:**` only; atomic file `**Purpose:**`,
-      `**Ordering:**` retain (`atomic-*` convention unchanged in WOR).
+    - `[x]` **2.11.a Update "planned feature/technical work" prose**
+        - Dropped `(feature, technical, incidental)` parenthetical from the strategy's opening framing and the
+          `feature/technical` qualifier from the `2_generate-tasks.md` referenced-by entry. Strategy is now
+          work-type-agnostic; categorization framing remains in `strategy-work-organization.md` (§ Branching for
+          the type set, § WU Artifact Headers for the chain-model).
 
-    **Strategies:** none (this is a strategy doc edit)
+    - `[x]` **2.11.b Update `tasks-*` header field list**
+        - Renamed the `**Feature/Technical**` variant subsection to `**Planned**` and collapsed its field list to
+          a single `**Spec:**` bullet (filename only) with forward-pointer to `strategy-work-organization.md`
+          § WU Artifact Headers. Dropped `Branch(es)`, `Base Branch`, `Purpose`, and the PRD-reference bullet.
+          Updated the Incidental variant's `## Context` description to drop the comparative reference to the
+          no-longer-existing Feature/Technical `Purpose` field. Pruned `[arc-config]` and `[work-org-task-branches]`
+          link refs (no remaining in-text uses); added `[work-org-wu-headers]`.
 
-    - `[ ]` **2.11.a Update "planned feature/technical work" prose**
-        - Drop category labels; reference `strategy-work-organization.md` § Branching for the CB core-6 + `plan/`
-          rotation convention. Categorization stays in work-organization, not here.
+    - `[x]` **2.11.c Audit § Bold (header preamble) and § File-header metadata rules**
+        - § Bold and Italic Conventions example now shows `task list **Spec:**; atomic file **Purpose:**,
+          **Ordering:**` (retired `**PRD:**` / `**Branch(es):**` / `**Purpose:**` removed). § Blank-Line Discipline
+          § file-header metadata parenthetical examples updated to current field names (Origin, Spec, Task List,
+          Branch, State); descriptive-prose example (Purpose, Context) unchanged. Doc-type list reframed to
+          `meta-*` / `plan-*` / `prd-*` (post-WOR taxonomy) in place of "task list, completion doc". Structural
+          rules (key/value-vs-prose shape distinction, blank-line treatment) unchanged.
 
-    - `[ ]` **2.11.b Update `tasks-*` header field list**
-        - Replace `**PRD:**`, `**Branch(es):**`, `**Purpose:**` enumeration with `**Spec:**` only (single header field
-          per R58a). Atomic-\* `**Purpose:**` / `**Ordering:**` line unchanged.
-        - Brief forward-pointer to `strategy-work-organization.md` § WU Artifact Headers (Task 2.9) for the chain-model
-          rationale.
+    - `[x]` **2.11.d Sync to packages/**
+        - Both copies (`.arc/` + `packages/arc-framework/arc/`) edited in parallel during execution; final `diff`
+          confirms byte-identical.
 
-    - `[ ]` **2.11.c Audit § Bold (header preamble) and § File-header metadata rules**
-        - Verify rule statements continue to hold under the slimmer header — bold field-label convention stays; the
-          field-set just contracts. Spot-fix any examples that show the retired fields.
-
-    - `[ ]` **2.11.d Sync to packages/**
+- _Outcome:_ `strategy-task-list-formatting.md` codifies the chain-model `tasks-*` header (single `**Spec:**` field)
+  across all touch points — `Planned` variant subsection, file-header field-label convention example, and the
+  metadata-block blank-line rule. Link-reference block pruned to match (retired `[arc-config]` and
+  `[work-org-task-branches]`; added `[work-org-wu-headers]`). Atomic-`*` `**Purpose:**` / `**Ordering:**` line
+  unchanged. Both copies in sync.
 
 ### `[ ]` **2.12 Author instance-file orientation content into strategy docs (R59 precondition)**
 

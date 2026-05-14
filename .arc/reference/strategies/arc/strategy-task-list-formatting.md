@@ -4,14 +4,13 @@
 > on the docs site covers the structural vs style distinction, design reasoning, annotated
 > examples, and common pitfalls.
 
-Authoritative formatting rules for task lists across all work types (feature, technical,
-incidental). Agent reference for task list generation and maintenance. For skeletons, see
-[`template-tasks.md`][template-tasks]. For the pre-save format checklist, see
-[2_generate-tasks.md § Step 4][generate-tasks].
+Authoritative formatting rules for task lists. Agent reference for task list generation and
+maintenance. For skeletons, see [`template-tasks.md`][template-tasks]. For the pre-save format
+checklist, see [2_generate-tasks.md § Step 4][generate-tasks].
 
 **Referenced by:**
 
-- [2_generate-tasks.md][generate-tasks] — planned feature/technical work
+- [2_generate-tasks.md][generate-tasks] — planned work
 - [manage-incidental-work.md][manage-incidental] — reactive incidental work
 
 ## Contents
@@ -30,16 +29,12 @@ incidental). Agent reference for task list generation and maintenance. For skele
 
 Two variants. See [`template-tasks.md`][template-tasks] for skeletons.
 
-**Feature/Technical** (`# Task List: {Name}`) — planned work with PRD and dedicated branch:
+**Planned** (`# Task List: {Name}`) — work with an upstream spec artifact (PRD by default):
 
 - Title uses `Task List:` prefix
-- PRD reference is repo-root-relative; updates when work activates (arc-in-git mode)
-- `Branch(es)` lists the primary implementation branch; comma-separated additions for stacked
-  PRs or team sub-branches (see [Task Lists and Branches][work-org-task-branches])
-- `Base Branch` references the project's configured base per [`arc-config.yml`][arc-config],
-  not a hardcoded name
-- `**Purpose:**` is a one-line summary in the header; full Scope (Will Do / Won't Do) lives
-  in the PRD — the task list does not mirror it
+- `**Spec:**` names the upstream spec artifact (filename only) — single header field per the
+  chain-of-authority model. See [strategy-work-organization.md § WU Artifact
+  Headers][work-org-wu-headers] for the full chain rationale and Spec field generalizability
 - Horizontal rule (`---`) separates header from tasks
 
 **Incidental** (`# Incidental: {Title}`) — reactive work discovered during implementation:
@@ -47,8 +42,8 @@ Two variants. See [`template-tasks.md`][template-tasks] for skeletons.
 - Title uses `Incidental:` prefix
 - `Base Branch` is the parent branch this branched from (enables grep-based discovery of
   related work)
-- `## Context` replaces the Feature/Technical Purpose field —
-  `**Discovered:**` / `**Problem:**` / `**Why Now:**`
+- `## Context` — `**Discovered:**` / `**Problem:**` / `**Why Now:**` — captures discovery
+  framing in lieu of an upstream spec (incidental is its own spec)
 - `## Scope` (`### Will Do` / `### Won't Do`) is retained — no PRD to canonicalize from
 - Lifecycle state (`State`, `Interrupts`, `Paused At`, `Paused To`) lives in the status file,
   not the task list header — see
@@ -65,8 +60,8 @@ Current State, Testing Strategy) only when the work needs them.
 
 Convention tracks document role, not a single global rule:
 
-- **File-header metadata** uses `**Bold:**` field labels — task list `**PRD:**`, `**Branch(es):**`,
-  `**Purpose:**`; atomic file `**Purpose:**`, `**Ordering:**`. These describe the file.
+- **File-header metadata** uses `**Bold:**` field labels — task list `**Spec:**`; atomic file
+  `**Purpose:**`, `**Ordering:**`. These describe the file.
 
 - **Work descriptors** use `_Italic:_` field labels — phase preamble `_Purpose:_`, parent-task
   `_Goal:_` / `_Note:_` / `_Outcome:_`, atomic-item `_Observation:_` / `_Scope:_` / `_Files:_`.
@@ -277,10 +272,10 @@ Blank lines required:
   even when both are short
 
 **File-header metadata blocks follow a different rule** from content lists. The bullet block
-at the top of a task list, completion doc, or similar metadata cluster is shape-mixed:
-key/value and enum-shaped fields (PRD, Branch, Started, Completed, Category, etc.) describe
-the doc; descriptive-prose fields (Purpose, Context) describe what the work is. The two
-shapes get different visual treatment:
+at the top of a `meta-*`, `plan-*`, `prd-*`, or similar tracked-artifact metadata cluster is
+shape-mixed: key/value and enum-shaped fields (Origin, Spec, Task List, Branch, State, etc.)
+describe the doc; descriptive-prose fields (Purpose, Context) describe what the work is. The
+two shapes get different visual treatment:
 
 - Key/value and enum fields stay tight to each other — the cluster keeps its scan rhythm
 - Descriptive-prose fields (Purpose, Context, etc.) separate from neighbors with a blank
@@ -465,5 +460,4 @@ All items must be `[x]` or `[~]` (with annotations) before running archive. Any 
 [arc-methods-tf]: ../../../system/methods/test-first.md
 [template-tasks]: ../../templates/template-tasks.md
 [team-coordination]: strategy-team-coordination.md
-[arc-config]: ../../../system/arc-config.yml
-[work-org-task-branches]: strategy-work-organization.md#task-lists-and-branches
+[work-org-wu-headers]: strategy-work-organization.md#wu-artifact-headers
