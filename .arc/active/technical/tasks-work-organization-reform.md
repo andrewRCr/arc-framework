@@ -86,6 +86,17 @@ permissive `OR` clause. See `notes-work-organization-reform.md` § Work-unit-as-
         - Per R24 ("Project-specific routing overrides remain in `DEV-RULES.PROJECT.md` if needed"):
           add a stub overrides clause if desired; otherwise leave as-is.
 
+    - `[ ]` **1.3.d Update `manage-incidental-work` prose pointer in § Leave it cleaner**
+        - The "Multi-step in current work unit" prose paragraph currently ends with a forward-pointer
+          to `manage-incidental-work.md` for escalation. Under WOR R49a's transitional framing, the
+          workflow continues to exist but its substrate (branch prefix, category dir, pointer
+          fields) retires. Update the pointer's framing to acknowledge the transitional state:
+          either drop the pointer entirely (capture-routing escalation isn't load-bearing on the
+          workflow specifically) or rewrite to "see `manage-incidental-work.md` for the transitional
+          interrupt workflow; full retirement under Agile WU Lifecycle."
+        - Reference-link definition `[manage-incidental]:` at file end retains until 6.8.i's
+          cross-reference sweep retires it.
+
 ### `[ ]` **1.4 Add atomic-tier infra-edit smell flag to DEV-RULES.ARC**
 
 - _Goal:_ A documentation-only smell flag in DEV-RULES.ARC § Task Execution (Task granularity neighborhood)
@@ -324,6 +335,98 @@ backlog organization + routing (arc-in-git PM mode territory). Per-worktree isol
           opt-in (default `quick`); conductor's escalation-suggestion behavior on novelty cues;
           tier-invariant disciplines (process-task-loop, quality gates, commit discipline).
           WOR preserves the structural cuts; AWL + conductor enforce policy.
+
+### `[ ]` **2.8 `strategy-work-organization.md` § Incidental Work Model + § Work Categories transitional retirement**
+
+- _Goal:_ The two existing top-level sections in `strategy-work-organization.md` that frame the
+  incidental WU model and the category-based WU classification (`feature/` / `technical/` /
+  `incidental/`) reshape under WOR's R49a transitional framing — substrate retires here; full
+  content retirement awaits Worktree Foundation (shift lifecycle) + Agile WU Lifecycle (workflow +
+  conceptual retirement).
+
+- _Context:_ Existing § Incidental Work Model documents `incidental/<name>` branch model,
+  `active/incidental/` category dir, status-file pointer fields (`Interrupts:` / `Paused At:` /
+  `Paused To:`), and routes to `manage-incidental-work.md`. All four are retired by WOR's R1 +
+  R3 + R8-R14 + R58 + R15. § Work Categories describes the prefix-based classification (planned vs
+  reactive) that R1's CB core-6 alignment retires entirely. Both sections become structurally
+  orphaned under WOR but the workflow they reference (`manage-incidental-work.md`) still exists
+  pending AWL retirement.
+
+- _Approach:_ Transitional forward-pointer reshape, not deletion. Each section collapses to a
+  short paragraph naming what WOR retired (with R49a as the citation) and what's pending
+  (forward-pointers to WF for shift state + AWL for workflow retirement). Full section deletion
+  rides AWL's incidental retirement sweep.
+
+    **Strategies:** none (this is a strategy doc edit)
+
+    - `[ ]` **2.8.a § Incidental Work Model reshape**
+        - Replace section body with: brief framing of the WU pattern's historical role; explicit
+          list of substrate retired under WOR (branch prefix + category dir + pointer fields);
+          forward-pointer to `manage-incidental-work.md` for the transitional interrupt workflow
+          (note: workflow's substrate is gone but workflow itself remains pending WF/AWL); citation
+          to PRD R49a; pointer to `technical/plan-worktree-foundation.md` for shift-state
+          replacement + `technical/plan-agile-wu-lifecycle.md` for full retirement.
+
+    - `[ ]` **2.8.b § Work Categories reshape**
+        - Replace section body with brief framing that prefix-based categorization retires under
+          R1's CB core-6 alignment; forward-pointer to the new § Branching section (Task 2.1 — CB
+          core-6 type set, `plan/<name>` rotation, single-branch-per-WU); citation to PRD R49a for
+          the historical context.
+
+    - `[ ]` **2.8.c Reference-link cleanup**
+        - Audit reference-style link definitions at file end for `[manage-incidental]:` and similar.
+          Retain links pointing to surviving workflows; surface any orphan link definitions for
+          retirement under 6.8.i's cross-reference sweep.
+
+    - _Note:_ Coordinates with Task 2.1's _Context_ ("Existing file has § Branching as a subsection
+      under § Incidental Work Model... Elevate § Branching to top-level, reshaping incidental-specific
+      content into a child subsection"). 2.1 owns the § Branching elevation; 2.8 owns the parent
+      § Incidental Work Model + § Work Categories reshape. Execute in coordination (likely same
+      session) to avoid mid-edit structural inconsistency.
+
+### `[ ]` **2.9 `strategy-work-organization.md` § WU Artifact Headers (chain-model convention)**
+
+- _Goal:_ A new § WU Artifact Headers section in `strategy-work-organization.md` codifies the
+  cross-file header convention per PRD R58a — chain-of-authority model where each non-meta WU
+  artifact carries its immediate-upstream pointer; meta-* carries the full chain as canonical
+  authority. Documents the principle, the per-file field set, drift-cost rationale, and the
+  deliberate `Spec` generalizability across tier × mode variants.
+
+- _Context:_ Cross-file header conventions previously lived implicitly across `template-*` files
+  with no centralized articulation. WOR is the moment to codify since meta-*'s shape (R58)
+  becomes the anchor for the whole chain. Strategy section makes the principle adopter-readable.
+
+- _Placement:_ After § Branching (Task 2.1) and § Per-Worktree Isolation (Task 2.2) — sits in
+  the structural-conventions cluster. Decide final ordering at execution.
+
+    - `[ ]` **2.9.a Principle: chain-of-authority direction**
+        - State the chain: `Origin → Spec → Task List → PR URL`. Each artifact downstream of its
+          predecessor; downstream artifacts carry the immediate-upstream pointer; meta-* carries
+          the full chain.
+
+    - `[ ]` **2.9.b Per-file header field table**
+        - Table mirroring PRD R58a: file → header field(s) → substantive opening. Five rows
+          (meta / plan / prd / tasks / notes). atomic-* omitted (retires under WF per the WF plan
+          scope).
+
+    - `[ ]` **2.9.c Bounded-duplication + drift-cost rationale**
+        - Explain why principled redundancy (`Origin` on meta/plan/prd; `Spec` on meta/tasks) is
+          acceptable: each non-meta carries exactly one 1-hop pointer; values are
+          structurally immutable (Origin set at WU creation; tasks-* Spec fixed at task-list
+          creation); meta retains authority as the only artifact carrying the full chain.
+
+    - `[ ]` **2.9.d `Spec` field generalizability (deliberate forward-compat)**
+        - Document the `Spec` field's deliberate generalizability: today's standard tier uses
+          PRD as the spec; future tier variants per AWL (atomic / quick / standard) or future
+          modes per arc-plan Conductor / Lite mode may use lighter-templated spec artifacts
+          (compact PRD, scope-section variant, external-tracker-referenced spec, etc.). Field
+          name `Spec:` is generalizable — does not lock to "PRD." Forward-pointers to AWL +
+          arc-plan-conductor + arc-modes plans for the downstream contract.
+
+    - `[ ]` **2.9.e Retired-duplication rationale**
+        - Brief note: `**Purpose:**` field on `tasks-*` retires (was PRD-Purpose mirror; not a
+          1-hop pointer; substantive-content drift surface). PRD remains canonical for purpose
+          statement; tasks-* readers reach it via the `Spec:` pointer.
 
 ## **Phase 3:** Boundary workflow restructure + ceremony fire-points
 
@@ -727,13 +830,34 @@ co-located.
         - _Note:_ Verify existing `template-status.md`'s placeholder convention before authoring;
           stay consistent across templates and with the substitution logic in 3.2.b's
           `init-work-unit.md`.
-        - `**Spec:**` internal-only (ARC-owned planning artifacts; never external).
-        - `**Origin:**` default `[Internal]`; orthogonal to Spec; external tracker URLs land here.
+        - `**Origin:**` default `[Internal]`; orthogonal to Spec; external tracker URLs land
+          here. Ordered before `Spec` in the Reference group to reflect chain direction
+          (`Origin → Spec → Task List → PR URL`) per R58a.
+        - `**Spec:**` ARC-owned spec artifact pointer; **deliberately generalizable** — points at
+          whatever the spec artifact is for the WU's tier × mode combination. Today's standard
+          tier: PRD. Future tier variants per AWL (atomic / quick / standard) or future modes per
+          arc-plan Conductor / Lite mode may use lighter-templated spec artifacts (compact PRD,
+          scope-section variant, etc.). Field name does not lock to "PRD." See PRD R58a § Spec
+          field generalizability.
         - `**Depends On:**` bare WU-name list; default `[none]`; renders into ROADMAP tier grouping.
         - `**Cohort:**` single name string; default `[standalone]`; source of truth for cohort
           membership (sibling list derived).
         - Active-state pointers preserved: `**Task List:**`, `**Last Completed:**`, `**Next Task:**`,
           `**Blockers:**`, `**Next Action:**`.
+
+    - `[ ]` **4.1.h Retired-from-prior-shape field acknowledgment (in template comments)**
+        - Template includes inline comment block (or surfaces in the template's intro) explicitly
+          enumerating fields retired from prior `template-status.md` per PRD R58: `Branch(es)`
+          plural form (use `Branch:` singular); `Base Branch:` (always `main` under
+          single-branch-per-WU; project-level config concern); `Sibling Work Unit(s):` (cohort
+          is SoT per R13; siblings derived); `Integration:` (folds into State per R9);
+          `Interrupts:` / `Paused At:` / `Paused To:` (incidental WU model substrate retirement
+          per R49a).
+        - Template includes inline note enumerating fields deliberately NOT added: `Worktree:`
+          (per-machine + derivable via R44 roster + WF location-template); `Tier:` (reserved
+          for AWL); `Created:` / state-transition dates (derivable from git log; metrics-flavor).
+        - Form: HTML comment block or template intro paragraph — chosen at execution to avoid
+          template-body clutter. Goal is forward-reader clarity, not rule restatement.
 
     - `[ ]` **4.1.d Codify post-integration metadata fields + content H2s**
         - Post-integration block within `# Metadata:` H1 body (added at integration ceremony):
@@ -867,17 +991,115 @@ co-located.
           plus `feature/plan-arc-plan-conductor.md` and `technical/plan-agile-wu-lifecycle.md`
           for the full contract."
 
-    - `[ ]` **4.5.b Verify body sections remain useful**
+    - `[ ]` **4.5.b Adopt chain-model header per R58a**
+        - Header reduces to `**Origin:**` field (default `[Internal]`; external tracker URLs
+          land here; matches the corresponding meta-* `Origin:` value at WU creation).
+        - Substantive opening immediately below: `**Purpose:**` carrying the plan's own thesis
+          (pre-PRD synthesis statement). Optional reference to Origin from within Purpose prose.
+        - **Field syntax:** bullet form (`- **Origin:** ...` / `- **Purpose:** ...`) matching
+          the established cross-artifact convention (`tasks-*`, `plan-*` backlog instances already
+          use bullet form). Visually consistent in raw markdown; greppable.
+        - Retired from prior `plan-*` convention: heavy header fields (`**State:**`, `**Created:**`,
+          and similar) that duplicate `meta-*` content under R22a — meta is canonical SoT for
+          state/owner/dates; plan-* keeps only its 1-hop upstream pointer per R58a.
+
+    - `[ ]` **4.5.c Verify body sections remain useful**
         - Existing sections (Problem / Motivation, Alternatives, Unknowns and Assumptions,
           Scope Estimate) stay as optional starting structure. Section guidance text inside
           each section retained — those describe what to capture, not whether the file is
           required.
 
-    - `[ ]` **4.5.c Sync into `.arc/` instance copy**
+    - `[ ]` **4.5.d Sync into `.arc/` instance copy**
         - Sync the package-source edit to `.arc/reference/templates/template-plan.md` via
           the canonical sync mechanism (not `cp` — that path violates package-project sync
           discipline by overwriting any project-specific divergence silently).
         - Verify pre-commit hook reports clean across both copies.
+
+### `[ ]` **4.6 Reshape `template-tasks.md` (chain-model header + retire incidental framing)**
+
+- _Goal:_ `template-tasks.md` adopts the chain-model header per R58a (header reduces to
+  `**Spec:**` only; `**PRD:**` field name renames to `**Spec:**` for vocabulary alignment with
+  meta-*; `**Purpose:**` retires as drift-surface mirror of PRD; `**Branch(es):**` and
+  `**Base Branch:**` retire per R58); incidental-WU framing retires (workflow-pattern preamble,
+  branch-name examples, escalation pointers) per R49a; the `manage-incidental-work.md` pointer
+  transitions to forward-pointer language pending AWL retirement.
+
+- _Touch points (from grep, 2026-05-13):_
+    - Lines 4-5 — preamble framing references both `feature`/`technical` (planned) and
+      `manage-incidental-work.md` (reactive). Reshape to generic WU framing.
+    - Header block (lines 27-34, Feature/Technical variant) — header field set reshapes per R58a
+      chain model: rename `**PRD:**` → `**Spec:**`; drop `**Branch(es):**`, `**Base Branch:**`,
+      and `**Purpose:**`. Final shape: just `**Spec:**` at top, then `---` separator, then phases.
+    - Line 86 — pointer to `manage-incidental-work.md § Coordinated Pause/Resume`. Drop or
+      forward-pointer.
+    - Lines 79-133 — Incidental Header Variant section. Under R49a, incidental WU model substrate
+      retires; the variant becomes orphaned. Either drop the entire Incidental variant (substrate
+      gone) or reshape to forward-pointer noting AWL retirement timing. Default: drop, with a
+      brief forward-pointer line if needed.
+    - Line 156 — pointer "For multi-step work outside the WU's concern, see
+      `manage-incidental-work.md`." Drop or forward-pointer.
+    - Line 176 — `[manage-incidental]:` reference-link definition. Audit and retire if no surviving
+      references in body.
+    - `[arc-config]:` reference-link — survives only if `Base Branch:` field survives; since the
+      field retires under R58, this reference-link likely retires too. Verify at execution.
+
+    **Strategies:** `strategy-package-project-sync.md`
+
+    - `[ ]` **4.6.a Edit package source (authoritative copy)**
+        - Per package-project sync discipline, `template-tasks.md` is a Framework file — edit
+          `packages/arc-framework/arc/reference/templates/template-tasks.md` first.
+        - Apply all touch-point edits per the list above. Header reduces to `**Spec:**` only.
+        - Retired field acknowledgment in template comments (parallel to 4.1.h's meta-template
+          treatment): brief note enumerating fields retired from prior tasks-* header shape per
+          R58 + R58a — `Branch(es)`, `Base Branch`, `Purpose` (was PRD-mirror), `PRD` (renamed
+          to `Spec` for vocabulary alignment).
+
+    - `[ ]` **4.6.b Sync into `.arc/` instance copy**
+        - Sync via canonical mechanism (not `cp`).
+        - Verify pre-commit hook reports clean across both copies.
+
+### `[ ]` **4.7 Reshape `template-prd.md` (chain-model header + retire pre-activation comment-block)**
+
+- _Goal:_ `template-prd.md` adopts the chain-model header per R58a — adds `**Origin:**` header
+  field (default `[Internal]`); preserves `**Purpose:**` as substantive opening below Origin
+  (the document's thesis); retires the existing "Optional: pre-activation lifecycle metadata for
+  backlog stubs" HTML-comment block (`**State:**` + `**Related Work:**`) since meta-* covers
+  pre-activation state under R22a.
+
+- _Touch points (from `template-prd.md`, 2026-05-13):_
+    - Line 1 — H1 `# PRD: [Work Name]`. Unchanged.
+    - Lines 3-6 — existing `**Purpose:**` field with guidance. Move down one position (Origin
+      goes first per R58a chain direction); guidance text retained.
+    - Lines 8-19 — "Optional: Add pre-activation lifecycle metadata for backlog stubs" HTML
+      comment block (`**State:**`, `**Related Work:**`). **Retire entirely** — meta-* exists
+      at WU stub creation per R22a and carries State + Depends-on (which subsumes Related Work
+      semantically). The comment-block was a pre-WOR workaround for backlog stubs without meta.
+    - New: add `**Origin:**` field as first header field after H1 (default `[Internal]`;
+      external tracker URLs land here; matches meta-* `Origin:` at WU creation).
+
+    **Strategies:** `strategy-package-project-sync.md`
+
+    - `[ ]` **4.7.a Edit package source (authoritative copy)**
+        - Per package-project sync discipline, `template-prd.md` is a Framework file — edit
+          `packages/arc-framework/arc/reference/templates/template-prd.md` first.
+        - Insert `**Origin:**` header field after H1; move `**Purpose:**` below Origin.
+        - **Field syntax:** convert both fields from current loose-paragraph form
+          (`**Purpose:**` on its own line followed by blank line) to bullet form
+          (`- **Origin:** ...` / `- **Purpose:** ...`). Aligns PRD with cross-artifact bullet
+          convention (`tasks-*`, `plan-*`, `meta-*` all use bullets); reads consistently in raw
+          markdown; greppable.
+        - Retire the "Optional: pre-activation lifecycle metadata" HTML-comment block entirely.
+        - Add brief retired-field acknowledgment in template comments per parallel pattern in
+          4.1.h / 4.6.a — note that pre-activation `**State:**` + `**Related Work:**` retire;
+          meta-* covers under R22a.
+
+    - `[ ]` **4.7.b Sync into `.arc/` instance copy**
+        - Sync via canonical mechanism (not `cp`).
+        - Verify pre-commit hook reports clean across both copies.
+
+    - _Note:_ Composition with 4.3 (META-PRD content rewrite per new shape). 4.3 doesn't touch
+      `template-prd.md`; 4.7 doesn't touch `META-PRD.md` content. The PRD shape per
+      `template-meta-prd.md` (Task 4.2) is a separate template from `template-prd.md` (this task).
 
 ## **Phase 5:** Roster cascade + push wrapper wiring + CLI seeding update
 
@@ -1064,6 +1286,35 @@ coupled. Cross-reference sweep last so all retired surfaces have already been re
           to `[standalone]` or its own cohort per planning context. Interlock-release-wrappers cluster
           tagged `interlock-release-wrappers`. Others default `[standalone]`.
 
+    - `[ ]` **6.3.g Retired-field migration on in-flight meta files (per R58 + R49a)**
+        - `**Branch(es):**` plural form → rename to `**Branch:**` singular (drop plural form);
+          retain value as-is.
+        - `**Base Branch:**` → remove field entirely; invariant `main` under single-branch-per-WU.
+        - `**Sibling Work Unit(s):**` → remove field; cohort is SoT per R13 (sibling list
+          derived); migrate any meaningful sibling content into `**Cohort:**` if not already
+          captured.
+        - `**Integration:**` → remove field; folds into `**State:**` per R9 4-state enum.
+        - `**Interrupts:**` / `**Paused At:**` / `**Paused To:**` → remove fields per R49a
+          (incidental WU model substrate retirement).
+        - _Note:_ In practice this WU's own `meta-work-organization-reform.md` is the sole
+          in-flight meta file at migration time. Defensive language for the broader contract.
+
+    - `[ ]` **6.3.h Cross-file header migration on in-flight non-meta WU artifacts (per R58a)**
+        - `tasks-*` headers: rename `**PRD:**` → `**Spec:**` (vocabulary alignment); drop
+          `**Branch(es):**`, `**Base Branch:**`, `**Purpose:**` fields. Final header: just
+          `**Spec:**`.
+        - `plan-*` headers: ensure `**Origin:**` field present (default `[Internal]`; matches
+          corresponding `meta-*` `Origin:` value); drop heavy header fields (`**State:**`,
+          `**Created:**`, etc.) that duplicate meta-* content under R22a; retain `**Purpose:**`
+          as substantive opening below Origin.
+        - `prd-*` headers: ensure `**Origin:**` field present (default `[Internal]`); retain
+          `**Purpose:**` as substantive opening below Origin; retire any pre-activation
+          comment-block (`**State:**`, `**Related Work:**`) that the prior template included
+          for backlog stubs (meta-* covers under R22a).
+        - In-flight scope: this WU's own `tasks-work-organization-reform.md` +
+          `prd-work-organization-reform.md` (no `plan-*` since WOR's plan retired pre-PRD per
+          R51). Other in-flight WUs (if any at migration time) follow the same pattern.
+
 ### `[ ]` **6.4 Migrate capture pipeline files**
 
 - _Goal:_ Capture pipeline files restructure to the four-surface model — `user/{id}/ATOMIC-INBOX.md` renames
@@ -1249,7 +1500,52 @@ coupled. Cross-reference sweep last so all retired surfaces have already been re
         - Distinguish carefully from the new `pre-merge-review` at the post-review-response fire-point
           (must NOT be retired). Old `pre-merge-review` references update to `pre-pr-review`.
 
+    - `[ ]` **6.8.j Retired meta-file field references (per R58 + R49a) — retire entirely**
+        - Grep patterns: `**Branch(es):**`, `**Base Branch:**`, `**Sibling Work Unit(s):**`,
+          `**Integration:**`, `**Interrupts:**`, `**Paused At:**`, `**Paused To:**`.
+        - Touch points already addressed by upstream tasks: in-flight meta-file migration (6.3.g);
+          template-tasks header (4.6); template-prd header (4.7); template-meta retirement
+          acknowledgment (4.1.h). 6.8.j sweeps remaining doc surface: strategy docs (esp.
+          `strategy-work-organization.md` § Optional Pointer Fields if it survives 2.8's reshape),
+          workflows (`process-task-loop.md`, `session-init.md`, `session-handoff.md`,
+          `integrate-work-unit.md`, `archive-work-unit.md`, `activate-work-unit.md`,
+          `deactivate-work-unit.md`, `clean-work-unit.md`), templates (other than the ones
+          already touched), briefs, rules.
+        - Reference-link cleanup: `[arc-config]:` definitions in templates that exist solely to
+          support a now-retired `Base Branch:` reference — audit and retire if no surviving
+          references.
+        - **Action:** retire references entirely (distinct from 6.8.i's forward-pointer action).
+          Pause-pointer fields (`Interrupts:` / `Paused At:` / `Paused To:`) overlap with 6.8.i
+          conceptually but the field-level references retire here per R49a's substrate-retirement
+          framing — the workflow-level references stay forward-pointed under 6.8.i.
+
+    - `[ ]` **6.8.i Incidental WU model substrate refs (`incidental/`, `manage-incidental-work`) — forward-pointer**
+        - **Action differs from other 6.8 patterns:** these references update to transitional
+          forward-pointer language, not retire (per PRD R49a + R52). `manage-incidental-work.md`
+          workflow continues to exist pending AWL retirement; references should acknowledge the
+          transitional state.
+        - Grep patterns: `incidental/`, `manage-incidental-work`, `[manage-incidental]:`,
+          `Incidental Work Model`, `Interrupts:`, `Paused At:`, `Paused To:`.
+        - Touch points already addressed by upstream tasks: DEV-RULES.ARC § Leave it cleaner (1.3.d),
+          `strategy-work-organization.md` § Incidental Work Model + § Work Categories (2.8),
+          `template-tasks.md` (4.6). 6.8.i sweeps the remaining surface: workflows
+          (`session-handoff.md`, `prepare-commits.md`, `process-task-loop.md`,
+          `integrate-work-unit.md`, `archive-work-unit.md`, `activate-work-unit.md`,
+          `deactivate-work-unit.md`), `commit-context-format.md` method, strategy docs
+          (`strategy-file-classification.md`, `strategy-task-list-formatting.md`,
+          `strategy-quality-gates.md`, `strategy-interlock-release-wrappers.md`).
+        - Reference-link cleanup: `[manage-incidental]:` definitions remaining after upstream tasks
+          retire if no body references survive.
+        - **Exclusion:** `system/githooks/commit-msg` references to `(incidental - discovered
+          during ...)` Context modifier describe commits' _discovery context_, not the WU
+          _incidental_ category — preserve as-is unless explicit re-scope decision flags them.
+
     - `[ ]` **6.8.h Post-sweep verification grep — returns empty for all retired patterns**
+        - **Exception:** 6.8.i patterns retain references (transitional forward-pointer language);
+          verify those references use the forward-pointer framing per R49a rather than the old
+          incidental-WU-model framing. Post-sweep grep on the incidental patterns returns matches
+          but each match should be a forward-pointer to WF/AWL, not an active reference to the
+          retired substrate.
 
 ### `[ ]` **6.9 Slim instance-file preambles (SESSION-NOTES + USER-INBOX + BACKLOG-INBOX + backlog/ATOMIC-INBOX)**
 

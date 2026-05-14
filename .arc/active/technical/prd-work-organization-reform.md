@@ -460,6 +460,41 @@ shouldn't touch `.arc/system/`, `.arc/reference/strategies/`, `arc-config.yml`, 
 infra files. Such edits warrant quick-tier at minimum (multi-commit coordination, deliberate
 sequencing). Routes captured atomic surfaces (ATOMIC-INBOX) accordingly.
 
+### Incidental WU model substrate retirement (P0)
+
+**R49a.** Incidental WU model substrate retires implicitly under WOR's lifecycle + meta-file
+requirements; conceptual retirement and workflow rewrite remain Worktree Foundation + Agile WU
+Lifecycle scope. The split exists because incidental's function (interrupts another WU) needs
+shift lifecycle (WF) as its replacement and tier model (AWL) as its lighter-ceremony replacement —
+both downstream of WOR.
+
+**Substrate retired under WOR (by virtue of complete positive enumeration elsewhere):**
+
+- **Branch prefix `incidental/`** — R1's CB core-6 is a positive enumeration; `incidental/` retires
+  alongside `feature/` and `technical/`.
+- **`active/incidental/` category dir** — R3 + R15 make `active/` flat (no category subdirs); the
+  per-worktree isolation invariant forecloses category-bucketing.
+- **Status-file pointer fields `Interrupts:` / `Paused At:` / `Paused To:`** — R8-R14 + R58 codify
+  the complete meta-file field set; the pause-pointer fields are absent. (This overlaps Worktree
+  Foundation's plan scope item 7 "Pause-pointer reconciliation: option 2"; field-level retirement
+  happens here, while WF retains migration of `manage-incidental-work.md`'s pause-state semantics
+  to shift state.)
+
+**Substrate retained for downstream retirement:**
+
+- **`manage-incidental-work.md` workflow** — retains its function during the WOR→WF window
+  (no shift lifecycle yet means no replacement for mid-execution interrupts). Workflow retirement
+  itself is AWL scope.
+- **Conceptual references in `strategy-work-organization.md` § Incidental Work Model +
+  § Work Categories** — sections update to transitional forward-pointer framing under WOR
+  (Task 2.1 + new Task 2.8 reshape); full content retirement under AWL.
+
+**Transitional shape during WOR → WF → AWL window:** `manage-incidental-work.md` workflow continues
+to exist but its substrate (branch prefix, category dir, status-file pointer fields) is gone.
+Touched documentation surfaces explicitly flag the transitional state; users encountering
+mid-execution interrupts during WOR→WF use inline-on-current-branch handling per the established
+Persistent Context pattern (no shift available yet).
+
 ### Extension fire-point family (P0)
 
 **R55.** Extension fire-point naming convention codified in `strategy-configurability-architecture.md`:
@@ -514,11 +549,13 @@ procedures and `workflow-interlock` stops; hooks carry scriptable checks; comple
 - H1: `# Metadata: {wu-name}`
 - Body: blank-line-separated field blocks within H1 (no internal `## Work Unit Metadata` H2 wrapper):
     - Identity: `State`, `Owner`, `Branch`
-    - Reference: `Spec`, `Origin`
+    - Reference: `Origin`, `Spec`
     - Coordination: `Depends On`, `Cohort`
     - Task pointers: `Task List`, `Last Completed`, `Next Task`, `Blockers`
     - Directive: `Next Action`
     - Post-integration block (added at integration ceremony): `PR URL`, `Completed`
+- Reference-group ordering puts `Origin` before `Spec` to reflect the chain-of-authority direction
+  (`Origin → Spec → Task List → PR URL`); see R58a for the cross-file chain-model convention
 - Content H2s added at Active → Integrating transition: `## Release Notes Entry`, `## Completion
   Notes`
 - Session-init's `^## Work Unit Metadata` partial-read anchor retires; meta file becomes a full-read
@@ -526,6 +563,74 @@ procedures and `workflow-interlock` stops; hooks carry scriptable checks; comple
   archive-phase content gated by H2 boundary)
 - If named-section anchors become important later for cross-WU referencing, groups can be promoted to
   H2 then — reversible
+
+**Retired from prior `status-{name}.md` shape (by positive enumeration above):**
+
+- `**Branch(es):**` plural form → retired in favor of `**Branch:**` singular per R3 + R5
+  (single-branch-per-WU forecloses plural)
+- `**Base Branch:**` → retired; invariant `main` under single-branch-per-WU + single integration
+  merge per R5 makes the field carrier-less. Adopter-level base-branch override (if needed) is
+  a project-level config concern, not per-WU state
+- `**Sibling Work Unit(s):**` → retired by R13 (cohort is source of truth; siblings derived)
+- `**Integration:**` → retired by R9's 4-state enum (folds into `State: Integrating`)
+- `**Interrupts:**` / `**Paused At:**` / `**Paused To:**` → retired by R49a (incidental WU model
+  substrate retirement)
+
+**Deliberately not added:**
+
+- `**Worktree:**` — per-machine + structurally duplicates host-directory location; worktree path
+  resolution lives in R44's roster cascade (`git worktree list` + per-worktree meta-file
+  resolution) and Worktree Foundation's `worktree.location_template` convention. Tracking
+  machine-specific data in tracked content is wrong shape.
+- `**Tier:**` — Agile WU Lifecycle scope (AWL plan item 4); WOR's Identity group leaves room for
+  AWL to add `Tier:` later alongside `Branch:`. Both characterize WU shape; group cohesion holds.
+- `**Created:**` / state-transition date fields (`Activated:`, etc.) — derivable from git log on
+  meta-* edits; metrics-flavor; not WOR scope. Could ship later if cycle-time tracking warrants.
+- `**Title:**` / `**Description:**` — WU name in H1 covers identification; substantive WU
+  thesis lives in co-located plan-*/prd-* (per R58a chain-model); adding meta-level description
+  would duplicate that.
+
+### Cross-file header conventions (P0)
+
+**R58a.** Cross-file header convention follows the chain-of-authority model. Each non-meta WU
+artifact carries its immediate-upstream pointer as a header field; meta-* carries the full chain
+as the canonical authority view.
+
+| File | Header field(s) | Substantive opening |
+| --- | --- | --- |
+| `meta-*` | Full R58 field set (Origin / Spec / Task List + post-integration PR URL) | (none — meta is structural) |
+| `plan-*` | `**Origin:**` (default `[Internal]`) | `**Purpose:**` follows as document thesis |
+| `prd-*` | `**Origin:**` (default `[Internal]`) | `**Purpose:**` follows as document thesis |
+| `tasks-*` | `**Spec:**` (the upstream spec artifact) | (no thesis — derived execution surface) |
+| `notes-*` | (none — companion to entire WU; no formal upstream) | (free-form content) |
+
+**Principles:**
+
+1. **Bounded duplication.** Each non-meta artifact carries exactly one 1-hop pointer to its
+   immediate upstream. No two-hop or full-chain duplication outside meta-*.
+2. **Meta authority.** Meta is the only artifact carrying the full chain — Origin + Spec + Task
+   List + post-integration PR URL. Reading meta-* alone gives a complete trace from work origin
+   to delivered PR.
+3. **Self-describing in isolation.** Opening a non-meta artifact cold tells the reader its
+   immediate authority (Origin for plan/prd; Spec for tasks) without needing to first read meta-*.
+4. **Drift surface bounded by immutability.** Origin is set at WU creation and effectively never
+   changes; Spec on tasks-* is fixed at task-list creation; meta-*'s Spec is phase-varying
+   (plan-* → spec-artifact at activation). Real-world drift risk near-zero.
+
+**`Spec:` field generalizability (deliberate forward-compat).** `**Spec:**` names the upstream
+spec artifact regardless of artifact type. Today's standard-tier WUs have a PRD as the spec;
+future tier variants per AWL (atomic / quick / standard) or future modes per arc-plan Conductor
+/ Lite mode may use lighter-templated spec artifacts (compact PRD, scope-section variant,
+external-tracker-referenced spec, etc.). The field name does not lock to "PRD" — it points at
+whatever the spec artifact is for the WU's tier × mode combination. PRD is the today-default;
+the contract is generalizable.
+
+**Retired duplications:**
+
+- `**Purpose:**` field on `tasks-*` retires. It was a mirror of PRD's Purpose (drift surface)
+  and is not a 1-hop pointer (substantive content duplication, not upstream-pointer convention).
+  PRD remains canonical for purpose statement; readers reach it via `tasks-*`'s `Spec:` pointer.
+- `**PRD:**` field name on `tasks-*` renames to `**Spec:**` for vocabulary alignment with `meta-*`.
 
 ### Instance-file orientation slimming (P0)
 
@@ -578,6 +683,16 @@ procedures and `workflow-interlock` stops; hooks carry scriptable checks; comple
   file in both copies); new `pre-push-review.md` and `pre-merge-review.md` files created
 - Meta-file shape migration per R58 — in-flight `meta-*.md` files restructure to `# Metadata:` H1 +
   blank-line-grouped field blocks; existing `## Work Unit Metadata` H2 wrapper retires
+- Retired-field migration per R58 — in-flight meta files: `**Branch(es):**` plural → `**Branch:**`
+  singular (drop plural form); `**Base Branch:**` field removed entirely; `**Sibling Work Unit(s):**`
+  removed (cohort field carries authority per R13); `**Integration:**` field absorbed into State
+  (per R9 4-state enum)
+- Cross-file header shape migration per R58a — in-flight non-meta WU artifacts adopt chain-model
+  headers: `tasks-*` rename `**PRD:**` → `**Spec:**`, drop `**Branch(es):**` / `**Base Branch:**`
+  / `**Purpose:**`; `plan-*` adopt `**Origin:**` header field, retain `**Purpose:**` as
+  substantive opening; `prd-*` adopt `**Origin:**` header field, retain `**Purpose:**` as
+  substantive opening; retire `prd-*`'s "Optional: pre-activation lifecycle metadata for backlog
+  stubs" comment-block (meta-* covers it now under R22a)
 
 **R51.** Doc retirements:
 
@@ -594,9 +709,16 @@ procedures and `workflow-interlock` stops; hooks carry scriptable checks; comple
 references to `feature/`, `technical/`, `[PLAN]:`, `integrate-planning-branch`,
 `activate-planning-branch`, `status-*.md`, `completion-*.md`, `template-completion-doc.md`,
 `PROJECT-STATUS.md`, `plan-roadmap-evolution.md`, `plan-completion-status-consolidation.md`,
-`docs(arc):` example usage, and the renamed extensions (`pre-execution-graduation`,
+`docs(arc):` example usage, the renamed extensions (`pre-execution-graduation`,
 `pre-stage-review`, and the old `pre-merge-review` for its pre-PR-creation semantic — distinguish
-from the new `pre-merge-review` at the post-review-response fire-point). Update or retire.
+from the new `pre-merge-review` at the post-review-response fire-point), the incidental WU model
+substrate (`incidental/` branch prefix, `manage-incidental-work` workflow references), and the
+retired meta-file fields (`**Branch(es):**` plural form, `**Base Branch:**`, `**Sibling Work
+Unit(s):**`, `**Integration:**`, `**Interrupts:**`, `**Paused At:**`, `**Paused To:**` per R58 +
+R49a). Update or retire — with the action differing per pattern: the incidental patterns update
+to transitional forward-pointer language (cite WF for shift-state migration, AWL for full
+workflow + conceptual retirement) per R49a; the retired-field patterns retire entirely or migrate
+to their R58 successor (`Branch(es)` → `Branch`); other patterns retire entirely.
 
 **R53.** Inline-folds on touched workflows (per plan's `[!NOTE]` block — fold inline at the touch,
 not as separate sweeps):
@@ -628,8 +750,25 @@ Stored in `.arc/reference/adr/` (next available ADR number).
 ## Non-Goals
 
 - **Worktree mechanism, shift lifecycle, branch-gone detection, inbox sync** — Worktree Foundation
-- **Tier model, `arc start` command, ceremony scaling per tier, atomic-companion retirement,
-  incidental category retirement** — Agile WU Lifecycle
+- **Tier model, `arc start` command, ceremony scaling per tier, atomic-companion retirement** —
+  Agile WU Lifecycle
+- **`manage-incidental-work.md` workflow retirement + conceptual references in workflows /
+  strategies / templates that frame incidental as a distinct WU shape** — Agile WU Lifecycle (the
+  `incidental/` branch prefix retires here under R1; substrate retires implicitly per R49a; the
+  workflow + conceptual surface retires at AWL once shift + tier replacements land)
+- **Migration of `manage-incidental-work.md`'s pause-state semantics to shift state** — Worktree
+  Foundation (the pause-pointer field-level retirement happens under WOR per R49a; the workflow's
+  semantics migrate to shift at WF)
+- **`**Worktree:**` field on meta-*** — per-machine + structurally duplicates host-directory
+  location. Worktree path resolution lives in R44's roster cascade (`git worktree list` +
+  per-worktree meta-file resolution) and Worktree Foundation's `worktree.location_template`
+  convention; not duplicated in tracked content
+- **`**Tier:**` field on meta-*** — Agile WU Lifecycle scope. R58's Identity group leaves room
+  for AWL to add `Tier:` alongside `Branch:` (both characterize WU shape); WOR does not preempt
+  AWL's tier-model design by shipping the field early
+- **WU-level cycle-time tracking fields** (`Created:`, state-transition dates like `Activated:`,
+  `Started Integrating:`) — derivable from git log on meta-* edits; metrics surfaces aren't WOR
+  scope. Could ship later under a tooling WU if cycle-time tracking warrants
 - **Focus-role model, concurrent-work conventions** — Concurrent Work Conventions
 - **External-tracker integration** — Coord Probe
 - **Lite mode lifecycle** — unaffected (single-WU model has no per-worktree concerns)
@@ -786,10 +925,16 @@ Per R59:
 **Downstream:**
 
 - **Worktree Foundation** — consumes per-worktree isolation as precondition; scope items 4
-  (branch-gone detection), 7 (pause-pointer reconciliation), 8 (main-on-main pattern) compose on
-  top of single-branch-per-WU. WF enforces R11's hard-block on unresolved Depends On at activation
+  (branch-gone detection) and 8 (main-on-main pattern) compose on top of single-branch-per-WU. WF
+  enforces R11's hard-block on unresolved Depends On at activation. **Scope item 7 (pause-pointer
+  reconciliation) shrinks under WOR's R49a:** the four pointer fields retire at WOR (via R8-R14 +
+  R58's positive enumeration); WF's residual scope is migrating `manage-incidental-work.md`'s
+  pause-state semantics to shift state
 - **Agile WU Lifecycle** — consumes consolidated boundary workflows + sweep-as-you-go foundation;
-  AWL scope item 7a shrinks to tier-aware adaptations only
+  AWL scope item 7a shrinks to tier-aware adaptations only. **Scope item 9 (incidental concept
+  retirement) composes with WOR's R49a:** the substrate retires at WOR; AWL retires
+  `manage-incidental-work.md` workflow + the remaining conceptual references in
+  strategies/templates/workflows once shift + tier replacements are in place
 - **Concurrent Work Conventions** — consumes new branch conventions + per-worktree isolation;
   async-merge accommodation layered atop WOR's sync-merge primary flow
 - **ARCd Rebrand** — consumes stable branch-and-lifecycle terminology before rename pass
