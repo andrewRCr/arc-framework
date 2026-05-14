@@ -751,7 +751,7 @@ parenthetical patterns); phase order reflects execution order.
   Archive directory shape subsection mirrored to stay consistent with § Directory Structure. Both strategy-doc
   copies in sync. Other archive-path refs (sweep prose, ROADMAP render note) deferred to Task 6.7.l's doc sweep.
 
-### `[ ]` **2.16 `strategy-work-organization.md` § Branch Protection Modes reshape**
+### `[x]` **2.16 `strategy-work-organization.md` § Branch Protection Modes reshape**
 
 - _Goal:_ § Branch Protection Modes aligns to single-branch-per-WU. Protection modes themselves (`partial` /
   `full` config values) stay — those are real settings. Framing around "planning branches for delivering
@@ -761,20 +761,38 @@ parenthetical patterns); phase order reflects execution order.
 - _Context:_ Distinct from 2.14's § Planning Branch Workflow retirement — this section's protection-mode
   framework persists; only the surrounding two-branch-model framing retires.
 
-    - `[ ]` **2.16.a Mode summary verification**
-        - Verify Mode Summary table cells correctly describe current state. Update any cells referencing the
-          retired two-branch model.
+    - `[x]` **2.16.a Mode summary verification**
+        - Mode Summary table retained as-is. Cells describe current state correctly: planned work requires
+          branches under both modes; partial allows atomic/backlog direct commits + documented exceptions; full
+          requires branches for everything.
 
-    - `[ ]` **2.16.b Framing rewrite around single-branch model**
-        - Replace planning-vs-implementation-branch framing with single-branch-per-WU + `plan/<name>` rotation.
-          Update § Partially Protected > Documented exceptions list if any items are tied to retired flows.
+    - `[x]` **2.16.b Framing rewrite around single-branch model**
+        - § Partially Protected lead rewritten — "Planned work units require a branch from inception
+          (single-branch-per-WU per § Branching)"; dropped "(feature, technical)" category reference and the
+          "both planning branches and implementation branches" two-branch framing. Dropped redundant
+          "**Planning branches:** Required for planned work" line. Documented exceptions list: kept Framework
+          maintenance; replaced "Solo planning artifacts" (stale under single-branch model — planning artifacts
+          live on the WU's `plan/<name>` branch) with "Off-work-unit maintenance commits".
 
-    - `[ ]` **2.16.c Batch transitions subsection retirement**
-        - Remove or thin-pointer-replace the § Fully Protected > Lifecycle transitions (batching) subsection —
-          single-branch model eliminates the need for the batch-branch pattern.
+    - `[x]` **2.16.c Batch transitions subsection retirement**
+        - § Fully Protected > Lifecycle transitions (batching) subsection removed entirely. Single-branch
+          model eliminates the batch-branch pattern (no separate planning PR, so no need to batch archival
+          with planning).
 
-    - `[ ]` **2.16.d Both copies + lint**
-        - Apply identically to `.arc/` instance + package source. Tier 1 lint clean.
+    - `[x]` **2.16.d Both copies + lint**
+        - Applied identically to `.arc/` instance + package source. Tier 1 lint clean. No orphan reference-link
+          defs introduced.
+
+    - `[x]` **2.16.e § Branches without work units retirement** (scope per session direction)
+        - § Fully Protected > Branches without work units subsection removed entirely per user direction. The
+          concept's definition under WOR is genuinely uncertain pending AWL's tier model; cleaner to recodify
+          later when shape is known than to predict the pre-WOR definition.
+
+- _Outcome:_ § Branch Protection Modes aligned to single-branch-per-WU model. Mode Summary table retained;
+  § Partially Protected reframed (single-branch lead + revised documented exceptions); § Fully Protected
+  trimmed to its essential statement. Two subsections retired entirely: § Lifecycle transitions (batching)
+  (tied to two-branch lifecycle); § Branches without work units (stale concept; AWL recodifies later). Both
+  strategy-doc copies in sync; lint clean.
 
 ## **Phase 3:** Boundary workflow restructure + ceremony fire-points
 

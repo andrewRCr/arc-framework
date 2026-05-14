@@ -376,34 +376,16 @@ ARC defines two branch protection modes configured in `.arc/system/arc-config.ym
 
 ### Partially Protected (Default)
 
-Planned work units (feature, technical) require branches — both planning branches for delivering
-artifacts and implementation branches for execution. Routine maintenance may commit directly to
-the base branch as a documented exception.
+Planned work units require a branch from inception (single-branch-per-WU per
+[§ Branching](#branching)). Routine commits may go directly to the base branch as documented
+exceptions:
 
-**Planning branches:** Required for planned work.
-
-**Documented exceptions** (direct base branch commits allowed):
-
-- Framework maintenance: Documentation updates, linting fixes
-- Solo planning artifacts: PRDs, task lists committed directly by the sole author
+- Framework maintenance: documentation updates, linting fixes
+- Off-work-unit maintenance commits (no associated task list or work-unit branch)
 
 ### Fully Protected
 
 All changes require branches and PR review. No direct base branch commits.
-
-**Planning branches:** Required for all planned work.
-
-**Lifecycle transitions:** Archival, planning, and activation all produce commits that can't go
-directly to the base branch. The natural pattern is **batching**: a single branch carries
-archival of the completed work unit alongside planning artifacts for the next one, merged via
-one PR. This avoids a standalone housekeeping PR for archival alone.
-
-**Branches without work units:** Under full protection, even small atomic fixes need branches.
-These branches may not have task lists, PRDs, or other ARC artifacts — they're just branches
-with commits and a PR. This is expected. The [integrate-work-unit][integrate-work-unit] workflow
-only applies to work units with task lists; branches without artifacts follow standard git
-lifecycle (merge, delete). See [manage-incidental-work][manage-incidental] for escalation
-guidance on when discovered work warrants a task list vs. a simple branch.
 
 ---
 
