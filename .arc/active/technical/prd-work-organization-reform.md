@@ -277,12 +277,15 @@ downstream WUs will need to override. Guardrail against escape-hatching lives in
 explicit opt-in for atomic) and the tier-invariant disciplines (process-task-loop, quality gates, commit discipline)
 that stay uniform across tiers.
 
-**R22c.** `template-plan.md` framing reframe. Current "Using this template is not required ... Delete this file after
-the PRD is written and stable" framing retires. Replacement framing: plan-\* is the pre-PRD synthesis artifact for
-substantive shaping work; under `pm.mode: arc-in-git` the file moves from `backlog/{state}/<wu-name>/` →
-`active/<category>/` at WU activation (not deleted post-PRD); applicability and required-vs-optional contract scale with
-mode and tier per arc-plan Conductor + AWL. Template framing acknowledges these axes without solving them — the contract
-lives downstream.
+**R22c.** `template-plan.md` framing clarified. The current "Using this template is not required ... Delete this file
+after the PRD is written and stable" preamble revises to drop the "optional" hedge while preserving the deletion
+behavior. Plan-\* is the pre-PRD synthesis artifact for substantive shaping work; deleted at PRD creation per
+`1_create-prd.md` (with optional graduation of substantive persisting content into a `notes-*.md` companion); never
+persists into execution. Under WOR's single-branch-per-WU model, activate-work-unit carries a safety-catch deletion
+(Task 3.3.e: `git rm plan-{name}.md if present`) for paths that skipped the create-prd boundary. Whether plan-\* is
+created at all scales with mode and tier downstream of WOR; the deletion-at-PRD-creation behavior doesn't (plan-\*
+never persists into execution at any tier). Amendment landed 2026-05-14 — original R22c proposed plan-\* persistence
+post-PRD, contradicting `1_create-prd.md` lines 92-104 and ARC's consistent historical behavior; corrected here.
 
 ### Constitutional codifications (P0)
 
@@ -1194,9 +1197,10 @@ remaining migrations after Phases 1-5 land. Phase 7 closes.
     (`meta-*` always exists; task list structure invariant; parseable spec exists in some form before tasks) and the two
     scaling axes (mode + tier); spec-flow optionality contract explicitly deferred to arc-plan Conductor + AWL per R22b.
 
-29. **`template-plan.md` framing reframed** per R22c — "optional, delete post-PRD" preamble retired; new framing
-    describes `plan-*` as the pre-PRD synthesis artifact whose applicability scales with mode and tier; chain-model
-    header per R58a (`**Origin:**` + `**Purpose:**`).
+29. **`template-plan.md` framing clarified** per R22c — "optional" hedge in the preamble removed (deletion-at-PRD-
+    creation behavior preserved); framing describes `plan-*` as the pre-PRD synthesis artifact deleted at PRD creation
+    with optional `notes-*.md` graduation of substantive persisting content; chain-model header per R58a
+    (`**Origin:**` + `**Purpose:**`).
 
 30. **Backlog migration complete** — `backlog/feature/` and `backlog/technical/` retired; per-WU subdirs under
     `backlog/{planned,provisional}/<wu-name>/` carry meta + plan + companions; backlog root contains exactly `planned/`,

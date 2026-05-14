@@ -1361,26 +1361,25 @@ carries the update-discipline rule alongside the shape it codifies, keeping shap
     - _Note:_ R36 functionally lands inside 4.2.f; this parent confirms cross-reference + closes the update-trigger
       loop. May reduce to a verification step if 4.2.f fully covers.
 
-### `[ ]` **4.5 Reframe `template-plan.md` (drop "optional, delete post-PRD")**
+### `[ ]` **4.5 Clarify `template-plan.md` preamble (drop "optional" hedge; preserve deletion)**
 
-- _Goal:_ `template-plan.md` framing retires the "Using this template is not required ... Delete this file after the PRD
-  is written and stable" preamble and replaces it with framing that's coherent under `pm.mode: arc-in-git` and
-  forward-compat with the spec-flow contract arc-plan Conductor + AWL will land. Plan-\* described as the pre-PRD
-  synthesis artifact for substantive shaping work; under arc-in-git the file moves from `backlog/{state}/<wu-name>/` →
-  `active/<category>/` at activation (not deleted post-PRD); applicability scales with mode and tier per downstream WUs.
+- _Goal:_ `template-plan.md` preamble drops the "optional" hedge while preserving the deletion-at-PRD-creation behavior
+  per amended R22c. Plan-\* described as the pre-PRD synthesis artifact for substantive shaping work — ephemeral by
+  design, deleted at PRD creation per `1_create-prd.md` (with optional `notes-*.md` graduation of substantive persisting
+  content); never persists into execution. Whether `plan-*` is created at all scales with mode and tier downstream of
+  WOR; the deletion behavior is invariant.
 
     **Strategies:** `strategy-package-project-sync.md`
 
     - `[ ]` **4.5.a Edit package source (authoritative copy)**
         - Per package-project sync discipline, `template-plan.md` is a Framework file — edit
           `packages/arc-framework/arc/reference/templates/template-plan.md` first.
-        - Drop "Using this template is not required ... Delete this file after the PRD is written and stable." Replace
-          with framing aligned to PRD R22c: "`plan-*` is the pre-PRD synthesis artifact for substantive shaping work.
-          Under `pm.mode: arc-in-git`, this file moves with the WU through the lifecycle (backlog → active → archived
-          alongside the meta file). Applicability — when `plan-*` is required vs optional — scales with mode (Lite/Full;
-          arc-in-git/none) and WU tier (atomic / quick / standard); see `strategy-work-organization.md` § Spec-Flow
-          Invariants (Task 2.7) plus `feature/plan-arc-plan-conductor.md` and `technical/plan-agile-wu-lifecycle.md` for
-          the full contract."
+        - Drop "Using this template is not required" (the optional hedge). Replace the preamble with framing aligned to
+          amended R22c: "`plan-*` is the pre-PRD synthesis artifact for substantive shaping work — ephemeral by design.
+          The file is deleted at PRD creation per `1_create-prd.md`; substantive content meant to persist (research
+          findings, alternatives analysis not absorbed into the PRD) optionally graduates to a `notes-*.md` companion
+          alongside the PRD at the same time. Whether `plan-*` is created at all scales with mode and tier downstream
+          of WOR; the deletion-at-PRD-creation behavior is invariant."
 
     - `[ ]` **4.5.b Adopt chain-model header per R58a**
         - Header reduces to `**Origin:**` field (default `[Internal]`; external tracker URLs land here; matches the
@@ -2285,8 +2284,9 @@ readiness assessment.
 - `[ ]` § Spec-Flow Invariants section landed in `strategy-work-organization.md` — codifies the three invariants
   (`meta-*` always exists; task list structure invariant; parseable spec exists in some form before tasks) and the two
   scaling axes (mode + tier); spec-flow optionality contract explicitly deferred to arc-plan Conductor + AWL
-- `[ ]` `template-plan.md` framing reframed — "optional, delete post-PRD" retired; new framing describes `plan-*` as
-  pre-PRD synthesis artifact whose applicability scales with mode and tier
+- `[ ]` `template-plan.md` framing clarified — "optional" hedge in preamble removed (deletion behavior preserved);
+  framing describes `plan-*` as pre-PRD synthesis artifact deleted at PRD creation with optional `notes-*.md`
+  graduation of substantive persisting content
 - `[ ]` Backlog migration complete — `backlog/feature/` and `backlog/technical/` retired; per-WU subdirs under
   `backlog/{planned,provisional}/<wu-name>/` carry meta + plan + companions; backlog root contains exactly `planned/`,
   `provisional/`, `ATOMIC-INBOX.md`, `BACKLOG-INBOX.md`, `ROADMAP.md`
