@@ -60,53 +60,67 @@ Vocabulary (existing section; orientation layer) rather than DEV-RULES.ARC, per 
   indivisible, no internal stages; applies to items, tasks, WUs). Inboxes distinguish by character, not by wrapper
   presence.
 
-    _Outcome:_ Work unit reframed as wrapper noun with structural cardinality ("one branch, a status file, and
-    one PR") and tier invariance; legacy "multi-branch patterns (stacked PRs, team mode)" caveat dropped (WOR
-    R1-R5 + R10 foreclose on it). Atomic rewritten as character descriptor with scale enumeration (items /
-    tasks / WUs) and inbox-routing-by-character note. Atomic entry repositioned directly below Work unit to make
-    the wrapper/character pairing visually adjacent. Filename token references (`status-{name}.md`,
-    `atomic-{name}.md`) retained pre-WOR pending Phase 4.1 + 6.3 migrations. Worktree dimension deliberately
-    omitted until Worktree Foundation ships and agents gain worktree-aware tooling. Brevity-tuned for
-    every-session load (~85 words across both bullets vs. ~130 in initial draft). Both package source and
-    `.arc/` instance copies updated; copies verified identical. DEV-RULES.ARC unchanged (references the terms
-    but doesn't redefine them, per task scope).
+- _Outcome:_ Work unit reframed as wrapper noun with structural cardinality ("one branch, a status file, and
+  one PR") and tier invariance; legacy "multi-branch patterns (stacked PRs, team mode)" caveat dropped (WOR
+  R1-R5 + R10 foreclose on it). Atomic rewritten as character descriptor with scale enumeration (items /
+  tasks / WUs) and inbox-routing-by-character note. Atomic entry repositioned directly below Work unit to make
+  the wrapper/character pairing visually adjacent. Filename token references (`status-{name}.md`,
+  `atomic-{name}.md`) retained pre-WOR pending Phase 4.1 + 6.3 migrations. Worktree dimension deliberately
+  omitted until Worktree Foundation ships and agents gain worktree-aware tooling. Brevity-tuned for
+  every-session load (~85 words across both bullets vs. ~130 in initial draft). Both package source and
+  `.arc/` instance copies updated; copies verified identical. DEV-RULES.ARC unchanged (references the terms
+  but doesn't redefine them, per task scope).
 
-### `[ ]` **1.3 Constitutionalize capture-routing in DEV-RULES.ARC § Leave it cleaner**
+### `[x]` **1.3 Constitutionalize capture-routing in DEV-RULES.ARC § Leave it cleaner**
 
 - _Goal:_ DEV-RULES.ARC § Leave it cleaner table reflects the new four-surface capture model + the ceremony-only-write
   discipline for shared inboxes — the routing rule becomes constitutional, with `DEV-RULES.PROJECT.md § Capture Routing`
   collapsing to a thin redirect.
-    - `[ ]` **1.3.a Update destinations in the routing table for the four-surface model**
-        - `user/{identity}/ATOMIC-INBOX.md` → `user/{identity}/USER-INBOX.md` (§ Atomic | § Backlog at drain time).
-        - "Appropriate backlog file" → `backlog/BACKLOG-INBOX.md` for multi-step, or
-          `backlog/{planned,provisional}/<wu-name>/` per-WU subdir when matured.
-        - Add explicit row for the project-shared atomic surface (`backlog/ATOMIC-INBOX.md`).
 
-    - `[ ]` **1.3.b Add ceremony-only-write rule for shared inboxes (R20 — discipline portion)**
-        - Sub-rule: writes to project-shared inboxes (`backlog/ATOMIC-INBOX.md`, `backlog/BACKLOG-INBOX.md`) fire only
-          at lifecycle ceremonies (activation absorption, integration drain, planning-kickoff promotion). Outside these
-          moments, shared inboxes are read-only by convention.
-        - Personal `user/{identity}/USER-INBOX.md` writes anytime (per-user; no concurrency concern).
-        - _Note:_ `backlog/ATOMIC-INBOX.md` and `backlog/BACKLOG-INBOX.md` don't exist on disk until Phase 6.3
-          migration. Constitutional rule lands here and activates at 6.3 landing — intentional forward reference.
+    - `[x]` **1.3.a Update destinations in the routing table for the four-surface model**
+        - Restructured into a capture-only 5-row table on review: rows answer "where do I write this NOW?" with
+          one cell per scenario; project-shared destinations (`backlog/ATOMIC-INBOX.md`,
+          `backlog/BACKLOG-INBOX.md`, per-WU subdirs) no longer appear as capture rows because they aren't
+          capture surfaces off-ceremony. They surface in the drain rule (see 1.3.b). USER-INBOX § Atomic / §
+          Backlog are the only "for later, personal" destinations; "for later (other modes)" preserves the
+          DEV-RULES.PROJECT redirect path. Earlier draft had a 7-row personal/shared grid that conflated
+          capture-time and storage-time semantics — collapsed on review to match operational reality (an agent
+          off-ceremony has exactly these surfaces available).
 
-    - `[ ]` **1.3.c Verify `DEV-RULES.PROJECT.md § Capture Routing` redirect remains aligned**
-        - Section is already a thin redirect to `DEV-RULES.ARC § Leave it cleaner` (4 lines, no local table). Confirm
-          the link target is still correct after 1.3.a's table edits.
-        - Per R24 ("Project-specific routing overrides remain in `DEV-RULES.PROJECT.md` if needed"): add a stub
-          overrides clause if desired; otherwise leave as-is.
+    - `[x]` **1.3.b Add ceremony-only-write rule for shared inboxes (R20 — discipline portion)**
+        - Folded into a single "Drain at ceremonies, not capture." paragraph below the capture table. Positive
+          framing (where things drain TO) subsumes the negative one (shared inboxes read-only outside
+          ceremonies) as a single rule. Names the three ceremony events (activation absorption, integration
+          drain, planning-kickoff promotion), the drain destinations (`backlog/ATOMIC-INBOX.md`,
+          `backlog/BACKLOG-INBOX.md`, per-WU subdir graduation), and the read-only-by-convention constraint
+          outside ceremonies. Intentional forward reference to the shared files (not on disk until Task 6.3
+          migration) per the task's note — rule lands constitutionally here, activates structurally when 6.3
+          lands.
 
-    - `[ ]` **1.3.d Update `manage-incidental-work` prose pointer in § Leave it cleaner**
-        - The "Multi-step in current work unit" prose paragraph currently ends with a forward-pointer to
-          `manage-incidental-work.md` for escalation. Under WOR R49a's transitional framing, the workflow continues to
-          exist but its substrate (branch prefix, category dir, pointer fields) retires. Update the pointer's framing to
-          acknowledge the transitional state: either drop the pointer entirely (capture-routing escalation isn't
-          load-bearing on the workflow specifically) or rewrite to "see `manage-incidental-work.md` for the transitional
-          interrupt workflow; full retirement under Agile WU Lifecycle."
-        - Reference-link definition `[manage-incidental]:` at file end retains until 6.7.i's cross-reference sweep
-          retires it.
+    - `[x]` **1.3.c Verify `DEV-RULES.PROJECT.md § Capture Routing` redirect remains aligned**
+        - Confirmed: DEV-RULES.PROJECT § Capture Routing is a 4-line redirect to `DEV-RULES.ARC § Leave it
+          cleaner` (link target unchanged since the H3 anchor stayed `### Leave it cleaner`). R24 stub overrides
+          clause not added — left as-is per the "otherwise leave as-is" path; adopters can add a
+          project-specific overrides clause when they actually need one.
 
-### `[ ]` **1.4 Add atomic-tier infra-edit smell flag to DEV-RULES.ARC**
+    - `[x]` **1.3.d Update `manage-incidental-work` prose pointer in § Leave it cleaner**
+        - Pointer dropped entirely (option 1 from spec). Initially rewrote with transitional framing ("full
+          retirement under Agile WU Lifecycle"), but on review that wording leaked an internal-WU/planning name
+          into adopter-facing constitution and violated the framework's own "Write for the reader, not the
+          author" rule from DEV-RULES.ARC § Documentation Boundaries. Dropping the inline use orphans the
+          `[manage-incidental]:` ref definition (MD053), so it also retires here — small bleed of 6.7.i's
+          manage-incidental sweep into Phase 1 scope; net win on constitutional surface clarity. Capture-routing
+          escalation isn't load-bearing on the workflow specifically; "present to user" is sufficient guidance —
+          the workflow remains discoverable via `system/workflows/` browse or strategy-index when needed.
+
+- _Outcome:_ Constitutional routing rule now lives in DEV-RULES.ARC § Leave it cleaner as a 5-row capture table
+  plus a single "Drain at ceremonies, not capture" rule. Restructure (on review) consolidated two prose paragraphs
+  into one drain rule and collapsed a 7-row personal/shared grid to 5 rows by removing storage surfaces from
+  capture-context — capture answers "where now?", drain answers "where ultimately?". manage-incidental-work
+  pointer + ref definition dropped (advances 6.7.i bleed). DEV-RULES.PROJECT § Capture Routing's 4-line
+  redirect remains aligned. Both `.arc/` and package source DEV-RULES.ARC copies updated identically.
+
+### `[x]` **1.4 Add atomic-tier infra-edit smell flag to DEV-RULES.ARC**
 
 - _Goal:_ A documentation-only smell flag in DEV-RULES.ARC § Task Execution (Task granularity neighborhood) flags
   atomic-tier work touching load-bearing infra (`.arc/system/`, `.arc/reference/strategies/`, `arc-config.yml`) as
@@ -118,6 +132,15 @@ Vocabulary (existing section; orientation layer) rather than DEV-RULES.ARC, per 
     - Atomic-tier items routed to ATOMIC-INBOX surfaces still apply the flag at drain time, not at capture.
     - Companion note in `strategy-work-organization.md` (or wherever tier scaling ultimately lands per AWL)
       cross-references the constitutional flag.
+
+- _Outcome:_ New `### Atomic-tier infra-edit smell flag` subsection added to DEV-RULES.ARC § Task Execution
+  between `### Task granularity` and `### Quality gate failure`. Four-line rule: atomic-tier work shouldn't
+  touch load-bearing infra (named paths enumerated); such edits warrant quick-tier; ATOMIC-INBOX captures
+  that touch infra get reclassified at drain time rather than completed in place. Tier vocabulary
+  (atomic / quick / standard) is already defined in `AGENT-BRIEF.ARC.md` § Vocabulary (landed Task 1.2), so
+  no in-section glossary needed. Companion note in `strategy-work-organization.md` deferred per task spec —
+  AWL hasn't landed (still in backlog), so tier-scaling content stays out of WOR scope. Both `.arc/` and
+  package source copies updated identically.
 
 ## **Phase 2:** Strategy and convention codification
 
@@ -141,6 +164,7 @@ parenthetical patterns); phase order reflects execution order.
 - _Context:_ Existing file has § Branching as a subsection under § Incidental Work Model (line ~166). The CB core-6 +
   single-branch-per-WU content is general, not incidental-specific. Elevate § Branching to top-level (default),
   reshaping incidental-specific content into a child subsection. Decide final shape at execution.
+
     - `[ ]` **2.1.a CB core-6 type set enumeration**
         - `feat/ | fix/ | chore/ | docs/ | refactor/ | perf/`; contested types (`test/`, `style/`, `build/`, `ci/`)
           treated as adopter-extension territory, not in ARC's canonical set.
