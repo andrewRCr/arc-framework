@@ -101,6 +101,7 @@ function configResult(overrides: Partial<ConfigStatusResult> = {}): ConfigStatus
       "commit.context_pattern": "",
       "merge.strategy": "merge",
       "review.pre_merge": "enabled",
+      "review.planning_checkpoint": "disabled",
       "platform.type": "github",
       "pm.mode": "none",
       "team.mode": "false",

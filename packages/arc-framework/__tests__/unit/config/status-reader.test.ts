@@ -29,8 +29,8 @@ async function createFixture(): Promise<Fixture> {
 }
 
 describe("readConfigSettings — AGENT_CONSUMABLE_KEYS", () => {
-  it("enumerates the 17 agent-consumable keys", () => {
-    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(17);
+  it("enumerates the 18 agent-consumable keys", () => {
+    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(18);
   });
 
   it("excludes all hooks.* keys", () => {
@@ -58,6 +58,10 @@ describe("readConfigSettings — AGENT_CONSUMABLE_KEYS", () => {
   it("includes archive.cadence", () => {
     expect(AGENT_CONSUMABLE_KEYS).toContain("archive.cadence");
   });
+
+  it("includes review.planning_checkpoint", () => {
+    expect(AGENT_CONSUMABLE_KEYS).toContain("review.planning_checkpoint");
+  });
 });
 
 describe("readConfigSettings — default fallback", () => {
@@ -78,6 +82,7 @@ describe("readConfigSettings — default fallback", () => {
     expect(result.settings["commit.context_footer"]).toBe("required");
     expect(result.settings["merge.strategy"]).toBe("merge");
     expect(result.settings["review.pre_merge"]).toBe("enabled");
+    expect(result.settings["review.planning_checkpoint"]).toBe("disabled");
     expect(result.settings["platform.type"]).toBe("github");
     expect(result.settings["team.mode"]).toBe("false");
     expect(result.settings["session.remote_sync"]).toBe("enabled");
@@ -119,6 +124,7 @@ describe("readConfigSettings — user-supplied values", () => {
       "commit.context_pattern: ^Relates to",
       "merge.strategy: rebase",
       "review.pre_merge: disabled",
+      "review.planning_checkpoint: required",
       "platform.type: gitlab",
       "pm.mode: arc-in-git",
       "team.mode: true",
@@ -387,5 +393,44 @@ describe("readConfigSettings — archive.cadence", () => {
     expect(message).toContain("'deferred'");
     expect(message).toContain("with-integration");
     expect(message).toContain("manual");
+  });
+});
+
+describe("readConfigSettings — review.planning_checkpoint", () => {
+  let fixture: Fixture;
+  beforeEach(async () => {
+    fixture = await createFixture();
+  });
+  afterEach(async () => {
+    await rm(fixture.root, { recursive: true, force: true });
+  });
+
+  it("applies 'disabled' default when absent", async () => {
+    await writeFile(fixture.configPath, "pm.mode: arc-in-git\n");
+    const result = await readConfigSettings(fixture.root);
+    expect(result.settings["review.planning_checkpoint"]).toBe("disabled");
+    expect(result.defaultsApplied).toContain("review.planning_checkpoint");
+    expect(result.warnings).toHaveLength(0);
+  });
+
+  it("accepts disabled and required", async () => {
+    for (const value of ["disabled", "required"]) {
+      await writeFile(fixture.configPath, `review.planning_checkpoint: ${value}\n`);
+      const result = await readConfigSettings(fixture.root);
+      expect(result.settings["review.planning_checkpoint"]).toBe(value);
+      expect(result.warnings).toHaveLength(0);
+    }
+  });
+
+  it("rejects unknown values with an error naming the valid set", async () => {
+    await writeFile(fixture.configPath, "review.planning_checkpoint: optional\n");
+    const result = await readConfigSettings(fixture.root);
+    expect(result.settings["review.planning_checkpoint"]).toBe("disabled");
+    expect(result.warnings).toHaveLength(1);
+    const message = result.warnings[0] ?? "";
+    expect(message).toContain("review.planning_checkpoint");
+    expect(message).toContain("'optional'");
+    expect(message).toContain("disabled");
+    expect(message).toContain("required");
   });
 });

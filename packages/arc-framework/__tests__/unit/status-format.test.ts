@@ -81,6 +81,7 @@ function okConfig(): Probe<ConfigStatusResult> {
         "commit.context_pattern": "",
         "merge.strategy": "merge",
         "review.pre_merge": "enabled",
+        "review.planning_checkpoint": "disabled",
         "platform.type": "github",
         "pm.mode": "none",
         "team.mode": "false",
@@ -245,7 +246,7 @@ describe("buildStatusSummary — full mode", () => {
     // Extensions full formatter headline: "N active · N inactive · N orphaned refs"
     expect(summary).toContain("1 active · 0 inactive · 0 orphaned refs");
     // Config formatter: "N agent-consumable settings"
-    expect(summary).toContain("17 agent-consumable settings");
+    expect(summary).toContain("18 agent-consumable settings");
     // Active formatter: "0 active work units"
     expect(summary).toContain("0 active work units");
   });

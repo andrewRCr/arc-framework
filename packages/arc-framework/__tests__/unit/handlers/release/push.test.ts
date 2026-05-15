@@ -91,6 +91,7 @@ function buildSettings(overrides: SettingsOverrides = {}): ResolvedSettingsResul
     "commit.context_pattern": "",
     "merge.strategy": "merge",
     "review.pre_merge": "enabled",
+    "review.planning_checkpoint": "disabled",
     "platform.type": "github",
     "pm.mode": "arc-in-git",
     "team.mode": "false",

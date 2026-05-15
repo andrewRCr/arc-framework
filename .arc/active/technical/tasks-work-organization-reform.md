@@ -1120,7 +1120,7 @@ but runtime checks of `review.planning_checkpoint` halt and `archive.cadence` di
           § 2 Architecture Components — passes"). Parallel to 3.6.b for PROJECT-PRD; section-name citation rather than
           numbered-principle citation reflects TECHNICAL-OVERVIEW's section-based structure.
 
-### `[ ]` **3.7 Add `review.planning_checkpoint` to `arc-config.yml`**
+### `[x]` **3.7 Add `review.planning_checkpoint` to `arc-config.yml`**
 
 - _Goal:_ `arc-config.yml` carries `review.planning_checkpoint` (default `disabled`) — schema addition rides both
   copies (`packages/arc-framework/arc/system/arc-config.yml` + `.arc/system/arc-config.yml`) per package-project sync
@@ -1131,18 +1131,18 @@ but runtime checks of `review.planning_checkpoint` halt and `archive.cadence` di
 
     **Strategies:** `strategy-package-project-sync.md`
 
-    - `[ ]` **3.7.a Add key to package source**
-        - Edit `packages/arc-framework/arc/system/arc-config.yml` — add `review.planning_checkpoint` (values:
-          `disabled` | `required`; default `disabled`).
+    - `[x]` **3.7.a Add key to package source**
+        - Added `review.planning_checkpoint: disabled` in the `# --- Review ---` section of
+          `packages/arc-framework/arc/system/arc-config.yml`, alongside `review.pre_merge`.
 
-    - `[ ]` **3.7.b Sync to project instance**
-        - Edit `.arc/system/arc-config.yml` to match. Pre-commit hook will flag if a Configurable file is staged
-          byte-identical to package source after diverging — verify project instance retains any project-specific
-          overrides.
+    - `[x]` **3.7.b Sync to project instance**
+        - Mirrored the addition in `.arc/system/arc-config.yml`.
 
-    - `[ ]` **3.7.c CLI-side schema validation (if applicable)**
-        - If `packages/arc-framework/src/lib/config/` carries a schema validator, add `review.planning_checkpoint`. No-op
-          if validation is freeform / yaml-pass-through.
+    - `[x]` **3.7.c CLI-side schema validation**
+        - `src/commands/config/types.ts` carries `review.planning_checkpoint` in `ConfigSettings`;
+          `src/lib/config/status-reader.ts` carries the default + enum gate (`disabled | required`); shell
+          `validate-config.sh` (both copies) carries `validate_enum` + `known_keys` entry. Unit + integration
+          tests extended.
 
 ### `[ ]` **3.8 Extension fire-point family — 5 files (renames + new) + description/contract pass**
 
