@@ -151,8 +151,11 @@ serve exploration and are deleted once the PRD captures the conclusions (see
    [DEV-RULES.ARC][dev-rules-arc] § Status-file commit shape. Skip otherwise (no meta file exists
    pre-init under non-planning-branch flows).
 
-**Stop here** — do not proceed to task generation. The PRD should be reviewed first. When ready,
-continue with [2_generate-tasks.md](2_generate-tasks.md).
+---
+
+## Next Step
+
+Run [2_generate-tasks.md](2_generate-tasks.md) when ready — it consumes this PRD as input.
 
 ---
 

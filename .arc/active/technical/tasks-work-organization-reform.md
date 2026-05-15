@@ -1331,9 +1331,12 @@ but runtime checks of `review.planning_checkpoint` halt and `archive.cadence` di
           `workflowCommit` annotation, consistent with Steps 4 / 6 / 7. Review-fix commits in integrate-work-unit
           Steps 1 / 4 stay intentionally raw (default-routing per DEV-RULES.ARC § Workflow class-tag routing).
 
-    - `[ ]` **3.9.b Workflow-interlock marker audit**
-        - Verify touched workflows use `> [!IMPORTANT]` `workflow-interlock:` markers consistently at stop points;
-          surface anti-patterns (mid-step stops, ambiguous wait-for-direction phrasing).
+    - `[x]` **3.9.b Workflow-interlock marker audit**
+        - Surveyed interlock markers across 5 touched workflows. All callouts correctly shaped (class +
+          stop-when + surface-what + await-direction) except 1_create-prd's terminal "Stop here" line — mixed
+          workflow exit with implicit wait-language outside any callout. Fixed inline in both copies: replaced
+          with proper `## Next Step` section pointing to 2_generate-tasks, matching activate-work-unit's exit
+          pattern.
 
     - `[ ]` **3.9.c `arc sync` / `arc release push` auto-set-upstream behavior change**
         - Substantive code change riding the workflow trim: `pushability` matrix `blocked-no-upstream` cell resolves to
