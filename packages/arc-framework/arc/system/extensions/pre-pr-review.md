@@ -1,13 +1,13 @@
 ---
-name: pre-merge-review
-description: Additional review ceremony before merge, on top of the diff-review method
+name: pre-pr-review
+description: Additional review ceremony before PR creation, on top of the diff-review method
 active: false
 ---
 
-# Extension: pre-merge-review
+# Extension: pre-pr-review
 
 > - **Workflow:** [integrate-work-unit.md][integrate-work-unit]
-> - **Fires:** After the [diff-review method][diff-review] completes, before push and PR creation
+> - **Fires:** After the [diff-review method][diff-review] completes, before the push that opens the PR
 >
 > - **Contract:** Add review ceremony on top of the default diff review. The [diff-review
 >   method][diff-review] defines the base review activity (lightweight diff review by default, overridable);
@@ -19,7 +19,7 @@ human review protocols, or any additional ceremony beyond the method's review. W
 any review source, use the [review-triage method][review-triage] for classification
 (fix-now/defer/reject/silent-fix).
 
-## pre-merge-review.actions
+## pre-pr-review.actions
 
 [No extension configured]
 
