@@ -675,27 +675,26 @@ parenthetical patterns); phase order reflects execution order.
           "onboarding guides" on review (method file ships; `adopter` vocabulary reserved for
           internal-dev surfaces). Both copies byte-identical; Tier 1 lint clean.
 
-    - `[ ]` **2.13.b Rename `commit-context-format.md` → `commit-footer.md`**
-        - `git mv .arc/system/methods/commit-context-format.md .arc/system/methods/commit-footer.md`.
-        - Update method frontmatter `name:` field to `commit-footer`.
-        - Sync to `packages/arc-framework/arc/system/methods/`.
-        - _Note:_ Config key `commit.context_footer` retained (slot identity decoupled from filename) — no
-          `arc-config.yml` changes needed.
+    - `[x]` **2.13.b Rename `commit-context-format.md` → `commit-footer.md`**
+        - File renamed via `git mv` in both copies; frontmatter `name:` field updated to
+          `commit-footer`. Structural identity anchors that follow `name:` also updated (H1
+          `# Method: commit-footer`; H2 section headers `## commit-footer.override` /
+          `## commit-footer.default`) — spec gap surfaced via the package-source neutrality
+          pre-commit hook, which validates name↔section-header coupling. Body prose still
+          references the old name; full body rewrite per R29a in 2.13.c.
+        - Config key `commit.context_footer` retained — slot identity decoupled from filename, no
+          `arc-config.yml` change needed.
 
-    - `[ ]` **2.13.c Rewrite `commit-footer.md` method body per R29a**
-        - Chain naming in preamble: footer names the deepest spec-shaped artifact under edit along the WU chain (Origin
-          → Spec → Tasks → Atomic); falls back to `standalone` when no active WU.
-        - Discreteness test for `(incidental during X)` vs `standalone` codified as a single binary check ("active
-          WU?").
-        - Standalone anchor section replaces prior `{category} (no associated task list)` patterns; parenthetical vocab
-          `maintenance | planning | documentation | refactor`. Note off-WU `(planning)` semantic (queue-shaping; ROADMAP
-          / BACKLOG-INBOX edits) vs file-pointer `(planning)` (spec iteration).
-        - Meta-\* section: rename heading "Status-file references" → "Meta-file references"; add `(maintenance)` and
-          `(deactivation)` parentheticals; drop `(planning)`. Filename-token example bodies stay at `status-` here; flip
-          at 6.2.i.
-        - Tighten `(incidental - discovered during X)` → `(incidental during X)`.
-        - Drop `content` from off-WU category list.
-        - Sync to packages/.
+    - `[x]` **2.13.c Rewrite `commit-footer.md` method body per R29a**
+        - Body rewrite landed: chain-naming preamble (`meta-` → `plan`/`prd` → `tasks-` → `atomic-`,
+          falling to `standalone`); discreteness test (single "active WU?" binary); standalone anchor
+          section replacing the `(no associated task list)` patterns with `(maintenance|planning|
+          documentation|refactor)`; off-WU `(planning)` vs file-pointer `(planning)` distinction
+          codified; meta-\* heading rename (filename-token stays `status-` until 6.2.i);
+          `(maintenance)` + `(deactivation)` added, `(planning)` dropped; phrasing tightened to
+          `(incidental during X)`; `content` removed from off-WU vocabulary. Description-field
+          frontmatter line refreshed to summarize chain-naming + standalone.
+        - Both copies byte-identical; Tier 1 lint clean.
 
     - `[ ]` **2.13.d Update `system/githooks/commit-msg` regex + error examples (non-filename portion)**
         - tasks-\* parenthetical regex: `(incidental - discovered during .+)` → `(incidental during .+)`.
