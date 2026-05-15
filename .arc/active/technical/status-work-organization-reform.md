@@ -9,23 +9,21 @@
 - **Task List:** `tasks-work-organization-reform.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task 2.13 — `commit-format` method + footer-convention propagation per R27 +
-  R29a (`commit-format.md` Type-selection block; `commit-context-format.md` → `commit-footer.md`
-  rename + R29a body rewrite; `commit-msg` hook regex + matrix refresh; 10+ inbound references
-  swept; CLI inventory updated; 34-case smoke-test file lands). Scheduled atomic
-  audience-vocabulary sweep of WU spec source also completed (PRD + task list cleaned of
-  carryover-risk `adopter` uses; rule promoted to DEV-RULES.PROJECT § Audience Boundaries earlier
-  in session).
+- **Last Completed:** Task 2.17 — R65 user/ workspace directory reform codified in
+  `strategy-session-operations.md` (new § User Workspace Directory + § Working Memory; updated
+  § SESSION-NOTES) and `strategy-planning-module.md` (USER-INBOX → WORKING-MEMORY sibling
+  pointer). Phase 2 closes. Adjacent mid-session audit strengthened audience-boundary discipline
+  (see `cee6739b`) — PRD R49a/R52/R52a + Tasks 3.11.a/4.6/6.7.h-j reworded; new
+  `strategy-task-list-formatting.md` § Instruction Audience + `2_generate-tasks.md` pre-save
+  checklist item enforce the rule going forward.
 
-- **Next Task:** Task 2.17 — Codify R65 user/ workspace directory reform in strategies
-  (`strategy-session-operations.md` + `strategy-planning-module.md`) (line ~862)
+- **Next Task:** Task 3.1 — Retire `integrate-planning-branch.md` (line ~916)
 
 - **Blockers:** [none]
 
-- **Next Action:** Proceed to Task 2.17 — author the `user/{identity}/` per-WU subdir + cross-WU
-  flat root layout in `strategy-session-operations.md` (new sections § Working Memory + § User
-  Workspace Directory; § SESSION-NOTES path update) and add the USER-INBOX forward-pointer to
-  WORKING-MEMORY in `strategy-planning-module.md`. Phase 2's last subtask before Phase 2's
-  closure.
+- **Next Action:** Proceed to Task 3.1 — `git rm` of
+  `.arc/system/workflows/arc/work-unit-lifecycle/planning/integrate-planning-branch.md` plus the
+  `packages/` counterpart. Single-branch-per-WU eliminates the separate planning-PR concept;
+  cross-reference updates ride the Phase 6.7 migration sweep.
 
 ---
