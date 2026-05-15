@@ -901,9 +901,12 @@ parenthetical patterns); phase order reflects execution order.
 
 ## **Phase 3:** Boundary workflow restructure + ceremony fire-points
 
-_Purpose:_ Restructure activate / integrate / archive workflows for single-branch-per-WU; wire PROJECT-PRD alignment,
-ROADMAP regeneration, capture-pipeline ceremony writes (absorption / drain / promotion), config keys, and the new
-extension point.
+_Purpose:_ Restructure boundary workflows (`init-work-unit` / `activate-work-unit` / `integrate-work-unit` /
+`archive-work-unit`) for single-branch-per-WU; wire PROJECT-PRD alignment, ROADMAP regeneration, capture-pipeline
+ceremony writes (absorption / drain / promotion), config keys, and the new extension point. Workflow restructure
+scope is full body rewrite where the new model invalidates prior shape, not just file rename + step touch-up —
+init-work-unit and activate-work-unit are the renamed cases; both carry stale two-branch-model framing retired
+under WOR.
 
 _Design decisions:_ Capture-pipeline ceremony writes (R20, R21) fold into each affected workflow rather than a
 horizontal cross-cutting parent — workflow-level units stay coherent. R53 inline-fold audits stay one parent with five
@@ -921,7 +924,7 @@ but runtime checks of `review.planning_checkpoint` halt and `archive.cadence` di
     - Deleted from `.arc/system/workflows/arc/work-unit-lifecycle/planning/` and
       `packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/planning/`.
 
-### `[ ]` **3.2 Rename `activate-planning-branch.md` → `init-work-unit.md` (WU + meta-file creation)**
+### `[x]` **3.2 Rename `activate-planning-branch.md` → `init-work-unit.md` (WU + meta-file creation)**
 
 - _Goal:_ `init-work-unit.md` (renamed from `activate-planning-branch.md`) creates a WU on a `plan/<name>` branch with a
   meta file populated from `template-meta.md` — initial `**State:** Planning`, `**Owner:**` auto-populated from
@@ -929,18 +932,27 @@ but runtime checks of `review.planning_checkpoint` halt and `archive.cadence` di
 
     **Strategies:** `strategy-work-organization.md`
 
-    - `[ ]` **3.2.a Rename file + sync to packages/**
-        - `git mv .arc/system/workflows/arc/work-unit-lifecycle/planning/activate-planning-branch.md .arc/system/workflows/arc/work-unit-lifecycle/planning/init-work-unit.md`
-          plus packages/ counterpart.
+    - `[x]` **3.2.a Rename file + sync to packages/**
+        - Renamed both copies via `git mv` (`.arc/` + `packages/arc-framework/arc/`); content unchanged
+          (pure rename detected by git as `R`). Body restructure deferred to 3.2.b.
 
-    - `[ ]` **3.2.b Responsibility shift: WU + meta-file creation**
-        - Steps: create `plan/<name>` branch; create `meta-{name}.md` in `active/` from `template-meta`; fill
-          placeholders (`[arc.identity]` → identity value); commit. Plan-doc creation is a subsequent step (existing
-          workflow logic; preserve).
+    - `[x]` **3.2.b Responsibility shift: WU + meta-file creation**
+        - Full workflow body rewrite. Steps reduced 7 → 6: status-file create replaced with meta-file create
+          from `template-meta.md` (R10 placeholder substitution); two-branch shape retired (Step 2 + Step 7
+          batch arm with `integrate-planning-branch` ref); `plan/<name>` per R2; backlog source per R19; push
+          de-optionalized; naming + plan-doc-lifecycle deferred to method/strategy; lifecycle as ASCII diagram.
 
-    - `[ ]` **3.2.c Wire `template-meta.md` reference (created in 4.1)**
-        - Reference template path is stable; body draft works without 4.1 complete. If 4.1 lands in a parallel session,
-          no rework needed here.
+    - `[x]` **3.2.c Wire `template-meta.md` reference (created in 4.1)**
+        - Named in workflow body as plain backticked `template-meta.md`. Markdown-link form deferred to
+          Task 4.1 — broken-link hook blocks forward-compat link targets, so wiring lands when target exists.
+
+- _Outcome:_ Workflow body rewritten end-to-end — broader than the original 3.2.b sketch (which covered
+  only the positive meta-file contract). New model: two-branch shape retired, meta from `template-meta.md`
+  per R58 + R10 placeholder, `plan/<name>` per R2, backlog source per R19, push de-optionalized. Revision
+  pass defers naming to `branch-format` (CB framing dropped — `plan/` is ARC's, not CB's), trims
+  duplications of strategy / DEV-RULES content, and replaces "What comes after" prose with an ASCII
+  lifecycle diagram. Cross-cutting: `branch-format` method codifies planning-prefix invariance; PRD R12
+  `[Internal]` → `[internal]` for sentinel alignment.
 
 ### `[ ]` **3.3 Restructure `activate-work-unit.md` (state-flip + branch rename + absorption-write + ROADMAP regen)**
 
@@ -1426,7 +1438,7 @@ carries the update-discipline rule alongside the shape it codifies, keeping shap
         - `**Branch:**` (single value per single-branch-per-WU).
         - _Note:_ Verify existing `template-status.md`'s placeholder convention before authoring; stay consistent across
           templates and with the substitution logic in 3.2.b's `init-work-unit.md`.
-        - `**Origin:**` default `[Internal]`; orthogonal to Spec; external tracker URLs land here. Ordered before `Spec`
+        - `**Origin:**` default `[internal]`; orthogonal to Spec; external tracker URLs land here. Ordered before `Spec`
           in the Reference group to reflect chain direction (`Origin → Spec → Task List → PR URL`) per R58a.
         - `**Spec:**` ARC-owned spec artifact pointer; **deliberately generalizable** — points at whatever the spec
           artifact is for the WU's tier × mode combination. Today's standard tier: PRD. Future tier variants per AWL

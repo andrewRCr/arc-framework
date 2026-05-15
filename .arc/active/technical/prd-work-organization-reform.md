@@ -168,7 +168,11 @@ replace.
 **R7.** Boundary workflows restructured:
 
 - `integrate-planning-branch.md` — **retired entirely**
-- `activate-planning-branch.md` → renamed `init-work-unit.md` (WU + meta-file creation)
+- `activate-planning-branch.md` → renamed `init-work-unit.md` — WU + meta-file creation. Workflow body
+  restructured for single-branch-per-WU: planning branch follows `plan/<name>` pattern per R2; meta file
+  created from `template-meta.md` per R58 with `[arc.identity]` substitution per R10. Two-branch-model
+  framing retired (separate impl-branch cleanup step; batch-flow arm with retired
+  `integrate-planning-branch` reference)
 - `activate-work-unit.md` — name preserved with new semantic (state transition + branch rename, no directory move).
   Carries `[!NOTE]` block redirecting to `init-work-unit.md` for cases where the workflow runs against a non-existent WU
 - `integrate-work-unit.md` — restructured for sweep-as-you-go + single integration PR
@@ -204,7 +208,7 @@ approach (`[arc.identity]` substituted at meta-file creation). Team-mode handoff
 **R11.** `**Depends On:**` field — bare WU-name list; renders into ROADMAP tier grouping. `**Blocks:**` deferred
 (redundant under explicit Depends On).
 
-**R12.** `**Origin:**` field with default `[Internal]`. Orthogonal to `**Spec:**` (which always points at ARC-owned
+**R12.** `**Origin:**` field with default `[internal]`. Orthogonal to `**Spec:**` (which always points at ARC-owned
 planning artifacts). External tracker references go in `Origin`, never `Spec`. `pm.layer` value-set update
 (`arc-pm | external | none` → `arc-pm | none`) lands in `plan-arc-modes.md`, not WOR direct scope; WOR ships the
 conceptual framing.
