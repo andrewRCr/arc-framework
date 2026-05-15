@@ -833,6 +833,52 @@ parenthetical patterns); phase order reflects execution order.
   (tied to two-branch lifecycle); § Branches without work units (stale concept; AWL recodifies later). Both
   strategy-doc copies in sync; lint clean.
 
+### `[ ]` **2.17 Codify user/ workspace directory reform in strategies (R65)**
+
+- _Goal:_ Strategy docs reflect WOR's R65 user/ directory structural reform — per-WU subdir for WU-scoped content +
+  cross-WU flat root, with WORKING-MEMORY.md extracted from SESSION-NOTES's prior `## Persistent Context` section. Lands
+  before Phase 3's session-lifecycle workflow updates (Task 3.12) and Phase 6.3's in-flight migration (Task 6.3.d) so
+  both have a codified target shape to consume.
+
+- _Context:_ Task 2.12 (now complete) authored initial SESSION-NOTES + inbox-family orientation content under the
+  pre-R65 flat layout. R65 amends that layout: SESSION-NOTES moves to a per-WU subdir, persistent-context section
+  extracts to WORKING-MEMORY.md at root. This task updates the Task 2.12 content to reflect the new structure and adds
+  the path-class invariant framing.
+
+    **Strategies:** `strategy-package-project-sync.md`
+
+    - `[ ]` **2.17.a Update `strategy-session-operations.md` § SESSION-NOTES for per-WU subdir location**
+        - Section authored under Task 2.12 updates: path framing shifts from `user/{identity}/SESSION-NOTES.md` to
+          `user/{identity}/<wu-name>/SESSION-NOTES.md`; lifecycle paragraph clarifies the per-WU subdir creation at
+          activation. Companion-to-status-file framing updates to reference the new contributor-role location
+          (`user/{identity}/<wu-name>/meta-<wu-name>.md` — composes with status-\* → meta-\* token rename).
+
+    - `[ ]` **2.17.b Add § Working Memory section to `strategy-session-operations.md`**
+        - New `## Working Memory` H2 codifies WORKING-MEMORY.md: purpose (cross-WU eviction-triggered context —
+          constraints, things-to-watch, pragmatic tradeoffs pending downstream WUs); per-entry shape
+          (`_Remove when: [trigger]_` triggers); lifecycle (cross-WU, write at handoff, read at init); contrast with
+          SESSION-NOTES (per-WU snapshot) and USER-INBOX (capture surface). Position: between § SESSION-NOTES and
+          § Handoff-Interior Toggle Pattern. Add matching TOC entry.
+
+    - `[ ]` **2.17.c Add § User Workspace Directory section to `strategy-session-operations.md`**
+        - New section codifies the per-WU subdir + cross-WU flat root structure (the path-class invariant). Concrete
+          layout listing under `user/{identity}/`: per-WU subdir (`<wu-name>/SESSION-NOTES.md`, optionally
+          `meta-<wu-name>.md`), cross-WU flat root files (USER-INBOX, WORKING-MEMORY), `.internal/` per-machine surface.
+          Path-class invariant statement (path determines sync class). Forward-pointer to
+          `plan-worktree-foundation.md` scope item 6 for the sync mechanism that consumes this structure. Position:
+          adjacent to § SESSION-NOTES (provides structural context for the file-specific sections that follow). Add
+          matching TOC entry.
+
+    - `[ ]` **2.17.d Update `strategy-planning-module.md` § USER-INBOX subsection for WORKING-MEMORY split**
+        - § Inbox Family § USER-INBOX subsection authored under Task 2.12 updates: brief note that persistent
+          cross-handoff context lives in `WORKING-MEMORY.md` (cross-reference forward to
+          `strategy-session-operations.md` § Working Memory), not embedded in SESSION-NOTES as it formerly did.
+          Lightweight pointer; full coverage stays in the session-operations strategy.
+
+    - `[ ]` **2.17.e Sync to packages/**
+        - Apply 2.17.a-d edits identically across `.arc/reference/strategies/arc/` and
+          `packages/arc-framework/arc/reference/strategies/arc/`; final `diff` byte-identical.
+
 ## **Phase 3:** Boundary workflow restructure + ceremony fire-points
 
 _Purpose:_ Restructure activate / integrate / archive workflows for single-branch-per-WU; wire PROJECT-PRD alignment,
@@ -1251,6 +1297,39 @@ but runtime checks of `review.planning_checkpoint` halt and `archive.cadence` di
           reference (or redirect if any context still applies — none expected under single-branch-per-WU).
         - _Note:_ R51 lists `rotate-branch.md` in the doc-retirement set; R52's cross-ref sweep may already cover the
           inbound-reference sweep. Coordinate at execution to avoid duplicate work.
+
+### `[ ]` **3.12 Update session-lifecycle workflows for R65 user/ directory reform**
+
+- _Goal:_ `session-handoff.md` and `session-init.md` consume R65's new user/ workspace layout. Handoff writes
+  `<wu-name>/SESSION-NOTES.md` (per-WU) and separately updates `WORKING-MEMORY.md` (cross-WU). Init reads from the new
+  locations, including the per-WU subdir resolution. Lands before Phase 6.3's in-flight migration (Task 6.3.d) so the
+  migrated layout is operationally consumable.
+
+- _Context:_ Pre-R65, both workflows operate on a single `user/{identity}/SESSION-NOTES.md` with embedded
+  `## Persistent Context` section. Post-R65, persistent-context content extracts to a separate cross-WU file at
+  `user/{identity}/WORKING-MEMORY.md`; session-volatile content moves to a per-WU subdir at
+  `user/{identity}/<wu-name>/SESSION-NOTES.md`.
+
+    **Strategies:** `strategy-package-project-sync.md`
+
+    - `[ ]` **3.12.a Update `session-handoff.md` write paths**
+        - § What to Update + § Comprehensive Handoff Format updates: SESSION-NOTES path references shift to
+          `<wu-name>/SESSION-NOTES.md`; new write step for `WORKING-MEMORY.md` as a separate file operation
+          (cross-WU); `## Persistent Context` review logic relocates from "review SESSION-NOTES § Persistent Context"
+          to "review `WORKING-MEMORY.md` entries." Template skeleton in workflow body strips the `## Persistent
+          Context` H2 from the SESSION-NOTES shape; new template snippet shows WORKING-MEMORY.md shape (H3-headed
+          entries with `_Remove when:_` markers). Identity-absent and contributor-role variants preserve their
+          existing semantics under the new layout.
+
+    - `[ ]` **3.12.b Update `session-init.md` read paths**
+        - Step 3's document load list updates: SESSION-NOTES path shifts to `<wu-name>/SESSION-NOTES.md` (item 8);
+          new read step for `WORKING-MEMORY.md`. Persistent-context interpretation note (currently embedded in the
+          SESSION-NOTES read step) relocates to the WORKING-MEMORY.md read step. SESSION-NOTES load error recovery
+          guidance updates path references.
+
+    - `[ ]` **3.12.c Sync to packages/**
+        - Apply 3.12.a + 3.12.b edits identically across `.arc/system/workflows/arc/session-lifecycle/` and
+          `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/`; final `diff` byte-identical.
 
 ## **Phase 4:** Template evolution + PROJECT-PRD content rewrite
 
@@ -1782,6 +1861,32 @@ Don't enumerate every test; expect cascading failures during Phase 5 that resolv
           the failing test, commit, move on.
         - Verify entire test suite passes (`npm test`) before declaring 5.4 complete.
 
+### `[ ]` **5.5 CLI seeding update for R65 user/ workspace layout**
+
+- _Goal:_ CLI init/join + activation code in `packages/arc-framework/src/lib/` creates the R65 user/ directory layout:
+  per-WU subdir at WU activation (`user/{identity}/<wu-name>/`) seeded with `SESSION-NOTES.md` inside; cross-WU
+  `WORKING-MEMORY.md` at user root seeded at init/join. Composes with Task 5.3's preamble-strip change (the new files
+  seed as content-only per R59).
+
+    **Strategies:** `strategy-testing-methodology.md`, `strategy-package-project-sync.md`
+
+    - `[ ]` **5.5.a Locate user/ seeding sites**
+        - Grep `packages/arc-framework/src/lib/` for SESSION-NOTES + USER-INBOX seeding paths; identify init-time vs
+          activation-time seeding boundaries (init/join code vs activate-work-unit code paths).
+
+    - `[ ]` **5.5.b Activation-time per-WU subdir creation**
+        - At WU activation (init-work-unit / activate-work-unit, post-Task 3.2 / 3.3), create
+          `user/{identity}/<wu-name>/` subdir and seed `SESSION-NOTES.md` inside (content-only per R59).
+          Contributor-role meta file (when applicable) also lands in this subdir per R65a.
+
+    - `[ ]` **5.5.c Init-time WORKING-MEMORY seed**
+        - At project init/join, seed empty `user/{identity}/WORKING-MEMORY.md` at user root. Content-only per R59;
+          no preamble. Empty structurally; entries accumulate organically as the developer captures them at handoff.
+
+    - `[ ]` **5.5.d Tests**
+        - Update CLI tests asserting on seed output shape. Add new tests verifying per-WU subdir creation at
+          activation and WORKING-MEMORY.md at init.
+
 ## **Phase 6:** Migration and cross-reference sweep
 
 _Purpose:_ Apply WOR conventions forward — hook regex, in-flight meta-file migration, capture pipeline file restructure,
@@ -1914,12 +2019,13 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
         - Smoke test: re-run 6.2.f's smoke suite; verify positive cases now use `meta-` shape and negative cases include
           old `status-` prefix as a rejected pattern.
 
-### `[ ]` **6.3 Migrate capture pipeline files**
+### `[ ]` **6.3 Migrate capture pipeline files + user/ workspace to R65 layout**
 
 - _Goal:_ Capture pipeline files restructure to the four-surface model — `user/{id}/ATOMIC-INBOX.md` renames to
   `USER-INBOX.md` (content under `## Atomic`; `## Backlog` initially empty); `BACKLOG-FEATURE.md` +
   `BACKLOG-TECHNICAL.md` merge to `backlog/BACKLOG-INBOX.md` with entries reclassified during merge; new empty
-  `backlog/ATOMIC-INBOX.md` created.
+  `backlog/ATOMIC-INBOX.md` created. Plus: in-flight WU personal workspace relocates to R65's per-WU subdir layout —
+  SESSION-NOTES moves into `<wu-name>/` subdir, `## Persistent Context` extracts to new `WORKING-MEMORY.md` at root.
     - `[ ]` **6.3.a Per-user ATOMIC-INBOX → USER-INBOX rename**
         - `git mv .arc/user/{andrew}/ATOMIC-INBOX.md .arc/user/{andrew}/USER-INBOX.md`. Restructure content under
           `## Atomic` section; add empty `## Backlog` section.
@@ -1934,6 +2040,27 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
 
     - `[ ]` **6.3.c Create new empty `backlog/ATOMIC-INBOX.md`**
         - Project-shared atomic surface; populates organically post-WOR.
+
+    - `[ ]` **6.3.d Migrate in-flight WU personal workspace to R65 layout**
+        - Relocate `.arc/user/{identity}/SESSION-NOTES.md` into the per-WU subdir:
+          `git mv .arc/user/{identity}/SESSION-NOTES.md .arc/user/{identity}/work-organization-reform/SESSION-NOTES.md`
+          (create the subdir first). Composes with Tasks 2.17 / 3.12 / 5.5 — they ship the codified target shape;
+          this step lands the migration in this repo.
+        - Extract the `## Persistent Context` section from SESSION-NOTES into new
+          `.arc/user/{identity}/WORKING-MEMORY.md` at user root. Each entry retains its `_Remove when:_` trigger;
+          SESSION-NOTES's `## Persistent Context` H2 is removed. The new file seeds content-only per R59
+          (no preamble).
+        - Contributor-role active status file (`.arc/user/{identity}/active/status-*.md`): none in this repo today,
+          so the migration step is a no-op here. Convention for future contributor-role migrations:
+          `user/{identity}/active/status-<wu-name>.md` → `user/{identity}/<wu-name>/meta-<wu-name>.md` (composes
+          with status-\* → meta-\* token rename); retire `user/{identity}/active/` subdir.
+        - Verify resulting layout under `.arc/user/{identity}/`: `USER-INBOX.md` (post-6.3.a rename),
+          `WORKING-MEMORY.md` (newly extracted), and `work-organization-reform/SESSION-NOTES.md`. Confirm
+          `.gitignore` patterns still cover the relocated content (worktree-local + cross-WU files all stay
+          gitignored).
+        - _Note:_ R65 applies to all in-flight WUs; in this repo only WOR is in flight at migration time, so the
+          relocation operates on a single WU subdir. The contract generalizes to multi-WU concurrent worktrees
+          under Worktree Foundation.
 
 ### `[ ]` **6.4 Migrate `backlog/feature/` + `backlog/technical/` to `backlog/{planned,provisional}/<wu-name>/` per-WU subdirs**
 

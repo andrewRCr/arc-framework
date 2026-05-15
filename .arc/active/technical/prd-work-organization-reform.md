@@ -645,12 +645,13 @@ generalizable.
 
 **R59.** Instance files carry no preamble or "About this file" blocks:
 
-- Affected files: `user/{identity}/SESSION-NOTES.md`, `user/{identity}/USER-INBOX.md`, `backlog/BACKLOG-INBOX.md`,
-  `backlog/ATOMIC-INBOX.md`
+- Affected files: `user/{identity}/<wu-name>/SESSION-NOTES.md`, `user/{identity}/WORKING-MEMORY.md`,
+  `user/{identity}/USER-INBOX.md`, `backlog/BACKLOG-INBOX.md`, `backlog/ATOMIC-INBOX.md` (file paths reflect post-R65
+  structural reform — see § User workspace directory reform)
 - Match the meta-file convention (no preamble) — files read as content-only
-- Authoritative orientation lives in strategy docs (`strategy-session-operations.md` for SESSION-NOTES;
-  `strategy-planning-module.md` for inboxes) and workflows (`session-handoff.md`, ceremony workflows that write to
-  shared inboxes)
+- Authoritative orientation lives in strategy docs (`strategy-session-operations.md` for SESSION-NOTES and
+  WORKING-MEMORY; `strategy-planning-module.md` for inboxes) and workflows (`session-handoff.md`, ceremony workflows
+  that write to shared inboxes)
 - CLI init/join code (`packages/arc-framework/src/lib/...`) strips preamble injection when seeding these files
 - Workflow seeding (e.g., `session-handoff.md` SESSION-NOTES seed) loses preamble strings
 - Migration: existing instance files in this repo strip preamble in-place during the migration pass
@@ -661,8 +662,53 @@ docs before preambles are stripped from instance files — otherwise orientation
 Confirmed via grep (2026-05-14) that `strategy-session-operations.md` and `strategy-planning-module.md` do not currently
 carry the relevant SESSION-NOTES / inbox-family orientation content. WOR authors the content into those strategies
 (SESSION-NOTES gets purpose / lifecycle / portability; each inbox gets purpose, lifecycle, and write-discipline summary
-for USER-INBOX, BACKLOG-INBOX, and `backlog/ATOMIC-INBOX.md`) as the R59 precondition. Lands in Phase 2 before Phase
+for USER-INBOX, BACKLOG-INBOX, and `backlog/ATOMIC-INBOX.md`) as the R59 precondition. Lands in Phase 2 before Task
 6.8's instance-file slim fires; zero net orientation loss across the transition.
+
+### User workspace directory reform (P0)
+
+**R65.** The `user/{identity}/` directory adopts a path-structural classification reform that makes the worktree-default
+world tractable. Pre-WOR, the directory carried a flat mix of WU-scoped files (SESSION-NOTES) and developer-scoped
+cross-WU files (USER-INBOX, persistent-context entries embedded in SESSION-NOTES). Under WOR's per-worktree isolation
+invariant + the parallelism trio's parallel-WU model, the two semantic classes (per-WU vs cross-WU) need structural
+separation so each worktree sees its own WU-scoped content cleanly while developer-scoped content surfaces uniformly.
+The reform applies the same convention pattern WOR establishes elsewhere (location-by-state, class-by-path): file
+placement encodes semantic class.
+
+WOR ships the structural foundation — file relocations, strategy + workflow doc updates, in-flight migration. Sync
+mechanism implementation (path-driven dispatch in `arc user save/load`, value-level merge for cross-WU files,
+tombstones, spawn → first-load handling) defers to Worktree Foundation (`plan-worktree-foundation.md` scope item 6
+consumes this reform's structural foundation).
+
+**R65a.** Per-WU subdir convention. WU-scoped personal content lives in `user/{identity}/<wu-name>/`, where `<wu-name>`
+matches the standard WU identifier (the same token used in `meta-<wu-name>.md` and branch suffix). Files in scope:
+
+- `user/{identity}/<wu-name>/SESSION-NOTES.md` — personal session context (was `user/{identity}/SESSION-NOTES.md`)
+- `user/{identity}/<wu-name>/meta-<wu-name>.md` — contributor-role meta file when applicable (was
+  `user/{identity}/active/status-<wu-name>.md`; both subdir location and filename-token migrate, the token piece
+  composing with WOR's status-\* → meta-\* rename)
+
+Each worktree's `user/{identity}/` filesystem contains exactly one WU subdir at a time (its own WU's), giving immediate
+at-a-glance worktree-correctness: `ls user/{identity}/` shows which WU this worktree serves. Multi-worktree concurrent
+use: each worktree's filesystem has its own WU subdir; the subdirs never collide because worktrees are physically
+separate. The `active/` subdir under `user/{identity}/` (current contributor-role location) retires with this reform.
+
+**R65b.** Cross-WU files at root + WORKING-MEMORY.md extraction. Developer-scoped content lives flat at
+`user/{identity}/`:
+
+- `user/{identity}/USER-INBOX.md` — personal capture (unchanged location)
+- `user/{identity}/WORKING-MEMORY.md` — new file extracted from SESSION-NOTES's prior `## Persistent Context` section.
+  Carries the developer's cross-WU eviction-triggered context (constraints, things-to-watch, pragmatic tradeoffs pending
+  downstream WUs). Each entry retains the explicit removal-trigger convention from its prior form
+  (`_Remove when: [trigger]_`).
+
+Naming rationale: "Working memory" captures the actively-held-with-eviction semantic — maps directly to the per-entry
+removal trigger and differentiates from SESSION-NOTES (per-WU snapshot) and USER-INBOX (capture surface). Sorts after
+USER-INBOX in alpha-order — inbox-first reading order preserved.
+
+The session-handoff workflow updates: instead of writing one SESSION-NOTES.md with embedded `## Persistent Context`
+section, it writes `<wu-name>/SESSION-NOTES.md` (session-volatile content) and updates `WORKING-MEMORY.md` (cross-WU
+persistent entries) as separate file operations. session-init reads both as part of T2 state load.
 
 ### Migration sweep (P0)
 
@@ -691,6 +737,12 @@ for USER-INBOX, BACKLOG-INBOX, and `backlog/ATOMIC-INBOX.md`) as the R59 precond
 - `**Cohort:** [none]` initialization (or cohort name for known sibling sets)
 - Instance-file preamble strip per R59 — existing SESSION-NOTES, USER-INBOX (post-rename) lose "About this file" /
   Lifecycle / Portability / Writing-guide blocks; meta-file convention applies
+- `user/{identity}/` restructure per R65 — in-flight WUs' personal workspace relocates to the per-WU subdir + cross-WU
+  flat root layout: `user/{identity}/SESSION-NOTES.md` → `user/{identity}/<wu-name>/SESSION-NOTES.md`;
+  `user/{identity}/active/status-<wu-name>.md` (contributor-role, when present) →
+  `user/{identity}/<wu-name>/meta-<wu-name>.md` (composes with status-\* → meta-\* token rename); `user/{identity}/active/`
+  retires; `## Persistent Context` section extracts from SESSION-NOTES into new `user/{identity}/WORKING-MEMORY.md` at
+  root (entries preserved with their `_Remove when:_` triggers)
 - Extension renames per R56 — `pre-execution-graduation` → `pre-activation` (file shipping under new name; no migration
   needed since file doesn't exist yet); `pre-stage-review` → `pre-commit-review` (rename existing file in both copies);
   current `pre-merge-review` → `pre-pr-review` (rename existing file in both copies); new `pre-push-review.md` and

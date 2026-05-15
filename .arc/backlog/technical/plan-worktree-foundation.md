@@ -170,11 +170,38 @@ cross-cutting section rather than inside the Local mode treatment. It's universa
    workflow. Naming depends on ARCd Rebrand freeing `arc status` CLI name. Bundled with shift because
    the skill design is unified — splitting forces two PRDs for one skill.
 
-6. **Inbox sync fix.** `arc user load` gains cross-WU file merge semantics:
-    - WU-scoped files (SESSION-NOTES) stay HEAD-ancestry-scoped (current behavior)
-    - Cross-WU files (ATOMIC-INBOX, persistent-context entries) merge across recent notes in the ref,
-      not ancestry-bound
-    - Small convention for declaring which files are which (or hardcoded allowlist)
+6. **Cross-WU sync mechanism implementation.** `arc user save/load` ships path-driven sync
+   dispatch over the structural foundation delivered by Work Organization Reform (WOR R65). The
+   structure WOR ships:
+
+    - `user/{identity}/<wu-name>/**` — per-WU class (SESSION-NOTES, contributor-role
+      `meta-<wu-name>.md` when applicable). Each worktree's `user/{identity}/` filesystem
+      contains exactly one WU subdir (the active WU's).
+    - `user/{identity}/**` flat at root — cross-WU class (USER-INBOX, WORKING-MEMORY).
+    - `user/{identity}/.internal/**` — per-machine, never synced (existing convention).
+
+   Mechanism this WU delivers:
+
+    - **Path-driven dispatch.** `arc user save/load` infers sync class from path structure. No
+      allowlist file, no in-band class declaration — path is the convention. Resolves the prior
+      open question on file class declaration.
+    - **Per-WU subdir load.** Restore from the most recent reachable note containing the current
+      WU's subdir; older notes' subdirs for different WU names skip. Resolves the spawn →
+      first-load overwrite case: a fresh worktree's load doesn't pick up the prior WU's
+      SESSION-NOTES from main's ancestor walk because the WU subdirs don't match.
+    - **Cross-WU file merge.** Read N most-recent notes ref-wide; merge file contents via
+      value-level list-union of H3-headed entries (matching the codified shape for both
+      USER-INBOX and WORKING-MEMORY). Dedupe by entry identity (heading).
+    - **Tombstones for cross-WU deletions.** Entry removal writes a `## Removed: {name}` marker
+      with timestamp; merge respects the most recent tombstone over earlier inclusion. GC
+      strategy (after N notes / N days) — PRD decision.
+    - **Concurrent push reconcile on `refs/notes/arc/user/{identity}`.** When parallel worktrees
+      push and the second hits non-fast-forward, reconcile via `git notes merge` (cat_sort_uniq
+      default); surface conflict to user when non-trivial.
+
+   WOR ships the structural foundation (file relocations, strategy + workflow updates, in-flight
+   migration); this WU layers mechanism on top of resolved structure. No allowlist file, no
+   frontmatter convention — the path-class invariant is established by WOR and consumed here.
 
 7. **Pause-pointer reconciliation: option 2 (deprecate, migrate to shift state).** The four current
    pointer fields (`Interrupts:`, `Paused At:`, `Paused To:`, `Spawned:`) are retired. Their use cases
@@ -471,25 +498,19 @@ Session-Operational Flow → Interlock Release Wrappers (WU1 + WU2) → Work Org
 
 ## Pressure Points and Risks
 
-### SESSION-NOTES divergence per worktree
+### SESSION-NOTES divergence per worktree (resolved upstream by WOR R65)
 
-[strategy-team-coordination.md][team-coord] asserts: *"SESSION-NOTES.md: No conflict possible — each
-developer writes to their own `user/{identity}/` directory."* That holds for different identities. It
-breaks for same-identity-multiple-worktrees: both worktrees of identity `andrew` have their own
-physical `.arc/user/andrew/SESSION-NOTES.md`.
+The earlier framing of this as an open PRD question is resolved upstream by Work Organization Reform's
+user/ directory structural reform (R65). SESSION-NOTES lives at
+`user/{identity}/<wu-name>/SESSION-NOTES.md` — explicit WU-scoping at the path level. Concurrent
+worktrees have non-colliding paths; the WU-subdir-aware load logic (scope item 6) skips older notes'
+subdirs that don't match the current WU. The cross-WU persistent-context tension (a cross-WU section
+embedded in a per-WU file) is resolved by extracting it to a separate
+`user/{identity}/WORKING-MEMORY.md` in the cross-WU class.
 
-Git notes save/load resolves per-worktree at the commit level (different HEADs, different notes) —
-the underlying sync works. But local filesystem state diverges. Concrete failure mode: write notes in
-worktree A, `arc user save`, switch to worktree B, `arc user load` — B's HEAD is a different commit,
-so it finds B's notes (potentially stale), not A's.
-
-This isn't a bug; it's an artifact of worktrees being physically separate working trees. PRD owes:
-
-- Explicit model statement: "SESSION-NOTES is worktree-scoped, not identity-scoped, when worktrees
-  are in use"
-- Save/load semantics for worktree contexts
-- Reframing: SESSION-NOTES is effectively WU-scoped in practice — which is correct, just not what
-  current docs assume
+This WU's responsibility: implement the mechanism (scope item 6). The structural reform — file
+relocations, strategy + workflow updates, in-flight migration — ships in WOR; mechanism layers on top
+of resolved structure.
 
 ### Inbox sync semantics
 
@@ -564,11 +585,6 @@ Who owns worktree creation and removal?
 Minimum: session-init + `/arc-status` surface worktree context in orientation. Maximum: arc-config
 awareness, CLI worktree subcommand, strategy-doc diagrams, worktree-aware commit hooks. Where's the
 right floor for "worktree-aware" vs "worktree-integrated"?
-
-### Cross-WU file allowlist mechanism
-
-Hardcoded list (ATOMIC-INBOX.md, persistent-context entries) vs convention for declaration vs
-per-file frontmatter marker. Small design decision; PRD-time choice.
 
 ---
 
