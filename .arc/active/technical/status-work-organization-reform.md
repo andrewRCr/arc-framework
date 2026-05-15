@@ -9,23 +9,18 @@
 - **Task List:** `tasks-work-organization-reform.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Tasks 3.1 + 3.7 (deferred range) — `integrate-planning-branch.md` workflow
-  retired (+ manifest + init-recipe inventory fixup); `review.planning_checkpoint` config key
-  added across yaml × 2 + CLI types/validator + shell validator × 2 + test fixtures. Two adjacent
-  design corrections landed mid-execution: `archive.cadence` enum narrowed to
-  `with-integration | manual` (deferred value retired as redundant with `manual`); composition
-  and sweep moved to post-review-approval timing under `with-integration` (PRD R9/R17/R31 + Task
-  3.4 restructure 10 → 14 subtasks + notes rationale).
+- **Last Completed:** Task 3.2 — Replace `activate-planning-branch.md` with `init-work-unit.md`
+  for single-branch-per-WU model: workflow body rewrite + `branch-format` method codifies
+  planning-prefix invariance + PRD R12 default Origin `[Internal]` → `[internal]`. Committed
+  at `93b6b4ae`.
 
-- **Next Task:** Task 3.2 — Rename `activate-planning-branch.md` → `init-work-unit.md` (WU +
-  meta-file creation) (line ~924)
+- **Next Task:** Task 3.3 — Restructure `activate-work-unit.md` (state-flip + branch rename +
+  absorption-write + ROADMAP regen) (line ~945)
 
 - **Blockers:** [none]
 
-- **Next Action:** Proceed to Task 3.2 — `git mv` of
-  `.arc/system/workflows/arc/work-unit-lifecycle/planning/activate-planning-branch.md` →
-  `init-work-unit.md` (both copies), then workflow-body restructure for the WU + meta-file
-  creation responsibility shift. `template-meta.md` reference (Task 4.1) is forward-compatible —
-  body draft works without 4.1 complete.
+- **Next Action:** Proceed to Task 3.3, starting with 3.3.a (pre-condition gate: verify on
+  `plan/<name>` branch with `**State:** Planning`; if WU doesn't exist, `[!NOTE]` block
+  redirects to `init-work-unit.md`).
 
 ---
