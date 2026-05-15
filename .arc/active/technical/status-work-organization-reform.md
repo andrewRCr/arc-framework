@@ -9,17 +9,21 @@
 - **Task List:** `tasks-work-organization-reform.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Tasks 2.9, 2.10 — `strategy-work-organization.md` § WU Artifact Headers
-  codification (chain-of-authority model) and `strategy-file-classification.md` realignment to
-  WOR file taxonomy. Mid-execution fold-ins: "adopter" → neutral vocabulary across both edited
-  strategies; new Task 6.7.n added to sweep remaining adopter-facing surfaces.
+- **Last Completed:** Tasks 2.11, 2.12 — `strategy-task-list-formatting.md` § `tasks-*`
+  chain-model header codification + instance-file orientation authored in
+  `strategy-session-operations.md` (§ SESSION-NOTES) and `strategy-planning-module.md`
+  (§ Inbox Family). Mid-execution scope amendment landed R65 user/ workspace directory reform —
+  new tasks 2.17 / 3.12 / 5.5 / 6.3.d distributed across phases; companion design captured in
+  `plan-worktree-foundation.md` (item 6 collapsed from open question to specified mechanism).
 
-- **Next Task:** Task 2.11 — `strategy-task-list-formatting.md` § tasks-* header convention
-  update (line ~577)
+- **Next Task:** Task 2.13 — `commit-format` method + footer-convention propagation per R27 +
+  R29a (line ~656)
 
 - **Blockers:** [none]
 
-- **Next Action:** Proceed to Task 2.11 — `tasks-*` header reduction to `**Spec:**` only per
-  chain-model convention (line ~577 in `tasks-work-organization-reform.md`).
+- **Next Action:** Proceed to Task 2.13 — codify `docs` discipline in `commit-format.md`, rename
+  `commit-context-format.md` → `commit-footer.md` and rewrite body per R29a chain-model + hook
+  regex updates + smoke tests. Sequencing-critical: gates Phase 3 lifecycle workflow restructures
+  (3.3-3.5, 3.11) which emit the new parenthetical patterns.
 
 ---
