@@ -9,18 +9,15 @@
 - **Task List:** `tasks-work-organization-reform.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task 3.4 — Restructure `integrate-work-unit.md` for single-branch-per-WU +
-  post-approval composition + sweep (14 sequential steps across two phases). Committed at
-  `cab193e9` (7 files) — bundles the workflow body rewrite, retroactive class-tag routing cue
-  across the boundary trio (init/activate/integrate), and status→meta forward-compat. Two new
-  follow-up tasks defined (6.7.o cadence-enum cleanup; 6.7.p Status→Meta nomenclature sweep).
+- **Last Completed:** Task 3.6 — Wire PROJECT-PRD + TECHNICAL-OVERVIEW alignment checks +
+  promotion-write into `1_create-prd.md` (committed at `dbd2f326`).
 
-- **Next Task:** Task 3.5 — Restructure `archive-work-unit.md` (single source of truth for
-  archival mechanics; cadence-invariant body) (line ~1136)
+- **Next Task:** Task 3.8 — Extension fire-point family — 5 files (renames + new) + description /
+  contract pass (line ~1271). Task 3.7 is `[~]` (deferred and reverted); 3.8 is next active.
 
 - **Blockers:** [none]
 
-- **Next Action:** Proceed to Task 3.5, starting with 3.5.a (pre-condition check that meta file
-  shows `**State:** Integrating`).
+- **Next Action:** Proceed to Task 3.8, starting with 3.8.a (`pre-activation` — new file at
+  `.arc/system/extensions/pre-activation.md` + packages/ counterpart).
 
 ---
