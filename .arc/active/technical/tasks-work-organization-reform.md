@@ -1133,36 +1133,52 @@ but runtime checks of `review.planning_checkpoint` halt and `archive.cadence` di
   activate-work-unit.md (Task 3.3) land in 3.4's commit; those tasks' own outcome notes stay as-landed since the
   retroactive edits are tracked under 3.4's scope.
 
-### `[ ]` **3.5 Restructure `archive-work-unit.md` (single source of truth for archival mechanics; cadence-invariant body)**
+### `[x]` **3.5 Restructure `archive-work-unit.md` (single source of truth for archival mechanics; cadence-invariant body)**
 
 - _Goal:_ `archive-work-unit.md` carries the archival mechanics — state flip `Integrating → Shipped`, sweep commits,
   ROADMAP regen, post-Shipped errata convention. Invariant body regardless of invocation context: invoked inline from
   `integrate-work-unit.md` under `with-integration` cadence (via 3.4.g), or standalone post-merge under `deferred` /
   `manual`.
 
-- _Approach:_ DRY — composition stays in integrate per R31; archive owns archival mechanics. Cadence dispatch lives in
-  integrate (3.4.g), not here. The workflow's pre-condition gate verifies state is already `Integrating`; composition
-  must have happened upstream.
-
     **Strategies:** `strategy-work-organization.md`
 
-    - `[ ]` **3.5.a Pre-condition check (state `Integrating`)**
-        - Verify meta file shows `**State:** Integrating`. Halt with surface if not — upstream composition (in
-          `integrate-work-unit.md`) is the prerequisite.
+    - `[x]` **3.5.a Pre-condition check (state `Integrating`)**
+        - Step 1 lands as a grep-driven gate on `active/meta-{name}.md` State; halt-with-surface when
+          `**State:** Integrating` is absent and names upstream composition in `integrate-work-unit.md` as the
+          prerequisite. State flip below is documented as the only transition archive owns.
 
-    - `[ ]` **3.5.b State flip `Integrating → Shipped`**
-        - Edit meta file: `**State:** Integrating` → `**State:** Shipped`. Single direction; always.
+    - `[x]` **3.5.b State flip `Integrating → Shipped`**
+        - Step 2 lands: meta-file edit `**State:** Integrating` → `**State:** Shipped`. Single direction; always.
 
-    - `[ ]` **3.5.c Sweep commits (R5, R17, R41)**
-        - `git mv .arc/active/<cat>/meta-{name}.md .arc/archive/<dated>/{name}/meta-{name}.md`. Companion files
-          (`tasks-*`, `atomic-*`, `notes-*`, etc.) move alongside.
+    - `[x]` **3.5.c Sweep commits (R5, R17, R41)**
+        - Step 3 lands: `mkdir -p .arc/archive/{dated}/{name}` then per-file `git mv` of `meta-` + companions
+          (`prd-`, `tasks-`, `notes-`, `atomic-`) into the archive subdir. Adopted flat-active path shape
+          (`.arc/active/meta-{name}.md`) — no `<cat>/` subdir — matching landed `init-work-unit` /
+          `activate-work-unit` / `integrate-work-unit` precedent and work-org strategy § Directory Structure;
+          per-worktree isolation invariant cross-referenced inline. `{dated}` follows `YYYY-q*`.
 
-    - `[ ]` **3.5.d Regenerate ROADMAP (R39)**
-        - Archive transition is a regen fire-point. Hand-maintain (interim, pre-CLI) per algorithm in 2.4.
+    - `[x]` **3.5.d Regenerate ROADMAP (R39)**
+        - Step 4 lands as `arc-in-git`-only with a skip-block for `pm.mode ∈ {none, external}`; hand-maintain per
+          strategy § ROADMAP. The shipped WU drops out of ROADMAP naturally — the render algorithm walks
+          `active/**` + `backlog/planned/**`, and the Step 3 sweep removes the WU from both.
 
-    - `[ ]` **3.5.e Post-Shipped errata convention note (R32)**
-        - Workflow body documents the convention: Release Notes Entry edits after `Shipped` are errata only; git history
-          is the lock (matches keep-a-changelog norms); no mechanical enforcement.
+    - `[x]` **3.5.e Post-Shipped errata convention note (R32)**
+        - Trailing `## Post-Shipped errata convention` section lands at the document's tail: Release Notes Entry
+          edits after `**State:** Shipped` are errata only; git history is the lock (matches keep-a-changelog
+          norms); no mechanical enforcement.
+
+- _Outcome:_ Full workflow body rewrite — broader than the original a/b/c/d/e sketch (which covered only the new
+  positive scope). Stale shape retired wholesale: per-`{category}/` archive layout (R41 collapsed to
+  `archive/<dated>/<wu-name>/`); `**State:** Complete` + `**Integration:** Merged` gate (R9 collapsed the value set
+  to 4); PR-URL recording + child-branch delete steps (now upstream in integrate's composition per R14 retiring
+  `completion-{name}.md`); reference-file routing (no R-ID; out of WOR scope); explicit `git rm` of the status
+  file (now `git mv`'d as the meta file in the sweep); PROJECT-STATUS update (R40 retires the file entirely);
+  `activate-planning-branch` / `integrate-planning-branch` cross-refs (R7 retired both); Full-Protection
+  batch-branch setup step (governed by ambient `branch.protection`, not archive). Cadence dispatch retired from
+  this body — lives at integrate Step 13 per R31; archive body is invariant across both cadences. New shape: 6
+  steps + trailing errata section, aligned with Task 3.4 integrate precedent (`workflowCommit` class-tag routing,
+  flat active path, meta-* nomenclature). Cadence enum aligned to 2 values per PRD R16 (with-integration,
+  manual); strategy § Archival still lists 3 (`deferred` extra) — flagged for 6.7.o.
 
 ### `[ ]` **3.6 Wire PROJECT-PRD alignment check + promotion-write into `1_create-prd.md`**
 
