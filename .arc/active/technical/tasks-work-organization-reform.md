@@ -1020,7 +1020,7 @@ but runtime checks of `review.planning_checkpoint` halt and `archive.cadence` di
   (`review.planning_checkpoint` halt) deferred mid-execution after architectural review surfaced
   config-as-method-toggle smell; resolution moved to `plan-customization-architecture.md`.
 
-### `[ ]` **3.4 Restructure `integrate-work-unit.md` (PR-open + review iteration + post-approval composition + sweep)**
+### `[x]` **3.4 Restructure `integrate-work-unit.md` (PR-open + review iteration + post-approval composition + sweep)**
 
 - _Goal:_ `integrate-work-unit.md` ships the single merge-to-main moment under default
   `archive.cadence: with-integration`. Two timing phases inside one PR: code commits at PR open, then
@@ -1028,90 +1028,110 @@ but runtime checks of `review.planning_checkpoint` halt and `archive.cadence` di
   file's archive-phase sections, reflecting final reviewed scope) + sweep commit (meta file moves to
   `archive/<dated>/{wu-name}/`) + ROADMAP regen commit land as the final push before merge.
 
-    - _Approach:_ Composition + sweep fire post-review-approval, not pre-PR — final-form content reflects post-review
-      scope, and rejected PRs touch only code (no archive churn). Two workflow-interlocks bracket the composition
-      middle: a "proceed to archive ceremony" gate before composition begins, and a "review composed content + planned
-      sweep + ROADMAP delta" gate before the commit-and-push fires. State flip `Active → Integrating` at workflow
-      start (PR open + iteration); `Integrating → Shipped` rides the archive ceremony commit (terminal-form on branch,
-      merge pending). Per-worktree isolation invariant (R15) preserved — sweep still lands on the WU branch before
-      merge in both old and new sequencing. Under `archive.cadence: manual`, composition still fires post-approval,
-      but cadence dispatch skips inline archive invocation and surfaces a note that archive runs separately
-      post-merge.
-
     **Strategies:** `strategy-work-organization.md`
 
-    - `[ ]` **3.4.a Pre-conditions + State transition (Active → Integrating)**
-        - Verify on WU branch; verify `**State:** Active`; flip to `**State:** Integrating` (R31 — fires at PR-open
-          phase, covers iteration through review). Class-tagged commit per status-file timing rule.
+    - `[x]` **3.4.a Pre-conditions + State transition (Active → Integrating)**
+        - Step 1: pre-conditions list (WU branch per `branch-format`; meta `**State:** Active`) + edit flipping
+          State to `Integrating` + `workflowCommit` class-tagged commit with `chore(meta):` subject and template
+          message body. Inline option-(1) routing cue at this first class-tag fire site (per atomic-inbox line 285).
+          Subject + shape cross-ref'd to DEV-RULES.ARC § Commit Discipline (meta-file commit shape — forward-compat
+          from legacy `chore(status):` per new Task 6.7.p sweep).
 
-    - `[ ]` **3.4.b Pre-pr-review extension fire (R56) — before PR creation push**
-        - Pre-PR-creation fire-point. Extension defined in 3.8 (renamed from current `pre-merge-review` to
-          `pre-pr-review` for honest naming per R55). The current extension carries CodeRabbit invocation logic which
-          carries forward under the new name; the wiring location in `integrate-work-unit.md` updates from old
-          `pre-merge-review` reference to `pre-pr-review`. Halt-on-fail surfaces actionable message; user can fix and
-          retry or explicit-invoke bypass.
+    - `[x]` **3.4.b Pre-pr-review extension fire (R56) — before PR creation push**
+        - Step 2 (`Pre-PR review · #pre-pr-review`), gated by `review.pre_merge`: invokes the `diff-review` method
+          (with `review-triage` + `(code review)` footer) AND the `pre-pr-review` extension as a two-substep step.
+          Preserves the pre-WOR method+extension dual-fire pattern at the pre-PR moment; the extension is
+          forward-referenced by name (file lands at 3.8.c — broken-link hook would block a markdown link today).
 
-    - `[ ]` **3.4.c PR creation**
-        - Single PR (no `[PLAN]:` prefix per R6). PR opens with code commits only; completion-content and sweep
-          commits land post-review-approval per the new sequencing.
+    - `[x]` **3.4.c PR creation**
+        - Step 3: `git push -u origin {type}/{name}` (`workflowPush`) + `gh pr create`. Single PR per R6, no `[PLAN]:`
+          prefix. PR body sourced from `template-pull-request.md`; the no-post-merge-continuity rule cross-ref's to
+          DEV-RULES.ARC § Write for the reader, not the author.
 
-    - `[ ]` **3.4.d Review iteration**
-        - Workflow body documents the review-response cycle. May involve multiple code-fix pushes in response to
-          reviewer feedback; the WU stays in `**State:** Integrating` throughout. Composition + sweep do not fire
-          during this phase.
+    - `[x]` **3.4.d Review iteration**
+        - Step 4: documents the review-response cycle — `review-triage` method for findings, `(code review)` footer
+          per the `commit-footer` method, Tier 1 gates per fix commit. State stays `Integrating`; composition + sweep
+          do not fire here.
 
-    - `[ ]` **3.4.e Pre-merge-review extension fire (R56) — post-review-response gate**
-        - Post-review-response fire-point. Extension defined in 3.8; this step is the fire-point reference. Sits
-          between `review-response` (plan-review-method-family scope) and the archive ceremony; halt-on-fail surfaces
-          actionable message. Default-inactive extension; wiring is structural even when extension is off.
+    - `[x]` **3.4.e Pre-merge-review extension fire (R56) — post-review-response gate**
+        - Step 5 (`Fire pre-merge-review extension · #pre-merge-review`): the new post-review-response fire-point.
+          Extension forward-referenced by name (new file lands at 3.8.e). Default-inactive — structural no-op when
+          extension absent; halt-on-fail when present.
 
-    - `[ ]` **3.4.f Workflow-interlock: "proceed to archive ceremony"**
-        - `> [!IMPORTANT]` `workflow-interlock:` marker. Explicit "proceed" signal from user gates entry into the
-          composition + sweep ceremony. Phrasing: agent surfaces that review is settled and asks whether to begin
-          composing the final-form Release Notes Entry / Completion Notes.
+    - `[x]` **3.4.f Workflow-interlock: "proceed to archive ceremony"**
+        - Step 6: `> [!IMPORTANT]` `workflow-interlock:` callout. Surfaces review-settled state (open threads
+          resolved, required approvals received, checks green); asks whether to begin composing the final-form
+          Release Notes Entry + Completion Notes.
 
-    - `[ ]` **3.4.g PROJECT-PRD + TECHNICAL-OVERVIEW final alignment checks (R34, R60 — sub-bullets)**
-        - Two sub-bullets within the ceremony's alignment step. Both soft; rarely block if 1_create-prd's checks
-          passed. Surface any conflicts discovered during execution against the final reviewed scope.
-        - **PROJECT-PRD:** Always evaluated at this step.
-        - **TECHNICAL-OVERVIEW:** Fires only when PRD touched technical surfaces.
+    - `[x]` **3.4.g PROJECT-PRD + TECHNICAL-OVERVIEW final alignment checks (R34, R60 — sub-bullets)**
+        - Step 7: H4 subheads `#### PROJECT-PRD` (always evaluated) and `#### TECHNICAL-OVERVIEW` (PRD-touched-
+          technical-surfaces only — independent of PROJECT-PRD; scope distinction is the trigger). Both soft; cross-
+          ref to `1_create-prd.md`'s alignment-check family.
 
-    - `[ ]` **3.4.h Release Notes Entry composition (R14, R30) — final-form, uncommitted**
-        - Compose user-facing entry into meta file's archive-phase section, reflecting final reviewed scope.
-          Categories: Added | Changed | Removed | Fixed | Infrastructure | Deprecated | Security (Keep a Changelog
-          7-category set). One-paragraph summary; optional Breaking Changes callout. Edit lands in working tree
-          uncommitted — the 3.4.j interlock surfaces it for review before commit.
+    - `[x]` **3.4.h Release Notes Entry composition (R14, R30) — final-form, uncommitted**
+        - Step 8: Release Notes Entry into `active/meta-{name}.md`'s archive-phase Release Notes section. Keep a
+          Changelog 7-category set (Added | Changed | Removed | Fixed | Infrastructure | Deprecated | Security);
+          one-paragraph summary + optional Breaking Changes callout. Edit uncommitted; Step 11's interlock surfaces
+          it for review.
 
-    - `[ ]` **3.4.i Completion Notes composition (R14) — final-form, uncommitted**
-        - Narrative summary into meta file's Completion Notes section. Same uncommitted-surfacing pattern as 3.4.h.
+    - `[x]` **3.4.i Completion Notes composition (R14) — final-form, uncommitted**
+        - Step 9: narrative Completion Notes into the meta file's archive-phase section. Same uncommitted-surfacing
+          pattern as Step 8.
 
-    - `[ ]` **3.4.j Drain-write (R20, R21) — uncommitted**
-        - If integration drains any shared inbox entries (entries that were absorbed into this WU's scope and need
-          final deletion from the shared inbox), finalize deletions here. Edits land in working tree uncommitted; the
-          3.4.k interlock surfaces them alongside composition for review.
+    - `[x]` **3.4.j Drain-write (R20, R21) — uncommitted**
+        - Step 10 (`arc-in-git` only — `> **Skip**` blockquote for `none` / `external`): final deletion of absorbed
+          shared inbox entries. Uncommitted; capture-routing cross-ref'd to DEV-RULES.ARC § Leave it cleaner.
 
-    - `[ ]` **3.4.k Workflow-interlock: "review composed content + planned sweep target + ROADMAP delta"**
-        - `> [!IMPORTANT]` `workflow-interlock:` marker. Agent surfaces (a) the composed Release Notes Entry +
-          Completion Notes, (b) the planned `git mv` sweep target (`active/<cat>/meta-{name}.md` →
-          `archive/<dated>/{name}/meta-{name}.md`), and (c) the ROADMAP delta the upcoming regen will produce.
-          Explicit "proceed to commit + sweep + push" signal from user gates the next steps.
+    - `[x]` **3.4.k Workflow-interlock: "review composed content + planned sweep target + ROADMAP delta"**
+        - Step 11: `> [!IMPORTANT]` `workflow-interlock:` callout with a numbered surface block — composed Release
+          Notes Entry + Completion Notes (Steps 8–9), planned sweep target with full `active → archive` path, ROADMAP
+          delta. Gates "proceed to commit + sweep + push".
 
-    - `[ ]` **3.4.l Commit completion content**
-        - Class-tagged `workflowCommit` if release-wrappers active; carries Release Notes Entry + Completion Notes +
-          drain-write additions as one logical commit.
+    - `[x]` **3.4.l Commit completion content**
+        - Step 12: `workflowCommit` bundling composition + drain-write edits. Template message body with Release
+          Notes Entry / Completion Notes / drain summary; `Context: meta-{name}.md (integration)` footer per the
+          `commit-footer` method.
 
-    - `[ ]` **3.4.m Cadence dispatch — invoke `archive-work-unit.md` inline under `with-integration`**
-        - Read `archive.cadence` from `arc-config.yml`.
-        - `with-integration` (default): invoke `archive-work-unit.md` inline at this point. archive-work-unit handles
-          state flip `Integrating → Shipped`, sweep commits, and ROADMAP regen per its cadence-invariant body (3.5).
-          Returns; resume here with the final push.
-        - `manual`: skip inline invocation; surface a note at workflow exit that archive runs separately post-merge
-          per user invocation.
+    - `[x]` **3.4.m Cadence dispatch — invoke `archive-work-unit.md` inline under `with-integration`**
+        - Step 13: reads `archive.cadence` from `arc-config.yml`. `with-integration` (default) invokes
+          `archive-work-unit.md` inline (state flip + sweep + ROADMAP regen handled there per 3.5); `manual` skips
+          inline invocation and surfaces a post-merge note. Third value `deferred` not enumerated — retired per
+          `notes-work-organization-reform.md` § `archive.cadence: deferred` considered and rejected.
 
-    - `[ ]` **3.4.n Final push**
-        - Push completion-content + sweep + ROADMAP commits to the PR. Class-tagged `workflowPush` if release-wrappers
-          active. Under `manual`, push is just the completion-content commit; sweep + ROADMAP fire later when
-          `archive-work-unit.md` is invoked explicitly.
+    - `[x]` **3.4.n Final push**
+        - Step 14: `workflowPush` covering accumulated commits (sweep + ROADMAP included only under
+          `with-integration`; completion content only under `manual`). Integration-interlock callout placed below the
+          push command gates merge; `gh pr merge` invocation block cites `merge.strategy` config.
+
+- _Outcome:_ Workflow body rewritten end-to-end for the new integration shape — 14 sequential steps split into
+  Phase 1 (open + iterate, code commits only) and Phase 2 (compose + sweep + ship, post-review-approval). Two
+  workflow-interlocks bracket the composition middle (Step 6 "proceed to archive ceremony", Step 11 "review
+  composed content + sweep + ROADMAP delta"); a third `integration-interlock` callout at Step 14 gates merge.
+  State machinery: `Active → Integrating` at Step 1's `workflowCommit` (`chore(meta):` subject — forward-compat
+  from `chore(status):` per new Task 6.7.p sweep); `Integrating → Shipped` rides the inline `archive-work-unit.md`
+  invocation under `with-integration` (Step 13). Cadence enum trimmed to two values (`with-integration` |
+  `manual`); third value `deferred` retired per WOR notes — strategy doc's stale 3-value enumeration scheduled
+  for cleanup at new subtask 6.7.o (added this pass). Frontmatter declares `diff-review` / `review-triage` /
+  `commit-footer` methods and `pre-pr-review` / `pre-merge-review` extensions (both forward-referenced by name;
+  files land at 3.8.c / 3.8.e). Step 4 phrasing kept generic — does not bind to a not-yet-codified
+  `review-response` method (forward-compat with plan-review-method-family). Method / template defer discipline:
+  workflow body cites methods and templates by reference only; review-triage classifications, commit-footer
+  parentheticals, and Release Notes category set live in their authoritative sources (`review-triage.md`,
+  `commit-footer.md`, `template-meta.md`'s schema) — `template-meta.md` forward-referenced by name (lands at 4.1).
+  Class-tag cue hardening: option (1) inline lookup hint at first fire site (per atomic-inbox line 285) adopted
+  in this workflow + retroactively in init-work-unit.md (3.2) and activate-work-unit.md (3.3); broader sweep +
+  options (2)/(3)/(4) remain deferred per the atomic-inbox entry. Retired from prior shape: Phase 1-on-child-branch
+  / Phase 2-code-review-merge framing, multi-branch / rotate-branch references, completion-doc creation (replaced
+  by meta-file archive-phase composition at Steps 8–9), separate status-file Next Action update step (folded into
+  Step 1's state flip), pre-merge inbox-triage step (drain-write at Step 10 narrows to absorbed-entry deletion;
+  personal inbox triage moves out of the integrate path), "Partially Superseded Work" appendix (deactivate-work-unit
+  Case A-delete + clean-work-unit cover the abandonment case). Substantive deviation from subtask list: 3.4.b
+  expanded to include both the `diff-review` method and the `pre-pr-review` extension fire (gated by
+  `review.pre_merge`) — preserves the pre-WOR method+extension dual-fire at the pre-PR moment; the subtask
+  description named only the extension. Two follow-up tasks added to Phase 6.7 (deferred-cadence cleanup at 6.7.o;
+  Status→Meta nomenclature sweep at 6.7.p). Retroactive touches to init-work-unit.md (Task 3.2) and
+  activate-work-unit.md (Task 3.3) land in 3.4's commit; those tasks' own outcome notes stay as-landed since the
+  retroactive edits are tracked under 3.4's scope.
 
 ### `[ ]` **3.5 Restructure `archive-work-unit.md` (single source of truth for archival mechanics; cadence-invariant body)**
 
@@ -2386,6 +2406,50 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           lens; that's their audience. Two-copy sync still required for adopter-facing surfaces.
         - Post-sweep verification: grep on adopter-facing surface list returns empty (with the package-source mirror
           checked alongside `.arc/`).
+
+    - `[ ]` **6.7.o `archive.cadence` enum cleanup (`strategy-work-organization.md` § Archival)**
+        - `strategy-work-organization.md` § Archival § Sweep-as-you-go default currently enumerates three
+          `archive.cadence` values (`with-integration` / `deferred` / `manual`) per Task 2.3's landed content. WOR
+          resolved the enum to two values (`with-integration` / `manual`) per `notes-work-organization-reform.md`
+          § `archive.cadence: deferred` considered and rejected. Trim the strategy doc's enumeration to match: remove
+          the `deferred` bullet; verify no other `deferred` cadence references survive in the strategy body.
+        - Sweep target: `.arc/reference/strategies/arc/strategy-work-organization.md` + package-source mirror.
+          Companion verification: CLI validator (`validate-config.sh`) already enumerates 2 values — confirm no
+          drift; `arc-config.yml` carries no enum (default only) — no change needed.
+        - Post-sweep verification: grep on `\bdeferred\b` within `archive.cadence` context returns empty across
+          adopter-facing surfaces; retirement rationale survives in internal-dev-facing notes (this WU's notes
+          file).
+
+    - `[ ]` **6.7.p Status-file → Meta-file nomenclature sweep (`chore(status):` + prose)**
+        - Migrate the `chore(status):` commit subject-scope token to `chore(meta):` and "Status-file ..." prose
+          references to "Meta-file ..." across all surfaces. Companion to Task 6.2.a (file rename) and 6.2.i (hook
+          regex + commit-footer body filename-token flip) — 6.7.p covers the subject-scope token + prose-nomenclature
+          strata that those tasks don't touch. Hook regex change unnecessary: the type-enum regex captures any
+          alphanum scope; `meta` clears the 6.1.b denylist (initial denylist member is `arc` only).
+        - Grep patterns: `chore\(status\)`, `Status-file timing`, `Status-file commit shape`, `Status edits`,
+          `status edit`, `\bstatus-file\b` (case-insensitive on the prose patterns).
+        - Touch points:
+            - Constitutional: `DEV-RULES.ARC.md` § Commit Discipline (Status-file timing bullet, Status-file commit
+              shape bullet, `chore(status):` reference, "Status edits" prose).
+            - Methods: `commit-footer.md` (line ~70 `chore(status):` example reference under Meta-file references).
+            - Workflows: `1_create-prd.md`, `3_process-task-loop.md`, `prepare-commits.md` (multiple refs),
+              `session-handoff.md` (multiple refs).
+            - Skill: `arc-commit/SKILL.md`.
+            - Strategies: `strategy-session-operations.md`, `strategy-workflow-authoring.md`.
+            - Already migrated ahead-of-schedule at boundary workflows (verify no re-sweep needed):
+              `integrate-work-unit.md` (Task 3.4), `init-work-unit.md` (Task 3.4 fix-up),
+              `activate-work-unit.md` (Task 3.4 fix-up — meta-file prose; subject-scope sample `docs(arc):` is a
+              separate concern tied to Task 6.1.b's `arc` scope refusal).
+        - **Exclusions:**
+            - Historical archive (`completed/<dated>/` post-6.9 / `reference/archive/` pre-6.9): accurate-as-of-decision;
+              do not touch.
+            - Internal-dev surfaces describing historical decisions (e.g., `adr-016`,
+              `research-pr-sizing-and-wu-boundary-estimation.md`) follow the 2.13.e ADR-precedent — historical record
+              stays accurate as-of-decision; explicit per-doc judgment at execution.
+        - **Sequencing:** Runs after Task 6.2.a (file rename) + 6.2.i (hook regex flip) so the new shape is
+          coherent end-to-end before this prose sweep lands.
+        - Post-sweep verification: grep on the patterns returns empty across adopter-facing surfaces; internal-dev
+          historical surfaces retain original phrasing where the as-of-decision case applies.
 
 ### `[ ]` **6.8 Slim instance-file preambles (SESSION-NOTES + USER-INBOX + BACKLOG-INBOX + backlog/ATOMIC-INBOX)**
 

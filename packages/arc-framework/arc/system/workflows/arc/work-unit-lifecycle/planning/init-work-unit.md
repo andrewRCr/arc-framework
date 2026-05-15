@@ -83,8 +83,10 @@ init), do not recreate it. Reconcile **Branch** and **Spec** to reflect the curr
 plan-doc filename; preserve other field values as-is.
 
 > **Commit shape.** Stage the plan-doc move (when present) with the meta file as a bundled init commit;
-> otherwise dedicated. See [`commit-format`][commit-format]; status-file timing applies per the rename
-> (see [DEV-RULES.ARC][dev-rules-arc] § Status-file commit shape).
+> otherwise dedicated. Commit as `workflowCommit` — routes per [DEV-RULES.ARC][dev-rules-arc] § Workflow
+> class-tag routing (wrapper or raw `git` per `releaseRouting.value.workflowCommit`). Subject per
+> [`commit-format`][commit-format]; meta-file commit shape applies per [DEV-RULES.ARC][dev-rules-arc]
+> § Commit Discipline.
 
 ### 5) Push Planning Branch
 

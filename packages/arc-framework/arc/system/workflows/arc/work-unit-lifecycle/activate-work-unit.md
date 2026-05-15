@@ -68,7 +68,8 @@ git rm .arc/active/plan-{name}.md
 Safety-catch — the plan-doc should already be absent (deleted at PRD creation per `1_create-prd.md`); this covers
 paths that skipped the create-PRD boundary.
 
-Stage both edits and commit (`workflowCommit`):
+Stage both edits and commit as `workflowCommit` — routes per [DEV-RULES.ARC][dev-rules-arc] § Workflow class-tag
+routing (wrapper or raw `git` per `releaseRouting.value.workflowCommit`):
 
 ```text
 docs(arc): activate {work-name} work unit
@@ -141,5 +142,6 @@ With activation complete, proceed to task execution:
 [arc-ext-post-activate]: ../../../extensions/post-work-unit-activate.md
 [work-org-branching]: ../../../../reference/strategies/arc/strategy-work-organization.md#branching
 [work-org-roadmap]: ../../../../reference/strategies/arc/strategy-work-organization.md#roadmap
+[dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md
 [dev-rules-leave-cleaner]: ../../../../reference/constitution/DEV-RULES.ARC.md#leave-it-cleaner
 [dev-rules-atomicity]: ../../../../reference/constitution/DEV-RULES.ARC.md#atomicity
