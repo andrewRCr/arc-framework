@@ -9,20 +9,18 @@
 - **Task List:** `tasks-work-organization-reform.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task 3.3 — Restructure `activate-work-unit.md` for single-branch-per-WU
-  (8 sequential steps from pre-condition gate through `post-work-unit-activate`). Task 3.7
-  deferred mid-execution: R46 (`review.planning_checkpoint`) reverted after architectural review
-  surfaced a config-as-method-toggle smell; reform routed to `plan-customization-architecture.md`
-  (new backlog plan). Committed at `cf008ebe` (3.3 + 3.7 deferral, 23 files) plus fix-up
-  `df02957f` (Task 3.2's missed manifest + init-recipe rename — unblocked 96 cascading test
-  failures).
+- **Last Completed:** Task 3.4 — Restructure `integrate-work-unit.md` for single-branch-per-WU +
+  post-approval composition + sweep (14 sequential steps across two phases). Committed at
+  `cab193e9` (7 files) — bundles the workflow body rewrite, retroactive class-tag routing cue
+  across the boundary trio (init/activate/integrate), and status→meta forward-compat. Two new
+  follow-up tasks defined (6.7.o cadence-enum cleanup; 6.7.p Status→Meta nomenclature sweep).
 
-- **Next Task:** Task 3.4 — Restructure `integrate-work-unit.md` (PR-open + review iteration +
-  post-approval composition + sweep) (line ~1023)
+- **Next Task:** Task 3.5 — Restructure `archive-work-unit.md` (single source of truth for
+  archival mechanics; cadence-invariant body) (line ~1136)
 
 - **Blockers:** [none]
 
-- **Next Action:** Proceed to Task 3.4, starting with 3.4.a (pre-conditions + State transition
-  `Active → Integrating`).
+- **Next Action:** Proceed to Task 3.5, starting with 3.5.a (pre-condition check that meta file
+  shows `**State:** Integrating`).
 
 ---
