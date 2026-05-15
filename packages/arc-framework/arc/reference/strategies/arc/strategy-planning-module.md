@@ -71,6 +71,10 @@ see § Ceremony-Only Writes to Shared Inboxes for the three fire-points. Writes 
 transport runs through git notes — see `strategy-session-operations.md` § Session State
 Portability for the mechanism.
 
+Cross-WU persistent context with explicit eviction triggers (constraints, things-to-watch,
+tradeoffs pending downstream work) lives in a sibling root file `WORKING-MEMORY.md` — see
+`strategy-session-operations.md` § Working Memory for the per-entry shape and lifecycle.
+
 ### `backlog/ATOMIC-INBOX.md` — project-shared atomic capture
 
 Committed-tracked queue of atomic-character entries from across the project. Ceremony-only writes

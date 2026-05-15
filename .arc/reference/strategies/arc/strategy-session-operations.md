@@ -21,7 +21,9 @@ and handoff-interior toggle pattern (flow); plus context monitoring and session 
 - [Interlock Model](#interlock-model) — interlock stack, ceremony, configurability, approval signals
 - [Failure-Mode Recovery](#failure-mode-recovery) — taxonomy and recovery paths for interlock cascades
 - [Status-File Timing](#status-file-timing) — when status updates land in commit history
+- [User Workspace Directory](#user-workspace-directory) — path-class layout for `user/{identity}/`
 - [SESSION-NOTES](#session-notes) — personal session-context companion to the status file
+- [Working Memory](#working-memory) — cross-WU persistent context with eviction triggers
 - [Handoff-Interior Toggle Pattern](#handoff-interior-toggle-pattern) — config-key convention for handoff actions
 - [Context Monitoring](#context-monitoring) — shared responsibility model
 - [Auto-Compaction](#auto-compaction) — operational guidance
@@ -711,24 +713,95 @@ to task-list bundling would cost, see [status-file timing background][TODO-docs-
 
 ---
 
+## User Workspace Directory
+
+`user/{identity}/` carries per-developer session-state content. Its layout encodes semantic class
+through path structure: WU-scoped content lives in a per-WU subdir; developer-scoped (cross-WU)
+content lives flat at the root.
+
+**Layout:**
+
+```text
+user/{identity}/
+├── <wu-name>/                 # Per-WU subdir — WU-scoped
+│   ├── SESSION-NOTES.md       # Per-WU session context
+│   └── meta-<wu-name>.md      # Contributor-role meta file (when applicable)
+├── USER-INBOX.md              # Cross-WU personal capture
+├── WORKING-MEMORY.md          # Cross-WU persistent context
+└── .internal/                 # Per-machine state (excluded from notes serialization)
+```
+
+**Path-class invariant.** Path determines sync class. Per-WU subdir contents are bounded to the
+WU's lifecycle and travel with that WU's branch; cross-WU root files carry developer-scoped
+context that persists across work units. The `.internal/` dotdir is per-machine and never
+serialized — see § Session State Portability.
+
+Each worktree's `user/{identity}/` filesystem holds exactly one WU subdir (its own WU's), making
+worktree-correctness inspectable at a glance: `ls user/{identity}/` shows which WU this worktree
+serves. Multi-worktree concurrent use produces non-colliding subdirs because worktrees are
+physically separate.
+
+---
+
 ## SESSION-NOTES
 
-SESSION-NOTES.md is personal session context, gitignored, paired with the active WU's
-`status-{name}.md` in `active/{category}/`. The status file carries the factual project pointer
+SESSION-NOTES.md is personal session context, gitignored, paired with the active WU's project
+pointer — the maintainer-role `status-{name}.md` in `active/{category}/` or the contributor-role
+`meta-{name}.md` in the per-WU workspace subdir. The project pointer carries the factual state
 (branch, task, blockers, next action); SESSION-NOTES carries the working context the next session
-needs to pick up where the last left off — approach, decisions, things tried, risks. Together they
-cover the WHAT (tracked) and the HOW-it's-going (personal) of in-flight work.
+needs to pick up where the last left off — approach, decisions, things tried, risks. Together
+they cover the WHAT (tracked) and the HOW-it's-going (personal) of in-flight work.
+
+**Location.** `user/{identity}/<wu-name>/SESSION-NOTES.md` — per-WU subdir under the developer's
+workspace. The subdir is created at WU activation and removed when the WU integrates.
 
 **Lifecycle.** Created at session handoff (the handoff workflow writes the file), consumed at
-session-init (the init workflow reads it as T2 state). Delete between work units — session context
-belongs to a specific WU's working state, not to the project record.
+session-init (the init workflow reads it as T2 state). The per-WU subdir scopes the file to its
+work unit — when the WU integrates, the subdir is removed along with its contents.
 
 **Portability.** Local by default. Cross-machine and team handoff travel through git notes — see
 § Session State Portability for the operational model, config keys, and load-error recovery.
 
 **Writing guide.** The [session-handoff workflow][session-handoff] carries detailed content
-guidance for what to include vs. omit. Per-developer directory (`user/{identity}/`) groups
-SESSION-NOTES alongside any personal inbox content and local atomic capture.
+guidance for what to include vs. omit.
+
+---
+
+## Working Memory
+
+WORKING-MEMORY.md carries the developer's cross-WU persistent context — constraints,
+things-to-watch, pragmatic tradeoffs pending downstream work. Where SESSION-NOTES is a per-WU
+snapshot (write at handoff, consume at next session-init for the same WU, discard at integration)
+and USER-INBOX is a capture surface (live additions draining at ceremony boundaries),
+WORKING-MEMORY persists across work units with explicit eviction triggers per entry.
+
+**Location.** `user/{identity}/WORKING-MEMORY.md` — flat at the workspace root, cross-WU scope.
+
+**Per-entry shape.** Each entry carries an explicit removal trigger inline:
+
+```markdown
+**Short header naming the constraint or tradeoff:**
+*Remove when: [explicit trigger condition].*
+
+Body — context, scope, what to watch for or work around.
+```
+
+Triggers are concrete observable events (a downstream WU integrates, a tool lands, a known
+workaround becomes obsolete). Vague triggers (`once we figure out X`) defeat the
+eviction-on-trigger discipline and let entries accumulate indefinitely.
+
+**Lifecycle.** Written at session handoff alongside SESSION-NOTES; read at session-init as part
+of T2 state load. Reviewed at each handoff — entries whose triggers have fired are removed.
+Surviving entries travel with the developer's workspace across WU boundaries.
+
+**Distinguishing the three personal surfaces:**
+
+- **SESSION-NOTES** — per-WU snapshot. Bounded to one WU's working state.
+- **USER-INBOX** — capture surface. Live writes; drains at ceremony boundaries.
+- **WORKING-MEMORY** — cross-WU persistent context. Eviction-triggered.
+
+The eviction-trigger convention is what makes WORKING-MEMORY work as persistent context without
+accumulating into noise — the trigger is the commitment that keeps the file actionable.
 
 ---
 

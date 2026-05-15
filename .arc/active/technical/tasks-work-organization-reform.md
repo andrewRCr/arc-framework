@@ -859,51 +859,45 @@ parenthetical patterns); phase order reflects execution order.
   (tied to two-branch lifecycle); § Branches without work units (stale concept; AWL recodifies later). Both
   strategy-doc copies in sync; lint clean.
 
-### `[ ]` **2.17 Codify user/ workspace directory reform in strategies (R65)**
+### `[x]` **2.17 Codify user/ workspace directory reform in strategies (R65)**
 
 - _Goal:_ Strategy docs reflect WOR's R65 user/ directory structural reform — per-WU subdir for WU-scoped content +
   cross-WU flat root, with WORKING-MEMORY.md extracted from SESSION-NOTES's prior `## Persistent Context` section. Lands
   before Phase 3's session-lifecycle workflow updates (Task 3.12) and Phase 6.3's in-flight migration (Task 6.3.d) so
   both have a codified target shape to consume.
 
-- _Context:_ Task 2.12 (now complete) authored initial SESSION-NOTES + inbox-family orientation content under the
-  pre-R65 flat layout. R65 amends that layout: SESSION-NOTES moves to a per-WU subdir, persistent-context section
-  extracts to WORKING-MEMORY.md at root. This task updates the Task 2.12 content to reflect the new structure and adds
-  the path-class invariant framing.
+    - `[x]` **2.17.a Update `strategy-session-operations.md` § SESSION-NOTES for per-WU subdir location**
+        - § SESSION-NOTES path framing updated to `user/{identity}/<wu-name>/SESSION-NOTES.md` with per-WU subdir
+          lifecycle (created at activation, removed at integration). Companion-to-project-pointer framing spans both
+          roles — maintainer `status-{name}.md` in `active/{category}/` and contributor `meta-{name}.md` in the per-WU
+          workspace subdir.
 
-    **Strategies:** `strategy-package-project-sync.md`
+    - `[x]` **2.17.b Add § Working Memory section to `strategy-session-operations.md`**
+        - New `## Working Memory` H2 codifies WORKING-MEMORY.md: workspace-root location, per-entry `_Remove when:_`
+          trigger shape, eviction-triggered review at handoff. Three-personal-surface contrast block distinguishes it
+          from SESSION-NOTES (per-WU snapshot) and USER-INBOX (capture surface). Matching TOC entry added.
 
-    - `[ ]` **2.17.a Update `strategy-session-operations.md` § SESSION-NOTES for per-WU subdir location**
-        - Section authored under Task 2.12 updates: path framing shifts from `user/{identity}/SESSION-NOTES.md` to
-          `user/{identity}/<wu-name>/SESSION-NOTES.md`; lifecycle paragraph clarifies the per-WU subdir creation at
-          activation. Companion-to-status-file framing updates to reference the new contributor-role location
-          (`user/{identity}/<wu-name>/meta-<wu-name>.md` — composes with status-\* → meta-\* token rename).
+    - `[x]` **2.17.c Add § User Workspace Directory section to `strategy-session-operations.md`**
+        - New `## User Workspace Directory` H2 codifies the per-WU subdir + cross-WU flat root layout via concrete
+          tree (`<wu-name>/SESSION-NOTES.md`, optional `meta-<wu-name>.md`, root `USER-INBOX.md` /
+          `WORKING-MEMORY.md`, per-machine `.internal/`) and a path-class invariant statement. Matching TOC entry
+          added.
 
-    - `[ ]` **2.17.b Add § Working Memory section to `strategy-session-operations.md`**
-        - New `## Working Memory` H2 codifies WORKING-MEMORY.md: purpose (cross-WU eviction-triggered context —
-          constraints, things-to-watch, pragmatic tradeoffs pending downstream WUs); per-entry shape
-          (`_Remove when: [trigger]_` triggers); lifecycle (cross-WU, write at handoff, read at init); contrast with
-          SESSION-NOTES (per-WU snapshot) and USER-INBOX (capture surface). Position: between § SESSION-NOTES and
-          § Handoff-Interior Toggle Pattern. Add matching TOC entry.
+    - `[x]` **2.17.d Update `strategy-planning-module.md` § USER-INBOX subsection for WORKING-MEMORY split**
+        - § USER-INBOX gains a closing sibling-pointer paragraph routing cross-WU persistent-context readers to
+          `strategy-session-operations.md` § Working Memory. Lightweight pointer; full coverage stays in
+          session-operations.
 
-    - `[ ]` **2.17.c Add § User Workspace Directory section to `strategy-session-operations.md`**
-        - New section codifies the per-WU subdir + cross-WU flat root structure (the path-class invariant). Concrete
-          layout listing under `user/{identity}/`: per-WU subdir (`<wu-name>/SESSION-NOTES.md`, optionally
-          `meta-<wu-name>.md`), cross-WU flat root files (USER-INBOX, WORKING-MEMORY), `.internal/` per-machine surface.
-          Path-class invariant statement (path determines sync class). Forward-pointer to
-          `plan-worktree-foundation.md` scope item 6 for the sync mechanism that consumes this structure. Position:
-          adjacent to § SESSION-NOTES (provides structural context for the file-specific sections that follow). Add
-          matching TOC entry.
+    - `[x]` **2.17.e Sync to packages/**
+        - Both copies edited in parallel during execution; final `diff` confirms byte-identical for both strategy
+          files.
 
-    - `[ ]` **2.17.d Update `strategy-planning-module.md` § USER-INBOX subsection for WORKING-MEMORY split**
-        - § Inbox Family § USER-INBOX subsection authored under Task 2.12 updates: brief note that persistent
-          cross-handoff context lives in `WORKING-MEMORY.md` (cross-reference forward to
-          `strategy-session-operations.md` § Working Memory), not embedded in SESSION-NOTES as it formerly did.
-          Lightweight pointer; full coverage stays in the session-operations strategy.
-
-    - `[ ]` **2.17.e Sync to packages/**
-        - Apply 2.17.a-d edits identically across `.arc/reference/strategies/arc/` and
-          `packages/arc-framework/arc/reference/strategies/arc/`; final `diff` byte-identical.
+- _Outcome:_ R65 layout codified across both adopter-facing strategies. `strategy-session-operations.md` gains three
+  contiguous sections — § User Workspace Directory (path-class layout) → § SESSION-NOTES (per-WU subdir location) →
+  § Working Memory (cross-WU persistent context); `strategy-planning-module.md` § USER-INBOX routes cross-WU
+  persistent-context readers to the workspace-layout doc. Both copies sync byte-identical. Phase 2 closes; Phase 3
+  session-lifecycle workflow updates (Task 3.12) and Phase 6.3.d in-flight migration now have a codified target shape
+  to consume.
 
 ## **Phase 3:** Boundary workflow restructure + ceremony fire-points
 
