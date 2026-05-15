@@ -169,6 +169,8 @@ concerns freely.
 - Project-internal migration concerns for ARC's own evolution ("forward-only migration",
   "backward-compat tooling")
 - Forward-pointers to unplanned future scope — adopters don't share ARC's internal roadmap
+- `adopter`/`adopters` — framework-author POV on the reader. Use neutral framing ("projects",
+  "teams", actor-omitted). Internal-dev surfaces keep it (their audience).
 
 Route such concerns to internal-dev surfaces instead: WU notes for in-flight context; ADR or
 PROJECT-PRD for directional decisions; project strategies for conventions that don't apply to
