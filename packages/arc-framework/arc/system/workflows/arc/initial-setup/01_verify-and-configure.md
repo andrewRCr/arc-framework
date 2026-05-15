@@ -99,7 +99,7 @@ ARC has two additional customization surfaces worth knowing about:
 
 - **`system/methods/`** — one file per method, each replacing *how* ARC does something.
   Example: a team using Jira populates the `.override` section in
-  `commit-context-format.md` to reference tickets instead of task lists.
+  `commit-footer.md` to reference tickets instead of task lists.
 - **`system/extensions/`** — one file per extension point, each adding *extra steps* at
   workflow points. Example: populate `.actions` in `post-task-quality.md` to run a security
   scan after every task, or `post-task-completion.md` to sync task completion to an external

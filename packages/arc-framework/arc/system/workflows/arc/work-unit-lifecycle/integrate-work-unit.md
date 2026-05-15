@@ -185,7 +185,7 @@ task list.
 Documentation prep commits use type/scope `docs(arc)` or `docs({category})` with the `(integration)`
 context footer pattern — e.g., `Context: status-{name}.md (integration)`. Review-fix commits during
 integration use the `(code review)` footer on `tasks-{name}.md` or `plan-{name}.md` instead — see the
-[commit-context-format method][arc-methods-ccf].
+[commit-footer method][arc-methods-ccf].
 
 > [!IMPORTANT]
 > `workflow-interlock`: Stop after integration-prep documentation is committed. Surface Phase 1
@@ -425,7 +425,7 @@ Earlier phases remain valid (will be used by new approach), but later phases are
 [task-list-formatting]: ../../../../reference/strategies/arc/strategy-task-list-formatting.md
 [arc-methods-rt]: ../../../methods/review-triage.md
 [arc-methods-diff-review]: ../../../methods/diff-review.md
-[arc-methods-ccf]: ../../../methods/commit-context-format.md
+[arc-methods-ccf]: ../../../methods/commit-footer.md
 [arc-ext-pre-merge-review]: ../../../extensions/pre-merge-review.md
 [arc-config]: ../../../arc-config.yml
 [template-completion-doc]: ../../../../reference/templates/template-completion-doc.md

@@ -19,7 +19,7 @@ configurability model, see [Configurability Architecture Strategy][config-arch].
 ## Index
 
 - [commit-format](commit-format.md) — commit message structure, types, scope, body
-- [commit-context-format](commit-context-format.md) — `Context:` footer patterns
+- [commit-footer](commit-footer.md) — `Context:` footer patterns
 - [issue-triage](issue-triage.md) — severity triage, fix-vs-defer decisions
 - [test-first](test-first.md) — decision tree by change type
 - [session-state](session-state.md) — reading and writing session state
@@ -34,8 +34,8 @@ when populating any `.override` section. Methods not listed here are independent
 
 | Method                | Related Methods       | Coupling                        |
 | --------------------- | --------------------- | ------------------------------- |
-| commit-format         | commit-context-format | Both govern the commit message  |
-| commit-context-format | commit-format         | Both govern the commit message  |
+| commit-format         | commit-footer         | Both govern the commit message  |
+| commit-footer         | commit-format         | Both govern the commit message  |
 | diff-review           | review-triage         | Uses review-triage for findings |
 
 ---

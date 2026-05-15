@@ -2,7 +2,7 @@
 name: commit-format
 description: Commit message format — structure, types, scope, body conventions
 related:
-  - commit-context-format
+  - commit-footer
 override-active: false
 ---
 
@@ -13,7 +13,7 @@ override-active: false
 >
 > - **Contract:** Commits follow a consistent, communicative format that enables automated tooling and readable
 >   history.
-> - **Related:** [commit-context-format](commit-context-format.md) — format changes may require context footer
+> - **Related:** [commit-footer](commit-footer.md) — format changes may require context footer
 >   adaptation
 
 ## commit-format.override
@@ -48,7 +48,7 @@ No → `docs`"
 
 **Subject line:** Describe the change, not the task. Don't include task references, phase numbers, or other
 traceability metadata — the `Context:` footer handles that (see
-[commit-context-format](commit-context-format.md)).
+[commit-footer](commit-footer.md)).
 
 **Body:** Wrap at ~72 chars per line (renders cleanly in `git log`). Focus on WHY and IMPACT,
 not what changed. Hard limits: 100 lines, 100 chars per line — exceed either and the commit

@@ -653,21 +653,13 @@ parenthetical patterns); phase order reflects execution order.
   status-file companion; `strategy-planning-module.md` § Inbox Family anchors the three inboxes. R59
   precondition cleared without a downstream orientation hole.
 
-### `[ ]` **2.13 Commit-format method + footer-convention propagation (R27, R29a)**
+### `[x]` **2.13 Commit-format method + footer-convention propagation (R27, R29a)**
 
 - _Goal:_ `commit-format.md` method carries the `docs` discipline principle (R27); `commit-context-format.md` method
   renames to `commit-footer.md` with full body rewrite per R29a (chain naming, standalone anchor, parenthetical matrix
   updates, discreteness test); hook regex + error examples align with the new matrix; smoke tests lock the matrix. The
   `status-` → `meta-` filename-token portion of the regex stays at `status-` here and flips at Task 6.2.i atomically
   with the in-flight file rename (6.2.a).
-
-- _Sequencing-critical:_ Must land before Phase 3 lifecycle workflow restructures (3.3-3.5, 3.11) which emit the new
-  parenthetical patterns. Otherwise commits referencing the new patterns fail hook validation. **This task was hoisted
-  out of original Phase 6 (was 6.2)** to bring its position in line with its execution-order constraint — Phase 2's
-  natural end is the right home for constitutional method + hook propagation that gates downstream workflow
-  restructures.
-
-    **Strategies:** `strategy-package-project-sync.md`
 
     - `[x]` **2.13.a Codify `docs` discipline in `commit-format.md`** (R27)
         - "Type selection" block landed between **Types:** and **Scope:** — principle line + four
@@ -713,16 +705,30 @@ parenthetical patterns); phase order reflects execution order.
         - Bash syntax valid; shellcheck clean (pre-existing SC1091 info on sourced lib unchanged).
           Both copies byte-identical.
 
-    - `[ ]` **2.13.e Update inbound references to renamed method**
-        - `system/methods/README.md`: method-list entry rename `commit-context-format` → `commit-footer`.
-        - `system/workflows/arc/supplemental/prepare-commits.md`: frontmatter `arc.methods: - commit-context-format` →
-          `commit-footer`; body refs `[arc-methods-ccf]` link target updates (rename file + rename anchor if
-          conventional).
-        - `arc-commit` skill (`SKILL.md` Read-path reference).
-        - `reference/constitution/DEV-RULES.ARC.md`: reference link `[arc-methods-ccf]` updates target (or rename
-          anchor + target).
-        - Sync packages/ copies.
-        - _Note:_ `docs/**` references deferred to docs-content sweep (captured in `plan-docs-content-sweep.md`).
+    - `[x]` **2.13.e Update inbound references to renamed method**
+        - Adopter-facing sweep landed (canonical + package-source mirror in lockstep):
+          `methods/README.md` (index + dependency table); `prepare-commits.md` (frontmatter +
+          body refs + link target); `arc-commit/SKILL.md` (Read-path); `DEV-RULES.ARC.md` (body
+          ref + link target); `commit-format.md` (`related:` field + body inline links — off-spec
+          scope gap surfaced in 2.13.b survey); `integrate-work-unit.md` (body + link target);
+          `01_verify-and-configure.md` (body); `03_configure-external-integration.md`
+          (package-only — body + section heading); `strategy-session-operations.md` (dependency
+          table); `strategy-configurability-architecture.md` (body); `strategy-package-project-sync.md`
+          (internal-dev file-path list).
+        - CLI inventory updated for the rename: `src/lib/classification.ts` file-list, the shipped
+          `init-recipe.json` file-list, and four test files (`__tests__/integration/init.test.ts`,
+          `update.test.ts`, `__tests__/e2e/init.e2e.test.ts`, `__tests__/unit/frontmatter/method.test.ts`)
+          — surfaced via Tier 2 gate. dist/ rebuilt to absorb the change.
+        - Harness-local skills (`.claude/`, `.codex/` — gitignored) hand-synced per CLAUDE.md
+          drift convention. Anchor labels (`arc-methods-ccf`) kept stable; only target URLs flipped —
+          avoids cascading anchor renames across every reference-link block.
+        - **Deferred:** ADRs (013, 014, 019), `analysis-cross-cutting-dependencies.md`, and
+          `.arc/system/.internal/manifest.json` retain historical `commit-context-format` mentions —
+          internal-dev / descriptive infrastructure where the historical record stays accurate as-of
+          decision. `docs/**` deferred per original spec to docs-content sweep
+          (`plan-docs-content-sweep.md`).
+        - Tier 1 lint clean across all touched files; Tier 2 gates clean (typecheck, full markdown
+          lint, vitest 1776/1776 + e2e 56/56).
 
     - `[x]` **2.13.f Footer-convention smoke tests (positive + negative cases)**
         - New vitest integration test landed at
@@ -737,6 +743,16 @@ parenthetical patterns); phase order reflects execution order.
           — husky-style invocation is the project convention). Hook reads `arc-config.yml` via
           `arc-lib.sh`, so test sets `cwd: REPO_ROOT` for spawned process.
         - Re-run any time regex or method body changes: `npx vitest run __tests__/integration/commit-msg-footer.test.ts`.
+
+- _Outcome:_ R27 docs-discipline + R29a footer-convention reform landed end-to-end: `commit-format.md`
+  Type-selection block; `commit-footer.md` renamed + body rewritten (chain naming, discreteness test,
+  standalone anchor, meta-\* heading, tightened phrasing, `content` dropped); `commit-msg` hook regex +
+  error-example matrix refresh; 10+ inbound references swept (canonical + package-source mirror);
+  CLI source (`classification.ts` + `init-recipe.json`) updated for the rename. New 34-case smoke-test
+  file (`commit-msg-footer.test.ts`) locks regex-vs-method drift. Off-spec scope folded mid-execution:
+  H1/H2 structural anchors (2.13.b), `commit-format.md`'s `related:` field (2.13.e), CLI source +
+  recipe + 4 test files (2.13.f gate). Filename-token kept at `status-` per R29a; flips at 6.2.i.
+  Tier 2 gates clean: typecheck, full markdown lint (246 files), vitest 1776/1776 + e2e 56/56.
 
 ### `[x]` **2.14 `strategy-work-organization.md` § Planning Branch Workflow retirement**
 

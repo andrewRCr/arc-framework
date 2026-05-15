@@ -78,7 +78,7 @@ const CONFIGURABLE_FILES: ReadonlySet<string> = new Set([
   "reference/strategies/STRATEGY-INDEX.md",
   "reference/archive/README.md",
   // Per-file methods — adopters toggle `override-active` and populate `.override` bodies
-  "system/methods/commit-context-format.md",
+  "system/methods/commit-footer.md",
   "system/methods/commit-format.md",
   "system/methods/diff-review.md",
   "system/methods/issue-triage.md",

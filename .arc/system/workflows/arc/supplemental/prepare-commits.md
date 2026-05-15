@@ -4,7 +4,7 @@ audience: agent
 arc:
   methods:
     - commit-format
-    - commit-context-format
+    - commit-footer
   extensions:
     - pre-stage-review
 ---
@@ -24,7 +24,7 @@ routed to the complex path.
 - Session-end commits with mixed completed and partial work
 
 For straightforward commits (single task, clear scope), arc-commit's simple path plus
-[commit-format][arc-methods-cf] / [commit-context-format][arc-methods-ccf] (loaded via this
+[commit-format][arc-methods-cf] / [commit-footer][arc-methods-ccf] (loaded via this
 workflow's frontmatter) plus git hook validation are sufficient.
 
 ## Atomicity Guide
@@ -126,7 +126,7 @@ guidance below.
 ### 6. Execute and Verify
 
 Stage and commit each group using the [commit-format][arc-methods-cf] and
-[commit-context-format][arc-methods-ccf] methods. After all commits:
+[commit-footer][arc-methods-ccf] methods. After all commits:
 
 ```bash
 git log --oneline -10    # Review commit messages
@@ -142,4 +142,4 @@ strategy — lives in [Work Organization Strategy][work-org].
 [work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md
 [arc-commit-skill]: ../../../skills/arc-commit/SKILL.md
 [arc-methods-cf]: ../../../methods/commit-format.md
-[arc-methods-ccf]: ../../../methods/commit-context-format.md
+[arc-methods-ccf]: ../../../methods/commit-footer.md

@@ -279,7 +279,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
 
   it("installs all 8 per-file methods plus README in system/methods/", async () => {
     const methodFiles = [
-      "commit-context-format.md",
+      "commit-footer.md",
       "commit-format.md",
       "diff-review.md",
       "issue-triage.md",
@@ -319,7 +319,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       const manifest = await readManifestFile(tempDir);
 
       const methodNames = [
-        "commit-context-format", "commit-format", "diff-review",
+        "commit-footer", "commit-format", "diff-review",
         "issue-triage", "quality-gate-commands", "review-triage",
         "session-state", "test-first",
       ];

@@ -106,7 +106,7 @@ documentation style — live in [DEV-RULES.PROJECT][dev-rules-project]. Contribu
 ### Commit format · `[configurable]`
 
 Commits must follow the project's configured format. See the [commit-format][arc-methods-cf] and
-[commit-context-format][arc-methods-ccf] methods for specifications.
+[commit-footer][arc-methods-ccf] methods for specifications.
 
 ### Atomicity
 
@@ -377,7 +377,7 @@ Load these documents when you reach the relevant work — not during session ini
 
 [dev-rules-project]: DEV-RULES.PROJECT.md
 [arc-methods-cf]: ../../system/methods/commit-format.md
-[arc-methods-ccf]: ../../system/methods/commit-context-format.md
+[arc-methods-ccf]: ../../system/methods/commit-footer.md
 [arc-methods-it]: ../../system/methods/issue-triage.md
 [arc-methods-tf]: ../../system/methods/test-first.md
 [arc-methods-dir]: ../../system/methods/README.md

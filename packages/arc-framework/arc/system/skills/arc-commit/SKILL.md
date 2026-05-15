@@ -30,7 +30,7 @@ disable-model-invocation: false
 
 3. Load commit format guidance.
 
-   - Read `system/methods/commit-format.md` and `system/methods/commit-context-format.md`
+   - Read `system/methods/commit-format.md` and `system/methods/commit-footer.md`
      before composing any commit message. Both paths require this — the format spec includes
      context footer patterns that are not safe to assume from memory.
 

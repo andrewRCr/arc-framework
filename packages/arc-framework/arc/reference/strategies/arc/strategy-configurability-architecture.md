@@ -457,7 +457,7 @@ defines HOW:
 
 ```markdown
 5. Commit using the [commit-format][arc-methods-cf] and
-   [commit-context-format][arc-methods-ccf] methods
+   [commit-footer][arc-methods-ccf] methods
 ```
 
 ### Hook interaction
