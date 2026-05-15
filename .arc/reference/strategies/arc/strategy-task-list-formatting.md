@@ -292,6 +292,18 @@ pre-save checklist.
 
 ---
 
+## Instruction Audience
+
+Task instructions inherit the audience of the file they target — not the audience of the task
+list itself. The task list is internal-dev content and references movable WU artifacts freely
+(per [DEV-RULES.ARC][dev-rules-arc] § `.arc/` artifact references), but an instruction modifying
+a shipped or published file must be written in the shipped-content register — don't pre-load
+`plan-*` / `prd-*` / `tasks-*` references the executing agent would have to strip on the way in.
+Route executor-only context to the task's `_Note:_` peer descriptor or `notes-{name}.md`, not
+the target file.
+
+---
+
 ## Task Ownership Markers
 
 **Applies when** `team.mode: true` — multiple developers collaborate on the same task list.
@@ -452,6 +464,7 @@ All items must be `[x]` or `[~]` (with annotations) before running archive. Any 
 
 ---
 
+[dev-rules-arc]: ../../constitution/DEV-RULES.ARC.md
 [generate-tasks]: ../../../system/workflows/arc/2_generate-tasks.md
 [manage-incidental]: ../../../system/workflows/arc/supplemental/manage-incidental-work.md
 [process-task-loop]: ../../../system/workflows/arc/3_process-task-loop.md

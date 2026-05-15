@@ -1291,8 +1291,9 @@ but runtime checks of `review.planning_checkpoint` halt and `archive.cadence` di
             - **Case D** — Active WU, some work executed, merged → integrate or clean.
         - Footer convention: `Context: meta-{name}.md (deactivation)` per R29a (S9). Replaces invalid
           `Context: tasks-{name}.md (deactivation)` (pre-existing bug; current hook regex rejects).
-        - `manage-incidental-work.md` references retain as transitional forward-pointers per R49a (workflow itself
-          retains pending AWL; substrate retired).
+        - `manage-incidental-work.md` references retain — rewrite to current-state language describing the workflow's
+          interrupt-routing function. Drop substrate-dependent references (`incidental/` prefix, pause-pointer fields)
+          and "transitional" / "pending" framing per R49a.
         - Sync to packages/.
 
     - `[ ]` **3.11.b Update `clean-work-unit.md` (4-state alignment + meta-file shape + redirected handoff)**
@@ -1591,8 +1592,9 @@ carries the update-discipline rule alongside the shape it codifies, keeping shap
 - _Goal:_ `template-tasks.md` adopts the chain-model header per R58a (header reduces to `**Spec:**` only; `**PRD:**`
   field name renames to `**Spec:**` for vocabulary alignment with meta-\*; `**Purpose:**` retires as drift-surface
   mirror of PRD; `**Branch(es):**` and `**Base Branch:**` retire per R58); incidental-WU framing retires
-  (workflow-pattern preamble, branch-name examples, escalation pointers) per R49a; the `manage-incidental-work.md`
-  pointer transitions to forward-pointer language pending AWL retirement.
+  (workflow-pattern preamble, branch-name examples, escalation pointers) per R49a; surviving
+  `manage-incidental-work.md` references rewrite to current-state language describing the workflow's function — no
+  "transitional" / "pending" framing in the template.
 
 - _Touch points (from grep, 2026-05-13):_
     - Lines 4-5 — preamble framing references both `feature`/`technical` (planned) and `manage-incidental-work.md`
@@ -1600,13 +1602,14 @@ carries the update-discipline rule alongside the shape it codifies, keeping shap
     - Header block (lines 27-34, Feature/Technical variant) — header field set reshapes per R58a chain model: rename
       `**PRD:**` → `**Spec:**`; drop `**Branch(es):**`, `**Base Branch:**`, and `**Purpose:**`. Final shape: just
       `**Spec:**` at top, then `---` separator, then phases.
-    - Line 86 — pointer to `manage-incidental-work.md § Coordinated Pause/Resume`. Drop or forward-pointer.
-    - Lines 79-133 — Incidental Header Variant section. Under R49a, incidental WU model substrate retires; the variant
-      becomes orphaned. Either drop the entire Incidental variant (substrate gone) or reshape to forward-pointer noting
-      AWL retirement timing. Default: drop, with a brief forward-pointer line if needed.
-    - Line 156 — pointer "For multi-step work outside the WU's concern, see `manage-incidental-work.md`." Drop or
-      forward-pointer.
-    - Line 176 — `[manage-incidental]:` reference-link definition. Audit and retire if no surviving references in body.
+    - Line 86 — pointer to `manage-incidental-work.md § Coordinated Pause/Resume`. Drop (the Coordinated Pause/Resume
+      section couples to the retired pause-pointer fields).
+    - Lines 79-133 — Incidental Header Variant section. Drop the entire variant — the substrate it documented
+      (`incidental/` branch prefix, pause-pointer fields) no longer exists.
+    - Line 156 — pointer "For multi-step work outside the WU's concern, see `manage-incidental-work.md`." Keep — the
+      workflow still exists and routes interrupts; the pointer remains accurate in current-state phrasing.
+    - Line 176 — `[manage-incidental]:` reference-link definition. Retain if line-156 pointer survives; audit and retire
+      otherwise.
     - `[arc-config]:` reference-link — survives only if `Base Branch:` field survives; since the field retires under
       R58, this reference-link likely retires too. Verify at execution.
 
@@ -2238,21 +2241,22 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           `clean-work-unit.md`), templates (other than the ones already touched), briefs, rules.
         - Reference-link cleanup: `[arc-config]:` definitions in templates that exist solely to support a now-retired
           `Base Branch:` reference — audit and retire if no surviving references.
-        - **Action:** retire references entirely (distinct from 6.7.i's forward-pointer action). Pause-pointer fields
-          (`Interrupts:` / `Paused At:` / `Paused To:`) overlap with 6.7.i conceptually but the field-level references
-          retire here per R49a's substrate-retirement framing — the workflow-level references stay forward-pointed under
-          6.7.i.
+        - **Action:** retire references entirely (distinct from 6.7.i's current-state-rewrite action). Pause-pointer
+          fields (`Interrupts:` / `Paused At:` / `Paused To:`) overlap with 6.7.i conceptually but the field-level
+          references retire here per R49a's substrate-retirement framing — the workflow-level references rewrite to
+          current-state language under 6.7.i.
 
-    - `[ ]` **6.7.i Incidental WU model substrate refs (`incidental/`, `manage-incidental-work`) — forward-pointer**
-        - **Action differs from other 6.7 patterns:** these references update to transitional forward-pointer language,
-          not retire (per PRD R49a + R52). `manage-incidental-work.md` workflow continues to exist pending AWL
-          retirement; references should acknowledge the transitional state.
+    - `[ ]` **6.7.i Incidental WU model substrate refs (`incidental/`, `manage-incidental-work`) — current-state rewrite**
+        - **Action differs from other 6.7 patterns:** surviving references rewrite to current-state language (describe
+          what `manage-incidental-work.md` currently does — interrupt routing per DEV-RULES.ARC § Leave it cleaner),
+          not retire (per PRD R49a + R52). Substrate-dependent references drop (`incidental/` branch prefix,
+          pause-pointer fields); workflow-level references stay with "transitional" / "pending" framing removed.
         - Grep patterns: `incidental/`, `manage-incidental-work`, `[manage-incidental]:`, `Incidental Work Model`,
           `Interrupts:`, `Paused At:`, `Paused To:`.
         - Touch points already addressed by upstream tasks: DEV-RULES.ARC § Leave it cleaner (1.3.d),
           `strategy-work-organization.md` § Incidental Work Model + § Work Categories (2.8), `template-tasks.md` (4.6),
-          `deactivate-work-unit.md` (3.11.a — keeps refs as transitional forward-pointers per R49a; verify alignment, no
-          duplicate sweep work). 6.7.i sweeps the remaining surface: workflows (`session-handoff.md`,
+          `deactivate-work-unit.md` (3.11.a — keeps refs in current-state phrasing; verify alignment, no duplicate
+          sweep work). 6.7.i sweeps the remaining surface: workflows (`session-handoff.md`,
           `prepare-commits.md`, `process-task-loop.md`, `integrate-work-unit.md`, `archive-work-unit.md`,
           `activate-work-unit.md`), `commit-footer.md` method (renamed at 6.2.b), strategy docs
           (`strategy-file-classification.md`, `strategy-task-list-formatting.md`, `strategy-quality-gates.md`,
@@ -2264,10 +2268,10 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           explicit re-scope decision flags them.
 
     - `[ ]` **6.7.j Post-sweep verification grep — returns empty for all retired patterns**
-        - **Exception:** 6.7.i patterns retain references (transitional forward-pointer language); verify those
-          references use the forward-pointer framing per R49a rather than the old incidental-WU-model framing.
-          Post-sweep grep on the incidental patterns returns matches but each match should be a forward-pointer to
-          WF/AWL, not an active reference to the retired substrate.
+        - **Exception:** 6.7.i patterns retain references in current-state language; verify those references describe
+          the workflow's function (interrupt routing) without "transitional" / "pending" framing or internal-roadmap
+          citations (WF/AWL). Post-sweep grep on the incidental patterns returns matches but each match should be a
+          current-state reference to the surviving workflow, not an active reference to the retired substrate.
 
     - `[ ]` **6.7.k META-PRD → PROJECT-PRD references (per R35 rename)**
         - Grep patterns: `META-PRD`, `META-PRD.md`, `template-meta-prd`, `META-PRD.template.md`.

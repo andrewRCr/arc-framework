@@ -325,7 +325,8 @@ test names describing behavior, comments on non-obvious invariants — stay.
 
 ### `.arc/` artifact references
 
-For movable WU artifacts (`plan-*`, `prd-*`, `tasks-*`, `status-*`, companions), use backticked
+Movable WU artifacts (`plan-*`, `prd-*`, `tasks-*`, `status-*`, companions) are project-internal —
+shipped or published content cannot reference them at all. Within internal docs, use backticked
 filenames only; no Markdown links or paths. For tasks, include task ID + task-list filename:
 "Task X.Y - `tasks-name.md`". Paths are for current-location metadata, commands, and stable docs.
 

@@ -168,7 +168,8 @@ concerns freely.
   "now hand-maintained")
 - Project-internal migration concerns for ARC's own evolution ("forward-only migration",
   "backward-compat tooling")
-- Forward-pointers to unplanned future scope — adopters don't share ARC's internal roadmap
+- Forward-pointers to internal-roadmap scope (active or backlog WUs — planned or provisional) —
+  adopters don't share ARC's internal roadmap
 - `adopter`/`adopters` — framework-author POV on the reader. Use neutral framing ("projects",
   "teams", actor-omitted). Internal-dev surfaces keep it (their audience).
 

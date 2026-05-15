@@ -506,13 +506,16 @@ lighter-ceremony replacement — both downstream of WOR.
 - **`manage-incidental-work.md` workflow** — retains its function during the WOR→WF window (no shift lifecycle yet means
   no replacement for mid-execution interrupts). Workflow retirement itself is AWL scope.
 - **Conceptual references in `strategy-work-organization.md` § Incidental Work Model + § Work Categories** — sections
-  update to transitional forward-pointer framing under WOR (Task 2.1 + new Task 2.8 reshape); full content retirement
-  under AWL.
+  rewrite to current-state framing (branch-type selection via `branch-format` method; interrupt routing via
+  DEV-RULES.ARC § Leave it cleaner). Touched shipped surfaces describe what's true now without "transitional" /
+  "pending" framing; internal-roadmap sequencing (WOR→WF→AWL, full content retirement under AWL) stays in this PRD
+  and other internal-dev surfaces.
 
 **Transitional shape during WOR → WF → AWL window:** `manage-incidental-work.md` workflow continues to exist but its
-substrate (branch prefix, category dir, status-file pointer fields) is gone. Touched documentation surfaces explicitly
-flag the transitional state; users encountering mid-execution interrupts during WOR→WF use inline-on-current-branch
-handling per the established Persistent Context pattern (no shift available yet).
+substrate (branch prefix, category dir, status-file pointer fields) is gone. Shipped surfaces describe current state
+in plain language; transitional framing stays in internal-dev surfaces (WU notes, Persistent Context). For
+mid-execution interrupts during the WOR→WF window, inline-on-current-branch handling follows the established
+Persistent Context pattern.
 
 ### Extension fire-point family (P0)
 
@@ -778,9 +781,10 @@ distinguish from the new `pre-merge-review` at the post-review-response fire-poi
 (`incidental/` branch prefix, `manage-incidental-work` workflow references), and the retired meta-file fields
 (`**Branch(es):**` plural form, `**Base Branch:**`, `**Sibling Work Unit(s):**`, `**Integration:**`, `**Interrupts:**`,
 `**Paused At:**`, `**Paused To:**` per R58 + R49a). Update or retire — with the action differing per pattern: the
-incidental patterns update to transitional forward-pointer language (cite WF for shift-state migration, AWL for full
-workflow + conceptual retirement) per R49a; the retired-field patterns retire entirely or migrate to their R58 successor
-(`Branch(es)` → `Branch`); other patterns retire entirely.
+incidental patterns rewrite to current-state references (describe what `manage-incidental-work.md` currently does;
+remove substrate-dependent references like `incidental/` prefix; no internal-roadmap citations in shipped content); the
+retired-field patterns retire entirely or migrate to their R58 successor (`Branch(es)` → `Branch`); other patterns
+retire entirely.
 
 **R52a.** Lifecycle workflow alignment for surviving workflows + `rotate-branch.md` retirement. Beyond the activate /
 integrate / archive restructure (R5, R7, R14-R17), three additional WU-lifecycle workflows need WOR-induced updates:
@@ -788,8 +792,9 @@ integrate / archive restructure (R5, R7, R14-R17), three additional WU-lifecycle
 - **`deactivate-work-unit.md` restructure** — premise breaks under single-branch-per-WU (no separate impl branch;
   activation doesn't move artifacts under in-place rename). New case matrix codified for the in-place rename model:
   state flip Active → Planning + branch rename `<type>/<name>` → `plan/<name>` (inverse of activation), OR full WU
-  deletion. Footer emits `meta-{name}.md (deactivation)` per R29a. `manage-incidental-work.md` references retain as
-  transitional forward-pointers per R49a (substrate retired; workflow itself retains pending AWL).
+  deletion. Footer emits `meta-{name}.md (deactivation)` per R29a. `manage-incidental-work.md` references retain —
+  rewrite to current-state language describing the workflow's interrupt-routing function; drop substrate-dependent
+  references (`incidental/` prefix, pause-pointer fields) and "transitional" / "pending" framing.
 - **`clean-work-unit.md` body update** — `status-{name}.md` references migrate to `meta-{name}.md`;
   `**State:** Complete` references map to `**State:** Integrating` per R9 4-state enum; retired-field references
   (`Interrupts:`, `Paused:`, `Paused To:`, `Spawned:`) removed; tasks-\* "standard structure" header list reshapes per
