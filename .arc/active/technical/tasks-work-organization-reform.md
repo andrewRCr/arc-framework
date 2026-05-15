@@ -612,43 +612,46 @@ parenthetical patterns); phase order reflects execution order.
   `[work-org-task-branches]`; added `[work-org-wu-headers]`). Atomic-`*` `**Purpose:**` / `**Ordering:**` line
   unchanged. Both copies in sync.
 
-### `[ ]` **2.12 Author instance-file orientation content into strategy docs (R59 precondition)**
+### `[x]` **2.12 Author instance-file orientation content into strategy docs (R59 precondition)**
 
 - _Goal:_ `strategy-session-operations.md` gains SESSION-NOTES orientation content (purpose, lifecycle, portability,
   writing-guide pointer); `strategy-planning-module.md` gains inbox-family orientation content (USER-INBOX,
   BACKLOG-INBOX, `backlog/ATOMIC-INBOX.md` purposes + lifecycles + write-discipline). Lands before R59 strips preambles
   from instance files in Phase 6.8 — otherwise orientation goes from "in-file" to "nowhere" until a future WU.
 
-- _Context:_ Confirmed via grep (2026-05-14) that the two strategy docs currently carry no orientation content for the
-  affected instance files. R59 references these strategies as the authoritative orientation home, but the content
-  doesn't exist yet. Task 6.8.d's punt ("not WOR scope to author new strategy content") accepts the gap; this task
-  closes it instead. Single-session work, low scope expansion; ships clean instead of carrying an orientation hole
-  through to the next docs sweep.
+    - `[x]` **2.12.a SESSION-NOTES orientation in `strategy-session-operations.md`**
+        - New `## SESSION-NOTES` H2 section inserted between § Status-File Timing and
+          § Handoff-Interior Toggle Pattern, with matching TOC entry. Covers purpose (personal session
+          context companion to `status-{name}.md`; WHAT vs HOW-it's-going split), lifecycle (created at
+          handoff / consumed at init / deleted between WUs), portability (forward-pointer to existing
+          § Session State Portability for the git-notes mechanism), and writing-guide pointer to the
+          session-handoff workflow.
 
-    **Strategies:** none (this is a strategy doc edit)
+    - `[x]` **2.12.b Inbox orientation in `strategy-planning-module.md`**
+        - New `## Inbox Family` H2 section inserted between § What It Installs and § How Work Flows Through,
+          with matching TOC entry. Three per-inbox subsections (`USER-INBOX.md`, `backlog/ATOMIC-INBOX.md`,
+          `backlog/BACKLOG-INBOX.md`) each carrying purpose + lifecycle + writes-policy, plus a
+          § Write-discipline summary cross-referencing DEV-RULES.ARC § Leave it cleaner for the
+          ceremony-only-write rule. ATOMIC-INBOX subsection absorbs `arc log --atomic` browse pointer
+          from the retiring inbox preamble.
 
-    - `[ ]` **2.12.a SESSION-NOTES orientation in `strategy-session-operations.md`**
-        - Add a § SESSION-NOTES (or similarly-titled) subsection. Content scope: purpose (personal session context
-          companion to `meta-*`); lifecycle (created at handoff; consumed at session-init; deleted between WUs);
-          portability (git notes attach `user/{identity}/` across machines per existing operations); writing-guide
-          pointer (forward to `session-handoff.md` for detailed content guidance). Draft from the existing SESSION-NOTES
-          preamble blockquote content — the strategy absorbs what the file's "About this file" block currently carries.
+    - `[x]` **2.12.c Verify orientation coverage is sufficient**
+        - Cross-checked authored content against the SESSION-NOTES preamble blockquote and the
+          `user/andrew/ATOMIC-INBOX.md` preamble (the personal-atomic-inbox file mapping to post-WOR
+          USER-INBOX § Atomic). Coverage: purpose, lifecycle, portability, writing-guide pointer
+          (SESSION-NOTES); personal-vs-companion lifecycle distinction, ceremony-only-write rule, browse
+          command, ceremony-triage protocol (inboxes). One deliberate omission: P5 (Context Preservation)
+          principle-by-number reference dropped from SESSION-NOTES coverage — internal-dev vocabulary,
+          not adopter-facing scaffolding. Zero net orientation loss across the R59 transition.
 
-    - `[ ]` **2.12.b Inbox orientation in `strategy-planning-module.md`**
-        - Add a § Inbox Family (or similarly-titled) subsection. Content scope per inbox:
-            - `user/{identity}/USER-INBOX.md` — per-user gitignored capture (Atomic / Backlog sections; drain at
-              activation absorption / integration drain)
-            - `backlog/BACKLOG-INBOX.md` — project-shared multi-step entries (ceremony-only writes per R20)
-            - `backlog/ATOMIC-INBOX.md` — project-shared atomic-character entries (ceremony-only writes)
-        - Write-discipline summary (cross-reference DEV-RULES.ARC § Leave it cleaner for the constitutional
-          ceremony-only-write rule landed in Task 1.3.b).
+    - `[x]` **2.12.d Sync to packages/**
+        - Both copies edited in parallel during execution; final `diff` confirms byte-identical for both
+          strategy files.
 
-    - `[ ]` **2.12.c Verify orientation coverage is sufficient**
-        - Spot-check the authored content against the SESSION-NOTES / inbox preambles being retired in 6.8. Anything the
-          preamble carried that the strategy doesn't subsume yet, fold in. Goal: zero net orientation loss across the
-          R59 transition.
-
-    - `[ ]` **2.12.d Sync to packages/**
+- _Outcome:_ Two adopter-facing strategy docs now carry the orientation content that R59 will strip from
+  instance-file preambles in Phase 6.8 — `strategy-session-operations.md` § SESSION-NOTES anchors the
+  status-file companion; `strategy-planning-module.md` § Inbox Family anchors the three inboxes. R59
+  precondition cleared without a downstream orientation hole.
 
 ### `[ ]` **2.13 Commit-format method + footer-convention propagation (R27, R29a)**
 

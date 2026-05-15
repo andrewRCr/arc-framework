@@ -21,6 +21,7 @@ and handoff-interior toggle pattern (flow); plus context monitoring and session 
 - [Interlock Model](#interlock-model) — interlock stack, ceremony, configurability, approval signals
 - [Failure-Mode Recovery](#failure-mode-recovery) — taxonomy and recovery paths for interlock cascades
 - [Status-File Timing](#status-file-timing) — when status updates land in commit history
+- [SESSION-NOTES](#session-notes) — personal session-context companion to the status file
 - [Handoff-Interior Toggle Pattern](#handoff-interior-toggle-pattern) — config-key convention for handoff actions
 - [Context Monitoring](#context-monitoring) — shared responsibility model
 - [Auto-Compaction](#auto-compaction) — operational guidance
@@ -707,6 +708,27 @@ recovery cheap (interrupted sessions leave the git record matching reality) and 
 For deeper context on commit-history readability, commit-on-task-approval benefits, and what alternatives
 to task-list bundling would cost, see [status-file timing background][TODO-docs-site] and
 [task-list timing background][TODO-docs-site].
+
+---
+
+## SESSION-NOTES
+
+SESSION-NOTES.md is personal session context, gitignored, paired with the active WU's
+`status-{name}.md` in `active/{category}/`. The status file carries the factual project pointer
+(branch, task, blockers, next action); SESSION-NOTES carries the working context the next session
+needs to pick up where the last left off — approach, decisions, things tried, risks. Together they
+cover the WHAT (tracked) and the HOW-it's-going (personal) of in-flight work.
+
+**Lifecycle.** Created at session handoff (the handoff workflow writes the file), consumed at
+session-init (the init workflow reads it as T2 state). Delete between work units — session context
+belongs to a specific WU's working state, not to the project record.
+
+**Portability.** Local by default. Cross-machine and team handoff travel through git notes — see
+§ Session State Portability for the operational model, config keys, and load-error recovery.
+
+**Writing guide.** The [session-handoff workflow][session-handoff] carries detailed content
+guidance for what to include vs. omit. Per-developer directory (`user/{identity}/`) groups
+SESSION-NOTES alongside any personal inbox content and local atomic capture.
 
 ---
 

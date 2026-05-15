@@ -16,6 +16,7 @@ work without these artifacts.
 ## Contents
 
 - [What It Installs](#what-it-installs) — capture surfaces and directory shape
+- [Inbox Family](#inbox-family) — per-inbox orientation: purpose, lifecycle, write discipline
 - [How Work Flows Through](#how-work-flows-through) — routing by intent, ownership, and character
 - [Inbox vs. Companion File](#inbox-vs-companion-file) — during-WU vs. for-later routing
 - [Ceremony-Only Writes to Shared Inboxes](#ceremony-only-writes-to-shared-inboxes) — write-isolation discipline
@@ -49,6 +50,50 @@ the render algorithm and regeneration fire-points.
 
 The `backlog/` directory and its contents exist only in arc-in-git installations. `USER-INBOX.md`
 is part of arc-in-git's capture model — it routes to shared backlog destinations at drain time.
+
+---
+
+## Inbox Family
+
+The capture surfaces split by **ownership** (personal vs. project-shared) and **work character**
+(atomic vs. multi-step). § How Work Flows Through covers the routing tree across all three; this
+section covers per-inbox orientation.
+
+### `user/{identity}/USER-INBOX.md` — personal capture
+
+Live capture for items the developer wants to handle later. Two sections by work character:
+`## Atomic` (single-step entries shaped like `atomic-{name}.md` items) and `## Backlog`
+(multi-step entries that need plan-doc / PRD treatment before scheduling).
+
+Gitignored. Persists across WU boundaries until drained. Drain fires at WU ceremony boundaries —
+see § Ceremony-Only Writes to Shared Inboxes for the three fire-points. Writes accepted any time
+(the live-capture role). The on-disk file is local to its worktree; cross-machine and cross-WU
+transport runs through git notes — see `strategy-session-operations.md` § Session State
+Portability for the mechanism.
+
+### `backlog/ATOMIC-INBOX.md` — project-shared atomic capture
+
+Committed-tracked queue of atomic-character entries from across the project. Ceremony-only writes
+— read freely between ceremonies, write only at the three lifecycle fire-points. Entries execute
+as-is from inbox at their owning WU; completion deletes the entry, and the routing record lives
+in the deletion commit message plus the absorbing artifact.
+
+Browse completed atomic work across all atomic surfaces (USER-INBOX § Atomic, this file, and
+companion files): `arc log --atomic`.
+
+### `backlog/BACKLOG-INBOX.md` — project-shared multi-step capture
+
+Committed-tracked queue of multi-step entries awaiting plan-doc maturation. Ceremony-only writes
+(same fire-points as ATOMIC-INBOX). When scope and plan emerge, entries graduate to a per-WU
+subdir at `backlog/{planned,provisional}/<wu-name>/` carrying their `plan-<wu-name>.md` and any
+companions — see § State-Dir Graduation.
+
+### Write-discipline summary
+
+Personal inboxes accept writes any time (live capture). Shared inboxes accept writes only at
+ceremony fire-points (write isolation). The discipline trades write immediacy for elimination of
+multi-writer merge conflicts on shared files. See [DEV-RULES.ARC][dev-rules] § Leave it cleaner
+for the constitutional rule statement.
 
 ---
 
