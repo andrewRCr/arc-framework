@@ -505,6 +505,46 @@ Forward-compat check.
 should verify single-branch-per-WU model maps cleanly (it should — each WU is a coherent
 branch-plus-artifacts unit, easier to materialize/dematerialize than a multi-branch lifecycle).
 
+### Post-review-approval composition timing
+
+Early WOR drafts placed Release Notes Entry + Completion Notes composition (plus archive sweep) before PR creation
+under `with-integration`. Phase 3 evaluation surfaced two issues with that timing:
+
+- **Premature composition.** Release Notes Entry + Completion Notes + ROADMAP entries composed pre-review reflect
+  pre-review scope. If the reviewer requests scope changes (drop a subtask, rename a feature, restructure work), the
+  composition is stale by merge time. Re-firing composition is possible but easy to miss; deterministic ROADMAP regen
+  lands wrong data.
+- **Rejection churn.** Under pre-PR sweep, a rejected PR has archive sweep commits + `Shipped` state already on the
+  branch. Re-work requires unwinding both before fixing code, or pushing fixes on top of `Shipped`-state. Both are
+  friction.
+
+Resolution: composition + sweep fire **post-review-approval, within the PR, before the final push**:
+
+1. PR opens with code commits only; state `Integrating`.
+2. Review iterates (review-response cycles, may push code-fix commits). State stays `Integrating`.
+3. `pre-merge-review` extension fires (post-review-response gate).
+4. Workflow-interlock: explicit "proceed to archive ceremony" signal from user.
+5. Final-form composition lands in working tree (uncommitted): PROJECT-PRD / TECHNICAL-OVERVIEW alignment checks,
+   Release Notes Entry, Completion Notes, drain-write.
+6. Workflow-interlock: agent surfaces composed content + planned sweep target + ROADMAP delta; explicit
+   "proceed to commit + sweep + push" signal from user.
+7. Commit composition; invoke archive-work-unit inline (state flip `Integrating → Shipped` + sweep +
+   ROADMAP regen).
+8. Final push to PR; merge follows.
+
+Per-worktree isolation invariant (R15) preserved: sweep lands on the WU branch before merge in both old and new
+sequencing — moving the sweep within the PR (from pre-open to post-approval) does not change main's `active/{name}`
+window. The load-bearing constraint is "swept before merge," not "swept before PR-open."
+
+`Shipped` semantic clarified: "branch is in its terminal form; merge pending or complete." Under sync-merge (WOR's
+primary flow), the window between `Shipped`-on-branch and merge is brief and intentional — the developer is
+actively driving the merge button. Async-merge nuances stay Concurrent Work Conventions scope per R18.
+
+The two workflow-interlocks bracket the high-judgment composition middle: step 4's "ready to compose" gate, step 6's
+"composed content looks right, ship it" gate. Mechanical sweep + state flip after step 6 is reviewable via
+`git log -p` if anything seems off, but the agent surfaces all changes inline before that point — the
+interlocks are designed so the user can catch problems before commit, not after.
+
 ### `archive.cadence: deferred` considered and rejected
 
 Early PRD drafts specified a third cadence value `deferred` (sweep at next-WU planning batch) as

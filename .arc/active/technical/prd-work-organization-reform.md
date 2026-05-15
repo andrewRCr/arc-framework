@@ -188,8 +188,9 @@ State transitions fire at workflow ceremonies:
 
 - `init-work-unit` → creates meta with `State: Planning` (in backlog or directly on branch)
 - `activate-work-unit` → `Planning → Active` (branch rename + plan-doc removal fire alongside)
-- `integrate-work-unit` → `Active → Integrating` (PR opens; sweep fires)
-- archive ceremony → `Integrating → Shipped` (files move to `archive/`)
+- `integrate-work-unit` → `Active → Integrating` (PR opens; review iterates)
+- archive ceremony → `Integrating → Shipped` (post-review-approval; composition + sweep + ROADMAP regen commit lands
+  on the WU branch as the final push before merge)
 
 Branch creation does not fire a State transition — a WU keeps `State: Planning` whether it lives in
 `backlog/{provisional,planned}/<wu>/` (no branch yet) or `active/<category>/` on a `plan/*` branch. The signal
@@ -224,9 +225,14 @@ other branch's meta file is reachable from main. Codified in `strategy-work-orga
 **R16.** `archive.cadence` config key in `arc-config.yml`. Values: `with-integration` (default — sweep in integration
 PR), `manual` (explicit invocation).
 
-**R17.** Integration PR under `with-integration` includes multi-commit structure: code commits → completion content
-(Release Notes Entry + Completion Notes composition into meta file) → sweep commits (file moves from `active/` to
-`archive/<dated>/{wu-name}/`). Reviewers focus per-commit.
+**R17.** Integration PR under `with-integration` includes multi-commit structure across two timing phases. Code
+commits land at PR open (state `Integrating`); review iterates. Post-review-approval, the completion-content commit
+(Release Notes Entry + Completion Notes composed into the meta file's archive-phase sections, reflecting final
+reviewed scope) plus the sweep commit (file moves from `active/` to `archive/<dated>/{wu-name}/`) plus the ROADMAP
+regen commit land as the final push before merge (state `Shipped`). Reviewers focus per-commit; the post-approval
+commits represent the WU in its terminal form. Two workflow-interlocks bracket the composition middle: agent gates
+entry into the ceremony, then surfaces composed content + planned sweep + ROADMAP delta for confirmation before
+commit + push fires.
 
 **R18.** Tier-aware sweep ceremony (atomic / quick / standard scaling) is Agile WU Lifecycle's scope; WOR ships
 tier-agnostic foundation. Async-merge accommodation (handoff and cleanup behavior during awaiting-review latency) is
@@ -379,9 +385,12 @@ edit stays atomically coupled with the in-flight file rename at Phase 6.3.
 `Added | Changed | Removed | Fixed | Infrastructure | Deprecated | Security` (full Keep a Changelog 7-category set).
 One-paragraph user-facing summary plus optional Breaking Changes callout.
 
-**R31.** Composition fire-point: integration ceremony, when `**State:**` transitions `Active → Integrating`. Discipline
-enforced by `integrate-work-unit.md` workflow step (compose entry before commit). Optional CLI validation hook (e.g.,
-`arc state set integrating` checks section presence) deferred to downstream tooling.
+**R31.** Composition fire-point: integration ceremony, **post-review-approval** (after the `pre-merge-review`
+extension and review-response cycles have settled, before the final push that merges). The state transition
+`Integrating → Shipped` rides the same archive ceremony commit that lands composition + sweep + ROADMAP regen.
+Discipline enforced by `integrate-work-unit.md` workflow steps with two workflow-interlocks (entry into ceremony +
+final review of composed content before commit). Optional CLI validation hook (e.g., `arc state set shipped` checks
+section presence) deferred to downstream tooling.
 
 **R32.** Post-`Shipped` edits to Release Notes Entry are errata only; no mechanical lock. Git history is the lock —
 matches keep-a-changelog norms.

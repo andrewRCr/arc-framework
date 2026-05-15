@@ -996,68 +996,98 @@ but runtime checks of `review.planning_checkpoint` halt and `archive.cadence` di
           regen as distinct logical changes. Default recommendation: separate commit. Riding the state-flip commit is
           acceptable only if the ROADMAP edit is trivial (e.g., single tier-line move).
 
-### `[ ]` **3.4 Restructure `integrate-work-unit.md` (sweep + composition + Release Notes Entry + ROADMAP regen)**
+### `[ ]` **3.4 Restructure `integrate-work-unit.md` (PR-open + review iteration + post-approval composition + sweep)**
 
 - _Goal:_ `integrate-work-unit.md` ships the single merge-to-main moment under default
-  `archive.cadence: with-integration` — code commits + completion-content commits (Release Notes Entry + Completion
-  Notes composed into meta file's archive-phase sections) + sweep commits (meta file moves to
-  `archive/<dated>/{wu-name}/`) — all in one multi-commit PR.
+  `archive.cadence: with-integration`. Two timing phases inside one PR: code commits at PR open, then
+  post-review-approval the completion-content commit (Release Notes Entry + Completion Notes composed into the meta
+  file's archive-phase sections, reflecting final reviewed scope) + sweep commit (meta file moves to
+  `archive/<dated>/{wu-name}/`) + ROADMAP regen commit land as the final push before merge.
 
-    - _Approach:_ Three-commit structure per § Technical Considerations — code → completion content → sweep. Reviewers
-      focus per-commit. Under `archive.cadence: deferred`, completion + sweep defer to `archive-work-unit.md`; this
-      workflow's behavior conditions on cadence.
+    - _Approach:_ Composition + sweep fire post-review-approval, not pre-PR — final-form content reflects post-review
+      scope, and rejected PRs touch only code (no archive churn). Two workflow-interlocks bracket the composition
+      middle: a "proceed to archive ceremony" gate before composition begins, and a "review composed content + planned
+      sweep + ROADMAP delta" gate before the commit-and-push fires. State flip `Active → Integrating` at workflow
+      start (PR open + iteration); `Integrating → Shipped` rides the archive ceremony commit (terminal-form on branch,
+      merge pending). Per-worktree isolation invariant (R15) preserved — sweep still lands on the WU branch before
+      merge in both old and new sequencing. Under `archive.cadence: manual`, composition still fires post-approval,
+      but cadence dispatch skips inline archive invocation and surfaces a note that archive runs separately
+      post-merge.
 
     **Strategies:** `strategy-work-organization.md`
 
     - `[ ]` **3.4.a Pre-conditions + State transition (Active → Integrating)**
-        - Verify on WU branch; verify `**State:** Active`; flip to `**State:** Integrating` (R31 fire-point under
-          with-integration).
+        - Verify on WU branch; verify `**State:** Active`; flip to `**State:** Integrating` (R31 — fires at PR-open
+          phase, covers iteration through review). Class-tagged commit per status-file timing rule.
 
-    - `[ ]` **3.4.b Release Notes Entry composition (R14, R30)**
-        - Compose user-facing entry into meta file's archive-phase section. Categories: Added | Changed | Removed |
-          Fixed | Infrastructure | Deprecated | Security (Keep a Changelog 7-category set). One-paragraph summary;
-          optional Breaking Changes callout.
-
-    - `[ ]` **3.4.c Completion Notes composition (R14)**
-        - Narrative summary into meta file's Completion Notes section.
-
-    - `[ ]` **3.4.d PROJECT-PRD + TECHNICAL-OVERVIEW final flag checks (R34, R60 — sub-bullets)**
-        - Two sub-bullets within existing review step. Both soft; rarely block if 1_create-prd's checks passed. Surface
-          any conflicts discovered during execution.
-        - **PROJECT-PRD:** Always evaluated at this step.
-        - **TECHNICAL-OVERVIEW:** Fires only when PRD touched technical surfaces.
-
-    - `[ ]` **3.4.e Commit completion content**
-        - Class-tagged `workflowCommit` if release-wrappers active; carries Release Notes Entry + Completion Notes
-          additions.
-
-    - `[ ]` **3.4.f Drain-write (R20, R21)**
-        - If integration drains any shared inbox entries (entries that were absorbed into this WU's scope and need final
-          deletion from the shared inbox), finalize deletions here. Rides with the completion-content commit or as
-          separate commit per atomicity.
-
-    - `[ ]` **3.4.g Cadence dispatch — invoke `archive-work-unit.md` inline under `with-integration`**
-        - Read `archive.cadence` from `arc-config.yml`.
-        - `with-integration` (default): invoke `archive-work-unit.md` inline at this point. archive-work-unit handles
-          state flip `Integrating → Shipped`, sweep commits, and ROADMAP regen per its cadence-invariant body (3.5).
-          Returns; resume here with PR creation.
-        - `manual`: skip inline invocation; surface a note at workflow exit that archive runs separately post-merge
-          per user invocation.
-
-    - `[ ]` **3.4.h Pre-pr-review extension fire (R56) — before PR creation push**
+    - `[ ]` **3.4.b Pre-pr-review extension fire (R56) — before PR creation push**
         - Pre-PR-creation fire-point. Extension defined in 3.8 (renamed from current `pre-merge-review` to
           `pre-pr-review` for honest naming per R55). The current extension carries CodeRabbit invocation logic which
           carries forward under the new name; the wiring location in `integrate-work-unit.md` updates from old
           `pre-merge-review` reference to `pre-pr-review`. Halt-on-fail surfaces actionable message; user can fix and
           retry or explicit-invoke bypass.
 
-    - `[ ]` **3.4.i PR creation + workflow-interlock**
-        - Single PR (no `[PLAN]:` prefix retired per R6). Multi-commit structure preserved for per-commit review.
+    - `[ ]` **3.4.c PR creation**
+        - Single PR (no `[PLAN]:` prefix per R6). PR opens with code commits only; completion-content and sweep
+          commits land post-review-approval per the new sequencing.
 
-    - `[ ]` **3.4.j Pre-merge-review extension fire (R56)**
-        - Post-review-response, pre-merge fire-point. Extension defined in 3.8; this step is the fire-point reference.
-          Sits between `review-response` (plan-review-method-family scope) and the actual merge action; halt-on-fail
-          surfaces actionable message. Default-inactive extension; this wiring is structural even when extension is off.
+    - `[ ]` **3.4.d Review iteration**
+        - Workflow body documents the review-response cycle. May involve multiple code-fix pushes in response to
+          reviewer feedback; the WU stays in `**State:** Integrating` throughout. Composition + sweep do not fire
+          during this phase.
+
+    - `[ ]` **3.4.e Pre-merge-review extension fire (R56) — post-review-response gate**
+        - Post-review-response fire-point. Extension defined in 3.8; this step is the fire-point reference. Sits
+          between `review-response` (plan-review-method-family scope) and the archive ceremony; halt-on-fail surfaces
+          actionable message. Default-inactive extension; wiring is structural even when extension is off.
+
+    - `[ ]` **3.4.f Workflow-interlock: "proceed to archive ceremony"**
+        - `> [!IMPORTANT]` `workflow-interlock:` marker. Explicit "proceed" signal from user gates entry into the
+          composition + sweep ceremony. Phrasing: agent surfaces that review is settled and asks whether to begin
+          composing the final-form Release Notes Entry / Completion Notes.
+
+    - `[ ]` **3.4.g PROJECT-PRD + TECHNICAL-OVERVIEW final alignment checks (R34, R60 — sub-bullets)**
+        - Two sub-bullets within the ceremony's alignment step. Both soft; rarely block if 1_create-prd's checks
+          passed. Surface any conflicts discovered during execution against the final reviewed scope.
+        - **PROJECT-PRD:** Always evaluated at this step.
+        - **TECHNICAL-OVERVIEW:** Fires only when PRD touched technical surfaces.
+
+    - `[ ]` **3.4.h Release Notes Entry composition (R14, R30) — final-form, uncommitted**
+        - Compose user-facing entry into meta file's archive-phase section, reflecting final reviewed scope.
+          Categories: Added | Changed | Removed | Fixed | Infrastructure | Deprecated | Security (Keep a Changelog
+          7-category set). One-paragraph summary; optional Breaking Changes callout. Edit lands in working tree
+          uncommitted — the 3.4.j interlock surfaces it for review before commit.
+
+    - `[ ]` **3.4.i Completion Notes composition (R14) — final-form, uncommitted**
+        - Narrative summary into meta file's Completion Notes section. Same uncommitted-surfacing pattern as 3.4.h.
+
+    - `[ ]` **3.4.j Drain-write (R20, R21) — uncommitted**
+        - If integration drains any shared inbox entries (entries that were absorbed into this WU's scope and need
+          final deletion from the shared inbox), finalize deletions here. Edits land in working tree uncommitted; the
+          3.4.k interlock surfaces them alongside composition for review.
+
+    - `[ ]` **3.4.k Workflow-interlock: "review composed content + planned sweep target + ROADMAP delta"**
+        - `> [!IMPORTANT]` `workflow-interlock:` marker. Agent surfaces (a) the composed Release Notes Entry +
+          Completion Notes, (b) the planned `git mv` sweep target (`active/<cat>/meta-{name}.md` →
+          `archive/<dated>/{name}/meta-{name}.md`), and (c) the ROADMAP delta the upcoming regen will produce.
+          Explicit "proceed to commit + sweep + push" signal from user gates the next steps.
+
+    - `[ ]` **3.4.l Commit completion content**
+        - Class-tagged `workflowCommit` if release-wrappers active; carries Release Notes Entry + Completion Notes +
+          drain-write additions as one logical commit.
+
+    - `[ ]` **3.4.m Cadence dispatch — invoke `archive-work-unit.md` inline under `with-integration`**
+        - Read `archive.cadence` from `arc-config.yml`.
+        - `with-integration` (default): invoke `archive-work-unit.md` inline at this point. archive-work-unit handles
+          state flip `Integrating → Shipped`, sweep commits, and ROADMAP regen per its cadence-invariant body (3.5).
+          Returns; resume here with the final push.
+        - `manual`: skip inline invocation; surface a note at workflow exit that archive runs separately post-merge
+          per user invocation.
+
+    - `[ ]` **3.4.n Final push**
+        - Push completion-content + sweep + ROADMAP commits to the PR. Class-tagged `workflowPush` if release-wrappers
+          active. Under `manual`, push is just the completion-content commit; sweep + ROADMAP fire later when
+          `archive-work-unit.md` is invoked explicitly.
 
 ### `[ ]` **3.5 Restructure `archive-work-unit.md` (single source of truth for archival mechanics; cadence-invariant body)**
 
