@@ -26,7 +26,7 @@ branches integrate as `feat:` PRs and vice versa; WUs cross the partition often 
 honest. Branch names are also longer than they need to be.
 
 **Separate planning-branch PR adds ceremony without proportional value.** Two PRs per WU costs a review cycle plus
-branch-rotation friction at activation. Substantive planning review, when adopters want it, is delivered better by an
+branch-rotation friction at activation. Substantive planning review, when projects want it, is delivered better by an
 opt-in configurable checkpoint than by a second merge-able PR.
 
 ### The commit-convention bloat
@@ -55,7 +55,7 @@ of DEV-RULES.ARC + method-doc + hook churn.
 3. **Meta-file location-by-state.** Meta file always at `active/meta-{name}.md`; the branch carries it. Renamed from
    `status-{name}.md` to reflect composite role (metadata + state pointers + archive sections).
 4. **Sweep-as-you-go integration default.** Integration PR includes sweep commits; meta-file moves to archive in the
-   same PR. `archive.cadence: deferred` available for staged-cadence adopters.
+   same PR. `archive.cadence: deferred` available for staged-cadence projects.
 5. **Codified meta-file fields.** `**State:**` value-set, `**Owner:**` singular, `**Depends On:**` for dependency
    surfacing, `**Origin:**` orthogonal to `**Spec:**`, `**Cohort:**` for group membership.
 6. **Completion-doc consolidation.** Eliminate `completion-{name}.md`; meta file carries archive-phase sections.
@@ -137,7 +137,7 @@ Merge transitions main from "didn't have these files" to "has them in archive/" 
 ### Lifecycle and branch conventions (P0)
 
 **R1.** WU branches follow a CB-style type prefix. Type list is methodized as the new `branch-format` method
-(parallel to existing `commit-format`), making the type set adopter-overridable per project. ARC's default type set:
+(parallel to existing `commit-format`), making the type set overridable per project. ARC's default type set:
 `feat/<name>`, `fix/<name>`, `chore/<name>`, `refactor/<name>`, `hotfix/<name>` (5 types).
 
 **R1 amendment basis (2026-05-14):** Original R1 specified a "CB core-6" set of
@@ -148,7 +148,7 @@ counts: CB's actual recommended set is `feature|feat | bugfix|fix | hotfix | rel
 "recommended set" terminology, not "core" or "canonical." Amended set above reflects: strict CB types ARC's WU model
 actually supports (`feat | fix | chore | hotfix`) plus `refactor` (distinct from `fix` per ARC's planning practice;
 `chore` is too coarse). Drops `release/` per release-lifecycle gap (see Pressure Points § Release-lifecycle model).
-Drops `docs`, `perf` (bundled into `chore` per CB's actual recommendation; adopters who want finer granularity use
+Drops `docs`, `perf` (bundled into `chore` per CB's actual recommendation; projects that want finer granularity use
 method override).
 
 **R2.** Planning branches use `plan/<name>` prefix; rotate to `<type>/<name>` at activation via local rename + remote
@@ -321,7 +321,7 @@ token-lean):
   in `.md`)
 - `fix` = correcting drift, stale references, or out-of-date language in methodology surface
 - `refactor` = restructuring methodology surface without behavior/convention change
-- `docs` = external-facing prose only (`README.md`, docs-site content, adopter onboarding)
+- `docs` = external-facing prose only (`README.md`, docs-site content, onboarding guides)
 - Rule of thumb: "What changed in system behavior or capability? Yes → `feat` / `fix` / `refactor`; No → `docs`"
 
 Final placement decision (between `commit-format.md`, `commit-context-format.md`, and arc-commit skill) at task
@@ -332,7 +332,7 @@ preamble: ARC's default branch type set is **inspired by Conventional Branch and
 extension**, not strict alignment with either. Substantive divergence documented (per R1 amendment): ARC adopts
 `feat | fix | chore | hotfix` from CB's recommended set; extends with `refactor` (Angular CC); drops `release` (no ARC
 release-lifecycle model yet — see Pressure Points); bundles `docs` and `perf` into `chore` per CB convention. The
-`commit-format` and `branch-format` methods compose independently — one mechanism per axis, both adopter-overridable.
+`commit-format` and `branch-format` methods compose independently — one mechanism per axis, both overridable per project.
 
 **R29.** Forward-only migration. Historical commits keep their existing type/scope tags (git history immutable). New
 conventions apply from WOR merge forward.
@@ -585,7 +585,7 @@ complement not duplicate).
 - `**Branch(es):**` plural form → retired in favor of `**Branch:**` singular per R3 + R5 (single-branch-per-WU
   forecloses plural)
 - `**Base Branch:**` → retired; invariant `main` under single-branch-per-WU + single integration merge per R5 makes the
-  field carrier-less. Adopter-level base-branch override (if needed) is a project-level config concern, not per-WU state
+  field carrier-less. Project-level base-branch override (if needed) is a project-level config concern, not per-WU state
 - `**Sibling Work Unit(s):**` → retired by R13 (cohort is source of truth; siblings derived)
 - `**Integration:**` → retired by R9's 4-state enum (folds into `State: Integrating`)
 - `**Interrupts:**` / `**Paused At:**` / `**Paused To:**` → retired by R49a (incidental WU model substrate retirement)
@@ -896,8 +896,8 @@ files.
 Distinction from agent-facing templates in `reference/templates/template-*.md`: those are for content created
 *repeatedly during work* by agents / workflows (PRDs, plans, tasks, meta files, completion docs, ADRs, etc.).
 Bracket-placeholder convention. The two surfaces address different needs and should not duplicate. Optional
-adopter-customized starter templates (e.g., `template-dev-rules.md`, `template-contributing.md`) are a third category —
-present in `reference/templates/` but not in the CLI render list, copied or referenced by adopters as starting points
+optional starter templates (e.g., `template-dev-rules.md`, `template-contributing.md`) are a third category —
+present in `reference/templates/` but not in the CLI render list, copied or referenced by projects as starting points
 for optional files; this principle does not apply to those.
 
 Amends R33: `template-project-prd.md` is NOT created in `reference/templates/`. `PROJECT-PRD.template.md` (per R35

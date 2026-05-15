@@ -100,7 +100,7 @@ Vocabulary (existing section; orientation layer) rather than DEV-RULES.ARC, per 
     - `[x]` **1.3.c Verify `DEV-RULES.PROJECT.md § Capture Routing` redirect remains aligned**
         - Confirmed: DEV-RULES.PROJECT § Capture Routing is a 4-line redirect to `DEV-RULES.ARC § Leave it
           cleaner` (link target unchanged since the H3 anchor stayed `### Leave it cleaner`). R24 stub overrides
-          clause not added — left as-is per the "otherwise leave as-is" path; adopters can add a
+          clause not added — left as-is per the "otherwise leave as-is" path; projects can add a
           project-specific overrides clause when they actually need one.
 
     - `[x]` **1.3.d Update `manage-incidental-work` prose pointer in § Leave it cleaner**
@@ -164,7 +164,7 @@ parenthetical patterns); phase order reflects execution order.
     - `[x]` **2.1.a CB core-6 type set enumeration**
         - Scope reframed (2026-05-14): type-set enumeration relocates from strategy to the new `branch-format` method
           (Task 2.1.e below). Strategy § Branching now describes mechanism only — every WU branch carries a type
-          prefix; the type set lives in the method as adopter-overridable content. Default set landed in the method:
+          prefix; the type set lives in the method as overridable content. Default set landed in the method:
           `feat | fix | chore | refactor | hotfix` (5 types per PRD R1 amendment).
 
     - `[x]` **2.1.b `plan/<name>` rotation pattern**
@@ -197,7 +197,7 @@ parenthetical patterns); phase order reflects execution order.
           the gap in the original PRD.
 
 - _Outcome:_ § Branching landed as a thin top-level section (mechanism-only) between § Work Unit State and
-  § Incidental Work Model. New `branch-format` method file carries the type-set codification and adopter-override
+  § Incidental Work Model. New `branch-format` method file carries the type-set codification and override
   mechanism. PRD R1 + R28 amended to correct the incorrect CB-alignment framing and capture the release-lifecycle gap
   surfaced during execution. Both strategy-doc copies updated; both method-file copies created identically. Cross-doc
   audit (PRD amendment + method file + strategy rewrite + WU notes Pressure Point capture) keeps the constitutional
@@ -241,7 +241,7 @@ parenthetical patterns); phase order reflects execution order.
 
     - `[x]` **2.3.d Forward-only migration discipline**
         - Scope reframed (2026-05-14): subsection content described THIS PROJECT's own migration from pre-WOR to
-          post-WOR archive shape, which is a project-internal concern (adopters install post-change with no legacy
+          post-WOR archive shape, which is a project-internal concern (projects install post-change with no legacy
           archive to migrate). Per DEV-RULES.PROJECT § Audience Boundaries, content removed from adopter-facing
           strategy; substantive migration mapping already lives in `notes-work-organization-reform.md` § Migration
           Mapping Reference where it belongs.
@@ -284,9 +284,9 @@ parenthetical patterns); phase order reflects execution order.
 
     - `[x]` **2.4.d Interim hand-maintenance discipline (pre-CLI)**
         - Scope reframed (2026-05-14): "Interim (pre-CLI)" framing was project-internal — pegs the strategy doc to
-          this project's tooling timeline, which adopters don't share. Per DEV-RULES.PROJECT § Audience Boundaries,
+          this project's tooling timeline, which projects don't share. Per DEV-RULES.PROJECT § Audience Boundaries,
           subsection removed from adopter-facing strategy. The render algorithm and regeneration fire-points (2.4.b,
-          2.4.c) are tooling-agnostic; adopters use whatever execution path they have (hand, script, future CLI).
+          2.4.c) are tooling-agnostic; projects use whatever execution path they have (hand, script, future CLI).
           Hand-maintenance discipline guidance for THIS project's own tooling lives in WU notes.
 
 - _Outcome:_ New top-level § ROADMAP landed between § Archival and § Incidental Work Model. Three subsections
@@ -2461,7 +2461,7 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
 
     - `[ ]` **6.11.e Author Decision Gate section**
         - Explicit gates: what deciding requires (e.g., evaluation of `plan-arc-modes`' current direction; verification
-          that smaller WU pattern holds in practice; team-coordination research validation; concrete adopter feedback).
+          that smaller WU pattern holds in practice; team-coordination research validation; concrete user feedback).
         - Frame: "this decision is not made by this plan; this plan organizes the inputs needed to make it."
 
     - `[ ]` **6.11.f Author Cross-References section**

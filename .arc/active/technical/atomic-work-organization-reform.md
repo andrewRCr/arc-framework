@@ -16,16 +16,14 @@ Atomic Task Completion for the full protocol.
 
 ## Tasks
 
-### `[ ]` **Audience-vocabulary sweep — WU docs (PRD + task list)**
+### `[x]` **Audience-vocabulary sweep — WU docs (PRD + task list)**
 
-- _Schedule:_ After Task 2.13.f, before Task 2.14.
-- _Why:_ Task 2.13.a surfaced `adopter onboarding` carrying verbatim from PRD R27 spec text into
-  adopter-facing `commit-format.md`. Spec-carryover during R-ID-driven codification is the failure
-  mode. Cleaning the source eliminates the carryover risk for later 2.13 subtasks and downstream
-  phases that port more spec text into adopter-facing surfaces.
-- _Scope:_ `prd-work-organization-reform.md` + `tasks-work-organization-reform.md`. Grep
-  `\badopters?\b` (case-insensitive). Replace in spec text / R-IDs / acceptance criteria that gets
-  ported into adopter-facing outputs. Keep `adopter` where it explicitly names the framework-author
-  audience (e.g., section labels like "Adopter-facing surfaces"). Judgement call per instance.
-- _Out of scope:_ Task 6.7.n already sweeps non-WU adopter-facing surfaces; this is the WU-internal
-  complement, scheduled early to neutralize carryover risk during the remaining WOR execution.
+- _Outcome:_ Swept both WU docs for `\badopters?\b` (case-insensitive). 14 replacements total:
+  8 in `prd-work-organization-reform.md` (R27 `docs` example, R28 method-composition framing, R1
+  amendment prose, plus body prose addressing the reader as "adopter"); 6 in
+  `tasks-work-organization-reform.md` (outcome notes describing method capabilities, body prose,
+  one decision-gate bullet). 38 mentions kept across both files — all surface-category labels
+  (`adopter-facing strategy/prose/sweep/...`), historical decision records, and meta-discussion of
+  the audience-vocabulary rule itself (essential context that explicitly names the framework-author
+  audience). Tier 1 lint clean. Closes the spec-carryover risk that surfaced at 2.13.a; downstream
+  phases now port from clean source.
