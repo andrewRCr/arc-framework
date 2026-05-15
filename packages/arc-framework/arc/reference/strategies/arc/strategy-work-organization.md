@@ -457,27 +457,28 @@ All changes require branches and PR review. No direct base branch commits.
 ### Active Work
 
 ```text
-.arc/active/<wu-name>/
+.arc/active/
   meta-<name>.md         # WU metadata + state (always present)
   prd-<name>.md          # product requirements (when WU has a PRD)
   tasks-<name>.md        # execution spec (when WU has a task list)
   notes-<name>.md        # working context (optional; may carry content graduated from plan-*)
   atomic-<name>.md       # atomic-task companion (optional)
-  completion-<name>.md   # PR description draft (created before integration PR)
 ```
 
-Each in-flight work unit lives in its own subdirectory keyed to the WU name. `active/` is flat —
-no per-category subdirectories. Artifact applicability scales with mode and tier; see
-[§ Spec-Flow Invariants](#spec-flow-invariants) for the invariants and scaling axes. `plan-*.md`
-is the pre-PRD synthesis artifact, deleted at PRD creation per `1_create-prd.md` (with optional
+`active/` is flat — per-worktree isolation (see [§ Per-Worktree Isolation](#per-worktree-isolation))
+means each worktree's `active/` carries one WU's artifacts at a time, so per-WU and per-category
+subdirs would be redundant. Artifact applicability scales with mode and tier; see
+[§ Spec-Flow Invariants](#spec-flow-invariants) for the invariants and scaling axes. `plan-*.md` is
+the pre-PRD synthesis artifact, deleted at PRD creation per `1_create-prd.md` (with optional
 graduation of substantive persisting content into `notes-*.md`); it never appears in `active/`.
+Archive-phase content (Release Notes Entry, Completion Notes, PR URL, Completed date) composes into
+the meta file at integration — there is no separate `completion-<name>.md` artifact.
 
 ### Alignment
 
-Branch name, active subdirectory, and completed subdirectory align consistently:
+Branch name and completed subdirectory share the WU identifier:
 
-- Branch `feat/api-modernization` → `.arc/active/api-modernization/` →
-  `.arc/completed/<dated>/api-modernization/`
+- Branch `feat/api-modernization` → completed in `.arc/completed/<dated>/api-modernization/`
 
 ---
 
