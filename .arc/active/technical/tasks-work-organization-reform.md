@@ -669,10 +669,11 @@ parenthetical patterns); phase order reflects execution order.
 
     **Strategies:** `strategy-package-project-sync.md`
 
-    - `[ ]` **2.13.a Codify `docs` discipline in `commit-format.md`** (R27)
-        - Principle paragraph + four type-definition lines (feat / fix / refactor / docs) + rule of thumb. ~8-10 lines
-          added; method's token budget respected.
-        - Sync to packages/.
+    - `[x]` **2.13.a Codify `docs` discipline in `commit-format.md`** (R27)
+        - "Type selection" block landed between **Types:** and **Scope:** — principle line + four
+          type-definition bullets + rule of thumb. R27's "adopter onboarding" example softened to
+          "onboarding guides" on review (method file ships; `adopter` vocabulary reserved for
+          internal-dev surfaces). Both copies byte-identical; Tier 1 lint clean.
 
     - `[ ]` **2.13.b Rename `commit-context-format.md` → `commit-footer.md`**
         - `git mv .arc/system/methods/commit-context-format.md .arc/system/methods/commit-footer.md`.

@@ -33,6 +33,17 @@ Conventional commit format.
 
 **Types:** `feat` `fix` `docs` `content` `style` `refactor` `test` `chore` `perf` `build` `ci` `config` `revert`
 
+**Type selection:** Type is chosen by intent, not file extension.
+
+- `feat` — new capability (workflow, method, strategy, template, convention codification — even when
+  delivered entirely in `.md`)
+- `fix` — correcting drift, stale references, or out-of-date language in methodology surface
+- `refactor` — restructuring methodology surface without behavior/convention change
+- `docs` — external-facing prose only (`README.md`, docs-site content, onboarding guides)
+
+Rule of thumb: "What changed in system behavior or capability? Yes → `feat` / `fix` / `refactor`;
+No → `docs`"
+
 **Scope:** Lowercase functional area (e.g., `auth`, `api`, `tests`, `config`, `arc`, `deps`).
 
 **Subject line:** Describe the change, not the task. Don't include task references, phase numbers, or other
