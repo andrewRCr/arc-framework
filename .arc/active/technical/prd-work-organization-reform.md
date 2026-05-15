@@ -479,15 +479,20 @@ Foundation's branch-gone detection) left to WF.
 
 ### Planning-checkpoint review opt-in (P1)
 
-**R46.** Config setting `review.planning_checkpoint` in `arc-config.yml`. Values: `disabled` (default; planning flows
-directly into execution) | `required` (workflow stops at planning → execution graduation, awaits explicit approval).
+**R46.** _Deferred to `plan-customization-architecture.md`._ The originally proposed
+`review.planning_checkpoint` config key surfaced a deeper smell in ARC's customization
+architecture (config-as-method-toggle pattern with no method behind it). Resolution moved
+out of WOR; see the customization-architecture plan for the reform that determines whether a
+planning-checkpoint mechanism re-emerges (as a method with `active` flag, an extension-only
+path, or not at all).
 
-**R47.** Extension point `pre-activation` (renamed per R56 from the originally proposed `pre-execution-graduation`)
-fires at the same checkpoint. Default no-op; teams populate `.actions` for automated review steps (CodeRabbit
-invocation, custom validators, lint runs). Composition: config + extension are independent axes.
+**R47.** Extension point `pre-activation` (renamed per R56 from the originally proposed
+`pre-execution-graduation`) fires at the planning → execution boundary in `activate-work-unit.md`.
+Default no-op; teams populate `.actions` for automated review steps or for a deliberate halt
+prompt (CodeRabbit invocation, custom validators, lint runs, workflow-interlock pauses).
 
-**R48.** Convention inventory entry added to `strategy-configurability-architecture.md`: "Planning checkpoint review |
-P2/P4 | No checkpoint stop | Config setting + Extension." Follows `review.pre_merge` precedent.
+**R48.** Convention inventory entry added to `strategy-configurability-architecture.md`: "Planning
+checkpoint review | P2/P4 | No checkpoint stop | Extension — `pre-activation`."
 
 ### Atomic-tier infra-edit smell flag (P1)
 
@@ -912,7 +917,7 @@ AGENT-BRIEF.PROJECT, QUICK-REFERENCE. The current `classification.ts` render lis
 files.
 
 Distinction from agent-facing templates in `reference/templates/template-*.md`: those are for content created
-*repeatedly during work* by agents / workflows (PRDs, plans, tasks, meta files, completion docs, ADRs, etc.).
+_repeatedly during work_ by agents / workflows (PRDs, plans, tasks, meta files, completion docs, ADRs, etc.).
 Bracket-placeholder convention. The two surfaces address different needs and should not duplicate. Optional
 optional starter templates (e.g., `template-dev-rules.md`, `template-contributing.md`) are a third category —
 present in `reference/templates/` but not in the CLI render list, copied or referenced by projects as starting points

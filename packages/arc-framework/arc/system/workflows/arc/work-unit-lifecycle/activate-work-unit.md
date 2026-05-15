@@ -1,266 +1,145 @@
 ---
-purpose: Transition a work unit to active — establish the implementation branch and update all tracking documents.
-audience: collaborative (human and agent)
+purpose: Transition a work unit from Planning to Active — state-flip, branch rename, capture-pipeline absorption.
+audience: agent
 arc:
   methods:
     - branch-format
   extensions:
+    - pre-activation
     - post-work-unit-activate
 ---
 
 # Workflow: Activate Work Unit
 
-**When to use:** After generating a task list (`2_generate-tasks.md`) when ready to begin implementation.
+Transition an existing WU from `**State:** Planning` to `**State:** Active` via in-place state-flip and branch
+rename `plan/<name>` → `<type>/<name>`. No new branch, no directory move — the WU stays on its existing branch with
+its artifacts in `active/`.
 
-> **Incidental activation that interrupts active work:** Pausing a parent WU to activate an incidental requires
-> coordinated updates across both status files in the same commit — see [`manage-incidental-work.md`][incidental]
-> § Coordinated Pause/Resume for the paired protocol. Normal (non-incidental) activation proceeds through the
-> steps below unchanged.
+**When to use:** After `2_generate-tasks.md` produces the task list, when ready to begin implementation.
 
-## Mode Detection
+> [!NOTE]
+> **No WU on this branch?** If no `plan/<name>` branch is checked out, or `active/meta-{name}.md` does not exist,
+> start with [`init-work-unit.md`][init-work-unit] instead. This workflow transitions an existing WU; it does not
+> create one.
 
-Check [`arc-config.yml`][arc-config] → `pm.mode` to determine which activation path applies:
-
-- **arc-in-git**: Documents live in `backlog/` and must be moved to `active/`. Steps 1 and 3 apply.
-- **none / external**: Documents are already in `active/` (saved there by `2_generate-tasks.md`).
-  Skip Steps 1 and 3.
-
-The remaining steps (branch creation, status file creation, extensions, commit) apply
-in all modes.
-
-## Prerequisites
-
-**All modes:**
-
-- PRD and task list exist for this work unit
-- Working tree is clean (all changes committed)
-- Currently on base branch (typically `main` — see [`arc-config.yml`][arc-config])
-- Planning artifacts are on the base branch — arrived via one of:
-    - Planning branch PR (partially or fully protected)
-    - Batch branch PR that included both archival and planning (fully protected)
-    - Direct commit (partial protection, documented exception)
-
-**arc-in-git mode (additional):**
-
-- PRD exists in `.arc/backlog/{category}/prd-{name}.md`
-- Task list exists in `.arc/backlog/{category}/tasks-{name}.md`
+---
 
 ## Steps
 
-### Step 1: Verify Planning Artifacts on Base Branch · `arc-in-git` only
+### 1) Pre-condition gate
 
-> **Skip this step** if `pm.mode` is `none` or `external` — documents are already in `active/`.
+Verify the activation context is well-formed:
 
-Planning artifacts should already be on the base branch — merged via planning branch PR
-(partially/fully protected mode) or committed directly (partial protection, documented exception).
+- Currently on a `plan/<name>` branch (per [`branch-format`][branch-format])
+- `.arc/active/meta-{name}.md` exists and shows `**State:** Planning`
+- `.arc/active/prd-{name}.md` and `.arc/active/tasks-{name}.md` are present
 
-**If artifacts are not yet on the base branch** (partial protection, just-created artifacts):
+If any check fails, surface the mismatch and halt — do not proceed to state-flip or branch rename.
 
-```bash
-git add .arc/backlog/{category}/prd-{name}.md \
-        .arc/backlog/{category}/tasks-{name}.md \
-        .arc/backlog/{category}/atomic-{name}.md
-```
+### 2) Fire `pre-activation` extension
 
-Then commit (`workflowCommit`):
+If `pre-activation` appears in the active-extensions list (established at session init), load and execute its
+`.actions`. Halt-on-fail surfaces an actionable message; user can fix-and-retry or explicit-invoke bypass.
+Otherwise, skip.
 
-```text
-docs(arc): create PRD and task list for {Work Name}
+### 3) Supplementary alignment checks
 
-Context: planning (atomic / no associated task list)
-```
+#### PROJECT-PRD
 
-### Step 2: Create Implementation Branch
+Fires only when PROJECT-PRD has been edited since the WU's PRD was approved. Soft check; rarely blocks. Surface
+any conflict with the WU's PRD; on conflict, halt and ask.
 
-```bash
-git checkout -b {feature|technical}/{branch-name}
-```
+#### TECHNICAL-OVERVIEW
 
-This creates the primary implementation branch. Branch name typically matches the work unit
-name (e.g., `feature/user-authentication`). Additional branches may be created during work
-for stacked PRs or team sub-branches — see
-[Task Lists and Branches][work-org-branches].
+Fires only when TECHNICAL-OVERVIEW has been edited since the WU's PRD was approved **and** the PRD touches
+technical surfaces (tech stack, architecture, runtime, dependencies, infrastructure). Soft check; rarely blocks.
+Independent of the PROJECT-PRD check — scope distinction is the trigger.
 
-### Step 3: Move Documents to Active · `arc-in-git` only
+### 4) State-flip + plan-doc removal
 
-> **Skip this step** if `pm.mode` is `none` or `external` — documents are already in `active/`.
+Edit `active/meta-{name}.md`: `**State:** Planning` → `**State:** Active`.
 
-Ensure the target directory exists (directories are created on demand, not scaffolded at init),
-then use `git mv` to preserve history:
+Remove any residual plan-doc:
 
 ```bash
-mkdir -p .arc/active/{category}/
-git mv .arc/backlog/{category}/prd-{name}.md .arc/active/{category}/
-git mv .arc/backlog/{category}/tasks-{name}.md .arc/active/{category}/
-git mv .arc/backlog/{category}/atomic-{name}.md .arc/active/{category}/
+git rm .arc/active/plan-{name}.md
 ```
 
-The task list's `**PRD:**` field carries a bare filename — its path is derived from the task
-list's directory, so the backlog → active rotation needs no field edit. (Existing task lists
-authored under the prior path-form convention may still carry `.arc/{active|backlog}/...` values;
-update those to bare filenames if encountered, otherwise leave the human-reference as-is.)
+Safety-catch — the plan-doc should already be absent (deleted at PRD creation per `1_create-prd.md`); this covers
+paths that skipped the create-PRD boundary.
 
-**Movable artifact references.** If the moved files reference sibling WU artifacts, use
-backticked filenames only (for example, `plan-{name}.md`), not Markdown links or paths.
-
-### Step 4: Ensure Status File
-
-The active status file may already exist when this workflow runs — [`activate-planning-branch.md`][activate-planning-branch]
-Step 5 creates it during the planning-branch ceremony. Step 4 is idempotent: detect the existing file and
-transition it, or create from template when absent. Both paths converge on the same end state: `State: In Progress`,
-the task list pointer populated, and the first task ready to execute.
-
-**Precondition check.** If `.arc/active/{category}/status-{name}.md` already exists, take the **transition path**
-below; otherwise, take the **creation path**.
-
-#### Creation path · no existing status file
-
-Create `.arc/active/{category}/status-{name}.md` from [`template-status.md`][template-status]. This is the per-WU
-project pointer — it travels with the branch and carries state until the work unit is archived.
-
-Replace the template's title (`# Status: [Work Name]`) with the actual work unit name. Strip the HTML comment block
-at the top of `## Work Unit Metadata` — that's template scaffolding, not an instance carry-over (mirrors `template-prd.md`
-precedent). Then fill in the initial field set:
-
-1. **State** — `In Progress`
-2. **Branch** — implementation branch name (e.g., `feature/{name}` or `technical/{name}`)
-3. **Spec** — `prd-{name}.md` (PRD filename); URL under `pm.mode: external`
-4. **Task List** — `tasks-{name}.md` (bare filename; path derives from this status file's directory)
-5. **Sibling Work Unit(s)** — comma-separated `plan-{name}.md` or `prd-{name}.md` references when this WU is part
-   of a larger logical whole split for sizing or sequencing; otherwise `[none]`
-6. **Last Completed** — `Work unit activated`
-7. **Next Task** — first task in triple-anchor format (e.g., "Task 1.1 — Setup scaffolding (line ~XX)")
-8. **Blockers** — `[none]`
-9. **Next Action** — describe first task action (e.g., "Begin Phase 1")
-
-#### Transition path · status file exists from planning ceremony
-
-The status file already carries planning-state field values from [`activate-planning-branch.md`][activate-planning-branch]
-Step 5. Update the fields that change at activation:
-
-1. **State** — `Planning` → `In Progress`
-2. **Branch** — planning branch → implementation branch (e.g., `feature/{name}` or `technical/{name}`)
-3. **Spec** — conditional rewrite:
-    - `plan-{name}.md` filename → `prd-{name}.md` (the now-canonical artifact)
-    - URL, external tracker reference, non-`plan-` `.md` filename, or `[none]` → leave unchanged (accommodates
-      `pm.mode: external` Specs untouched)
-4. **Task List** — `[none]` → `tasks-{name}.md` (bare filename)
-5. **Last Completed** — `[none]` → `Work unit activated`
-6. **Next Task** — `[none]` → first task in triple-anchor format (e.g., "Task 1.1 — Setup scaffolding (line ~XX)")
-7. **Next Action** — replace planning-session prompt with first task action (e.g., "Begin Phase 1")
-
-**Sibling Work Unit(s)** and **Blockers** retain their existing values from the planning session.
-
-#### Both paths
-
-**Remove pre-activation PRD metadata:** Remove `**State:**`, `**Related Work:**`, and `**Updated:**` lines from the
-PRD header (see [`template-prd.md`][template-prd]). The PRD retains only `**Type:**` going forward.
-
-> **Team mode:** The per-WU status file is tracked in `active/{category}/` — one developer performs the activation,
-> and the file applies to the whole branch. Other developers joining the work unit establish their session context
-> via `user/{identity}/SESSION-NOTES.md` during their first [session initialization][session-init].
->
-> **Team branch setup:** If the team will use personal sub-branches (rather than committing directly to the shared
-> branch), create the integration branch in Step 2, then have each developer create their sub-branch from it.
-> Update the task list's `**Branch(es):**` header to list all branches. Assign initial task ownership via `(@name)`
-> markers in the task list. See [Team Coordination Strategy][team-coordination] § Team Branching Patterns for
-> pattern options.
-
-### Step 5: Update PM Artifacts · `arc-in-git` only
-
-> **Skip this step** if `pm.mode` is `none` or `external`.
-
-Update project management documents to reflect the newly active work unit:
-
-**PROJECT-STATUS.md** (`.arc/reference/PROJECT-STATUS.md`):
-
-- Update **Currently Active** to the new work unit (name, category, description, task list path, branch)
-- Update **Next Priority** to the next queued item from ROADMAP.md (or remove if nothing is queued)
-
-**ROADMAP.md** (`.arc/backlog/ROADMAP.md`):
-
-- Update the work unit's status from its previous state (e.g., "Planning" → "In Progress")
-
-### Step 6: Post-Activation Extensions · `#post-work-unit-activate`
-
-If `post-work-unit-activate` appears in the active-extensions list (established at session init), load
-and execute its [`.actions`][arc-ext-post-activate]. Otherwise, skip.
-
-### Step 7: Commit Activation
-
-Stage the activation files and commit. The exact set depends on pm.mode:
-
-```bash
-# arc-in-git: moved files + new status file + task list update
-git add .arc/active/{category}/prd-{name}.md \
-       .arc/active/{category}/tasks-{name}.md \
-       .arc/active/{category}/atomic-{name}.md \
-       .arc/active/{category}/status-{name}.md
-
-# none / external: new status file + task list/PRD edits (other files already in active/)
-git add .arc/active/{category}/prd-{name}.md \
-       .arc/active/{category}/tasks-{name}.md \
-       .arc/active/{category}/atomic-{name}.md \
-       .arc/active/{category}/status-{name}.md
-```
-
-Then commit (`workflowCommit`):
+Stage both edits and commit (`workflowCommit`):
 
 ```text
 docs(arc): activate {work-name} work unit
 
-- Create status file with State: In Progress
-- Move planning artifacts to active/ (arc-in-git)
+- Flip State: Planning → Active
+- Remove plan-{name}.md (graduated to PRD; safety-catch)
 
-Context: status-{name}.md (activation)
+Context: meta-{name}.md (activation)
 ```
 
-**Note:** Stage only the files actually modified. With `arc-in-git`, also stage PROJECT-STATUS.md and
-ROADMAP.md if updated in Step 5. If [post-work-unit-activate extensions][arc-ext-post-activate]
-produced additional changes, stage those as well.
+### 5) Branch rename · 3-step routing
 
-### Step 8: Push Feature Branch (Optional)
+```bash
+git branch -m plan/{name} {type}/{name}    # local rename (raw)
+git push -u origin {type}/{name}            # workflowPush
+git push origin --delete plan/{name}        # raw — destructive flag stays literal
+```
 
-Set upstream for the feature branch (`workflowPush`): `-u origin {feature|technical}/{branch-name}`.
+`<type>` per [`branch-format`][branch-format]. The wrapper refuses `--delete` by design, so the old-remote
+deletion stays as raw `git`. See [Work Organization Strategy § Branching][work-org-branching] for the rename's
+role in the WU lifecycle.
 
-This is optional but recommended - establishes remote tracking early.
+### 6) Absorption write · `arc-in-git` only
 
----
+> **Skip this step** under `pm.mode: none` or `external`.
 
-## Checklist Summary
+If activation absorbs queued inbox entries — `user/{identity}/USER-INBOX.md` (`## Atomic` / `## Backlog` sections)
+or shared `backlog/ATOMIC-INBOX.md` / `backlog/BACKLOG-INBOX.md` — into this WU's task list or atomic companion,
+finalize absorption now. Delete the source entries; record routing in the commit message.
 
-Before proceeding to task execution, verify:
+The absorbing-artifact edits (task list, atomic companion) typically already landed during planning; this step
+lands the source deletions as the ceremony write (`workflowCommit`).
 
-- [ ] Implementation branch created and checked out
-- [ ] PRD, task list, and atomic companion file in `.arc/active/{category}/` (moved from backlog if arc-in-git)
-- [ ] Status file ensured in `active/{category}/` — `State: In Progress` with Branch, Spec, Task List,
-      Next Task populated (created from template, or transitioned from `Planning`)
-- [ ] PRD `**State:**` / `**Related Work:**` / `**Updated:**` pre-activation metadata removed (if present)
-- [ ] PROJECT-STATUS.md and ROADMAP.md updated (arc-in-git only)
-- [ ] All changes committed on feature branch
+See [DEV-RULES.ARC § Leave it cleaner][dev-rules-leave-cleaner] for the capture-routing table.
+
+### 7) ROADMAP regen · `arc-in-git` only
+
+> **Skip this step** under `pm.mode: none` or `external`.
+
+Hand-maintain (interim, pre-CLI) per [Work Organization Strategy § ROADMAP][work-org-roadmap]: update the WU's
+tier placement to reflect its new `Active` state.
+
+Default: dedicated `chore(arc):` commit (`workflowCommit`). May ride the activation commit (Step 4) only when the
+edit is trivial (single tier-line move) — see [DEV-RULES.ARC § Atomicity][dev-rules-atomicity].
+
+### 8) Fire `post-work-unit-activate` extension
+
+If `post-work-unit-activate` appears in the active-extensions list, load and execute its
+[`.actions`][arc-ext-post-activate]. Otherwise, skip. Stage any extension-produced changes as a dedicated commit
+per the extension's contract.
 
 ---
 
 ## Next Step
 
-With the work unit activated, proceed to task execution:
+With activation complete, proceed to task execution:
 
-**→ [3_process-task-loop.md](../3_process-task-loop.md)** - Execute tasks one at a time with quality gates
+**→ [3_process-task-loop.md](../3_process-task-loop.md)** — Execute tasks with quality gates.
 
 ## Related Workflows
 
-- [`deactivate-work-unit.md`][deactivate] — reverse an activation when the WU is cancelled before any task
-  work (Case A); routing for cases with work or merged state
+- [`init-work-unit.md`][init-work-unit] — preceding ceremony; creates the WU on `plan/<name>`.
+- [`integrate-work-unit.md`][integrate-work-unit] — succeeding ceremony; PR-open through merge.
 
 ---
 
-[work-org-branches]: ../../../../reference/strategies/arc/strategy-work-organization.md#task-lists-and-branches
+[init-work-unit]: planning/init-work-unit.md
+[integrate-work-unit]: integrate-work-unit.md
+[branch-format]: ../../../methods/branch-format.md
 [arc-ext-post-activate]: ../../../extensions/post-work-unit-activate.md
-[arc-config]: ../../../arc-config.yml
-[deactivate]: deactivate-work-unit.md
-[session-init]: ../session-lifecycle/session-init.md
-[team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md
-[template-status]: ../../../../reference/templates/template-status.md
-[template-prd]: ../../../../reference/templates/template-prd.md
-[incidental]: ../supplemental/manage-incidental-work.md
-[activate-planning-branch]: planning/activate-planning-branch.md
+[work-org-branching]: ../../../../reference/strategies/arc/strategy-work-organization.md#branching
+[work-org-roadmap]: ../../../../reference/strategies/arc/strategy-work-organization.md#roadmap
+[dev-rules-leave-cleaner]: ../../../../reference/constitution/DEV-RULES.ARC.md#leave-it-cleaner
+[dev-rules-atomicity]: ../../../../reference/constitution/DEV-RULES.ARC.md#atomicity

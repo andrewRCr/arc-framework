@@ -954,59 +954,71 @@ but runtime checks of `review.planning_checkpoint` halt and `archive.cadence` di
   lifecycle diagram. Cross-cutting: `branch-format` method codifies planning-prefix invariance; PRD R12
   `[Internal]` → `[internal]` for sentinel alignment.
 
-### `[ ]` **3.3 Restructure `activate-work-unit.md` (state-flip + branch rename + absorption-write + ROADMAP regen)**
+### `[x]` **3.3 Restructure `activate-work-unit.md` (state-flip + branch rename + absorption-write + ROADMAP regen)**
 
 - _Goal:_ `activate-work-unit.md` transitions a WU from Planning to Active via in-place state-flip + branch rename +
   absorption-write + ROADMAP regen + supplementary PROJECT-PRD alignment check — no new branch creation, no directory
   move.
 
-    - _Approach:_ Three-step branch rename routing per § Technical Considerations — raw local rename (`git branch -m`),
-      class-tagged push (`workflowPush`), raw destructive delete (`git push --delete`). Pre-condition gate at top
-      verifies running on `plan/<name>` before any step fires.
-
     **Strategies:** `strategy-work-organization.md`
 
-    - `[ ]` **3.3.a Pre-condition check + `[!NOTE]` redirect block**
-        - Verify on `plan/<name>` branch with `**State:** Planning`; if WU doesn't exist (no `plan/<name>`, no
-          `meta-{name}.md`), `[!NOTE]` block at top redirects to `init-work-unit.md`.
+    - `[x]` **3.3.a Pre-condition check + `[!NOTE]` redirect block**
+        - Step 1 verifies the activation context — running on a `plan/<name>` branch, `active/meta-{name}.md` shows
+          `**State:** Planning`, PRD + tasks-* present. Top-of-doc `[!NOTE]` block redirects to `init-work-unit.md`
+          when no WU exists on the current branch (no `plan/<name>`, no `meta-{name}.md`).
 
-    - `[ ]` **3.3.b Pre-execution-graduation extension fire (R47)**
-        - Extension defined in 3.8; this step is the fire-point reference. Halt-on-fail with surface-for-user; user can
-          fix-and-retry or explicit-invoke bypass.
+    - `[x]` **3.3.b `pre-activation` extension fire (R47)**
+        - Step 2 is the fire-point reference; extension file lands in 3.8.a. Halt-on-fail with surface-for-user;
+          user fix-and-retries or explicit-invoke bypasses. Extension named `pre-activation` per R47/R56 (renamed
+          from originally proposed `pre-execution-graduation`); workflow forward-references by name only — no
+          markdown link until 3.8.a creates the file (broken-link hook would block).
 
-    - `[ ]` **3.3.c `review.planning_checkpoint` halt (R46)**
-        - When `required`: workflow halts here, awaits explicit approval. When `disabled`: no halt. Per R47, independent
-          of extension fire — extension runs first; if it passes, config decides.
+    - `[~]` **3.3.c ~~`review.planning_checkpoint` halt (R46)~~ — Deferred**
+        - Subtask removed mid-execution. R46's design surfaced a deeper smell in ARC's customization architecture
+          (config-as-method-toggle pattern with no method behind it). Whether a planning-checkpoint mechanism
+          re-emerges is deferred to `plan-customization-architecture.md`. The `pre-activation` extension (3.3.b)
+          stands on its own as the activation-time hook; teams wanting a halt today author a `workflow-interlock`
+          in the extension's `.actions`.
 
-    - `[ ]` **3.3.d PROJECT-PRD + TECHNICAL-OVERVIEW supplementary checks (R34, R60 — conditional)**
-        - Two sub-bullets within existing review step.
-        - **PROJECT-PRD check (R34):** Fires only when PROJECT-PRD edited since PRD approved. Soft check; rarely blocks.
-        - **TECHNICAL-OVERVIEW check (R60):** Fires only when TECHNICAL-OVERVIEW edited since PRD approved AND PRD
-          touches technical surfaces (tech stack, architecture, runtime, dependencies, infrastructure). Soft check;
-          rarely blocks. Independent of PROJECT-PRD check — scope distinction is the trigger.
+    - `[x]` **3.3.d PROJECT-PRD + TECHNICAL-OVERVIEW supplementary checks (R34, R60 — conditional)**
+        - Step 3 carries two sub-sections within the review step.
+        - **PROJECT-PRD:** Fires only when PROJECT-PRD edited since PRD approved. Soft check; rarely blocks.
+        - **TECHNICAL-OVERVIEW:** Fires only when TECHNICAL-OVERVIEW edited since PRD approved AND PRD touches
+          technical surfaces (tech stack, architecture, runtime, dependencies, infrastructure). Soft check;
+          rarely blocks. Independent of PROJECT-PRD — scope distinction is the trigger.
 
-    - `[ ]` **3.3.e State-flip + plan-doc removal**
-        - Edit meta file: `**State:** Planning` → `**State:** Active`. `git rm plan-{name}.md` if present (graduated
-          content is in PRD by now).
+    - `[x]` **3.3.e State-flip + plan-doc removal**
+        - Step 4 edits `active/meta-{name}.md` (`**State:** Planning` → `**State:** Active`) and `git rm`s any
+          residual `active/plan-{name}.md` as a safety-catch (plan-doc should already be absent — deleted at PRD
+          creation). Both edits bundle into the activation `workflowCommit` with a template message body.
 
-    - `[ ]` **3.3.f Branch rename: 3-step routing (R2)**
-        - Step 1 (raw): `git branch -m plan/<name> <type>/<name>`.
-        - Step 2 (`workflowPush`): `git push -u origin <type>/<name>` — class-tagged for release-wrapper routing per
-          DEV-RULES.ARC § Workflow class-tag routing.
-        - Step 3 (raw): `git push origin --delete plan/<name>` — destructive flag stays literal; wrapper refuses
-          `--delete` by design.
+    - `[x]` **3.3.f Branch rename: 3-step routing (R2)**
+        - Step 5 carries the 3-step shape with class-tag annotations inline: `git branch -m plan/{name} {type}/{name}`
+          (raw), `git push -u origin {type}/{name}` (`workflowPush`), `git push origin --delete plan/{name}` (raw —
+          destructive flag stays literal; wrapper refuses `--delete` by design). Cross-ref to `branch-format` method
+          and Work Organization Strategy § Branching.
 
-    - `[ ]` **3.3.g Absorption write (R20, R21)**
-        - If activation absorbs queued inbox entries (USER-INBOX or shared inboxes) into the WU's task list or planning
-          surface, finalize absorption commits here. Deletion from inbox rides the absorbing commit; routing recorded in
-          commit message.
+    - `[x]` **3.3.g Absorption write (R20, R21)**
+        - Step 6 (`arc-in-git` only) documents absorption of queued entries from `user/{identity}/USER-INBOX.md`
+          (`## Atomic` / `## Backlog`) or shared `backlog/ATOMIC-INBOX.md` / `backlog/BACKLOG-INBOX.md` into this
+          WU's task list / atomic companion. Source-entry deletions land as a `workflowCommit` ceremony write;
+          routing recorded in commit message. Absorbing-artifact edits typically landed during planning.
 
-    - `[ ]` **3.3.h Regenerate ROADMAP (R39)**
-        - Hand-maintain (interim, pre-CLI) per algorithm in 2.4. Commit ROADMAP update separately or ride the state-flip
-          commit per atomicity discipline.
-        - _Note:_ Atomicity (DEV-RULES.ARC § Atomicity, "one logical change per commit") treats state-flip and ROADMAP
-          regen as distinct logical changes. Default recommendation: separate commit. Riding the state-flip commit is
-          acceptable only if the ROADMAP edit is trivial (e.g., single tier-line move).
+    - `[x]` **3.3.h Regenerate ROADMAP (R39)**
+        - Step 7 (`arc-in-git` only) hand-maintains ROADMAP per algorithm in Work Organization Strategy § ROADMAP
+          — updates the WU's tier placement for its new `Active` state. Default: dedicated `chore(arc):` commit
+          (`workflowCommit`). May ride the activation commit only when the edit is trivial (single tier-line move)
+          per DEV-RULES.ARC § Atomicity.
+
+- _Outcome:_ Workflow body rewritten end-to-end for single-branch-per-WU: 8 sequential steps from pre-condition gate
+  through `post-work-unit-activate` (preserved from prior shape), replacing the prior backlog-to-active rotation +
+  new-branch-creation flow. Mode detection inlined per-step (Steps 6-7 gate on `pm.mode`) rather than as a workflow
+  preamble. Frontmatter declares `pre-activation` (forward-reference; file lands at 3.8.a) and preserves
+  `post-work-unit-activate` (not retired by WOR). Active-dir paths use the flat `active/{file}` shape matching
+  init-work-unit.md (per-WU subdir confirmed out-of-scope by user — per-worktree isolation makes it redundant in
+  `active/`; subdirs apply only in `backlog/`, `archive/`, and `user/{identity}/`). Original 3.3.c
+  (`review.planning_checkpoint` halt) deferred mid-execution after architectural review surfaced
+  config-as-method-toggle smell; resolution moved to `plan-customization-architecture.md`.
 
 ### `[ ]` **3.4 Restructure `integrate-work-unit.md` (PR-open + review iteration + post-approval composition + sweep)**
 
@@ -1162,29 +1174,29 @@ but runtime checks of `review.planning_checkpoint` halt and `archive.cadence` di
           § 2 Architecture Components — passes"). Parallel to 3.6.b for PROJECT-PRD; section-name citation rather than
           numbered-principle citation reflects TECHNICAL-OVERVIEW's section-based structure.
 
-### `[x]` **3.7 Add `review.planning_checkpoint` to `arc-config.yml`**
+### `[~]` **3.7 ~~Add `review.planning_checkpoint` to `arc-config.yml`~~ — Deferred and reverted**
 
-- _Goal:_ `arc-config.yml` carries `review.planning_checkpoint` (default `disabled`) — schema addition rides both
-  copies (`packages/arc-framework/arc/system/arc-config.yml` + `.arc/system/arc-config.yml`) per package-project sync
-  discipline.
-
-- _Note:_ `archive.cadence` was added in an earlier phase and already exists in both yaml copies + CLI schema validator
-  with enum `with-integration | manual`. No further yaml/validator work needed for that key.
+- _Outcome:_ Initially landed at commit `5c19d8d8` (config key + CLI types + status-reader defaults +
+  shell validator + tests across both copies). Reverted mid-WOR after architectural review surfaced a
+  config-as-method-toggle smell with no method behind the gate — see
+  `plan-customization-architecture.md` for the broader reform that determines whether a planning-checkpoint
+  mechanism re-emerges (as a method with `active` flag, an extension-only path, or not at all). Forward-edit
+  removed the key from `arc-config.yml` (both copies), `validate-config.sh` enum + `known_keys` list (both
+  copies), `src/commands/config/types.ts`, `src/lib/config/status-reader.ts` (DEFAULTS + ENUM_VALIDATORS),
+  and test fixtures (integration + 6 unit suites + new describe block). Subtasks below preserved for
+  history; all originally `[x]` work has been undone.
 
     **Strategies:** `strategy-package-project-sync.md`
 
-    - `[x]` **3.7.a Add key to package source**
-        - Added `review.planning_checkpoint: disabled` in the `# --- Review ---` section of
-          `packages/arc-framework/arc/system/arc-config.yml`, alongside `review.pre_merge`.
+    - `[~]` **3.7.a Add key to package source**
+        - Reverted: key removed from `packages/arc-framework/arc/system/arc-config.yml`.
 
-    - `[x]` **3.7.b Sync to project instance**
-        - Mirrored the addition in `.arc/system/arc-config.yml`.
+    - `[~]` **3.7.b Sync to project instance**
+        - Reverted: key removed from `.arc/system/arc-config.yml`.
 
-    - `[x]` **3.7.c CLI-side schema validation**
-        - `src/commands/config/types.ts` carries `review.planning_checkpoint` in `ConfigSettings`;
-          `src/lib/config/status-reader.ts` carries the default + enum gate (`disabled | required`); shell
-          `validate-config.sh` (both copies) carries `validate_enum` + `known_keys` entry. Unit + integration
-          tests extended.
+    - `[~]` **3.7.c CLI-side schema validation**
+        - Reverted: `ConfigSettings` field, `DEFAULTS` + `ENUM_VALIDATORS` entries, `validate-config.sh`
+          `validate_enum` + `known_keys` (both copies), and test fixtures all removed.
 
 ### `[ ]` **3.8 Extension fire-point family — 5 files (renames + new) + description/contract pass**
 

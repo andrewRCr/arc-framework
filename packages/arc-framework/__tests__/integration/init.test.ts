@@ -454,15 +454,6 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     expect(config).toMatch(/# Work-unit archival cadence[\s\S]*?archive\.cadence: with-integration/);
   });
 
-  it("renders review.planning_checkpoint with default and inline comments", async () => {
-    const config = await readFile(
-      join(arcDir, "system/arc-config.yml"),
-      "utf-8",
-    );
-    expect(config).toContain("review.planning_checkpoint: disabled");
-    expect(config).toMatch(/# Planning-to-active checkpoint[\s\S]*?review\.planning_checkpoint: disabled/);
-  });
-
   // --- Conditional File Exclusion ---
 
   it("excludes arc-in-git files when pm.mode=none", async () => {

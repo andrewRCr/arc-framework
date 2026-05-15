@@ -142,15 +142,6 @@ hooks.contributor_protected_paths: active/|backlog/
 #   disabled - Skip local review; rely on PR-time review only
 review.pre_merge: enabled
 
-# Planning-to-active checkpoint halt in activate-work-unit.md.
-# Controls whether the activation workflow halts for explicit approval
-# after the pre-activation extension passes. Independent of extension
-# activity — extension runs first; if it passes, this setting decides
-# whether to halt before the state flip.
-#   disabled - No halt; activation proceeds after extension passes. (default)
-#   required - Workflow halts for explicit approval before state flip.
-review.planning_checkpoint: disabled
-
 # --- Platform ---
 
 # Git hosting platform.

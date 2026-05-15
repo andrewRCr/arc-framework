@@ -19,7 +19,6 @@ export interface ConfigSettings {
   "commit.context_pattern": string;
   "merge.strategy": string;
   "review.pre_merge": string;
-  "review.planning_checkpoint": string;
   "platform.type": string;
   "pm.mode": string;
   "team.mode": string;

@@ -38,7 +38,6 @@ const DEFAULTS: ConfigSettings = {
   "commit.context_pattern": "",
   "merge.strategy": "merge",
   "review.pre_merge": "enabled",
-  "review.planning_checkpoint": "disabled",
   "platform.type": "github",
   "pm.mode": "none",
   "team.mode": "false",
@@ -61,7 +60,6 @@ const ENUM_VALIDATORS: Partial<Record<keyof ConfigSettings, readonly string[]>> 
   "session.init_pull.notes": ["manual", "prompt", "always"],
   "session.init_load.notes": ["manual", "prompt", "always"],
   "archive.cadence": ["with-integration", "manual"],
-  "review.planning_checkpoint": ["disabled", "required"],
 };
 
 /** The set of agent-consumable keys — all settings except `hooks.*`. */

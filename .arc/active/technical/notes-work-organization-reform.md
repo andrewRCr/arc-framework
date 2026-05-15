@@ -637,6 +637,35 @@ codified inter-WU planning-freshness pattern in agentic-coding practice. WOR tre
 human coordination as interim default and defers any codified inter-WU sync mechanism to
 Concurrent Work Conventions WU downstream.
 
+### Customization-architecture smell surfaced mid-execution (planning-checkpoint deferred)
+
+Drafting 3.3's workflow body (activate-work-unit.md restructure) surfaced a design smell in the
+R46 `review.planning_checkpoint` config key, then in ARC's broader customization architecture.
+The smell: `review.planning_checkpoint: required` is a bare halt-toggle with no associated
+activity — there is no "planning-review method" the way `review.pre_merge` gates a `diff-review`
+method. R46 was framed as following `review.pre_merge`'s precedent, but `pre_merge` gates a
+concrete method invocation while `planning_checkpoint` gates nothing. The composition R47 cited
+("config + extension as independent axes") collapses to "author a `pre-activation` extension
+whose `.actions` is a halt prompt" — the config adds no expressive power.
+
+Following the thread further: methods in ARC have an override axis but no clean enable/disable
+axis. So when ARC wants a default-on activity that teams might opt out of, it ships a parallel
+config key — `review.pre_merge` is exactly this pattern. The shape is workable but not
+principled. Without a method `active` flag, the config surface accumulates one knob per
+opt-out-able activity, and the meaning of each knob varies (gate-invocation vs. halt-and-confirm
+vs. pure value).
+
+R46 was the trigger; the broader concern is the customization architecture itself. Resolution
+moved out of WOR scope to `plan-customization-architecture.md`. For WOR's forward-compat
+discipline: R46 deleted; arc-config.yml + CLI types + validator + tests reverted (commit
+`5c19d8d8`'s content un-shipped); R47's `pre-activation` extension stands on its own; R48's
+convention-inventory row updated to "Extension only."
+
+Supersedes the design rationale captured at § Design Decisions § Default `disabled` for
+planning-checkpoint review (line 55) and the pressure-points sections § Planning-checkpoint
+review default (line 478) and § Opt-in framing — codification ahead of curve (line 484). Those
+sections describe what was originally proposed; the deferral above describes what shipped.
+
 ---
 
 ## Open Design Questions

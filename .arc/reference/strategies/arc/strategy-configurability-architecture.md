@@ -103,7 +103,7 @@ a configurability path (how teams adapt it).
 | Zero-tolerance quality gates            | P4        | All errors must be fixed            | Behavioral guidance — adjust severity levels          |
 | Tiered quality gate system (Tier 1/2/3) | P4        | Per-task / per-unit / per-phase     | Behavioral guidance — adjust tier boundaries          |
 | Pre-merge aggregate review              | P4        | Lightweight diff review before push | Config setting — `review.pre_merge` + Method override |
-| Planning checkpoint review              | P2 / P4   | No checkpoint stop                  | Config setting + Extension                            |
+| Planning checkpoint review              | P2 / P4   | No checkpoint stop                  | Extension — `pre-activation`                          |
 | Leave it cleaner (capture floor)        | P4        | Fix or document pre-existing issues | Method override — fix-now vs. capture-and-defer       |
 | Test-first assessment                   | P4        | Decision tree by change type        | Method override — substitute assessment criteria      |
 | Conventional commit format              | P6        | `type(scope): description`          | Config setting — `commit.format`                      |
