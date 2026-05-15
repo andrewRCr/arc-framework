@@ -696,15 +696,22 @@ parenthetical patterns); phase order reflects execution order.
           frontmatter line refreshed to summarize chain-naming + standalone.
         - Both copies byte-identical; Tier 1 lint clean.
 
-    - `[ ]` **2.13.d Update `system/githooks/commit-msg` regex + error examples (non-filename portion)**
-        - tasks-\* parenthetical regex: `(incidental - discovered during .+)` → `(incidental during .+)`.
-        - meta-\* (still `status-` filename token here; flips at 6.2.i) parenthetical regex: add `deactivation` and
-          (separately) `maintenance` to the alternation; drop `planning` (was accepted previously).
-        - New standalone-anchor regex: `^Context: standalone \((maintenance|planning|documentation|refactor)\)$`.
-        - Retires the prior off-WU regex:
-          `^Context: (planning|documentation|maintenance|refactor|content) \((atomic / )?no associated task list\)$`.
-        - Error-message example list updates to reflect the new matrix (lines 161-183 in current hook).
-        - Sync to packages/.
+    - `[x]` **2.13.d Update `system/githooks/commit-msg` regex + error examples (non-filename portion)**
+        - tasks-\* incidental regex tightened to `(incidental during .+)`. meta-\* (filename token kept
+          at `status-`, flips at 6.2.i) parenthetical regex updated: dropped `planning`, added
+          `deactivation` + `maintenance`, tightened incidental phrasing. New standalone-anchor regex
+          `^Context: standalone \((maintenance|planning|documentation|refactor)\)$` replaces the
+          retired off-WU regex `^Context: (planning|documentation|maintenance|refactor|content)
+          \((atomic / )?no associated task list\)$`.
+        - Error-message example lists (both primary "Missing 'Context:'" guidance and secondary
+          "Invalid Context: format" guidance) updated to reflect the new matrix: tightened
+          incidental phrasing throughout; status-\* examples drop `(planning)`, add `(deactivation)`
+          / `(maintenance)`; off-WU examples replaced with the four `standalone (...)` patterns;
+          off-WU vocabulary list drops `content`. Contributor-pattern doc reference updated from
+          `commit-context-format.md` to `commit-footer.md` (tactical fold from 2.13.e since the
+          hook was already under edit).
+        - Bash syntax valid; shellcheck clean (pre-existing SC1091 info on sourced lib unchanged).
+          Both copies byte-identical.
 
     - `[ ]` **2.13.e Update inbound references to renamed method**
         - `system/methods/README.md`: method-list entry rename `commit-context-format` → `commit-footer`.
@@ -717,16 +724,19 @@ parenthetical patterns); phase order reflects execution order.
         - Sync packages/ copies.
         - _Note:_ `docs/**` references deferred to docs-content sweep (captured in `plan-docs-content-sweep.md`).
 
-    - `[ ]` **2.13.f Footer-convention smoke tests (positive + negative cases)**
-        - Positive cases (one per matrix cell from R29a): `tasks-*` with all parentheticals; `plan-*` / `prd-*` with
-          `(planning)` / `(code review)`; `meta-*` with all ceremonies plus `(maintenance)` plus `(incidental during X)`
-          plus `(deactivation)`; standalone with all 4 categories; `atomic-*`; contribution.
-        - Negative cases: `(content)` parenthetical (retired); `(maintenance)` on `plan-*`; `(planning)` on `meta-*`;
-          off-WU patterns using old `(no associated task list)` shape; `(incidental - discovered during X)` form (now
-          retired phrasing).
-        - Test fixture location: TBD at execution — extends 6.1.d's hook smoke-test pattern (shell loop) or adds a
-          vitest integration test under `packages/arc-framework/__tests__/integration/`.
-        - _Note:_ This locks regex-vs-method drift. Re-run on every regex/method edit going forward.
+    - `[x]` **2.13.f Footer-convention smoke tests (positive + negative cases)**
+        - New vitest integration test landed at
+          `packages/arc-framework/__tests__/integration/commit-msg-footer.test.ts`. 27 positive
+          cases (one per R29a matrix cell: tasks-\* with all parentheticals; plan-\* / prd-\* with
+          `(planning)` / `(code review)`; meta-\* with all ceremonies plus `(maintenance)`,
+          `(deactivation)`, and `(incidental during X)`; standalone with all 4 categories;
+          atomic-\*; contribution). 7 negative cases (retired patterns: `(content)`, retired
+          incidental phrasing, `(maintenance)` on plan-\*, `(planning)` on meta-\*, old off-WU
+          `(no associated task list)` shapes, `standalone (content)`). All 34 cases pass.
+        - Test invokes hook via `bash` rather than direct exec (hook file mode is `100644` in git
+          — husky-style invocation is the project convention). Hook reads `arc-config.yml` via
+          `arc-lib.sh`, so test sets `cwd: REPO_ROOT` for spawned process.
+        - Re-run any time regex or method body changes: `npx vitest run __tests__/integration/commit-msg-footer.test.ts`.
 
 ### `[x]` **2.14 `strategy-work-organization.md` § Planning Branch Workflow retirement**
 

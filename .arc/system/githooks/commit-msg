@@ -164,8 +164,8 @@ case "$context_footer_mode" in
             echo "   Context: tasks-theme-system.md (Task 2.3.a)"
             echo "   Context: tasks-theme-system.md (Tasks 2.3.c-e)"
             echo "   Context: tasks-theme-system.md (Tasks 6.1.h, 6.2.a-d; maintenance)"
-            echo "   Context: tasks-auth-system.md (incidental - discovered during Task 3.6)"
-            echo "   Context: tasks-design-system.md (incidental - discovered during code review)"
+            echo "   Context: tasks-auth-system.md (incidental during Task 3.6)"
+            echo "   Context: tasks-design-system.md (incidental during code review)"
             echo "   Context: tasks-data-pipeline.md (planning)"
             echo "   Context: tasks-theme-system.md (maintenance)"
             echo "   Context: tasks-auth-system.md (code review)"
@@ -174,12 +174,13 @@ case "$context_footer_mode" in
             echo "   Context: status-structural-pass.md (activation)"
             echo "   Context: status-auth-system.md (integration)"
             echo "   Context: status-auth-system.md (archival)"
-            echo "   Context: status-user-sync-ux.md (planning)"
+            echo "   Context: status-auth-system.md (deactivation)"
+            echo "   Context: status-auth-system.md (maintenance)"
             echo "   Context: atomic-auth-system.md"
-            echo "   Context: maintenance (atomic / no associated task list)"
-            echo "   Context: refactor (no associated task list)"
-            echo "   Context: documentation (atomic / no associated task list)"
-            echo "   Context: planning (no associated task list)"
+            echo "   Context: standalone (maintenance)"
+            echo "   Context: standalone (planning)"
+            echo "   Context: standalone (documentation)"
+            echo "   Context: standalone (refactor)"
             echo "   Context: contribution (fix typo in README)"
         else
             # Extract Context line for further validation
@@ -232,9 +233,9 @@ case "$context_footer_mode" in
                 # Matches: (Tasks 6.1.h, 6.2.a-d; maintenance), (Tasks 2.3.a-c; planning)
                 elif echo "$context_line" | grep -qE '\(Tasks .+; (planning|maintenance)\)$'; then
                     :
-                # Matches: (incidental - discovered during Task 2.3), (incidental - discovered during code review),
-                # (incidental - discovered during Phase 5 planning), etc. Freeform context after prefix.
-                elif echo "$context_line" | grep -qE '\(incidental - discovered during .+\)$'; then
+                # Matches: (incidental during Task 2.3), (incidental during code review),
+                # (incidental during Phase 5 planning), etc. Freeform context after prefix.
+                elif echo "$context_line" | grep -qE '\(incidental during .+\)$'; then
                     :
                 # Matches: (planning), (maintenance), (code review) — task-list metadata or review-driven
                 # Lifecycle ceremony markers (handoff, activation, integration, archival) attach to status-*.md.
@@ -251,7 +252,7 @@ case "$context_footer_mode" in
                     echo "   - (Tasks X.Y, A.B, C.D) - non-contiguous tasks"
                     echo "   - (Task X.Y; planning) or (Task X.Y; maintenance) - single task with extra work"
                     echo "   - (Tasks X.Y, A.B; planning) - multiple tasks with extra work"
-                    echo "   - (incidental - discovered during <context>) - freeform discovery context"
+                    echo "   - (incidental during <context>) - freeform discovery context"
                     echo "   - (planning), (maintenance), or (code review) - task list metadata or review-driven changes"
                     echo "   Note: lifecycle ceremonies (handoff, activation, integration, archival) attach to status-*.md, not tasks-*.md"
                     echo ""
@@ -278,9 +279,9 @@ case "$context_footer_mode" in
                     warnings=$((warnings + 1))
                 fi
 
-            # Matches: Context: status-[name].md (handoff|activation|integration|archival|planning)
-            # Also accepts: (incidental - discovered during <context>) for fixes folded into ceremony commits
-            elif echo "$context_line" | grep -qE '^Context: status-[a-zA-Z0-9-]+\.md \((handoff|activation|integration|archival|planning|incidental - discovered during .+)\)$'; then
+            # Matches: Context: status-[name].md (handoff|activation|integration|archival|deactivation|maintenance)
+            # Also accepts: (incidental during <context>) for fixes folded into ceremony / maintenance commits
+            elif echo "$context_line" | grep -qE '^Context: status-[a-zA-Z0-9-]+\.md \((handoff|activation|integration|archival|deactivation|maintenance|incidental during .+)\)$'; then
                 status_file=$(echo "$context_line" | sed -E 's/Context: (status-[a-zA-Z0-9-]+\.md).*/\1/')
 
                 status_found=false
@@ -317,8 +318,8 @@ case "$context_footer_mode" in
                     warnings=$((warnings + 1))
                 fi
 
-            # Matches: Context: planning (no associated task list), Context: maintenance (atomic / no associated task list)
-            elif echo "$context_line" | grep -qE '^Context: (planning|documentation|maintenance|refactor|content) \((atomic / )?no associated task list\)$'; then
+            # Matches: Context: standalone (maintenance|planning|documentation|refactor) — off-WU work
+            elif echo "$context_line" | grep -qE '^Context: standalone \((maintenance|planning|documentation|refactor)\)$'; then
                 :
 
             # Matches: Context: contribution (freeform description)
@@ -330,18 +331,17 @@ case "$context_footer_mode" in
                 echo "   Expected formats — name the most specific spec-shaped artifact under edit:"
                 echo "   - Context: tasks-[name].md (Task X.Y)"
                 echo "   - Context: tasks-[name].md (Tasks X.Y-X.Z)"
-                echo "   - Context: tasks-[name].md (incidental - discovered during <context>)"
+                echo "   - Context: tasks-[name].md (incidental during <context>)"
                 echo "   - Context: tasks-[name].md (planning), (maintenance), or (code review)"
                 echo "   - Context: plan-[name].md (planning) or (code review)"
                 echo "   - Context: prd-[name].md (planning) or (code review)"
-                echo "   - Context: status-[name].md (handoff), (activation), (integration), (archival), or (planning)"
-                echo "   - Context: status-[name].md (incidental - discovered during <context>)"
+                echo "   - Context: status-[name].md (handoff), (activation), (integration), (archival), (deactivation), or (maintenance)"
+                echo "   - Context: status-[name].md (incidental during <context>)"
                 echo "   - Context: atomic-[name].md"
-                echo "   - Context: [category] (no associated task list)"
-                echo "   - Context: [category] (atomic / no associated task list)"
+                echo "   - Context: standalone (maintenance|planning|documentation|refactor)"
                 echo "   - Context: contribution (description)"
                 echo ""
-                echo "   Categories: planning, documentation, maintenance, refactor, content"
+                echo "   Off-WU categories: maintenance, planning, documentation, refactor"
                 echo "   Note: Parenthetical is REQUIRED for all commits"
                 echo ""
                 echo "   Your Context line: $context_line"
@@ -355,7 +355,7 @@ case "$context_footer_mode" in
             context_line_check=$(echo "$commit_msg" | grep '^Context: ' | head -n1)
             if [ -n "$context_line_check" ] && ! echo "$context_line_check" | grep -qE '^Context: contribution \(.+\)$'; then
                 echo -e "${YELLOW}Warning: Contributors typically use 'Context: contribution (description)'${NC}"
-                echo "   See .arc/system/methods/commit-context-format.md for the contributor pattern"
+                echo "   See .arc/system/methods/commit-footer.md for the contributor pattern"
                 warnings=$((warnings + 1))
             fi
         fi
