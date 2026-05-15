@@ -1041,8 +1041,8 @@ but runtime checks of `review.planning_checkpoint` halt and `archive.cadence` di
         - `with-integration` (default): invoke `archive-work-unit.md` inline at this point. archive-work-unit handles
           state flip `Integrating → Shipped`, sweep commits, and ROADMAP regen per its cadence-invariant body (3.5).
           Returns; resume here with PR creation.
-        - `deferred` | `manual`: skip inline invocation; surface a note at workflow exit that archive runs separately
-          post-merge per user invocation.
+        - `manual`: skip inline invocation; surface a note at workflow exit that archive runs separately post-merge
+          per user invocation.
 
     - `[ ]` **3.4.h Pre-pr-review extension fire (R56) — before PR creation push**
         - Pre-PR-creation fire-point. Extension defined in 3.8 (renamed from current `pre-merge-review` to
@@ -1120,18 +1120,20 @@ but runtime checks of `review.planning_checkpoint` halt and `archive.cadence` di
           § 2 Architecture Components — passes"). Parallel to 3.6.b for PROJECT-PRD; section-name citation rather than
           numbered-principle citation reflects TECHNICAL-OVERVIEW's section-based structure.
 
-### `[ ]` **3.7 Add `archive.cadence` + `review.planning_checkpoint` to `arc-config.yml`**
+### `[ ]` **3.7 Add `review.planning_checkpoint` to `arc-config.yml`**
 
-- _Goal:_ `arc-config.yml` carries `archive.cadence` (default `with-integration`) and `review.planning_checkpoint`
-  (default `disabled`) — schema additions ride both copies (`packages/arc-framework/arc/system/arc-config.yml` +
-  `.arc/system/arc-config.yml`) per package-project sync discipline.
+- _Goal:_ `arc-config.yml` carries `review.planning_checkpoint` (default `disabled`) — schema addition rides both
+  copies (`packages/arc-framework/arc/system/arc-config.yml` + `.arc/system/arc-config.yml`) per package-project sync
+  discipline.
+
+- _Note:_ `archive.cadence` was added in an earlier phase and already exists in both yaml copies + CLI schema validator
+  with enum `with-integration | manual`. No further yaml/validator work needed for that key.
 
     **Strategies:** `strategy-package-project-sync.md`
 
-    - `[ ]` **3.7.a Add keys to package source**
-        - Edit `packages/arc-framework/arc/system/arc-config.yml` — add `archive.cadence` (values: `with-integration` |
-          `deferred` | `manual`; default `with-integration`) and `review.planning_checkpoint` (values: `disabled` |
-          `required`; default `disabled`).
+    - `[ ]` **3.7.a Add key to package source**
+        - Edit `packages/arc-framework/arc/system/arc-config.yml` — add `review.planning_checkpoint` (values:
+          `disabled` | `required`; default `disabled`).
 
     - `[ ]` **3.7.b Sync to project instance**
         - Edit `.arc/system/arc-config.yml` to match. Pre-commit hook will flag if a Configurable file is staged
@@ -1139,8 +1141,8 @@ but runtime checks of `review.planning_checkpoint` halt and `archive.cadence` di
           overrides.
 
     - `[ ]` **3.7.c CLI-side schema validation (if applicable)**
-        - If `packages/arc-framework/src/lib/config/` carries a schema validator, add the two keys. No-op if validation
-          is freeform / yaml-pass-through.
+        - If `packages/arc-framework/src/lib/config/` carries a schema validator, add `review.planning_checkpoint`. No-op
+          if validation is freeform / yaml-pass-through.
 
 ### `[ ]` **3.8 Extension fire-point family — 5 files (renames + new) + description/contract pass**
 

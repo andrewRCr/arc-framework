@@ -505,12 +505,33 @@ Forward-compat check.
 should verify single-branch-per-WU model maps cleanly (it should — each WU is a coherent
 branch-plus-artifacts unit, easier to materialize/dematerialize than a multi-branch lifecycle).
 
-### Deferred sweep cadence interaction
+### `archive.cadence: deferred` considered and rejected
 
-Adopters using `archive.cadence: deferred` (current pattern) keep current shape. Per-worktree
-isolation under deferred cadence has a small post-integration-pre-archive window where main has
-Complete-state files in `active/` until next sweep. Window is bounded and factually accurate (the
-WU IS complete) but worth documenting as known transitional state for deferred-cadence adopters.
+Early PRD drafts specified a third cadence value `deferred` (sweep at next-WU planning batch) as
+a distinct option between `with-integration` and `manual`. Evaluation in Phase 3 found no
+mechanism gap it would fill:
+
+- The "sweep at next-WU planning batch" trigger has no wiring point in WOR's workflow set.
+  `init-work-unit.md` (planning kickoff) carries no prior-WU sweep step, and adding one is poor
+  UX — planning ceremonies surprise-committing prior-WU file moves entangles unrelated work.
+- The PRD's "current pattern" parenthetical conflated user behavior pattern (people manually
+  archive around planning time) with system mechanism (ARC auto-fires at planning). The former
+  is `manual` usage habit; the latter never existed in pre-WOR ARC.
+- Every plausible use case for `deferred` collapses to one of the surviving two values:
+  batched housekeeping → `manual`; async-merge accommodation → `manual` (or future `on-merge`);
+  high-rejection PR risk → `manual`; archiver ≠ implementer role separation → `manual`.
+- Future async-merge cadence work (Concurrent Work Conventions scope per R18) would want a
+  crisply-named value like `on-merge` with post-merge auto-fire semantics, not a revival of
+  the underspecified `deferred`.
+- ARC's configurability stance favors small enums over knob-soup. A third value with no
+  distinct mechanism is dead weight that adopters either pick by accident or have to research
+  to ignore.
+
+WOR ships two values: `with-integration` (default) | `manual`. Pre-WOR Phase 2 had already
+narrowed the existing enum to two values; PRD R16, Task 3.4.g, Task 3.7, and this notes file
+were corrected to match. The `with-integration` window where main's `active/` contains the WU
+until the integration PR merges is the trade-off for sweep-as-you-go — bounded and resolved at
+merge.
 
 ### Per-WU Release Notes Entry authorship gap
 

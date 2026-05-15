@@ -222,7 +222,7 @@ other branch's meta file is reachable from main. Codified in `strategy-work-orga
 ### Sweep-as-you-go (P0)
 
 **R16.** `archive.cadence` config key in `arc-config.yml`. Values: `with-integration` (default — sweep in integration
-PR), `deferred` (sweep at next-WU planning batch — current pattern), `manual` (explicit invocation).
+PR), `manual` (explicit invocation).
 
 **R17.** Integration PR under `with-integration` includes multi-commit structure: code commits → completion content
 (Release Notes Entry + Completion Notes composition into meta file) → sweep commits (file moves from `active/` to
