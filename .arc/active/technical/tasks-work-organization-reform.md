@@ -913,13 +913,13 @@ single source of truth — DRY across cadences. Cadence dispatch lives in integr
 ordering: 3.7 (config keys) ideally lands before 3.3 / 3.5 runtime verification — workflow text can forward-reference,
 but runtime checks of `review.planning_checkpoint` halt and `archive.cadence` dispatch need both present.
 
-### `[ ]` **3.1 Retire `integrate-planning-branch.md`**
+### `[x]` **3.1 Retire `integrate-planning-branch.md`**
 
 - _Goal:_ `integrate-planning-branch.md` is deleted; the workflow no longer exists in the ARC surface —
   single-branch-per-WU eliminates the separate planning-PR concept entirely. Cross-reference updates ride the migration
   sweep (6.7).
-    - `git rm .arc/system/workflows/arc/work-unit-lifecycle/planning/integrate-planning-branch.md` plus the `packages/`
-      counterpart.
+    - Deleted from `.arc/system/workflows/arc/work-unit-lifecycle/planning/` and
+      `packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/planning/`.
 
 ### `[ ]` **3.2 Rename `activate-planning-branch.md` → `init-work-unit.md` (WU + meta-file creation)**
 
