@@ -446,10 +446,10 @@
       "layer": "core",
       "pristine_hash": "cd79756a954c2dbc05464d4dffb6d37fc59455eb2bb5310a23c1cc77b60ed879"
     },
-    "system/workflows/arc/work-unit-lifecycle/planning/activate-planning-branch.md": {
+    "system/workflows/arc/work-unit-lifecycle/planning/init-work-unit.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "680c04f3871d168e7ca20b72ec84522e679c1a424786ea14c5ce86bc4267f5df"
+      "pristine_hash": "c4e17b3280db578609a85ff5395cebb4137875e85516ec1faf8e23e6005c5a0d"
     },
     "system/workflows/arc/work-unit-lifecycle/rotate-branch.md": {
       "classification": "Framework",
