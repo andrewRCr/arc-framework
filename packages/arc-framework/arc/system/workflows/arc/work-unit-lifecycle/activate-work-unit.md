@@ -118,8 +118,8 @@ edit is trivial (single tier-line move) — see [DEV-RULES.ARC § Atomicity][dev
 ### 8) Fire `post-work-unit-activate` extension
 
 If `post-work-unit-activate` appears in the active-extensions list, load and execute its
-[`.actions`][arc-ext-post-activate]. Otherwise, skip. Stage any extension-produced changes as a dedicated commit
-per the extension's contract.
+[`.actions`][arc-ext-post-activate]. Otherwise, skip. Stage any extension-produced changes as a dedicated
+commit (`workflowCommit`) per the extension's contract.
 
 ---
 

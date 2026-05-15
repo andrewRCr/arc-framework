@@ -1324,9 +1324,12 @@ but runtime checks of `review.planning_checkpoint` halt and `archive.cadence` di
     - _Note:_ The broader sweeps across untouched workflows stay with their respective inbox entries' future WUs. This
       task verifies the audits land on workflows touched by 3.1-3.8 only.
 
-    - `[ ]` **3.9.a Commit/push class-tag routing audit on touched fire-sites**
-        - Verify every commit / push site in touched workflows uses correct class-tag syntax (`taskCommit` /
-          `workflowCommit` / `workflowPush`) or raw `git` per DEV-RULES.ARC § Workflow class-tag routing.
+    - `[x]` **3.9.a Commit/push class-tag routing audit on touched fire-sites**
+        - Surveyed fire-sites across 5 touched workflows (init-work-unit, activate-work-unit, integrate-work-unit,
+          archive-work-unit, 1_create-prd). All correct except activate-work-unit Step 8's extension-fire commit
+          line — missing class tag where the workflow emits a dedicated commit. Fixed inline in both copies: added
+          `workflowCommit` annotation, consistent with Steps 4 / 6 / 7. Review-fix commits in integrate-work-unit
+          Steps 1 / 4 stay intentionally raw (default-routing per DEV-RULES.ARC § Workflow class-tag routing).
 
     - `[ ]` **3.9.b Workflow-interlock marker audit**
         - Verify touched workflows use `> [!IMPORTANT]` `workflow-interlock:` markers consistently at stop points;
