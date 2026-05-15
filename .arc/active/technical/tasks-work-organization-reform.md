@@ -1180,35 +1180,56 @@ but runtime checks of `review.planning_checkpoint` halt and `archive.cadence` di
   flat active path, meta-* nomenclature). Cadence enum aligned to 2 values per PRD R16 (with-integration,
   manual); strategy § Archival still lists 3 (`deferred` extra) — flagged for 6.7.o.
 
-### `[ ]` **3.6 Wire PROJECT-PRD alignment check + promotion-write into `1_create-prd.md`**
+### `[x]` **3.6 Wire PROJECT-PRD alignment check + promotion-write into `1_create-prd.md`**
 
 - _Goal:_ `1_create-prd.md` adds an explicit PROJECT-PRD alignment check step with halt-and-ask conditions (cite
   specific principle by number when passing) + finalizes promotion writes when a BACKLOG-INBOX entry promotes to a draft
   `plan-*` doc.
-    - `[ ]` **3.6.a New step: `## Step N: PROJECT-PRD alignment check`**
-        - Explicit step with halt-and-ask conditions enumerated. Triggers: PRD scope appears to conflict with a
-          PROJECT-PRD principle; PRD introduces an anti-goal; PRD touches load-bearing axes the PROJECT-PRD pins.
 
-    - `[ ]` **3.6.b Cite-principle-by-number requirement on pass**
-        - Step concludes by citing the specific principle the PRD aligns with (e.g., "checked against principle 3 —
-          passes"). Not just "checked, passed" (per `notes-work-organization-reform.md` § PROJECT-PRD live-vs-stale
-          tension).
+    - `[x]` **3.6.a New step: `## Step N: PROJECT-PRD alignment check`**
+        - Step 4 lands as the explicit `## Step 4: PROJECT-PRD alignment check` between Discovery (Step 3) and
+          Save (renumbered Step 6). Halt-and-ask conditions enumerated as a three-item bullet list (principle
+          conflict, anti-goal introduction, load-bearing-axis touch); orientation framing names PROJECT-PRD as
+          the project's vision contract.
 
-    - `[ ]` **3.6.c Promotion write (R20, R21)**
-        - When a BACKLOG-INBOX entry promotes to a `plan-*` doc, delete the inbox entry in the same commit as the
-          `plan-*` creation. Routing record lives in the deletion commit message.
+    - `[x]` **3.6.b Cite-principle-by-number requirement on pass**
+        - Step 4 closer carries the cite-by-number discipline with a worked example ("checked against principle
+          3 (Configurability with strong defaults) — passes") and a rationale clause ("Substantive citation
+          keeps the alignment check load-bearing rather than ornamental") that codifies the
+          live-vs-stale-tension mitigation captured in notes-work-organization-reform.md inline rather than
+          cross-referencing an internal-dev surface.
 
-    - `[ ]` **3.6.d New step: `## Step N+1: TECHNICAL-OVERVIEW alignment check` (R60)**
-        - Explicit conditional step sibling to PROJECT-PRD alignment — fires only when PRD touches technical surfaces
-          (tech stack, architecture, runtime, dependencies, infrastructure). Halt-and-ask conditions: drift detected
-          (PRD introduces tech not in TECHNICAL-OVERVIEW); TECHNICAL-OVERVIEW edited since PRD approved. Independent of
-          PROJECT-PRD check — scope distinction is the trigger (PROJECT-PRD covers mission / principles / anti-goals;
-          TECHNICAL-OVERVIEW covers technical surfaces).
+    - `[x]` **3.6.c Promotion write (R20, R21)**
+        - Step 6's `**Promotion-write**` sub-bullet lands after the Save location list: direct BACKLOG-INBOX →
+          PRD promotions (no intermediate `plan-*` doc) delete the inbox entry in the same commit as PRD save;
+          routing record in the deletion commit message; cross-ref to DEV-RULES.ARC § Leave it cleaner.
+          Explicit note that intermediate `plan-*` promotions delete the inbox entry at plan-doc creation, not
+          here — keeps the ceremony-only write rule grep-discoverable from either path.
 
-    - `[ ]` **3.6.e Cite-section-by-name requirement on pass (TECHNICAL-OVERVIEW)**
-        - Step concludes by citing the specific TECHNICAL-OVERVIEW section the PRD aligns with (e.g., "checked against
-          § 2 Architecture Components — passes"). Parallel to 3.6.b for PROJECT-PRD; section-name citation rather than
-          numbered-principle citation reflects TECHNICAL-OVERVIEW's section-based structure.
+    - `[x]` **3.6.d New step: `## Step N+1: TECHNICAL-OVERVIEW alignment check` (R60)**
+        - Step 5 lands as the explicit `## Step 5: TECHNICAL-OVERVIEW alignment check (conditional)`. Fire
+          trigger codified (PRD touches tech stack, architecture, runtime, dependencies, infrastructure); single
+          primary halt condition (drift detected — PRD introduces tech not in TECHNICAL-OVERVIEW). R60's
+          companion "edited since PRD approved" condition is explicitly deferred to activate / integrate
+          fire-points with cross-references — at create-PRD time the PRD hasn't been approved yet, so the
+          condition is N/A here. Independence-from-Step-4 framing preserved per R60's "single PRD may trigger
+          both, one, or neither".
+
+    - `[x]` **3.6.e Cite-section-by-name requirement on pass (TECHNICAL-OVERVIEW)**
+        - Step 5 closer parallels Step 4's cite discipline: "checked against § 2 Architecture Components —
+          passes"; section-name citation reflects TECHNICAL-OVERVIEW's section-based structure. Rationale clause
+          omitted (Step 4's clause covers the family-level discipline; redundant to repeat).
+
+- _Outcome:_ Two new explicit alignment-check steps insert between Discovery (Step 3) and Save (now Step 6);
+  existing Steps 4 → 6 (Write+Save+promotion-write) and 5 → 7 (Retire Plan Documents). One-pass economy adjacent
+  fixes mirror Task 3.4 precedent for first-fire-site forward-compat: META-PRD → PROJECT-PRD on the intro note
+  (line 11), `status-{name}.md` → `meta-{name}.md` at Step 7's planning-meta-file sub-step (this workflow's only
+  meta-file fire site), and a broken `activate-planning-branch` link replaced with the live `init-work-unit`
+  reference (R7 retired the former at Task 3.2 — the 1_create-prd.md cross-ref was stale and pointed at a
+  non-existent target; link block reconciled). Pre-flight prose ("Before starting, review the project's META-PRD
+  and TECHNICAL-OVERVIEW…") dropped — redundant once the explicit alignment-check steps codify the discipline.
+  `{category}/` paths in Steps 1 / 6 / 7 left as pre-WOR; Phase 6 sweep (6.7.l/m) handles the active+backlog
+  directory restructure.
 
 ### `[~]` **3.7 ~~Add `review.planning_checkpoint` to `arc-config.yml`~~ — Deferred and reverted**
 

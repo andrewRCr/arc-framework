@@ -8,7 +8,7 @@ audience: collaborative (human and agent)
 ARC distinguishes feature and technical work — see [Work Organization Strategy][work-org] for the
 decision tree.
 
-**Note**: This workflow covers work-level PRDs, not the project-wide META-PRD. For constitutional
+**Note**: This workflow covers work-level PRDs, not the project-wide PROJECT-PRD. For constitutional
 documents, use [02_define-project.md](initial-setup/02_define-project.md).
 
 ---
@@ -17,11 +17,8 @@ documents, use [02_define-project.md](initial-setup/02_define-project.md).
 
 **Branch context:** Under full protection (`branch.protection: full`), PRD creation happens on a
 planning branch — verify you're on one before proceeding (created via
-[activate-planning-branch][activate-planning-branch]). Under partial protection (the default),
-PRDs may be created directly on the base branch.
-
-Before starting, review the project's META-PRD and TECHNICAL-OVERVIEW to ensure the new work aligns
-with existing vision and technical direction.
+[init-work-unit][init-work-unit]). Under partial protection (the default), PRDs may be created
+directly on the base branch.
 
 ### Step 1: Check for Existing Planning Artifacts
 
@@ -49,7 +46,7 @@ rediscovery.
 ### Step 2: Determine Work Category
 
 Classify as **feature** (adds user-visible capability from the product vision) or **technical**
-(infrastructure, architecture, or internal improvement). This determines save location (Step 4).
+(infrastructure, architecture, or internal improvement). This determines save location (Step 6).
 
 ### Step 3: Conduct Discovery
 
@@ -64,7 +61,43 @@ establish scope.
 
 For interactive sessions, provide numbered options to keep responses quick.
 
-### Step 4: Write and Save PRD
+### Step 4: PROJECT-PRD alignment check
+
+Evaluate the PRD's scope (crystallized in Step 3) against PROJECT-PRD's principles, anti-goals, and
+load-bearing axes — the principle catalog is the project's vision contract.
+
+**Halt-and-ask conditions:**
+
+- PRD scope conflicts with a numbered PROJECT-PRD principle
+- PRD introduces scope that PROJECT-PRD lists as an anti-goal
+- PRD touches load-bearing axes the PROJECT-PRD pins (mission-critical decisions)
+
+On any of the above, halt and surface the specific conflict — user direction needed before save.
+
+**On pass — cite the principle by number.** Not "checked, passes" — "checked against principle 3
+(Configurability with strong defaults) — passes". Substantive citation keeps the alignment check
+load-bearing rather than ornamental.
+
+### Step 5: TECHNICAL-OVERVIEW alignment check (conditional)
+
+Fires only when the PRD touches technical surfaces — tech stack, architecture, runtime,
+dependencies, or infrastructure. Independent of Step 4: PROJECT-PRD covers mission / principles /
+anti-goals; TECHNICAL-OVERVIEW covers technical surfaces. A single PRD may trigger both, one, or
+neither.
+
+**Halt-and-ask condition:** PRD introduces tech (component, framework, dependency, infrastructure
+choice) not in TECHNICAL-OVERVIEW. On detection, halt and surface the drift — user direction needed
+before save.
+
+The companion downstream condition ("TECHNICAL-OVERVIEW edited since PRD approved") fires at
+[`activate-work-unit.md`][activate-work-unit] and [`integrate-work-unit.md`][integrate-work-unit],
+not here — at create-PRD time the PRD hasn't been approved yet.
+
+**On pass — cite the section by name.** Not "checked, passes" — "checked against § 2 Architecture
+Components — passes". Section-based citation reflects TECHNICAL-OVERVIEW's structure (parallel to
+Step 4's numbered-principle citation).
+
+### Step 6: Write and Save PRD
 
 Generate the PRD using [template-prd.md][template-prd]. The template includes section guidance,
 dependency tracking, and priority levels. Adapt emphasis based on work type — not every section
@@ -81,13 +114,21 @@ compound names.
 - **arc-in-git**: `.arc/backlog/{category}/prd-{{WORK_NAME}}.md` — PRDs start in backlog and
   graduate to `active/` during [activation][activate-work-unit]
 - **none / external**: `.arc/active/{category}/prd-{{WORK_NAME}}.md` — PRDs save directly to
-  active (no backlog directory). Create the directory first if it doesn't exist: `mkdir -p .arc/active/{category}/`
+  active (no backlog directory). Create the directory first if it doesn't exist:
+  `mkdir -p .arc/active/{category}/`
 
-### Step 5: Retire Plan Documents
+**Promotion-write (`arc-in-git`, conditional):** If this PRD originates as a direct promotion from
+a `backlog/BACKLOG-INBOX.md` entry (no intermediate `plan-*` doc), delete the inbox entry in the
+same commit as the PRD save. Routing record lives in the deletion commit message — preserves the
+ceremony-only write discipline for shared inboxes (see [DEV-RULES.ARC][dev-rules-arc]
+§ Leave it cleaner). Inbox entries promoted via an intermediate `plan-*` doc are deleted at
+plan-doc creation, not here.
+
+### Step 7: Retire Plan Documents
 
 > [!IMPORTANT]
 > `workflow-interlock`: Stop after the PRD is saved. Surface the PRD location for review;
-> await direction before retiring the plan, updating the status file, and committing (`workflowCommit`).
+> await direction before retiring the plan, updating the meta file, and committing (`workflowCommit`).
 
 If a `plan-*.md` document fed into this PRD, retire it now. Plan documents are ephemeral — they
 serve exploration and are deleted once the PRD captures the conclusions (see
@@ -103,12 +144,12 @@ serve exploration and are deleted once the PRD captures the conclusions (see
    `reference/research/`).
 3. **Stage with the PRD commit**: The plan deletion and any `notes-*` creation should be part of the
    same commit as the PRD.
-4. **Update planning-state status file** (when present): If
-   `.arc/active/{category}/status-{name}.md` exists with `**State:** Planning` (planning-branch
+4. **Update planning-state meta file** (when present): If
+   `.arc/active/{category}/meta-{name}.md` exists with `**State:** Planning` (planning-branch
    sessions), advance its `**Next Action:**` to reflect the post-PRD step (e.g., "Run
    `2_generate-tasks.md`"). Stage with the PRD commit — bundles per
-   [DEV-RULES.ARC][dev-rules-arc] § Status-file commit shape. Skip otherwise (no status file
-   exists pre-activation under non-planning-branch flows).
+   [DEV-RULES.ARC][dev-rules-arc] § Status-file commit shape. Skip otherwise (no meta file exists
+   pre-init under non-planning-branch flows).
 
 **Stop here** — do not proceed to task generation. The PRD should be reviewed first. When ready,
 continue with [2_generate-tasks.md](2_generate-tasks.md).
@@ -120,6 +161,7 @@ continue with [2_generate-tasks.md](2_generate-tasks.md).
 [discovery-checklist]: ../../../reference/strategies/arc/strategy-work-planning.md#discovery-checklist
 [template-prd]: ../../../reference/templates/template-prd.md
 [activate-work-unit]: work-unit-lifecycle/activate-work-unit.md
-[activate-planning-branch]: work-unit-lifecycle/planning/activate-planning-branch.md
+[integrate-work-unit]: work-unit-lifecycle/integrate-work-unit.md
+[init-work-unit]: work-unit-lifecycle/planning/init-work-unit.md
 [arc-config]: ../../arc-config.yml
 [dev-rules-arc]: ../../../reference/constitution/DEV-RULES.ARC.md
