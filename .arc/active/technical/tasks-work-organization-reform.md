@@ -1255,60 +1255,64 @@ but runtime checks of `review.planning_checkpoint` halt and `archive.cadence` di
         - Reverted: `ConfigSettings` field, `DEFAULTS` + `ENUM_VALIDATORS` entries, `validate-config.sh`
           `validate_enum` + `known_keys` (both copies), and test fixtures all removed.
 
-### `[ ]` **3.8 Extension fire-point family — 5 files (renames + new) + description/contract pass**
+### `[x]` **3.8 Extension fire-point family — 5 files (renames + new) + description/contract pass**
 
 - _Goal:_ Five-extension fire-point family ships in `.arc/system/extensions/` (and packages/ counterparts) per R56 —
   three renames + two new files — each with audited description / contract / "Use for" framing per R57. Default-inactive
   across the family; `pre-push-review` and new `pre-merge-review` ship as `[No extension configured]` no-default shells.
 
-    - _Approach:_ Per-extension subtask handles file rename or creation + frontmatter + Workflow/Fires/Contract block +
-      `.actions` section + description/contract pass + packages/ sync. The `.actions` section retains existing content
-      where extensions have it (current `pre-merge-review.md` carries CodeRabbit invocation logic; that moves with the
-      file under its new name).
-
     **Strategies:** `strategy-package-project-sync.md`, `strategy-configurability-architecture.md`
 
-    - `[ ]` **3.8.a `pre-activation` — new file (was proposed as `pre-execution-graduation`)**
-        - Mirror existing extension shape: frontmatter (`name: pre-activation` / `description` / `active: false`);
-          top-of-body block (Workflow: `activate-work-unit.md`; Fires: step 1's pre-condition gate passed — running on
-          `plan/<name>`, `**State:** Planning`, PRD + tasks-\* present, before state-flip + branch rename); Contract
-          documenting sequential execution, halt-on-fail, independent gating from `review.planning_checkpoint` per R47;
-          `## pre-activation.actions` with `[No extension configured]` placeholder.
+    - `[x]` **3.8.a `pre-activation` — new file (was proposed as `pre-execution-graduation`)**
+        - Both copies created with `[No extension configured]`. Workflow / Fires / Contract land per spec;
+          Contract carries halt-on-fail plus fix-and-retry-or-explicit-invoke bypass.
 
-    - `[ ]` **3.8.b `pre-commit-review` — rename from `pre-stage-review` + description/contract audit**
-        - `git mv pre-stage-review.md pre-commit-review.md` in both copies. Update frontmatter `name:`. Update
-          top-of-body block: Workflow becomes "`arc-commit` skill + `prepare-commits.md`" (wiring extended; see 3.10);
-          Fires becomes "After staging, before commit creation"; description/Contract revises to clarify
-          extension-vs-git-hook decision boundary (extensions carry agent procedures + `workflow-interlock` stops; hooks
-          carry scriptable checks). Existing `.actions` content retained.
+    - `[x]` **3.8.b `pre-commit-review` — rename from `pre-stage-review` + description/contract audit**
+        - `git mv` in both copies (rename detected by git as `R`). Frontmatter `name:`, H1, and section heading
+          updated. Workflow line names `arc-commit` skill + `prepare-commits.md` (first-fire-site forward-compat —
+          `arc-commit` wiring lands at 3.10). Description carries the extension-vs-hook signal at glance-level;
+          Contract block carries the boundary detail (agent procedures + `workflow-interlock` stops vs. scriptable
+          per-commit hook checks). `.actions` retained as `[No extension configured]`.
 
-    - `[ ]` **3.8.c `pre-pr-review` — rename from current `pre-merge-review` + description/contract audit**
-        - `git mv pre-merge-review.md pre-pr-review.md` in both copies. Update frontmatter `name:`. Update Fires:
-          "pre-PR-creation push at `integrate-work-unit.md`" (was "before push and PR creation" — same fire-point, more
-          accurate naming). `.actions` content (CodeRabbit invocation) retained verbatim.
+    - `[x]` **3.8.c `pre-pr-review` — rename from current `pre-merge-review` + description/contract audit**
+        - `git mv` in both copies (rename detected by git as `R`). `.arc/` copy keeps `active: true` + CodeRabbit
+          `.actions`; package source keeps `active: false` + placeholder — preserves the Configurable-surface
+          divergence. Frontmatter `name:`, H1, description, and section heading updated. Fires line clarified to
+          "before the push that opens the PR" (was "before push and PR creation" — same fire-point, more precise).
+          `review.pre_merge` config key reference retained — 3.7 reverted, no key rename in this WU.
 
-    - `[ ]` **3.8.d `pre-push-review` — new file (no default `.actions`)**
-        - Frontmatter (`name: pre-push-review` / `description` / `active: false`); top-of-body block (Workflow: push
-          wrapper / `arc release push` / `arc sync`; Fires: "Any push routed through the push wrapper"; Contract
-          documents per-push frequency, halt-on-fail behavior, and the "reserved-for-future" framing — extension shipped
-          to complete the family namespace). `## pre-push-review.actions` with `[No extension configured]`.
+    - `[x]` **3.8.d `pre-push-review` — new file (no default `.actions`)**
+        - Both copies created with `[No extension configured]`. Workflow line names `arc release push` + `arc sync`
+          under the push-wrapper umbrella. Contract documents per-push frequency, halt-on-fail, and the
+          reserved-for-future / family-namespace-completion framing.
 
-    - `[ ]` **3.8.e `pre-merge-review` — new file at post-review-response fire-point (no default)**
-        - Frontmatter (`name: pre-merge-review` / `description` / `active: false`). Note: name freed by 3.8.c's rename
-          of current `pre-merge-review` → `pre-pr-review`. Top-of-body block (Workflow: `integrate-work-unit.md`; Fires:
-          "After `review-response` processing, before merge action"; Contract clarifies 3-extension family at
-          integrate-work-unit: `pre-pr-review` → `review-response` (plan-review-method-family scope) →
-          `pre-merge-review`; documents reserved-pending-final-state-check use cases). `## pre-merge-review.actions`
-          with `[No extension configured]`.
+    - `[x]` **3.8.e `pre-merge-review` — new file at post-review-response fire-point (no default)**
+        - Both copies created at the freed name (3.8.c vacated it). Contract positions this extension as the
+          trailing gate of integrate-work-unit's review-and-merge sequence (`pre-pr-review` → `review-response`
+          processing → `pre-merge-review`); reserved-pending-final-state-check use cases enumerated.
+          `review-response` framed as processing (planned method family, not yet shipped), not as an extension.
 
-    - `[ ]` **3.8.f Description/contract pass (R57) — all five files**
-        - Audit each file's description, Contract block, and any "Use for" framing for alignment with WOR family
-          conventions; clarify decision boundaries between extensions and adjacent mechanisms (especially
-          `pre-commit-review` vs git pre-commit hook). Spot-check that frequency language matches actual wiring.
+    - `[x]` **3.8.f Description/contract pass (R57) — all five files**
+        - Audit pass clean across all five. Description lines carry one-line lifecycle-position signal; Contract
+          blocks state halt-on-fail explicitly; frequency language matches wiring (per activation / per commit /
+          per PR-creation / per push / per merge). Extension-vs-hook boundary surfaced at the pre-commit-review
+          file's description AND contract per task spec.
 
-    - `[ ]` **3.8.g Sync all to packages/**
-        - Mirror every file to `packages/arc-framework/arc/system/extensions/`. Verify the pre-commit hook's
-          two-copy-divergence check doesn't false-positive.
+    - `[x]` **3.8.g Sync all to packages/**
+        - Pair diff confirms byte-identical for `pre-activation`, `pre-commit-review`, `pre-merge-review`,
+          `pre-push-review`, and `README`; `pre-pr-review` pair carries the expected Configurable-surface delta
+          (`active:` + `.actions` content) — pre-commit two-copy-divergence hook won't false-positive (divergent
+          before, divergent after). Markdown lint clean (0 errors / 249 files). README updated in both copies:
+          Index reordered with 4 new + 1 renamed entry replacing 2 retired; Extension Points table reordered to
+          true lifecycle order across all 5 fire-points.
+
+- _Outcome:_ Family lands as a coherent unit — 5 files (2 renames preserving git rename detection, 3 net-new) plus
+  README in both copies. Extension-vs-hook decision boundary now explicit at the pre-commit-review surface
+  (description AND contract). 3-extension sequence at integrate-work-unit (`pre-pr-review` → `review-response` →
+  `pre-merge-review`) documented in the trailing extension's contract. README's Extension Points table reordered
+  to true lifecycle order (was loose-grouped). Forward-ref `#anchor` notation in `integrate-work-unit.md` Steps
+  2 / 5 now unblocked — both renamed/new files exist on disk, anchors can be restored at author discretion
+  (persistent-context entry's removal trigger met).
 
 ### `[ ]` **3.9 Inline-fold R53 audits across touched workflows**
 

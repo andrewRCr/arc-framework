@@ -22,13 +22,16 @@ configurability model, see [Configurability Architecture Strategy][config-arch].
 
 ## Index
 
-- [post-task-quality](post-task-quality.md) — additional checks after each task
-- [post-unit-quality](post-unit-quality.md) — additional checks at coherent unit boundaries
-- [post-task-completion](post-task-completion.md) — additional actions after task marked complete
 - [post-context-load](post-context-load.md) — additional context loading at session start
-- [pre-stage-review](pre-stage-review.md) — additional staging verification before commit
-- [pre-merge-review](pre-merge-review.md) — structured review ceremony before merge
+- [post-task-quality](post-task-quality.md) — additional checks after each task
+- [post-task-completion](post-task-completion.md) — additional actions after task marked complete
+- [post-unit-quality](post-unit-quality.md) — additional checks at coherent unit boundaries
+- [pre-activation](pre-activation.md) — verification gate before WU activation
 - [post-work-unit-activate](post-work-unit-activate.md) — actions after work unit activation
+- [pre-commit-review](pre-commit-review.md) — agent-layer review before commit, complementary to git hooks
+- [pre-push-review](pre-push-review.md) — verification at any push routed through the push wrapper
+- [pre-pr-review](pre-pr-review.md) — review ceremony before PR creation, on top of diff-review
+- [pre-merge-review](pre-merge-review.md) — final-state checks after review-response, before merge
 - [post-work-unit-archive](post-work-unit-archive.md) — actions after work unit archival
 
 ## Extension Points
@@ -36,16 +39,19 @@ configurability model, see [Configurability Architecture Strategy][config-arch].
 Sorted by workflow lifecycle order — when each extension fires across a session. Alphabetical ordering doesn't
 answer the adopter question "when should my extension fire?"; lifecycle ordering does.
 
-| Extension               | Workflow            | Fires                    | Purpose                                  |
-|-------------------------|---------------------|--------------------------|------------------------------------------|
-| post-context-load       | session-init        | Step 2 → orientation     | Load additional context at session start |
-| post-task-quality       | process-task-loop   | Tier 1 pass → mark `[x]` | Supplement Tier 1 after each task        |
-| post-task-completion    | process-task-loop   | Mark `[x]` → report      | External tracker sync / notifications    |
-| post-unit-quality       | process-task-loop   | Tier 2 at unit boundary  | Supplement Tier 2 at unit boundaries     |
-| pre-stage-review        | prepare-commits     | Staging → commit         | Verify staged content before commit      |
-| pre-merge-review        | integrate-work-unit | diff-review → push/PR    | Ceremony on top of diff-review method    |
-| post-work-unit-activate | activate-work-unit  | After core activation    | PM layer interface after activation      |
-| post-work-unit-archive  | archive-work-unit   | After core archival      | PM layer interface after archival        |
+| Extension               | Workflow                          | Fires                            | Purpose                                   |
+|-------------------------|-----------------------------------|----------------------------------|-------------------------------------------|
+| post-context-load       | session-init                      | Step 2 → orientation             | Load additional context at session start  |
+| post-task-quality       | process-task-loop                 | Tier 1 pass → mark `[x]`         | Supplement Tier 1 after each task         |
+| post-task-completion    | process-task-loop                 | Mark `[x]` → report              | External tracker sync / notifications     |
+| post-unit-quality       | process-task-loop                 | Tier 2 at unit boundary          | Supplement Tier 2 at unit boundaries      |
+| pre-activation          | activate-work-unit                | Pre-condition gate → state-flip  | Verify plan-quality before activation     |
+| post-work-unit-activate | activate-work-unit                | After core activation            | PM layer interface after activation       |
+| pre-commit-review       | arc-commit / prepare-commits      | Staging → commit                 | Agent-layer review before commit          |
+| pre-push-review         | push wrapper                      | Push wrapper invocation          | Per-push checks (reserved-for-future)     |
+| pre-pr-review           | integrate-work-unit               | diff-review → PR-opening push    | Review ceremony before PR creation        |
+| pre-merge-review        | integrate-work-unit               | review-response → merge          | Final-state checks before merge action    |
+| post-work-unit-archive  | archive-work-unit                 | After core archival              | PM layer interface after archival         |
 
 ---
 
