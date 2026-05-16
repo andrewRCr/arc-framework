@@ -96,7 +96,7 @@ Enum values and optional pointer fields below; workflows listed set each value.
 | `In Progress`                                  | [activate-work-unit][activate-work-unit] Step 4; resume from pause              | Active task execution (the common case)                                              |
 | `Paused (YYYY-MM-DD) — reason`                 | [manage-incidental-work][manage-incidental]; future arc-shift pause             | Interrupted by an incidental or future arc-shift pause                               |
 | `Waiting-For {category} (YYYY-MM-DD) — reason` | Future arc-shift lifecycle                                                      | Blocked awaiting external action (not yet written by any current workflow)           |
-| `Complete`                                     | [clean-work-unit][clean-work-unit] Mode 2                                       | Work done, opened for integration; file is stable through review, deleted at archive |
+| `Complete`                                     | [clean-work-unit][clean-work-unit]                                              | Work done, opened for integration; file is stable through review, deleted at archive |
 | `Superseded (partial)`                         | [integrate-work-unit][integrate-work-unit] § Handling Partially Superseded Work | Partial work being integrated; remaining phases absorbed into a successor WU         |
 
 ### Optional Pointer Fields
@@ -500,7 +500,7 @@ installs, routing and graduation flow, inbox vs. companion file routing, and sca
 [activate-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/activate-work-unit.md
 [integrate-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md
 [archive-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/archive-work-unit.md
-[clean-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/clean-work-unit.md
+[clean-work-unit]: ../../../system/workflows/arc/supplemental/clean-work-unit.md
 [manage-incidental]: ../../../system/workflows/arc/supplemental/manage-incidental-work.md
 [dev-rules-arc]: ../../constitution/DEV-RULES.ARC.md
 [branch-format-method]: ../../../system/methods/branch-format.md

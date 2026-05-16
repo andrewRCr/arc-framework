@@ -658,5 +658,5 @@ items as of 2026-04-28:
 [team-coord]: ../../reference/strategies/arc/strategy-team-coordination.md
 [strategy-work-org]: ../../reference/strategies/arc/strategy-work-organization.md
 [template-status]: ../../reference/templates/template-status.md
-[clean-work-unit]: ../../system/workflows/arc/work-unit-lifecycle/clean-work-unit.md
+[clean-work-unit]: ../../system/workflows/arc/supplemental/clean-work-unit.md
 [session-init]: ../../system/workflows/arc/session-lifecycle/session-init.md

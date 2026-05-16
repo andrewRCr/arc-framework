@@ -139,7 +139,7 @@
     "reference/strategies/arc/strategy-work-organization.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "f14593201b0b25ece7a3ed35a3b73f125283bcf48704f538e99c54d40b007830"
+      "pristine_hash": "1cb6183f41e5261cd4f3556e10e0ab4dedc03834653ebbfca0e19059f0ecb861"
     },
     "reference/strategies/arc/strategy-work-planning.md": {
       "classification": "Framework",
@@ -431,10 +431,10 @@
       "layer": "core",
       "pristine_hash": "865b3bc60f547e25227258b1ad862486a3d64dfc213759be6f2f092f322f2f7b"
     },
-    "system/workflows/arc/work-unit-lifecycle/clean-work-unit.md": {
+    "system/workflows/arc/supplemental/clean-work-unit.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "352a7e30f5f45a5f0da1dd766de17c60a85607629629698f045466720b945f1e"
+      "pristine_hash": "307c1c2e2dd8021f2c1b5ee69418415d8c190254224069206e7d8e7dcf75dbce"
     },
     "system/workflows/arc/work-unit-lifecycle/deactivate-work-unit.md": {
       "classification": "Framework",
@@ -444,7 +444,7 @@
     "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "cd79756a954c2dbc05464d4dffb6d37fc59455eb2bb5310a23c1cc77b60ed879"
+      "pristine_hash": "774d1e0fb3214809bf6646b7cb9f82e4d3b3ee57fd5ed1512aece12297ea8706"
     },
     "system/workflows/arc/work-unit-lifecycle/planning/init-work-unit.md": {
       "classification": "Framework",

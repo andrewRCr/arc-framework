@@ -26,8 +26,8 @@ sections, sweep + ROADMAP regen, and push the final pre-merge state.
 
 1. **Phase 1: Open + iterate** — code commits only. Composition / sweep / ROADMAP do **not** fire here.
    Rejected PRs touch only code; no archive churn.
-2. **Phase 2: Compose + sweep + ship** — post-review-approval, final-form content reflects reviewed scope;
-   sweep + ROADMAP land as the final push before merge.
+2. **Phase 2: Compose + sweep + ship** — post-review-approval, content cleanup + final-form composition +
+   sweep + ROADMAP regen land as the final push before merge.
 
 **Per-worktree isolation invariant preserved** — sweep lands on the WU branch before merge.
 
@@ -103,13 +103,25 @@ The WU stays in `**State:** Integrating` throughout this phase. Composition + sw
 
 ## Phase 2: Compose, sweep, ship
 
-### 5) Fire `pre-merge-review` extension
+### 5) WU content cleanup
+
+**Always:** If `notes-{name}.md` exists, decide disposition:
+
+- **keep + clean** — follow [`clean-work-unit.md`][clean] `§ Notes File Consolidation`.
+- **keep as-is** — rare; only when the notes file is already reference-ready.
+- **delete** — `git rm notes-{name}.md`; remove references from the task file.
+
+**On signal:** Survey the task list for temporal markers, ad-hoc inline status, or accumulated scratchpad
+content. If present, propose [`clean-work-unit.md`][clean] `§ Task List Temporal-Noise Pass` before proceeding
+to Step 6.
+
+### 6) Fire `pre-merge-review` extension
 
 After review-response settles, fire the `pre-merge-review` extension. If active, load and execute its
 `.actions`; halt-on-fail surfaces an actionable message. Default-inactive — when absent, this step is
 a structural no-op.
 
-### 6) Final alignment checks
+### 7) Final alignment checks
 
 > [!IMPORTANT]
 > `workflow-interlock`: Stop before composition begins. Surface that review is settled (open threads resolved,
@@ -127,20 +139,20 @@ Always evaluated. Surface conflicts between final reviewed scope and PROJECT-PRD
 Fires only when the PRD touched technical surfaces (tech stack, architecture, runtime, dependencies,
 infrastructure). Independent of the PROJECT-PRD check — scope distinction is the trigger.
 
-### 7) Compose Release Notes Entry — uncommitted
+### 8) Compose Release Notes Entry — uncommitted
 
 Compose a user-facing entry into `active/meta-{name}.md`'s archive-phase Release Notes section per
 `template-meta.md`'s schema, reflecting final reviewed scope.
 
-Leave the edit uncommitted — Step 10's interlock surfaces it alongside the rest of the composition for review
+Leave the edit uncommitted — Step 11's interlock surfaces it alongside the rest of the composition for review
 before the commit fires.
 
-### 8) Compose Completion Notes — uncommitted
+### 9) Compose Completion Notes — uncommitted
 
 Compose narrative Completion Notes into the meta file's archive-phase Completion Notes section per
-`template-meta.md`'s schema. Same uncommitted-surfacing pattern as Step 7.
+`template-meta.md`'s schema. Same uncommitted-surfacing pattern as Step 8.
 
-### 9) Drain-write — uncommitted · `arc-in-git` only
+### 10) Drain-write — uncommitted · `arc-in-git` only
 
 > **Skip** under `pm.mode: none` or `external`.
 
@@ -148,15 +160,15 @@ If integration drains any shared inbox entries (entries absorbed into this WU's 
 final deletion from the shared inbox), finalize the deletions now. See [DEV-RULES.ARC][dev-rules-arc] § Leave it
 cleaner for the capture-routing table.
 
-### 10) Commit completion content
+### 11) Commit completion content
 
 > [!IMPORTANT]
 > `workflow-interlock`: Stop before commit + sweep + push. Surface:
 >
-> 1. Composed Release Notes Entry + Completion Notes (Steps 7–8)
-> 2. Planned sweep target: `active/meta-{name}.md` → `archive/<dated>/{name}/meta-{name}.md` (Step 11 under
+> 1. Composed Release Notes Entry + Completion Notes (Steps 8–9)
+> 2. Planned sweep target: `active/meta-{name}.md` → `archive/<dated>/{name}/meta-{name}.md` (Step 12 under
 >    `with-integration`)
-> 3. ROADMAP delta the upcoming regen will produce (Step 11 under `with-integration`)
+> 3. ROADMAP delta the upcoming regen will produce (Step 12 under `with-integration`)
 >
 > Await explicit "proceed to commit + sweep + push" direction.
 
@@ -177,18 +189,18 @@ Context: meta-{name}.md (integration)
 
 See [DEV-RULES.ARC][dev-rules-arc] § Commit format and the [`commit-footer` method][commit-footer].
 
-### 11) Cadence dispatch — `archive.cadence`
+### 12) Cadence dispatch — `archive.cadence`
 
 Read `archive.cadence` from [`arc-config.yml`][arc-config]:
 
 - **`with-integration`** (default): Invoke [`archive-work-unit.md`][archive-work-unit] inline. archive handles
   state flip `Integrating → Shipped`, sweep commits (`active/meta-{name}.md` →
   `archive/<dated>/{name}/meta-{name}.md`), and ROADMAP regen per its cadence-invariant body. Returns; resume at
-  Step 12.
+  Step 13.
 - **`manual`**: Skip inline invocation. Archive runs separately post-merge via explicit `archive-work-unit.md`
-  invocation. Step 12's push covers completion content only under this cadence.
+  invocation. Step 13's push covers completion content only under this cadence.
 
-### 12) Final push
+### 13) Final push
 
 What gets pushed varies by cadence:
 
@@ -214,7 +226,7 @@ gh pr merge {pr-number} --merge   # or --squash / --rebase per config
 ## Next step
 
 - **Under `with-integration` (default):** WU is fully shipped after merge — archive ceremony already landed in
-  Step 13.
+  Step 12.
 - **Under `manual`:** After merge, invoke [`archive-work-unit.md`][archive-work-unit] to complete archival
   post-merge.
 
@@ -223,6 +235,7 @@ gh pr merge {pr-number} --merge   # or --squash / --rebase per config
 - [`activate-work-unit.md`](activate-work-unit.md) — preceding ceremony; Planning → Active.
 - [`archive-work-unit.md`](archive-work-unit.md) — cadence-invariant archival; invoked inline under
   `with-integration` or explicitly under `manual`.
+- [`clean-work-unit.md`][clean] — supplemental content-cleanup toolkit invoked from Step 5.
 
 ---
 
@@ -232,6 +245,7 @@ gh pr merge {pr-number} --merge   # or --squash / --rebase per config
 [commit-footer]: ../../../methods/commit-footer.md
 [template-pull-request]: ../../../../reference/templates/template-pull-request.md
 [archive-work-unit]: archive-work-unit.md
+[clean]: ../supplemental/clean-work-unit.md
 [create-prd]: ../1_create-prd.md
 [arc-config]: ../../../arc-config.yml
 [dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md

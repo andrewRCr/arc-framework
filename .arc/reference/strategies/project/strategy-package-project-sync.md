@@ -203,6 +203,7 @@ arc-in-git files are annotated explicitly.
 - `system/workflows/arc/initial-setup/01_verify-and-configure.md`
 - `system/workflows/arc/session-lifecycle/session-loop.md`
 - `system/workflows/arc/supplemental/add-agent.md`
+- `system/workflows/arc/supplemental/clean-work-unit.md`
 - `system/workflows/arc/supplemental/integrate-external-content.md`
 - `system/workflows/arc/supplemental/maintain-project-docs.md`
 - `system/workflows/arc/supplemental/manage-incidental-work.md`
@@ -210,7 +211,6 @@ arc-in-git files are annotated explicitly.
 - `system/workflows/arc/supplemental/verify-arc-integrity.md`
 - `system/workflows/arc/work-unit-lifecycle/activate-work-unit.md`
 - `system/workflows/arc/work-unit-lifecycle/archive-work-unit.md`
-- `system/workflows/arc/work-unit-lifecycle/clean-work-unit.md`
 - `system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md`
 - `system/workflows/arc/work-unit-lifecycle/planning/activate-planning-branch.md`
 - `system/workflows/arc/work-unit-lifecycle/planning/integrate-planning-branch.md`
