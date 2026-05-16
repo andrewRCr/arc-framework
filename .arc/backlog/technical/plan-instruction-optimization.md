@@ -153,6 +153,21 @@ Two pure-consolidation wins independent of any structural reforms:
 These could ship as standalone atomic tasks within the WU rather than rolled into per-file density
 work.
 
+**Tier-aware deduplication principle (captured for evaluation):** The two findings above both
+choose DEV-RULES.ARC (tier-0, loaded every session) as the canonical home — that's the right
+call, but the underlying principle hasn't been named. ARC's loading model creates three content
+tiers: tier-0 (always loaded — DEV-RULES, AGENT-BRIEFs, QUICK-REFERENCE partial), tier-1 (loaded
+per execution session — process-task-loop), tier-2 (on-demand — strategies, methods). The
+operational decision tree must be self-contained at tier-0/1; strategies provide rationale + edge
+cases at tier-2. Consequence: deduplication targets *within tier* (consolidate redundant operational
+prose, consolidate redundant strategy rationale), but *across tiers* intentional duplication is
+required by the loading model — a future audit that "consolidates" tier-0 operational rules into
+a tier-2 strategy with cross-references would silently break agents that need the rules at
+session-init without an on-demand strategy fetch. Worth codifying as a methodology constraint
+during this WU's de-duplication pass, possibly in `strategy-session-operations.md` § Context
+loading model. Origin: 2026-05-16 mid-WOR session, surfaced during interlock/wrapper rule-spread
+audit when "consolidate to one canonical owner" reflex hit the tier constraint.
+
 ### Methods and extensions audit summary
 
 Methods are mostly already concise (avg ~250 words). Modest opportunities:

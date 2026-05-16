@@ -221,6 +221,29 @@ scope activation question until then.
   user-scope or review-method-family.
 - Decision-tree update is no-dependencies; could ship at any time.
 
+### (e) Commit/push interlock enum granularity
+
+Current `commitInterlock` carries three values (`manual` / `on-task-approval` / `on-workflow`) and
+`pushInterlock` carries three (`manual` / `on-handoff` / `on-workflow`). The middle value adds
+branching to every rule statement, but the operational distinction is fuzzy: `on-task-approval`
+exists for users who want task-level commit release but explicit workflow-ceremony approval to _not_
+release. No artifact today articulates a real consumer of that preference.
+
+Two simplification axes worth evaluating:
+
+- **Collapse to binary** (`manual` / `cascade` or `manual` / `auto`). Cleaner mental model. Risk:
+  loses precision about _what_ cascades — under "cascade," does workflow-ceremony approval release
+  commits the same way task approval does? Without sub-enum granularity, the user can't say "release
+  on task approval but not workflow approval" or vice versa. Probably no one wants the inverse, but
+  the config shape should make the authorization scope legible.
+- **Keep three values but rename for clarity.** `manual` / `task-and-workflow` / `workflow-only`
+  (with `task-and-workflow` being the broader release). Same expressive power; clearer about scope.
+
+Open design question for PRD-time. Constraint from the user: "it has to be clear what the user is
+and isn't authorizing when changing config." A two-value enum that hides scope inside "cascade" may
+fail this test even if it's mechanically simpler. Origin: 2026-05-16 mid-WOR session, surfaced
+during interlock-prompt-shape audit; explicitly not finalized.
+
 ---
 
 ## Cross-Plan Coordination
