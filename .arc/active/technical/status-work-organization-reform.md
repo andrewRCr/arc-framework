@@ -9,16 +9,15 @@
 - **Task List:** `tasks-work-organization-reform.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Tasks 3.8 / 3.9.a / 3.9.b at `579441a5`; pre-3.9.c codification pass
-  (workflow-interlock convention + class-tag admonition convention + implied-approval scope rule, applied
-  to Phase 3 boundary workflows) at `779973b5` / `4d98a1ce`.
+- **Last Completed:** Task 3.9 (Phase 3 verification audit pass — all subtasks `[x]`/`[~]`). 3.9.c
+  (push/notes/upstream UX coherence pass) landed across four commits — `03012ac6` / `a290a60e` / `0448a35c` /
+  `f111dcf0`. 3.9.d/3.9.e closeout at `d948e4ed`. Pre-3.9.c task-rewrite at `65542470`.
 
-- **Next Task:** Task 3.9.c — `arc sync` / `arc release push` auto-set-upstream behavior change (line ~1341).
+- **Next Task:** Task 3.10 — Wire `pre-commit-review` into `arc-commit` skill (line ~1379).
 
 - **Blockers:** [none]
 
-- **Next Action:** Resume Task 3.9.c — verify `pushability` matrix exists in
-  `packages/arc-framework/src/lib/` before implementing CLI behavior + tests (per task's own `_Note:_`
-  precondition).
+- **Next Action:** Triage pre-existing CI/integration failures + 3.9.c deferred follow-up
+  (see SESSION-NOTES § Additional Context) before resuming Task 3.10.
 
 ---
