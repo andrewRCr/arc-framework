@@ -863,8 +863,8 @@ parenthetical patterns); phase order reflects execution order.
 
 - _Goal:_ Strategy docs reflect WOR's R65 user/ directory structural reform — per-WU subdir for WU-scoped content +
   cross-WU flat root, with WORKING-MEMORY.md extracted from SESSION-NOTES's prior `## Persistent Context` section. Lands
-  before Phase 3's session-lifecycle workflow updates (Task 3.12) and Phase 6.3's in-flight migration (Task 6.3.d) so
-  both have a codified target shape to consume.
+  before Phase 6.3's paired downstream landings — workflow consumer alignment (Task 6.3.e) and in-flight migration
+  (Task 6.3.d) — so both have a codified target shape to consume.
 
     - `[x]` **2.17.a Update `strategy-session-operations.md` § SESSION-NOTES for per-WU subdir location**
         - § SESSION-NOTES path framing updated to `user/{identity}/<wu-name>/SESSION-NOTES.md` with per-WU subdir
@@ -895,9 +895,9 @@ parenthetical patterns); phase order reflects execution order.
 - _Outcome:_ R65 layout codified across both adopter-facing strategies. `strategy-session-operations.md` gains three
   contiguous sections — § User Workspace Directory (path-class layout) → § SESSION-NOTES (per-WU subdir location) →
   § Working Memory (cross-WU persistent context); `strategy-planning-module.md` § USER-INBOX routes cross-WU
-  persistent-context readers to the workspace-layout doc. Both copies sync byte-identical. Phase 2 closes; Phase 3
-  session-lifecycle workflow updates (Task 3.12) and Phase 6.3.d in-flight migration now have a codified target shape
-  to consume.
+  persistent-context readers to the workspace-layout doc. Both copies sync byte-identical. Phase 2 closes; Phase 6.3
+  session-lifecycle workflow alignment (Task 6.3.e) and in-flight migration (Task 6.3.d) now have a codified target
+  shape to consume.
 
 ## **Phase 3:** Boundary workflow restructure + ceremony fire-points
 
@@ -1474,38 +1474,10 @@ but runtime checks of `review.planning_checkpoint` halt and `archive.cadence` di
         - _Note:_ R51 lists `rotate-branch.md` in the doc-retirement set; R52's cross-ref sweep may already cover the
           inbound-reference sweep. Coordinate at execution to avoid duplicate work.
 
-### `[ ]` **3.12 Update session-lifecycle workflows for R65 user/ directory reform**
+### `[~]` **3.12 ~~Update session-lifecycle workflows for R65 user/ directory reform~~** — Superseded by 6.3.e
 
-- _Goal:_ `session-handoff.md` and `session-init.md` consume R65's new user/ workspace layout. Handoff writes
-  `<wu-name>/SESSION-NOTES.md` (per-WU) and separately updates `WORKING-MEMORY.md` (cross-WU). Init reads from the new
-  locations, including the per-WU subdir resolution. Lands before Phase 6.3's in-flight migration (Task 6.3.d) so the
-  migrated layout is operationally consumable.
-
-- _Context:_ Pre-R65, both workflows operate on a single `user/{identity}/SESSION-NOTES.md` with embedded
-  `## Persistent Context` section. Post-R65, persistent-context content extracts to a separate cross-WU file at
-  `user/{identity}/WORKING-MEMORY.md`; session-volatile content moves to a per-WU subdir at
-  `user/{identity}/<wu-name>/SESSION-NOTES.md`.
-
-    **Strategies:** `strategy-package-project-sync.md`
-
-    - `[ ]` **3.12.a Update `session-handoff.md` write paths**
-        - § What to Update + § Comprehensive Handoff Format updates: SESSION-NOTES path references shift to
-          `<wu-name>/SESSION-NOTES.md`; new write step for `WORKING-MEMORY.md` as a separate file operation
-          (cross-WU); `## Persistent Context` review logic relocates from "review SESSION-NOTES § Persistent Context"
-          to "review `WORKING-MEMORY.md` entries." Template skeleton in workflow body strips the `## Persistent
-          Context` H2 from the SESSION-NOTES shape; new template snippet shows WORKING-MEMORY.md shape (H3-headed
-          entries with `_Remove when:_` markers). Identity-absent and contributor-role variants preserve their
-          existing semantics under the new layout.
-
-    - `[ ]` **3.12.b Update `session-init.md` read paths**
-        - Step 3's document load list updates: SESSION-NOTES path shifts to `<wu-name>/SESSION-NOTES.md` (item 8);
-          new read step for `WORKING-MEMORY.md`. Persistent-context interpretation note (currently embedded in the
-          SESSION-NOTES read step) relocates to the WORKING-MEMORY.md read step. SESSION-NOTES load error recovery
-          guidance updates path references.
-
-    - `[ ]` **3.12.c Sync to packages/**
-        - Apply 3.12.a + 3.12.b edits identically across `.arc/system/workflows/arc/session-lifecycle/` and
-          `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/`; final `diff` byte-identical.
+- Moved to 6.3.e to land paired with 6.3.d migration: workflow consumers and on-disk surfaces must transition together
+  to avoid the interim window where init/handoff point at paths not yet present on disk.
 
 ### `[x]` **3.13 Local-ahead notes orientation surface (3.9.c deferred follow-up)**
 
@@ -2245,6 +2217,8 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
   `BACKLOG-TECHNICAL.md` merge to `backlog/BACKLOG-INBOX.md` with entries reclassified during merge; new empty
   `backlog/ATOMIC-INBOX.md` created. Plus: in-flight WU personal workspace relocates to R65's per-WU subdir layout —
   SESSION-NOTES moves into `<wu-name>/` subdir, `## Persistent Context` extracts to new `WORKING-MEMORY.md` at root.
+  Plus: session-lifecycle workflow consumers (`session-handoff.md` + `session-init.md`) align with the new layout —
+  paired with the in-flight workspace migration (6.3.d ↔ 6.3.e) so consumers and on-disk surfaces transition together.
     - `[ ]` **6.3.a Per-user ATOMIC-INBOX → USER-INBOX rename**
         - `git mv .arc/user/{andrew}/ATOMIC-INBOX.md .arc/user/{andrew}/USER-INBOX.md`. Restructure content under
           `## Atomic` section; add empty `## Backlog` section.
@@ -2263,8 +2237,9 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
     - `[ ]` **6.3.d Migrate in-flight WU personal workspace to R65 layout**
         - Relocate `.arc/user/{identity}/SESSION-NOTES.md` into the per-WU subdir:
           `git mv .arc/user/{identity}/SESSION-NOTES.md .arc/user/{identity}/work-organization-reform/SESSION-NOTES.md`
-          (create the subdir first). Composes with Tasks 2.17 / 3.12 / 5.5 — they ship the codified target shape;
-          this step lands the migration in this repo.
+          (create the subdir first). Composes with Tasks 2.17 / 5.5 / 6.3.e — they ship the codified target shape;
+          this step lands the migration in this repo. 6.3.e is the immediate-successor pair (workflow consumer
+          alignment) — land both in the same session.
         - Extract the `## Persistent Context` section from SESSION-NOTES into new
           `.arc/user/{identity}/WORKING-MEMORY.md` at user root. Each entry retains its `_Remove when:_` trigger;
           SESSION-NOTES's `## Persistent Context` H2 is removed. The new file seeds content-only per R59
@@ -2280,6 +2255,30 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
         - _Note:_ R65 applies to all in-flight WUs; in this repo only WOR is in flight at migration time, so the
           relocation operates on a single WU subdir. The contract generalizes to multi-WU concurrent worktrees
           under Worktree Foundation.
+
+    - `[ ]` **6.3.e Align session-lifecycle workflows with R65 layout (paired with 6.3.d)**
+        - _Origin:_ Relocated from former Task 3.12 to land paired with 6.3.d. Phase-3 placement created an interim
+          window where init/handoff pointed at paths not yet present on disk; co-located here, workflow consumers
+          and surfaces transition together.
+        - _Sequencing:_ Lands immediately after 6.3.d in the same session — no session boundary may intervene
+          between the two, because init/handoff fire at session boundaries and would observe a mismatched layout.
+        - _Premise:_ Pre-R65, `session-handoff.md` and `session-init.md` operate on a single
+          `user/{identity}/SESSION-NOTES.md` with embedded `## Persistent Context` section. Post-R65,
+          persistent-context content extracts to a separate cross-WU file at `user/{identity}/WORKING-MEMORY.md`;
+          session-volatile content moves to a per-WU subdir at `user/{identity}/<wu-name>/SESSION-NOTES.md`.
+        - **`session-handoff.md` write paths:** § What to Update + § Comprehensive Handoff Format updates —
+          SESSION-NOTES path references shift to `<wu-name>/SESSION-NOTES.md`; new write step for `WORKING-MEMORY.md`
+          as a separate file operation (cross-WU); `## Persistent Context` review logic relocates from "review
+          SESSION-NOTES § Persistent Context" to "review `WORKING-MEMORY.md` entries." Template skeleton in workflow
+          body strips the `## Persistent Context` H2 from the SESSION-NOTES shape; new template snippet shows
+          WORKING-MEMORY.md shape (H3-headed entries with `_Remove when:_` markers). Identity-absent and
+          contributor-role variants preserve their existing semantics under the new layout.
+        - **`session-init.md` read paths:** Step 3's document load list updates — SESSION-NOTES path shifts to
+          `<wu-name>/SESSION-NOTES.md` (item 8); new read step for `WORKING-MEMORY.md`. Persistent-context
+          interpretation note (currently embedded in the SESSION-NOTES read step) relocates to the WORKING-MEMORY.md
+          read step. SESSION-NOTES load error recovery guidance updates path references.
+        - **Sync to packages/:** Apply edits identically across `.arc/system/workflows/arc/session-lifecycle/` and
+          `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/`; final `diff` byte-identical.
 
 ### `[ ]` **6.4 Migrate `backlog/feature/` + `backlog/technical/` to `backlog/{planned,provisional}/<wu-name>/` per-WU subdirs**
 
