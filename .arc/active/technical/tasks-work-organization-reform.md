@@ -1338,13 +1338,38 @@ but runtime checks of `review.planning_checkpoint` halt and `archive.cadence` di
           with proper `## Next Step` section pointing to 2_generate-tasks, matching activate-work-unit's exit
           pattern.
 
-    - `[ ]` **3.9.c `arc sync` / `arc release push` auto-set-upstream behavior change**
-        - Substantive code change riding the workflow trim: `pushability` matrix `blocked-no-upstream` cell resolves to
-          `upstream-init` when `pushInterlock` permits. Update CLI behavior + tests in
-          `packages/arc-framework/src/lib/`; verify call sites in touched workflows.
-        - _Note:_ Verify the `pushability` matrix exists in `packages/arc-framework/src/lib/` before implementation. If
-          absent (matrix is a new abstraction), task scope expands to matrix design; surface for re-scoping before
-          starting.
+    - `[ ]` **3.9.c Push/notes/upstream UX coherence pass (`arc sync` / `arc release push` + session-init transparency)**
+        - Coordinated change spanning probe, orchestrators, orientation, guidance, and ADR. Core behavior: new
+          `caller-resolvable` disposition on the pushability matrix lets `no-upstream-branch` surface as resolvable
+          rather than `block`; orchestrators (`handlers/release/push.ts`, `handlers/sync.ts` `decideWorktree`)
+          auto-resolve when EITHER `-u` / `--set-upstream` is in argv OR `pushInterlock != manual`, injecting `-u`
+          into the spawn when not already present. Under `manual` + no explicit `-u`: refuse with forward-routing
+          guidance (set upstream manually OR raise `pushInterlock`). Sync gets a new cell name
+          (`paired-push-with-upstream-init` or similar) — `NOTES_BLOCK_WORKTREE_STATES` unchanged; notes cascade
+          unblocks naturally because the worktree leg now resolves. Session-init orientation surfaces
+          `recommendedAction: "skip"` states informationally when state is non-default — closes the "skip = silent"
+          principle gap. Cases: `no-upstream` (positive framing — will be set on first push), `detached-head`
+          (warning), `no-remote` (warning), `dirty` (informational — N uncommitted files), notes-channel
+          `local-ahead` (informational — N note(s) pending push). New conditional orientation sections analogous to
+          existing `Local-ahead:` / `Reconcile required:`. Guidance strings (`handlers/sync.ts:1063`,
+          `commands/status/format.ts:82`, `save+notes-blocked` cell output) state split-state facts plainly:
+          `save+notes-blocked` reports local-save fired and push deferred with reason — no implicit promises about
+          future-session behavior. ADR-017 refusal taxonomy amended (`blocked-no-upstream` → conditional refusal
+          gated on `manual` + no `-u`). Integration test: wrapper-routed `workflowPush` on no-upstream branch under
+          `pushInterlock: on-workflow` succeeds via auto-`-u`. Tests updated across `pushability.test.ts`,
+          `release/push.test.ts`, `sync-orchestrator.test.ts`, and `session-init/recommended-action.test.ts`.
+        - _Note:_ Scope expanded mid-execution beyond the original "auto-set-upstream behavior change" one-liner.
+          Pressure-test surfaced coordinated change needed across pushability + release-push + sync (original named
+          only the pushability cell, but sync has its own parallel gate at `decideWorktree`), plus orientation
+          transparency gaps for `recommendedAction: "skip"` states and guidance gaps for cascade-blocked notes under
+          `manual` (the local save fires but isn't surfaced clearly). Folded all into 3.9.c — one UX coherence pass;
+          partial fixes risk leaving the system in a worse state than the current uniform refusal. Latent bug context:
+          activation under wrapper-routed `workflowPush` (`releaseOptedIn: true` + `pushInterlock: on-workflow`) is
+          currently broken on no-upstream branches; this WU's own activation predates the wrapper so the bug is
+          latent until next activation under current config. Precondition satisfied — `pushability` matrix exists at
+          `packages/arc-framework/src/lib/git/pushability.ts`; the `blocked-no-upstream` name in the original task
+          description is a sync-handler cell name, not a pushability condition kind (pushability uses
+          `no-upstream-branch`).
 
     - `[ ]` **3.9.d `integrate-work-unit` post-PR-create handoff guidance refresh**
         - Update handoff guidance language to be skip-threshold-aware (no auto-handoff suggestion when remaining work
