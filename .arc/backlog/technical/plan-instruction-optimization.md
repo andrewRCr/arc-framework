@@ -5,8 +5,9 @@ and probe-envelope extensions — across the workflows and methods not addressed
 optimization WUs in the series. Third sibling to Session-Init Optimization and Handoff Optimization.
 
 - **State:** Draft — pre-PRD exploration captured 2026-05-09 from external-research-informed audit.
-  Iteration expected before PRD promotion. Sequencing deferred until [handoff-opt][handoff-opt] lands
-  and the parallelism trio + [work-organization-reform][wor] shapes settle.
+  Iteration expected before PRD promotion. Sequencing deferred until Handoff Optimization
+  (`plan-handoff-optimization.md`) lands and the parallelism trio + Work Organization Reform
+  (`prd-work-organization-reform.md`) shapes settle.
 - **Created:** 2026-05-09
 - **Origin:** Surfaced 2026-05-09 from a token-efficiency audit of ARC's instruction surface.
   Audit found two prior WUs already covering most of the surface (Session-Init Optimization
@@ -75,14 +76,21 @@ Three theses, one per pillar:
    workflow prose. This thesis names the boundary explicitly so future probe-extension proposals can
    apply it as a filter.
 
+4. **Probe state can route content loading, not just dispatch decisions.** Workflows currently load
+   all guidance prose upfront and use the probe envelope to dispatch at each step. The envelope
+   already knows enough to tell the agent which conditional sections are live this session; surfacing
+   that knowledge as a routing card lets the agent skip reading content for branches that won't
+   fire. This generalizes Thesis 3's "envelope drives composition" (Pillar 3 D3.4) into "envelope
+   drives content loading."
+
 ---
 
 ## Pillar 1: Workflow Prose Density Audit
 
 Audit completed 2026-05-09. Findings cite `session-init.md`, `session-handoff.md`,
 `3_process-task-loop.md`, `prepare-commits.md`, `manage-incidental-work.md`, `verify-work-unit.md`,
-and methods/extensions. Lifecycle workflows reshaped by [work-organization-reform][wor] are excluded
-from initial scope.
+and methods/extensions. Lifecycle workflows reshaped by Work Organization Reform
+(`prd-work-organization-reform.md`) are excluded from initial scope.
 
 ### Estimated impact
 
@@ -356,6 +364,96 @@ here so the next iteration doesn't re-derive the exclusion.
 
 ---
 
+## Pillar 4: Conditional Content Loading
+
+Pillars 1-3 reduce the cost of session-init's load-everything-then-dispatch shape (compress prose,
+fold computation into envelope, eliminate skill re-loads) without changing the shape itself.
+Pillar 4 changes the shape: agent loads only the workflow content that the probe state rules in.
+
+### Motivation
+
+The 99% session-init case needs identity present + single status file resolved + clean worktree
+(or single-channel pull) + execution session-type + standard freshness + no orientation surfaces
+beyond Active work state. Everything else — multiple-candidate disambiguation, identity-absent
+fallback, probe-failure fallback, detached-head / diverged / dirty surfaces, conflict notes,
+cross-machine resume gap, partial-push coherence, local-ahead notes — is content the agent reads
+but doesn't use in any given session.
+
+Surfaced concretely by Task 3.13 - `tasks-work-organization-reform.md` (Step 6 fifth conditional
+surface for local-ahead notes plus a new Step 1 paragraph explaining the two-layer
+`state` / `refState` model). Each addition is principled in isolation; the trajectory is
+monotonic.
+
+### Mechanism options
+
+**P4.1 — Probe-rendered routing card.** Envelope adds `applicableSections: string[]` top-level
+slot listing conditional sections live this session (e.g.,
+`["dirty", "local-ahead-notes", "execution-session"]`). Workflow doc retains all sections, each
+with an anchor. Agent partial-reads only listed sections plus always-loaded core (step framing,
+load order, output discipline). Generalizes Pillar 3 D3.4 (composes one specific section's
+content) to "declare which sections to load."
+
+**P4.2 — Split core + edge files.** `session-init-core.md` (always loaded, ~80-120 lines) plus
+per-edge or grouped edge files loaded on probe-triggered conditions. Cleaner separation than
+P4.1; cost is source-of-truth dispersion — the failure mode Pillar 1's cross-file de-dup audit
+specifically warns against.
+
+**P4.3 — JIT loading discipline in workflow body.** Keep one file. Discipline conditional
+sections to begin with explicit "Skip unless probe slot X is Y" gates. No CLI change. Agent
+partial-read discipline carries savings; dispatch decision stays agent-side.
+
+### Recommended lean (PRD-time)
+
+**P4.1 with light P4.3 discipline.** Mirrors Pillar 3's envelope-as-canonical-dispatch-authority
+pattern — the probe already knows which sections apply; surfacing that as a routing card is
+incremental. P4.2 splits source-of-truth in the way the cross-file de-dup audit flagged as the
+failure mode. P4.3 alone leaves dispatch agent-side and doesn't compound with the envelope
+architecture established by prior optimization WUs.
+
+### Surface candidates (initial sketch)
+
+- `session-init.md` Step 6 conditional orientation surfaces (worktree state variants, dirty,
+  local-ahead notes) — anchored, routed.
+- `session-init.md` Step 1 conditional rules — identity-absent, role-contributor switch,
+  probe-failure fallback. These are "load on condition" content within Step 1 itself.
+- `session-init.md` Step 3 item 7 multiple-candidate disambiguation prose — load only when
+  `active.resolution === "multiple"`.
+- `session-init.md` Step 5 freshness check + next-work-discovery — load only when applicable
+  (composes with D3.1 and D3.5).
+- `session-init.md` Step 7 mismatch handling — load only when probe surfaces mismatches (depends
+  on D3.5).
+
+### Sequencing
+
+**Hard prerequisite: handoff-opt lands first** (shared rationale with Pillars 1-3). **Soft
+prerequisite: Pillar 3 D3.x slots ship first** — P4.1's routing card consumes the same envelope
+the D3.x extensions populate; designing the routing card before D3.x stabilizes risks schema
+churn.
+
+**Composability:** arc-modes Lite/Full split needs mode-awareness on the `applicableSections`
+schema (see § Forward-Compat Callbacks). Worktree Foundation's worktree-aware probe doesn't
+directly interact with section routing.
+
+### Conflict check
+
+- **D3.4 (`recommendedOrientationPrelude`):** P4.1 generalizes the pattern; both ship together
+  cleanly — routing card declares which sections to load, D3.4 composes the literal text one of
+  those sections (orientation prelude) emits.
+- **Pillar 1 prose-density compression:** complementary — compressed sections that are also
+  conditionally loaded compound the savings.
+- **Handoff-opt:** session-handoff carries the same load-everything-then-dispatch shape; P4.1's
+  routing-card mechanism extends to handoff naturally. Cross-WU candidate to share helper.
+
+### Estimated impact
+
+Hard to quantify pre-PRD. Bounded estimate: in happy-path sessions (most sessions),
+routing-card-driven loading could reduce workflow-prose read by ~40-60% (Step 6 conditional
+sections are ~45 lines; Step 1 edge-case prose is ~15 of ~50 lines; Steps 3 / 5 / 7 each have
+~30-50% conditional content). Edge-case sessions consume the same content as today; savings are
+mode-dependent, not universal — but the mode that benefits is the common one.
+
+---
+
 ## Recommended Biggest Lift
 
 **D3.2 (currentTask slot).** Rationale:
@@ -396,14 +494,15 @@ those WUs), but `manage-incidental-work.md` Pause/Resume sits at the boundary an
 clarity. Acceptable to start the WU before those land if Pillar 1's E2 finding is excluded from
 initial scope and revisited as a follow-up.
 
-**Composability with mode-aware probe (arc-modes).** Lite mode is noted in [arc-modes][arc-modes]
+**Composability with mode-aware probe (arc-modes).** Lite mode is noted in `plan-arc-modes.md`
 as needing its own composite-probe shape. Any envelope extension in this WU should design for
 "these slots compute under Full mode; Lite probe omits or substitutes." Slot naming and schema
 should accommodate the eventual Full/Lite split rather than baking Full assumptions.
 
-**Composability with worktree-aware probe.** [Worktree Foundation][wf] adds worktree context to the
-probe. Slots added here should not assume single-worktree topology — particularly D3.2
-`currentTask` (which task list is "active" depends on which worktree's WU is current).
+**Composability with worktree-aware probe.** Worktree Foundation (`plan-worktree-foundation.md`)
+adds worktree context to the probe. Slots added here should not assume single-worktree topology —
+particularly D3.2 `currentTask` (which task list is "active" depends on which worktree's WU is
+current).
 
 ---
 
@@ -422,6 +521,9 @@ consistency.
 >   mode awareness
 > - `recommendedOrientationPrelude` — applies; composition logic may differ slightly under Lite
 > - `mismatches` — applies; mismatch shapes may differ
+> - `applicableSections` (Pillar 4) — Lite's compact workflow has a different conditional surface
+>   than Full; the section vocabulary itself is mode-dependent. Schema needs Lite/Full split or a
+>   per-mode section catalog.
 >
 > Revisit slot schemas with Lite probe shape in scope.
 
@@ -542,25 +644,29 @@ returning to if the question surfaces concretely; not architecting speculatively
   the pattern: shift mechanical work from agent reasoning to CLI mechanism via probe envelope
   expansion + frontmatter-triggered loading. This WU extends that pattern into workflow body prose,
   skill-load discipline, and the next batch of envelope extensions.
-- **Handoff Optimization** ([plan-handoff-optimization.md][handoff-opt]) — sibling. Same playbook
+- **Handoff Optimization** (`plan-handoff-optimization.md`) — sibling. Same playbook
   applied to session-handoff. **Hard prerequisite for sequencing** — see § Sequencing.
-- **Work Organization Reform** ([plan-work-organization-reform.md][wor]) — soft prerequisite for
+- **Work Organization Reform** (`prd-work-organization-reform.md`) — soft prerequisite for
   boundary items in `manage-incidental-work.md`. WOR's incidental-work lifecycle changes may absorb
   some of Pillar 1's E2 finding.
-- **arc-modes** ([plan-arc-modes.md][arc-modes]) — composability concern. Lite/Local probe shapes
+- **arc-modes** (`plan-arc-modes.md`) — composability concern. Lite/Local probe shapes
   affect schema design for new envelope slots; see § Forward-Compat Callbacks.
-- **Worktree Foundation** ([plan-worktree-foundation.md][wf]) — composability concern.
+- **Worktree Foundation** (`plan-worktree-foundation.md`) — composability concern.
   Worktree-aware probe affects `currentTask` resolution; see § Forward-Compat Callbacks.
 
 ---
 
 ## Scope Estimate
 
-**Small-to-medium.** ~3-5 sessions ballpark, depending on PRD-time scope decisions. Roughly:
+**Medium.** ~4-7 sessions ballpark with Pillar 4 in scope (~3-5 without), depending on PRD-time
+scope decisions. Roughly:
 
 - **Pillar 3 (probe envelope extensions):** ~1.5-2 sessions. D3.2 (~1 session as the seed PR), plus
   D3.1 / D3.3 / D3.5 as follow-up tasks (~0.5-1 session combined). D3.4 deferred until handoff-opt
   lands.
+- **Pillar 4 (conditional content loading):** ~1-2 sessions. P4.1 CLI inference + `applicableSections`
+  slot + anchor convention on workflow doc + per-section partial-read discipline + tests.
+  Soft-prereq on Pillar 3 D3.x sequencing.
 - **Pillar 2 (skill cache discipline):** ~0.5-1 session. arc-commit-specific fix; mechanism
   decision (A/B/C) at PRD time.
 - **Pillar 1 (workflow prose density):** ~1-1.5 sessions. Distributed across files; can ship
@@ -571,16 +677,12 @@ returning to if the question surfaces concretely; not architecting speculatively
 **PRD-time clarifications expected.**
 
 - Pillar 2 mechanism choice (A: load-set inclusion / B: cache hint / C: reference card).
+- Pillar 4 mechanism choice (P4.1: routing card / P4.2: split files / P4.3: JIT discipline) plus
+  whether to extend to handoff-opt's workflow as a cross-WU helper.
 - D3.4 sequencing: build alongside handoff-opt's `recommendedSummaryLine` (shared helper) or
   standalone follow-up?
 - E2 (Pause/Resume) ownership: this WU or work-organization-reform?
 - Whether Pillar 1 ships as one atomic-tasks-driven phase or splits into per-file PRs.
 - Whether the WU splits into multiple WUs along pillar lines (each pillar is internally coherent
-  and could ship independently) or stays unified.
-
----
-
-[wor]: plan-work-organization-reform.md
-[handoff-opt]: plan-handoff-optimization.md
-[wf]: plan-worktree-foundation.md
-[arc-modes]: ../feature/plan-arc-modes.md
+  and could ship independently) or stays unified. Pillar 4 in particular is a natural split point
+  if scope discipline argues for a focused conditional-loading WU.
