@@ -56,11 +56,10 @@ marked `[x]`. If any unchecked tasks found → STOP — use Mode 1 instead.
 
 **Update status metadata:**
 
-- **Mode 2 only:** Update the per-WU status file `**State:**` field to `Complete`. The task list no
-  longer carries a `**Status:**` header — lifecycle state lives in `active/{category}/status-{name}.md`.
-  Lifecycle dates (Started / Completed) live in the separate `completion-{name}.md`, created in
-  [integrate-work-unit](integrate-work-unit.md) workflow Phase 1, Step 3 — not on the task-list or
-  notes-file headers, which carry no date fields under the current `template-tasks.md` convention.
+- **Mode 2 only:** Update the per-WU meta file `**State:**` field to `Integrating` — lifecycle state lives in
+  `active/meta-{name}.md`. Lifecycle dates and post-merge composition (Release Notes Entry, Completion Notes)
+  also live on `meta-{name}.md` — see [integrate-work-unit](integrate-work-unit.md) for the archive-phase
+  composition fired after PR approval.
 
 **Evaluate notes file disposition (Mode 2 only):**
 
@@ -74,16 +73,8 @@ Not all notes files are worth archiving:
 **Rule of thumb:** "Would I reference this 6 months from now, and is it not already in
 ADRs/strategies?" If no → delete.
 
-**If deleting:** Remove notes file reference from task file header in Step 6. Proceed directly to
-`completion-{name}.md` creation in integrate-work-unit workflow.
-
-**Pointer directionality:** Task file headers may contain pointers to other task lists. Decision
-is based on where the referenced file lives:
-
-- **Backward pointer** (`Interrupts:`, `Paused:`) — points to where work resumes AFTER this task
-  list. **KEEP** if referenced file is in `.arc/active/`. Remove if archived.
-- **Forward pointer** (`Paused To:`, `Spawned:`) — points to child task lists spawned FROM this
-  work. **REMOVE** if referenced file is in `.arc/reference/archive/`. Keep if still active.
+**If deleting:** Remove notes file reference from task file header in Step 6. Proceed directly to the meta
+file's archive-phase composition in [integrate-work-unit](integrate-work-unit.md).
 
 **Assess file size (Mode 2 only):**
 
@@ -156,7 +147,7 @@ rationale, implementation findings, quality gate results, backward pointers to a
 
 Standard task list structure to preserve:
 
-- Header metadata (PRD, Created, Completed, Branch, Base Branch, Status)
+- Header metadata (`**Spec:**` — single pointer to PRD or plan-doc per chain-model header)
 - Overview / Scope (Will Do / Won't Do)
 - Tasks (phases with subtasks)
 - Success Criteria
@@ -167,7 +158,8 @@ Non-standard sections — evaluate each:
   notes) → Remove
 - **Substantive content** (implementation findings, research, architectural decisions not captured
   elsewhere) → Keep in place or extract to notes file
-- **Completion summaries** → Should be in separate `completion-{name}.md`, not task file
+- **Completion summaries** → Belong in the meta file's archive-phase composition (Release Notes Entry +
+  Completion Notes), not the task file
 
 Before removing research or decision content, verify it's captured in ADRs or strategy docs. If
 not captured elsewhere and substantive, keep it.
@@ -191,18 +183,13 @@ grep -in "notes-.*\.md" tasks-*.md
 
 # Inline subtask completion dates (header date is fine, subtask dates are noise)
 grep -in "\*\*completed:\*\*.*202[0-9]" tasks-*.md
-
-# Forward pointers to archived task lists
-grep -in "spawned:\|created:.*tasks-\|interrupted by:" tasks-*.md
-# Check: find .arc/reference/archive -name "tasks-<filename>.md"
-# If found in archive → remove pointer. If in .arc/active/ → keep.
 ```
 
 For each match: read context, verify it's temporal noise (not substantive), remove.
 
-**Collect completion doc data (large files):** While processing each phase, note key deliverables
-and quantitative metrics in CLEANUP-PROGRESS. This feeds completion doc creation and prevents
-needing to re-read the entire file.
+**Collect archive-phase data (large files):** While processing each phase, note key deliverables and quantitative
+metrics in CLEANUP-PROGRESS. This feeds the meta file's archive-phase composition and prevents needing to re-read
+the entire file.
 
 ### 4. Migrate Content to Notes File
 
@@ -246,10 +233,10 @@ Process:
 ### 6. Update Cross References
 
 - Confirm "Related Task/Notes" pointers are accurate in both files
-- Update status file `**State:** Complete` (sole source of truth for WU lifecycle — notes and
-  PRD headers do not carry a State/Status field post-activation)
-- **If notes file was deleted:** Delete the file (`git rm notes-{name}.md`) and remove all
-  references to it from the task file
+- Update meta file `**State:** Integrating` (sole source of truth for WU lifecycle — notes and PRD headers
+  carry no State field)
+- **If notes file was deleted:** Delete the file (`git rm notes-{name}.md`) and remove all references to it
+  from the task file
 - **If bottom-matter was removed:** Add `---` after final task to indicate intentional end
 
 ### 7. Quality Checks
@@ -279,12 +266,12 @@ a specific topic in <1 minute.
 
 ---
 
-**Context check for completion doc creation:**
+**Context check for archive-phase composition:**
 
-If less than ~120k tokens remaining, stop here — commit cleanup work and note in SESSION-NOTES.md
-that completion doc creation requires a fresh session. If sufficient context remains, proceed to
-[integrate-work-unit](integrate-work-unit.md) Phase 1, Step 3 (Create Completion Metadata). Delete
-CLEANUP-PROGRESS after completion doc is created.
+If less than ~120k tokens remaining, stop here — commit cleanup work and note in SESSION-NOTES.md that the
+meta file's archive-phase composition (Release Notes Entry + Completion Notes) requires a fresh session. If
+sufficient context remains, proceed to [integrate-work-unit](integrate-work-unit.md) for the archive-phase
+composition. Delete CLEANUP-PROGRESS after composition is done.
 
 ---
 

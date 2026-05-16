@@ -214,7 +214,6 @@ arc-in-git files are annotated explicitly.
 - `system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md`
 - `system/workflows/arc/work-unit-lifecycle/planning/activate-planning-branch.md`
 - `system/workflows/arc/work-unit-lifecycle/planning/integrate-planning-branch.md`
-- `system/workflows/arc/work-unit-lifecycle/rotate-branch.md`
 - `system/workflows/arc/work-unit-lifecycle/verify-work-unit.md`
 - `system/workflows/project/README.md`
 - `user/README.md`

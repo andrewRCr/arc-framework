@@ -647,10 +647,10 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
     expect(result.sessionType).toBe("execution");
   });
 
-  it("emits sessionType=execution for non-integration lifecycle workflows (e.g., rotate-branch)", async () => {
+  it("emits sessionType=execution for non-integration lifecycle workflows (e.g., clean-work-unit)", async () => {
     await writeStatus("technical", "foo", {
       taskList: "`.arc/active/technical/tasks-foo.md`",
-      nextAction: "rotate-branch Step 2 — open intermediate PR",
+      nextAction: "clean-work-unit Step 3 — Mode 1 mid-work cleanup",
     });
     const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
     expect(result.resolution).toBe("single");

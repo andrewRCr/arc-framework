@@ -149,12 +149,12 @@ describe("inferSessionType — execution default", () => {
     ).toBe("execution");
   });
 
-  it("returns execution for non-integration lifecycle workflows (rotate-branch)", () => {
+  it("returns execution for non-integration lifecycle workflows (clean-work-unit)", () => {
     expect(
       inferSessionType(
         "In Progress",
         "tasks-foo.md",
-        "rotate-branch Step 2 — open intermediate PR",
+        "clean-work-unit Step 3 — Mode 1 mid-work cleanup",
         "feature/foo",
       ),
     ).toBe("execution");

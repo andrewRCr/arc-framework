@@ -137,7 +137,7 @@ section covers author-side declaration shape.
 
 - `taskCommit` — per-task commits inside the task execution loop
 - `workflowCommit` — ceremony commits (activate / integrate / handoff / archive)
-- `workflowPush` — ceremony pushes (handoff / activation / integration / rotate-branch)
+- `workflowPush` — ceremony pushes (handoff / activation / integration)
 
 Ad-hoc commits, recovery operations, and push paths that should always run raw remain
 unannotated; they route as `raw` regardless of opt-in state.

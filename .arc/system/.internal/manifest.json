@@ -451,11 +451,6 @@
       "layer": "core",
       "pristine_hash": "c4e17b3280db578609a85ff5395cebb4137875e85516ec1faf8e23e6005c5a0d"
     },
-    "system/workflows/arc/work-unit-lifecycle/rotate-branch.md": {
-      "classification": "Framework",
-      "layer": "core",
-      "pristine_hash": "8ec87e07a899f64ec64a17e3fb3a09008161126dd92cf0f5c7219dd3c14fdf40"
-    },
     "system/workflows/arc/work-unit-lifecycle/verify-work-unit.md": {
       "classification": "Framework",
       "layer": "core",

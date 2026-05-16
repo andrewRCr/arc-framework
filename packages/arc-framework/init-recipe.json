@@ -93,7 +93,6 @@
     "system/workflows/arc/work-unit-lifecycle/clean-work-unit.md",
     "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
     "system/workflows/arc/work-unit-lifecycle/planning/init-work-unit.md",
-    "system/workflows/arc/work-unit-lifecycle/rotate-branch.md",
     "system/workflows/arc/work-unit-lifecycle/verify-work-unit.md",
     "system/workflows/project/README.md",
     "user/README.md"

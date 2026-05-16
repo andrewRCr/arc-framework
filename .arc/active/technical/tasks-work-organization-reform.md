@@ -1413,66 +1413,67 @@ but runtime checks of `review.planning_checkpoint` halt and `archive.cadence` di
   (`.arc/system/.internal/manifest.json` still names the old `pre-stage-review.md` file path — 3.8.b leftover,
   build-artifact-tier, not runtime-blocking).
 
-### `[ ]` **3.11 Lifecycle workflow alignment (deactivate restructure + clean update + rotate-branch retirement)**
+### `[x]` **3.11 Lifecycle workflow alignment (deactivate restructure + clean update + rotate-branch retirement)**
 
 - _Goal:_ Three additional WU-lifecycle workflows align with WOR conventions per R52a: `deactivate-work-unit.md`
   restructured for single-branch model with new case matrix; `clean-work-unit.md` updated for 4-state enum + meta-\*
   shape + redirected completion handoff; `rotate-branch.md` retired (multi-branch premise eliminated by
   single-branch-per-WU per R1, R2, R4).
 
-- _Approach:_ Three subtasks per workflow. Sequence: deactivate restructure first (defines new case matrix that
-  downstream tasks can reference); clean update second (depends on 3.4.b/3.4.c composition handoff being defined);
-  rotate retirement last (mechanical `git rm` + cross-ref sweep).
-
-- _Note:_ `verify-work-unit.md` requires only the `status-` → `meta-` filename-token update — folds into Task 6.2.i's
-  propagation, not addressed here.
-
     **Strategies:** `strategy-package-project-sync.md`
 
-    - `[ ]` **3.11.a Restructure `deactivate-work-unit.md` (single-branch model)**
-        - _Premise change:_ Activation under WOR doesn't move artifacts (in-place rename); there's no separate impl
-          branch to delete. Existing Case A/B/C/D matrix breaks under single-branch-per-WU.
-        - _New case matrix:_
-            - **Case A** — Active WU, no work executed, not merged → state flip Active → Planning plus branch rename
-              `<type>/<name>` → `plan/<name>` (inverse of activation). Meta file edits: State + Branch field. PR closed
-              if open.
-            - **Case A-delete variant** — Active WU, no work executed, not merged, user wants full WU deletion (not
-              return to Planning) → branch deletion plus meta file removal plus backlog/active artifact cleanup per
-              `pm.mode`.
-            - **Case B** — Active WU, some work executed, not merged → routes to `arc-shift` (worktree-foundation;
-              future). Until then: complete via integrate-work-unit OR abandon via clean-work-unit.
-            - **Case C** — Active WU, no work executed, merged to base → reversal PR (state-flip plus branch-rename
-              inverse, committed via PR). Rare.
-            - **Case D** — Active WU, some work executed, merged → integrate or clean.
-        - Footer convention: `Context: meta-{name}.md (deactivation)` per R29a (S9). Replaces invalid
-          `Context: tasks-{name}.md (deactivation)` (pre-existing bug; current hook regex rejects).
-        - `manage-incidental-work.md` references retain — rewrite to current-state language describing the workflow's
-          interrupt-routing function. Drop substrate-dependent references (`incidental/` prefix, pause-pointer fields)
-          and "transitional" / "pending" framing per R49a.
-        - Sync to packages/.
+    - `[x]` **3.11.a Restructure `deactivate-work-unit.md` (single-branch model)**
+        - Full body rewrite. New case matrix: Case A (return to Planning — state flip + Branch field edit + 3-step
+          branch rename inverse of activation) and Case A-delete (abandon entirely — close PR → switch to base →
+          branch delete → pm.mode-aware base-branch leftover cleanup) as twin variants under "Steps"; Cases B/C/D
+          retained under "When NOT to Deactivate" with current-state language.
+        - Case A-delete Step 4 corrected mid-draft: original framing assumed pre-WOR semantics (artifacts persist
+          on base after branch deletion); under WOR's single-branch model, branch deletion handles in-flight state,
+          so Step 4's residual cleanup concerns base-branch leftovers (arc-in-git backlog source folder, ROADMAP
+          entry; external tracker update; none-mode no-op).
+        - Footer convention: `Context: meta-{name}.md (deactivation)` per R29a — replaces invalid pre-existing
+          `Context: tasks-{name}.md (deactivation)` (hook regex would have rejected anyway).
+        - Frontmatter declares `branch-format` method (mirrors activate-work-unit.md). `manage-incidental-work.md`
+          cross-ref retained with current-state interrupt-routing language; pause-pointer / `incidental/` substrate
+          references dropped per R49a. ROADMAP regen surfaced via cross-ref to Work Organization Strategy § ROADMAP.
+        - Sync: byte-identical to `packages/arc-framework/arc/...`.
 
-    - `[ ]` **3.11.b Update `clean-work-unit.md` (4-state alignment + meta-file shape + redirected handoff)**
-        - `status-{name}.md` → `meta-{name}.md` throughout (Step 1, Step 6, etc.).
-        - `**State:** Complete` references → `**State:** Integrating` per R9 4-state mapping (Step 1 status metadata
-          update; Step 6 cross-references update).
-        - Remove retired-field references: `Interrupts:`, `Paused:`, `Paused To:`, `Spawned:` (Step 1
-          pointer-directionality block; Step 7 grep patterns).
-        - Update tasks-\* "standard structure" header list (Step 3 Mode 2): header is `**Spec:**` only per R58a chain
-          model.
-        - Redirect completion-doc creation handoff (Step 7 context check + closing prose): instead of pointing at
-          `completion-{name}.md` creation in integrate-work-unit, point at meta file's archive-phase composition (Tasks
-          3.4.b Release Notes Entry + 3.4.c Completion Notes).
-        - Verify Mode 2 archival prep flow still hangs together post-rewrite — particularly the interaction with 3.4 /
-          3.5's restructured composition + sweep flow.
-        - Sync to packages/.
+    - `[x]` **3.11.b Update `clean-work-unit.md` (4-state alignment + meta-file shape + redirected handoff)**
+        - Surgical edits across six locations (Step 1 Mode 2 status update; Step 1 "If deleting" prose; Step 1
+          pointer-directionality block deleted; Step 3 Mode 2 Step A standard structure; Step 3 Mode 2 Step B
+          forward-pointer grep block deleted; Step 3 Mode 2 completion-summary bullet; Step 6 Cross References;
+          closing context-check prose).
+        - `status-{name}.md` → `meta-{name}.md`; `**State:** Complete` → `**State:** Integrating` throughout.
+        - Standard task list header list collapsed to `**Spec:**` only per R58a chain model (was 6 fields including
+          PRD/Created/Completed/Branch/Base Branch/Status).
+        - Completion-doc creation handoff redirected from `completion-{name}.md` creation in integrate-work-unit
+          Phase 1 Step 3 to the meta file's archive-phase composition (Release Notes Entry + Completion Notes) per
+          R14 — workflow body cross-refs integrate-work-unit by name without inline step-numbering.
+        - Verified no residual pre-WOR refs: `status-`, `State: Complete`, `Phase 1, Step 3`, `Completion Metadata`,
+          `completion-{name}` — all cleared.
+        - Sync: byte-identical to packages/.
 
-    - `[ ]` **3.11.c Retire `rotate-branch.md`**
-        - `git rm .arc/system/workflows/arc/work-unit-lifecycle/rotate-branch.md` +
-          `packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/rotate-branch.md`.
-        - Inbound-reference sweep: grep for `rotate-branch` across `.arc/`, `packages/arc-framework/arc/`; retire each
-          reference (or redirect if any context still applies — none expected under single-branch-per-WU).
-        - _Note:_ R51 lists `rotate-branch.md` in the doc-retirement set; R52's cross-ref sweep may already cover the
-          inbound-reference sweep. Coordinate at execution to avoid duplicate work.
+    - `[x]` **3.11.c Retire `rotate-branch.md`**
+        - Both copies `git rm`-ed. Live inbound sweep cleared across: `3_process-task-loop.md` (both copies — entire
+          "Branch/task list coupling" bullet retired since multi-branch premise eliminated; link defs removed;
+          orphaned `[work-org]` def pruned as collateral cleanup), `strategy-workflow-authoring.md` (both copies —
+          dropped from `workflowPush` ceremony-push example list), `strategy-package-project-sync.md` (file
+          inventory), `init-recipe.json`, `.arc/system/.internal/manifest.json`.
+        - Test references substituted to avoid stale workflow-name examples: `session-type.test.ts` +
+          `active.test.ts` swapped `rotate-branch Step 2 — open intermediate PR` for `clean-work-unit Step 3 —
+          Mode 1 mid-work cleanup`. Test logic preserved (still asserts non-integration lifecycle workflow →
+          `sessionType: execution`).
+        - Stale refs retained intentionally in non-shipped surfaces: WU's own artifacts (PRD/notes/tasks/status —
+          they describe this retirement task), `adr-007`, `analysis-modes-solo-dev-blind-spot-audit.md`,
+          `.arc/backlog/**` (internal planning docs), `.arc/reference/archive/**` (historical).
+
+- _Outcome:_ WU-lifecycle workflow surface fully aligned with WOR's single-branch model — Phase 3's lifecycle
+  restructure complete (3.2 init / 3.3 activate / 3.4 integrate / 3.5 archive / 3.11.a deactivate / 3.11.b clean /
+  3.11.c rotate-branch retired). `verify-work-unit.md` remains the sole lifecycle workflow lagging WOR shape — its
+  `status-` → `meta-` filename-token update folds into Task 6.2.i's propagation, not duplicated here. Phase 3
+  closes (3.7 deferred, 3.12 superseded by 6.3.e per the earlier restructure commit, all others `[x]`); next phase
+  entry is Task 4.1 (`template-meta.md` creation) — which 3.2/3.3's forward-references depend on for the
+  markdown-link form (currently named as plain backticked tokens).
 
 ### `[~]` **3.12 ~~Update session-lifecycle workflows for R65 user/ directory reform~~** — Superseded by 6.3.e
 

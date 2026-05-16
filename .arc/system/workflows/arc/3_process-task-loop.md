@@ -20,13 +20,6 @@ arc:
   autonomous execution between human review points. Complete one, mark it `[x]`, report, and **stop**
   for user approval.
 
-- **Branch/task list coupling:** A task list may span one or more branches (stacked PRs, team
-  sub-branches, phased delivery). Archive when all tasks are marked complete — branch cleanup
-  happens independently as PRs merge. When creating additional branches for an existing task list,
-  update the `**Branch(es):**` header field to include the new branch name. For intermediate merges,
-  see [rotate-branch][rotate-branch]. See [Work Organization Strategy][work-org] for the full
-  relationship model.
-
 - **Co-development awareness:** The developer may be editing files or making commits alongside you.
   Treat parallel changes as expected context, not interruptions. If changes conflict with your
   current task, flag the conflict and ask how to proceed.
@@ -296,11 +289,9 @@ updates**. Always update the task list file before reporting completion.
 
 ---
 
-[work-org]: ../../../reference/strategies/arc/strategy-work-organization.md
 [quality-gates]: ../../../reference/strategies/arc/strategy-quality-gates.md
 [config-arch]: ../../../reference/strategies/arc/strategy-configurability-architecture.md
 [dev-rules-arc]: ../../../reference/constitution/DEV-RULES.ARC.md
-[rotate-branch]: work-unit-lifecycle/rotate-branch.md
 [manage-incidental]: supplemental/manage-incidental-work.md
 [arc-ext-task-quality]: ../../extensions/post-task-quality.md
 [arc-ext-task-completion]: ../../extensions/post-task-completion.md
