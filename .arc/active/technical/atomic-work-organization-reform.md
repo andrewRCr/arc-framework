@@ -85,3 +85,20 @@ Atomic Task Completion for the full protocol.
   strategy-interlock-release-wrappers.md (deferred from this commit to avoid double-touch ahead
   of the substantive rewrite). Doc-only quick-tier scope; provenance-as-state implementation
   stays deferred to its plan home (plan-commit-increments.md § Unknowns).
+
+### `[x]` **plan-interlock-release-refinement.md: Layer 1 implications applied**
+
+- _Outcome:_ Same-session follow-up to the Layer 1 codification — evaluated whether the
+  In-Flight wrapper-routing migration still holds under the new constitutional framing. Net:
+  migration holds, Layer 1 strengthens its premise. Plan-doc adjustments applied: In-Flight
+  item gains a _Sequencing with approval-provenance guard_ bullet (Layer 1 makes the guard a
+  hard dependency of the routing migration, not a follow-up); `releaseRouting` envelope payload
+  shape preference flipped from "decide at impl" to single-`commit`/`push` keys parameterized
+  by (opt-in × interlock-mode), with `incidentalCommit`-key alternative rejected as
+  backward-compat tax; strategy bullet extended with bypass-mode sharpening ("bypass changes
+  the wrapper's conditional value layer, not the Layer 1 invariant") and "cite Layer 1, don't
+  re-derive" guidance for the rewrite; _Captured during_ line clarified to name the user-intent
+  gap explicitly. Watch item's _Trigger fired_ and _Composition_ notes updated to reflect the
+  flipped sequencing — guard co-lands with migration, or lands first; migration-first leaves a
+  regression window where the routing change makes the observed failure mode easier to hit,
+  not harder.

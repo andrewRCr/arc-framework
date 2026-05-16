@@ -85,24 +85,41 @@ What remains is mostly *routing-half* work:
       Fold a § Review-Increment Invariant cross-ref into § Overview and/or § Trust Model during
       this rewrite — the Layer 1 codification (DEV-RULES.ARC § Review-Increment Invariant)
       landed inline 2026-05-16 and this strategy is the operating-mechanics home that should
-      explicitly cite it.
+      explicitly cite it. Cite, don't re-derive — the rewrite leans on Layer 1 as foundation;
+      § Trust Model describes the wrapper mechanics that operate against it. One additional
+      sharpening: state explicitly that bypass mode changes the wrapper's *conditional value
+      layer* (harness-prompt bypass is N/A) but does **not** change the Layer 1 invariant
+      (user approval gate still required). Today's text leaves this implicit and the agent is
+      demonstrably susceptible to confusing the two.
     - **`process-task-loop` § Incidental Commit Discipline:** flip "routing follows existing
       rules" to a concrete statement aligned with the new DEV-RULES rule. Add a worked example.
     - **`releaseRouting` envelope payload:** today carries `taskCommit` / `workflowCommit` /
-      `workflowPush` as three separate routes. Consider folding into a single `commit` / `push`
-      routing decision once the workflow-vs-incidental axis is retired. Or retain the three
-      keys but add an `incidentalCommit` key (routing-equivalent to `taskCommit` under
-      release-mode interlocks) so off-workflow fire sites have an explicit lookup target.
-      Decide at impl.
+      `workflowPush` as three separate routes. Layer 1 framing favors folding to single
+      `commit` / `push` routing keys parameterized by (opt-in × interlock-mode) — one decision,
+      not three — with the class-tag axis preserved as documentary only. The alternative
+      (`incidentalCommit` key alongside the existing three) keeps the workflow-vs-incidental
+      axis in the data shape after the rule retires it; that's a backward-compat tax not
+      worth carrying under the new framing. Migration concern at PRD time: any current
+      consumers reading the three keys need a stated migration path.
+
+- *Sequencing with approval-provenance guard:* Under Layer 1 (DEV-RULES.ARC § Review-Increment
+  Invariant) the wrapper cannot bypass the user approval gate, so the wrapper (or `arc-commit`)
+  must verify fresh provenance — not assume it. The Approval-provenance Watch item below (now
+  act-pending-design) is therefore a hard dependency of this migration, not a follow-up. Co-land
+  the guard in the same WU, or land the guard first. Migration-first sequencing leaves a window
+  where the routing change makes the observed failure mode (agent-invoked wrapper without prior
+  structured approval) easier to hit, not harder — see that item's *Composition* note for the
+  full reasoning.
 
 - *Scope:* Quick-tier minimum — touches DEV-RULES.ARC (constitutional), a flagship strategy doc,
-  a load-bearing workflow, and likely the session-init envelope CLI code. ADR-light treatment
-  warranted since this reverses the explicit "trigger-bounded" framing in
-  `strategy-interlock-release-wrappers.md`.
+  a load-bearing workflow, and likely the session-init envelope CLI code. Scope grows to absorb
+  the approval-provenance guard per *Sequencing* above. ADR-light treatment warranted since this
+  reverses the explicit "trigger-bounded" framing in `strategy-interlock-release-wrappers.md`.
 
 - *Captured during:* 2026-05-16 commit-routing audit (`93b50a4a`'s raw-`git` use matched current
-  docs but not user intent). User confirmed the routing migration as the originally-intended
-  companion to yesterday's implied-approval-scope codification.
+  docs but not user intent — the gap this migration explicitly closes). User confirmed the
+  routing migration as the originally-intended companion to yesterday's implied-approval-scope
+  codification.
 
 ## Watch / Provisional
 
@@ -123,16 +140,20 @@ What remains is mostly *routing-half* work:
 
 - *Trigger fired (2026-05-16):* Observed in WOR session — agent invoked `arc release commit` for
   off-task incidental work after user correction on wrapper usage, without prior structured
-  approval gate. Meets the documented escalation criterion. Posture flips watch → act-pending-design;
-  the approval-provenance guard in `arc-commit` becomes the next concrete piece of this plan after
-  the wrapper-routing migration. Layer 1 codification landed inline same-session (DEV-RULES.ARC
-  § Review-Increment Invariant + AGENT-BRIEF.ARC vocabulary + process-task-loop cross-ref retarget)
-  raises the constitutional floor; the mechanism work here implements against it.
+  approval gate. Meets the documented escalation criterion. Posture flips watch → act-pending-design.
+  Layer 1 codification landed inline same-session (DEV-RULES.ARC § Review-Increment Invariant +
+  AGENT-BRIEF.ARC vocabulary + process-task-loop cross-ref retarget) raises the constitutional
+  floor; the mechanism work here implements against it. Under Layer 1, the guard becomes a hard
+  dependency of the wrapper-routing migration above rather than a follow-up — see *Composition*
+  below.
 
-- *Composition:* The wrapper-routing migration above raises the stakes on this item — if all
-  release-mode commits route through wrapper (including incidentals), the surface area where
-  agent-invoked `arc-commit` without prior approval could fire expands. Sequencing: ship
-  wrapper-routing migration first, then provenance guard.
+- *Composition (Layer 1 update):* The wrapper-routing migration raises the stakes on this item —
+  off-task incidentals now route through wrapper, expanding the surface where agent-invoked
+  `arc-commit` without prior approval could fire. Layer 1 makes this a hard dependency, not a
+  follow-up: the wrapper cannot bypass the user approval gate, so the wrapper (or `arc-commit`)
+  must actively verify provenance — not assume it. Sequencing: co-land the guard in the routing
+  migration's WU, or land the guard first. Migration-first leaves a regression window where the
+  routing change makes the observed failure mode easier to hit, not harder.
 
 - *Scope if promoted:* Small-to-medium documentation/skill hardening. Likely touches
   `.codex/skills/arc-commit/SKILL.md`, shipped `system/skills/arc-commit/SKILL.md`, and possibly
