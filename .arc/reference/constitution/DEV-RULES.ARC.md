@@ -15,12 +15,21 @@ documentation style — live in [DEV-RULES.PROJECT][dev-rules-project]. Contribu
 
 ## Contents
 
+- [Review-Increment Invariant](#review-increment-invariant) — universal approval-gate principle
 - [Commit Discipline](#commit-discipline) — control, format, atomicity
 - [Task Execution](#task-execution) — one at a time, sub-agent scope, quality gates, leave-it-cleaner, test-first
 - [Session Management](#session-management) — state control, handoff, context quality
 - [Verification and Discovery](#verification-and-discovery) — verify, consult strategies, load methods/extensions
 - [Documentation Boundaries](#documentation-boundaries) — code and methodology separation
 - [When to Load Additional Guidance](#when-to-load-additional-guidance) — on-demand reference
+
+---
+
+## Review-Increment Invariant
+
+Every review increment closes with a structured approval gate that precedes any commit
+invocation, wrapped or raw. The release wrapper bypasses the harness's per-invocation prompt;
+it does **not** bypass the user's approval gate.
 
 ---
 

@@ -295,12 +295,11 @@ When you complete an atomic task (in the companion file or ATOMIC-INBOX), follow
 
 ### Incidental Commit Discipline
 
-The task-interlock pattern extends to off-workflow / incidental commits. After applying the change:
-surface what landed (file list, summary, or diff sample), then end with the structured prompt —
-`Commit and proceed to <next-target>?` (releasing interlocks) or `Proceed?` (manual). User's
-affirmative covers both work AND commit; routing follows existing rules. This prevents informal
-mid-discussion approval from auto-cascading to commit fire — see
-[DEV-RULES.ARC][dev-rules-arc] § Implied-approval scope.
+Off-workflow / incidental commits follow the review-increment invariant
+([DEV-RULES.ARC][dev-rules-arc] § Review-Increment Invariant): surface what landed (file list,
+summary, or diff sample), then end with the structured prompt — `Commit and proceed to
+<next-target>?` (releasing) or `Proceed?` (manual). The affirmative covers both work AND commit.
+Informal mid-discussion approval ("ok", "looks good") does not release commit.
 
 ### Complete Workflow
 

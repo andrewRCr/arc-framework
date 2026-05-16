@@ -358,7 +358,8 @@ Both avoid unnecessary body reads at init, but they serve different decisions an
 
 These sections define ARC's session-operational flow — the interlock model, status-file timing, and
 handoff-interior toggle pattern. For at-session rule statements that constrain agent behavior in this
-domain, see [DEV-RULES.ARC][dev-rules-arc] § Commit Discipline and § Session Management.
+domain, see [DEV-RULES.ARC][dev-rules-arc] § Review-Increment Invariant, § Commit Discipline, and
+§ Session Management.
 
 ### Vocabulary
 
@@ -642,8 +643,8 @@ guards so re-entry is safe.
 
 **Convergent paths:**
 
-- **Planning activation** ([`activate-planning-branch.md`][activate-plan] Step 5) creates the file when a
-  planning branch starts, with `**State:** Planning` and the plan-doc filename in `**Spec:**`.
+- **Planning activation** ([`init-work-unit.md`][activate-plan]) creates the file when a planning
+  branch starts, with `**State:** Planning` and the plan-doc filename in `**Spec:**`.
   Idempotent: existing file → skip.
 - **WU activation without planning ceremony** ([`activate-work-unit.md`][activate-wu] Step 4 creation
   path) creates the file at WU activation when no planning branch preceded (e.g., partial-protection
@@ -673,8 +674,8 @@ as part of the work unit that introduces the rule. Keep structural validation st
 allowing legacy absence, and avoid one-off migration helpers until repeated project demand justifies the
 maintenance surface.
 
-**Disposition at integration.** [`integrate-planning-branch.md`][integrate-plan] Step 2 routes by
-graduated / shelved: graduated leaves the file in place for `activate-work-unit` Step 4 to transition;
+**Disposition at integration.** [`integrate-work-unit.md`][integrate-plan] routes by
+graduated / shelved: graduated leaves the file in place for `activate-work-unit` to transition;
 shelved removes the file (no WU follows; no pointer needed).
 
 ---
@@ -980,9 +981,9 @@ When `arc user load` or session-init's SESSION-NOTES load fails, recover by erro
 [session-loop]: ../../../system/workflows/arc/session-lifecycle/session-loop.md
 [session-init]: ../../../system/workflows/arc/session-lifecycle/session-init.md
 [session-handoff]: ../../../system/workflows/arc/session-lifecycle/session-handoff.md
-[activate-plan]: ../../../system/workflows/arc/work-unit-lifecycle/planning/activate-planning-branch.md
+[activate-plan]: ../../../system/workflows/arc/work-unit-lifecycle/planning/init-work-unit.md
 [activate-wu]: ../../../system/workflows/arc/work-unit-lifecycle/activate-work-unit.md
-[integrate-plan]: ../../../system/workflows/arc/work-unit-lifecycle/planning/integrate-planning-branch.md
+[integrate-plan]: ../../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md
 [template-status]: ../../templates/template-status.md
 [strategy-index]: ../STRATEGY-INDEX.md
 [workflow-authoring]: strategy-workflow-authoring.md

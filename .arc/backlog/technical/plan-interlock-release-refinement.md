@@ -82,6 +82,10 @@ What remains is mostly *routing-half* work:
       interlock, workflow interlock, or structured implicit-approval prompt. Harness bypass
       mode framing carries forward but for a different boundary (commits without ARC
       approval-provenance at all — e.g., direct shell-driven fixups outside an agent session).
+      Fold a § Review-Increment Invariant cross-ref into § Overview and/or § Trust Model during
+      this rewrite — the Layer 1 codification (DEV-RULES.ARC § Review-Increment Invariant)
+      landed inline 2026-05-16 and this strategy is the operating-mechanics home that should
+      explicitly cite it.
     - **`process-task-loop` § Incidental Commit Discipline:** flip "routing follows existing
       rules" to a concrete statement aligned with the new DEV-RULES rule. Add a worked example.
     - **`releaseRouting` envelope payload:** today carries `taskCommit` / `workflowCommit` /
@@ -111,16 +115,24 @@ What remains is mostly *routing-half* work:
   substantive changes that the user has not yet reviewed, and release routing could then turn
   that into a wrapper commit without the intended work-approval provenance.
 
-- *Watch-and-wait posture:* Capture only for visibility. Do not add an `arc-commit` guard yet;
-  first watch whether this actually occurs. If observed, consider adding an approval-provenance
-  clause to `arc-commit` / commit discipline so the skill verifies one of: task approval,
+- *Watch-and-wait posture (superseded):* Originally captured for visibility only — first watch
+  whether the gap actually manifests. If observed, consider adding an approval-provenance clause
+  to `arc-commit` / commit discipline so the skill verifies one of: task approval,
   workflow-interlock approval, explicit commit approval, or a routine ceremony surface before
-  invoking release-routed commits. If not observed after several sessions, drop without action.
+  invoking release-routed commits.
 
-- *Composition:* The wrapper-routing migration above raises the stakes on this watch — if all
+- *Trigger fired (2026-05-16):* Observed in WOR session — agent invoked `arc release commit` for
+  off-task incidental work after user correction on wrapper usage, without prior structured
+  approval gate. Meets the documented escalation criterion. Posture flips watch → act-pending-design;
+  the approval-provenance guard in `arc-commit` becomes the next concrete piece of this plan after
+  the wrapper-routing migration. Layer 1 codification landed inline same-session (DEV-RULES.ARC
+  § Review-Increment Invariant + AGENT-BRIEF.ARC vocabulary + process-task-loop cross-ref retarget)
+  raises the constitutional floor; the mechanism work here implements against it.
+
+- *Composition:* The wrapper-routing migration above raises the stakes on this item — if all
   release-mode commits route through wrapper (including incidentals), the surface area where
-  agent-invoked `arc-commit` without prior approval could fire expands. Worth re-evaluating the
-  watch posture if/when the routing migration ships.
+  agent-invoked `arc-commit` without prior approval could fire expands. Sequencing: ship
+  wrapper-routing migration first, then provenance guard.
 
 - *Scope if promoted:* Small-to-medium documentation/skill hardening. Likely touches
   `.codex/skills/arc-commit/SKILL.md`, shipped `system/skills/arc-commit/SKILL.md`, and possibly

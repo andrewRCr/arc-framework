@@ -64,3 +64,24 @@ Atomic Task Completion for the full protocol.
   synced. Tier 2 clean: typecheck + lint + tests (1796 + e2e 56). A3 (orientation-surface for
   non-`manual` modes) deferred — decide post-A1+A2 settlement whether always-visible orientation
   noise is worth the salience. Landed b2d8162d.
+
+### `[x]` **Layer 1 review-increment invariant codified in DEV-RULES.ARC + AGENT-BRIEF.ARC + process-task-loop**
+
+- _Outcome:_ Constitutional foregrounding for the universal review-increment invariant — every
+  review increment closes with a structured approval gate that precedes any commit invocation,
+  wrapped or raw; release wrapper bypasses harness per-invocation prompt but does NOT bypass
+  user approval gate. New top-level `## Review-Increment Invariant` section in DEV-RULES.ARC
+  above § Commit Discipline plus matching Contents entry; AGENT-BRIEF.ARC vocabulary
+  universalized ("one leaf task = one autonomous chunk" → "one bounded chunk of work; applies
+  universally — task list work, off-task / incidental, workflow stages"); process-task-loop
+  § Incidental Commit Discipline rewritten with cross-ref retarget to the new Invariant section;
+  strategy-session-operations § Interlock Model opening cross-ref extended to include the new
+  Invariant section. Both copies synced (package source + `.arc/` instance) across all four
+  framework files. plan-interlock-release-refinement.md updates: Watch item "Approval-provenance
+  gap on direct `arc-commit` invocations" flipped watch → act-pending-design (trigger fired this
+  session — agent invoked release wrapper for off-task incidental work after correction, without
+  prior structured approval gate); In-Flight wrapper-routing migration gains a note that the
+  § Trust Model / § Scope rewrite should fold a § Review-Increment Invariant cross-ref into
+  strategy-interlock-release-wrappers.md (deferred from this commit to avoid double-touch ahead
+  of the substantive rewrite). Doc-only quick-tier scope; provenance-as-state implementation
+  stays deferred to its plan home (plan-commit-increments.md § Unknowns).
