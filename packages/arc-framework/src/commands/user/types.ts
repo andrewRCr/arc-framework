@@ -1,3 +1,4 @@
+import { isRefusalCondition } from "../../lib/git/index.js";
 import type {
   AccessFn,
   DirEntry,
@@ -172,7 +173,7 @@ export class UserPushBlockedError extends Error {
 }
 
 function buildBlockedMessage(conditions: PushabilityCondition[]): string {
-  const blocking = conditions.filter((c) => c.disposition === "block");
+  const blocking = conditions.filter(isRefusalCondition);
   if (blocking.length === 0) {
     return "Push blocked by pre-check matrix.";
   }

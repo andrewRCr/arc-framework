@@ -27,6 +27,7 @@ import {
   type UserSyncState,
 } from "../commands/user.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
+import { isRefusalCondition } from "../lib/git/index.js";
 import { runWorktreeSyncStatus } from "../lib/git/worktree-sync.js";
 import { createUserIOContext } from "../lib/io-context.js";
 import { createSyncOutput } from "../lib/sync-output.js";
@@ -422,7 +423,7 @@ async function handlePushDirection(params: DirectionParams): Promise<void> {
       process.exitCode = 1;
       return;
     case "blocked":
-      for (const condition of pushResult.conditions.filter((c) => c.disposition === "block")) {
+      for (const condition of pushResult.conditions.filter(isRefusalCondition)) {
         p.log.error(condition.guidance);
       }
       p.log.warn("Local save preserved; notes push blocked by pre-check. Resolve and re-run `arc user push`.");

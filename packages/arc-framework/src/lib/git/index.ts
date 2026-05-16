@@ -35,6 +35,7 @@ export {
 } from "./dirty-state.js";
 
 export {
+  isRefusalCondition,
   runPushabilityStatus,
   type AccessFn,
   type PushabilityCondition,

@@ -118,6 +118,8 @@ vi.mock("../../src/lib/paths.js", () => ({
 
 vi.mock("../../src/lib/git/index.js", () => ({
   slugifyIdentity: (s: string) => s.toLowerCase(),
+  isRefusalCondition: (c: { disposition: string }) =>
+    c.disposition === "block" || c.disposition === "caller-resolvable",
 }));
 
 const { handleUserPush, handleUserFetch, handleUserPull, handleUserLoad, handleUserStatus } = await import("../../src/handlers/user.js");

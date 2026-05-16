@@ -66,6 +66,7 @@ import {
 } from "../lib/config/resolved-settings.js";
 import { formatError, UserFacingError } from "../lib/errors.js";
 import {
+  isRefusalCondition,
   runPushabilityStatus,
   type PushabilityCondition,
 } from "../lib/git/index.js";
@@ -644,7 +645,7 @@ function renderPairedResult(
   branch: string,
   output: SyncOutput,
 ): void {
-  for (const condition of result.conditions.filter((c) => c.disposition === "block")) {
+  for (const condition of result.conditions.filter(isRefusalCondition)) {
     output.log.error(condition.guidance);
   }
   for (const condition of result.conditions.filter(
@@ -695,7 +696,7 @@ function renderPairedNotesOutcome(result: PairedPushResult, output: SyncOutput):
       output.log.warn("Partial publish recorded; recover with `arc user push` (idempotent).");
       return;
     case "blocked":
-      for (const condition of notes.conditions.filter((c) => c.disposition === "block")) {
+      for (const condition of notes.conditions.filter(isRefusalCondition)) {
         output.log.error(condition.guidance);
       }
       output.log.warn("Partial publish recorded; recover with `arc user push` (idempotent).");
@@ -870,7 +871,7 @@ async function pushNotesLeg(ctx: ExecuteContext): Promise<LegOutcomeRecord> {
       ctx.output.log.error("No remote configured. Push requires a remote repository.");
       return { action: "push", result: "failed", detail: "no-remote" };
     case "blocked":
-      for (const condition of result.conditions.filter((c) => c.disposition === "block")) {
+      for (const condition of result.conditions.filter(isRefusalCondition)) {
         ctx.output.log.error(condition.guidance);
       }
       return { action: "push", result: "blocked" };

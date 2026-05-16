@@ -15,7 +15,7 @@ import {
   hasLocalNotes,
   UserPushBlockedError,
 } from "../commands/user.js";
-import { slugifyIdentity } from "../lib/git/index.js";
+import { isRefusalCondition, slugifyIdentity } from "../lib/git/index.js";
 import { formatError, UserFacingError, type ArcErrorCode } from "../lib/errors.js";
 import { getInternalTemplatePath, resolveArcRoot } from "../lib/paths.js";
 import { createUserIOContext } from "../lib/io-context.js";
@@ -279,7 +279,7 @@ export async function handleUserPush(opts: UserPushOptions): Promise<void> {
       process.exitCode = 1;
       return;
     case "blocked":
-      for (const condition of result.conditions.filter((c) => c.disposition === "block")) {
+      for (const condition of result.conditions.filter(isRefusalCondition)) {
         p.log.error(condition.guidance);
       }
       process.exitCode = 1;

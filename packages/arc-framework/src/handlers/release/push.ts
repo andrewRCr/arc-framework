@@ -45,6 +45,7 @@ import type {
   AuthorizationDecision,
   RefusalCode,
 } from "../../lib/release/types.js";
+import { isRefusalCondition } from "../../lib/git/pushability.js";
 import type {
   PushabilityCondition,
   PushabilityResult,
@@ -291,16 +292,18 @@ function detectPushHook(output: string): string {
 }
 
 /**
- * Filter pushability conditions to the refusal-causing subset: `block`
- * dispositions plus the `force-push-required` advisory (which inherits
- * an always-refuse contract from `pushability.ts`). `auto-fixed`
- * dispositions pass through — the matrix already resolved them.
+ * Filter pushability conditions to the refusal-causing subset: anything
+ * {@link isRefusalCondition} flags (`block` and `caller-resolvable`) plus the
+ * `force-push-required` advisory (always-refuse contract from
+ * `pushability.ts`). `auto-fixed` and other `advisory` dispositions pass
+ * through — the matrix already resolved them or surfaces them for caller
+ * judgment.
  */
 function filterRefusalConditions(
   conditions: readonly PushabilityCondition[],
 ): PushabilityCondition[] {
   return conditions.filter((c) =>
-    c.disposition === "block" || c.kind === "force-push-required",
+    isRefusalCondition(c) || c.kind === "force-push-required",
   );
 }
 

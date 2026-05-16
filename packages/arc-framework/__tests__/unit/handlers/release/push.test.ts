@@ -121,7 +121,9 @@ function pushabilityClean(): PushabilityResult {
 }
 
 function pushabilityWith(conditions: PushabilityCondition[]): PushabilityResult {
-  const allowed = !conditions.some((c) => c.disposition === "block");
+  const allowed = !conditions.some(
+    (c) => c.disposition === "block" || c.disposition === "caller-resolvable",
+  );
   return { allowed, conditions };
 }
 
@@ -438,7 +440,7 @@ describe("runReleasePush — code 14 (pushability-precheck-failed)", () => {
       "no-upstream-branch",
       {
         kind: "no-upstream-branch",
-        disposition: "block",
+        disposition: "caller-resolvable",
         branch: "feature/x",
         guidance: "No upstream.",
       },

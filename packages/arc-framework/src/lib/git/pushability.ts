@@ -59,11 +59,16 @@ export interface WorktreeAlignmentDetail {
 /**
  * Disposition the caller should treat the condition with.
  *
- * - `block`: push must not fire.
+ * - `block`: push must not fire. Caller refuses without exception.
  * - `auto-fixed`: matrix detected and resolved inline (no caller action).
  * - `advisory`: matrix surfaces; caller decides refusal vs. allow.
+ * - `caller-resolvable`: refuses by default, but the caller may resolve the
+ *   underlying condition by adjusting the push invocation (e.g., injecting
+ *   `-u` for `no-upstream-branch`). Orchestrators that know how to resolve
+ *   the specific condition kind opt in; generic consumers treat it the same
+ *   as `block`. See {@link isRefusalCondition}.
  */
-export type PushabilityDisposition = "block" | "auto-fixed" | "advisory";
+export type PushabilityDisposition = "block" | "auto-fixed" | "advisory" | "caller-resolvable";
 
 /** A detected condition with disposition + guidance for the user. */
 export interface PushabilityCondition {
@@ -79,9 +84,25 @@ export interface PushabilityCondition {
 }
 
 export interface PushabilityResult {
-  /** True iff no `block`-disposition conditions are present. */
+  /**
+   * True iff no refusal-causing conditions are present, per
+   * {@link isRefusalCondition} (covers `block` and `caller-resolvable`).
+   * Orchestrators that resolve specific `caller-resolvable` kinds inspect
+   * conditions directly and may proceed despite `allowed === false`.
+   */
   allowed: boolean;
   conditions: PushabilityCondition[];
+}
+
+/**
+ * Default refusal predicate: a condition causes refusal if its disposition is
+ * `block` or `caller-resolvable`. The latter refuses by default; orchestrators
+ * that know how to resolve a specific kind handle it explicitly rather than
+ * via this predicate. `advisory` and `auto-fixed` dispositions are not
+ * refusal-causing by default.
+ */
+export function isRefusalCondition(condition: PushabilityCondition): boolean {
+  return condition.disposition === "block" || condition.disposition === "caller-resolvable";
 }
 
 /** Path-existence check; defaults to `fs.access` in production wiring. */
@@ -148,7 +169,7 @@ export async function runPushabilityStatus(
     } else if (branchOrDetached.kind === "no-upstream") {
       conditions.push({
         kind: "no-upstream-branch",
-        disposition: "block",
+        disposition: "caller-resolvable",
         branch: branchOrDetached.branch,
         guidance: `Set upstream first: \`git push -u origin ${branchOrDetached.branch}\``,
       });
@@ -187,7 +208,7 @@ export async function runPushabilityStatus(
     }
   }
 
-  const allowed = !conditions.some((c) => c.disposition === "block");
+  const allowed = !conditions.some(isRefusalCondition);
   return { allowed, conditions };
 }
 
