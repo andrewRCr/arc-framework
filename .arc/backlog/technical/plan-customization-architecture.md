@@ -263,6 +263,11 @@ during interlock-prompt-shape audit; explicitly not finalized.
   method (the only path under which `review.planning_checkpoint`-shaped behavior re-emerges).
   If a planning-review activity gets codified there, this plan provides the customization
   shape it slots into.
+- **`plan-interlock-release-refinement`** — consumes whichever enum-granularity decision lands
+  here. Open Question (e) (commitInterlock / pushInterlock enum simplification) lives in this
+  plan because the enum design affects all of ARC's interlock-shaped configs; the routing
+  evolution in `plan-interlock-release-refinement` works under any candidate enum shape. If
+  either lands first, the other absorbs the resulting decision; ship-order doesn't matter.
 
 ---
 

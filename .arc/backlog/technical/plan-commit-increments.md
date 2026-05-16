@@ -123,6 +123,14 @@ per-leaf or bundled is upstream of the wrapper's concern. Clean composition.
 handoff land at a state the next machine can interpret. Leaf-default commit boundaries preserve
 this. The bundling overlay never produces uncommitted-mid-bundle state at handoff.
 
+**Composition with `plan-interlock-release-refinement.md`.** The first-class approval-provenance
+state captured under § Unknowns (parallel structural concept) shows up from a different angle in
+that plan's wrapper-routing migration — the wrapper's trust-shift becomes "carries approval
+provenance to git" regardless of fire site, which lands cleaner when provenance is first-class
+state rather than reconstructed per fire. The two concerns can ship independently or fold
+together; the routing migration doesn't strictly require provenance-as-state but benefits from
+it. Coordinate at PRD time.
+
 ## Alternatives
 
 **Hierarchy-as-bundling default (subtasks bundle into parent commit).** Considered and rejected.

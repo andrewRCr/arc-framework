@@ -668,6 +668,11 @@ returning to if the question surfaces concretely; not architecting speculatively
   affect schema design for new envelope slots; see § Forward-Compat Callbacks.
 - **Worktree Foundation** (`plan-worktree-foundation.md`) — composability concern.
   Worktree-aware probe affects `currentTask` resolution; see § Forward-Compat Callbacks.
+- **Interlock & Release Routing Refinement** (`plan-interlock-release-refinement.md`) —
+  cross-reference for the tier-aware deduplication principle captured in this plan's Pillar 1.
+  The principle surfaced during that plan's rule-spread audit; lives here because it governs
+  ARC content discipline broadly (not just interlock work). Whichever plan ships first should
+  cite the other.
 
 ---
 
