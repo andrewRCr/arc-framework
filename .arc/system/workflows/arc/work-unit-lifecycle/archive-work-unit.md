@@ -66,9 +66,10 @@ execute its [`.actions`][arc-ext-post-archive]. Otherwise, skip.
 
 ### 6) Commit archival
 
-Bundle state flip + sweep + ROADMAP regen into one `workflowCommit` — routes per
-[DEV-RULES.ARC][dev-rules-arc] § Workflow class-tag routing (wrapper or raw `git` per
-`releaseRouting.value.workflowCommit`):
+Bundle state flip + sweep + ROADMAP regen.
+
+> [!CAUTION]
+> `commit-interlock` release — commit as `workflowCommit`:
 
 ```text
 docs(arc): archive {name}

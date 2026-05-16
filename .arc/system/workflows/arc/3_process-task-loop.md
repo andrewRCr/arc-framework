@@ -269,6 +269,15 @@ When you complete an atomic task (in the companion file or ATOMIC-INBOX), follow
 3. **Verify ordering** — incomplete tasks at the top, then a visual gap (blank line), then
    completed tasks in chronological completion order.
 
+### Incidental Commit Discipline
+
+The task-interlock pattern extends to off-workflow / incidental commits. After applying the change:
+surface what landed (file list, summary, or diff sample), then end with the structured prompt —
+`Commit and proceed to <next-target>?` (releasing interlocks) or `Proceed?` (manual). User's
+affirmative covers both work AND commit; routing follows existing rules. This prevents informal
+mid-discussion approval from auto-cascading to commit fire — see
+[DEV-RULES.ARC][dev-rules-arc] § Implied-approval scope.
+
 ### Complete Workflow
 
 **For full incidental work lifecycle** (creation, execution, archival), see:

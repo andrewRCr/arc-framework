@@ -37,3 +37,15 @@ Atomic Task Completion for the full protocol.
   `integrate-work-unit.md` (cascade renumber 7+→6+ and 12+→11+); promoted buried commit-fire to
   explicit substep at `1_create-prd.md` Step 7; trimmed stale "last gate" prose at Step 5. Sibling
   sweep across remaining workflows tracked in ATOMIC-INBOX.
+
+### `[x]` **Class-tagged fire-site admonition convention + Implied-approval scope rule**
+
+- _Outcome:_ Codified `[!CAUTION]` admonition pattern for class-tagged fire sites in
+  `strategy-workflow-authoring.md` § Routing class tags — shape ``> `<interlock>` release — <verb>
+  as `<class>`:`` mirrors interlock-marker shape (gate/fire structural symmetry; both backtick-wrap
+  the interlock name). Added "Concept relationship" paragraph + "Implied-approval scope" rule to
+  DEV-RULES.ARC § Commit Discipline (gate vs fire vs release ontology + structured-gate discipline
+  for off-workflow commits). Added "Incidental Commit Discipline" subsection to process-task-loop
+  § Incidental Work Management (task-interlock pattern extension). Applied admonition to all
+  class-tagged fire sites across the 5 Phase 3 boundary workflows. ATOMIC-INBOX class-tag
+  fire-site cue entry updated — option (4) adopted, options (1)/(2)/(3) superseded.

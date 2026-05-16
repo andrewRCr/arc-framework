@@ -82,15 +82,18 @@ Remaining fields take their `template-meta.md` defaults.
 init), do not recreate it. Reconcile **Branch** and **Spec** to reflect the current branch name and
 plan-doc filename; preserve other field values as-is.
 
-> **Commit shape.** Stage the plan-doc move (when present) with the meta file as a bundled init commit;
-> otherwise dedicated. Commit as `workflowCommit` — routes per [DEV-RULES.ARC][dev-rules-arc] § Workflow
-> class-tag routing (wrapper or raw `git` per `releaseRouting.value.workflowCommit`). Subject per
-> [`commit-format`][commit-format]; meta-file commit shape applies per [DEV-RULES.ARC][dev-rules-arc]
+> [!CAUTION]
+> `commit-interlock` release — commit as `workflowCommit`. Stage the plan-doc move (when present)
+> with the meta file as a bundled init commit; otherwise dedicated. Subject per
+> [`commit-format`][commit-format]; meta-file commit shape per [DEV-RULES.ARC][dev-rules-arc]
 > § Commit Discipline.
 
 ### 5) Push Planning Branch
 
-Set upstream for the planning branch (`workflowPush`): `-u origin plan/{name}`.
+Set upstream for the planning branch.
+
+> [!CAUTION]
+> `push-interlock` release — `workflowPush`: `-u origin plan/{name}`.
 
 ### 6) Proceed to Next Step
 

@@ -142,15 +142,18 @@ section covers author-side declaration shape.
 Ad-hoc commits, recovery operations, and push paths that should always run raw remain
 unannotated; they route as `raw` regardless of opt-in state.
 
-**Verb-elision pattern.** The class tag annotates the verb so the workflow text stays
-single-shape across raw and wrapper modes — the agent supplies `git commit -m` or
-`arc release commit` per the resolved routing.
+**Admonition pattern.** Class-tagged fire sites use a `[!CAUTION]` admonition mirroring the
+interlock-marker shape (gate/fire structural symmetry: both backtick-wrap the interlock name in
+leading position). The admonition names the interlock being released and the class tag firing —
+the agent supplies `git commit -m` / `arc release commit` (or `git push` / `arc release push`) per
+the resolved routing.
 
-- **Commit fire sites:** annotate the verb with the tag, then provide the message body in a
-  `text` codeblock immediately below — no `git commit -m` literal:
+- **Commit fire sites:** admonition with backtick-wrapped interlock name + class tag + colon,
+  then message body in a `text` codeblock:
 
     ````markdown
-    Then commit (`workflowCommit`):
+    > [!CAUTION]
+    > `commit-interlock` release — commit as `workflowCommit`:
 
     ```text
     chore(status): handoff
@@ -159,12 +162,16 @@ single-shape across raw and wrapper modes — the agent supplies `git commit -m`
     ```
     ````
 
-- **Push fire sites:** annotate the verb with the tag, then provide push args as inline
-  backticked prose — no `git push` literal:
+- **Push fire sites:** admonition with interlock name + class tag + push args inline:
 
     ```markdown
-    Push the branch upstream (`workflowPush`): `-u origin {branch-name}`.
+    > [!CAUTION]
+    > `push-interlock` release — `workflowPush`: `-u origin {branch-name}`.
     ```
+
+- **Multi-step bash sequences:** When a fire is part of a multi-command sequence (e.g., branch
+  rename + push + remote-cleanup), inline `# <class>` comment annotation in the bash block is
+  acceptable — admonition extraction would fragment the sequence.
 
 **Destructive flags stay literal.** Flags like `--delete`, `--force`, and `--force-with-lease`
 are never class-tagged — the wrapper refuses them by design. Workflows needing destructive

@@ -28,6 +28,12 @@ documentation style — live in [DEV-RULES.PROJECT][dev-rules-project]. Contribu
 
 ### Commit control
 
+**Concept.** Interlocks gate (stop, await direction). Fire sites release (execute the gated
+operation). Each fire pairs with a specific interlock — `taskCommit` releases commit-interlock at
+task-interlock approval; `workflowCommit` releases commit-interlock at workflow-interlock approval;
+`workflowPush` releases push-interlock at workflow-interlock approval. Class tags name the fire-site
+type; routing (wrapper or raw) follows § Workflow class-tag routing.
+
 - **Commit triggering** · `[configurable]`:
     - Follows `arc.commitInterlock` (the *commit-interlock*). Default `manual` requires explicit user
       approval before each commit.
@@ -37,6 +43,13 @@ documentation style — live in [DEV-RULES.PROJECT][dev-rules-project]. Contribu
     - Follows `arc.pushInterlock` (the *push-interlock*). Default `manual` requires explicit user
       invocation; `on-handoff` mode fires push at handoff only — never per commit.
     - Per-mode behavior lives in the [session-handoff workflow][session-handoff].
+
+- **Implied-approval scope** · Approval released at a structured approval gate — surfaced changes +
+  `<Prefix> <Target>?` prompt (see [process-task-loop][process-task-loop] § Completion protocol) — covers
+  both work AND commit, one turn. Informal mid-discussion approval ("ok", "looks good" to a
+  non-structured surface) is NOT — commit waits for a structured gate. Off-workflow / incidental
+  commits use the same shape: surface what landed, end with `Commit and proceed to <next-target>?`
+  (releasing interlocks) or `Proceed?` (manual). Routing follows existing rules.
 
 - **Release-wrapper invocation** · `[configurable]`:
     - `arc release commit` / `arc release push` are an authorized invocation path. The wrapper validates

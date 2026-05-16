@@ -45,9 +45,11 @@ Verify the integration context:
 Edit `active/meta-{name}.md`: `**State:** Active` → `**State:** Integrating`. The `Integrating` state covers PR
 open through review-response.
 
-Stage and commit as `workflowCommit` — routes per [DEV-RULES.ARC][dev-rules-arc] § Workflow class-tag routing
-(wrapper or raw `git` per `releaseRouting.value.workflowCommit`). Subject `chore(meta):` per § Commit Discipline,
-meta-file commit shape:
+Stage the edit.
+
+> [!CAUTION]
+> `commit-interlock` release — commit as `workflowCommit` (subject `chore(meta):` per § Commit
+> Discipline, meta-file commit shape):
 
 ```text
 chore(meta): integrate {name}
@@ -71,11 +73,10 @@ When disabled, proceed directly to Step 3.
 
 ### 3) Open the PR
 
-Push the WU branch upstream (`workflowPush`):
+Push the WU branch upstream.
 
-```bash
-git push -u origin {type}/{name}
-```
+> [!CAUTION]
+> `push-interlock` release — `workflowPush`: `-u origin {type}/{name}`.
 
 Open the PR:
 
@@ -159,7 +160,10 @@ cleaner for the capture-routing table.
 >
 > Await explicit "proceed to commit + sweep + push" direction.
 
-Bundle composition + drain-write edits into one `workflowCommit`:
+Bundle composition + drain-write edits.
+
+> [!CAUTION]
+> `commit-interlock` release — commit as `workflowCommit`:
 
 ```text
 docs(arc): compose archive-phase content for {name}
@@ -186,21 +190,20 @@ Read `archive.cadence` from [`arc-config.yml`][arc-config]:
 
 ### 12) Final push
 
-Push (`workflowPush`):
+What gets pushed varies by cadence:
 
 - Under `with-integration`: completion content + sweep commits + ROADMAP regen commits.
 - Under `manual`: completion content commit only. Sweep + ROADMAP fire later when `archive-work-unit.md` is
   invoked explicitly post-merge.
 
-```bash
-git push origin {type}/{name}
-```
+> [!CAUTION]
+> `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
+
+After push, the PR is ready for merge per `merge.strategy` in [`arc-config.yml`][arc-config].
 
 > [!IMPORTANT]
 > `integration-interlock`: Stop before merge. Surface PR status (open threads, required approvals, checks) and
 > merge method; await explicit integration approval before merging.
-
-Merge per `merge.strategy` in [`arc-config.yml`][arc-config]:
 
 ```bash
 gh pr merge {pr-number} --merge   # or --squash / --rebase per config

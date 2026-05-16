@@ -147,10 +147,14 @@ serve exploration and are deleted once the PRD captures the conclusions (see
    sessions), advance its `**Next Action:**` to reflect the post-PRD step (e.g., "Run
    `2_generate-tasks.md`"). Skip otherwise (no meta file exists pre-init under non-planning-branch
    flows).
-4. **Commit** (`workflowCommit`): Stage all edits — PRD save (Step 6), any promotion-write inbox
-   deletion (Step 6, arc-in-git), plan deletion + `notes-*` migration (above), meta update (above)
-   — into a single commit. Subject `docs(arc): create prd-{name}`; body itemizes the bundled
-   changes per [DEV-RULES.ARC][dev-rules-arc] § Commit format and § Status-file commit shape.
+
+After substeps 1-3, stage all edits — PRD save (Step 6), any promotion-write inbox deletion (Step
+6, arc-in-git), plan deletion + `notes-*` migration, meta update.
+
+> [!CAUTION]
+> `commit-interlock` release — commit as `workflowCommit`. Subject `docs(arc): create prd-{name}`;
+> body itemizes the bundled changes per [DEV-RULES.ARC][dev-rules-arc] § Commit format and
+> § Status-file commit shape.
 
 ---
 
