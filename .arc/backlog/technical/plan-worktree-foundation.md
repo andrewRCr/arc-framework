@@ -579,6 +579,12 @@ Who owns worktree creation and removal?
   branch, WU-A's worktree can be removed immediately post-merge (archive happens in the main
   worktree, not WU-A's) — but the advisory should make this sequencing explicit so adopters don't
   wait on the batched archive before cleaning up.
+- Removal on deactivation: deactivate-work-unit needs a worktree-cleanup addendum. Case A-delete
+  (abandon entirely) implies worktree removal alongside branch deletion (`git worktree remove`
+  before `git branch -D`). Case A (return to Planning) opens a design question: rename the
+  worktree to match the renamed branch, remove and respawn at `plan/<name>`, or leave the
+  worktree path decoupled from the branch name? Depends on whether worktree paths track branch
+  names by convention or operate independently. Resolve at PRD.
 
 ### Worktree detection depth
 
