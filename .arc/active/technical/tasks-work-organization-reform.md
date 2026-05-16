@@ -1371,13 +1371,23 @@ but runtime checks of `review.planning_checkpoint` halt and `archive.cadence` di
           description is a sync-handler cell name, not a pushability condition kind (pushability uses
           `no-upstream-branch`).
 
-    - `[ ]` **3.9.d `integrate-work-unit` post-PR-create handoff guidance refresh**
-        - Update handoff guidance language to be skip-threshold-aware (no auto-handoff suggestion when remaining work
-          below threshold).
+    - `[~]` **3.9.d ~~`integrate-work-unit` post-PR-create handoff guidance refresh~~ — Superseded**
+        - Premise eliminated by Task 3.4's `integrate-work-unit.md` restructure — no post-PR-create handoff
+          guidance remains in the workflow body to refresh. Audit verified all 5 touched workflows: activate /
+          integrate / archive carry no handoff suggestions at all; `init-work-unit` and `1_create-prd` touch
+          Next Action only to set planning-session prompts (consistent with the contract's planning-session
+          branch). Workflows correctly defer session-boundary decisions to the user; `session-handoff.md` owns
+          the skip-threshold mechanism (lines 108-118) and is user-invoked. Nothing to change.
 
-    - `[ ]` **3.9.e Lifecycle Next Action pointer contract preservation in `session-init` / `session-handoff`**
-        - Verify Next Action field preserves ARC lifecycle workflow prefix at handoff; project-specific detail routes to
-          SESSION-NOTES, not the status field. Touched workflows don't break this contract.
+    - `[x]` **3.9.e Lifecycle Next Action pointer contract preservation in `session-init` / `session-handoff`**
+        - Audit verified touched workflows (3.1-3.8) correctly defer Next Action setting to `session-handoff.md`:
+          activate / integrate / archive don't set Next Action; `init-work-unit` and `1_create-prd` set planning
+          prompts using freeform format consistent with the contract's planning-session branch. Contract text at
+          `session-handoff.md:194-198` trimmed to post-WOR shape: dropped `activate-planning-branch` (renamed to
+          `init-work-unit` per Task 3.2 — not a lifecycle continuation since init's idempotent reconcile doesn't
+          need a step-pointer Next Action) and `rotate` (forward-compat — file retired in Task 3.11.c). Resulting
+          list: `(integrate, archive)`. Synced to packages/. `INTEGRATION_WORKFLOW_PREFIX` regex at
+          `src/commands/active/status.ts:48` verified unchanged — already covers both remaining workflows.
 
 ### `[ ]` **3.10 Wire `pre-commit-review` into `arc-commit` skill**
 
