@@ -49,6 +49,8 @@ const SESSION_INIT_SETTINGS: ConfigSessionInitSettings = {
   "pm.mode": "arc-in-git",
   "commit.format": "conventional",
   "commit.context_footer": "required",
+  "commit.interlock": "manual",
+  "push.interlock": "manual",
 };
 
 function fullResult(overrides: Partial<ConfigStatusResult> = {}): ConfigStatusResult {

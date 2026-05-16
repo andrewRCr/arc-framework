@@ -166,6 +166,8 @@ function makeSessionInitResult(
           "pm.mode": "none",
           "commit.format": "conventional",
           "commit.context_footer": "required",
+          "commit.interlock": "manual",
+          "push.interlock": "manual",
         },
         defaultsApplied: [],
         warnings: [],

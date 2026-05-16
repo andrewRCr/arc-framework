@@ -50,6 +50,9 @@ type; routing (wrapper or raw) follows § Workflow class-tag routing.
   non-structured surface) is NOT — commit waits for a structured gate. Off-workflow / incidental
   commits use the same shape: surface what landed, end with `Commit and proceed to <next-target>?`
   (releasing interlocks) or `Proceed?` (manual). Routing follows existing rules.
+    - **Prefix mapping** (read from session-init envelope `config.settings.commit.interlock`):
+      `Proceed` when `manual`; `Commit and proceed` when `on-task-approval` or `on-workflow`.
+      `pushInterlock` selects the analogous push prefix when a push fire is in scope.
 
 - **Release-wrapper invocation** · `[configurable]`:
     - `arc release commit` / `arc release push` are an authorized invocation path. The wrapper validates
