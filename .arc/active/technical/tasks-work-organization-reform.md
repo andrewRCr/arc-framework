@@ -1376,32 +1376,42 @@ but runtime checks of `review.planning_checkpoint` halt and `archive.cadence` di
           list: `(integrate, archive)`. Synced to packages/. `INTEGRATION_WORKFLOW_PREFIX` regex at
           `src/commands/active/status.ts:48` verified unchanged — already covers both remaining workflows.
 
-### `[ ]` **3.10 Wire `pre-commit-review` into `arc-commit` skill**
+### `[x]` **3.10 Wire `pre-commit-review` into `arc-commit` skill**
 
 - _Goal:_ The `arc-commit` skill — canonical commit entry-point — invokes `pre-commit-review` extension before commit
   creation, alongside existing `prepare-commits.md` workflow wiring. Every-commit-fires naming (R55-R56) honored by
   every-commit-pathway wiring per R57's accountability.
 
-    - _Note:_ This is the substantive functional addition behind the `pre-stage-review` → `pre-commit-review` rename in
-      3.8.b. Without arc-commit wiring, the new name would still mislead. Audit the skill's commit-creation step; insert
-      the extension fire-point check before `git commit` is invoked.
+    - `[x]` **3.10.a Audit `arc-commit/SKILL.md` — verify existing fire-point position**
+        - Verified at SKILL.md line 41 — fire-point position (after staging confirmation, before commit invocation)
+          remains correct under the renamed `pre-commit-review` semantic. No structural move needed; rename handles
+          the semantic clarification.
 
-    - _Note:_ Behavioral change to the canonical commit pathway — recommend integration test in
-      `packages/arc-framework/__tests__/integration/` asserting `arc-commit` invokes the extension's `.actions` when
-      `active: true` and halts on fail. See `strategy-testing-methodology.md` for tier placement.
+    - `[x]` **3.10.b Rename `pre-stage-review` → `pre-commit-review` at the fire-point + refresh language**
+        - Renamed `pre-stage-review` → `pre-commit-review` at SKILL.md line 41 across all three surfaces:
+          `.arc/system/skills/arc-commit/SKILL.md`, `packages/arc-framework/arc/system/skills/arc-commit/SKILL.md`,
+          and harness hand-sync to `.claude/skills/arc-commit/SKILL.md`. Refreshed language adds halt-on-fail
+          clause; preserved the established active-extensions-list pattern.
 
-    - `[ ]` **3.10.a Audit `arc-commit/SKILL.md` for the commit-creation step**
-        - Locate the step that runs `git commit`; identify the right insertion point for extension fire-point check
-          (after staging confirmation, before commit invocation).
+    - `[x]` **3.10.c Update `prepare-commits.md` frontmatter to use `pre-commit-review`**
+        - Updated prepare-commits.md frontmatter `arc.extensions` list (line 9, both copies) —
+          `pre-stage-review` → `pre-commit-review`. 3.8.b leftover closed; body had no other stale refs.
 
-    - `[ ]` **3.10.b Add extension fire-point reference**
-        - Insert language: "If `pre-commit-review` extension is `active: true`, run its `.actions` before commit.
-          Halt-on-fail surfaces actionable message; user can fix and retry or explicit-invoke bypass."
-
-    - `[ ]` **3.10.c Verify `prepare-commits.md` wiring remains intact**
-        - Extension fire-point in `prepare-commits.md` carries forward under the renamed extension (3.8.b updates the
-          reference). 3.10 doesn't change prepare-commits; just confirms the rename didn't break the existing fire-point
-          reference.
+- _Outcome:_ Rename `pre-stage-review` → `pre-commit-review` propagated across the canonical fire-point surfaces
+  (arc-commit SKILL.md + prepare-commits.md frontmatter, both copies plus harness hand-sync). Inline-folds during
+  the audit pass: (1) generalized SKILL.md's narrow `taskCommit` routing reference to acknowledge arc-commit's
+  multi-context invocation envelope (task approval / workflow ceremony / incidental); class is set by the invoker,
+  not the skill. (2) Tier 2 surfaced a pre-existing test gap unrelated to 3.10 but blocking task closure: the
+  `runSessionInitStatus` shape test at `run.test.ts:578` still listed 9 settings keys but b2d8162d added 2 more
+  (`commit.interlock` + `push.interlock`); test updated to expect 11 (1796 → 1796 passing, no test added). The
+  b2d8162d atomic outcome's "Tier 2 clean" claim was inaccurate for this test; worth keeping in mind for future
+  verification-claim discipline. Approval-provenance verification at the arc-commit fire-point intentionally NOT
+  added — Layer 1 hard dependency of the wrapper-routing migration WU per `plan-interlock-release-refinement.md`
+  § In-Flight sequencing. Integration-test recommendation deferred — the skill is markdown not runtime; a contract
+  test asserting "SKILL.md contains `pre-commit-review` at the right position" is doc-shape testing better suited
+  to an extension-wiring catalog test than CLI integration tests. Atomic follow-up captured for manifest.json drift
+  (`.arc/system/.internal/manifest.json` still names the old `pre-stage-review.md` file path — 3.8.b leftover,
+  build-artifact-tier, not runtime-blocking).
 
 ### `[ ]` **3.11 Lifecycle workflow alignment (deactivate restructure + clean update + rotate-branch retirement)**
 

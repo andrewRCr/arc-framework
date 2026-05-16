@@ -6,7 +6,7 @@ arc:
     - commit-format
     - commit-footer
   extensions:
-    - pre-stage-review
+    - pre-commit-review
 ---
 
 # Workflow: Prepare Commits

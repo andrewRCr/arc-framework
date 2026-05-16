@@ -16,6 +16,18 @@ Atomic Task Completion for the full protocol.
 
 ## Tasks
 
+### `[ ]` **manifest.json drift: `pre-stage-review.md` → `pre-commit-review.md` entry rename**
+
+- 3.8.b renamed the extension file (`pre-stage-review.md` → `pre-commit-review.md`) but
+  `.arc/system/.internal/manifest.json` still carries the old file path at line ~219 under the
+  `system/extensions/` entries. Build artifact (tracked in git but install-time generated);
+  runtime not affected since the actual extension file at the new name works. Fix: update the
+  manifest entry's key from `system/extensions/pre-stage-review.md` to
+  `system/extensions/pre-commit-review.md` (and confirm any other keyed metadata still
+  references the old basename). Manifest exists only in `.arc/` instance — no package-source
+  mirror. Atomic-tier infra-edit smell flag applies on principle (`.arc/system/`) but the file
+  is build-state, not load-bearing methodology; fix in place.
+
 ### `[x]` **Audience-vocabulary sweep — WU docs (PRD + task list)**
 
 - _Outcome:_ Swept both WU docs for `\badopters?\b` (case-insensitive). 14 replacements total:
