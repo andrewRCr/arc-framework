@@ -216,10 +216,10 @@
       "layer": "core",
       "pristine_hash": "7540f372e718fb9ac5fd79a28a49d3b02656e489a6d4029fb17c9494e186be0d"
     },
-    "system/extensions/pre-stage-review.md": {
+    "system/extensions/pre-commit-review.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "599f91cc9e7d2e3f366e5777bcd0ebe14e0b0a96651ee1664602185f34f9b7b6"
+      "pristine_hash": "cce3c23a435a8d9c7913ad3b59556bff83b5a570bb0995a54c73a3f759539c65"
     },
     "system/extensions/README.md": {
       "classification": "Framework",

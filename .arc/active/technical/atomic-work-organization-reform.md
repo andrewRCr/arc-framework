@@ -16,18 +16,6 @@ Atomic Task Completion for the full protocol.
 
 ## Tasks
 
-### `[ ]` **manifest.json drift: `pre-stage-review.md` → `pre-commit-review.md` entry rename**
-
-- 3.8.b renamed the extension file (`pre-stage-review.md` → `pre-commit-review.md`) but
-  `.arc/system/.internal/manifest.json` still carries the old file path at line ~219 under the
-  `system/extensions/` entries. Build artifact (tracked in git but install-time generated);
-  runtime not affected since the actual extension file at the new name works. Fix: update the
-  manifest entry's key from `system/extensions/pre-stage-review.md` to
-  `system/extensions/pre-commit-review.md` (and confirm any other keyed metadata still
-  references the old basename). Manifest exists only in `.arc/` instance — no package-source
-  mirror. Atomic-tier infra-edit smell flag applies on principle (`.arc/system/`) but the file
-  is build-state, not load-bearing methodology; fix in place.
-
 ### `[x]` **Audience-vocabulary sweep — WU docs (PRD + task list)**
 
 - _Outcome:_ Swept both WU docs for `\badopters?\b` (case-insensitive). 14 replacements total:
@@ -114,3 +102,14 @@ Atomic Task Completion for the full protocol.
   flipped sequencing — guard co-lands with migration, or lands first; migration-first leaves a
   regression window where the routing change makes the observed failure mode easier to hit,
   not harder.
+
+### `[x]` **manifest.json drift: `pre-stage-review.md` → `pre-commit-review.md` entry rename**
+
+- _Outcome:_ Updated `.arc/system/.internal/manifest.json:219` — key renamed
+  `system/extensions/pre-stage-review.md` → `system/extensions/pre-commit-review.md`;
+  `pristine_hash` refreshed to current `pre-commit-review.md` SHA256
+  (`cce3c23a435a8d9c7913ad3b59556bff83b5a570bb0995a54c73a3f759539c65`). Single reference in the
+  manifest; no other keyed metadata referenced the old basename. `arc health` separately reports
+  other framework files as M-modified — expected in this self-hosting WIP state (no `arc update`
+  against itself), not 3.8.b-related drift. Manifest exists only in `.arc/` instance; no
+  package-source mirror.
