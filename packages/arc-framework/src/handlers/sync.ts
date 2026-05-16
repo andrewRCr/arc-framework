@@ -1125,24 +1125,34 @@ function worktreeBlockGuidance(
 }
 
 function reconcileGuidance(state: WorktreeSyncState): string {
+  const prefix = "Notes saved locally; push deferred.";
   switch (state) {
     case "diverged":
-      return (
-        "Notes push blocked: worktree diverged from origin. "
-        + "Manual rebase or merge needed before pushing notes. "
-        + "(worktree state: diverged)"
-      );
+      return `${prefix} Worktree diverged from origin — reconcile (rebase or merge) `
+        + "before notes can publish.";
     case "remote-ahead":
-      return (
-        "Notes push blocked: origin is ahead of worktree. "
-        + "Fast-forward (`git pull --ff-only`) before pushing notes. "
-        + "(worktree state: remote-ahead)"
-      );
-    default:
-      return (
-        "Notes push blocked: push the worktree first, then `arc user push`. "
-        + `(worktree state: ${state})`
-      );
+      return `${prefix} Worktree behind origin (remote-ahead) — fast-forward `
+        + "(`git pull --ff-only`) before notes can publish.";
+    case "local-ahead":
+      return `${prefix} Worktree local-ahead under \`pushInterlock: manual\` — push `
+        + "(`arc release push` or `git push`) or raise `pushInterlock` to enable cascade.";
+    case "no-upstream":
+      return `${prefix} Branch has no upstream under \`pushInterlock: manual\` — push with `
+        + "`-u` (`git push -u origin <branch>`) or raise `pushInterlock` to enable auto-init.";
+    case "detached-head":
+      return `${prefix} HEAD is detached — check out a branch before notes can publish.`;
+    case "no-remote":
+      return `${prefix} No \`origin\` remote configured — set up a remote before notes can publish.`;
+    case "remote-unavailable":
+      return `${prefix} Origin unavailable — retry when reachable.`;
+    case "clean":
+    case "skipped":
+      // Defensive — reconcileGuidance only fires on save+notes-blocked, which
+      // requires `state ∈ NOTES_BLOCK_WORKTREE_STATES`. `clean` and `skipped`
+      // are structurally outside that set; this arm preserves total-function
+      // shape without inventing user-facing text for a state the path can't
+      // actually reach.
+      return `${prefix} Worktree state: ${state}.`;
   }
 }
 

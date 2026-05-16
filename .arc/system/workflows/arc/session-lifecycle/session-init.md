@@ -293,7 +293,7 @@ planning session, assess readiness for the next unit:
 4. Propose next steps; ask for confirmation before proceeding
 
 > **Full protection (`branch.protection: full`):** Planning work requires a branch. When the user confirms
-> next steps, run [activate-planning-branch][activate-planning-branch] before creating plan documents or PRDs.
+> next steps, run [init-work-unit][init-work-unit] before creating plan documents or PRDs.
 > Under partial protection (the default), proceed directly to [1_create-prd.md][create-prd] — no planning
 > branch needed.
 
@@ -336,6 +336,30 @@ tracked source documents the work.
 
   ```text
   **Local-ahead:** {ahead} unpushed commit(s) on `{branch}`.
+  ```
+
+- `worktree.value.state == "no-upstream"`:
+
+  ```text
+  **New branch:** `{branch}` has no upstream — will be set on first push.
+  ```
+
+- `worktree.value.state == "detached-head"`:
+
+  ```text
+  **Detached HEAD:** check out a branch before push/sync.
+  ```
+
+- `worktree.value.state == "no-remote"`:
+
+  ```text
+  **No remote:** `origin` not configured. Set up a remote before push/sync.
+  ```
+
+- `dirty.value.state == "dirty"`:
+
+  ```text
+  **Uncommitted changes:** {fileCount} file(s) dirty in working tree.
   ```
 
 **Never include**: configuration overrides, active-extensions list (any state), defaults active, freshness
@@ -381,7 +405,7 @@ Examples:
 
 ---
 
-[activate-planning-branch]: ../work-unit-lifecycle/planning/activate-planning-branch.md
+[init-work-unit]: ../work-unit-lifecycle/planning/init-work-unit.md
 [create-prd]: ../1_create-prd.md
 [arc-methods-session]: ../../../methods/session-state.md
 [arc-ext-post-context-load]: ../../../extensions/post-context-load.md

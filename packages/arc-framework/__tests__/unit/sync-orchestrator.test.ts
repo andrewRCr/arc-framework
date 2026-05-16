@@ -356,9 +356,12 @@ describe("handleSync orchestrator matrix dispatch", () => {
     expect(mockRunPairedPush).not.toHaveBeenCalled();
     expect(mockPushWithRecovery).not.toHaveBeenCalled();
     expect(pushedBranchInvocations()).toEqual([]);
-    expect(mockLog.warn).toHaveBeenCalledWith(
-      expect.stringContaining("push the worktree first"),
-    );
+    const warnings = mockLog.warn.mock.calls.map((c) => String(c[0] ?? ""));
+    expect(warnings.some((line) =>
+      /Notes saved locally/i.test(line)
+      && /local-ahead/i.test(line)
+      && /arc release push|git push/.test(line),
+    )).toBe(true);
     expect(process.exitCode).toBe(1);
   });
 
@@ -553,6 +556,28 @@ describe("handleSync orchestrator matrix dispatch", () => {
       },
       exitCode: 1,
     });
+  });
+
+  it("no-upstream + push_interlock: manual surfaces split-state guidance (saved locally; push deferred)", async () => {
+    setConfig("manual");
+    setNotesPolicy("on-sync");
+    setWorktree("no-upstream", 0, 0, "main");
+    mockRunUserSave.mockResolvedValue({
+      identity: "andrew",
+      commit: "abc1234",
+      fileCount: 1,
+      warnings: [],
+    });
+
+    await handleSync();
+
+    const warnings = mockLog.warn.mock.calls.map((c) => String(c[0] ?? ""));
+    expect(warnings.some((line) =>
+      /Notes saved locally/i.test(line)
+      && /no upstream/i.test(line)
+      && /git push -u/i.test(line),
+    )).toBe(true);
+    expect(process.exitCode).toBe(1);
   });
 
   it("rebase-in-progress skips save with guidance before refusing sync", async () => {
