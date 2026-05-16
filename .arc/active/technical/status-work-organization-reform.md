@@ -9,13 +9,16 @@
 - **Task List:** `tasks-work-organization-reform.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task 3.13 — Local-ahead notes orientation surface (3.9.c deferred follow-up)
-  at `d35c6584`. Pillar 4 scope added to `plan-instruction-optimization.md` at `903d61d7`.
+- **Last Completed:** Off-task-list: inventory triage (`93b50a4a` — unblocked 96 pre-existing
+  ENOENT-rooted fails); interlock prompt-shape miss → A1+A2 visibility fix landed
+  (`b2d8162d`); interlock/release work consolidated to `plan-interlock-release-refinement.md`
+  (`ad0bb31f`).
 
 - **Next Task:** Task 3.10 — Wire `pre-commit-review` into `arc-commit` skill (line ~1379).
 
 - **Blockers:** [none]
 
-- **Next Action:** Triage remaining CI failures (see SESSION-NOTES § Remaining Work) before resuming Task 3.10.
+- **Next Action:** Start with `plan-interlock-release-refinement.md` § In-Flight (wrapper-routing
+  migration for off-workflow incidentals — quick-tier, ADR-light worthy) before returning to Task 3.10.
 
 ---
