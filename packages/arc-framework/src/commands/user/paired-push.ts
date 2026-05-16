@@ -77,7 +77,10 @@ import type {
 export async function runPairedPush(
   options: RunPairedPushOptions,
 ): Promise<PairedPushResult> {
-  const { io, identity, cwd, access, branch, worktreeSyncState, pushNotes } = options;
+  const {
+    io, identity, cwd, access, branch, worktreeSyncState, pushNotes,
+    setUpstream = false,
+  } = options;
 
   const pushability = await runPushabilityStatus({
     exec: io.exec,
@@ -86,11 +89,20 @@ export async function runPairedPush(
     worktreeSyncState,
   });
 
+  // Filter the caller-resolvable `no-upstream-branch` condition out of the
+  // refusal check when the orchestrator opted into upstream init. The
+  // worktree leg below picks up `-u` to publish and set upstream in one op.
+  const conditionsAfterResolution = setUpstream
+    ? pushability.conditions.filter((c) => c.kind !== "no-upstream-branch")
+    : pushability.conditions;
+  const refused = conditionsAfterResolution.some(
+    (c) => c.disposition === "block" || c.disposition === "caller-resolvable",
+  );
   const refusedByAdvisory = pushability.conditions.some(
     (c) => c.disposition === "advisory" && c.kind === "force-push-required",
   );
 
-  if (!pushability.allowed || refusedByAdvisory) {
+  if (refused || refusedByAdvisory) {
     return {
       save: { status: "skipped", reason: "blocked-by-precheck" },
       worktree: { status: "skipped", reason: "blocked-by-precheck" },
@@ -111,7 +123,11 @@ export async function runPairedPush(
     };
   }
 
-  const worktree = await pushWorktreeBranch({ exec: io.exec, branch });
+  const worktree = await pushWorktreeBranch({
+    exec: io.exec,
+    branch,
+    args: setUpstream ? ["-u"] : [],
+  });
   if (worktree.status === "failed") {
     return {
       save,

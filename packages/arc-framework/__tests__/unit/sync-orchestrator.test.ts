@@ -459,7 +459,6 @@ describe("handleSync orchestrator matrix dispatch", () => {
 
   it.each([
     ["remote-ahead", 0, 3, "main"],
-    ["no-upstream", 0, 0, "main"],
     ["remote-unavailable", 0, 0, "main"],
     ["detached-head", 0, 0, null],
   ] satisfies Array<[WorktreeSyncState, number, number, string | null]>)(
@@ -501,6 +500,60 @@ describe("handleSync orchestrator matrix dispatch", () => {
       });
     },
   );
+
+  it("no-upstream + push_interlock: on-sync → paired-push-with-upstream-init cell; setUpstream threaded", async () => {
+    setConfig("on-sync");
+    setNotesPolicy("on-sync");
+    setWorktree("no-upstream", 0, 0, "main");
+    mockRunPairedPush.mockResolvedValue({
+      save: {
+        status: "success",
+        result: { identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] },
+      },
+      worktree: { status: "success" },
+      notes: { status: "success" },
+      conditions: [],
+      exitCode: 0,
+    });
+
+    const outcome = await captureSyncJson();
+
+    expect(mockRunPairedPush).toHaveBeenCalledTimes(1);
+    expect(mockRunPairedPush).toHaveBeenCalledWith(expect.objectContaining({
+      branch: "main",
+      worktreeSyncState: "no-upstream",
+      setUpstream: true,
+    }));
+    expect(outcome.cell).toBe("paired-push-with-upstream-init");
+    expect(outcome.exitCode).toBe(0);
+  });
+
+  it("no-upstream + push_interlock: manual → falls through to existing notes-blocked path (not auto-resolved)", async () => {
+    setConfig("manual");
+    setNotesPolicy("on-sync");
+    setWorktree("no-upstream", 0, 0, "main");
+    mockRunUserSave.mockResolvedValue({
+      identity: "andrew",
+      commit: "abc1234",
+      fileCount: 1,
+      warnings: [],
+    });
+
+    const outcome = await captureSyncJson();
+
+    expect(mockRunPairedPush).not.toHaveBeenCalled();
+    expect(outcome.cell).toBe("notes-blocked");
+    expect(outcome).toMatchObject({
+      worktree: { action: "skip", result: "skipped", detail: "not-configured" },
+      save: { action: "save", result: "success" },
+      notes: {
+        action: "push",
+        result: "blocked",
+        detail: "notes-blocked-by-worktree:no-upstream",
+      },
+      exitCode: 1,
+    });
+  });
 
   it("rebase-in-progress skips save with guidance before refusing sync", async () => {
     setConfig("manual");
@@ -1157,7 +1210,6 @@ describe("audit-log integration", () => {
   it.each([
     ["diverged", 1, 2, "main"],
     ["remote-ahead", 0, 3, "main"],
-    ["no-upstream", 0, 0, "main"],
     ["detached-head", 0, 0, null],
     ["no-remote", 0, 0, "main"],
     ["remote-unavailable", 0, 0, "main"],

@@ -429,4 +429,53 @@ describe("runPairedPush", () => {
       expect(mockClearPartialPushMarker).not.toHaveBeenCalled();
     },
   );
+
+  it("setUpstream: true → worktree push fires with -u; caller-resolvable no-upstream filtered from refusal", async () => {
+    const responses = cleanRepoResponses();
+    // Simulate the no-upstream branch state: REV_PARSE_UPSTREAM throws.
+    responses[REV_PARSE_UPSTREAM] = () => {
+      throw new Error("fatal: no upstream configured for branch 'main'");
+    };
+    const { exec, calls } = buildExec(responses);
+    const io = buildIo(exec);
+    const access = buildAccess([]);
+    const { pushNotes } = stubPushNotes({ status: "success" });
+
+    const result = await runPairedPush({
+      io,
+      access,
+      pushNotes,
+      ...COMMON_OPTIONS,
+      setUpstream: true,
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.worktree).toMatchObject({ status: "success" });
+    const pushArgs = calls
+      .map((c) => c.args)
+      .filter((args) => args[0] === "push");
+    expect(pushArgs).toEqual([["push", "origin", "main", "-u"]]);
+  });
+
+  it("setUpstream: false (default) with no-upstream → refuses before save fires", async () => {
+    const responses = cleanRepoResponses();
+    responses[REV_PARSE_UPSTREAM] = () => {
+      throw new Error("fatal: no upstream configured for branch 'main'");
+    };
+    const { exec, calls } = buildExec(responses);
+    const io = buildIo(exec);
+    const access = buildAccess([]);
+    const { pushNotes } = stubPushNotes({ status: "success" });
+
+    const result = await runPairedPush({ io, access, pushNotes, ...COMMON_OPTIONS });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.save).toEqual({ status: "skipped", reason: "blocked-by-precheck" });
+    expect(result.worktree).toEqual({ status: "skipped", reason: "blocked-by-precheck" });
+    expect(mockRunUserSave).not.toHaveBeenCalled();
+    const pushArgs = calls
+      .map((c) => c.args)
+      .filter((args) => args[0] === "push");
+    expect(pushArgs).toEqual([]);
+  });
 });

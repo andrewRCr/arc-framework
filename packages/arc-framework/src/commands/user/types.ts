@@ -291,6 +291,14 @@ export interface RunPairedPushOptions {
   /** Pre-resolved worktree sync state for force-push detection. */
   worktreeSyncState?: WorktreeSyncState;
   /**
+   * When `true`, the worktree leg pushes with `-u` to publish and set
+   * upstream in one operation, and the pushability `no-upstream-branch`
+   * caller-resolvable condition is filtered out of the refusal check.
+   * The orchestrator (sync `decideWorktree`) decides this based on
+   * `pushInterlock` and current state. Default `false`.
+   */
+  setUpstream?: boolean;
+  /**
    * Notes-leg pusher delegate. Production wires
    * `pushWithInteractiveRecovery` so the paired flow inherits its
    * conflict-recovery and idempotent-noop semantics; tests inject a stub.

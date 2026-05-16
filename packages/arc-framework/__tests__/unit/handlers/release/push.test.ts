@@ -437,15 +437,6 @@ describe("runReleasePush — code 14 (pushability-precheck-failed)", () => {
       { kind: "detached-head", disposition: "block", guidance: "Detached HEAD." },
     ],
     [
-      "no-upstream-branch",
-      {
-        kind: "no-upstream-branch",
-        disposition: "caller-resolvable",
-        branch: "feature/x",
-        guidance: "No upstream.",
-      },
-    ],
-    [
       "worktree-not-aligned-with-origin",
       {
         kind: "worktree-not-aligned-with-origin",
@@ -527,6 +518,103 @@ describe("runReleasePush — code 14 (pushability-precheck-failed)", () => {
 
     await runReleasePush(deps);
 
+    expect(spawnPush).not.toHaveBeenCalled();
+  });
+});
+
+// --- Caller-resolvable `no-upstream-branch` auto-resolution ---
+
+describe("runReleasePush — caller-resolvable no-upstream-branch", () => {
+  let fixture: Fixture;
+  beforeEach(async () => { fixture = await createFixture(); });
+  afterEach(async () => { await rm(fixture.root, { recursive: true, force: true }); });
+
+  const noUpstream: PushabilityCondition = {
+    kind: "no-upstream-branch",
+    disposition: "caller-resolvable",
+    branch: "feature/x",
+    guidance: "Set upstream first: `git push -u origin feature/x`",
+  };
+
+  it("auto-injects -u when push_interlock=on-workflow and argv lacks -u", async () => {
+    await writeStatus(fixture.root, "technical", "sample");
+    const { deps, spawnPush } = buildDeps(fixture.root, {
+      argv: [],
+      pushability: pushabilityWith([noUpstream]),
+      spawnPush: () => Promise.resolve({ status: "success", stdout: "", stderr: "" }),
+    });
+
+    const result = await runReleasePush(deps);
+
+    expect(result.exitCode).toBe(0);
+    expect(spawnPush).toHaveBeenCalledTimes(1);
+    const callArg = spawnPush.mock.calls[0]?.[0] as { args: string[] } | undefined;
+    expect(callArg?.args).toEqual(["-u"]);
+  });
+
+  it("passes argv through unchanged when -u is already present", async () => {
+    await writeStatus(fixture.root, "technical", "sample");
+    const { deps, spawnPush } = buildDeps(fixture.root, {
+      argv: ["-u"],
+      pushability: pushabilityWith([noUpstream]),
+      spawnPush: () => Promise.resolve({ status: "success", stdout: "", stderr: "" }),
+    });
+
+    const result = await runReleasePush(deps);
+
+    expect(result.exitCode).toBe(0);
+    expect(spawnPush).toHaveBeenCalledTimes(1);
+    const callArg = spawnPush.mock.calls[0]?.[0] as { args: string[] } | undefined;
+    // No double-injection — single `-u` from the original argv.
+    expect(callArg?.args).toEqual(["-u"]);
+  });
+
+  it("recognizes --set-upstream as the same intent signal as -u", async () => {
+    await writeStatus(fixture.root, "technical", "sample");
+    const { deps, spawnPush } = buildDeps(fixture.root, {
+      argv: ["--set-upstream"],
+      pushability: pushabilityWith([noUpstream]),
+      spawnPush: () => Promise.resolve({ status: "success", stdout: "", stderr: "" }),
+    });
+
+    const result = await runReleasePush(deps);
+
+    expect(result.exitCode).toBe(0);
+    const callArg = spawnPush.mock.calls[0]?.[0] as { args: string[] } | undefined;
+    expect(callArg?.args).toEqual(["--set-upstream"]);
+  });
+
+  it("refuses with code 14 when push_interlock=manual and argv lacks -u", async () => {
+    await writeStatus(fixture.root, "technical", "sample");
+    const settings = buildSettings({ pushInterlock: "manual" });
+    const { deps, spawnPush, stderr } = buildDeps(fixture.root, {
+      argv: [],
+      settings,
+      pushability: pushabilityWith([noUpstream]),
+    });
+
+    const result = await runReleasePush(deps);
+
+    expect(result.exitCode).toBe(14);
+    expect(spawnPush).not.toHaveBeenCalled();
+    expect(stderr.join("")).toContain("no-upstream-branch");
+  });
+
+  it("auto-resolves when push_interlock=manual but argv carries -u", async () => {
+    await writeStatus(fixture.root, "technical", "sample");
+    const settings = buildSettings({ pushInterlock: "manual" });
+    const { deps, spawnPush } = buildDeps(fixture.root, {
+      argv: ["-u"],
+      settings,
+      pushability: pushabilityWith([noUpstream]),
+      spawnPush: () => Promise.resolve({ status: "success", stdout: "", stderr: "" }),
+    });
+
+    const result = await runReleasePush(deps);
+
+    // Pushability auto-resolves. Interlock=manual then refuses at step 5
+    // with code 11 — confirming pushability did not refuse with 14.
+    expect(result.exitCode).toBe(11);
     expect(spawnPush).not.toHaveBeenCalled();
   });
 });
