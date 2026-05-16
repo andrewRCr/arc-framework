@@ -45,11 +45,10 @@ what has been true (and uncontroversial) for sync.
 Sync joins the audit-log umbrella in the same work unit. The retrofit (`writeSyncAuditEntry` in
 `handlers/sync.ts`) emits one `command: "sync"` entry per executed sync run, mapping all matrix-cell outcomes
 onto the release-wrapper audit shape. Refused-cell paths (`blocked-diverged`, `blocked-remote-ahead`,
-`blocked-no-upstream`, `blocked-detached-head`, `blocked-no-remote`, `blocked-remote-unavailable`) record
-`decision: "refused"` with `refusalCode: 14` (`pushability-precheck-failed`); proceed-cell paths record
-`decision: "proceeded"`. Per-leg state compresses into a grep-friendly `action:result[:detail]` token. Sync
-becomes the first retrofitted citizen of the wrapper-authorization umbrella, not a pre-existing gap left
-un-addressed.
+`blocked-detached-head`, `blocked-no-remote`, `blocked-remote-unavailable`) record `decision: "refused"` with
+`refusalCode: 14` (`pushability-precheck-failed`); proceed-cell paths record `decision: "proceeded"`. Per-leg
+state compresses into a grep-friendly `action:result[:detail]` token. Sync becomes the first retrofitted
+citizen of the wrapper-authorization umbrella, not a pre-existing gap left un-addressed.
 
 Three sync exit paths intentionally skip the audit-entry write: identity-absent (audit path is identity-keyed,
 so no surface to write to), no-arc-project (pre-init or out-of-repo invocation), and dry-run (explicit
@@ -260,6 +259,30 @@ representative dev tools, the `release.enabled` semantic walkthrough, naming con
 This is a scope-clarification amendment, not a reversal of the decision. The trust-model framing, two-layer
 authorization model, wrapper authorization scaffolding, sync forensic umbrella, and bypass-universality
 clause are unchanged.
+
+**2026-05-16 — `no-upstream-branch` becomes caller-resolvable.** Work Organization Reform surfaced that
+the original wrapper behavior on a no-upstream branch (refuse with code 14) violated the "everything
+non-destructive automatic" principle: activating a fresh WU naturally produces a no-upstream branch on
+first push, and refusing under the wrapper forced the agent or user to drop to raw `git push -u`. A new
+`caller-resolvable` disposition tier on the pushability matrix lets orchestrators auto-inject `-u` when
+EITHER the argv already declares the intent (`-u` / `--set-upstream`), OR `pushInterlock !== "manual"`.
+Under `manual` + no explicit `-u`, the original refusal path remains — preserves the user's "no
+auto-cascade under manual" intent.
+
+Refusal taxonomy: `blocked-no-upstream` removed from the sync-cell refused set (sync auto-resolves via
+the new `paired-push-with-upstream-init` / `worktree-only-with-upstream-init` /
+`worktree-with-upstream-init+notes-prompt` cells when `pushInterlock !== "manual"`; under `manual`,
+worktree skip-not-configured fires before the block-state check, so `blocked-no-upstream` is
+structurally unreachable). Release-push refuses on `no-upstream-branch` only when both trust signals
+fail — argv lacks `-u` AND `pushInterlock === "manual"`.
+
+The `isRefusalCondition` helper (`block` ∪ `caller-resolvable`) centralizes the "what causes refusal"
+predicate across pushability, sync, user, user-sync, user/types, and release/push so future condition
+additions don't risk drift between the matrix and its consumers.
+
+Trust-model framing, two-layer authorization, wrapper authorization scaffolding, sync forensic
+umbrella, and bypass-universality clause are unchanged. This is a behavior refinement at the
+caller-side of the matrix surface, not a reversal of the decision.
 
 ---
 

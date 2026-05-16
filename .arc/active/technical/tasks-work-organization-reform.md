@@ -1314,7 +1314,7 @@ but runtime checks of `review.planning_checkpoint` halt and `archive.cadence` di
   2 / 5 now unblocked — both renamed/new files exist on disk, anchors can be restored at author discretion
   (persistent-context entry's removal trigger met).
 
-### `[ ]` **3.9 Inline-fold R53 audits across touched workflows**
+### `[x]` **3.9 Inline-fold R53 audits across touched workflows**
 
 - _Goal:_ R53's five inline-fold audits ride this WU's workflow touches — class-tag routing, workflow-interlock
   markers, `arc sync` / `arc release push` auto-set-upstream, `integrate-work-unit` post-PR-create handoff guidance,
@@ -1338,38 +1338,25 @@ but runtime checks of `review.planning_checkpoint` halt and `archive.cadence` di
           with proper `## Next Step` section pointing to 2_generate-tasks, matching activate-work-unit's exit
           pattern.
 
-    - `[ ]` **3.9.c Push/notes/upstream UX coherence pass (`arc sync` / `arc release push` + session-init transparency)**
-        - Coordinated change spanning probe, orchestrators, orientation, guidance, and ADR. Core behavior: new
-          `caller-resolvable` disposition on the pushability matrix lets `no-upstream-branch` surface as resolvable
-          rather than `block`; orchestrators (`handlers/release/push.ts`, `handlers/sync.ts` `decideWorktree`)
-          auto-resolve when EITHER `-u` / `--set-upstream` is in argv OR `pushInterlock != manual`, injecting `-u`
-          into the spawn when not already present. Under `manual` + no explicit `-u`: refuse with forward-routing
-          guidance (set upstream manually OR raise `pushInterlock`). Sync gets a new cell name
-          (`paired-push-with-upstream-init` or similar) — `NOTES_BLOCK_WORKTREE_STATES` unchanged; notes cascade
-          unblocks naturally because the worktree leg now resolves. Session-init orientation surfaces
-          `recommendedAction: "skip"` states informationally when state is non-default — closes the "skip = silent"
-          principle gap. Cases: `no-upstream` (positive framing — will be set on first push), `detached-head`
-          (warning), `no-remote` (warning), `dirty` (informational — N uncommitted files), notes-channel
-          `local-ahead` (informational — N note(s) pending push). New conditional orientation sections analogous to
-          existing `Local-ahead:` / `Reconcile required:`. Guidance strings (`handlers/sync.ts:1063`,
-          `commands/status/format.ts:82`, `save+notes-blocked` cell output) state split-state facts plainly:
-          `save+notes-blocked` reports local-save fired and push deferred with reason — no implicit promises about
-          future-session behavior. ADR-017 refusal taxonomy amended (`blocked-no-upstream` → conditional refusal
-          gated on `manual` + no `-u`). Integration test: wrapper-routed `workflowPush` on no-upstream branch under
-          `pushInterlock: on-workflow` succeeds via auto-`-u`. Tests updated across `pushability.test.ts`,
-          `release/push.test.ts`, `sync-orchestrator.test.ts`, and `session-init/recommended-action.test.ts`.
-        - _Note:_ Scope expanded mid-execution beyond the original "auto-set-upstream behavior change" one-liner.
-          Pressure-test surfaced coordinated change needed across pushability + release-push + sync (original named
-          only the pushability cell, but sync has its own parallel gate at `decideWorktree`), plus orientation
-          transparency gaps for `recommendedAction: "skip"` states and guidance gaps for cascade-blocked notes under
-          `manual` (the local save fires but isn't surfaced clearly). Folded all into 3.9.c — one UX coherence pass;
-          partial fixes risk leaving the system in a worse state than the current uniform refusal. Latent bug context:
-          activation under wrapper-routed `workflowPush` (`releaseOptedIn: true` + `pushInterlock: on-workflow`) is
-          currently broken on no-upstream branches; this WU's own activation predates the wrapper so the bug is
-          latent until next activation under current config. Precondition satisfied — `pushability` matrix exists at
-          `packages/arc-framework/src/lib/git/pushability.ts`; the `blocked-no-upstream` name in the original task
-          description is a sync-handler cell name, not a pushability condition kind (pushability uses
-          `no-upstream-branch`).
+    - `[x]` **3.9.c Push/notes/upstream UX coherence pass (`arc sync` / `arc release push` + session-init transparency)**
+        - Four commits landing six work areas. (1) Pushability matrix: new `caller-resolvable` disposition +
+          `isRefusalCondition` helper centralizing the "what causes refusal" predicate across seven consumers
+          (`03012ac6`). (2) release-push + sync + paired-push orchestrators auto-resolve no-upstream via argv-`-u` OR
+          `pushInterlock != manual`; new sync `push-with-upstream-init` `WorktreeAction` arm + three cell variants
+          (`paired-push-with-upstream-init` / `worktree-only-with-upstream-init` /
+          `worktree-with-upstream-init+notes-prompt`); `blocked-no-upstream` removed from `REFUSED_SYNC_CELLS`
+          (structurally unreachable) (`a290a60e`). (3) Session-init orientation transparency — four new conditional
+          sections for `no-upstream` / `detached-head` / `no-remote` / `dirty` — plus sync's `reconcileGuidance`
+          rewrite to split-state notes guidance ("Notes saved locally; push deferred. <reason>.") with
+          forward-routing actionable hints for all seven NOTES_BLOCK_WORKTREE_STATES cases (`0448a35c`). (4) ADR-017
+          amendment recording the `caller-resolvable` disposition addition and refusal-taxonomy update + integration
+          test against tmpdir git repo on a fresh no-upstream branch (this commit). Activation latent bug resolved
+          — wrapper-routed `workflowPush` on no-upstream branch under `pushInterlock: on-workflow` now succeeds via
+          auto-`-u`; previously refused with code 14. Tests: +11 unit (pushability, release/push, sync orchestrator,
+          paired-push) + 2 integration (real probe vs. tmpdir git repo). Scope expanded mid-execution per
+          pre-implementation audit findings — documented at task rewrite (`65542470`) with rationale. Local-ahead
+          notes orientation surface deferred — `UserSessionInitState` spine collapses local-ahead to clean; needs
+          deeper spine change, tracked for follow-up.
 
     - `[~]` **3.9.d ~~`integrate-work-unit` post-PR-create handoff guidance refresh~~ — Superseded**
         - Premise eliminated by Task 3.4's `integrate-work-unit.md` restructure — no post-PR-create handoff
