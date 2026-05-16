@@ -182,6 +182,27 @@ The vocabulary + method shape is what makes those extensions composable.
 - DEV-RULES.ARC § Task Execution and § Commit Discipline updates. The deferred-review rule
   changes; the leaf-default formalizes; the bundling overlay needs documentation.
 
+**Parallel structural concept — first-class approval-provenance state (captured for evaluation, not adopted):**
+
+Today the agent reconstructs "what approval surface authorized this fire?" at every commit site —
+walking back through recent prompts, class-tag context, and interlock-mode config. A structurally
+cleaner shape carries approval-provenance as first-class session state:
+`currentApprovalProvenance: { source: "task" | "workflow" | "incidental-prompt" | null, scope, timestamp }`.
+Approval gates populate it; fire sites consume it. The fire-site decision collapses to "is provenance
+fresh and in-scope? fire (route per `releaseOptedIn`) : prompt to establish provenance."
+
+Composes with this plan because:
+
+- The deferred-review fix's "user-scoped scope declaration is the approval signal" framing maps
+  cleanly onto provenance state — deferred review *is* a provenance source with a defined scope.
+- Bundling signals + commit-interlock release would both read provenance rather than reconstruct it.
+- Cross-machine resume via plan-coord-probe gets a clean handoff property (provenance can be
+  explicitly null at handoff; next session starts fresh, no inheritance ambiguity).
+
+Not adopted; flagged for PRD-time evaluation. Bigger structural change than the commit-increment
+reshape on its own — could ship independently as a separate WU or fold in if scope fits. Origin:
+2026-05-16 mid-WOR session, surfaced during interlock-prompt-shape audit.
+
 **Assumptions to validate during PRD:**
 
 - The signal set (file overlap, sibling subtasks, explicit marker hint) covers the common
@@ -246,6 +267,6 @@ the conversation.
 
 ---
 
-[plan-irw]: plan-interlock-release-wrappers.md
+[plan-irw]: ../../reference/strategies/arc/strategy-interlock-release-wrappers.md
 [plan-coord-probe]: plan-coord-probe.md
 [plan-rmf]: plan-review-method-family.md
