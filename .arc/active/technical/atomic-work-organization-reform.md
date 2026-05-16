@@ -113,3 +113,28 @@ Atomic Task Completion for the full protocol.
   other framework files as M-modified — expected in this self-hosting WIP state (no `arc update`
   against itself), not 3.8.b-related drift. Manifest exists only in `.arc/` instance; no
   package-source mirror.
+
+### `[x]` **General audit pass on `clean-work-unit.md` + `deactivate-work-unit.md`**
+
+- _Outcome:_ Audited both workflows against current ARC practice and harness-agnosticism; restructure
+  landed across three commits.
+    - **clean** (`b79e891f`): reshaped as section-anchor toolkit (`§ Notes File Consolidation`,
+      `§ Task List Temporal-Noise Pass`, `§ Quality Checks`); moved `work-unit-lifecycle/` →
+      `supplemental/`. Dropped bimodal Mode 1/Mode 2 framing, duplicate `Active → Integrating` State
+      edit, harness-coupled 120k-token check, CLEANUP-PROGRESS overhead, file-size brackets, Inputs
+      scaffolding, hardcoded `npx markdownlint-cli2` command (defers to QUICK-REFERENCE).
+      **integrate** absorbs the ceremony role via new Step 5 (always-fires notes-file disposition gate
+      keep+clean / keep as-is / delete; on-signal task-list temporal-noise pass survey); Steps 5–12
+      renumbered to 6–13; pre-existing 'Step 13' typo in Next Step fixed to Step 12. Live cross-ref
+      sweep: manifest pristine_hashes refreshed, strategy-work-organization (Mode 2 qualifier dropped,
+      link def repathed), strategy-package-project-sync (file list resort), archive/README
+      (Mode 2/MANDATORY step collapsed), plan-worktree-foundation (link def repathed).
+    - **deactivate** (`e2934d38`): surgical pass. Dropped redundant `## When NOT to Deactivate` (Case
+      Matrix at top already routed Cases B/C/D; prose restated routing with now-stale clean-work-unit
+      semantics). Added QUICK-REFERENCE platform-equivalents pointer to Case A-delete Step 1 (mirrors
+      Case A Step 1). Removed orphan `[clean]` and `[integrate]` link defs (only referenced inside
+      the dropped section).
+    - **plan-worktree-foundation** (`9d77fb90`): captured deactivate × worktree concern under
+      § Open Questions § Worktree lifecycle ceremony — Case A-delete implies worktree removal
+      alongside branch deletion; Case A opens design call (rename vs respawn at `plan/<name>` vs
+      decouple path from branch); resolves at that WU's PRD.
