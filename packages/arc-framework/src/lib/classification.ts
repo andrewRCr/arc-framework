@@ -93,8 +93,11 @@ const CONFIGURABLE_FILES: ReadonlySet<string> = new Set([
   "system/extensions/post-unit-quality.md",
   "system/extensions/post-work-unit-activate.md",
   "system/extensions/post-work-unit-archive.md",
+  "system/extensions/pre-activation.md",
+  "system/extensions/pre-commit-review.md",
   "system/extensions/pre-merge-review.md",
-  "system/extensions/pre-stage-review.md",
+  "system/extensions/pre-pr-review.md",
+  "system/extensions/pre-push-review.md",
 ]);
 
 /**

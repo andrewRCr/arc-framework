@@ -143,7 +143,8 @@ describe("init", () => {
     const extensionNames = [
       "post-context-load", "post-task-completion", "post-task-quality",
       "post-unit-quality", "post-work-unit-activate",
-      "post-work-unit-archive", "pre-merge-review", "pre-stage-review",
+      "post-work-unit-archive", "pre-activation", "pre-commit-review",
+      "pre-merge-review", "pre-pr-review", "pre-push-review",
     ];
 
     for (const name of methodNames) {

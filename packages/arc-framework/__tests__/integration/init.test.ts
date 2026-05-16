@@ -295,7 +295,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     }
   });
 
-  it("installs all 8 per-file extensions plus README in system/extensions/", async () => {
+  it("installs all 11 per-file extensions plus README in system/extensions/", async () => {
     const extensionFiles = [
       "post-context-load.md",
       "post-task-completion.md",
@@ -303,8 +303,11 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       "post-unit-quality.md",
       "post-work-unit-activate.md",
       "post-work-unit-archive.md",
+      "pre-activation.md",
+      "pre-commit-review.md",
       "pre-merge-review.md",
-      "pre-stage-review.md",
+      "pre-pr-review.md",
+      "pre-push-review.md",
       "README.md",
     ];
     for (const name of extensionFiles) {
@@ -314,7 +317,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
   });
 
   it(
-    "registers all 18 per-file methods/extensions in manifest — 16 Configurable, 2 READMEs Framework",
+    "registers all 21 per-file methods/extensions in manifest — 19 Configurable, 2 READMEs Framework",
     async () => {
       const manifest = await readManifestFile(tempDir);
 
@@ -326,7 +329,8 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       const extensionNames = [
         "post-context-load", "post-task-completion", "post-task-quality",
         "post-unit-quality", "post-work-unit-activate",
-        "post-work-unit-archive", "pre-merge-review", "pre-stage-review",
+        "post-work-unit-archive", "pre-activation", "pre-commit-review",
+        "pre-merge-review", "pre-pr-review", "pre-push-review",
       ];
 
       for (const name of methodNames) {

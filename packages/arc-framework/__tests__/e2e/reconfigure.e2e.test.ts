@@ -172,13 +172,13 @@ describe("arc init --reconfigure", () => {
     );
     expect(reconf.exitCode).toBe(0);
 
-    // All 18 files still present and byte-identical.
+    // All 21 files still present and byte-identical.
     for (const [rel, original] of Object.entries(before)) {
       const current = await readFile(join(tmpDir, ".arc", rel), "utf-8");
       expect(current, `${rel} changed during reconfigure`).toBe(original);
     }
 
-    // Manifest still has all 18 entries with unchanged classification.
+    // Manifest still has all 21 entries with unchanged classification.
     const manifest = await readInstallManifest(tmpDir);
     for (const name of methodNames) {
       const key = `system/methods/${name}.md`;

@@ -133,7 +133,7 @@ describe("update integration — baseline (real recipe)", () => {
     expect(result.removed).toEqual([]);
     expect(result.reclassified).toEqual([]);
 
-    // Per-file methods/extensions specifically: none of the 18 entries moved
+    // Per-file methods/extensions specifically: none of the 21 entries moved
     // through added/removed/updated/conflicts.
     const perFilePaths = [
       ...[
@@ -144,7 +144,8 @@ describe("update integration — baseline (real recipe)", () => {
       ...[
         "post-context-load", "post-task-completion", "post-task-quality",
         "post-unit-quality", "post-work-unit-activate",
-        "post-work-unit-archive", "pre-merge-review", "pre-stage-review",
+        "post-work-unit-archive", "pre-activation", "pre-commit-review",
+        "pre-merge-review", "pre-pr-review", "pre-push-review",
       ].map((n) => `system/extensions/${n}.md`),
       "system/methods/README.md",
       "system/extensions/README.md",
