@@ -439,7 +439,7 @@
     "system/workflows/arc/work-unit-lifecycle/deactivate-work-unit.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "0ee60e33d16d8fcf2af9268a9a80c781c142c1ba3f30e4fb628a1092adf94bfd"
+      "pristine_hash": "87ec5408688b129b6d392ded36d3649fd03fa5c882cd14b01f503764303e8018"
     },
     "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md": {
       "classification": "Framework",

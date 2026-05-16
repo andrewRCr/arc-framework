@@ -102,6 +102,8 @@ stays as raw `git`.
 gh pr close {pr-number} --comment "Deactivating work unit; abandoning. No task work executed."
 ```
 
+See QUICK-REFERENCE § Platform Commands for non-GitHub equivalents.
+
 ### 2) Switch to base branch
 
 ```bash
@@ -146,29 +148,6 @@ Context: meta-{name}.md (deactivation)
 
 ---
 
-## When NOT to Deactivate
-
-Cases B, C, and D from the Case Matrix route elsewhere.
-
-### Case B — Not merged, some work executed → pause
-
-A WU with partial work belongs to `arc-shift` territory (metadata-in-place pause). Until `arc-shift` ships, either
-complete the WU via [`integrate-work-unit.md`][integrate] or abandon it via [`clean-work-unit.md`][clean] — manual
-pausing without shift protocol support invites state drift.
-
-### Case C — Merged to base, no work executed → reversal PR (edge case)
-
-Rare. Create a new branch from base, reverse activation's State edit on the meta file (Active → Planning) and its
-Branch field edit ({type}/{name} → plan/{name}) on the branch, open a deactivation PR. No separate workflow ships
-for this case — use this section as the reference.
-
-### Case D — Merged to base, some work executed → integrate or clean
-
-- Complete and ship the WU: finish remaining tasks, then [`integrate-work-unit.md`][integrate]
-- Abandon remaining work: archive with abandoned status via [`clean-work-unit.md`][clean]
-
----
-
 ## Next Step
 
 Deactivation has no session-level next action. The developer decides what follows — resume another WU, return to
@@ -178,7 +157,5 @@ Deactivation has no session-level next action. The developer decides what follow
 
 [activate]: activate-work-unit.md
 [branch-format]: ../../../methods/branch-format.md
-[clean]: clean-work-unit.md
 [incidental]: ../supplemental/manage-incidental-work.md
-[integrate]: integrate-work-unit.md
 [work-org-roadmap]: ../../../../reference/strategies/arc/strategy-work-organization.md#roadmap
