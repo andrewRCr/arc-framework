@@ -27,3 +27,13 @@ Atomic Task Completion for the full protocol.
   the audience-vocabulary rule itself (essential context that explicitly names the framework-author
   audience). Tier 1 lint clean. Closes the spec-carryover risk that surfaced at 2.13.a; downstream
   phases now port from clean source.
+
+### `[x]` **Workflow-interlock convention codification + Phase 3 application**
+
+- _Outcome:_ Codified workflow-interlock convention in `strategy-workflow-authoring.md` §
+  Interlock markers — advance-signal forms (quoted-verb / named-target with direction / approval
+  split), trigger-driven embedded placement, standalone-step prohibition, gate-vs-fire separation.
+  Applied to Phase 3 boundary workflows: dissolved 2 standalone interlocks in
+  `integrate-work-unit.md` (cascade renumber 7+→6+ and 12+→11+); promoted buried commit-fire to
+  explicit substep at `1_create-prd.md` Step 7; trimmed stale "last gate" prose at Step 5. Sibling
+  sweep across remaining workflows tracked in ATOMIC-INBOX.

@@ -127,8 +127,8 @@ plan-doc creation, not here.
 ### Step 7: Retire Plan Documents
 
 > [!IMPORTANT]
-> `workflow-interlock`: Stop after the PRD is saved. Surface the PRD location for review;
-> await direction before retiring the plan, updating the meta file, and committing (`workflowCommit`).
+> `workflow-interlock`: Stop after the PRD is saved. Surface the PRD location for review; await
+> approval before proceeding to plan retirement + meta update + commit.
 
 If a `plan-*.md` document fed into this PRD, retire it now. Plan documents are ephemeral — they
 serve exploration and are deleted once the PRD captures the conclusions (see
@@ -142,14 +142,15 @@ serve exploration and are deleted once the PRD captures the conclusions (see
 2. **Delete the plan**: `git rm` the `plan-*.md` file (and any supplemental files that fed into it,
    unless they have independent archival value — e.g., research files may belong in
    `reference/research/`).
-3. **Stage with the PRD commit**: The plan deletion and any `notes-*` creation should be part of the
-   same commit as the PRD.
-4. **Update planning-state meta file** (when present): If
+3. **Update planning-state meta file** (when present): If
    `.arc/active/{category}/meta-{name}.md` exists with `**State:** Planning` (planning-branch
    sessions), advance its `**Next Action:**` to reflect the post-PRD step (e.g., "Run
-   `2_generate-tasks.md`"). Stage with the PRD commit — bundles per
-   [DEV-RULES.ARC][dev-rules-arc] § Status-file commit shape. Skip otherwise (no meta file exists
-   pre-init under non-planning-branch flows).
+   `2_generate-tasks.md`"). Skip otherwise (no meta file exists pre-init under non-planning-branch
+   flows).
+4. **Commit** (`workflowCommit`): Stage all edits — PRD save (Step 6), any promotion-write inbox
+   deletion (Step 6, arc-in-git), plan deletion + `notes-*` migration (above), meta update (above)
+   — into a single commit. Subject `docs(arc): create prd-{name}`; body itemizes the bundled
+   changes per [DEV-RULES.ARC][dev-rules-arc] § Commit format and § Status-file commit shape.
 
 ---
 

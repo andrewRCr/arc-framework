@@ -98,12 +98,32 @@ interlock concept.
 
 - **Trigger** — when the stop fires (`after X is committed`, `before creating the PR`).
 - **Surface** — what the agent presents at the stop (typically the state of the gated artifact).
-- **Next-action** — what proceeds on approval (the destructive cascade or downstream workflow boundary
-  the marker gates).
+- **Next-action** — what proceeds on approval (the destructive cascade or downstream workflow
+  boundary the marker gates). Specify the advance signal; bare `await direction` is too thin.
+  Two acceptable shapes:
+    - **Quoted-verb form** — `await explicit '<verb>' direction` (e.g., `'merge'`, `'commit'`,
+      `'sweep'`). Use for destructive or named-action gates where the verb is the load-bearing
+      signal — user's instruction contains the verb.
+    - **Named-target form** — `await approval before proceeding to <named-target>` (e.g., `Pass 2`,
+      `archive ceremony`). Use for progression gates where the next step is already known —
+      user's approval triggers advancement to the named target.
 
-**Placement:** At the START of the gated step or section. The agent reads the marker and stops before
-executing the gated work — for step-level gates, immediately under the step heading; for cascade
-boundaries (e.g., a destructive sub-step sequence), at the entry point of the cascade.
+**Placement:** Embed the marker at the position its trigger fires:
+
+- **"After X" triggers** (`Stop after the PRD is saved`) — marker at the end of the step that produces X,
+  before the next step's heading.
+- **"Before X" triggers** (`Stop before composition begins`) — marker at the start of the step that
+  performs X, immediately under that step's heading. Use this for destructive cascades (commit, merge,
+  sweep, push) where the gate must fire before the action begins.
+
+The marker is an embedded gate, not a numbered body step. Don't allocate a step whose entire content is
+the callout — dissolve into the trigger-appropriate position.
+
+**Don't entangle gate with fire.** Interlocks gate progress; they don't perform the operation.
+When the gated step contains a commit (or other named action), write the action as a separate
+line below the marker — e.g., ``Then commit (`workflowCommit`): ...`` — not folded into the
+marker's `await direction before ... committing` language. The fire stays scannable as its own
+action; the marker stays clean as a pure gate.
 
 ### Routing class tags
 

@@ -104,20 +104,15 @@ The WU stays in `**State:** Integrating` throughout this phase. Composition + sw
 
 ### 5) Fire `pre-merge-review` extension
 
-After review-response settles, the `pre-merge-review` fire-point sits between review-response and the archive
-ceremony — the last gate before composition begins.
+After review-response settles, fire the `pre-merge-review` extension. If active, load and execute its
+`.actions`; halt-on-fail surfaces an actionable message. Default-inactive — when absent, this step is
+a structural no-op.
 
-If `pre-merge-review` appears in the active-extensions list, load and execute its `.actions`. Halt-on-fail
-surfaces an actionable message. Default-inactive — when absent, this step is a structural no-op.
-
-### 6) Workflow-interlock — proceed to archive ceremony
+### 6) Final alignment checks
 
 > [!IMPORTANT]
 > `workflow-interlock`: Stop before composition begins. Surface that review is settled (open threads resolved,
-> required approvals received, checks green) and ask whether to begin composing the final-form Release Notes
-> Entry and Completion Notes.
-
-### 7) Final alignment checks
+> required approvals received, checks green); await approval before proceeding to alignment + composition.
 
 Both soft; rarely block if [`1_create-prd.md`][create-prd]'s alignment checks passed. Surface any conflicts
 discovered against final reviewed scope.
@@ -131,20 +126,20 @@ Always evaluated. Surface conflicts between final reviewed scope and PROJECT-PRD
 Fires only when the PRD touched technical surfaces (tech stack, architecture, runtime, dependencies,
 infrastructure). Independent of the PROJECT-PRD check — scope distinction is the trigger.
 
-### 8) Compose Release Notes Entry — uncommitted
+### 7) Compose Release Notes Entry — uncommitted
 
 Compose a user-facing entry into `active/meta-{name}.md`'s archive-phase Release Notes section per
 `template-meta.md`'s schema, reflecting final reviewed scope.
 
-Leave the edit uncommitted — Step 11's interlock surfaces it alongside the rest of the composition for review
+Leave the edit uncommitted — Step 10's interlock surfaces it alongside the rest of the composition for review
 before the commit fires.
 
-### 9) Compose Completion Notes — uncommitted
+### 8) Compose Completion Notes — uncommitted
 
 Compose narrative Completion Notes into the meta file's archive-phase Completion Notes section per
-`template-meta.md`'s schema. Same uncommitted-surfacing pattern as Step 8.
+`template-meta.md`'s schema. Same uncommitted-surfacing pattern as Step 7.
 
-### 10) Drain-write — uncommitted · `arc-in-git` only
+### 9) Drain-write — uncommitted · `arc-in-git` only
 
 > **Skip** under `pm.mode: none` or `external`.
 
@@ -152,19 +147,17 @@ If integration drains any shared inbox entries (entries absorbed into this WU's 
 final deletion from the shared inbox), finalize the deletions now. See [DEV-RULES.ARC][dev-rules-arc] § Leave it
 cleaner for the capture-routing table.
 
-### 11) Workflow-interlock — review composed content + sweep target + ROADMAP delta
+### 10) Commit completion content
 
 > [!IMPORTANT]
 > `workflow-interlock`: Stop before commit + sweep + push. Surface:
 >
-> 1. Composed Release Notes Entry + Completion Notes (Steps 8–9)
-> 2. Planned sweep target: `active/meta-{name}.md` → `archive/<dated>/{name}/meta-{name}.md` (Step 13 under
+> 1. Composed Release Notes Entry + Completion Notes (Steps 7–8)
+> 2. Planned sweep target: `active/meta-{name}.md` → `archive/<dated>/{name}/meta-{name}.md` (Step 11 under
 >    `with-integration`)
-> 3. ROADMAP delta the upcoming regen will produce (Step 13 under `with-integration`)
+> 3. ROADMAP delta the upcoming regen will produce (Step 11 under `with-integration`)
 >
 > Await explicit "proceed to commit + sweep + push" direction.
-
-### 12) Commit completion content
 
 Bundle composition + drain-write edits into one `workflowCommit`:
 
@@ -180,18 +173,18 @@ Context: meta-{name}.md (integration)
 
 See [DEV-RULES.ARC][dev-rules-arc] § Commit format and the [`commit-footer` method][commit-footer].
 
-### 13) Cadence dispatch — `archive.cadence`
+### 11) Cadence dispatch — `archive.cadence`
 
 Read `archive.cadence` from [`arc-config.yml`][arc-config]:
 
 - **`with-integration`** (default): Invoke [`archive-work-unit.md`][archive-work-unit] inline. archive handles
   state flip `Integrating → Shipped`, sweep commits (`active/meta-{name}.md` →
   `archive/<dated>/{name}/meta-{name}.md`), and ROADMAP regen per its cadence-invariant body. Returns; resume at
-  Step 14.
+  Step 12.
 - **`manual`**: Skip inline invocation. Archive runs separately post-merge via explicit `archive-work-unit.md`
-  invocation. Step 14's push covers completion content only under this cadence.
+  invocation. Step 12's push covers completion content only under this cadence.
 
-### 14) Final push
+### 12) Final push
 
 Push (`workflowPush`):
 
