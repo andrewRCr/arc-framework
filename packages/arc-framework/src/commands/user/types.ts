@@ -542,6 +542,16 @@ export interface UserSessionLocalNoteFreshness {
 export interface UserSessionInitStatusResult {
   identity: string;
   state: UserSessionInitState;
+  /**
+   * Raw notes-ref topology, parallel to the action-dispatch `state` field.
+   * `state` collapses `same` and `local-ahead` to `clean` because both mean
+   * "no pull needed" — the action enum encodes pull-direction dispatch, not
+   * raw state. Consumers that need to distinguish the collapsed cases
+   * (e.g., surfacing local-ahead notes informationally) check `refState`
+   * within the `clean` arm. Omitted when remote sync is disabled
+   * (`state === "disabled"`); present on every other arm.
+   */
+  refState?: UserSyncRefState;
   /** Coherence detail preserved without expanding the five-state session-init surface. */
   coherenceState?: UserSyncCoherenceState;
   summary: string;

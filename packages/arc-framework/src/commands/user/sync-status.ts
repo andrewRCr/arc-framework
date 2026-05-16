@@ -432,11 +432,14 @@ function buildUserSessionInitStatusResult(input: {
     ? "run `arc user save` or `arc sync` before relying on handoff"
     : null;
 
+  const refStateSpread = spine.refState ? { refState: spine.refState } : {};
+
   switch (spine.state) {
     case "disabled":
       return {
         identity,
         state: spine.state,
+        ...refStateSpread,
         ...(spine.coherenceState ? { coherenceState: spine.coherenceState } : {}),
         summary: `${identity}: session-init remote sync disabled`,
         detailLines: [
@@ -450,6 +453,7 @@ function buildUserSessionInitStatusResult(input: {
       return {
         identity,
         state: spine.state,
+        ...refStateSpread,
         ...(spine.coherenceState ? { coherenceState: spine.coherenceState } : {}),
         summary: `${identity}: session-init local notes match remote notes`,
         detailLines: [
@@ -468,6 +472,7 @@ function buildUserSessionInitStatusResult(input: {
       return {
         identity,
         state: spine.state,
+        ...refStateSpread,
         ...(spine.coherenceState ? { coherenceState: spine.coherenceState } : {}),
         summary: `${identity}: session-init remote notes ahead of local notes`,
         detailLines: [
@@ -482,6 +487,7 @@ function buildUserSessionInitStatusResult(input: {
       return {
         identity,
         state: spine.state,
+        ...refStateSpread,
         ...(spine.coherenceState ? { coherenceState: spine.coherenceState } : {}),
         summary: `${identity}: session-init local and remote notes conflict`,
         detailLines: [
@@ -497,6 +503,7 @@ function buildUserSessionInitStatusResult(input: {
         return {
           identity,
           state: spine.state,
+          ...refStateSpread,
           ...(spine.coherenceState ? { coherenceState: spine.coherenceState } : {}),
           summary: `${identity}: session-init local-to-remote notes comparison unavailable here`,
           detailLines: [
@@ -511,6 +518,7 @@ function buildUserSessionInitStatusResult(input: {
       return {
         identity,
         state: spine.state,
+        ...refStateSpread,
         ...(spine.coherenceState ? { coherenceState: spine.coherenceState } : {}),
         summary: `${identity}: session-init remote notes unavailable for comparison with local notes`,
         detailLines: [

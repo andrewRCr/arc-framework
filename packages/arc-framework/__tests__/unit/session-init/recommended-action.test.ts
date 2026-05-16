@@ -201,6 +201,45 @@ describe("inferSessionInitRecommendations — notes channel", () => {
     expect(result.user.recommendedAction).toBe("skip");
   });
 
+  it("clean + refState=local-ahead → action=surface (informational orientation; no pull)", () => {
+    const result = inferSessionInitRecommendations(
+      input({ user: user({ state: "clean", refState: "local-ahead" }) }),
+    );
+    expect(result.user.recommendedAction).toBe("surface");
+    expect(result.user.recommendedPromptText).toBe("");
+  });
+
+  it("clean + refState=same → action=skip (disambiguates from local-ahead)", () => {
+    const result = inferSessionInitRecommendations(
+      input({ user: user({ state: "clean", refState: "same" }) }),
+    );
+    expect(result.user.recommendedAction).toBe("skip");
+  });
+
+  it.each([["manual"], ["prompt"], ["always"]] as const)(
+    "clean + local-ahead stays surface regardless of notes policy (%s)",
+    (policy) => {
+      const result = inferSessionInitRecommendations(
+        input({
+          user: user({ state: "clean", refState: "local-ahead" }),
+          notesPullPolicy: policy,
+        }),
+      );
+      expect(result.user.recommendedAction).toBe("surface");
+    },
+  );
+
+  it("clean + local-ahead stays surface even with dirty tree", () => {
+    const result = inferSessionInitRecommendations(
+      input({
+        user: user({ state: "clean", refState: "local-ahead" }),
+        dirty: dirty("dirty"),
+      }),
+    );
+    expect(result.user.recommendedAction).toBe("surface");
+    expect(result.user.recommendedPromptText).toBe("");
+  });
+
   it("user=null (identity missing) → action=skip; no prompt text", () => {
     const result = inferSessionInitRecommendations(input({ user: null }));
     expect(result.user.recommendedAction).toBe("skip");

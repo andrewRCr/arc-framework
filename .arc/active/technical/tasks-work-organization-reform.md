@@ -1497,50 +1497,46 @@ but runtime checks of `review.planning_checkpoint` halt and `archive.cadence` di
         - Apply 3.12.a + 3.12.b edits identically across `.arc/system/workflows/arc/session-lifecycle/` and
           `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/`; final `diff` byte-identical.
 
-### `[ ]` **3.13 Local-ahead notes orientation surface (3.9.c deferred follow-up)**
+### `[x]` **3.13 Local-ahead notes orientation surface (3.9.c deferred follow-up)**
 
 - _Goal:_ Session-init Step 6 surfaces local-ahead notes state informationally, completing the 3.9.c UX coherence
   pass deferral. Pressure-test identified five orientation-transparency cases; four landed at `0448a35c`
   (`no-upstream`, `detached-head`, `no-remote`, `dirty`); this task lands the fifth (notes-channel `local-ahead`).
 
-- _Approach:_ Surface raw notes refState on `UserSessionInitStatusResult` rather than expand the 5-state
-  `UserSessionInitState` enum. The spine's `state` field encodes action-dispatch shape (collapses `same` and
-  `local-ahead` to `clean` because both mean "no pull needed"); the parallel `spine.refState` field already
-  preserves raw topology and flows through to the full-status path via `buildUserStatusResult`. Bridging that gap
-  to the session-init result is the smaller, more honest change than reshaping the action enum — `inferUser`
-  consults `refState` within its `clean` arm and dispatches `surface`; workflow Step 6 adds the fifth conditional
-  section mirroring the `0448a35c` shape.
-
     **Strategies:** `strategy-package-project-sync.md`
 
-    - `[ ]` **3.13.a Expose `refState` on `UserSessionInitStatusResult`**
-        - Add optional `refState?: UserSyncRefState` field to `UserSessionInitStatusResult` in
-          `packages/arc-framework/src/commands/user/types.ts`, sitting alongside existing optional fields
-          (`localNoteFreshness`, `qualifier`, `loadNeeded`). TSDoc clarifies the field's role — raw notes-ref
-          topology, parallel to the action-dispatch `state` field — and notes that consumers wanting the
-          local-ahead surface check `refState === "local-ahead"` on the `clean` arm.
+    - `[x]` **3.13.a Expose `refState` on `UserSessionInitStatusResult`**
+        - Added optional `refState?: UserSyncRefState` to `UserSessionInitStatusResult` at `types.ts:545-555`,
+          adjacent to `state`. TSDoc records the action-dispatch (`state`) vs. raw-topology (`refState`) split
+          and the disabled-arm omission contract.
 
-    - `[ ]` **3.13.b Populate `refState` from spine in `buildUserSessionInitStatusResult`**
-        - In `packages/arc-framework/src/commands/user/sync-status.ts`, set `refState: spine.refState` on all
-          arms of `buildUserSessionInitStatusResult` (uniformly spread; no conditional omission — symmetric with
-          how the spine carries it). Add unit coverage asserting `refState` propagates through each spine state
-          (`disabled`, `clean` with `refState ∈ {same, local-ahead}`, `remote-ahead`, `conflict`,
-          `remote-unavailable`).
+    - `[x]` **3.13.b Populate `refState` from spine in `buildUserSessionInitStatusResult`**
+        - Factored a `refStateSpread` local at the head of `buildUserSessionInitStatusResult`; all five spine
+          arms include it via spread. Disabled arm naturally omits (spine.refState is null when remote sync is
+          off). Unit coverage: refState assertions added to the disabled and same-refs session-init tests, plus
+          a new test for the local-ahead clean arm.
 
-    - `[ ]` **3.13.c Branch `inferUser` on `refState === "local-ahead"` within `clean`**
-        - In `packages/arc-framework/src/lib/session-init/recommended-action.ts`, expand `inferUser`'s
-          `case "clean":` arm to return `{ recommendedAction: "surface", recommendedPromptText: "" }` when
-          `user.refState === "local-ahead"`; default to `skip` otherwise. Add unit coverage in the existing
-          recommended-action test file for the new branch — local-ahead notes paired against the various
-          worktree states and dirty-tree states (recommendation stays `surface` regardless).
+    - `[x]` **3.13.c Branch `inferUser` on `refState === "local-ahead"` within `clean`**
+        - Split the `clean` arm: `refState === "local-ahead"` returns `surface`; otherwise `skip`. Disabled
+          extracted to its own case for parity. Unit coverage: +6 tests in `recommended-action.test.ts` —
+          local-ahead → surface, same → skip, policy-invariant surface (`manual` / `prompt` / `always`),
+          dirty-tree-invariant surface.
 
-    - `[ ]` **3.13.d Add session-init Step 6 conditional surface (both copies)**
-        - In `.arc/system/workflows/arc/session-lifecycle/session-init.md` and the package source mirror at
-          `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/session-init.md`, add the fifth
-          conditional section to Step 6, mirroring the `worktree.value.state == "local-ahead"` shape established
-          at `0448a35c`. Suggested text: "**Local-ahead notes:** local user-notes ref is ahead of remote. Push
-          (or `arc sync`) when ready; non-blocking." Also update Step 1 envelope table `user` row to mention the
-          new optional `value.refState` field. Sync to packages/ — final `diff` byte-identical.
+    - `[x]` **3.13.d Add session-init Step 6 conditional surface (both copies)**
+        - Step 6 fifth conditional section landed (`user.value.state == "clean"` AND
+          `user.value.refState == "local-ahead"`) in both `.arc/` instance and the package source
+          `session-init.template.md` (corrected from the task list's pre-impl reference to `session-init.md`).
+          The envelope-table user row exceeded MD060 column-alignment tolerance under any inline refState
+          addition, so the architectural rationale lives as a new paragraph following the table — reads more
+          naturally as a two-layer-model explanation anyway. Both copies stay diff-aligned outside the existing
+          `arc:if` blocks.
+
+- _Outcome:_ Five 3.9.c orientation-transparency cases now complete — four worktree cases at `0448a35c`, plus
+  the notes-channel local-ahead case this WU. Architecture executed per the option-b2 plan: `refState` surfaced
+  as an optional field on `UserSessionInitStatusResult` parallel to `state`, preserving the spine's two-layer
+  model (action-dispatch enum + raw topology). Spine enum-expansion explicitly rejected — would have added a
+  state value with no corresponding dispatch action. Net: +7 unit tests; one new optional field; no
+  consumer-breaking changes (additive only).
 
 ## **Phase 4:** Template evolution + PROJECT-PRD content rewrite
 

@@ -39,6 +39,12 @@ The probe returns a single JSON envelope the agent consumes:
 | `domainRules`               | `value.rules`: `{path, domain, purpose}` tuples from `DEV-RULES.{DOMAIN}.md` files; `value.warnings`: frontmatter parse diagnostics                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `recommendedCombinedPrompt` | Top-level. Composed combined-prompt text when both `worktree` and `user` resolve to `recommendedAction === "prompt"`; `null` otherwise                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
+**Raw notes-ref topology on `user.value.refState?`**: The notes spine's 5-state `value.state` enum encodes
+pull-direction dispatch and collapses `same` and `local-ahead` into `clean` (both mean "no pull needed"). The
+parallel `value.refState?` field preserves raw topology (`same` / `local-ahead` / `remote-ahead` / `diverged` /
+`remote-unavailable`; omitted only when `state == "disabled"`). Step 6 reads it inside the `clean` arm to
+distinguish the collapsed cases for orientation surfacing.
+
 Carry `config` values forward as behavioral awareness. Do not surface configuration in orientation — defaults
 and overrides reach the user at the consuming operation.
 
@@ -336,6 +342,12 @@ tracked source documents the work.
 
   ```text
   **Local-ahead:** {ahead} unpushed commit(s) on `{branch}`.
+  ```
+
+- `user.value.state == "clean"` AND `user.value.refState == "local-ahead"`:
+
+  ```text
+  **Local-ahead notes:** local user-notes ref is ahead of remote. Push (or `arc sync`) when ready; non-blocking.
   ```
 
 - `worktree.value.state == "no-upstream"`:
