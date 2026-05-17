@@ -1845,7 +1845,7 @@ carries the update-discipline rule alongside the shape it codifies, keeping shap
   marginal gain. Existing META-PRD references in strategy docs (6 across 3 files) are
   naming-only — sweep rides Task 6.7 (subtask 6.7.k).
 
-### `[ ]` **4.5 Clarify `template-plan.md` preamble (drop "optional" hedge; preserve deletion)**
+### `[x]` **4.5 Clarify `template-plan.md` preamble (drop "optional" hedge; preserve deletion)**
 
 - _Goal:_ `template-plan.md` preamble drops the "optional" hedge while preserving the deletion-at-PRD-creation behavior
   per amended R22c. Plan-\* described as the pre-PRD synthesis artifact for substantive shaping work — ephemeral by
@@ -1855,38 +1855,35 @@ carries the update-discipline rule alongside the shape it codifies, keeping shap
 
     **Strategies:** `strategy-package-project-sync.md`
 
-    - `[ ]` **4.5.a Edit package source (authoritative copy)**
-        - Per package-project sync discipline, `template-plan.md` is a Framework file — edit
-          `packages/arc-framework/arc/reference/templates/template-plan.md` first.
-        - Drop "Using this template is not required" (the optional hedge). Replace the preamble with framing aligned to
-          amended R22c: "`plan-*` is the pre-PRD synthesis artifact for substantive shaping work — ephemeral by design.
-          The file is deleted at PRD creation per `1_create-prd.md`; substantive content meant to persist (research
-          findings, alternatives analysis not absorbed into the PRD) optionally graduates to a `notes-*.md` companion
-          alongside the PRD at the same time. Whether `plan-*` is created at all scales with mode and tier downstream
-          of WOR; the deletion-at-PRD-creation behavior is invariant."
+    - `[x]` **4.5.a Edit package source (authoritative copy)**
+        - Replaced the "Using this template is not required" hedge with HTML-comment preamble framing plan-\* as
+          the pre-PRD synthesis artifact: ephemeral, deleted at PRD creation, `notes-*.md` graduation pathway named
+          for substantive persisting content. Package source edited first per Framework-file sync discipline.
 
-    - `[ ]` **4.5.b Adopt chain-model header per R58a**
-        - Header reduces to `**Origin:**` field (default `[Internal]`; external tracker URLs land here; matches the
-          corresponding meta-\* `Origin:` value at WU creation).
-        - Substantive opening immediately below: `**Purpose:**` carrying the plan's own thesis (pre-PRD synthesis
-          statement). Optional reference to Origin from within Purpose prose.
-        - **Field syntax:** bullet form (`- **Origin:** ...` / `- **Purpose:** ...`) matching the established
-          cross-artifact convention (`tasks-*`, `plan-*` backlog instances already use bullet form). Visually consistent
-          in raw markdown; greppable.
-        - Retired from prior `plan-*` convention: heavy header fields (`**State:**`, `**Created:**`, and similar) that
-          duplicate `meta-*` content under R22a — meta is canonical SoT for state/owner/dates; plan-\* keeps only its
-          1-hop upstream pointer per R58a.
+    - `[x]` **4.5.b Adopt chain-model header per R58a**
+        - Header now reduces to two bullets under H1 as one field group: `- **Origin:** [internal]` and
+          `- **Purpose:** —`. Field descriptions live in the HTML-comment preamble; the prior-shape Retired-fields
+          enumeration was scoped out (WOR-internal historical concern; adopters have no "prior shape" context).
 
-    - `[ ]` **4.5.c Verify body sections remain useful**
-        - Existing sections (Problem / Motivation, Alternatives, Unknowns and Assumptions, Scope Estimate) stay as
-          optional starting structure. Section guidance text inside each section retained — those describe what to
-          capture, not whether the file is required.
+    - `[x]` **4.5.c Verify body sections remain useful**
+        - Body sections (Problem / Motivation, Alternatives, Unknowns and Assumptions, Scope Estimate) preserved
+          verbatim including section guidance text. The optional-starting-structure framing moved into the preamble;
+          section descriptions describe what to capture, not whether the file is required.
 
-    - `[ ]` **4.5.d Sync into `.arc/` instance copy**
-        - Sync the package-source edit to `.arc/reference/templates/template-plan.md` via the canonical sync mechanism
-          (not `cp` — that path violates package-project sync discipline by overwriting any project-specific divergence
-          silently).
-        - Verify pre-commit hook reports clean across both copies.
+    - `[x]` **4.5.d Sync into `.arc/` instance copy**
+        - Applied identical content to `.arc/reference/templates/template-plan.md` via `Write` (not `cp`). `diff`
+          confirms byte-identical between copies; `npm run -s lint:md` reports zero errors across both.
+
+- _Outcome:_ `template-plan.md` adopts the chain-model header (Origin + Purpose, bullet form) with
+  ephemeral-pre-PRD framing in adopter-safe form. Adopter-facing scrubs vs. task-spec text: "downstream of WOR"
+  qualifier dropped from the preamble (WOR-internal); R-IDs (R22a, R58a) dropped from the HTML comment; chain-model
+  parenthetical and Retired-fields acknowledgment block both dropped on iteration as meta-framework commentary that
+  template users don't need; `[internal]` lowercase used to match shipped `template-meta.md` over task-spec's
+  inadvertent `[Internal]`. Body sections + comment block reflowed to ~110-char target (max 113) rather than the
+  prior narrow wrap. Forward-compat lens for `plan-arc-plan-conductor.md` (no work pulled in): preamble's
+  "scales with mode and tier" leaves room for depth as a later scaling axis; no depth metadata on the plan-doc
+  per conductor's "explicit plan metadata is last-resort"; four-section freeform body aligns with conductor
+  § Templates preserving current shape for minimum/standard depth.
 
 ### `[ ]` **4.6 Reshape `template-tasks.md` (chain-model header + retire incidental framing)**
 
