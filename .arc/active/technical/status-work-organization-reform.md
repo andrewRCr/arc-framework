@@ -9,21 +9,21 @@
 - **Task List:** `tasks-work-organization-reform.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task 3.11 — Lifecycle workflow alignment: deactivate full-rewrite for
-  single-branch model, clean-work-unit meta/state-shape update, rotate-branch retirement with
-  inbound sweep (`80e4bfd6`). Preceded by task-list re-home of former 3.12 → new 6.3.e to land
-  paired with 6.3.d migration (`52d09f26`). Phase 3 now closes (3.7 deferred, 3.12 superseded by
-  6.3.e, all other Phase 3 tasks `[x]`).
+- **Last Completed:** Task 4.1 — Create `template-meta.md` per R58 (H1 + grouped field blocks,
+  no internal H2 wrapper; life-phase fields with State enum, Origin/Spec orthogonality,
+  Depends On + Cohort; post-integration block + content H2s; post-Shipped errata note; retired
+  fields acknowledgment). Closed all subtasks 4.1.a-h plus session-init Item 7 H2-anchor
+  retirement (`7eca897f`, `8eec8d1d`, `93338348`). Phase 4 opens.
 
-- **Next Task:** Task 4.1 — Create `template-meta.md` (replaces `template-status.md`) — H1 +
-  grouped fields + content H2s per R58 (line ~1532).
+- **Next Task:** Task 4.2 — Evolve `META-PRD.template.md` content shape (PROJECT-PRD shape
+  codification) (line ~1620).
 
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 4.1 — define `template-meta.md` per R58 (H1 `# Metadata: {name}`
-  plus blank-line-grouped field-block layout — identity / reference / coordination / task pointers /
-  directive groups). Lands the target that Tasks 3.2 / 3.3's forward-referenced backticked
-  `template-meta.md` mentions point at — markdown-link form for those references becomes
-  unblocked at Task 4.1's close.
+- **Next Action:** Start Task 4.2 — encode the PROJECT-PRD shape into
+  `META-PRD.template.md` (Mission + numbered principles + anti-goals + problem statement +
+  design tradeoffs) per R63 (one-shot template uniqueness — no parallel
+  `template-project-prd.md` in `reference/templates/`). File renames to
+  `PROJECT-PRD.template.md` at Task 4.3.h (rides with rendered-file rename).
 
 ---
