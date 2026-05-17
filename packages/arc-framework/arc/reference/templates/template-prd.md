@@ -1,29 +1,17 @@
 # PRD: [Work Name]
 
-**Purpose:** {One- to three-line north-star summary of the WU's intent. Single sentence preferred;
-keep it bounded so it pairs cleanly with the task list's `**Purpose:**` field for alignment-
-verification at PRD/task-list checkpoints. Distilled "what + why," not framing prose — body sections
-carry the full context.}
+- **Origin:** {`[internal]` default; external tracker URL when applicable.}
 
-<!-- Optional: Add pre-activation lifecycle metadata for backlog stubs.
-
-**State:** (e.g., Draft, Stub, Capture, Pending Dependencies, Approved — brief description)
-
-**Related Work:** (only when State is Pending Dependencies)
-
-- Depends on: [Dependency] — brief description
-- Complete: [Resolved dependency] — brief description
-
-Both fields are pre-activation only — removed at activation (see activate-work-unit.md
-Step 4). From then on, the per-WU status file's **State:** field is the sole source of
-truth for work unit lifecycle. -->
+- **Purpose:** {One- to three-line north-star summary of the WU's intent. Single sentence preferred; keep it
+  bounded so the core thesis stays visible at a glance. Distilled "what + why," not framing prose — body sections
+  carry the full context.}
 
 ---
 
 ## Introduction
 
-What this work is and why it matters. State the problem or opportunity — frame as a need,
-not a solution. Include "why now": what makes this worth doing at this point?
+What this work is and why it matters. State the problem or opportunity — frame as a need, not a solution.
+Include "why now": what makes this worth doing at this point?
 
 ## Goals
 
@@ -31,11 +19,10 @@ Specific objectives this work aims to achieve. Focus on outcomes, not implementa
 
 ## User Stories or Use Cases
 
-For features: user narratives ("As a... I want... so that...") grounded in actual user
-needs or research — not hypothetical personas.
+For features: user narratives ("As a... I want... so that...") grounded in actual user needs or research —
+not hypothetical personas.
 
-For technical work: system scenarios or migration cases that illustrate the change and
-its impact.
+For technical work: system scenarios or migration cases that illustrate the change and its impact.
 
 ## Requirements
 
@@ -49,29 +36,28 @@ For larger scope, prioritize requirements:
 
 ## Non-Goals
 
-What this work explicitly won't include. Critical for scope management — be specific
-about what's out and why.
+What this work explicitly won't include. Critical for scope management — be specific about what's out and why.
 
 ## Technical Considerations
 
 *(Optional — often the core of technical PRDs; supplementary for features.)*
 
-Constraints, dependencies, architectural implications, or integration points worth
-surfacing before task generation.
+Constraints, dependencies, architectural implications, or integration points worth surfacing before task
+generation.
 
 ## Design Considerations
 
 *(Optional — primarily for features.)*
 
-UI/UX requirements, mockups, component patterns, or design system constraints when
-applicable.
+UI/UX requirements, mockups, component patterns, or design system constraints when applicable.
 
 ## Success Criteria
 
-How will you know this succeeded? Define measurable outcomes.
+How will you know this succeeded? Define measurable outcomes. These criteria are validated explicitly at
+work-unit completion — write them as concrete checks, not aspirations.
 
-Features might measure user impact or adoption. Technical work might measure performance,
-reliability, or developer experience improvements.
+Features might measure user impact or adoption. Technical work might measure performance, reliability, or
+developer experience improvements.
 
 ## Open Questions
 

@@ -1922,46 +1922,38 @@ carries the update-discipline rule alongside the shape it codifies, keeping shap
   Purpose") and the Phase 6.7 cross-reference sweep are now stale relative to this edit; routes to 6.7 per the
   Phase 6.7 sweep convention (don't fix-in-place here).
 
-### `[ ]` **4.7 Reshape `template-prd.md` (chain-model header + retire pre-activation comment-block)**
+### `[x]` **4.7 Reshape `template-prd.md` (chain-model header + retire pre-activation comment-block)**
 
 - _Goal:_ `template-prd.md` adopts the chain-model header per R58a — adds `**Origin:**` header field (default
   `[Internal]`); preserves `**Purpose:**` as substantive opening below Origin (the document's thesis); retires the
   existing "Optional: pre-activation lifecycle metadata for backlog stubs" HTML-comment block (`**State:**` +
   `**Related Work:**`) since meta-\* covers pre-activation state under R22a.
 
-- _Touch points (from `template-prd.md`, 2026-05-13):_
-    - Line 1 — H1 `# PRD: [Work Name]`. Unchanged.
-    - Lines 3-6 — existing `**Purpose:**` field with guidance. Move down one position (Origin goes first per R58a chain
-      direction); guidance text retained.
-    - Lines 8-19 — "Optional: Add pre-activation lifecycle metadata for backlog stubs" HTML comment block (`**State:**`,
-      `**Related Work:**`). **Retire entirely** — meta-\* exists at WU stub creation per R22a and carries State +
-      Depends-on (which subsumes Related Work semantically). The comment-block was a pre-WOR workaround for backlog
-      stubs without meta.
-    - New: add `**Origin:**` field as first header field after H1 (default `[Internal]`; external tracker URLs land
-      here; matches meta-\* `Origin:` at WU creation).
-
     **Strategies:** `strategy-package-project-sync.md`
 
-    - `[ ]` **4.7.a Edit package source (authoritative copy)**
-        - Per package-project sync discipline, `template-prd.md` is a Framework file — edit
-          `packages/arc-framework/arc/reference/templates/template-prd.md` first.
-        - Insert `**Origin:**` header field after H1; move `**Purpose:**` below Origin.
-        - **Field syntax:** convert both fields from current loose-paragraph form (`**Purpose:**` on its own line
-          followed by blank line) to bullet form (`- **Origin:** ...` / `- **Purpose:** ...`). Aligns PRD with
-          cross-artifact bullet convention (`tasks-*`, `plan-*`, `meta-*` all use bullets); reads consistently in raw
-          markdown; greppable.
-        - Retire the "Optional: pre-activation lifecycle metadata" HTML-comment block entirely.
-        - Add brief retired-field acknowledgment in template comments per parallel pattern in 4.1.h / 4.6.a — note that
-          pre-activation `**State:**` + `**Related Work:**` retire; meta-\* covers under R22a.
+    - `[x]` **4.7.a Edit package source (authoritative copy)**
+        - Added `- **Origin:** {[internal] default; external tracker URL when applicable.}` as the first header
+          field after H1; converted `**Purpose:**` from loose-paragraph to bullet form below Origin (chain-model
+          order). Retired the entire "Optional: pre-activation lifecycle metadata for backlog stubs" HTML-comment
+          block — `meta-*.md` covers pre-activation state under R22a. Inline `{...}` guidance retained on both
+          fields, matching the surrounding inline-guidance convention; body sections reflowed to ~110-char target.
 
-    - `[ ]` **4.7.b Sync into `.arc/` instance copy**
-        - Sync via canonical mechanism (not `cp`).
-        - Verify pre-commit hook reports clean across both copies.
+    - `[x]` **4.7.b Sync into `.arc/` instance copy**
+        - Applied identical content to `.arc/reference/templates/template-prd.md` via `Write`. `diff` confirms
+          byte-identical between copies; `npm run -s lint:md` reports zero errors across both.
 
-    - _Note:_ Composition with 4.3 (PROJECT-PRD content rewrite per new shape). 4.3 doesn't touch `template-prd.md`; 4.7
-      doesn't touch `PROJECT-PRD.md` content. The PROJECT-PRD shape lives in `META-PRD.template.md` / `PROJECT-PRD.template.md`
-      (Task 4.2; renames at 4.3.h) per R63 — distinct from `template-prd.md` (this task), which is the agent-facing
-      per-WU PRD template.
+- _Outcome:_ `template-prd.md` adopts the chain-model header (Origin + Purpose, bullet form), mirroring the
+  shapes now established in `template-meta.md` / `template-plan.md` / `template-tasks.md`. Two judgment calls
+  consistent with prior phase-4 iterations: (1) `[internal]` lowercase used over task-spec's `[Internal]` to
+  match shipped templates; (2) retired-fields acknowledgment skipped — same audience-boundary lens as 4.5/4.6,
+  no new HTML-comment block introduced just to enumerate prior shape. Two iteration edits caught during review:
+  (a) dropped the "pairs cleanly with the task list's `**Purpose:**` field for alignment-verification" clause
+  from Purpose's inline guidance — Task 4.6 retired that field, leaving the cross-artifact pairing reference
+  dead; (b) added "These criteria are validated explicitly at work-unit completion — write them as concrete
+  checks, not aspirations." to Success Criteria, since `1_create-prd.md` carries no equivalent framing and
+  adopters had no signal of the section's downstream validation role. No inbound-reference fallout —
+  `1_create-prd.md` describes the template generically; `activate-work-unit.md` has no orphan refs to the
+  retired pre-activation fields (meta-\* takes those under R22a per Phase 3 work).
 
 ### `[ ]` **4.8 Evolve `TECHNICAL-OVERVIEW.template.md` content shape (R60 template component)**
 
