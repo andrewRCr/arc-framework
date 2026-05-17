@@ -9,18 +9,16 @@
 - **Task List:** `tasks-work-organization-reform.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task 4.2 — Evolve `META-PRD.template.md` to PROJECT-PRD shape per dogfooding
-  research (Problem anchor + Scope/Principles required + Update Discipline callout + optional
-  cluster). Closed 4.2.a-h; 4.2.c `[~]` superseded (Anti-goals fold into Scope/Out of Scope).
-  Cross-doc sweep (4.2.h) covered `02_define-project`, `1_create-prd`, `integrate-work-unit`.
-  Commit `9fd72762`.
+- **Last Completed:** Task 4.4 — Close PROJECT-PRD update-trigger loop (verify-only). Task 4.3
+  prior in same session: full PROJECT-PRD content rewrite + bilateral META-PRD → PROJECT-PRD
+  rename (commits `04945526`, `e0346942`).
 
-- **Next Task:** Task 4.3 — Rewrite `PROJECT-PRD.md` content per new shape (line ~1659).
+- **Next Task:** Task 4.5 — Clarify `template-plan.md` preamble (drop "optional" hedge; preserve
+  deletion-at-PRD-creation) (line ~1848).
 
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 4.3 — content rewrite of `.arc/reference/PROJECT-PRD.md` as the
-  dogfooding pass surfacing template ambiguities (subtasks 4.3.a-h amended at 4.2.h for new
-  shape).
+- **Next Action:** Start Task 4.5 — edit `template-plan.md` package source (drop "optional"
+  hedge, apply R58a chain-model header) + sync to `.arc/`.
 
 ---
