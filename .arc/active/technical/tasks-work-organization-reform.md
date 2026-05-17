@@ -1995,29 +1995,72 @@ carries the update-discipline rule alongside the shape it codifies, keeping shap
   examples vs. one, given the document's broader drift surface). Single canonical copy — no two-copy mirror; rendered
   output rewrite is Task 4.9.
 
-### `[ ]` **4.9 Rewrite `TECHNICAL-OVERVIEW.md` content per new shape (R61 dogfooding pass)**
+### `[x]` **4.9 Rewrite `TECHNICAL-OVERVIEW.md` content per new shape (R61 dogfooding pass)**
 
 - _Goal:_ `.arc/reference/TECHNICAL-OVERVIEW.md` content rewritten per the evolved `TECHNICAL-OVERVIEW.template.md`
   shape — existing architecture / components content preserved or refreshed for accuracy; new update-trigger discipline
   section added. Dogfooding pass parallel to Task 4.3 for PROJECT-PRD.
 
-    - _Context:_ Existing `.arc/reference/TECHNICAL-OVERVIEW.md` is the source material; verify content is still
-      accurate at execution time (ARC framework type, CLI package, dependencies, dev environment, etc.) and refresh as
-      needed. No filename rename (TECHNICAL-OVERVIEW name is already correct); inbound references unchanged.
+    - `[x]` **4.9.a Read existing TECHNICAL-OVERVIEW; verify accuracy vs. current state**
+        - Audit surfaced six drift categories: (1) § 1 "11 non-negotiable principles" line conflated
+          ARC-methodology principles with this repo's project principles and didn't belong in a technical-overview
+          doc regardless of count; (2) § 2 "Constitution — Core project templates: META-PRD, DEV-RULES,
+          PROJECT-STATUS, TECHNICAL-OVERVIEW" wrong on placement (only DEV-RULES live in `constitution/`) and on
+          name (META-PRD → PROJECT-PRD per Task 4.3.h); (3) CLI command list "init / update / status / diff"
+          stale by 9 commands; (4) "Node 18+ target" stale (actual `>=24`); (5) `shellcheck` quality gate absent;
+          (6) three substantial capabilities absent — git-notes user portability, release wrappers, `arc sync`
+          orchestrator. Also flagged: enumerations of methods, extensions, and commands collectively account for
+          most of the drift surface; described-with-SoT-pointer pattern proposed for the refresh.
 
-    - `[ ]` **4.9.a Read existing TECHNICAL-OVERVIEW; verify accuracy vs. current state**
-        - Audit each component section against current reality. Flag drift (e.g., outdated dependency versions, missing
-          new components such as recent CLI additions).
+    - `[x]` **4.9.b Refresh component sections as needed**
+        - Full rewrite via `Write` (~70% delta — surgical edits weren't tractable). Operating principle:
+          describe-over-enumerate with SoT pointers (`arc --help`, `system/methods/README.md`,
+          `system/extensions/README.md`), per pre-rewrite design discussion. § 1 dropped principles bullet
+          entirely (project-architecture doc; principles belong in PROJECT-PRD) and replaced with a
+          customization-surfaces characterization. § 2 Deployable Template System reshaped into five
+          architecturally-distinct concern groups (Constitutional rules / Project-level rendered docs / Reference
+          material / System layer / Work surfaces); CLI Package command surface now described as three categories
+          (lifecycle / inspection / orchestration) with `arc --help` cited as SoT; Customization Surfaces section
+          uses describe-with-representative-examples + README pointers. Two H3 sections added: Cross-Machine User
+          State (git-notes layer + `arc user` + `arc sync`) and Release Wrappers (`arc release commit/push` with
+          interlock-validation + audit semantics). § 3 added Node Engine line (≥24), shellcheck, and code-linting
+          line. Forward-compat post-WOR shape applied to active-workspace framing (meta files, flat `active/`)
+          per pre-rewrite agreement.
 
-    - `[ ]` **4.9.b Refresh component sections as needed**
-        - Update any drifted content. Preserve sections that are still accurate.
+    - `[x]` **4.9.c Add update-trigger discipline section**
+        - `> [!IMPORTANT]` Update Discipline callout landed after intro, before § 1 — same shape and placement as
+          the template. Folded into 4.9.b's single Write since the rewrite touched the same region.
 
-    - `[ ]` **4.9.c Add update-trigger discipline section**
-        - New section per 4.8.b's template addition. Block describing when TECHNICAL-OVERVIEW updates fire.
+    - `[x]` **4.9.d Feed template ambiguities back to `TECHNICAL-OVERVIEW.template.md` v1.1**
+        - No structural template revisions warranted. The two structural departures from the template — using
+          "Key characteristics:" bullets in § 1 instead of a single `[ARCHITECTURE_OVERVIEW]` placeholder, and
+          using concern-based H3s in § 2 instead of the template's per-component Framework/Language/Key
+          Libraries/Code Style/Directory Structure field set — reflect ARC's nature as a methodology + CLI
+          project (components are _concerns_, not tech-stack-distinct codebases). The template's own
+          "Add detail proportional to complexity" guidance already covers this kind of project-flex; codifying
+          the alternative shapes would constrain the template more than it would help.
+        - Post-approval visual pass surfaced one convention worth codifying: italic-for-frames /
+          bold-for-anchors (prevents bold-soup in list-dense sections) plus flat-list chunking (>~8 items
+          → 2-4 italic-labeled groups). Added as a "Visual conventions" sub-block to
+          `TECHNICAL-OVERVIEW.template.md`'s top HTML comment — parallel structure to PROJECT-PRD's
+          "Structural conventions" sub-block but addressing visual hierarchy rather than required/optional
+          taxonomy. The convention is project-agnostic (the bold-soup problem is inherent to list-dense
+          docs, not ARC-specific); codifying prevents each adopter from rediscovering it independently
+          during their own dogfood pass. Rendered `.arc/reference/TECHNICAL-OVERVIEW.md` exemplifies the
+          pattern: italic intros at § 1 Key characteristics and § 2 CLI Package (Command surface,
+          Architecture); § 3 Infrastructure chunked (12 bullets → 4 groups: Runtime & environment /
+          Language & build / Testing & quality tooling / CI & configuration).
 
-    - `[ ]` **4.9.d Feed template ambiguities back to `TECHNICAL-OVERVIEW.template.md` v1.1**
-        - If shape ambiguities surface during the rewrite, revise 4.8's template before declaring rewrite complete.
-          Parallel to 4.3.g for PROJECT-PRD.
+- _Outcome:_ `.arc/reference/TECHNICAL-OVERVIEW.md` rewritten with describe-over-enumerate as the operating
+  principle — every enumeration in the prior version that drifted (commands, methods, extensions, constitution
+  contents) is now a described category citing a live SoT (`arc --help`, README files). Three substantial
+  capabilities surfaced that the prior version omitted entirely: git-notes user portability, release wrappers,
+  cross-concern sync orchestration. Two design-call corrections beyond pure drift-fix: dropped the principles
+  framing (project-architecture doc, not methodology doc) and reshaped active-workspace forward-compat to
+  post-WOR (meta files, flat `active/`). Post-approval visual pass surfaced one template convention worth
+  codifying — italic-for-frames / bold-for-anchors plus flat-list chunking — added as a "Visual conventions"
+  sub-block to `TECHNICAL-OVERVIEW.template.md`'s top HTML comment, with the rendered doc serving as the
+  dogfood instance.
 
 ## **Phase 5:** Roster cascade + push wrapper wiring + CLI seeding update + CLI propagation
 

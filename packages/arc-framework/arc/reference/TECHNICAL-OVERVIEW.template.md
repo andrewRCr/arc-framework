@@ -1,7 +1,13 @@
 <!-- Canonical technical-overview template. Rendered once at `arc init` / `arc join` time (per `classification.ts`)
      into a hand-editable file in your project's `reference/` directory. Shape edits land here in the `.template`
      file; content edits land in the rendered file. No parallel template exists in `reference/templates/` — this is
-     the sole canonical surface. -->
+     the sole canonical surface.
+
+     Visual conventions:
+     - Use `_italic_` for sub-section intros that introduce a bullet group (e.g., "_Key characteristics:_" before
+       a bullet list). Reserve `**bold**` for bullet labels readers scan to. Prevents visual competition between
+       group frame and item labels in list-dense sections.
+     - For flat lists exceeding ~8 items, chunk into 2-4 logical groups with italic frame labels (parallel pattern). -->
 
 # {{PROJECT_NAME}} Technical Overview
 
