@@ -9,21 +9,18 @@
 - **Task List:** `tasks-work-organization-reform.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task 4.1 — Create `template-meta.md` per R58 (H1 + grouped field blocks,
-  no internal H2 wrapper; life-phase fields with State enum, Origin/Spec orthogonality,
-  Depends On + Cohort; post-integration block + content H2s; post-Shipped errata note; retired
-  fields acknowledgment). Closed all subtasks 4.1.a-h plus session-init Item 7 H2-anchor
-  retirement (`7eca897f`, `8eec8d1d`, `93338348`). Phase 4 opens.
+- **Last Completed:** Task 4.2 — Evolve `META-PRD.template.md` to PROJECT-PRD shape per dogfooding
+  research (Problem anchor + Scope/Principles required + Update Discipline callout + optional
+  cluster). Closed 4.2.a-h; 4.2.c `[~]` superseded (Anti-goals fold into Scope/Out of Scope).
+  Cross-doc sweep (4.2.h) covered `02_define-project`, `1_create-prd`, `integrate-work-unit`.
+  Commit `9fd72762`.
 
-- **Next Task:** Task 4.2 — Evolve `META-PRD.template.md` content shape (PROJECT-PRD shape
-  codification) (line ~1620).
+- **Next Task:** Task 4.3 — Rewrite `PROJECT-PRD.md` content per new shape (line ~1659).
 
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 4.2 — encode the PROJECT-PRD shape into
-  `META-PRD.template.md` (Mission + numbered principles + anti-goals + problem statement +
-  design tradeoffs) per R63 (one-shot template uniqueness — no parallel
-  `template-project-prd.md` in `reference/templates/`). File renames to
-  `PROJECT-PRD.template.md` at Task 4.3.h (rides with rendered-file rename).
+- **Next Action:** Start Task 4.3 — content rewrite of `.arc/reference/PROJECT-PRD.md` as the
+  dogfooding pass surfacing template ambiguities (subtasks 4.3.a-h amended at 4.2.h for new
+  shape).
 
 ---
