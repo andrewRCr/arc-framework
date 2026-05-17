@@ -10,7 +10,7 @@
        Add later if the project grows into needing them.
      - **Update Discipline callout** — ARC-level guidance on when this document changes; not project content. -->
 
-# {{PROJECT_NAME}} Meta Product Requirements Document (META-PRD)
+# {{PROJECT_NAME}} Project-Level PRD (PROJECT-PRD)
 
 The project-level PRD — the canonical statement of what this project is, the problem it addresses, and what it bounds
 itself to do. Referenced at lifecycle ceremonies as the alignment check for proposed work: does this serve the stated
@@ -98,7 +98,10 @@ Resist filling this in vacuously at scaffold; let real patterns reveal them.
 ## Success Criteria
 
 <!-- Optional. How will you know you've succeeded? Measurable outcomes preferred over vague aspirations. Delete if
-     success is self-evident from Problem + Scope. -->
+     success is self-evident from Problem + Scope.
+
+     Categorized form: H3 subheadings are allowed when criteria fall into distinct domains (e.g., correctness /
+     adoption / sustainability). Use when flat bullets would feel arbitrary; default is flat. -->
 
 - [SUCCESS_CRITERION]
 - [SUCCESS_CRITERION]

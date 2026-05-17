@@ -1734,68 +1734,103 @@ carries the update-discipline rule alongside the shape it codifies, keeping shap
   (alignment check language). H1 + filename stay META-PRD-named until 4.3.h sweeps both. Single canonical copy:
   `packages/arc-framework/arc/reference/META-PRD.template.md`.
 
-### `[ ]` **4.3 Rewrite `PROJECT-PRD.md` content per new shape**
+### `[x]` **4.3 Rewrite `PROJECT-PRD.md` content per new shape**
 
 - _Goal:_ `.arc/reference/PROJECT-PRD.md` content rewritten per the new PROJECT-PRD shape — Problem (anchor) +
   Scope (In/Out) + Principles (3-5 named) + Update Discipline callout + any warranted optional sections (Mission,
   Design Tradeoffs, Success Criteria, References) — as the dogfooding pass that surfaces template ambiguities
   (template revisions ride the same phase if needed per the feedback loop in 4.3.g).
 
-    - _Context:_ Existing `.arc/reference/PROJECT-PRD.md` (162 lines: § 1 Purpose through § 6 Technical Requirements) is
-      the source material; preserve content the new shape genuinely subsumes; surface content that doesn't fit as scope
-      question. Per PRD § Open Questions, template revisions feed back into 4.2.
+    - `[x]` **4.3.a Read existing PROJECT-PRD; inventory content vs new-shape coverage**
+        - 14 existing META-PRD elements mapped to new-shape slots. Resolved gaps: § 4 User Flow +
+          § 6 Technical Requirements retire without successor (content already in `docs/`,
+          DEV-RULES.PROJECT, AGENT-BRIEF.PROJECT, DEV-RULES.ARC); § 5 Success Metrics → Success
+          Criteria (optional, retained); Quality system demoted from principle to convention level
+          (intentional under 5-principle distillation, no content loss — P4 fully covered in
+          principles.md + DEV-RULES.PROJECT). Net-new content identified: Principle 3 (Operational
+          friction down, judgment friction up), Scope > In Scope distillation, Problem synthesis
+          (~150-200 words), Design Tradeoffs framing (broad commitments, not example-driven per
+          user direction). Working principle set (5): Co-development; Spec-directed, not
+          spec-driven; Operational friction down, judgment friction up; Configurable methodology,
+          open ecosystem; Codified improvement.
 
-    - _Note:_ Current PROJECT-PRD has no "principles" section and no "design tradeoffs" section. Distillation work for
-      4.3.c / 4.3.f pulls from § 1 Philosophical basis + § 2 Core Features + this WU's
-      `notes-work-organization-reform.md` design-decisions section + relevant ADRs. Expect one iteration cycle with 4.2
-      per 4.3.g if shape ambiguities surface.
+    - `[x]` **4.3.b Draft Mission (optional)**
+        - Drafted Mission (~55 words, 2 sentences). "ARC aims to facilitate human-AI software
+          collaboration that produces work genuinely better than either could alone." — humble
+          "aims to facilitate" framing; aspirational altitude appropriate to Mission. Second
+          sentence captures developer-judgment mechanism (foregrounding value contribution over
+          participation state — judgment shaping implementation, not developer-engaged-as-DX) +
+          breadth dimensions (project shapes, team sizes, evolving agentic SWE landscape). Full
+          text held in chat pending wholesale rewrite at 4.3.h.
 
-    - _Note:_ This task includes the `META-PRD.md` → `PROJECT-PRD.md` file rename per R35 (resolves the `meta-*`
-      file-class collision). Content rewrite + filename rename ride the same logical change — `git mv` the file as part
-      of the rewrite commit. Package source counterpart `META-PRD.template.md` → `PROJECT-PRD.template.md` rename rides
-      the same task. Inbound references in workflows / strategies / methods / hooks sweep via Task 6.7 cross-reference
-      sweep (new subtask 6.7.k added in this amendment pass); CLI hardcoded reference in
-      `packages/arc-framework/src/lib/classification.ts` updates via Task 5.4 (CLI propagation).
+    - `[x]` **4.3.c Draft 3-5 named principles**
+        - Drafted 5 principles in compact-bullet form: Co-development; Spec-directed, not
+          spec-driven; Operational friction down, judgment friction up; Configurable methodology,
+          open ecosystem; Designed to evolve. P5 renamed from "Codified improvement" to absorb
+          moving-field orientation (three input sources: internal learning, field testing, external
+          developments). P2 enhanced during 4.3.f review — "rigorous shared context" + "even
+          thorough planning can't foresee" frames in-flight judgment necessity while honoring
+          planning rigor (pairs with Problem ¶1's map/territory framing). 11-principle adopter
+          contract distilled to 5 project-level identity principles; remainder (P4/P5/P6/P9, parts
+          of P8) drops to convention level. Full text held in chat pending wholesale rewrite at
+          4.3.h.
 
-    - `[ ]` **4.3.a Read existing PROJECT-PRD; inventory content vs new-shape coverage**
-        - Map existing sections to new-shape slots. Surface gaps (content with no home) before drafting.
+    - `[x]` **4.3.d Draft Scope (In/Out)**
+        - Drafted Scope section with 5 In Scope items (methodology for execution pair / configurable
+          conventions / WU-lifecycle workflows / operationalizing tooling / cross-tool-and-platform
+          compatibility) + 5 Out of Scope items (team coordination / throughput optimization /
+          autonomous-async-cloud agents in isolation / application code generation / prescribing
+          internal tool choices). Out absorbs anti-goals function per task spec — each item is a
+          predictable adjacent ask ARC is saying no to. In/Out #5 pair captures open-ecosystem
+          stance affirmatively + negatively. Full text held in chat pending wholesale rewrite at
+          4.3.h.
 
-    - `[ ]` **4.3.b Draft Mission (optional)**
-        - 1-3 sentences distilled from existing top-level framing. Mission is an optional template section under
-          the new shape; ARC's project-level vision warrants its inclusion here.
+    - `[x]` **4.3.e Draft problem statement**
+        - Drafted 3-paragraph Problem section (~268 words after 4.3.f-era enhancement). Two failure
+          modes (delegation + undisciplined parallelism) sharing the "attention is a bottleneck to
+          engineer around" premise; ARC's opposite premise (single-threaded attention as design
+          primitive); operationalization preview that maps to Principles. Includes
+          bounded-concurrency caveat ("Bounded, deliberate concurrent work has its place") and ¶1
+          map/territory enhancement ("minimize human touchpoints by treating the spec as a faithful
+          map of the territory") naming delegation's category error explicitly (pairs with P2
+          enhancement). Full text held in chat pending wholesale rewrite at 4.3.h.
 
-    - `[ ]` **4.3.c Draft 3-5 named principles**
-        - Distill existing principles / values into named-identifier shape (no numbering, per the shape revision
-          landed in 4.2). Soft target 3-5; soft cap 7-10 without grouping. Source material per the _Note:_ above
-          (§ 1 Philosophical basis + § 2 Core Features + notes design-decisions section + relevant ADRs).
+    - `[x]` **4.3.f Draft design tradeoffs (optional)**
+        - Drafted Design Tradeoffs section (~210 words, 4 tradeoffs): Focused attention over
+          multi-tracked throughput; Configurability with strong defaults over a fixed shape;
+          Co-development primacy over universal agent compatibility; Stable principles, adaptive
+          conventions. Template format (`Chose X over Y. Cost: Z.`). Tradeoff #1 renamed from
+          "Sequential focus" with inline bounded-concurrency hedge per review concern about
+          implying no-parallelism. Per user direction: broad commitments, not example-driven
+          specifics. Spawned Problem ¶1 + Principle 2 enhancements during review (see those
+          outcomes — map/territory framing + "rigorous shared context"/"even thorough planning"
+          additions). Full text held in chat pending wholesale rewrite at 4.3.h.
 
-    - `[ ]` **4.3.d Draft Scope (In/Out)**
-        - Articulate ownership boundaries (In Scope) and explicit exclusions (Out of Scope). Out of Scope absorbs
-          the anti-goals function from existing scope-bound language ("predictable adjacent asks you're saying no
-          to"); folded under the Scope section per PMI convention rather than a standalone anti-goals section.
+    - `[x]` **4.3.g Feed template ambiguities back into `META-PRD.template.md`**
+        - Template audit complete. One ambiguity surfaced: Success Criteria template showed flat
+          bullets only, but dogfooded PROJECT-PRD uses H3-subheading categorization (matches
+          existing META-PRD § 5 convention). Template HTML comment enhanced with "Categorized form"
+          note — H3 subheadings allowed when criteria fall into distinct domains; default is flat.
+          Generic example (correctness / adoption / sustainability) used rather than ARC-specific
+          category names per adopter-facing template hygiene. Update Discipline callout text
+          captured for 4.3.h instantiation (no project-specific customization needed). Template H1
+          rename inconsistency (META-PRD in H1, PROJECT-PRD in body) noted for 4.3.h — bundles with
+          `git mv` per same-logical-change.
 
-    - `[ ]` **4.3.e Draft problem statement**
-        - User/context framing for what ARC exists to solve. Problem is the document's anchor section under the
-          new shape (§1, required) — promoted from §4 in the first-pass spec.
+    - `[x]` **4.3.h File rename: `META-PRD.md` → `PROJECT-PRD.md` (both copies)**
+        - Wholesale rewrite executed: PROJECT-PRD.md content assembled from chat-held drafts +
+          References + Update Discipline callout. H1 set to "ARC Framework Project-Level PRD
+          (PROJECT-PRD)". Template H1 updated to match. Both `git mv` operations executed (RM
+          detected by git). Tier 1 lint clean. Inbound reference sweep deferred to Task 6.7;
+          CLI hardcoded reference update deferred to Task 5.4.
 
-    - `[ ]` **4.3.f Draft design tradeoffs (optional)**
-        - Major design calls and consequences; document the load-bearing ones. Design Tradeoffs is an optional
-          template section under the new shape; for ARC's mature shape with significant architectural commitments
-          (pm.mode, branch.protection, configurability axes), inclusion is warranted.
-
-    - `[ ]` **4.3.g Feed template ambiguities back into `META-PRD.template.md`**
-        - If shape ambiguities surface during draft, revise the canonical template before declaring rewrite
-          complete. Per R63, `META-PRD.template.md` (renames to `PROJECT-PRD.template.md` at 4.3.h) is the sole
-          template surface — no parallel `template-project-prd.md`.
-
-    - `[ ]` **4.3.h File rename: `META-PRD.md` → `PROJECT-PRD.md` (both copies)**
-        - `git mv .arc/reference/META-PRD.md .arc/reference/PROJECT-PRD.md` after content rewrite (rename rides the
-          rewrite commit per same-logical-change discipline).
-        - `git mv packages/arc-framework/arc/reference/META-PRD.template.md packages/arc-framework/arc/reference/PROJECT-PRD.template.md`.
-        - Verify pre-commit hook reports clean across both copies.
-        - _Note:_ Inbound references (workflows, strategies, methods, hooks, briefs, configs) sweep via Task 6.7
-          cross-reference sweep (new subtask added in this WU's amendment pass; see 6.7.k below). CLI hardcoded
-          reference in `packages/arc-framework/src/lib/classification.ts` updates via Task 5.4 (CLI propagation).
+- _Outcome:_ META-PRD.md rewritten per new PROJECT-PRD shape and renamed to PROJECT-PRD.md
+  (template also renamed; template H1 updated to match). 5 principles distilled (Co-development;
+  Spec-directed, not spec-driven; Operational friction down, judgment friction up; Configurable
+  methodology, open ecosystem; Designed to evolve). Dogfooding spawned one template fix (Success
+  Criteria categorization at 4.3.g) + content iterations during drafting (map/territory framing,
+  rigorous shared context, friction-inversion explicit naming). Inbound reference sweep + CLI ref
+  update deferred to Tasks 6.7 + 5.4.
 
 ### `[ ]` **4.4 Codify PROJECT-PRD update triggers**
 
