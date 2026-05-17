@@ -9,18 +9,20 @@
 - **Task List:** `tasks-work-organization-reform.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task 4.7 — Reshape `template-prd.md` (chain-model header + retire
-  pre-activation comment block). Tasks 4.5–4.7 this session: chain-model sweep across
-  `template-plan.md` / `template-tasks.md` / `template-prd.md` (commits `cc5e8e8d`,
-  `62e988d8`, `19961aa7`).
+- **Last Completed:** Task 4.9 — Rewrite `.arc/reference/TECHNICAL-OVERVIEW.md` per evolved
+  template + codify Visual conventions sub-block in `TECHNICAL-OVERVIEW.template.md`. Tasks
+  4.8 + 4.9 this session: R60 + R63 template evolution, dogfood rewrite with
+  describe-over-enumerate principle, italic-for-frames visual codification (commits
+  `fb74c624`, `990db41f`).
 
-- **Next Task:** Task 4.8 — Evolve `TECHNICAL-OVERVIEW.template.md` content shape (R60
-  template component) (line ~1966).
+- **Next Task:** Task 5.1 — Implement `worktree-roster.ts` library function with test-first
+  coverage (line ~2086).
 
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 4.8 — audit `TECHNICAL-OVERVIEW.template.md` sections; add
-  update-trigger discipline section (organic + event-driven) and R63 one-shot-template
-  comment block. Package source edit only; rendered output update is Task 4.9.
+- **Next Action:** Start Task 5.1 — audit `git/worktree-sync.ts` for existing
+  `git worktree list` parsing before re-implementing; test-first (9 behaviors enumerated);
+  import State value-set (`Planning | Active | Integrating | Shipped`, per R9 / Task 4.1.c)
+  from shared schema if one exists, else hardcode with codifying-template ref.
 
 ---
