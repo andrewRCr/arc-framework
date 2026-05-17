@@ -1617,7 +1617,7 @@ carries the update-discipline rule alongside the shape it codifies, keeping shap
   to 6.6.d). Commits: `7eca897f` (template + R58 shape + convention align), `8eec8d1d`
   (session-init slim).
 
-### `[ ]` **4.2 Evolve `META-PRD.template.md` content shape (PROJECT-PRD shape codification)**
+### `[x]` **4.2 Evolve `META-PRD.template.md` content shape (PROJECT-PRD shape codification)**
 
 - _Goal:_ `META-PRD.template.md` (package source) evolves in-place to ship the PROJECT-PRD shape — Mission (1-3
   sentences) + numbered principles (5-7, quotable as nouns) + anti-goals + problem statement + design tradeoffs —
@@ -1627,40 +1627,119 @@ carries the update-discipline rule alongside the shape it codifies, keeping shap
 
     **Strategies:** `strategy-package-project-sync.md`
 
-    - _Path:_ Edit `packages/arc-framework/arc/reference/META-PRD.template.md` directly (single canonical copy in
-      package source). The rendered output in `.arc/reference/META-PRD.md` is updated separately at Task 4.3 (content
-      rewrite / dogfooding pass).
+    - `[x]` **4.2.a Mission section template**
+        - Mission section landed as OPTIONAL (not required §1 headline) — relocated to the optional cluster
+          after required sections per research finding. HTML comment frames as "longer-form purpose at a higher
+          level than Problem" for multi-year/multi-team/stakeholder-heavy projects; skippable for solo/short-
+          lived ones. Placeholder `[MISSION_STATEMENT]` slot retained. Required-headline role transferred to
+          Problem (now §1 anchor).
 
-    - `[ ]` **4.2.a Mission section template**
-        - 1-3 sentences; states the project's purpose at the highest level.
+    - `[x]` **4.2.b Named principles template**
+        - Principles landed under `## Principles` — NAMED identifiers (not numbered) per research, to avoid
+          renumbering friction. Default content is a TBD placeholder reflecting "discover, don't invent" framing
+          for scaffold-time projects. Two intensities supported by the same template: compact bullet-list
+          (`**Name**: one or two sentences`) as default; H3-with-rationale-paragraph as optional elaboration.
+          Soft guidance: minimum 1, target 3-5, cap 7-10 without thematic grouping.
 
-    - `[ ]` **4.2.b Numbered principles template**
-        - 5-7 numbered principles; quotable as nouns (principle 3, principle 5). Each principle is a short proposition
-          with one-paragraph rationale.
+    - `[~]` **4.2.c Anti-goals section template**
+        - Superseded by design decision: Anti-goals function folded into Scope's `### Out of Scope` subsection per
+          PMI convention (research finding — separate Anti-goals section risks junk-drawer effect). Anti-goals
+          psychology preserved in Out of Scope guidance prose ("predictable adjacent asks you're saying 'no' to").
+          No standalone section under new shape; In Scope / Out of Scope duality at `## Scope` handles boundary
+          articulation.
 
-    - `[ ]` **4.2.c Anti-goals section template**
-        - What the project explicitly will not do; bounded list.
+    - `[x]` **4.2.d Problem statement template**
+        - Problem section landed under `## Problem` — PROMOTED to first required section (document anchor) per
+          research finding (PMI: "the single most important paragraph"). Single `[PROBLEM_STATEMENT]` slot with
+          user/context framing. HTML comment allows "TBD — see discovery plan" content for genuinely-unclear-at-
+          scaffold cases; warns against vacuous defaults. Old Mission-vs-Problem contrast guidance dropped since
+          Mission is now optional (and may not exist).
 
-    - `[ ]` **4.2.d Problem statement template**
-        - What problem the project solves; framed in user / context terms.
+    - `[x]` **4.2.e Design tradeoffs template**
+        - Design Tradeoffs landed as OPTIONAL section, relocated to optional cluster after required sections.
+          Slot shape evolved slightly: `**[TRADEOFF_NAME]**: Chose [WHAT_WAS_CHOSEN] over [ALTERNATIVE]. Cost:
+          [WHAT_IT_COSTS].` (added explicit "over" for clearer choice framing). HTML comment frames optional
+          status ("delete if no significant architectural commitments yet"). Guidance preserves the tie to
+          Principle interpretation.
 
-    - `[ ]` **4.2.e Design tradeoffs template**
-        - Major calls and their consequences; informs principle interpretation.
+    - `[x]` **4.2.f Update Discipline callout (R36)**
+        - R36 Update Discipline landed as `> [!IMPORTANT]` callout near top (after intro, before content sections)
+          — NOT a content section per research finding (ARC-level meta about the doc's behavior, not project
+          content; doesn't compete as a "fillable section" alongside Problem/Scope/Principles). Two-trigger
+          framing (organic PR-conflict + event-driven release/scope/governance) with explicit no-cadence close.
+          Visual treatment matches DEV-RULES.ARC's `task-interlock` callout pattern.
 
-    - `[ ]` **4.2.f Update-trigger discipline embedded in template (R36)**
-        - Block describing when PROJECT-PRD updates fire: organic (PR-time clarification when conflict surfaces) +
-          event-driven (major release, scope shift, governance change). Not cadence-driven.
+    - `[x]` **4.2.g One-shot-template comment block (R63)**
+        - HTML comment block landed at file top (above H1) — states lifecycle (rendered once at `arc init` /
+          `arc join` per `classification.ts`), shape-edit vs content-edit boundary, sole-canonical-surface fact
+          (no parallel `reference/templates/template-project-prd.md`), AND structural conventions declaring the
+          Required/Optional/Callout section taxonomy upfront so users see the shape contract before reading
+          sections. Adopter-facing wording throughout (no R-IDs, no internal-roadmap references).
 
-    - `[ ]` **4.2.g One-shot-template comment block (R63)**
-        - Brief comment block at top of template noting: "This file is rendered once at `arc init` / `arc join` time
-          (per `classification.ts`); evolution happens in this `.template` file. Per R63, there is no parallel
-          `reference/templates/template-project-prd.md`."
+    - `[x]` **4.2.h Post-revision sweep — `02_define-project.md` rewire + cross-doc reference scan**
+        - Sweep executed after research-driven shape revision (see `research-project-vision-document-genre.md`)
+          diverged substantively from the 4.2.a-g first-pass spec. Cross-doc scan identified 4 shape-dependent
+          files in scope and 11 naming-only files riding 4.3.h's filename rename sweep.
+
+        - **`02_define-project.md` Step 1** — framing paragraph reframed ("vision/scope/success criteria" →
+          "problem/scope/principles"); "Think through" prompts rewritten to new shape (4 questions covering
+          Problem framing, Scope in/out, Principles with TBD-acceptable scaffold framing, optional-section
+          check). Both copies (`.arc/` instance + package `.template.md` source).
+
+        - **`02_define-project.md` § Maintaining Project Documents META-PRD trigger language** — minimal swap:
+          "direction, scope, success criteria" → "documented problem, scope, principles"; example tweaked
+          ("deprioritized goal" → "scope boundary redrawn"). Maps old triggers onto new shape's required
+          sections. Both copies.
+
+        - **Cross-doc reference scan** — searched ARC workflows / strategies / briefs / constitution for
+          references to old META-PRD section names + shape-dependent PROJECT-PRD references. Findings:
+          `1_create-prd.md` Step 4/5 + `integrate-work-unit.md` line 135 had shape-dependent language
+          requiring sweep (see below); `activate-work-unit.md` verified shape-agnostic (no edit); 11 other
+          files are naming-only references that ride 4.3.h.
+
+        - **`1_create-prd.md` Step 4 + Step 5** — condition 3 ("load-bearing axes") dropped per design call
+          (a); "numbered principle" → "named principle"; "anti-goal" → "Out of Scope"; citation example
+          italicized name format (`principle 3 (Configurability with strong defaults)` → `the
+          *Configurability* principle`); Step 5 "PROJECT-PRD covers mission / principles / anti-goals" →
+          "problem / scope / principles"; "numbered-principle citation" → "named-principle citation". Both
+          copies.
+
+        - **`integrate-work-unit.md` line 135** — `"PROJECT-PRD principles / anti-goals"` →
+          `"PROJECT-PRD Principles / Out of Scope"`. Both copies.
+
+        - **Parent 4.2 reconciliation** — 4.2.a/b/d/e/f/g outcomes amended in place to reflect actual landed
+          shape; 4.2.b + 4.2.f titles amended ("Numbered principles" → "Named principles"; "Update-trigger
+          discipline embedded in template" → "Update Discipline callout"); 4.2.c marked `[~]` superseded for
+          the Anti-goals fold into Scope's Out of Scope per PMI convention; parent `_Outcome:_` rewritten to
+          reflect post-revision shape; Success Criteria + References documented as net-new optional sections.
+
+        - **4.3 description updates** — parent _Goal:_ rewritten to reflect new shape (Problem + Scope +
+          Principles required, Update Discipline callout, optional sections); subtask titles + descriptions
+          amended (4.3.b Mission note as optional; 4.3.c "numbered" → "named" with 3-5 target; 4.3.d "Draft
+          anti-goals" → "Draft Scope (In/Out)"; 4.3.e Problem-as-anchor framing; 4.3.f Tradeoffs optional
+          note; 4.3.g template-name correction). 4.3.h file-rename subtask unchanged.
+
+- _Outcome:_ `META-PRD.template.md` body restructured to new PROJECT-PRD shape via research-driven mid-execution
+  revision (see `research-project-vision-document-genre.md`). Final shape: three required content sections
+  (`## Problem` as §1 anchor, `## Scope` with `### In Scope` + `### Out of Scope` subsections, `## Principles`
+  with named identifiers and TBD-allowed scaffold content) + Update Discipline as `> [!IMPORTANT]` callout near
+  top (NOT a content section) + four optional sections in trailing cluster (`## Mission`, `## Design Tradeoffs`,
+  `## Success Criteria`, `## References`) + `---` structural close. Top-of-file HTML comment declares
+  Required/Optional/Callout taxonomy upfront. Diverged from 4.2.a-g first-pass spec on five axes: Mission demoted
+  to optional; Principles named (not numbered) with 3-5 target; Anti-goals folded into Scope's Out of Scope
+  subsection per PMI convention; Problem promoted to §1 anchor; Update Discipline relocated to callout. Success
+  Criteria + References added as net-new optional sections (captured under 4.2.h scope). Downstream sweep
+  (per 4.2.h) covered `02_define-project.md` (Step 1 prompts + framing + maintenance trigger), `1_create-prd.md`
+  (Step 4/5 shape-dependent language including condition 3 drop per design call (a)), and `integrate-work-unit.md`
+  (alignment check language). H1 + filename stay META-PRD-named until 4.3.h sweeps both. Single canonical copy:
+  `packages/arc-framework/arc/reference/META-PRD.template.md`.
 
 ### `[ ]` **4.3 Rewrite `PROJECT-PRD.md` content per new shape**
 
-- _Goal:_ `.arc/reference/PROJECT-PRD.md` content rewritten per the new `template-project-prd` shape — Mission + 5-7
-  numbered principles + anti-goals + problem statement + design tradeoffs — as the dogfooding pass that surfaces
-  template ambiguities (template v1.1 revisions ride the same phase if needed).
+- _Goal:_ `.arc/reference/PROJECT-PRD.md` content rewritten per the new PROJECT-PRD shape — Problem (anchor) +
+  Scope (In/Out) + Principles (3-5 named) + Update Discipline callout + any warranted optional sections (Mission,
+  Design Tradeoffs, Success Criteria, References) — as the dogfooding pass that surfaces template ambiguities
+  (template revisions ride the same phase if needed per the feedback loop in 4.3.g).
 
     - _Context:_ Existing `.arc/reference/PROJECT-PRD.md` (162 lines: § 1 Purpose through § 6 Technical Requirements) is
       the source material; preserve content the new shape genuinely subsumes; surface content that doesn't fit as scope
@@ -1681,24 +1760,33 @@ carries the update-discipline rule alongside the shape it codifies, keeping shap
     - `[ ]` **4.3.a Read existing PROJECT-PRD; inventory content vs new-shape coverage**
         - Map existing sections to new-shape slots. Surface gaps (content with no home) before drafting.
 
-    - `[ ]` **4.3.b Draft Mission**
-        - 1-3 sentences; from existing top-level framing.
+    - `[ ]` **4.3.b Draft Mission (optional)**
+        - 1-3 sentences distilled from existing top-level framing. Mission is an optional template section under
+          the new shape; ARC's project-level vision warrants its inclusion here.
 
-    - `[ ]` **4.3.c Draft 5-7 numbered principles**
-        - Distill existing principles / values into quotable-as-noun shape. Preserve principle ordering where existing
-          order is load-bearing.
+    - `[ ]` **4.3.c Draft 3-5 named principles**
+        - Distill existing principles / values into named-identifier shape (no numbering, per the shape revision
+          landed in 4.2). Soft target 3-5; soft cap 7-10 without grouping. Source material per the _Note:_ above
+          (§ 1 Philosophical basis + § 2 Core Features + notes design-decisions section + relevant ADRs).
 
-    - `[ ]` **4.3.d Draft anti-goals**
-        - From existing scope-bound language; explicit "won't do" framing.
+    - `[ ]` **4.3.d Draft Scope (In/Out)**
+        - Articulate ownership boundaries (In Scope) and explicit exclusions (Out of Scope). Out of Scope absorbs
+          the anti-goals function from existing scope-bound language ("predictable adjacent asks you're saying no
+          to"); folded under the Scope section per PMI convention rather than a standalone anti-goals section.
 
     - `[ ]` **4.3.e Draft problem statement**
-        - User-context framing; what ARC exists to solve.
+        - User/context framing for what ARC exists to solve. Problem is the document's anchor section under the
+          new shape (§1, required) — promoted from §4 in the first-pass spec.
 
-    - `[ ]` **4.3.f Draft design tradeoffs**
-        - Major calls + consequences; document the load-bearing ones.
+    - `[ ]` **4.3.f Draft design tradeoffs (optional)**
+        - Major design calls and consequences; document the load-bearing ones. Design Tradeoffs is an optional
+          template section under the new shape; for ARC's mature shape with significant architectural commitments
+          (pm.mode, branch.protection, configurability axes), inclusion is warranted.
 
-    - `[ ]` **4.3.g Feed template ambiguities back to `template-project-prd.md` v1.1**
-        - If shape ambiguities surface during draft, revise 4.2's template before declaring rewrite complete.
+    - `[ ]` **4.3.g Feed template ambiguities back into `META-PRD.template.md`**
+        - If shape ambiguities surface during draft, revise the canonical template before declaring rewrite
+          complete. Per R63, `META-PRD.template.md` (renames to `PROJECT-PRD.template.md` at 4.3.h) is the sole
+          template surface — no parallel `template-project-prd.md`.
 
     - `[ ]` **4.3.h File rename: `META-PRD.md` → `PROJECT-PRD.md` (both copies)**
         - `git mv .arc/reference/META-PRD.md .arc/reference/PROJECT-PRD.md` after content rewrite (rename rides the

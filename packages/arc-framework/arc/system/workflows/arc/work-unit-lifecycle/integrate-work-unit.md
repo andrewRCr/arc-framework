@@ -132,7 +132,7 @@ discovered against final reviewed scope.
 
 #### PROJECT-PRD
 
-Always evaluated. Surface conflicts between final reviewed scope and PROJECT-PRD principles / anti-goals.
+Always evaluated. Surface conflicts between final reviewed scope and PROJECT-PRD Principles / Out of Scope.
 
 #### TECHNICAL-OVERVIEW
 

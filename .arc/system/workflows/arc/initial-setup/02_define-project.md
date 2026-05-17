@@ -24,18 +24,18 @@ the questions below help you think through what matters before filling it in.
 
 ### Step 1: Define META-PRD
 
-Your project's vision, scope, and success criteria — the "why" and "what" that guides all
-other decisions. This is the canonical source for project direction; subsequent documents
-distill from it.
+Your project's problem statement, scope, and guiding principles — the "what" and "why" that
+guide all other decisions. This is the canonical source for project direction; subsequent
+documents distill from it.
 
 **Template**: [META-PRD.md][meta-prd] → goes in `reference/`
 
 **Think through**:
 
-- What problem does this project solve?
-- Who are the primary users and what are their goals?
-- What does success look like in 6-12 months?
-- What are the core features that deliver the most value?
+- What problem does this project solve? What makes the status quo insufficient?
+- What's in scope? What's explicitly out of scope?
+- What principles will guide decisions on this project? (3-5 named; scaffold-time TBD is acceptable.)
+- Which optional sections (Mission, Design Tradeoffs, Success Criteria, References) have content worth capturing now?
 
 Focus on product direction, not implementation — technology choices belong in
 TECHNICAL-OVERVIEW (next step).
@@ -156,8 +156,8 @@ say. When they drift from reality, the agent works from wrong assumptions.
 
 **Reference documents — keep honest:**
 
-- **META-PRD** — when the project's direction, scope, or success criteria shift. A pivot,
-  a deprioritized goal, or a new constraint changes what work gets planned.
+- **META-PRD** — when the project's documented problem, scope, or principles shift. A
+  pivot, a scope boundary redrawn, or a new constraint changes what work gets planned.
 - **ROADMAP** — when sequencing shifts, phases complete, or new work emerges. Stale
   roadmaps misguide next-work-unit discovery.
 - **PROJECT-STATUS** — when milestones are reached or project state changes materially.

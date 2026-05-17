@@ -63,26 +63,25 @@ For interactive sessions, provide numbered options to keep responses quick.
 
 ### Step 4: PROJECT-PRD alignment check
 
-Evaluate the PRD's scope (crystallized in Step 3) against PROJECT-PRD's principles, anti-goals, and
-load-bearing axes — the principle catalog is the project's vision contract.
+Evaluate the PRD's scope (crystallized in Step 3) against PROJECT-PRD's Principles and Out of Scope —
+the principle catalog is the project's vision contract.
 
 **Halt-and-ask conditions:**
 
-- PRD scope conflicts with a numbered PROJECT-PRD principle
-- PRD introduces scope that PROJECT-PRD lists as an anti-goal
-- PRD touches load-bearing axes the PROJECT-PRD pins (mission-critical decisions)
+- PRD scope conflicts with a named PROJECT-PRD principle
+- PRD introduces scope that PROJECT-PRD lists as Out of Scope
 
-On any of the above, halt and surface the specific conflict — user direction needed before save.
+On either of the above, halt and surface the specific conflict — user direction needed before save.
 
-**On pass — cite the principle by number.** Not "checked, passes" — "checked against principle 3
-(Configurability with strong defaults) — passes". Substantive citation keeps the alignment check
-load-bearing rather than ornamental.
+**On pass — cite the principle by name.** Not "checked, passes" — "checked against the
+*Configurability* principle — passes". Substantive citation keeps the alignment check load-bearing
+rather than ornamental.
 
 ### Step 5: TECHNICAL-OVERVIEW alignment check (conditional)
 
 Fires only when the PRD touches technical surfaces — tech stack, architecture, runtime,
-dependencies, or infrastructure. Independent of Step 4: PROJECT-PRD covers mission / principles /
-anti-goals; TECHNICAL-OVERVIEW covers technical surfaces. A single PRD may trigger both, one, or
+dependencies, or infrastructure. Independent of Step 4: PROJECT-PRD covers problem / scope /
+principles; TECHNICAL-OVERVIEW covers technical surfaces. A single PRD may trigger both, one, or
 neither.
 
 **Halt-and-ask condition:** PRD introduces tech (component, framework, dependency, infrastructure
@@ -95,7 +94,7 @@ not here — at create-PRD time the PRD hasn't been approved yet.
 
 **On pass — cite the section by name.** Not "checked, passes" — "checked against § 2 Architecture
 Components — passes". Section-based citation reflects TECHNICAL-OVERVIEW's structure (parallel to
-Step 4's numbered-principle citation).
+Step 4's named-principle citation).
 
 ### Step 6: Write and Save PRD
 

@@ -1,79 +1,113 @@
+<!-- Canonical project-PRD template. Rendered once at `arc init` / `arc join` time (per `classification.ts`) into a
+     hand-editable file in your project's `reference/` directory. Shape edits land here in the `.template` file;
+     content edits land in the rendered file. No parallel template exists in `reference/templates/` — this is the
+     sole canonical surface.
+
+     Structural conventions:
+     - **Required sections** (always present): Problem, Scope, Principles. Thin or TBD-marked content is valid; the
+       section slot itself is load-bearing.
+     - **Optional sections** (delete if not applicable): Mission, Design Tradeoffs, Success Criteria, References.
+       Add later if the project grows into needing them.
+     - **Update Discipline callout** — ARC-level guidance on when this document changes; not project content. -->
+
 # {{PROJECT_NAME}} Meta Product Requirements Document (META-PRD)
 
-The META-PRD is the product vision document — the single source of truth for what your project
-is, what it does, and what success looks like. Work-level PRDs (created via the PRD workflow)
-reference this for context.
+The project-level PRD — the canonical statement of what this project is, the problem it addresses, and what it bounds
+itself to do. Referenced at lifecycle ceremonies as the alignment check for proposed work: does this serve the stated
+problem? Does it fall within scope? Does it align with project principles?
 
-## 1. Purpose
+Work-unit PRDs (one per chunk of work) reference this for context. PROJECT-PRD is the canonical statement of what this
+project is; other ARC surfaces handle methodology, domain guidance, and decision records.
 
-What your project does, who it's for, and why it exists. Include key external dependencies
-or integrations that shape the project's scope.
+> [!IMPORTANT]
+> **Update Discipline.** This document updates on two triggers — never on cadence.
+>
+> - **Organic**: When a PR surfaces ambiguity or conflict against documented Problem, Scope, or Principles, resolve
+>   it here as part of that PR. The conflict is the signal.
+> - **Event-driven**: Major releases, fundamental scope shifts, or governance changes (new principle, retired
+>   principle, scope boundary redrawn). These edits ride a dedicated commit with rationale.
+>
+> Cadence-driven reviews are not used; they drift the document from real decisions.
 
-## 2. Core Features
+## Problem
 
-Organize features into logical groups. Each group represents a distinct capability area.
-List specific features as bullet points within each group.
+What problem does this project solve? Frame in user / context terms — describe the situation, who experiences it, and
+what makes the status quo insufficient. This is the document's anchor; everything else gets evaluated against it.
 
-### [FEATURE_GROUP_1]
+[PROBLEM_STATEMENT]
 
-- [FEATURE]
-- [FEATURE]
+<!-- "TBD — see discovery plan" is a valid placeholder when the problem is genuinely unclear at scaffold time.
+     Vacuous defaults ("improve developer productivity") are worse than honest TBDs. -->
 
-### [FEATURE_GROUP_2]
+## Scope
 
-- [FEATURE]
-- [FEATURE]
+### In Scope
 
-<!-- Add feature groups as needed. Aim for 3-6 groups covering your project's core
-     functionality. Each feature should be concrete enough to eventually become a
-     task list or work-level PRD. -->
+What domains, capabilities, or responsibilities does this project own?
 
-## 3. Out-of-Scope Features
+- [IN_SCOPE_ITEM]
+- [IN_SCOPE_ITEM]
 
-Explicitly list what your project will NOT do. This prevents scope creep and gives clear
-boundaries to anyone working on the project. Include deferred features and stretch goals.
+### Out of Scope
+
+What are you explicitly NOT doing, even if requested? Articulate the predictable adjacent asks you're saying "no" to.
 
 - [OUT_OF_SCOPE_ITEM]
 - [OUT_OF_SCOPE_ITEM]
 
-## 4. User Flow (Target)
+## Principles
 
-Describe the primary user journey through your project in narrative form. This helps
-contributors understand the intended experience and make contextual implementation decisions.
+3-5 named principles that guide decisions on this project. Quotable by name as alignment-check referents in PRs, ADRs,
+and PRDs. Default format is a bulleted list with bolded names:
+`**Name**: one or two sentences on how this principle gets applied.`
 
-[USER_FLOW_NARRATIVE]
+Principles are *discovered*, not invented — they emerge from recurring decisions that need consistent anchoring.
+Resist filling this in vacuously at scaffold; let real patterns reveal them.
 
-<!-- For non-UI projects (libraries, CLIs, data pipelines), describe the primary usage
-     pattern instead: how someone integrates, configures, and uses your project. -->
+[TBD — principles emerge from recurring decisions during work. Add as patterns surface.]
 
-## 5. Success Metrics
+<!-- Filled-in (compact, default):
+       - **[Principle Name]**: [How it gets applied — one or two sentences.]
+       - **[Principle Name]**: [How it gets applied.]
 
-How you'll measure whether the project is achieving its goals. Metrics should be specific
-enough to evaluate but don't need concrete targets at this stage.
+     Elaborated (when a principle warrants full rationale, promote to H3):
+       ### [Principle Name]
+       [Proposition — one short sentence.]
 
-- **[METRIC_CATEGORY]**: [METRIC_DESCRIPTION]
-- **[METRIC_CATEGORY]**: [METRIC_DESCRIPTION]
-- **[METRIC_CATEGORY]**: [METRIC_DESCRIPTION]
+       [Rationale paragraph — what it constrains, why it holds, examples of application.]
 
-## 6. Technical Requirements
+     Soft guidance: minimum 1, target 3-5, soft cap 7-10 without thematic grouping. Named identifiers (not numbered)
+     to avoid renumbering friction. Evolution is explicit and event-driven (see Update Discipline callout above). -->
 
-Cross-cutting quality attributes that apply across all features. These inform architectural
-decisions and quality gate configuration.
+## Mission
 
-- **Performance**: [PERFORMANCE_REQUIREMENTS]
-- **Reliability**: [RELIABILITY_REQUIREMENTS]
-- **Security**: [SECURITY_REQUIREMENTS]
+<!-- Optional. Longer-form purpose at a higher level than Problem. Useful for multi-year, multi-team, or
+     stakeholder-heavy projects; often skipped for solo / short-lived ones. Delete this section if not needed. -->
 
-<!-- Adjust categories to your project's priorities. A CLI tool might emphasize performance
-     and error handling; a web app might emphasize accessibility and security; a library
-     might emphasize API stability and backward compatibility. -->
+[MISSION_STATEMENT — 1-3 sentences on the project's purpose at the highest level of abstraction.]
 
-## 7. Data Sources
+## Design Tradeoffs
 
-External data dependencies your project relies on. Understanding these informs decisions
-about caching, error handling, and integration patterns.
+<!-- Optional. Major design calls and what they cost — deliberate choices that constrain future work. Surface them so
+     contributors can interpret Principles in light of what's been ruled out. Delete if no significant architectural
+     commitments yet. -->
 
-- **[DATA_SOURCE]**: [DATA_SOURCE_DESCRIPTION]
-- **[DATA_SOURCE]**: [DATA_SOURCE_DESCRIPTION]
+- **[TRADEOFF_NAME]**: Chose [WHAT_WAS_CHOSEN] over [ALTERNATIVE]. Cost: [WHAT_IT_COSTS].
+- **[TRADEOFF_NAME]**: Chose [WHAT_WAS_CHOSEN] over [ALTERNATIVE]. Cost: [WHAT_IT_COSTS].
 
-<!-- If your project has no external data dependencies, remove or repurpose this section. -->
+## Success Criteria
+
+<!-- Optional. How will you know you've succeeded? Measurable outcomes preferred over vague aspirations. Delete if
+     success is self-evident from Problem + Scope. -->
+
+- [SUCCESS_CRITERION]
+- [SUCCESS_CRITERION]
+
+## References
+
+<!-- Optional. External standards, parent specifications, supplemental in-repo documents, or industry frameworks this
+     project conforms to or builds on. Delete if not applicable. -->
+
+[none]
+
+---
