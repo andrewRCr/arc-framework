@@ -1578,10 +1578,18 @@ carries the update-discipline rule alongside the shape it codifies, keeping shap
           Notes Entry description in the field-semantics comment (git history is the lock; no
           mechanical enforcement; matches Keep a Changelog norms).
 
-    - `[ ]` **4.1.f Update `session-init.md` partial-read anchor (retirement)**
-        - The `^## Work Unit Metadata` partial-read anchor in `session-init.md` step 3 item 7 retires; meta file becomes
-          a full-read target. Update workflow body to reflect: full-read OK given small file size; archive-phase content
-          gated by H2 boundary (read only when present).
+    - `[x]` **4.1.f Update `session-init.md` partial-read anchor (retirement)**
+        - Item 7 switched from `## Work Unit Metadata` partial-read to full-read. Read-scope
+          subsection dropped entirely — it was load-bearing under partial-read (window scope,
+          field expectations, exclusions like the "About this file" blockquote) but vestigial
+          under full-read: template-meta.md per R58 is canonical for the field set, the file is
+          small, and "skip when absent" is meaningless when you read everything. Task reference
+          format subsection retained (triple-anchor convention is downstream-consumed by item 9's
+          graduated lookup). Mirrored to `session-init.contributor.md`. Both copies (`.arc/` +
+          `packages/.template.md`) synced.
+        - State enum value (`In Progress` in disambiguation precedence) and broader "status file"
+          → "meta file" terminology stay pre-WOR — those migrate at Phase 5 (code state-value
+          update) + Phase 6 (workflow-doc terminology sweep), out of 4.1.f's scope.
 
     - `[ ]` **4.1.g Retire `template-completion-doc.md`**
         - Bundled with 6.6 doc retirements; flag here that completion-doc content folded into archive-phase content H2s

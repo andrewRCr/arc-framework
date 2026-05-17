@@ -17,10 +17,9 @@ After items 1–6 load, run items 7–10 with the contributor adjustments below.
 `contributor` — the envelope's `resolution`, `path`, `candidates`, and `companions` carry the
 contributor active state directly. No singleton file lookup.
 
-**Item 7 — Active status file.** Same shape as maintainer Step 3 item 7 — partial-read the
-`## Work Unit Metadata` section of `active.value.path` when `resolution === "single"`, including optional fields
-such as `**Integration:**` when present. `resolution: "none"` skips items 9–10. `resolution: "multiple"`
-applies the documented precedence (SESSION-NOTES `**Working On:**`, branch match, `**State:** In Progress`,
+**Item 7 — Active status file.** Same shape as maintainer Step 3 item 7 — read `active.value.path` in full
+when `resolution === "single"`. `resolution: "none"` skips items 9–10. `resolution: "multiple"` applies
+the documented precedence (SESSION-NOTES `**Working On:**`, branch match, `**State:** In Progress`,
 prompt) over `active.value.candidates`.
 
 **Item 8 — SESSION-NOTES + contributor briefing.** Read `.arc/user/{identity}/SESSION-NOTES.md` (item
