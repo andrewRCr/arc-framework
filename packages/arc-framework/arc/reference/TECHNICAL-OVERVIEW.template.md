@@ -1,9 +1,26 @@
+<!-- Canonical technical-overview template. Rendered once at `arc init` / `arc join` time (per `classification.ts`)
+     into a hand-editable file in your project's `reference/` directory. Shape edits land here in the `.template`
+     file; content edits land in the rendered file. No parallel template exists in `reference/templates/` — this is
+     the sole canonical surface. -->
+
 # {{PROJECT_NAME}} Technical Overview
 
 This document outlines the technical architecture of {{PROJECT_NAME}} — the technology choices,
 component structure, and infrastructure that shape how the project is built and maintained.
 Both human contributors and AI agents reference this to make decisions consistent with the
 architecture.
+
+> [!IMPORTANT]
+> **Update Discipline.** This document updates on two triggers — never on cadence.
+>
+> - **Organic**: When a PR surfaces conflict or ambiguity against documented architecture, components, or
+>   infrastructure (a new pattern doesn't fit any documented component; recorded tooling commands don't match
+>   reality; a directory structure has drifted), resolve it here as part of that PR. The conflict is the signal.
+> - **Event-driven**: Tech-stack changes (language or framework added or retired), major refactors (component
+>   boundaries redrawn), dependency upgrades (significant version jumps), or infrastructure shifts (new
+>   deployment target, build-system change, CI/CD reshape). These edits ride a dedicated commit with rationale.
+>
+> Cadence-driven reviews are not used; they drift the document from real decisions.
 
 ## 1. Overview
 

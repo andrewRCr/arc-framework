@@ -1955,7 +1955,7 @@ carries the update-discipline rule alongside the shape it codifies, keeping shap
   `1_create-prd.md` describes the template generically; `activate-work-unit.md` has no orphan refs to the
   retired pre-activation fields (meta-\* takes those under R22a per Phase 3 work).
 
-### `[ ]` **4.8 Evolve `TECHNICAL-OVERVIEW.template.md` content shape (R60 template component)**
+### `[x]` **4.8 Evolve `TECHNICAL-OVERVIEW.template.md` content shape (R60 template component)**
 
 - _Goal:_ `TECHNICAL-OVERVIEW.template.md` (package source) evolves in-place per R60 — existing architecture /
   components / critical-path sections retained; new section added carrying update-trigger discipline (organic: PR-time
@@ -1965,23 +1965,35 @@ carries the update-discipline rule alongside the shape it codifies, keeping shap
 
     **Strategies:** `strategy-package-project-sync.md`
 
-    - _Path:_ Edit `packages/arc-framework/arc/reference/TECHNICAL-OVERVIEW.template.md` directly. Rendered output in
-      `.arc/reference/TECHNICAL-OVERVIEW.md` updates separately at Task 4.9 (dogfooding rewrite).
+    - `[x]` **4.8.a Audit existing template sections**
+        - Four numbered sections retained as-is: § 1 Overview (architecture summary); § 2 Architecture Components
+          (per-component subsections with Framework / Language / Key Libraries / Code Style / Directory Structure
+          fields); § 3 Infrastructure (Dev Environment / Build System / CI/CD / Deployment); § 4 Testing
+          Infrastructure (per-component framework / execution / structure / command). Only gaps the new shape fills
+          are lifecycle metadata (4.8.c) and update-trigger discipline (4.8.b); section taxonomy itself is sound.
 
-    - `[ ]` **4.8.a Audit existing template sections**
-        - Read current `TECHNICAL-OVERVIEW.template.md`. Confirm what stays (architecture overview + per-component
-          sections with framework / language / libraries / code-style / directory-structure fields); identify any
-          orientation gaps the new shape should fill.
+    - `[x]` **4.8.b Add update-trigger discipline section**
+        - Landed as `> [!IMPORTANT]` **Update Discipline** callout after the intro paragraph, before § 1 — mirroring
+          4.2.f's PROJECT-PRD placement. Two-trigger framing with explicit no-cadence close. Organic trigger
+          elaborated with three concrete failure-mode examples (new pattern doesn't fit a component; recorded tooling
+          commands don't match reality; directory structure drifted) — broader than 4.2.f's single example given
+          TECHNICAL-OVERVIEW's wider drift surface. Event-driven examples track the task spec verbatim (tech-stack
+          changes / major refactors / dependency upgrades / infra shifts), each parenthetically scoped.
 
-    - `[ ]` **4.8.b Add update-trigger discipline section**
-        - Block describing when TECHNICAL-OVERVIEW updates fire: organic (PR-time clarification when conflict surfaces)
-          plus event-driven (tech-stack changes, major refactors, dependency upgrades, infra shifts). Not
-          cadence-driven. Parallel to 4.2.f for PROJECT-PRD.
+    - `[x]` **4.8.c One-shot-template comment block (R63)**
+        - HTML comment block landed at file top (above H1) — states lifecycle (rendered once at `arc init` /
+          `arc join` per `classification.ts`), shape-edit vs content-edit boundary, sole-canonical-surface fact (no
+          parallel `reference/templates/template-technical-overview.md`). Skipped the "Structural conventions" inner
+          block that 4.2.g included for PROJECT-PRD — TECHNICAL-OVERVIEW's section structure is sequential
+          required-only with no Required/Optional/Callout taxonomy to declare upfront. Adopter-facing wording (no
+          R-IDs, no internal-roadmap references).
 
-    - `[ ]` **4.8.c One-shot-template comment block (R63)**
-        - Brief comment block at top of template noting: "This file is rendered once at `arc init` / `arc join` time
-          (per `classification.ts`); evolution happens in this `.template` file. Per R63, there is no parallel
-          `reference/templates/template-technical-overview.md`." Parallel to 4.2.g.
+- _Outcome:_ `TECHNICAL-OVERVIEW.template.md` adopts R60 + R63 shape — top-of-file HTML lifecycle comment and Update
+  Discipline `> [!IMPORTANT]` callout layered onto existing four-section structure (Overview / Components /
+  Infrastructure / Testing). Mirrors 4.2.f/g shape with one deliberate trim (no structural-conventions sub-block in
+  R63 comment, since this template has no Required/Optional split to announce) and one expansion (three organic-trigger
+  examples vs. one, given the document's broader drift surface). Single canonical copy — no two-copy mirror; rendered
+  output rewrite is Task 4.9.
 
 ### `[ ]` **4.9 Rewrite `TECHNICAL-OVERVIEW.md` content per new shape (R61 dogfooding pass)**
 
