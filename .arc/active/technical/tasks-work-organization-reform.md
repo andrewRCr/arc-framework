@@ -1529,14 +1529,12 @@ that surfaces shape ambiguities feeding back into `template-project-prd.md` v1.1
 _Design decisions:_ PROJECT-PRD update-trigger discipline (R36) lives in `template-project-prd.md` itself — the template
 carries the update-discipline rule alongside the shape it codifies, keeping shape + lifecycle co-located.
 
-### `[ ]` **4.1 Create `template-meta.md` (replaces `template-status.md`) — H1 + grouped fields + content H2s**
+### `[x]` **4.1 Create `template-meta.md` (replaces `template-status.md`) — H1 + grouped fields + content H2s**
 
 - _Goal:_ `template-meta.md` replaces `template-status.md` with the R58 shape — `# Metadata: {name}` H1;
   blank-line-grouped field blocks under H1 (no `## Work Unit Metadata` H2 wrapper); content H2s
   (`## Release Notes Entry`, `## Completion Notes`) added at Active → Integrating transition; post-Shipped errata
   convention note included.
-    - _Shape:_ See R58 in PRD for the full template skeleton. Five field groups (identity / reference / coordination /
-      task pointers / directive) + post-integration block + content H2s appearing only after state transition.
 
     **Strategies:** `strategy-package-project-sync.md`
 
@@ -1591,9 +1589,14 @@ carries the update-discipline rule alongside the shape it codifies, keeping shap
           → "meta file" terminology stay pre-WOR — those migrate at Phase 5 (code state-value
           update) + Phase 6 (workflow-doc terminology sweep), out of 4.1.f's scope.
 
-    - `[ ]` **4.1.g Retire `template-completion-doc.md`**
-        - Bundled with 6.6 doc retirements; flag here that completion-doc content folded into archive-phase content H2s
-          of `template-meta.md`.
+    - `[x]` **4.1.g Retire `template-completion-doc.md`**
+        - Verification-only task. Content fold from `template-completion-doc.md` into
+          `template-meta.md`'s archive-phase elements (PR URL, Completed, Release Notes Entry,
+          Completion Notes per R14) verified. Eliminated-without-successor content: Started
+          (derivable from git log), Verification (quality-gates passing is implicit), Follow-Up
+          Work + Routed Reference Files + Incidental Work Completed (routed via inboxes / ROADMAP
+          per R49a — incidental substrate retired). Actual `git rm` deferred to Task 6.6.d (Phase
+          6 doc-cleanup batch).
 
     - `[x]` **4.1.h Retired-from-prior-shape field acknowledgment (in template comments)**
         - Retired-fields enumeration (`Branch(es)` plural, `Base Branch`, `Sibling Work Unit(s)`,
@@ -1601,6 +1604,18 @@ carries the update-discipline rule alongside the shape it codifies, keeping shap
           `Created` / state-transition dates, `Title` / `Description`) live in the field-semantics
           HTML comment — no template-body clutter. Forward-reader clarity favored over rule
           restatement.
+
+- _Outcome:_ R58 meta-file shape landed — `template-meta.md` replaces `template-status.md` with H1
+  `# Metadata: {wu-name}` + blank-line-grouped field-block layout directly under H1 (no H2
+  wrapper), strict 4-state State machine, post-integration block + content H2s described in the
+  field-semantics comment (appended at ceremony only, no live body — visible template stays
+  unambiguous about life-phase). Placeholder convention within the new template unified on
+  `{kebab-token}` form (Owner: `[arc.identity]` → `{arc.identity}`); broader `[Title Case]`
+  cross-template retirement captured as atomic, also covers documenting the convention durably.
+  session-init Item 7 switched to full-read; vestigial Read-scope subsection retired.
+  template-completion-doc.md content-fold per R14 verified (4.1.g flag; actual `git rm` deferred
+  to 6.6.d). Commits: `7eca897f` (template + R58 shape + convention align), `8eec8d1d`
+  (session-init slim).
 
 ### `[ ]` **4.2 Evolve `META-PRD.template.md` content shape (PROJECT-PRD shape codification)**
 
