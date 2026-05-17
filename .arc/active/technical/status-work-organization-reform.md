@@ -9,16 +9,18 @@
 - **Task List:** `tasks-work-organization-reform.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task 4.4 — Close PROJECT-PRD update-trigger loop (verify-only). Task 4.3
-  prior in same session: full PROJECT-PRD content rewrite + bilateral META-PRD → PROJECT-PRD
-  rename (commits `04945526`, `e0346942`).
+- **Last Completed:** Task 4.7 — Reshape `template-prd.md` (chain-model header + retire
+  pre-activation comment block). Tasks 4.5–4.7 this session: chain-model sweep across
+  `template-plan.md` / `template-tasks.md` / `template-prd.md` (commits `cc5e8e8d`,
+  `62e988d8`, `19961aa7`).
 
-- **Next Task:** Task 4.5 — Clarify `template-plan.md` preamble (drop "optional" hedge; preserve
-  deletion-at-PRD-creation) (line ~1848).
+- **Next Task:** Task 4.8 — Evolve `TECHNICAL-OVERVIEW.template.md` content shape (R60
+  template component) (line ~1966).
 
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 4.5 — edit `template-plan.md` package source (drop "optional"
-  hedge, apply R58a chain-model header) + sync to `.arc/`.
+- **Next Action:** Start Task 4.8 — audit `TECHNICAL-OVERVIEW.template.md` sections; add
+  update-trigger discipline section (organic + event-driven) and R63 one-shot-template
+  comment block. Package source edit only; rendered output update is Task 4.9.
 
 ---
