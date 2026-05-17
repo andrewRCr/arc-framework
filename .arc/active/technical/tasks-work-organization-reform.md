@@ -1885,7 +1885,7 @@ carries the update-discipline rule alongside the shape it codifies, keeping shap
   per conductor's "explicit plan metadata is last-resort"; four-section freeform body aligns with conductor
   § Templates preserving current shape for minimum/standard depth.
 
-### `[ ]` **4.6 Reshape `template-tasks.md` (chain-model header + retire incidental framing)**
+### `[x]` **4.6 Reshape `template-tasks.md` (chain-model header + retire incidental framing)**
 
 - _Goal:_ `template-tasks.md` adopts the chain-model header per R58a (header reduces to `**Spec:**` only; `**PRD:**`
   field name renames to `**Spec:**` for vocabulary alignment with meta-\*; `**Purpose:**` retires as drift-surface
@@ -1894,36 +1894,33 @@ carries the update-discipline rule alongside the shape it codifies, keeping shap
   `manage-incidental-work.md` references rewrite to current-state language describing the workflow's function — no
   "transitional" / "pending" framing in the template.
 
-- _Touch points (from grep, 2026-05-13):_
-    - Lines 4-5 — preamble framing references both `feature`/`technical` (planned) and `manage-incidental-work.md`
-      (reactive). Reshape to generic WU framing.
-    - Header block (lines 27-34, Feature/Technical variant) — header field set reshapes per R58a chain model: rename
-      `**PRD:**` → `**Spec:**`; drop `**Branch(es):**`, `**Base Branch:**`, and `**Purpose:**`. Final shape: just
-      `**Spec:**` at top, then `---` separator, then phases.
-    - Line 86 — pointer to `manage-incidental-work.md § Coordinated Pause/Resume`. Drop (the Coordinated Pause/Resume
-      section couples to the retired pause-pointer fields).
-    - Lines 79-133 — Incidental Header Variant section. Drop the entire variant — the substrate it documented
-      (`incidental/` branch prefix, pause-pointer fields) no longer exists.
-    - Line 156 — pointer "For multi-step work outside the WU's concern, see `manage-incidental-work.md`." Keep — the
-      workflow still exists and routes interrupts; the pointer remains accurate in current-state phrasing.
-    - Line 176 — `[manage-incidental]:` reference-link definition. Retain if line-156 pointer survives; audit and retire
-      otherwise.
-    - `[arc-config]:` reference-link — survives only if `Base Branch:` field survives; since the field retires under
-      R58, this reference-link likely retires too. Verify at execution.
-
     **Strategies:** `strategy-package-project-sync.md`
 
-    - `[ ]` **4.6.a Edit package source (authoritative copy)**
-        - Per package-project sync discipline, `template-tasks.md` is a Framework file — edit
-          `packages/arc-framework/arc/reference/templates/template-tasks.md` first.
-        - Apply all touch-point edits per the list above. Header reduces to `**Spec:**` only.
-        - Retired field acknowledgment in template comments (parallel to 4.1.h's meta-template treatment): brief note
-          enumerating fields retired from prior tasks-\* header shape per R58 + R58a — `Branch(es)`, `Base Branch`,
-          `Purpose` (was PRD-mirror), `PRD` (renamed to `Spec` for vocabulary alignment).
+    - `[x]` **4.6.a Edit package source (authoritative copy)**
+        - Preamble reshaped to single-variant generic WU framing (drops `feature/technical (planned) or
+          manage-incidental-work.md (reactive)` two-variant intro). Header skeleton reduces to one bullet —
+          `- **Spec:** \`prd-{name}.md\`` — under H1, then `---` separator, then phases. Incidental Header Variant
+          section (lines 79-133 of prior shape) dropped wholesale. Outer H2 retitled from `## Header Variant: Feature
+          / Technical` to `## Work Unit Task List` (parallel to `## Atomic Companion File` via shared WU-scoping —
+          settled on iteration over "primary" / "phased" / tier-overloading alternatives). Field-explanation
+          paragraph rewritten — Branch(es) / Base Branch / Purpose descriptions retire alongside the fields.
+          `[arc-config]` and `[manage-incidental]` reference-link defs retired (both unused after the preamble +
+          Incidental variant drops; the latter caught by lint).
 
-    - `[ ]` **4.6.b Sync into `.arc/` instance copy**
-        - Sync via canonical mechanism (not `cp`).
-        - Verify pre-commit hook reports clean across both copies.
+    - `[x]` **4.6.b Sync into `.arc/` instance copy**
+        - Applied identical content to `.arc/reference/templates/template-tasks.md` via `Write`. `diff` confirms
+          byte-identical between copies; `npm run -s lint:md` reports zero errors across both.
+
+- _Outcome:_ `template-tasks.md` collapses from two-variant (Feature/Technical + Incidental) to single-shape per
+  R49a's incidental-substrate retirement; header adopts chain-model (`**Spec:**` only) per R58/R58a. Prose
+  paragraphs reflowed to ~110-char target (max line 114, well under 120 hard cap). Adopter-facing scope call,
+  mirroring the 4.5 iteration: the spec called for a "Retired field acknowledgment in template comments parallel
+  to 4.1.h's meta-template treatment", but this file is a docs wrapper (skeleton lives in a fenced code block, no
+  HTML-comment surface like `template-meta.md` has) and the retired-shape enumeration would land as visible prose
+  meta-framework commentary — same lens applied to `template-plan.md`'s parenthetical + Retired-fields block on
+  iteration. Inbound references in `2_generate-tasks.md` (lines 80, 318 — "Feature/Technical variant", "header with
+  Purpose") and the Phase 6.7 cross-reference sweep are now stale relative to this edit; routes to 6.7 per the
+  Phase 6.7 sweep convention (don't fix-in-place here).
 
 ### `[ ]` **4.7 Reshape `template-prd.md` (chain-model header + retire pre-activation comment-block)**
 
