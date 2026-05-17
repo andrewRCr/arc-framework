@@ -16,6 +16,30 @@ Atomic Task Completion for the full protocol.
 
 ## Tasks
 
+### `[ ]` **Template-family placeholder convention alignment + durable doc**
+
+- _Goal:_ Align H1 / slot placeholders across the `template-*.md` family on the dominant
+  `{kebab-token}` form, retiring the `[Title Case Phrase]` dialect. Codify the resulting
+  convention durably so future template authoring follows it without rediscovering the
+  pattern.
+- _Scope:_
+    - Templates touched: `template-prd.md`, `template-plan.md`, `template-adr.md`,
+      `template-workflow.md`, `template-dev-rules.md`, `template-contributing.md` — both
+      package source and `.arc/` instance. H1 placeholders (`[Work Name]`, `[Project Name]`,
+      `[Title]`, `[Domain Title]`, `[Short Title in Present Tense Imperative]`) plus any
+      analogous in-body slot placeholders.
+    - Convention doc — likely `.arc/reference/templates/README.md` (currently absent;
+      doubles as closing the DEV-RULES.PROJECT "READMEs required for each directory" gap
+      for this dir) OR a section in `strategy-file-classification.md`. Decide at execution:
+      README is discoverable at point of authoring; strategy is canonical for cross-cutting
+      conventions.
+    - Codified semantic: `{x}` = something substituted here (programmatic or authored);
+      `[lowercase-sentinel]` = the literal empty-value marker (`[none]`, `[internal]`).
+- _Captured:_ 2026-05-17 during WOR Task 4.1 — `template-meta.md` adopted `{wu-name}` per
+  R58 and migrated its Owner default from `[arc.identity]` → `{arc.identity}` for
+  in-template consistency. Remaining `[Title Case]` placeholders across the rest of the
+  template family are mechanical alignment work, not WU scope.
+
 ### `[x]` **Audience-vocabulary sweep — WU docs (PRD + task list)**
 
 - _Outcome:_ Swept both WU docs for `\badopters?\b` (case-insensitive). 14 replacements total:

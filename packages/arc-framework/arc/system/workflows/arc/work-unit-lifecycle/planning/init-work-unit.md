@@ -70,7 +70,7 @@ Create `.arc/active/meta-{name}.md` from `template-meta.md`. Replace the H1 titl
 (`# Metadata: {wu-name}`) with the actual work unit name, then apply these substitutions and overrides:
 
 1. **State** → `Planning`
-2. **Owner** → substitute the `[arc.identity]` placeholder with the resolved `arc.identity` value
+2. **Owner** → substitute the `{arc.identity}` placeholder with the resolved `arc.identity` value
 3. **Branch** → current planning branch (e.g., `plan/{name}`)
 4. **Spec** → backticked `plan-{name}.md` filename when one exists; otherwise `[none]`
 5. **Next Action** → freeform planning-session prompt (e.g., "Run `1_create-prd.md`" or "Continue

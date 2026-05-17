@@ -170,7 +170,7 @@ replace.
 - `integrate-planning-branch.md` — **retired entirely**
 - `activate-planning-branch.md` → renamed `init-work-unit.md` — WU + meta-file creation. Workflow body
   restructured for single-branch-per-WU: planning branch follows `plan/<name>` pattern per R2; meta file
-  created from `template-meta.md` per R58 with `[arc.identity]` substitution per R10. Two-branch-model
+  created from `template-meta.md` per R58 with `{arc.identity}` substitution per R10. Two-branch-model
   framing retired (separate impl-branch cleanup step; batch-flow arm with retired
   `integrate-planning-branch` reference)
 - `activate-work-unit.md` — name preserved with new semantic (state transition + branch rename, no directory move).
@@ -203,7 +203,7 @@ sessionType inference reads a State and branch-prefix composite: `State: Plannin
 `sessionType: planning`; `State: Active` → `sessionType: execution`; `State: Integrating` → `sessionType: integration`.
 
 **R10.** `**Owner:**` field — singular per WU. Solo mode auto-populates from `arc.identity` via template-placeholder
-approach (`[arc.identity]` substituted at meta-file creation). Team-mode handoff updates the field sequentially.
+approach (`{arc.identity}` substituted at meta-file creation). Team-mode handoff updates the field sequentially.
 
 **R11.** `**Depends On:**` field — bare WU-name list; renders into ROADMAP tier grouping. `**Blocks:**` deferred
 (redundant under explicit Depends On).

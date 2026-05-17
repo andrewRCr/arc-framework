@@ -1540,56 +1540,43 @@ carries the update-discipline rule alongside the shape it codifies, keeping shap
 
     **Strategies:** `strategy-package-project-sync.md`
 
-    - `[ ]` **4.1.a Rename + sync template file**
-        - `git mv .arc/reference/templates/template-status.md .arc/reference/templates/template-meta.md` plus packages/
-          counterpart.
+    - `[x]` **4.1.a Rename + sync template file**
+        - `git mv` in both copies (`.arc/reference/templates/template-meta.md`,
+          `packages/arc-framework/arc/reference/templates/template-meta.md`); git detected both as
+          proper R-renames.
 
-    - `[ ]` **4.1.b Restructure to `# Metadata:` H1 + blank-line-grouped field blocks (no internal H2)**
-        - H1: `# Metadata: {wu-name}`. No `## Work Unit Metadata` wrapper — fields live directly under H1 in
-          blank-line-separated blocks. Field groups per R58: identity / reference / coordination / task pointers /
-          directive / post-integration.
-        - **Field syntax:** bullet form (`- **Field:** value`) matching the established cross-artifact convention
-          (`tasks-*`, `plan-*`, `prd-*` all use bullet form per Tasks 4.5.b / 4.6 / 4.7). Visually consistent in raw
-          markdown; greppable. Blank lines between field groups produce the visual grouping under R58's layout.
+    - `[x]` **4.1.b Restructure to `# Metadata:` H1 + blank-line-grouped field blocks (no internal H2)**
+        - H1 `# Metadata: {wu-name}` with five blank-line-separated field-block groups directly under
+          H1 — no `## Work Unit Metadata` wrapper. Bullet field syntax `- **Field:** value` preserved
+          for cross-artifact consistency and greppability.
 
-    - `[ ]` **4.1.c Codify life-phase fields (within H1 body)**
-        - `**State:**` value-set: `Planning | Active | Integrating | Shipped` (4 values per PRD R9; strict state
-          machine; commitment level lives in dir, not State). `**Integration:**` retired (folds into State as the
-          `Integrating` value). State transitions fire at workflow ceremonies (`init-work-unit` creates Planning;
-          `activate-work-unit` flips Planning → Active; `integrate-work-unit` flips Active → Integrating; archive
-          ceremony flips Integrating → Shipped). Branch creation and branch rename do not fire State transitions —
-          they're internal to Planning state until `activate-work-unit` fires.
-        - `**Owner:**` singular; `[arc.identity]` placeholder substituted at meta-file creation.
-        - `**Branch:**` (single value per single-branch-per-WU).
-        - _Note:_ Verify existing `template-status.md`'s placeholder convention before authoring; stay consistent across
-          templates and with the substitution logic in 3.2.b's `init-work-unit.md`.
-        - `**Origin:**` default `[internal]`; orthogonal to Spec; external tracker URLs land here. Ordered before `Spec`
-          in the Reference group to reflect chain direction (`Origin → Spec → Task List → PR URL`) per R58a.
-        - `**Spec:**` ARC-owned spec artifact pointer; **deliberately generalizable** — points at whatever the spec
-          artifact is for the WU's tier × mode combination. Today's standard tier: PRD. Future tier variants per AWL
-          (atomic / quick / standard) or future modes per arc-plan Conductor / Lite mode may use lighter-templated spec
-          artifacts (compact PRD, scope-section variant, etc.). Field name does not lock to "PRD." See PRD R58a § Spec
-          field generalizability.
-        - `**Depends On:**` bare WU-name list; default `[none]`; renders into ROADMAP tier grouping.
-        - `**Cohort:**` single name string; default `[none]`; source of truth for cohort membership (sibling list
-          derived).
-        - Active-state pointers preserved: `**Task List:**`, `**Last Completed:**`, `**Next Task:**`, `**Blockers:**`,
-          `**Next Action:**`.
+    - `[x]` **4.1.c Codify life-phase fields (within H1 body)**
+        - Field set encoded per R58: `State` (4-state machine: Planning | Active | Integrating |
+          Shipped; ceremony-driven transitions documented in the field-semantics comment), `Owner`
+          (`{arc.identity}` placeholder substituted by init-work-unit.md), `Branch` (single value),
+          `Origin` (`[internal]` default, ordered before Spec to reflect chain direction), `Spec`
+          (generalizable across tier × mode — field name doesn't lock to "PRD"), `Depends On` /
+          `Cohort` (both default `[none]`).
+        - Active-state pointers preserved: `Task List`, `Last Completed`, `Next Task`, `Blockers`,
+          `Next Action`.
+        - Placeholder convention within `template-meta.md` aligned on `{kebab-token}` form — both
+          H1 (`{wu-name}` per R58) and Owner default (`{arc.identity}`) use it. Inline migration
+          touched 4 files (template-meta + init-work-unit, both copies) plus 2 PRD-prose references
+          and one task-list backfill default. Cross-template `[Title Case]` retirement across the
+          rest of the `template-*` family captured as an atomic — also covers documenting the
+          convention durably (templates/ README or strategy doc).
 
-    - `[ ]` **4.1.d Codify post-integration metadata fields + content H2s**
-        - Post-integration block within `# Metadata:` H1 body (added at integration ceremony): `**PR URL:**` (link to
-          integration PR), `**Completed:**` (date stamp).
-        - Content H2s (added at Active → Integrating transition; absent during life-phase): `## Release Notes Entry`
-          (one-paragraph user-facing summary + categorized lines per 7-category Keep a Changelog set: Added / Changed /
-          Removed / Fixed / Infrastructure / Deprecated / Security; optional Breaking Changes callout).
-        - `## Completion Notes` (narrative summary of what shipped).
-        - _Note:_ How to represent content H2s in the template (absent during life-phase, present after transition):
-          HTML-commented examples, inline placeholder text, or pure prose description? Decide at execution — prefer the
-          form least likely to mislead readers about whether the section is "present today."
+    - `[x]` **4.1.d Codify post-integration metadata fields + content H2s**
+        - Post-integration block (`PR URL`, `Completed`) and content H2s (`## Release Notes Entry`
+          per 7-category Keep a Changelog set with optional Breaking Changes callout; `## Completion
+          Notes`) described in the field-semantics HTML comment with explicit "appended at ceremony"
+          framing. No live template body for these — chose comment-description over inline-example
+          form to keep the visible template unambiguous about what's present during life-phase.
 
-    - `[ ]` **4.1.e Post-Shipped errata convention note (R32)**
-        - Template includes a brief note: Release Notes Entry edits after `Shipped` are errata only; git history is the
-          lock; no mechanical enforcement (matches keep-a-changelog norms).
+    - `[x]` **4.1.e Post-Shipped errata convention note (R32)**
+        - Errata-only rule for post-`Shipped` Release Notes Entry edits folded into the Release
+          Notes Entry description in the field-semantics comment (git history is the lock; no
+          mechanical enforcement; matches Keep a Changelog norms).
 
     - `[ ]` **4.1.f Update `session-init.md` partial-read anchor (retirement)**
         - The `^## Work Unit Metadata` partial-read anchor in `session-init.md` step 3 item 7 retires; meta file becomes
@@ -1600,17 +1587,12 @@ carries the update-discipline rule alongside the shape it codifies, keeping shap
         - Bundled with 6.6 doc retirements; flag here that completion-doc content folded into archive-phase content H2s
           of `template-meta.md`.
 
-    - `[ ]` **4.1.h Retired-from-prior-shape field acknowledgment (in template comments)**
-        - Template includes inline comment block (or surfaces in the template's intro) explicitly enumerating fields
-          retired from prior `template-status.md` per PRD R58: `Branch(es)` plural form (use `Branch:` singular);
-          `Base Branch:` (always `main` under single-branch-per-WU; project-level config concern);
-          `Sibling Work Unit(s):` (cohort is SoT per R13; siblings derived); `Integration:` (folds into State per R9);
-          `Interrupts:` / `Paused At:` / `Paused To:` (incidental WU model substrate retirement per R49a).
-        - Template includes inline note enumerating fields deliberately NOT added: `Worktree:` (per-machine + derivable
-          via R44 roster + WF location-template); `Tier:` (reserved for AWL); `Created:` / state-transition dates
-          (derivable from git log; metrics-flavor).
-        - Form: HTML comment block or template intro paragraph — chosen at execution to avoid template-body clutter.
-          Goal is forward-reader clarity, not rule restatement.
+    - `[x]` **4.1.h Retired-from-prior-shape field acknowledgment (in template comments)**
+        - Retired-fields enumeration (`Branch(es)` plural, `Base Branch`, `Sibling Work Unit(s)`,
+          `Integration`, pause-pointer trio) and deliberately-not-added list (`Worktree`, `Tier`,
+          `Created` / state-transition dates, `Title` / `Description`) live in the field-semantics
+          HTML comment — no template-body clutter. Forward-reader clarity favored over rule
+          restatement.
 
 ### `[ ]` **4.2 Evolve `META-PRD.template.md` content shape (PROJECT-PRD shape codification)**
 
@@ -2340,7 +2322,7 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
 
     - `[ ]` **6.4.c Per-WU metadata backfill (interactive — Origin / Owner / Depends On / Cohort)**
         - For each plan, user confirms the meta-file field values before file moves fire. Defaults applied
-          automatically: `Owner: [arc.identity]`, `Origin: [Internal]` (unless external tracker reference present in
+          automatically: `Owner: {arc.identity}`, `Origin: [Internal]` (unless external tracker reference present in
           plan body), `Depends On: [none]` (unless plan body carries explicit upstream WU names), `Cohort: [none]`
           (unless 6.4.b assigned to a named cohort).
         - **State value uniform:** all backlog WUs land `State: Planning` regardless of which commitment dir
