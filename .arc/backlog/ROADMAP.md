@@ -261,13 +261,51 @@ documents the constitutional shift (parallel scale to ADR-016).
   `**State:**` enum consumed; sweep-cadence config lifted into this WU's scope)
 - Downstream: arc-plan Conductor (consumes `meta-*` durable invariant + per-WU subdir convention
   plus spec-flow scaling hooks; lands canonical planning entry verb before the worktree trio
-  populates its scaling slots), Worktree Foundation (per-worktree isolation foundation,
+  populates its scaling slots), CLI Substrate Adoption (consumes the settled post-WOR meta-file
+  shape + lifecycle State enum for zod schema codification; parallelizable sibling with arc-plan
+  Conductor), Worktree Foundation (per-worktree isolation foundation,
   cross-worktree roster cascade), Agile WU Lifecycle (consolidated boundary workflows +
   sweep-as-you-go foundation + spec-flow contract per tier; AWL's scope item 7a shrinks to
   tier-aware adaptations only), Concurrent Work Conventions (Conventional Branch alignment +
   per-worktree isolation + group-dir convention as substrate), ARCd Rebrand (stable
   branch-and-lifecycle terminology), ARC Operating Modes (Lite mode unaffected — single-WU
   model has no per-worktree concerns)
+
+**CLI Substrate Adoption** — After Work Organization Reform; possibly parallel with arc-plan
+Conductor; before the parallelism trio
+
+Introduces four foundational libraries to the CLI (zod, execa, type-fest, neverthrow) and migrates
+priority validation surfaces (session-init envelope, audit log, post-WOR meta-file frontmatter,
+config), executes a full git-invocation sweep through execa (~81 production + ~28 test sites;
+hybrid downgrade reserved for feasibility-failure case), and converts the session-init `Probe<T>`
+shape to neverthrow `Result<T, E>`. Lays the typed-validation and ergonomic-error substrate that
+the parallelism trio (Worktree Foundation specifically) and the post-trio architecture-remediation
+cluster consume. Surfaced 2026-05-17 during a library landscape review of the CLI as accumulated
+validation, error-handling, and git-invocation surfaces outgrew the original minimal-deps
+rationale. Effect TS was considered as a comprehensive alternative and deferred with named
+reconsideration triggers (its strongest case — CLI-orchestrated structured concurrency — does not
+apply to the planned parallelism trio, which is methodology + advisory mechanism; existing
+hand-rolled patterns like release module's `AuthorizationDecision` and session-init's `Probe<T>`
+are already well-shaped implementations of what library-level abstractions provide). Companion WU
+drafted same-day: Schema Introspection Layer (post-trio, consumer-facing introspection surface
+built on this WU's schemas). Named follow-up "Complete CLI Substrate Migration" WU placeholder
+for sweeping remaining sites post-trio.
+
+- Plan: `technical/plan-cli-substrate-adoption.md` (pre-PRD draft, 2026-05-17)
+- Upstream: Work Organization Reform (meta-file shape per R58, lifecycle State enum, field model —
+  hard dependency; WU-A's zod schemas codify the settled post-WOR shape, not a moving target)
+- Sibling: arc-plan Conductor (parallelizable; different file scopes — Conductor touches
+  workflows and skills, CLI Substrate touches `packages/arc-framework/src/`; final
+  parallel-vs-sequential call at PRD time)
+- Downstream: Worktree Foundation (primary beneficiary — consumes zod schemas for
+  `git worktree list --porcelain` parsing across 3 sites, branch-gone cascade evidence discriminated
+  union, cold-start spec input parser, cross-WU note payload validation; consumes execa for all git
+  invocations including concurrent-push reconcile error handling), Coord Probe (consumes execa for
+  `gh` invocations; potential zod consumer for adapter output parsing), Schema Introspection Layer
+  (hard downstream dependency — post-trio sibling cluster with the 3 architecture-remediation
+  plans), Lib-Layer Type Extraction / Sync Handler Decomposition / User-Sync Module Split (inherit
+  zod schemas + `Result` types; scopes shrink), Complete CLI Substrate Migration follow-up
+  (placeholder; sweeps remaining zod / neverthrow migrations post-trio)
 
 **arc-plan Conductor** — After Work Organization Reform; before the parallelism trio
 
@@ -289,7 +327,10 @@ current planning" need reconciliation against WOR's settled scope at PRD-time.
   canonical conductor; sequencing reconciled against WOR 2026-05-13)
 - Upstream: Work Organization Reform (meta-* invariant, per-WU subdir convention, State
   codification, spec-flow scaling hooks via R22a/R22b/R22c)
-- Sibling: parallelizable with Coord Probe (no direct dependency in either direction)
+- Sibling: parallelizable with Coord Probe (no direct dependency in either direction); also
+  parallelizable with CLI Substrate Adoption (different file scopes — Conductor touches
+  workflows and skills, CLI Substrate touches CLI source; final parallel-vs-sequential call at
+  PRD time)
 - Downstream: Worktree Foundation (conductor invokes spawn at planning entry; spawn contract
   lands here, conductor consumes it), Agile WU Lifecycle (conductor reads `**Tier:**`; AWL fills
   per-tier depth defaults + spec-flow contract per tier), Concurrent Work Conventions
@@ -436,6 +477,19 @@ worktree once the parallelism trio + Coord Probe ship.
   user-notes / manifest helper duplication. Audit § P1 (user-sync status module SRP).
   Medium-large (~4-6 sessions). Plan: `technical/plan-user-sync-module-split.md`.
 
+**Schema introspection layer (consumer-facing surface; sibling parallel candidate with the
+architecture-remediation cluster).** Surfaced 2026-05-17 during exploratory Effect TS evaluation;
+hard upstream dependency on CLI Substrate Adoption (which ships before the trio per Current
+Sequencing Strategy above).
+
+- **Schema Introspection Layer** — Builds a consumer-facing CLI introspection surface
+  (`arc schema` subcommand tree, naming TBD at PRD) on top of the zod schemas introduced by CLI
+  Substrate Adoption. Lets agents, contributors, and tests discover canonical CLI contracts
+  (session-init envelope, audit log, meta-file frontmatter, config) without code-reading.
+  Optional companion: generated JSON Schemas shipped as static artifacts in `.arc/system/schemas/`
+  (decision deferred to joint PRD time with CLI Substrate Adoption). Small-medium (~3-5
+  sessions). Plan: `technical/plan-schema-introspection-layer.md`.
+
 ---
 
 ## Dependency Analysis
@@ -470,11 +524,11 @@ Phase A ──► Phase B ──► Phase C (Work Units):
    │     │     │     │     │     │     │     │     │     │
    │     │     │     │     │     │     │     │     │     ├──► Work Organization Reform (per-worktree isolation foundation; meta-* durable invariant)
    │     │     │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     │     │     ├──► arc-plan Conductor (after WOR; before trio — canonical planning entry, spec-flow contract)
+   │     │     │     │     │     │     │     │     │     ├──► CLI Substrate Adoption ‖ arc-plan Conductor (after WOR; before trio)
    │     │     │     │     │     │     │     │     │     │
    │     │     │     │     │     │     │     │     │     ├──► Coord Probe (parallel; consumes notes-discovery from User Sync UX)
    │     │     │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     │     │     ├──► Parallelism trio (after arc-plan Conductor):
+   │     │     │     │     │     │     │     │     │     ├──► Parallelism trio (after CLI Substrate Adoption + arc-plan Conductor):
    │     │     │     │     │     │     │     │     │     │      • Worktree Foundation
    │     │     │     │     │     │     │     │     │     │      • Agile WU Lifecycle (after Worktree Foundation)
    │     │     │     │     │     │     │     │     │     │      • Concurrent Work Conventions (after Agile WU Lifecycle)
@@ -527,6 +581,37 @@ Phase A ──► Phase B ──► Phase C (Work Units):
 
 ## Change Log
 
+- **2026-05-17**: Two plan-doc additions captured during a library landscape review of the CLI
+  motivated by accumulated validation, error-handling, and git-invocation surfaces outgrowing the
+  original minimal-deps rationale. Effect TS was considered as a comprehensive alternative and
+  deferred with named reconsideration triggers (its strongest case — CLI-orchestrated structured
+  concurrency via `Effect.forEach` + `Scope`-based resource management — does not apply to the
+  planned parallelism trio, which is methodology + advisory mechanism rather than CLI-driven
+  parallel orchestration; existing patterns like release module's `AuthorizationDecision`
+  discriminated union and session-init's `Probe<T>` shape are already well-shaped hand-rolled
+  implementations of what library-level abstractions provide; reconsideration triggers documented
+  in CLI Substrate Adoption § Pressure Points). The selected smaller-scope library adoptions form
+  two WUs:
+    - **CLI Substrate Adoption** (`technical/plan-cli-substrate-adoption.md`) inserted between
+      Work Organization Reform and the parallelism trio; parallelizable with arc-plan Conductor
+      (different file scopes — Conductor touches workflows + skills, CLI Substrate touches CLI
+      source). Introduces zod (priority migrations: session-init envelope, audit log, post-WOR
+      meta-file frontmatter, config), execa (full sweep ~81 production + ~28 test sites; hybrid
+      downgrade reserved for feasibility-failure case), neverthrow (`Probe<T>` → `Result<T, E>`
+      conversion), and type-fest (opportunistic). Coordinates with the 3 architecture-remediation
+      plans as upstream substrate — their scopes shrink as they inherit zod schemas + Result
+      types. Named follow-up "Complete CLI Substrate Migration" WU placeholder for sweeping
+      remaining sites post-trio.
+    - **Schema Introspection Layer** (`technical/plan-schema-introspection-layer.md`) added to
+      Post-Parallelism Trio cluster as sibling parallel candidate with the architecture-remediation
+      plans. Builds consumer-facing `arc schema` CLI subcommand tree on top of CLI Substrate
+      Adoption's zod schemas; lets agents, contributors, and tests discover canonical CLI contracts
+      without code-reading. Hard upstream dependency on CLI Substrate Adoption.
+
+    Updated sequencing: WOR → CLI Substrate Adoption ‖ arc-plan Conductor → parallelism trio
+    (WF ‖ Coord Probe → AWL → CWC) → post-trio cluster (Schema Introspection Layer ‖ Lib-Layer
+    Type Extraction ‖ Sync Handler Decomposition ‖ User-Sync Module Split, all parallel
+    candidates).
 - **2026-05-13**: arc-plan Conductor resequenced from "Post-Parallelism Trio: Sequencing TBD"
   to between Work Organization Reform and the parallelism trio. Surfaced during WOR Pass 3 open
   design question resolution: WOR's `meta-*` durable invariant plus per-WU subdir convention plus
