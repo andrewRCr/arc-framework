@@ -1832,14 +1832,18 @@ carries the update-discipline rule alongside the shape it codifies, keeping shap
   rigorous shared context, friction-inversion explicit naming). Inbound reference sweep + CLI ref
   update deferred to Tasks 6.7 + 5.4.
 
-### `[ ]` **4.4 Codify PROJECT-PRD update triggers**
+### `[x]` **4.4 Codify PROJECT-PRD update triggers**
 
 - _Goal:_ Update-trigger discipline (R36) is durably codified in `template-project-prd.md` (per 4.2.f) and
   cross-referenced from `strategy-work-organization.md` § PROJECT-PRD (or wherever PROJECT-PRD operations end up
   surfaced in strategy docs).
 
-    - _Note:_ R36 functionally lands inside 4.2.f; this parent confirms cross-reference + closes the update-trigger
-      loop. May reduce to a verification step if 4.2.f fully covers.
+- _Outcome:_ Verify-only per task _Note_. R36 callout codified in `PROJECT-PRD.template.md`
+  (lines 22-30) per 4.2.f and instantiated in rendered `PROJECT-PRD.md` (lines 12-20) per
+  4.3.h. No existing strategy-doc home for PROJECT-PRD operations; callout self-documents at
+  point-of-use, and adding a new strategy section was documentation-about-documentation for
+  marginal gain. Existing META-PRD references in strategy docs (6 across 3 files) are
+  naming-only — sweep rides Task 6.7 (subtask 6.7.k).
 
 ### `[ ]` **4.5 Clarify `template-plan.md` preamble (drop "optional" hedge; preserve deletion)**
 
