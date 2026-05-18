@@ -3250,6 +3250,11 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
             - `plan-arc-modes` — consume / restructure implications (its mode framing may change)
             - `plan-arc-backend` — interaction with the thesis (backend may be less necessary if the concurrency
               problem is reframed)
+        - _Source:_ pull the USER-INBOX universality question (drain-target gap under `pm.mode: none`;
+          behavior under `pm.mode: lite`) from `notes-work-organization-reform.md` § Open Design Questions
+          into this section as a worked example for the `pm.mode: none` and `pm.mode: lite` bullets.
+          Captured during WOR execution Task 5.6.e sanity-check; resolved as "PRD-consistent, defer to
+          this plan and to `plan-arc-modes` Lite design pass."
 
     - `[ ]` **6.11.e Author Decision Gate section**
         - Explicit gates: what deciding requires (e.g., evaluation of `plan-arc-modes`' current direction; verification

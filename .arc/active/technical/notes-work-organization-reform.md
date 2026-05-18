@@ -670,9 +670,35 @@ sections describe what was originally proposed; the deferral above describes wha
 
 ## Open Design Questions
 
-[none — Pass 3 audit's open question resolved 2026-05-13; see § Design Decisions §
-Per-WU subdir in backlog + meta-* as durable invariant from inception + Spec-flow contract
-deferral.]
+### USER-INBOX universality under `pm.mode: none` and (future) Lite mode
+
+R59 deliberately splits seeding by file class: per-user files (SESSION-NOTES, WORKING-MEMORY,
+USER-INBOX) seed unconditionally; project-shared backlog files (BACKLOG-INBOX,
+`backlog/ATOMIC-INBOX.md`) gate on `pm.mode == arc-in-git`. Task 5.6.c codified the per-user
+arm in CLI code (retired `pmMode` from `PostInitSetupOptions` / `UserAddOptions` /
+`JoinOptions`; dropped `PM_MODE_ARC_IN_GIT` from setup functions). Result: under
+`pm.mode: none`, USER-INBOX seeds with its `## Atomic` and `## Backlog` sections present,
+but project-side drain targets (`backlog/ATOMIC-INBOX.md`, `backlog/BACKLOG-INBOX.md`,
+`backlog/{planned,provisional}/`) don't exist — § Backlog has no drain destination.
+
+**Inherited, not introduced.** Pre-WOR per-user `ATOMIC-INBOX.md` had the same shape:
+always seeded, no drain target under `pm.mode: none`. WOR widens the affected surface
+(atomic + backlog sections vs. atomic only) without changing the underlying coherence gap.
+
+**Not WOR's to resolve.** Two downstream WUs own the redecision:
+
+- `plan-arc-in-git-as-default.md` (R64 / Task 6.11) — the "modes scale rather than swap
+  shapes" thesis is precisely this question generalized. The Implication Inventory section
+  (6.11.d) should call out USER-INBOX's role under each mode as a worked example. Task
+  6.11 carries an explicit "pull from this section" pointer.
+- `plan-arc-modes.md` Lite design pass — Lite is solo, single-WU, has no cross-WU
+  coordination surface. USER-INBOX § Backlog reads even weirder there than under
+  `pm.mode: none`. Plan-arc-modes flagged its own design pass is behind recent ARC
+  evolution; this question lands in that revisit.
+
+**Action:** Continue with the current shape (PRD-consistent). Carry forward as an
+Implication Inventory bullet during 6.11 authoring and as input to arc-modes' Lite design
+pass when it runs.
 
 ---
 
