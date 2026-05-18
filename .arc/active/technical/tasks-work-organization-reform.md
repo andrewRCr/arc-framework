@@ -2437,7 +2437,7 @@ at 5.4.g.
           `arc/backlog/BACKLOG-INBOX.template.md` with R59 pointers + entry-shape comment hints.
           Recipe-driven seeding wires in 5.6.d.
 
-### `[ ]` **5.6 CLI seeding wiring + per-WU subdir lifecycle helpers + reader migration**
+### `[x]` **5.6 CLI seeding wiring + per-WU subdir lifecycle helpers + reader migration**
 
 - _Goal:_ Wire the CLI to seed R59's new instance files at the right lifecycle points and implement the per-WU
   subdir lifecycle helpers per R65c. Init-time seeding routes WORKING-MEMORY + USER-INBOX into the per-user
@@ -2557,14 +2557,33 @@ at 5.4.g.
         - Tier 1 clean: `npm run typecheck` 0 errors, `npm run lint:ts` 0 errors, `npm run test:unit`
           1563/1563 passing — no regressions from the inline-read replacement.
 
-    - `[ ]` **5.6.g Tests**
-        - Reader-path coverage for the 5.6.f migration: handlers/status SESSION-NOTES read against subdir
-          path; restate-candidates baseline extraction; multi-candidate disambiguation against the new path.
-        - Integration test: `arc init` and `arc init --pm-mode arc-in-git` in temp dirs; assert all expected
-          files land at the expected paths (WORKING-MEMORY + USER-INBOX at user root regardless of mode;
-          backlog inboxes under arc-in-git only).
-        - E2E test: full activate → handoff → integrate cycle exercising `arc user open` (including the
-          defensive-prompt path) and `arc user close`.
+    - `[x]` **5.6.g Tests**
+        - Unit coverage for the 5.6.f resolver lands in new
+          `__tests__/unit/handoff/session-notes-path.test.ts` — 7 vertical slices: subdir present
+          (returns subdir path), flat-only (returns flat), both present (prefers subdir), multi-subdir
+          ambiguous (falls through to flat), neither present (returns null), `readDir` throws (returns
+          null gracefully), deeper-nested paths ignored (single-segment subdir convention only). The
+          handler-level integration of the resolver was smoke-tested at 5.6.f against this session's
+          flat-layout SESSION-NOTES; given the handler is a one-line wrapper over the helper, the
+          helper's unit coverage carries the integration story.
+        - E2E coverage for the `arc user open`/`close` CLI lifecycle lands in
+          `__tests__/e2e/user.e2e.test.ts` as a new `user open / close lifecycle` describe block —
+          4 cases: open seeds the subdir with templated SESSION-NOTES; second open is idempotent and
+          preserves in-flight edits; close removes the subdir recursively; close is idempotent on an
+          absent subdir. The defensive-prompt path (stale subdir from prior WU) involves interactive
+          TTY simulation and is left to the integration tests landed at 5.6.a/b (six cases at
+          `__tests__/integration/user.test.ts` "user open" / "user close" describe blocks).
+        - Integration coverage for the `arc init` file-set layout (WORKING-MEMORY + USER-INBOX at user
+          root regardless of mode; backlog inboxes under arc-in-git only) was landed at 5.6.c/d —
+          verified via grep against `integration/init.test.ts` ("installs the per-user file set under
+          arc-in-git") and `e2e/init.e2e.test.ts` (backlog inboxes render under arc-in-git). No new
+          coverage needed here.
+        - Multi-candidate disambiguation precedence — algorithm-only at the agent layer (session-init
+          item 7 precedence over `candidates`); the CLI returns candidates without applying precedence,
+          so no CLI test surface for path migration. Existing `commands/active/types.test.ts` unit
+          coverage carries the candidate-shape contract unaffected.
+        - Tier 1 clean: `npm run typecheck` 0 errors, `npm run lint:ts` 0 errors, `npm run test:unit`
+          1570/1570 passing (7 new), `vitest.e2e.config.ts user.e2e.test.ts` 11/11 passing (4 new).
 
 ## **Phase 6:** Migration and cross-reference sweep
 

@@ -260,3 +260,58 @@ describe("user push/pull portability", () => {
     expect(await pathExists(join(userDir, "SESSION-NOTES.md"))).toBe(true);
   });
 });
+
+describe("user open / close lifecycle", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await createTempRepo();
+    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
+    expect(init.exitCode).toBe(0);
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tmpDir);
+  });
+
+  it("opens a per-WU subdir and seeds SESSION-NOTES.md from template", async () => {
+    const result = await runArc(["user", "open", "feature-x"], tmpDir);
+
+    expect(result.exitCode).toBe(0);
+    const subdir = join(tmpDir, ".arc", "user", "test-user", "feature-x");
+    expect(await pathExists(subdir)).toBe(true);
+    expect(await pathExists(join(subdir, "SESSION-NOTES.md"))).toBe(true);
+  });
+
+  it("idempotent on second open — preserves in-flight SESSION-NOTES edits", async () => {
+    const first = await runArc(["user", "open", "feature-x"], tmpDir);
+    expect(first.exitCode).toBe(0);
+
+    const seedPath = join(tmpDir, ".arc", "user", "test-user", "feature-x", "SESSION-NOTES.md");
+    const { writeFile, readFile } = await import("node:fs/promises");
+    const customContent = "# Custom session notes\n\nIn-flight edits.\n";
+    await writeFile(seedPath, customContent, "utf-8");
+
+    const second = await runArc(["user", "open", "feature-x"], tmpDir);
+    expect(second.exitCode).toBe(0);
+
+    expect(await readFile(seedPath, "utf-8")).toBe(customContent);
+  });
+
+  it("closes a per-WU subdir, removing it recursively", async () => {
+    const open = await runArc(["user", "open", "feature-x"], tmpDir);
+    expect(open.exitCode).toBe(0);
+    const subdir = join(tmpDir, ".arc", "user", "test-user", "feature-x");
+    expect(await pathExists(subdir)).toBe(true);
+
+    const close = await runArc(["user", "close", "feature-x"], tmpDir);
+    expect(close.exitCode).toBe(0);
+
+    expect(await pathExists(subdir)).toBe(false);
+  });
+
+  it("close is idempotent — no error when the subdir is already absent", async () => {
+    const result = await runArc(["user", "close", "never-opened"], tmpDir);
+    expect(result.exitCode).toBe(0);
+  });
+});
