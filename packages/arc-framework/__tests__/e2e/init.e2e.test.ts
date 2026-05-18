@@ -106,7 +106,7 @@ describe("init", () => {
     // Key files exist
     expect(await pathExists(join(tmpDir, ".arc", "system", "arc-config.yml"))).toBe(true);
     expect(await pathExists(join(tmpDir, ".arc", "reference", "constitution", "DEV-RULES.ARC.md"))).toBe(true);
-    expect(await pathExists(join(tmpDir, ".arc", "reference", "templates", "template-status.md"))).toBe(true);
+    expect(await pathExists(join(tmpDir, ".arc", "reference", "templates", "template-meta.md"))).toBe(true);
   });
 
   it("init with --pm-mode arc-in-git installs arc-in-git files", async () => {

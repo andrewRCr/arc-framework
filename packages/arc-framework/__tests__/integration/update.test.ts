@@ -44,8 +44,8 @@ import type { Recipe } from "../../src/lib/types.js";
 
 const FRAMEWORK_FILE = "README.md";
 const CONFIGURABLE_FILE = "reference/constitution/DEV-RULES.PROJECT.md";
-const SCAFFOLDED_FILE = "reference/META-PRD.template.md";
-const SCAFFOLDED_OUTPUT = "reference/META-PRD.md";
+const SCAFFOLDED_FILE = "reference/PROJECT-PRD.template.md";
+const SCAFFOLDED_OUTPUT = "reference/PROJECT-PRD.md";
 
 function makeRecipe(
   includeFiles: string[],

@@ -270,7 +270,7 @@ describe("resolveFileList — actual recipe", () => {
 
 describe("toOutputPath", () => {
   it("strips .template suffix from .template.md files", () => {
-    expect(toOutputPath("reference/META-PRD.template.md")).toBe("reference/META-PRD.md");
+    expect(toOutputPath("reference/PROJECT-PRD.template.md")).toBe("reference/PROJECT-PRD.md");
   });
 
   it("leaves non-template files unchanged", () => {
@@ -295,7 +295,7 @@ describe("toOutputPath", () => {
 
 describe("classifyFile", () => {
   it("classifies Scaffolded files", () => {
-    expect(classifyFile("reference/META-PRD.template.md")).toBe("Scaffolded");
+    expect(classifyFile("reference/PROJECT-PRD.template.md")).toBe("Scaffolded");
     expect(classifyFile("reference/PROJECT-STATUS.template.md")).toBe("Scaffolded");
     expect(classifyFile("backlog/ROADMAP.template.md")).toBe("Scaffolded");
   });
@@ -325,7 +325,7 @@ describe("classifyFile", () => {
 
 describe("needsRendering", () => {
   it("returns true for .template files", () => {
-    expect(needsRendering("reference/META-PRD.template.md")).toBe(true);
+    expect(needsRendering("reference/PROJECT-PRD.template.md")).toBe(true);
     expect(needsRendering("system/workflows/arc/3_process-task-loop.template.md")).toBe(true);
   });
 
@@ -356,7 +356,7 @@ describe("buildManifestFiles", () => {
   it("creates file entries with classification, layer, and hash", () => {
     const fileContents: Record<string, string> = {
       "README.md": "# Hello",
-      "reference/META-PRD.md": "# Meta PRD",
+      "reference/PROJECT-PRD.md": "# Meta PRD",
     };
     const arcInGitFiles = new Set<string>();
     const entries = buildManifestFiles(fileContents, arcInGitFiles);
@@ -368,15 +368,15 @@ describe("buildManifestFiles", () => {
   });
 
   it("uses output path (not template path) for classification lookup", () => {
-    // META-PRD.template.md → Scaffolded via template path, but buildManifestFiles
-    // receives the output path (META-PRD.md). classifyFile checks template paths,
+    // PROJECT-PRD.template.md → Scaffolded via template path, but buildManifestFiles
+    // receives the output path (PROJECT-PRD.md). classifyFile checks template paths,
     // so the output path doesn't match SCAFFOLDED_FILES and falls through to Framework.
     const fileContents: Record<string, string> = {
-      "reference/META-PRD.md": "# Meta PRD",
+      "reference/PROJECT-PRD.md": "# Meta PRD",
     };
     const entries = buildManifestFiles(fileContents, new Set());
-    expect(entries["reference/META-PRD.md"]).toBeDefined();
-    expect(entries["reference/META-PRD.md"]!.classification).toBe("Framework");
+    expect(entries["reference/PROJECT-PRD.md"]).toBeDefined();
+    expect(entries["reference/PROJECT-PRD.md"]!.classification).toBe("Framework");
   });
 });
 
@@ -508,12 +508,12 @@ describe("runInit", () => {
 
   it("fresh mode: strips .template from output filenames", async () => {
     const recipe: Recipe = {
-      include_files: ["reference/META-PRD.template.md"],
+      include_files: ["reference/PROJECT-PRD.template.md"],
       prompts: minimalRecipe.prompts,
       conditions: {},
     };
     const io = mockIO({
-      "/templates/reference/META-PRD.template.md": "# Meta PRD",
+      "/templates/reference/PROJECT-PRD.template.md": "# Meta PRD",
     });
 
     await runInit({
@@ -528,7 +528,7 @@ describe("runInit", () => {
 
     const writeCalls = (io.writeFile as ReturnType<typeof vi.fn>).mock.calls;
     const metaPrdWrite = writeCalls.find(
-      (c) => c[0] === "/project/.arc/reference/META-PRD.md",
+      (c) => c[0] === "/project/.arc/reference/PROJECT-PRD.md",
     );
     expect(metaPrdWrite).toBeDefined();
   });
@@ -699,10 +699,10 @@ describe("runInit", () => {
     const io = mockIO({
       "/templates/README.md": "# framework file",
       "/templates/system/arc-config.yml": "pm.mode: none",
-      "/templates/reference/META-PRD.template.md": "# scaffolded",
+      "/templates/reference/PROJECT-PRD.template.md": "# scaffolded",
     });
     const recipe: Recipe = {
-      include_files: ["README.md", "system/arc-config.yml", "reference/META-PRD.template.md"],
+      include_files: ["README.md", "system/arc-config.yml", "reference/PROJECT-PRD.template.md"],
       prompts: minimalRecipe.prompts,
       conditions: {},
     };
@@ -734,7 +734,7 @@ describe("runInit", () => {
     expect(pristineStore["system/arc-config.yml"]).toBeDefined();
 
     // Scaffolded file NOT in pristine store
-    expect(pristineStore["reference/META-PRD.md"]).toBeUndefined();
+    expect(pristineStore["reference/PROJECT-PRD.md"]).toBeUndefined();
   });
 
   it("fresh mode: returns correct filesWritten and tools for message building", async () => {
