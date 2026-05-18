@@ -2097,35 +2097,27 @@ Test fixture impact: ~28 test files reference `status-` / `feature/` / `technica
 audit time, 2026-05-14). Compat shims keep most runs green even with stale fixtures; fixture migration concentrates
 at 5.4.f.
 
-### `[ ]` **5.1 Implement `worktree-roster.ts` library function with test-first coverage**
+### `[x]` **5.1 Implement `worktree-roster.ts` library function with test-first coverage**
 
 - _Goal:_ `packages/arc-framework/src/lib/git/worktree-roster.ts` exports a function returning a list of
   `{worktreePath, branch, identity?, metaFilePath, state, cohort?}` tuples from `git worktree list` + per-worktree
   meta-file resolution — synchronous worktree-list read; async per-worktree meta-file resolution; empty list returned
   when no worktrees or no meta files surface (clean degradation).
 
-- _Note:_ `git/worktree-sync.ts` may already parse `git worktree list` output. Audit for an existing utility before
-  re-implementing — reuse if available; factor if it covers ~90% of need.
-
-- _Note:_ State value-set (`Planning | Active | Integrating | Shipped`) is codified in 4.1.c (`template-meta.md`) per
-  PRD R9 and in TypeScript at Task 5.4.a (`WorkUnitState`). Import from the shared type when 5.4.a has landed; if 5.1
-  executes first, hardcode with a comment pointing at both the codifying template (4.1.c) and the codifying task
-  (5.4.a). Avoid silent enum duplication.
-
     **Strategies:** `strategy-testing-methodology.md`
 
-    Build `test-first` (one behavior at a time):
-    - Returns empty list when only the main worktree exists with no `meta-*.md` in `active/`.
-    - Returns single tuple with `state` and `cohort` populated when one worktree has a meta file.
-    - Returns multi-element list with one tuple per worktree when several worktrees have meta files.
-    - Resolves `identity` from meta file's `**Owner:**` field (verbatim string; no normalization).
-    - Resolves `state` from `**State:**` field (validates against the codified value-set; surfaces unknown values as
-      `unknown` rather than throwing).
-    - Resolves `cohort` from `**Cohort:**` field; `[none]` maps to `undefined` in the tuple (not the string `"[none]"`).
-    - Tolerates missing meta file (worktree exists, no `meta-*.md` in its `active/`) — returns a tuple with
-      `metaFilePath` undefined and other meta-derived fields absent.
-    - Tolerates malformed meta file (parse error) — surfaces a warning, returns a degraded tuple rather than throwing.
-    - Detached-HEAD worktrees skip cleanly (no branch → no meta-file resolution attempt).
+- _Outcome:_ `worktree-roster.ts` ships with 12 vertical-slice unit tests covering the 9 enumerated behaviors
+  plus 3 multi-meta resolution cases added at review (branch-field matching with warning on
+  no-match / ambiguous-match). Per-worktree resolution parallelized via `Promise.all`. Audit confirmed
+  `worktree-sync.ts` is a sync-state probe only — no reusable `git worktree list` parse to factor out. State
+  value-set inlined per Note (5.4.a not yet landed) with comment pointing at both `template-meta.md` (4.1.c)
+  and the forthcoming `WorkUnitState` import site. Design intent clarified before implementation: meta-less
+  worktrees return degraded tuples (consumer-interpreted — admin/main fallback for the WF branch-gone
+  cascade); detached-HEAD worktrees excluded entirely (no branch identity to act on). Single-meta-in-active/
+  case uses the lone file unconditionally; multi-meta case requires `**Branch:**` match, with warnings on
+  no-match (degraded fallback) and on multi-match (alphabetical-first + warn). R44 clean-degradation refined
+  to fire only when no worktree's active/ contains any meta files at all (not when metas exist but failed to
+  resolve) — so consumers see invariant-violation warnings rather than silent empty results.
 
 ### `[ ]` **5.2 Wire `pre-push-review` markers into workflows with push fire-points**
 
