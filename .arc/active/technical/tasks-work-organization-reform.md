@@ -2597,28 +2597,99 @@ sweep runs after retirements so all retired surfaces have already been removed w
 commit-format method + footer-convention propagation that originally lived at 6.2 hoisted to Task 2.13 to align phase
 order with execution order (must precede Phase 3 lifecycle workflow restructures).
 
-### `[ ]` **6.1 Update `system/githooks/commit-msg` (type-set tightening + `arc` scope refusal)**
+### `[ ]` **6.1 Tune commit conventions (hook + method + handoff-commit shape)**
 
-- _Goal:_ `system/githooks/commit-msg` enforces tuned 8-type set
-  (`feat | fix | chore | docs | refactor | test | perf | revert`) and refuses `arc` as scope while preserving the bash
-  `arc_config_get` pattern (no migration to commitlint); changes ride both copies (.arc/ + packages/).
+- _Goal:_ Three coupled changes ship together — `system/githooks/commit-msg` enforces tuned 8-type set
+  (`feat | fix | chore | docs | refactor | test | perf | revert`); `commit-format.md` method codifies the
+  three-layer scope convention (locus in subject scope, lifecycle action in footer parenthetical, specific work
+  in subject body; `(arc)` reserved for cross-cutting framework + ARC lifecycle ceremony invocations);
+  `session-handoff.md` step 3 codifies the handoff-commit subject + body shape (action verb prefix + position
+  string in subject; field-delta lines in body). Bash `arc_config_get` pattern preserved (no migration to
+  commitlint). Changes ride both copies (.arc/ + packages/).
 
     **Strategies:** `strategy-package-project-sync.md`
 
-    - `[ ]` **6.1.a Type-enum regex tightening**
-        - Update regex: `^(feat|fix|chore|docs|refactor|test|perf|revert)\([a-z][a-z0-9-]*\): .+`. Drops `style`,
-          `content`, `build`, `ci`, `config` from prior regex.
+    - `[ ]` **6.1.a Type-enum regex tightening + method type-list sync**
+        - Hook regex: `^(feat|fix|chore|docs|refactor|test|perf|revert)\([a-z][a-z0-9-]*\): .+`. Drops `style`,
+          `content`, `build`, `ci`, `config` from prior regex (plus the corresponding entries in the hook's
+          help-text `Types:` line).
+        - `commit-format.md` § Types — replace the 13-type enumeration with the tuned 8-type set; align the
+          method body's `Types:` line.
 
-    - `[ ]` **6.1.b Scope denylist (`arc`)**
-        - Post-match check on captured scope: reject when matches `^arc$`. Initial denylist member only; expands
-          organically as new catch-all patterns surface in PR review.
+    - `[ ]` **6.1.b Sync hook + method to packages/**
+        - Edit `packages/arc-framework/arc/system/githooks/commit-msg` +
+          `packages/arc-framework/arc/system/methods/commit-format.md` to match.
 
-    - `[ ]` **6.1.c Sync to packages/**
-        - Edit `packages/arc-framework/arc/system/githooks/commit-msg` to match.
+    - `[ ]` **6.1.c Hook smoke test**
+        - Attempt commit with retired type (`style:`); verify rejection. Attempt valid commit with tuned
+          type-set; verify pass. Scope-rejection enforcement is retired in favor of the codified convention in
+          6.1.d — no scope-denylist regression test needed.
 
-    - `[ ]` **6.1.d Hook smoke test**
-        - Attempt commits with retired type (`style:`) and `arc` scope; verify rejection. Attempt valid commit; verify
-          pass.
+    - `[ ]` **6.1.d Codify three-layer scope convention (commit-format method + DEV-RULES.ARC + PRD R26 reshape)**
+        - `commit-format.md` § Scope rewrites — codify that each commit layer carries orthogonal information:
+            - **Subject scope** identifies LOCUS of change. Use narrow scopes when the work is bounded to one
+              surface (`(workflow)`, `(method)`, `(strategy)`, `(hook)`, `(skill)`, `(template)`, `(rules)`,
+              `(meta)`); reserve `(arc)` for cross-cutting framework concerns AND ARC lifecycle ceremony
+              invocations.
+            - **Subject body** describes SPECIFIC work. For ceremony commits, leads with the action verb —
+              `handoff — <position>` / `activate <wu-name>` / `integrate <wu-name>` / `archive <wu-name>` /
+              `deactivate <wu-name>`.
+            - **Footer parenthetical** names LIFECYCLE ACTION — `(handoff)`, `(activation)`, `(integration)`,
+              `(archival)`, `(deactivation)`, `(maintenance)`, `(incidental during ...)`. Machine-parse SoT;
+              enforcement already lives in the hook footer regex (unchanged).
+        - No mechanical scope-denylist. The "uninformative catch-all" pathology that the pre-WOR PRD flagged
+          dissolves under the convention — `(arc)` carries a specific reserved meaning, not a default-when-
+          uncertain. Convention enforced by code review + this codification, not the hook.
+        - DEV-RULES.ARC § Commit Discipline — add brief pointer to `commit-format.md` § Scope for the
+          convention; remove any residual prose that implies `(arc)` is uninformative-by-default.
+        - PRD R26 reshape (PRD body edit): retire "never the repo name" + "denylist for `arc`" framing; new
+          framing per the three-layer convention. PRD body edit lands at WOR integration as a PRD amendment
+          (not in this task — flag for integration sweep).
+        - Sync method edits to `packages/arc-framework/arc/system/methods/commit-format.md`.
+        - _Sequencing:_ Runs before 6.7.p (the prose-and-shape sweep depends on this codified target).
+
+    - `[ ]` **6.1.e Codify handoff-commit subject + body shape (session-handoff.md step 3)**
+        - Codify in `.arc/system/workflows/arc/session-lifecycle/session-handoff.md` § Comprehensive Handoff
+          Format step 3 — the subject template and body template the workflow uses when composing the
+          `chore(arc): handoff — <position>` commit. Reshapes existing step-3 prose that today produces
+          `chore(status): handoff` with an empty body.
+        - **Subject template:** `chore(arc): handoff — <position>`. Position-string vocabulary (codified set;
+          agent picks by field-delta match — minimal judgment):
+            - `Phase N complete, next: Task X.Y` — when the last-completed task closes a phase boundary
+            - `next: Task X.Y[.z]` — within a phase (task ID encodes phase position; no "mid-Phase N" cruft)
+            - `between work units` — no active WU
+            - `planning <wu-name>` — on a plan-doc branch
+            - `work unit complete, next: integrate` — all tasks complete; integration pending
+            - `off-task-list — <brief>` — off-task-list work mid-WU
+        - **Body template:**
+
+            ```text
+            chore(arc): handoff — <position>
+
+            Last Completed: <prev> → <curr>
+            Next Task: <prev> → <curr>
+            [State: <value> (changed | unchanged)]
+            [Blockers: <delta if changed>]
+
+            Context: meta-<wu-name>.md (handoff)
+            ```
+
+            `Last Completed` + `Next Task` lines always present; `State` line included only when value
+            changed; `Blockers` line included only when delta exists. Prev-value derived from
+            `git show <Commit at Handoff>:<meta-path>` (the hash from SESSION-NOTES); curr-value from staged
+            content.
+        - **Subject-length guard:** codified position templates fit under the 72-char hook limit with typical
+          WU/task names. Long WU names (>~30 chars) may force shortened forms — convention for fallback: trim
+          WU name to its last segment.
+        - Sync workflow edits to `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/`.
+        - _Sequencing:_ Runs after 6.1.d (the convention this consumes) AND after 6.2.i (the meta-file
+          footer-token migration that lands the `(handoff)` parenthetical on `meta-` shape — the body
+          template references `Context: meta-<wu-name>.md`). Within Phase 6, place 6.1.e execution after 6.2
+          closes.
+        - **CLI-helper extraction tracked downstream:** the deterministic steps (read last-handoff snapshot,
+          compute field-deltas, select position-string template, render body) extract cleanly to a CLI helper
+          (`arc handoff render --subject-body` shape). Out of WOR scope; captured in
+          `plan-handoff-optimization.md` § Approach as the proper home.
 
 ### `[ ]` **6.2 Migrate in-flight WU meta files (`status-*` → `meta-*` + field backfill + State recodification)**
 
@@ -3135,36 +3206,46 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           adopter-facing surfaces; retirement rationale survives in internal-dev-facing notes (this WU's notes
           file).
 
-    - `[ ]` **6.7.p Status-file → Meta-file nomenclature sweep (`chore(status):` + prose)**
-        - Migrate the `chore(status):` commit subject-scope token to `chore(meta):` and "Status-file ..." prose
-          references to "Meta-file ..." across all surfaces. Companion to Task 6.2.a (file rename) and 6.2.i (hook
-          regex + commit-footer body filename-token flip) — 6.7.p covers the subject-scope token + prose-nomenclature
-          strata that those tasks don't touch. Hook regex change unnecessary: the type-enum regex captures any
-          alphanum scope; `meta` clears the 6.1.b denylist (initial denylist member is `arc` only).
-        - Grep patterns: `chore\(status\)`, `Status-file timing`, `Status-file commit shape`, `Status edits`,
-          `status edit`, `\bstatus-file\b` (case-insensitive on the prose patterns).
+    - `[ ]` **6.7.p Ceremony-commit shape migration + status→meta prose sweep (Design CLEAN)**
+        - Migrate ceremony-commit subject shapes across all WU lifecycle workflows + session-handoff to the
+          Design CLEAN convention codified in 6.1.d / 6.1.e. Migration targets:
+            - `chore(status): handoff` → `chore(arc): handoff — <position>` per 6.1.e template.
+              `Context: status-foo.md (handoff)` → `Context: meta-foo.md (handoff)` covered atomically by 6.2.i.
+            - `chore(meta): integrate {name}` (landed in `integrate-work-unit.md` at Phase 3 Task 3.4) →
+              `chore(arc): integrate {name}`.
+            - Any other `chore(meta):` or `chore(status):` references in workflow bodies, method examples, or
+              strategy docs → `chore(arc): <action>` shape per the convention.
+        - Also migrate "Status-file ..." prose → "Meta-file ..." prose across all surfaces.
+        - Companion to Task 6.2.a (file rename) and 6.2.i (hook regex + commit-footer body filename-token
+          flip) — 6.7.p covers the subject-scope shape + prose-nomenclature strata those tasks don't touch.
+          Hook regex change unnecessary: the type-enum regex captures any alphanum scope; `(arc)` is the
+          canonical reserved scope under the new convention.
+        - Grep patterns: `chore\(status\)`, `chore\(meta\)`, `Status-file timing`, `Status-file commit shape`,
+          `Status edits`, `status edit`, `\bstatus-file\b` (case-insensitive on the prose patterns).
         - Touch points:
-            - Constitutional: `DEV-RULES.ARC.md` § Commit Discipline (Status-file timing bullet, Status-file commit
-              shape bullet, `chore(status):` reference, "Status edits" prose).
-            - Methods: `commit-footer.md` (line ~70 `chore(status):` example reference under Meta-file references).
+            - Constitutional: `DEV-RULES.ARC.md` § Commit Discipline (Status-file timing bullet, Status-file
+              commit shape bullet, `chore(status):` reference, "Status edits" prose).
+            - Methods: `commit-footer.md` (line ~70 `chore(status):` example reference under Meta-file
+              references).
             - Workflows: `1_create-prd.md`, `3_process-task-loop.md`, `prepare-commits.md` (multiple refs),
-              `session-handoff.md` (multiple refs).
+              `session-handoff.md` (post-6.1.e codification — verify alignment, no re-sweep needed),
+              `integrate-work-unit.md` (Phase 3 Task 3.4 landed `chore(meta): integrate {name}` — retarget to
+              `chore(arc): integrate {name}`), `activate-work-unit.md` (verify already-landed `chore(arc):`
+              shape aligns with the `<action> <wu-name>` template; align if not),
+              `archive-work-unit.md`, `deactivate-work-unit.md` (audit + align).
             - Skill: `arc-commit/SKILL.md`.
             - Strategies: `strategy-session-operations.md`, `strategy-workflow-authoring.md`.
-            - Already migrated ahead-of-schedule at boundary workflows (verify no re-sweep needed):
-              `integrate-work-unit.md` (Task 3.4), `init-work-unit.md` (Task 3.4 fix-up),
-              `activate-work-unit.md` (Task 3.4 fix-up — meta-file prose; subject-scope sample `docs(arc):` is a
-              separate concern tied to Task 6.1.b's `arc` scope refusal).
         - **Exclusions:**
-            - Historical archive (`completed/<dated>/` post-6.9 / `reference/archive/` pre-6.9): accurate-as-of-decision;
-              do not touch.
+            - Historical archive (`completed/<dated>/` post-6.9 / `reference/archive/` pre-6.9):
+              accurate-as-of-decision; do not touch.
             - Internal-dev surfaces describing historical decisions (e.g., `adr-016`,
-              `research-pr-sizing-and-wu-boundary-estimation.md`) follow the 2.13.e ADR-precedent — historical record
-              stays accurate as-of-decision; explicit per-doc judgment at execution.
-        - **Sequencing:** Runs after Task 6.2.a (file rename) + 6.2.i (hook regex flip) so the new shape is
-          coherent end-to-end before this prose sweep lands.
-        - Post-sweep verification: grep on the patterns returns empty across adopter-facing surfaces; internal-dev
-          historical surfaces retain original phrasing where the as-of-decision case applies.
+              `research-pr-sizing-and-wu-boundary-estimation.md`) follow the 2.13.e ADR-precedent —
+              historical record stays accurate as-of-decision; explicit per-doc judgment at execution.
+        - **Sequencing:** Runs after 6.1.d (convention codification — the migration target shape) AND 6.1.e
+          (handoff template); after 6.2.a (file rename) + 6.2.i (hook regex flip) so the end-to-end shape is
+          coherent before this prose+shape sweep lands.
+        - Post-sweep verification: grep on the patterns returns empty across adopter-facing surfaces;
+          internal-dev historical surfaces retain original phrasing where the as-of-decision case applies.
 
 ### `[ ]` **6.8 Slim instance-file preambles (SESSION-NOTES + USER-INBOX + BACKLOG-INBOX + backlog/ATOMIC-INBOX)**
 
@@ -3353,7 +3434,15 @@ readiness assessment.
   content-only; orientation lives in strategy docs + workflows
 - `[ ]` `system/githooks/commit-msg` enforces tuned 8-type set
   (`feat | fix | chore | docs | refactor | test | perf | revert`)
-- `[ ]` Hook refuses `arc` as scope — verified by attempt + rejection
+- `[ ]` Three-layer scope convention codified per Design CLEAN — `commit-format.md` § Scope documents subject
+  scope as locus, footer parenthetical as lifecycle action, subject body as specific work; `(arc)` reserved for
+  cross-cutting framework + ARC lifecycle ceremony invocations; no mechanical scope-denylist
+- `[ ]` Ceremony commits across WU lifecycle workflows use `chore(arc): <action>` pattern (handoff / activate /
+  integrate / archive / deactivate) — verified by grep returning no `chore(status):` or `chore(meta):`
+  references in adopter-facing surfaces
+- `[ ]` Handoff commits carry informative subject (`chore(arc): handoff — <position>`) and structured body
+  (`Last Completed` + `Next Task` field-delta lines) per `session-handoff.md` § Comprehensive Handoff Format
+  step 3
 - `[ ]` CB-CC alignment documented in `strategy-work-organization.md` § branching with the cognitive-load rationale +
   intentional divergence on `test` / `revert`
 - `[ ]` Five-extension fire-point family ships with honest fire-point names per the codified convention

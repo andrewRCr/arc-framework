@@ -110,6 +110,30 @@ lowest:
    action-needed surface) and deferred the legitimate state-shift surface to this WU's
    delta-detection infrastructure.
 
+6. **Handoff-commit subject + body rendering helper.** The handoff-commit shape that
+   lands in WOR (`session-handoff.md` step 3, codified in Task 6.1.e) reshapes the
+   commit from today's empty-body `chore(status): handoff` to a codified
+   `chore(arc): handoff — <position>` subject + structured field-delta body. The MVP
+   shipping with WOR leaves rendering as workflow-prose: agent reads the staged
+   meta-file diff + last-handoff snapshot, picks a position-string template from a
+   codified vocabulary, fills the body template. This item extracts the deterministic
+   steps to a CLI helper:
+
+    - **Input:** the staged meta-file diff + last-handoff hash from SESSION-NOTES.
+      Consumes item 2's `statusFieldsAtLastHandoff` slot as the "prev" reference.
+    - **Output:** rendered subject (position-string template selected mechanically
+      from the field-delta pattern) + rendered body (`Last Completed`, `Next Task`,
+      and conditional `State` / `Blockers` lines populated from the diff). Workflow
+      consumes the rendered output; agent judgment shrinks to "did the helper
+      succeed?"
+    - **Shape candidate:** `arc handoff render --subject-body` or a sub-shape on the
+      existing `arc status --session-handoff` family. Final shape decided at PRD time.
+
+   Composes naturally with items 1 (post-commit recompute) and 2 (status-field-delta
+   slot) — item 6 reuses item 2's snapshot data as the delta input. Surfaced during
+   WOR Phase 6 design discussion as the proper home for the CLI extraction; WOR ships
+   the MVP, this WU ships the helper.
+
 ---
 
 ## Scope
@@ -137,12 +161,18 @@ lowest:
   types, CLI evaluator, migration of existing entries across the repo, workflow doc
   update for authoring conventions.
 
+- **Handoff-commit rendering helper** (item 6) — CLI extraction of the
+  position-string template selection + body-delta rendering from `session-handoff.md`
+  step 3 (codified in WOR Task 6.1.e). Reuses item 2's `statusFieldsAtLastHandoff`
+  snapshot. Workflow update to consume the helper's output rather than render in
+  prose.
+
 - **Workflow updates** in `session-handoff.md` reflecting all of the above —
   probe-1 / probe-2 collapse, skip-threshold mechanization, persistent-context
-  evaluation slot consumption.
+  evaluation slot consumption, handoff-commit rendering consumption.
 
 - **Tests** for the new CLI surfaces (recompute helper, status-field-delta slot,
-  persistent-context trigger evaluator).
+  persistent-context trigger evaluator, handoff-commit renderer).
 
 ### Out of scope
 
@@ -175,11 +205,17 @@ lowest:
   ride on Worktree Foundation if it lands first; otherwise this WU's scope stays
   on the single-worktree handoff path.
 
+- **Work Organization Reform (WOR)** — ships the handoff-commit rendering convention
+  (Task 6.1.e: subject template + position-string vocabulary + body template) as
+  workflow-prose MVP. Item 6 above extracts the deterministic steps to a CLI helper.
+  Upstream dependency: WOR must land before this WU activates (or at least Task 6.1.e
+  needs to be the established convention).
+
 ---
 
 ## Scope Estimate
 
-**Small-to-medium.** ~2-4 sessions ballpark.
+**Small-to-medium.** ~3-5 sessions ballpark.
 
 - Probe-2 replacement (item 1): ~1 session — CLI helper + workflow update + tests.
 - Status-field-delta slot (item 2): ~0.5–1 session — slot population is mechanical;
@@ -188,6 +224,9 @@ lowest:
   item 2; session-init Step 6 conditional surface is a small addition.
 - Structured Persistent Context triggers (item 3): ~1–1.5 sessions — schema, evaluator,
   migration of existing entries (audit time, not scope time), and authoring doc.
+- Handoff-commit rendering helper (item 6): ~0.5–1 session — consumes item 2's slot,
+  renders subject + body via the position-string vocabulary codified in WOR Task 6.1.e;
+  workflow update + tests.
 - Verification + buffer: ~0.5 session.
 
 **Sequencing.** No hard dependencies. Independent of the parallelism trio. Could
