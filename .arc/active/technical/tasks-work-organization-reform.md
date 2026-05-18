@@ -2224,43 +2224,72 @@ at 5.4.f.
 
     **Strategies:** `strategy-testing-methodology.md`
 
-    - `[ ]` **5.4.a Codify `WorkUnitState` shared type with transitional validator**
-        - Locate existing State enum (if present in `frontmatter/`, `manifest/`, or `types.ts`). If absent (currently
-          freeform string), introduce a typed enum
-          `type WorkUnitState = "Planning" | "Active" | "Integrating" | "Shipped"`.
-        - Export from a shared location so probe code, status-reader, session-init logic, and tests all import from
-          one place. Avoid silent string duplication.
-        - **Contract:** `parseStatusFile` continues to return `state: string | null` (verbatim, no validation). A
-          separate validation surface (`validateState(s): WorkUnitState | "unknown"`, or equivalent) handles enum
-          narrowing where needed. The validator accepts BOTH legacy values (`In Progress`, `Complete`, `Paused`,
-          `Superseded`) and new values during the transition window — strict enforcement would break this WU's own
-          state before 6.2.b migrates it. _Cleanup paired with 6.2.j (retire legacy values from the validator)._
+    - `[ ]` **5.4.a Promote `WorktreeRosterState` to shared canonical `WorkUnitState`**
+        - `WorktreeRosterState` (`lib/git/worktree-roster.ts:16-21`, landed in Task 5.1) is already the 4-value
+          codified enum + an `"unknown"` arm; `normalizeState` at line 233 is the validator surface. The work
+          here is promotion + naming, not net-new codification.
+        - **Move** the type to `commands/active/types.ts` alongside `SessionType`. Narrow to the codified union:
+          `type WorkUnitState = "Planning" | "Active" | "Integrating" | "Shipped"`. Redefine
+          `WorktreeRosterState` as a type alias of `WorkUnitState | "unknown"` (worktree-roster keeps its
+          degraded-tuple semantic).
+        - **Move** `normalizeState` to the shared location, rename to `validateState`. Signature:
+          `validateState(s: string | null): WorkUnitState | "unknown"`. Accept BOTH legacy values
+          (`In Progress`, `Complete`, `Paused`, `Superseded`) AND new values during the transition window —
+          strict enforcement would break this WU's own state before 6.2.b migrates it.
+        - **Contract:** `parseStatusFile` continues to return `state: string | null` (verbatim, no validation).
+          Callers that need enum narrowing import and apply `validateState` explicitly. Avoid silent string
+          duplication across probe code, status-reader, session-init logic, and tests.
+        - _Cleanup paired with 6.2.j (retire legacy values from the validator)._
 
     - `[ ]` **5.4.b Update probe envelope sessionType inference with transitional fast-paths**
-        - `commands/active/status.ts` `inferSessionType`: ADD fast-path arms for the new four-value State enum
-          (`Active → execution`, `Integrating → integration`, `Shipped → null`) alongside the existing
-          `Planning → planning`. Retain the existing structural fall-through (Task-List / Next-Action inference) so
-          this WU's current `In Progress` state continues routing to `execution` until 6.2.b migrates it. The
-          fall-through also serves as defensive forward-compat for unknown State values; cleanup at 6.2.k verifies
-          the fast-paths fire (not the fall-through) for codified values post-migration.
-        - Update branch-pattern fallback: from `{category}/plan-{name}` to `plan/{name}` per R2. Branch types in the
-          fallback recognize the CB core-6 set.
+        - `commands/active/status.ts` `inferSessionType`: ADD fast-path arms for the _unambiguous_ codified State
+          values only — `Integrating → integration` and `Shipped → null` — at the top of the precedence,
+          alongside the existing `Planning → planning`. `Active` does NOT fast-path: it falls through to the
+          existing Task-List / Next-Action logic so `State: Active + Next-Action: integrate-work-unit` correctly
+          routes to integration (no token-wasteful load of process-task-loop when the session is actually about
+          to integrate).
+        - **Precedence model:** State signals the WU's broad phase; Next-Action signals what THIS session is
+          about to do. `Integrating` and `Shipped` are unambiguous (State alone is decisive). `Active` is a
+          phase, not a session-type — Next-Action disambiguates within Active (Task-List `[none]` → planning;
+          Next-Action `integrate-*` → integration; else execution).
+        - Retain the existing structural fall-through (Task-List / Next-Action inference) so this WU's current
+          `In Progress` state continues routing to `execution` until 6.2.b migrates it. The fall-through also
+          serves as defensive forward-compat for unknown State values; cleanup at 6.2.k verifies the
+          Integrating/Shipped fast-paths fire for codified values and the Active fall-through still resolves
+          Next-Action correctly.
+        - Update branch-pattern fallback regex: from `^[^/]+\/plan-.+$` to `^plan\/.+$` per R2. The new regex
+          matches only `plan/<name>` — CB core-6 execution branches correctly fall through to null (no CB-set
+          encoding needed; specificity of the regex is the mechanism).
         - Pre-flight at execution: inventory active branches matching the legacy pattern (`git branch --list
           '*/plan-*'`); surface any concurrent planning branches that would lose orphan-recovery detection. None
           expected in this repo at present, but worth confirming before flipping the regex.
-        - Vitest unit tests cover each new mapping case + branch-fallback case + retained fall-through arm.
+        - Vitest unit tests cover each new mapping case (Integrating, Shipped) + Active + integrate-Next-Action
+          routes to integration + branch-fallback `plan/<name>` matches / CB core-6 doesn't + retained
+          fall-through arm for non-codified States.
 
-    - `[ ]` **5.4.c Active-file resolution with dual-prefix scan**
+    - `[ ]` **5.4.c Active-file resolution with dual-prefix scan + flat-layout auto-detection**
         - `lib/active/status-reader.ts` + consumers: extend the file-glob scan to accept BOTH `status-*.md` and
-          `meta-*.md` during transition. When both filenames exist for the same stem (e.g., `status-foo.md` and
-          `meta-foo.md`), prefer `meta-*.md` — the new shape is canonical once present. Update `FULL_PREFIX` constant
-          accordingly, or introduce a tuple of accepted prefixes.
-        - `ActiveScanShape = "subdir" | "flat"` plumbing already supports flat `active/` per WOR — verify "flat"
-          becomes the default when project is configured for single-branch-per-WU.
+          `meta-*.md` during transition. Update `FULL_PREFIX` to a tuple of accepted prefixes
+          (`["meta-", "status-"]`).
+        - **Dedup scope:** when both filenames exist for the same stem within the same directory (e.g.,
+          `active/technical/status-foo.md` and `active/technical/meta-foo.md`), prefer `meta-*.md` — the new
+          shape is canonical once present. **Per-directory only** — same-stem files in different categories
+          (`technical/meta-foo.md` vs `feature/meta-foo.md`) are distinct WUs, do NOT dedup across directories.
+        - **Flat-layout auto-detection:** flat is THE post-WOR default (no config knob — single-branch-per-WU is
+          the convention, not a mode). The legacy subdir layout (`active/<category>/`) is being retired in 6.2.
+          During transition both shapes can coexist. Detect at scan time: if any `active/(meta-*|status-*).md`
+          exists at the flat root → flat mode; else if subdirectories with matching files → subdir mode. Both
+          present (transient) → agent prefers flat-root matches. Parallel to the existing `lite` detection
+          model; promote `ActiveScanShape` use from contributor-only to general maintainer detection.
+        - **Hidden consumer:** `lib/release/wu-resolution.ts:115` parses `/^status-(.+)\.md$/` for the release
+          wrapper's WU-name lookup. Same dual-prefix update needed (`^(meta|status)-(.+)\.md$`).
         - Companion-file resolution (`notes-`, `atomic-`) is name-stable across WOR; no prefix change needed.
-        - Vitest unit tests cover `meta-*` resolution + `status-*` legacy resolution + missing-meta-file degradation +
-          dual-presence preference (meta wins). _Cleanup paired with 6.2.l (drop `status-` from accepted prefixes;
-          `meta-` only)._
+        - Vitest unit tests cover `meta-*` resolution + `status-*` legacy resolution + missing-meta-file
+          degradation + dual-presence preference within a directory (meta wins) + cross-directory same-stem
+          (NOT deduped) + flat-layout auto-detection (root-level files trigger flat mode) + subdir-layout
+          auto-detection (legacy still works).
+        - _Cleanup paired with 6.2.l (drop `status-` from accepted prefixes AND retire the subdir scanner
+          entirely; flat + `meta-` only)._
 
     - `[ ]` **5.4.c' Reader section-extraction fallback for new H1-bounded shape**
         - `lib/active/status-reader.ts` `extractMetadataSection` (line 237): extend to support the new shape where
@@ -2274,27 +2303,31 @@ at 5.4.f.
         - Vitest unit tests cover both shapes (H2-wrapped legacy + H1-bounded new) with full field set. _Cleanup
           paired with 6.2.m (drop the legacy H2 path; new shape is the only recognized shape)._
 
-    - `[ ]` **5.4.d CLI touch-point refresh (SCAFFOLDED_FILES paths + doc-comment examples)**
-        - **Scope reset (per audit):** The originally-framed "retire `feature/` / `technical/` / `incidental/` prefix
-          recognition" task has no matching code site — branch-prefix recognition isn't encoded as an enum anywhere
-          in the CLI. The status-reader scans subdirs name-agnostically; session-init's branch-pattern fallback uses
-          a generic `^[^/]+\/plan-.+$` regex (updated in 5.4.b). Remaining actual touch points consolidate here.
-        - **Touch points:**
-            - `lib/classification.ts` SCAFFOLDED_FILES (lines 63-64): update
-              `backlog/feature/BACKLOG-FEATURE.template.md` and `backlog/technical/BACKLOG-TECHNICAL.template.md`
-              entries to match the BACKLOG-INBOX consolidation in Phase 6.3.b. Confirm template-render generation
-              is consistent.
-            - `commands/active/types.ts` (line 49): doc-comment example shows `.arc/active/technical/status-foo.md`.
-              Refresh to new shape.
-            - `lib/release/types.ts`: audit at execution; refresh any category-related strings or enums (none
-              expected based on initial grep but verify).
-        - Vitest unit tests cover updated SCAFFOLDED_FILES classification.
+    - `[ ]` **5.4.d CLI touch-point audit + doc-comment sweep (verify-only)**
+        - **Scope reset (per audit):** The originally-framed "retire `feature/` / `technical/` / `incidental/`
+          prefix recognition" task has no matching code site — branch-prefix recognition isn't encoded as an
+          enum anywhere in the CLI. SCAFFOLDED_FILES restructure is also out of scope here: the
+          `backlog/feature/BACKLOG-FEATURE.template.md` and `backlog/technical/BACKLOG-TECHNICAL.template.md`
+          entries restructure with 6.3.b when the BACKLOG-INBOX template ships (composes with Task 5.6's
+          project-shared inbox seeding). This subtask is a **verify-and-document** pass to confirm no other
+          load-bearing code references the legacy shape.
+        - **Verify-only confirmations** (no edits beyond the doc-comment sweep below):
+            - `lib/classification.ts` SCAFFOLDED_FILES (lines 63-64) — confirm entries remain valid for the
+              transition; restructure deferred to 6.3.b.
+            - `lib/release/types.ts` — confirm no category-related logic depends on legacy shape (initial grep
+              shows only doc-comment references, covered by the sweep).
+        - **Doc-comment sweep:** update example strings carrying legacy shapes (pure prose; updates ride with
+          the prefix-change commits naturally):
+            - `commands/active/types.ts:49, 51, 54` — `status-foo.md` / `In Progress` examples
+            - `lib/release/types.ts:159, 166` — `status-foo.md` in AuditWorkUnit comments
+            - `lib/active/status-reader.ts:26-27, 48, 55-56, 204` — `status-*.md` throughout module docs
+            - `scripts/validate-status-spec.ts:5, 54` — `status-{name}.md` in module + classifyPath docs
+        - No new tests — pure verification + comment edits.
 
-    - `[ ]` **5.4.e `classification.ts` hardcoded filename update (META-PRD → PROJECT-PRD)**
-        - `packages/arc-framework/src/lib/classification.ts` references `META-PRD.template.md` (line 59) in the
-          file-classification logic (and possibly in inline doc comments). Update to `PROJECT-PRD.template.md` per
-          R35.
-        - Sync any related test fixtures.
+    - `[~]` **5.4.e `classification.ts` hardcoded filename update (META-PRD → PROJECT-PRD)**
+        - Already complete — rename landed in commit `04945526` (`feat(arc): Rewrite PROJECT-PRD per new shape;
+          rename from META-PRD`). `classification.ts:59` already references `PROJECT-PRD.template.md`; zero
+          `META-PRD` references remain in `packages/arc-framework/src/` or `__tests__/` (audit-confirmed).
 
     - `[ ]` **5.4.f Bulk test-fixture migration (one commit per logical fixture group)**
         - Fixtures hand-authoring `status-foo.md` migrate to `meta-foo.md`; State values update per the codified
@@ -2307,20 +2340,25 @@ at 5.4.f.
 
     - `[ ]` **5.4.g Update `validate-status-spec.ts` pre-commit hook with dual-recognition**
         - `scripts/validate-status-spec.ts` is a pre-commit hook enforcing both file-path classification
-          (`STATUS_PATH` regex, line 28) and State value-set (`VALID_STATES`, lines 33-39). Both shapes flip in Phase
-          6.2 — without transitional support, the migration commit itself can't pass its own pre-commit gate.
-        - **Path pattern:** extend `STATUS_PATH` to recognize BOTH `status-*.md` and `meta-*.md` under
-          `.arc/active/{category}/`. Module + symbol naming can stay or rename to `meta-spec` — pick one shape at
-          this task and let the cleanup at 6.2.n complete the rename if needed.
+          (`STATUS_PATH` regex, line 28) and State value-set (`VALID_STATES`, lines 33-39). Both shapes flip in
+          Phase 6.2 — without transitional support, the migration commit itself can't pass its own pre-commit
+          gate.
+        - **Path pattern:** extend `STATUS_PATH` to recognize BOTH prefixes AND BOTH layouts during transition:
+          subdir-legacy (`.arc/active/<category>/(status|meta)-*.md`) AND flat-post-WOR
+          (`.arc/active/(status|meta)-*.md`). Flat is the post-WOR default; subdir retires entirely at 6.2.
+          Module + symbol naming can stay or rename to `meta-spec` — pick one shape at this task and let the
+          cleanup at 6.2.n complete the rename if needed.
         - **State value-set:** extend `VALID_STATES` to accept the union of legacy
-          (`Planning, In Progress, Complete, Paused, Superseded`) and new (`Planning, Active, Integrating, Shipped`)
-          values during transition. Diagnostic messages should reference the union or both sets while compat is in
-          effect.
-        - **Integration field:** `VALID_INTEGRATION_STATES` accepts `Merged` paired with `State: Complete`. Under
-          the new value-set the `**Integration:**` field retires (folds into State per 6.2.b). Retain the legacy arm
-          during transition; cleanup at 6.2.n retires `VALID_INTEGRATION_STATES` and the paired validation entirely.
-        - Vitest unit + integration tests cover dual-recognition; fixture updates couple with 5.4.f. _Cleanup paired
-          with 6.2.n (retire legacy halves of all three: STATUS_PATH, VALID_STATES, VALID_INTEGRATION_STATES)._
+          (`Planning, In Progress, Complete, Paused, Superseded`) and new
+          (`Planning, Active, Integrating, Shipped`) values during transition. Diagnostic messages should
+          reference the union or both sets while compat is in effect.
+        - **Integration field:** `VALID_INTEGRATION_STATES` accepts `Merged` paired with `State: Complete`.
+          Under the new value-set the `**Integration:**` field retires (folds into State per 6.2.b). Retain the
+          legacy arm during transition; cleanup at 6.2.n retires `VALID_INTEGRATION_STATES` and the paired
+          validation entirely.
+        - Vitest unit + integration tests cover dual-recognition (both prefixes × both layouts); fixture
+          updates couple with 5.4.f. _Cleanup paired with 6.2.n (retire legacy halves of all three: STATUS_PATH
+          subdir + status- arms, VALID_STATES legacy values, VALID_INTEGRATION_STATES entirely)._
 
 ### `[ ]` **5.5 CLI seeding update for R65 user/ workspace layout**
 
@@ -2540,25 +2578,37 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           now resolve to `"unknown"`.
         - _Sequencing:_ Runs after 6.2.b (this WU's meta file carries the new State value).
 
-    - `[ ]` **6.2.k Cleanup: verify sessionType fast-paths fire; narrow fall-through doc (paired with 5.4.b)**
-        - `commands/active/status.ts` `inferSessionType` (modified in 5.4.b) gained fast-path arms for the new
-          four-value State enum alongside the existing `Planning → planning`. The structural fall-through (Task-List /
-          Next-Action inference) was retained so this WU's `In Progress` continued routing to `execution` during
-          transition.
-        - Cleanup work: verify the fast-path arms fire for codified State values post-6.2.b; the fall-through should
-          now exercise only on unknown State values (defensive forward-compat + tolerant parsing). Add a clarifying
-          doc-comment to the function explaining the fall-through's narrowed role post-WOR. Tests: assert each
-          codified value routes through its fast-path arm; assert unknown values resolve via the fall-through (not
-          via accidental match elsewhere).
+    - `[ ]` **6.2.k Cleanup: verify sessionType fast-paths fire; codify Active fall-through (paired with 5.4.b)**
+        - `commands/active/status.ts` `inferSessionType` (modified in 5.4.b) gained fast-path arms for the
+          _unambiguous_ codified State values — `Integrating` and `Shipped` — alongside the existing
+          `Planning → planning`. `Active` deliberately falls through to the Task-List / Next-Action logic so
+          State + Next-Action signals compose correctly (Active + integrate-* → integration; Active + else →
+          execution).
+        - Cleanup work: verify the Integrating / Shipped / Planning fast-paths fire for codified values
+          post-6.2.b; verify Active still falls through correctly and Next-Action disambiguates within it. The
+          structural fall-through additionally serves as defensive forward-compat for unknown State values. Add
+          a clarifying doc-comment to the function naming the Active-as-phase-not-session-type design and the
+          State-vs-Next-Action signal split. Tests: assert each codified value routes correctly (Integrating /
+          Shipped / Planning via fast-paths; Active + integrate-* via fall-through to integration; Active + else
+          to execution); assert unknown values resolve via the fall-through (not via accidental match elsewhere).
         - _Sequencing:_ Runs after 6.2.b.
 
-    - `[ ]` **6.2.l Cleanup: drop `status-*.md` prefix from active-file scan (paired with 5.4.c)**
-        - `lib/active/status-reader.ts` (modified in 5.4.c) accepts BOTH `status-*.md` and `meta-*.md` during
-          transition. Once 6.2.a renames this WU's status file to `meta-*.md` and 6.5 cleans up any leaked
-          `status-*.md` files on `main`'s `active/`, the legacy prefix is no longer reachable from any in-flight or
-          tracked surface.
-        - Restore `FULL_PREFIX` (or equivalent constant) to `meta-` only; drop the dual-prefix scan logic and any
-          dual-presence preference handling. Tests: remove legacy-prefix test cases.
+    - `[ ]` **6.2.l Cleanup: retire legacy layout + prefix from active-file scan (paired with 5.4.c)**
+        - `lib/active/status-reader.ts` (modified in 5.4.c) accepts BOTH `status-*.md` and `meta-*.md` prefixes
+          AND BOTH the legacy subdir layout (`active/<category>/`) and the flat-post-WOR layout (`active/`)
+          during transition. Once 6.2.a renames this WU's status file to `meta-{name}.md` at the flat root and
+          6.5 cleans up any leaked legacy-layout files on `main`'s `active/`, both compat paths are unreachable
+          from any in-flight or tracked surface.
+        - **Prefix cleanup:** restore `FULL_PREFIX` (or equivalent constant) to `meta-` only; drop the
+          dual-prefix scan logic and any dual-presence preference handling.
+        - **Layout cleanup:** drop the subdir-layout scanner entirely (`findSubdirLayoutStatusFiles` and any
+          subdir-mode auto-detection). Flat is the only recognized maintainer layout post-WOR; contributor
+          flat-scan path stays as-is (was always flat). `ActiveScanShape` collapses to a singleton — retire
+          the type if no callers need to distinguish; otherwise narrow to `"flat"`. Lite-layout
+          (`active/status.md`) is a separate concern and stays.
+        - **Hidden consumer cleanup:** drop the legacy-prefix arm from `lib/release/wu-resolution.ts` regex.
+        - Tests: remove legacy-prefix test cases, legacy-subdir-layout test cases, and dual-presence preference
+          cases.
         - _Sequencing:_ Runs after 6.2.a AND 6.5 (defensive — both surfaces clear before the compat code retires).
 
     - `[ ]` **6.2.m Cleanup: drop `## Work Unit Metadata` H2 fallback in section extraction (paired with 5.4.c')**
