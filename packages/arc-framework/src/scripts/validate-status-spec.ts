@@ -1,13 +1,21 @@
 /**
  * Status-file field validator — pre-commit hook entry point.
  *
- * Given a list of staged file paths, identifies status files at
- * `.arc/active/{category}/status-{name}.md` and validates the `**Spec:**` field
- * value against the allowed shapes: empty, `[none]`, bare-basename `.md`
- * filename, or `https?://` URL; requires a valid `**State:**` value; and
- * permits `**Integration:** Merged` only for `State: Complete`. Surrounding
- * whitespace and a single pair of wrapping backticks are stripped before
- * matching.
+ * Given a list of staged file paths, identifies meta-files (`meta-*.md`,
+ * post-WOR canonical) and legacy status-files (`status-*.md`) under both
+ * post-WOR flat (`.arc/active/<prefix>-*.md`) and pre-WOR subdir
+ * (`.arc/active/<category>/<prefix>-*.md`) layouts. Validates the `**Spec:**`
+ * field value against the allowed shapes: empty, `[none]`, bare-basename
+ * `.md` filename, or `https?://` URL; requires a valid `**State:**` value
+ * (codified post-WOR enum + legacy values accepted during the transition);
+ * and permits `**Integration:** Merged` only for legacy `State: Complete`
+ * (the post-WOR enum folds the merge-status pairing into `State: Shipped`).
+ * Surrounding whitespace and a single pair of wrapping backticks are stripped
+ * before matching.
+ *
+ * Dual-recognition is bounded — the legacy halves are accepted only during
+ * the in-flight transition to the canonical shape and retire once the
+ * migration finishes.
  *
  * @module
  */
@@ -25,13 +33,20 @@ export interface ValidationResult {
   diagnostics: string[];
 }
 
-const STATUS_PATH = /(?:^|\/)\.arc\/active\/[^/]+\/status-[^/]+\.md$/;
+const STATUS_PATH =
+  /(?:^|\/)\.arc\/active\/(?:[^/]+\/)?(?:status|meta)-[^/]+\.md$/;
 const MD_FILENAME = /^[a-zA-Z0-9._-]+\.md$/;
 const URL_SHAPE = /^https?:\/\/\S+$/;
 const STATUS_FIELD_LINE = /^\s*-\s+\*\*([^:]+):\*\*\s*(.*?)\s*$/;
 
 const VALID_STATES = new Set([
+  // Post-WOR canonical enum (commands/active/types.ts → WorkUnitState).
   "Planning",
+  "Active",
+  "Integrating",
+  "Shipped",
+  // Legacy values accepted during the in-flight transition to the canonical
+  // enum above. Retires once all status files have migrated.
   "In Progress",
   "Complete",
   "Paused",
@@ -45,13 +60,14 @@ const VALID_INTEGRATION_STATES = new Set([
 const EXPECTED_SHAPE =
   "expected: empty, [none], bare-basename .md filename, or https?://... URL";
 const EXPECTED_STATE =
-  "expected: Planning, In Progress, Complete, Paused, or Superseded";
+  "expected one of: Planning, Active, Integrating, Shipped (post-WOR canonical); In Progress, Complete, Paused, Superseded (legacy, accepted during transition)";
 const EXPECTED_INTEGRATION =
   "expected: Merged";
 
 /**
- * Classify a path — `status` when it matches
- * `.arc/active/{category}/status-{name}.md`, `other` otherwise.
+ * Classify a path — `status` when it matches a meta-file or legacy status-file
+ * under either layout (`.arc/active/(<category>/)?(status|meta)-{name}.md`);
+ * `other` otherwise.
  */
 export function classifyPath(path: string): PathClassification {
   return STATUS_PATH.test(path) ? "status" : "other";

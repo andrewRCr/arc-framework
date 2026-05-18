@@ -1,11 +1,13 @@
 /**
  * Unit tests for the validate-status-spec CLI dispatcher.
  *
- * Covers path classification (status vs. other), the `**Spec:**` shape rules
+ * Covers path classification (meta-file post-WOR canonical and legacy
+ * status-file under both flat and subdir layouts), the `**Spec:**` shape rules
  * (empty, `[none]`, bare-basename `.md` filename, `https?://` URL), the
- * missing/multiple-line failure modes, whitespace + backtick handling, and
- * diagnostic message content. Uses an in-memory file reader — no filesystem
- * dependency.
+ * State value-set (post-WOR canonical + legacy values accepted during the
+ * transition window), missing/multiple-line failure modes, whitespace +
+ * backtick handling, and diagnostic message content. Uses an in-memory file
+ * reader — no filesystem dependency.
  */
 
 import { describe, it, expect } from "vitest";
@@ -15,7 +17,7 @@ import {
   validateFiles,
 } from "../../../src/scripts/validate-status-spec.js";
 
-const STATUS_PATH = ".arc/active/technical/status-foo.md";
+const STATUS_PATH = ".arc/active/technical/meta-foo.md";
 
 function fakeReader(files: Record<string, string>) {
   return (path: string) => {
@@ -36,7 +38,7 @@ function statusFile(
     "",
   ];
   if (fields.stateLine !== null) {
-    lines.push(fields.stateLine ?? "- **State:** In Progress");
+    lines.push(fields.stateLine ?? "- **State:** Active");
   }
   if (specLine !== null) lines.push(specLine);
   if (fields.integrationLine !== undefined && fields.integrationLine !== null) {
@@ -47,16 +49,39 @@ function statusFile(
 }
 
 describe("classifyPath", () => {
-  it("classifies active status files as status", () => {
+  it("classifies meta-files under subdir layout as status (post-WOR canonical)", () => {
+    expect(classifyPath(".arc/active/technical/meta-foo.md")).toBe("status");
+    expect(classifyPath(".arc/active/feature/meta-bar.md")).toBe("status");
+  });
+
+  it("classifies meta-files under flat layout as status (post-WOR canonical)", () => {
+    expect(classifyPath(".arc/active/meta-foo.md")).toBe("status");
+    expect(classifyPath(".arc/active/meta-work-organization-reform.md")).toBe(
+      "status",
+    );
+  });
+
+  it("classifies legacy status-files under subdir layout as status (compat)", () => {
     expect(classifyPath(".arc/active/technical/status-foo.md")).toBe("status");
     expect(classifyPath(".arc/active/feature/status-bar.md")).toBe("status");
+  });
+
+  it("classifies legacy status-files under flat layout as status (compat)", () => {
+    expect(classifyPath(".arc/active/status-foo.md")).toBe("status");
   });
 
   it("classifies non-status paths as other", () => {
     expect(classifyPath(".arc/active/technical/tasks-foo.md")).toBe("other");
     expect(classifyPath(".arc/active/technical/prd-foo.md")).toBe("other");
+    expect(classifyPath(".arc/active/technical/notes-foo.md")).toBe("other");
+    expect(classifyPath(".arc/active/technical/atomic-foo.md")).toBe("other");
+    expect(classifyPath(".arc/active/tasks-foo.md")).toBe("other");
     expect(classifyPath(".arc/backlog/technical/status-foo.md")).toBe("other");
+    expect(classifyPath(".arc/backlog/technical/meta-foo.md")).toBe("other");
     expect(classifyPath(".arc/reference/templates/template-status.md")).toBe(
+      "other",
+    );
+    expect(classifyPath(".arc/reference/templates/template-meta.md")).toBe(
       "other",
     );
     expect(classifyPath("src/lib/foo.ts")).toBe("other");
@@ -107,9 +132,26 @@ describe("validateFiles", () => {
     expect(result.diagnostics).toEqual([]);
   });
 
-  it("passes when non-Complete State value is a supported enum value and Integration is absent", () => {
+  it("passes for every post-WOR canonical State value (Integration absent)", () => {
     for (const state of [
       "Planning",
+      "Active",
+      "Integrating",
+      "Shipped",
+    ]) {
+      const files = {
+        [STATUS_PATH]: statusFile("- **Spec:** [none]", {
+          stateLine: `- **State:** ${state}`,
+        }),
+      };
+      const result = validateFiles(Object.keys(files), fakeReader(files));
+      expect(result.pass).toBe(true);
+      expect(result.diagnostics).toEqual([]);
+    }
+  });
+
+  it("passes for every legacy State value during the transition window (Integration absent)", () => {
+    for (const state of [
       "In Progress",
       "Paused",
       "Superseded",
@@ -245,6 +287,25 @@ describe("validateFiles", () => {
     ).toBe(true);
   });
 
+  it("fails when canonical Shipped State has Integration (merge-status folds into State)", () => {
+    // Canonical post-transition shape: the merge-status pairing folds into
+    // State: Shipped, so a paired Integration line is invalid even though
+    // Shipped is the terminal state.
+    const files = {
+      [STATUS_PATH]: statusFile("- **Spec:** [none]", {
+        stateLine: "- **State:** Shipped",
+        integrationLine: "- **Integration:** Merged",
+      }),
+    };
+    const result = validateFiles(Object.keys(files), fakeReader(files));
+    expect(result.pass).toBe(false);
+    expect(
+      result.diagnostics.some(
+        (d) => d.includes(STATUS_PATH) && d.includes("Integration") && d.includes("Complete"),
+      ),
+    ).toBe(true);
+  });
+
   it("passes when Spec value has surrounding whitespace (validator trims)", () => {
     const files = {
       [STATUS_PATH]: statusFile("- **Spec:**    `prd-foo.md`   "),
@@ -326,6 +387,30 @@ describe("validateFiles", () => {
       ".arc/active/technical/tasks-foo.md": "# Task list",
       ".arc/reference/templates/template-status.md": statusFile(null),
       "src/lib/foo.ts": "// no spec field here",
+    };
+    const result = validateFiles(Object.keys(files), fakeReader(files));
+    expect(result.pass).toBe(true);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("validates a flat-layout meta-file end-to-end (post-WOR canonical)", () => {
+    const flatPath = ".arc/active/meta-work-organization-reform.md";
+    const files = {
+      [flatPath]: statusFile("- **Spec:** `prd-work-organization-reform.md`", {
+        stateLine: "- **State:** Active",
+      }),
+    };
+    const result = validateFiles(Object.keys(files), fakeReader(files));
+    expect(result.pass).toBe(true);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("validates a subdir-layout legacy status-file end-to-end (compat)", () => {
+    const subdirPath = ".arc/active/technical/status-foo.md";
+    const files = {
+      [subdirPath]: statusFile("- **Spec:** [none]", {
+        stateLine: "- **State:** In Progress",
+      }),
     };
     const result = validateFiles(Object.keys(files), fakeReader(files));
     expect(result.pass).toBe(true);

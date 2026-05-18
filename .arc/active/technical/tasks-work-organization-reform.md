@@ -2207,7 +2207,7 @@ at 5.4.g.
   gap filed as Task 5.6. user/ATOMIC-INBOX.md retains preamble pending 6.3.x USER-INBOX
   consolidation. Regression test prevents preamble reintroduction at the seeded-file level.
 
-### `[ ]` **5.4 CLI propagation with compat-bridge (State + active-file + branch-pattern + validator + PROJECT-PRD)**
+### `[x]` **5.4 CLI propagation with compat-bridge (State + active-file + branch-pattern + validator + PROJECT-PRD)**
 
 - _Goal:_ CLI code encodes WOR's foundational convention shifts — State value-set codified as
   `Planning | Active | Integrating | Shipped` per R9 (replacing the prior `Planning | In Progress | Complete | ...`
@@ -2367,27 +2367,29 @@ at 5.4.g.
           5.4.h's dual-recognition refit. Full suite green: 1893 tests across 122 files (was
           1891 — `wu-resolution.test.ts` grew its state-value matrix by two cases).
 
-    - `[ ]` **5.4.h Update `validate-status-spec.ts` pre-commit hook with dual-recognition**
-        - `scripts/validate-status-spec.ts` is a pre-commit hook enforcing both file-path classification
-          (`STATUS_PATH` regex, line 28) and State value-set (`VALID_STATES`, lines 33-39). Both shapes flip in
-          Phase 6.2 — without transitional support, the migration commit itself can't pass its own pre-commit
-          gate.
-        - **Path pattern:** extend `STATUS_PATH` to recognize BOTH prefixes AND BOTH layouts during transition:
-          subdir-legacy (`.arc/active/<category>/(status|meta)-*.md`) AND flat-post-WOR
-          (`.arc/active/(status|meta)-*.md`). Flat is the post-WOR default; subdir retires entirely at 6.2.
-          Module + symbol naming can stay or rename to `meta-spec` — pick one shape at this task and let the
-          cleanup at 6.2.n complete the rename if needed.
-        - **State value-set:** extend `VALID_STATES` to accept the union of legacy
-          (`Planning, In Progress, Complete, Paused, Superseded`) and new
-          (`Planning, Active, Integrating, Shipped`) values during transition. Diagnostic messages should
-          reference the union or both sets while compat is in effect.
-        - **Integration field:** `VALID_INTEGRATION_STATES` accepts `Merged` paired with `State: Complete`.
-          Under the new value-set the `**Integration:**` field retires (folds into State per 6.2.b). Retain the
-          legacy arm during transition; cleanup at 6.2.n retires `VALID_INTEGRATION_STATES` and the paired
-          validation entirely.
-        - Vitest unit + integration tests cover dual-recognition (both prefixes × both layouts); fixture
-          updates couple with 5.4.g. _Cleanup paired with 6.2.n (retire legacy halves of all three: STATUS_PATH
-          subdir + status- arms, VALID_STATES legacy values, VALID_INTEGRATION_STATES entirely)._
+    - `[x]` **5.4.h Update `validate-status-spec.ts` pre-commit hook with dual-recognition**
+        - _Outcome:_ `STATUS_PATH` regex extended to
+          `\.arc\/active\/(?:[^/]+\/)?(?:status|meta)-[^/]+\.md$` — optional category segment +
+          `status|meta` prefix alternation covers all four combinations (subdir-legacy +
+          flat-legacy + subdir-meta + flat-meta). `VALID_STATES` grew to the eight-value union
+          (post-WOR canonical: Planning / Active / Integrating / Shipped; legacy retained
+          during transition: In Progress / Complete / Paused / Superseded). `EXPECTED_STATE`
+          diagnostic rewritten to label both halves so CI failures point at the right shape.
+          Integration-field arm untouched: `Integration: Merged` stays valid only when paired
+          with legacy `State: Complete`; under the post-WOR `Shipped` terminal state the
+          merge-status pairing folds into State (per 6.2.b), so `State: Shipped` +
+          `Integration: Merged` raises the "Integration only valid for Complete" diagnostic.
+          Module + symbol naming preserved verbatim — rename to `meta-spec` deferred to 6.2.n
+          (or whenever the cleanup task lands) per the `status-reader → meta-reader` precedent
+          codified in `f98d7b24`. Test suite grew from 23 to 30 tests: classifyPath matrix
+          covers four prefix×layout combinations + an expanded other-paths set (template-meta,
+          backlog-meta, atomic-foo, flat tasks-foo); State value-set tests split into post-WOR
+          canonical + legacy-during-transition sister tests; Shipped+Integration failure case
+          and end-to-end pass tests for flat-meta and subdir-status pin the dual-recognition
+          shape. Existing fixture path constant + statusFile default state flipped to
+          post-WOR canonical (`meta-foo.md`, `State: Active`); legacy-prefix coverage now
+          lives in the subdir-status end-to-end test, the State value-set sister-block, and
+          the legacy-only failure diagnostics. _Cleanup paired with 6.2.n._
 
 ### `[ ]` **5.5 CLI seeding update for R65 user/ workspace layout**
 
