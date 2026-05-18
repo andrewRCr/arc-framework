@@ -9,26 +9,24 @@
 - **Task List:** `tasks-work-organization-reform.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Tasks 5.4.a–5.4.e — full compat-bridge pass for the WOR transition:
-  `WorkUnitState` + `validateState` codified (`02eb5eea`); `inferSessionType` fast-paths for
-  `Integrating` / `Shipped` + `plan/<name>` branch regex (`4e7a62e3`); dual-prefix scan +
-  scan-shape auto-detection in `status-reader` + `wu-resolution` (`b461101b`); H1-bounded
-  fallback in `extractMetadataSection` (`27f2107b`); doc-comment sweep in
-  `active/types.ts` + `release/types.ts` (`1f1573b8`). Housekeeping: 5.4.c' renumbered into the
-  d-h cascade (`6e80bb6f`); filed Task 6.2.o for the deferred `status-reader` → `meta-reader`
-  rename (`f98d7b24`).
+- **Last Completed:** Task 5.4 — full compat-bridge cascade closed. Task 5.4.g (bulk
+  test-fixture migration, six logical-group commits `c83f7443` formatter-pair / `0f168b7c`
+  parser+scan / `ef5feb2d` release-resolution / `99577c95` active/status integration /
+  `a441928b` release-handlers / `bec5d52d` session-init e2e). Task 5.4.h (validator
+  dual-recognition: `STATUS_PATH` regex extended to optional-category + `status|meta`
+  prefix alternation; `VALID_STATES` grew to the eight-value union; `EXPECTED_STATE`
+  diagnostic labels both halves; `Shipped` + `Integration: Merged` raises the existing
+  "only valid for Complete" arm — `b95cde4a`).
 
-- **Next Task:** Task 5.4.g — Bulk test-fixture migration (line ~2347). Task 5.4.f
-  (`META-PRD → PROJECT-PRD`) was already `[~]` — landed in commit `04945526` ahead of this
-  session.
+- **Next Task:** Task 5.5.a — Locate user/ seeding sites (line ~2403).
 
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 5.4.g — pattern-batch fixture migration across ~28 test files
-  (audit estimate): rename `status-foo.md` → `meta-foo.md` and update legacy `**State:**`
-  values to the codified post-WOR enum (`Planning, Active, Integrating, Shipped`). Compat
-  shims (5.4.a/b/c/d/h) keep most runs green even as fixtures lag; fix failing tests by
-  pattern, one commit per logical fixture group, and verify full `npm test` clean before
-  declaring 5.4 complete.
+- **Next Action:** Start Task 5.5.a — grep `packages/arc-framework/src/lib/` for
+  SESSION-NOTES + USER-INBOX seeding paths; identify init-time (init / join code paths)
+  vs activation-time (activate-work-unit) seeding boundaries. The audit feeds 5.5.b
+  (activation-time per-WU subdir creation under `user/{identity}/<wu-name>/`) and 5.5.c
+  (init-time `WORKING-MEMORY.md` seed at user root). R65 layout: per-WU subdir for
+  workspace files + cross-WU flat root for `WORKING-MEMORY.md`.
 
 ---
