@@ -292,9 +292,9 @@ describe("runStatus — clean state", () => {
     await writeConfig(fixture.configPath);
     await writeExtension(fixture.extDir, "pre-merge-review", true);
     await writeExtension(fixture.extDir, "post-task-quality", false);
-    await writeStatusFile(fixture.activeDir, "technical", "status-alpha.md", {
+    await writeStatusFile(fixture.activeDir, "technical", "meta-alpha.md", {
       branch: "technical/alpha",
-      state: "In Progress",
+      state: "Active",
     });
   });
   afterEach(async () => {
@@ -337,13 +337,13 @@ describe("runSessionInitStatus — multi-WU state", () => {
     fixture = await createFixture();
     await writeConfig(fixture.configPath);
     await writeExtension(fixture.extDir, "pre-merge-review", true);
-    await writeStatusFile(fixture.activeDir, "feature", "status-alpha.md", {
+    await writeStatusFile(fixture.activeDir, "feature", "meta-alpha.md", {
       branch: "feature/alpha",
-      state: "In Progress",
+      state: "Active",
     });
-    await writeStatusFile(fixture.activeDir, "technical", "status-beta.md", {
+    await writeStatusFile(fixture.activeDir, "technical", "meta-beta.md", {
       branch: "technical/beta",
-      state: "Paused",
+      state: "Integrating",
     });
   });
   afterEach(async () => {
@@ -364,7 +364,7 @@ describe("runSessionInitStatus — multi-WU state", () => {
       expect(result.active.value.resolution).toBe("multiple");
       expect(result.active.value.candidates).toHaveLength(2);
       const filenames = result.active.value.candidates.map((c) => c.filename).sort();
-      expect(filenames).toEqual(["status-alpha.md", "status-beta.md"]);
+      expect(filenames).toEqual(["meta-alpha.md", "meta-beta.md"]);
     }
     expect(result.extensions.ok).toBe(true);
     if (result.extensions.ok) {
@@ -382,13 +382,13 @@ describe("runSessionInitStatus — companion-file resolution carry-through", () 
     const sub = join(fixture.activeDir, "technical");
     await mkdir(sub, { recursive: true });
     await writeFile(
-      join(sub, "status-foo.md"),
+      join(sub, "meta-foo.md"),
       [
         "# Status: fixture",
         "",
         "## Work Unit Metadata",
         "",
-        "- **State:** In Progress",
+        "- **State:** Active",
         "- **Branch:** technical/foo",
         "- **Task List:** `.arc/active/technical/tasks-foo.md`",
       ].join("\n"),
@@ -429,13 +429,13 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
     const userActiveDir = join(fixture.root, ".arc", "user", "alice", "active");
     await mkdir(userActiveDir, { recursive: true });
     await writeFile(
-      join(userActiveDir, "status-foo.md"),
+      join(userActiveDir, "meta-foo.md"),
       [
         "# Status: fixture",
         "",
         "## Work Unit Metadata",
         "",
-        "- **State:** In Progress",
+        "- **State:** Active",
         "- **Branch:** user/alice/foo",
         "- **Task List:** `.arc/user/alice/active/tasks-foo.md`",
       ].join("\n"),
@@ -472,7 +472,7 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
     expect(result.active.ok).toBe(true);
     if (result.active.ok) {
       expect(result.active.value.resolution).toBe("single");
-      expect(result.active.value.path).toBe(".arc/user/alice/active/status-foo.md");
+      expect(result.active.value.path).toBe(".arc/user/alice/active/meta-foo.md");
       expect(result.active.value.companions).toEqual({
         notes: ".arc/user/alice/active/notes-foo.md",
         atomic: null,
@@ -489,9 +489,9 @@ describe("runStatus — mixed (one probe errors, others succeed)", () => {
     // Intentionally remove the extensions dir to force the extensions probe
     // to throw (readdir on ENOENT).
     await rm(fixture.extDir, { recursive: true, force: true });
-    await writeStatusFile(fixture.activeDir, "technical", "status-alpha.md", {
+    await writeStatusFile(fixture.activeDir, "technical", "meta-alpha.md", {
       branch: "technical/alpha",
-      state: "In Progress",
+      state: "Active",
     });
   });
   afterEach(async () => {
@@ -755,9 +755,9 @@ describe("runSessionInitStatus — sessionType envelope coverage", () => {
   });
 
   it("carries sessionType=execution through the composite for a single-WU + Start-Task fixture", async () => {
-    await writeStatusFile(fixture.activeDir, "technical", "status-foo.md", {
+    await writeStatusFile(fixture.activeDir, "technical", "meta-foo.md", {
       branch: "technical/foo",
-      state: "In Progress",
+      state: "Active",
       taskList: "`.arc/active/technical/tasks-foo.md`",
       nextAction: "Start Task 4.2 — write unit tests",
     });
@@ -777,9 +777,9 @@ describe("runSessionInitStatus — sessionType envelope coverage", () => {
   });
 
   it("carries sessionType=integration through the composite when Next Action begins with integrate-work-unit", async () => {
-    await writeStatusFile(fixture.activeDir, "technical", "status-foo.md", {
+    await writeStatusFile(fixture.activeDir, "technical", "meta-foo.md", {
       branch: "technical/foo",
-      state: "In Progress",
+      state: "Active",
       taskList: "`.arc/active/technical/tasks-foo.md`",
       nextAction: "integrate-work-unit Step 7 — push and create PR",
     });
@@ -799,15 +799,15 @@ describe("runSessionInitStatus — sessionType envelope coverage", () => {
   });
 
   it("carries sessionType=null through the composite when resolution is multiple (defer until disambiguation)", async () => {
-    await writeStatusFile(fixture.activeDir, "feature", "status-alpha.md", {
+    await writeStatusFile(fixture.activeDir, "feature", "meta-alpha.md", {
       branch: "feature/alpha",
-      state: "In Progress",
+      state: "Active",
       taskList: "`.arc/active/feature/tasks-alpha.md`",
       nextAction: "Start Task 1.1 — kick off",
     });
-    await writeStatusFile(fixture.activeDir, "technical", "status-beta.md", {
+    await writeStatusFile(fixture.activeDir, "technical", "meta-beta.md", {
       branch: "technical/beta",
-      state: "In Progress",
+      state: "Active",
       taskList: "`.arc/active/technical/tasks-beta.md`",
       nextAction: "integrate-work-unit Step 1 — verify completion",
     });
