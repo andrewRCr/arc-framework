@@ -333,3 +333,146 @@ describe("readActiveStatusCandidates — layout detection", () => {
     expect(result.candidates[0]!.filename).toBe("status-foo.md");
   });
 });
+
+describe("readActiveStatusCandidates — dual-prefix acceptance (meta- and status-)", () => {
+  let fixture: Fixture;
+  beforeEach(async () => { fixture = await createFixture(); });
+  afterEach(async () => { await rm(fixture.root, { recursive: true, force: true }); });
+
+  it("resolves meta-*.md candidates under subdir layout", async () => {
+    const sub = join(fixture.activeDir, "technical");
+    await mkdir(sub, { recursive: true });
+    await writeFile(
+      join(sub, "meta-foo.md"),
+      statusFileBody({ state: "Active", branch: "technical/foo" }),
+    );
+    const result = await readActiveStatusCandidates(fixture.root);
+    expect(result.candidates).toHaveLength(1);
+    expect(result.candidates[0]!.filename).toBe("meta-foo.md");
+    expect(result.candidates[0]!.path).toBe(".arc/active/technical/meta-foo.md");
+  });
+
+  it("resolves meta-*.md candidates under flat layout", async () => {
+    await writeFile(
+      join(fixture.activeDir, "meta-foo.md"),
+      statusFileBody({ state: "Active", branch: "plan/foo" }),
+    );
+    const result = await readActiveStatusCandidates(fixture.root);
+    expect(result.candidates).toHaveLength(1);
+    expect(result.candidates[0]!.filename).toBe("meta-foo.md");
+    expect(result.candidates[0]!.path).toBe(".arc/active/meta-foo.md");
+  });
+
+  it("prefers meta-*.md when both prefixes share a stem in the same subdir", async () => {
+    const sub = join(fixture.activeDir, "technical");
+    await mkdir(sub, { recursive: true });
+    await writeFile(
+      join(sub, "meta-foo.md"),
+      statusFileBody({ state: "Active", branch: "technical/foo" }),
+    );
+    await writeFile(
+      join(sub, "status-foo.md"),
+      statusFileBody({ state: "In Progress", branch: "technical/foo" }),
+    );
+    const result = await readActiveStatusCandidates(fixture.root);
+    expect(result.candidates).toHaveLength(1);
+    expect(result.candidates[0]!.filename).toBe("meta-foo.md");
+    expect(result.candidates[0]!.state).toBe("Active");
+  });
+
+  it("prefers meta-*.md when both prefixes share a stem at the flat root", async () => {
+    await writeFile(
+      join(fixture.activeDir, "meta-foo.md"),
+      statusFileBody({ state: "Active", branch: "plan/foo" }),
+    );
+    await writeFile(
+      join(fixture.activeDir, "status-foo.md"),
+      statusFileBody({ state: "In Progress", branch: "plan/foo" }),
+    );
+    const result = await readActiveStatusCandidates(fixture.root);
+    expect(result.candidates).toHaveLength(1);
+    expect(result.candidates[0]!.filename).toBe("meta-foo.md");
+  });
+
+  it("does not dedupe same-stem files across different category subdirectories (distinct WUs)", async () => {
+    const tech = join(fixture.activeDir, "technical");
+    const feat = join(fixture.activeDir, "feature");
+    await mkdir(tech, { recursive: true });
+    await mkdir(feat, { recursive: true });
+    await writeFile(
+      join(tech, "meta-foo.md"),
+      statusFileBody({ state: "Active", branch: "technical/foo" }),
+    );
+    await writeFile(
+      join(feat, "meta-foo.md"),
+      statusFileBody({ state: "Active", branch: "feature/foo" }),
+    );
+    const result = await readActiveStatusCandidates(fixture.root);
+    expect(result.candidates).toHaveLength(2);
+    const paths = result.candidates.map((c) => c.path).sort();
+    expect(paths).toEqual([
+      ".arc/active/feature/meta-foo.md",
+      ".arc/active/technical/meta-foo.md",
+    ]);
+  });
+});
+
+describe("readActiveStatusCandidates — scan-shape auto-detection", () => {
+  let fixture: Fixture;
+  beforeEach(async () => { fixture = await createFixture(); });
+  afterEach(async () => { await rm(fixture.root, { recursive: true, force: true }); });
+
+  it("auto-detects flat scan when only flat-root files exist (no explicit scanShape)", async () => {
+    await writeFile(
+      join(fixture.activeDir, "meta-foo.md"),
+      statusFileBody({ state: "Active", branch: "plan/foo" }),
+    );
+    const result = await readActiveStatusCandidates(fixture.root);
+    expect(result.candidates).toHaveLength(1);
+    expect(result.candidates[0]!.filename).toBe("meta-foo.md");
+  });
+
+  it("auto-detects subdir scan when only subdir files exist (no explicit scanShape)", async () => {
+    const sub = join(fixture.activeDir, "technical");
+    await mkdir(sub, { recursive: true });
+    await writeFile(
+      join(sub, "meta-foo.md"),
+      statusFileBody({ state: "Active", branch: "technical/foo" }),
+    );
+    const result = await readActiveStatusCandidates(fixture.root);
+    expect(result.candidates).toHaveLength(1);
+    expect(result.candidates[0]!.path).toBe(".arc/active/technical/meta-foo.md");
+  });
+
+  it("prefers flat scan when both flat-root and subdir files exist (transient state)", async () => {
+    await writeFile(
+      join(fixture.activeDir, "meta-foo.md"),
+      statusFileBody({ state: "Active", branch: "plan/foo" }),
+    );
+    const sub = join(fixture.activeDir, "technical");
+    await mkdir(sub, { recursive: true });
+    await writeFile(
+      join(sub, "meta-bar.md"),
+      statusFileBody({ state: "Active", branch: "technical/bar" }),
+    );
+    const result = await readActiveStatusCandidates(fixture.root);
+    expect(result.candidates).toHaveLength(1);
+    expect(result.candidates[0]!.filename).toBe("meta-foo.md");
+  });
+
+  it("respects explicit scanShape: 'subdir' even when flat-root files exist", async () => {
+    await writeFile(
+      join(fixture.activeDir, "meta-decoy.md"),
+      statusFileBody({ state: "Active", branch: "plan/decoy" }),
+    );
+    const sub = join(fixture.activeDir, "technical");
+    await mkdir(sub, { recursive: true });
+    await writeFile(
+      join(sub, "meta-real.md"),
+      statusFileBody({ state: "Active", branch: "technical/real" }),
+    );
+    const result = await readActiveStatusCandidates(fixture.root, { scanShape: "subdir" });
+    expect(result.candidates).toHaveLength(1);
+    expect(result.candidates[0]!.filename).toBe("meta-real.md");
+  });
+});

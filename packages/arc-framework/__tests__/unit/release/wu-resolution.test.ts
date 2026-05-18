@@ -70,6 +70,21 @@ describe("resolveActiveWu — single full-layout candidate", () => {
     });
   });
 
+  it("parses name from a meta-*.md filename (post-WOR canonical shape)", async () => {
+    const dir = join(fixture.activeDir, "technical");
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, "meta-bar.md"), statusBody("Active"));
+
+    const result = await resolveActiveWu({ cwd: fixture.root });
+
+    expect(result).toEqual({
+      status: "resolved",
+      path: ".arc/active/technical/meta-bar.md",
+      category: "technical",
+      name: "bar",
+    });
+  });
+
   it.each([
     ["Planning"],
     ["In Progress"],

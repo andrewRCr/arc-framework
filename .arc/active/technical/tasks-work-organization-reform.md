@@ -2266,29 +2266,29 @@ at 5.4.f.
           rewritten to reflect the new precedence; cleanup at 6.2.k verifies fast-paths against codified
           values post-6.2.b migration.
 
-    - `[ ]` **5.4.c Active-file resolution with dual-prefix scan + flat-layout auto-detection**
-        - `lib/active/status-reader.ts` + consumers: extend the file-glob scan to accept BOTH `status-*.md` and
-          `meta-*.md` during transition. Update `FULL_PREFIX` to a tuple of accepted prefixes
-          (`["meta-", "status-"]`).
-        - **Dedup scope:** when both filenames exist for the same stem within the same directory (e.g.,
-          `active/technical/status-foo.md` and `active/technical/meta-foo.md`), prefer `meta-*.md` — the new
-          shape is canonical once present. **Per-directory only** — same-stem files in different categories
-          (`technical/meta-foo.md` vs `feature/meta-foo.md`) are distinct WUs, do NOT dedup across directories.
-        - **Flat-layout auto-detection:** flat is THE post-WOR default (no config knob — single-branch-per-WU is
-          the convention, not a mode). The legacy subdir layout (`active/<category>/`) is being retired in 6.2.
-          During transition both shapes can coexist. Detect at scan time: if any `active/(meta-*|status-*).md`
-          exists at the flat root → flat mode; else if subdirectories with matching files → subdir mode. Both
-          present (transient) → agent prefers flat-root matches. Parallel to the existing `lite` detection
-          model; promote `ActiveScanShape` use from contributor-only to general maintainer detection.
-        - **Hidden consumer:** `lib/release/wu-resolution.ts:115` parses `/^status-(.+)\.md$/` for the release
-          wrapper's WU-name lookup. Same dual-prefix update needed (`^(meta|status)-(.+)\.md$`).
-        - Companion-file resolution (`notes-`, `atomic-`) is name-stable across WOR; no prefix change needed.
-        - Vitest unit tests cover `meta-*` resolution + `status-*` legacy resolution + missing-meta-file
-          degradation + dual-presence preference within a directory (meta wins) + cross-directory same-stem
-          (NOT deduped) + flat-layout auto-detection (root-level files trigger flat mode) + subdir-layout
-          auto-detection (legacy still works).
-        - _Cleanup paired with 6.2.l (drop `status-` from accepted prefixes AND retire the subdir scanner
-          entirely; flat + `meta-` only)._
+    - `[x]` **5.4.c Active-file resolution with dual-prefix scan + flat-layout auto-detection**
+        - `lib/active/status-reader.ts`: `FULL_PREFIX` retired in favor of an `ACCEPTED_PREFIXES =
+          ["meta-", "status-"]` tuple; `isStatusFilename` / `extractStem` helpers added; both
+          `findFlatLayoutStatusFiles` and `findSubdirLayoutStatusFiles` now accept either prefix.
+          Per-directory dedup (`preferMetaPerDirectory`) keeps the `meta-` variant when both prefixes
+          share a stem in the same directory; cross-directory same-stem files (distinct WUs) pass
+          through untouched.
+        - **Scan-shape auto-detection:** `scanShape` is now optional. When unset, `detectScanShape`
+          probes the active root for accepted-prefix files at the top level — any match resolves to
+          `flat`; otherwise `subdir`. Flat wins under transient both-present states (parallel to the
+          existing `lite` detection). Explicit `scanShape` (e.g., contributor flow's `flat`) bypasses
+          detection. Maintainer flow at `commands/active/status.ts` already passes `scanShape:
+          undefined` for non-contributor — picks up auto-detection without a call-site change.
+        - `lib/release/wu-resolution.ts` `parseNameFromFilename` regex flipped from `^status-(.+)\.md$`
+          to `^(?:meta|status)-(.+)\.md$`. Companion-file resolution (`notes-`, `atomic-`) is unchanged
+          per spec.
+        - 10 new vitest tests: dual-prefix acceptance across flat + subdir layouts, per-directory
+          `meta-` preference (both flat and subdir variants), cross-directory same-stem no-dedup,
+          flat / subdir auto-detection, transient both-present → flat wins, and explicit `subdir`
+          override against flat-root decoy. Plus a wu-resolution test asserting `meta-bar.md` parses
+          to `name: "bar"`. All 24 prior reader tests + 9 prior wu-resolution tests still green.
+        - _Cleanup paired with 6.2.l (drop `status-` from accepted prefixes AND retire the subdir
+          scanner entirely; flat + `meta-` only)._
 
     - `[ ]` **5.4.c' Reader section-extraction fallback for new H1-bounded shape**
         - `lib/active/status-reader.ts` `extractMetadataSection` (line 237): extend to support the new shape where

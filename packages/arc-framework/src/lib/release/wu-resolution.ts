@@ -112,6 +112,6 @@ function parseCategoryAndName(
 }
 
 function parseNameFromFilename(filename: string): string {
-  const match = /^status-(.+)\.md$/.exec(filename);
+  const match = /^(?:meta|status)-(.+)\.md$/.exec(filename);
   return match?.[1] ?? "";
 }
