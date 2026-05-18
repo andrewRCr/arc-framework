@@ -12,7 +12,9 @@ import type { GitExec } from "../../lib/git/index.js";
 /**
  * Directory layout discovered on disk.
  *
- * - `full` — per-category subdirectories with `status-*.md` files.
+ * - `full` — `meta-*.md` (post-WOR canonical) or `status-*.md` (legacy)
+ *   files; rooted at the active dir (flat) or under category
+ *   subdirectories (subdir).
  * - `lite` — single fixed-path `.arc/active/status.md`.
  *
  * Determined by file presence: `.arc/active/status.md` wins when both
@@ -92,12 +94,12 @@ export type SessionType = "planning" | "execution" | "integration";
  * normalization.
  */
 export interface StatusFileCandidate {
-  /** Path relative to cwd — e.g. `.arc/active/technical/status-foo.md`. */
+  /** Path relative to cwd — e.g. `.arc/active/meta-foo.md`. */
   path: string;
-  /** Basename — e.g. `status-foo.md`. Used by session-init's SESSION-NOTES-first precedence. */
+  /** Basename — e.g. `meta-foo.md`. Used by session-init's SESSION-NOTES-first precedence. */
   filename: string;
   branch: string | null;
-  /** Raw `**State:**` value verbatim — e.g. `In Progress`, `Paused (2026-04-12)`, `Waiting For Review`. */
+  /** Raw `**State:**` value verbatim — e.g. `Active`, `Integrating`, `Paused (2026-04-12)`. */
   state: string | null;
   /** Raw `**Next Task:**` value — triple-anchor format `Task X.Y — title (line ~N)`. */
   nextTask: string | null;

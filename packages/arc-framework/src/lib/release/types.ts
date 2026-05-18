@@ -155,15 +155,15 @@ export type AuditOutcome =
  */
 export interface AuditWorkUnit {
   /**
-   * Active-root subdirectory under which the status file lives — e.g.,
-   * `"technical"` for `active/technical/status-foo.md`. Omitted under
+   * Active-root subdirectory under which the meta file lives — e.g.,
+   * `"technical"` for `active/technical/meta-foo.md`. Omitted under
    * flat active layouts where no category subdirectory exists
    * (post-work-organization-reform, contributor flat scope). Empty
    * strings from the resolver should be omitted at write time, not
    * carried through.
    */
   category?: string;
-  /** WU name parsed from the status filename — `status-{name}.md`. */
+  /** WU name parsed from the meta filename — `meta-{name}.md` (legacy `status-{name}.md` also resolves during the compat window). */
   name: string;
 }
 

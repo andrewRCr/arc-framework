@@ -2307,26 +2307,37 @@ at 5.4.g.
           no-anchor-at-all path; the post-WOR shape case is covered by the new tests instead.
         - _Cleanup paired with 6.2.m (drop the legacy H2 path; H1-bounded becomes the only shape)._
 
-    - `[ ]` **5.4.e CLI touch-point audit + doc-comment sweep (verify-only)**
-        - **Scope reset (per audit):** The originally-framed "retire `feature/` / `technical/` / `incidental/`
-          prefix recognition" task has no matching code site — branch-prefix recognition isn't encoded as an
-          enum anywhere in the CLI. SCAFFOLDED_FILES restructure is also out of scope here: the
-          `backlog/feature/BACKLOG-FEATURE.template.md` and `backlog/technical/BACKLOG-TECHNICAL.template.md`
-          entries restructure with 6.3.b when the BACKLOG-INBOX template ships (composes with Task 5.6's
-          project-shared inbox seeding). This subtask is a **verify-and-document** pass to confirm no other
-          load-bearing code references the legacy shape.
-        - **Verify-only confirmations** (no edits beyond the doc-comment sweep below):
-            - `lib/classification.ts` SCAFFOLDED_FILES (lines 63-64) — confirm entries remain valid for the
-              transition; restructure deferred to 6.3.b.
-            - `lib/release/types.ts` — confirm no category-related logic depends on legacy shape (initial grep
-              shows only doc-comment references, covered by the sweep).
-        - **Doc-comment sweep:** update example strings carrying legacy shapes (pure prose; updates ride with
-          the prefix-change commits naturally):
-            - `commands/active/types.ts:49, 51, 54` — `status-foo.md` / `In Progress` examples
-            - `lib/release/types.ts:159, 166` — `status-foo.md` in AuditWorkUnit comments
-            - `lib/active/status-reader.ts:26-27, 48, 55-56, 204` — `status-*.md` throughout module docs
-            - `scripts/validate-status-spec.ts:5, 54` — `status-{name}.md` in module + classifyPath docs
-        - No new tests — pure verification + comment edits.
+    - `[x]` **5.4.e CLI touch-point audit + doc-comment sweep (verify-only)**
+        - **Verify-only confirmations passed:**
+            - `lib/classification.ts` SCAFFOLDED_FILES — `backlog/feature/BACKLOG-FEATURE.template.md` and
+              `backlog/technical/BACKLOG-TECHNICAL.template.md` entries remain valid for the transition;
+              the actual restructure pairs with 6.3.b when the BACKLOG-INBOX template ships.
+            - `lib/release/types.ts` — category-related logic is doc-only; the `category?: string` field is
+              populated from path parsing, not a hardcoded enum. No behavior depends on the legacy
+              `<category>/plan-<name>` prefix shape.
+        - **Doc-comment sweep landed in `commands/active/types.ts` and `lib/release/types.ts`:**
+            - `ActiveLayout.full` doc rewritten to acknowledge both prefixes and both layouts (post-WOR
+              flat-rooted canonical + legacy category subdirs).
+            - `StatusFileCandidate.path` and `.filename` example strings updated from
+              `status-foo.md` → `meta-foo.md` (canonical post-WOR shape).
+            - `StatusFileCandidate.state` example values updated from legacy (`In Progress`,
+              `Waiting For Review`) to codified post-WOR (`Active`, `Integrating`); `Paused (2026-04-12)`
+              retained as the parenthetical-suffix passthrough illustration.
+            - `AuditWorkUnit.category` and `.name` doc examples updated from `status-foo.md` /
+              `status-{name}.md` to the `meta-` shape, with the name field's comment acknowledging
+              dual-prefix resolution during compat (matches wu-resolution regex).
+        - **Scope refinements (vs. originally-framed spec):**
+            - `lib/active/status-reader.ts` was listed in the spec's doc-sweep target list, but its
+              example strings were already updated as part of 5.4.c's dual-prefix work (the lines
+              cited in the spec — 26-27, 48, 55-56, 204 — pre-date my 5.4.c edits). No leftover
+              examples to sweep; remaining `status-` narrative references in the module pair with
+              the symbol/file rename deferred to 6.2.o.
+            - `scripts/validate-status-spec.ts` doc-comment update deferred to 5.4.h. Today the
+              validator's `STATUS_PATH` regex matches `status-` only; updating the doc-comment to use
+              `meta-` as the primary example would be inaccurate ahead of 5.4.h's code change. The
+              doc-update logically rides with that prefix change rather than landing here.
+        - No new tests — pure verification + comment edits. Full Tier 1 suite (typecheck / lint:ts /
+          tests) green; semantics unchanged.
 
     - `[~]` **5.4.f `classification.ts` hardcoded filename update (META-PRD → PROJECT-PRD)**
         - Already complete — rename landed in commit `04945526` (`feat(arc): Rewrite PROJECT-PRD per new shape;
