@@ -2348,6 +2348,56 @@ at 5.4.f.
         - Update CLI tests asserting on seed output shape. Add new tests verifying per-WU subdir creation at
           activation and WORKING-MEMORY.md at init.
 
+### `[ ]` **5.6 CLI seeding for inbox files (USER-INBOX + project-shared inboxes)**
+
+- _Goal:_ CLI init/join + activation code seeds the WOR-introduced inbox files per R59 (content-only, no
+  preamble): `user/{identity}/USER-INBOX.md` (personal, gitignored, init-time seed regardless of pm.mode),
+  `backlog/ATOMIC-INBOX.md` (project-shared, init-time seed under `pm.mode == arc-in-git`),
+  `backlog/BACKLOG-INBOX.md` (project-shared, init-time seed under `pm.mode == arc-in-git`). R59a precondition
+  already met — `strategy-session-operations.md` § SESSION-NOTES / § Working Memory and
+  `strategy-planning-module.md` § Inbox Family / § Ceremony-Only Writes carry the full orientation (purpose,
+  lifecycle, write discipline, ceremony-only-writes rule). This task resolves a DRY-aware orientation policy
+  for inbox files and wires the CLI seeding.
+
+    **Strategies:** `strategy-testing-methodology.md`, `strategy-package-project-sync.md`,
+    `strategy-planning-module.md`, `strategy-session-operations.md`
+
+    - `[ ]` **5.6.a Resolve orientation policy for inbox files**
+        - Two options for what each inbox file carries at the top:
+            1. **Pure content-only** (strict R59). H1 + section H2s only. Developer learns write discipline
+               from strategy. Same treatment as SESSION-NOTES.
+            2. **Minimal strategy pointer.** H1 + a one-line reference to the relevant strategy section
+               (e.g., for shared inboxes: `> Write discipline: see strategy-planning-module.md §
+               Ceremony-Only Writes to Shared Inboxes`). One line per file, not a preamble block —
+               DRY-preserved, no duplicate prose.
+        - SESSION-NOTES intentionally diverges (per 5.3.b) — it's opened mid-session with strategy already
+          loaded. Inboxes are different: opened at capture / triage time, often cold — a one-line pointer
+          may earn its keep.
+        - Decide and apply uniformly across all three new inbox files.
+
+    - `[ ]` **5.6.b Add CLI seeding for `user/{identity}/USER-INBOX.md`**
+        - `src/lib/setup.ts` + `src/commands/user/add.ts`: extend the user-dir seeding sequence to write
+          USER-INBOX.md. Compose content-only scaffolding directly in code per R59 ¶7 ("CLI-created at
+          init/join, not authored from `reference/templates/`"). Seed at user init regardless of `pm.mode` —
+          USER-INBOX exists across PM modes.
+        - Two H2 sections per the strategy spec: `## Atomic`, `## Backlog`.
+        - Composes with 5.5's per-WU subdir creation: USER-INBOX is cross-WU root, parallel to
+          WORKING-MEMORY (5.5.c).
+
+    - `[ ]` **5.6.c Add CLI seeding for `backlog/ATOMIC-INBOX.md` + `backlog/BACKLOG-INBOX.md`**
+        - Project-shared, init-time only, conditional on `pm.mode == arc-in-git`. Seed alongside existing
+          backlog files (ROADMAP.template.md, BACKLOG-FEATURE/TECHNICAL.template.md) at init.
+        - Seeding mechanism: per R59 ¶7's "no new template files" guidance, compose scaffolding directly in
+          code rather than extending init-recipe.json's include_files. Determine the specific seeding site
+          at execution.
+        - Each file gets H1 + scaffolding per 5.6.a's decided orientation policy.
+
+    - `[ ]` **5.6.d Tests**
+        - Unit tests on the seeding functions: assert each file is written with the expected shape (no
+          preamble blockquote, expected H2 sections, orientation policy applied uniformly).
+        - Integration test: run `arc init --pm-mode arc-in-git` in a temp dir; assert all three inbox files
+          land at the expected paths with the expected content.
+
 ## **Phase 6:** Migration and cross-reference sweep
 
 _Purpose:_ Apply WOR conventions forward — hook regex, in-flight meta-file migration, capture pipeline file restructure,
