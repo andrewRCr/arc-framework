@@ -10,6 +10,10 @@
  * expansion is intentionally not performed; the consumer treats range
  * membership as natural-language judgment.
  *
+ * SESSION-NOTES is read by the caller and passed in as content. Path
+ * resolution (per-WU subdir with legacy flat-path compat) lives in
+ * `session-notes-path.ts`.
+ *
  * On any structural failure (missing notes, missing baseline hash,
  * unreachable baseline commit), returns empty arrays plus a soft
  * `baseline-unknown` signal so the workflow can fall back to recall-based

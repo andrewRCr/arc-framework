@@ -174,6 +174,10 @@ function resolveReaderOptions(
   identity: string | null,
 ): { rootSegments: readonly string[]; scanShape: ActiveScanShape } | undefined {
   if (role === "contributor" && identity !== null) {
+    // Contributor role: scan the user-scoped flat active subdir. The
+    // eventual per-WU subdir layout (user/{identity}/<wu-name>/) requires
+    // a scan-shape reshape that composes with broader contributor-lifecycle
+    // support; not wired through this resolver yet.
     return {
       rootSegments: [".arc", "user", identity, "active"],
       scanShape: "flat",

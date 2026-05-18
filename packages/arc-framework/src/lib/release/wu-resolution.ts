@@ -25,7 +25,10 @@ export interface ResolveActiveWuOptions {
   cwd: string;
   /**
    * Active-root segments. Defaults to maintainer scope (`[".arc", "active"]`);
-   * contributor scope is `[".arc", "user", identity, "active"]`.
+   * contributor scope is `[".arc", "user", identity, "active"]`. The eventual
+   * per-WU subdir convention (`[".arc", "user", identity, "<wu-name>"]`)
+   * will replace the flat `active/` subdir once contributor-lifecycle
+   * support that populates per-WU contributor-meta files lands.
    */
   rootSegments?: readonly string[];
   /** Scan shape under the active root. Defaults to `subdir` (maintainer). */

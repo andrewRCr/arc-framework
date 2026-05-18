@@ -2532,16 +2532,30 @@ at 5.4.g.
           skipped init. Byte-parity verified between copies post-edit; Tier 1 markdown lint clean across
           the six files.
 
-    - `[ ]` **5.6.f Reader-path migration (SESSION-NOTES + contributor-meta path)**
-        - Update SESSION-NOTES reader sites to `user/{identity}/<wu-name>/SESSION-NOTES.md`:
-          `handlers/status.ts:163` (session-init probe), `lib/handoff/restate-candidates.ts` (handoff
-          baseline), `commands/active/status.ts:178` + `commands/active/types.ts:99,126,170` (docstring
-          references + multi-candidate disambiguation precedence). Path derives from active WU resolution
-          (`active.value.path` stem → `<wu-name>` token).
-        - Update contributor-meta reader sites to `user/{identity}/<wu-name>/`: `lib/release/wu-resolution.ts:28`
-          and the contributor scan root at `commands/active/status.ts:178`. Path convention only per R65a —
-          creation step defers to `plan-contributor-path.md`.
-        - Atomic with the writer change (5.6.a / 5.6.e) — no broken-session window.
+    - `[x]` **5.6.f Reader-path migration (SESSION-NOTES + contributor-meta path)**
+        - SESSION-NOTES read landed as a compat-shim resolver — new module
+          `lib/handoff/session-notes-path.ts` exports `resolveSessionNotesPath` which prefers the per-WU
+          subdir layout (`user/{identity}/<wu-name>/SESSION-NOTES.md`) per R65a's exactly-one-subdir
+          invariant, falling back to the legacy flat path (`user/{identity}/SESSION-NOTES.md`) for
+          in-flight WUs whose user-dir pre-dates R65a migration. Path derivation uses `io.readDir` to
+          find the lone WU subdir directly — no active-probe coordination needed. Single runtime
+          consumer: `handlers/status.ts` `restateCandidates` probe (legacy inline read replaced).
+          Subdir-first / flat-fallback handles the 5.6.f → 6.3.d window cleanly; smoke-tested against
+          this session's flat layout (handoff probe returns valid restate-candidates with 2 commits
+          since handoff hash, no `baseline-unknown` fallback signal).
+        - Contributor-meta runtime path kept on legacy `[".arc", "user", identity, "active"]` per the
+          task's "path convention only" guidance — creation step + scan-shape reshape defers to
+          `plan-contributor-path.md`. Compat comment added at `commands/active/status.ts`
+          `resolveReaderOptions` calling out the post-R65a target convention and the deferral.
+        - Docstring updates: `lib/handoff/restate-candidates.ts` module doc references new path
+          convention + compat helper; `commands/active/types.ts` contributor-flow JSDoc notes the WOR
+          compat window + post-R65a target; `lib/release/wu-resolution.ts` contributor scope JSDoc
+          mirrors the same pattern. Multi-candidate disambiguation precedence references (types.ts
+          lines 99, 126) are algorithm-only and unaffected by path migration.
+        - Compat retirement paired with 6.3.d (in-flight WU content migration) — new sub-bullet there
+          drops the subdir-first arm of the resolver, leaving only the (now-canonical) subdir read.
+        - Tier 1 clean: `npm run typecheck` 0 errors, `npm run lint:ts` 0 errors, `npm run test:unit`
+          1563/1563 passing — no regressions from the inline-read replacement.
 
     - `[ ]` **5.6.g Tests**
         - Reader-path coverage for the 5.6.f migration: handlers/status SESSION-NOTES read against subdir
@@ -2812,6 +2826,12 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
         - _Note:_ R65 applies to all in-flight WUs; in this repo only WOR is in flight at migration time, so the
           relocation operates on a single WU subdir. The contract generalizes to multi-WU concurrent worktrees
           under Worktree Foundation.
+        - **Compat-shim retirement (paired with 5.6.f):** Drop the flat-path fallback arm from
+          `lib/handoff/session-notes-path.ts`'s `resolveSessionNotesPath` — once this migration lands,
+          the per-WU subdir is the only path SESSION-NOTES lives at. Simplify to a direct read of the
+          single subdir's `SESSION-NOTES.md`. Update the module docstring to drop the compat-window
+          framing. Lands atomically with the `git mv` so the resolver never observes the layout in
+          transit.
 
     - `[ ]` **6.3.e Align session-lifecycle workflows with R65 layout (paired with 6.3.d)**
         - _Origin:_ Relocated from former Task 3.12 to land paired with 6.3.d. Phase-3 placement created an interim

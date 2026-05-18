@@ -167,8 +167,13 @@ export interface ActiveStatusOptions {
  * Session-init probe options.
  *
  * `identity` and `role` drive role-aware active resolution: contributor flow
- * scans `.arc/user/{identity}/active/` (flat scan-shape — no category subdirs);
- * maintainer flow (or absent role) scans `.arc/active/` with category subdirs.
+ * scans `.arc/user/{identity}/active/` (flat scan-shape — no category subdirs).
+ * A per-WU subdir layout (`.arc/user/{identity}/<wu-name>/` with
+ * contributor-meta inside) is the eventual replacement for the flat
+ * `active/` subdir; the scan-shape reshape composes with broader
+ * contributor-lifecycle support that isn't wired through this resolver yet.
+ * Maintainer flow (or absent role) scans `.arc/active/` with category
+ * subdirs.
  *
  * When `role === "contributor"` and `identity === null`, the probe short-
  * circuits to `resolution: "none"` with a diagnostic warning — the contributor
