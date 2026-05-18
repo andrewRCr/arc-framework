@@ -9,25 +9,24 @@
 - **Task List:** `tasks-work-organization-reform.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task 5.4 — full compat-bridge cascade closed. Task 5.4.g (bulk
-  test-fixture migration, six logical-group commits `c83f7443` formatter-pair / `0f168b7c`
-  parser+scan / `ef5feb2d` release-resolution / `99577c95` active/status integration /
-  `a441928b` release-handlers / `bec5d52d` session-init e2e). Task 5.4.h (validator
-  dual-recognition: `STATUS_PATH` regex extended to optional-category + `status|meta`
-  prefix alternation; `VALID_STATES` grew to the eight-value union; `EXPECTED_STATE`
-  diagnostic labels both halves; `Shipped` + `Integration: Merged` raises the existing
-  "only valid for Complete" arm — `b95cde4a`).
+- **Last Completed:** Task 5.5 — instance-file scaffolding shape complete. R59 pointers
+  across 5 templates + B1 design call: USER-INBOX strategy orientation moved from
+  `strategy-planning-module.md` (arc-in-git-only) to `strategy-session-operations.md`
+  (cross-mode per R65b). Commits `45bad377` (strategy move) / `cb582bcc` (SESSION-NOTES
+  pointer) / `d5176bd7` (WORKING-MEMORY + USER-INBOX templates) / `78905584` (shared
+  backlog templates + parent 5.5 close). Plan-doc capture `9265c913` filed the
+  commit-interlock inclusive-semantic ambiguity surfaced mid-cascade into
+  `plan-interlock-release-refinement.md`.
 
-- **Next Task:** Task 5.5.a — Draft per-file pointer content (line ~2403).
+- **Next Task:** Task 5.6.a — Implement `arc user open <wu-name>` helper (line ~2451).
 
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 5.5.a — author the actual blockquote text for each of the five
-  instance-file templates per R59's per-file pointer sizing (SESSION-NOTES 1 line;
-  WORKING-MEMORY + USER-INBOX + backlog/ATOMIC-INBOX + backlog/BACKLOG-INBOX 2-3 lines each).
-  Pointers reference the relevant strategy sections; do not duplicate orientation. The drafted
-  text feeds 5.5.b (apply to existing SESSION-NOTES template), 5.5.c (new per-user templates),
-  and 5.5.d (new project-shared backlog templates). 5.5/5.6 were reshaped at the WOR-iteration
-  PRD-update commit — see notes-* file or commit body for the design intent shift.
+- **Next Action:** Start Task 5.6.a — implement `arc user open <wu-name>` at
+  `packages/arc-framework/src/commands/user/open.ts`. Test-first per the task's 7-behavior
+  list (path computation; idempotent subdir creation; SESSION-NOTES seeding from
+  `templates/user/SESSION-NOTES.md`; defensive-prompt on stale-subdir-for-different-WU
+  with `inspect` and `y` arms; identity-error handling). Wire into `arc user` namespace
+  alongside existing `add` / `pull`.
 
 ---
