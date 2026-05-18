@@ -2071,7 +2071,7 @@ hardcoded references). Branch-pattern fallback in session-init aligns with R2 in
 recognition isn't a CLI-encoded concern (audit confirmed — no enum exists; the status-reader scans subdirs
 name-agnostically).
 
-_Compat-bridge discipline:_ Tasks 5.4.a / 5.4.b / 5.4.c / 5.4.c' / 5.4.g ship code that recognizes BOTH legacy and new
+_Compat-bridge discipline:_ Tasks 5.4.a / 5.4.b / 5.4.c / 5.4.d / 5.4.h ship code that recognizes BOTH legacy and new
 shapes during the Phase 5 → Phase 6.2 transition window — strict enforcement of the new shapes would break this WU's
 own session-init (status-reader, sessionType inference, validate-status-spec hook) before Phase 6.2 migrates this WU's
 artifacts. Each compat shim names its paired cleanup task in 6.2.j-n; the cleanup runs atomically with 6.2's migration
@@ -2079,7 +2079,7 @@ commits so compat code never outlives its purpose. The `5.4.*` → `6.2.*` cross
 reviewing Phase 6.2 closes the loop.
 
 _Known impact areas:_ WOR's foundational shifts ripple into CLI code that encodes the prior conventions. Compat shims
-keep each leaf-task commit functional; cascading test failures concentrate at 5.4.f's bulk fixture migration, not at
+keep each leaf-task commit functional; cascading test failures concentrate at 5.4.g's bulk fixture migration, not at
 each leaf-task introduction. Touch zones:
 
 1. **Probe envelope code** (`commands/active/status.ts`, `lib/session-init/`) — `sessionType` inference, branch-pattern
@@ -2095,7 +2095,7 @@ each leaf-task introduction. Touch zones:
 
 Test fixture impact: ~28 test files reference `status-` / `feature/` / `technical/` patterns (confirmed via grep at
 audit time, 2026-05-14). Compat shims keep most runs green even with stale fixtures; fixture migration concentrates
-at 5.4.f.
+at 5.4.g.
 
 ### `[x]` **5.1 Implement `worktree-roster.ts` library function with test-first coverage**
 
@@ -2218,7 +2218,7 @@ at 5.4.f.
   both legacy and new file-path patterns / State value-sets.
 
 - _Approach:_ Test-first per `strategy-testing-methodology.md`. Each compat-bridge subtask (5.4.a / 5.4.b / 5.4.c /
-  5.4.c' / 5.4.g) ships the compat shim AND explicitly names its paired cleanup task in 6.2.j-n. The cleanup runs
+  5.4.d / 5.4.h) ships the compat shim AND explicitly names its paired cleanup task in 6.2.j-n. The cleanup runs
   after 6.2.a/a'/b migrates this WU's in-flight artifacts; once cleanup lands, the new shape is the only recognized
   shape.
 
@@ -2290,7 +2290,7 @@ at 5.4.f.
         - _Cleanup paired with 6.2.l (drop `status-` from accepted prefixes AND retire the subdir
           scanner entirely; flat + `meta-` only)._
 
-    - `[ ]` **5.4.c' Reader section-extraction fallback for new H1-bounded shape**
+    - `[ ]` **5.4.d Reader section-extraction fallback for new H1-bounded shape**
         - `lib/active/status-reader.ts` `extractMetadataSection` (line 237): extend to support the new shape where
           the `## Work Unit Metadata` H2 wrapper is retired (per R58, applied at 6.2.a'). Behavior: try
           `## Work Unit Metadata` first; if absent, treat the H1-bounded preamble (from the file's `# ...` H1 line
@@ -2302,7 +2302,7 @@ at 5.4.f.
         - Vitest unit tests cover both shapes (H2-wrapped legacy + H1-bounded new) with full field set. _Cleanup
           paired with 6.2.m (drop the legacy H2 path; new shape is the only recognized shape)._
 
-    - `[ ]` **5.4.d CLI touch-point audit + doc-comment sweep (verify-only)**
+    - `[ ]` **5.4.e CLI touch-point audit + doc-comment sweep (verify-only)**
         - **Scope reset (per audit):** The originally-framed "retire `feature/` / `technical/` / `incidental/`
           prefix recognition" task has no matching code site — branch-prefix recognition isn't encoded as an
           enum anywhere in the CLI. SCAFFOLDED_FILES restructure is also out of scope here: the
@@ -2323,21 +2323,21 @@ at 5.4.f.
             - `scripts/validate-status-spec.ts:5, 54` — `status-{name}.md` in module + classifyPath docs
         - No new tests — pure verification + comment edits.
 
-    - `[~]` **5.4.e `classification.ts` hardcoded filename update (META-PRD → PROJECT-PRD)**
+    - `[~]` **5.4.f `classification.ts` hardcoded filename update (META-PRD → PROJECT-PRD)**
         - Already complete — rename landed in commit `04945526` (`feat(arc): Rewrite PROJECT-PRD per new shape;
           rename from META-PRD`). `classification.ts:59` already references `PROJECT-PRD.template.md`; zero
           `META-PRD` references remain in `packages/arc-framework/src/` or `__tests__/` (audit-confirmed).
 
-    - `[ ]` **5.4.f Bulk test-fixture migration (one commit per logical fixture group)**
+    - `[ ]` **5.4.g Bulk test-fixture migration (one commit per logical fixture group)**
         - Fixtures hand-authoring `status-foo.md` migrate to `meta-foo.md`; State values update per the codified
-          value-set. Expect changes across ~28 test files (audit estimate). Compat shims (5.4.a/b/c/c'/g) keep most
+          value-set. Expect changes across ~28 test files (audit estimate). Compat shims (5.4.a/b/c/d/h) keep most
           test runs green even while fixtures lag — failure cascade is bounded, not multiplicative.
         - Pattern-batch fixture edits: a vitest run failing on `status-` filename references gets the fixture
           renamed; a failure on `**State:** In Progress` gets the State value updated. Don't enumerate per file in
           advance — fix the failing test, commit, move on.
         - Verify entire test suite passes (`npm test`) before declaring 5.4 complete.
 
-    - `[ ]` **5.4.g Update `validate-status-spec.ts` pre-commit hook with dual-recognition**
+    - `[ ]` **5.4.h Update `validate-status-spec.ts` pre-commit hook with dual-recognition**
         - `scripts/validate-status-spec.ts` is a pre-commit hook enforcing both file-path classification
           (`STATUS_PATH` regex, line 28) and State value-set (`VALID_STATES`, lines 33-39). Both shapes flip in
           Phase 6.2 — without transitional support, the migration commit itself can't pass its own pre-commit
@@ -2356,7 +2356,7 @@ at 5.4.f.
           legacy arm during transition; cleanup at 6.2.n retires `VALID_INTEGRATION_STATES` and the paired
           validation entirely.
         - Vitest unit + integration tests cover dual-recognition (both prefixes × both layouts); fixture
-          updates couple with 5.4.f. _Cleanup paired with 6.2.n (retire legacy halves of all three: STATUS_PATH
+          updates couple with 5.4.g. _Cleanup paired with 6.2.n (retire legacy halves of all three: STATUS_PATH
           subdir + status- arms, VALID_STATES legacy values, VALID_INTEGRATION_STATES entirely)._
 
 ### `[ ]` **5.5 CLI seeding update for R65 user/ workspace layout**
@@ -2610,20 +2610,20 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           cases.
         - _Sequencing:_ Runs after 6.2.a AND 6.5 (defensive — both surfaces clear before the compat code retires).
 
-    - `[ ]` **6.2.m Cleanup: drop `## Work Unit Metadata` H2 fallback in section extraction (paired with 5.4.c')**
-        - `lib/active/status-reader.ts` `extractMetadataSection` (modified in 5.4.c') accepts BOTH the legacy
+    - `[ ]` **6.2.m Cleanup: drop `## Work Unit Metadata` H2 fallback in section extraction (paired with 5.4.d)**
+        - `lib/active/status-reader.ts` `extractMetadataSection` (modified in 5.4.d) accepts BOTH the legacy
           H2-wrapped shape and the new H1-bounded shape. Once 6.2.a' restructures this WU's meta file to the new
           shape, the H2 fallback is dead code.
         - Drop the H2-wrapper detection path; require H1-bounded preamble. Tests: remove legacy-shape test cases.
         - _Sequencing:_ Runs after 6.2.a' (this WU's meta file uses the new shape).
 
-    - `[ ]` **6.2.n Cleanup: retire dual-recognition in `validate-status-spec.ts` (paired with 5.4.g)**
-        - `scripts/validate-status-spec.ts` (modified in 5.4.g) accepts BOTH file-path patterns and BOTH State
+    - `[ ]` **6.2.n Cleanup: retire dual-recognition in `validate-status-spec.ts` (paired with 5.4.h)**
+        - `scripts/validate-status-spec.ts` (modified in 5.4.h) accepts BOTH file-path patterns and BOTH State
           value-sets during transition. Once 6.2.a + 6.2.b complete the in-flight migration, the legacy halves are
           unreachable from valid in-flight artifacts.
         - **Path pattern:** drop `status-*.md` from the path classifier; rename the regex constant and surrounding
           identifiers to `META_PATH` / `meta-spec` shape (module + exported symbol rename completes here if not
-          done at 5.4.g). Sync hook wiring if the entry-point path changes.
+          done at 5.4.h). Sync hook wiring if the entry-point path changes.
         - **State value-set:** trim `VALID_STATES` to the new four-value enum
           (`Planning, Active, Integrating, Shipped`).
         - **Integration field:** retire `VALID_INTEGRATION_STATES` and the `**Integration:** Merged` validation
@@ -3220,7 +3220,7 @@ readiness assessment.
   integrate-work-unit composition; `rotate-branch.md` retired
 - `[ ]` `META-PRD` → `PROJECT-PRD` rename complete per R35 — file renamed in both copies (`.arc/reference/META-PRD.md` →
   `PROJECT-PRD.md`; package source template `META-PRD.template.md` → `PROJECT-PRD.template.md`); content rewritten per
-  the new template shape; CLI `classification.ts` hardcoded reference updated (Task 5.4.e); cross-reference sweep clean
+  the new template shape; CLI `classification.ts` hardcoded reference updated (Task 5.4.f); cross-reference sweep clean
   (Task 6.7.k)
 - `[ ]` Orientation-content precondition satisfied per R59a — `strategy-session-operations.md` and
   `strategy-planning-module.md` carry the SESSION-NOTES / inbox-family orientation content before instance-file
