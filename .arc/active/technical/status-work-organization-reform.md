@@ -9,24 +9,20 @@
 - **Task List:** `tasks-work-organization-reform.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Tasks 5.6.a–5.6.d — per-WU user workspace lifecycle CLI shipped
-  (`arc user open <wu-name>` + `arc user close <wu-name>` at `d65bc69d` / `c705f795`)
-  and init-time seeding rewired for the R59 scaffolding shape (`173b6c0c`).
-  `runPostInitSetup` / `runUserAdd` now iterate the canonical per-user file set
-  (SESSION-NOTES, WORKING-MEMORY, USER-INBOX) cross-PM-mode; `pmMode` retired from
-  `PostInitSetupOptions` / `UserAddOptions` / `JoinOptions` with all call sites
-  updated. `init-recipe.json` arc-in-git arm now installs the shared
-  `backlog/ATOMIC-INBOX.template.md` + `backlog/BACKLOG-INBOX.template.md`.
+- **Last Completed:** Task 5.6 closes — Phase 5 implicitly complete (5.1–5.6 all `[x]`).
+  Final trio: workflow wiring for `arc user open`/`close` into init/activate/integrate
+  (`e1ec86fa`); SESSION-NOTES path resolver with R65a compat-shim (`7d9173d3`); unit + E2E
+  test coverage for the resolver and CLI lifecycle (`804d4d9e`).
 
-- **Next Task:** Task 5.6.e — Workflow wiring for `arc user open` / `arc user close` (line ~2525).
+- **Next Task:** Task 6.1 — Update `system/githooks/commit-msg` (type-set tightening + `arc`
+  scope refusal) (line ~2600).
 
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 5.6.e — wire inline Bash invocations into three workflows
-  (both copies — `.arc/system/workflows/` + `packages/arc-framework/arc/system/workflows/`):
-  `arc user open <wu-name>` at `init-work-unit.md` Step 2 (after planning-branch create)
-  and `activate-work-unit.md` Step 5 (after branch rename); `arc user close <wu-name>` at
-  `integrate-work-unit.md` Step 13 (post-merge). No class-tag or push-extension marker
-  (not push fire-points).
+- **Next Action:** Start Task 6.1 — tighten the commit-msg hook regex to the 8-type enum
+  (`feat | fix | chore | docs | refactor | test | perf | revert`; drops `style | content |
+  build | ci | config`) and add a post-match `arc` scope denylist. Sync edit to
+  `packages/arc-framework/arc/system/githooks/`; smoke-test retired-type + arc-scope rejections
+  plus a valid-commit pass.
 
 ---
