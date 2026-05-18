@@ -9,20 +9,23 @@
 - **Task List:** `tasks-work-organization-reform.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Off-task scope amendment — WOR Phase 5 reshaped + 6.2.j-n cleanup
-  pairs added per pre-implementation audit. Compat-bridge discipline on 5.4.a/b/c/c'/g
-  paired atomically with 6.2.j-n cleanup; 5.2 rescoped to workflow-marker wiring; 5.4.d
-  rescoped to actual touch points; 5.4.c' + 5.4.g added (reader fallback + validator
-  dual-recognition). Commit `935a3f18`.
+- **Last Completed:** Task 5.2 — Wire `pre-push-review` markers across push fire-points
+  (6 sites × 5 workflows × 2 copies) + strategy-workflow-authoring clarification that the
+  sync exception is class-tag-routing scope only. Incidental Tier 2 fix landed alongside:
+  `init-recipe.json` + classification.ts + 5 test files restored after the prior
+  META-PRD → PROJECT-PRD, template-status → template-meta, and clean-work-unit move
+  commits. Commits `03025226`, `3ce8ce6a`, `394d606d`.
 
-- **Next Task:** Task 5.1 — Implement `worktree-roster.ts` library function with test-first
-  coverage (line ~2100).
+- **Next Task:** Task 5.3 — Update CLI init/join code to strip instance-file preamble
+  injection (line ~2174).
 
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 5.1 — audit `git/worktree-sync.ts` for reusable parse before
-  re-implementing; test-first per the 9 enumerated behaviors; State enum import path is
-  codified in 5.1's `_Note:_` block (import from 5.4.a if landed first, else hardcode with
-  comment pointing at both 4.1.c `template-meta.md` and 5.4.a).
+- **Next Action:** Start Task 5.3.a — grep `packages/arc-framework/src/lib/` for "About
+  this file" / Lifecycle / Portability / Writing-guide preamble strings; identify seeding
+  functions for SESSION-NOTES, USER-INBOX, BACKLOG-INBOX, `backlog/ATOMIC-INBOX.md`.
+  Per R59, files seed as content-only; instance-file migration in this repo is separate
+  scope (Task 6.8). Subtasks 5.3.b (strip from seed templates) and 5.3.c (verify CLI tests)
+  follow.
 
 ---
