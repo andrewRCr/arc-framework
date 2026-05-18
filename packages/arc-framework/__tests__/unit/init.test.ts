@@ -386,7 +386,8 @@ describe("buildManifestFiles", () => {
 function userTemplateFiles(internalDir: string): Record<string, string> {
   return {
     [`${internalDir}/user/SESSION-NOTES.md`]: "# Session Notes\n",
-    [`${internalDir}/user/ATOMIC-INBOX.md`]: "# Atomic Inbox\n",
+    [`${internalDir}/user/WORKING-MEMORY.md`]: "# Working Memory\n",
+    [`${internalDir}/user/USER-INBOX.md`]: "# User Inbox\n",
   };
 }
 

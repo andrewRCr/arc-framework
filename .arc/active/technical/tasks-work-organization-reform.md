@@ -2487,18 +2487,40 @@ at 5.4.g.
           lines below the abstraction threshold per project YAGNI conventions. Revisit if a
           third call site emerges.
 
-    - `[ ]` **5.6.c Wire init-time seeding for new per-user files**
-        - Extend `lib/setup.ts` (`runPostInitSetup`) and `commands/user/add.ts` (`runUserAdd`) to seed
-          `user/{identity}/WORKING-MEMORY.md` and `user/{identity}/USER-INBOX.md` from the new templates
-          (5.5.d). Both seed regardless of `pm.mode` (cross-PM-mode per R65b). Existing user/ATOMIC-INBOX
-          seed path retires here — content migrates into USER-INBOX `## Atomic` section per R50 (paired with
-          6.3.x USER-INBOX consolidation already filed).
+    - `[x]` **5.6.c Wire init-time seeding for new per-user files**
+        - `lib/setup.ts` (`runPostInitSetup`) and `commands/user/add.ts` (`runUserAdd`) now iterate
+          the canonical per-user file set (SESSION-NOTES.md, WORKING-MEMORY.md, USER-INBOX.md) and
+          seed each from the internal template directory. Both seed unconditionally — per R65b the
+          personal-workspace surface is cross-PM-mode; `pm.mode` no longer gates user-directory
+          seeding. The legacy `user/ATOMIC-INBOX.md` seed path retired (content migration to
+          USER-INBOX `## Atomic` per R50 lands separately at 6.3.x).
+        - `pmMode` field dropped from `PostInitSetupOptions`, `UserAddOptions`, and the
+          out-of-scope-but-collateral `JoinOptions` (the param had no other consumer in
+          `runJoin`). Three CLI call sites updated (`commands/init.ts`, `commands/join.ts`,
+          `handlers/user.ts`); `handleJoin` no longer reads `settings["pm.mode"]` since the only
+          downstream consumer is gone. `PM_MODE_ARC_IN_GIT` import retired from both setup
+          functions.
+        - Test sweep: unit fs-mocks in `__tests__/unit/init.test.ts` and `__tests__/unit/join.test.ts`
+          register stubs for `WORKING-MEMORY.md` + `USER-INBOX.md`; the previously-asserted
+          arc-in-git ATOMIC-INBOX seed path was retired in three test files (`integration/init.test.ts`,
+          `integration/user.test.ts`, `e2e/init.e2e.test.ts`, `e2e/user.e2e.test.ts`) and replaced
+          with positive assertions for the canonical three-file set plus a negative assertion
+          on the retired path. One save-load round-trip test pre-cleaned the user dir so the
+          init-seeded files don't inflate its expected `fileCount`.
+        - Drift gotcha for posterity: writing the JSDoc literal `.arc/user/*/` in
+          `commands/user/add.ts` terminated the JSDoc comment early (`*/` inside a `/** ... */`
+          block); rewrote the prose to avoid the sequence.
 
-    - `[ ]` **5.6.d Wire init-recipe for project-shared backlog templates**
-        - Extend `packages/arc-framework/init-recipe.json` `conditions["pm.mode == arc-in-git"].include_files`
-          to list `backlog/ATOMIC-INBOX.template.md` and `backlog/BACKLOG-INBOX.template.md` (added in 5.5.e).
-          Aligns with existing `BACKLOG-FEATURE.template.md` / `BACKLOG-TECHNICAL.template.md` pattern (those
-          retire under R50's BACKLOG-INBOX merge — pair with the migration sweep).
+    - `[x]` **5.6.d Wire init-recipe for project-shared backlog templates**
+        - `packages/arc-framework/init-recipe.json` `conditions["pm.mode == arc-in-git"].include_files`
+          now lists `backlog/ATOMIC-INBOX.template.md` and `backlog/BACKLOG-INBOX.template.md`
+          (added in 5.5.e), sitting alongside the existing `BACKLOG-FEATURE` / `BACKLOG-TECHNICAL`
+          / `ROADMAP` / `PROJECT-STATUS` / `strategy-planning-module` entries.
+        - E2E coverage extended in `__tests__/e2e/init.e2e.test.ts` (the arc-in-git mode test):
+          new `pathExists` assertions verify both backlog inboxes render at
+          `.arc/backlog/ATOMIC-INBOX.md` and `.arc/backlog/BACKLOG-INBOX.md`. Reconfigure unit
+          tests build their own recipe stubs locally and aren't affected; updating them belongs
+          with the broader R50 BACKLOG-INBOX migration sweep.
 
     - `[ ]` **5.6.e Workflow wiring for `arc user open` / `arc user close`**
         - `activate-work-unit.md` (post-branch-rename step): invoke `arc user open <wu-name>`.

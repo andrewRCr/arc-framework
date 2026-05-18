@@ -64,14 +64,12 @@ export async function handleUserAdd(rawIdentity: string): Promise<void> {
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
   const io = createUserIOContext();
-  const { settings } = await readConfigSettings(cwd);
-  const pmMode = settings["pm.mode"];
 
   try {
     await runWithSpinner(
       output,
       `Creating user directory for ${identity}...`,
-      () => runUserAdd({ cwd, io, identity, internalTemplateDir: getInternalTemplatePath(), pmMode }),
+      () => runUserAdd({ cwd, io, identity, internalTemplateDir: getInternalTemplatePath() }),
       `User directory created for ${identity}.`,
     );
   } catch (err) {

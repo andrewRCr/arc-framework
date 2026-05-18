@@ -662,7 +662,9 @@ describe("user save/load — subdirectory support", () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
-    // Create nested file structure
+    // Reset to a known minimal structure — init-seeded files would otherwise
+    // inflate the save count and obscure the round-trip assertion.
+    await rm(userDir, { recursive: true, force: true });
     await mkdir(join(userDir, "drafts"), { recursive: true });
     await writeFile(join(userDir, "SESSION-NOTES.md"), "# Notes", "utf-8");
     await writeFile(join(userDir, "drafts", "idea.md"), "# Draft idea", "utf-8");
@@ -695,7 +697,7 @@ describe("user add", () => {
     await cleanupTempDir(tempDir);
   });
 
-  it("creates user directory with SESSION-NOTES.md", async () => {
+  it("creates user directory with SESSION-NOTES.md, WORKING-MEMORY.md, and USER-INBOX.md", async () => {
     const io = makeUserIO(tempDir);
 
     await runUserAdd({
@@ -703,17 +705,15 @@ describe("user add", () => {
       io,
       identity: "new-dev",
       internalTemplateDir: getInternalTemplatePath(),
-      pmMode: "none",
     });
 
-    const sessionNotes = await readFile(
-      join(tempDir, ".arc", "user", "new-dev", "SESSION-NOTES.md"),
-      "utf-8",
-    );
-    expect(sessionNotes).toContain("Session Notes");
+    const userDir = join(tempDir, ".arc", "user", "new-dev");
+    expect(await readFile(join(userDir, "SESSION-NOTES.md"), "utf-8")).toContain("Session Notes");
+    expect(await readFile(join(userDir, "WORKING-MEMORY.md"), "utf-8")).toContain("Working Memory");
+    expect(await readFile(join(userDir, "USER-INBOX.md"), "utf-8")).toContain("User Inbox");
   });
 
-  it("includes ATOMIC-INBOX.md when pm.mode is arc-in-git", async () => {
+  it("seeds the per-user file set cross-PM-mode (no ATOMIC-INBOX.md at user root)", async () => {
     const io = makeUserIO(tempDir);
 
     await runUserAdd({
@@ -721,14 +721,13 @@ describe("user add", () => {
       io,
       identity: "new-dev",
       internalTemplateDir: getInternalTemplatePath(),
-      pmMode: "arc-in-git",
     });
 
-    const inbox = await readFile(
-      join(tempDir, ".arc", "user", "new-dev", "ATOMIC-INBOX.md"),
-      "utf-8",
-    );
-    expect(inbox).toContain("Atomic");
+    // Per R65b the user-directory seed set is the same regardless of pm.mode;
+    // the legacy user/ATOMIC-INBOX seed path retired here.
+    await expect(
+      readFile(join(tempDir, ".arc", "user", "new-dev", "ATOMIC-INBOX.md"), "utf-8"),
+    ).rejects.toThrow();
   });
 
   it("relies on wildcard gitignore from init (no per-identity entry)", async () => {
@@ -739,7 +738,6 @@ describe("user add", () => {
       io,
       identity: "new-dev",
       internalTemplateDir: getInternalTemplatePath(),
-      pmMode: "none",
     });
 
     const gitignore = await readFile(

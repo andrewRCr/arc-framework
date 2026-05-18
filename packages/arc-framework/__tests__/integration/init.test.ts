@@ -227,10 +227,18 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     expect(installed).not.toContain("**Writing guide:**");
   });
 
-  it("does not install ATOMIC-INBOX.md when pm.mode=none", async () => {
+  it("seeds WORKING-MEMORY.md and USER-INBOX.md in user directory (cross-PM-mode)", async () => {
+    const workingMemory = await stat(join(arcDir, "user/test-user/WORKING-MEMORY.md"));
+    expect(workingMemory.isFile()).toBe(true);
+
+    const userInbox = await stat(join(arcDir, "user/test-user/USER-INBOX.md"));
+    expect(userInbox.isFile()).toBe(true);
+  });
+
+  it("does not install user/ATOMIC-INBOX.md at user root (seed path retired)", async () => {
     try {
       await stat(join(arcDir, "user/test-user/ATOMIC-INBOX.md"));
-      expect.fail("ATOMIC-INBOX should not exist for pm.mode=none");
+      expect.fail("user/ATOMIC-INBOX should not exist post-WOR seed-path retirement");
     } catch (err: unknown) {
       expect((err as NodeJS.ErrnoException).code).toBe("ENOENT");
     }
@@ -536,7 +544,7 @@ describe("init integration (fresh mode, pm.mode=arc-in-git)", () => {
     expect(config).toContain("pm.mode: arc-in-git");
   });
 
-  it("installs both SESSION-NOTES.md and ATOMIC-INBOX.md in user directory", async () => {
+  it("installs the per-user file set (SESSION-NOTES, WORKING-MEMORY, USER-INBOX) under arc-in-git", async () => {
     const recipe = await loadRecipe();
     const io = makeIOContext(tempDir);
 
@@ -550,26 +558,18 @@ describe("init integration (fresh mode, pm.mode=arc-in-git)", () => {
       identityResult: "test-user",
     });
 
-    const sessionNotes = await stat(
-      join(tempDir, ".arc/user/test-user/SESSION-NOTES.md"),
-    );
-    expect(sessionNotes.isFile()).toBe(true);
+    const userDir = join(tempDir, ".arc/user/test-user");
+    for (const filename of ["SESSION-NOTES.md", "WORKING-MEMORY.md", "USER-INBOX.md"]) {
+      const stats = await stat(join(userDir, filename));
+      expect(stats.isFile()).toBe(true);
+      // Each seeded file matches the internal template byte-for-byte
+      const installed = await readFile(join(userDir, filename), "utf-8");
+      const template = await readFile(join(internalTemplateDir, "user", filename), "utf-8");
+      expect(installed).toBe(template);
+    }
 
-    const atomicInbox = await stat(
-      join(tempDir, ".arc/user/test-user/ATOMIC-INBOX.md"),
-    );
-    expect(atomicInbox.isFile()).toBe(true);
-
-    // Verify content matches templates
-    const installedInbox = await readFile(
-      join(tempDir, ".arc/user/test-user/ATOMIC-INBOX.md"),
-      "utf-8",
-    );
-    const templateInbox = await readFile(
-      join(internalTemplateDir, "user/ATOMIC-INBOX.md"),
-      "utf-8",
-    );
-    expect(installedInbox).toBe(templateInbox);
+    // Legacy user/ATOMIC-INBOX seed path retired — no longer seeded under any pm.mode.
+    await expect(stat(join(userDir, "ATOMIC-INBOX.md"))).rejects.toThrow();
   });
 
   it("does not produce any completed-atomic files in arc-in-git mode", async () => {
@@ -725,7 +725,6 @@ describe("join integration", () => {
       internalTemplateDir,
       prompts: { role: "maintainer", tools: ["cursor"] },
       identityResult: "second-dev",
-      pmMode: "arc-in-git",
     });
 
     expect(result.role).toBe("maintainer");
@@ -735,16 +734,21 @@ describe("join integration", () => {
     const manifestAfter = await readFile(manifestPath(tempDir), "utf-8");
     expect(manifestAfter).toBe(manifestBefore);
 
-    // Second developer's user directory created
+    // Second developer's user directory created with the per-user file set
     const sessionNotes = await stat(
       join(tempDir, ".arc/user/second-dev/SESSION-NOTES.md"),
     );
     expect(sessionNotes.isFile()).toBe(true);
 
-    const atomicInbox = await stat(
-      join(tempDir, ".arc/user/second-dev/ATOMIC-INBOX.md"),
+    const workingMemory = await stat(
+      join(tempDir, ".arc/user/second-dev/WORKING-MEMORY.md"),
     );
-    expect(atomicInbox.isFile()).toBe(true);
+    expect(workingMemory.isFile()).toBe(true);
+
+    const userInbox = await stat(
+      join(tempDir, ".arc/user/second-dev/USER-INBOX.md"),
+    );
+    expect(userInbox.isFile()).toBe(true);
 
     // First developer's user directory still intact
     const firstDevNotes = await stat(

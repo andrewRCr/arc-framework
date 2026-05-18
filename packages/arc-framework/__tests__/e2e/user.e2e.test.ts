@@ -53,15 +53,18 @@ describe("user add", () => {
     await cleanupTempDir(tmpDir);
   });
 
-  it("creates user directory with SESSION-NOTES.md", async () => {
+  it("creates user directory with the per-user file set", async () => {
     const result = await runArc(["user", "add", "alice"], tmpDir);
 
     expect(result.exitCode).toBe(0);
-    expect(await pathExists(join(tmpDir, ".arc", "user", "alice"))).toBe(true);
-    expect(await pathExists(join(tmpDir, ".arc", "user", "alice", "SESSION-NOTES.md"))).toBe(true);
+    const userDir = join(tmpDir, ".arc", "user", "alice");
+    expect(await pathExists(userDir)).toBe(true);
+    expect(await pathExists(join(userDir, "SESSION-NOTES.md"))).toBe(true);
+    expect(await pathExists(join(userDir, "WORKING-MEMORY.md"))).toBe(true);
+    expect(await pathExists(join(userDir, "USER-INBOX.md"))).toBe(true);
   });
 
-  it("with arc-in-git PM mode also creates ATOMIC-INBOX.md", async () => {
+  it("seeds the same per-user file set under arc-in-git PM mode (no user/ATOMIC-INBOX)", async () => {
     // Re-init with arc-in-git so config reflects PM mode
     const tmpDir2 = await createTempRepo();
 
@@ -75,8 +78,12 @@ describe("user add", () => {
       const result = await runArc(["user", "add", "bob"], tmpDir2);
 
       expect(result.exitCode).toBe(0);
-      expect(await pathExists(join(tmpDir2, ".arc", "user", "bob", "SESSION-NOTES.md"))).toBe(true);
-      expect(await pathExists(join(tmpDir2, ".arc", "user", "bob", "ATOMIC-INBOX.md"))).toBe(true);
+      const userDir = join(tmpDir2, ".arc", "user", "bob");
+      expect(await pathExists(join(userDir, "SESSION-NOTES.md"))).toBe(true);
+      expect(await pathExists(join(userDir, "WORKING-MEMORY.md"))).toBe(true);
+      expect(await pathExists(join(userDir, "USER-INBOX.md"))).toBe(true);
+      // Legacy user/ATOMIC-INBOX seed path retired in WOR.
+      expect(await pathExists(join(userDir, "ATOMIC-INBOX.md"))).toBe(false);
     } finally {
       await cleanupTempDir(tmpDir2);
     }

@@ -132,7 +132,6 @@ export interface UserAddOptions {
   io: UserIOContext;
   identity: string;
   internalTemplateDir: string;
-  pmMode: string;
 }
 
 /** Options for the open operation (per-WU user workspace subdir). */

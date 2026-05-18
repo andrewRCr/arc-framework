@@ -244,8 +244,7 @@ export async function runInit(
 
   // Identity, user directory, and notes refspec setup
   await runPostInitSetup({
-    arcDir, internalTemplateDir, io,
-    pmMode: prompts.pm_mode, identityResult,
+    arcDir, internalTemplateDir, io, identityResult,
   });
 
   return {

@@ -12,7 +12,6 @@ import { detectHookManager } from "./hook-manager.js";
 import { integrateHooks } from "./hook-integration.js";
 import { join } from "node:path";
 import type { CoreIO } from "./types.js";
-import { PM_MODE_ARC_IN_GIT } from "./constants.js";
 import type { ReadFileFn, WriteFileFn } from "./template/index.js";
 import type { AccessFn } from "./hook-manager.js";
 
@@ -52,20 +51,22 @@ export interface PostInitSetupOptions {
   arcDir: string;
   internalTemplateDir: string;
   io: CoreIO;
-  pmMode: string;
   identityResult: string | null;
 }
 
 /**
  * Run post-init user setup shared by both fresh and join modes.
  *
- * Stores identity in git config, creates the user directory with templates,
- * and configures git notes refspec for cross-machine portability.
+ * Stores identity in git config, creates the user directory with the per-user
+ * instance files (SESSION-NOTES, WORKING-MEMORY, USER-INBOX) seeded from the
+ * internal templates, and configures the git notes refspec for cross-machine
+ * portability. Per-user files seed cross-PM-mode (R65b) — `pm.mode` no longer
+ * gates user-directory seeding.
  */
 export async function runPostInitSetup(
   options: PostInitSetupOptions,
 ): Promise<void> {
-  const { arcDir, internalTemplateDir, io, pmMode, identityResult } = options;
+  const { arcDir, internalTemplateDir, io, identityResult } = options;
 
   if (identityResult) {
     await io.exec("git", ["config", "--local", "arc.identity", identityResult]);
@@ -73,16 +74,9 @@ export async function runPostInitSetup(
     const userDir = join(arcDir, "user", identityResult);
     await ensureDir(userDir, io.mkdir);
 
-    const sessionNotes = await io.readFile(
-      join(internalTemplateDir, "user", "SESSION-NOTES.md"),
-    );
-    await io.writeFile(join(userDir, "SESSION-NOTES.md"), sessionNotes);
-
-    if (pmMode === PM_MODE_ARC_IN_GIT) {
-      const atomicInbox = await io.readFile(
-        join(internalTemplateDir, "user", "ATOMIC-INBOX.md"),
-      );
-      await io.writeFile(join(userDir, "ATOMIC-INBOX.md"), atomicInbox);
+    for (const filename of ["SESSION-NOTES.md", "WORKING-MEMORY.md", "USER-INBOX.md"]) {
+      const content = await io.readFile(join(internalTemplateDir, "user", filename));
+      await io.writeFile(join(userDir, filename), content);
     }
   }
 

@@ -1,38 +1,30 @@
 import { join } from "node:path";
 
-import { PM_MODE_ARC_IN_GIT } from "../../lib/constants.js";
 import { ensureDir } from "../../lib/template/index.js";
 import type { UserAddOptions } from "./types.js";
 
 /**
  * Create a new user directory for a team member.
  *
- * Populates with templates (SESSION-NOTES.md, ATOMIC-INBOX.md if arc-in-git)
- * and adds gitignore entry. Used for adding developers post-init.
+ * Populates with the per-user instance file set (SESSION-NOTES.md,
+ * WORKING-MEMORY.md, USER-INBOX.md) seeded from the internal templates.
+ * Per R65b, the personal-workspace surface is cross-PM-mode — `pm.mode`
+ * does not gate user-directory seeding. The wildcard gitignore block
+ * written at `arc init` covers all user directories; no per-identity
+ * gitignore entry is needed.
  *
  * @param options - Add options
  */
 export async function runUserAdd(
   options: UserAddOptions,
 ): Promise<void> {
-  const { cwd, io, identity, internalTemplateDir, pmMode } = options;
+  const { cwd, io, identity, internalTemplateDir } = options;
   const userDir = join(cwd, ".arc", "user", identity);
 
   await ensureDir(userDir, io.mkdir);
 
-  const sessionNotes = await io.readFile(
-    join(internalTemplateDir, "user", "SESSION-NOTES.md"),
-  );
-  await io.writeFile(join(userDir, "SESSION-NOTES.md"), sessionNotes);
-
-  if (pmMode === PM_MODE_ARC_IN_GIT) {
-    const atomicInbox = await io.readFile(
-      join(internalTemplateDir, "user", "ATOMIC-INBOX.md"),
-    );
-    await io.writeFile(join(userDir, "ATOMIC-INBOX.md"), atomicInbox);
+  for (const filename of ["SESSION-NOTES.md", "WORKING-MEMORY.md", "USER-INBOX.md"]) {
+    const content = await io.readFile(join(internalTemplateDir, "user", filename));
+    await io.writeFile(join(userDir, filename), content);
   }
-
-  // Note: .arc/user/*/ is covered by the managed ARC gitignore block
-  // written during arc init. No per-identity entry needed.
 }
-

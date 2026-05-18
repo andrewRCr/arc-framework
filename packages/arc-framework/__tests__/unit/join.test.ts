@@ -66,7 +66,6 @@ function baseOptions(io: JoinIOContext): JoinOptions {
     internalTemplateDir: "/internal-templates",
     prompts: DEFAULT_PROMPTS,
     identityResult: "andrew",
-    pmMode: "none",
   };
 }
 
@@ -87,6 +86,8 @@ describe("runJoin", () => {
       ...canonicalSkillFiles("/templates"),
       // Internal templates for user directory setup
       "/internal-templates/user/SESSION-NOTES.md": "# Session Notes\n",
+      "/internal-templates/user/WORKING-MEMORY.md": "# Working Memory\n",
+      "/internal-templates/user/USER-INBOX.md": "# User Inbox\n",
     });
     opts = baseOptions(io);
   });
@@ -215,14 +216,6 @@ describe("runJoin", () => {
     // Only the one from runPostInitSetup won't fire (guarded by identityResult check)
     // but runJoin itself also guards on identityResult
     expect(identityCalls.length).toBe(0);
-  });
-
-  it("works with pm.mode=external", async () => {
-    opts.pmMode = "external";
-    const result = await runJoin(opts);
-
-    expect(result.role).toBe("maintainer");
-    expect(result.tools).toEqual(["claude"]);
   });
 
   it("is idempotent — second run succeeds without error", async () => {

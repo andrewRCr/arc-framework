@@ -46,7 +46,6 @@ export interface JoinOptions {
   internalTemplateDir: string;
   prompts: JoinPromptResult;
   identityResult: string | null;
-  pmMode: string;
 }
 
 /** Result from a successful join run. */
@@ -70,7 +69,7 @@ export interface JoinResult {
  * @throws UserFacingError with code 'NO_ARC_INSTALLATION' if `.arc/` doesn't exist
  */
 export async function runJoin(options: JoinOptions): Promise<JoinResult> {
-  const { cwd, io, templateDir, internalTemplateDir, prompts, identityResult, pmMode } = options;
+  const { cwd, io, templateDir, internalTemplateDir, prompts, identityResult } = options;
 
   // Verify ARC installation exists
   try {
@@ -121,7 +120,7 @@ export async function runJoin(options: JoinOptions): Promise<JoinResult> {
 
   // User directory, session templates, and notes refspec
   await runPostInitSetup({
-    arcDir, internalTemplateDir, io, pmMode, identityResult,
+    arcDir, internalTemplateDir, io, identityResult,
   });
 
   // Persist tool selection for future reconfigure
