@@ -2344,14 +2344,28 @@ at 5.4.g.
           rename from META-PRD`). `classification.ts:59` already references `PROJECT-PRD.template.md`; zero
           `META-PRD` references remain in `packages/arc-framework/src/` or `__tests__/` (audit-confirmed).
 
-    - `[ ]` **5.4.g Bulk test-fixture migration (one commit per logical fixture group)**
-        - Fixtures hand-authoring `status-foo.md` migrate to `meta-foo.md`; State values update per the codified
-          value-set. Expect changes across ~28 test files (audit estimate). Compat shims (5.4.a/b/c/d/h) keep most
-          test runs green even while fixtures lag — failure cascade is bounded, not multiplicative.
-        - Pattern-batch fixture edits: a vitest run failing on `status-` filename references gets the fixture
-          renamed; a failure on `**State:** In Progress` gets the State value updated. Don't enumerate per file in
-          advance — fix the failing test, commit, move on.
-        - Verify entire test suite passes (`npm test`) before declaring 5.4 complete.
+    - `[x]` **5.4.g Bulk test-fixture migration (one commit per logical fixture group)**
+        - _Outcome:_ ~16 test files migrated across six logical-group commits — formatter pair
+          (`active-format` + `status-format`); parser + scan (`active/status-reader` +
+          `status/run`); release-resolution (`release/wu-resolution` + `sync-orchestrator`);
+          active/status integration (`integration/active` + `integration/status`);
+          release-handlers (`handlers/release/{commit,push}` +
+          `integration/release-push-upstream-init`); session-init e2e
+          (`e2e/session-init.e2e`). Fixtures hand-authoring `status-{stem}.md` flipped to
+          `meta-{stem}.md`; State default flipped from `In Progress` to `Active`; mid-suite
+          accent values shifted from `Paused` to `Integrating` where the test wanted state
+          diversity. Parenthetical-suffix passthrough (`Paused (2026-04-12) — waiting for
+          restructure`) preserved verbatim per the docstring example in
+          `StatusFileCandidate.state`. Explicit legacy-prefix coverage intentionally retained
+          where the test purpose is compat verification: `status-reader.test.ts` legacy-flat-
+          scan test (line ~286); `wu-resolution.test.ts` newly-added legacy-prefix compat test
+          (parses name from a `status-*.md` filename) + `it.each` state-value matrix exhausting
+          both legacy and codified values; `session-type.test.ts` and `commands/active/types.test.ts`
+          left whole-cloth (compat matrix / mapping verification). `commit-msg-footer.test.ts`
+          left whole-cloth — its `status-` → `meta-` flip is explicitly scheduled at Task 6.2.i
+          per the inline comment; `validate-status-spec.test.ts` left whole-cloth — couples with
+          5.4.h's dual-recognition refit. Full suite green: 1893 tests across 122 files (was
+          1891 — `wu-resolution.test.ts` grew its state-value matrix by two cases).
 
     - `[ ]` **5.4.h Update `validate-status-spec.ts` pre-commit hook with dual-recognition**
         - `scripts/validate-status-spec.ts` is a pre-commit hook enforcing both file-path classification

@@ -47,14 +47,14 @@ async function writeStatusFixture(
     "",
     "## Work Unit Metadata",
     "",
-    "- **State:** In Progress",
+    "- **State:** Active",
     `- **Branch:** ${category}/${stem}`,
   ];
   if (fields.taskList !== undefined) {
     lines.push(`- **Task List:** ${fields.taskList}`);
   }
   lines.push(`- **Next Action:** ${fields.nextAction}`);
-  await writeFile(join(dir, `status-${stem}.md`), lines.join("\n"));
+  await writeFile(join(dir, `meta-${stem}.md`), lines.join("\n"));
 }
 
 function parseJsonEnvelope(stdout: string): SessionInitEnvelope {
