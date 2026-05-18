@@ -56,24 +56,16 @@ is part of arc-in-git's capture model — it routes to shared backlog destinatio
 ## Inbox Family
 
 The capture surfaces split by **ownership** (personal vs. project-shared) and **work character**
-(atomic vs. multi-step). § How Work Flows Through covers the routing tree across all three; this
-section covers per-inbox orientation.
+(atomic vs. multi-step):
 
-### `user/{identity}/USER-INBOX.md` — personal capture
+- **Personal** — `user/{identity}/USER-INBOX.md`. Live-capture surface; cross-PM-mode (exists
+  outside arc-in-git too). See `strategy-session-operations.md` § USER-INBOX for purpose,
+  lifecycle, and the `## Atomic` / `## Backlog` section semantics.
+- **Project-shared atomic** — `backlog/ATOMIC-INBOX.md` (below).
+- **Project-shared multi-step** — `backlog/BACKLOG-INBOX.md` (below).
 
-Live capture for items the developer wants to handle later. Two sections by work character:
-`## Atomic` (single-step entries shaped like `atomic-{name}.md` items) and `## Backlog`
-(multi-step entries that need plan-doc / PRD treatment before scheduling).
-
-Gitignored. Persists across WU boundaries until drained. Drain fires at WU ceremony boundaries —
-see § Ceremony-Only Writes to Shared Inboxes for the three fire-points. Writes accepted any time
-(the live-capture role). The on-disk file is local to its worktree; cross-machine and cross-WU
-transport runs through git notes — see `strategy-session-operations.md` § Session State
-Portability for the mechanism.
-
-Cross-WU persistent context with explicit eviction triggers (constraints, things-to-watch,
-tradeoffs pending downstream work) lives in a sibling root file `WORKING-MEMORY.md` — see
-`strategy-session-operations.md` § Working Memory for the per-entry shape and lifecycle.
+§ How Work Flows Through covers the routing tree across all three; the subsections below cover
+per-inbox orientation for the two project-shared inboxes.
 
 ### `backlog/ATOMIC-INBOX.md` — project-shared atomic capture
 
@@ -94,10 +86,11 @@ companions — see § State-Dir Graduation.
 
 ### Write-discipline summary
 
-Personal inboxes accept writes any time (live capture). Shared inboxes accept writes only at
-ceremony fire-points (write isolation). The discipline trades write immediacy for elimination of
-multi-writer merge conflicts on shared files. See [DEV-RULES.ARC][dev-rules] § Leave it cleaner
-for the constitutional rule statement.
+Personal capture (`USER-INBOX.md`) accepts writes any time (live capture). Shared inboxes
+(`backlog/ATOMIC-INBOX.md`, `backlog/BACKLOG-INBOX.md`) batch writes at ceremony fire-points
+(write isolation). The discipline trades write immediacy for elimination of multi-writer merge
+conflicts on shared files. See [DEV-RULES.ARC][dev-rules] § Leave it cleaner for the
+constitutional rule statement.
 
 ---
 

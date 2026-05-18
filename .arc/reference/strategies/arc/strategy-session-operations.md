@@ -651,7 +651,7 @@ guards so re-entry is safe.
   direct activation), with `**State:** In Progress`. Idempotent: existing file → take the transition
   path (Planning → In Progress, populate execution fields).
 
-**Single template, single shape.** [`template-status.md`][template-status] is the canonical source for
+**Single template, single shape.** [`template-meta.md`][template-meta] is the canonical source for
 both paths — no planning-variant template. The `**State:**` field carries the lifecycle phase.
 
 **Always-present fields with `[none]` markers.** All fields in the template's `## Work Unit Metadata` section
@@ -803,6 +803,39 @@ Surviving entries travel with the developer's workspace across WU boundaries.
 
 The eviction-trigger convention is what makes WORKING-MEMORY work as persistent context without
 accumulating into noise — the trigger is the commitment that keeps the file actionable.
+
+---
+
+## USER-INBOX
+
+USER-INBOX.md is the developer's personal capture surface for items to handle later —
+single-step (`## Atomic` section) or multi-step (`## Backlog` section). Gitignored, cross-WU,
+branch-agnostic. Where SESSION-NOTES is a per-WU snapshot (write at handoff, discard at
+integration) and WORKING-MEMORY is eviction-triggered persistent context, USER-INBOX is a
+live-write capture surface — entries land any time, drain at lifecycle boundaries.
+
+**Location.** `user/{identity}/USER-INBOX.md` — flat at the workspace root, cross-WU scope.
+
+**Section structure.**
+
+- **`## Atomic`** — single-step entries shaped like `atomic-{name}.md` items.
+- **`## Backlog`** — multi-step entries that need plan-doc / PRD treatment before scheduling.
+
+**Lifecycle.** Writes accepted any time (the live-capture role). Drain fires at WU lifecycle
+boundaries; destinations vary by PM mode:
+
+- **`pm.mode: arc-in-git`** — entries flow to the project-shared backlog inboxes
+  (`backlog/ATOMIC-INBOX.md` and `backlog/BACKLOG-INBOX.md`) at WU ceremony fire-points. See
+  `strategy-planning-module.md` § Inbox Family and § Ceremony-Only Writes to Shared Inboxes
+  for operational details.
+- **`pm.mode: external`** — entries route to the external tracker per the project's integration
+  model. See `strategy-team-coordination.md` § External Tracker Integration.
+- **`pm.mode: none`** — drain destination follows project convention (DEV-RULES.PROJECT may
+  codify a target, otherwise developer routes by judgment).
+
+**Cross-WU scope.** Branch-agnostic, persists across WU boundaries until drained. On-disk file
+is local to the worktree; cross-machine and cross-worktree transport runs through git notes —
+see § Session State Portability.
 
 ---
 
@@ -984,7 +1017,7 @@ When `arc user load` or session-init's SESSION-NOTES load fails, recover by erro
 [activate-plan]: ../../../system/workflows/arc/work-unit-lifecycle/planning/init-work-unit.md
 [activate-wu]: ../../../system/workflows/arc/work-unit-lifecycle/activate-work-unit.md
 [integrate-plan]: ../../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md
-[template-status]: ../../templates/template-status.md
+[template-meta]: ../../templates/template-meta.md
 [strategy-index]: ../STRATEGY-INDEX.md
 [workflow-authoring]: strategy-workflow-authoring.md
 [config-arch]: strategy-configurability-architecture.md
