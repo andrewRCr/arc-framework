@@ -2290,17 +2290,22 @@ at 5.4.g.
         - _Cleanup paired with 6.2.l (drop `status-` from accepted prefixes AND retire the subdir
           scanner entirely; flat + `meta-` only)._
 
-    - `[ ]` **5.4.d Reader section-extraction fallback for new H1-bounded shape**
-        - `lib/active/status-reader.ts` `extractMetadataSection` (line 237): extend to support the new shape where
-          the `## Work Unit Metadata` H2 wrapper is retired (per R58, applied at 6.2.a'). Behavior: try
-          `## Work Unit Metadata` first; if absent, treat the H1-bounded preamble (from the file's `# ...` H1 line
-          through the first `## ...` content H2, or end-of-file when no content H2 exists) as the field-bearing
-          region. The bullet-form `extractField` regex (line 251) is already shape-agnostic — only the section
-          boundary needs adjustment.
-        - Without this fallback, 6.2.a' breaks `extractMetadataSection` (returns null), all fields parse as null,
-          sessionType collapses to null, and this WU's session-init treats itself as orphan.
-        - Vitest unit tests cover both shapes (H2-wrapped legacy + H1-bounded new) with full field set. _Cleanup
-          paired with 6.2.m (drop the legacy H2 path; new shape is the only recognized shape)._
+    - `[x]` **5.4.d Reader section-extraction fallback for new H1-bounded shape**
+        - `extractMetadataSection` in `lib/active/status-reader.ts` now tries the legacy
+          `## Work Unit Metadata` H2 wrapper first; on miss, falls back to the H1-bounded preamble — from
+          immediately after the file's first `# ...` H1 through the first content `## ...` H2 (or
+          end-of-file when no content H2 exists). Returns `null` only when neither anchor matches. The
+          shape-agnostic `extractField` regex underneath is unchanged; prose between the H1 and the
+          field bullets is harmless (no field labels match).
+        - `parseStatusFile` JSDoc rewritten to name both anchors. Subroutine doc names the legacy /
+          fallback split and points at the paired cleanup so the lifecycle is grep-able in code.
+        - 5 new vitest tests cover the post-WOR shape (H1 + bullets resolves), the boundary stop at the
+          first content `##` heading, the no-anchor-at-all case (all-null), the H1-only-no-fields case
+          (all-null), and transition coexistence (legacy H2 wins when both shapes are present in one
+          file). One prior test ("returns null when `## Work Unit Metadata` is absent") was inverted by
+          the new contract — its fixture was relaxed to remove the H1 so it now tests the
+          no-anchor-at-all path; the post-WOR shape case is covered by the new tests instead.
+        - _Cleanup paired with 6.2.m (drop the legacy H2 path; H1-bounded becomes the only shape)._
 
     - `[ ]` **5.4.e CLI touch-point audit + doc-comment sweep (verify-only)**
         - **Scope reset (per audit):** The originally-framed "retire `feature/` / `technical/` / `incidental/`

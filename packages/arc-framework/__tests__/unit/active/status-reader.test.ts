@@ -91,8 +91,8 @@ describe("parseStatusFile — missing fields", () => {
     expect(parsed.state).toBe("In Progress");
   });
 
-  it("returns null for every field when `## Work Unit Metadata` heading is absent", () => {
-    const content = "# Status: fixture\n\n- **Branch:** main\n- **State:** In Progress\n";
+  it("returns null for every field when neither the H2 wrapper nor an H1 is present", () => {
+    const content = "- **Branch:** main\n- **State:** In Progress\n";
     const parsed = parseStatusFile(content);
     expect(parsed.branch).toBeNull();
     expect(parsed.state).toBeNull();
@@ -171,6 +171,86 @@ describe("parseStatusFile — section boundary", () => {
     ].join("\n");
     const parsed = parseStatusFile(content);
     expect(parsed.state).toBe("In Progress");
+  });
+});
+
+describe("parseStatusFile — H1-bounded fallback (post-WOR shape)", () => {
+  it("parses fields from the H1-bounded preamble when no `## Work Unit Metadata` wrapper is present", () => {
+    const content = [
+      "# Metadata: foo",
+      "",
+      "- **State:** Active",
+      "- **Branch:** plan/foo",
+      "- **Task List:** `tasks-foo.md`",
+      "- **Next Task:** Task 1.1 — kick off (line ~42)",
+      "- **Next Action:** Start Task 1.1",
+      "",
+    ].join("\n");
+    const parsed = parseStatusFile(content);
+    expect(parsed.state).toBe("Active");
+    expect(parsed.branch).toBe("plan/foo");
+    expect(parsed.taskList).toBe("tasks-foo.md");
+    expect(parsed.nextTask).toBe("Task 1.1 — kick off (line ~42)");
+    expect(parsed.nextAction).toBe("Start Task 1.1");
+  });
+
+  it("stops the H1-bounded region at the first content `## ` heading", () => {
+    const content = [
+      "# Metadata: foo",
+      "",
+      "- **State:** Active",
+      "- **Branch:** plan/foo",
+      "",
+      "## Notes",
+      "",
+      "- **State:** decoy from quoted example",
+      "- **Branch:** decoy/branch",
+      "",
+    ].join("\n");
+    const parsed = parseStatusFile(content);
+    expect(parsed.state).toBe("Active");
+    expect(parsed.branch).toBe("plan/foo");
+  });
+
+  it("returns all-null when neither `## Work Unit Metadata` nor an H1 is present", () => {
+    const parsed = parseStatusFile("just some prose with **Branch:** decoy in it\n");
+    expect(parsed.state).toBeNull();
+    expect(parsed.branch).toBeNull();
+    expect(parsed.nextTask).toBeNull();
+    expect(parsed.taskList).toBeNull();
+    expect(parsed.nextAction).toBeNull();
+  });
+
+  it("returns all-null when the H1-bounded preamble carries no field markers", () => {
+    const content = [
+      "# Metadata: foo",
+      "",
+      "Just narrative prose — no field markers yet.",
+      "",
+      "## Notes",
+      "",
+    ].join("\n");
+    const parsed = parseStatusFile(content);
+    expect(parsed.state).toBeNull();
+    expect(parsed.branch).toBeNull();
+  });
+
+  it("prefers the legacy `## Work Unit Metadata` section when both shapes are present (transition coexistence)", () => {
+    const content = [
+      "# Metadata: foo",
+      "",
+      "- **State:** newshape-decoy",
+      "- **Branch:** plan/decoy",
+      "",
+      "## Work Unit Metadata",
+      "",
+      "- **State:** Active",
+      "- **Branch:** plan/real",
+      "",
+    ].join("\n");
+    const parsed = parseStatusFile(content);
+    expect(parsed.state).toBe("Active");
+    expect(parsed.branch).toBe("plan/real");
   });
 });
 
