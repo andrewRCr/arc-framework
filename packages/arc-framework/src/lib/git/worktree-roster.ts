@@ -10,15 +10,18 @@
  * @module
  */
 
+import { validateState, type WorkUnitState } from "../../commands/active/types.js";
+
 import type { GitExec } from "./exec.js";
 
-/** Work-unit state value-set. */
-export type WorktreeRosterState =
-  | "Planning"
-  | "Active"
-  | "Integrating"
-  | "Shipped"
-  | "unknown";
+/**
+ * Roster-entry state — codified `WorkUnitState` plus an `"unknown"`
+ * sentinel for meta files whose `**State:**` value falls outside the
+ * recognized set. Preserves worktree-roster's degraded-tuple semantic
+ * (the roster surfaces every branched worktree, including ones with
+ * malformed or unrecognized State).
+ */
+export type WorktreeRosterState = WorkUnitState | "unknown";
 
 /**
  * One worktree-roster entry. `branch` is always populated — detached-HEAD
@@ -215,7 +218,7 @@ function parseMetaFields(content: string): ParsedMetaFields {
   const cohortRaw = extractField(content, "Cohort");
   return {
     ...(ownerRaw !== null ? { identity: ownerRaw } : {}),
-    ...(stateRaw !== null ? { state: normalizeState(stateRaw) } : {}),
+    ...(stateRaw !== null ? { state: validateState(stateRaw) } : {}),
     ...(cohortRaw !== null && cohortRaw !== "[none]" ? { cohort: cohortRaw } : {}),
   };
 }
@@ -228,18 +231,6 @@ function extractField(content: string, label: string): string | null {
   const raw = m[1].trim();
   if (raw === "") return null;
   return raw;
-}
-
-function normalizeState(value: string): WorktreeRosterState {
-  if (
-    value === "Planning" ||
-    value === "Active" ||
-    value === "Integrating" ||
-    value === "Shipped"
-  ) {
-    return value;
-  }
-  return "unknown";
 }
 
 interface RawWorktree {

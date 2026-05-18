@@ -2224,21 +2224,25 @@ at 5.4.f.
 
     **Strategies:** `strategy-testing-methodology.md`
 
-    - `[ ]` **5.4.a Promote `WorktreeRosterState` to shared canonical `WorkUnitState`**
-        - `WorktreeRosterState` (`lib/git/worktree-roster.ts:16-21`, landed in Task 5.1) is already the 4-value
-          codified enum + an `"unknown"` arm; `normalizeState` at line 233 is the validator surface. The work
-          here is promotion + naming, not net-new codification.
-        - **Move** the type to `commands/active/types.ts` alongside `SessionType`. Narrow to the codified union:
-          `type WorkUnitState = "Planning" | "Active" | "Integrating" | "Shipped"`. Redefine
-          `WorktreeRosterState` as a type alias of `WorkUnitState | "unknown"` (worktree-roster keeps its
-          degraded-tuple semantic).
-        - **Move** `normalizeState` to the shared location, rename to `validateState`. Signature:
-          `validateState(s: string | null): WorkUnitState | "unknown"`. Accept BOTH legacy values
-          (`In Progress`, `Complete`, `Paused`, `Superseded`) AND new values during the transition window —
-          strict enforcement would break this WU's own state before 6.2.b migrates it.
-        - **Contract:** `parseStatusFile` continues to return `state: string | null` (verbatim, no validation).
-          Callers that need enum narrowing import and apply `validateState` explicitly. Avoid silent string
-          duplication across probe code, status-reader, session-init logic, and tests.
+    - `[x]` **5.4.a Promote `WorktreeRosterState` to shared canonical `WorkUnitState`**
+        - `WorkUnitState` codified union and `validateState(s: string | null): WorkUnitState | "unknown"`
+          narrowing helper added to `commands/active/types.ts` alongside `SessionType`. `WorktreeRosterState`
+          in `lib/git/worktree-roster.ts` redefined as a type alias of `WorkUnitState | "unknown"`; the
+          local `normalizeState` retired and the `parseMetaFields` call site rewired to `validateState`.
+          Re-export from `lib/git/index.ts` retained — the alias surfaces unchanged to existing consumers.
+        - Legacy → new mapping (transitional, semantic): `In Progress` → `Active`, `Complete` → `Integrating`
+          (per PRD R52a), `Paused` → `Active`, `Superseded` → `Shipped`. Anything else (including `null`,
+          empty, whitespace-only, case mismatches, parenthetical suffixes like `Paused (date)`) returns
+          `"unknown"`. Mapping retires at 6.2.j when this WU's own meta file recodifies.
+        - **Contract preserved:** `parseStatusFile` still returns `state: string | null` verbatim; the
+          enum-narrowing decision lives at the call site. The runtime cycle introduced by the new import
+          (`worktree-roster.ts` → `commands/active/types.js`) is benign — `commands/active/types.ts`'s only
+          back-edge to `lib/git/index.js` is `import type { GitExec }` (erased at compile), and
+          `validateState` is only invoked lazily inside `parseMetaFields`.
+        - 5 vertical-slice unit tests on `validateState` (codified verbatim / legacy mapping / null /
+          empty-and-whitespace / unrecognized). Batched per the test-first method's tight-coupling
+          clause — single function, single shape, no per-behavior discovery value. Existing
+          worktree-roster `"Bogus"` test still passes against the new validator.
         - _Cleanup paired with 6.2.j (retire legacy values from the validator)._
 
     - `[ ]` **5.4.b Update probe envelope sessionType inference with transitional fast-paths**

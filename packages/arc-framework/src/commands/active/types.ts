@@ -24,6 +24,52 @@ export type ActiveLayout = "full" | "lite";
 export type ActiveSessionInitResolution = "none" | "single" | "multiple";
 
 /**
+ * Codified work-unit lifecycle states — one value per phase of the state
+ * machine: Planning → Active → Integrating → Shipped. Branch creation and
+ * commitment level (provisional vs planned) live elsewhere (branch
+ * existence and `backlog/` subdirectory), not in State.
+ */
+export type WorkUnitState = "Planning" | "Active" | "Integrating" | "Shipped";
+
+/**
+ * Narrow a raw `**State:**` field value to the codified `WorkUnitState`
+ * enum.
+ *
+ * Legacy values (`In Progress`, `Complete`, `Paused`, `Superseded`) are
+ * accepted during the transition window and mapped to their semantic
+ * equivalents in the four-value enum. Anything unrecognized — including
+ * `null`, the empty string, and whitespace-only — returns `"unknown"`.
+ *
+ * Transition contract: parsers (`parseStatusFile`, meta-field readers)
+ * return the raw `State` string verbatim; callers that need enum
+ * narrowing import and apply `validateState` explicitly. Once the legacy
+ * mapping retires, this becomes a strict enum check.
+ *
+ * @param s - Raw `**State:**` field value, or `null` when absent.
+ * @returns The narrowed `WorkUnitState`, or `"unknown"` when the input
+ *   does not match a codified or legacy value.
+ */
+export function validateState(s: string | null): WorkUnitState | "unknown" {
+  if (s === null) return "unknown";
+  switch (s) {
+    case "Planning":
+    case "Active":
+    case "Integrating":
+    case "Shipped":
+      return s;
+    case "In Progress":
+    case "Paused":
+      return "Active";
+    case "Complete":
+      return "Integrating";
+    case "Superseded":
+      return "Shipped";
+    default:
+      return "unknown";
+  }
+}
+
+/**
  * Resolved session type — drives session-init's per-type loadset (Step 3
  * items 9–10). Inferred from active state.
  *
