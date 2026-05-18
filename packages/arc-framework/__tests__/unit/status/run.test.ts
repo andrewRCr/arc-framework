@@ -1229,7 +1229,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       active: vi.fn(async () =>
         activeSessionInit({
           resolution: "single",
-          path: ".arc/active/technical/status-foo.md",
+          path: ".arc/active/technical/meta-foo.md",
         }),
       ),
     });
@@ -1241,7 +1241,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
     expect(result.active.ok).toBe(true);
     if (result.active.ok) {
       expect(result.active.value.resolution).toBe("single");
-      expect(result.active.value.path).toBe(".arc/active/technical/status-foo.md");
+      expect(result.active.value.path).toBe(".arc/active/technical/meta-foo.md");
     }
   });
 

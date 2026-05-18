@@ -48,13 +48,13 @@ function statusFileBody(fields: {
 describe("parseStatusFile — happy path", () => {
   it("extracts all four session-init-relevant fields from a typical status file", () => {
     const content = statusFileBody({
-      state: "In Progress",
+      state: "Active",
       branch: "technical/foo",
       taskList: "`.arc/active/technical/tasks-foo.md`",
       nextTask: "Task 3.2 — implement widget (line ~1234)",
     });
     const parsed = parseStatusFile(content);
-    expect(parsed.state).toBe("In Progress");
+    expect(parsed.state).toBe("Active");
     expect(parsed.branch).toBe("technical/foo");
     expect(parsed.taskList).toBe(".arc/active/technical/tasks-foo.md");
     expect(parsed.nextTask).toBe("Task 3.2 — implement widget (line ~1234)");
@@ -85,21 +85,21 @@ describe("parseStatusFile — missing fields", () => {
   });
 
   it("returns null for a field whose value is empty after the marker", () => {
-    const content = "## Work Unit Metadata\n\n- **Branch:** \n- **State:** In Progress\n";
+    const content = "## Work Unit Metadata\n\n- **Branch:** \n- **State:** Active\n";
     const parsed = parseStatusFile(content);
     expect(parsed.branch).toBeNull();
-    expect(parsed.state).toBe("In Progress");
+    expect(parsed.state).toBe("Active");
   });
 
   it("returns null for every field when neither the H2 wrapper nor an H1 is present", () => {
-    const content = "- **Branch:** main\n- **State:** In Progress\n";
+    const content = "- **Branch:** main\n- **State:** Active\n";
     const parsed = parseStatusFile(content);
     expect(parsed.branch).toBeNull();
     expect(parsed.state).toBeNull();
   });
 
   it("does not parse fields from legacy `## Active Work` sections", () => {
-    const content = "# Status: fixture\n\n## Active Work\n\n- **State:** In Progress\n";
+    const content = "# Status: fixture\n\n## Active Work\n\n- **State:** Active\n";
     const parsed = parseStatusFile(content);
     expect(parsed.state).toBeNull();
   });
@@ -107,16 +107,16 @@ describe("parseStatusFile — missing fields", () => {
 
 describe("parseStatusFile — formatting tolerance", () => {
   it("parses the bare `**Field:** value` form without a list bullet", () => {
-    const content = "## Work Unit Metadata\n\n**State:** In Progress\n**Branch:** main\n";
+    const content = "## Work Unit Metadata\n\n**State:** Active\n**Branch:** main\n";
     const parsed = parseStatusFile(content);
-    expect(parsed.state).toBe("In Progress");
+    expect(parsed.state).toBe("Active");
     expect(parsed.branch).toBe("main");
   });
 
   it("tolerates blockquote prefixes (e.g., `> - **State:**`)", () => {
-    const content = "## Work Unit Metadata\n\n> - **State:** Paused\n> - **Branch:** feature/x\n";
+    const content = "## Work Unit Metadata\n\n> - **State:** Active\n> - **Branch:** feature/x\n";
     const parsed = parseStatusFile(content);
-    expect(parsed.state).toBe("Paused");
+    expect(parsed.state).toBe("Active");
     expect(parsed.branch).toBe("feature/x");
   });
 
@@ -133,7 +133,7 @@ describe("parseStatusFile — formatting tolerance", () => {
 
   it("extracts the Next Action field carrying a lifecycle workflow step pointer", () => {
     const content = statusFileBody({
-      state: "Complete",
+      state: "Integrating",
       branch: "technical/foo",
       extra: "- **Next Action:** integrate-work-unit Step 7 — push and create PR",
     });
@@ -162,7 +162,7 @@ describe("parseStatusFile — section boundary", () => {
     const content = [
       "## Work Unit Metadata",
       "",
-      "- **State:** In Progress",
+      "- **State:** Active",
       "",
       "## Notes",
       "",
@@ -170,7 +170,7 @@ describe("parseStatusFile — section boundary", () => {
       "",
     ].join("\n");
     const parsed = parseStatusFile(content);
-    expect(parsed.state).toBe("In Progress");
+    expect(parsed.state).toBe("Active");
   });
 });
 
@@ -318,7 +318,7 @@ describe("readActiveStatusCandidates — layout detection", () => {
     await mkdir(userActiveDir, { recursive: true });
     await writeFile(
       join(userActiveDir, "status.md"),
-      statusFileBody({ state: "In Progress", branch: "main" }),
+      statusFileBody({ state: "Active", branch: "main" }),
     );
 
     const result = await readActiveStatusCandidates(fixture.root, {
@@ -343,26 +343,26 @@ describe("readActiveStatusCandidates — layout detection", () => {
   it("detects lite layout when .arc/active/status.md exists", async () => {
     await writeFile(
       join(fixture.activeDir, "status.md"),
-      statusFileBody({ state: "In Progress", branch: "main" }),
+      statusFileBody({ state: "Active", branch: "main" }),
     );
     const result = await readActiveStatusCandidates(fixture.root);
     expect(result.layout).toBe("lite");
     expect(result.candidates).toHaveLength(1);
     expect(result.candidates[0]!.path).toBe(".arc/active/status.md");
     expect(result.candidates[0]!.filename).toBe("status.md");
-    expect(result.candidates[0]!.state).toBe("In Progress");
+    expect(result.candidates[0]!.state).toBe("Active");
   });
 
   it("prefers lite layout when both shapes are present (status.md wins)", async () => {
     await writeFile(
       join(fixture.activeDir, "status.md"),
-      statusFileBody({ state: "In Progress" }),
+      statusFileBody({ state: "Active" }),
     );
     const sub = join(fixture.activeDir, "feature");
     await mkdir(sub, { recursive: true });
     await writeFile(
-      join(sub, "status-foo.md"),
-      statusFileBody({ state: "In Progress", branch: "feature/foo" }),
+      join(sub, "meta-foo.md"),
+      statusFileBody({ state: "Active", branch: "feature/foo" }),
     );
     const result = await readActiveStatusCandidates(fixture.root);
     expect(result.layout).toBe("lite");
@@ -376,41 +376,41 @@ describe("readActiveStatusCandidates — layout detection", () => {
     await mkdir(sub1, { recursive: true });
     await mkdir(sub2, { recursive: true });
     await writeFile(
-      join(sub1, "status-alpha.md"),
-      statusFileBody({ state: "In Progress", branch: "feature/alpha" }),
+      join(sub1, "meta-alpha.md"),
+      statusFileBody({ state: "Active", branch: "feature/alpha" }),
     );
     await writeFile(
-      join(sub2, "status-beta.md"),
-      statusFileBody({ state: "Paused", branch: "technical/beta" }),
+      join(sub2, "meta-beta.md"),
+      statusFileBody({ state: "Integrating", branch: "technical/beta" }),
     );
     const result = await readActiveStatusCandidates(fixture.root);
     expect(result.layout).toBe("full");
     expect(result.candidates).toHaveLength(2);
     const filenames = result.candidates.map((c) => c.filename).sort();
-    expect(filenames).toEqual(["status-alpha.md", "status-beta.md"]);
+    expect(filenames).toEqual(["meta-alpha.md", "meta-beta.md"]);
   });
 
   it("emits candidate paths relative to cwd with forward slashes", async () => {
     const sub = join(fixture.activeDir, "technical");
     await mkdir(sub, { recursive: true });
     await writeFile(
-      join(sub, "status-foo.md"),
-      statusFileBody({ state: "In Progress", branch: "technical/foo" }),
+      join(sub, "meta-foo.md"),
+      statusFileBody({ state: "Active", branch: "technical/foo" }),
     );
     const result = await readActiveStatusCandidates(fixture.root);
-    expect(result.candidates[0]!.path).toBe(".arc/active/technical/status-foo.md");
+    expect(result.candidates[0]!.path).toBe(".arc/active/technical/meta-foo.md");
   });
 
   it("ignores non-matching files in category subdirectories", async () => {
     const sub = join(fixture.activeDir, "feature");
     await mkdir(sub, { recursive: true });
-    await writeFile(join(sub, "status-foo.md"), statusFileBody({ state: "In Progress" }));
+    await writeFile(join(sub, "meta-foo.md"), statusFileBody({ state: "Active" }));
     await writeFile(join(sub, "tasks-foo.md"), "# tasks\n");
     await writeFile(join(sub, "notes-foo.md"), "# notes\n");
-    await writeFile(join(sub, "status.md"), "# stray\n"); // no `status-` prefix+hyphen
+    await writeFile(join(sub, "meta.md"), "# stray\n"); // no `meta-` prefix+hyphen
     const result = await readActiveStatusCandidates(fixture.root);
     expect(result.candidates).toHaveLength(1);
-    expect(result.candidates[0]!.filename).toBe("status-foo.md");
+    expect(result.candidates[0]!.filename).toBe("meta-foo.md");
   });
 });
 
