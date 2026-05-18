@@ -2637,6 +2637,24 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           diagnostic.
         - _Sequencing:_ Runs after 6.2.a + 6.2.b.
 
+    - `[ ]` **6.2.o Symbol/file rename: `status-reader` → `meta-reader` (paired with 5.4.c + 5.4.d)**
+        - Once 6.2.l drops the legacy `status-` prefix and 6.2.m drops the legacy H2 fallback, the
+          `status-reader` module name and its `parseStatusFile` / `StatusFileCandidate` surface carry stale
+          vocabulary — the module reads meta files only. Mirrors the rename clause already codified in 6.2.n
+          for the validator (`META_PATH` / `meta-spec`); deferred from 5.4.c + 5.4.d for the same reason
+          (5.4.h's latitude clause applies symmetrically).
+        - Mechanical rename pass:
+            - `src/lib/active/status-reader.ts` → `meta-reader.ts`
+            - `parseStatusFile` → `parseMetaFile`; `ParsedStatusFields` → `ParsedMetaFields`
+            - `readActiveStatusCandidates` → `readActiveMetaCandidates`; `ReaderResult` stays generic
+            - `StatusFileCandidate` (in `commands/active/types.ts`) → `MetaFileCandidate`
+            - `__tests__/unit/active/status-reader.test.ts` → `meta-reader.test.ts`
+        - Update all import paths (direct imports, no central barrel); refresh JSDoc references in
+          `commands/active/status.ts` and `lib/release/wu-resolution.ts`.
+        - Tests: `npm test` after the rename; mechanical search-and-replace plus import-path updates.
+          No behavior change expected.
+        - _Sequencing:_ Runs after 6.2.l AND 6.2.m (legacy support retired before the vocabulary update).
+
 ### `[ ]` **6.3 Migrate capture pipeline files + user/ workspace to R65 layout**
 
 - _Goal:_ Capture pipeline files restructure to the four-surface model — `user/{id}/ATOMIC-INBOX.md` renames to
