@@ -1,20 +1,5 @@
 # Session Notes
 
-> **About this file:** Personal session context — gitignored. Companion to the active work
-> unit's `status-{name}.md` in `active/{category}/` which carries the factual project
-> pointer (branch, task, blockers). Together they implement P5 (Context Preservation).
->
-> **Lifecycle:** Created during session handoff, consumed during session init. Delete between
-> work units — this is session-scoped context, not project documentation.
->
-> **Portability:** Local by default. For cross-machine or team handoff, ARC uses git notes to
-> attach the entire `user/{identity}/` directory to commits without creating merge conflicts.
-> See `session-handoff.md` for operations, `arc-config.yml` for `user.sync_push` behavior
-> (always / prompt / manual).
->
-> **Writing guide:** See `session-handoff.md` for detailed content guidance, examples, and
-> what to include vs. omit.
-
 ## Handoff Metadata
 
 **Working On:** [none]

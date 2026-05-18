@@ -214,6 +214,19 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     expect(installed).toBe(template);
   });
 
+  it("SESSION-NOTES.md ships without orientation preamble", async () => {
+    const installed = await readFile(
+      join(arcDir, "user/test-user/SESSION-NOTES.md"),
+      "utf-8",
+    );
+    // Seeded file is content-only — orientation lives in strategy docs,
+    // not in each new user's instance file.
+    expect(installed).not.toContain("About this file:");
+    expect(installed).not.toContain("**Lifecycle:**");
+    expect(installed).not.toContain("**Portability:**");
+    expect(installed).not.toContain("**Writing guide:**");
+  });
+
   it("does not install ATOMIC-INBOX.md when pm.mode=none", async () => {
     try {
       await stat(join(arcDir, "user/test-user/ATOMIC-INBOX.md"));

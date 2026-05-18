@@ -2171,7 +2171,7 @@ at 5.4.f.
           × 2 copies), matching expected count. Session-init active state unchanged (`pre-push-review`
           stays default-inactive); structural wiring lands ready for activation.
 
-### `[ ]` **5.3 Update CLI init/join code to strip instance-file preamble injection**
+### `[x]` **5.3 Update CLI init/join code to strip instance-file preamble injection**
 
 - _Goal:_ CLI init/join code in `packages/arc-framework/src/lib/` no longer injects preamble blocks when seeding
   SESSION-NOTES, USER-INBOX, BACKLOG-INBOX, or `backlog/ATOMIC-INBOX.md` — files seed as content-only per R59. Existing
@@ -2179,18 +2179,33 @@ at 5.4.f.
 
     **Strategies:** `strategy-testing-methodology.md`, `strategy-package-project-sync.md`
 
-    - `[ ]` **5.3.a Locate preamble injection sites**
-        - Grep `packages/arc-framework/src/lib/` for the "About this file" / Lifecycle / Portability / Writing-guide
-          preamble strings; identify seeding functions for each affected file.
+    - `[x]` **5.3.a Locate preamble injection sites**
+        - Audit: seeding is template-file copy, not in-code injection — zero preamble strings in `src/lib/`.
+          Two sites (`src/lib/setup.ts:65-90`, `src/commands/user/add.ts:15-37`) copy
+          `templates/user/SESSION-NOTES.md` and (arc-in-git) `templates/user/ATOMIC-INBOX.md` verbatim.
+          Scope confirmed: 5.3.b targets SESSION-NOTES only (user/ATOMIC-INBOX retires during 6.3.x
+          USER-INBOX consolidation). Inbox-seeding gap (USER-INBOX + project-shared inboxes) filed as
+          Task 5.6. R59a precondition verified — orientation already lives in strategies.
 
-    - `[ ]` **5.3.b Strip preamble from seed templates**
-        - Update each seeding function to inject only the content scaffolding (e.g., for SESSION-NOTES:
-          `## Handoff Metadata`, `## Uncommitted Work`, `## Remaining Work...`, `## Additional Context`,
-          `## Persistent Context` H2s with empty bodies; no preamble blockquote).
+    - `[x]` **5.3.b Strip preamble from seed templates**
+        - Stripped the 14-line orientation blockquote from
+          `packages/arc-framework/templates/user/SESSION-NOTES.md` — file opens H1 → H2
+          (`## Handoff Metadata`) with no preamble. No `src/lib/` edits needed (seeding is verbatim
+          template copy). user/ATOMIC-INBOX.md template untouched (retires in 6.3.x USER-INBOX
+          consolidation per the 5.3.a audit).
 
-    - `[ ]` **5.3.c Verify CLI tests still pass**
-        - Existing CLI tests likely assert on seed output shape — update expected output where needed; add new test
-          asserting no preamble in seeded files.
+    - `[x]` **5.3.c Verify CLI tests still pass**
+        - Existing tests are shape-agnostic — `integration/init.test.ts` "matches CLI-internal
+          template content" asserts equality (still holds); unit mocks (`unit/init.test.ts:388`,
+          `unit/join.test.ts:89`) already use minimal `# Session Notes\n` stubs. Added regression
+          test in `integration/init.test.ts` asserting the seeded SESSION-NOTES lacks the four
+          preamble label strings.
+
+- _Outcome:_ Audit reframed scope — no in-code preamble injection exists; work landed in
+  `packages/arc-framework/templates/user/SESSION-NOTES.md` (14-line blockquote stripped). USER-INBOX,
+  BACKLOG-INBOX, and `backlog/ATOMIC-INBOX.md` had no existing CLI seeding paths to strip from —
+  gap filed as Task 5.6. user/ATOMIC-INBOX.md retains preamble pending 6.3.x USER-INBOX
+  consolidation. Regression test prevents preamble reintroduction at the seeded-file level.
 
 ### `[ ]` **5.4 CLI propagation with compat-bridge (State + active-file + branch-pattern + validator + PROJECT-PRD)**
 
