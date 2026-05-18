@@ -9,20 +9,20 @@
 - **Task List:** `tasks-work-organization-reform.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task 4.9 — Rewrite `.arc/reference/TECHNICAL-OVERVIEW.md` per evolved
-  template + codify Visual conventions sub-block in `TECHNICAL-OVERVIEW.template.md`. Tasks
-  4.8 + 4.9 this session: R60 + R63 template evolution, dogfood rewrite with
-  describe-over-enumerate principle, italic-for-frames visual codification (commits
-  `fb74c624`, `990db41f`).
+- **Last Completed:** Off-task scope amendment — WOR Phase 5 reshaped + 6.2.j-n cleanup
+  pairs added per pre-implementation audit. Compat-bridge discipline on 5.4.a/b/c/c'/g
+  paired atomically with 6.2.j-n cleanup; 5.2 rescoped to workflow-marker wiring; 5.4.d
+  rescoped to actual touch points; 5.4.c' + 5.4.g added (reader fallback + validator
+  dual-recognition). Commit `935a3f18`.
 
 - **Next Task:** Task 5.1 — Implement `worktree-roster.ts` library function with test-first
-  coverage (line ~2086).
+  coverage (line ~2100).
 
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 5.1 — audit `git/worktree-sync.ts` for existing
-  `git worktree list` parsing before re-implementing; test-first (9 behaviors enumerated);
-  import State value-set (`Planning | Active | Integrating | Shipped`, per R9 / Task 4.1.c)
-  from shared schema if one exists, else hardcode with codifying-template ref.
+- **Next Action:** Start Task 5.1 — audit `git/worktree-sync.ts` for reusable parse before
+  re-implementing; test-first per the 9 enumerated behaviors; State enum import path is
+  codified in 5.1's `_Note:_` block (import from 5.4.a if landed first, else hardcode with
+  comment pointing at both 4.1.c `template-meta.md` and 5.4.a).
 
 ---
