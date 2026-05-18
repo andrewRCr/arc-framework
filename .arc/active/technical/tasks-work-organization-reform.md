@@ -2391,81 +2391,123 @@ at 5.4.g.
           lives in the subdir-status end-to-end test, the State value-set sister-block, and
           the legacy-only failure diagnostics. _Cleanup paired with 6.2.n._
 
-### `[ ]` **5.5 CLI seeding update for R65 user/ workspace layout**
+### `[ ]` **5.5 Instance-file scaffolding shape (templates + pointer content)**
 
-- _Goal:_ CLI init/join + activation code in `packages/arc-framework/src/lib/` creates the R65 user/ directory layout:
-  per-WU subdir at WU activation (`user/{identity}/<wu-name>/`) seeded with `SESSION-NOTES.md` inside; cross-WU
-  `WORKING-MEMORY.md` at user root seeded at init/join. Composes with Task 5.3's preamble-strip change (the new files
-  seed as content-only per R59).
+- _Goal:_ Replace the bloated-preamble pattern across instance-file templates with R59's minimal anchoring-pointer
+  shape. Touches: existing `packages/arc-framework/templates/user/SESSION-NOTES.md` (updated to new pointer shape);
+  four new templates added — `templates/user/WORKING-MEMORY.md`, `templates/user/USER-INBOX.md`,
+  `packages/arc-framework/arc/backlog/ATOMIC-INBOX.template.md`,
+  `packages/arc-framework/arc/backlog/BACKLOG-INBOX.template.md`. R59a orientation-content precondition assumed
+  met by Phase 2 strategy-doc landings; pointers reference those sections directly.
+
+    **Strategies:** `strategy-package-project-sync.md`, `strategy-session-operations.md`,
+    `strategy-planning-module.md`
+
+    - `[ ]` **5.5.a Draft per-file pointer content**
+        - Author the actual blockquote text per R59's per-file sizing:
+            - `SESSION-NOTES.md` — 1 line pointing at `strategy-session-operations.md` § SESSION-NOTES
+            - `WORKING-MEMORY.md` — 2-3 lines covering `_Remove when:_` per-entry convention + strategy ref
+            - `USER-INBOX.md` — 2-3 lines covering `## Atomic` vs. `## Backlog` section semantics + strategy ref
+            - `backlog/ATOMIC-INBOX.md` — 2-3 lines surfacing ceremony-only-writes discipline + strategy ref
+            - `backlog/BACKLOG-INBOX.md` — 2-3 lines surfacing ceremony-only-writes discipline + strategy ref
+        - Each pointer in a `>` blockquote, opening the file directly after the H1.
+
+    - `[ ]` **5.5.b Update existing `templates/user/SESSION-NOTES.md` to new pointer shape**
+        - 5.3.b stripped the legacy preamble (file now opens H1 → H2). Insert the 1-line anchoring pointer
+          (from 5.5.a) between H1 and the first H2.
+
+    - `[ ]` **5.5.c Add new per-user templates**
+        - Create `packages/arc-framework/templates/user/WORKING-MEMORY.md` and
+          `packages/arc-framework/templates/user/USER-INBOX.md`. H1 + pointer blockquote (from 5.5.a) +
+          structural sections per R59. WORKING-MEMORY opens content-only after pointer (entries accumulate
+          organically); USER-INBOX includes `## Atomic` + `## Backlog` H2 sections (empty).
+
+    - `[ ]` **5.5.d Add new project-shared backlog templates**
+        - Create `packages/arc-framework/arc/backlog/ATOMIC-INBOX.template.md` and
+          `packages/arc-framework/arc/backlog/BACKLOG-INBOX.template.md`. H1 + pointer blockquote (from 5.5.a)
+          per R59. Recipe-driven; seeding wires in 5.6.
+
+### `[ ]` **5.6 CLI seeding wiring + per-WU subdir lifecycle helpers + reader migration**
+
+- _Goal:_ Wire the CLI to seed R59's new instance files at the right lifecycle points and implement the per-WU
+  subdir lifecycle helpers per R65c. Init-time seeding routes WORKING-MEMORY + USER-INBOX into the per-user
+  setup path; backlog inboxes route through the init-recipe. Activation-time seeding moves to a new
+  `arc user open <wu-name>` helper (paired with `arc user close <wu-name>` for retirement) following R65c's
+  lifecycle contract. Reader-side updates rename the SESSION-NOTES read path from flat root to per-WU subdir
+  across the codebase (4+ sites) atomically with the writer changes — avoids a broken-session window.
 
     **Strategies:** `strategy-testing-methodology.md`, `strategy-package-project-sync.md`
 
-    - `[ ]` **5.5.a Locate user/ seeding sites**
-        - Grep `packages/arc-framework/src/lib/` for SESSION-NOTES + USER-INBOX seeding paths; identify init-time vs
-          activation-time seeding boundaries (init/join code vs activate-work-unit code paths).
+    - `[ ]` **5.6.a Implement `arc user open <wu-name>` helper**
+        - New command at `packages/arc-framework/src/commands/user/open.ts`. Creates `user/{identity}/<wu-name>/`
+          if absent, seeds `SESSION-NOTES.md` inside from `templates/user/SESSION-NOTES.md`. Defensive prompt
+          (per R65c) when a stale subdir for a different WU is found — `Stale subdir user/{identity}/<stale>/
+          from prior WU. Remove? (y / inspect)`. `inspect` lists subdir contents (likely a stale SESSION-NOTES
+          with potentially-valuable context) and re-prompts; `y` removes and proceeds. Idempotent when the
+          target subdir already exists for the same WU.
 
-    - `[ ]` **5.5.b Activation-time per-WU subdir creation**
-        - At WU activation (init-work-unit / activate-work-unit, post-Task 3.2 / 3.3), create
-          `user/{identity}/<wu-name>/` subdir and seed `SESSION-NOTES.md` inside (content-only per R59).
-          Contributor-role meta file (when applicable) also lands in this subdir per R65a.
+            **Build `test-first` (one behavior at a time):**
 
-    - `[ ]` **5.5.c Init-time WORKING-MEMORY seed**
-        - At project init/join, seed empty `user/{identity}/WORKING-MEMORY.md` at user root. Content-only per R59;
-          no preamble. Empty structurally; entries accumulate organically as the developer captures them at handoff.
+            - Path computation (`user/{identity}/<wu-name>/` derived correctly from inputs)
+            - Subdir creation when absent (idempotent — second invocation no-ops)
+            - SESSION-NOTES seeded from template into the subdir
+            - Defensive-prompt fires on stale-subdir for a different WU
+            - `inspect` lists subdir contents and re-prompts
+            - `y` removes stale subdir and proceeds to creation
+            - Missing identity surfaces a clear error
+        - Wire into `arc user` namespace alongside existing `add` / `pull` / etc.
 
-    - `[ ]` **5.5.d Tests**
-        - Update CLI tests asserting on seed output shape. Add new tests verifying per-WU subdir creation at
-          activation and WORKING-MEMORY.md at init.
+    - `[ ]` **5.6.b Implement `arc user close <wu-name>` helper**
+        - New command at `packages/arc-framework/src/commands/user/close.ts`. Removes `user/{identity}/<wu-name>/`
+          recursively (filesystem op, gitignored — no git ops). Idempotent when subdir is already absent.
 
-### `[ ]` **5.6 CLI seeding for inbox files (USER-INBOX + project-shared inboxes)**
+            **Build `test-first` (one behavior at a time):**
 
-- _Goal:_ CLI init/join + activation code seeds the WOR-introduced inbox files per R59 (content-only, no
-  preamble): `user/{identity}/USER-INBOX.md` (personal, gitignored, init-time seed regardless of pm.mode),
-  `backlog/ATOMIC-INBOX.md` (project-shared, init-time seed under `pm.mode == arc-in-git`),
-  `backlog/BACKLOG-INBOX.md` (project-shared, init-time seed under `pm.mode == arc-in-git`). R59a precondition
-  already met — `strategy-session-operations.md` § SESSION-NOTES / § Working Memory and
-  `strategy-planning-module.md` § Inbox Family / § Ceremony-Only Writes carry the full orientation (purpose,
-  lifecycle, write discipline, ceremony-only-writes rule). This task resolves a DRY-aware orientation policy
-  for inbox files and wires the CLI seeding.
+            - Path computation matches `arc user open` for the same WU
+            - Recursive removal of subdir contents
+            - Idempotent on absent subdir (no-op + no error)
+            - Missing identity surfaces a clear error
 
-    **Strategies:** `strategy-testing-methodology.md`, `strategy-package-project-sync.md`,
-    `strategy-planning-module.md`, `strategy-session-operations.md`
+    - `[ ]` **5.6.c Wire init-time seeding for new per-user files**
+        - Extend `lib/setup.ts` (`runPostInitSetup`) and `commands/user/add.ts` (`runUserAdd`) to seed
+          `user/{identity}/WORKING-MEMORY.md` and `user/{identity}/USER-INBOX.md` from the new templates
+          (5.5.c). Both seed regardless of `pm.mode` (cross-PM-mode per R65b). Existing user/ATOMIC-INBOX
+          seed path retires here — content migrates into USER-INBOX `## Atomic` section per R50 (paired with
+          6.3.x USER-INBOX consolidation already filed).
 
-    - `[ ]` **5.6.a Resolve orientation policy for inbox files**
-        - Two options for what each inbox file carries at the top:
-            1. **Pure content-only** (strict R59). H1 + section H2s only. Developer learns write discipline
-               from strategy. Same treatment as SESSION-NOTES.
-            2. **Minimal strategy pointer.** H1 + a one-line reference to the relevant strategy section
-               (e.g., for shared inboxes: `> Write discipline: see strategy-planning-module.md §
-               Ceremony-Only Writes to Shared Inboxes`). One line per file, not a preamble block —
-               DRY-preserved, no duplicate prose.
-        - SESSION-NOTES intentionally diverges (per 5.3.b) — it's opened mid-session with strategy already
-          loaded. Inboxes are different: opened at capture / triage time, often cold — a one-line pointer
-          may earn its keep.
-        - Decide and apply uniformly across all three new inbox files.
+    - `[ ]` **5.6.d Wire init-recipe for project-shared backlog templates**
+        - Extend `packages/arc-framework/init-recipe.json` `conditions["pm.mode == arc-in-git"].include_files`
+          to list `backlog/ATOMIC-INBOX.template.md` and `backlog/BACKLOG-INBOX.template.md` (added in 5.5.d).
+          Aligns with existing `BACKLOG-FEATURE.template.md` / `BACKLOG-TECHNICAL.template.md` pattern (those
+          retire under R50's BACKLOG-INBOX merge — pair with the migration sweep).
 
-    - `[ ]` **5.6.b Add CLI seeding for `user/{identity}/USER-INBOX.md`**
-        - `src/lib/setup.ts` + `src/commands/user/add.ts`: extend the user-dir seeding sequence to write
-          USER-INBOX.md. Compose content-only scaffolding directly in code per R59 ¶7 ("CLI-created at
-          init/join, not authored from `reference/templates/`"). Seed at user init regardless of `pm.mode` —
-          USER-INBOX exists across PM modes.
-        - Two H2 sections per the strategy spec: `## Atomic`, `## Backlog`.
-        - Composes with 5.5's per-WU subdir creation: USER-INBOX is cross-WU root, parallel to
-          WORKING-MEMORY (5.5.c).
+    - `[ ]` **5.6.e Workflow wiring for `arc user open` / `arc user close`**
+        - `activate-work-unit.md` (post-branch-rename step): invoke `arc user open <wu-name>`.
+        - `init-work-unit.md` (planning-branch step): invoke `arc user open <wu-name>`.
+        - `integrate-work-unit.md` (post-merge step): invoke `arc user close <wu-name>`.
+        - Both copies: `.arc/system/workflows/` + `packages/arc-framework/arc/system/workflows/` (per
+          `strategy-package-project-sync.md`). Inline Bash invocations — no class-tag or push-extension
+          marker (not push fire-points).
 
-    - `[ ]` **5.6.c Add CLI seeding for `backlog/ATOMIC-INBOX.md` + `backlog/BACKLOG-INBOX.md`**
-        - Project-shared, init-time only, conditional on `pm.mode == arc-in-git`. Seed alongside existing
-          backlog files (ROADMAP.template.md, BACKLOG-FEATURE/TECHNICAL.template.md) at init.
-        - Seeding mechanism: per R59 ¶7's "no new template files" guidance, compose scaffolding directly in
-          code rather than extending init-recipe.json's include_files. Determine the specific seeding site
-          at execution.
-        - Each file gets H1 + scaffolding per 5.6.a's decided orientation policy.
+    - `[ ]` **5.6.f Reader-path migration (SESSION-NOTES + contributor-meta path)**
+        - Update SESSION-NOTES reader sites to `user/{identity}/<wu-name>/SESSION-NOTES.md`:
+          `handlers/status.ts:163` (session-init probe), `lib/handoff/restate-candidates.ts` (handoff
+          baseline), `commands/active/status.ts:178` + `commands/active/types.ts:99,126,170` (docstring
+          references + multi-candidate disambiguation precedence). Path derives from active WU resolution
+          (`active.value.path` stem → `<wu-name>` token).
+        - Update contributor-meta reader sites to `user/{identity}/<wu-name>/`: `lib/release/wu-resolution.ts:28`
+          and the contributor scan root at `commands/active/status.ts:178`. Path convention only per R65a —
+          creation step defers to `plan-contributor-path.md`.
+        - Atomic with the writer change (5.6.a / 5.6.e) — no broken-session window.
 
-    - `[ ]` **5.6.d Tests**
-        - Unit tests on the seeding functions: assert each file is written with the expected shape (no
-          preamble blockquote, expected H2 sections, orientation policy applied uniformly).
-        - Integration test: run `arc init --pm-mode arc-in-git` in a temp dir; assert all three inbox files
-          land at the expected paths with the expected content.
+    - `[ ]` **5.6.g Tests**
+        - Reader-path coverage for the 5.6.f migration: handlers/status SESSION-NOTES read against subdir
+          path; restate-candidates baseline extraction; multi-candidate disambiguation against the new path.
+        - Integration test: `arc init` and `arc init --pm-mode arc-in-git` in temp dirs; assert all expected
+          files land at the expected paths (WORKING-MEMORY + USER-INBOX at user root regardless of mode;
+          backlog inboxes under arc-in-git only).
+        - E2E test: full activate → handoff → integrate cycle exercising `arc user open` (including the
+          defensive-prompt path) and `arc user close`.
 
 ## **Phase 6:** Migration and cross-reference sweep
 

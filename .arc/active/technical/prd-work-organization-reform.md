@@ -76,9 +76,10 @@ of DEV-RULES.ARC + method-doc + hook churn.
 14. **Meta-file shape minimizes redundancy.** `# Metadata: {wu-name}` H1 + blank-line-grouped field blocks; content H2s
     reserved for archive-phase sections (Release Notes Entry, Completion Notes). Session-init full-read replaces the
     `^## Work Unit Metadata` partial-read anchor.
-15. **Instance files carry no preamble.** SESSION-NOTES, USER-INBOX, BACKLOG-INBOX, `backlog/ATOMIC-INBOX.md` read as
-    content-only; orientation content lives in strategy docs and workflows. CLI init/join code strips preamble
-    injection.
+15. **Instance files carry minimal anchoring pointers, not duplicated orientation.** SESSION-NOTES, WORKING-MEMORY,
+    USER-INBOX, BACKLOG-INBOX, `backlog/ATOMIC-INBOX.md` open with a 1-3 line `>` blockquote pointing at the
+    authoritative strategy section — no in-file orientation duplication. Per-file pointer sizing reflects what a
+    cold reader needs; mechanism (template vs. inline) follows file complexity.
 
 ---
 
@@ -664,27 +665,44 @@ generalizable.
 
 ### Instance-file orientation slimming (P0)
 
-**R59.** Instance files carry no preamble or "About this file" blocks:
+**R59.** Instance files carry a minimal anchoring pointer — no substantive orientation duplication. Each file opens
+with a 1-3 line `>` blockquote that anchors a cold reader: what the file is, the most load-bearing write-discipline
+constraint, and a reference to the strategy section that carries the authoritative orientation. Purpose-built per
+file, not a uniform preamble.
 
 - Affected files: `user/{identity}/<wu-name>/SESSION-NOTES.md`, `user/{identity}/WORKING-MEMORY.md`,
   `user/{identity}/USER-INBOX.md`, `backlog/BACKLOG-INBOX.md`, `backlog/ATOMIC-INBOX.md` (file paths reflect post-R65
   structural reform — see § User workspace directory reform)
-- Match the meta-file convention (no preamble) — files read as content-only
+- Pointer sizing per file (driven by what a cold reader needs):
+    - `<wu-name>/SESSION-NOTES.md` — 1 line. Loaded every session by session-init; the human reader gets a one-line
+      anchor on manual open.
+    - `WORKING-MEMORY.md` — 2-3 lines. Cross-WU eviction-triggered context; pointer surfaces the `_Remove when:_`
+      per-entry convention.
+    - `USER-INBOX.md` — 2-3 lines. Personal capture surface; pointer surfaces section semantics (`## Atomic` vs.
+      `## Backlog`).
+    - `backlog/ATOMIC-INBOX.md` + `backlog/BACKLOG-INBOX.md` — 2-3 lines each. Project-shared; pointer carries the
+      ceremony-only-writes discipline (load-bearing — cold readers risk writing to the wrong surface otherwise).
 - Authoritative orientation lives in strategy docs (`strategy-session-operations.md` for SESSION-NOTES and
-  WORKING-MEMORY; `strategy-planning-module.md` for inboxes) and workflows (`session-handoff.md`, ceremony workflows
-  that write to shared inboxes)
-- CLI init/join code (`packages/arc-framework/src/lib/...`) strips preamble injection when seeding these files
-- Workflow seeding (e.g., `session-handoff.md` SESSION-NOTES seed) loses preamble strings
-- Migration: existing instance files in this repo strip preamble in-place during the migration pass
-- No new template files — these files are CLI-created at init/join, not authored from `reference/templates/`
+  WORKING-MEMORY; `strategy-planning-module.md` for inboxes). Pointers reference these — they do not duplicate them.
+- Seeding mechanism follows file complexity, not a blanket rule:
+    - Per-user files (SESSION-NOTES re-seeded per WU activation; WORKING-MEMORY + USER-INBOX one-shot at init/join)
+      use the post-init verbatim-copy mechanism — templates live under `packages/arc-framework/templates/user/`,
+      seeded by `lib/setup.ts` / `commands/user/add.ts` (init/join) and `arc user open` (activation; see R65c).
+    - Project-shared backlog files (BACKLOG-INBOX, `backlog/ATOMIC-INBOX.md`) use the recipe-driven mechanism —
+      `.template.md` files under `packages/arc-framework/arc/backlog/`, listed in `init-recipe.json`'s
+      `pm.mode == arc-in-git` conditional `include_files`. Consistent with existing
+      `BACKLOG-FEATURE.template.md` / `BACKLOG-TECHNICAL.template.md` precedent (which retire under R50's
+      BACKLOG-INBOX merge).
+- Migration: existing instance files in this repo replace bloated preambles with the new minimal-pointer shape during
+  the migration pass.
 
-**R59a.** Orientation-content precondition. Authoritative orientation referenced by R59 must exist in the named strategy
-docs before preambles are stripped from instance files — otherwise orientation goes from "in-file" to "nowhere."
-Confirmed via grep (2026-05-14) that `strategy-session-operations.md` and `strategy-planning-module.md` do not currently
-carry the relevant SESSION-NOTES / inbox-family orientation content. WOR authors the content into those strategies
-(SESSION-NOTES gets purpose / lifecycle / portability; each inbox gets purpose, lifecycle, and write-discipline summary
-for USER-INBOX, BACKLOG-INBOX, and `backlog/ATOMIC-INBOX.md`) as the R59 precondition. Lands in Phase 2 before Task
-6.8's instance-file slim fires; zero net orientation loss across the transition.
+**R59a.** Orientation-content precondition. The strategy sections that R59's pointers reference must exist before
+pointers replace preambles — otherwise the pointer points at nothing. Confirmed via grep (2026-05-14) that
+`strategy-session-operations.md` and `strategy-planning-module.md` do not currently carry the relevant SESSION-NOTES /
+inbox-family orientation content. WOR authors the content into those strategies (SESSION-NOTES gets purpose /
+lifecycle / portability; each inbox gets purpose, lifecycle, and write-discipline summary for USER-INBOX,
+BACKLOG-INBOX, and `backlog/ATOMIC-INBOX.md`) as the R59 precondition. Lands in Phase 2 before Task 6.8's
+instance-file shape migration fires; pointers land in working order with no broken references across the transition.
 
 ### User workspace directory reform (P0)
 
@@ -707,7 +725,8 @@ matches the standard WU identifier (the same token used in `meta-<wu-name>.md` a
 - `user/{identity}/<wu-name>/SESSION-NOTES.md` — personal session context (was `user/{identity}/SESSION-NOTES.md`)
 - `user/{identity}/<wu-name>/meta-<wu-name>.md` — contributor-role meta file when applicable (was
   `user/{identity}/active/status-<wu-name>.md`; both subdir location and filename-token migrate, the token piece
-  composing with WOR's status-\* → meta-\* rename)
+  composing with WOR's status-\* → meta-\* rename). Path convention codified here; **creation step + full
+  contributor-flow lifecycle defer to `plan-contributor-path.md`** (see § Non-Goals).
 
 Each worktree's `user/{identity}/` filesystem contains exactly one WU subdir at a time (its own WU's), giving immediate
 at-a-glance worktree-correctness: `ls user/{identity}/` shows which WU this worktree serves. Multi-worktree concurrent
@@ -730,6 +749,30 @@ USER-INBOX in alpha-order — inbox-first reading order preserved.
 The session-handoff workflow updates: instead of writing one SESSION-NOTES.md with embedded `## Persistent Context`
 section, it writes `<wu-name>/SESSION-NOTES.md` (session-volatile content) and updates `WORKING-MEMORY.md` (cross-WU
 persistent entries) as separate file operations. session-init reads both as part of T2 state load.
+
+**R65c.** Per-WU subdir lifecycle. R65a's "exactly one WU subdir per worktree's `user/{identity}/`" invariant requires
+explicit enforcement at lifecycle transitions, since the subdir is gitignored and persists across operations that
+otherwise clean up tracked artifacts.
+
+- **Creation.** At WU activation (`activate-work-unit.md`, and `init-work-unit.md`'s planning-branch step), the
+  workflow invokes `arc user open <wu-name>` to create `user/{identity}/<wu-name>/` and seed SESSION-NOTES inside
+  from `templates/user/SESSION-NOTES.md`.
+- **Retirement.** At integration (`integrate-work-unit.md`, post-merge), the workflow invokes
+  `arc user close <wu-name>` to remove the per-WU subdir. Gitignored content; filesystem op only, no git ops.
+- **Defensive retirement at activation.** Before `arc user open` proceeds, if `user/{identity}/` already contains a
+  WU subdir for a different WU, the helper surfaces the stale subdir and prompts the developer before removing —
+  covers the aborted-WU case where integration never ran, and the single-checkout sequential-WU case where reuse is
+  the default (pre-Worktree Foundation). Prompt shape: `Stale subdir user/{identity}/<wu-name>/ from prior WU.
+  Remove? (y / inspect)`. `inspect` lists the subdir contents (likely a stale SESSION-NOTES with potentially-valuable
+  context) before re-prompting; `y` removes and proceeds.
+- **Multi-worktree case** (Worktree Foundation, downstream): worktree removal at integration cleanup transitively
+  removes the subdir along with the worktree. `arc user close` is moot when the whole worktree is going away; the
+  helper exists for the single-checkout case (current default, pre-WF) and as the unambiguous explicit surface that
+  WF inherits without redefining.
+- **Helper command shape.** `arc user open <wu-name>` / `arc user close <wu-name>` follow the existing `arc user *`
+  verb-only subcommand pattern (`arc user add` / `arc user pull` / etc.). Agent-run, workflow-invoked. Encapsulates
+  path computation, idempotency, and the defensive-prompt logic in a unit-testable surface — same encapsulation
+  benefit as `arc user add`.
 
 ### Migration sweep (P0)
 
@@ -988,6 +1031,11 @@ Backlog placement (vs. ROADMAP-tracked) reflects the not-yet-committed state.
   deferred to downstream WU
 - **`arc graduate <type>` CLI helper for branch rename ergonomics** — documented inline commands ship in WOR; CLI
   deferred to downstream WU
+- **OSS contributor path refinement** — contributor-meta creation step, fork-clone-create-WU-PR-merge ceremony,
+  contributor-to-maintainer sync mechanics, contributor boundaries on package-source vs. instance-source edits.
+  R65a's path convention (`user/{identity}/<wu-name>/meta-<wu-name>.md`) ships under WOR; full lifecycle is captured
+  in `backlog/technical/plan-contributor-path.md` (stub created in WOR; Phase 6 migration sweeps it into the new
+  backlog structure with the rest). Revisit post-WOR once Worktree Foundation + Agile WU Lifecycle settle.
 - **Public CHANGELOG aggregation tooling** — per-WU Release Notes Entry contract ships in WOR; CHANGELOG composition
   deferred to downstream npm-release WU
 - **Release-tooling for `**State:**` transitions** — workflow-step discipline is MVP enforcement
@@ -1098,18 +1146,28 @@ Per R58:
 If named-section anchors become important later for cross-WU referencing, groups can be promoted to H2 then —
 reversible.
 
-### Instance-file slimming approach
+### Instance-file shape approach
 
 Per R59:
 
-- Files affected: SESSION-NOTES, USER-INBOX, BACKLOG-INBOX, `backlog/ATOMIC-INBOX.md`
+- Files affected: SESSION-NOTES, WORKING-MEMORY, USER-INBOX, BACKLOG-INBOX, `backlog/ATOMIC-INBOX.md`
 - Files NOT affected: `meta-*.md` (already convention-aligned), `tasks-*.md` / `atomic-*.md` / `notes-*.md` /
   `plan-*.md` / `prd-*.md` (template-authored; carry header conventions)
-- Slim approach: full preamble removal; no orientation pointer in-file (match meta-file convention)
-- Authoritative orientation lives in `strategy-session-operations.md` (SESSION-NOTES) and `strategy-planning-module.md`
-  (inboxes); workflows carry write discipline
-- CLI init/join in `packages/arc-framework/src/lib/` updated to strip preamble injection when seeding
-- Workflow seeding strings (e.g., session-handoff's SESSION-NOTES seed) audited and slimmed
+- Approach: replace bloated preamble (current ATOMIC-INBOX style — 15-25 lines of duplicated orientation) with a
+  minimal 1-3 line anchoring pointer in a `>` blockquote, per the per-file sizing in R59. Pointer references strategy
+  sections; does not duplicate them.
+- Authoritative orientation lives in `strategy-session-operations.md` (SESSION-NOTES, WORKING-MEMORY) and
+  `strategy-planning-module.md` (inboxes); workflows carry write discipline at the operational level.
+- Seeding mechanism diverges by file class (per R59 § Seeding mechanism):
+    - **Per-user files** seeded via `templates/user/*.md` + verbatim copy by `lib/setup.ts` / `commands/user/add.ts`
+      (init/join) and `arc user open` (per WU activation; see R65c). New templates added: `WORKING-MEMORY.md`,
+      `USER-INBOX.md`. Existing `SESSION-NOTES.md` updated to new pointer shape. Existing `ATOMIC-INBOX.md` template
+      retires (content migrates into USER-INBOX `## Atomic` section per R50).
+    - **Project-shared backlog files** seeded via `arc/backlog/*.template.md` + recipe-driven copy. New templates
+      added: `arc/backlog/ATOMIC-INBOX.template.md`, `arc/backlog/BACKLOG-INBOX.template.md`. Existing
+      `BACKLOG-FEATURE.template.md` / `BACKLOG-TECHNICAL.template.md` retire (content migrates into BACKLOG-INBOX
+      per R50).
+- Workflow seeding strings (e.g., session-handoff's SESSION-NOTES seed body) audited and aligned with the new shape.
 
 ### Dependencies and sequencing
 
