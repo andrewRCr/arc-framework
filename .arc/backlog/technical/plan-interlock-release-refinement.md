@@ -207,6 +207,52 @@ What remains is mostly *routing-half* work:
   salience — different points in the construction flow (init-time orientation surface vs
   completion-time checklist gate). Could land together or separately.
 
+### Commit-interlock inclusive semantic under-documented; push/commit naming asymmetry as possible design smell
+
+- *Observation* (2026-05-18 WOR Task 5.5 commit cascade): agent verified on-workflow's release
+  behavior in `strategy-session-operations.md` § Commit-Interlock Release before invoking commits.
+  The section explicitly names on-task-approval's release event but is silent on on-workflow's.
+  Agent inferred on-workflow as exclusive (fires only at workflow ceremonies) by analogy to
+  push-interlock's `on-handoff` ("fires push at handoff only — never per commit"). Used raw `git`
+  for 4 task-execution commits (`45bad377` / `cb582bcc` / `d5176bd7` / `78905584`) where design
+  intent was wrapped routing — audit-log entries the wrapper would have produced are missing.
+
+- *Documentation-half:* The inclusive intent IS documented — but only in `process-task-loop.md`
+  step 4 as the parenthetical "(or on-workflow, which subsumes it)". The strategy doc that should
+  be authoritative on interlock release semantics is silent; the deferred-review × commit-interlock
+  release section treats both modes equivalently in safe-accumulate scope (a weak hint); prefix
+  mapping in DEV-RULES.ARC uses "Commit and proceed" for both modes (another hint). None of these
+  is a definitional statement. An agent verifying behavior from the strategy lands on silence and
+  falls back to cross-type analogy.
+
+- *Design-smell half (user-raised 2026-05-18):* push-interlock's named modes are **exclusive**
+  ("on-handoff fires push at handoff only — never per commit"); commit-interlock's named modes
+  are **inclusive** (each higher setting subsumes the previous). Same `on-X` naming pattern,
+  opposite semantic. Surface symmetry invites wrong inferences via cross-type analogy — the exact
+  failure mode this entry documents. The model may want reconsideration for intuitive consistency:
+  pick one direction uniformly across both interlock types (inclusive ladder where each setting
+  subsumes the previous, vs. exclusive named-event where the setting names the specific event
+  class that fires the release).
+
+- *Composition:* With **wrapper-routing migration** above: the migration produces more
+  wrapper-invocation sites, raising the cost of leaving the inclusive-semantic ambiguous. With
+  **Pre-report checklist prefix verification** above: prefix selection is the prompt-side surface
+  of the same release-mode-resolution decision an agent has to make at every task completion —
+  both touch the same agent-attention concern at the release-decision point.
+
+- *Resolution paths if promoted:*
+    - **Doc-only minimum:** restate the inclusive semantic in `strategy-session-operations.md`
+      § Commit-Interlock Release as a definitional opener; cross-reference from DEV-RULES.ARC
+      § Commit Discipline; disambiguate from push-interlock's exclusive model with a one-liner
+      naming the asymmetry explicitly.
+    - **Model-level:** reconcile the asymmetry — pick inclusive or exclusive uniformly across
+      both interlock types. Touches enum design, prompt mappings, strategy text, DEV-RULES,
+      possibly probe envelope shape. Composes with `plan-customization-architecture.md` § Open
+      Questions (e) on interlock enum granularity. ADR warranted.
+
+- *Scope if promoted:* Doc-only fix is atomic-tier (~3-5 line edits, single strategy doc plus a
+  cross-ref). Model-level fix is quick-tier minimum (multi-surface, ADR-light).
+
 ### Orientation surface for non-`manual` interlock modes (A3 from interlock-visibility atomic)
 
 - *Premise:* Today's `b2d8162d` puts `commit.interlock` / `push.interlock` in the envelope and
