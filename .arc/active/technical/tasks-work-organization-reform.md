@@ -2609,21 +2609,22 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
 
     **Strategies:** `strategy-package-project-sync.md`
 
-    - `[ ]` **6.1.a Type-enum regex tightening + method type-list sync**
-        - Hook regex: `^(feat|fix|chore|docs|refactor|test|perf|revert)\([a-z][a-z0-9-]*\): .+`. Drops `style`,
-          `content`, `build`, `ci`, `config` from prior regex (plus the corresponding entries in the hook's
-          help-text `Types:` line).
-        - `commit-format.md` § Types — replace the 13-type enumeration with the tuned 8-type set; align the
-          method body's `Types:` line.
+    - `[x]` **6.1.a Type-enum regex tightening + method type-list sync**
+        - Hook regex tightened to `^(feat|fix|chore|docs|refactor|test|perf|revert)\([a-z][a-z0-9-]*\): .+`.
+          Dropped `style`, `content`, `build`, `ci`, `config` from regex and from the hook's `Types:`
+          help-text line.
+        - `commit-format.md` § Types: 13-type backticked enumeration replaced with the tuned 8-type set,
+          ordered to match the regex.
 
-    - `[ ]` **6.1.b Sync hook + method to packages/**
-        - Edit `packages/arc-framework/arc/system/githooks/commit-msg` +
-          `packages/arc-framework/arc/system/methods/commit-format.md` to match.
+    - `[x]` **6.1.b Sync hook + method to packages/**
+        - Edited package source first (`packages/arc-framework/arc/system/githooks/commit-msg` +
+          `packages/arc-framework/arc/system/methods/commit-format.md`), mirrored to `.arc/` — aligns
+          with Package-Project Sync's authoritative direction. Both pairs byte-identical post-edit.
 
-    - `[ ]` **6.1.c Hook smoke test**
-        - Attempt commit with retired type (`style:`); verify rejection. Attempt valid commit with tuned
-          type-set; verify pass. Scope-rejection enforcement is retired in favor of the codified convention in
-          6.1.d — no scope-denylist regression test needed.
+    - `[x]` **6.1.c Hook smoke test**
+        - 13/13: all 5 retired types (`style`, `content`, `build`, `ci`, `config`) rejected; all 8 tuned
+          types accepted with a valid `Context:` footer. Driven via temp commit-msg files against the live
+          hook. Scope-rejection regression test omitted per the task's stated retirement.
 
     - `[ ]` **6.1.d Codify three-layer scope convention (commit-format method + DEV-RULES.ARC + PRD R26 reshape)**
         - `commit-format.md` § Scope rewrites — codify that each commit layer carries orthogonal information:

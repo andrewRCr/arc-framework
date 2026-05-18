@@ -31,7 +31,7 @@ Conventional commit format.
 - Impact if significant
 ```
 
-**Types:** `feat` `fix` `docs` `content` `style` `refactor` `test` `chore` `perf` `build` `ci` `config` `revert`
+**Types:** `feat` `fix` `chore` `docs` `refactor` `test` `perf` `revert`
 
 **Type selection:** Type is chosen by intent, not file extension.
 
