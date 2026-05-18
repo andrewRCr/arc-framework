@@ -2062,26 +2062,40 @@ carries the update-discipline rule alongside the shape it codifies, keeping shap
   sub-block to `TECHNICAL-OVERVIEW.template.md`'s top HTML comment, with the rendered doc serving as the
   dogfood instance.
 
-## **Phase 5:** Roster cascade + push wrapper wiring + CLI seeding update + CLI propagation
+## **Phase 5:** Roster cascade + push extension marker wiring + CLI seeding update + CLI propagation
 
-_Purpose:_ TypeScript code changes — test-covered roster library function, `pre-push-review` extension fire-point wiring
-into the push wrapper, CLI init/join preamble strip for instance-file slimming, and CLI propagation for the foundational
-conventions WOR shifts (State value-set, filename prefix, flat `active/`, branch-pattern fallback, PROJECT-PRD hardcoded
-references).
+_Purpose:_ TypeScript code changes — test-covered roster library function, `pre-push-review` extension marker placement
+across workflows with push fire-points, CLI init/join preamble strip for instance-file slimming, and CLI propagation
+for the foundational conventions WOR shifts (State value-set, filename prefix, validator pre-commit hook, PROJECT-PRD
+hardcoded references). Branch-pattern fallback in session-init aligns with R2 in this phase; CB core-6 branch-prefix
+recognition isn't a CLI-encoded concern (audit confirmed — no enum exists; the status-reader scans subdirs
+name-agnostically).
 
-_Known impact areas (test breakage expected):_ WOR's foundational shifts ripple into CLI code that encodes the prior
-conventions. Quality gates flag the breakage; budget for it rather than treat as surprise. Five zones:
+_Compat-bridge discipline:_ Tasks 5.4.a / 5.4.b / 5.4.c / 5.4.c' / 5.4.g ship code that recognizes BOTH legacy and new
+shapes during the Phase 5 → Phase 6.2 transition window — strict enforcement of the new shapes would break this WU's
+own session-init (status-reader, sessionType inference, validate-status-spec hook) before Phase 6.2 migrates this WU's
+artifacts. Each compat shim names its paired cleanup task in 6.2.j-n; the cleanup runs atomically with 6.2's migration
+commits so compat code never outlives its purpose. The `5.4.*` → `6.2.*` cross-references are the audit trail —
+reviewing Phase 6.2 closes the loop.
 
-1. **Probe envelope code** (`packages/arc-framework/src/lib/session-init/`, `commands/active/`) — `sessionType`
-   inference, State value-set, branch-pattern fallback (`{category}/plan-{name}` → `plan/{name}`). HIGH.
-2. **Active-file resolution** (`lib/active/status-reader.ts`) — `status-` → `meta-` filename prefix.
-   `ActiveScanShape = "subdir" | "flat"` plumbing already exists; State enum needs codification. HIGH.
-3. **Branch-prefix recognition** (`lib/classification.ts`, `commands/active/types.ts`) — CB core-6 + `plan/`. MEDIUM.
+_Known impact areas:_ WOR's foundational shifts ripple into CLI code that encodes the prior conventions. Compat shims
+keep each leaf-task commit functional; cascading test failures concentrate at 5.4.f's bulk fixture migration, not at
+each leaf-task introduction. Touch zones:
+
+1. **Probe envelope code** (`commands/active/status.ts`, `lib/session-init/`) — `sessionType` inference, branch-pattern
+   fallback (`{category}/plan-{name}` → `plan/{name}` per R2). HIGH.
+2. **Active-file resolution** (`lib/active/status-reader.ts`) — `status-` → `meta-` filename prefix;
+   `## Work Unit Metadata` H2 wrapper retirement under R58. `ActiveScanShape = "subdir" | "flat"` plumbing already
+   exists; State enum needs codification. HIGH.
+3. **Status-spec validator** (`scripts/validate-status-spec.ts`) — pre-commit hook enforcing State value-set and
+   file-path pattern; must accept BOTH shapes during the transition window or the 6.2 migration commit can't pass its
+   own pre-commit gate. HIGH.
 4. **Hook regex** (`system/githooks/commit-msg`) — covered by 6.1 + 2.13; cross-effect on integration tests. MEDIUM.
 5. **Config schema** (additive: `archive.cadence`, `review.planning_checkpoint`) — covered by 3.7.c; LOW-MEDIUM.
 
-~28 test files reference `status-` / `feature/` / `technical/` patterns (confirmed via grep at audit time, 2026-05-14).
-Don't enumerate every test; expect cascading failures during Phase 5 that resolve as 5.4's code updates land.
+Test fixture impact: ~28 test files reference `status-` / `feature/` / `technical/` patterns (confirmed via grep at
+audit time, 2026-05-14). Compat shims keep most runs green even with stale fixtures; fixture migration concentrates
+at 5.4.f.
 
 ### `[ ]` **5.1 Implement `worktree-roster.ts` library function with test-first coverage**
 
@@ -2094,8 +2108,9 @@ Don't enumerate every test; expect cascading failures during Phase 5 that resolv
   re-implementing — reuse if available; factor if it covers ~90% of need.
 
 - _Note:_ State value-set (`Planning | Active | Integrating | Shipped`) is codified in 4.1.c (`template-meta.md`) per
-  PRD R9. Import from a shared schema if one exists (`frontmatter/` or `manifest/` modules are likely homes); otherwise
-  hardcode with a comment pointing at the codifying template. Avoid silent enum duplication.
+  PRD R9 and in TypeScript at Task 5.4.a (`WorkUnitState`). Import from the shared type when 5.4.a has landed; if 5.1
+  executes first, hardcode with a comment pointing at both the codifying template (4.1.c) and the codifying task
+  (5.4.a). Avoid silent enum duplication.
 
     **Strategies:** `strategy-testing-methodology.md`
 
@@ -2112,37 +2127,45 @@ Don't enumerate every test; expect cascading failures during Phase 5 that resolv
     - Tolerates malformed meta file (parse error) — surfaces a warning, returns a degraded tuple rather than throwing.
     - Detached-HEAD worktrees skip cleanly (no branch → no meta-file resolution attempt).
 
-### `[ ]` **5.2 Wire `pre-push-review` extension fire-point into push wrapper**
+### `[ ]` **5.2 Wire `pre-push-review` markers into workflows with push fire-points**
 
-- _Goal:_ The push wrapper (`packages/arc-framework/src/lib/release/...`) invokes `pre-push-review` extension before
-  executing any push routed through the wrapper — `arc release push` / `arc sync` push pathways inherit the fire-point
-  automatically. Default-inactive extension (per 3.8.d); this wiring is structural even when extension is off.
+- _Goal:_ Workflows that invoke push (raw `git push`, `arc release push`, `arc sync` push leg) carry
+  `· #pre-push-review` extension markers at the appropriate fire-point. Marker placement mirrors how other pre-\*
+  extensions sit in their workflows — agent picks them up via `lib/extensions/point-scanner.ts` and surfaces `.actions`
+  per the established extension contract. Default-inactive extension (per 3.8.d); wiring is structural even when
+  extension is off.
 
-    **Strategies:** `strategy-testing-methodology.md`
+- _Note:_ Audit confirmed this is workflow-doc wiring, not CLI code. Extensions today fire via workflow-body
+  `· #<name>` markers consumed by the agent — there is no CLI-level extension-surfacing pattern in the codebase
+  (verified via grep: no existing CLI module invokes any `pre-*-review` extension). The push wrapper is a CLI
+  execution path that doesn't itself surface extensions; the fire-point is the workflow step that authorizes the push,
+  not the wrapper that executes it.
 
-    - `[ ]` **5.2.a Identify insertion point for the extension fire**
-        - Push execution flows through `pushWorktreeBranch` in `packages/arc-framework/src/lib/git/push-worktree.ts`
-          (thin shell-exec wrapper). Called from two handler sites:
-          `packages/arc-framework/src/handlers/release/push-cli.ts` (`arc release push`) and
-          `packages/arc-framework/src/handlers/sync.ts` (`arc sync`).
-        - Design choice: insert the fire (a) inside `pushWorktreeBranch` — single-site; all callers inherit
-          automatically; mixes shell-exec wrapper with extension-fire concern; or (b) in both handler call sites before
-          invoking the wrapper, ideally via a shared pre-push helper — separation-of-concerns; wrapper stays pure
-          shell-exec. Default recommend (b); decide at execution.
+    **Strategies:** `strategy-workflow-authoring.md`
 
-    - `[ ]` **5.2.b Extension fire-point check**
-        - Read `.arc/system/extensions/pre-push-review.md` frontmatter; if `active: true`, surface `.actions` to the
-          agent before push proceeds. Default `active: false` short-circuits with no overhead.
-        - _Note:_ "Surface `.actions` to the agent" needs to match how existing `pre-*` extensions surface today —
-          likely via `sync-output.ts` or stdout. Inspect a working extension consumer (e.g., wherever
-          `pre-stage-review`/`pre-merge-review` are wired) for the established pattern; stay consistent.
+    - `[ ]` **5.2.a Inventory workflows with push fire-points**
+        - Grep `.arc/system/workflows/` (+ packages mirror) for push invocations: raw `git push`, `arc release push`,
+          `arc sync` (push leg), `workflowPush` class-tag, and any workflow-step prose that authorizes a push.
+        - Expected hits include `session-handoff.md`, `init-work-unit.md`, `activate-work-unit.md`,
+          `integrate-work-unit.md`; verify against actual grep output at execution. Surface any unexpected sites for
+          user review before adding markers.
+        - Output: per-workflow list of push fire-point line locations.
 
-    - `[ ]` **5.2.c Unit + integration test coverage**
-        - Vitest tests: extension inactive → push proceeds without surfacing; extension active with empty actions → push
-          proceeds with no-op fire; extension active with actions → actions surface; extension malformed → push proceeds
-          with degraded warning (don't block push on extension parse error).
-        - _Note:_ Add a fifth case — extension file absent entirely (fresh install, file deleted). Expected: push
-          proceeds with no fire (treated equivalent to `active: false`); never error.
+    - `[ ]` **5.2.b Wire `pre-push-review` markers at each fire-point**
+        - For each push fire-point identified in 5.2.a, insert the standard extension-point marker — a `·` separator
+          followed by the backticked anchor `#pre-push-review`, per the `point-scanner.ts` recognized pattern — at the
+          appropriate step. Placement parallels how `pre-commit-review` sits before commit actions and
+          `pre-merge-review` sits before merge actions; typically immediately before the push action.
+        - Use bullet-form or trailing-header form per the surrounding workflow body's conventions (both forms resolve
+          through the same anchor per `point-scanner.ts`).
+        - Sync each edit to `packages/arc-framework/arc/system/workflows/` for two-copy parity.
+
+    - `[ ]` **5.2.c Verify markers are discoverable**
+        - Run the existing `point-scanner` unit suite (or add a fixture-level test) confirming new markers are
+          enumerated across the audited workflows.
+        - Spot-check via session-init: with `pre-push-review.active: true`, the extension surfaces in the active list
+          and the markers reference it; with `active: false` (default), the wiring is structural with no agent-side
+          action.
 
 ### `[ ]` **5.3 Update CLI init/join code to strip instance-file preamble injection**
 
@@ -2165,66 +2188,120 @@ Don't enumerate every test; expect cascading failures during Phase 5 that resolv
         - Existing CLI tests likely assert on seed output shape — update expected output where needed; add new test
           asserting no preamble in seeded files.
 
-### `[ ]` **5.4 CLI propagation — State value-set + active-file resolution + branch-pattern + PROJECT-PRD ref**
+### `[ ]` **5.4 CLI propagation with compat-bridge (State + active-file + branch-pattern + validator + PROJECT-PRD)**
 
 - _Goal:_ CLI code encodes WOR's foundational convention shifts — State value-set codified as
   `Planning | Active | Integrating | Shipped` per R9 (replacing the prior `Planning | In Progress | Complete | ...`
-  set); active-file resolution finds `meta-*.md` instead of `status-*.md` and recognizes flat `active/` structure as the
-  WOR-shipped default; branch-pattern recognition aligns with CB core-6 + `plan/<name>` rotation; `classification.ts`
-  hardcoded `META-PRD.template.md` filename updates to `PROJECT-PRD.template.md` per R35.
+  set); active-file resolution finds BOTH `status-*.md` and `meta-*.md` during transition; section extraction supports
+  BOTH `## Work Unit Metadata` H2 wrapper (legacy) and the new H1-bounded shape (R58); session-init's branch-pattern
+  fallback aligns with `plan/<name>` rotation per R2; `lib/classification.ts` hardcoded `META-PRD.template.md`
+  filename updates to `PROJECT-PRD.template.md` per R35; `scripts/validate-status-spec.ts` pre-commit hook accepts
+  both legacy and new file-path patterns / State value-sets.
 
-- _Approach:_ Test-first per `strategy-testing-methodology.md`. Sequence subtasks so foundational shifts (State enum
-  codification, filename prefix) land before consumer call-sites; existing tests update incrementally as call-sites
-  flip. Many tests will need fixture updates rather than logic changes — fixtures that hand-author `status-foo.md` with
-  `**State:** In Progress` migrate mechanically to `meta-foo.md` with `**State:** Active`.
+- _Approach:_ Test-first per `strategy-testing-methodology.md`. Each compat-bridge subtask (5.4.a / 5.4.b / 5.4.c /
+  5.4.c' / 5.4.g) ships the compat shim AND explicitly names its paired cleanup task in 6.2.j-n. The cleanup runs
+  after 6.2.a/a'/b migrates this WU's in-flight artifacts; once cleanup lands, the new shape is the only recognized
+  shape.
 
     **Strategies:** `strategy-testing-methodology.md`
 
-    - `[ ]` **5.4.a Codify State value-set in shared schema**
+    - `[ ]` **5.4.a Codify `WorkUnitState` shared type with transitional validator**
         - Locate existing State enum (if present in `frontmatter/`, `manifest/`, or `types.ts`). If absent (currently
           freeform string), introduce a typed enum
           `type WorkUnitState = "Planning" | "Active" | "Integrating" | "Shipped"`.
-        - Export from a shared location so probe code, status-reader, session-init logic, and tests all import from one
-          place. Avoid silent string duplication.
+        - Export from a shared location so probe code, status-reader, session-init logic, and tests all import from
+          one place. Avoid silent string duplication.
+        - **Contract:** `parseStatusFile` continues to return `state: string | null` (verbatim, no validation). A
+          separate validation surface (`validateState(s): WorkUnitState | "unknown"`, or equivalent) handles enum
+          narrowing where needed. The validator accepts BOTH legacy values (`In Progress`, `Complete`, `Paused`,
+          `Superseded`) and new values during the transition window — strict enforcement would break this WU's own
+          state before 6.2.b migrates it. _Cleanup paired with 6.2.j (retire legacy values from the validator)._
 
-    - `[ ]` **5.4.b Update probe envelope sessionType inference**
-        - `packages/arc-framework/src/lib/session-init/` (and any related modules): rewrite the `sessionType` inference
-          logic to map new State values: `Planning` → `planning`; `Active` → `execution`; `Integrating` → `integration`;
-          `Shipped` → `null` (no active session).
+    - `[ ]` **5.4.b Update probe envelope sessionType inference with transitional fast-paths**
+        - `commands/active/status.ts` `inferSessionType`: ADD fast-path arms for the new four-value State enum
+          (`Active → execution`, `Integrating → integration`, `Shipped → null`) alongside the existing
+          `Planning → planning`. Retain the existing structural fall-through (Task-List / Next-Action inference) so
+          this WU's current `In Progress` state continues routing to `execution` until 6.2.b migrates it. The
+          fall-through also serves as defensive forward-compat for unknown State values; cleanup at 6.2.k verifies
+          the fast-paths fire (not the fall-through) for codified values post-migration.
         - Update branch-pattern fallback: from `{category}/plan-{name}` to `plan/{name}` per R2. Branch types in the
           fallback recognize the CB core-6 set.
-        - Vitest unit tests cover each new mapping case + branch-fallback case.
+        - Pre-flight at execution: inventory active branches matching the legacy pattern (`git branch --list
+          '*/plan-*'`); surface any concurrent planning branches that would lose orphan-recovery detection. None
+          expected in this repo at present, but worth confirming before flipping the regex.
+        - Vitest unit tests cover each new mapping case + branch-fallback case + retained fall-through arm.
 
-    - `[ ]` **5.4.c Update active-file resolution for `meta-*` filename**
-        - `lib/active/status-reader.ts` + consumers: change file-glob pattern from `status-*.md` to `meta-*.md`. The
-          `ActiveScanShape = "subdir" | "flat"` plumbing already supports flat `active/` per WOR — verify "flat" becomes
-          the default when project is configured for single-branch-per-WU.
-        - Companion-file resolution (`notes-`, `atomic-`) shifts paths in tandem (companions live alongside meta file
-          under WOR's flat `active/`).
-        - Vitest unit tests cover `meta-*` resolution + missing-meta-file degradation +
-          multiple-candidate disambiguation (under new layout).
+    - `[ ]` **5.4.c Active-file resolution with dual-prefix scan**
+        - `lib/active/status-reader.ts` + consumers: extend the file-glob scan to accept BOTH `status-*.md` and
+          `meta-*.md` during transition. When both filenames exist for the same stem (e.g., `status-foo.md` and
+          `meta-foo.md`), prefer `meta-*.md` — the new shape is canonical once present. Update `FULL_PREFIX` constant
+          accordingly, or introduce a tuple of accepted prefixes.
+        - `ActiveScanShape = "subdir" | "flat"` plumbing already supports flat `active/` per WOR — verify "flat"
+          becomes the default when project is configured for single-branch-per-WU.
+        - Companion-file resolution (`notes-`, `atomic-`) is name-stable across WOR; no prefix change needed.
+        - Vitest unit tests cover `meta-*` resolution + `status-*` legacy resolution + missing-meta-file degradation +
+          dual-presence preference (meta wins). _Cleanup paired with 6.2.l (drop `status-` from accepted prefixes;
+          `meta-` only)._
 
-    - `[ ]` **5.4.d Branch-prefix recognition update**
-        - `lib/classification.ts` work-category recognition: retire `feature/`, `technical/`, `incidental/` prefix
-          recognition; add CB core-6 (`feat/`, `fix/`, `chore/`, `docs/`, `refactor/`, `perf/`) plus `plan/`
-          planning-state prefix.
-        - `commands/active/types.ts`: any `ActiveLayout` or category-type definitions adopt the new convention. If
-          `ActiveLayout` had values like `feature` / `technical`, retire those values; if the layout was purely
-          structural ("subdir" vs "flat" as in `ActiveScanShape`), no value-shape change needed.
-        - Vitest unit tests cover each CB core-6 prefix + `plan/` rotation recognition.
+    - `[ ]` **5.4.c' Reader section-extraction fallback for new H1-bounded shape**
+        - `lib/active/status-reader.ts` `extractMetadataSection` (line 237): extend to support the new shape where
+          the `## Work Unit Metadata` H2 wrapper is retired (per R58, applied at 6.2.a'). Behavior: try
+          `## Work Unit Metadata` first; if absent, treat the H1-bounded preamble (from the file's `# ...` H1 line
+          through the first `## ...` content H2, or end-of-file when no content H2 exists) as the field-bearing
+          region. The bullet-form `extractField` regex (line 251) is already shape-agnostic — only the section
+          boundary needs adjustment.
+        - Without this fallback, 6.2.a' breaks `extractMetadataSection` (returns null), all fields parse as null,
+          sessionType collapses to null, and this WU's session-init treats itself as orphan.
+        - Vitest unit tests cover both shapes (H2-wrapped legacy + H1-bounded new) with full field set. _Cleanup
+          paired with 6.2.m (drop the legacy H2 path; new shape is the only recognized shape)._
+
+    - `[ ]` **5.4.d CLI touch-point refresh (SCAFFOLDED_FILES paths + doc-comment examples)**
+        - **Scope reset (per audit):** The originally-framed "retire `feature/` / `technical/` / `incidental/` prefix
+          recognition" task has no matching code site — branch-prefix recognition isn't encoded as an enum anywhere
+          in the CLI. The status-reader scans subdirs name-agnostically; session-init's branch-pattern fallback uses
+          a generic `^[^/]+\/plan-.+$` regex (updated in 5.4.b). Remaining actual touch points consolidate here.
+        - **Touch points:**
+            - `lib/classification.ts` SCAFFOLDED_FILES (lines 63-64): update
+              `backlog/feature/BACKLOG-FEATURE.template.md` and `backlog/technical/BACKLOG-TECHNICAL.template.md`
+              entries to match the BACKLOG-INBOX consolidation in Phase 6.3.b. Confirm template-render generation
+              is consistent.
+            - `commands/active/types.ts` (line 49): doc-comment example shows `.arc/active/technical/status-foo.md`.
+              Refresh to new shape.
+            - `lib/release/types.ts`: audit at execution; refresh any category-related strings or enums (none
+              expected based on initial grep but verify).
+        - Vitest unit tests cover updated SCAFFOLDED_FILES classification.
 
     - `[ ]` **5.4.e `classification.ts` hardcoded filename update (META-PRD → PROJECT-PRD)**
-        - `packages/arc-framework/src/lib/classification.ts` references `META-PRD.template.md` in the
-          file-classification logic (and possibly in inline doc comments). Update to `PROJECT-PRD.template.md` per R35.
+        - `packages/arc-framework/src/lib/classification.ts` references `META-PRD.template.md` (line 59) in the
+          file-classification logic (and possibly in inline doc comments). Update to `PROJECT-PRD.template.md` per
+          R35.
         - Sync any related test fixtures.
 
     - `[ ]` **5.4.f Bulk test-fixture migration (one commit per logical fixture group)**
         - Fixtures hand-authoring `status-foo.md` migrate to `meta-foo.md`; State values update per the codified
-          value-set. Expect changes across ~28 test files (audit estimate).
-        - Pattern-batch fixture edits: a vitest run failing on `status-` filename references gets the fixture renamed; a
-          failure on `**State:** In Progress` gets the State value updated. Don't enumerate per file in advance — fix
-          the failing test, commit, move on.
+          value-set. Expect changes across ~28 test files (audit estimate). Compat shims (5.4.a/b/c/c'/g) keep most
+          test runs green even while fixtures lag — failure cascade is bounded, not multiplicative.
+        - Pattern-batch fixture edits: a vitest run failing on `status-` filename references gets the fixture
+          renamed; a failure on `**State:** In Progress` gets the State value updated. Don't enumerate per file in
+          advance — fix the failing test, commit, move on.
         - Verify entire test suite passes (`npm test`) before declaring 5.4 complete.
+
+    - `[ ]` **5.4.g Update `validate-status-spec.ts` pre-commit hook with dual-recognition**
+        - `scripts/validate-status-spec.ts` is a pre-commit hook enforcing both file-path classification
+          (`STATUS_PATH` regex, line 28) and State value-set (`VALID_STATES`, lines 33-39). Both shapes flip in Phase
+          6.2 — without transitional support, the migration commit itself can't pass its own pre-commit gate.
+        - **Path pattern:** extend `STATUS_PATH` to recognize BOTH `status-*.md` and `meta-*.md` under
+          `.arc/active/{category}/`. Module + symbol naming can stay or rename to `meta-spec` — pick one shape at
+          this task and let the cleanup at 6.2.n complete the rename if needed.
+        - **State value-set:** extend `VALID_STATES` to accept the union of legacy
+          (`Planning, In Progress, Complete, Paused, Superseded`) and new (`Planning, Active, Integrating, Shipped`)
+          values during transition. Diagnostic messages should reference the union or both sets while compat is in
+          effect.
+        - **Integration field:** `VALID_INTEGRATION_STATES` accepts `Merged` paired with `State: Complete`. Under
+          the new value-set the `**Integration:**` field retires (folds into State per 6.2.b). Retain the legacy arm
+          during transition; cleanup at 6.2.n retires `VALID_INTEGRATION_STATES` and the paired validation entirely.
+        - Vitest unit + integration tests cover dual-recognition; fixture updates couple with 5.4.f. _Cleanup paired
+          with 6.2.n (retire legacy halves of all three: STATUS_PATH, VALID_STATES, VALID_INTEGRATION_STATES)._
 
 ### `[ ]` **5.5 CLI seeding update for R65 user/ workspace layout**
 
@@ -2383,6 +2460,59 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
         - Sync to `packages/arc-framework/arc/system/githooks/commit-msg` + the renamed method.
         - Smoke test: re-run 6.2.f's smoke suite; verify positive cases now use `meta-` shape and negative cases include
           old `status-` prefix as a rejected pattern.
+
+    - `[ ]` **6.2.j Cleanup: retire legacy State values from validation surface (paired with 5.4.a)**
+        - `validateState` (codified in 5.4.a) accepts BOTH legacy values (`In Progress`, `Complete`, `Paused`,
+          `Superseded`) and new values during the transition window. Once 6.2.b completes the in-flight meta-file State
+          recodification, the legacy values are no longer present in any in-flight artifact — the legacy half is dead.
+        - Drop legacy values from the validator's accepted set; assert the new four-value enum
+          (`Planning, Active, Integrating, Shipped`) is exhaustive. Diagnostic messages prune accordingly.
+        - Tests: drop legacy-state test cases; add a negative test asserting `In Progress` (and other retired values)
+          now resolve to `"unknown"`.
+        - _Sequencing:_ Runs after 6.2.b (this WU's meta file carries the new State value).
+
+    - `[ ]` **6.2.k Cleanup: verify sessionType fast-paths fire; narrow fall-through doc (paired with 5.4.b)**
+        - `commands/active/status.ts` `inferSessionType` (modified in 5.4.b) gained fast-path arms for the new
+          four-value State enum alongside the existing `Planning → planning`. The structural fall-through (Task-List /
+          Next-Action inference) was retained so this WU's `In Progress` continued routing to `execution` during
+          transition.
+        - Cleanup work: verify the fast-path arms fire for codified State values post-6.2.b; the fall-through should
+          now exercise only on unknown State values (defensive forward-compat + tolerant parsing). Add a clarifying
+          doc-comment to the function explaining the fall-through's narrowed role post-WOR. Tests: assert each
+          codified value routes through its fast-path arm; assert unknown values resolve via the fall-through (not
+          via accidental match elsewhere).
+        - _Sequencing:_ Runs after 6.2.b.
+
+    - `[ ]` **6.2.l Cleanup: drop `status-*.md` prefix from active-file scan (paired with 5.4.c)**
+        - `lib/active/status-reader.ts` (modified in 5.4.c) accepts BOTH `status-*.md` and `meta-*.md` during
+          transition. Once 6.2.a renames this WU's status file to `meta-*.md` and 6.5 cleans up any leaked
+          `status-*.md` files on `main`'s `active/`, the legacy prefix is no longer reachable from any in-flight or
+          tracked surface.
+        - Restore `FULL_PREFIX` (or equivalent constant) to `meta-` only; drop the dual-prefix scan logic and any
+          dual-presence preference handling. Tests: remove legacy-prefix test cases.
+        - _Sequencing:_ Runs after 6.2.a AND 6.5 (defensive — both surfaces clear before the compat code retires).
+
+    - `[ ]` **6.2.m Cleanup: drop `## Work Unit Metadata` H2 fallback in section extraction (paired with 5.4.c')**
+        - `lib/active/status-reader.ts` `extractMetadataSection` (modified in 5.4.c') accepts BOTH the legacy
+          H2-wrapped shape and the new H1-bounded shape. Once 6.2.a' restructures this WU's meta file to the new
+          shape, the H2 fallback is dead code.
+        - Drop the H2-wrapper detection path; require H1-bounded preamble. Tests: remove legacy-shape test cases.
+        - _Sequencing:_ Runs after 6.2.a' (this WU's meta file uses the new shape).
+
+    - `[ ]` **6.2.n Cleanup: retire dual-recognition in `validate-status-spec.ts` (paired with 5.4.g)**
+        - `scripts/validate-status-spec.ts` (modified in 5.4.g) accepts BOTH file-path patterns and BOTH State
+          value-sets during transition. Once 6.2.a + 6.2.b complete the in-flight migration, the legacy halves are
+          unreachable from valid in-flight artifacts.
+        - **Path pattern:** drop `status-*.md` from the path classifier; rename the regex constant and surrounding
+          identifiers to `META_PATH` / `meta-spec` shape (module + exported symbol rename completes here if not
+          done at 5.4.g). Sync hook wiring if the entry-point path changes.
+        - **State value-set:** trim `VALID_STATES` to the new four-value enum
+          (`Planning, Active, Integrating, Shipped`).
+        - **Integration field:** retire `VALID_INTEGRATION_STATES` and the `**Integration:** Merged` validation
+          entirely — folded into `State: Shipped` / `State: Integrating` per 6.2.b.
+        - Tests: drop legacy-state and legacy-path fixtures; assert legacy patterns now produce the expected
+          diagnostic.
+        - _Sequencing:_ Runs after 6.2.a + 6.2.b.
 
 ### `[ ]` **6.3 Migrate capture pipeline files + user/ workspace to R65 layout**
 
