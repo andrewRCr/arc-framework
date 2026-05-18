@@ -87,7 +87,7 @@ describe("session-init E2E — sessionType across type variants", () => {
     );
     await execFileAsync(
       "git",
-      ["checkout", "-b", "technical/plan-foo"],
+      ["checkout", "-b", "plan/foo"],
       { cwd: tmpDir },
     );
 
@@ -102,7 +102,7 @@ describe("session-init E2E — sessionType across type variants", () => {
   });
 
   it("emits sessionType=null when resolution=none + branch does not match plan-pattern (orphan)", async () => {
-    // Default branch from `git init` does not match `{category}/plan-{name}` —
+    // Default branch from `git init` does not match `plan/<name>` —
     // no candidate, no planning branch → null per the orphan-fallback rule.
     const result = await runArc(["status", "--session-init", "--json"], tmpDir);
     expect(result.exitCode).toBe(0);

@@ -37,37 +37,84 @@ describe("inferSessionType — State-based primary", () => {
   });
 });
 
+describe("inferSessionType — codified State fast-paths", () => {
+  it("returns integration when State is `Integrating` regardless of Task-List / Next-Action", () => {
+    expect(
+      inferSessionType("Integrating", "tasks-foo.md", "Start Task 4.2", "feature/foo"),
+    ).toBe("integration");
+  });
+
+  it("returns integration when State is `Integrating` even with `[none]` Task-List", () => {
+    expect(
+      inferSessionType("Integrating", "[none]", "anything", "feature/foo"),
+    ).toBe("integration");
+  });
+
+  it("returns null when State is `Shipped` regardless of Task-List / Next-Action", () => {
+    expect(
+      inferSessionType("Shipped", "tasks-foo.md", "integrate-work-unit Step 7", "feature/foo"),
+    ).toBeNull();
+  });
+});
+
+describe("inferSessionType — Active falls through (phase, not session-type)", () => {
+  it("routes Active + integrate-Next-Action to integration via the fall-through arm", () => {
+    expect(
+      inferSessionType(
+        "Active",
+        "tasks-foo.md",
+        "integrate-work-unit Step 3 — open PR",
+        "feature/foo",
+      ),
+    ).toBe("integration");
+  });
+
+  it("routes Active + Start-Task Next-Action to execution via the fall-through arm", () => {
+    expect(
+      inferSessionType("Active", "tasks-foo.md", "Start Task 4.2", "feature/foo"),
+    ).toBe("execution");
+  });
+
+  it("routes Active + null Task-List to planning via the fall-through arm", () => {
+    expect(
+      inferSessionType("Active", null, "Plan next phase", "feature/foo"),
+    ).toBe("planning");
+  });
+});
+
 describe("inferSessionType — branch-pattern fallback when State is empty", () => {
-  it("returns planning when State is null and branch matches plan-pattern", () => {
-    expect(inferSessionType(null, null, null, "technical/plan-foo")).toBe("planning");
+  it("returns planning when State is null and branch matches `plan/<name>`", () => {
+    expect(inferSessionType(null, null, null, "plan/foo")).toBe("planning");
   });
 
-  it("returns planning when State is empty string and branch matches plan-pattern", () => {
-    expect(inferSessionType("", null, null, "technical/plan-foo")).toBe("planning");
+  it("returns planning when State is empty string and branch matches `plan/<name>`", () => {
+    expect(inferSessionType("", null, null, "plan/foo")).toBe("planning");
   });
 
-  it("returns planning when State is whitespace-only and branch matches plan-pattern", () => {
-    expect(inferSessionType("   ", null, null, "technical/plan-foo")).toBe("planning");
+  it("returns planning when State is whitespace-only and branch matches `plan/<name>`", () => {
+    expect(inferSessionType("   ", null, null, "plan/foo")).toBe("planning");
   });
 
-  it("matches plan-pattern with feature category prefix", () => {
-    expect(inferSessionType(null, null, null, "feature/plan-bar")).toBe("planning");
+  it("does not recognize legacy `<category>/plan-<name>` shape (CB core-6 alignment)", () => {
+    expect(inferSessionType(null, null, null, "feature/plan-bar")).toBeNull();
+    expect(inferSessionType(null, null, null, "technical/plan-foo")).toBeNull();
   });
 
-  it("returns null when State is empty and branch does not match plan-pattern", () => {
+  it("does not recognize CB core-6 execution-branch prefixes as planning", () => {
     expect(inferSessionType(null, null, null, "feature/foo")).toBeNull();
+    expect(inferSessionType(null, null, null, "technical/foo")).toBeNull();
   });
 
   it("returns null when State is empty and branch is null (detached HEAD)", () => {
     expect(inferSessionType(null, null, null, null)).toBeNull();
   });
 
-  it("does not match plan-name without category prefix", () => {
+  it("does not match plain `plan-foo` (no slash separator)", () => {
     expect(inferSessionType(null, null, null, "plan-foo")).toBeNull();
   });
 
-  it("does not match plain `plan` without trailing name segment", () => {
-    expect(inferSessionType(null, null, null, "feature/plan-")).toBeNull();
+  it("does not match bare `plan/` without a trailing name segment", () => {
+    expect(inferSessionType(null, null, null, "plan/")).toBeNull();
   });
 });
 

@@ -2245,31 +2245,26 @@ at 5.4.f.
           worktree-roster `"Bogus"` test still passes against the new validator.
         - _Cleanup paired with 6.2.j (retire legacy values from the validator)._
 
-    - `[ ]` **5.4.b Update probe envelope sessionType inference with transitional fast-paths**
-        - `commands/active/status.ts` `inferSessionType`: ADD fast-path arms for the _unambiguous_ codified State
-          values only — `Integrating → integration` and `Shipped → null` — at the top of the precedence,
-          alongside the existing `Planning → planning`. `Active` does NOT fast-path: it falls through to the
-          existing Task-List / Next-Action logic so `State: Active + Next-Action: integrate-work-unit` correctly
-          routes to integration (no token-wasteful load of process-task-loop when the session is actually about
-          to integrate).
-        - **Precedence model:** State signals the WU's broad phase; Next-Action signals what THIS session is
-          about to do. `Integrating` and `Shipped` are unambiguous (State alone is decisive). `Active` is a
-          phase, not a session-type — Next-Action disambiguates within Active (Task-List `[none]` → planning;
-          Next-Action `integrate-*` → integration; else execution).
-        - Retain the existing structural fall-through (Task-List / Next-Action inference) so this WU's current
-          `In Progress` state continues routing to `execution` until 6.2.b migrates it. The fall-through also
-          serves as defensive forward-compat for unknown State values; cleanup at 6.2.k verifies the
-          Integrating/Shipped fast-paths fire for codified values and the Active fall-through still resolves
-          Next-Action correctly.
-        - Update branch-pattern fallback regex: from `^[^/]+\/plan-.+$` to `^plan\/.+$` per R2. The new regex
-          matches only `plan/<name>` — CB core-6 execution branches correctly fall through to null (no CB-set
-          encoding needed; specificity of the regex is the mechanism).
-        - Pre-flight at execution: inventory active branches matching the legacy pattern (`git branch --list
-          '*/plan-*'`); surface any concurrent planning branches that would lose orphan-recovery detection. None
-          expected in this repo at present, but worth confirming before flipping the regex.
-        - Vitest unit tests cover each new mapping case (Integrating, Shipped) + Active + integrate-Next-Action
-          routes to integration + branch-fallback `plan/<name>` matches / CB core-6 doesn't + retained
-          fall-through arm for non-codified States.
+    - `[x]` **5.4.b Update probe envelope sessionType inference with transitional fast-paths**
+        - `commands/active/status.ts` `inferSessionType` gained `Integrating → integration` and
+          `Shipped → null` fast-path arms above the existing `Planning → planning` check. `Active`, legacy
+          values (`In Progress`, `Paused`, `Complete`, `Superseded`), and unknown States continue through
+          the existing Task-List / Next-Action structural inference — preserving correct routing for this
+          WU's current `In Progress` state until 6.2.b migrates it and serving as defensive forward-compat
+          for any future unrecognized State.
+        - `PLANNING_BRANCH_PATTERN` flipped from `/^[^/]+\/plan-.+$/` to `/^plan\/.+$/` per R2. CB core-6
+          execution branches (`feature/foo`, `technical/foo`) now correctly fall through to `null` at the
+          branch-pattern fallback — specificity replaces the prior enumerated-category approach.
+        - **Pre-flight:** `git branch -a --list '*/plan-*' '*plan/*'` returned empty on this repo — no
+          legacy planning branches to surface, no orphan-recovery regression risk.
+        - 7 new vitest unit tests added to `session-type.test.ts` (`Integrating` / `Shipped` fast-paths
+          with `[none]` Task-List or integrate-Next-Action signals; Active-falls-through across
+          integrate-Next-Action, Start-Task, and null-Task-List; new branch pattern matches `plan/<name>`
+          and rejects legacy `<category>/plan-<name>` + CB core-6 prefixes; `plan/` bare and `plan-foo`
+          without slash both reject). Three integration fixtures + one e2e fixture updated from
+          `technical/plan-foo` to `plan/foo` to reflect the codified branch convention. Function JSDoc
+          rewritten to reflect the new precedence; cleanup at 6.2.k verifies fast-paths against codified
+          values post-6.2.b migration.
 
     - `[ ]` **5.4.c Active-file resolution with dual-prefix scan + flat-layout auto-detection**
         - `lib/active/status-reader.ts` + consumers: extend the file-glob scan to accept BOTH `status-*.md` and

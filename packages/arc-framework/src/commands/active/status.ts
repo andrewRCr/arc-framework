@@ -48,28 +48,39 @@ const TASK_LIST_PLANNING_VALUES = new Set(["[none]", "[none associated]"]);
 const INTEGRATION_WORKFLOW_PREFIX = /^(integrate-work-unit|archive-work-unit)\b(?!-)/i;
 
 /**
- * Branch-name pattern signaling a planning session: `{category}/plan-{name}`.
+ * Branch-name pattern signaling a planning session: `plan/<name>`.
  * Used as the fallback signal when no status file is present (orphan case)
- * or its `**State:**` is unset/empty (in-flight pre-migration files).
+ * or its `**State:**` is unset/empty (in-flight pre-migration files). The
+ * narrow `plan/` prefix (not `<category>/plan-<name>`) intentionally fails
+ * to match CB core-6 execution branches (`feature/foo`, `technical/foo`,
+ * etc.) — specificity replaces an enumerated category list.
  */
-const PLANNING_BRANCH_PATTERN = /^[^/]+\/plan-.+$/;
+const PLANNING_BRANCH_PATTERN = /^plan\/.+$/;
 
 /**
  * Infer session type from a resolved candidate's status fields.
  *
  * Rules (precedence top-down):
  *
- * - `**State:**` is exactly `Planning` (case-exact) → `planning`
+ * - **Unambiguous codified States fast-path** (State alone is decisive):
+ *     - `Planning` (case-exact) → `planning`
+ *     - `Integrating` → `integration`
+ *     - `Shipped` → `null`
  * - `**State:**` is unset/empty (whitespace-only) → branch-pattern fallback:
- *   `currentBranch` matches `{category}/plan-{name}` → `planning`; otherwise `null`
- * - Non-`Planning` `**State:**` falls through to existing Task List / Next Action logic:
+ *   `currentBranch` matches `plan/<name>` → `planning`; otherwise `null`.
+ * - All other States — `Active` (codified phase, not session-type), legacy
+ *   values (`In Progress`, `Paused`, `Complete`, `Superseded`), unknown — fall
+ *   through to Task-List / Next-Action inference:
  *     - `**Task List:**` is `[none]` / `[none associated]` / missing → `planning`
  *     - `**Next Action:**` matches `^(integrate-work-unit|archive-work-unit)\b` → `integration`
  *     - Otherwise → `execution`
  *
- * The State-based primary preserves behavior for in-flight pre-migration files (covers
- * parenthetical-suffix States like `Paused (2026-04-12)` via the fall-through). Caller
- * handles the `multiple` (deferred → null) case at `classifyResolution`.
+ * `Active` deliberately does NOT fast-path because it's a phase signal, not a
+ * session-type signal: `State: Active + Next-Action: integrate-work-unit`
+ * routes to integration via the Next-Action arm. The fall-through also serves
+ * as defensive forward-compat for unrecognized State values.
+ *
+ * Caller handles the `multiple` (deferred → null) case at `classifyResolution`.
  */
 export function inferSessionType(
   state: string | null,
@@ -78,6 +89,8 @@ export function inferSessionType(
   currentBranch: string | null,
 ): SessionType | null {
   if (state === "Planning") return "planning";
+  if (state === "Integrating") return "integration";
+  if (state === "Shipped") return null;
   if (state === null || state.trim() === "") {
     return inferFromBranchPattern(currentBranch);
   }

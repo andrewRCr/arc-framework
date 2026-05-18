@@ -571,7 +571,7 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
   it("emits sessionType=planning when resolution=none + branch matches plan-pattern", async () => {
     const result = await runActiveSessionInitStatus({
       cwd: fixture.root,
-      exec: stubGitExec("technical/plan-foo"),
+      exec: stubGitExec("plan/foo"),
     });
     expect(result.resolution).toBe("none");
     expect(result.sessionType).toBe("planning");
@@ -713,7 +713,7 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
       cwd: fixture.root,
       identity: null,
       role: "contributor",
-      exec: stubGitExec("technical/plan-foo"),
+      exec: stubGitExec("plan/foo"),
     });
     expect(result.resolution).toBe("none");
     expect(result.sessionType).toBe("planning");
@@ -741,11 +741,11 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
     await mkdir(sub, { recursive: true });
     await writeFile(
       join(sub, "status-foo.md"),
-      statusBody({ state: "", branch: "technical/plan-foo" }),
+      statusBody({ state: "", branch: "plan/foo" }),
     );
     const result = await runActiveSessionInitStatus({
       cwd: fixture.root,
-      exec: stubGitExec("technical/plan-foo"),
+      exec: stubGitExec("plan/foo"),
     });
     expect(result.resolution).toBe("single");
     expect(result.sessionType).toBe("planning");
