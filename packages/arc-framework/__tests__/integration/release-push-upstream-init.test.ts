@@ -48,13 +48,13 @@ async function createRepoOnFreshBranch(branch: string): Promise<string> {
   await execFileAsync("git", ["checkout", "-b", branch], { cwd: root });
   await mkdir(join(root, ".arc", "active", "technical"), { recursive: true });
   await writeFile(
-    join(root, ".arc", "active", "technical", "status-sample.md"),
+    join(root, ".arc", "active", "technical", "meta-sample.md"),
     [
       "# Status: Sample",
       "",
       "## Work Unit Metadata",
       "",
-      "- **State:** In Progress",
+      "- **State:** Active",
       `- **Branch:** ${branch}`,
       "- **Task List:** `tasks-sample.md`",
       "",

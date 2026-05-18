@@ -46,7 +46,7 @@ async function createFixture(): Promise<Fixture> {
   return { root };
 }
 
-function statusBody(state = "In Progress"): string {
+function statusBody(state = "Active"): string {
   return [
     "# Status: Sample",
     "",
@@ -66,7 +66,7 @@ async function writeStatus(
 ): Promise<void> {
   const dir = join(root, ".arc", "active", category);
   await mkdir(dir, { recursive: true });
-  await writeFile(join(dir, `status-${name}.md`), statusBody());
+  await writeFile(join(dir, `meta-${name}.md`), statusBody());
 }
 
 interface SettingsOverrides {
