@@ -229,6 +229,13 @@ After push, the PR is ready for merge per `merge.strategy` in [`arc-config.yml`]
 gh pr merge {pr-number} --merge   # or --squash / --rebase per config
 ```
 
+Post-merge, retire the per-WU user workspace subdir (filesystem op only, no git ops —
+contents are gitignored):
+
+```bash
+arc user close {name}
+```
+
 ---
 
 ## Next step

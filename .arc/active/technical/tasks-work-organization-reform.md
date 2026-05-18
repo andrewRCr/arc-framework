@@ -2522,13 +2522,15 @@ at 5.4.g.
           tests build their own recipe stubs locally and aren't affected; updating them belongs
           with the broader R50 BACKLOG-INBOX migration sweep.
 
-    - `[ ]` **5.6.e Workflow wiring for `arc user open` / `arc user close`**
-        - `activate-work-unit.md` (post-branch-rename step): invoke `arc user open <wu-name>`.
-        - `init-work-unit.md` (planning-branch step): invoke `arc user open <wu-name>`.
-        - `integrate-work-unit.md` (post-merge step): invoke `arc user close <wu-name>`.
-        - Both copies: `.arc/system/workflows/` + `packages/arc-framework/arc/system/workflows/` (per
-          `strategy-package-project-sync.md`). Inline Bash invocations — no class-tag or push-extension
-          marker (not push fire-points).
+    - `[x]` **5.6.e Workflow wiring for `arc user open` / `arc user close`**
+        - Six edits across three workflows × two copies (.arc/ + packages/arc-framework/arc/) wire
+          `arc user open {name}` at `init-work-unit.md` Step 2 (post planning-branch create) and
+          `activate-work-unit.md` Step 5 (post branch rename), and `arc user close {name}` at
+          `integrate-work-unit.md` Step 13 (post-merge `gh pr merge`). Plain bash codeblocks with brief
+          explanatory prose — no class-tag (not commit fire-points), no push-extension marker (not push
+          fire-points). Activate's call is idempotent on init's prior invocation, covering paths that
+          skipped init. Byte-parity verified between copies post-edit; Tier 1 markdown lint clean across
+          the six files.
 
     - `[ ]` **5.6.f Reader-path migration (SESSION-NOTES + contributor-meta path)**
         - Update SESSION-NOTES reader sites to `user/{identity}/<wu-name>/SESSION-NOTES.md`:

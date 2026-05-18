@@ -50,6 +50,14 @@ git checkout -b plan/{name}
 
 Use the planning life-phase prefix per [`branch-format`][branch-format] method.
 
+Open the per-WU user workspace subdir (creates `user/{identity}/{name}/` and seeds
+SESSION-NOTES.md from template; defensive prompt fires if a stale subdir from a prior WU
+exists):
+
+```bash
+arc user open {name}
+```
+
 ### 3) Move Plan-Doc to Active · `arc-in-git` only
 
 > **Skip this step** if `pm.mode` is `none` or `external`. Skip also if no plan-doc exists in

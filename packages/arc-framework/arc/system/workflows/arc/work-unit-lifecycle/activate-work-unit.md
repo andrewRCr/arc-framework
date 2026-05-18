@@ -99,6 +99,13 @@ git push origin --delete plan/{name}        # raw — destructive flag stays lit
 deletion stays as raw `git`. See [Work Organization Strategy § Branching][work-org-branching] for the rename's
 role in the WU lifecycle.
 
+Reaffirm the per-WU user workspace subdir (idempotent on prior `init-work-unit` invocation;
+covers paths that activated without going through `init-work-unit` first):
+
+```bash
+arc user open {name}
+```
+
 ### 6) Absorption write · `arc-in-git` only
 
 > **Skip this step** under `pm.mode: none` or `external`.
