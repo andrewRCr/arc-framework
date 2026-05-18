@@ -2448,24 +2448,25 @@ at 5.4.g.
 
     **Strategies:** `strategy-testing-methodology.md`, `strategy-package-project-sync.md`
 
-    - `[ ]` **5.6.a Implement `arc user open <wu-name>` helper**
-        - New command at `packages/arc-framework/src/commands/user/open.ts`. Creates `user/{identity}/<wu-name>/`
-          if absent, seeds `SESSION-NOTES.md` inside from `templates/user/SESSION-NOTES.md`. Defensive prompt
-          (per R65c) when a stale subdir for a different WU is found — `Stale subdir user/{identity}/<stale>/
-          from prior WU. Remove? (y / inspect)`. `inspect` lists subdir contents (likely a stale SESSION-NOTES
-          with potentially-valuable context) and re-prompts; `y` removes and proceeds. Idempotent when the
-          target subdir already exists for the same WU.
-
-            **Build `test-first` (one behavior at a time):**
-
-            - Path computation (`user/{identity}/<wu-name>/` derived correctly from inputs)
-            - Subdir creation when absent (idempotent — second invocation no-ops)
-            - SESSION-NOTES seeded from template into the subdir
-            - Defensive-prompt fires on stale-subdir for a different WU
-            - `inspect` lists subdir contents and re-prompts
-            - `y` removes stale subdir and proceeds to creation
-            - Missing identity surfaces a clear error
-        - Wire into `arc user` namespace alongside existing `add` / `pull` / etc.
+    - `[x]` **5.6.a Implement `arc user open <wu-name>` helper**
+        - `commands/user/open.ts` exports `runUserOpen` (ensures `user/{identity}/<wu-name>/`,
+          seeds `SESSION-NOTES.md` from `templates/user/SESSION-NOTES.md` when absent; idempotent
+          on re-invocation — existing seed preserved) plus three helpers for the handler's
+          defensive-prompt loop: `findStaleUserWuSubdirs` (derives non-target subdirs from the
+          recursive `io.readDir` output), `listUserWuSubdirContents`, and
+          `removeStaleUserWuSubdir`. New options type `UserOpenOptions` co-located in
+          `commands/user/types.ts`; re-exports added to `commands/user.ts`.
+        - `handleUserOpen` in `handlers/user.ts` runs the defensive prompt per stale subdir
+          (`y` removes via `removeStaleUserWuSubdir` then proceeds; `inspect` lists contents via
+          `p.note` and re-prompts; cancel aborts with `Open cancelled.`). Wired into `arc user`
+          namespace at `cli.ts` as `open <wu-name>`. Identity missing short-circuits before the
+          stale-subdir scan, via `resolveUserIdentity`'s `UserFacingError` path.
+        - Test split per `strategy-testing-methodology.md`: pure logic test-first at integration
+          tier (6 cases — SESSION-NOTES seeding at the computed path, idempotent re-invocation,
+          stale-subdir enumeration sorted / empty, contents-listing, recursive removal); handler
+          orchestration test-after at unit tier (5 cases — no-stale happy path, defensive prompt
+          fires, `inspect` re-prompts with contents, `y` removes-then-opens, identity-missing
+          short-circuits before any stale scan or `runUserOpen` call).
 
     - `[ ]` **5.6.b Implement `arc user close <wu-name>` helper**
         - New command at `packages/arc-framework/src/commands/user/close.ts`. Removes `user/{identity}/<wu-name>/`

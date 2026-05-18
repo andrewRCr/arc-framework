@@ -135,6 +135,15 @@ export interface UserAddOptions {
   pmMode: string;
 }
 
+/** Options for the open operation (per-WU user workspace subdir). */
+export interface UserOpenOptions {
+  cwd: string;
+  io: UserIOContext;
+  identity: string;
+  wuName: string;
+  internalTemplateDir: string;
+}
+
 /** Options for the push operation. */
 export interface UserPushOptions {
   io: UserIOContext;

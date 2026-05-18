@@ -7,6 +7,12 @@
 
 export { runUserAdd } from "./user/add.js";
 export {
+  findStaleUserWuSubdirs,
+  listUserWuSubdirContents,
+  removeStaleUserWuSubdir,
+  runUserOpen,
+} from "./user/open.js";
+export {
   clearPartialPushMarker,
   findNearestUserNote,
   hashSyncManifest,
@@ -53,6 +59,7 @@ export {
   type UserLoadOptions,
   type UserLoadResult,
   type UserLoadWalkExhausted,
+  type UserOpenOptions,
   type PairedPushLegOutcome,
   type PairedPushNotesContext,
   type PairedPushNotesOutcome,

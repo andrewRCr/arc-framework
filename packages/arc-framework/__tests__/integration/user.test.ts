@@ -27,6 +27,10 @@ import {
   runUserSave,
   runUserLoad,
   runUserAdd,
+  runUserOpen,
+  findStaleUserWuSubdirs,
+  listUserWuSubdirContents,
+  removeStaleUserWuSubdir,
   runUserPush,
   runUserPull,
   runUserSessionInitStatus,
@@ -1449,5 +1453,120 @@ describe("user status", () => {
     ).toBe(false);
     // No worktree probe was invoked, so the field is omitted.
     expect(result.worktree).toBeUndefined();
+  });
+});
+
+describe("user open", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await initInTempRepo(DEFAULT_PROMPTS, "test-user");
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tempDir);
+  });
+
+  it("seeds SESSION-NOTES.md from template into user/{identity}/{wuName}/", async () => {
+    const io = makeUserIO(tempDir);
+
+    await runUserOpen({
+      cwd: tempDir,
+      io,
+      identity: "test-user",
+      wuName: "feature-x",
+      internalTemplateDir: getInternalTemplatePath(),
+    });
+
+    const sessionNotes = await readFile(
+      join(tempDir, ".arc", "user", "test-user", "feature-x", "SESSION-NOTES.md"),
+      "utf-8",
+    );
+    expect(sessionNotes).toContain("Session Notes");
+  });
+
+  it("idempotent on second invocation — preserves existing SESSION-NOTES edits", async () => {
+    const io = makeUserIO(tempDir);
+
+    await runUserOpen({
+      cwd: tempDir,
+      io,
+      identity: "test-user",
+      wuName: "feature-x",
+      internalTemplateDir: getInternalTemplatePath(),
+    });
+
+    const seedPath = join(tempDir, ".arc", "user", "test-user", "feature-x", "SESSION-NOTES.md");
+    const customContent = "# Custom session notes\n\nIn-flight edits.\n";
+    await writeFile(seedPath, customContent, "utf-8");
+
+    await runUserOpen({
+      cwd: tempDir,
+      io,
+      identity: "test-user",
+      wuName: "feature-x",
+      internalTemplateDir: getInternalTemplatePath(),
+    });
+
+    expect(await readFile(seedPath, "utf-8")).toBe(customContent);
+  });
+
+  it("findStaleUserWuSubdirs returns other WU subdirs sorted, excluding the target", async () => {
+    const io = makeUserIO(tempDir);
+    const tplDir = getInternalTemplatePath();
+
+    await runUserOpen({ cwd: tempDir, io, identity: "test-user", wuName: "alpha", internalTemplateDir: tplDir });
+    await runUserOpen({ cwd: tempDir, io, identity: "test-user", wuName: "bravo", internalTemplateDir: tplDir });
+
+    const stale = await findStaleUserWuSubdirs({
+      cwd: tempDir, io, identity: "test-user", wuName: "alpha",
+    });
+    expect(stale).toEqual(["bravo"]);
+  });
+
+  it("findStaleUserWuSubdirs returns [] when no other WU subdirs exist", async () => {
+    const io = makeUserIO(tempDir);
+
+    await runUserOpen({
+      cwd: tempDir, io, identity: "test-user", wuName: "alpha",
+      internalTemplateDir: getInternalTemplatePath(),
+    });
+
+    const stale = await findStaleUserWuSubdirs({
+      cwd: tempDir, io, identity: "test-user", wuName: "alpha",
+    });
+    expect(stale).toEqual([]);
+  });
+
+  it("listUserWuSubdirContents returns the subdir's file entries", async () => {
+    const io = makeUserIO(tempDir);
+
+    await runUserOpen({
+      cwd: tempDir, io, identity: "test-user", wuName: "alpha",
+      internalTemplateDir: getInternalTemplatePath(),
+    });
+
+    const entries = await listUserWuSubdirContents({
+      cwd: tempDir, io, identity: "test-user", subdir: "alpha",
+    });
+    expect(entries.map((e) => e.name)).toContain("SESSION-NOTES.md");
+  });
+
+  it("removeStaleUserWuSubdir removes the subdir recursively", async () => {
+    const io = makeUserIO(tempDir);
+
+    await runUserOpen({
+      cwd: tempDir, io, identity: "test-user", wuName: "alpha",
+      internalTemplateDir: getInternalTemplatePath(),
+    });
+
+    const staleSeed = join(tempDir, ".arc", "user", "test-user", "alpha", "SESSION-NOTES.md");
+    await expect(readFile(staleSeed, "utf-8")).resolves.toBeTruthy();
+
+    await removeStaleUserWuSubdir({
+      cwd: tempDir, identity: "test-user", subdir: "alpha",
+    });
+
+    await expect(readFile(staleSeed, "utf-8")).rejects.toThrow();
   });
 });

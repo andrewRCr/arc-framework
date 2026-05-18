@@ -9,11 +9,13 @@ import { access } from "node:fs/promises";
 import * as p from "@clack/prompts";
 
 import {
+  findStaleUserWuSubdirs, listUserWuSubdirContents, removeStaleUserWuSubdir, runUserOpen,
   runUserSave, runUserLoad, runUserAdd, runUserPush, runUserFetch, runUserPull,
   runUserSessionInitStatus, runUserStatus,
   buildSaveSummary, buildLoadSummary, buildUserSessionInitStatusSummary, buildUserStatusSummary,
   hasLocalNotes,
   UserPushBlockedError,
+  type UserIOContext,
 } from "../commands/user.js";
 import { isRefusalCondition, slugifyIdentity } from "../lib/git/index.js";
 import { formatError, UserFacingError, type ArcErrorCode } from "../lib/errors.js";
@@ -77,6 +79,89 @@ export async function handleUserAdd(rawIdentity: string): Promise<void> {
   }
 
   p.outro("Done.");
+}
+
+// --- Open ---
+
+/**
+ * Open a per-WU user workspace subdir at `user/{identity}/{wuName}/`. Surfaces
+ * stale subdirs from prior WUs via a defensive prompt before opening — `y`
+ * removes and proceeds, `inspect` lists contents and re-prompts.
+ */
+export async function handleUserOpen(wuName: string): Promise<void> {
+  p.intro("arc user open");
+  const output = createSyncOutput(false);
+
+  let identity: string;
+  try {
+    identity = await resolveUserIdentity();
+  } catch (err) {
+    if (isHandledError(err)) return;
+    throw err;
+  }
+
+  const io = createUserIOContext();
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
+
+  const staleSubdirs = await findStaleUserWuSubdirs({ cwd, io, identity, wuName });
+  for (const stale of staleSubdirs) {
+    const resolved = await promptStaleSubdir({ cwd, io, identity, stale });
+    if (!resolved) {
+      p.log.info("Open cancelled.");
+      return;
+    }
+  }
+
+  try {
+    await runWithSpinner(
+      output,
+      `Opening user workspace for ${wuName}...`,
+      () => runUserOpen({
+        cwd, io, identity, wuName, internalTemplateDir: getInternalTemplatePath(),
+      }),
+      `User workspace opened at user/${identity}/${wuName}/.`,
+    );
+  } catch (err) {
+    if (isHandledError(err)) return;
+    throw err;
+  }
+
+  p.outro("Done.");
+}
+
+async function promptStaleSubdir(options: {
+  cwd: string;
+  io: UserIOContext;
+  identity: string;
+  stale: string;
+}): Promise<boolean> {
+  const { cwd, io, identity, stale } = options;
+  // y removes and resolves the collision; inspect lists contents and re-prompts;
+  // cancel (ctrl-C) returns false and aborts the open.
+  for (;;) {
+    const choice = await p.select({
+      message: `Stale subdir user/${identity}/${stale}/ from prior WU. Remove?`,
+      options: [
+        { value: "y", label: "y — remove and proceed" },
+        { value: "inspect", label: "inspect — list subdir contents" },
+      ],
+    });
+    if (p.isCancel(choice)) return false;
+    if (choice === "y") {
+      await removeStaleUserWuSubdir({ cwd, identity, subdir: stale });
+      return true;
+    }
+    const entries = await listUserWuSubdirContents({ cwd, io, identity, subdir: stale });
+    if (entries.length === 0) {
+      p.log.info(`(user/${identity}/${stale}/ is empty)`);
+    } else {
+      p.note(
+        entries.map((e) => `  ${e.name} (${e.size} bytes)`).join("\n"),
+        `Contents of user/${identity}/${stale}/`,
+      );
+    }
+  }
 }
 
 // --- Save ---

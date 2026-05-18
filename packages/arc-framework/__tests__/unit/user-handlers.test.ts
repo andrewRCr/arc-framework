@@ -37,6 +37,10 @@ const mockRunUserFetch = vi.fn();
 const mockRunUserPull = vi.fn();
 const mockRunUserLoad = vi.fn();
 const mockRunUserAdd = vi.fn();
+const mockRunUserOpen = vi.fn();
+const mockFindStaleUserWuSubdirs = vi.fn();
+const mockListUserWuSubdirContents = vi.fn();
+const mockRemoveStaleUserWuSubdir = vi.fn();
 const mockRunUserStatus = vi.fn();
 const mockRunUserSessionInitStatus = vi.fn();
 const mockHasLocalNotes = vi.fn();
@@ -58,6 +62,10 @@ vi.mock("../../src/commands/user.js", () => ({
   runUserSave: (...args: unknown[]) => mockRunUserSave(...args),
   runUserLoad: (...args: unknown[]) => mockRunUserLoad(...args),
   runUserAdd: (...args: unknown[]) => mockRunUserAdd(...args),
+  runUserOpen: (...args: unknown[]) => mockRunUserOpen(...args),
+  findStaleUserWuSubdirs: (...args: unknown[]) => mockFindStaleUserWuSubdirs(...args),
+  listUserWuSubdirContents: (...args: unknown[]) => mockListUserWuSubdirContents(...args),
+  removeStaleUserWuSubdir: (...args: unknown[]) => mockRemoveStaleUserWuSubdir(...args),
   runUserPush: (...args: unknown[]) => mockRunUserPush(...args),
   runUserFetch: (...args: unknown[]) => mockRunUserFetch(...args),
   runUserPull: (...args: unknown[]) => mockRunUserPull(...args),
@@ -122,7 +130,9 @@ vi.mock("../../src/lib/git/index.js", () => ({
     c.disposition === "block" || c.disposition === "caller-resolvable",
 }));
 
-const { handleUserPush, handleUserFetch, handleUserPull, handleUserLoad, handleUserStatus } = await import("../../src/handlers/user.js");
+const {
+  handleUserPush, handleUserFetch, handleUserPull, handleUserLoad, handleUserStatus, handleUserOpen,
+} = await import("../../src/handlers/user.js");
 
 /**
  * Re-establish construction-time defaults after `vi.resetAllMocks()`.
@@ -743,5 +753,96 @@ describe("handleUserStatus --json retrofit", () => {
     expect(parsed.error.code).toBe("NOT_IN_ARC_PROJECT");
     expect(parsed.error.message).toContain("Not inside an ARC project");
     expect(process.exitCode).toBe(1);
+  });
+});
+
+// --- handleUserOpen tests ---
+
+describe("handleUserOpen", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    resetMockDefaults();
+    mockResolveUserIdentity.mockResolvedValue("andrew");
+    mockFindStaleUserWuSubdirs.mockResolvedValue([]);
+    mockRunUserOpen.mockResolvedValue(undefined);
+    process.exitCode = undefined;
+  });
+
+  it("opens the WU subdir without prompting when no stale subdirs exist", async () => {
+    await handleUserOpen("feature-x");
+
+    expect(mockSelect).not.toHaveBeenCalled();
+    expect(mockRemoveStaleUserWuSubdir).not.toHaveBeenCalled();
+    expect(mockRunUserOpen).toHaveBeenCalledWith(
+      expect.objectContaining({ identity: "andrew", wuName: "feature-x" }),
+    );
+  });
+
+  it("fires the defensive prompt when a stale subdir for a different WU exists", async () => {
+    mockFindStaleUserWuSubdirs.mockResolvedValue(["prior-wu"]);
+    mockSelect.mockResolvedValue("y");
+
+    await handleUserOpen("feature-x");
+
+    expect(mockSelect).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining("Stale subdir user/andrew/prior-wu/"),
+      }),
+    );
+  });
+
+  it("inspect lists subdir contents and re-prompts", async () => {
+    mockFindStaleUserWuSubdirs.mockResolvedValue(["prior-wu"]);
+    mockListUserWuSubdirContents.mockResolvedValue([
+      { name: "SESSION-NOTES.md", size: 123 },
+    ]);
+    mockSelect.mockResolvedValueOnce("inspect").mockResolvedValueOnce("y");
+
+    await handleUserOpen("feature-x");
+
+    expect(mockListUserWuSubdirContents).toHaveBeenCalledWith(
+      expect.objectContaining({ identity: "andrew", subdir: "prior-wu" }),
+    );
+    expect(mockSelect).toHaveBeenCalledTimes(2);
+    expect(mockNote).toHaveBeenCalledWith(
+      expect.stringContaining("SESSION-NOTES.md"),
+      expect.stringContaining("Contents of user/andrew/prior-wu/"),
+    );
+    expect(mockRemoveStaleUserWuSubdir).toHaveBeenCalledWith(
+      expect.objectContaining({ identity: "andrew", subdir: "prior-wu" }),
+    );
+    expect(mockRunUserOpen).toHaveBeenCalled();
+  });
+
+  it("`y` removes the stale subdir and proceeds to runUserOpen", async () => {
+    mockFindStaleUserWuSubdirs.mockResolvedValue(["prior-wu"]);
+    mockSelect.mockResolvedValue("y");
+
+    await handleUserOpen("feature-x");
+
+    expect(mockRemoveStaleUserWuSubdir).toHaveBeenCalledWith(
+      expect.objectContaining({ identity: "andrew", subdir: "prior-wu" }),
+    );
+    expect(mockRunUserOpen).toHaveBeenCalledAfter(
+      mockRemoveStaleUserWuSubdir as unknown as Mock,
+    );
+  });
+
+  it("surfaces a clear error when identity is missing", async () => {
+    mockResolveUserIdentity.mockRejectedValue(
+      new UserFacingError({
+        code: "IDENTITY_MISSING",
+        whatHappened: "No identity configured.",
+        why: "User commands require arc.identity to be set in git config.",
+        whatToDo: "Run 'arc init' first.",
+      }),
+    );
+
+    // The file-scoped isHandledError mock returns false, so a UserFacingError
+    // re-throws out of the handler. The behavior we're asserting is that the
+    // open path short-circuits — no stale-prompt and no runUserOpen.
+    await expect(handleUserOpen("feature-x")).rejects.toThrow(UserFacingError);
+    expect(mockFindStaleUserWuSubdirs).not.toHaveBeenCalled();
+    expect(mockRunUserOpen).not.toHaveBeenCalled();
   });
 });
