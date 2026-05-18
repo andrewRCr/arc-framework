@@ -192,7 +192,7 @@ function makeSessionInitResult(
         mode: "session-init",
         layout: "full",
         resolution: "single",
-        path: ".arc/active/technical/status-foo.md",
+        path: ".arc/active/technical/meta-foo.md",
         candidates: [],
         sessionType: "execution",
         warnings: [],
@@ -303,7 +303,7 @@ describe("buildSessionInitStatusSummary — scoped mode", () => {
     expect(summary).toContain("taskCommit: raw");
     expect(summary).toContain("workflowCommit: raw");
     expect(summary).toContain("workflowPush: raw");
-    expect(summary).toContain("Resolved: .arc/active/technical/status-foo.md");
+    expect(summary).toContain("Resolved: .arc/active/technical/meta-foo.md");
   });
 
   it("renders the Worktree section between User and Extensions", () => {
