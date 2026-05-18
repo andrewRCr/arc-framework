@@ -49,7 +49,7 @@ async function writeFullCandidate(
 ): Promise<void> {
   const dir = join(activeDir, category);
   await mkdir(dir, { recursive: true });
-  await writeFile(join(dir, `status-${name}.md`), statusBody(state));
+  await writeFile(join(dir, `meta-${name}.md`), statusBody(state));
 }
 
 describe("resolveActiveWu — single full-layout candidate", () => {
@@ -58,28 +58,28 @@ describe("resolveActiveWu — single full-layout candidate", () => {
   afterEach(async () => { await rm(fixture.root, { recursive: true, force: true }); });
 
   it("resolves with category and name parsed from the path", async () => {
-    await writeFullCandidate(fixture.activeDir, "technical", "foo", "In Progress");
+    await writeFullCandidate(fixture.activeDir, "technical", "foo", "Active");
 
     const result = await resolveActiveWu({ cwd: fixture.root });
 
     expect(result).toEqual({
       status: "resolved",
-      path: ".arc/active/technical/status-foo.md",
+      path: ".arc/active/technical/meta-foo.md",
       category: "technical",
       name: "foo",
     });
   });
 
-  it("parses name from a meta-*.md filename (post-WOR canonical shape)", async () => {
+  it("parses name from a status-*.md filename (legacy-prefix compat)", async () => {
     const dir = join(fixture.activeDir, "technical");
     await mkdir(dir, { recursive: true });
-    await writeFile(join(dir, "meta-bar.md"), statusBody("Active"));
+    await writeFile(join(dir, "status-bar.md"), statusBody("In Progress"));
 
     const result = await resolveActiveWu({ cwd: fixture.root });
 
     expect(result).toEqual({
       status: "resolved",
-      path: ".arc/active/technical/meta-bar.md",
+      path: ".arc/active/technical/status-bar.md",
       category: "technical",
       name: "bar",
     });
@@ -87,8 +87,10 @@ describe("resolveActiveWu — single full-layout candidate", () => {
 
   it.each([
     ["Planning"],
-    ["In Progress"],
+    ["Active"],
+    ["Integrating"],
     ["Paused (2026-04-12)"],
+    ["In Progress"],
     ["Waiting For Review"],
   ])("resolves regardless of **State:** value (%s)", async (state) => {
     await writeFullCandidate(fixture.activeDir, "feature", "bar", state);
@@ -122,7 +124,7 @@ describe("resolveActiveWu — refusal on ambiguity", () => {
   });
 
   it("refuses with a disambiguation hint when multiple candidates resolve", async () => {
-    await writeFullCandidate(fixture.activeDir, "technical", "foo", "In Progress");
+    await writeFullCandidate(fixture.activeDir, "technical", "foo", "Active");
     await writeFullCandidate(fixture.activeDir, "feature", "bar", "Planning");
 
     const result = await resolveActiveWu({ cwd: fixture.root });
@@ -141,7 +143,7 @@ describe("resolveActiveWu — lite layout", () => {
   afterEach(async () => { await rm(fixture.root, { recursive: true, force: true }); });
 
   it("resolves the single status.md with empty category and name", async () => {
-    await writeFile(join(fixture.activeDir, "status.md"), statusBody("In Progress"));
+    await writeFile(join(fixture.activeDir, "status.md"), statusBody("Active"));
 
     const result = await resolveActiveWu({ cwd: fixture.root });
 

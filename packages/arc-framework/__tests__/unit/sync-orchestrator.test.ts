@@ -196,7 +196,7 @@ function resetMockDefaults() {
   mockAppendAuditEntry.mockResolvedValue({ ok: true });
   mockResolveActiveWu.mockResolvedValue({
     status: "resolved",
-    path: ".arc/active/technical/status-test.md",
+    path: ".arc/active/technical/meta-test.md",
     category: "technical",
     name: "test",
   });
