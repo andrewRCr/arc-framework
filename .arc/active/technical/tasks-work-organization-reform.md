@@ -2391,7 +2391,7 @@ at 5.4.g.
           lives in the subdir-status end-to-end test, the State value-set sister-block, and
           the legacy-only failure diagnostics. _Cleanup paired with 6.2.n._
 
-### `[ ]` **5.5 Instance-file scaffolding shape (templates + pointer content)**
+### `[x]` **5.5 Instance-file scaffolding shape (templates + pointer content)**
 
 - _Goal:_ Replace the bloated-preamble pattern across instance-file templates with R59's minimal anchoring-pointer
   shape. Touches: existing `packages/arc-framework/templates/user/SESSION-NOTES.md` (updated to new pointer shape);
@@ -2403,29 +2403,39 @@ at 5.4.g.
     **Strategies:** `strategy-package-project-sync.md`, `strategy-session-operations.md`,
     `strategy-planning-module.md`
 
-    - `[ ]` **5.5.a Draft per-file pointer content**
-        - Author the actual blockquote text per R59's per-file sizing:
-            - `SESSION-NOTES.md` — 1 line pointing at `strategy-session-operations.md` § SESSION-NOTES
-            - `WORKING-MEMORY.md` — 2-3 lines covering `_Remove when:_` per-entry convention + strategy ref
-            - `USER-INBOX.md` — 2-3 lines covering `## Atomic` vs. `## Backlog` section semantics + strategy ref
-            - `backlog/ATOMIC-INBOX.md` — 2-3 lines surfacing ceremony-only-writes discipline + strategy ref
-            - `backlog/BACKLOG-INBOX.md` — 2-3 lines surfacing ceremony-only-writes discipline + strategy ref
-        - Each pointer in a `>` blockquote, opening the file directly after the H1.
+    - `[x]` **5.5.a Draft per-file pointer content**
+        - _Outcome:_ Five pointers drafted per R59 sizing; text materialized into templates by 5.5.c-e.
+          Cross-cutting design decision: USER-INBOX exists in all PM modes (R65b) but its current
+          orientation home (`strategy-planning-module.md` § Inbox Family) installs only under arc-in-git
+          — orientation moves to `strategy-session-operations.md` as a sibling to § SESSION-NOTES /
+          § Working Memory. New 5.5.b subtask added for the move; prior 5.5.b/c/d renumbered to c/d/e.
+          Shared-inbox write framing softened from "write only at" to "by convention, writes batch at" —
+          convention, not prohibition, accommodates base-branch / partial-protection writes.
 
-    - `[ ]` **5.5.b Update existing `templates/user/SESSION-NOTES.md` to new pointer shape**
-        - 5.3.b stripped the legacy preamble (file now opens H1 → H2). Insert the 1-line anchoring pointer
-          (from 5.5.a) between H1 and the first H2.
+    - `[x]` **5.5.b Restructure USER-INBOX strategy placement (cross-mode content)**
+        - _Outcome:_ USER-INBOX subsection cut from `strategy-planning-module.md` § Inbox Family
+          (arc-in-git-only); new `## USER-INBOX` section added to `strategy-session-operations.md` as
+          sibling to § SESSION-NOTES / § Working Memory, covering purpose, location, two-section
+          structure, PM-mode-conditional drain destinations, and cross-WU scope. § Inbox Family intro
+          restructured as bulleted family overview; § Write-discipline summary updated to reflect new
+          locations. Both strategy copies in lockstep. Cross-reference sweep clean — no external refs
+          to the old USER-INBOX-in-planning-module location.
 
-    - `[ ]` **5.5.c Add new per-user templates**
-        - Create `packages/arc-framework/templates/user/WORKING-MEMORY.md` and
-          `packages/arc-framework/templates/user/USER-INBOX.md`. H1 + pointer blockquote (from 5.5.a) +
-          structural sections per R59. WORKING-MEMORY opens content-only after pointer (entries accumulate
-          organically); USER-INBOX includes `## Atomic` + `## Backlog` H2 sections (empty).
+    - `[x]` **5.5.c Update existing `templates/user/SESSION-NOTES.md` to new pointer shape**
+        - _Outcome:_ 1-line R59 pointer inserted between H1 and § Handoff Metadata in
+          `packages/arc-framework/templates/user/SESSION-NOTES.md`. File opens: H1 → blockquote pointer
+          → existing H2 cascade.
 
-    - `[ ]` **5.5.d Add new project-shared backlog templates**
-        - Create `packages/arc-framework/arc/backlog/ATOMIC-INBOX.template.md` and
-          `packages/arc-framework/arc/backlog/BACKLOG-INBOX.template.md`. H1 + pointer blockquote (from 5.5.a)
-          per R59. Recipe-driven; seeding wires in 5.6.
+    - `[x]` **5.5.d Add new per-user templates**
+        - _Outcome:_ Created `packages/arc-framework/templates/user/WORKING-MEMORY.md` and
+          `templates/user/USER-INBOX.md` with R59 pointer blockquotes. WORKING-MEMORY ships content-only
+          after the pointer (entries accumulate organically; entry-shape hint as HTML comment).
+          USER-INBOX carries empty `## Atomic` / `## Backlog` H2 sections with entry-shape comment hints.
+
+    - `[x]` **5.5.e Add new project-shared backlog templates**
+        - _Outcome:_ Created `packages/arc-framework/arc/backlog/ATOMIC-INBOX.template.md` and
+          `arc/backlog/BACKLOG-INBOX.template.md` with R59 pointers + entry-shape comment hints.
+          Recipe-driven seeding wires in 5.6.d.
 
 ### `[ ]` **5.6 CLI seeding wiring + per-WU subdir lifecycle helpers + reader migration**
 
@@ -2471,13 +2481,13 @@ at 5.4.g.
     - `[ ]` **5.6.c Wire init-time seeding for new per-user files**
         - Extend `lib/setup.ts` (`runPostInitSetup`) and `commands/user/add.ts` (`runUserAdd`) to seed
           `user/{identity}/WORKING-MEMORY.md` and `user/{identity}/USER-INBOX.md` from the new templates
-          (5.5.c). Both seed regardless of `pm.mode` (cross-PM-mode per R65b). Existing user/ATOMIC-INBOX
+          (5.5.d). Both seed regardless of `pm.mode` (cross-PM-mode per R65b). Existing user/ATOMIC-INBOX
           seed path retires here — content migrates into USER-INBOX `## Atomic` section per R50 (paired with
           6.3.x USER-INBOX consolidation already filed).
 
     - `[ ]` **5.6.d Wire init-recipe for project-shared backlog templates**
         - Extend `packages/arc-framework/init-recipe.json` `conditions["pm.mode == arc-in-git"].include_files`
-          to list `backlog/ATOMIC-INBOX.template.md` and `backlog/BACKLOG-INBOX.template.md` (added in 5.5.d).
+          to list `backlog/ATOMIC-INBOX.template.md` and `backlog/BACKLOG-INBOX.template.md` (added in 5.5.e).
           Aligns with existing `BACKLOG-FEATURE.template.md` / `BACKLOG-TECHNICAL.template.md` pattern (those
           retire under R50's BACKLOG-INBOX merge — pair with the migration sweep).
 
