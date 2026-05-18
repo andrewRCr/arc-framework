@@ -9,24 +9,24 @@
 - **Task List:** `tasks-work-organization-reform.md`
 - **Sibling Work Unit(s):** [none]
 
-- **Last Completed:** Task 5.5 — instance-file scaffolding shape complete. R59 pointers
-  across 5 templates + B1 design call: USER-INBOX strategy orientation moved from
-  `strategy-planning-module.md` (arc-in-git-only) to `strategy-session-operations.md`
-  (cross-mode per R65b). Commits `45bad377` (strategy move) / `cb582bcc` (SESSION-NOTES
-  pointer) / `d5176bd7` (WORKING-MEMORY + USER-INBOX templates) / `78905584` (shared
-  backlog templates + parent 5.5 close). Plan-doc capture `9265c913` filed the
-  commit-interlock inclusive-semantic ambiguity surfaced mid-cascade into
-  `plan-interlock-release-refinement.md`.
+- **Last Completed:** Tasks 5.6.a–5.6.d — per-WU user workspace lifecycle CLI shipped
+  (`arc user open <wu-name>` + `arc user close <wu-name>` at `d65bc69d` / `c705f795`)
+  and init-time seeding rewired for the R59 scaffolding shape (`173b6c0c`).
+  `runPostInitSetup` / `runUserAdd` now iterate the canonical per-user file set
+  (SESSION-NOTES, WORKING-MEMORY, USER-INBOX) cross-PM-mode; `pmMode` retired from
+  `PostInitSetupOptions` / `UserAddOptions` / `JoinOptions` with all call sites
+  updated. `init-recipe.json` arc-in-git arm now installs the shared
+  `backlog/ATOMIC-INBOX.template.md` + `backlog/BACKLOG-INBOX.template.md`.
 
-- **Next Task:** Task 5.6.a — Implement `arc user open <wu-name>` helper (line ~2451).
+- **Next Task:** Task 5.6.e — Workflow wiring for `arc user open` / `arc user close` (line ~2525).
 
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 5.6.a — implement `arc user open <wu-name>` at
-  `packages/arc-framework/src/commands/user/open.ts`. Test-first per the task's 7-behavior
-  list (path computation; idempotent subdir creation; SESSION-NOTES seeding from
-  `templates/user/SESSION-NOTES.md`; defensive-prompt on stale-subdir-for-different-WU
-  with `inspect` and `y` arms; identity-error handling). Wire into `arc user` namespace
-  alongside existing `add` / `pull`.
+- **Next Action:** Start Task 5.6.e — wire inline Bash invocations into three workflows
+  (both copies — `.arc/system/workflows/` + `packages/arc-framework/arc/system/workflows/`):
+  `arc user open <wu-name>` at `init-work-unit.md` Step 2 (after planning-branch create)
+  and `activate-work-unit.md` Step 5 (after branch rename); `arc user close <wu-name>` at
+  `integrate-work-unit.md` Step 13 (post-merge). No class-tag or push-extension marker
+  (not push fire-points).
 
 ---
