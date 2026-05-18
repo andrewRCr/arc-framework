@@ -75,6 +75,10 @@ When disabled, proceed directly to Step 3.
 
 Push the WU branch upstream.
 
+- **Extensions** · `#pre-push-review`: If `pre-push-review` appears in the active-extensions list
+  (established at session init), load and execute its `.actions` before the push. Halt-on-fail surfaces
+  an actionable message; user fix-and-retries or explicit-invoke bypasses. Otherwise, skip.
+
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `-u origin {type}/{name}`.
 
@@ -207,6 +211,10 @@ What gets pushed varies by cadence:
 - Under `with-integration`: completion content + sweep commits + ROADMAP regen commits.
 - Under `manual`: completion content commit only. Sweep + ROADMAP fire later when `archive-work-unit.md` is
   invoked explicitly post-merge.
+
+**Extensions** · `#pre-push-review`: If `pre-push-review` appears in the active-extensions list
+(established at session init), load and execute its `.actions` before the push. Halt-on-fail surfaces
+an actionable message; user fix-and-retries or explicit-invoke bypasses. Otherwise, skip.
 
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `origin {type}/{name}`.

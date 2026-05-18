@@ -2119,7 +2119,7 @@ at 5.4.f.
   to fire only when no worktree's active/ contains any meta files at all (not when metas exist but failed to
   resolve) — so consumers see invariant-violation warnings rather than silent empty results.
 
-### `[ ]` **5.2 Wire `pre-push-review` markers into workflows with push fire-points**
+### `[x]` **5.2 Wire `pre-push-review` markers into workflows with push fire-points**
 
 - _Goal:_ Workflows that invoke push (raw `git push`, `arc release push`, `arc sync` push leg) carry
   `· #pre-push-review` extension markers at the appropriate fire-point. Marker placement mirrors how other pre-\*
@@ -2135,29 +2135,41 @@ at 5.4.f.
 
     **Strategies:** `strategy-workflow-authoring.md`
 
-    - `[ ]` **5.2.a Inventory workflows with push fire-points**
-        - Grep `.arc/system/workflows/` (+ packages mirror) for push invocations: raw `git push`, `arc release push`,
-          `arc sync` (push leg), `workflowPush` class-tag, and any workflow-step prose that authorizes a push.
-        - Expected hits include `session-handoff.md`, `init-work-unit.md`, `activate-work-unit.md`,
-          `integrate-work-unit.md`; verify against actual grep output at execution. Surface any unexpected sites for
-          user review before adding markers.
-        - Output: per-workflow list of push fire-point line locations.
+    - `[x]` **5.2.a Inventory workflows with push fire-points**
+        - Five fire-point sites identified across four workflows (both copies — `.arc/system/workflows/` +
+          `packages/arc-framework/arc/system/workflows/` — share identical line numbers):
+            - `planning/init-work-unit.md:96` — `workflowPush` admonition (plan-branch first push, Step 5).
+            - `activate-work-unit.md:89` — `workflowPush` push in branch-rename bash block (Step 5).
+            - `integrate-work-unit.md:79` — `workflowPush` admonition (PR-open push, Step 3).
+            - `integrate-work-unit.md:212` — `workflowPush` admonition (final post-completion push, Step 13).
+            - `deactivate-work-unit.md:88` — `workflowPush` push in branch-rename bash block (Case B, Step 3).
+        - **Spec expected** `session-handoff.md` as a fire-point; in practice it invokes only `arc sync`, which
+          per the workflow-authoring strategy's sync exception handles its own internal push without re-routing
+          through the wrapper. No marker placed there pending user confirmation of the sync-exception
+          interpretation.
+        - **Unexpected site** (not in spec's expected list): `deactivate-work-unit.md` carries a real
+          `workflowPush` for the plan-rotation push (Case B). Worth wiring; flagging for user confirmation.
+        - **Destructive `--delete` pushes excluded:** `activate-work-unit.md:90`, `deactivate-work-unit.md:89`,
+          `deactivate-work-unit.md:117`. These are branch cleanups, not work publication — `pre-push-review`'s
+          publication-gate semantic doesn't fit.
 
-    - `[ ]` **5.2.b Wire `pre-push-review` markers at each fire-point**
-        - For each push fire-point identified in 5.2.a, insert the standard extension-point marker — a `·` separator
-          followed by the backticked anchor `#pre-push-review`, per the `point-scanner.ts` recognized pattern — at the
-          appropriate step. Placement parallels how `pre-commit-review` sits before commit actions and
-          `pre-merge-review` sits before merge actions; typically immediately before the push action.
-        - Use bullet-form or trailing-header form per the surrounding workflow body's conventions (both forms resolve
-          through the same anchor per `point-scanner.ts`).
-        - Sync each edit to `packages/arc-framework/arc/system/workflows/` for two-copy parity.
+    - `[x]` **5.2.b Wire `pre-push-review` markers at each fire-point**
+        - Six fire-point sites wired across five workflows, both copies (12 file edits). Bullet form
+          used at sites with adjacent prose; prose form (no leading dash) used in
+          `integrate-work-unit.md` Step 13 to avoid list-context ambiguity with the preceding cadence
+          bullets; nested-indented bullet form used in `session-handoff.md` to sit inside the
+          `on-handoff/on-workflow` arm before the sync bash block. All six markers discoverable via
+          `point-scanner.ts`'s extension-point pattern.
+        - `strategy-workflow-authoring.md` § Sync push exception extended (both copies) to clarify
+          that the exception is class-tag-routing scope only — extension markers still fire on
+          workflow steps that invoke a push including `arc sync`. Captures the design intent that
+          drove session-handoff's marker placement.
 
-    - `[ ]` **5.2.c Verify markers are discoverable**
-        - Run the existing `point-scanner` unit suite (or add a fixture-level test) confirming new markers are
-          enumerated across the audited workflows.
-        - Spot-check via session-init: with `pre-push-review.active: true`, the extension surfaces in the active list
-          and the markers reference it; with `active: false` (default), the wiring is structural with no agent-side
-          action.
+    - `[x]` **5.2.c Verify markers are discoverable**
+        - Existing point-scanner test suite (14 tests) passed unchanged — the regex matches the new
+          markers without new fixtures needed. Grep cross-check confirms 12 marker occurrences (6 sites
+          × 2 copies), matching expected count. Session-init active state unchanged (`pre-push-review`
+          stays default-inactive); structural wiring lands ready for activation.
 
 ### `[ ]` **5.3 Update CLI init/join code to strip instance-file preamble injection**
 

@@ -92,14 +92,18 @@ plan-doc filename; preserve other field values as-is.
 
 Set upstream for the planning branch.
 
+- **Extensions** · `#pre-push-review`: If `pre-push-review` appears in the active-extensions list
+  (established at session init), load and execute its `.actions` before the push. Halt-on-fail surfaces
+  an actionable message; user fix-and-retries or explicit-invoke bypasses. Otherwise, skip.
+
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `-u origin plan/{name}`.
 
 ### 6) Proceed to Next Step
 
-+ If the work needs synthesis exploration first: create `plan-*.md` documents (see [Work Planning
+- If the work needs synthesis exploration first: create `plan-*.md` documents (see [Work Planning
   Strategy][work-planning] for conventions)
-+ If ready for requirements: proceed to [1_create-prd][create-prd]
+- If ready for requirements: proceed to [1_create-prd][create-prd]
 
 ---
 

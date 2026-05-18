@@ -83,6 +83,11 @@ Context: meta-{name}.md (deactivation)
 
 Inverse of activation:
 
+- **Extensions** · `#pre-push-review`: If `pre-push-review` appears in the active-extensions list
+  (established at session init), load and execute its `.actions` before the `workflowPush` push.
+  Halt-on-fail surfaces an actionable message; user fix-and-retries or explicit-invoke bypasses.
+  Otherwise, skip.
+
 ```bash
 git branch -m {type}/{name} plan/{name}    # local rename (raw)
 git push -u origin plan/{name}              # workflowPush

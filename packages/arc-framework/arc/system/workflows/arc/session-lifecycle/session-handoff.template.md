@@ -409,6 +409,11 @@ Strategy][session-ops] § Push Toggles for the underlying model.
 - **`on-handoff`** (default) / **`on-workflow`** — auto-invoke and consume the structured
   output. Both values fire sync at handoff.
 
+    - **Extensions** · `#pre-push-review`: If `pre-push-review` appears in the active-extensions
+      list (established at session init), load and execute its `.actions` before invoking sync.
+      Halt-on-fail surfaces an actionable message; user fix-and-retries or explicit-invoke
+      bypasses. Otherwise, skip.
+
     ```bash
     arc sync --json
     ```

@@ -84,6 +84,11 @@ Context: meta-{name}.md (activation)
 
 ### 5) Branch rename · 3-step routing
 
+- **Extensions** · `#pre-push-review`: If `pre-push-review` appears in the active-extensions list
+  (established at session init), load and execute its `.actions` before the `workflowPush` push.
+  Halt-on-fail surfaces an actionable message; user fix-and-retries or explicit-invoke bypasses.
+  Otherwise, skip.
+
 ```bash
 git branch -m plan/{name} {type}/{name}    # local rename (raw)
 git push -u origin {type}/{name}            # workflowPush

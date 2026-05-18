@@ -182,6 +182,11 @@ class-tag annotation.
 on the audit umbrella but do not re-route through `arc release push`. Workflows that invoke
 `arc sync` rely on its internal handling and do not class-tag the implicit push.
 
+The exception is class-tag-routing scope only — extension markers (`pre-push-review` and the
+broader pre-* family) still fire on workflow steps that invoke a push, including `arc sync`. Place
+the marker before the sync invocation; the agent loads the extension's `.actions` per the
+established contract regardless of how the push itself routes.
+
 ---
 
 [template-workflow]: ../../templates/template-workflow.md
