@@ -1,5 +1,8 @@
 # Session Notes
 
+> Personal context for this work unit — written at handoff, read at next session-init.
+> See `strategy-session-operations.md` § SESSION-NOTES.
+
 ## Handoff Metadata
 
 **Working On:** [none]
