@@ -38,6 +38,7 @@ const mockRunUserPull = vi.fn();
 const mockRunUserLoad = vi.fn();
 const mockRunUserAdd = vi.fn();
 const mockRunUserOpen = vi.fn();
+const mockRunUserClose = vi.fn();
 const mockFindStaleUserWuSubdirs = vi.fn();
 const mockListUserWuSubdirContents = vi.fn();
 const mockRemoveStaleUserWuSubdir = vi.fn();
@@ -63,6 +64,7 @@ vi.mock("../../src/commands/user.js", () => ({
   runUserLoad: (...args: unknown[]) => mockRunUserLoad(...args),
   runUserAdd: (...args: unknown[]) => mockRunUserAdd(...args),
   runUserOpen: (...args: unknown[]) => mockRunUserOpen(...args),
+  runUserClose: (...args: unknown[]) => mockRunUserClose(...args),
   findStaleUserWuSubdirs: (...args: unknown[]) => mockFindStaleUserWuSubdirs(...args),
   listUserWuSubdirContents: (...args: unknown[]) => mockListUserWuSubdirContents(...args),
   removeStaleUserWuSubdir: (...args: unknown[]) => mockRemoveStaleUserWuSubdir(...args),
@@ -131,7 +133,8 @@ vi.mock("../../src/lib/git/index.js", () => ({
 }));
 
 const {
-  handleUserPush, handleUserFetch, handleUserPull, handleUserLoad, handleUserStatus, handleUserOpen,
+  handleUserPush, handleUserFetch, handleUserPull, handleUserLoad, handleUserStatus,
+  handleUserOpen, handleUserClose,
 } = await import("../../src/handlers/user.js");
 
 /**
@@ -844,5 +847,39 @@ describe("handleUserOpen", () => {
     await expect(handleUserOpen("feature-x")).rejects.toThrow(UserFacingError);
     expect(mockFindStaleUserWuSubdirs).not.toHaveBeenCalled();
     expect(mockRunUserOpen).not.toHaveBeenCalled();
+  });
+});
+
+// --- handleUserClose tests ---
+
+describe("handleUserClose", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    resetMockDefaults();
+    mockResolveUserIdentity.mockResolvedValue("andrew");
+    mockRunUserClose.mockResolvedValue(undefined);
+    process.exitCode = undefined;
+  });
+
+  it("calls runUserClose with the resolved identity and target WU", async () => {
+    await handleUserClose("feature-x");
+
+    expect(mockRunUserClose).toHaveBeenCalledWith(
+      expect.objectContaining({ identity: "andrew", wuName: "feature-x" }),
+    );
+  });
+
+  it("surfaces a clear error when identity is missing", async () => {
+    mockResolveUserIdentity.mockRejectedValue(
+      new UserFacingError({
+        code: "IDENTITY_MISSING",
+        whatHappened: "No identity configured.",
+        why: "User commands require arc.identity to be set in git config.",
+        whatToDo: "Run 'arc init' first.",
+      }),
+    );
+
+    await expect(handleUserClose("feature-x")).rejects.toThrow(UserFacingError);
+    expect(mockRunUserClose).not.toHaveBeenCalled();
   });
 });

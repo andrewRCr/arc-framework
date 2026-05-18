@@ -144,6 +144,13 @@ export interface UserOpenOptions {
   internalTemplateDir: string;
 }
 
+/** Options for the close operation (retires a per-WU user workspace subdir). */
+export interface UserCloseOptions {
+  cwd: string;
+  identity: string;
+  wuName: string;
+}
+
 /** Options for the push operation. */
 export interface UserPushOptions {
   io: UserIOContext;

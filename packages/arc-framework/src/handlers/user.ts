@@ -9,7 +9,8 @@ import { access } from "node:fs/promises";
 import * as p from "@clack/prompts";
 
 import {
-  findStaleUserWuSubdirs, listUserWuSubdirContents, removeStaleUserWuSubdir, runUserOpen,
+  findStaleUserWuSubdirs, listUserWuSubdirContents, removeStaleUserWuSubdir,
+  runUserClose, runUserOpen,
   runUserSave, runUserLoad, runUserAdd, runUserPush, runUserFetch, runUserPull,
   runUserSessionInitStatus, runUserStatus,
   buildSaveSummary, buildLoadSummary, buildUserSessionInitStatusSummary, buildUserStatusSummary,
@@ -162,6 +163,42 @@ async function promptStaleSubdir(options: {
       );
     }
   }
+}
+
+// --- Close ---
+
+/**
+ * Close a per-WU user workspace subdir at `user/{identity}/{wuName}/`.
+ * Recursive remove; idempotent on absent subdir.
+ */
+export async function handleUserClose(wuName: string): Promise<void> {
+  p.intro("arc user close");
+  const output = createSyncOutput(false);
+
+  let identity: string;
+  try {
+    identity = await resolveUserIdentity();
+  } catch (err) {
+    if (isHandledError(err)) return;
+    throw err;
+  }
+
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
+
+  try {
+    await runWithSpinner(
+      output,
+      `Closing user workspace for ${wuName}...`,
+      () => runUserClose({ cwd, identity, wuName }),
+      `User workspace closed (user/${identity}/${wuName}/).`,
+    );
+  } catch (err) {
+    if (isHandledError(err)) return;
+    throw err;
+  }
+
+  p.outro("Done.");
 }
 
 // --- Save ---

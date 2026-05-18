@@ -2468,16 +2468,24 @@ at 5.4.g.
           fires, `inspect` re-prompts with contents, `y` removes-then-opens, identity-missing
           short-circuits before any stale scan or `runUserOpen` call).
 
-    - `[ ]` **5.6.b Implement `arc user close <wu-name>` helper**
-        - New command at `packages/arc-framework/src/commands/user/close.ts`. Removes `user/{identity}/<wu-name>/`
-          recursively (filesystem op, gitignored — no git ops). Idempotent when subdir is already absent.
-
-            **Build `test-first` (one behavior at a time):**
-
-            - Path computation matches `arc user open` for the same WU
-            - Recursive removal of subdir contents
-            - Idempotent on absent subdir (no-op + no error)
-            - Missing identity surfaces a clear error
+    - `[x]` **5.6.b Implement `arc user close <wu-name>` helper**
+        - `commands/user/close.ts` exports `runUserClose` — single-purpose recursive `rm` of
+          `user/{identity}/<wu-name>/` with `force: true` for clean idempotency on absent
+          subdir. Filesystem-only; no git operations involved (the user-dir tree is
+          gitignored). New options type `UserCloseOptions` in `commands/user/types.ts`;
+          re-exports added to `commands/user.ts`.
+        - `handleUserClose` in `handlers/user.ts` resolves identity, short-circuits with a
+          clear error when missing, otherwise runs `runUserClose` via the standard spinner
+          wrapper. Wired into `arc user` namespace at `cli.ts` as `close <wu-name>`.
+        - Test split: pure logic test-first at integration tier (2 cases — path computation
+          matches `arc user open` and removal lands, idempotent absent-subdir); handler
+          orchestration test-after at unit tier (2 cases — happy path passes resolved
+          identity + wuName to `runUserClose`, identity-missing short-circuits).
+        - Decided against folding `removeStaleUserWuSubdir` (from 5.6.a) into `runUserClose`
+          despite identical filesystem semantics — naming intent differs (stale-prompt
+          internal helper vs. user-invoked lifecycle command) and the duplication is two
+          lines below the abstraction threshold per project YAGNI conventions. Revisit if a
+          third call site emerges.
 
     - `[ ]` **5.6.c Wire init-time seeding for new per-user files**
         - Extend `lib/setup.ts` (`runPostInitSetup`) and `commands/user/add.ts` (`runUserAdd`) to seed

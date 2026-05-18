@@ -27,6 +27,7 @@ import {
   runUserSave,
   runUserLoad,
   runUserAdd,
+  runUserClose,
   runUserOpen,
   findStaleUserWuSubdirs,
   listUserWuSubdirContents,
@@ -1568,5 +1569,38 @@ describe("user open", () => {
     });
 
     await expect(readFile(staleSeed, "utf-8")).rejects.toThrow();
+  });
+});
+
+describe("user close", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await initInTempRepo(DEFAULT_PROMPTS, "test-user");
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tempDir);
+  });
+
+  it("removes user/{identity}/<wu-name>/ recursively for the same WU as `arc user open`", async () => {
+    const io = makeUserIO(tempDir);
+
+    await runUserOpen({
+      cwd: tempDir, io, identity: "test-user", wuName: "feature-x",
+      internalTemplateDir: getInternalTemplatePath(),
+    });
+    const seedPath = join(tempDir, ".arc", "user", "test-user", "feature-x", "SESSION-NOTES.md");
+    await expect(readFile(seedPath, "utf-8")).resolves.toBeTruthy();
+
+    await runUserClose({ cwd: tempDir, identity: "test-user", wuName: "feature-x" });
+
+    await expect(readFile(seedPath, "utf-8")).rejects.toThrow();
+  });
+
+  it("idempotent on absent subdir — no error when nothing to remove", async () => {
+    await expect(
+      runUserClose({ cwd: tempDir, identity: "test-user", wuName: "never-opened" }),
+    ).resolves.toBeUndefined();
   });
 });

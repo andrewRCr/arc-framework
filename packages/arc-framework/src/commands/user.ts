@@ -6,6 +6,7 @@
  */
 
 export { runUserAdd } from "./user/add.js";
+export { runUserClose } from "./user/close.js";
 export {
   findStaleUserWuSubdirs,
   listUserWuSubdirContents,
@@ -58,6 +59,7 @@ export {
   type UserLoadOutcome,
   type UserLoadOptions,
   type UserLoadResult,
+  type UserCloseOptions,
   type UserLoadWalkExhausted,
   type UserOpenOptions,
   type PairedPushLegOutcome,
