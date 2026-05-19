@@ -68,17 +68,20 @@ const PLANNING_BRANCH_PATTERN = /^plan\/.+$/;
  *     - `Shipped` → `null`
  * - `**State:**` is unset/empty (whitespace-only) → branch-pattern fallback:
  *   `currentBranch` matches `plan/<name>` → `planning`; otherwise `null`.
- * - All other States — `Active` (codified phase, not session-type), legacy
- *   values (`In Progress`, `Paused`, `Complete`, `Superseded`), unknown — fall
- *   through to Task-List / Next-Action inference:
+ * - All other States — `Active` (codified phase, not session-type) and any
+ *   unrecognized value — fall through to Task-List / Next-Action inference:
  *     - `**Task List:**` is `[none]` / `[none associated]` / missing → `planning`
  *     - `**Next Action:**` matches `^(integrate-work-unit|archive-work-unit)\b` → `integration`
  *     - Otherwise → `execution`
  *
- * `Active` deliberately does NOT fast-path because it's a phase signal, not a
- * session-type signal: `State: Active + Next-Action: integrate-work-unit`
- * routes to integration via the Next-Action arm. The fall-through also serves
- * as defensive forward-compat for unrecognized State values.
+ * **Design — State carries phase, Next-Action carries activity.** State alone
+ * is decisive only for the unambiguous endpoints: `Planning` opens a WU before
+ * task work; `Integrating` / `Shipped` close it after. `Active` spans the full
+ * execution interior, where session-type depends on the current activity —
+ * `State: Active + Next-Action: integrate-work-unit` routes to integration
+ * via the Next-Action arm, because the codified phase doesn't disambiguate
+ * what's happening within it. The structural fall-through doubles as
+ * defensive forward-compat for unrecognized State values.
  *
  * Caller handles the `multiple` (deferred → null) case at `classifyResolution`.
  */

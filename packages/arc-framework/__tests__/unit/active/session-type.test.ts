@@ -24,13 +24,7 @@ describe("inferSessionType — State-based primary", () => {
     ).toBe("execution");
   });
 
-  it("falls through to Task List logic when State is `In Progress`", () => {
-    expect(
-      inferSessionType("In Progress", "tasks-foo.md", "Begin Phase 1", "feature/foo"),
-    ).toBe("execution");
-  });
-
-  it("treats parenthetical-suffix States (`Paused (2026-04-12)`) as non-Planning", () => {
+  it("treats parenthetical-suffix States (`Paused (2026-04-12)`) as non-codified — falls through", () => {
     expect(
       inferSessionType("Paused (2026-04-12)", "tasks-foo.md", "Start Task 4.2", "feature/foo"),
     ).toBe("execution");
@@ -118,31 +112,31 @@ describe("inferSessionType — branch-pattern fallback when State is empty", () 
   });
 });
 
-describe("inferSessionType — non-Planning State falls through to Task List signals", () => {
+describe("inferSessionType — non-codified State falls through to Task-List signals", () => {
   it("returns planning when taskList is null", () => {
     expect(
-      inferSessionType("In Progress", null, "Start Task 1.1 — implement", "feature/foo"),
+      inferSessionType("Unknown", null, "Start Task 1.1 — implement", "feature/foo"),
     ).toBe("planning");
   });
 
   it("returns planning when taskList is `[none]`", () => {
     expect(
-      inferSessionType("In Progress", "[none]", "Plan next phase", "feature/foo"),
+      inferSessionType("Unknown", "[none]", "Plan next phase", "feature/foo"),
     ).toBe("planning");
   });
 
   it("returns planning when taskList is `[none associated]`", () => {
     expect(
-      inferSessionType("In Progress", "[none associated]", "Draft PRD", "feature/foo"),
+      inferSessionType("Unknown", "[none associated]", "Draft PRD", "feature/foo"),
     ).toBe("planning");
   });
 });
 
-describe("inferSessionType — non-Planning State falls through to Next Action signals", () => {
+describe("inferSessionType — non-codified State falls through to Next-Action signals", () => {
   it("returns integration when Next Action begins with `integrate-work-unit`", () => {
     expect(
       inferSessionType(
-        "In Progress",
+        "Unknown",
         "tasks-foo.md",
         "integrate-work-unit Step 7 — push and create PR",
         "feature/foo",
@@ -153,7 +147,7 @@ describe("inferSessionType — non-Planning State falls through to Next Action s
   it("returns integration when Next Action begins with `archive-work-unit`", () => {
     expect(
       inferSessionType(
-        "In Progress",
+        "Unknown",
         "tasks-foo.md",
         "archive-work-unit Step 1 — archive artifacts",
         "feature/foo",
@@ -164,7 +158,7 @@ describe("inferSessionType — non-Planning State falls through to Next Action s
   it("matches the integration prefix case-insensitively", () => {
     expect(
       inferSessionType(
-        "In Progress",
+        "Unknown",
         "tasks-foo.md",
         "Integrate-Work-Unit Step 3 — review",
         "feature/foo",
@@ -175,7 +169,7 @@ describe("inferSessionType — non-Planning State falls through to Next Action s
   it("requires a word boundary after the prefix (avoids `integrate-work-unit-helpers`)", () => {
     expect(
       inferSessionType(
-        "In Progress",
+        "Unknown",
         "tasks-foo.md",
         "integrate-work-unit-internal something else",
         "feature/foo",
@@ -184,11 +178,11 @@ describe("inferSessionType — non-Planning State falls through to Next Action s
   });
 });
 
-describe("inferSessionType — execution default", () => {
+describe("inferSessionType — non-codified State + execution default", () => {
   it("returns execution for a regular Start-Task Next Action", () => {
     expect(
       inferSessionType(
-        "In Progress",
+        "Unknown",
         "tasks-foo.md",
         "Start Task 4.2 — write unit tests",
         "feature/foo",
@@ -199,7 +193,7 @@ describe("inferSessionType — execution default", () => {
   it("returns execution for non-integration lifecycle workflows (clean-work-unit)", () => {
     expect(
       inferSessionType(
-        "In Progress",
+        "Unknown",
         "tasks-foo.md",
         "clean-work-unit Step 3 — Mode 1 mid-work cleanup",
         "feature/foo",
@@ -209,7 +203,7 @@ describe("inferSessionType — execution default", () => {
 
   it("returns execution when nextAction is null but taskList is populated", () => {
     expect(
-      inferSessionType("In Progress", "tasks-foo.md", null, "feature/foo"),
+      inferSessionType("Unknown", "tasks-foo.md", null, "feature/foo"),
     ).toBe("execution");
   });
 });

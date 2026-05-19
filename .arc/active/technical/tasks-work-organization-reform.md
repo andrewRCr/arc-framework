@@ -2712,20 +2712,21 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           legacy-mapping test case in `types.test.ts` is replaced by a negative test asserting each retired
           value resolves to `"unknown"`.
 
-    - `[ ]` **6.2.k Cleanup: verify sessionType fast-paths fire; codify Active fall-through (paired with 5.4.b)**
-        - `commands/active/status.ts` `inferSessionType` (modified in 5.4.b) gained fast-path arms for the
-          _unambiguous_ codified State values — `Integrating` and `Shipped` — alongside the existing
-          `Planning → planning`. `Active` deliberately falls through to the Task-List / Next-Action logic so
-          State + Next-Action signals compose correctly (Active + integrate-* → integration; Active + else →
-          execution).
-        - Cleanup work: verify the Integrating / Shipped / Planning fast-paths fire for codified values
-          post-6.2.b; verify Active still falls through correctly and Next-Action disambiguates within it. The
-          structural fall-through additionally serves as defensive forward-compat for unknown State values. Add
-          a clarifying doc-comment to the function naming the Active-as-phase-not-session-type design and the
-          State-vs-Next-Action signal split. Tests: assert each codified value routes correctly (Integrating /
-          Shipped / Planning via fast-paths; Active + integrate-* via fall-through to integration; Active + else
-          to execution); assert unknown values resolve via the fall-through (not via accidental match elsewhere).
-        - _Sequencing:_ Runs after 6.2.b.
+    - `[x]` **6.2.k Cleanup: verify sessionType fast-paths fire; codify Active fall-through (paired with 5.4.b)**
+        - `inferSessionType` docstring (`src/commands/active/status.ts`) reframed: legacy-value enumeration
+          (`In Progress`, `Paused`, `Complete`, `Superseded`) dropped from the fall-through arm; added a
+          **Design — State carries phase, Next-Action carries activity** note naming the
+          Active-as-phase-not-session-type split. Function body unchanged — the fast-path / fall-through
+          structure already lands the codified routing (Planning → planning; Integrating → integration;
+          Shipped → null; Active and any unrecognized value fall through).
+        - Tests (`__tests__/unit/active/session-type.test.ts`, 27 tests pass): dropped the legacy-specific
+          "falls through when State is `In Progress`" case (subsumed); renamed the three "non-Planning State
+          falls through ..." describe blocks to "non-codified State falls through ..." and replaced their
+          `"In Progress"` literals with `"Unknown"` to assert forward-compat for unrecognized State values
+          (not accidental match elsewhere). Parenthetical-suffix test (`Paused (2026-04-12)`) reframed to
+          "non-codified" framing. Existing codified-State fast-path coverage (Planning / Integrating /
+          Shipped) and Active fall-through coverage (Active + integrate-* / Start-Task / null taskList)
+          unchanged.
 
     - `[ ]` **6.2.l Cleanup: retire legacy layout + prefix from active-file scan (paired with 5.4.c)**
         - `lib/active/status-reader.ts` (modified in 5.4.c) accepts BOTH `status-*.md` and `meta-*.md` prefixes
