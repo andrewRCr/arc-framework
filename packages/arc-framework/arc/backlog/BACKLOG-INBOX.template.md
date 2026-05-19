@@ -1,12 +1,14 @@
 # Backlog Inbox
 
-> Project-shared, tracked queue of multi-step items awaiting plan-doc maturation. By convention, writes batch
-> at WU activation / integration / planning-kickoff ceremonies to keep multi-writer merge conflicts off this
-> file; live capture lives in `user/{identity}/USER-INBOX.md` § Backlog. See `strategy-planning-module.md`
-> § Inbox Family and § Ceremony-Only Writes to Shared Inboxes.
+> _Project-shared queue of multi-step entries awaiting plan-doc maturation. Live capture in
+> `user/{identity}/USER-INBOX.md` § Backlog drains here at WU ceremonies; entries graduate to a per-WU subdir
+> under `backlog/{planned,provisional}/<wu-name>/` when scope and plan emerge. See
+> `strategy-planning-module.md` § Inbox Family._
 
-<!--
-Multi-step entries from across the project. One-line description per entry until scope and plan emerge,
-at which point the entry graduates to a per-WU subdir under backlog/{planned,provisional}/<wu-name>/ —
-see strategy-planning-module.md § State-Dir Graduation.
--->
+## Inbox
+
+<!-- Entry shape: H3 + checkbox + bold title (`### `[ ]` **Title**`) + italic-descriptor bullets
+(_Observation:_, _Proposed action:_, _Scope:_, _Branch:_, _Captured during:_).
+See strategy-planning-module.md § Backlog Inbox. -->
+
+---

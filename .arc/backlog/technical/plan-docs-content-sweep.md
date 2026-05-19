@@ -502,3 +502,30 @@ item is urgent enough to run as an atomic task list before the consolidated swee
   surfacing of the per-WU status file docs drift
 - `prd-session-init-optimization.md` § Requirements P1.1–P1.3 (operational-context audit
   producing content contributions staged here)
+
+---
+
+## Backlog Inbox Absorption (2026-05-19, WOR Task 6.3.b)
+
+*Entries folded from retired `backlog/feature/BACKLOG-FEATURE.md` during WOR Task 6.3.b
+inbox-drain to the four-surface model. Domain overlap with this plan flagged; integration
+into plan body deferred to a focused iteration session.*
+
+### Strategy Documents on Docs Site
+
+Consider hosting ARC strategy documents on the docs site as deep-dive wiki entries.
+Currently, docs reference pages point to in-repo `.arc/reference/strategies/` files that
+pre-installation readers can't access. Options: mirror selected strategies to the docs
+site with a sync workflow to prevent drift, rewrite some as standalone deep-dive pages
+with a different audience framing (strategies are currently written "to ourselves"), or
+update internal references to external links with the docs site as sole source of truth.
+Some strategies may need reframing if they shift from internal reference to public
+documentation. Closer to 1.0 than public beta scope.
+
+### Post-1.0 Content Ideas
+
+- Integration examples for common tech stacks (React, Django, data pipelines, etc.)
+- Tutorial content and walkthrough materials beyond WU4 launch set
+- Example project showcasing ARC adoption from scratch
+
+These overlap with WU5 docs site scope but may exceed what ships at 1.0 launch.

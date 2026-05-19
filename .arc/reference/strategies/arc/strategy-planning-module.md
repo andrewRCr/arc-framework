@@ -84,6 +84,14 @@ Committed-tracked queue of multi-step entries awaiting plan-doc maturation. Cere
 subdir at `backlog/{planned,provisional}/<wu-name>/` carrying their `plan-<wu-name>.md` and any
 companions — see § State-Dir Graduation.
 
+**Entry shape:** H3 with a `[ ]` checkbox and bold title, followed by italic-descriptor bullets
+— `_Observation:_`, `_Proposed action:_`, `_Scope:_`, `_Branch:_`, `_Captured during:_` (and
+others as the entry warrants). Entries sit under a `## Inbox` H2 wrapper (the H2 layer below the
+file H1); USER-INBOX additionally splits into `## Atomic` / `## Backlog` sections in lieu of
+`## Inbox`. Multi-line bullets within an entry separate with blank lines (loose-list per
+`strategy-task-list-formatting.md` § Blank-Line Discipline). Same shape applies to
+project-shared ATOMIC-INBOX entries.
+
 ### Write-discipline summary
 
 Personal capture (`USER-INBOX.md`) accepts writes any time (live capture). Shared inboxes

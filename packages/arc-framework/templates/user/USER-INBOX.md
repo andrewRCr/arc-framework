@@ -11,5 +11,7 @@
 
 ## Backlog
 
-<!-- Multi-step items awaiting plan-doc / PRD treatment. One-line description per entry -->
-<!-- until scope and plan emerge. -->
+<!-- Multi-step items awaiting plan-doc / PRD treatment. Shape mirrors BACKLOG-INBOX entries; -->
+<!-- see strategy-planning-module.md § Backlog Inbox. -->
+
+---

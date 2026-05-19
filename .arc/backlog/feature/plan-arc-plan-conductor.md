@@ -1374,3 +1374,29 @@ it; current lean is ship together since modality creates the strongest case for 
 two designs interact at the spike-commit-disposition boundary.
 
 ---
+
+## Backlog Inbox Absorption (2026-05-19, WOR Task 6.3.b)
+
+*Entry folded from retired `backlog/technical/BACKLOG-TECHNICAL.md` during WOR Task 6.3.b
+inbox-drain to the four-surface model. Originally paired with a "Related Work Units
+cross-linking convention" item that WOR subsumed via `**Cohort:**` (R13) + `**Depends On:**`
+(R11) meta-file fields — dropped. PR-sized boundary estimation remains as standalone
+planning-methodology refinement. Integration into plan body deferred to a focused
+iteration session.*
+
+### Codify PR-sized boundary estimation in `strategy-work-planning.md`
+
+- **Problem:** Soft 6–7 phase target for WUs lacks codified estimation guidance. Planning
+  works from intuition; size-risk surfaces at integration time rather than at planning
+  time when splitting is cheap.
+- **Approach:** Add a "Reviewability and Work-Unit Sizing" section to the discovery
+  checklist with 5 estimation cues (file-breadth, test-surface, dependency-direction,
+  explainability test, system-interaction count) and a smell-test checklist (too-big /
+  too-small / right-sized signals). Wire reference into `1_create-prd.md` discovery step
+  and `2_generate-tasks.md` validation. Empirical anchor: 200–400 LOC review-effectiveness
+  sweet spot.
+- **Research:** `research-pr-sizing-and-wu-boundary-estimation.md` (under
+  `.arc/reference/research/`) — synthesizes SmartBear/Cisco, Google (Sadowski et al.),
+  Microsoft (Bacchelli & Bird), and GitHub-scale studies, plus SPIDR/INVEST methodological
+  frames. Includes draft section text ready to lift.
+- **Effort estimate:** S (atomic-tier — strategy edit + workflow cross-references)

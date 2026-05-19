@@ -5,5 +5,10 @@
 > lives in `user/{identity}/USER-INBOX.md`. See `strategy-planning-module.md` § Inbox Family and
 > § Ceremony-Only Writes to Shared Inboxes.
 
-<!-- Single-step entries from across the project. Shape mirrors atomic-{name}.md items. -->
-<!-- See strategy-task-list-formatting.md § Atomic Companion File. -->
+## Inbox
+
+<!-- Entry shape: H3 + checkbox + bold title (`### `[ ]` **Title**`) + italic-descriptor bullets
+(_Observation:_, _Approach:_, _Files:_, _Scope:_, _Captured during:_).
+See strategy-task-list-formatting.md § Atomic Companion File. -->
+
+---
