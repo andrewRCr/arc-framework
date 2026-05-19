@@ -42,6 +42,13 @@ git pull origin {base-branch}
 Verify the working tree is clean (`git status`). If there are uncommitted changes from a prior session,
 resolve them before proceeding.
 
+Verify `{base-branch}` is at parity with `origin/{base-branch}` after pull
+(`git rev-list --count {base-branch}..origin/{base-branch}` returns `0`). Non-zero indicates the pull
+didn't reach parity — typically a network glitch or a fetch-then-rebase scenario; investigate before
+creating the planning branch. This guard matters most on cross-machine resume, where local
+`{base-branch}` may be arbitrarily behind `origin/{base-branch}` from integration work that landed
+on a sibling clone.
+
 ### 2) Create Planning Branch
 
 ```bash

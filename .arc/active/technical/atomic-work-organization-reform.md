@@ -174,3 +174,14 @@ Atomic Task Completion for the full protocol.
   rejecting for the wrong reason (status- prefix, not the dropped `(planning)` parenthetical);
   flipped to `meta-foo.md` so it now fails for the intended reason. Comment "filename token stays
   at status- here; flips at 6.2.i" + the R29a transitional labels dropped. 34/34 tests pass.
+
+### `[x]` **Defensive base-branch parity check in `init-work-unit.md` Step 1**
+
+- _Outcome:_ Added a post-pull parity verification line to Step 1 (Ensure Clean Base Branch) in
+  both copies of `init-work-unit.md` — confirms `{base-branch}` matches `origin/{base-branch}` after
+  pull via `git rev-list --count {base-branch}..origin/{base-branch}` returning `0`. Catches silent
+  pull failures (cached fetch, network glitch) and surfaces cross-machine staleness before planning
+  branch creation. Surfaced during Task 6.5 inspection: this machine's local `main` was 47 commits
+  behind `origin/main` from integration work that landed on a sibling clone. The probe-side
+  extension (session-init `mainSync` slot) is the larger concern — captured separately in
+  `user/andrew/ATOMIC-INBOX.md` with forward-pointer to `plan-cross-machine-sync-coherence.md`.
