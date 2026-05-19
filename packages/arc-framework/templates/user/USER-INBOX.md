@@ -1,8 +1,8 @@
 # User Inbox
 
-> Personal capture surface for items to handle later. `## Atomic` for single-step items; `## Backlog` for
+> _Personal capture surface for items to handle later. `## Atomic` for single-step items; `## Backlog` for
 > multi-step items needing plan-doc / PRD treatment. Drain destination depends on the project's PM mode.
-> See `strategy-session-operations.md` § USER-INBOX.
+> See `strategy-session-operations.md` § USER-INBOX._
 
 ## Atomic
 
