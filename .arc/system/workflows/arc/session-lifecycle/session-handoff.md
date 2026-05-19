@@ -160,7 +160,8 @@ Update session state files before ending session:
     typical WU/task names. Long WU names (>~30 chars) may force shortened forms — convention for
     fallback: trim WU name to its last segment.
 
-    Then invoke `workflowCommit` with the composed message.
+    > [!CAUTION]
+    > `commit-interlock` release — invoke `workflowCommit` with the composed message.
 
     When the previous block staged a change, the new HEAD becomes the `**Commit at Handoff:**`
     value written in step 5. When no field cleared the skip threshold, nothing is staged and the
@@ -429,6 +430,9 @@ Strategy][session-ops] § Push Toggles for the underlying model.
       list (established at session init), load and execute its `.actions` before invoking sync.
       Halt-on-fail surfaces an actionable message; user fix-and-retries or explicit-invoke
       bypasses. Otherwise, skip.
+
+    > [!CAUTION]
+    > `sync-interlock` release — auto-invoke `arc sync`:
 
     ```bash
     arc sync --json
