@@ -2705,15 +2705,12 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           bullets swapped. `chore(status):` literal at one line preserved for 6.1.e codification (commit-subject
           token, not filename token).
 
-    - `[ ]` **6.2.j Cleanup: retire legacy State values from validation surface (paired with 5.4.a)**
-        - `validateState` (codified in 5.4.a) accepts BOTH legacy values (`In Progress`, `Complete`, `Paused`,
-          `Superseded`) and new values during the transition window. Once 6.2.b completes the in-flight meta-file State
-          recodification, the legacy values are no longer present in any in-flight artifact — the legacy half is dead.
-        - Drop legacy values from the validator's accepted set; assert the new four-value enum
-          (`Planning, Active, Integrating, Shipped`) is exhaustive. Diagnostic messages prune accordingly.
-        - Tests: drop legacy-state test cases; add a negative test asserting `In Progress` (and other retired values)
-          now resolve to `"unknown"`.
-        - _Sequencing:_ Runs after 6.2.b (this WU's meta file carries the new State value).
+    - `[x]` **6.2.j Cleanup: retire legacy State values from validation surface (paired with 5.4.a)**
+        - `validateState` (`src/commands/active/types.ts`) switch trimmed to the four-value enum
+          (`Planning | Active | Integrating | Shipped`); legacy `In Progress` / `Paused` / `Complete` /
+          `Superseded` mapping arms dropped and docstring transition-window language removed. The
+          legacy-mapping test case in `types.test.ts` is replaced by a negative test asserting each retired
+          value resolves to `"unknown"`.
 
     - `[ ]` **6.2.k Cleanup: verify sessionType fast-paths fire; codify Active fall-through (paired with 5.4.b)**
         - `commands/active/status.ts` `inferSessionType` (modified in 5.4.b) gained fast-path arms for the

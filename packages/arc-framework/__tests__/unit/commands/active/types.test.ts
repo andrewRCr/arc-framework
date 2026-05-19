@@ -10,11 +10,11 @@ describe("validateState", () => {
     expect(validateState("Shipped")).toBe("Shipped");
   });
 
-  it("maps legacy values to their semantic equivalents in the codified enum", () => {
-    expect(validateState("In Progress")).toBe("Active");
-    expect(validateState("Paused")).toBe("Active");
-    expect(validateState("Complete")).toBe("Integrating");
-    expect(validateState("Superseded")).toBe("Shipped");
+  it("returns 'unknown' for retired legacy values", () => {
+    expect(validateState("In Progress")).toBe("unknown");
+    expect(validateState("Paused")).toBe("unknown");
+    expect(validateState("Complete")).toBe("unknown");
+    expect(validateState("Superseded")).toBe("unknown");
   });
 
   it("returns 'unknown' for null", () => {
