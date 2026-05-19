@@ -2804,9 +2804,12 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
   Plus: session-lifecycle workflow consumers (`session-handoff.md` + `session-init.md`) align with the new layout —
   paired with the in-flight workspace migration (6.3.d ↔ 6.3.e) so consumers and on-disk surfaces transition together.
 
-- `[ ]` **6.3.a Per-user ATOMIC-INBOX → USER-INBOX rename**
-        - `git mv .arc/user/{andrew}/ATOMIC-INBOX.md .arc/user/{andrew}/USER-INBOX.md`. Restructure content under
-          `## Atomic` section; add empty `## Backlog` section.
+    - `[x]` **6.3.a Per-user ATOMIC-INBOX → USER-INBOX rename**
+        - Renamed `.arc/user/andrew/ATOMIC-INBOX.md` → `USER-INBOX.md` via plain `mv`
+          (file is gitignored — `git mv` doesn't apply). H1 + preamble replaced with the
+          template-canonical shape from `templates/user/USER-INBOX.md`. Existing inbox
+          entries placed under `## Atomic`; empty `## Backlog` section added with the
+          template's shape-guidance comments.
 
     - `[ ]` **6.3.b Merge BACKLOG-FEATURE + BACKLOG-TECHNICAL → BACKLOG-INBOX**
         - Create `backlog/BACKLOG-INBOX.md`; migrate entries from both source files; reclassify per shape (some entries
