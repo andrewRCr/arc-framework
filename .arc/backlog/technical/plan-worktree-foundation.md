@@ -518,6 +518,44 @@ Cross-WU file merge in `arc user load` introduces per-file sync behavior (WU-sco
 Requires either a convention for declaring which files are which, or a hardcoded allowlist. Small
 design decision but real — affects future files in the `user/{identity}/` directory.
 
+### Orphan-warning signal-to-noise under routine retirement
+
+Today's `runUserLoad` orphan path in `commands/user/save-load.ts` preserves any local file absent
+from the incoming manifest to `.internal/<backup>.json` and emits a `Local file "X" not in saved
+manifest` warning. Behavior is correct (never silently destroy local content); messaging treats
+every orphan as equally unexpected. Under R65 + scope item 6's per-WU subdir load, routine WU
+integration retirement on one machine surfaces as N orphan warnings on every other machine still
+carrying the retired subdir from a prior sync. With concurrent worktrees (this WU introduces them)
+this becomes the routine cross-machine case rather than the exception; today's flat-warning shape
+creates alert fatigue. Surfaced concretely during WOR Task 6.3.a (per-user `ATOMIC-INBOX.md` →
+`USER-INBOX.md` rename) — the same pattern at file scale.
+
+Tiered improvements available (PRD-time scope decision; the underlying preserve-to-`.internal/`
+behavior is correct and stays unchanged across all tiers — only surfacing changes):
+
+- **T1 — Content-equivalence rename detection.** When a local orphan's content matches a different
+  name in the incoming manifest, surface as "Looks like rename X → Y" rather than generic
+  "not in saved manifest." Single-file case; matches the 6.3.a pattern.
+- **T2 — Subdir-grouped retirement messaging.** When orphans cluster under a path prefix absent
+  from the manifest's directory structure entirely (the routine R65 case post-integration), one
+  informational line plus cleanup hint (`rm -rf .arc/user/{id}/<wu>/`) replaces N warnings.
+  Highest signal-to-noise win for WF-driven cases.
+- **T3 — Sync-state-aware drift detection.** Extend `.internal/.sync-state.json` with the prior
+  file-list so the warning can distinguish "intentional retirement at source" (file was in the last
+  sync's manifest, now absent) from "real local drift, possibly unsaved work" (file appeared after
+  last sync). Only the latter warrants alarm; the former is informational at most.
+
+Composes with scope item 6's path-driven class dispatch — class awareness ("per-WU subdir retired"
+vs "cross-WU file changed") informs which tier applies and what cleanup hint to suggest.
+
+**Cross-ref:** `plan-cross-machine-sync-coherence.md` covers partial-push invisibility (sibling
+clones can't see that an originating machine had a partial push). That plan predates WOR R65 and
+this WU; likely stale and needs a worktree-aware refresh at this WU's PRD iteration — its proposed
+remote-marker mechanism interacts with the per-WU subdir sync class scope item 6 establishes and
+could share or extend the `.internal/.sync-state.json` schema T3 contemplates. Concurrent
+worktrees also change the partial-push surface area (multiple worktrees may push the notes ref).
+Examine the two plans together before either advances to PRD.
+
 ### Local-mode framing in extracted shift content
 
 Workflow Shape L4174-4179 in arc-modes has a Local-mode-specific paragraph (".arc/ is untracked in
