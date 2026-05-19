@@ -197,17 +197,14 @@ case "$context_footer_mode" in
                 # Extract filename
                 task_file=$(echo "$context_line" | sed -E 's/Context: (tasks-[a-zA-Z0-9-]+\.md).*/\1/')
 
-                # Check if task list file exists (search active subdirectories)
+                # Check if task list file exists at the active root (flat layout)
                 task_found=false
-                for dir in .arc/active/*/; do
-                    if [ -f "$dir$task_file" ]; then
-                        task_found=true
-                        break
-                    fi
-                done
+                if [ -f ".arc/active/$task_file" ]; then
+                    task_found=true
+                fi
 
                 if [ "$task_found" = false ]; then
-                    echo -e "${YELLOW}Warning: Task list file '$task_file' not found in active directories${NC}"
+                    echo -e "${YELLOW}Warning: Task list file '$task_file' not found at .arc/active/${NC}"
                     echo "   This may be intentional if the file was just created or archived"
                     warnings=$((warnings + 1))
                 fi
