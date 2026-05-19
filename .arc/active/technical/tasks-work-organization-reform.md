@@ -2695,56 +2695,38 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
       `status-work-organization-reform.md` is the sole in-flight status file (verified at task generation time). "Each
       WU's rename" is defensive language for the broader contract — most invocations migrate a single file.
 
-    - `[ ]` **6.2.a Per-WU rename: `git mv status-{name}.md meta-{name}.md`**
-        - Plus any `archive/` references on the same branch (none expected during this WU; verify).
+    - `[x]` **6.2.a Per-WU rename: `git mv status-{name}.md meta-{name}.md`**
+        - Renamed `.arc/active/technical/status-work-organization-reform.md` → `meta-work-organization-reform.md`.
+          No `archive/` references on this branch (verified).
 
-    - `[ ]` **6.2.a' Meta-file shape restructure (H1 + grouped blocks per R58)**
-        - **Atomicity coupling:** Rides the same commit as 6.2.a (rename + shape restructure are one logical change —
-          renaming without restructuring leaves a `meta-*.md` file in the pre-WOR shape, which is incoherent).
-        - H1 line: `# Status: {name}` → `# Metadata: {name}` per R58.
-        - Remove internal `## Work Unit Metadata` H2 wrapper; fields live directly under H1 in blank-line-grouped field
-          blocks (identity / reference / coordination / task pointers / directive groups per R58's field-block layout).
-        - Field syntax stays bullet form (`- **Field:** value`) matching the established cross-artifact convention; the
-          change is the H2-wrapper retirement, not field syntax.
-        - Field-set updates (Owner / Origin / Depends On / Cohort additions; retired-field removals) land in subsequent
-          subtasks (6.2.b-g); shape restructure here is the H1 + H2 structural shift.
+    - `[x]` **6.2.a' Meta-file shape restructure (H1 + grouped blocks per R58)**
+        - H1 `# Status: Work Organization Reform` → `# Metadata: Work Organization Reform`.
+        - `## Work Unit Metadata` H2 wrapper retired; fields now sit directly under H1 in blank-line-grouped
+          field blocks per R58 (identity / reference / coordination / task pointers / directive groups).
+        - Field bullet syntax (`- **Field:** value`) preserved per the cross-artifact convention.
 
-    - `[ ]` **6.2.b State recodification per mapping table**
-        - Under the 4-state enum (`Planning | Active | Integrating | Shipped` per PRD R9), commitment level lives in
-          dir, not State; on-branch-planning shares the `Planning` State with backlog-planning. Mapping for in-flight
-          meta files:
-        - `Planning` → `Planning` (preserved; covers both backlog-Planning and on-branch-Planning; dir location
-          distinguishes).
-        - `Draft` (old) → `Planning` + meta routes to `backlog/provisional/<wu>/` (if such a file is in scope; in
-          practice all in-flight WUs at WOR activation are on branches in `active/`, so this row is defensive).
-        - `In Progress` → `Active`.
-        - `Active` → `Active`.
-        - `Complete` + `**Integration:** Merged` → `Shipped`.
-        - `Complete` + `**Integration:** (PR open)` → `Integrating`.
-        - `**Integration:**` field retires (folds into State as the `Integrating` value).
+    - `[x]` **6.2.b State recodification per mapping table**
+        - This WU: `In Progress` → `Active` per R9. Other mapping rows didn't apply to this file.
 
-    - `[ ]` **6.2.c Backfill `**Origin:**`(default`[Internal]`; migrate external URLs from Spec)**
+    - `[x]` **6.2.c Backfill `**Origin:**`(default`[internal]`; migrate external URLs from Spec)**
+        - `**Origin:** [internal]` backfilled (template-canonical lowercase; task description's `[Internal]`
+          was stale relative to the post-template casing). No external Spec URL for this WU.
 
-    - `[ ]` **6.2.d Backfill `**Owner:**`from`arc.identity`**
+    - `[x]` **6.2.d Backfill `**Owner:**`from`arc.identity`**
+        - `**Owner:** andrew` backfilled from `arc.identity`.
 
-    - `[ ]` **6.2.e Initialize `**Depends On:** [none]` (manual extraction for known dependencies)**
+    - `[x]` **6.2.e Initialize `**Depends On:** [none]` (manual extraction for known dependencies)**
+        - `**Depends On:** [none]` initialized — WOR has no documented blocking dependencies.
 
-    - `[ ]` **6.2.f Initialize `**Cohort:** [none]` (or cohort name for known sibling sets)**
-        - Parallelism trio members (Worktree Foundation, Agile WU Lifecycle, Concurrent Work Conventions) tagged
-          `parallelism-trio`. ARCd Rebrand consumes WOR conventions but is a separate WU — defaults to `[none]` or its
-          own cohort per planning context. Interlock-release-wrappers cluster tagged `interlock-release-wrappers`.
-          Others default `[none]`.
+    - `[x]` **6.2.f Initialize `**Cohort:** [none]` (or cohort name for known sibling sets)**
+        - `**Cohort:** [none]` — WOR is the foundation for the parallelism-trio cohort, not a member (the trio
+          — Worktree Foundation, Agile WU Lifecycle, Concurrent Work Conventions — consumes WOR conventions).
 
-    - `[ ]` **6.2.g Retired-field migration on in-flight meta files (per R58 + R49a)**
-        - `**Branch(es):**` plural form → rename to `**Branch:**` singular (drop plural form); retain value as-is.
-        - `**Base Branch:**` → remove field entirely; invariant `main` under single-branch-per-WU.
-        - `**Sibling Work Unit(s):**` → remove field; cohort is SoT per R13 (sibling list derived); migrate any
-          meaningful sibling content into `**Cohort:**` if not already captured.
-        - `**Integration:**` → remove field; folds into `**State:**` per R9 4-state enum.
-        - `**Interrupts:**` / `**Paused At:**` / `**Paused To:**` → remove fields per R49a (incidental WU model
-          substrate retirement).
-        - _Note:_ In practice this WU's own `meta-work-organization-reform.md` is the sole in-flight meta file at
-          migration time. Defensive language for the broader contract.
+    - `[x]` **6.2.g Retired-field migration on in-flight meta files (per R58 + R49a)**
+        - `**Sibling Work Unit(s):**` field dropped (was `[none]`). Other retired fields (`**Base Branch:**`,
+          `**Integration:**`, `**Interrupts:**`, `**Paused At:**`, `**Paused To:**`) and the `**Branch(es):**`
+          → `**Branch:**` rename not applicable — this WU's pre-migration file already used singular
+          `**Branch:**` and didn't carry the other retired fields.
 
     - `[ ]` **6.2.h Cross-file header migration on in-flight non-meta WU artifacts (per R58a)**
         - `tasks-*` headers: rename `**PRD:**` → `**Spec:**` (vocabulary alignment); drop `**Branch(es):**`,
@@ -2759,21 +2741,14 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           `plan-*` since WOR's plan retired pre-PRD per R51). Other in-flight WUs (if any at migration time) follow the
           same pattern.
 
-    - `[ ]` **6.2.i Footer-convention status→meta filename-token propagation (couples atomically with 6.2.a)**
-        - **Atomicity coupling:** This subtask MUST land in the same commit as 6.2.a (the file rename) per ARC commit
-          discipline — otherwise the hook regex (still expecting `status-` when the file has been renamed) rejects valid
-          `Context: meta-{name}.md (handoff)` commits, OR commits referencing `Context: status-{name}.md` warn on
-          file-not-found.
-        - Hook regex update: `^Context: status-[a-zA-Z0-9-]+\.md` → `^Context: meta-[a-zA-Z0-9-]+\.md` on the
-          meta-anchor regex (line ~283 in current `system/githooks/commit-msg`); also update the file-existence loop to
-          check for `meta-*.md` instead of `status-*.md`.
-        - Hook error-message example list: `Context: status-X.md (handoff)` examples (lines 174-178) →
-          `Context: meta-X.md (handoff)`.
-        - Method body filename-token examples: section heading "Status-file references" already renamed to "Meta-file
-          references" at 6.2.c; update example filenames `status-` → `meta-` throughout the section body (the
-          section-heading rename happened at 6.2.c, but example filenames stayed at `status-` until this atomic-coupling
-          moment).
-        - Sync to `packages/arc-framework/arc/system/githooks/commit-msg` + the renamed method.
+    - `[x]` **6.2.i Footer-convention status→meta filename-token propagation (couples atomically with 6.2.a)**
+        - Hook (`commit-msg`, both copies): meta-anchor regex `status-` → `meta-`; sed pattern matched; variable
+          renames `status_file`/`status_found` → `meta_file`/`meta_found`; error-message label "Status file" →
+          "Meta file"; 6 example lines + 2 invalid-format help-text lines + 2 lifecycle-ceremony comments
+          swapped `status-` → `meta-`.
+        - `commit-footer.md` § Meta-file references (both copies): section-heading filename token + 7 example
+          bullets swapped. `chore(status):` literal at one line preserved for 6.1.e codification (commit-subject
+          token, not filename token).
         - Smoke test: re-run 6.2.f's smoke suite; verify positive cases now use `meta-` shape and negative cases include
           old `status-` prefix as a rejected pattern.
 

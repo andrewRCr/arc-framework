@@ -62,19 +62,19 @@ audit). Both take the same parentheticals.
 - `Context: prd-[name].md (planning)` — PRD iteration
 - `Context: prd-[name].md (code review)` — review-driven changes to the PRD
 
-### Meta-file references — `status-[name].md`
+### Meta-file references — `meta-[name].md`
 
 Used for WU lifecycle ceremonies (which edit the meta file) and for off-ceremony meta edits.
 
-- `Context: status-[name].md (handoff)` — meta-file rotation at session boundary (dedicated
+- `Context: meta-[name].md (handoff)` — meta-file rotation at session boundary (dedicated
   `chore(status):` commit per [DEV-RULES.ARC][dev-rules-arc] § Commit Discipline)
-- `Context: status-[name].md (activation)` — backlog → active transition
-- `Context: status-[name].md (integration)` — integration prep (completion doc, cleanup, reference
+- `Context: meta-[name].md (activation)` — backlog → active transition
+- `Context: meta-[name].md (integration)` — integration prep (completion doc, cleanup, reference
   fixes; not review-driven fixes — see `(code review)` on `tasks-`/`plan-`)
-- `Context: status-[name].md (archival)` — active → archive transition
-- `Context: status-[name].md (deactivation)` — active → backlog rotation
-- `Context: status-[name].md (maintenance)` — off-ceremony meta edits (review-driven or otherwise)
-- `Context: status-[name].md (incidental during <context>)` — incidental fix folded into a
+- `Context: meta-[name].md (archival)` — active → archive transition
+- `Context: meta-[name].md (deactivation)` — active → backlog rotation
+- `Context: meta-[name].md (maintenance)` — off-ceremony meta edits (review-driven or otherwise)
+- `Context: meta-[name].md (incidental during <context>)` — incidental fix folded into a
   ceremony or maintenance commit
 
 ### Atomic companion references — `atomic-[name].md`

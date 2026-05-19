@@ -170,12 +170,12 @@ case "$context_footer_mode" in
             echo "   Context: tasks-theme-system.md (maintenance)"
             echo "   Context: tasks-auth-system.md (code review)"
             echo "   Context: plan-user-sync-ux.md (planning)"
-            echo "   Context: status-auth-system.md (handoff)"
-            echo "   Context: status-structural-pass.md (activation)"
-            echo "   Context: status-auth-system.md (integration)"
-            echo "   Context: status-auth-system.md (archival)"
-            echo "   Context: status-auth-system.md (deactivation)"
-            echo "   Context: status-auth-system.md (maintenance)"
+            echo "   Context: meta-auth-system.md (handoff)"
+            echo "   Context: meta-structural-pass.md (activation)"
+            echo "   Context: meta-auth-system.md (integration)"
+            echo "   Context: meta-auth-system.md (archival)"
+            echo "   Context: meta-auth-system.md (deactivation)"
+            echo "   Context: meta-auth-system.md (maintenance)"
             echo "   Context: atomic-auth-system.md"
             echo "   Context: standalone (maintenance)"
             echo "   Context: standalone (planning)"
@@ -238,7 +238,7 @@ case "$context_footer_mode" in
                 elif echo "$context_line" | grep -qE '\(incidental during .+\)$'; then
                     :
                 # Matches: (planning), (maintenance), (code review) — task-list metadata or review-driven
-                # Lifecycle ceremony markers (handoff, activation, integration, archival) attach to status-*.md.
+                # Lifecycle ceremony markers (handoff, activation, integration, archival) attach to meta-*.md.
                 elif echo "$context_line" | grep -qE '\((planning|maintenance|code review)\)$'; then
                     :
                 else
@@ -254,7 +254,7 @@ case "$context_footer_mode" in
                     echo "   - (Tasks X.Y, A.B; planning) - multiple tasks with extra work"
                     echo "   - (incidental during <context>) - freeform discovery context"
                     echo "   - (planning), (maintenance), or (code review) - task list metadata or review-driven changes"
-                    echo "   Note: lifecycle ceremonies (handoff, activation, integration, archival) attach to status-*.md, not tasks-*.md"
+                    echo "   Note: lifecycle ceremonies (handoff, activation, integration, archival) attach to meta-*.md, not tasks-*.md"
                     echo ""
                     echo "   Note: Parenthetical is REQUIRED for all commits"
                     echo ""
@@ -279,21 +279,21 @@ case "$context_footer_mode" in
                     warnings=$((warnings + 1))
                 fi
 
-            # Matches: Context: status-[name].md (handoff|activation|integration|archival|deactivation|maintenance)
+            # Matches: Context: meta-[name].md (handoff|activation|integration|archival|deactivation|maintenance)
             # Also accepts: (incidental during <context>) for fixes folded into ceremony / maintenance commits
-            elif echo "$context_line" | grep -qE '^Context: status-[a-zA-Z0-9-]+\.md \((handoff|activation|integration|archival|deactivation|maintenance|incidental during .+)\)$'; then
-                status_file=$(echo "$context_line" | sed -E 's/Context: (status-[a-zA-Z0-9-]+\.md).*/\1/')
+            elif echo "$context_line" | grep -qE '^Context: meta-[a-zA-Z0-9-]+\.md \((handoff|activation|integration|archival|deactivation|maintenance|incidental during .+)\)$'; then
+                meta_file=$(echo "$context_line" | sed -E 's/Context: (meta-[a-zA-Z0-9-]+\.md).*/\1/')
 
-                status_found=false
+                meta_found=false
                 for dir in .arc/active/*/; do
-                    if [ -f "$dir$status_file" ]; then
-                        status_found=true
+                    if [ -f "$dir$meta_file" ]; then
+                        meta_found=true
                         break
                     fi
                 done
 
-                if [ "$status_found" = false ]; then
-                    echo -e "${YELLOW}Warning: Status file '$status_file' not found in active directories${NC}"
+                if [ "$meta_found" = false ]; then
+                    echo -e "${YELLOW}Warning: Meta file '$meta_file' not found in active directories${NC}"
                     echo "   This may be intentional if the file was just created or archived"
                     warnings=$((warnings + 1))
                 fi
@@ -335,8 +335,8 @@ case "$context_footer_mode" in
                 echo "   - Context: tasks-[name].md (planning), (maintenance), or (code review)"
                 echo "   - Context: plan-[name].md (planning) or (code review)"
                 echo "   - Context: prd-[name].md (planning) or (code review)"
-                echo "   - Context: status-[name].md (handoff), (activation), (integration), (archival), (deactivation), or (maintenance)"
-                echo "   - Context: status-[name].md (incidental during <context>)"
+                echo "   - Context: meta-[name].md (handoff), (activation), (integration), (archival), (deactivation), or (maintenance)"
+                echo "   - Context: meta-[name].md (incidental during <context>)"
                 echo "   - Context: atomic-[name].md"
                 echo "   - Context: standalone (maintenance|planning|documentation|refactor)"
                 echo "   - Context: contribution (description)"
