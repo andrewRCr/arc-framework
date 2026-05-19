@@ -263,12 +263,16 @@ case "$context_footer_mode" in
                 spec_file=$(echo "$context_line" | sed -E 's/Context: ((plan|prd)-[a-zA-Z0-9-]+\.md).*/\1/')
 
                 spec_found=false
-                for dir in .arc/active/*/ .arc/backlog/*/; do
-                    if [ -f "$dir$spec_file" ]; then
-                        spec_found=true
-                        break
-                    fi
-                done
+                if [ -f ".arc/active/$spec_file" ]; then
+                    spec_found=true
+                else
+                    for dir in .arc/backlog/*/; do
+                        if [ -f "$dir$spec_file" ]; then
+                            spec_found=true
+                            break
+                        fi
+                    done
+                fi
 
                 if [ "$spec_found" = false ]; then
                     echo -e "${YELLOW}Warning: Plan/PRD file '$spec_file' not found in active or backlog directories${NC}"
@@ -282,15 +286,12 @@ case "$context_footer_mode" in
                 meta_file=$(echo "$context_line" | sed -E 's/Context: (meta-[a-zA-Z0-9-]+\.md).*/\1/')
 
                 meta_found=false
-                for dir in .arc/active/*/; do
-                    if [ -f "$dir$meta_file" ]; then
-                        meta_found=true
-                        break
-                    fi
-                done
+                if [ -f ".arc/active/$meta_file" ]; then
+                    meta_found=true
+                fi
 
                 if [ "$meta_found" = false ]; then
-                    echo -e "${YELLOW}Warning: Meta file '$meta_file' not found in active directories${NC}"
+                    echo -e "${YELLOW}Warning: Meta file '$meta_file' not found in active directory${NC}"
                     echo "   This may be intentional if the file was just created or archived"
                     warnings=$((warnings + 1))
                 fi
@@ -300,17 +301,14 @@ case "$context_footer_mode" in
                 # Atomic companion file reference — valid, no task number needed
                 atomic_file=$(echo "$context_line" | sed -E 's/Context: (atomic-[a-z0-9-]+\.md).*/\1/')
 
-                # Check if atomic companion file exists (search active subdirectories)
+                # Check if atomic companion file exists at .arc/active/ root
                 atomic_found=false
-                for dir in .arc/active/*/; do
-                    if [ -f "$dir$atomic_file" ]; then
-                        atomic_found=true
-                        break
-                    fi
-                done
+                if [ -f ".arc/active/$atomic_file" ]; then
+                    atomic_found=true
+                fi
 
                 if [ "$atomic_found" = false ]; then
-                    echo -e "${YELLOW}Warning: Atomic companion file '$atomic_file' not found in active directories${NC}"
+                    echo -e "${YELLOW}Warning: Atomic companion file '$atomic_file' not found in active directory${NC}"
                     echo "   This may be intentional if the file was just created or archived"
                     warnings=$((warnings + 1))
                 fi
