@@ -4,6 +4,8 @@ audience: agent
 arc:
   methods:
     - branch-format
+  extensions:
+    - pre-push-review
 ---
 
 # Workflow: Initialize Work Unit

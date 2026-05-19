@@ -4,6 +4,8 @@ audience: agent
 arc:
   methods:
     - session-state
+  extensions:
+    - pre-push-review
 ---
 
 # Workflow: Session Handoff

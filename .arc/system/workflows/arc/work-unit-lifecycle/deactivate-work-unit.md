@@ -4,6 +4,8 @@ audience: collaborative (human and agent)
 arc:
   methods:
     - branch-format
+  extensions:
+    - pre-push-review
 ---
 
 # Workflow: Deactivate Work Unit

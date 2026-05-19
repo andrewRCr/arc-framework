@@ -6,6 +6,7 @@ arc:
     - branch-format
   extensions:
     - pre-activation
+    - pre-push-review
     - post-work-unit-activate
 ---
 

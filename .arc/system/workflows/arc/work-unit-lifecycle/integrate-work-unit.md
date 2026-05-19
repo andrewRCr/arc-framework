@@ -8,6 +8,7 @@ arc:
     - commit-footer
   extensions:
     - pre-pr-review
+    - pre-push-review
     - pre-merge-review
 ---
 
