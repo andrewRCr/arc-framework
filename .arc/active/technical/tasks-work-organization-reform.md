@@ -2974,12 +2974,22 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           `ATOMIC-INBOX.md`, `BACKLOG-INBOX.md`, `ROADMAP.md`. No `feature/`, `technical/`, or `plans/` dirs remain; no
           stray files at root. Top-down acceptance check that complements 6.4.d's per-WU verification.
 
-### `[ ]` **6.5 Clean up leaked Planning-state `status-*.md` files on `main`'s `active/`**
+### `[~]` **6.5 Clean up leaked Planning-state `status-*.md` files on `main`'s `active/`**
 
-- _Goal:_ Any leaked Planning-state `status-*.md` files on `main`'s `active/` are removed — completes the per-worktree
-  isolation invariant precondition (Success Criterion #2).
-    - Inspection from a fresh worktree branched off main: `active/` should be empty (or hold only inventory
-      placeholders). Any leaks → `git rm` in a dedicated cleanup commit.
+- _Outcome:_ Superseded by natural cleanup at WOR integration. Inspection of `origin/main`'s
+  `active/` surfaced one leak — `status-work-organization-reform.md`, residue from the pre-WOR
+  two-PR activation flow (PR #33 `technical/plan-work-organization-reform`) flagged in the
+  WU's Persistent Context. WOR's branch already renamed this file via `git mv` at 6.2.a, so
+  the file's removal rides the WOR merge to main as a natural consequence of the rename —
+  no dedicated cleanup commit needed. Per-worktree isolation invariant (Success Criterion #2)
+  holds the moment WOR integrates. 6.2.l unblocked.
+    - Inspection-time finding (preserved for trace): `git ls-tree origin/main -- .arc/active/`
+      showed exactly one `status-*.md` file (this WU's own), confirming the leak surface is
+      bounded to known pre-WOR activation residue rather than ambient drift across other WUs.
+    - Atomic-incidental spawned during inspection (`10fdf4e3`): added a base-branch parity
+      check to `init-work-unit.md` Step 1, surfacing the cross-machine staleness pattern
+      (local `main` 47 commits behind `origin/main` on this machine) before new-WU branch
+      creation rather than at it. Probe-side extension captured in user-scoped ATOMIC-INBOX.
 
 ### `[ ]` **6.6 Retire deprecated docs (`PROJECT-STATUS.md` + three others)**
 
