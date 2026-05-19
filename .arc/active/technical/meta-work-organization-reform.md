@@ -11,20 +11,24 @@
 - **Cohort:** [none]
 
 - **Task List:** `tasks-work-organization-reform.md`
-- **Last Completed:** Task 5.6 closes — Phase 5 implicitly complete (5.1–5.6 all `[x]`).
-  Final trio: workflow wiring for `arc user open`/`close` into init/activate/integrate
-  (`e1ec86fa`); SESSION-NOTES path resolver with R65a compat-shim (`7d9173d3`); unit + E2E
-  test coverage for the resolver and CLI lifecycle (`804d4d9e`).
-- **Next Task:** Task 6.1.a — Type-enum regex tightening + commit-format method type-list
-  sync (line ~2612).
+- **Last Completed:** Task 6.1.e closes — Phase 6.1 complete (commit-conventions tuning:
+  type-enum tightening, three-layer scope codification, handoff-commit shape codification).
+  Phase 6.2 migration cluster also closed (subtasks a–i + h: meta-file rename + shape
+  restructure + field backfills + hook regex + tasks/PRD header migration). Parent 6.2
+  remains `[ ]` — 6.2.j–o cleanups (paired with 5.4 compat shims) still pending.
+- **Next Task:** Task 6.2.j — Cleanup: retire legacy State values from validation surface
+  (paired with 5.4.a; line ~2702).
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 6.1.a — tighten the commit-msg hook regex to the 8-type enum
-  (`feat | fix | chore | docs | refactor | test | perf | revert`; drops `style | content |
-  build | ci | config`) along with the hook's `Types:` help-text and `commit-format.md`
-  § Types entries. Both hook and method ride to
-  `packages/arc-framework/arc/system/githooks/` + `arc/system/methods/` per Package-Project
-  Sync discipline. Smoke test lives in 6.1.c; scope-convention + handoff-commit shape
-  codification in 6.1.d / 6.1.e (per audit fold-in landed this session).
+- **Next Action:** Start the 6.2.j–n unblocked cleanup batch — four subtasks retiring
+  specific 5.4 compat shims: 6.2.j (validateState enum tightens to the new 4-value set);
+  6.2.k (sessionType fast-paths verification + Active-as-phase fall-through codification);
+  6.2.m (extractMetadataSection H2-wrapper fallback drop); 6.2.n (validate-status-spec.ts
+  retirement — path + state + integration validators trim to post-WOR shape). TypeScript
+  edits + paired test drops per subtask. 6.2.l (active-file scan compat retirement) stays
+  blocked on 6.5 (leaked Planning-state cleanup); 6.2.o (status-reader → meta-reader
+  module rename) blocked on 6.2.l + 6.2.m. After 6.2.j–n: decide whether to detour to 6.5
+  (unblocks 6.2.l → unblocks 6.2.o for full 6.2 closure) or proceed to Phase 6.3 as
+  originally planned (capture pipeline + user/ workspace migration).
 
 ---
