@@ -44,11 +44,23 @@ Conventional commit format.
 Rule of thumb: "What changed in system behavior or capability? Yes → `feat` / `fix` / `refactor`;
 No → `docs`"
 
-**Scope:** Lowercase functional area (e.g., `auth`, `api`, `tests`, `config`, `arc`, `deps`).
+**Three-layer convention.** Each commit-message layer carries orthogonal information.
 
-**Subject line:** Describe the change, not the task. Don't include task references, phase numbers, or other
-traceability metadata — the `Context:` footer handles that (see
-[commit-footer](commit-footer.md)).
+- **Subject scope** — LOCUS of change. Lowercase functional-area or codified-surface name in parentheses.
+  Prefer narrow scopes when the work is bounded to one surface: `(workflow)`, `(method)`, `(strategy)`,
+  `(hook)`, `(skill)`, `(template)`, `(rules)`, `(meta)`. Reserve `(arc)` for cross-cutting framework
+  concerns AND ARC lifecycle ceremony invocations — it is not a default-when-uncertain catch-all.
+  Project-defined scopes (`auth`, `api`, `deps`, etc.) follow the same locus principle.
+
+- **Subject body** — SPECIFIC work. Describe the change itself, not the task that motivated it — task
+  references, phase numbers, and other traceability metadata route through the `Context:` footer (see
+  [commit-footer](commit-footer.md)). For ceremony commits, lead with the action verb:
+  `handoff — <position>` / `activate <wu-name>` / `integrate <wu-name>` / `archive <wu-name>` /
+  `deactivate <wu-name>`.
+
+- **Footer parenthetical** — LIFECYCLE ACTION. `(handoff)`, `(activation)`, `(integration)`,
+  `(archival)`, `(deactivation)`, `(maintenance)`, `(incidental during ...)`. Machine-parse SoT; see
+  [commit-footer](commit-footer.md) for the full set and chain semantics.
 
 **Body:** Wrap at ~72 chars per line (renders cleanly in `git log`). Focus on WHY and IMPACT,
 not what changed. Hard limits: 100 lines, 100 chars per line — exceed either and the commit

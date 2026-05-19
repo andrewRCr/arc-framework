@@ -2626,28 +2626,16 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           types accepted with a valid `Context:` footer. Driven via temp commit-msg files against the live
           hook. Scope-rejection regression test omitted per the task's stated retirement.
 
-    - `[ ]` **6.1.d Codify three-layer scope convention (commit-format method + DEV-RULES.ARC + PRD R26 reshape)**
-        - `commit-format.md` § Scope rewrites — codify that each commit layer carries orthogonal information:
-            - **Subject scope** identifies LOCUS of change. Use narrow scopes when the work is bounded to one
-              surface (`(workflow)`, `(method)`, `(strategy)`, `(hook)`, `(skill)`, `(template)`, `(rules)`,
-              `(meta)`); reserve `(arc)` for cross-cutting framework concerns AND ARC lifecycle ceremony
-              invocations.
-            - **Subject body** describes SPECIFIC work. For ceremony commits, leads with the action verb —
-              `handoff — <position>` / `activate <wu-name>` / `integrate <wu-name>` / `archive <wu-name>` /
-              `deactivate <wu-name>`.
-            - **Footer parenthetical** names LIFECYCLE ACTION — `(handoff)`, `(activation)`, `(integration)`,
-              `(archival)`, `(deactivation)`, `(maintenance)`, `(incidental during ...)`. Machine-parse SoT;
-              enforcement already lives in the hook footer regex (unchanged).
-        - No mechanical scope-denylist. The "uninformative catch-all" pathology that the pre-WOR PRD flagged
-          dissolves under the convention — `(arc)` carries a specific reserved meaning, not a default-when-
-          uncertain. Convention enforced by code review + this codification, not the hook.
-        - DEV-RULES.ARC § Commit Discipline — add brief pointer to `commit-format.md` § Scope for the
-          convention; remove any residual prose that implies `(arc)` is uninformative-by-default.
-        - PRD R26 reshape (PRD body edit): retire "never the repo name" + "denylist for `arc`" framing; new
-          framing per the three-layer convention. PRD body edit lands at WOR integration as a PRD amendment
-          (not in this task — flag for integration sweep).
-        - Sync method edits to `packages/arc-framework/arc/system/methods/commit-format.md`.
-        - _Sequencing:_ Runs before 6.7.p (the prose-and-shape sweep depends on this codified target).
+    - `[x]` **6.1.d Codify three-layer scope convention (commit-format method + DEV-RULES.ARC + PRD R26 reshape)**
+        - `commit-format.md` § Scope replaced with a **Three-layer convention** block: subject scope (LOCUS +
+          vocabulary list + `(arc)` reservation), subject body (SPECIFIC work + ceremony action verbs), footer
+          parenthetical (LIFECYCLE ACTION → `commit-footer.md`). Subsumed the prior **Subject line:** "no task
+          IDs" rule into the Subject body bullet.
+        - DEV-RULES.ARC § Commit format — unchanged: the existing method pointer suffices, and embedding
+          default-specific convention into universal rules would couple them to override-able method content.
+          Grep confirmed no residual `(arc)`-as-default prose elsewhere — nothing to remove.
+        - PRD R26 reshape: deferred to WOR integration sweep per the task's stated scope split.
+        - Both copies synced (package source authoritative). Sequencing vs. 6.7.p preserved.
 
     - `[ ]` **6.1.e Codify handoff-commit subject + body shape (session-handoff.md step 3)**
         - Codify in `.arc/system/workflows/arc/session-lifecycle/session-handoff.md` § Comprehensive Handoff
