@@ -126,12 +126,11 @@ async function writeExtension(
 
 async function writeStatusFile(
   activeDir: string,
-  category: string,
+  _category: string,
   filename: string,
   body: { branch: string; state: string; taskList?: string; nextAction?: string },
 ): Promise<void> {
-  const dir = join(activeDir, category);
-  await mkdir(dir, { recursive: true });
+  void _category;
   const lines: string[] = [
     "# Metadata: fixture",
     "",
@@ -140,7 +139,7 @@ async function writeStatusFile(
   ];
   if (body.taskList !== undefined) lines.push(`- **Task List:** ${body.taskList}`);
   if (body.nextAction !== undefined) lines.push(`- **Next Action:** ${body.nextAction}`);
-  await writeFile(join(dir, filename), lines.join("\n"));
+  await writeFile(join(activeDir, filename), lines.join("\n"));
 }
 
 // Stub user result — the probe is exercised in its own suite; here we just
@@ -377,21 +376,19 @@ describe("runSessionInitStatus — companion-file resolution carry-through", () 
     fixture = await createFixture();
     await writeConfig(fixture.configPath);
     await writeExtension(fixture.extDir, "pre-merge-review", true);
-    const sub = join(fixture.activeDir, "technical");
-    await mkdir(sub, { recursive: true });
     await writeFile(
-      join(sub, "meta-foo.md"),
+      join(fixture.activeDir, "meta-foo.md"),
       [
         "# Metadata: fixture",
         "",
         "- **State:** Active",
         "- **Branch:** technical/foo",
-        "- **Task List:** `.arc/active/technical/tasks-foo.md`",
+        "- **Task List:** `.arc/active/tasks-foo.md`",
       ].join("\n"),
     );
-    await writeFile(join(sub, "tasks-foo.md"), "# tasks\n");
-    await writeFile(join(sub, "notes-foo.md"), "# notes\n");
-    await writeFile(join(sub, "atomic-foo.md"), "# atomic\n");
+    await writeFile(join(fixture.activeDir, "tasks-foo.md"), "# tasks\n");
+    await writeFile(join(fixture.activeDir, "notes-foo.md"), "# notes\n");
+    await writeFile(join(fixture.activeDir, "atomic-foo.md"), "# atomic\n");
   });
   afterEach(async () => {
     await rm(fixture.root, { recursive: true, force: true });
@@ -409,8 +406,8 @@ describe("runSessionInitStatus — companion-file resolution carry-through", () 
     if (result.active.ok) {
       expect(result.active.value.resolution).toBe("single");
       expect(result.active.value.companions).toEqual({
-        notes: ".arc/active/technical/notes-foo.md",
-        atomic: ".arc/active/technical/atomic-foo.md",
+        notes: ".arc/active/notes-foo.md",
+        atomic: ".arc/active/atomic-foo.md",
       });
     }
   });
@@ -752,7 +749,7 @@ describe("runSessionInitStatus — sessionType envelope coverage", () => {
     await writeStatusFile(fixture.activeDir, "technical", "meta-foo.md", {
       branch: "technical/foo",
       state: "Active",
-      taskList: "`.arc/active/technical/tasks-foo.md`",
+      taskList: "`.arc/active/tasks-foo.md`",
       nextAction: "Start Task 4.2 — write unit tests",
     });
 
@@ -774,7 +771,7 @@ describe("runSessionInitStatus — sessionType envelope coverage", () => {
     await writeStatusFile(fixture.activeDir, "technical", "meta-foo.md", {
       branch: "technical/foo",
       state: "Active",
-      taskList: "`.arc/active/technical/tasks-foo.md`",
+      taskList: "`.arc/active/tasks-foo.md`",
       nextAction: "integrate-work-unit Step 7 — push and create PR",
     });
 
@@ -796,13 +793,13 @@ describe("runSessionInitStatus — sessionType envelope coverage", () => {
     await writeStatusFile(fixture.activeDir, "feature", "meta-alpha.md", {
       branch: "feature/alpha",
       state: "Active",
-      taskList: "`.arc/active/feature/tasks-alpha.md`",
+      taskList: "`.arc/active/tasks-alpha.md`",
       nextAction: "Start Task 1.1 — kick off",
     });
     await writeStatusFile(fixture.activeDir, "technical", "meta-beta.md", {
       branch: "technical/beta",
       state: "Active",
-      taskList: "`.arc/active/technical/tasks-beta.md`",
+      taskList: "`.arc/active/tasks-beta.md`",
       nextAction: "integrate-work-unit Step 1 — verify completion",
     });
 

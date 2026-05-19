@@ -71,15 +71,13 @@ describe("runActiveStatus — Full layout", () => {
   });
 
   it("enumerates a single Full-layout candidate with all fields populated", async () => {
-    const sub = join(fixture.activeDir, "technical");
-    await mkdir(sub, { recursive: true });
     await writeFile(
-      join(sub, "meta-foo.md"),
+      join(fixture.activeDir, "meta-foo.md"),
       statusBody({
         state: "Active",
         branch: "technical/foo",
         nextTask: "Task 3.R.k.d — probe (line ~1828)",
-        taskList: "`.arc/active/technical/tasks-foo.md`",
+        taskList: "`.arc/active/tasks-foo.md`",
       }),
     );
 
@@ -88,24 +86,20 @@ describe("runActiveStatus — Full layout", () => {
     expect(result.candidates).toHaveLength(1);
     const c = result.candidates[0]!;
     expect(c.filename).toBe("meta-foo.md");
-    expect(c.path).toBe(".arc/active/technical/meta-foo.md");
+    expect(c.path).toBe(".arc/active/meta-foo.md");
     expect(c.branch).toBe("technical/foo");
     expect(c.state).toBe("Active");
     expect(c.nextTask).toBe("Task 3.R.k.d — probe (line ~1828)");
-    expect(c.taskList).toBe(".arc/active/technical/tasks-foo.md");
+    expect(c.taskList).toBe(".arc/active/tasks-foo.md");
   });
 
   it("enumerates many Full-layout candidates across categories with full State values", async () => {
-    const sub1 = join(fixture.activeDir, "feature");
-    const sub2 = join(fixture.activeDir, "technical");
-    await mkdir(sub1, { recursive: true });
-    await mkdir(sub2, { recursive: true });
     await writeFile(
-      join(sub1, "meta-alpha.md"),
+      join(fixture.activeDir, "meta-alpha.md"),
       statusBody({ state: "Active", branch: "feature/alpha" }),
     );
     await writeFile(
-      join(sub2, "meta-beta.md"),
+      join(fixture.activeDir, "meta-beta.md"),
       statusBody({
         state: "Paused (2026-04-12) — waiting for restructure",
         branch: "technical/beta",
@@ -159,30 +153,24 @@ describe("runActiveSessionInitStatus — resolution states", () => {
   });
 
   it("returns resolution=single with the resolved path for exactly one candidate", async () => {
-    const sub = join(fixture.activeDir, "technical");
-    await mkdir(sub, { recursive: true });
     await writeFile(
-      join(sub, "meta-foo.md"),
+      join(fixture.activeDir, "meta-foo.md"),
       statusBody({ state: "Active", branch: "technical/foo" }),
     );
 
     const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
     expect(result.resolution).toBe("single");
-    expect(result.path).toBe(".arc/active/technical/meta-foo.md");
+    expect(result.path).toBe(".arc/active/meta-foo.md");
     expect(result.candidates).toEqual([]);
   });
 
   it("returns resolution=multiple with the full candidate list for many files", async () => {
-    const sub1 = join(fixture.activeDir, "feature");
-    const sub2 = join(fixture.activeDir, "technical");
-    await mkdir(sub1, { recursive: true });
-    await mkdir(sub2, { recursive: true });
     await writeFile(
-      join(sub1, "meta-alpha.md"),
+      join(fixture.activeDir, "meta-alpha.md"),
       statusBody({ state: "Active", branch: "feature/alpha" }),
     );
     await writeFile(
-      join(sub2, "meta-beta.md"),
+      join(fixture.activeDir, "meta-beta.md"),
       statusBody({ state: "Integrating", branch: "technical/beta" }),
     );
 
@@ -233,17 +221,15 @@ describe("runActiveSessionInitStatus — companion-file resolution", () => {
   });
 
   async function writeFullStatus(category: string, stem: string): Promise<string> {
-    const sub = join(fixture.activeDir, category);
-    await mkdir(sub, { recursive: true });
     await writeFile(
-      join(sub, `meta-${stem}.md`),
+      join(fixture.activeDir, `meta-${stem}.md`),
       statusBody({
         state: "Active",
         branch: `${category}/${stem}`,
-        taskList: `\`.arc/active/${category}/tasks-${stem}.md\``,
+        taskList: `\`.arc/active/tasks-${stem}.md\``,
       }),
     );
-    return sub;
+    return fixture.activeDir;
   }
 
   it("populates both companion paths when notes-{stem}.md and atomic-{stem}.md exist", async () => {
@@ -255,8 +241,8 @@ describe("runActiveSessionInitStatus — companion-file resolution", () => {
     const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
     expect(result.resolution).toBe("single");
     expect(result.companions).toEqual({
-      notes: ".arc/active/technical/notes-foo.md",
-      atomic: ".arc/active/technical/atomic-foo.md",
+      notes: ".arc/active/notes-foo.md",
+      atomic: ".arc/active/atomic-foo.md",
     });
   });
 
@@ -267,7 +253,7 @@ describe("runActiveSessionInitStatus — companion-file resolution", () => {
 
     const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
     expect(result.companions).toEqual({
-      notes: ".arc/active/technical/notes-foo.md",
+      notes: ".arc/active/notes-foo.md",
       atomic: null,
     });
   });
@@ -280,7 +266,7 @@ describe("runActiveSessionInitStatus — companion-file resolution", () => {
     const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
     expect(result.companions).toEqual({
       notes: null,
-      atomic: ".arc/active/technical/atomic-foo.md",
+      atomic: ".arc/active/atomic-foo.md",
     });
   });
 
@@ -327,33 +313,29 @@ describe("runActiveSessionInitStatus — companion-file resolution", () => {
   });
 
   it("derives companions from meta-file directory when Task List value is a bare filename", async () => {
-    const sub = join(fixture.activeDir, "technical");
-    await mkdir(sub, { recursive: true });
     await writeFile(
-      join(sub, "meta-foo.md"),
+      join(fixture.activeDir, "meta-foo.md"),
       statusBody({
         state: "Active",
         branch: "technical/foo",
         taskList: "`tasks-foo.md`",
       }),
     );
-    await writeFile(join(sub, "tasks-foo.md"), "# tasks\n");
-    await writeFile(join(sub, "notes-foo.md"), "# notes\n");
-    await writeFile(join(sub, "atomic-foo.md"), "# atomic\n");
+    await writeFile(join(fixture.activeDir, "tasks-foo.md"), "# tasks\n");
+    await writeFile(join(fixture.activeDir, "notes-foo.md"), "# notes\n");
+    await writeFile(join(fixture.activeDir, "atomic-foo.md"), "# atomic\n");
 
     const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
     expect(result.resolution).toBe("single");
     expect(result.companions).toEqual({
-      notes: ".arc/active/technical/notes-foo.md",
-      atomic: ".arc/active/technical/atomic-foo.md",
+      notes: ".arc/active/notes-foo.md",
+      atomic: ".arc/active/atomic-foo.md",
     });
   });
 
   it("omits companions when Task List value is `[none]`", async () => {
-    const sub = join(fixture.activeDir, "technical");
-    await mkdir(sub, { recursive: true });
     await writeFile(
-      join(sub, "meta-foo.md"),
+      join(fixture.activeDir, "meta-foo.md"),
       statusBody({
         state: "Active",
         branch: "technical/foo",
@@ -517,10 +499,8 @@ describe("runActiveSessionInitStatus — contributor role-aware resolution", () 
   });
 
   it("preserves maintainer-default resolution when role is null/maintainer (behavior i)", async () => {
-    const sub = join(fixture.activeDir, "technical");
-    await mkdir(sub, { recursive: true });
     await writeFile(
-      join(sub, "meta-foo.md"),
+      join(fixture.activeDir, "meta-foo.md"),
       statusBody({ state: "Active", branch: "technical/foo" }),
     );
     // Also place a contributor-shape file that should NOT be picked up
@@ -536,7 +516,7 @@ describe("runActiveSessionInitStatus — contributor role-aware resolution", () 
       exec: defaultExec,
     });
     expect(result.resolution).toBe("single");
-    expect(result.path).toBe(".arc/active/technical/meta-foo.md");
+    expect(result.path).toBe(".arc/active/meta-foo.md");
   });
 });
 
@@ -554,10 +534,8 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
     stem: string,
     fields: { taskList?: string; nextAction?: string },
   ): Promise<void> {
-    const sub = join(fixture.activeDir, category);
-    await mkdir(sub, { recursive: true });
     await writeFile(
-      join(sub, `meta-${stem}.md`),
+      join(fixture.activeDir, `meta-${stem}.md`),
       statusBody({
         state: "Active",
         branch: `${category}/${stem}`,
@@ -583,11 +561,11 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
 
   it("emits sessionType=null when resolution is multiple (defer until disambiguation)", async () => {
     await writeStatus("feature", "alpha", {
-      taskList: "`.arc/active/feature/tasks-alpha.md`",
+      taskList: "`.arc/active/tasks-alpha.md`",
       nextAction: "Start Task 1.1 — implement",
     });
     await writeStatus("technical", "beta", {
-      taskList: "`.arc/active/technical/tasks-beta.md`",
+      taskList: "`.arc/active/tasks-beta.md`",
       nextAction: "Start Task 2.3 — refactor",
     });
     const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
@@ -617,7 +595,7 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
 
   it("emits sessionType=integration when Next Action begins with integrate-work-unit", async () => {
     await writeStatus("technical", "foo", {
-      taskList: "`.arc/active/technical/tasks-foo.md`",
+      taskList: "`.arc/active/tasks-foo.md`",
       nextAction: "integrate-work-unit Step 3 — push and create PR",
     });
     const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
@@ -627,7 +605,7 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
 
   it("emits sessionType=integration when Next Action begins with archive-work-unit", async () => {
     await writeStatus("technical", "foo", {
-      taskList: "`.arc/active/technical/tasks-foo.md`",
+      taskList: "`.arc/active/tasks-foo.md`",
       nextAction: "archive-work-unit Step 1 — archive artifacts and retire the status file",
     });
     const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
@@ -637,7 +615,7 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
 
   it("emits sessionType=execution for a regular Start-Task Next Action", async () => {
     await writeStatus("technical", "foo", {
-      taskList: "`.arc/active/technical/tasks-foo.md`",
+      taskList: "`.arc/active/tasks-foo.md`",
       nextAction: "Start Task 4.2 — write unit tests",
     });
     const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
@@ -647,7 +625,7 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
 
   it("emits sessionType=execution for non-integration lifecycle workflows (e.g., clean-work-unit)", async () => {
     await writeStatus("technical", "foo", {
-      taskList: "`.arc/active/technical/tasks-foo.md`",
+      taskList: "`.arc/active/tasks-foo.md`",
       nextAction: "clean-work-unit Step 3 — Mode 1 mid-work cleanup",
     });
     const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
@@ -657,7 +635,7 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
 
   it("infers sessionType under maintainer root when identity is null", async () => {
     await writeStatus("technical", "foo", {
-      taskList: "`.arc/active/technical/tasks-foo.md`",
+      taskList: "`.arc/active/tasks-foo.md`",
       nextAction: "Start Task 1.1 — kick off",
     });
     const result = await runActiveSessionInitStatus({
@@ -718,10 +696,8 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
   });
 
   it("emits sessionType=planning when resolution=single + State: Planning", async () => {
-    const sub = join(fixture.activeDir, "technical");
-    await mkdir(sub, { recursive: true });
     await writeFile(
-      join(sub, "meta-foo.md"),
+      join(fixture.activeDir, "meta-foo.md"),
       statusBody({
         state: "Planning",
         branch: "technical/plan-foo",
@@ -735,10 +711,8 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
   });
 
   it("falls back to branch pattern when State is empty + branch matches plan-pattern", async () => {
-    const sub = join(fixture.activeDir, "technical");
-    await mkdir(sub, { recursive: true });
     await writeFile(
-      join(sub, "meta-foo.md"),
+      join(fixture.activeDir, "meta-foo.md"),
       statusBody({ state: "", branch: "plan/foo" }),
     );
     const result = await runActiveSessionInitStatus({

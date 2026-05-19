@@ -13,7 +13,6 @@
  */
 
 import { readActiveStatusCandidates } from "../active/status-reader.js";
-import type { ActiveScanShape } from "../active/status-reader.js";
 import type { ActiveLayout } from "../../commands/active/types.js";
 
 const DEFAULT_ROOT_SEGMENTS = [".arc", "active"] as const;
@@ -31,8 +30,6 @@ export interface ResolveActiveWuOptions {
    * support that populates per-WU contributor-meta files lands.
    */
   rootSegments?: readonly string[];
-  /** Scan shape under the active root. Defaults to `subdir` (maintainer). */
-  scanShape?: ActiveScanShape;
 }
 
 /**
@@ -70,7 +67,6 @@ export async function resolveActiveWu(
   const rootSegments = opts.rootSegments ?? DEFAULT_ROOT_SEGMENTS;
   const reader = await readActiveStatusCandidates(opts.cwd, {
     rootSegments,
-    scanShape: opts.scanShape,
   });
 
   if (reader.candidates.length === 0) {
@@ -115,6 +111,6 @@ function parseCategoryAndName(
 }
 
 function parseNameFromFilename(filename: string): string {
-  const match = /^(?:meta|status)-(.+)\.md$/.exec(filename);
+  const match = /^meta-(.+)\.md$/.exec(filename);
   return match?.[1] ?? "";
 }

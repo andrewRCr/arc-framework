@@ -16,10 +16,7 @@
 import { stat } from "node:fs/promises";
 import { join, sep } from "node:path";
 
-import {
-  readActiveStatusCandidates,
-  type ActiveScanShape,
-} from "../../lib/active/status-reader.js";
+import { readActiveStatusCandidates } from "../../lib/active/status-reader.js";
 import { getCurrentBranch } from "../../lib/git/index.js";
 import type {
   ActiveLayout,
@@ -175,15 +172,14 @@ export async function runActiveSessionInitStatus(
 function resolveReaderOptions(
   role: string | null,
   identity: string | null,
-): { rootSegments: readonly string[]; scanShape: ActiveScanShape } | undefined {
+): { rootSegments: readonly string[] } | undefined {
   if (role === "contributor" && identity !== null) {
-    // Contributor role: scan the user-scoped flat active subdir. The
-    // eventual per-WU subdir layout (user/{identity}/<wu-name>/) requires
-    // a scan-shape reshape that composes with broader contributor-lifecycle
-    // support; not wired through this resolver yet.
+    // Contributor role: scan the user-scoped active subdir. The eventual
+    // per-WU subdir layout (user/{identity}/<wu-name>/) requires a reshape
+    // that composes with broader contributor-lifecycle support; not wired
+    // through this resolver yet.
     return {
       rootSegments: [".arc", "user", identity, "active"],
-      scanShape: "flat",
     };
   }
   return undefined;

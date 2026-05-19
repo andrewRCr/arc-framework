@@ -50,13 +50,13 @@ describe("parseStatusFile — happy path", () => {
     const content = statusFileBody({
       state: "Active",
       branch: "technical/foo",
-      taskList: "`.arc/active/technical/tasks-foo.md`",
+      taskList: "`tasks-foo.md`",
       nextTask: "Task 3.2 — implement widget (line ~1234)",
     });
     const parsed = parseStatusFile(content);
     expect(parsed.state).toBe("Active");
     expect(parsed.branch).toBe("technical/foo");
-    expect(parsed.taskList).toBe(".arc/active/technical/tasks-foo.md");
+    expect(parsed.taskList).toBe("tasks-foo.md");
     expect(parsed.nextTask).toBe("Task 3.2 — implement widget (line ~1234)");
   });
 
@@ -263,61 +263,70 @@ describe("readActiveStatusCandidates — layout detection", () => {
     }
   });
 
-  it("uses rootSegments + scan-shape flat to enumerate status-*.md files at the active root (no subdir scan)", async () => {
+  it("enumerates meta-*.md candidates at the flat active root", async () => {
+    await writeFile(
+      join(fixture.activeDir, "meta-alpha.md"),
+      statusFileBody({ state: "Active", branch: "technical/alpha" }),
+    );
+    await writeFile(
+      join(fixture.activeDir, "meta-beta.md"),
+      statusFileBody({ state: "Integrating", branch: "technical/beta" }),
+    );
+    const result = await readActiveStatusCandidates(fixture.root);
+    expect(result.layout).toBe("full");
+    expect(result.candidates).toHaveLength(2);
+    const filenames = result.candidates.map((c) => c.filename).sort();
+    expect(filenames).toEqual(["meta-alpha.md", "meta-beta.md"]);
+  });
+
+  it("emits candidate paths relative to cwd with forward slashes", async () => {
+    await writeFile(
+      join(fixture.activeDir, "meta-foo.md"),
+      statusFileBody({ state: "Active", branch: "technical/foo" }),
+    );
+    const result = await readActiveStatusCandidates(fixture.root);
+    expect(result.candidates[0]!.path).toBe(".arc/active/meta-foo.md");
+  });
+
+  it("ignores non-`meta-` files and stray subdirectories at the active root", async () => {
+    await writeFile(
+      join(fixture.activeDir, "meta-foo.md"),
+      statusFileBody({ state: "Active" }),
+    );
+    await writeFile(join(fixture.activeDir, "tasks-foo.md"), "# tasks\n");
+    await writeFile(join(fixture.activeDir, "notes-foo.md"), "# notes\n");
+    await writeFile(join(fixture.activeDir, "meta.md"), "# stray\n"); // no `meta-` prefix+hyphen
+    const stray = join(fixture.activeDir, "technical");
+    await mkdir(stray, { recursive: true });
+    await writeFile(
+      join(stray, "meta-decoy.md"),
+      statusFileBody({ state: "Active", branch: "technical/decoy" }),
+    );
+    const result = await readActiveStatusCandidates(fixture.root);
+    expect(result.candidates).toHaveLength(1);
+    expect(result.candidates[0]!.filename).toBe("meta-foo.md");
+  });
+
+  it("uses rootSegments to scan a custom active root (contributor scope)", async () => {
     const userActiveDir = join(fixture.root, ".arc", "user", "alice", "active");
     await mkdir(userActiveDir, { recursive: true });
     await writeFile(
-      join(userActiveDir, "status-foo.md"),
-      statusFileBody({ state: "In Progress", branch: "user/foo" }),
+      join(userActiveDir, "meta-foo.md"),
+      statusFileBody({ state: "Active", branch: "user/foo" }),
     );
     await writeFile(
-      join(userActiveDir, "status-bar.md"),
-      statusFileBody({ state: "Paused", branch: "user/bar" }),
-    );
-    // Stray subdirectory must be ignored under flat scan-shape
-    const stray = join(userActiveDir, "technical");
-    await mkdir(stray, { recursive: true });
-    await writeFile(
-      join(stray, "status-stray.md"),
-      statusFileBody({ state: "In Progress", branch: "technical/stray" }),
+      join(userActiveDir, "meta-bar.md"),
+      statusFileBody({ state: "Paused (2026-04-09)", branch: "user/bar" }),
     );
 
     const result = await readActiveStatusCandidates(fixture.root, {
       rootSegments: [".arc", "user", "alice", "active"],
-      scanShape: "flat",
     });
     expect(result.layout).toBe("full");
     expect(result.candidates).toHaveLength(2);
     const filenames = result.candidates.map((c) => c.filename).sort();
-    expect(filenames).toEqual(["status-bar.md", "status-foo.md"]);
+    expect(filenames).toEqual(["meta-bar.md", "meta-foo.md"]);
     expect(result.candidates[0]!.path.startsWith(".arc/user/alice/active/")).toBe(true);
-  });
-
-  it("detects lite layout under flat scan-shape via {root}/status.md", async () => {
-    const userActiveDir = join(fixture.root, ".arc", "user", "alice", "active");
-    await mkdir(userActiveDir, { recursive: true });
-    await writeFile(
-      join(userActiveDir, "status.md"),
-      statusFileBody({ state: "Active", branch: "main" }),
-    );
-
-    const result = await readActiveStatusCandidates(fixture.root, {
-      rootSegments: [".arc", "user", "alice", "active"],
-      scanShape: "flat",
-    });
-    expect(result.layout).toBe("lite");
-    expect(result.candidates).toHaveLength(1);
-    expect(result.candidates[0]!.path).toBe(".arc/user/alice/active/status.md");
-  });
-
-  it("emits a warning naming the supplied root path when the active directory is absent", async () => {
-    const result = await readActiveStatusCandidates(fixture.root, {
-      rootSegments: [".arc", "user", "alice", "active"],
-      scanShape: "flat",
-    });
-    expect(result.candidates).toEqual([]);
-    expect(result.warnings.length).toBe(1);
-    expect(result.warnings[0]).toContain(".arc/user/alice/active/");
   });
 
   it("detects lite layout when .arc/active/status.md exists", async () => {
@@ -333,16 +342,30 @@ describe("readActiveStatusCandidates — layout detection", () => {
     expect(result.candidates[0]!.state).toBe("Active");
   });
 
-  it("prefers lite layout when both shapes are present (status.md wins)", async () => {
+  it("detects lite layout under custom rootSegments", async () => {
+    const userActiveDir = join(fixture.root, ".arc", "user", "alice", "active");
+    await mkdir(userActiveDir, { recursive: true });
+    await writeFile(
+      join(userActiveDir, "status.md"),
+      statusFileBody({ state: "Active", branch: "main" }),
+    );
+
+    const result = await readActiveStatusCandidates(fixture.root, {
+      rootSegments: [".arc", "user", "alice", "active"],
+    });
+    expect(result.layout).toBe("lite");
+    expect(result.candidates).toHaveLength(1);
+    expect(result.candidates[0]!.path).toBe(".arc/user/alice/active/status.md");
+  });
+
+  it("prefers lite layout when both lite and meta-*.md candidates are present", async () => {
     await writeFile(
       join(fixture.activeDir, "status.md"),
       statusFileBody({ state: "Active" }),
     );
-    const sub = join(fixture.activeDir, "feature");
-    await mkdir(sub, { recursive: true });
     await writeFile(
-      join(sub, "meta-foo.md"),
-      statusFileBody({ state: "Active", branch: "feature/foo" }),
+      join(fixture.activeDir, "meta-foo.md"),
+      statusFileBody({ state: "Active", branch: "technical/foo" }),
     );
     const result = await readActiveStatusCandidates(fixture.root);
     expect(result.layout).toBe("lite");
@@ -350,189 +373,12 @@ describe("readActiveStatusCandidates — layout detection", () => {
     expect(result.candidates[0]!.filename).toBe("status.md");
   });
 
-  it("enumerates full-layout candidates across category subdirectories", async () => {
-    const sub1 = join(fixture.activeDir, "feature");
-    const sub2 = join(fixture.activeDir, "technical");
-    await mkdir(sub1, { recursive: true });
-    await mkdir(sub2, { recursive: true });
-    await writeFile(
-      join(sub1, "meta-alpha.md"),
-      statusFileBody({ state: "Active", branch: "feature/alpha" }),
-    );
-    await writeFile(
-      join(sub2, "meta-beta.md"),
-      statusFileBody({ state: "Integrating", branch: "technical/beta" }),
-    );
-    const result = await readActiveStatusCandidates(fixture.root);
-    expect(result.layout).toBe("full");
-    expect(result.candidates).toHaveLength(2);
-    const filenames = result.candidates.map((c) => c.filename).sort();
-    expect(filenames).toEqual(["meta-alpha.md", "meta-beta.md"]);
-  });
-
-  it("emits candidate paths relative to cwd with forward slashes", async () => {
-    const sub = join(fixture.activeDir, "technical");
-    await mkdir(sub, { recursive: true });
-    await writeFile(
-      join(sub, "meta-foo.md"),
-      statusFileBody({ state: "Active", branch: "technical/foo" }),
-    );
-    const result = await readActiveStatusCandidates(fixture.root);
-    expect(result.candidates[0]!.path).toBe(".arc/active/technical/meta-foo.md");
-  });
-
-  it("ignores non-matching files in category subdirectories", async () => {
-    const sub = join(fixture.activeDir, "feature");
-    await mkdir(sub, { recursive: true });
-    await writeFile(join(sub, "meta-foo.md"), statusFileBody({ state: "Active" }));
-    await writeFile(join(sub, "tasks-foo.md"), "# tasks\n");
-    await writeFile(join(sub, "notes-foo.md"), "# notes\n");
-    await writeFile(join(sub, "meta.md"), "# stray\n"); // no `meta-` prefix+hyphen
-    const result = await readActiveStatusCandidates(fixture.root);
-    expect(result.candidates).toHaveLength(1);
-    expect(result.candidates[0]!.filename).toBe("meta-foo.md");
-  });
-});
-
-describe("readActiveStatusCandidates — dual-prefix acceptance (meta- and status-)", () => {
-  let fixture: Fixture;
-  beforeEach(async () => { fixture = await createFixture(); });
-  afterEach(async () => { await rm(fixture.root, { recursive: true, force: true }); });
-
-  it("resolves meta-*.md candidates under subdir layout", async () => {
-    const sub = join(fixture.activeDir, "technical");
-    await mkdir(sub, { recursive: true });
-    await writeFile(
-      join(sub, "meta-foo.md"),
-      statusFileBody({ state: "Active", branch: "technical/foo" }),
-    );
-    const result = await readActiveStatusCandidates(fixture.root);
-    expect(result.candidates).toHaveLength(1);
-    expect(result.candidates[0]!.filename).toBe("meta-foo.md");
-    expect(result.candidates[0]!.path).toBe(".arc/active/technical/meta-foo.md");
-  });
-
-  it("resolves meta-*.md candidates under flat layout", async () => {
-    await writeFile(
-      join(fixture.activeDir, "meta-foo.md"),
-      statusFileBody({ state: "Active", branch: "plan/foo" }),
-    );
-    const result = await readActiveStatusCandidates(fixture.root);
-    expect(result.candidates).toHaveLength(1);
-    expect(result.candidates[0]!.filename).toBe("meta-foo.md");
-    expect(result.candidates[0]!.path).toBe(".arc/active/meta-foo.md");
-  });
-
-  it("prefers meta-*.md when both prefixes share a stem in the same subdir", async () => {
-    const sub = join(fixture.activeDir, "technical");
-    await mkdir(sub, { recursive: true });
-    await writeFile(
-      join(sub, "meta-foo.md"),
-      statusFileBody({ state: "Active", branch: "technical/foo" }),
-    );
-    await writeFile(
-      join(sub, "status-foo.md"),
-      statusFileBody({ state: "In Progress", branch: "technical/foo" }),
-    );
-    const result = await readActiveStatusCandidates(fixture.root);
-    expect(result.candidates).toHaveLength(1);
-    expect(result.candidates[0]!.filename).toBe("meta-foo.md");
-    expect(result.candidates[0]!.state).toBe("Active");
-  });
-
-  it("prefers meta-*.md when both prefixes share a stem at the flat root", async () => {
-    await writeFile(
-      join(fixture.activeDir, "meta-foo.md"),
-      statusFileBody({ state: "Active", branch: "plan/foo" }),
-    );
-    await writeFile(
-      join(fixture.activeDir, "status-foo.md"),
-      statusFileBody({ state: "In Progress", branch: "plan/foo" }),
-    );
-    const result = await readActiveStatusCandidates(fixture.root);
-    expect(result.candidates).toHaveLength(1);
-    expect(result.candidates[0]!.filename).toBe("meta-foo.md");
-  });
-
-  it("does not dedupe same-stem files across different category subdirectories (distinct WUs)", async () => {
-    const tech = join(fixture.activeDir, "technical");
-    const feat = join(fixture.activeDir, "feature");
-    await mkdir(tech, { recursive: true });
-    await mkdir(feat, { recursive: true });
-    await writeFile(
-      join(tech, "meta-foo.md"),
-      statusFileBody({ state: "Active", branch: "technical/foo" }),
-    );
-    await writeFile(
-      join(feat, "meta-foo.md"),
-      statusFileBody({ state: "Active", branch: "feature/foo" }),
-    );
-    const result = await readActiveStatusCandidates(fixture.root);
-    expect(result.candidates).toHaveLength(2);
-    const paths = result.candidates.map((c) => c.path).sort();
-    expect(paths).toEqual([
-      ".arc/active/feature/meta-foo.md",
-      ".arc/active/technical/meta-foo.md",
-    ]);
-  });
-});
-
-describe("readActiveStatusCandidates — scan-shape auto-detection", () => {
-  let fixture: Fixture;
-  beforeEach(async () => { fixture = await createFixture(); });
-  afterEach(async () => { await rm(fixture.root, { recursive: true, force: true }); });
-
-  it("auto-detects flat scan when only flat-root files exist (no explicit scanShape)", async () => {
-    await writeFile(
-      join(fixture.activeDir, "meta-foo.md"),
-      statusFileBody({ state: "Active", branch: "plan/foo" }),
-    );
-    const result = await readActiveStatusCandidates(fixture.root);
-    expect(result.candidates).toHaveLength(1);
-    expect(result.candidates[0]!.filename).toBe("meta-foo.md");
-  });
-
-  it("auto-detects subdir scan when only subdir files exist (no explicit scanShape)", async () => {
-    const sub = join(fixture.activeDir, "technical");
-    await mkdir(sub, { recursive: true });
-    await writeFile(
-      join(sub, "meta-foo.md"),
-      statusFileBody({ state: "Active", branch: "technical/foo" }),
-    );
-    const result = await readActiveStatusCandidates(fixture.root);
-    expect(result.candidates).toHaveLength(1);
-    expect(result.candidates[0]!.path).toBe(".arc/active/technical/meta-foo.md");
-  });
-
-  it("prefers flat scan when both flat-root and subdir files exist (transient state)", async () => {
-    await writeFile(
-      join(fixture.activeDir, "meta-foo.md"),
-      statusFileBody({ state: "Active", branch: "plan/foo" }),
-    );
-    const sub = join(fixture.activeDir, "technical");
-    await mkdir(sub, { recursive: true });
-    await writeFile(
-      join(sub, "meta-bar.md"),
-      statusFileBody({ state: "Active", branch: "technical/bar" }),
-    );
-    const result = await readActiveStatusCandidates(fixture.root);
-    expect(result.candidates).toHaveLength(1);
-    expect(result.candidates[0]!.filename).toBe("meta-foo.md");
-  });
-
-  it("respects explicit scanShape: 'subdir' even when flat-root files exist", async () => {
-    await writeFile(
-      join(fixture.activeDir, "meta-decoy.md"),
-      statusFileBody({ state: "Active", branch: "plan/decoy" }),
-    );
-    const sub = join(fixture.activeDir, "technical");
-    await mkdir(sub, { recursive: true });
-    await writeFile(
-      join(sub, "meta-real.md"),
-      statusFileBody({ state: "Active", branch: "technical/real" }),
-    );
-    const result = await readActiveStatusCandidates(fixture.root, { scanShape: "subdir" });
-    expect(result.candidates).toHaveLength(1);
-    expect(result.candidates[0]!.filename).toBe("meta-real.md");
+  it("emits a warning naming the supplied custom root when the directory is absent", async () => {
+    const result = await readActiveStatusCandidates(fixture.root, {
+      rootSegments: [".arc", "user", "alice", "active"],
+    });
+    expect(result.candidates).toEqual([]);
+    expect(result.warnings.length).toBe(1);
+    expect(result.warnings[0]).toContain(".arc/user/alice/active/");
   });
 });

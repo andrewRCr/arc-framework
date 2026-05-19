@@ -59,12 +59,14 @@ function statusBody(state = "Active"): string {
 
 async function writeStatus(
   root: string,
-  category: string,
+  _category: string,
   name: string,
 ): Promise<void> {
-  const dir = join(root, ".arc", "active", category);
-  await mkdir(dir, { recursive: true });
-  await writeFile(join(dir, `meta-${name}.md`), statusBody());
+  void _category;
+  await writeFile(
+    join(root, ".arc", "active", `meta-${name}.md`),
+    statusBody(),
+  );
 }
 
 interface SettingsOverrides {
@@ -390,7 +392,7 @@ describe("runReleasePush — code 13 (branch-protection-violation)", () => {
       command: "release-push",
       decision: "refused",
       refusalCode: 13,
-      wu: { category: "technical", name: "sample" },
+      wu: { name: "sample" },
     });
   });
 
@@ -463,7 +465,7 @@ describe("runReleasePush — code 14 (pushability-precheck-failed)", () => {
       command: "release-push",
       decision: "refused",
       refusalCode: 14,
-      wu: { category: "technical", name: "sample" },
+      wu: { name: "sample" },
     });
   });
 
@@ -844,7 +846,7 @@ describe("runReleasePush — success path", () => {
       decision: "proceeded",
       refusalCode: null,
       outcome: { kind: "push", refStatus: "abc1234..def5678  feature/x -> feature/x" },
-      wu: { category: "technical", name: "sample" },
+      wu: { name: "sample" },
     });
   });
 

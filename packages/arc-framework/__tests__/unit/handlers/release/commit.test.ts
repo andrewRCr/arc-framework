@@ -53,12 +53,14 @@ function statusBody(state = "Active"): string {
 
 async function writeStatus(
   root: string,
-  category: string,
+  _category: string,
   name: string,
 ): Promise<void> {
-  const dir = join(root, ".arc", "active", category);
-  await mkdir(dir, { recursive: true });
-  await writeFile(join(dir, `meta-${name}.md`), statusBody());
+  void _category;
+  await writeFile(
+    join(root, ".arc", "active", `meta-${name}.md`),
+    statusBody(),
+  );
 }
 
 interface SettingsOverrides {
@@ -301,7 +303,7 @@ describe("runReleaseCommit — code 13 (branch-protection-violation)", () => {
       command: "release-commit",
       decision: "refused",
       refusalCode: 13,
-      wu: { category: "technical", name: "sample" },
+      wu: { name: "sample" },
     });
   });
 
@@ -487,7 +489,7 @@ describe("runReleaseCommit — success path", () => {
       decision: "proceeded",
       refusalCode: null,
       outcome: { kind: "commit", hash: FULL_HASH },
-      wu: { category: "technical", name: "sample" },
+      wu: { name: "sample" },
     });
     // -m payload still redacted on the success path.
     expect(entries[0]?.args).toEqual(["-m", "<redacted>"]);

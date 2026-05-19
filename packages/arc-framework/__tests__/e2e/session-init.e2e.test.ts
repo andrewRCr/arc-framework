@@ -40,7 +40,7 @@ async function writeStatusFixture(
   stem: string,
   fields: { taskList?: string; nextAction: string },
 ): Promise<void> {
-  const dir = join(arcRoot, ".arc", "active", category);
+  const dir = join(arcRoot, ".arc", "active");
   await mkdir(dir, { recursive: true });
   const lines: string[] = [
     `# Metadata: ${stem}`,
@@ -114,7 +114,7 @@ describe("session-init E2E — sessionType across type variants", () => {
 
   it("emits sessionType=execution for a single-WU + Start-Task fixture", async () => {
     await writeStatusFixture(tmpDir, "technical", "foo", {
-      taskList: "`.arc/active/technical/tasks-foo.md`",
+      taskList: "`.arc/active/tasks-foo.md`",
       nextAction: "Start Task 4.2 — write unit tests",
     });
 
@@ -129,7 +129,7 @@ describe("session-init E2E — sessionType across type variants", () => {
 
   it("emits sessionType=integration when Next Action begins with integrate-work-unit", async () => {
     await writeStatusFixture(tmpDir, "technical", "foo", {
-      taskList: "`.arc/active/technical/tasks-foo.md`",
+      taskList: "`.arc/active/tasks-foo.md`",
       nextAction: "integrate-work-unit Step 7 — push and create PR",
     });
 

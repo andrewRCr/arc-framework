@@ -2728,23 +2728,18 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           Shipped) and Active fall-through coverage (Active + integrate-* / Start-Task / null taskList)
           unchanged.
 
-    - `[ ]` **6.2.l Cleanup: retire legacy layout + prefix from active-file scan (paired with 5.4.c)**
-        - `lib/active/status-reader.ts` (modified in 5.4.c) accepts BOTH `status-*.md` and `meta-*.md` prefixes
-          AND BOTH the legacy subdir layout (`active/<category>/`) and the flat-post-WOR layout (`active/`)
-          during transition. Once 6.2.a renames this WU's status file to `meta-{name}.md` at the flat root and
-          6.5 cleans up any leaked legacy-layout files on `main`'s `active/`, both compat paths are unreachable
-          from any in-flight or tracked surface.
-        - **Prefix cleanup:** restore `FULL_PREFIX` (or equivalent constant) to `meta-` only; drop the
-          dual-prefix scan logic and any dual-presence preference handling.
-        - **Layout cleanup:** drop the subdir-layout scanner entirely (`findSubdirLayoutStatusFiles` and any
-          subdir-mode auto-detection). Flat is the only recognized maintainer layout post-WOR; contributor
-          flat-scan path stays as-is (was always flat). `ActiveScanShape` collapses to a singleton — retire
-          the type if no callers need to distinguish; otherwise narrow to `"flat"`. Lite-layout
-          (`active/status.md`) is a separate concern and stays.
-        - **Hidden consumer cleanup:** drop the legacy-prefix arm from `lib/release/wu-resolution.ts` regex.
-        - Tests: remove legacy-prefix test cases, legacy-subdir-layout test cases, and dual-presence preference
-          cases.
-        - _Sequencing:_ Runs after 6.2.a AND 6.5 (defensive — both surfaces clear before the compat code retires).
+    - `[x]` **6.2.l Cleanup: retire legacy layout + prefix from active-file scan (paired with 5.4.c)**
+        - _Outcome:_ Retired legacy `status-` prefix recognition + subdir-layout scanner in
+          `lib/active/status-reader.ts`; `ActiveScanShape` type retired entirely (no callers needed to
+          distinguish post-cleanup). Single-arm `findStatusFiles` replaces dual-shape detection +
+          per-directory `meta-` preference dedup. `wu-resolution.ts` `^meta-` regex tightened, `scanShape`
+          option dropped from `ResolveActiveWuOptions`. `commands/active/status.ts` mirrors (import +
+          contributor-flow return-shape pruned). Tests: legacy-prefix + scan-shape + dual-presence
+          describe blocks retired in unit tests; integration + e2e fixtures migrated from subdir to flat
+          layout across 4 files. Release-handler test helpers `writeStatus(root, category, name)` keep
+          the category param as `_category` (unused) to minimize call-site churn. Net: 206-line
+          reduction across 11 files. 1906 tests pass. 6.2.o (`status-reader` → `meta-reader` symbol/file
+          rename) unblocked.
 
     - `[x]` **6.2.m Cleanup: drop `## Work Unit Metadata` H2 fallback in section extraction (paired with 5.4.d)**
         - `extractMetadataSection` (`src/lib/active/status-reader.ts`) collapsed to a single H1-bounded
