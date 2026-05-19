@@ -2805,32 +2805,32 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
   paired with the in-flight workspace migration (6.3.d ↔ 6.3.e) so consumers and on-disk surfaces transition together.
 
     - `[x]` **6.3.a Per-user ATOMIC-INBOX → USER-INBOX rename**
-        - Renamed `.arc/user/andrew/ATOMIC-INBOX.md` → `USER-INBOX.md` via plain `mv`
-          (file is gitignored — `git mv` doesn't apply). H1 + preamble replaced with the
-          template-canonical shape from `templates/user/USER-INBOX.md`. Existing inbox
-          entries placed under `## Atomic`; empty `## Backlog` section added with the
-          template's shape-guidance comments.
+        - Renamed `.arc/user/andrew/ATOMIC-INBOX.md` → `USER-INBOX.md` via plain `mv` (file is gitignored —
+          `git mv` doesn't apply). H1 + preamble replaced with the template-canonical shape from
+          `templates/user/USER-INBOX.md`. Existing inbox entries placed under `## Atomic`; empty `## Backlog`
+          section added with the template's shape-guidance comments.
 
     - `[x]` **6.3.b Merge BACKLOG-FEATURE + BACKLOG-TECHNICAL → BACKLOG-INBOX**
-        - Created `backlog/BACKLOG-INBOX.md` from `BACKLOG-INBOX.template.md` + dated drain
-          section seeded with 8 multi-step entries. Folded 4 entries with clear plan-doc
-          domain overlap into existing plans (`plan-docs-content-sweep.md` absorbs Strategy
-          Docs on Docs Site + Post-1.0 Content Ideas; `plan-cli-substrate-adoption.md`
-          absorbs Unify subprocess CLI test helpers; `plan-arc-plan-conductor.md` absorbs
-          PR-sized boundary estimation). Dropped 3 entries: ARC Operating Modes (live
-          `plan-arc-modes.md` already represents it), Automated template instantiation
-          testing (WU3 shipped unit + integration + e2e template tests), Related Work Units
-          cross-linking convention (subsumed by WOR's `**Cohort:**` R13 + `**Depends On:**`
-          R11 meta-file fields). Routing decisions documented per-entry in the commit
-          message. Source files deleted. ATOMIC-INBOX routing didn't surface — no entries
-          fit the atomic-character criterion under the agreed policy.
-        - Fold-target plan docs received dated "Backlog Inbox Absorption (2026-05-19, WOR
-          Task 6.3.b)" sections appended verbatim with absorption metadata; integration
-          into plan body deferred to focused iteration sessions per fold-target plan owner's
-          discretion.
+        - Created `backlog/BACKLOG-INBOX.md` from `BACKLOG-INBOX.template.md` + dated drain section seeded
+          with 8 multi-step entries. Folded 4 entries with clear plan-doc domain overlap into existing plans
+          (`plan-docs-content-sweep.md` absorbs Strategy Docs on Docs Site + Post-1.0 Content Ideas;
+          `plan-cli-substrate-adoption.md` absorbs Unify subprocess CLI test helpers;
+          `plan-arc-plan-conductor.md` absorbs PR-sized boundary estimation). Dropped 3 entries: ARC
+          Operating Modes (live `plan-arc-modes.md` already represents it), Automated template instantiation
+          testing (WU3 shipped unit + integration + e2e template tests), Related Work Units cross-linking
+          convention (subsumed by WOR's `**Cohort:**` R13 + `**Depends On:**` R11 meta-file fields). Routing
+          decisions documented per-entry in the commit message. Source files deleted. ATOMIC-INBOX routing
+          didn't surface — no entries fit the atomic-character criterion under the agreed policy.
+        - Fold-target plan docs received dated "Backlog Inbox Absorption (2026-05-19, WOR Task 6.3.b)"
+          sections appended verbatim with absorption metadata; integration into plan body deferred to focused
+          iteration sessions per fold-target plan owner's discretion.
 
-    - `[ ]` **6.3.c Create new empty `backlog/ATOMIC-INBOX.md`**
-        - Project-shared atomic surface; populates organically post-WOR.
+    - `[x]` **6.3.c Create new empty `backlog/ATOMIC-INBOX.md`**
+        - Created `backlog/ATOMIC-INBOX.md` from harmonized template. Preamble tightened to match
+          BACKLOG-INBOX shape (italic single-block; dropped the ceremony-only-writes and multi-writer
+          rationale per the convention that those concerns live in `strategy-planning-module.md`, not
+          in-file). Template + instance ship the codified shared-inbox shape — H1 + preamble + `## Inbox` H2
+          wrapper + entry-shape HTML comment + trailing `---`. Populates organically post-WOR; ships empty.
 
     - `[ ]` **6.3.d Migrate in-flight WU personal workspace to R65 layout**
         - Relocate `.arc/user/{identity}/SESSION-NOTES.md` into the per-WU subdir:
