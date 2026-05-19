@@ -2591,7 +2591,7 @@ sweep runs after retirements so all retired surfaces have already been removed w
 commit-format method + footer-convention propagation that originally lived at 6.2 hoisted to Task 2.13 to align phase
 order with execution order (must precede Phase 3 lifecycle workflow restructures).
 
-### `[ ]` **6.1 Tune commit conventions (hook + method + handoff-commit shape)**
+### `[x]` **6.1 Tune commit conventions (hook + method + handoff-commit shape)**
 
 - _Goal:_ Three coupled changes ship together — `system/githooks/commit-msg` enforces tuned 8-type set
   (`feat | fix | chore | docs | refactor | test | perf | revert`); `commit-format.md` method codifies the
@@ -2631,53 +2631,19 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
         - PRD R26 reshape: deferred to WOR integration sweep per the task's stated scope split.
         - Both copies synced (package source authoritative). Sequencing vs. 6.7.p preserved.
 
-    - `[ ]` **6.1.e Codify handoff-commit subject + body shape (session-handoff.md step 3)**
-        - Codify in `.arc/system/workflows/arc/session-lifecycle/session-handoff.md` § Comprehensive Handoff
-          Format step 3 — the subject template and body template the workflow uses when composing the
-          `chore(arc): handoff — <position>` commit. Reshapes existing step-3 prose that today produces
-          `chore(status): handoff` with an empty body.
-        - **Subject template:** `chore(arc): handoff — <position>`. Position-string vocabulary (codified set;
-          agent picks by field-delta match — minimal judgment):
-            - `Phase N complete, next: Task X.Y` — when the last-completed task closes a phase boundary
-            - `next: Task X.Y[.z]` — within a phase (task ID encodes phase position; no "mid-Phase N" cruft)
-            - `between work units` — no active WU
-            - `planning <wu-name>` — on a plan-doc branch
-            - `work unit complete, next: integrate` — all tasks complete; integration pending
-            - `off-task-list — <brief>` — off-task-list work mid-WU
-        - **Body template:**
-
-            ```text
-            chore(arc): handoff — <position>
-
-            Last Completed: <prev> → <curr>
-            Next Task: <prev> → <curr>
-            [State: <value> (changed | unchanged)]
-            [Blockers: <delta if changed>]
-
-            Context: meta-<wu-name>.md (handoff)
-            ```
-
-            `Last Completed` + `Next Task` lines always present; `State` line included only when value
-            changed; `Blockers` line included only when delta exists. Prev-value derived from
-            `git show <Commit at Handoff>:<meta-path>` (the hash from SESSION-NOTES); curr-value from staged
-            content.
-        - **Subject-length guard:** codified position templates fit under the 72-char hook limit with typical
-          WU/task names. Long WU names (>~30 chars) may force shortened forms — convention for fallback: trim
-          WU name to its last segment.
-        - Sync workflow edits to `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/`.
-        - _Sequencing:_ Runs after 6.1.d (the convention this consumes) AND after 6.2.i (the meta-file
-          footer-token migration that lands the `(handoff)` parenthetical on `meta-` shape — the body
-          template references `Context: meta-<wu-name>.md`). Within Phase 6, place 6.1.e execution after 6.2
-          closes.
-        - **CLI-helper extraction tracked downstream:** the deterministic steps (read last-handoff snapshot,
-          compute field-deltas, select position-string template, render body) extract cleanly to a CLI helper
-          (`arc handoff render --subject-body` shape). Out of WOR scope; captured in
-          `plan-handoff-optimization.md` § Approach as the proper home.
+    - `[x]` **6.1.e Codify handoff-commit subject + body shape (session-handoff.md step 3)**
+        - Codified in `session-handoff.md` step 3 (both copies — template + rendered): subject template
+          `chore(arc): handoff — <position>` with 6-entry position-string vocabulary; body template with delta
+          lines for Last Completed / Next Task plus optional State / Blockers; subject-length guard for long WU
+          names. Adjacent step-3 wording aligned to meta-file shape (`<resolved-meta-file-path>`, contributor
+          file path, "active meta file"). Step 2's `**Working On:**` markers, line 162's heading, and the
+          example markdown block at lines 164+ left for 6.7 cross-reference sweep (wider scope than this task's
+          stated boundary). CLI-helper extraction stays tracked downstream in `plan-handoff-optimization.md`.
 
 ### `[x]` **6.2 Migrate in-flight WU meta files (`status-*` → `meta-*` + field backfill + State recodification)**
 
 - _Goal:_ In-flight WU `status-*.md` files rename to `meta-*.md`; State recodified per mapping table; Owner backfilled
-  from `arc.identity`; Origin defaulted to `[Internal]` (external URLs migrated from prior Spec where applicable);
+  from `arc.identity`; Origin defaulted to `[internal]` (external URLs migrated from prior Spec where applicable);
   Depends On initialized to `[none]` (manual extraction for known dependencies); Cohort initialized to `[none]` or
   cohort name for known sibling sets.
 

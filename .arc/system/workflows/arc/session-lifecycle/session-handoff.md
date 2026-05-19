@@ -99,10 +99,10 @@ Update session state files before ending session:
     - `[none]` — no active work
     - `[planning: {category}/{name}]` — planning cycle, no WU yet
     - `[between work units]` — between activation and archive of adjacent WUs
-3. **Update the active status file + commit** (if an active WU exists) — advance
+3. **Update the active meta file + commit** (if an active WU exists) — advance
    `**Last Completed:**`, `**Next Task:**`, `**Next Action:**`, and any other load-bearing fields.
-   Status-file changes land as a dedicated `chore(status): handoff` commit per
-   [DEV-RULES.ARC][dev-rules-arc] § Status-file commit shape — at handoff, status is the
+   Meta-file changes land as a dedicated `chore(arc): handoff — <position>` commit per
+   [DEV-RULES.ARC][dev-rules-arc] § Status-file commit shape — at handoff, the meta file is the
    entire staged change.
 
     **Skip threshold.** Update fields only when changes are materially relevant to next-session
@@ -118,30 +118,56 @@ Update session state files before ending session:
     change, cosmetic reorderings, restating the same Next Action in different words.
 
     **Skill invocation is the approval.** `/arc-handoff` is user-initiated; the invocation grants
-    approval for the workflow's bundled actions, including the `chore(status): handoff` commit.
+    approval for the workflow's bundled actions, including the `chore(arc): handoff` commit.
     No separate per-commit prompt fires under either push-interlock mode — push behavior is gated
     by `arc sync` internally (see § Sync), where remote-side consequences justify granular gating.
-    Stage the status file and lint it (catches authoring errors before the chore-commit lands):
+    Stage the meta file and lint it (catches authoring errors before the chore-commit lands):
 
     ```bash
-    git add <resolved-status-file-path>
+    git add <resolved-meta-file-path>
     <project markdown lint on the staged file>  # fix + re-stage on failure
     ```
 
-    Then invoke `workflowCommit` with message body:
+    **Compose the commit message** from the codified subject + body templates. Position-string
+    selection is field-delta driven (minimal judgment):
+
+    - `Phase N complete, next: Task X.Y` — last-completed task closes a phase boundary
+    - `next: Task X.Y[.z]` — within a phase (task ID encodes phase position)
+    - `between work units` — no active WU
+    - `planning <wu-name>` — on a plan-doc branch
+    - `work unit complete, next: integrate` — all tasks complete; integration pending
+    - `off-task-list — <brief>` — off-task-list work mid-WU
+
+    Body template:
 
     ```text
-    chore(status): handoff
+    chore(arc): handoff — <position>
 
-    Context: <status-file>.md (handoff)
+    Last Completed: <prev> → <curr>
+    Next Task: <prev> → <curr>
+    [State: <value> (changed | unchanged)]
+    [Blockers: <delta if changed>]
+
+    Context: meta-<wu-name>.md (handoff)
     ```
+
+    `Last Completed` + `Next Task` lines always present; `State` line included only when value
+    changed; `Blockers` line included only when delta exists. Prev-value derived from
+    `git show <Commit at Handoff>:<meta-path>` (the hash from SESSION-NOTES); curr-value from
+    staged content.
+
+    **Subject-length guard.** Codified position templates fit under the 72-char hook limit with
+    typical WU/task names. Long WU names (>~30 chars) may force shortened forms — convention for
+    fallback: trim WU name to its last segment.
+
+    Then invoke `workflowCommit` with the composed message.
 
     When the previous block staged a change, the new HEAD becomes the `**Commit at Handoff:**`
     value written in step 5. When no field cleared the skip threshold, nothing is staged and the
     commit is a no-op — step 5 carries the prior `Commit at Handoff:` value forward.
 
-    Contributors (`arc.role = contributor`) skip the commit — their personal active status file at
-    `.arc/user/{identity}/active/status-{name}.md` is gitignored, so the field update lands
+    Contributors (`arc.role = contributor`) skip the commit — their personal active meta file at
+    `.arc/user/{identity}/active/meta-{name}.md` is gitignored, so the field update lands
     without staging.
 4. **Refresh probe** — re-run the composite probe to pick up post-step-3 state:
 
