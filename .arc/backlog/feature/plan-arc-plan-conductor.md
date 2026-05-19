@@ -631,6 +631,375 @@ Each pass leaves behind a small pointer for the next pass or next session:
 This is intentionally lighter than a second session-state mechanism. It gives `session-handoff` and
 future sessions something concrete to carry without creating a new tracked metadata system.
 
+### 18. Synthesis modality (document / prototype / hybrid)
+
+Depth (§ 2) selects how heavily the conductor engages. **Modality** is the orthogonal axis: *how*
+the pre-PRD synthesis happens — through document iteration, through bounded code spikes, or
+through both interleaved.
+
+#### Concept
+
+ARC's existing planning model is document-driven: a `plan-*` doc is iterated through
+collaborative refinement passes (refine-plan-loop) until it reaches formalization-ready shape,
+then graduates to a PRD. This works cleanly when the dominant unknowns are *conceptual* — "what is
+this, what's the shape, what are the boundaries" — but it under-supports work where the dominant
+unknowns are *empirical*: "will library X behave the way I think under load Y? what's the right
+integration shape when the external system's actual behavior is ambiguous? can this even be built
+the way the document is describing?"
+
+For empirical unknowns, document iteration becomes circular — you can't refine the document past
+the point where you don't know how the world will respond. The fix is to **test the world**:
+build bounded, hypothesis-framed code spikes that resolve empirical unknowns, capture learnings,
+and feed back into the synthesis.
+
+Modality applies only to the pre-PRD synthesis phase. The downstream pipeline (PRD → tasks →
+execution) is unchanged.
+
+#### Three modalities
+
+| Modality       | Synthesis activity                                                                                   | Best for                                                                            |
+|----------------|------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------|
+| **Document**   | Iterate `plan-*` through collaborative refinement passes (`refine-plan-loop`)                        | Conceptual unknowns; integration shape known; "do I understand the problem?"        |
+| **Prototype**  | Build bounded code spikes, capture learnings between iterations (`refine-prototype-loop`)            | Empirical unknowns; integration shape unclear; "will this work the way I think?"    |
+| **Hybrid**     | Spikes inform document iteration; conductor flips loop per pass based on next unknown's character    | Most genuinely novel work — mix of conceptual and empirical unknowns                |
+
+Hybrid is not a separate workflow file. It's the emergent pattern when the conductor selects one
+loop for one pass, then the other loop for a subsequent pass, within the same planning effort.
+Each individual pass has one coherent shape; modality flips between passes as the highest-leverage
+next unknown changes character. Per-pass coherence with inter-pass flexibility — that's the
+conductor's job.
+
+Modality is selectable at invocation (`--modality document|prototype|hybrid` or natural-language
+equivalents) and adjustable mid-flight, mirroring depth selection. Default is `document` — the
+existing behavior remains the default case.
+
+#### Anchor vocabulary: spike
+
+For prototype modality, the unit of work is the **spike** — a bounded, hypothesis-framed
+investigation producing empirical learning. ARC reclaims XP's original meaning explicitly:
+
+- **Bounded** — time-boxed (default ~2-4 hour blocks; one focused review-increment scale) and
+  scope-boxed (one hypothesis per spike; artifact-bounded where possible)
+- **Hypothesis-framed** — every spike has an answerable question
+- **Learning-oriented** — spike output is *empirical answers*, not production code
+- **Default-throwaway disposition** — spike code is scratch unless explicitly elected to evolve
+  (see § Disposition lifecycle below)
+
+This explicitly *reclaims* "spike" from its drifted contemporary meaning (which has often become
+"week-long investigation that might ship"). Modern practice has lost the bounded / throwaway /
+learning-oriented constraints; ARC restores them and documents the qualification in the glossary
+so adopters read the term through ARC's lens, not the drifted one.
+
+> **XP spike-type taxonomy:** XP distinguishes *technical* (implementation feasibility),
+> *functional* (UX or requirements), and *architectural* (design viability) spikes. ARC treats
+> these as descriptive categories rather than required metadata — the hypothesis carries the
+> structural meaning. Glossary entries explain the typology; spike artifacts are not required to
+> carry a type field.
+
+#### Spike contract
+
+Each spike is one review increment (workflow-interlock fires at completion). The spike's contract
+declares four explicit fields before code begins:
+
+1. **Hypothesis** — the question being answered
+2. **Acceptance criteria** — what answers the question (concrete signal of success)
+3. **Scope cap** — time-box, file/layer bounds, or both
+4. **Disposition commitment** — default throwaway; explicit opt-in to evolve under stabilization
+   contract
+
+The contract is the spike's analogue to a task description in execution mode. The
+workflow-interlock at spike completion gates on contract satisfaction — hypothesis answered (or
+explicitly reframed), acceptance criteria evaluated, learning captured, disposition acted on.
+
+#### Modality selection signals
+
+The conductor selects modality from the strongest available signal, parallel to depth selection
+(§ 8):
+
+1. **Explicit user signal** — `--modality prototype` or natural-language equivalent ("I want to
+   test some things in code before specifying," "let me prototype this first")
+2. **Unknown character** — the user's framing surfaces empirical questions ("I'm not sure if this
+   will work," "I need to see how it behaves") vs. conceptual questions ("what's the right shape,"
+   "how should this be organized")
+3. **Artifact inspection** — if a `plan-*` already has substantive findings from prior spikes,
+   default to prototype/hybrid on resume
+4. **Tier context** — atomic skips planning; quick may use single-spike-no-loop; standard supports
+   full modality range
+5. **Default** — document modality (preserves existing default behavior)
+
+When inferred signals point at a different modality than the user's stated intent, the conductor
+surfaces the suggestion rather than switching silently — same posture as depth-selection
+mismatches (§ 8).
+
+#### Disposition lifecycle
+
+Three canonical stances for spike code:
+
+| Disposition             | When it applies                                                                | Mechanics                                                                                                              |
+|-------------------------|--------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------|
+| **Throwaway** (default) | Empirical question answered; code's value was the learning                     | Code dropped at graduation-cleanup ceremony (§ 19); learnings preserved in `plan-*` findings + ADRs                    |
+| **Evolutionary**        | Spike code has validated value AND a stabilization contract is committed       | Code carries into implementation; stabilization contract enumerates refactoring + tests + docs requirements pre-merge  |
+| **Reference**           | Spike's investigation path itself has documentation value beyond the decision  | Code archived on a non-merging branch or tag; main implementation rewritten fresh                                      |
+
+**Default to throwaway.** This enforces the boundary: spike code is learning, not implementation.
+Carrying spike code forward via the evolutionary path requires *explicit decision* and a
+*stabilization contract* — refactoring requirements, test coverage, doc expectations enumerated
+before the spike code is considered part of implementation.
+
+This default actively prevents "tracer-bullet syndrome" (spike code calcifies into production
+through inertia) and "sunk-cost fallacy" (we built it so we should keep it). The decision is
+deliberate, not accidental.
+
+#### Learning capture pipeline
+
+Spike learnings flow through ARC's existing artifact surfaces, depth-dependent:
+
+| Depth      | Capture pipeline                                                                                                          |
+|------------|---------------------------------------------------------------------------------------------------------------------------|
+| Minimum    | Spike findings → ADRs (for significant decisions); PRD written directly from learnings; no `plan-*`                       |
+| Standard   | Spike findings → `plan-*` findings section + ADRs for significant decisions; `plan-*` graduates to PRD normally           |
+| Expanded   | Spike findings → `plan-*` (promoted structure with findings register) + ADRs; per-spike pointer for loop continuity       |
+
+ADRs are the durable record across all depths — they survive spike code disposal and serve as the
+long-term decision archeology. Spike commits are *not* a substitute for ADRs (they're scratch by
+design and don't carry decision rationale reliably; they're dropped at graduation-cleanup).
+
+#### refine-prototype-loop workflow
+
+Planning-side analogue to `refine-plan-loop` and `process-task-loop`. One pass equals one bounded
+spike plus learning capture plus disposition decision. Stop for direction at each pass.
+
+##### Per-pass shape
+
+1. **Resume and orient** — read current `plan-*` (if exists), check carried-forward pointer from
+   prior pass (last spike completed, recommended next spike, open empirical questions), assess
+   current planning state
+2. **Identify next unknown** — highest-leverage empirical question. Priority: carried-forward
+   pointer → current user direction → highest-leverage open empirical cluster
+3. **Frame spike contract** — hypothesis + acceptance criteria + scope cap + disposition
+   commitment. User confirms the contract before code begins.
+4. **Build the spike collaboratively** — work the hypothesis; honor the scope cap; surface
+   adjacent findings without silently expanding scope
+5. **Verify against acceptance criteria** — did the spike answer the hypothesis? If inconclusive,
+   reframe (smaller hypothesis, different approach) or escalate
+6. **Capture learning** — fold into `plan-*` findings section; write ADR for any significant
+   decision the spike resolves; commit-interlock releases the capture commit at workflow-interlock
+   approval
+7. **Decide disposition** — throwaway / evolve / reference. Default throwaway; explicit opt-in to
+   evolve under stabilization contract
+8. **Reassess outcomes** — three options parallel to refine-plan-loop:
+    1. continue with another spike (recommended next pointer captured)
+    2. switch to document modality for next pass (empirical unknowns resolved; conceptual work
+       remains)
+    3. graduate to create-prd (sufficient learning to write the PRD)
+9. **Report and stop** — current planning state, what this spike resolved, what remains,
+   recommended next step. Mandatory stop — wait for user direction.
+
+##### Pre-report checklist
+
+```text
+- [ ] Spike contract was honored (hypothesis answered or explicitly reframed)
+- [ ] Acceptance criteria evaluation is documented
+- [ ] Disposition decision is recorded
+- [ ] Learning is captured in `plan-*` findings (when `plan-*` exists) and/or ADR
+- [ ] Spike commit(s) marked per planning-commit convention
+- [ ] Recommended next step is identified
+```
+
+If any item is unchecked, complete it before reporting — same gate-shape as refine-plan-loop and
+process-task-loop.
+
+##### Visible exit conditions (parallel to § 9 for document mode)
+
+A spike cycle is ready to graduate to create-prd when:
+
+- empirical questions raised by the work have been answered or deliberately deferred
+- a coherent implementation approach is now clear
+- significant decisions are captured in ADRs
+- the `plan-*` (if it exists) or graduate-direct-to-PRD material is informed by spike findings
+- remaining unknowns are detail-design risk, not scope-defining empirical risk
+
+This is guidance, not a formal gate. `create-prd` remains the authoritative workflow boundary.
+
+#### Soft spike-cap recommendations
+
+Iterating spikes endlessly is a real failure mode ("prototype-as-procrastination"). Soft caps,
+surfaced as loop guidance rather than hard gates:
+
+- **Quick tier**: 1-2 spikes typical; often single-spike-no-loop
+- **Standard tier**: 3-5 spikes typical per planning effort
+- **Expanded depth**: cap can rise but the loop flags at ~5+ spikes — pause to assess whether
+  learning is still arriving or whether create-prd is the right next move
+
+Caps are guidance in the loop's reporting layer. Users may exceed; the loop prompts reflection
+rather than blocking. No hard gate; no configurability earned at this stage.
+
+#### Workflow-interlock and commit-interlock integration
+
+Both new loops (refine-plan-loop and refine-prototype-loop) hook into ARC's existing interlock +
+release-wrapper machinery, calibrated differently from the execution loop but using the same
+mechanisms:
+
+- **Workflow-interlock** fires at end of each loop pass (refinement batch in document modality;
+  spike completion in prototype modality). Structural fire-site, always-stop.
+- **Commit-interlock release** at workflow-interlock approval. Under
+  `commit.interlock ∈ {on-task-approval, on-workflow}` plus `arc.releaseOptedIn`, commits fire
+  through `arc release commit` per the `workflowCommit` class-tag routing that already exists in
+  ARC's machinery.
+- **Within-pass commit cadence** is exploratory — no per-edit gates inside a spike or inside a
+  refinement batch. Planning is not task execution; commit atomicity at the pass boundary is
+  sufficient.
+
+This calibration preserves exploration velocity inside each pass while honoring ARC's
+commit-discipline contract at the pass boundary. No new interlock types needed.
+
+#### Failure-mode coverage
+
+The following failure modes are *actively prevented* by the design above:
+
+- **Sunk-cost fallacy** — throwaway-default + explicit stabilization contract for evolve
+- **Scope creep ("just one more spike")** — soft cap + spike-cycle exit conditions tied to
+  empirical questions specifically
+- **Tracer-bullet syndrome** — throwaway default prevents accidental calcification
+- **Prototype without learning capture** — workflow-interlock pre-report checklist gates on
+  learning being captured
+- **Prototype-as-procrastination** — soft cap + visible exit conditions + spike contract forces
+  hypothesis-framing (no exploratory spiking)
+- **Spike-without-hypothesis** — contract requires hypothesis before code begins; the conductor
+  refuses to enter prototype mode without one
+
+#### Modality interaction with existing sections
+
+- **Depth (§ 2)**: orthogonal to modality. Each (depth, modality) combination is valid; conductor
+  selects both at entry, both adjustable mid-flight
+- **Tier-aware orchestration (§ 4)**: tier interacts with both axes. Atomic skips planning
+  entirely (no modality applies); quick may use single-spike-no-loop or document-only depending on
+  signal; standard supports full range
+- **Worktree orchestration (§ 5)**: no change. Spike commits live on the WU's existing branch (in
+  the WU's worktree under standard tier + full protection); no second worktree needed for spikes
+- **`plan-*` primacy (§ 6)**: under prototype modality, `plan-*` still serves as the synthesis
+  narrative when it exists. Spike learnings flow INTO `plan-*` rather than competing with it
+- **Detection signals (§ 16)**: detection signals for expanded planning extend naturally to detect
+  prototype activity (spike commits, populated findings register)
+
+### 19. Spec-graduation cleanup ceremony
+
+**Purpose.** Preserve implementation history on `main` while dropping planning noise from the WU
+branch's history at the Planning → Active state transition. Applies universally to all WUs that
+had a planning phase, regardless of modality.
+
+#### Why this exists
+
+Under WOR's single-branch-per-WU model, planning commits (`plan-*` iteration, spike commits under
+prototype modality, ceremony commits) and execution commits (per-task atomic implementation
+commits) all accumulate on the same branch. ARC's merge-commit PR strategy preserves individual
+commit history on `main`, which is essential for the per-task atomicity discipline (P6
+traceability via Conventional Commits + context footers).
+
+Without intervention, planning noise lands on `main` alongside implementation history. Modest
+under document modality (a handful of `plan-*` iteration commits); substantial under prototype
+modality (spike commits can dominate the planning phase in count). The cleanup ceremony rewrites
+the WU branch's history at graduation to drop planning-noise commits while preserving meaningful
+planning-ceremony commits and leaving all execution commits untouched (they haven't started yet
+at this point).
+
+#### State-gated execution
+
+The ceremony fires at exactly one point in the WU lifecycle: the meta-file `**State:**` field
+flips from `Planning` to `Active`. That flip is the binding gate — cleanup completes before state
+changes, so the state flip itself is the workflow's completion signal.
+
+Concrete ordering:
+
+1. User signals readiness for state-flip (PRD is locked, task list generated)
+2. Pre-ceremony tag created: `pre-graduation-{wu-name}` for recovery
+3. User reviews proposed rebase plan (commits to drop vs. keep)
+4. User approves; interactive rebase executes
+5. Branch is force-pushed (`--force-with-lease`) to remote
+6. Meta-file `**State:**` flips Planning → Active; task list becomes active
+7. Workflow-interlock fires; commit-interlock releases the state-flip commit
+
+#### Pattern-based drop rules
+
+Default rules (refine at this WU's PRD):
+
+| Pattern                                              | Disposition                       |
+|------------------------------------------------------|-----------------------------------|
+| `chore(spike): ...`                                  | **Drop**                          |
+| `chore(draft-iter): ...` or micro-edits to `plan-*`  | **Drop**                          |
+| `chore(plan): graduate plan → PRD`                   | **Keep**                          |
+| `chore(tasks): generate task list`                   | **Keep**                          |
+| `chore(planning): ...` ceremony commits              | **Keep**                          |
+| Anything not matching a drop pattern                 | **Keep** (conservative default)   |
+
+Cleanup is conservative-by-default — only commits matching known noise patterns are dropped.
+Anything else stays.
+
+#### Configurable cleanup modes
+
+Three modes, configurable per project (or per-invocation override):
+
+| Mode                       | Behavior                                                                                            |
+|----------------------------|-----------------------------------------------------------------------------------------------------|
+| **Conservative** (default) | Drops only known noise patterns; user reviews and confirms the rebase plan before execution         |
+| **Interactive**            | Shows the full commit list; user marks drop/keep per-commit                                         |
+| **Off**                    | No cleanup; state-flip happens with planning history intact (existing pre-this-WU behavior)         |
+
+#### Safety mechanisms
+
+The ceremony is a destructive operation on git history. Safety layers:
+
+1. **Pre-ceremony tag** (`pre-graduation-{wu-name}`) preserves the pre-cleanup branch tip;
+   recovery is `git reset --hard <tag>` if needed
+2. **Reflog preservation** — git's reflog retains the original commits for 90 days under default
+   config; rebased-away commits are recoverable from reflog
+3. **User approval gate** — the rebase plan is surfaced before execution; user can abort or edit
+   the plan
+4. **`--force-with-lease`** on remote push — prevents overwriting unexpected remote state; ad-hoc
+   `--force` is never used
+
+#### Workflow integration
+
+Standalone workflow `graduation-cleanup.md` (or integrated as a final step in `1_create-prd.md`;
+PRD decision). Invoked by the graduation workflow as the final step before state-flip; can also
+be invoked manually if a user wants to clean up mid-planning before the natural graduation point.
+
+Under release-wrapper routing, the state-flip commit fires through `workflowCommit` class tag
+(already exists in ARC's routing model) — the cleanup ceremony slots into existing infrastructure.
+
+#### Tier interaction
+
+- **Atomic**: no planning phase → no ceremony fires
+- **Quick**: minimal planning → ceremony likely no-op in most cases (still safe to run; just
+  little to clean)
+- **Standard**: ceremony fires; primary benefit case
+
+#### Edges
+
+- **Git-notes orphaning.** ARC's user-notes attach to commit SHAs via
+  `refs/notes/arc/user/{identity}`. Dropping planning commits orphans their notes (still exist on
+  the notes ref, unreachable from new branch tips). The next `arc user save` creates a fresh note
+  on the new head; content isn't lost — just the SHA-pinned connection to the dropped commits.
+  Acceptable degradation; documented in the workflow.
+- **Force-push as ceremonial act.** ARC's existing commit-discipline permits `--force-with-lease`
+  on feature branches with explicit user request. The cleanup ceremony is the *codified* form:
+  explicit user approval gate, `--force-with-lease` always, never `--force`. Distinct from ad-hoc
+  force-pushes.
+- **"Ceremony" vs. "noise" boundary.** Initial pattern-rules cover the obvious cases. PRD work
+  calibrates the boundary further — particularly the `chore(planning):` prefix's semantics and
+  whether `plan-*` micro-edits get a distinct prefix or share one.
+
+#### Why this lives in the conductor plan
+
+The cleanup ceremony is not prototype-modality-specific — it applies to all planning, including
+pure document modality. Prototype modality creates the strongest case for it (spike commits are
+higher-volume noise than `plan-*` iteration), but the ceremony is a universal improvement.
+
+Placing it in this plan reflects the conductor WU's role as the planning-architecture anchor. If
+scope pressure surfaces during PRD work, the cleanup can split into its own sibling WU; the
+design dependency is the modality-introduction (which lifts the noise volume to the point where
+cleanup is clearly worthwhile), not strict workflow coupling.
+
 ---
 
 ## Proposed ARC Changes
@@ -640,9 +1009,13 @@ future sessions something concrete to carry without creating a new tracked metad
 - Promote `arc-plan` from facilitation skill to canonical planning conductor; update skill
   description and discovery surface accordingly
 - Add `--depth <minimum|standard|expanded>` selection (or natural-language equivalents)
+- Add `--modality <document|prototype|hybrid>` selection (or natural-language equivalents);
+  default `document` (preserves existing behavior). See § 18.
 - Implement context assessment (branch, mode, tier, existing artifacts, worktree state) and
   downstream-operation orchestration
 - Add depth-selection signal detection (explicit, artifact-shape-driven, novelty cues, tier-driven)
+- Add modality-selection signal detection (explicit, unknown-character, artifact inspection,
+  tier-driven). See § 18 § Modality selection signals.
 - Document the conductor's invocation contract and prereq guarantees
 
 ### Workflow integration
@@ -651,19 +1024,38 @@ future sessions something concrete to carry without creating a new tracked metad
   same workflow, different entry surface
 - Add conductor-driven status-file creation path for planning sessions outside the
   planning-branch ceremony
-- Add `refine-plan-loop.md` workflow file for expanded depth (the first-pass draft in § Design
-  Lean § 17)
+- Add `refine-plan-loop.md` workflow file for expanded depth, document modality (the first-pass
+  draft in § Design Lean § 17)
+- Add `refine-prototype-loop.md` workflow file for prototype modality — bounded spike + learning
+  capture + disposition decision per pass (see § Design Lean § 18)
+- Add `graduation-cleanup.md` workflow file for the Planning → Active state-flip cleanup ceremony
+  (see § Design Lean § 19); invoked by `1_create-prd.md` as the final step before state-flip, or
+  runnable standalone for mid-planning cleanup
 - Extend session-init item 10's lifecycle-workflow branch — `planning` slot loads
-  `refine-plan-loop.md` when expanded planning is the active session shape
+  `refine-plan-loop.md` or `refine-prototype-loop.md` based on detected modality (signal order:
+  existing planning-modality pointer → spike artifact presence → `plan-*` shape)
 
 ### Strategy and constitution
 
 - Update `strategy-work-planning.md` to define the conductor model and the three depth modes
+- Update `strategy-work-planning.md` to define the modality model (document / prototype / hybrid),
+  modality-selection guidance, and the spike contract shape (hypothesis + acceptance criteria +
+  scope cap + disposition commitment)
 - Add escalation guidance: when minimum suffices, when to escalate to standard, when to escalate
   to expanded
+- Add modality-selection guidance: when document modality suffices, when empirical unknowns
+  warrant prototype, when hybrid is the right fit
+- Add soft spike-cap recommendations per tier (quick: 1-2; standard: 3-5; expanded: 5+ as
+  reflection trigger)
 - Add one-plan-to-many-PRD guidance as a first-class expected outcome for large shaping efforts
 - Add plan-splitting guidance as distinct from PRD decomposition
 - Clarify that expanded depth does not create a new default artifact class
+- Reclaim `spike` vocabulary in ARC glossary with explicit qualification: bounded,
+  hypothesis-framed, learning-oriented, default-throwaway (contrasted with the drifted
+  contemporary meaning)
+- Document the graduation-cleanup ceremony in `strategy-work-organization.md` (or equivalent) —
+  its role in the Planning → Active lifecycle transition, the pattern-based drop rules, safety
+  scaffolding
 - Cross-reference the conductor's role from `DEV-RULES.ARC` § Verification and Discovery (or a new
   § Planning Entry section if appropriate at PRD time)
 - Update `strategy-work-organization.md` § Spec-Flow Invariants > Deferred contract to name
@@ -686,9 +1078,14 @@ future sessions something concrete to carry without creating a new tracked metad
 - Update docs and strategy references so ARC users understand:
     - `arc-plan` is the canonical entry verb for planning
     - depth selection is a first-class concept; minimum is the common case
-    - not all plans need expanded depth
-    - one promoted `plan-*` document is the default expanded-depth shape
+    - modality selection is a first-class concept alongside depth; document is the default case
+    - not all plans need expanded depth or prototype modality
+    - one promoted `plan-*` document is the default expanded-depth shape; spike findings flow
+      into the same document under prototype modality when `plan-*` exists
     - `analysis-*` / `research-*` remain available when genuinely needed
+    - the graduation-cleanup ceremony is a universal improvement — planning history is dropped
+      from `main` at state-flip; implementation history is preserved per ARC's atomicity
+      discipline
 
 ### CLI and install considerations
 
@@ -897,29 +1294,83 @@ Codify a second file for deeper shaping work (the original 2026-04-10 alternativ
     does the conductor infer tier from scope cues (and prompt to confirm) or always prompt? PRD
     decision after agile-wu-lifecycle's tier model lands.
 
+### Modality
+
+16. **Modality detection reliability.** Are user intent, framing language, and artifact inspection
+    sufficient to detect prototype-appropriate work, or do real cases justify explicit metadata
+    (e.g., a `**Modality:**` field on the meta file)? Current lean: detection-based, last-resort
+    metadata — same posture as expanded-depth detection (§ 16).
+17. **Single-spike-no-loop variant for quick tier.** Does quick tier under prototype modality skip
+    refine-prototype-loop entirely (single bounded spike followed directly by PRD write), or
+    always loop with a cap of 1? PRD decision.
+18. **Modality and `template-plan.md`.** Does prototype modality benefit from a structurally
+    different `plan-*` template (findings-register prominent), or does the existing template
+    absorb spike findings cleanly? Current lean: existing template absorbs; promoted structure
+    under expanded depth (§ 12) covers the findings-register case for both modalities.
+19. **Stabilization contract specifics.** When a spike opts into evolutionary disposition, what's
+    the minimum content of the stabilization contract? Refactoring checklist, test coverage
+    requirements, documentation expectations — what's required vs. recommended at PRD time.
+20. **Hybrid signaling.** How is "hybrid" expressed at invocation when modality flips mid-flight
+    is the canonical way to compose document and prototype passes? Is `--modality hybrid` a real
+    flag or just a documentation concept (the conductor flips per pass either way)? Current lean:
+    documentation concept only — flag accepts `document` or `prototype` at invocation; hybrid
+    emerges from inter-pass flips, not from an initial declaration.
+
+### Cleanup ceremony
+
+21. **Cleanup ceremony scope vs. split.** Does the ceremony ship with the conductor WU, or split
+    into a sibling WU? Modality work creates the strongest case for it, but it's a universal
+    improvement. Lean: ship together for design coherence; sibling-WU split is an option if scope
+    pressure surfaces during PRD work.
+22. **Drop-pattern resolution.** Initial drop rules cover obvious cases (`chore(spike):`,
+    `chore(draft-iter):`). What's the principled boundary between "noise commit" and "ceremony
+    commit"? Are there ARC-wide commit-subject conventions that need to land first (e.g., a
+    `chore(planning):` family of subjects)?
+23. **Cleanup behavior under team mode.** Multiple developers on a planning branch accumulate
+    notes-refs across identities. How does cleanup interact with cross-identity notes
+    preservation? Probably defers to per-identity post-cleanup `arc user save`; PRD confirms.
+24. **Cleanup default for projects not opted into wrappers.** If `arc.releaseOptedIn: false`, the
+    ceremony still applies but doesn't fire through the wrapper. Cleanup invokes raw
+    `git rebase --interactive` or programmatic equivalent. Behavior identical; just the routing
+    differs. PRD confirms wording in the workflow.
+25. **Mid-planning cleanup invocation.** When a user invokes cleanup manually before the natural
+    graduation point, what state does the meta file enter? Stays `Planning` (cleanup just rebases;
+    state is independent), or does the cleanup workflow refuse to run pre-graduation? Lean: stays
+    Planning; cleanup is a pure history operation when invoked standalone. PRD confirms.
+
 ---
 
 ## Initial Scope Estimate
 
-**Large.** The conductor reframe elevates this from a skill enhancement to a planning-architecture
-contribution. Touches:
+**Larger than originally estimated.** The conductor reframe plus modality plus graduation-cleanup
+expand the WU touch points significantly:
 
-- `arc-plan` skill (substantial extension — context assessment, depth selection, downstream
-  orchestration)
-- planning strategy (conductor model documentation, depth-mode guidance)
-- `template-plan.md` (expanded-depth structure)
-- `refine-plan-loop.md` (new workflow file)
-- session-init lifecycle-workflow branch (planning slot wiring)
+- `arc-plan` skill (substantial extension — context assessment, depth + modality selection,
+  downstream orchestration)
+- planning strategy (conductor model, depth + modality model, spike contract, spike-cap guidance,
+  graduation-cleanup model)
+- `template-plan.md` (expanded-depth structure; modality-neutral)
+- `refine-plan-loop.md` (new workflow file — document modality)
+- `refine-prototype-loop.md` (new workflow file — prototype modality)
+- `graduation-cleanup.md` (new workflow file — cleanup ceremony)
+- session-init lifecycle-workflow branch (planning slot wiring for both loop workflows)
 - `activate-planning-branch.md` (conductor-callable + direct-invocable)
+- `1_create-prd.md` (integrates graduation-cleanup step before state-flip)
+- meta-file template updates (state-flip semantics if not already covered by Interlock Foundation)
 - file classification conventions
-- docs and examples
+- ARC glossary (spike vocabulary reclaim with explicit qualification)
+- docs and examples (modality concept, spike vocabulary, cleanup ceremony)
 - install/update content shipped by the framework
 
 The implementation surface is bounded because the core pipeline (PRD → tasks → execution) remains
-intact. This work adds the canonical entry layer and codifies its use, not redesigning ARC's
-planning model from scratch.
+intact. This work adds the canonical entry layer, codifies its use across two synthesis
+modalities, and lands a universal cleanup mechanism. Not redesigning ARC's planning model from
+scratch — substantially extending it.
 
 Sequencing: depends on Interlock Foundation WU landing the status-file plumbing first.
-Parallelizable with Worktree Foundation and Agile WU Lifecycle.
+Parallelizable with Worktree Foundation and Agile WU Lifecycle. **Possible split**: the
+graduation-cleanup ceremony can land as a sibling WU if scope pressure during PRD work warrants
+it; current lean is ship together since modality creates the strongest case for cleanup and the
+two designs interact at the spike-commit-disposition boundary.
 
 ---
