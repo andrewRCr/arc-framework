@@ -1036,8 +1036,8 @@ Backlog placement (vs. ROADMAP-tracked) reflects the not-yet-committed state.
 - **OSS contributor path refinement** — contributor-meta creation step, fork-clone-create-WU-PR-merge ceremony,
   contributor-to-maintainer sync mechanics, contributor boundaries on package-source vs. instance-source edits.
   R65a's path convention (`user/{identity}/<wu-name>/meta-<wu-name>.md`) ships under WOR; full lifecycle is captured
-  in `backlog/technical/plan-contributor-path.md` (stub created in WOR; Phase 6 migration sweeps it into the new
-  backlog structure with the rest). Revisit post-WOR once Worktree Foundation + Agile WU Lifecycle settle.
+  in `plan-contributor-path.md` (stub created in WOR; Phase 6 migration sweeps it into the new backlog
+  structure with the rest). Revisit post-WOR once Worktree Foundation + Agile WU Lifecycle settle.
 - **Public CHANGELOG aggregation tooling** — per-WU Release Notes Entry contract ships in WOR; CHANGELOG composition
   deferred to downstream npm-release WU
 - **Release-tooling for `**State:**` transitions** — workflow-step discipline is MVP enforcement

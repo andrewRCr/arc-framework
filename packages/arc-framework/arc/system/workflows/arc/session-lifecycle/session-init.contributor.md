@@ -19,7 +19,7 @@ contributor active state directly. No singleton file lookup.
 
 **Item 7 — Active status file.** Same shape as maintainer Step 3 item 7 — read `active.value.path` in full
 when `resolution === "single"`. `resolution: "none"` skips items 9–10. `resolution: "multiple"` applies
-the documented precedence (SESSION-NOTES `**Working On:**`, branch match, `**State:** In Progress`,
+the documented precedence (SESSION-NOTES `**Working On:**`, branch match, `**State:** Active`,
 prompt) over `active.value.candidates`.
 
 **Item 8 — SESSION-NOTES + contributor briefing.** Read `.arc/user/{identity}/SESSION-NOTES.md` (item

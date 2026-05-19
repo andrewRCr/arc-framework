@@ -395,7 +395,7 @@ Add a **"Work Unit Sizing Smell Test"** as a quick reference during task-list ge
 
 ## Sizing Assessment: The Interlock-Foundation WU
 
-Given the PRD plan in `.arc/backlog/technical/plan-session-operational-flow.md` (Phases 1-3 of
+Given the PRD plan in `plan-session-operational-flow.md` (Phases 1-3 of
 the interlock-foundation WU), here's an empirical assessment:
 
 ### Structural Analysis

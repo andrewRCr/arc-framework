@@ -648,8 +648,8 @@ guards so re-entry is safe.
   Idempotent: existing file → skip.
 - **WU activation without planning ceremony** ([`activate-work-unit.md`][activate-wu] Step 4 creation
   path) creates the file at WU activation when no planning branch preceded (e.g., partial-protection
-  direct activation), with `**State:** In Progress`. Idempotent: existing file → take the transition
-  path (Planning → In Progress, populate execution fields).
+  direct activation), with `**State:** Active`. Idempotent: existing file → take the transition
+  path (Planning → Active, populate execution fields).
 
 **Single template, single shape.** [`template-meta.md`][template-meta] is the canonical source for
 both paths — no planning-variant template. The `**State:**` field carries the lifecycle phase.

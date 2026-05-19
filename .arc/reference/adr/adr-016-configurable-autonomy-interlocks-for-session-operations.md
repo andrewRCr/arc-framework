@@ -12,7 +12,7 @@ shared model, and the resulting incoherences surface as design friction.
 
 The visible symptom is the worktree/notes sync gap. The `user.sync_push: always` option pushes git notes but not the
 underlying worktree, so notes can attach to commits that don't exist on origin. The fix requires pairing notes-sync
-with worktree-sync as peer concepts — but ARC has no shared frame in which to do that. [plan-user-sync-ux][plan-sync]
+with worktree-sync as peer concepts — but ARC has no shared frame in which to do that. `prd-user-sync-ux.md`
 scopes a focused fix; the gap itself is one instance of a broader pattern.
 
 Other instances:
@@ -21,9 +21,9 @@ Other instances:
   Intermediate snapshots are churn — produced but never consumed.
 - Commit control is stated in [DEV-RULES.ARC][dev-rules-arc] as a non-negotiable principle, but it functions as a
   sensible default. The real invariant is that the agent doesn't cross the merge-to-main boundary without the human.
-- Multiple upstream plans ([plan-user-sync-ux][plan-sync], [plan-quality-gate-hooks][plan-hooks],
-  [plan-worktree-foundation][plan-wf], [plan-concurrent-work-conventions][plan-cwc],
-  [plan-agile-wu-lifecycle][plan-awl]) each tackle session-operational facets, but without a shared frame they
+- Multiple upstream plans (`prd-user-sync-ux.md`, `plan-quality-gate-hooks.md`,
+  `plan-worktree-foundation.md`, `plan-concurrent-work-conventions.md`,
+  `plan-agile-wu-lifecycle.md`) each tackle session-operational facets, but without a shared frame they
   risk local fixes that don't compose — and worktree mobility amplifies the pressure past what per-commit approval
   ceremony can absorb without smoothing.
 
@@ -179,9 +179,9 @@ is *engaged* by default until the user explicitly releases it.
 
 ### Positive
 
-- Multiple upstream plans ([plan-user-sync-ux][plan-sync], [plan-quality-gate-hooks][plan-hooks],
-  [plan-worktree-foundation][plan-wf], [plan-concurrent-work-conventions][plan-cwc],
-  [plan-agile-wu-lifecycle][plan-awl]) gain a shared frame. Each becomes smaller and internally coherent.
+- Multiple upstream plans (`prd-user-sync-ux.md`, `plan-quality-gate-hooks.md`,
+  `plan-worktree-foundation.md`, `plan-concurrent-work-conventions.md`,
+  `plan-agile-wu-lifecycle.md`) gain a shared frame. Each becomes smaller and internally coherent.
 - Worktree/notes sync consistency becomes expressible — both operations pair at the same interlock with fixed
   ordering.
 - Status-file churn is eliminated for task-completion commits; commit atomicity story clarifies.
@@ -264,8 +264,3 @@ This is a configuration-shape amendment, not a reversal of the decision.
 ---
 
 [dev-rules-arc]: ../constitution/DEV-RULES.ARC.md
-[plan-sync]: ../../active/technical/prd-user-sync-ux.md
-[plan-hooks]: ../../backlog/technical/plan-quality-gate-hooks.md
-[plan-wf]: ../../backlog/technical/plan-worktree-foundation.md
-[plan-cwc]: ../../backlog/feature/plan-concurrent-work-conventions.md
-[plan-awl]: ../../backlog/technical/plan-agile-wu-lifecycle.md

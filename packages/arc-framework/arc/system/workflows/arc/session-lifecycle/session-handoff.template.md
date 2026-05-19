@@ -201,9 +201,9 @@ Update session state files before ending session:
 ```markdown
 ## Work Unit Metadata
 
-**State:** In Progress
+**State:** Active
 **Branch**: [current branch name, e.g., feature/config-parser]
-**Task List**: [path to task list, e.g., .arc/active/feature/tasks-config-parser.md]
+**Task List**: [filename of task list, e.g., tasks-config-parser.md]
   [OR: [none associated] for planning/boundary work between task lists]
 **Next Task**: Task 3.3 — Write unit tests (line ~247)
   [REQUIRED when following task list — triple-anchor format enables graduated lookup at session init]
@@ -368,9 +368,9 @@ status-data-pipeline.md:
 ```markdown
 ## Work Unit Metadata
 
-**State:** In Progress
+**State:** Active
 **Branch**: feature/data-pipeline
-**Task List**: .arc/active/feature/tasks-data-pipeline.md
+**Task List**: tasks-data-pipeline.md
 **Next Task**: Task 4.1 — Add retry logic to ingestion step (line ~312)
 **Last Completed**: Task 3.5 — Schema validation for input records
 **Blockers**: [none]

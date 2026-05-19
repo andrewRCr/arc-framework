@@ -164,7 +164,7 @@ session-state, follow the override instead.
       precedence:
         1. SESSION-NOTES `**Working On:**` value matches a candidate filename
         2. Candidate `**Branch:**` matches the current git branch
-        3. Candidate `**State:** In Progress`
+        3. Candidate `**State:** Active`
         4. Prompt the user with each candidate shown as:
 
             ```text

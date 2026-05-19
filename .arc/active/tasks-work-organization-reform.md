@@ -2656,7 +2656,7 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
       WU's rename" is defensive language for the broader contract — most invocations migrate a single file.
 
     - `[x]` **6.2.a Per-WU rename: `git mv status-{name}.md meta-{name}.md`**
-        - Renamed `.arc/active/technical/status-work-organization-reform.md` → `meta-work-organization-reform.md`.
+        - Renamed `status-work-organization-reform.md` → `meta-work-organization-reform.md`.
           No `archive/` references on this branch (verified).
 
     - `[x]` **6.2.a' Meta-file shape restructure (H1 + grouped blocks per R58)**
@@ -3297,7 +3297,7 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
     - _Companion read at execution:_ Skim `plan-arc-modes.md` (header / TOC, not full body) to ground the implication
       inventory and confirm the doc reshapes (rather than duplicates) plan-arc-modes content.
 
-    - `[ ]` **6.11.a Author file at `backlog/feature/plan-arc-in-git-as-default.md`**
+    - `[ ]` **6.11.a Author `plan-arc-in-git-as-default.md`**
         - Header carries explicit exploratory framing: "**State:** Exploratory / Not yet committed — thesis-stage, not
           work-stage. This plan describes a deliberation to evaluate, not work to execute. Implementation sections are
           conditional on thesis acceptance."

@@ -253,9 +253,8 @@ contradiction (PR conventional-commit type vs branch category routinely contradi
 sibling-WU grouping (related WUs benefit from group-dir co-location in `backlog/`). Companion ADR
 documents the constitutional shift (parallel scale to ADR-016).
 
-- PRD: `active/technical/prd-work-organization-reform.md`; task list:
-  `active/technical/tasks-work-organization-reform.md`; branch:
-  `technical/work-organization-reform` (planning PR #33 merged 2026-05-14)
+- PRD: `prd-work-organization-reform.md`; task list: `tasks-work-organization-reform.md`;
+  branch: `technical/work-organization-reform` (planning PR #33 merged 2026-05-14)
 - Upstream: Interlock Release Wrappers WU2 (final session-operations friction closed before
   conventions reform lands), Session-Operational Flow Phase 7 (metadata-state foundation —
   `**State:**` enum consumed; sweep-cadence config lifted into this WU's scope)
