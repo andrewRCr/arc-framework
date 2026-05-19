@@ -207,7 +207,7 @@ cross-cutting section rather than inside the Local mode treatment. It's universa
    pointer fields (`Interrupts:`, `Paused At:`, `Paused To:`, `Spawned:`) are retired. Their use cases
    migrate to shift's single-WU `**State:**` field with shift-state values
    (`Paused (date) — reason`). `manage-incidental-work.md` workflow migrates to use shift instead of
-   the pointer fields. Updates ripple through [template-status.md][template-status],
+   the pointer fields. Updates ripple through [template-meta.md][template-meta],
    [strategy-work-organization.md][strategy-work-org] § Optional Pointer Fields, [clean-work-unit.md][
    clean-work-unit] L97-100 KEEP/REMOVE rules, and 2-3 other workflow touchpoints. Resolves the
    pre-PRD blocker on the original Mobility plan.
@@ -651,18 +651,27 @@ Specific URLs captured in the design-decisions section above.
 ## Activation Audit
 
 When this WU activates, audit plan content against current framework state for drift. Known drift
-items as of 2026-04-28:
+items:
 
-- **Stale `template-status.md L24-30` reference**: original Mobility plan cited L24-30 for the four
-  pointer fields. Task 4.2.f of Session-Init Optimization (commit `647fcc6`) relocated that content
-  to `strategy-work-organization.md § Work Unit State § Optional Pointer Fields`; template-status is
-  now 11 lines total. Activation audit refreshes the cross-reference; pause-pointer migration sweep
-  here retires those fields entirely.
+- **Stale `template-status.md L24-30` reference** (2026-04-28): original Mobility plan cited L24-30
+  for the four pointer fields. Task 4.2.f of Session-Init Optimization (commit `647fcc6`) relocated
+  that content to `strategy-work-organization.md § Work Unit State § Optional Pointer Fields`;
+  template-status is now 11 lines total. Activation audit refreshes the cross-reference;
+  pause-pointer migration sweep here retires those fields entirely.
+
+- **WOR R66-R68 terminology rename** (2026-05-19): WOR renames `plan-*` → `draft-*`,
+  `prd-*` → `spec-*`, meta-file fields `**Spec:**` → `**Design:**` and `**Task List:**` →
+  `**Blueprint:**`, and the spec workflow `1_create-prd.md` → `1_create-spec.md`. This plan's body
+  references the pre-rename vocabulary. Activation audit sweeps internal references — mechanical;
+  no design changes implied. Substantive interactions: scope item 6's path-driven sync dispatch
+  references meta-file class via `meta-<wu-name>.md` (unchanged); scope item 11's cold-start
+  primitive scaffolds the meta file (unchanged shape). Worktree-mechanism scope is artifact-class
+  agnostic; rename is content-sweep work only.
 
 ---
 
 [team-coord]: ../../reference/strategies/arc/strategy-team-coordination.md
 [strategy-work-org]: ../../reference/strategies/arc/strategy-work-organization.md
-[template-status]: ../../reference/templates/template-status.md
+[template-meta]: ../../reference/templates/template-meta.md
 [clean-work-unit]: ../../system/workflows/arc/supplemental/clean-work-unit.md
 [session-init]: ../../system/workflows/arc/session-lifecycle/session-init.md

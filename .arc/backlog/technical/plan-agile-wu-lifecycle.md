@@ -9,9 +9,42 @@ the agility gap where ARC's uniform ceremony costs more than the work for short-
   Three-tier model and constitutional reframing identified; external research and PRD-time
   ratification expected. Updated 2026-05-08: sweep-as-you-go foundation (formerly scope item 7a's
   load-bearing pieces) moved to upstream Work Organization Reform WU; this WU retains
-  tier-aware adaptations on top.
+  tier-aware adaptations on top. Updated 2026-05-19 with WOR-induced terminology shifts (see
+  § WOR alignment note below).
 
-- **Created:** 2026-04-28
+- **Created:** 2026-04-28 (terminology refresh 2026-05-19)
+
+## WOR alignment note (2026-05-19)
+
+WOR R66-R68 renames WU artifact prefixes (`plan-*` → `draft-*`, `prd-*` → `spec-*`) and meta-file
+fields (`**Spec:**` → `**Design:**`, `**Task List:**` → `**Blueprint:**`). Spec form variation
+routes through template choice under the unified `spec-*` filename — `template-prd.md` preserved as
+heaviest variant; lighter variants (e.g., `template-brief.md`) deferred to `plan-arc-plan-conductor`
+WU scope.
+
+Comprehensive content sweep of this plan defers to WU activation (Activation Audit pattern).
+Readers today should substitute terms inline.
+
+Substantive AWL-specific implications (captured here):
+
+1. **Tier ↔ spec-form coupling is a conductor-WU decision, not AWL's.** This plan's § Three-Tier
+   Model table currently couples tier to spec form (atomic: none; quick: task-list `## Scope`;
+   standard: full PRD). Per WOR follow-on planning (2026-05-19 session), that coupling is now an
+   **open conductor-WU question** — the alternative (user picks form per WU, decoupled from tier)
+   is on the table. AWL should defer to conductor's resolution rather than encoding coupling here.
+   PRD-time: align with whatever conductor lands.
+2. **Quick-tier spec shape — partially superseded.** § Open Questions § "Quick-tier spec shape —
+   task-list header vs reduced PRD doc" narrows under WOR's variant model. The remaining question
+   is "which template variant does quick default to?" — not "does quick have a spec doc?" The
+   default-to-spec-doc-with-form-variant answer is the WOR-aligned shape; the exact form (brief,
+   compact-PRD, etc.) decides at conductor PRD time.
+3. **Atomic-tier spec — binary at conductor PRD time.** Per WOR follow-on planning: atomic either
+   gets a required-and-tiny spec (one-paragraph form) OR no spec at all. Not optional. Resolution
+   defers to conductor WU's PRD.
+4. **Meta-file field values** (current scope item 3) — under WOR rename, `**Spec:**` field becomes
+   `**Design:**`; values become `draft-{name}.md` (Planning), `spec-{name}.md` (Active+). Form
+   variation (PRD vs brief vs etc.) lives in template choice + H1, not in filename. Update scope
+   item 3's value examples accordingly at WU activation.
 
 - **Origin:** Surfaced during the agile/mobility expansion discussion when Worktree
   Foundation (mechanism) and Concurrent Work Conventions (conventions) were carved out
@@ -229,7 +262,7 @@ get promoted: add the plan-*/PRD, restructure the task list into phases, continu
     naming, plus § Spec-Flow Invariants updates — name AWL in § Deferred contract as the
     tier-classification model home, and replace § Escape-hatch guardrails intent-level phrasing
     with concrete `--tier atomic` flag default (currently abstracted pending this WU per
-    audience-boundary discipline); [template-status.md][template-status] new fields;
+    audience-boundary discipline); [template-meta.md][template-meta] new fields;
     [template-tasks.md][template-tasks] quick-tier shape variant; quality-gate-commands method
     tier awareness.
 
@@ -533,5 +566,5 @@ concrete examples for the strategy doc.
 [dev-rules]: ../../reference/constitution/DEV-RULES.ARC.md
 [strategy-work-org]: ../../reference/strategies/arc/strategy-work-organization.md
 [tasklist-fmt]: ../../reference/strategies/arc/strategy-task-list-formatting.md
-[template-status]: ../../reference/templates/template-status.md
+[template-meta]: ../../reference/templates/template-meta.md
 [template-tasks]: ../../reference/templates/template-tasks.md

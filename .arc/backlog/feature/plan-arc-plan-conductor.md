@@ -9,9 +9,54 @@ freeform exploration.
 
 - **State:** Draft — pre-PRD exploration captured 2026-04-10; reframed 2026-04-29 from "optional
   expanded path" to "canonical planning conductor with depth selection" during interlock-foundation
-  PRD discussion.
+  PRD discussion. Updated 2026-05-19 with WOR-induced terminology shifts (see § WOR alignment note
+  below).
 
-- **Created:** 2026-04-10 (revised 2026-04-29)
+- **Created:** 2026-04-10 (revised 2026-04-29, terminology refresh 2026-05-19)
+
+## WOR alignment note (2026-05-19)
+
+This plan was authored when WU artifact prefixes were `plan-*` (exploration) and `prd-*` (spec)
+with meta-file fields `**Spec:**` / `**Task List:**`. Work Organization Reform (WOR R66-R68)
+renames these to `draft-*` / `spec-*` and `**Design:**` / `**Blueprint:**` respectively, with
+spec form variation routed through template choice (heaviest variant `template-prd.md` preserved;
+lighter variants like `template-brief.md` deferred to this WU's scope).
+
+This plan's body content predates the rename. Comprehensive content sweep (`plan-*` → `draft-*`;
+`prd-*` → `spec-*`; `**Spec:**` field → `**Design:**`; `**Task List:**` field → `**Blueprint:**`;
+`template-plan.md` → `template-draft.md`) **defers to this WU's activation** (Activation Audit
+pattern, following `plan-worktree-foundation.md` convention). Readers of this draft today should
+substitute terms inline. References to "PRD" as the artifact-form name remain appropriate where
+contextually used — a PRD is now one template variant under the unified `spec-*` filename class.
+
+Conductor-WU implications of the rename (substantive content captured here, not deferred):
+
+1. **Depth + spec-form decoupling.** § Design Lean § 4's tier-aware orchestration (which currently
+   couples tier → spec form: quick-tier uses inline scope, atomic skips spec) is **a current lean,
+   not a settled decision.** The alternative — letting users choose spec form independent of tier
+   (quick-tier could opt into a full PRD; standard-tier could opt into a brief) — is on the table
+   at this WU's PRD time. Needs deeper analysis with concrete adopter usage patterns. Current
+   lean (tier-driven default) stays as documented; explicit decoupling-vs-coupling decision lands
+   at PRD.
+2. **Atomic-tier spec stance.** Binary at PRD time: either atomic gets a required-and-tiny spec
+   (one-paragraph form, supports reviewer validation) or atomic gets no spec at all. Not
+   optional. Resolved here, not deferred.
+3. **Template-variant scaling under unified `spec-*`.** WOR locks the unified prefix; this WU
+   ships the template variants. `template-prd.md` is preserved as the heaviest variant. Candidate
+   additional variants: `template-brief.md` (atomic-tier shape), `template-plan.md` (re-introduced
+   here as a *middle-weight spec variant* — see filename-history note below), other forms as
+   patterns surface during PRD work.
+4. **`template-plan.md` filename-history note.** Under WOR, `template-plan.md` retires (renamed
+   `template-draft.md` since `plan-*` → `draft-*`). If this WU re-introduces `template-plan.md` as
+   a middle-weight spec template variant (templating `spec-*` content rather than `draft-*`
+   content), it would be a same-name re-introduction with different role. No git conflict (file is
+   gone post-WOR-rename), but worth flagging so the future author understands the history.
+5. **`refine-plan-loop.md` workflow collateral rename.** The proposed planning-side loop workflow
+   (§ Design Lean § 10, § 17) is named for the pre-WOR `plan-*` artifact. Under WOR's rename, the
+   workflow likely warrants rename to `refine-draft-loop.md` for naming consistency. Decision at
+   this WU's PRD time — note that the workflow's scope (operating on `draft-*` docs through
+   refinement passes) matches `refine-draft-loop` more cleanly than `refine-plan-loop` does
+   post-rename.
 
 - **Origin:** Live pressure from `plan-arc-modes.md` exposed a gap between ARC's
   intentionally light plan stage and the needs of large greenfield shaping work. The 2026-04-29
