@@ -2746,12 +2746,24 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           cases.
         - _Sequencing:_ Runs after 6.2.a AND 6.5 (defensive — both surfaces clear before the compat code retires).
 
-    - `[ ]` **6.2.m Cleanup: drop `## Work Unit Metadata` H2 fallback in section extraction (paired with 5.4.d)**
-        - `lib/active/status-reader.ts` `extractMetadataSection` (modified in 5.4.d) accepts BOTH the legacy
-          H2-wrapped shape and the new H1-bounded shape. Once 6.2.a' restructures this WU's meta file to the new
-          shape, the H2 fallback is dead code.
-        - Drop the H2-wrapper detection path; require H1-bounded preamble. Tests: remove legacy-shape test cases.
-        - _Sequencing:_ Runs after 6.2.a' (this WU's meta file uses the new shape).
+    - `[x]` **6.2.m Cleanup: drop `## Work Unit Metadata` H2 fallback in section extraction (paired with 5.4.d)**
+        - `extractMetadataSection` (`src/lib/active/status-reader.ts`) collapsed to a single H1-bounded
+          arm — H2-wrapper detection path dropped. Function docstring trimmed to describe only the
+          H1-bounded extraction; `parseStatusFile`'s docstring updated to remove the legacy-wrapper
+          branch language.
+        - Test-fixture migration to H1-only shape across 9 files (parser-dependent suites that wrote
+          `# Status: x` / `## Work Unit Metadata` fixtures now write `# Metadata: x` followed directly
+          by field bullets): `status-reader.test.ts` (helper + per-test fixtures; legacy-coexistence
+          "prefers `## Work Unit Metadata` when both shapes present" test retired; section-boundary
+          and missing-marker tests reframed; "H1-bounded fallback" describe renamed to "H1-bounded
+          preamble"), `wu-resolution.test.ts`, `handlers/release/commit.test.ts`,
+          `handlers/release/push.test.ts`, `integration/active.test.ts`, `integration/status.test.ts`
+          (3 fixtures), `integration/release-push-upstream-init.test.ts`, `e2e/session-init.e2e.test.ts`.
+          1917/1924 tests pass after rebuild; 7 failures are pre-existing 6.2.i hangover (commit-msg
+          footer hook tests still write `status-foo.md` fixtures) and surfaced separately for routing.
+        - `validate-status-spec.test.ts` retains `## Work Unit Metadata` fixtures intentionally — its
+          script (`scripts/validate-status-spec.ts`) uses its own field-line regex, not
+          `extractMetadataSection`; cleanup tracked under 6.2.n.
 
     - `[ ]` **6.2.n Cleanup: retire dual-recognition in `validate-status-spec.ts` (paired with 5.4.h)**
         - `scripts/validate-status-spec.ts` (modified in 5.4.h) accepts BOTH file-path patterns and BOTH State

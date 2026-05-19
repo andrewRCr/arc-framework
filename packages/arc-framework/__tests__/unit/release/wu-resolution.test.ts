@@ -30,9 +30,7 @@ async function createFixture(): Promise<Fixture> {
 
 function statusBody(state: string): string {
   return [
-    "# Status: Sample",
-    "",
-    "## Work Unit Metadata",
+    "# Metadata: Sample",
     "",
     `- **State:** ${state}`,
     "- **Branch:** technical/sample",

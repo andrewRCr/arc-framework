@@ -43,9 +43,7 @@ async function writeStatusFixture(
   const dir = join(arcRoot, ".arc", "active", category);
   await mkdir(dir, { recursive: true });
   const lines: string[] = [
-    `# Status: ${stem}`,
-    "",
-    "## Work Unit Metadata",
+    `# Metadata: ${stem}`,
     "",
     "- **State:** Active",
     `- **Branch:** ${category}/${stem}`,

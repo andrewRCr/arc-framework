@@ -50,9 +50,7 @@ async function createRepoOnFreshBranch(branch: string): Promise<string> {
   await writeFile(
     join(root, ".arc", "active", "technical", "meta-sample.md"),
     [
-      "# Status: Sample",
-      "",
-      "## Work Unit Metadata",
+      "# Metadata: Sample",
       "",
       "- **State:** Active",
       `- **Branch:** ${branch}`,

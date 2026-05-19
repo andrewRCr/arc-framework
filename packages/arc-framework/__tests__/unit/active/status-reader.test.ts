@@ -36,7 +36,7 @@ function statusFileBody(fields: {
   taskList?: string;
   extra?: string;
 }): string {
-  const lines: string[] = ["# Status: fixture", "", "## Work Unit Metadata", ""];
+  const lines: string[] = ["# Metadata: fixture", ""];
   if (fields.state !== undefined) lines.push(`- **State:** ${fields.state}`);
   if (fields.branch !== undefined) lines.push(`- **Branch:** ${fields.branch}`);
   if (fields.taskList !== undefined) lines.push(`- **Task List:** ${fields.taskList}`);
@@ -77,7 +77,7 @@ describe("parseStatusFile — happy path", () => {
 
 describe("parseStatusFile — missing fields", () => {
   it("returns null for any field whose marker is absent", () => {
-    const parsed = parseStatusFile("# Status: fixture\n\n## Work Unit Metadata\n\nJust prose.\n");
+    const parsed = parseStatusFile("# Metadata: fixture\n\nJust prose.\n");
     expect(parsed.state).toBeNull();
     expect(parsed.branch).toBeNull();
     expect(parsed.nextTask).toBeNull();
@@ -85,21 +85,21 @@ describe("parseStatusFile — missing fields", () => {
   });
 
   it("returns null for a field whose value is empty after the marker", () => {
-    const content = "## Work Unit Metadata\n\n- **Branch:** \n- **State:** Active\n";
+    const content = "# Metadata: fixture\n\n- **Branch:** \n- **State:** Active\n";
     const parsed = parseStatusFile(content);
     expect(parsed.branch).toBeNull();
     expect(parsed.state).toBe("Active");
   });
 
-  it("returns null for every field when neither the H2 wrapper nor an H1 is present", () => {
+  it("returns null for every field when no H1 is present", () => {
     const content = "- **Branch:** main\n- **State:** Active\n";
     const parsed = parseStatusFile(content);
     expect(parsed.branch).toBeNull();
     expect(parsed.state).toBeNull();
   });
 
-  it("does not parse fields from legacy `## Active Work` sections", () => {
-    const content = "# Status: fixture\n\n## Active Work\n\n- **State:** Active\n";
+  it("does not parse fields from below a content `## ` heading", () => {
+    const content = "# Metadata: fixture\n\n## Active Work\n\n- **State:** Active\n";
     const parsed = parseStatusFile(content);
     expect(parsed.state).toBeNull();
   });
@@ -107,27 +107,27 @@ describe("parseStatusFile — missing fields", () => {
 
 describe("parseStatusFile — formatting tolerance", () => {
   it("parses the bare `**Field:** value` form without a list bullet", () => {
-    const content = "## Work Unit Metadata\n\n**State:** Active\n**Branch:** main\n";
+    const content = "# Metadata: fixture\n\n**State:** Active\n**Branch:** main\n";
     const parsed = parseStatusFile(content);
     expect(parsed.state).toBe("Active");
     expect(parsed.branch).toBe("main");
   });
 
   it("tolerates blockquote prefixes (e.g., `> - **State:**`)", () => {
-    const content = "## Work Unit Metadata\n\n> - **State:** Active\n> - **Branch:** feature/x\n";
+    const content = "# Metadata: fixture\n\n> - **State:** Active\n> - **Branch:** feature/x\n";
     const parsed = parseStatusFile(content);
     expect(parsed.state).toBe("Active");
     expect(parsed.branch).toBe("feature/x");
   });
 
   it("takes the first match when a field is repeated (stable behavior)", () => {
-    const content = "## Work Unit Metadata\n\n- **Branch:** first\n- **Branch:** second\n";
+    const content = "# Metadata: fixture\n\n- **Branch:** first\n- **Branch:** second\n";
     const parsed = parseStatusFile(content);
     expect(parsed.branch).toBe("first");
   });
 
   it("handles `[none]` Task List value verbatim", () => {
-    const parsed = parseStatusFile("## Work Unit Metadata\n\n- **Task List:** [none]\n");
+    const parsed = parseStatusFile("# Metadata: fixture\n\n- **Task List:** [none]\n");
     expect(parsed.taskList).toBe("[none]");
   });
 
@@ -143,13 +143,11 @@ describe("parseStatusFile — formatting tolerance", () => {
 });
 
 describe("parseStatusFile — section boundary", () => {
-  it("ignores field markers that appear above `## Work Unit Metadata`", () => {
+  it("ignores field markers that appear above the H1", () => {
     const content = [
-      "# Status: fixture",
-      "",
       "> About this file: example uses `- **Branch:** decoy`",
       "",
-      "## Work Unit Metadata",
+      "# Metadata: fixture",
       "",
       "- **Branch:** real",
       "",
@@ -158,9 +156,9 @@ describe("parseStatusFile — section boundary", () => {
     expect(parsed.branch).toBe("real");
   });
 
-  it("ignores field markers that appear below the next `## ` heading", () => {
+  it("ignores field markers that appear below the first content `## ` heading", () => {
     const content = [
-      "## Work Unit Metadata",
+      "# Metadata: fixture",
       "",
       "- **State:** Active",
       "",
@@ -174,8 +172,8 @@ describe("parseStatusFile — section boundary", () => {
   });
 });
 
-describe("parseStatusFile — H1-bounded fallback (post-WOR shape)", () => {
-  it("parses fields from the H1-bounded preamble when no `## Work Unit Metadata` wrapper is present", () => {
+describe("parseStatusFile — H1-bounded preamble", () => {
+  it("parses fields from the H1-bounded preamble", () => {
     const content = [
       "# Metadata: foo",
       "",
@@ -212,7 +210,7 @@ describe("parseStatusFile — H1-bounded fallback (post-WOR shape)", () => {
     expect(parsed.branch).toBe("plan/foo");
   });
 
-  it("returns all-null when neither `## Work Unit Metadata` nor an H1 is present", () => {
+  it("returns all-null when no H1 is present", () => {
     const parsed = parseStatusFile("just some prose with **Branch:** decoy in it\n");
     expect(parsed.state).toBeNull();
     expect(parsed.branch).toBeNull();
@@ -233,24 +231,6 @@ describe("parseStatusFile — H1-bounded fallback (post-WOR shape)", () => {
     const parsed = parseStatusFile(content);
     expect(parsed.state).toBeNull();
     expect(parsed.branch).toBeNull();
-  });
-
-  it("prefers the legacy `## Work Unit Metadata` section when both shapes are present (transition coexistence)", () => {
-    const content = [
-      "# Metadata: foo",
-      "",
-      "- **State:** newshape-decoy",
-      "- **Branch:** plan/decoy",
-      "",
-      "## Work Unit Metadata",
-      "",
-      "- **State:** Active",
-      "- **Branch:** plan/real",
-      "",
-    ].join("\n");
-    const parsed = parseStatusFile(content);
-    expect(parsed.state).toBe("Active");
-    expect(parsed.branch).toBe("plan/real");
   });
 });
 

@@ -133,9 +133,7 @@ async function writeStatusFile(
   const dir = join(activeDir, category);
   await mkdir(dir, { recursive: true });
   const lines: string[] = [
-    "# Status: fixture",
-    "",
-    "## Work Unit Metadata",
+    "# Metadata: fixture",
     "",
     `- **State:** ${body.state}`,
     `- **Branch:** ${body.branch}`,
@@ -384,9 +382,7 @@ describe("runSessionInitStatus — companion-file resolution carry-through", () 
     await writeFile(
       join(sub, "meta-foo.md"),
       [
-        "# Status: fixture",
-        "",
-        "## Work Unit Metadata",
+        "# Metadata: fixture",
         "",
         "- **State:** Active",
         "- **Branch:** technical/foo",
@@ -431,9 +427,7 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
     await writeFile(
       join(userActiveDir, "meta-foo.md"),
       [
-        "# Status: fixture",
-        "",
-        "## Work Unit Metadata",
+        "# Metadata: fixture",
         "",
         "- **State:** Active",
         "- **Branch:** user/alice/foo",
