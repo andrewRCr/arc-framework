@@ -67,10 +67,14 @@ follow the override instead):
   for Lite mode. Carries `**State:**`, `**Branch:**`, `**Task List:**`, `**Next Task:**`,
   `**Last Completed:**`, `**Blockers:**`, and `**Next Action:**`. Between work units or during
   planning cycles with no active WU, no tracked status file exists.
-- **SESSION-NOTES.md** (gitignored, `.arc/user/{identity}/`) — personal context: completed work, decisions,
-  debugging insights, things tried. Replaced each handoff (not appended). Created only when there's context
-  worth preserving. Between work units, reset to persistent context only (if any exists) or a minimal
-  completion marker. Identity resolved from `git config arc.identity`.
+- **SESSION-NOTES.md** (gitignored, `.arc/user/{identity}/<wu-name>/`) — per-WU session context:
+  completed work, decisions, debugging insights, things tried. Replaced each handoff (not appended).
+  Between work units, reset to a minimal completion marker. Identity resolved from
+  `git config arc.identity`; `<wu-name>` derived from the active meta filename (basename of
+  `active.value.path`, strip `meta-` prefix and `.md` suffix).
+- **WORKING-MEMORY.md** (gitignored, `.arc/user/{identity}/`) — cross-WU persistent context. Entries
+  survive across handoffs, each carrying an explicit `_Remove when:_` trigger reviewed at each handoff
+  (see § Persistent Context).
 
 > **Person-to-person handoff:** If handing off to a different developer (not just ending your
 > own session), write SESSION-NOTES.md for someone with no prior context on this work and
@@ -83,7 +87,7 @@ session context
 **When context changes** — Working directory paths or environment expectations in the active
 status file (if one exists)
 
-**Preserve persistent context** — `## Persistent Context` carries cross-session entries with explicit
+**Preserve persistent context** — `WORKING-MEMORY.md` carries cross-session entries with explicit
 removal triggers. See § Comprehensive Handoff Format step 1 and § Persistent Context below for the
 preservation criterion and review cadence.
 
@@ -91,10 +95,10 @@ preservation criterion and review cadence.
 
 Update session state files before ending session:
 
-1. **Review `## Persistent Context`** — apply the criterion in the Persistent Context entry
-   below. Remove entries whose triggers are met, AND entries whose information is now carried in
-   tracked state (the criterion catches drift introduced by earlier sessions). Surface removals in
-   the handoff summary; do not silently rewrite.
+1. **Review `WORKING-MEMORY.md`** — apply the criterion in the Persistent Context entry below.
+   Remove entries whose triggers are met, AND entries whose information is now carried in tracked
+   state (the criterion catches drift introduced by earlier sessions). Surface removals in the
+   handoff summary; do not silently rewrite.
 2. **Write SESSION-NOTES `**Working On:**`** using the marker vocabulary established in the
    SESSION-NOTES template:
     - `status-{name}.md` — normal case, file reference
@@ -238,7 +242,10 @@ this prefix. Task-list-driven workflows (process-task-loop) don't need this; the
 state is the pointer._
 ```
 
-**Update `.arc/user/{identity}/SESSION-NOTES.md`** (personal session context — gitignored):
+**Update `.arc/user/{identity}/<wu-name>/SESSION-NOTES.md`** (per-WU session context — gitignored).
+Derive `<wu-name>` from the active meta filename (basename of `active.value.path`, strip `meta-`
+prefix and `.md` suffix). When no active WU is anchored, SESSION-NOTES has no subdir home —
+write a minimal between-WUs marker via the next-session pointer instead:
 
 **Audience:** The next session's agent loading from cold context. They already have tracked state —
 git log, task list, status file, commit bodies, `notes-*.md`, PRD, constitution, strategies. Write
@@ -298,16 +305,6 @@ Markers:
 ## Additional Context
 
 [Only if the filter passes. Otherwise: [none].]
-
-## Persistent Context
-
-<!-- Entries that survive across handoffs. Each has an explicit removal trigger. -->
-<!-- Review at each handoff: remove entries whose triggers have been met. -->
-
-**[Entry name]:**
-_Remove when: [explicit trigger condition]_
-
-- [Context that must persist until trigger is met]
 ```
 
 **Per-section guidance:**
@@ -334,7 +331,8 @@ _Remove when: [explicit trigger condition]_
   ruled out, observed risks, "currently mid-X with concrete next action Y" mid-task stops.
   Filter applies — empty is normal.
 
-- **Persistent Context:** Entries that survive across handoffs. Each needs an explicit removal
+- **WORKING-MEMORY entries:** Cross-WU persistent context — entries that survive across handoffs
+  (and WU boundaries) at `.arc/user/{identity}/WORKING-MEMORY.md`. Each needs an explicit removal
   trigger (not tied to full work unit completion). Same filter as above.
 
     - **Passes:** forward-looking constraints (terminology for an unlanded rename), un-codified
@@ -342,7 +340,7 @@ _Remove when: [explicit trigger condition]_
     - **Fails:** mechanism decisions already in a plan doc's § Resolved Decisions, rules already
       in a strategy doc, behavioral guidance already in DEV-RULES.
     - **Anti-pattern (planning sessions):** writing an entry for every mechanism decision
-      resolved in the plan doc — Persistent Context is not a substitute for § Resolved Decisions.
+      resolved in the plan doc — WORKING-MEMORY is not a substitute for § Resolved Decisions.
     - **Anti-pattern (future-WU drift):** activation-audit reminders inside a backlog
       `plan-*.md` for an unactivated WU. Write them into the plan doc itself; the activating
       session sees them naturally.
@@ -419,9 +417,9 @@ status-{name}.md while the WU is still active:
 **Next Action:** archive-work-unit Step 1 — archive artifacts and retire the status file
 ```
 
-If the work unit has already been archived, no active status file remains. SESSION-NOTES.md at
-completion is minimal — accomplishment summary with commit hashes, archive path. Preserve any
-Persistent Context entries that span work units; reset ephemeral sections.
+If the work unit has already been archived, no active status file remains. The per-WU SESSION-NOTES
+subdir is retired alongside the WU (`arc user close` handles this); WORKING-MEMORY.md persists
+unchanged across the archive boundary — its entries' eviction triggers handle cross-WU lifecycle.
 
 ## Post-Update Cleanup
 

@@ -54,8 +54,8 @@ Carry `config` values forward as behavioral awareness. Do not surface configurat
 and overrides reach the user at the consuming operation.
 
 **Identity absent** (`identity.identity === null`): Skip all user workspace access — SESSION-NOTES,
-ATOMIC-INBOX, and git notes all depend on identity for path resolution. Surface a warning in orientation.
-Sessions without identity cannot perform handoff.
+WORKING-MEMORY, USER-INBOX, and git notes all depend on identity for path resolution. Surface a
+warning in orientation. Sessions without identity cannot perform handoff.
 
 **Role is `contributor`**: After Step 3 items 1–6, switch to [`session-init.contributor.md`][session-init-contributor]
 for item 7+, Step 5 skip, and Step 6 contributor orientation. Step 4 and Step 7 apply universally.
@@ -128,10 +128,10 @@ section-level partial read) and the active task list (item 9 — strategic parti
 section delimiter and compute Read offsets locally — never per-section greps. Skip the grep entirely
 when a stable file convention places the section at a known location.
 
-**Parallelism (prescriptive)**: Issue items 1–6, 8 (SESSION-NOTES), and — when
-`active.resolution === "single"` — the active status file as Reads in a single tool-message. Items 9–10
-follow after the status file resolves; they may parallel each other. Don't serialize when the platform
-supports parallel reads.
+**Parallelism (prescriptive)**: Issue items 1–6, 8 (personal session context — both SESSION-NOTES
+and WORKING-MEMORY), and — when `active.resolution === "single"` — the active status file as Reads
+in a single tool-message. Items 9–10 follow after the status file resolves; they may parallel each
+other. Don't serialize when the platform supports parallel reads.
 
 The document set below is the [session-state method][arc-methods-session] default. If your project overrides
 session-state, follow the override instead.
@@ -179,15 +179,27 @@ session-state, follow the override instead.
       `Task 5.5 — Implement validation (line ~1903)`. All three anchors should be present; any two are
       sufficient for reliable lookup.
 
-8. `.arc/user/{identity}/SESSION-NOTES.md` — **Read directly** (no `test -f` precheck — Read tool handles
-   missing files gracefully). Uses `{identity}` from Step 1
-    - Personal working context from prior session: approach, decisions, things tried, known risks
-    - **Persistent context**: The `## Persistent Context` section carries entries that survive across handoffs
-      (each has an explicit removal trigger). Treat these as active constraints for this session
-    - **If absent or stale**: Try `arc user load` (walks ancestors for `refs/notes/arc/user/{identity}`). If no
-      notes either, fall back to `git log --oneline -10`. Tracked state + git history is sufficient
-    - **Load errors:** See [SESSION-NOTES Load Error Recovery][session-ops-load-errors] for diagnostic
-      commands per error class
+8. **Personal session context** — read both per-WU and cross-WU surfaces. Uses `{identity}` from
+   Step 1. Read directly (no `test -f` precheck — Read tool handles missing files gracefully).
+
+    1. `.arc/user/{identity}/<wu-name>/SESSION-NOTES.md` — per-WU session context. Derive
+       `<wu-name>` from the active meta filename (basename of `active.value.path`, strip `meta-`
+       prefix and `.md` suffix). When `active.resolution === "none"` or `"multiple"` (pre-
+       disambiguation), no WU is anchored — skip the SESSION-NOTES read.
+        - Personal working context from prior session: approach, decisions, things tried, known
+          risks.
+        - **If absent or stale**: Try `arc user load` (walks ancestors for
+          `refs/notes/arc/user/{identity}`). If no notes either, fall back to
+          `git log --oneline -10`. Tracked state + git history is sufficient.
+
+    2. `.arc/user/{identity}/WORKING-MEMORY.md` — cross-WU persistent context. Entries each carry
+       a `_Remove when:_` trigger; treat them as active constraints for this session until their
+       trigger condition is met.
+        - **If absent**: no persistent context yet — common for fresh repos or sessions before
+          any entry has been added.
+
+    - **Load errors** (both files): See [SESSION-NOTES Load Error Recovery][session-ops-load-errors]
+      for diagnostic commands per error class.
 
 > **Person-to-person handoff:** If bootstrapping from another developer's handoff, fetch their git notes
 > namespace (`refs/notes/arc/user/{their-identity}`). See [Team Coordination Strategy][team-coordination]
@@ -386,7 +398,8 @@ If documented state doesn't match reality during initialization, use the trust h
 1. **Git state** — `git status`, `git log`, file contents on disk
 2. **Task list** — checkbox state, task descriptions
 3. **Active status file** — tracked project pointer
-4. **SESSION-NOTES.md** — personal session context (gitignored, most volatile)
+4. **Personal session context** — SESSION-NOTES.md (per-WU) and WORKING-MEMORY.md (cross-WU);
+   gitignored, most volatile
 
 **Tier 1 — Auto-recover with notice:**
 

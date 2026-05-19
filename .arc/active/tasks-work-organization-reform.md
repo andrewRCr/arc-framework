@@ -2794,7 +2794,7 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           `statusFileBody` test-fixture builder. `lib/config/status-reader.ts` is a different module
           and stays untouched.
 
-### `[ ]` **6.3 Migrate capture pipeline files + user/ workspace to R65 layout**
+### `[x]` **6.3 Migrate capture pipeline files + user/ workspace to R65 layout**
 
 - _Goal:_ Capture pipeline files restructure to the four-surface model — `user/{id}/ATOMIC-INBOX.md` renames to
   `USER-INBOX.md` (content under `## Atomic`; `## Backlog` initially empty); `BACKLOG-FEATURE.md` +
@@ -2851,29 +2851,32 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           `templates/user/SESSION-NOTES.md` — `## Persistent Context` section dropped (its content's canonical home
           is now WORKING-MEMORY per R65), `---` trailer added. Instance files mirror the template shape.
 
-    - `[ ]` **6.3.e Align session-lifecycle workflows with R65 layout (paired with 6.3.d)**
-        - _Origin:_ Relocated from former Task 3.12 to land paired with 6.3.d. Phase-3 placement created an interim
-          window where init/handoff pointed at paths not yet present on disk; co-located here, workflow consumers
-          and surfaces transition together.
-        - _Sequencing:_ Lands immediately after 6.3.d in the same session — no session boundary may intervene
-          between the two, because init/handoff fire at session boundaries and would observe a mismatched layout.
-        - _Premise:_ Pre-R65, `session-handoff.md` and `session-init.md` operate on a single
-          `user/{identity}/SESSION-NOTES.md` with embedded `## Persistent Context` section. Post-R65,
-          persistent-context content extracts to a separate cross-WU file at `user/{identity}/WORKING-MEMORY.md`;
-          session-volatile content moves to a per-WU subdir at `user/{identity}/<wu-name>/SESSION-NOTES.md`.
-        - **`session-handoff.md` write paths:** § What to Update + § Comprehensive Handoff Format updates —
-          SESSION-NOTES path references shift to `<wu-name>/SESSION-NOTES.md`; new write step for `WORKING-MEMORY.md`
-          as a separate file operation (cross-WU); `## Persistent Context` review logic relocates from "review
-          SESSION-NOTES § Persistent Context" to "review `WORKING-MEMORY.md` entries." Template skeleton in workflow
-          body strips the `## Persistent Context` H2 from the SESSION-NOTES shape; new template snippet shows
-          WORKING-MEMORY.md shape (H3-headed entries with `_Remove when:_` markers). Identity-absent and
-          contributor-role variants preserve their existing semantics under the new layout.
-        - **`session-init.md` read paths:** Step 3's document load list updates — SESSION-NOTES path shifts to
-          `<wu-name>/SESSION-NOTES.md` (item 8); new read step for `WORKING-MEMORY.md`. Persistent-context
-          interpretation note (currently embedded in the SESSION-NOTES read step) relocates to the WORKING-MEMORY.md
-          read step. SESSION-NOTES load error recovery guidance updates path references.
-        - **Sync to packages/:** Apply edits identically across `.arc/system/workflows/arc/session-lifecycle/` and
-          `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/`; final `diff` byte-identical.
+    - `[x]` **6.3.e Align session-lifecycle workflows with R65 layout (paired with 6.3.d)**
+        - **`session-handoff.md` write paths:** § What to Update gains a `WORKING-MEMORY.md` bullet alongside the
+          updated SESSION-NOTES path (`<wu-name>/` subdir + derivation guidance from `active.value.path`). §
+          Comprehensive Handoff Format step 1 reframes from "review `## Persistent Context`" to "review
+          `WORKING-MEMORY.md`"; step 5's SESSION-NOTES write path picks up `<wu-name>/` + the between-WUs no-subdir
+          fallback. SESSION-NOTES template skeleton in the workflow body drops the `## Persistent Context` H2 (its
+          content lives in WORKING-MEMORY now). § Persistent Context guidance reframes from a SESSION-NOTES section
+          to "WORKING-MEMORY entries". § Task List Completion archive scenario updated — per-WU SESSION-NOTES subdir
+          retires with the WU; WORKING-MEMORY persists across archive.
+        - **`session-init.md` read paths:** Identity-absent skip list updated (SESSION-NOTES, WORKING-MEMORY,
+          USER-INBOX, git notes; ATOMIC-INBOX reference retired per 6.3.a). Parallelism prescription includes
+          WORKING-MEMORY in the item-8 batch. Item 8 rewritten as "Personal session context" wrapping two reads:
+          per-WU `<wu-name>/SESSION-NOTES.md` (with `<wu-name>` derivation guidance + skip arm when no WU anchored)
+          and cross-WU `WORKING-MEMORY.md` (`_Remove when:_` entries treated as active session constraints). Trust
+          hierarchy tier 4 extended to cover both files.
+        - **Mirror discipline:** Edits applied to both `packages/arc-framework/arc/system/workflows/arc/
+          session-lifecycle/{session-handoff,session-init}.template.md` and `.arc/system/workflows/arc/
+          session-lifecycle/{session-handoff,session-init}.md`. Team-mode `arc:if` conditional blocks (stripped in
+          `.arc/` per existing project mode) untouched.
+        - **Deviation from task spec:** The task description called for "a new template snippet [showing]
+          WORKING-MEMORY.md shape (H3-headed entries with `_Remove when:_` markers)" in session-handoff. Did not
+          add — WORKING-MEMORY isn't rewritten at handoff (incremental modify only), so the workflow doesn't need
+          a fresh-write skeleton the way SESSION-NOTES does. The shape lives in the standalone template
+          (`templates/user/WORKING-MEMORY.md`) and the existing instance file already loaded at session-init item
+          8; agents reference those when adding/removing entries. Spec's "H3-headed entries" guidance also predated
+          5.5.d's bold-paragraph entry shape codification.
 
 ### `[ ]` **6.4 Migrate `backlog/feature/` + `backlog/technical/` to `backlog/{planned,provisional}/<wu-name>/` per-WU subdirs**
 
