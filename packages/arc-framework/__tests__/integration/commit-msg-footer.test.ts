@@ -65,14 +65,14 @@ const positiveCases: FooterCase[] = [
   { name: "prd-* (planning)", footer: "Context: prd-foo.md (planning)" },
   { name: "prd-* (code review)", footer: "Context: prd-foo.md (code review)" },
 
-  // meta-* (filename token stays at status- here; flips at 6.2.i)
-  { name: "meta-* (handoff)", footer: "Context: status-foo.md (handoff)" },
-  { name: "meta-* (activation)", footer: "Context: status-foo.md (activation)" },
-  { name: "meta-* (integration)", footer: "Context: status-foo.md (integration)" },
-  { name: "meta-* (archival)", footer: "Context: status-foo.md (archival)" },
-  { name: "meta-* (deactivation) — new in R29a", footer: "Context: status-foo.md (deactivation)" },
-  { name: "meta-* (maintenance) — new in R29a", footer: "Context: status-foo.md (maintenance)" },
-  { name: "meta-* (incidental during X)", footer: "Context: status-foo.md (incidental during code review)" },
+  // meta-*
+  { name: "meta-* (handoff)", footer: "Context: meta-foo.md (handoff)" },
+  { name: "meta-* (activation)", footer: "Context: meta-foo.md (activation)" },
+  { name: "meta-* (integration)", footer: "Context: meta-foo.md (integration)" },
+  { name: "meta-* (archival)", footer: "Context: meta-foo.md (archival)" },
+  { name: "meta-* (deactivation)", footer: "Context: meta-foo.md (deactivation)" },
+  { name: "meta-* (maintenance)", footer: "Context: meta-foo.md (maintenance)" },
+  { name: "meta-* (incidental during X)", footer: "Context: meta-foo.md (incidental during code review)" },
 
   // standalone — new anchor
   { name: "standalone (maintenance)", footer: "Context: standalone (maintenance)" },
@@ -97,8 +97,8 @@ const negativeCases: FooterCase[] = [
   // (maintenance) is for tasks-* / meta-* / standalone — not plan-* / prd-*
   { name: "plan-* (maintenance) — invalid", footer: "Context: plan-foo.md (maintenance)" },
 
-  // (planning) dropped from meta-* parenthetical set
-  { name: "meta-* (planning) — dropped in R29a", footer: "Context: status-foo.md (planning)" },
+  // (planning) is not in the meta-* parenthetical set
+  { name: "meta-* (planning) — invalid", footer: "Context: meta-foo.md (planning)" },
 
   // Retired off-WU patterns (replaced by `standalone (...)`)
   { name: "off-WU (no associated task list) — retired", footer: "Context: planning (no associated task list)" },

@@ -162,3 +162,15 @@ Atomic Task Completion for the full protocol.
       § Open Questions § Worktree lifecycle ceremony — Case A-delete implies worktree removal
       alongside branch deletion; Case A opens design call (rename vs respawn at `plan/<name>` vs
       decouple path from branch); resolves at that WU's PRD.
+
+### `[x]` **`commit-msg-footer.test.ts` fixture flip — `status-foo.md` → `meta-foo.md`**
+
+- _Outcome:_ Caught 7 pre-existing positive-case failures + 1 stale negative-case framing in
+  `__tests__/integration/commit-msg-footer.test.ts` while running the suite after 6.2.m. Six meta-*
+  positive cases (handoff / activation / integration / archival / deactivation / maintenance) plus
+  the meta-* (incidental during X) case were still writing `Context: status-foo.md (...)` footers
+  after 6.2.i tightened the commit-msg hook regex to require `meta-` filename tokens — the fixture
+  update was missed at 6.2.i. The negative meta-* (planning) case used `status-foo.md` and so was
+  rejecting for the wrong reason (status- prefix, not the dropped `(planning)` parenthetical);
+  flipped to `meta-foo.md` so it now fails for the intended reason. Comment "filename token stays
+  at status- here; flips at 6.2.i" + the R29a transitional labels dropped. 34/34 tests pass.
