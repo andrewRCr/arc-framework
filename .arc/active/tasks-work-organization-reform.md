@@ -2640,20 +2640,12 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           example markdown block at lines 164+ left for 6.7 cross-reference sweep (wider scope than this task's
           stated boundary). CLI-helper extraction stays tracked downstream in `plan-handoff-optimization.md`.
 
-### `[ ]` **6.2 Migrate in-flight WU meta files (`status-*` → `meta-*` + field backfill + State recodification)**
+### `[x]` **6.2 Migrate in-flight WU meta files (`status-*` → `meta-*` + field backfill + State recodification)**
 
 - _Goal:_ In-flight WU `status-*.md` files rename to `meta-*.md`; State recodified per mapping table; Owner backfilled
   from `arc.identity`; Origin defaulted to `[internal]` (external URLs migrated from prior Spec where applicable);
   Depends On initialized to `[none]` (manual extraction for known dependencies); Cohort initialized to `[none]` or
   cohort name for known sibling sets.
-
-    - _Approach:_ One commit per WU migration to keep blast radius bounded — each WU's rename + field edits land
-      atomically per ARC commit discipline. Mapping table per `notes-work-organization-reform.md` § Migration Mapping
-      Reference.
-
-    - _Note:_ At execution, discover all in-flight `status-*.md` files first; in practice this WU's own
-      `status-work-organization-reform.md` is the sole in-flight status file (verified at task generation time). "Each
-      WU's rename" is defensive language for the broader contract — most invocations migrate a single file.
 
     - `[x]` **6.2.a Per-WU rename: `git mv status-{name}.md meta-{name}.md`**
         - Renamed `status-work-organization-reform.md` → `meta-work-organization-reform.md`.
@@ -2789,23 +2781,18 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           `# Metadata: Foo` + field bullets). Adopter-facing doc reference in `PROJECT-STATUS.md`
           carries forward to 6.7's cross-reference sweep.
 
-    - `[ ]` **6.2.o Symbol/file rename: `status-reader` → `meta-reader` (paired with 5.4.c + 5.4.d)**
-        - Once 6.2.l drops the legacy `status-` prefix and 6.2.m drops the legacy H2 fallback, the
-          `status-reader` module name and its `parseStatusFile` / `StatusFileCandidate` surface carry stale
-          vocabulary — the module reads meta files only. Mirrors the rename clause already codified in 6.2.n
-          for the validator (`META_PATH` / `meta-spec`); deferred from 5.4.c + 5.4.d for the same reason
-          (5.4.h's latitude clause applies symmetrically).
-        - Mechanical rename pass:
-            - `src/lib/active/status-reader.ts` → `meta-reader.ts`
-            - `parseStatusFile` → `parseMetaFile`; `ParsedStatusFields` → `ParsedMetaFields`
-            - `readActiveStatusCandidates` → `readActiveMetaCandidates`; `ReaderResult` stays generic
-            - `StatusFileCandidate` (in `commands/active/types.ts`) → `MetaFileCandidate`
-            - `__tests__/unit/active/status-reader.test.ts` → `meta-reader.test.ts`
-        - Update all import paths (direct imports, no central barrel); refresh JSDoc references in
-          `commands/active/status.ts` and `lib/release/wu-resolution.ts`.
-        - Tests: `npm test` after the rename; mechanical search-and-replace plus import-path updates.
-          No behavior change expected.
-        - _Sequencing:_ Runs after 6.2.l AND 6.2.m (legacy support retired before the vocabulary update).
+    - `[x]` **6.2.o Symbol/file rename: `status-reader` → `meta-reader` (paired with 5.4.c + 5.4.d)**
+        - Files renamed (`git mv`): `src/lib/active/status-reader.ts` → `meta-reader.ts`;
+          `__tests__/unit/active/status-reader.test.ts` → `meta-reader.test.ts`. Symbols renamed:
+          `parseStatusFile` → `parseMetaFile`; `ParsedStatusFields` → `ParsedMetaFields`;
+          `readActiveStatusCandidates` → `readActiveMetaCandidates`; `StatusFileCandidate`
+          (in `commands/active/types.ts`) → `MetaFileCandidate`. `ReaderResult` left generic.
+        - Import + JSDoc refresh in callers (`commands/active/status.ts`, `lib/release/wu-resolution.ts`)
+          plus incidental sweep: `commands/active.ts` re-export, the `validateState` JSDoc in
+          `commands/active/types.ts`, internal helpers in the renamed file
+          (`isStatusFilename` / `findStatusFiles` → `isMetaFilename` / `findMetaFiles`), and the
+          `statusFileBody` test-fixture builder. `lib/config/status-reader.ts` is a different module
+          and stays untouched.
 
 ### `[ ]` **6.3 Migrate capture pipeline files + user/ workspace to R65 layout**
 
@@ -2816,7 +2803,8 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
   SESSION-NOTES moves into `<wu-name>/` subdir, `## Persistent Context` extracts to new `WORKING-MEMORY.md` at root.
   Plus: session-lifecycle workflow consumers (`session-handoff.md` + `session-init.md`) align with the new layout —
   paired with the in-flight workspace migration (6.3.d ↔ 6.3.e) so consumers and on-disk surfaces transition together.
-    - `[ ]` **6.3.a Per-user ATOMIC-INBOX → USER-INBOX rename**
+
+- `[ ]` **6.3.a Per-user ATOMIC-INBOX → USER-INBOX rename**
         - `git mv .arc/user/{andrew}/ATOMIC-INBOX.md .arc/user/{andrew}/USER-INBOX.md`. Restructure content under
           `## Atomic` section; add empty `## Backlog` section.
 

@@ -1,7 +1,7 @@
 /**
- * Unit tests for the active-status reader.
+ * Unit tests for the active-meta reader.
  *
- * Covers the status-file parser (field extraction, missing fields,
+ * Covers the meta-file parser (field extraction, missing fields,
  * malformed content) and the layout detector (full vs lite, missing
  * directory) — the behaviors the probe runners and composite status
  * consumer depend on.
@@ -13,9 +13,9 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 import {
-  parseStatusFile,
-  readActiveStatusCandidates,
-} from "../../../src/lib/active/status-reader.js";
+  parseMetaFile,
+  readActiveMetaCandidates,
+} from "../../../src/lib/active/meta-reader.js";
 
 interface Fixture {
   root: string;
@@ -29,7 +29,7 @@ async function createFixture(): Promise<Fixture> {
   return { root, activeDir };
 }
 
-function statusFileBody(fields: {
+function metaFileBody(fields: {
   state?: string;
   branch?: string;
   nextTask?: string;
@@ -45,15 +45,15 @@ function statusFileBody(fields: {
   return lines.join("\n");
 }
 
-describe("parseStatusFile — happy path", () => {
+describe("parseMetaFile — happy path", () => {
   it("extracts all four session-init-relevant fields from a typical status file", () => {
-    const content = statusFileBody({
+    const content = metaFileBody({
       state: "Active",
       branch: "technical/foo",
       taskList: "`tasks-foo.md`",
       nextTask: "Task 3.2 — implement widget (line ~1234)",
     });
-    const parsed = parseStatusFile(content);
+    const parsed = parseMetaFile(content);
     expect(parsed.state).toBe("Active");
     expect(parsed.branch).toBe("technical/foo");
     expect(parsed.taskList).toBe("tasks-foo.md");
@@ -61,23 +61,23 @@ describe("parseStatusFile — happy path", () => {
   });
 
   it("preserves the full State value including parenthetical qualifiers", () => {
-    const content = statusFileBody({ state: "Paused (2026-04-12) — waiting for restructure" });
-    const parsed = parseStatusFile(content);
+    const content = metaFileBody({ state: "Paused (2026-04-12) — waiting for restructure" });
+    const parsed = parseMetaFile(content);
     expect(parsed.state).toBe("Paused (2026-04-12) — waiting for restructure");
   });
 
   it("preserves backticked task identifiers inside Next Task", () => {
-    const content = statusFileBody({
+    const content = metaFileBody({
       nextTask: "Task 3.R.k.d — `arc active status` probe (line ~1828)",
     });
-    const parsed = parseStatusFile(content);
+    const parsed = parseMetaFile(content);
     expect(parsed.nextTask).toBe("Task 3.R.k.d — arc active status probe (line ~1828)");
   });
 });
 
-describe("parseStatusFile — missing fields", () => {
+describe("parseMetaFile — missing fields", () => {
   it("returns null for any field whose marker is absent", () => {
-    const parsed = parseStatusFile("# Metadata: fixture\n\nJust prose.\n");
+    const parsed = parseMetaFile("# Metadata: fixture\n\nJust prose.\n");
     expect(parsed.state).toBeNull();
     expect(parsed.branch).toBeNull();
     expect(parsed.nextTask).toBeNull();
@@ -86,63 +86,63 @@ describe("parseStatusFile — missing fields", () => {
 
   it("returns null for a field whose value is empty after the marker", () => {
     const content = "# Metadata: fixture\n\n- **Branch:** \n- **State:** Active\n";
-    const parsed = parseStatusFile(content);
+    const parsed = parseMetaFile(content);
     expect(parsed.branch).toBeNull();
     expect(parsed.state).toBe("Active");
   });
 
   it("returns null for every field when no H1 is present", () => {
     const content = "- **Branch:** main\n- **State:** Active\n";
-    const parsed = parseStatusFile(content);
+    const parsed = parseMetaFile(content);
     expect(parsed.branch).toBeNull();
     expect(parsed.state).toBeNull();
   });
 
   it("does not parse fields from below a content `## ` heading", () => {
     const content = "# Metadata: fixture\n\n## Active Work\n\n- **State:** Active\n";
-    const parsed = parseStatusFile(content);
+    const parsed = parseMetaFile(content);
     expect(parsed.state).toBeNull();
   });
 });
 
-describe("parseStatusFile — formatting tolerance", () => {
+describe("parseMetaFile — formatting tolerance", () => {
   it("parses the bare `**Field:** value` form without a list bullet", () => {
     const content = "# Metadata: fixture\n\n**State:** Active\n**Branch:** main\n";
-    const parsed = parseStatusFile(content);
+    const parsed = parseMetaFile(content);
     expect(parsed.state).toBe("Active");
     expect(parsed.branch).toBe("main");
   });
 
   it("tolerates blockquote prefixes (e.g., `> - **State:**`)", () => {
     const content = "# Metadata: fixture\n\n> - **State:** Active\n> - **Branch:** feature/x\n";
-    const parsed = parseStatusFile(content);
+    const parsed = parseMetaFile(content);
     expect(parsed.state).toBe("Active");
     expect(parsed.branch).toBe("feature/x");
   });
 
   it("takes the first match when a field is repeated (stable behavior)", () => {
     const content = "# Metadata: fixture\n\n- **Branch:** first\n- **Branch:** second\n";
-    const parsed = parseStatusFile(content);
+    const parsed = parseMetaFile(content);
     expect(parsed.branch).toBe("first");
   });
 
   it("handles `[none]` Task List value verbatim", () => {
-    const parsed = parseStatusFile("# Metadata: fixture\n\n- **Task List:** [none]\n");
+    const parsed = parseMetaFile("# Metadata: fixture\n\n- **Task List:** [none]\n");
     expect(parsed.taskList).toBe("[none]");
   });
 
   it("extracts the Next Action field carrying a lifecycle workflow step pointer", () => {
-    const content = statusFileBody({
+    const content = metaFileBody({
       state: "Integrating",
       branch: "technical/foo",
       extra: "- **Next Action:** integrate-work-unit Step 7 — push and create PR",
     });
-    const parsed = parseStatusFile(content);
+    const parsed = parseMetaFile(content);
     expect(parsed.nextAction).toBe("integrate-work-unit Step 7 — push and create PR");
   });
 });
 
-describe("parseStatusFile — section boundary", () => {
+describe("parseMetaFile — section boundary", () => {
   it("ignores field markers that appear above the H1", () => {
     const content = [
       "> About this file: example uses `- **Branch:** decoy`",
@@ -152,7 +152,7 @@ describe("parseStatusFile — section boundary", () => {
       "- **Branch:** real",
       "",
     ].join("\n");
-    const parsed = parseStatusFile(content);
+    const parsed = parseMetaFile(content);
     expect(parsed.branch).toBe("real");
   });
 
@@ -167,12 +167,12 @@ describe("parseStatusFile — section boundary", () => {
       "- **State:** Decoy from a quoted snippet",
       "",
     ].join("\n");
-    const parsed = parseStatusFile(content);
+    const parsed = parseMetaFile(content);
     expect(parsed.state).toBe("Active");
   });
 });
 
-describe("parseStatusFile — H1-bounded preamble", () => {
+describe("parseMetaFile — H1-bounded preamble", () => {
   it("parses fields from the H1-bounded preamble", () => {
     const content = [
       "# Metadata: foo",
@@ -184,7 +184,7 @@ describe("parseStatusFile — H1-bounded preamble", () => {
       "- **Next Action:** Start Task 1.1",
       "",
     ].join("\n");
-    const parsed = parseStatusFile(content);
+    const parsed = parseMetaFile(content);
     expect(parsed.state).toBe("Active");
     expect(parsed.branch).toBe("plan/foo");
     expect(parsed.taskList).toBe("tasks-foo.md");
@@ -205,13 +205,13 @@ describe("parseStatusFile — H1-bounded preamble", () => {
       "- **Branch:** decoy/branch",
       "",
     ].join("\n");
-    const parsed = parseStatusFile(content);
+    const parsed = parseMetaFile(content);
     expect(parsed.state).toBe("Active");
     expect(parsed.branch).toBe("plan/foo");
   });
 
   it("returns all-null when no H1 is present", () => {
-    const parsed = parseStatusFile("just some prose with **Branch:** decoy in it\n");
+    const parsed = parseMetaFile("just some prose with **Branch:** decoy in it\n");
     expect(parsed.state).toBeNull();
     expect(parsed.branch).toBeNull();
     expect(parsed.nextTask).toBeNull();
@@ -228,13 +228,13 @@ describe("parseStatusFile — H1-bounded preamble", () => {
       "## Notes",
       "",
     ].join("\n");
-    const parsed = parseStatusFile(content);
+    const parsed = parseMetaFile(content);
     expect(parsed.state).toBeNull();
     expect(parsed.branch).toBeNull();
   });
 });
 
-describe("readActiveStatusCandidates — layout detection", () => {
+describe("readActiveMetaCandidates — layout detection", () => {
   let fixture: Fixture;
   beforeEach(async () => {
     fixture = await createFixture();
@@ -244,7 +244,7 @@ describe("readActiveStatusCandidates — layout detection", () => {
   });
 
   it("returns layout=full and empty candidates when .arc/active/ has no status files", async () => {
-    const result = await readActiveStatusCandidates(fixture.root);
+    const result = await readActiveMetaCandidates(fixture.root);
     expect(result.layout).toBe("full");
     expect(result.candidates).toEqual([]);
     expect(result.warnings).toEqual([]);
@@ -253,7 +253,7 @@ describe("readActiveStatusCandidates — layout detection", () => {
   it("returns a warning and empty list when .arc/active/ does not exist", async () => {
     const root = await mkdtemp(join(tmpdir(), "arc-active-none-"));
     try {
-      const result = await readActiveStatusCandidates(root);
+      const result = await readActiveMetaCandidates(root);
       expect(result.layout).toBe("full");
       expect(result.candidates).toEqual([]);
       expect(result.warnings.length).toBe(1);
@@ -266,13 +266,13 @@ describe("readActiveStatusCandidates — layout detection", () => {
   it("enumerates meta-*.md candidates at the flat active root", async () => {
     await writeFile(
       join(fixture.activeDir, "meta-alpha.md"),
-      statusFileBody({ state: "Active", branch: "technical/alpha" }),
+      metaFileBody({ state: "Active", branch: "technical/alpha" }),
     );
     await writeFile(
       join(fixture.activeDir, "meta-beta.md"),
-      statusFileBody({ state: "Integrating", branch: "technical/beta" }),
+      metaFileBody({ state: "Integrating", branch: "technical/beta" }),
     );
-    const result = await readActiveStatusCandidates(fixture.root);
+    const result = await readActiveMetaCandidates(fixture.root);
     expect(result.layout).toBe("full");
     expect(result.candidates).toHaveLength(2);
     const filenames = result.candidates.map((c) => c.filename).sort();
@@ -282,16 +282,16 @@ describe("readActiveStatusCandidates — layout detection", () => {
   it("emits candidate paths relative to cwd with forward slashes", async () => {
     await writeFile(
       join(fixture.activeDir, "meta-foo.md"),
-      statusFileBody({ state: "Active", branch: "technical/foo" }),
+      metaFileBody({ state: "Active", branch: "technical/foo" }),
     );
-    const result = await readActiveStatusCandidates(fixture.root);
+    const result = await readActiveMetaCandidates(fixture.root);
     expect(result.candidates[0]!.path).toBe(".arc/active/meta-foo.md");
   });
 
   it("ignores non-`meta-` files and stray subdirectories at the active root", async () => {
     await writeFile(
       join(fixture.activeDir, "meta-foo.md"),
-      statusFileBody({ state: "Active" }),
+      metaFileBody({ state: "Active" }),
     );
     await writeFile(join(fixture.activeDir, "tasks-foo.md"), "# tasks\n");
     await writeFile(join(fixture.activeDir, "notes-foo.md"), "# notes\n");
@@ -300,9 +300,9 @@ describe("readActiveStatusCandidates — layout detection", () => {
     await mkdir(stray, { recursive: true });
     await writeFile(
       join(stray, "meta-decoy.md"),
-      statusFileBody({ state: "Active", branch: "technical/decoy" }),
+      metaFileBody({ state: "Active", branch: "technical/decoy" }),
     );
-    const result = await readActiveStatusCandidates(fixture.root);
+    const result = await readActiveMetaCandidates(fixture.root);
     expect(result.candidates).toHaveLength(1);
     expect(result.candidates[0]!.filename).toBe("meta-foo.md");
   });
@@ -312,14 +312,14 @@ describe("readActiveStatusCandidates — layout detection", () => {
     await mkdir(userActiveDir, { recursive: true });
     await writeFile(
       join(userActiveDir, "meta-foo.md"),
-      statusFileBody({ state: "Active", branch: "user/foo" }),
+      metaFileBody({ state: "Active", branch: "user/foo" }),
     );
     await writeFile(
       join(userActiveDir, "meta-bar.md"),
-      statusFileBody({ state: "Paused (2026-04-09)", branch: "user/bar" }),
+      metaFileBody({ state: "Paused (2026-04-09)", branch: "user/bar" }),
     );
 
-    const result = await readActiveStatusCandidates(fixture.root, {
+    const result = await readActiveMetaCandidates(fixture.root, {
       rootSegments: [".arc", "user", "alice", "active"],
     });
     expect(result.layout).toBe("full");
@@ -332,9 +332,9 @@ describe("readActiveStatusCandidates — layout detection", () => {
   it("detects lite layout when .arc/active/status.md exists", async () => {
     await writeFile(
       join(fixture.activeDir, "status.md"),
-      statusFileBody({ state: "Active", branch: "main" }),
+      metaFileBody({ state: "Active", branch: "main" }),
     );
-    const result = await readActiveStatusCandidates(fixture.root);
+    const result = await readActiveMetaCandidates(fixture.root);
     expect(result.layout).toBe("lite");
     expect(result.candidates).toHaveLength(1);
     expect(result.candidates[0]!.path).toBe(".arc/active/status.md");
@@ -347,10 +347,10 @@ describe("readActiveStatusCandidates — layout detection", () => {
     await mkdir(userActiveDir, { recursive: true });
     await writeFile(
       join(userActiveDir, "status.md"),
-      statusFileBody({ state: "Active", branch: "main" }),
+      metaFileBody({ state: "Active", branch: "main" }),
     );
 
-    const result = await readActiveStatusCandidates(fixture.root, {
+    const result = await readActiveMetaCandidates(fixture.root, {
       rootSegments: [".arc", "user", "alice", "active"],
     });
     expect(result.layout).toBe("lite");
@@ -361,20 +361,20 @@ describe("readActiveStatusCandidates — layout detection", () => {
   it("prefers lite layout when both lite and meta-*.md candidates are present", async () => {
     await writeFile(
       join(fixture.activeDir, "status.md"),
-      statusFileBody({ state: "Active" }),
+      metaFileBody({ state: "Active" }),
     );
     await writeFile(
       join(fixture.activeDir, "meta-foo.md"),
-      statusFileBody({ state: "Active", branch: "technical/foo" }),
+      metaFileBody({ state: "Active", branch: "technical/foo" }),
     );
-    const result = await readActiveStatusCandidates(fixture.root);
+    const result = await readActiveMetaCandidates(fixture.root);
     expect(result.layout).toBe("lite");
     expect(result.candidates).toHaveLength(1);
     expect(result.candidates[0]!.filename).toBe("status.md");
   });
 
   it("emits a warning naming the supplied custom root when the directory is absent", async () => {
-    const result = await readActiveStatusCandidates(fixture.root, {
+    const result = await readActiveMetaCandidates(fixture.root, {
       rootSegments: [".arc", "user", "alice", "active"],
     });
     expect(result.candidates).toEqual([]);

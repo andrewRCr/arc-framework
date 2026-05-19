@@ -7,7 +7,7 @@
  * - {@link runActiveSessionInitStatus} — resolved path / null / candidate
  *   list for the session-init harness (Step 2 Item 8 consumer).
  *
- * Both share the filesystem work through {@link readActiveStatusCandidates};
+ * Both share the filesystem work through {@link readActiveMetaCandidates};
  * the session-init variant applies a thin resolution-state shaping on top.
  *
  * @module
@@ -16,7 +16,7 @@
 import { stat } from "node:fs/promises";
 import { join, sep } from "node:path";
 
-import { readActiveStatusCandidates } from "../../lib/active/status-reader.js";
+import { readActiveMetaCandidates } from "../../lib/active/meta-reader.js";
 import { getCurrentBranch } from "../../lib/git/index.js";
 import type {
   ActiveLayout,
@@ -26,7 +26,7 @@ import type {
   ActiveStatusOptions,
   ActiveStatusResult,
   SessionType,
-  StatusFileCandidate,
+  MetaFileCandidate,
 } from "./types.js";
 
 const CONTRIBUTOR_IDENTITY_MISSING_WARNING =
@@ -112,7 +112,7 @@ function inferFromBranchPattern(currentBranch: string | null): SessionType | nul
 export async function runActiveStatus(
   options: ActiveStatusOptions,
 ): Promise<ActiveStatusResult> {
-  const { layout, candidates, warnings } = await readActiveStatusCandidates(options.cwd);
+  const { layout, candidates, warnings } = await readActiveMetaCandidates(options.cwd);
   return {
     mode: "full",
     layout,
@@ -163,7 +163,7 @@ export async function runActiveSessionInitStatus(
 
   const readerOptions = resolveReaderOptions(role, identity);
   const [scan, currentBranch] = await Promise.all([
-    readActiveStatusCandidates(options.cwd, readerOptions),
+    readActiveMetaCandidates(options.cwd, readerOptions),
     getCurrentBranch(options.exec),
   ]);
   return resolveSessionInit(options.cwd, scan.layout, scan.candidates, scan.warnings, currentBranch);
@@ -188,12 +188,12 @@ function resolveReaderOptions(
 interface ResolutionFields {
   resolution: ActiveSessionInitResolution;
   path: string | null;
-  candidates: StatusFileCandidate[];
+  candidates: MetaFileCandidate[];
   sessionType: SessionType | null;
 }
 
 function classifyResolution(
-  input: StatusFileCandidate[],
+  input: MetaFileCandidate[],
   currentBranch: string | null,
 ): ResolutionFields {
   const [only] = input;
@@ -219,7 +219,7 @@ function classifyResolution(
 async function resolveSessionInit(
   cwd: string,
   layout: ActiveLayout,
-  candidates: StatusFileCandidate[],
+  candidates: MetaFileCandidate[],
   warnings: string[],
   currentBranch: string | null,
 ): Promise<ActiveSessionInitResult> {

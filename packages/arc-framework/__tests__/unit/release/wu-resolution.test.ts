@@ -2,7 +2,7 @@
  * Unit tests for the active-WU resolver consumed by the release commit
  * and push handlers.
  *
- * Composes `readActiveStatusCandidates` from the active-status reader;
+ * Composes `readActiveMetaCandidates` from the active-meta reader;
  * accepts any `**State:**` value and refuses only on no-candidate or
  * multi-candidate ambiguity. Both refusal shapes map to refusal code 10
  * (`no-active-wu`); the multi-candidate path carries a disambiguation

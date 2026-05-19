@@ -1,5 +1,5 @@
 /**
- * Reader for `arc active status` — scans `.arc/active/` for status files,
+ * Reader for `arc active status` — scans `.arc/active/` for meta files,
  * detects Full vs Lite layout, and parses per-WU fields into structured
  * candidates.
  *
@@ -13,7 +13,7 @@
 import { join, relative, sep } from "node:path";
 import { readdir, readFile, stat } from "node:fs/promises";
 
-import type { ActiveLayout, StatusFileCandidate } from "../../commands/active/types.js";
+import type { ActiveLayout, MetaFileCandidate } from "../../commands/active/types.js";
 
 const DEFAULT_ROOT_SEGMENTS = [".arc", "active"] as const;
 const LITE_FILENAME = "status.md";
@@ -30,12 +30,12 @@ export interface ReadActiveCandidatesOptions {
 
 export interface ReaderResult {
   layout: ActiveLayout;
-  candidates: StatusFileCandidate[];
+  candidates: MetaFileCandidate[];
   warnings: string[];
 }
 
 /**
- * Scan the active directory and return parsed status-file candidates.
+ * Scan the active directory and return parsed meta-file candidates.
  *
  * Layout resolution:
  *
@@ -46,7 +46,7 @@ export interface ReaderResult {
  * A missing root directory is not an error — returns an empty candidate set
  * with a warning naming the supplied root.
  */
-export async function readActiveStatusCandidates(
+export async function readActiveMetaCandidates(
   cwd: string,
   options?: ReadActiveCandidatesOptions,
 ): Promise<ReaderResult> {
@@ -82,10 +82,10 @@ export async function readActiveStatusCandidates(
     return { layout: "lite", candidates: candidate ? [candidate] : [], warnings };
   }
 
-  const paths = await findStatusFiles(activeDir);
+  const paths = await findMetaFiles(activeDir);
   paths.sort();
 
-  const candidates: StatusFileCandidate[] = [];
+  const candidates: MetaFileCandidate[] = [];
   for (const path of paths) {
     const c = await parseCandidate(cwd, path, warnings);
     if (c) candidates.push(c);
@@ -94,11 +94,11 @@ export async function readActiveStatusCandidates(
   return { layout: "full", candidates, warnings };
 }
 
-function isStatusFilename(name: string): boolean {
+function isMetaFilename(name: string): boolean {
   return name.startsWith(META_PREFIX) && name.endsWith(FULL_SUFFIX);
 }
 
-async function findStatusFiles(activeDir: string): Promise<string[]> {
+async function findMetaFiles(activeDir: string): Promise<string[]> {
   const out: string[] = [];
   let entries: string[];
   try {
@@ -107,7 +107,7 @@ async function findStatusFiles(activeDir: string): Promise<string[]> {
     return out;
   }
   for (const entry of entries) {
-    if (!isStatusFilename(entry)) continue;
+    if (!isMetaFilename(entry)) continue;
     const full = join(activeDir, entry);
     let s;
     try {
@@ -125,7 +125,7 @@ async function parseCandidate(
   cwd: string,
   absPath: string,
   warnings: string[],
-): Promise<StatusFileCandidate | null> {
+): Promise<MetaFileCandidate | null> {
   let content: string;
   try {
     content = await readFile(absPath, "utf8");
@@ -135,7 +135,7 @@ async function parseCandidate(
     return null;
   }
 
-  const parsed = parseStatusFile(content);
+  const parsed = parseMetaFile(content);
   const rel = relative(cwd, absPath).split(sep).join("/");
   const filename = rel.split("/").pop() ?? rel;
   return {
@@ -149,7 +149,7 @@ async function parseCandidate(
   };
 }
 
-export interface ParsedStatusFields {
+export interface ParsedMetaFields {
   branch: string | null;
   state: string | null;
   nextTask: string | null;
@@ -158,7 +158,7 @@ export interface ParsedStatusFields {
 }
 
 /**
- * Parse the five session-init-relevant fields from a status-file body.
+ * Parse the five session-init-relevant fields from a meta-file body.
  *
  * Field extraction is bounded to the H1-bounded preamble — from immediately
  * after the first `# ...` H1 through the first content `## ...` H2 (or
@@ -167,13 +167,13 @@ export interface ParsedStatusFields {
  * Within the region, accepts both list-item (`- **Field:** value`) and
  * bare (`**Field:** value`) forms; bullets and leading whitespace are
  * tolerated. Values are taken verbatim to end of line, trimmed. Inline
- * backticks are stripped so path fields like
- * `` `.arc/active/.../tasks-foo.md` `` round-trip as plain paths.
+ * backticks are stripped so backticked path fields round-trip as plain
+ * paths.
  *
  * Returns `null` for any field whose marker isn't present — downstream
  * rendering decides how to surface missing fields.
  */
-export function parseStatusFile(content: string): ParsedStatusFields {
+export function parseMetaFile(content: string): ParsedMetaFields {
   const section = extractMetadataSection(content) ?? "";
   return {
     branch: extractField(section, "Branch"),

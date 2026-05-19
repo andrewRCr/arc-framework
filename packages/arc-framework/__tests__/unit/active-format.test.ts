@@ -15,10 +15,10 @@ import {
 import type {
   ActiveSessionInitResult,
   ActiveStatusResult,
-  StatusFileCandidate,
+  MetaFileCandidate,
 } from "../../src/commands/active/types.js";
 
-function candidate(overrides: Partial<StatusFileCandidate> = {}): StatusFileCandidate {
+function candidate(overrides: Partial<MetaFileCandidate> = {}): MetaFileCandidate {
   return {
     path: ".arc/active/technical/meta-foo.md",
     filename: "meta-foo.md",

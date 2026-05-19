@@ -38,7 +38,7 @@ export type WorkUnitState = "Planning" | "Active" | "Integrating" | "Shipped";
  * enum. Anything unrecognized — including `null`, the empty string, and
  * whitespace-only — returns `"unknown"`.
  *
- * Parsers (`parseStatusFile`, meta-field readers) return the raw `State`
+ * Parsers (`parseMetaFile`, meta-field readers) return the raw `State`
  * string verbatim; callers that need enum narrowing import and apply
  * `validateState` explicitly.
  *
@@ -77,11 +77,11 @@ export function validateState(s: string | null): WorkUnitState | "unknown" {
 export type SessionType = "planning" | "execution" | "integration";
 
 /**
- * One parsed status file. `path` is always relative to the probe's cwd so
+ * One parsed meta file. `path` is always relative to the probe's cwd so
  * consumers can cross-reference against other probe results without
  * normalization.
  */
-export interface StatusFileCandidate {
+export interface MetaFileCandidate {
   /** Path relative to cwd — e.g. `.arc/active/meta-foo.md`. */
   path: string;
   /** Basename — e.g. `meta-foo.md`. Used by session-init's SESSION-NOTES-first precedence. */
@@ -101,7 +101,7 @@ export interface StatusFileCandidate {
 export interface ActiveStatusResult {
   mode: "full";
   layout: ActiveLayout;
-  candidates: StatusFileCandidate[];
+  candidates: MetaFileCandidate[];
   /** Diagnostics from missing directories or unreadable files. */
   warnings: string[];
 }
@@ -121,7 +121,7 @@ export interface ActiveSessionInitResult {
   /** Resolved candidate path when `resolution === "single"`; otherwise `null`. */
   path: string | null;
   /** Candidate list when `resolution === "multiple"`; empty otherwise. */
-  candidates: StatusFileCandidate[];
+  candidates: MetaFileCandidate[];
   /**
    * Resolved companion-file paths for the active task list, derived only when
    * `resolution === "single"` and the parsed `**Task List:**` filename matches

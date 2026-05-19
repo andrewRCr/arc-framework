@@ -10,7 +10,7 @@ import { appendWarningsTail } from "../../lib/format/warnings.js";
 import type {
   ActiveSessionInitResult,
   ActiveStatusResult,
-  StatusFileCandidate,
+  MetaFileCandidate,
 } from "./types.js";
 
 /** Build the Clack summary for `arc active status` (full mode). */
@@ -70,7 +70,7 @@ function formatValue(value: string | null): string {
   return value === null ? "(unset)" : value;
 }
 
-function renderCandidate(candidate: StatusFileCandidate): string {
+function renderCandidate(candidate: MetaFileCandidate): string {
   const branch = candidate.branch ?? "(unset)";
   const state = candidate.state ?? "(unset)";
   return `${candidate.filename} · ${branch} · ${state}`;

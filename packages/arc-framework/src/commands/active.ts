@@ -20,5 +20,5 @@ export type {
   ActiveSessionInitResult,
   ActiveStatusOptions,
   ActiveStatusResult,
-  StatusFileCandidate,
+  MetaFileCandidate,
 } from "./active/types.js";

@@ -2,7 +2,7 @@
  * Active-work-unit resolver consumed by the release commit and push
  * handlers.
  *
- * Composes {@link readActiveStatusCandidates} from the active-status
+ * Composes {@link readActiveMetaCandidates} from the active-meta
  * reader. Accepts any `**State:**` value — Planning, In Progress,
  * Paused, etc. — and refuses only on no-candidate or multi-candidate
  * ambiguity. Both refusal shapes map to refusal code 10
@@ -12,7 +12,7 @@
  * @module
  */
 
-import { readActiveStatusCandidates } from "../active/status-reader.js";
+import { readActiveMetaCandidates } from "../active/meta-reader.js";
 import type { ActiveLayout } from "../../commands/active/types.js";
 
 const DEFAULT_ROOT_SEGMENTS = [".arc", "active"] as const;
@@ -65,7 +65,7 @@ export async function resolveActiveWu(
   opts: ResolveActiveWuOptions,
 ): Promise<WuResolution> {
   const rootSegments = opts.rootSegments ?? DEFAULT_ROOT_SEGMENTS;
-  const reader = await readActiveStatusCandidates(opts.cwd, {
+  const reader = await readActiveMetaCandidates(opts.cwd, {
     rootSegments,
   });
 
