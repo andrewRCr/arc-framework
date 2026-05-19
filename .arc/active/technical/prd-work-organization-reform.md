@@ -1,9 +1,11 @@
 # PRD: Work Organization Reform
 
-**Purpose:** Rebuild ARC's WU lifecycle foundation around a single-branch-per-WU model with sweep-as-you-go integration,
-Conventional Branch alignment, meta-file location-by-state, codified field semantics, and aligned commit conventions —
-delivering per-worktree isolation as the precondition for the parallelism trio (Worktree Foundation, Agile WU Lifecycle,
-Concurrent Work Conventions).
+- **Origin:** [internal]
+
+- **Purpose:** Rebuild ARC's WU lifecycle foundation around a single-branch-per-WU model with sweep-as-you-go
+  integration, Conventional Branch alignment, meta-file location-by-state, codified field semantics, and aligned
+  commit conventions — delivering per-worktree isolation as the precondition for the parallelism trio (Worktree
+  Foundation, Agile WU Lifecycle, Concurrent Work Conventions).
 
 ---
 

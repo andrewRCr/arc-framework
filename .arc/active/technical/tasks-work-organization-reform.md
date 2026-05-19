@@ -1,12 +1,6 @@
 # Task List: Work Organization Reform
 
-- **PRD:** `prd-work-organization-reform.md`
-- **Branch(es):** `technical/plan-work-organization-reform`
-- **Base Branch:** `main`
-
-- **Purpose:** Rebuild ARC's WU lifecycle foundation around single-branch-per-WU, sweep-as-you-go integration,
-  Conventional Branch alignment, meta-file evolution, and aligned commit conventions — delivering per-worktree isolation
-  as the precondition for the parallelism trio.
+- **Spec:** `prd-work-organization-reform.md`
 
 ---
 
@@ -2680,20 +2674,12 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           (`arc handoff render --subject-body` shape). Out of WOR scope; captured in
           `plan-handoff-optimization.md` § Approach as the proper home.
 
-### `[ ]` **6.2 Migrate in-flight WU meta files (`status-*` → `meta-*` + field backfill + State recodification)**
+### `[x]` **6.2 Migrate in-flight WU meta files (`status-*` → `meta-*` + field backfill + State recodification)**
 
 - _Goal:_ In-flight WU `status-*.md` files rename to `meta-*.md`; State recodified per mapping table; Owner backfilled
   from `arc.identity`; Origin defaulted to `[Internal]` (external URLs migrated from prior Spec where applicable);
   Depends On initialized to `[none]` (manual extraction for known dependencies); Cohort initialized to `[none]` or
   cohort name for known sibling sets.
-
-    - _Approach:_ One commit per WU migration to keep blast radius bounded — each WU's rename + field edits land
-      atomically per ARC commit discipline. Mapping table per `notes-work-organization-reform.md` § Migration Mapping
-      Reference.
-
-    - _Note:_ At execution, discover all in-flight `status-*.md` files first; in practice this WU's own
-      `status-work-organization-reform.md` is the sole in-flight status file (verified at task generation time). "Each
-      WU's rename" is defensive language for the broader contract — most invocations migrate a single file.
 
     - `[x]` **6.2.a Per-WU rename: `git mv status-{name}.md meta-{name}.md`**
         - Renamed `.arc/active/technical/status-work-organization-reform.md` → `meta-work-organization-reform.md`.
@@ -2728,18 +2714,13 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           → `**Branch:**` rename not applicable — this WU's pre-migration file already used singular
           `**Branch:**` and didn't carry the other retired fields.
 
-    - `[ ]` **6.2.h Cross-file header migration on in-flight non-meta WU artifacts (per R58a)**
-        - `tasks-*` headers: rename `**PRD:**` → `**Spec:**` (vocabulary alignment); drop `**Branch(es):**`,
-          `**Base Branch:**`, `**Purpose:**` fields. Final header: just `**Spec:**`.
-        - `plan-*` headers: ensure `**Origin:**` field present (default `[Internal]`; matches corresponding `meta-*`
-          `Origin:` value); drop heavy header fields (`**State:**`, `**Created:**`, etc.) that duplicate meta-\* content
-          under R22a; retain `**Purpose:**` as substantive opening below Origin.
-        - `prd-*` headers: ensure `**Origin:**` field present (default `[Internal]`); retain `**Purpose:**` as
-          substantive opening below Origin; retire any pre-activation comment-block (`**State:**`, `**Related Work:**`)
-          that the prior template included for backlog stubs (meta-\* covers under R22a).
-        - In-flight scope: this WU's own `tasks-work-organization-reform.md` + `prd-work-organization-reform.md` (no
-          `plan-*` since WOR's plan retired pre-PRD per R51). Other in-flight WUs (if any at migration time) follow the
-          same pattern.
+    - `[x]` **6.2.h Cross-file header migration on in-flight non-meta WU artifacts (per R58a)**
+        - `tasks-work-organization-reform.md` header rewritten to `**Spec:**` only — dropped `**PRD:**`
+          (renamed via vocabulary alignment), `**Branch(es):**`, `**Base Branch:**`, `**Purpose:**`.
+        - `prd-work-organization-reform.md` gained `- **Origin:** [internal]` field above the existing
+          `**Purpose:**`, which migrated to bullet form to match `template-prd.md`. No pre-activation
+          comment-block was present to retire.
+        - No `plan-*` to migrate (WOR's plan retired pre-PRD per R51).
 
     - `[x]` **6.2.i Footer-convention status→meta filename-token propagation (couples atomically with 6.2.a)**
         - Hook (`commit-msg`, both copies): meta-anchor regex `status-` → `meta-`; sed pattern matched; variable
