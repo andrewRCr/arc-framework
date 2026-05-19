@@ -2765,20 +2765,34 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           script (`scripts/validate-status-spec.ts`) uses its own field-line regex, not
           `extractMetadataSection`; cleanup tracked under 6.2.n.
 
-    - `[ ]` **6.2.n Cleanup: retire dual-recognition in `validate-status-spec.ts` (paired with 5.4.h)**
-        - `scripts/validate-status-spec.ts` (modified in 5.4.h) accepts BOTH file-path patterns and BOTH State
-          value-sets during transition. Once 6.2.a + 6.2.b complete the in-flight migration, the legacy halves are
-          unreachable from valid in-flight artifacts.
-        - **Path pattern:** drop `status-*.md` from the path classifier; rename the regex constant and surrounding
-          identifiers to `META_PATH` / `meta-spec` shape (module + exported symbol rename completes here if not
-          done at 5.4.h). Sync hook wiring if the entry-point path changes.
-        - **State value-set:** trim `VALID_STATES` to the new four-value enum
-          (`Planning, Active, Integrating, Shipped`).
-        - **Integration field:** retire `VALID_INTEGRATION_STATES` and the `**Integration:** Merged` validation
-          entirely — folded into `State: Shipped` / `State: Integrating` per 6.2.b.
-        - Tests: drop legacy-state and legacy-path fixtures; assert legacy patterns now produce the expected
-          diagnostic.
-        - _Sequencing:_ Runs after 6.2.a + 6.2.b.
+    - `[x]` **6.2.n Cleanup: retire dual-recognition in `validate-meta-spec.ts` (paired with 5.4.h)**
+        - Script + test renamed via `git mv`: `src/scripts/validate-status-spec.ts` → `validate-meta-spec.ts`;
+          `__tests__/unit/scripts/validate-status-spec.test.ts` → `validate-meta-spec.test.ts`. Test import
+          path updated.
+        - **Path pattern:** `STATUS_PATH` regex (with `status|meta` alternation) renamed to `META_PATH`
+          and tightened to meta-only (`/^\.arc\/active\/(?:[^/]+\/)?meta-[^/]+\.md$/`); `STATUS_FIELD_LINE`
+          renamed to `META_FIELD_LINE`; `PathClassification` discriminant flipped `"status"` → `"meta"`;
+          module-level docstring rewritten to drop dual-recognition language.
+        - **State value-set:** `VALID_STATES` trimmed to the codified four values (`Planning, Active,
+          Integrating, Shipped`); `EXPECTED_STATE` diagnostic message simplified accordingly.
+        - **Integration field:** `VALID_INTEGRATION_STATES`, `EXPECTED_INTEGRATION`, and the entire
+          Integration-handling arm of `validateLifecycleFields` removed — Integration lines are now
+          silently passed through (folded into `State: Shipped` per the WOR state model).
+        - **Hook wiring:** both `packages/arc-framework/arc/system/githooks/pre-commit` and
+          `.arc/system/githooks/pre-commit` synced byte-identical — CHECK 16 label flipped to
+          "Meta-file `**Spec:**` ..."; candidate-grep tightened to meta-only AND broadened to also catch
+          flat-layout meta files (`^\.arc/active/([^/]+/)?meta-[^/]+\.md$`) — closing a pre-existing gap
+          where flat-layout meta files silently bypassed the validator; script-invocation path retargeted
+          to `validate-meta-spec.ts`; shell variable + diagnostic-message renames (`status_spec_*` →
+          `meta_spec_*`; "Status-file ..." → "Meta-file ..."). Smoke-tested against
+          `meta-work-organization-reform.md` (passes, exit 0).
+        - Tests (23 pass): dropped legacy-State acceptance test (now negative — asserts legacy values
+          fail with the expected diagnostic); legacy-path classifier coverage flipped to assert
+          `status-*.md` is classified `other`; Integration test cases consolidated to a single
+          "retired Integration is silently passed through" assertion; the `## Work Unit Metadata` H2
+          wrapper noted in 6.2.m as deferred is dropped from the `metaFile` helper (canonical
+          `# Metadata: Foo` + field bullets). Adopter-facing doc reference in `PROJECT-STATUS.md`
+          carries forward to 6.7's cross-reference sweep.
 
     - `[ ]` **6.2.o Symbol/file rename: `status-reader` → `meta-reader` (paired with 5.4.c + 5.4.d)**
         - Once 6.2.l drops the legacy `status-` prefix and 6.2.m drops the legacy H2 fallback, the
