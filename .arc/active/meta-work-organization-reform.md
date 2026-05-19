@@ -11,16 +11,17 @@
 - **Cohort:** [none]
 
 - **Task List:** `tasks-work-organization-reform.md`
-- **Last Completed:** Task 6.3.c (`3305105b`) — empty `backlog/ATOMIC-INBOX.md` seeded with
-  unified shared-inbox preamble shape (preamble tighten at `ce7664ad`); 6.3.b drained legacy
-  `BACKLOG-FEATURE` / `BACKLOG-TECHNICAL` into `BACKLOG-INBOX` at `38b1d162`.
-- **Next Task:** Task 6.3.d — Migrate in-flight WU personal workspace to R65 layout (line ~2841).
+- **Last Completed:** Task 6.3.e (`dbfe0ce1`) — session-lifecycle workflows aligned with R65 layout;
+  closes Task 6.3 (subtasks a-e all `[x]`). Paired 6.3.d landed at `f70e3ee1` (per-WU subdir
+  migration + SESSION-NOTES compat-shim retirement); incidental USER-INBOX template italics at
+  `e45d39d7`.
+- **Next Task:** Task 6.4.a — Inventory existing `backlog/feature/` + `backlog/technical/` contents
+  (line ~2909).
 - **Blockers:** [none]
 
-- **Next Action:** Run 6.3.d + 6.3.e as a paired unit — relocate `SESSION-NOTES.md` into the per-WU
-  subdir, extract `## Persistent Context` into new `WORKING-MEMORY.md` at user root, then align
-  `session-init.md` / `session-handoff.md` workflows with the R65 layout. Per the 6.3.e spec, no
-  session boundary may intervene between 6.3.d and 6.3.e — init/handoff fire at session boundaries
-  and would observe a mismatched layout.
+- **Next Action:** Start Task 6.4.a — inventory pass building the routing worksheet (per-WU rows:
+  name / current path / companions / ROADMAP-inclusion / cohort-candidate / target path /
+  demote-PRD-flag / rename-flag). Sets up Task 6.4.b's interactive per-WU routing decisions
+  (ROADMAP-inclusion test, cohort assignment, PRD demotion, docs-site WU rename).
 
 ---
