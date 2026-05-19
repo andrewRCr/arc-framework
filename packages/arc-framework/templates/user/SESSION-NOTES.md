@@ -39,16 +39,4 @@ file paths, and what changed. For committed work, a simple list with commit hash
 <!-- Debugging insights, decisions made, things tried and ruled out, constraints discovered. -->
 <!-- Use [none] if task list has all needed context. -->
 
-## Persistent Context
-
-<!-- Entries that survive across handoffs — not rewritten each session. -->
-<!-- Each entry has an explicit removal trigger. Review at each handoff: -->
-<!-- remove entries whose triggers have been met. -->
-<!-- Delete this section entirely if no persistent context is needed. -->
-
-**Post-install setup:**
-_Remove when: initial-setup sequence complete._
-
-- First session after `arc init`. Work through the initial-setup sequence,
-  starting at `.arc/system/workflows/arc/initial-setup/01_verify-and-configure.md`.
-  The workflow guides onward steps.
+---

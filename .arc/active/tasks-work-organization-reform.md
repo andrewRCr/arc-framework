@@ -2832,33 +2832,24 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           in-file). Template + instance ship the codified shared-inbox shape — H1 + preamble + `## Inbox` H2
           wrapper + entry-shape HTML comment + trailing `---`. Populates organically post-WOR; ships empty.
 
-    - `[ ]` **6.3.d Migrate in-flight WU personal workspace to R65 layout**
-        - Relocate `.arc/user/{identity}/SESSION-NOTES.md` into the per-WU subdir:
-          `git mv .arc/user/{identity}/SESSION-NOTES.md .arc/user/{identity}/work-organization-reform/SESSION-NOTES.md`
-          (create the subdir first). Composes with Tasks 2.17 / 5.5 / 6.3.e — they ship the codified target shape;
-          this step lands the migration in this repo. 6.3.e is the immediate-successor pair (workflow consumer
-          alignment) — land both in the same session.
-        - Extract the `## Persistent Context` section from SESSION-NOTES into new
-          `.arc/user/{identity}/WORKING-MEMORY.md` at user root. Each entry retains its `_Remove when:_` trigger;
-          SESSION-NOTES's `## Persistent Context` H2 is removed. The new file seeds content-only per R59
-          (no preamble).
-        - Contributor-role active status file (`.arc/user/{identity}/active/status-*.md`): none in this repo today,
-          so the migration step is a no-op here. Convention for future contributor-role migrations:
-          `user/{identity}/active/status-<wu-name>.md` → `user/{identity}/<wu-name>/meta-<wu-name>.md` (composes
-          with status-\* → meta-\* token rename); retire `user/{identity}/active/` subdir.
-        - Verify resulting layout under `.arc/user/{identity}/`: `USER-INBOX.md` (post-6.3.a rename),
-          `WORKING-MEMORY.md` (newly extracted), and `work-organization-reform/SESSION-NOTES.md`. Confirm
-          `.gitignore` patterns still cover the relocated content (worktree-local + cross-WU files all stay
-          gitignored).
-        - _Note:_ R65 applies to all in-flight WUs; in this repo only WOR is in flight at migration time, so the
-          relocation operates on a single WU subdir. The contract generalizes to multi-WU concurrent worktrees
-          under Worktree Foundation.
-        - **Compat-shim retirement (paired with 5.6.f):** Drop the flat-path fallback arm from
-          `lib/handoff/session-notes-path.ts`'s `resolveSessionNotesPath` — once this migration lands,
-          the per-WU subdir is the only path SESSION-NOTES lives at. Simplify to a direct read of the
-          single subdir's `SESSION-NOTES.md`. Update the module docstring to drop the compat-window
-          framing. Lands atomically with the `git mv` so the resolver never observes the layout in
-          transit.
+    - `[x]` **6.3.d Migrate in-flight WU personal workspace to R65 layout**
+        - Relocated `.arc/user/andrew/SESSION-NOTES.md` → `.arc/user/andrew/work-organization-reform/SESSION-NOTES.md`
+          via plain `mv` (gitignored — `git mv` doesn't apply). Extracted `## Persistent Context` from
+          SESSION-NOTES into new `.arc/user/andrew/WORKING-MEMORY.md` at user root (R59 minimal-pointer shape — H1 +
+          3-line blockquote per `strategy-session-operations.md` § Working Memory). Five entries transplanted; the
+          WOR-execution-transitional entry's "`user/{identity}/` layout lags until 6.3.d" bullet self-resolves with
+          this task and was trimmed in-place (closing sentence narrowed from "branch name or `user/{identity}/`
+          layout" → "branch name only"). Contributor-meta migration: no-op here (no contributor file present).
+        - **Compat-shim retirement (paired with 5.6.f):** Dropped the flat-path fallback arm from
+          `resolveSessionNotesPath` (`lib/handoff/session-notes-path.ts`); resolver is now subdir-only. Module
+          docstring + `lib/handoff/restate-candidates.ts` docstring updated to drop the compat-window framing. Tests
+          trimmed 7 → 5 cases — flat-only and both-present-prefers-subdir cases retired; multi-subdir-ambiguous and
+          deeper-nested-paths cases adapted to assert null instead of falling back to flat.
+        - **Template family alignment** (completes R65 template-side migration that 5.5.d partially landed):
+          `templates/user/WORKING-MEMORY.md` shape finalized — italic R59 preamble, `## Memories` H2 wrapper, post-
+          install setup entry seeded (migrated from SESSION-NOTES template per R65 class boundary), `---` trailer.
+          `templates/user/SESSION-NOTES.md` — `## Persistent Context` section dropped (its content's canonical home
+          is now WORKING-MEMORY per R65), `---` trailer added. Instance files mirror the template shape.
 
     - `[ ]` **6.3.e Align session-lifecycle workflows with R65 layout (paired with 6.3.d)**
         - _Origin:_ Relocated from former Task 3.12 to land paired with 6.3.d. Phase-3 placement created an interim

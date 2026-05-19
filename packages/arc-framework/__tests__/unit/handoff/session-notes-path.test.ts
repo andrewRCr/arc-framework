@@ -34,42 +34,18 @@ describe("resolveSessionNotesPath", () => {
     expect(result).toBe(join(USER_DIR, "feature-x", "SESSION-NOTES.md"));
   });
 
-  it("returns the flat path when no subdir SESSION-NOTES exists but flat does", async () => {
-    const io = makeIO([
-      { name: "SESSION-NOTES.md", size: 100 },
-      { name: "USER-INBOX.md", size: 50 },
-    ]);
-
-    const result = await resolveSessionNotesPath(CWD, IDENTITY, io);
-
-    expect(result).toBe(join(USER_DIR, "SESSION-NOTES.md"));
-  });
-
-  it("prefers the subdir path when both subdir and flat are present", async () => {
-    const io = makeIO([
-      { name: "feature-x/SESSION-NOTES.md", size: 100 },
-      { name: "SESSION-NOTES.md", size: 50 },
-      { name: "USER-INBOX.md", size: 30 },
-    ]);
-
-    const result = await resolveSessionNotesPath(CWD, IDENTITY, io);
-
-    expect(result).toBe(join(USER_DIR, "feature-x", "SESSION-NOTES.md"));
-  });
-
-  it("falls through to flat when multiple subdir matches are present (ambiguous)", async () => {
+  it("returns null when multiple <wu-name>/SESSION-NOTES.md entries are present (can't pick safely)", async () => {
     const io = makeIO([
       { name: "feature-x/SESSION-NOTES.md", size: 100 },
       { name: "feature-y/SESSION-NOTES.md", size: 80 },
-      { name: "SESSION-NOTES.md", size: 50 },
     ]);
 
     const result = await resolveSessionNotesPath(CWD, IDENTITY, io);
 
-    expect(result).toBe(join(USER_DIR, "SESSION-NOTES.md"));
+    expect(result).toBeNull();
   });
 
-  it("returns null when neither subdir nor flat SESSION-NOTES is present", async () => {
+  it("returns null when no SESSION-NOTES is present under the user dir", async () => {
     const io = makeIO([
       { name: "USER-INBOX.md", size: 50 },
       { name: "WORKING-MEMORY.md", size: 30 },
@@ -94,11 +70,10 @@ describe("resolveSessionNotesPath", () => {
     // are not part of the convention and must not match.
     const io = makeIO([
       { name: "feature-x/nested/SESSION-NOTES.md", size: 100 },
-      { name: "SESSION-NOTES.md", size: 50 },
     ]);
 
     const result = await resolveSessionNotesPath(CWD, IDENTITY, io);
 
-    expect(result).toBe(join(USER_DIR, "SESSION-NOTES.md"));
+    expect(result).toBeNull();
   });
 });

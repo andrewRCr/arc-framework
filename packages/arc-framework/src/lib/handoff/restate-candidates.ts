@@ -11,7 +11,7 @@
  * membership as natural-language judgment.
  *
  * SESSION-NOTES is read by the caller and passed in as content. Path
- * resolution (per-WU subdir with legacy flat-path compat) lives in
+ * resolution (per-WU subdir under `user/{identity}/`) lives in
  * `session-notes-path.ts`.
  *
  * On any structural failure (missing notes, missing baseline hash,
