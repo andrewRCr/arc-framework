@@ -2640,12 +2640,20 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           example markdown block at lines 164+ left for 6.7 cross-reference sweep (wider scope than this task's
           stated boundary). CLI-helper extraction stays tracked downstream in `plan-handoff-optimization.md`.
 
-### `[x]` **6.2 Migrate in-flight WU meta files (`status-*` → `meta-*` + field backfill + State recodification)**
+### `[ ]` **6.2 Migrate in-flight WU meta files (`status-*` → `meta-*` + field backfill + State recodification)**
 
 - _Goal:_ In-flight WU `status-*.md` files rename to `meta-*.md`; State recodified per mapping table; Owner backfilled
   from `arc.identity`; Origin defaulted to `[internal]` (external URLs migrated from prior Spec where applicable);
   Depends On initialized to `[none]` (manual extraction for known dependencies); Cohort initialized to `[none]` or
   cohort name for known sibling sets.
+
+    - _Approach:_ One commit per WU migration to keep blast radius bounded — each WU's rename + field edits land
+      atomically per ARC commit discipline. Mapping table per `notes-work-organization-reform.md` § Migration Mapping
+      Reference.
+
+    - _Note:_ At execution, discover all in-flight `status-*.md` files first; in practice this WU's own
+      `status-work-organization-reform.md` is the sole in-flight status file (verified at task generation time). "Each
+      WU's rename" is defensive language for the broader contract — most invocations migrate a single file.
 
     - `[x]` **6.2.a Per-WU rename: `git mv status-{name}.md meta-{name}.md`**
         - Renamed `.arc/active/technical/status-work-organization-reform.md` → `meta-work-organization-reform.md`.
@@ -2696,8 +2704,6 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
         - `commit-footer.md` § Meta-file references (both copies): section-heading filename token + 7 example
           bullets swapped. `chore(status):` literal at one line preserved for 6.1.e codification (commit-subject
           token, not filename token).
-        - Smoke test: re-run 6.2.f's smoke suite; verify positive cases now use `meta-` shape and negative cases include
-          old `status-` prefix as a rejected pattern.
 
     - `[ ]` **6.2.j Cleanup: retire legacy State values from validation surface (paired with 5.4.a)**
         - `validateState` (codified in 5.4.a) accepts BOTH legacy values (`In Progress`, `Complete`, `Paused`,
