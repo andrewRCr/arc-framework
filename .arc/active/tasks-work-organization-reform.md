@@ -2878,7 +2878,7 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           8; agents reference those when adding/removing entries. Spec's "H3-headed entries" guidance also predated
           5.5.d's bold-paragraph entry shape codification.
 
-### `[ ]` **6.4 Migrate `backlog/feature/` + `backlog/technical/` to `backlog/{planned,provisional}/<wu-name>/` per-WU subdirs**
+### `[x]` **6.4 Migrate `backlog/feature/` + `backlog/technical/` to `backlog/{planned,provisional}/<wu-name>/` per-WU subdirs**
 
 - _Goal:_ Existing `backlog/feature/` and `backlog/technical/` contents migrate to per-WU subdirs under
   `backlog/{planned,provisional}/<wu-name>/` per ROADMAP-inclusion test (on ROADMAP → `planned/`; not on ROADMAP →
@@ -2887,6 +2887,15 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
   `Owner` / `Depends On` / `Cohort`; all backlog WUs land `State: Planning` regardless of commitment dir — commitment
   level lives in dir, not State, per PRD R9 + R21). Two backlog-stage PRDs (`prd-arcd-rebrand.md`,
   `prd-arcd-docs-site.md`) demote to plan-docs with content reshape; the docs-site WU renames to `docs-site-refresh`.
+
+- _Outcome:_ 33-WU backlog reorganization landed across 6 subtasks (`a` inventory → `b` routing decisions + 3 WU
+  renames + 2 PRD demotions + 7-file cross-ref sweep → `c` per-WU metadata backfill + 4 new cohorts codified →
+  `d` file moves + meta generation + 2 retirements pulled forward → `e` cross-ref repair + pre-existing-broken-ref
+  fixes → `f` structural verification). Final shape: 6 codified cohorts (3 from `b`, 4 from `c`) wrap 17 WUs;
+  9 standalone planned + 5 provisional + 31 migrating ✓; 2 retired inline at `d` (collapse to verification at
+  6.6.b/6.6.c). `backlog/` root now contains exactly the 5 expected entries — `planned/`, `provisional/`,
+  `ATOMIC-INBOX.md`, `BACKLOG-INBOX.md`, `ROADMAP.md`. Success Criterion #2 (backlog leg of the directory
+  partition reform) closed.
 
     - _Approach:_ Interactive — routing, cohort assignment, PRD demotion, and meta-file metadata can't be fully derived
       from existing state. Inventory → user-confirmed routing per borderline plan → user-confirmed cohort assignment →
@@ -3030,10 +3039,11 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
         - External-tracker URL refs in `plan-arc-modes.md` (vscode-103570, vscode-43505, aws-7369) untouched —
           they resolve externally, not via relative paths.
 
-    - `[ ]` **6.4.f Backlog-root structure verification**
-        - Verify `backlog/` root post-migration contains exactly the 5 expected entries: `planned/`, `provisional/`,
-          `ATOMIC-INBOX.md`, `BACKLOG-INBOX.md`, `ROADMAP.md`. No `feature/`, `technical/`, or `plans/` dirs remain; no
-          stray files at root. Top-down acceptance check that complements 6.4.d's per-WU verification.
+    - `[x]` **6.4.f Backlog-root structure verification**
+        - `backlog/` root verified: exactly 5 entries — `planned/`, `provisional/`, `ATOMIC-INBOX.md`,
+          `BACKLOG-INBOX.md`, `ROADMAP.md`. No `feature/`, `technical/`, or `plans/` dirs remain. No stray files
+          at root. Top-down acceptance check passes — Success Criterion #2 (the directory partition reform's
+          backlog leg) effectively closed.
 
 ### `[~]` **6.5 Clean up leaked Planning-state `status-*.md` files on `main`'s `active/`**
 
