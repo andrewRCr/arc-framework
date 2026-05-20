@@ -3420,6 +3420,14 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           classification touch points).
         - **Exclusion:** content INSIDE `completed/` (formerly `archive/`) — historical archived documents retain their
           original paths in their own bodies; sweep targets only references TO the directory, not references WITHIN it.
+        - **`archive/README.md` substantive rewrite (surfaced during 6.7.j verification, paired with the directory
+          rename):** `packages/arc-framework/arc/reference/archive/README.md` + `.arc/reference/archive/README.md`
+          (byte-identical) describe the OLD pre-WOR archive layout — work-categorized subdirs (`feature/`,
+          `technical/`, `incidental/`), `completion-{name}.md` file convention, PROJECT-STATUS sibling references,
+          substrate triples in the Navigation block. Beyond renaming `archive` → `completed` in body refs, the
+          README's content needs rewriting to reflect current state (flat WU subdirs, no category split, no
+          `completion-{name}.md` file convention, no PROJECT-STATUS). Bundle with this task's archive→completed
+          sweep commit.
         - **Sequencing:** Task 6.9.a (`git mv`) must complete before this subtask fires (directory must exist at new
           path); 6.9.b verifies after this completes. R41 / R42 textual references in the PRD itself update at PRD
           amendment time (already landed in this folded-in pass), not in this sweep.
