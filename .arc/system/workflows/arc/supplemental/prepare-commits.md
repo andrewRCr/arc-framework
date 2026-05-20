@@ -89,7 +89,7 @@ Examine changes that might not be immediately obvious — config files, document
 
 ### 3. Map Changes to Tasks
 
-- Find relevant task lists in `.arc/active/` (feature/, technical/, incidental/)
+- Find relevant task lists in `.arc/active/`
 - Compare actual changes against task documentation
 - Identify which tasks each change belongs to
 - Check if completing subtasks makes any parent tasks complete

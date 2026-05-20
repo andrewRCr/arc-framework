@@ -3330,27 +3330,43 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           `lint:md` zero errors across 285 files; per-file `validate-links.sh` clean for both
           touched files; byte-parity confirmed across the two-copy pair.
 
-    - `[ ]` **6.7.i Incidental WU model substrate refs (`incidental/`, `manage-incidental-work`) — current-state rewrite**
-        - **Action differs from other 6.7 patterns:** surviving references rewrite to current-state language (describe
-          what `manage-incidental-work.md` currently does — interrupt routing per DEV-RULES.ARC § Leave it cleaner),
-          not retire (per PRD R49a + R52). Substrate-dependent references drop (`incidental/` branch prefix,
-          pause-pointer fields); workflow-level references stay with "transitional" / "pending" framing removed.
-        - Grep patterns: `incidental/`, `manage-incidental-work`, `[manage-incidental]:`, `Incidental Work Model`,
-          `Interrupts:`, `Paused At:`, `Paused To:`, `feature/technical` (legacy 2-category prose framing),
-          `active/{feature|technical}/` (legacy category-dir path in commit-message template).
-        - Touch points already addressed by upstream tasks: DEV-RULES.ARC § Leave it cleaner (1.3.d),
-          `strategy-work-organization.md` § Incidental Work Model + § Work Categories (2.8), `template-tasks.md` (4.6),
-          `deactivate-work-unit.md` (3.11.a — keeps refs in current-state phrasing; verify alignment, no duplicate
-          sweep work). 6.7.i sweeps the remaining surface: workflows (`session-handoff.md`,
-          `prepare-commits.md`, `process-task-loop.md`, `integrate-work-unit.md`, `archive-work-unit.md`,
-          `activate-work-unit.md`), `commit-footer.md` method (renamed at 6.2.b), strategy docs
-          (`strategy-file-classification.md`, `strategy-task-list-formatting.md`, `strategy-quality-gates.md`,
-          `strategy-interlock-release-wrappers.md`).
-        - Reference-link cleanup: `[manage-incidental]:` definitions remaining after upstream tasks retire if no body
-          references survive.
-        - **Exclusion:** `system/githooks/commit-msg` references to `(incidental - discovered during ...)` Context
-          modifier describe commits' _discovery context_, not the WU _incidental_ category — preserve as-is unless
-          explicit re-scope decision flags them.
+    - `[x]` **6.7.i Incidental WU model substrate refs (`incidental/`, `manage-incidental-work`) — current-state rewrite**
+        - **Sweep narrowed to 2 surfaces after audit.** 7 of 11 named "remaining surface" files were already
+          clean: `session-handoff.md`, `integrate-work-unit.md`, `archive-work-unit.md`,
+          `activate-work-unit.md`, `commit-footer.md` (discovery-context `(incidental during ...)` excluded
+          per task), and strategies `strategy-file-classification.md`, `strategy-quality-gates.md`,
+          `strategy-interlock-release-wrappers.md`. Only `prepare-commits.md` carried substrate-dependent
+          content. Audit surfaced an additional in-scope surface not in the task's original list:
+          `.arc/README.md`'s directory tree (substrate-dependent `active/feature|technical|incidental/` +
+          `backlog/feature|technical/` paths).
+        - **`manage-incidental-work.md` itself deferred to AWL/WF per PRD R49a + R52a.** "Conceptual
+          retirement and workflow rewrite remain Worktree Foundation + Agile WU Lifecycle scope."
+          Pause-pointer field tokens, `feature/technical` prose, and `active/{feature|technical}/` paths
+          inside the workflow file stay until AWL completes the substrate migration. The grep patterns'
+          overlap with 6.7.h's pause-pointer coverage is defensive — the field-level substrate retired at
+          6.7.h's strategy-doc table; remaining hits inside `manage-incidental-work.md` are downstream
+          territory.
+        - **`prepare-commits.md` line 92 (both copies):** dropped the substrate-dependent parenthetical
+          `(feature/, technical/, incidental/)` from the task-list-finding instruction. Under WOR's flat
+          `active/` layout the path triple is obsolete; bare `.arc/active/` stands.
+        - **`.arc/README.md` directory tree rewritten** to match the package source's WOR-aligned shape:
+          `active/` collapsed to flat (drops feature/technical/incidental subdirs); `backlog/` shows
+          `provisional/<wu>/` + `planned/[<cohort>/]<wu>/` per-WU subdirs (drops feature/technical
+          subdirs). Single copy — the package source's `README.md` was already current.
+        - **Already-aligned touch points verified, no edits:** `strategy-work-organization.md` § Incidental
+          Work Model + State Enum row (2.8), `template-tasks.md` line 84 (4.6), `process-task-loop.md`
+          lines 244/276 (1.3.d), `deactivate-work-unit.md` lines 20-21 (3.11.a),
+          `strategy-task-list-formatting.md` (5 hits, all current-state),
+          `strategy-package-project-sync.md` line 208 (file-inventory entry — file still exists, valid).
+        - **Out of scope:** `manage-incidental-work.md` itself (→ AWL/WF per R49a); internal-dev surfaces
+          (`adr-006`, `.arc/reference/analysis/` 4 files) per 6.7.e ADR-precedent; `.arc/backlog/`
+          (Activation Audit); archive READMEs (historical); `USER-INBOX.md` (personal); WOR's own active
+          artifacts; `commit-msg` hook `(incidental during ...)` Context modifier per task's explicit
+          exclusion (discovery-context, not WU-category).
+        - Verification: post-sweep grep returns 0 substrate-dependent matches on active framework surfaces
+          (`incidental/` path triple — clean; `active/feature/` / `active/technical/` paths — clean across
+          README + prepare-commits); `lint:md` zero errors; per-file `validate-links.sh` clean across all
+          3 touched files; byte-parity confirmed for the `prepare-commits.md` two-copy pair.
 
     - `[ ]` **6.7.j Post-sweep verification grep — returns empty for all retired patterns**
         - **Exception:** 6.7.i patterns retain references in current-state language; verify those references describe
