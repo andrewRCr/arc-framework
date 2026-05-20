@@ -183,7 +183,7 @@ Bundle composition + drain-write edits.
 > `commit-interlock` release — commit as `workflowCommit`:
 
 ```text
-docs(arc): compose archive-phase content for {name}
+chore(arc): compose archive-phase content for {name}
 
 - Release Notes Entry: <one-line summary>
 - Completion Notes

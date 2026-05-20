@@ -75,7 +75,7 @@ Stage both edits.
 > `commit-interlock` release — commit as `workflowCommit`:
 
 ```text
-docs(arc): activate {work-name} work unit
+chore(arc): activate {work-name} work unit
 
 - Flip State: Planning → Active
 - Remove plan-{name}.md (graduated to PRD; safety-catch)

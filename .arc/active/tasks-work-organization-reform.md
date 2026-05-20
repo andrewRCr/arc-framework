@@ -3242,7 +3242,28 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           state, regenerate via CLI at end of sweep phase) returns 0 matches for all 4 patterns;
           `lint:md` zero errors.
 
-    - `[ ]` **6.7.f Lazy scope-tag example (`docs(arc):` in method examples, etc.)**
+    - `[x]` **6.7.f Lazy scope-tag example (`docs(arc):` in method examples, etc.)**
+        - **Type-laziness, not scope-laziness in practice:** every active-surface hit was `(arc)`
+          scope on a lifecycle ceremony commit-subject example — `(arc)` is correctly reserved for
+          ceremony per `commit-format.md`, so the lazy element was the `docs` type. Title framing
+          inherited from PRD UC4 / `notes-work-organization-reform.md` line 799 cross-ref-sweep
+          list, which bundles `docs(arc):` as one lazy token. Fix: `docs` → `chore`; `(arc)` stays.
+        - **6 hits across 5 file pairs (10 file edits) — all WU lifecycle ceremony examples:**
+          `1_create-prd.md:154` (PRD creation ceremony); `activate-work-unit.md:78`,
+          `deactivate-work-unit.md:76,151`, `archive-work-unit.md:75`,
+          `integrate-work-unit.md:186`. Package source edited first (authoritative), `.arc/`
+          byte-mirrored.
+        - **Originally-cited locus already clean:** "in commit-format method examples" from notes
+          line 799 was the framing target — already swept at 6.1.d when the method's example block
+          was reshaped. No active method-doc hits remained.
+        - **Out of scope:** `.arc/backlog/` plan-docs (Activation Audit pattern),
+          `.arc/reference/archive/` (historical), WOR's own active artifacts (PRD UC4 describes
+          the lazy pattern; meta/notes/tasks cite real ceremony commit shapes).
+        - Verification: post-sweep grep across active framework surfaces + package mirror for
+          `docs(arc):` and the other `<type>(arc):` non-chore variants (`feat`, `fix`, `refactor`,
+          `test`, `perf`) returns 0 matches; `lint:md` zero errors across 285 files; per-file
+          `validate-links.sh` clean across all 10 touched files (no pre-existing broken refs
+          surfaced).
 
     - `[ ]` **6.7.g Extension renames (`pre-execution-graduation`, `pre-stage-review`, and old `pre-merge-review` for
       its pre-PR-creation semantic)**

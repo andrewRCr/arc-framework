@@ -72,7 +72,7 @@ Bundle state flip + sweep + ROADMAP regen.
 > `commit-interlock` release — commit as `workflowCommit`:
 
 ```text
-docs(arc): archive {name}
+chore(arc): archive {name}
 
 - Flip State: Integrating → Shipped
 - Sweep meta + companions to archive/{dated}/{name}/

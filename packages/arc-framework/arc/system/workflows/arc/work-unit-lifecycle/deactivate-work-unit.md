@@ -73,7 +73,7 @@ Stage both edits.
 > `commit-interlock` release — commit as `workflowCommit`:
 
 ```text
-docs(arc): deactivate {work-name} work unit
+chore(arc): deactivate {work-name} work unit
 
 - Flip State: Active → Planning
 - Branch field: {type}/{name} → plan/{name}
@@ -148,7 +148,7 @@ protection, the commit lands directly on base.
 > `commit-interlock` release — commit as `workflowCommit`:
 
 ```text
-docs(arc): abandon {work-name} work unit
+chore(arc): abandon {work-name} work unit
 
 Context: meta-{name}.md (deactivation)
 ```

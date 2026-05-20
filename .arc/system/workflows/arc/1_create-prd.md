@@ -151,7 +151,7 @@ After substeps 1-3, stage all edits — PRD save (Step 6), any promotion-write i
 6, arc-in-git), plan deletion + `notes-*` migration, meta update.
 
 > [!CAUTION]
-> `commit-interlock` release — commit as `workflowCommit`. Subject `docs(arc): create prd-{name}`;
+> `commit-interlock` release — commit as `workflowCommit`. Subject `chore(arc): create prd-{name}`;
 > body itemizes the bundled changes per [DEV-RULES.ARC][dev-rules-arc] § Commit format and
 > § Status-file commit shape.
 
