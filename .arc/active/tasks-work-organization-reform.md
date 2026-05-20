@@ -2989,18 +2989,46 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           `roadmap-evolution` inline at 6.4.d (pull-forward from 6.6.b/6.6.c). 6.6.b/6.6.c collapse to
           already-retired verification. 6.4.f stays clean.
 
-    - `[ ]` **6.4.d File moves into per-WU subdirs + meta-file generation**
-        - For each WU: create the target subdir (`backlog/{commitment}/<wu-name>/` or
-          `backlog/{commitment}/<cohort>/<wu-name>/`); `git mv` the plan-doc + companions (including any post-demotion
-          `plan-*.md` from 6.4.b's PRD demotions) into the subdir; generate `meta-<wu-name>.md` from `template-meta.md`
-          (created in 4.1) with the backfilled fields from 6.4.c + `State: Planning`.
-        - _Note:_ This subtask depends on Task 4.1 (`template-meta.md` must exist). Sequence 6.4.d after 4.1 lands, or
-          run a draft 6.4.d against the template shape from PRD R58 and reconcile with 4.1 at execution time.
-        - Verify each subdir contains at minimum `meta-<wu-name>.md` post-move.
+    - `[x]` **6.4.d File moves into per-WU subdirs + meta-file generation**
+        - 31 migrating WUs moved into per-WU subdirs (`backlog/{commitment}/<wu-name>/` or
+          `backlog/{commitment}/<cohort>/<wu-name>/` for cohort members). 2 retire-pending WUs
+          (`completion-status-consolidation`, `roadmap-evolution`) retired inline via `git rm` (pulled forward from
+          6.6.b/6.6.c per lean (b)). Empty `feature/` parent dir removed; `technical/` dropped automatically after
+          its last file moved out.
+        - 31 `meta-<wu-name>.md` files generated from `template-meta.md` shape with backfilled fields per 6.4.c:
+          State Planning; Owner andrew; Origin [internal]; Branch [none]; Spec points at the co-located plan-doc
+          filename; Cohort per worksheet or [none]; Depends On [none] except for the two chains below. H1 titles
+          extracted from each plan-doc's existing first-line title.
+        - 2 Depends On chains landed in generated meta files: `instruction-optimization` → `handoff-optimization`;
+          `docs-content-sweep` → `docs-site-refresh`.
+        - Verification: every WU subdir contains its `meta-<wu>.md` (29 with 2 files: meta + plan; 2 with 3 files:
+          arcd-rebrand + docs-content-sweep keep their `notes-*` companions). Tier 1 markdown lint clean across
+          all 288 files (+29 net: +31 new metas - 2 retired plans).
+        - Sequencing alignment: `backlog/` root now contains exactly the 5 entries 6.4.f checks for — `planned/`,
+          `provisional/`, `ATOMIC-INBOX.md`, `BACKLOG-INBOX.md`, `ROADMAP.md`. 6.4.f reduces to verification only.
 
-    - `[ ]` **6.4.e Cross-reference update in moved docs**
-        - Plan-doc internal references (e.g., `[next-plan]: ../other-plan.md`) update to new paths accounting for the
-          extra subdir level. Verified by markdown-lint passing post-move.
+    - `[x]` **6.4.e Cross-reference update in moved docs**
+        - 48 internal relative refs fixed across 12 moved docs to account for new subdir depth. Standalone WUs at
+          `backlog/{commitment}/<wu>/` gained +1 `../` segment (depth 3 → 4); cohort-wrapped WUs at
+          `backlog/planned/<cohort>/<wu>/` gained +2 `../` segments (depth 3 → 5). Both reference defs and inline
+          links updated programmatically by regex; verified by markdown-lint + `validate-links.sh` clean.
+        - Bundled with 6.4.d commit because the pre-commit `validate-links.sh` check would block 6.4.d's commit
+          standalone — the file moves intrinsically break relative refs; the fix is the same commit.
+        - **Pre-existing broken-ref surfacing (scope expansion):** the pre-commit link check also surfaced 3
+          broken refs that pre-dated WOR's file moves but weren't caught earlier because the affected files
+          weren't being committed (the check runs only on staged files):
+            - `plan-arc-reinforce.md` → `plan-work-organization-reform.md` (WOR moved to active as PRD;
+              `plan-*` no longer exists). Plus 2 sibling refs to `plan-instruction-optimization.md` and
+              `plan-worktree-foundation.md` (same-dir refs that broke when arc-reinforce moved out of
+              `backlog/technical/`). All 3 converted to backticked filenames per
+              DEV-RULES.ARC § `.arc/` artifact references (no Markdown links to movable WU artifacts).
+            - `notes-docs-content-sweep.md` → `integrate-planning-branch.md` (workflow retired with WOR's
+              single-branch-per-WU model). Ref def removed; one inline usage converted to
+              `` `integrate-planning-branch` — workflow retired with WOR's single-branch-per-WU model``.
+            - `notes-docs-content-sweep.md` → `clean-work-unit.md` (workflow retired pre-WOR). Ref def
+              removed; one inline usage converted to `` `clean-work-unit.md` — workflow retired pre-WOR``.
+        - External-tracker URL refs in `plan-arc-modes.md` (vscode-103570, vscode-43505, aws-7369) untouched —
+          they resolve externally, not via relative paths.
 
     - `[ ]` **6.4.f Backlog-root structure verification**
         - Verify `backlog/` root post-migration contains exactly the 5 expected entries: `planned/`, `provisional/`,
