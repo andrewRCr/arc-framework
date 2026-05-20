@@ -657,7 +657,7 @@ opt-out-able activity, and the meaning of each knob varies (gate-invocation vs. 
 vs. pure value).
 
 R46 was the trigger; the broader concern is the customization architecture itself. Resolution
-moved out of WOR scope to `plan-customization-architecture.md`. For WOR's forward-compat
+moved out of WOR scope to `plan-customization-arch-realign.md`. For WOR's forward-compat
 discipline: R46 deleted; arc-config.yml + CLI types + validator + tests reverted (commit
 `5c19d8d8`'s content un-shipped); R47's `pre-activation` extension stands on its own; R48's
 convention-inventory row updated to "Extension only."

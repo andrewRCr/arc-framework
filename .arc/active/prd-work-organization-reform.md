@@ -484,7 +484,7 @@ Foundation's branch-gone detection) left to WF.
 
 ### Planning-checkpoint review opt-in (P1)
 
-**R46.** _Deferred to `plan-customization-architecture.md`._ The originally proposed
+**R46.** _Deferred to `plan-customization-arch-realign.md`._ The originally proposed
 `review.planning_checkpoint` config key surfaced a deeper smell in ARC's customization
 architecture (config-as-method-toggle pattern with no method behind it). Resolution moved
 out of WOR; see the customization-architecture plan for the reform that determines whether a

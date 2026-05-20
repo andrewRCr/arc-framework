@@ -247,7 +247,7 @@ What remains is mostly *routing-half* work:
       naming the asymmetry explicitly.
     - **Model-level:** reconcile the asymmetry — pick inclusive or exclusive uniformly across
       both interlock types. Touches enum design, prompt mappings, strategy text, DEV-RULES,
-      possibly probe envelope shape. Composes with `plan-customization-architecture.md` § Open
+      possibly probe envelope shape. Composes with `plan-customization-arch-realign.md` § Open
       Questions (e) on interlock enum granularity. ADR warranted.
 
 - *Scope if promoted:* Doc-only fix is atomic-tier (~3-5 line edits, single strategy doc plus a
@@ -272,9 +272,9 @@ What remains is mostly *routing-half* work:
 Three sibling plan docs carry observations that compose with this plan's scope but belong in
 their respective domains:
 
-- **`plan-customization-architecture.md` § Open Questions (e)** — interlock enum granularity
+- **`plan-customization-arch-realign.md` § Open Questions (e)** — interlock enum granularity
   (`manual` / `on-task-approval` / `on-workflow` simplification). The enum design lives in
-  customization-architecture's territory (affects all of ARC's interlock-shaped configs); this
+  the customization architecture's territory (affects all of ARC's interlock-shaped configs); this
   plan consumes whichever decision lands. Cross-reference both ways.
 - **`plan-commit-increments.md` § Unknowns** — first-class approval-provenance state. Genuinely
   cross-cutting: composes with deferred-review's scope-declaration framing AND with this plan's
@@ -294,8 +294,8 @@ No firm upstream blockers. Soft preferences:
   remaining workflow restructures).
 - **Wrapper-routing migration can ship any time post-WOR** — independent of the visibility fix
   already shipped; doesn't depend on the enum-granularity decision in
-  `plan-customization-architecture.md` (the migration works under any of the candidate enum
-  shapes). If the customization-architecture decision lands first, the migration absorbs the
+  `plan-customization-arch-realign.md` (the migration works under any of the candidate enum
+  shapes). If the customization arch-realign decision lands first, the migration absorbs the
   resulting enum; if this plan lands first, the customization plan's text adjusts to the
   retired routing axis.
 - **A3 (orientation surface)** — decide after the visibility fix settles in use; could ride

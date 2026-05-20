@@ -970,7 +970,7 @@ but runtime checks of `review.planning_checkpoint` halt and `archive.cadence` di
     - `[~]` **3.3.c ~~`review.planning_checkpoint` halt (R46)~~ — Deferred**
         - Subtask removed mid-execution. R46's design surfaced a deeper smell in ARC's customization architecture
           (config-as-method-toggle pattern with no method behind it). Whether a planning-checkpoint mechanism
-          re-emerges is deferred to `plan-customization-architecture.md`. The `pre-activation` extension (3.3.b)
+          re-emerges is deferred to `plan-customization-arch-realign.md`. The `pre-activation` extension (3.3.b)
           stands on its own as the activation-time hook; teams wanting a halt today author a `workflow-interlock`
           in the extension's `.actions`.
 
@@ -1012,7 +1012,7 @@ but runtime checks of `review.planning_checkpoint` halt and `archive.cadence` di
   init-work-unit.md (per-WU subdir confirmed out-of-scope by user — per-worktree isolation makes it redundant in
   `active/`; subdirs apply only in `backlog/`, `archive/`, and `user/{identity}/`). Original 3.3.c
   (`review.planning_checkpoint` halt) deferred mid-execution after architectural review surfaced
-  config-as-method-toggle smell; resolution moved to `plan-customization-architecture.md`.
+  config-as-method-toggle smell; resolution moved to `plan-customization-arch-realign.md`.
 
 ### `[x]` **3.4 Restructure `integrate-work-unit.md` (PR-open + review iteration + post-approval composition + sweep)**
 
@@ -1230,7 +1230,7 @@ but runtime checks of `review.planning_checkpoint` halt and `archive.cadence` di
 - _Outcome:_ Initially landed at commit `5c19d8d8` (config key + CLI types + status-reader defaults +
   shell validator + tests across both copies). Reverted mid-WOR after architectural review surfaced a
   config-as-method-toggle smell with no method behind the gate — see
-  `plan-customization-architecture.md` for the broader reform that determines whether a planning-checkpoint
+  `plan-customization-arch-realign.md` for the broader reform that determines whether a planning-checkpoint
   mechanism re-emerges (as a method with `active` flag, an extension-only path, or not at all). Forward-edit
   removed the key from `arc-config.yml` (both copies), `validate-config.sh` enum + `known_keys` list (both
   copies), `src/commands/config/types.ts`, `src/lib/config/status-reader.ts` (DEFAULTS + ENUM_VALIDATORS),
@@ -2923,25 +2923,46 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           (codified — worktree-foundation + agile-wu-lifecycle + concurrent-work-conventions) and
           `architecture-remediation` (provisional candidate — 6.4.b decision).
 
-    - `[ ]` **6.4.b Per-WU routing decisions + PRD demotion + WU rename (interactive)**
-        - **Routing rule:** on ROADMAP → `planned/`; not on ROADMAP → `provisional/`. Borderline plans (arc-rebrand,
-          arc-backend, other not-yet-sequenced items) require explicit user confirmation before routing.
-        - **Cohort assignment:** per known sibling set (parallelism-trio cohort consolidates under
-          `planned/parallelism-trio/<wu-name>/`, etc.) — user confirms each known sibling set; standalone WUs sit
-          directly at `backlog/{commitment}/<wu-name>/`. Each plan-doc + companions constitute one WU subdir; cohort
-          wrapping applies only when sibling-set codification is explicit.
-        - **PRD demotion:** `prd-arcd-rebrand.md` → `plan-arcd-rebrand.md` (file rename + content reshape from PRD
-          commitment-language to plan-doc exploratory framing; retain the substantive content; soften "settled
-          requirements" framing). `prd-arcd-docs-site.md` → `plan-docs-site-refresh.md` (rename + reshape AND WU-level
-          rename `arcd-docs-site` → `docs-site-refresh`).
-        - **WU-level rename ripple:** any current ROADMAP entry for `arcd-docs-site` updates to `docs-site-refresh`;
-          in-doc cross-references update; commit captures the rename.
-        - **Resulting placement** (for the two flagged WUs):
-            - `backlog/provisional/arcd-rebrand/{meta-arcd-rebrand.md, plan-arcd-rebrand.md}` — rebrand is no longer
-              committed; routes to provisional
-            - `backlog/planned/docs-site-refresh/{meta-docs-site-refresh.md, plan-docs-site-refresh.md}` — docs-site
-              work remains committed; routes to planned
+    - `[x]` **6.4.b Per-WU routing decisions + PRD demotion + WU rename (interactive)**
+        - **Routing decisions captured for all 35 backlog WUs** in `notes-work-organization-reform.md` § Phase 6.4
+          Backlog Routing Worksheet. Split: **33 migrating** (28 planned — 21 standalone + 7 in cohorts;
+          5 provisional), and **2 retiring at 6.6** (`completion-status-consolidation`, `roadmap-evolution` — subsumed
+          by WOR per PRD R14/R30-R32 + R37-R39; skip migration to save move-then-delete cycles; 6.6.b/6.6.c collapse
+          to verification checkpoints).
+        - **Cohort codification:** Two cohorts named at 6.4.b. `agile-parallelism` (renamed from working name
+          `parallelism-trio` — captures both deliverable axes vs. structural-only) covers worktree-foundation +
+          agile-wu-lifecycle + concurrent-work-conventions. `architecture-remediation` covers
+          lib-layer-type-extraction + sync-handler-decomposition + user-sync-module-split + schema-introspection-layer.
+          Paths: `backlog/planned/{cohort}/<wu-name>/`. Standalone WUs sit at `backlog/{commitment}/<wu-name>/`.
+        - **PRD demotion #1 (arcd-rebrand):** `prd-arcd-rebrand.md` → `plan-arcd-rebrand.md` (git mv + content reshape).
+          PRD shape (Requirements P0/P1/P2, Success Criteria) → plan-doc shape (Scope Sketch Layers 1-7, Indicative
+          completion signals); stale-section preamble absorbed into Working Direction. Preserved verbatim: three-tier
+          brand decision, content-sweep guardrails A-F, technical considerations. 470 → 346 lines (-26%). Routes
+          `provisional/arcd-rebrand/` per portfolio-piece reframe (routing override despite ROADMAP entry).
+          Notes-arcd-rebrand.md companion updated: PRD-vocabulary references reframed; demotion timeline at file head.
+        - **PRD demotion #2 (arcd-docs-site → docs-site-refresh):** `prd-arcd-docs-site.md` →
+          `plan-docs-site-refresh.md` (git mv + content reshape + WU rename). PRD Requirements P0/P1/P2 → Scope Sketch
+          Layers 1-9; Success Criteria → Indicative completion signals; System Scenarios collapsed into Working
+          Direction narrative. Preserved verbatim: Remedy theme adaptation, CF Pages monorepo setup, DNS cutover
+          ordering (SSL-before-records-before-traffic), two-copy discipline. 505 → 442 lines (-12%). Routes
+          `planned/docs-site-refresh/` (docs site work remains committed; split out from WU5 Public Release scope).
+        - **Bonus rename (customization-architecture → customization-arch-realign):** Pure file rename
+          (`plan-customization-architecture.md` → `plan-customization-arch-realign.md`); plan body unchanged (H1 already
+          read "Customization Architecture Realignment"). Captures action verb; differentiates from
+          architecture-introduction WUs.
+        - **Cross-reference sweep (7 files):** All in-doc refs to the 3 renamed WUs updated to current filenames;
+          ref-shape normalized to backticked-filename-only per DEV-RULES.ARC § Documentation Boundaries (no paths, no
+          Markdown links to WU artifacts). Files: `plan-docs-content-sweep.md` (14 refs), `plan-arc-backend.md` (2),
+          `plan-arc-modes.md` (1 body + link-def removed + 8 `[ARCd Rebrand][arcd-rebrand]` usages unwrapped),
+          `plan-interlock-release-refinement.md` (3 refs + 2 topic-phrase normalizations), WOR own docs (6
+          forward-pointers; historical event-description refs preserve old names).
+        - **Resulting placement** (codified, executed at 6.4.d):
+            - `backlog/provisional/arcd-rebrand/{meta-arcd-rebrand.md, plan-arcd-rebrand.md, notes-arcd-rebrand.md}`
+            - `backlog/planned/docs-site-refresh/{meta-docs-site-refresh.md, plan-docs-site-refresh.md}`
             - Not a cohort — two standalone WUs despite the historical filename pairing
+        - **Long-tail ripples deferred to Task 6.7 cross-reference sweep:** ROADMAP "parallelism trio" →
+          "agile-parallelism" prose (~20 hits); ROADMAP plan-doc filename path updates after 6.4.d's per-WU subdir
+          moves; broader audit of pre-rule path-form WU-artifact refs in other plans.
 
     - `[ ]` **6.4.c Per-WU metadata backfill (interactive — Origin / Owner / Depends On / Cohort)**
         - For each plan, user confirms the meta-file field values before file moves fire. Defaults applied

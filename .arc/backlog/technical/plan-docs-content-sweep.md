@@ -19,14 +19,14 @@ WU activation.
 
 The two adjacent docs-touching WUs don't absorb this work cleanly:
 
-- **`prd-arcd-docs-site.md`** (mkdocs → Astro/Starlight migration) is explicitly
+- **`plan-docs-site-refresh.md`** (mkdocs → Astro/Starlight migration) is explicitly
   *format migration, not content rewrite* (Non-Goals: "not a content-expansion pass",
   "not a content rewrite"). It carries one content-sweep hitchhiker — the rebrand
-  branding sweep from `prd-arcd-rebrand.md` — because branding is mechanical
+  branding sweep from `plan-arcd-rebrand.md` — because branding is mechanical
   find-replace that pairs cleanly with the per-file content port. Methodology model
   changes and content contributions (conceptual, editorial, prose-level judgment per
   touch point) don't fit that rubric.
-- **`prd-arcd-rebrand.md`** excepts `docs/**` from its content sweep Success Criteria
+- **`plan-arcd-rebrand.md`** excepts `docs/**` from its content sweep Success Criteria
   and routes the branding sweep through the docs-site WU's content port. Scope stays
   on branding — not a general content-refresh vehicle.
 
@@ -37,7 +37,7 @@ capture time rather than being rediscovered during an eventual sweep.
 
 ## Timing
 
-**Activates after `prd-arcd-docs-site.md` merges.** Running before the Starlight
+**Activates after `plan-docs-site-refresh.md` merges.** Running before the Starlight
 structure lands would burn effort on mkdocs prose that gets transformed (or deleted)
 during the content port.
 
@@ -445,8 +445,8 @@ non-over-claim guidance.
 branding, not file names, not formatting — actual model/behavior descriptions
 adopters rely on):
 
-1. Confirm the change doesn't fit `prd-arcd-rebrand.md` scope (branding only) or
-   `prd-arcd-docs-site.md` scope (format migration only)
+1. Confirm the change doesn't fit `plan-arcd-rebrand.md` scope (branding only) or
+   `plan-docs-site-refresh.md` scope (format migration only)
 2. Add a new numbered item under § Drift Items with the template shape: what
    changed / edit type / touch points / nuance
 
@@ -460,7 +460,7 @@ for docs absorption:
    file and capturing high-level context (what changed / input type / staging
    reference / link placeholders / nuance)
 
-The plan remains in capture state until either (a) `prd-arcd-docs-site.md` is near
+The plan remains in capture state until either (a) `plan-docs-site-refresh.md` is near
 activation and items have accumulated enough to PRD this WU, or (b) an individual
 item is urgent enough to run as an atomic task list before the consolidated sweep.
 
@@ -476,8 +476,8 @@ item is urgent enough to run as an atomic task list before the consolidated swee
 
 **Out of scope:**
 
-- Brand identity changes (→ `prd-arcd-rebrand.md` / `prd-arcd-docs-site.md` § Req 12)
-- File-format migration (→ `prd-arcd-docs-site.md`)
+- Brand identity changes (→ `plan-arcd-rebrand.md` / `plan-docs-site-refresh.md` § Req 12)
+- File-format migration (→ `plan-docs-site-refresh.md`)
 - New docs pages or structural reorganization of the docs tree (explicitly Non-Goal
   in the migration PRD; if needed, scope separately)
 - Internal `.arc/` file drift (→ framework-sync integration test catches this)
@@ -485,7 +485,7 @@ item is urgent enough to run as an atomic task list before the consolidated swee
 
 ## Dependencies
 
-- **Upstream:** `prd-arcd-docs-site.md` (format migration must land first so sweep
+- **Upstream:** `plan-docs-site-refresh.md` (format migration must land first so sweep
   targets the Starlight structure)
 - **Downstream:** `plan-wu5-public-release.md` (public release prereq)
 - **Feeds this plan:** `prd-session-init-optimization.md` (produces content
@@ -495,9 +495,9 @@ item is urgent enough to run as an atomic task list before the consolidated swee
 
 ## References
 
-- `prd-arcd-docs-site.md` § Non-Goals (content rewrite out of scope)
-- `prd-arcd-docs-site.md` Req 12 (rebrand branding sweep piggyback pattern)
-- `prd-arcd-rebrand.md` § docs/ exception
+- `plan-docs-site-refresh.md` § Non-Goals (content rewrite out of scope)
+- `plan-docs-site-refresh.md` Req 12 (rebrand branding sweep piggyback pattern)
+- `plan-arcd-rebrand.md` § docs/ exception
 - Pre-merge review for `technical/work-status-restructure` (2026-04-16) — original
   surfacing of the per-WU status file docs drift
 - `prd-session-init-optimization.md` § Requirements P1.1–P1.3 (operational-context audit

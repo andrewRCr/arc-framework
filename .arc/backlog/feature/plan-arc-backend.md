@@ -281,8 +281,8 @@ own PRD-promotion time.
 | `plan-post-release-methodology.md`        | Compatible  | Living collection; items get B-compat assessment at promotion-to-PRD time.                                                                       |
 | `plan-docs-content-sweep.md`              | Compatible  | Docs site content; orthogonal to backend storage.                                                                                                |
 | `plan-wu5-public-release.md`              | Compatible  | Public release infrastructure; orthogonal.                                                                                                       |
-| `prd-arcd-docs-site.md`                   | Compatible  | Docs site infrastructure; orthogonal.                                                                                                            |
-| `prd-arcd-rebrand.md`                     | Compatible  | Branding; orthogonal.                                                                                                                            |
+| `plan-docs-site-refresh.md`               | Compatible  | Docs site infrastructure; orthogonal.                                                                                                            |
+| `plan-arcd-rebrand.md`                    | Compatible  | Branding; orthogonal.                                                                                                                            |
 
 **Flag-at-PRD items** are not blocked by this plan. Their authors should consult
 `strategy-storage-evolution.md` at PRD time and confirm the design composes with backend-tier
