@@ -49,11 +49,11 @@ open through review-response.
 Stage the edit.
 
 > [!CAUTION]
-> `commit-interlock` release — commit as `workflowCommit` (subject `chore(meta):` per § Commit
+> `commit-interlock` release — commit as `workflowCommit` (subject `chore(arc):` per § Commit
 > Discipline, meta-file commit shape):
 
 ```text
-chore(meta): integrate {name}
+chore(arc): integrate {name}
 
 - Flip State: Active → Integrating
 

@@ -3468,14 +3468,13 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
               `research-pr-sizing-and-wu-boundary-estimation.md`) follow the 2.13.e ADR-precedent —
               historical record stays accurate as-of-decision; explicit per-doc judgment at execution.
 
-        - `[ ]` **6.7.n.1 Integrate ceremony commit shape — `chore(meta): integrate` → `chore(arc): integrate`**
-            - The only lifecycle ceremony commit currently out-of-step with 6.1.d / 6.1.e. All other
-              lifecycle workflows (activate, archive, deactivate, session-handoff) already use
-              `chore(arc): <action> {name}`. Target: `integrate-work-unit.md` lines 52 + 56 (both copies,
-              byte-identical) — retarget `chore(meta): integrate {name}` → `chore(arc): integrate {name}`
-              including the surrounding workflow callout prose at line 52 (`subject chore(meta): per § Commit`).
-            - Post-edit verification: grep `chore\(meta\)` returns empty across adopter-facing surfaces;
-              two-copy parity confirmed; lint clean.
+        - `[x]` **6.7.n.1 Integrate ceremony commit shape — `chore(meta): integrate` → `chore(arc): integrate`**
+            - _Outcome:_ 2 flips in `integrate-work-unit.md` (both copies, byte-identical) — workflow
+              callout at L52 (`subject chore(meta):` → `subject chore(arc):`) + ceremony commit example
+              block at L56 (`chore(meta): integrate {name}` → `chore(arc): integrate {name}`). All five
+              WU lifecycle ceremony commits now aligned on `chore(arc): <action> {name}`. Surrounding
+              prose "meta-file commit shape" at L53 retained — points at the DEV-RULES.ARC § Commit
+              Discipline section that n.2 will rename from "Status-file commit shape".
 
         - `[ ]` **6.7.n.2 Constitutional + strategy section heading migration (anchor-link cascade)**
             - `DEV-RULES.ARC.md` full-file sweep (both copies) — § Commit Discipline (Status-file timing
