@@ -3368,11 +3368,33 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           README + prepare-commits); `lint:md` zero errors; per-file `validate-links.sh` clean across all
           3 touched files; byte-parity confirmed for the `prepare-commits.md` two-copy pair.
 
-    - `[ ]` **6.7.j Post-sweep verification grep — returns empty for all retired patterns**
-        - **Exception:** 6.7.i patterns retain references in current-state language; verify those references describe
-          the workflow's function (interrupt routing) without "transitional" / "pending" framing or internal-roadmap
-          citations (WF/AWL). Post-sweep grep on the incidental patterns returns matches but each match should be a
-          current-state reference to the surviving workflow, not an active reference to the retired substrate.
+    - `[x]` **6.7.j Post-sweep verification grep — returns empty for all retired patterns**
+        - **All 20+ retired patterns from 6.7.a-i return 0 hits on active framework surfaces** (with
+          `manage-incidental-work.md` excluded per R49a; 6.7.i Exception-clause refs `manage-incidental-work`,
+          `[manage-incidental]:`, `Incidental Work Model` retain current-state matches only — verified unaltered
+          from 6.7.i audit). Exclusion regex refined mid-pass: `.arc/reference/research/` is internal-dev
+          (matching `analysis/` + `adr/` per 6.7.e ADR-precedent) — 5 false-positive research/ hits dropped
+          after exclusion.
+        - **3 inline-swept residual gaps — surfaced during verification, all PROJECT-STATUS refs that escaped
+          6.7.e's original sweep:**
+            - `.arc/reference/TECHNICAL-OVERVIEW.md` line 43 — PROJECT-STATUS removed from rendered-docs list
+              (configurable instance only; package template was already current).
+            - `packages/arc-framework/arc/backlog/ROADMAP.template.md` + `.arc/backlog/ROADMAP.md` lines 4-5 —
+              PROJECT-STATUS sibling-doc sentence retired (template + rendered instance, identical header
+              content).
+        - **Substantial gap routed to 6.7.l** (folded into that task's description in a separate commit):
+          `archive/README.md` (both copies, byte-identical) describes the OLD pre-WOR archive layout (work-
+          categorized subdirs, `completion-{name}.md` convention, PROJECT-STATUS refs, substrate triples in
+          navigation). Substantive content rewrite beyond directory rename — fits 6.7.l's archive→completed
+          scope when 6.7.l fires after 6.9.a's `git mv`.
+        - **Out of scope:** internal-dev surfaces (`reference/research/`, `reference/analysis/`,
+          `reference/adr/`) per 6.7.e ADR-precedent; backlog WU artifacts (Activation Audit); archive content
+          (historical, distinct from `archive/README.md` routed above); `manage-incidental-work.md` itself
+          (R49a); `.arc/system/.internal/` generated state; WOR's own active artifacts; commit-msg hook
+          `(incidental during ...)` discovery-context modifier.
+        - Verification: post-sweep grep clean across all 20+ patterns post-inline-sweep; `lint:md` zero errors;
+          per-file `validate-links.sh` clean across 4 touched files; byte-parity confirmed across the ROADMAP
+          template + instance pair.
 
     - `[ ]` **6.7.k META-PRD → PROJECT-PRD references (per R35 rename)**
         - Grep patterns: `META-PRD`, `META-PRD.md`, `template-meta-prd`, `META-PRD.template.md`.

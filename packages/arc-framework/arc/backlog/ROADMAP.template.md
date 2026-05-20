@@ -1,8 +1,7 @@
 # Roadmap: Order of Operations
 
 Planning and reasoning — the sequencing strategy for remaining work, what gets built next
-and why. This is a working document, subject to change as you learn. For project state
-and record (achievements, current status), see `PROJECT-STATUS.md`.
+and why. This is a working document, subject to change as you learn.
 
 ---
 
