@@ -3135,7 +3135,15 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           branch-prefix-pattern references remaining (only the explicitly-deferred non-branch-prefix matches
           remain, all covered by 6.7.i + 6.7.q).
 
-    - `[ ]` **6.7.b PR-prefix pattern (`[PLAN]:`)**
+    - `[x]` **6.7.b PR-prefix pattern (`[PLAN]:`)**
+        - Verification-only: pattern is already entirely absent from active framework surfaces under sweep scope
+          (workflows, methods, strategies, briefs, templates, hooks). Wider grep confirms remaining matches live
+          exclusively in internal-dev surfaces — `adr-019-work-unit-lifecycle-reform.md:97` (the WOR ADR
+          documenting the retirement), WOR's own PRD (R6 retirement statement at line 170, plus four other
+          retirement-context citations), notes/tasks (WU artifacts describing the reform), and one backlog
+          plan-doc (`plan-docs-content-sweep.md`) citing the retirement context. All are correct retentions —
+          retirement records and reform-context citations describe what was retired and why.
+        - No edits required. Sweep scope clean.
 
     - `[ ]` **6.7.c Retired workflow refs (`integrate-planning-branch`, `activate-planning-branch`)**
 
