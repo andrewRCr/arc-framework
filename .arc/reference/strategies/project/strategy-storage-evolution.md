@@ -74,7 +74,7 @@ ARC tracks work units separately from branches. Multi-WU-per-branch and WU-witho
 independent of any single repo's branch state — current direction supports this; don't regress.
 
 **Anti-pattern:** New design that infers WU state from branch existence (e.g., "a branch matching
-`feature/{name}` implies WU named `{name}` is active"). Implicit coupling like this works in-repo
+`feat/{name}` implies WU named `{name}` is active"). Implicit coupling like this works in-repo
 but breaks in backend-tier multi-developer scenarios.
 
 ### 4. Workflow logic stays mode-agnostic

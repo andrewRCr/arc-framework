@@ -234,19 +234,19 @@ Choose the pattern that fits your team's review culture and the work at hand —
 coexist within a project.
 
 **`Branch(es):` header field:** Task lists record branches as a flat comma-separated list
-(e.g., `feature/user-auth, feature/user-auth/alice, feature/user-auth/bob`). This is
+(e.g., `feat/user-auth, feat/user-auth/alice, feat/user-auth/bob`). This is
 intentionally flat — the list captures which branches exist, not their topology. Branch
 relationships (which is the integration branch, which are sub-branches) are documented in
 the branching pattern choice, not encoded in the field format.
 
 ### Shared Integration Branch
 
-The team works off a shared feature or technical branch. Each developer commits directly
+The team works off a single shared WU branch. Each developer commits directly
 to the shared branch (or uses short-lived personal branches that merge into it).
 
 ```text
 main
-└── feature/user-authentication        # Shared — all team members commit here
+└── feat/user-authentication           # Shared — all team members commit here
 ```
 
 ### Personal Sub-Branches
@@ -256,9 +256,9 @@ via PR into the shared branch before final integration.
 
 ```text
 main
-└── feature/user-authentication        # Integration branch
-    ├── feature/user-auth/alice        # Alice's working branch
-    └── feature/user-auth/bob          # Bob's working branch
+└── feat/user-authentication           # Integration branch
+    ├── feat/user-auth/alice           # Alice's working branch
+    └── feat/user-auth/bob             # Bob's working branch
 ```
 
 ### Stacked PRs per Developer
@@ -269,10 +269,10 @@ to team use.
 
 ```text
 main
-└── feature/user-authentication              # Integration branch
-    ├── feature/user-auth/alice-models       # Alice's first PR
-    │   └── feature/user-auth/alice-api      # Alice's second PR (stacked)
-    └── feature/user-auth/bob-frontend       # Bob's work
+└── feat/user-authentication                 # Integration branch
+    ├── feat/user-auth/alice-models          # Alice's first PR
+    │   └── feat/user-auth/alice-api         # Alice's second PR (stacked)
+    └── feat/user-auth/bob-frontend          # Bob's work
 ```
 
 ### Direct Shared Branch
@@ -331,14 +331,14 @@ developers work simultaneously, two different topologies carry different coordin
 properties — address them separately.
 
 **Parallel work units on independent branches.** Alice works on
-`feature/auth/feature-auth-refresh` with its own `status-auth-refresh.md`; Bob works on
-`technical/ci-matrix` with its own `status-ci-matrix.md`. The work units don't coordinate at
+`feat/auth-refresh` with its own `status-auth-refresh.md`; Bob works on
+`chore/ci-matrix` with its own `status-ci-matrix.md`. The work units don't coordinate at
 all at the status-file layer: different files, different branches, different task lists.
 Independent WUs merge to the base branch without ever touching each other's status files.
 This is the dominant pattern for parallel solo work on independent concerns.
 
 **Within-WU team sub-branches.** Alice and Bob both work on the same WU via personal
-sub-branches (`feature/user-auth/alice`, `feature/user-auth/bob`) off a shared integration
+sub-branches (`feat/user-auth/alice`, `feat/user-auth/bob`) off a shared integration
 branch. They share one `status-{name}.md`. Coordination mechanisms:
 
 - **Task list:** Each developer works their `(@name)`-assigned tasks. Conflicts only arise

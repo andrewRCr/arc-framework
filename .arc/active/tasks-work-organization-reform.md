@@ -3111,7 +3111,29 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
       verify by re-grep returning empty. Patterns from `notes-work-organization-reform.md` § Cross-reference sweep
       targets.
 
-    - `[ ]` **6.7.a Branch-prefix patterns (`feature/`, `technical/`)**
+    - `[x]` **6.7.a Branch-prefix patterns (`feature/`, `technical/`)**
+        - Branch-prefix references updated to R1 amended core-5 (`feat/`, `fix/`, `chore/`, `refactor/`, `hotfix/`)
+          across 4 active files + 3 package mirrors: `strategy-team-coordination.md` (12 hits — all topology
+          examples + `Branch(es):` field example + framing line "shared feature or technical branch" → "single
+          shared WU branch"; `feature/` → `feat/`, lone `technical/ci-matrix` → `chore/ci-matrix`),
+          `session-handoff.md` (2 hits — `**Branch**` field examples `feature/config-parser` and
+          `feature/data-pipeline` → `feat/...`), `strategy-storage-evolution.md` (1 hit — anti-pattern example
+          `feature/{name}` → `feat/{name}`), `packages/arc-framework/arc/README.md` (fold-in — directory diagram
+          updated to flat `active/` + `backlog/{provisional,planned}/[<cohort>/]<wu>/` per R3 + R49). Package
+          mirrors stayed byte-identical except `session-handoff.template.md` (template-form divergence by design).
+          `review-triage.md` prose-alternation hit rephrased `feature/phase` → `feature or phase` (English
+          synonyms-not-prefix; rephrase eliminates the false-positive grep match for 6.7.j cleanliness).
+        - **Deferred to other phases** (surfaced by grep but out of 6.7.a scope, all explicitly tracked):
+          `manage-incidental-work.md` 3 prose-dichotomy hits (`feature/technical work`, `active/{feature|technical}/...`
+          path) → 6.7.i (grep patterns list augmented in this commit to explicitly include `feature/technical` and
+          `active/{feature|technical}/`); remaining category-dir path references across ~15 files (~70 hits in
+          workflows, strategies, briefs, templates) → new subtask 6.7.q created (R3 + R49 substrate retirement,
+          distinct from 6.7.a's literal branch-prefix scope and 6.7.i's incidental-substrate scope). README META-PRD
+          parenthetical (line 27) and archive "by work type" framing (line 34) left for 6.7.k (PROJECT-PRD rename)
+          and 6.7.l (archive→completed path sweep) respectively.
+        - Verification: `lint:md` zero errors on modified set; post-sweep grep in-scope surfaces shows 0
+          branch-prefix-pattern references remaining (only the explicitly-deferred non-branch-prefix matches
+          remain, all covered by 6.7.i + 6.7.q).
 
     - `[ ]` **6.7.b PR-prefix pattern (`[PLAN]:`)**
 
@@ -3151,7 +3173,8 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           not retire (per PRD R49a + R52). Substrate-dependent references drop (`incidental/` branch prefix,
           pause-pointer fields); workflow-level references stay with "transitional" / "pending" framing removed.
         - Grep patterns: `incidental/`, `manage-incidental-work`, `[manage-incidental]:`, `Incidental Work Model`,
-          `Interrupts:`, `Paused At:`, `Paused To:`.
+          `Interrupts:`, `Paused At:`, `Paused To:`, `feature/technical` (legacy 2-category prose framing),
+          `active/{feature|technical}/` (legacy category-dir path in commit-message template).
         - Touch points already addressed by upstream tasks: DEV-RULES.ARC § Leave it cleaner (1.3.d),
           `strategy-work-organization.md` § Incidental Work Model + § Work Categories (2.8), `template-tasks.md` (4.6),
           `deactivate-work-unit.md` (3.11.a — keeps refs in current-state phrasing; verify alignment, no duplicate
@@ -3283,6 +3306,25 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           coherent before this prose+shape sweep lands.
         - Post-sweep verification: grep on the patterns returns empty across adopter-facing surfaces;
           internal-dev historical surfaces retain original phrasing where the as-of-decision case applies.
+
+    - `[ ]` **6.7.q Category-dir path sweep (`active/{category}/`, `backlog/{...}/`) — R3 + R49 retirement**
+        - **Action:** retire path references — under R3, `active/` is flat (one WU per branch, no category subdirs);
+          under R49, backlog reorganizes to `backlog/{provisional,planned}/[<cohort>/]<wu>/`. Update path examples,
+          code-fence diagrams, prose mentions across doc surfaces. Distinct from 6.7.a (literal branch-prefix refs)
+          and 6.7.i (incidental WU model substrate) — this slice is path-shape substrate.
+        - Grep patterns: `active/(feature|technical|incidental)/`, `backlog/(feature|technical)/`,
+          `active/\{?(category|type|kind)`.
+        - Touch points already addressed by upstream tasks: `packages/arc-framework/arc/README.md` directory diagram
+          (folded into 6.7.a — `active/` flat + `backlog/{provisional,planned}/[<cohort>/]<wu>/`); `active/incidental/`
+          path refs in `manage-incidental-work.md` (6.7.i covers via its augmented pattern list — verify alignment, no
+          duplicate sweep work).
+        - Sweep surface (~70 hits across ~15 files): workflows (`1_create-prd.md`, `2_generate-tasks.md`,
+          `manage-incidental-work.md`, `session-handoff.md` — verify final), strategies (`strategy-team-coordination.md`,
+          `strategy-session-operations.md`, `strategy-work-planning.md`, `strategy-package-project-sync.md`), briefs
+          (`AGENT-BRIEF.ARC.md`), templates (`2_generate-tasks.template.md`).
+        - **Exclusions:** `.arc/system/.internal/{pristine,manifest}.json` are generated/derived state — regenerate via
+          CLI if needed, do not hand-edit. `.arc/reference/analysis/**` and `.arc/reference/adr/**` are internal-dev
+          surfaces retaining historical record (out of sweep scope; 2.13.e ADR-precedent).
 
 ### `[ ]` **6.8 Slim instance-file preambles (SESSION-NOTES + USER-INBOX + BACKLOG-INBOX + backlog/ATOMIC-INBOX)**
 

@@ -208,7 +208,7 @@ Update session state files before ending session:
 ## Work Unit Metadata
 
 **State:** Active
-**Branch**: [current branch name, e.g., feature/config-parser]
+**Branch**: [current branch name, e.g., feat/config-parser]
 **Task List**: [filename of task list, e.g., tasks-config-parser.md]
   [OR: [none associated] for planning/boundary work between task lists]
 **Next Task**: Task 3.3 — Write unit tests (line ~247)
@@ -369,7 +369,7 @@ status-data-pipeline.md:
 ## Work Unit Metadata
 
 **State:** Active
-**Branch**: feature/data-pipeline
+**Branch**: feat/data-pipeline
 **Task List**: tasks-data-pipeline.md
 **Next Task**: Task 4.1 — Add retry logic to ingestion step (line ~312)
 **Last Completed**: Task 3.5 — Schema validation for input records

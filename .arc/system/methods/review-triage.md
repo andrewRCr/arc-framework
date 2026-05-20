@@ -34,7 +34,7 @@ documented deferrals? code scheduled for replacement?), and impact (functionalit
 - Code is scheduled for deletion in next phase
 - Already documented as strategic deferral
 - Requires substantial refactoring of temporary code
-- Part of a different feature/phase
+- Part of a different feature or phase
 
 **REJECT** (note reason) if:
 
