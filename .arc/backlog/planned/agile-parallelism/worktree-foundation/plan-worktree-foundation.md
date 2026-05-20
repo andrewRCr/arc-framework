@@ -126,8 +126,11 @@ cross-cutting section rather than inside the Local mode treatment. It's universa
    - **standard** tier: worktree always under `full`. Spawn-vs-continue is the dominant path — originating session
      is almost never the working session.
 
-   **Naming TBD:** the spawn operation may be `/arc-spawn`, `/arc-shift --detach`, or extend
-   `plan-agile-wu-lifecycle.md`'s proposed `arc start` command with an `--into-worktree` flag. Resolves at PRD.
+   **Naming TBD:** the spawn operation may be `/arc-spawn` or `/arc-shift --detach`. Resolves at
+   WF PRD. Under the 2026-05-20 resequence (WF ahead of AWL and Conductor), the previously-floated
+   "extend `plan-agile-wu-lifecycle.md`'s proposed `arc start` command with an `--into-worktree` flag"
+   option no longer fits this WU — AWL's `arc start`, when it lands, delegates to whatever spawn
+   primitive WF settles here rather than the inverse.
 
    **Auto-mode boundary:** spawn never fires under auto-cascade. Always an explicit user act.
 
@@ -476,23 +479,34 @@ surveyed tools accept user-provided branch names per § External Research Citati
 
 ### Sibling (parallelizable)
 
-- **User Sync UX Polish** (`prd-user-sync-ux.md`): SESSION-NOTES per-worktree handling interacts with sync
-  semantics; either order works.
-- **Coord Probe** (`plan-coord-probe.md`): Worktree Foundation's branch-gone fire point invokes the probe;
-  coord-probe is consumed downstream from this WU's session-init integration.
+[none active — User Sync UX Polish shipped before this WU activates]
 
 ### Downstream
 
-- **Agile WU Lifecycle** (`plan-agile-wu-lifecycle.md`): consumes clean activate/integrate workflows post-pointer-field
-  retirement; the tier model's `arc start` command operates on the worktree-aware activation
-  substrate.
-- **Concurrent Work Conventions** (`plan-concurrent-work-conventions.md`): consumes mechanism layer entirely.
+- **arc-plan Conductor** (`plan-arc-plan-conductor.md`): canonical planning entry verb delegates to
+  this WU's spawn primitive (consumer, not design-coupled). Sequencing inversion 2026-05-20:
+  Conductor previously held the spawn invocation contract; spawn now ships here as a standalone
+  callable primitive and Conductor wires its entry verb to it.
+- **CLI Substrate Adoption** (`plan-cli-substrate-adoption.md`): this WU's hand-rolled
+  `git worktree list --porcelain` parsers (3 sites), branch-gone cascade evidence discriminated
+  union, cold-start spec input parser, and cross-WU note payload validation become migration
+  targets for CSA's broader zod/execa sweep. Migration targets, not consumer-design-coupled.
+- **Coord Probe** (`plan-coord-probe.md`): this WU's branch-gone cascade invokes coord-probe as one
+  signal source. Loose coupling — cascade ships with hand-rolled fallback (status-file walk +
+  remote-recency only), coord-probe wires in later when it lands.
+- **Agile WU Lifecycle** (`plan-agile-wu-lifecycle.md`): consumes clean activate/integrate workflows
+  post-pointer-field retirement; the tier model's `arc start` command operates on the worktree-aware
+  activation substrate.
+- **Concurrent Work Conventions** (`plan-concurrent-work-conventions.md`): consumes mechanism layer
+  entirely.
 - **ARC Operating Modes:** consumes extracted shift lifecycle as prerequisite, no longer bundled.
 
 ### Recommended sequencing
 
-Session-Operational Flow → Interlock Release Wrappers (WU1 + WU2) → Work Organization Reform
-→ **Worktree Foundation** ‖ Coord Probe → Agile WU Lifecycle → Concurrent Work Conventions.
+Session-Operational Flow → Interlock Release Wrappers (WU1 + WU2) → Work Organization Reform →
+**Worktree Foundation** → (CLI Substrate Adoption ‖ arc-plan Conductor ‖ Coord Probe — pick
+parallel pairs at activation time per file-scope disjoint and cognitive-load match) →
+Agile WU Lifecycle → Concurrent Work Conventions.
 
 ---
 

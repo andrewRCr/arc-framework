@@ -49,19 +49,22 @@ ergonomics, or type utilities:
 4. **Type-utility helpers are scattered or absent.** Bespoke `Promisable`-shaped helpers and
    `SetRequired`-shaped patterns surface in multiple modules; no shared utility surface.
 
-None of these are bugs today. The immediate concrete cost is on Worktree Foundation (next major
-WU after the parallelism trio kickoff): WF will write a `git worktree list --porcelain` parser
-(3 sites), a branch-gone cascade evidence carriage type (discriminated union over multiple signal
-sources), a cold-start spec input parser (5-variant discriminated union), cross-WU note payload
-validation, and worktree-aware additions to the session-init envelope. Doing all of that against
-the existing hand-rolled substrate compounds the problem. Adopting substrate first means WF
-inherits typed parsers and a validated envelope schema; doing it after means WF either invents
-fresh hand-rolled parsers or refactors them later.
-
-These gaps were tractable individually but compound when adjacent: a new feature that needs
-typed validation, better error ergonomics, AND cancellable git invocations touches all four
-substrates at once, multiplying the per-site cost. This WU captures the four selected adoptions
+None of these are bugs today. The compounding cost shows up wherever new validation, error
+ergonomics, AND cancellable git invocations land at once — a new feature touches all four
+substrates simultaneously, multiplying per-site cost. This WU captures the four selected adoptions
 as a coherent substrate pass rather than handling each substrate in its own WU.
+
+Under the 2026-05-20 resequence (WF ahead of CSA), WF's hand-rolled
+`git worktree list --porcelain` parsers (3 sites), branch-gone cascade evidence discriminated
+union, cold-start spec input parser (5 variants), cross-WU note payload validation, and
+worktree-aware additions to the session-init envelope become migration targets for this WU's
+sweep — sites already shipped that CSA modernizes alongside its other priority surfaces. That's
+the typical CSA migration shape (codify a settled shape after it ships), not a design coupling.
+Other downstream consumers — Coord Probe, the architecture-remediation cluster, Schema
+Introspection Layer — inherit substrate as usual.
+
+These gaps were tractable individually but compound when adjacent. The four selected adoptions
+ship coherently here rather than spreading across the consumers.
 
 ---
 
@@ -107,8 +110,9 @@ as a coherent substrate pass rather than handling each substrate in its own WU.
 3. **neverthrow availability and `Probe<T>` conversion.** Add `neverthrow` as production dep:
     - Convert `Probe<T>` (the session-init probe slot type, `{ok, value} | {ok, error}`) to
       `Result<T, ProbeError>`. Strongest neverthrow showcase; agent-visible contract via the
-      session-init envelope; conversion in WU-A means downstream code (WF probes, Coord Probe, the
-      introspection layer in WU-B) inherits `Result` shape directly.
+      session-init envelope; conversion in WU-A migrates WF's already-shipped probes onto the
+      `Result` shape, and downstream code (Coord Probe, the introspection layer in WU-B) builds
+      on it directly.
     - Evaluate `AuthorizationDecision` in the release module for conversion. Today it's a bespoke
       discriminated union with per-code refusal payloads (10–15). Fold into
       `Result<void, AuthorizationRefusal>` with the refusal as the error type, or keep bespoke?
@@ -229,7 +233,7 @@ elaboration.
 
 Effect TS was considered as a comprehensive alternative to the lib-by-lib approach. Not
 selected: its strongest case (structured concurrency via `Effect.forEach` + `Scope`-based
-resource management) does not apply to the planned parallelism trio — Worktree Foundation is
+resource management) does not apply to the agile-parallelism cohort — Worktree Foundation is
 methodology + advisory mechanism, not CLI-orchestrated parallel git operations. Existing CLI
 patterns (release module's `AuthorizationDecision`, session-init's `Probe<T>`) are already
 near-ideal hand-rolled implementations of what Effect would provide at higher cost (learning
@@ -263,19 +267,28 @@ contracts exist). PRD-time confirms; co-located is recommended for locality of r
   shape (R58), lifecycle State enum (4-state model), and field model. WU-A writes zod schemas for
   these things; starting before WOR ships means schemas codify a moving target. Wait for WOR
   integration before WU-A activates.
+- **Worktree Foundation:** Sequencing antecedent (per 2026-05-20 resequence). WF ships first so
+  this WU's sweep targets already-shipped WF sites (parsers, probes, cascade evidence union,
+  spec-input parser) — the typical "codify a settled shape after it ships" migration shape, not
+  a design coupling. Operationally, WF lands first to unlock parallel-WU work across worktrees;
+  this WU then runs as a parallel sibling alongside arc-plan Conductor (post-WF parallel layer).
 
 ### Sibling (parallelizable)
 
-- **arc-plan Conductor.** Potentially parallel. Different file scopes (Conductor touches
-  `.arc/system/workflows/` + skills; WU-A touches `packages/arc-framework/src/`). Pre-WF parallel
-  execution is mechanically possible via manual `git worktree add` but lacks WF's session-init
-  worktree awareness, branch-gone detection, advisory concurrency check — workable-but-rough.
-  Final parallel-vs-sequential call deferred to PRD time; depends on Conductor's ship state when
-  WU-A reaches PRD.
+- **arc-plan Conductor.** Post-WF parallel candidate. Different file scopes (Conductor touches
+  `.arc/system/workflows/` + skills; WU-A touches `packages/arc-framework/src/`). Cognitive-load
+  match favors this pair — Conductor reads as design-heavy (canonical entry verb, depth model,
+  spec-flow contract); WU-A reads as mechanical (zod schema codification of WOR-settled shapes,
+  ~81-site execa sweep, well-defined neverthrow conversion). Design + mechanical pairs cleanly
+  for solo execution. Final parallel-vs-sequential call confirms at PRD time.
+- **Coord Probe.** Post-WF parallel candidate. Lighter design surface than Conductor (adapter
+  contract + mechanical wiring); could also pair with WU-A or with Conductor depending on
+  activation timing.
 
 ### Downstream
 
-- **Worktree Foundation:** Consumes WU-A substrate at multiple sites:
+- **Worktree Foundation migration targets:** WF ships first under the resequence; WU-A migrates
+  the hand-rolled sites alongside its broader sweep:
     - `git worktree list --porcelain` parser (3 sites: branch-gone cascade, activation-time
       concurrency check, cold-start primitive) → zod parser-don't-validate
     - Branch-gone cascade evidence carriage → zod discriminated union over signal sources
@@ -283,9 +296,9 @@ contracts exist). PRD-time confirms; co-located is recommended for locality of r
     - Cold-start spec input parser (5 variants: file pointer / URL / issue link / ARC plan /
       name-plus-description) → zod discriminated union
     - Cross-WU file merge note payloads → zod validation on read
-    - New worktree-aware probe slots added to existing session-init envelope schema → build-time
+    - Worktree-aware probe slots added to the session-init envelope schema → build-time
       validation of slot additions
-    - All git invocations → execa
+    - Git invocations → execa
     - Concurrent push reconcile error handling → execa's typed errors
 - **Coord Probe:** Consumes execa for `gh` CLI invocations (GitHub adapter); zod for `gh` output
   parsing if introduced; neverthrow `Result` for the probe's signal-source results.
@@ -303,19 +316,19 @@ contracts exist). PRD-time confirms; co-located is recommended for locality of r
 ### Recommended sequencing
 
 ```text
-WOR (in progress) ──► WU-A (CLI substrate)         ┐
-                       ‖                            ├ parallel candidates after WOR
-                       arc-plan Conductor           ┘   (PRD-time confirms)
+WOR (in progress) ──► Worktree Foundation
                        │
-                       ├──► WF ‖ Coord Probe
-                       │     │
-                       │     └──► AWL ──► CWC
-                       │                   │
-                       │                   ├──► WU-B (introspection)              ┐
-                       │                   ├──► Lib-Layer Type Extraction         │ post-trio
-                       │                   ├──► Sync Handler Decomposition        │ parallel
-                       │                   ├──► User-Sync Module Split            │ cluster
-                       │                   └──► Complete-Migration follow-up      ┘
+                       ├──► WU-A (CLI substrate)    ┐
+                       ├──► arc-plan Conductor      ├ post-WF parallel candidates
+                       └──► Coord Probe             ┘   (pick pairs by cognitive-load match)
+                       │
+                       └──► AWL ──► CWC
+                                     │
+                                     ├──► WU-B (introspection)              ┐
+                                     ├──► Lib-Layer Type Extraction         │ post-trio
+                                     ├──► Sync Handler Decomposition        │ parallel
+                                     ├──► User-Sync Module Split            │ cluster
+                                     └──► Complete-Migration follow-up      ┘
 ```
 
 ---
@@ -460,9 +473,10 @@ phase 5 if both touch different files. PRD optimizes the phase ordering.
   WU-A; type re-homing scope shrinks.
 - **`plan-sync-handler-decomposition.md`** — Inherits zod schemas for sync envelopes from WU-A.
 - **`plan-user-sync-module-split.md`** — Inherits zod schemas for user-sync state from WU-A.
-- **`plan-worktree-foundation.md`** — Primary downstream beneficiary; consumes substrate across
-  multiple scope items (worktree list parser, branch-gone cascade evidence, cold-start spec input,
-  cross-WU note payloads, envelope additions).
+- **`plan-worktree-foundation.md`** — Sequencing antecedent (per 2026-05-20 resequence); WF
+  ships first and its hand-rolled sites (worktree list parser, branch-gone cascade evidence,
+  cold-start spec input, cross-WU note payloads, envelope additions) become migration targets
+  for this WU's sweep.
 - **`plan-coord-probe.md`** — Consumes execa for `gh` invocations; potential zod consumer for
   adapter output parsing.
 - **`analysis-cli-architecture-solid-dry-audit.md`** — Source audit for the 3 remediation plans;

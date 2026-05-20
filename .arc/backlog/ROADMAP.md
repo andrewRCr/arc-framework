@@ -233,7 +233,8 @@ pending upstream config-validation fixes.
   (adopter ergonomics — setup helper, per-harness detection, status integration, workflow updates,
   strategy doc; ~10-13 sessions). WU2 strictly depends on WU1.
 
-**Work Organization Reform** — In Progress (activated 2026-05-14); upstream of the parallelism trio
+**Work Organization Reform** — In Progress (activated 2026-05-14); upstream of Worktree Foundation
+and the agile-parallelism cohort
 
 Constitutional reform of WU lifecycle conventions: single-branch-per-WU model (planning branch IS
 WU branch through entire lifecycle, no separate planning-PR), Conventional Branch alignment for
@@ -257,30 +258,33 @@ documents the constitutional shift (parallel scale to ADR-016).
 - Upstream: Interlock Release Wrappers WU2 (final session-operations friction closed before
   conventions reform lands), Session-Operational Flow Phase 7 (metadata-state foundation —
   `**State:**` enum consumed; sweep-cadence config lifted into this WU's scope)
-- Downstream: arc-plan Conductor (consumes `meta-*` durable invariant + per-WU subdir convention
-  plus spec-flow scaling hooks; lands canonical planning entry verb before the worktree trio
-  populates its scaling slots), CLI Substrate Adoption (consumes the settled post-WOR meta-file
-  shape + lifecycle State enum for zod schema codification; parallelizable sibling with arc-plan
-  Conductor), Worktree Foundation (per-worktree isolation foundation,
-  cross-worktree roster cascade), Agile WU Lifecycle (consolidated boundary workflows +
-  sweep-as-you-go foundation + spec-flow contract per tier; AWL's scope item 7a shrinks to
-  tier-aware adaptations only), Concurrent Work Conventions (Conventional Branch alignment +
-  per-worktree isolation + group-dir convention as substrate), ARCd Rebrand (stable
-  branch-and-lifecycle terminology), ARC Operating Modes (Lite mode unaffected — single-WU
-  model has no per-worktree concerns)
+- Downstream: Worktree Foundation (per-worktree isolation foundation, cross-worktree roster
+  cascade; ships immediately post-WOR to unlock parallel-WU work across worktrees), CLI Substrate
+  Adoption (consumes the settled post-WOR meta-file shape + lifecycle State enum for zod schema
+  codification; post-WF parallel candidate with arc-plan Conductor and Coord Probe), arc-plan
+  Conductor (consumes `meta-*` durable invariant + per-WU subdir convention plus spec-flow
+  scaling hooks; canonical planning entry verb delegates to WF's already-shipped spawn primitive),
+  Agile WU Lifecycle (consolidated boundary workflows + sweep-as-you-go foundation + spec-flow
+  contract per tier; AWL's scope item 7a shrinks to tier-aware adaptations only), Concurrent Work
+  Conventions (Conventional Branch alignment + per-worktree isolation + group-dir convention as
+  substrate), ARCd Rebrand (stable branch-and-lifecycle terminology), ARC Operating Modes
+  (Lite mode unaffected — single-WU model has no per-worktree concerns)
 
-**CLI Substrate Adoption** — After Work Organization Reform; possibly parallel with arc-plan
-Conductor; before the parallelism trio
+**CLI Substrate Adoption** — After Worktree Foundation; parallelizable with arc-plan Conductor
+and Coord Probe
 
 Introduces four foundational libraries to the CLI (zod, execa, type-fest, neverthrow) and migrates
 priority validation surfaces (session-init envelope, audit log, post-WOR meta-file frontmatter,
 config), executes a full git-invocation sweep through execa (~81 production + ~28 test sites;
 hybrid downgrade reserved for feasibility-failure case), and converts the session-init `Probe<T>`
 shape to neverthrow `Result<T, E>`. Lays the typed-validation and ergonomic-error substrate that
-the parallelism trio (Worktree Foundation specifically) and the post-trio architecture-remediation
-cluster consume. Surfaced 2026-05-17 during a library landscape review of the CLI as accumulated
-validation, error-handling, and git-invocation surfaces outgrew the original minimal-deps
-rationale. Effect TS was considered as a comprehensive alternative and deferred with named
+post-WF parallel siblings (arc-plan Conductor, Coord Probe), the rest of the agile-parallelism
+cohort (AWL, CWC), and the post-trio architecture-remediation cluster consume. WF's hand-rolled
+`git worktree list --porcelain` parsers, probe shapes, and branch-gone cascade evidence union
+become migration targets for the broader sweep rather than design-coupled consumers. Surfaced
+2026-05-17 during a library landscape review of the CLI as accumulated validation,
+error-handling, and git-invocation surfaces outgrew the original minimal-deps rationale.
+Effect TS was considered as a comprehensive alternative and deferred with named
 reconsideration triggers (its strongest case — CLI-orchestrated structured concurrency — does not
 apply to the planned parallelism trio, which is methodology + advisory mechanism; existing
 hand-rolled patterns like release module's `AuthorizationDecision` and session-init's `Probe<T>`
@@ -291,51 +295,57 @@ for sweeping remaining sites post-trio.
 
 - Plan: `technical/plan-cli-substrate-adoption.md` (pre-PRD draft, 2026-05-17)
 - Upstream: Work Organization Reform (meta-file shape per R58, lifecycle State enum, field model —
-  hard dependency; WU-A's zod schemas codify the settled post-WOR shape, not a moving target)
-- Sibling: arc-plan Conductor (parallelizable; different file scopes — Conductor touches
-  workflows and skills, CLI Substrate touches `packages/arc-framework/src/`; final
-  parallel-vs-sequential call at PRD time)
-- Downstream: Worktree Foundation (primary beneficiary — consumes zod schemas for
-  `git worktree list --porcelain` parsing across 3 sites, branch-gone cascade evidence discriminated
-  union, cold-start spec input parser, cross-WU note payload validation; consumes execa for all git
-  invocations including concurrent-push reconcile error handling), Coord Probe (consumes execa for
-  `gh` invocations; potential zod consumer for adapter output parsing), Schema Introspection Layer
-  (hard downstream dependency — post-trio sibling cluster with the 3 architecture-remediation
-  plans), Lib-Layer Type Extraction / Sync Handler Decomposition / User-Sync Module Split (inherit
-  zod schemas + `Result` types; scopes shrink), Complete CLI Substrate Migration follow-up
-  (placeholder; sweeps remaining zod / neverthrow migrations post-trio)
+  hard dependency; WU-A's zod schemas codify the settled post-WOR shape, not a moving target),
+  Worktree Foundation (sequencing antecedent — WF ships first so its hand-rolled parser/probe
+  sites land as migration targets for the sweep)
+- Sibling: arc-plan Conductor, Coord Probe (parallelizable; different file scopes — Conductor
+  touches workflows and skills, Coord Probe adds adapters + `arc coord probe` subcommand, CLI
+  Substrate touches `packages/arc-framework/src/`; final parallel-pair selection at activation
+  time per cognitive-load match)
+- Downstream: Worktree Foundation migration target sites (hand-rolled `git worktree list --porcelain`
+  parsers across 3 sites, branch-gone cascade evidence discriminated union, cold-start spec input
+  parser, cross-WU note payload validation, worktree-aware probe slots — all migrated as part of the
+  broader zod/execa sweep, not designed against), Coord Probe (consumes execa for `gh` invocations;
+  potential zod consumer for adapter output parsing), Schema Introspection Layer (hard downstream
+  dependency — post-trio sibling cluster with the 3 architecture-remediation plans), Lib-Layer Type
+  Extraction / Sync Handler Decomposition / User-Sync Module Split (inherit zod schemas + `Result`
+  types; scopes shrink), Complete CLI Substrate Migration follow-up (placeholder; sweeps remaining
+  zod / neverthrow migrations post-trio)
 
-**arc-plan Conductor** — After Work Organization Reform; before the parallelism trio
+**arc-plan Conductor** — After Worktree Foundation; parallelizable with CLI Substrate Adoption
+and Coord Probe
 
 Promotes `arc-plan` from facilitation skill to canonical planning conductor — single discoverable
 entry verb for planning, depth selection (minimum / standard / expanded), and downstream
-orchestration of planning-branch activation, worktree spawn (when WF lands), and meta-file
-creation across all entry routes. Closes the spec-flow optionality contract WOR explicitly defers
-(per WOR R22b): defines when `plan-*` is required vs optional per mode + tier, when external-origin
-meta-only stubs are sufficient, and how task-list generation verifies against tier-collapsed
-specs. Consumes WOR's `meta-*` invariant plus per-WU subdir convention plus state codification; provides
-scaling hooks the trio populates (AWL fills tier-aware depth defaults and per-tier spec
-requirements; WF fills spawn invocation contract). PRD-time decision pending: land conductor with
-v1 scope (canonical entry verb + depth selection + meta-file creation contract + spec-flow
-routing) and defer v2 (refine-plan-loop, plan-splitting detection, expanded structure) to a
-follow-up, vs ship them together. Plan-doc upstream notes referencing "Interlock Foundation WU
-current planning" need reconciliation against WOR's settled scope at PRD-time.
+orchestration of planning-branch activation, worktree spawn (delegating to WF's already-shipped
+spawn primitive), and meta-file creation across all entry routes. Closes the spec-flow optionality
+contract WOR explicitly defers (per WOR R22b): defines when `plan-*` is required vs optional per
+mode + tier, when external-origin meta-only stubs are sufficient, and how task-list generation
+verifies against tier-collapsed specs. Consumes WOR's `meta-*` invariant plus per-WU subdir
+convention plus state codification, and WF's already-shipped spawn primitive (the canonical entry
+verb delegates to it rather than redefining spawn semantics). Provides scaling hooks AWL populates
+(tier-aware depth defaults and per-tier spec requirements). PRD-time decision pending: land
+conductor with v1 scope (canonical entry verb + depth selection + meta-file creation contract +
+spec-flow routing) and defer v2 (refine-plan-loop, plan-splitting detection, expanded structure)
+to a follow-up, vs ship them together. Plan-doc upstream notes referencing "Interlock Foundation
+WU current planning" need reconciliation against WOR's settled scope at PRD-time.
 
 - Plan: `feature/plan-arc-plan-conductor.md` (pre-PRD draft, 2026-04-10; reframed 2026-04-29 as
-  canonical conductor; sequencing reconciled against WOR 2026-05-13)
+  canonical conductor; sequencing reconciled against WOR 2026-05-13; resequenced as post-WF
+  candidate 2026-05-20)
 - Upstream: Work Organization Reform (meta-* invariant, per-WU subdir convention, State
-  codification, spec-flow scaling hooks via R22a/R22b/R22c)
-- Sibling: parallelizable with Coord Probe (no direct dependency in either direction); also
-  parallelizable with CLI Substrate Adoption (different file scopes — Conductor touches
-  workflows and skills, CLI Substrate touches CLI source; final parallel-vs-sequential call at
-  PRD time)
-- Downstream: Worktree Foundation (conductor invokes spawn at planning entry; spawn contract
-  lands here, conductor consumes it), Agile WU Lifecycle (conductor reads `**Tier:**`; AWL fills
-  per-tier depth defaults + spec-flow contract per tier), Concurrent Work Conventions
-  (planning-entry-aware focus-role conventions on top of canonical conductor), ARCd Rebrand
-  (terminology absorbed into rename pass)
+  codification, spec-flow scaling hooks via R22a/R22b/R22c), Worktree Foundation (spawn primitive
+  the canonical entry verb delegates to — Conductor consumes the operation rather than designing it)
+- Sibling: parallelizable with CLI Substrate Adoption and Coord Probe (no direct dependency in any
+  direction; different file scopes — Conductor touches workflows and skills, CSA touches CLI
+  source, Coord Probe adds adapters; final parallel-pair selection at activation time per
+  cognitive-load match — Conductor reads as design-heavy, CSA as mechanical, Coord Probe as
+  intermediate)
+- Downstream: Agile WU Lifecycle (conductor reads `**Tier:**`; AWL fills per-tier depth defaults +
+  spec-flow contract per tier), Concurrent Work Conventions (planning-entry-aware focus-role
+  conventions on top of canonical conductor), ARCd Rebrand (terminology absorbed into rename pass)
 
-**Worktree Foundation** — After arc-plan Conductor; parallel with Coord Probe
+**Worktree Foundation** — After Work Organization Reform; unlocks the post-WF parallelism layer
 
 Mechanism layer for parallel and mobile work — extracts shift lifecycle from arc-modes (mode-universal
 infrastructure), adds worktree-aware shift, gives session-init worktree context awareness including
@@ -344,20 +354,26 @@ the four pause-pointer fields (`Interrupts:`, `Paused At:`, `Paused To:`, `Spawn
 Carved out from former Work-Unit Mobility WU as the mechanism-only piece — conventions land in
 Concurrent Work Conventions; tier model in Agile WU Lifecycle. Resolves the long-standing concern that
 ROADMAP claims "parallelizable" downstream WUs without ARC actually having parallelism infrastructure.
+Resequenced 2026-05-20 as immediate post-WOR ship: spawn primitive lives with the mechanism layer
+(WF) and Conductor's canonical entry verb delegates to it rather than the inverse; CSA's zod schemas
+migrate WF's hand-rolled parsers as part of its broader sweep rather than designing them in.
 
 - Plan: `technical/plan-worktree-foundation.md` (pre-PRD draft, iteration expected)
 - Upstream: Work Organization Reform (per-worktree isolation foundation, single-branch-per-WU
-  lifecycle, cross-worktree roster cascade — hard dependency), arc-plan Conductor (canonical
-  planning entry verb the spawn flow plugs into; meta-file creation contract spawn consumes),
-  Session-Init Optimization (lean session-init substrate to extend), Session-Operational Flow
-  (avoid session-init workflow surface conflicts)
-- Sibling: Coord Probe (parallelizable; consumes branch-gone fire point as one cascade signal)
-- Downstream: Agile WU Lifecycle (tier-aware adaptations on top of consolidated workflows),
-  Concurrent Work Conventions (mechanism layer entirely), Coord Probe (consumes branch-gone fire
-  point), ARC Operating Modes (extracted shift lifecycle as prerequisite, not bundled), ARCd
-  Rebrand (terminology absorbed)
+  lifecycle, cross-worktree roster cascade — hard dependency), Session-Init Optimization (lean
+  session-init substrate to extend), Session-Operational Flow (avoid session-init workflow surface
+  conflicts)
+- Sibling: [none active — User Sync UX Polish shipped before this WU activates]
+- Downstream: arc-plan Conductor (canonical entry verb delegates to WF's spawn primitive; consumer,
+  not design-coupled), CLI Substrate Adoption (WF's hand-rolled `git worktree list --porcelain`
+  parsers + probe shapes + branch-gone cascade evidence union become migration targets in CSA's
+  broader sweep), Coord Probe (WF's branch-gone cascade invokes coord-probe as one signal source;
+  loose coupling — cascade ships with hand-rolled fallback, coord-probe wires in later), Agile WU
+  Lifecycle (tier-aware adaptations on top of consolidated workflows), Concurrent Work Conventions
+  (mechanism layer entirely), ARC Operating Modes (extracted shift lifecycle as prerequisite, not
+  bundled), ARCd Rebrand (terminology absorbed)
 
-**Coord Probe** — Parallel with User Sync UX Polish and Worktree Foundation (after Session-Operational Flow lands)
+**Coord Probe** — After Worktree Foundation; parallelizable with CLI Substrate Adoption and arc-plan Conductor
 
 Establishes ARC's first external-coordination integration surface — a `coord-probe` method backed
 by a CLI subcommand (`arc coord probe`) and pluggable adapters. Answers "where should I be working"
@@ -370,16 +386,16 @@ detection is straightforward but target resolution at team scale needs a pluggab
 beyond `.arc/active/` walks. Fills the no-behavioral-hook gap on `pm.mode: external`.
 
 - Plan: `technical/plan-coord-probe.md` (pre-PRD draft, iteration expected)
-- Upstream: Session-Init Optimization (lean session-init substrate to extend),
-  Session-Operational Flow (avoid session-init workflow surface conflicts; coord-probe's
-  session-init consumption shouldn't churn the same edits)
-- Sibling: User Sync UX Polish (parallelizable; coord-probe consumes notes-discovery fix from
-  User Sync UX as one signal source — graceful degradation when not yet available),
-  Worktree Foundation (parallelizable; Worktree Foundation's branch-gone detection consumes the
-  probe as one cascade signal)
-- Downstream: Agile WU Lifecycle (downstream of all three first-wave WUs via Worktree Foundation),
-  Concurrent Work Conventions (further downstream), ARCd Rebrand (terminology surface stabilized
-  before rename)
+- Upstream: Worktree Foundation (branch-gone cascade fire point — coord-probe wires in as one
+  signal source after WF ships its cascade with hand-rolled fallback), Session-Init Optimization
+  (lean session-init substrate to extend), Session-Operational Flow (avoid session-init workflow
+  surface conflicts; coord-probe's session-init consumption shouldn't churn the same edits)
+- Sibling: CLI Substrate Adoption, arc-plan Conductor (post-WF parallel candidates — final pair
+  selection at activation time per file-scope disjoint and cognitive-load match; Coord Probe
+  reads as intermediate — adapter contract design plus mechanical wiring)
+- Downstream: Agile WU Lifecycle (downstream via Worktree Foundation's branch-gone cascade
+  consumption), Concurrent Work Conventions (further downstream), ARCd Rebrand (terminology
+  surface stabilized before rename)
 
 **Agile WU Lifecycle** — After Worktree Foundation
 
@@ -522,14 +538,14 @@ Phase A ──► Phase B ──► Phase C (Work Units):
    │     │     │     │     │     │     │     │     │     │
    │     │     │     │     │     │     │     │     │     ├──► Work Organization Reform (per-worktree isolation foundation; meta-* durable invariant)
    │     │     │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     │     │     ├──► CLI Substrate Adoption ‖ arc-plan Conductor (after WOR; before trio)
+   │     │     │     │     │     │     │     │     │     ├──► Worktree Foundation (mechanism layer; unlocks post-WF parallelism)
    │     │     │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     │     │     ├──► Coord Probe (parallel; consumes notes-discovery from User Sync UX)
+   │     │     │     │     │     │     │     │     │     ├──► CLI Substrate Adoption ‖ arc-plan Conductor ‖ Coord Probe
+   │     │     │     │     │     │     │     │     │     │      (post-WF parallel candidates — pick pairs by file-scope disjoint and cognitive-load match)
    │     │     │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     │     │     ├──► Parallelism trio (after CLI Substrate Adoption + arc-plan Conductor):
-   │     │     │     │     │     │     │     │     │     │      • Worktree Foundation
-   │     │     │     │     │     │     │     │     │     │      • Agile WU Lifecycle (after Worktree Foundation)
-   │     │     │     │     │     │     │     │     │     │      • Concurrent Work Conventions (after Agile WU Lifecycle)
+   │     │     │     │     │     │     │     │     │     ├──► Agile WU Lifecycle (after the post-WF parallel layer settles)
+   │     │     │     │     │     │     │     │     │     │
+   │     │     │     │     │     │     │     │     │     ├──► Concurrent Work Conventions (after Agile WU Lifecycle)
    │     │     │     │     │     │     │     │     │     │
    │     │     │     │     │     │     │     │     │     └──► Post-Parallelism Trio: Sequencing TBD
    │     │     │     │     │     │     │     │     │            (plan-roadmap-evolution activates here)
@@ -578,6 +594,31 @@ Phase A ──► Phase B ──► Phase C (Work Units):
 ---
 
 ## Change Log
+
+- **2026-05-20**: Resequenced Worktree Foundation as immediate post-WOR ship, ahead of CLI
+  Substrate Adoption and arc-plan Conductor. Surfaced during pre-PRD exploration on fast-tracking
+  worktree support for in-repo dogfood parallelism. The original sequencing (WOR → CSA ‖ Conductor
+  → WF) treated CSA/Conductor as upstream of WF because Conductor's canonical planning entry verb
+  would invoke WF's spawn, and CSA's zod schemas would feed WF's `git worktree list --porcelain`
+  parsers. Both are convenience couplings, not correctness gates: spawn primitive lives with the
+  mechanism layer (WF) and Conductor's entry verb delegates to it; CSA's schemas migrate WF's
+  hand-rolled parsers as part of its broader sweep rather than designing them in. Resequencing
+  isolates Conductor's design-pit risk (canonical-entry-verb + depth-selection + spec-flow
+  contract design is judgment-heavy and prone to scope evolution) from the parallelism unlock —
+  Conductor scope drift now affects only Conductor + its downstream consumers (AWL tier-orchestration
+  integration, CWC focus-role layer), not the immediate post-WOR throughput unlock. Also surfaces
+  a refined WIP heuristic: parallelism limits depend on cognitive-load type, not raw WU count —
+  design-heavy + mechanical pairs work; two design-heavy WUs in parallel compete for scarce design
+  attention. CSA reads as mechanical (zod schema codification of WOR-settled shapes, ~81-site
+  execa sweep, well-defined neverthrow conversion); Conductor reads as design-heavy; Coord Probe
+  as intermediate. CSA ‖ Conductor is the canonical post-WF parallel pair.
+
+    Updated sequencing: WOR → **Worktree Foundation** → (CLI Substrate Adoption ‖ arc-plan
+    Conductor ‖ Coord Probe — pick parallel pairs by file-scope disjoint and cognitive-load
+    match) → Agile WU Lifecycle → Concurrent Work Conventions → Post-Parallelism Trio cluster.
+    Phase C narrative, dependency tree, and affected plan-docs (`plan-worktree-foundation.md`,
+    `plan-cli-substrate-adoption.md`, `plan-arc-plan-conductor.md`, `plan-coord-probe.md`,
+    `plan-agile-wu-lifecycle.md`) updated to match.
 
 - **2026-05-17**: Two plan-doc additions captured during a library landscape review of the CLI
   motivated by accumulated validation, error-handling, and git-invocation surfaces outgrowing the

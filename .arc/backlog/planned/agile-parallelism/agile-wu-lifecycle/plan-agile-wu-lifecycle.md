@@ -368,8 +368,12 @@ workflow narrowed under WOR to the canonical planning-life-phase flow only.
 
 ### Recommended sequencing
 
-Work Organization Reform → Worktree Foundation → **Agile WU Lifecycle** →
-Concurrent Work Conventions.
+Work Organization Reform → Worktree Foundation → (CLI Substrate Adoption ‖ arc-plan Conductor ‖
+Coord Probe — post-WF parallel candidates) → **Agile WU Lifecycle** → Concurrent Work Conventions.
+Per 2026-05-20 resequence, this WU sequences after the post-WF parallel layer settles; benefits
+especially from arc-plan Conductor's tier-aware orchestration integration if Conductor ships
+first, but degrades gracefully if not (Conductor defaults to standard-tier behavior until this
+WU's `**Tier:**` field exists).
 
 ---
 

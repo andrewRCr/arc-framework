@@ -196,18 +196,26 @@ current benefit.
   refspec configured); coord-probe inherits it for branch-gone signal coverage and any cross-machine
   adapter test rather than re-extracting.
 
+### Upstream-by-sequence (added 2026-05-20)
+
+- **Worktree Foundation** (`plan-worktree-foundation.md`). Per the 2026-05-20 resequence, WF ships
+  first with a hand-rolled branch-gone cascade fallback (status-file walk + remote-recency only).
+  This WU wires coord-probe in as one cascade signal source after WF lands. WF's cascade design
+  already absorbed coord-probe as a future input; this WU realizes that input. Loose coupling on
+  the WF side (WF doesn't require coord-probe to ship); for this WU, WF's cascade fire point is
+  the consumption surface.
+
 ### Downstream
 
-- **Worktree Foundation** (`plan-worktree-foundation.md`). Consumes coord-probe at branch-gone detection.
-  Worktree Foundation's session-init worktree-awareness scope absorbs the cascade design that
-  includes coord-probe as one input; Worktree Foundation can ship without coord-probe but degrades
-  to status-file-walk + remote-recency only (loses team-scale signal).
+- (Coord-probe is consumed by Worktree Foundation's branch-gone cascade; under the resequence WF
+  ships first and this WU's adapter output wires into WF's existing cascade.)
 
 ### Recommended sequencing
 
-`plan-session-operational-flow.md` (frame) → **Coord Probe** ‖ `prd-user-sync-ux.md` ‖
-`plan-worktree-foundation.md` (three parallel) → `plan-agile-wu-lifecycle.md` →
-`plan-concurrent-work-conventions.md`.
+`plan-session-operational-flow.md` (frame) → Work Organization Reform → Worktree Foundation →
+**Coord Probe** ‖ `plan-cli-substrate-adoption.md` ‖ `plan-arc-plan-conductor.md` (post-WF parallel
+candidates — pick pairs at activation time per file-scope disjoint and cognitive-load match) →
+`plan-agile-wu-lifecycle.md` → `plan-concurrent-work-conventions.md`.
 
 ---
 

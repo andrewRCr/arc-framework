@@ -64,8 +64,9 @@ Conductor-WU implications of the rename (substantive content captured here, not 
   active-surface scope creates the status file at planning-branch activation, but no equivalent
   ceremony fires under partial protection or any path that bypasses planning-branch activation.
   `arc-plan` is the natural canonical invocation that closes the gap, while also providing the
-  orchestration layer that downstream WUs (`plan-worktree-foundation.md`, `plan-agile-wu-lifecycle.md`)
-  consume.
+  orchestration layer that delegates to upstream WF's spawn primitive (per 2026-05-20 resequence,
+  WF ships before this WU) and that downstream `plan-agile-wu-lifecycle.md` populates with
+  tier-aware depth defaults.
 
 > **Cross-plan note:** Pointer references in this document use the per-WU `status-{name}.md` model
 > (Work-Status Restructure WU, shipped). Under `plan-completion-status-consolidation.md` the
@@ -1196,19 +1197,24 @@ planning-life-phase flow only.
 
 ### Downstream
 
-- **`plan-worktree-foundation.md`:** conductor invokes spawn-vs-continue when planning warrants its
-  own worktree. Conductor doesn't redefine spawn semantics — calls into the canonical operation
-  worktree-foundation establishes. Conductor ships before or after worktree-foundation; if before,
-  worktree integration is a subsequent enhancement.
 - **`plan-agile-wu-lifecycle.md`:** conductor reads `**Tier:**` field for tier-aware orchestration
   (atomic skips, quick defaults to minimum, standard supports all depths). Until agile-wu-lifecycle
   lands the field, conductor defaults to standard-tier behavior.
 
+### Upstream-by-sequence (added 2026-05-20)
+
+- **`plan-worktree-foundation.md`:** sequencing antecedent. Conductor invokes spawn-vs-continue
+  when planning warrants its own worktree but doesn't redefine spawn semantics — calls into
+  whatever spawn primitive WF ships. Under the resequence, WF ships first so the spawn primitive
+  is available when this WU activates.
+
 ### Recommended sequencing
 
-Interlock Foundation (WU-A of `plan-session-operational-flow.md`) → **arc-plan Conductor** ‖
-Worktree Foundation ‖ Agile WU Lifecycle. Conductor is parallelizable with the worktree and
-tier-model work; integration happens incrementally as those land.
+Interlock Foundation (WU-A of `plan-session-operational-flow.md`) → Work Organization Reform →
+Worktree Foundation → **arc-plan Conductor** ‖ CLI Substrate Adoption ‖ Coord Probe (post-WF
+parallel candidates) → Agile WU Lifecycle → Concurrent Work Conventions. Final parallel-pair
+selection at activation time per file-scope disjoint and cognitive-load match — Conductor reads
+as design-heavy, CSA as mechanical, Coord Probe as intermediate.
 
 ---
 
