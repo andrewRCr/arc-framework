@@ -6,6 +6,7 @@
 - Pressure points (depth beyond PRD Open Questions)
 - Open design questions (surfaced during Pass 3; pending resolution)
 - Migration mapping reference
+- Phase 6.4 backlog routing worksheet
 
 ---
 
@@ -796,3 +797,130 @@ Grep across workflows, strategies, rules, briefs, and templates for these patter
 - Retired template/strategy/plan refs: `template-completion-doc.md`, `PROJECT-STATUS.md`,
   `plan-roadmap-evolution.md`, `plan-completion-status-consolidation.md`
 - Lazy scope-tag example: `docs(arc):` (in commit-format method examples, etc.)
+
+---
+
+## Phase 6.4 Backlog Routing Worksheet
+
+Inventory built at 6.4.a (commit baseline `e9cc41e9`). Consumed by 6.4.b for interactive routing
+decisions, 6.4.c for metadata backfill, 6.4.d for file moves + meta-file generation. Source pass:
+`ls -la .arc/backlog/feature/ .arc/backlog/technical/` × ROADMAP `Plan:` filename references.
+
+### Inventory totals
+
+- `backlog/feature/`: 6 plan-docs (no companions)
+- `backlog/technical/`: 27 plan-docs + 2 backlog-stage PRDs + 2 `notes-*` companions
+- Total distinct WUs: **35** (29 in `technical/`, 6 in `feature/`)
+- Backlog-stage PRDs (demote-flagged): `prd-arcd-rebrand.md`, `prd-arcd-docs-site.md`
+- WU rename: `arcd-docs-site` → `docs-site-refresh` (paired with PRD demotion)
+- Companion types found: `notes-*` only. No `tasks-*` / `atomic-*` / `research-*` / `analysis-*`
+  companions in backlog.
+
+### Routing rule recap
+
+- On ROADMAP (current filename or post-demotion filename referenced) → `planned/`
+- Not on ROADMAP → `provisional/`
+- Codified cohort → `{commitment}/{cohort}/{wu-name}/`; standalone → `{commitment}/{wu-name}/`
+- "Borderline" rows flag plans where 6.4.b needs explicit user confirmation before file moves
+
+### Cohort candidates
+
+- **`parallelism-trio`** (codified in ROADMAP + PRD R21 + 6.4.b task description):
+  worktree-foundation, agile-wu-lifecycle, concurrent-work-conventions
+- **`architecture-remediation`** (provisional cohort candidate — ROADMAP calls them "parallel
+  candidates after worktree infrastructure lands" but does not codify a cohort name; 6.4.b
+  decision): lib-layer-type-extraction, sync-handler-decomposition, user-sync-module-split,
+  schema-introspection-layer
+
+### Worksheet — `backlog/feature/` (6 WUs)
+
+| WU name                     | Companions | RM | Cohort | Proposed target                                         | D | R |
+|-----------------------------|------------|----|--------|---------------------------------------------------------|---|---|
+| arc-backend                 | —          | n  | —      | `provisional/arc-backend/`                              | n | n |
+| arc-modes                   | —          | y  | —      | `planned/arc-modes/`                                    | n | n |
+| arc-plan-conductor          | —          | y  | —      | `planned/arc-plan-conductor/`                           | n | n |
+| concurrent-work-conventions | —          | y  | pt     | `planned/parallelism-trio/concurrent-work-conventions/` | n | n |
+| post-release-methodology    | —          | n  | —      | `provisional/post-release-methodology/`                 | n | n |
+| wu5-public-release          | —          | y  | —      | `planned/wu5-public-release/`                           | n | n |
+
+### Worksheet — `backlog/technical/` (29 WUs)
+
+Column abbreviations: `RM` = ROADMAP-inclusion (y / n / borderline); `Cohort` = `pt` (parallelism-trio) /
+`ar?` (architecture-remediation, codification pending) / `—` (standalone); `D` / `R` = demote-PRD / rename flags.
+
+| WU name (current → new)            | Companions                    | RM  | Cohort | Proposed target                                                | D | R |
+|------------------------------------|-------------------------------|-----|--------|----------------------------------------------------------------|---|---|
+| agile-wu-lifecycle                 | —                             | y   | pt     | `planned/parallelism-trio/agile-wu-lifecycle/`                 | n | n |
+| arc-reinforce                      | —                             | n   | —      | `provisional/arc-reinforce/`                                   | n | n |
+| arcd-docs-site → docs-site-refresh | —                             | b   | —      | `planned/docs-site-refresh/`                                   | y | y |
+| arcd-rebrand                       | `notes-arcd-rebrand.md`       | y\* | —      | `provisional/arcd-rebrand/`                                    | y | n |
+| cli-substrate-adoption             | —                             | y   | —      | `planned/cli-substrate-adoption/`                              | n | n |
+| commit-increments                  | —                             | n   | —      | `provisional/commit-increments/`                               | n | n |
+| completion-status-consolidation    | —                             | n   | —      | `provisional/completion-status-consolidation/`                 | n | n |
+| config-storage-architecture        | —                             | n   | —      | `provisional/config-storage-architecture/`                     | n | n |
+| contributor-path                   | —                             | n   | —      | `provisional/contributor-path/`                                | n | n |
+| coord-probe                        | —                             | y   | —      | `planned/coord-probe/`                                         | n | n |
+| cross-machine-sync-coherence       | —                             | n   | —      | `provisional/cross-machine-sync-coherence/`                    | n | n |
+| customization-architecture         | —                             | n   | —      | `provisional/customization-architecture/`                      | n | n |
+| docs-content-sweep                 | `notes-docs-content-sweep.md` | n   | —      | `provisional/docs-content-sweep/`                              | n | n |
+| handoff-optimization               | —                             | n   | —      | `provisional/handoff-optimization/`                            | n | n |
+| instruction-optimization           | —                             | n   | —      | `provisional/instruction-optimization/`                        | n | n |
+| interlock-release-refinement       | —                             | n   | —      | `provisional/interlock-release-refinement/`                    | n | n |
+| lib-layer-type-extraction          | —                             | y   | ar?    | `planned/architecture-remediation/lib-layer-type-extraction/`  | n | n |
+| meta-file-tracking-model           | —                             | n   | —      | `provisional/meta-file-tracking-model/`                        | n | n |
+| quality-gate-hooks                 | —                             | y   | —      | `planned/quality-gate-hooks/`                                  | n | n |
+| release-lifecycle                  | —                             | n   | —      | `provisional/release-lifecycle/`                               | n | n |
+| review-method-family               | —                             | n   | —      | `provisional/review-method-family/`                            | n | n |
+| roadmap-evolution                  | —                             | y   | —      | `planned/roadmap-evolution/`                                   | n | n |
+| schema-introspection-layer         | —                             | y   | ar?    | `planned/architecture-remediation/schema-introspection-layer/` | n | n |
+| sync-handler-decomposition         | —                             | y   | ar?    | `planned/architecture-remediation/sync-handler-decomposition/` | n | n |
+| user-sync-module-split             | —                             | y   | ar?    | `planned/architecture-remediation/user-sync-module-split/`     | n | n |
+| workflow-template-loads            | —                             | n   | —      | `provisional/workflow-template-loads/`                         | n | n |
+| worktree-foundation                | —                             | y   | pt     | `planned/parallelism-trio/worktree-foundation/`                | n | n |
+
+\* `arcd-rebrand` is on ROADMAP under the post-demotion plan-doc filename (`plan-arcd-rebrand.md`),
+but 6.4 task description routes it `provisional/` regardless — see borderline notes below.
+
+### Borderline / user-confirmation rows (for 6.4.b)
+
+- **arcd-rebrand** — ROADMAP lists "ARCd Rebrand" in the Post-Parallelism Trio section under the
+  post-demotion plan-doc filename (`plan-arcd-rebrand.md`), but 6.4 task description says
+  "rebrand is no longer committed; routes to provisional". Trumping ROADMAP-yes with explicit
+  6.4-time provisional routing → ROADMAP update is a 6.4.b ripple. User confirms.
+- **arcd-docs-site → docs-site-refresh** — No ROADMAP entry under either current or proposed
+  name. WU5 Public Release scope mentions "Docs site (MkDocs Material + GitHub Pages)" as
+  WU5-internal; this WU is being split out and routed `planned/docs-site-refresh/` per 6.4 task
+  description ("docs-site work remains committed; routes to planned"). User confirms.
+- **arc-backend** — Listed in 6.4.b's borderline-plans guidance ("arc-rebrand, arc-backend, other
+  not-yet-sequenced items"). Not in ROADMAP. Default routing per rule: provisional. User confirms.
+- **`architecture-remediation` cohort** (lib-layer-type-extraction, sync-handler-decomposition,
+  user-sync-module-split, schema-introspection-layer) — ROADMAP groups them as "parallel
+  candidates after worktree infrastructure lands" + lists schema-introspection as a
+  "sibling parallel candidate with the architecture-remediation cluster". No formal cohort name
+  codified. 6.4.b decision: codify the cohort and apply group-dir wrapping, or leave them as
+  standalone planned WUs.
+- **wu5-public-release** — Listed as "stub" in ROADMAP. Routes `planned/` mechanically; no
+  borderline flag needed but noted for awareness.
+
+### ROADMAP ripple notes (for 6.4.b)
+
+- Post-routing, ROADMAP plan-doc filenames update to per-WU-subdir paths
+  (`backlog/{commitment}/<wu-name>/plan-<wu-name>.md`).
+- arcd-rebrand: ROADMAP "ARCd Rebrand" entry's plan-doc reference updates from
+  `technical/plan-arcd-rebrand.md` to `backlog/provisional/arcd-rebrand/plan-arcd-rebrand.md`.
+  Rebrand entry's positioning in the Post-Parallelism Trio section may need re-framing per
+  provisional routing — flag for 6.4.b user decision.
+- arcd-docs-site → docs-site-refresh: new ROADMAP entry needed (or existing implicit-in-WU5 scope
+  promotes to standalone). 6.4.b user decision.
+- arc-plan-conductor + concurrent-work-conventions: live in `feature/` today, ROADMAP references
+  carry `feature/` prefix. After routing to `planned/{...}/`, ROADMAP refs update.
+
+### Verification
+
+- Enumeration cross-checked against directory listing (`ls -la`) — 35 WUs accounted for, 0 stray
+  files unflagged.
+- Companion-type sweep (`plan-* / prd-* / notes-* / tasks-* / atomic-* / research-* / analysis-*`)
+  found only `plan-*`, `prd-*`, `notes-*` in backlog. No `tasks-*` etc. expected — backlog WUs
+  are pre-activation; task lists are activation artifacts.
+- Two flagged PRDs (`prd-arcd-rebrand.md`, `prd-arcd-docs-site.md`) confirmed present.
+- WU rename target (`docs-site-refresh`) confirmed against PRD R51 framing + 6.4 task description.

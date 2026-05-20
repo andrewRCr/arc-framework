@@ -2906,14 +2906,22 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
       `notes-work-organization-reform.md` § Backlog-stage PRDs are anomalous for downstream capture (likely arc-plan
       Conductor PRD scope).
 
-    - `[ ]` **6.4.a Inventory existing `backlog/feature/` + `backlog/technical/` contents**
-        - List all WU artifacts. Companion types to inventory: `plan-*.md`, `prd-*.md`, `notes-*.md`, `tasks-*.md`,
-          `atomic-*.md`, `research-*.md`, `analysis-*.md`. Verify the enumeration against actual `backlog/feature/` and
-          `backlog/technical/` contents before routing.
-        - Flag the two backlog-stage PRDs (`prd-arcd-rebrand.md`, `prd-arcd-docs-site.md`) for demotion + the docs-site
-          PRD for WU rename to `docs-site-refresh`.
-        - Output: a routing worksheet (per-WU rows: name / current path / companions / ROADMAP-inclusion /
-          cohort-candidate / target path / demote-PRD-flag / rename-flag).
+    - `[x]` **6.4.a Inventory existing `backlog/feature/` + `backlog/technical/` contents**
+        - 35 WUs inventoried: 6 in `backlog/feature/` (all plan-docs, no companions); 29 in `backlog/technical/`
+          (27 plan-docs + 2 backlog-stage PRDs + 2 `notes-*` companions). Companion-type sweep across the seven
+          codified types (`plan-* / prd-* / notes-* / tasks-* / atomic-* / research-* / analysis-*`) confirmed only
+          `plan-*`, `prd-*`, and `notes-*` present in backlog — pre-activation state, as expected.
+        - Flagged the two backlog-stage PRDs: `prd-arcd-rebrand.md` (demote → `plan-arcd-rebrand.md`; 6.4 spec
+          routes `provisional/` despite ROADMAP entry under post-demotion name); `prd-arcd-docs-site.md` (demote →
+          `plan-docs-site-refresh.md` paired with WU rename `arcd-docs-site` → `docs-site-refresh`; 6.4 spec routes
+          `planned/`).
+        - Worksheet committed at `notes-work-organization-reform.md` § Phase 6.4 Backlog Routing Worksheet — per-WU
+          rows with all 8 columns (name / location / companions / ROADMAP-inclusion / cohort-candidate / proposed
+          target / demote-PRD-flag / rename-flag), plus borderline rows requiring 6.4.b user confirmation
+          (arcd-rebrand, arcd-docs-site → docs-site-refresh, arc-backend, architecture-remediation cohort
+          codification decision) and ROADMAP ripple notes for 6.4.b. Cohort candidates surfaced: `parallelism-trio`
+          (codified — worktree-foundation + agile-wu-lifecycle + concurrent-work-conventions) and
+          `architecture-remediation` (provisional candidate — 6.4.b decision).
 
     - `[ ]` **6.4.b Per-WU routing decisions + PRD demotion + WU rename (interactive)**
         - **Routing rule:** on ROADMAP → `planned/`; not on ROADMAP → `provisional/`. Borderline plans (arc-rebrand,
