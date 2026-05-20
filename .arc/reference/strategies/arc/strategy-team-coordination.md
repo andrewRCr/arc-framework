@@ -20,7 +20,7 @@ protection modes). This strategy layers team-specific patterns on top of that fo
 
 **Note on validation scope:** Team-mode conventions are designed against the dev+agent-pair
 governance model intended to scale across team sizes. Active validation to date has been solo-dev;
-team patterns will be refined as adopters exercise them at scale. Treat the patterns below as a
+team patterns will be refined as projects exercise them at scale. Treat the patterns below as a
 deliberate starting point, not a settled standard. Field feedback on what works and what doesn't
 shapes the framework's evolution.
 
@@ -366,7 +366,7 @@ Mechanisms:
 
 - **Out-of-band coordination (default):** Discuss the dependency at planning time — Slack, standup,
   or direct conversation. This is the modal answer for inter-WU planning concurrency across
-  agentic-coding practice and remains the recommended default for ARC team adopters.
+  agentic-coding practice and remains the recommended default for ARC teams.
 - **Cross-branch reads:** `git show <branch>:<path>` retrieves a file from any branch without
   checkout. Useful for ad-hoc reference but ergonomically rough as a steady-state pattern.
 - **Explicit sequencing:** If a WU pair's coupling is tight enough that planning-state drift would

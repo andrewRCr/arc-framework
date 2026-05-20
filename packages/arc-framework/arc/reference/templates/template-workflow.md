@@ -13,7 +13,7 @@ Template for workflow documents.
 
 Destinations:
 - Framework: system/workflows/arc/{category}/{name}.md (framework contributors)
-- Project:   system/workflows/project/{name}.md (adopter-authored)
+- Project:   system/workflows/project/{name}.md (project-authored)
 
 Reference: strategy-workflow-authoring.md — full schema, author-side declaration rule,
            body conventions.

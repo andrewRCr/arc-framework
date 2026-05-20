@@ -37,7 +37,7 @@ configurability model, see [Configurability Architecture Strategy][config-arch].
 ## Extension Points
 
 Sorted by workflow lifecycle order — when each extension fires across a session. Alphabetical ordering doesn't
-answer the adopter question "when should my extension fire?"; lifecycle ordering does.
+answer the question "when should my extension fire?"; lifecycle ordering does.
 
 | Extension               | Workflow                          | Fires                            | Purpose                                   |
 |-------------------------|-----------------------------------|----------------------------------|-------------------------------------------|

@@ -3412,23 +3412,18 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           on `maintain-project-docs.md` line 20 (126 chars pre-edit; 129 post-rename); wrapped in pair.
           83/83 affected tests pass; markdown lint zero violations.
 
-    - `[ ]` **6.7.l Audience-vocabulary sweep: "adopter" → neutral framing**
-        - Replace "adopter" references in adopter-facing surfaces with neutral framing — "projects", "teams", or
-          actor-omitted phrasing as context fits. Rationale: "adopter" is framework-author perspective on the reader;
-          from the reader's viewpoint they're just running a project, not "adopting" something. Surfaced mid-Task-2.10
-          execution; small fold-in handled there for `strategy-file-classification.md` + two leftover phrases in
-          `strategy-work-organization.md`. 6.7.l sweeps the remaining surface.
-        - Grep pattern: `\badopter\b` (case-insensitive).
-        - Surface (adopter-facing only): `strategy-team-coordination.md`,
-          `system/workflows/arc/supplemental/setup-release-wrapper.md`, `system/extensions/README.md`,
-          `reference/templates/template-workflow.md`, `reference/QUICK-REFERENCE.md`. Touch points already addressed by
-          upstream tasks: `strategy-file-classification.md` (Task 2.10.f), `strategy-work-organization.md` (Task 2.10
-          mid-execution fold-in: lines 39 + 48 vocabulary cleanup).
-        - **Exclusion:** internal-dev-facing surfaces keep "adopter" — `reference/strategies/project/**`,
-          `DEV-RULES.PROJECT.md`, ADRs, internal WU notes / plans / PRDs all describe adopters from the framework-author
-          lens; that's their audience. Two-copy sync still required for adopter-facing surfaces.
-        - Post-sweep verification: grep on adopter-facing surface list returns empty (with the package-source mirror
-          checked alongside `.arc/`).
+    - `[x]` **6.7.l Audience-vocabulary sweep: "adopter" → neutral framing**
+        - _Outcome:_ 7 hits resolved across 6 adopter-facing surfaces — 5 symmetric (`strategy-team-coordination.md`
+          ×2, `setup-release-wrapper.md`, `system/extensions/README.md`, `template-workflow.md`, `template-meta.md`,
+          all both-copies byte-identical) plus package-source `STRATEGY-INDEX.md` (ships as-is, `.arc/` is this
+          project's internal-dev instance and was already clean). Replacements chose context-appropriate framing:
+          actor-omitted for workflow / extension prose ("the question", "project-authored"); "projects" / "teams" for
+          actor-specific cases; "stability contracts" for the technical term in `template-meta.md`. **Classification
+          correction landed in the task description itself:** `.arc/`-populated Configurable instances
+          (`reference/TECHNICAL-OVERVIEW.md`, `reference/QUICK-REFERENCE.md`, `.arc/reference/strategies/STRATEGY-INDEX.md`)
+          contain `\badopter\b` hits but are internal-dev — adopters get the package-source `.template.md` (or
+          ships-as-is package source for STRATEGY-INDEX), which is clean. Audit also surfaced two surface-list gaps
+          (`template-meta.md`, package-source `STRATEGY-INDEX.md`) folded in before the sweep ran.
 
     - `[ ]` **6.7.m `archive.cadence` enum cleanup (`strategy-work-organization.md` § Archival)**
         - `strategy-work-organization.md` § Archival § Sweep-as-you-go default currently enumerates three

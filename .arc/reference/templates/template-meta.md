@@ -58,7 +58,7 @@
   - `## Release Notes Entry` — one-paragraph user-facing summary plus
     categorized lines per the 7-category Keep a Changelog set: Added,
     Changed, Removed, Fixed, Infrastructure, Deprecated, Security. Optional
-    "Breaking Changes" callout flags lines that break adopter contracts.
+    "Breaking Changes" callout flags lines that break stability contracts.
     Edits after `Shipped` are errata only; git history is the lock; no
     mechanical enforcement (matches Keep a Changelog norms).
   - `## Completion Notes` — narrative summary of what shipped.
