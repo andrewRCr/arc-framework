@@ -3539,33 +3539,48 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           byte-identical between `.arc/` and `packages/arc-framework/arc/`; Tier 1 lint clean; per-file
           `validate-links.sh` clean on all 18 changed surfaces.
 
-### `[ ]` **6.8 Slim instance-file preambles (SESSION-NOTES + USER-INBOX + BACKLOG-INBOX + backlog/ATOMIC-INBOX)**
+### `[x]` **6.8 Slim instance-file preambles (SESSION-NOTES + USER-INBOX + BACKLOG-INBOX + backlog/ATOMIC-INBOX)**
 
 - _Goal:_ Existing instance files in this repo strip preamble blocks ("About this file" / Lifecycle / Portability /
   Writing-guide) per R59 — files become content-only, matching meta-file convention. Authoritative orientation lives in
   strategy docs + workflows. CLI seeding update (5.3) prevents new instances from regrowing preamble.
 
-    - _Note:_ This migration runs after 5.3 (CLI strip) and 6.3 (capture pipeline rename — USER-INBOX from
-      ATOMIC-INBOX); otherwise the migration target file may not exist yet.
+    - `[x]` **6.8.a Align `user/{identity}/SESSION-NOTES.md` to R59 pointer shape**
+        - Inserted R59 1-line pointer between `# Session Notes` H1 and `## Handoff Metadata` in
+          `.arc/user/andrew/work-organization-reform/SESSION-NOTES.md`, matching the codified template
+          shape at `packages/arc-framework/templates/user/SESSION-NOTES.md` (pointer landed at `cb582bcc`).
+          Original premise (strip preamble entirely, H1→H2 direct) superseded by R59's refined shape —
+          minimal anchoring pointer over wholesale stripping. Audit: file now opens H1 → 2-line italic
+          blockquote pointer → `## Handoff Metadata` H2.
 
-    - `[ ]` **6.8.a Slim `user/{identity}/SESSION-NOTES.md`**
-        - Remove preamble blockquote ("About this file" / Lifecycle / Portability / Writing guide). Retain content H2s
-          (`## Handoff Metadata`, `## Uncommitted Work`, etc.). Slim audit: file starts with `# Session Notes` H1
-          immediately followed by content H2s.
+    - `[x]` **6.8.b Slim `user/{identity}/USER-INBOX.md` (post-6.3 rename)**
+        - Already aligned during Task 6.3.a USER-INBOX rename + template-italicization pass at
+          `e45d39d7`. Live `.arc/user/andrew/USER-INBOX.md` carries the R59 3-line pointer matching
+          `packages/arc-framework/templates/user/USER-INBOX.md` byte-for-byte. No further action.
 
-    - `[ ]` **6.8.b Slim `user/{identity}/USER-INBOX.md` (post-6.3 rename)**
-        - Remove any preamble injected from prior ATOMIC-INBOX file. Retain `## Atomic` and `## Backlog` content H2s.
+    - `[x]` **6.8.c Audit workflow seeding for preamble strings (`session-handoff.md`)**
+        - Subsumed by Task 5.3.a audit: seeding is verbatim template-copy via `lib/setup.ts:77` +
+          `commands/user/add.ts:26`, not in-code injection — zero preamble strings in `src/lib/`.
+          Workflow bodies don't inject preamble at seed sites. Regression test at
+          `__tests__/integration/init.test.ts` (added in `21787ced`) asserts seeded SESSION-NOTES
+          lacks the four preamble label strings, preventing reintroduction.
 
-    - `[ ]` **6.8.c Audit workflow seeding for preamble strings (`session-handoff.md`)**
-        - Grep workflows for embedded preamble strings (the "About this file" blockquote pattern, the "Writing guide"
-          pointer). Update workflow bodies to omit preamble injection when seeding SESSION-NOTES / USER-INBOX.
-          Cross-check against 5.3's CLI changes for consistency.
+    - `[x]` **6.8.d Verify orientation coverage in authoritative docs**
+        - R59a orientation precondition verified 2026-05-14 (per PRD § R59a + note 33). Strategy
+          content (`strategy-session-operations.md` § SESSION-NOTES + Working Memory;
+          `strategy-planning-module.md` § Inbox Family) landed in Phase 2 before Phase 6's
+          instance-file shape migration fired. Pointers across SESSION-NOTES / WORKING-MEMORY /
+          USER-INBOX / backlog inbox templates resolve to live sections — no gaps.
 
-    - `[ ]` **6.8.d Verify orientation coverage in authoritative docs**
-        - Spot-check `strategy-session-operations.md` for SESSION-NOTES orientation content (purpose, lifecycle,
-          portability, writing guide); spot-check `strategy-planning-module.md` for inbox orientation content. If gaps
-          exist, route to inbox for follow-up (not WOR scope to author new strategy content; this verifies existing
-          coverage is sufficient).
+- _Outcome:_ R59 shape alignment substantially landed across Phases 2-6 rather than concentrated in 6.8 —
+  Goal's "files become content-only" premise superseded by R59's refined shape (minimal 1-3 line anchoring
+  pointers per file, codified at `cb582bcc`). Live files in scope all aligned to template shape at session
+  end: SESSION-NOTES via 6.8.a here; USER-INBOX via 6.3.a + `e45d39d7`; `backlog/ATOMIC-INBOX.md` via
+  `3305105b` / `ce7664ad`; `backlog/BACKLOG-INBOX.md` via `38b1d162` / `78905584`; WORKING-MEMORY via
+  `f70e3ee1`. Folded cleanup: deleted dead seed template
+  `packages/arc-framework/templates/user/ATOMIC-INBOX.md` (no longer referenced by CLI seeding post-6.3.a
+  USER-INBOX rename; integration test at `__tests__/integration/init.test.ts:238` already asserts
+  retirement at seed time).
 
 ### `[ ]` **6.9 Archive directory promotion: `reference/archive/` → `.arc/completed/` (R62)**
 
