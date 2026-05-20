@@ -11,12 +11,13 @@
 - **Cohort:** [none]
 
 - **Task List:** `tasks-work-organization-reform.md`
-- **Last Completed:** Tasks 6.7.h-j (`49f62845..89963808`) — pause-pointer field retirement (6.7.h),
-  incidental WU substrate refs (6.7.i), post-sweep verification with 3 residual PROJECT-STATUS
-  gap fixes (6.7.j). Plus incidental 6.7.q + 6.7.l scope amendments (`6ccc2798`, `8fdf368a`).
-- **Next Task:** Task 6.7.k — META-PRD → PROJECT-PRD references (per R35 rename) (line ~3399).
+- **Last Completed:** Task 6.7.k (`5e934979`) — META-PRD → PROJECT-PRD reference sweep across doc
+  surface, test fixtures, pre-commit hook literal filter, AGENT-BRIEF path correction, and
+  manifest.json hand-update. Plus Task 6.7/6.9/6.10 structural reshape (`ac93d2d1`) folding the
+  archive + supplemental sweeps into their migration phases.
+- **Next Task:** Task 6.9.a — Execute directory move (`git mv .arc/reference/archive .arc/completed`) (line ~3554).
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 6.7.k — META-PRD → PROJECT-PRD reference sweep (R35).
+- **Next Action:** Start Task 6.9.a — `git mv .arc/reference/archive .arc/completed`.
 
 ---
