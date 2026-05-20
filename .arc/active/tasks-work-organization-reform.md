@@ -3182,7 +3182,31 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           strategies, constitution, templates, QUICK-REFERENCE + package mirrors) returns 0
           matches; `lint:md` zero errors on modified set.
 
-    - `[ ]` **6.7.d Retired file-prefix patterns (`status-*.md`, `completion-*.md`)**
+    - `[x]` **6.7.d Retired file-prefix patterns (`status-*.md`, `completion-*.md`)**
+        - Updated `status-*.md` → `meta-*.md` (per R58) across 4 active files + 4 package mirrors:
+          `session-init.md` (2 hits — probe-failure fallback prose with `.arc/active/**/status-*.md`
+          and `.arc/user/{identity}/active/status-*.md` patterns), `session-handoff.md` (1 hit —
+          `status-data-pipeline.md` example filename in handoff example block),
+          `strategy-team-coordination.md` (2 hits — `status-auth-refresh.md` /
+          `status-ci-matrix.md` in parallel-WU example landed via 6.7.a's prior touch — completed
+          here per file-prefix migration), `strategy-workflow-authoring.md` (1 hit — commit footer
+          example `Context: status-name.md (handoff)`).
+        - **Deferred to other phases:** `completion-{name}.md` artifact references in
+          `packages/arc-framework/arc/reference/archive/README.md` (lines 41, 50, 58, 102-106
+          describing pre-WOR archive WU shape) — broader structural rewrite needed since the whole
+          README is pre-WOR (category subdirs, PROJECT-STATUS refs, incidental category framing).
+          Folded into new subtask 6.9.d (rewrite completed/README.md content for post-WOR shape;
+          naturally co-located with Phase 6.9's archive→completed directory promotion).
+          `strategy-package-project-sync.md:177` `template-completion-doc.md` ref → 6.7.e per
+          its stated scope. Internal-dev / historical surfaces (ADR-019, analyses, WOR's own
+          docs) retain references describing the retirement per 2.13.e ADR-precedent. The
+          prose-noun `status-file` / `Status-file timing` pattern (distinct from the
+          file-prefix-with-extension pattern this task sweeps) is 6.7.p's scope (ceremony-commit
+          shape + status→meta prose sweep).
+        - Verification: post-sweep grep on active surfaces (workflows, methods, extensions,
+          briefs, strategies, constitution, templates, QUICK-REFERENCE + package mirrors)
+          returns 0 `status-*.md` matches in current-state references (only the deferred
+          `completion-*.md` README hits remain, covered by 6.9.d); `lint:md` zero errors.
 
     - `[ ]` **6.7.e Retired template/strategy/plan refs (`template-completion-doc`, `PROJECT-STATUS`,
       `plan-roadmap-evolution`, `plan-completion-status-consolidation`)**
@@ -3423,6 +3447,24 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
         - Verify `system/githooks/pre-commit`, `system/scripts/validate-links.sh`, and any other tooling don't carry
           stale `reference/archive/` references. `manifest.json` + `pristine.json` regenerate via `arc update`; manual
           edits unnecessary except for hook scripts.
+
+    - `[ ]` **6.9.d Rewrite `completed/README.md` content for post-WOR shape**
+        - The current `archive/README.md` (package source; mirrored to `.arc/` per package-project-sync) describes a
+          pre-WOR archive shape: quarterly + category subdirs (`feature/`, `technical/`, `incidental/`) framed as
+          current convention, `completion-{name}.md` artifact (retired per R30 — content folds into meta-file
+          archive-phase sections), `PROJECT-STATUS.md` reference (retired per R40), "incidental" category framing
+          (retired per R49a). Substantive rewrite needed — bigger than 6.7.d's surface scope, naturally co-located
+          with this WU since the directory is being repromoted here.
+        - **Action:** rewrite content to reflect post-WOR archive shape — categorical layout preserved as
+          read-only historical record per R42 (don't restructure existing `2026-q*/{category}/` subdirs); new-WU
+          archive shape under WOR (single-branch-per-WU, meta-file with archive-phase Release Notes + Completion
+          Notes per R30, no separate `completion-*.md`); navigation refs updated to post-WOR docs (PROJECT-PRD
+          parent, post-6.7.k); category-retirement framing.
+        - Surface: `.arc/completed/README.md` (post-6.9.a path) + `packages/arc-framework/arc/reference/archive/README.md`
+          (package mirror; the package source's archive/ doesn't move under WOR because the package ships the directory
+          structure, not the historical content).
+        - **Sequencing:** runs after 6.9.a (directory move) so the .arc/ path is at its post-WOR location; can run
+          in parallel with 6.9.b verification.
 
 ### `[ ]` **6.10 Supplemental collapse: `reference/research/` + `reference/analysis/` → `reference/supplemental/` (R62)**
 

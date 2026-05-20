@@ -331,8 +331,8 @@ developers work simultaneously, two different topologies carry different coordin
 properties — address them separately.
 
 **Parallel work units on independent branches.** Alice works on
-`feat/auth-refresh` with its own `status-auth-refresh.md`; Bob works on
-`chore/ci-matrix` with its own `status-ci-matrix.md`. The work units don't coordinate at
+`feat/auth-refresh` with its own `meta-auth-refresh.md`; Bob works on
+`chore/ci-matrix` with its own `meta-ci-matrix.md`. The work units don't coordinate at
 all at the status-file layer: different files, different branches, different task lists.
 Independent WUs merge to the base branch without ever touching each other's status files.
 This is the dominant pattern for parallel solo work on independent concerns.

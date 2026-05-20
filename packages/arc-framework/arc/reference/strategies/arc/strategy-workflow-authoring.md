@@ -158,7 +158,7 @@ the resolved routing.
     ```text
     chore(status): handoff
 
-    Context: status-name.md (handoff)
+    Context: meta-name.md (handoff)
     ```
     ````
 

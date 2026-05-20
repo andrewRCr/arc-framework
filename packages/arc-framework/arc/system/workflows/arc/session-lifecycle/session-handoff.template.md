@@ -363,7 +363,7 @@ filter pipeline above for the full case.)
 
 **Example 1: Off-task-list with known path back**
 
-status-data-pipeline.md:
+meta-data-pipeline.md:
 
 ```markdown
 ## Work Unit Metadata
