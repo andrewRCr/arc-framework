@@ -240,7 +240,7 @@ Before implementing any task, assess whether tests should be written first — s
 
 Session state uses two files with different update triggers:
 
-- **`meta-{name}.md`** (tracked, `active/{category}/`) — the active WU's project pointer.
+- **`meta-{name}.md`** (tracked, `active/`) — the active WU's project pointer.
   Updated only at handoff commits and workflow-ceremony commits (activate / integrate / sweep /
   deactivate / PRD generation / planning-lifecycle ops); task-completion code commits never touch
   it. Mid-session updates are churn. See § Commit Discipline for the timing rule.

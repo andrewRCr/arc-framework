@@ -28,9 +28,9 @@ alternatives considered, and approach direction before requirements crystallize 
 
 Where to look depends on your project's PM mode ([`arc-config.yml`][arc-config] → `pm.mode`):
 
-- **arc-in-git**: `.arc/backlog/{category}/` — plans live in the backlog as part of the planning
-  pipeline and graduate to PRDs when ready
-- **none / external**: `.arc/active/{category}/` — plans are co-located with the PRDs they feed
+- **arc-in-git**: `.arc/backlog/{provisional,planned}/<wu-name>/` — plans live in the backlog as part of
+  the planning pipeline and graduate to PRDs when ready
+- **none / external**: `.arc/active/` — plans are co-located with the PRDs they feed
   into (no backlog directory)
 
 **If a plan exists**: Read it as your primary context. It may reference supplemental `notes-*.md`
@@ -110,11 +110,11 @@ compound names.
 
 **Save location** depends on your project's PM mode ([`arc-config.yml`][arc-config] → `pm.mode`):
 
-- **arc-in-git**: `.arc/backlog/{category}/prd-{{WORK_NAME}}.md` — PRDs start in backlog and
-  graduate to `active/` during [activation][activate-work-unit]
-- **none / external**: `.arc/active/{category}/prd-{{WORK_NAME}}.md` — PRDs save directly to
+- **arc-in-git**: `.arc/backlog/{provisional,planned}/{{WORK_NAME}}/prd-{{WORK_NAME}}.md` — PRDs start
+  in backlog and graduate to `active/` during [activation][activate-work-unit]
+- **none / external**: `.arc/active/prd-{{WORK_NAME}}.md` — PRDs save directly to
   active (no backlog directory). Create the directory first if it doesn't exist:
-  `mkdir -p .arc/active/{category}/`
+  `mkdir -p .arc/active/`
 
 **Promotion-write (`arc-in-git`, conditional):** If this PRD originates as a direct promotion from
 a `backlog/BACKLOG-INBOX.md` entry (no intermediate `plan-*` doc), delete the inbox entry in the
@@ -142,7 +142,7 @@ serve exploration and are deleted once the PRD captures the conclusions (see
    unless they have independent archival value — e.g., research files may belong in
    `reference/research/`).
 3. **Update planning-state meta file** (when present): If
-   `.arc/active/{category}/meta-{name}.md` exists with `**State:** Planning` (planning-branch
+   `.arc/active/meta-{name}.md` exists with `**State:** Planning` (planning-branch
    sessions), advance its `**Next Action:**` to reflect the post-PRD step (e.g., "Run
    `2_generate-tasks.md`"). Skip otherwise (no meta file exists pre-init under non-planning-branch
    flows).

@@ -28,8 +28,7 @@
 - _Branch:_ Own branch when promoted. Pursue when a real Pi user asks or a neighboring WU (arcd-rebrand,
   arc-modes) makes the extension cheap. No plan doc until we commit.
 
-- _Captured during:_ WOR Task 6.3.b drain (2026-05-19) — entry originated in retired
-  `backlog/feature/BACKLOG-FEATURE.md` § Lower Priority / Ideas.
+- _Captured during:_ WOR Task 6.3.b drain (2026-05-19).
 
 ### `[ ]` **Post-Integration Extension Fire Point**
 
@@ -56,8 +55,7 @@
 - _Branch:_ Own branch when promoted. Pursue when a real adopter asks or auto-modes WU dogfooding shows
   demand. No plan doc until pursued.
 
-- _Captured during:_ WOR Task 6.3.b drain (2026-05-19) — entry originated in retired
-  `backlog/feature/BACKLOG-FEATURE.md` § Lower Priority / Ideas.
+- _Captured during:_ WOR Task 6.3.b drain (2026-05-19).
 
 ### `[ ]` **Lifecycle-aware link reanchoring for movable ARC artifacts**
 
@@ -80,8 +78,7 @@
 
 - _Branch:_ Own branch when promoted.
 
-- _Captured during:_ WOR Task 6.3.b drain (2026-05-19) — entry originated in retired
-  `backlog/technical/BACKLOG-TECHNICAL.md` § CI/CD Improvements.
+- _Captured during:_ WOR Task 6.3.b drain (2026-05-19).
 
 ### `[ ]` **Enhanced link validation — reference-style compliance + hook hardening**
 
@@ -111,8 +108,7 @@
 
 - _Branch:_ Own branch when promoted.
 
-- _Captured during:_ WOR Task 6.3.b drain (2026-05-19) — entry originated in retired
-  `backlog/technical/BACKLOG-TECHNICAL.md` § CI/CD Improvements.
+- _Captured during:_ WOR Task 6.3.b drain (2026-05-19).
 
 ### `[ ]` **Standalone Binary Distribution (non-npm install channels)**
 
@@ -136,8 +132,7 @@
 
 - _Branch:_ Own branch when promoted.
 
-- _Captured during:_ WOR Task 6.3.b drain (2026-05-19) — entry originated in retired
-  `backlog/technical/BACKLOG-TECHNICAL.md` § Standalone Binary Distribution.
+- _Captured during:_ WOR Task 6.3.b drain (2026-05-19).
 
 ### `[ ]` **CLI test coverage gaps (post-WU3 hardening cluster)**
 
@@ -165,8 +160,7 @@
 
 - _Branch:_ Own branch when promoted.
 
-- _Captured during:_ WOR Task 6.3.b drain (2026-05-19) — entry originated in retired
-  `backlog/technical/BACKLOG-TECHNICAL.md` § Lower Priority / Ideas § CLI Test Coverage Gaps.
+- _Captured during:_ WOR Task 6.3.b drain (2026-05-19).
 
 ### `[ ]` **Versioned config-key migration registry for `arc update`**
 
@@ -199,8 +193,7 @@
 
 - _Branch:_ Own branch when promoted.
 
-- _Captured during:_ WOR Task 6.3.b drain (2026-05-19) — entry originated in retired
-  `backlog/technical/BACKLOG-TECHNICAL.md` § Migration Infrastructure.
+- _Captured during:_ WOR Task 6.3.b drain (2026-05-19).
 
 ### `[ ]` **Compatibility testing across agent platforms**
 
@@ -215,7 +208,6 @@
 
 - _Branch:_ Own branch when promoted.
 
-- _Captured during:_ WOR Task 6.3.b drain (2026-05-19) — entry originated in retired
-  `backlog/technical/BACKLOG-TECHNICAL.md` § Compatibility Testing Across Agent Platforms.
+- _Captured during:_ WOR Task 6.3.b drain (2026-05-19).
 
 ---

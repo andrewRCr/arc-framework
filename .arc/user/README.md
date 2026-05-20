@@ -10,7 +10,7 @@ team — each developer gets a `user/{identity}/` subdirectory.
 reference material — per-developer content that doesn't belong in the shared repo.
 
 **What does NOT belong here (for most users):** task lists, PRDs, work unit artifacts, per-WU
-meta files. Those are project-level and live in `.arc/active/{category}/` — shared, tracked,
+meta files. Those are project-level and live in `.arc/active/` — shared, tracked,
 visible to the whole team. There is one niche exception for contributors running a personal
 planning pipeline, described at the end of this doc.
 

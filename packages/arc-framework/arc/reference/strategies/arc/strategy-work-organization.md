@@ -72,7 +72,7 @@ branches. Incidental task lists may live alongside the primary work when they st
 branch by design.
 
 **Per-WU meta file behavior on branches.** Each active WU carries its own
-`meta-{name}.md` at `active/{category}/`. The file is created by
+`meta-{name}.md` at `active/`. The file is created by
 [activate-work-unit][activate-work-unit] on the WU's branch and deleted by
 [archive-work-unit][archive-work-unit] at the end of the WU's lifecycle. Parallel WUs on
 independent branches carry different files — no cross-branch mutation conflict is possible at

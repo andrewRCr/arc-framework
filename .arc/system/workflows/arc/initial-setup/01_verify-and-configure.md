@@ -33,7 +33,7 @@ Confirm that `.arc/` was created at the repo root with the expected structure:
 ### Verify Session State
 
 No active meta file exists yet — per-WU meta files (`meta-{name}.md`) are
-created in `.arc/active/{category}/` at first work unit activation, not at init.
+created in `.arc/active/` at first work unit activation, not at init.
 
 Initial session state lives in the bootstrap Persistent Context entry in
 `.arc/user/{identity}/SESSION-NOTES.md`, pre-populated by `arc init`:

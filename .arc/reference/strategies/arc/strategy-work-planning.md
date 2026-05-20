@@ -74,11 +74,11 @@ permanent records.
 
 **Location** (depends on [`arc-config.yml`][arc-config] → `pm.mode`):
 
-- **arc-in-git**: `.arc/backlog/{category}/` while incubating; moves to `.arc/active/{category}/`
+- **arc-in-git**: `.arc/backlog/{provisional,planned}/<wu-name>/` while incubating; moves to `.arc/active/`
   when a planning branch is initialized (see [`init-work-unit.md`][init-work-unit]) and stays
   there for the duration of the planning session. Disposed at WU activation —
-  graduated path `git rm`s the plan-doc; shelved path moves it back to `backlog/{category}/`.
-- **none / external**: `.arc/active/{category}/` throughout — plans are co-located with the PRDs
+  graduated path `git rm`s the plan-doc; shelved path moves it back to `backlog/{provisional,planned}/<wu-name>/`.
+- **none / external**: `.arc/active/` throughout — plans are co-located with the PRDs
   they feed into (no backlog directory).
 
 **Lifecycle:**

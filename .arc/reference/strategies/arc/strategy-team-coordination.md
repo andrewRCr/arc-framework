@@ -9,7 +9,7 @@ team branching patterns, merge conflict handling, and external tracker integrati
 
 These conventions activate when `team.mode: true` is set in `arc-config.yml`. Some structural
 foundations are always present regardless of team mode — per-identity `user/{identity}/`
-directories, per-WU `meta-{name}.md` files in `active/{category}/`. The conventions below
+directories, per-WU `meta-{name}.md` files in `active/`. The conventions below
 add coordination patterns on top of that foundation.
 
 **Prerequisite:** [Work Organization Strategy][work-org] (branching model, work categories,
@@ -46,7 +46,7 @@ in subsequent sections and referenced documents.
 | Aspect              | Solo (default)                       | Team mode                                         |
 |---------------------|--------------------------------------|---------------------------------------------------|
 | Session notes       | `user/{identity}/`                   | `user/{identity}/` (same structure)               |
-| Work status         | `active/{category}/meta-{name}.md`   | `active/{category}/meta-{name}.md` (one per WU)   |
+| Work status         | `active/meta-{name}.md`              | `active/meta-{name}.md` (one per WU)              |
 | ATOMIC-INBOX.md (1) | `user/{identity}/`                   | `user/{identity}/` (same structure)               |
 | One task at a time  | Single pair                          | Per developer-agent pair (concurrent pairs OK)    |
 | Task ownership      | Implicit                             | `(@name)` markers in task lists                   |
@@ -56,7 +56,7 @@ in subsequent sections and referenced documents.
 sections for off-plan work) are Core and always available.
 
 **Key distinction:** Each active work unit has its own `meta-{name}.md` in
-`active/{category}/`, tracked in git and shared across developers working on that WU. It
+`active/`, tracked in git and shared across developers working on that WU. It
 represents **WU-level state** — "Next Task" is the WU's next incomplete task, not any
 individual developer's personal next task. In team mode, each developer resolves their
 personal next task by scanning `(@name)` markers in the task list (see
@@ -286,7 +286,7 @@ essentially solo workflow with multiple contributors.
 
 ### Task Lists Are Shared Files
 
-In team mode, task lists (`active/{category}/tasks-*.md`) are communal — multiple
+In team mode, task lists (`active/tasks-*.md`) are communal — multiple
 developers reference and update them. This means:
 
 - **Merge conflicts are expected** when team members mark different tasks complete on
@@ -310,7 +310,7 @@ Personal files in `user/{identity}/` (SESSION-NOTES.md and, with `pm.mode: arc-i
 ATOMIC-INBOX.md) are gitignored — no merge conflicts by design. Only one developer writes to
 each identity directory.
 
-Per-WU meta files (`active/{category}/meta-{name}.md`) are tracked and shared across
+Per-WU meta files (`active/meta-{name}.md`) are tracked and shared across
 developers working on the same WU. Parallel work units on independent branches never collide
 at the meta-file layer — each WU carries its own file, and merges to the base branch never
 touch the same path from both sides. Within-WU coordination (team sub-branches sharing one

@@ -3101,7 +3101,7 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           asserted post-init existence). Content fold into `template-meta.md` archive-phase
           sections already verified at Task 4.1.g.
 
-### `[ ]` **6.7 Cross-reference sweep**
+### `[x]` **6.7 Cross-reference sweep**
 
 - _Goal:_ Cross-reference sweep across all surfaces (workflows, strategies, rules, briefs, templates) for retired
   patterns; each match updated or retired; sweep verified by post-sweep grep returning no orphans (Success Criterion
@@ -3512,69 +3512,32 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
               the legacy filename — KEEP). Code surface deferred to a future task; n.3 stays markdown-
               focused per task scope.
 
-    - `[ ]` **6.7.o Category-dir path sweep (`active/{category}/`, `backlog/{...}/`) — R3 + R50 retirement**
-        - **Action:** retire path references — under R3, `active/` is flat (one WU per branch, no category subdirs);
-          under R50's one-time migration ops, backlog reorganizes to `backlog/{provisional,planned}/[<cohort>/]<wu>/`.
-          R49a separately codifies `active/incidental/` retirement (incidental substrate dissolves via R3 + R15).
-          Update path examples, code-fence diagrams, prose mentions across doc surfaces. Distinct from 6.7.a (literal
-          branch-prefix refs) and 6.7.i (incidental WU model substrate) — this slice is path-shape substrate.
-        - Grep patterns (md only): `active/(feature|technical|incidental)/`, `backlog/(feature|technical)/`,
-          `active/\{?(category|type|kind)`. **Regex false-positives** (visual filter): TypeScript code paths like
-          `commands/active/types.ts`, `lib/release/types.ts` match the third pattern; these are code paths, not
-          WU artifact paths — skip.
-        - Touch points already addressed by upstream tasks: `packages/arc-framework/arc/README.md` directory diagram
-          (folded into 6.7.a — `active/` flat + `backlog/{provisional,planned}/[<cohort>/]<wu>/`); `active/incidental/`
-          path refs in `manage-incidental-work.md` (deliberately retained per R49a's substrate-retained clause — verify
-          exclusion still applies, do not sweep; full retirement is Worktree Foundation + Agile WU Lifecycle scope).
-        - **Sweep surface** (both copies — `.arc/` + `packages/arc-framework/arc/`, byte-identical post-sweep):
-            - Workflows: `1_create-prd.md`, `2_generate-tasks.md`, `2_generate-tasks.template.md`, `session-handoff.md`,
-              `session-handoff.template.md`, `initial-setup/01_verify-and-configure.md`
-            - Strategies: `strategy-team-coordination.md`, `strategy-session-operations.md`,
-              `strategy-work-planning.md`, `strategy-work-organization.md`, `strategy-package-project-sync.md`
-              (project-side; template-table refresh — see below)
-            - Constitution: `DEV-RULES.ARC.md`
-            - Methods: `session-state.md`
-            - Briefs: `AGENT-BRIEF.ARC.md`
-            - READMEs: `user/README.md`
-        - **Instance-file dangling-pointer cleanup (`.arc/backlog/BACKLOG-INBOX.md`):** 8 entries (lines 32, 60, 84,
-          115, 140, 169, 203, 219) reference `backlog/feature/BACKLOG-FEATURE.md` / `backlog/technical/BACKLOG-TECHNICAL.md`
-          § sections that retired in 6.3.b. Rewrite pointers to the merged `backlog/BACKLOG-INBOX.md` § sections (verify
-          the entries actually folded in during 6.3.b), or remove the pointers if the destination semantic no longer
-          exists. Instance file is gitignored in adopter projects; this repo's project-instance is tracked — internal-dev
-          surface but tech debt by `pre-WOR, post-WOR` cleanliness standard.
-        - **Strategy template-table refresh (`strategy-package-project-sync.md` lines 256-257):** the two-line entries
-          for `backlog/feature/BACKLOG-FEATURE.template.md` and `backlog/technical/BACKLOG-TECHNICAL.template.md` go
-          stale the moment this task's structural delete (below) runs. Replace with the post-merge form
-          `backlog/BACKLOG-INBOX.template.md` (already exists at package-source `backlog/` root).
-        - **Adjacent token cleanup in `session-handoff.template.md:66`:** line carries both `active/{category}/` (this
-          task's primary pattern) and a stale `` `status.md` in `.arc/active/` `` token (Lite-mode legacy form retired
-          pre-WOR). Sweep both in one edit.
-        - **Package-source structural residue (paired with 6.3.b + 6.4.d):**
-          `packages/arc-framework/arc/backlog/feature/BACKLOG-FEATURE.template.md` and
-          `packages/arc-framework/arc/backlog/technical/BACKLOG-TECHNICAL.template.md` survive in legacy category
-          subdirs — unmigrated counterparts to 6.3.b's `.arc/` BACKLOG-INBOX merge and 6.4.d's `.arc/backlog/`
-          per-WU-subdir restructure. `BACKLOG-INBOX.template.md` already exists at the package-source `backlog/`
-          root post-6.3.b, so the post-merge template form is in place; only the pre-merge sources + their
-          now-empty parent dirs (`backlog/feature/`, `backlog/technical/`) need cleanup. Action is structural
-          (file delete + dir removal), bundled with this task's text-sweep commit.
-        - **Exclusions:**
-            - `.arc/system/.internal/{pristine,manifest}.json` — generated/derived state; regenerate via CLI if
-              needed, do not hand-edit.
-            - `.arc/reference/analysis/**` and `.arc/reference/adr/**` — internal-dev historical record (2.13.e
-              ADR-precedent).
-            - `.arc/reference/archive/**` — historical archived documents retain original paths in their bodies.
-            - `.arc/backlog/planned/**` and `.arc/backlog/provisional/**` — downstream-WU plans; full content sweep
-              deferred to Activation Audit per WU (covers `plan-arc-modes.md`, `plan-instruction-optimization.md`,
-              `plan-arc-reinforce.md`, `plan-coord-probe.md`, `plan-arc-plan-conductor.md`,
-              `plan-cli-substrate-adoption.md`, `plan-docs-content-sweep.md`, `plan-post-release-methodology.md`,
-              `plan-lib-layer-type-extraction.md`).
-            - WOR self-references in `.arc/active/{prd,tasks,notes,meta}-work-organization-reform.md` — describe
-              this WU's own migration narrative and Success Criteria; legacy path strings are historical, not
-              sweep targets.
-            - `docs/**` — public mkdocs source; owned by `plan-docs-content-sweep.md` (activates after
-              `plan-docs-site-refresh.md` merges).
-            - `manage-incidental-work.md` — `active/incidental/` paths retained per R49a's substrate-retained
-              clause (see Touch points above).
+    - `[x]` **6.7.o Category-dir path sweep (`active/{category}/`, `backlog/{...}/`) — R3 + R50 retirement**
+        - _Outcome:_ Path-shape sweep across 16 adopter-facing Framework surfaces (both copies, byte-identical
+          post-sweep) + 3 project-instance surfaces. **Framework surfaces** (Workflows: `1_create-prd.md`,
+          `2_generate-tasks.{md,template.md}`, `session-handoff.{md,template.md}`,
+          `initial-setup/01_verify-and-configure.md`; Strategies: `strategy-team-coordination.md`,
+          `strategy-session-operations.md`, `strategy-work-planning.md`, `strategy-work-organization.md`;
+          Constitution: `DEV-RULES.ARC.md`; Methods: `session-state.md`; Briefs: `AGENT-BRIEF.ARC.md`;
+          READMEs: `user/README.md`). Substitutions: `active/{category}/` → `active/` (R3 flat per-branch);
+          `backlog/{category}/` → `backlog/{provisional,planned}/<wu-name>/` (R50 per-WU subdirs);
+          `backlog/{category}/{prd,tasks}-{{WORK_NAME}}.md` → `backlog/{provisional,planned}/{{WORK_NAME}}/<...>`.
+          **Adjacent token cleanup** in `session-handoff.{md,template.md}:66`: Lite-mode legacy `status.md` →
+          `meta.md` swept on the same line (final stray status-file token in adopter surfaces post-6.7.n).
+          **Table re-padding** for `strategy-team-coordination.md:49` and `AGENT-BRIEF.ARC.md:53` after
+          `active/{category}/` shortened cells by 9-11 chars (MD060 compliant). **Project-instance surfaces**:
+          `.arc/reference/strategies/project/strategy-package-project-sync.md` template-table refreshed (two
+          retired-template entries collapsed to one `BACKLOG-INBOX.template.md` entry); `.arc/backlog/BACKLOG-INBOX.md`
+          dangling-pointer cleanup (8 `_Captured during:_` lines stripped of retired-file provenance tail via
+          Python regex — WOR Task 6.3.b date retained); `.arc/backlog/ROADMAP.md:103` historical entry rewritten
+          to post-WOR vocabulary (`active/{category}/status-{name}.md` → `active/meta-{name}.md`);
+          `.arc/user/andrew/USER-INBOX.md:293` cross-reference rewired from retired `backlog/technical/BACKLOG-TECHNICAL.md`
+          to merged `backlog/BACKLOG-INBOX.md`. **Structural delete**: `git rm` of
+          `packages/arc-framework/arc/backlog/{feature,technical}/BACKLOG-{FEATURE,TECHNICAL}.template.md` plus
+          implicit empty-parent-dir removal (paired with 6.3.b + 6.4.d). **Verification**: comprehensive in-scope
+          grep returns ZERO hits across both copies (excluding documented exclusions); 10/10 Framework files
+          byte-identical between `.arc/` and `packages/arc-framework/arc/`; Tier 1 lint clean; per-file
+          `validate-links.sh` clean on all 18 changed surfaces.
 
 ### `[ ]` **6.8 Slim instance-file preambles (SESSION-NOTES + USER-INBOX + BACKLOG-INBOX + backlog/ATOMIC-INBOX)**
 

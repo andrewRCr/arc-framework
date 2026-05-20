@@ -293,9 +293,9 @@ against the pre-save checklist and bundles the commit.
 **Destination path** (referenced by Pass 1's file creation; depends on
 [`arc-config.yml`][arc-config] → `pm.mode`):
 
-- **arc-in-git** (backlog pipeline): `.arc/backlog/{category}/tasks-{{WORK_NAME}}.md`
-- **none / external** (no backlog): `.arc/active/{category}/tasks-{{WORK_NAME}}.md`
-  (create the directory first if it doesn't exist: `mkdir -p .arc/active/{category}/`)
+- **arc-in-git** (backlog pipeline): `.arc/backlog/{provisional,planned}/{{WORK_NAME}}/tasks-{{WORK_NAME}}.md`
+- **none / external** (no backlog): `.arc/active/tasks-{{WORK_NAME}}.md`
+  (create the directory first if it doesn't exist: `mkdir -p .arc/active/`)
 
 Name matches the PRD (e.g., `prd-api-modernization.md` → `tasks-api-modernization.md`).
 

@@ -63,7 +63,7 @@ Session state is split across tracked project state and personal session state (
 follow the override instead):
 
 - **Active meta file** (tracked) — project state for the active work unit:
-  `meta-{name}.md` in `.arc/active/{category}/` for Full mode, `status.md` in `.arc/active/`
+  `meta-{name}.md` in `.arc/active/` for Full mode, `meta.md` in `.arc/active/`
   for Lite mode. Carries `**State:**`, `**Branch:**`, `**Task List:**`, `**Next Task:**`,
   `**Last Completed:**`, `**Blockers:**`, and `**Next Action:**`. Between work units or during
   planning cycles with no active WU, no tracked meta file exists.

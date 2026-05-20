@@ -99,8 +99,8 @@ and update behavior, conditional content architecture, ARC skill expansion.
 
 **Work-Status Restructure** — ✅ Complete (April 2026)
 
-Replaced the singular tracked `.arc/active/WORK-STATUS.md` with a per-work-unit status file
-pattern (`.arc/active/{category}/status-{name}.md`), disentangling the project pointer from
+Replaced the singular tracked `.arc/active/WORK-STATUS.md` with a per-work-unit project pointer
+(`.arc/active/meta-{name}.md`), disentangling the project pointer from
 the session pointer. Eliminated the parallel-WU concurrency flaw and base-branch staleness
 dead-ends under full protection. Shipped `deactivate-work-unit.md` workflow, dropped
 `**Following Task List**` from the status template (R17), and dogfooded its own output at

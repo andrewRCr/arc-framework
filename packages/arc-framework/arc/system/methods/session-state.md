@@ -19,7 +19,7 @@ override-active: false
 
 Read/write session state at session boundaries:
 
-- **`meta-{name}.md`** (`active/{category}/`) — tracked per-WU project pointer. The
+- **`meta-{name}.md`** (`active/`) — tracked per-WU project pointer. The
   `**State:**` field is the load-bearing lifecycle marker; see the meta file template for
   the full field set. Updated at commit time and handoff.
 - **SESSION-NOTES.md** (`user/{identity}/`) — gitignored personal context, written at handoff

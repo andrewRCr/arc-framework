@@ -54,7 +54,7 @@ work. Always loaded at session start.
 **T2 — State.** Content that orients the agent — where work stands, what happened last session,
 what comes next. Always loaded at session start.
 
-- meta-{name}.md (per-WU tracked project pointer in active/{category}/; holds State, Branch,
+- meta-{name}.md (per-WU tracked project pointer in active/; holds State, Branch,
   Task List, Next Task, Last Completed, Blockers, Next Action)
 - SESSION-NOTES.md (personal session context from prior handoff)
 - Task list overview and current task section (strategic partial read)
@@ -637,7 +637,7 @@ inspection.
 
 ## Meta-File Creation Contract
 
-Each work unit gets exactly one meta file (`active/{category}/meta-{name}.md`) tracked from creation
+Each work unit gets exactly one meta file (`active/meta-{name}.md`) tracked from creation
 through archival. Two convergent creation paths produce the same artifact shape; both apply idempotent
 guards so re-entry is safe.
 
@@ -747,7 +747,7 @@ physically separate.
 ## SESSION-NOTES
 
 SESSION-NOTES.md is personal session context, gitignored, paired with the active WU's project
-pointer — the maintainer-role `meta-{name}.md` in `active/{category}/` or the contributor-role
+pointer — the maintainer-role `meta-{name}.md` in `active/` or the contributor-role
 `meta-{name}.md` in the per-WU workspace subdir. The project pointer carries the factual state
 (branch, task, blockers, next action); SESSION-NOTES carries the working context the next session
 needs to pick up where the last left off — approach, decisions, things tried, risks. Together
