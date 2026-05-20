@@ -11,16 +11,13 @@
 - **Cohort:** [none]
 
 - **Task List:** `tasks-work-organization-reform.md`
-- **Last Completed:** Task 6.7.n (`41f87aba`) — ceremony-commit shape migration + status→meta prose
-  sweep across ~47 adopter-facing surfaces (3 atomic-per-op subtasks: integrate ceremony shape;
-  constitutional + strategy section heading migration with anchor cascade; bulk prose + filename-token
-  sweep). Plus Tasks 6.7.l (adopter vocab sweep) and 6.7.m (archive.cadence enum trim) completed
-  earlier this session.
-- **Next Task:** Task 6.7.o — Category-dir path sweep (`active/{category}/`, `backlog/{...}/`) — R3 + R49 retirement
-  (line ~3515).
+- **Last Completed:** Task 6.7.o (`03c70174`) — Category-dir path sweep (R3 + R50 retirement) across 16 Framework +
+  3 project-instance surfaces; structural delete of legacy `backlog/{feature,technical}/` template dirs. Closes
+  Task 6.7 parent (15/15 subtasks `[x]`).
+- **Next Task:** Task 6.8.a — Slim `user/{identity}/SESSION-NOTES.md` (preamble strip per R59) (line ~3551).
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 6.7.o — sweep `active/{category}/` + `backlog/{provisional,planned}/[<cohort>/]<wu>/`
-  path references across workflows, strategies, templates, and briefs (~70 hits across ~15 files per task description).
+- **Next Action:** Start Task 6.8.a — strip preamble blockquote from instance SESSION-NOTES files per R59; retain
+  content H2s; audit shape (H1 immediately followed by content H2s).
 
 ---
