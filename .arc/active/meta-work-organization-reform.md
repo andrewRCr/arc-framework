@@ -11,13 +11,16 @@
 - **Cohort:** [none]
 
 - **Task List:** `tasks-work-organization-reform.md`
-- **Last Completed:** Task 6.7.k (`5e934979`) — META-PRD → PROJECT-PRD reference sweep across doc
-  surface, test fixtures, pre-commit hook literal filter, AGENT-BRIEF path correction, and
-  manifest.json hand-update. Plus Task 6.7/6.9/6.10 structural reshape (`ac93d2d1`) folding the
-  archive + supplemental sweeps into their migration phases.
-- **Next Task:** Task 6.9.a — Execute directory move (`git mv .arc/reference/archive .arc/completed`) (line ~3554).
+- **Last Completed:** Task 6.7.n (`41f87aba`) — ceremony-commit shape migration + status→meta prose
+  sweep across ~47 adopter-facing surfaces (3 atomic-per-op subtasks: integrate ceremony shape;
+  constitutional + strategy section heading migration with anchor cascade; bulk prose + filename-token
+  sweep). Plus Tasks 6.7.l (adopter vocab sweep) and 6.7.m (archive.cadence enum trim) completed
+  earlier this session.
+- **Next Task:** Task 6.7.o — Category-dir path sweep (`active/{category}/`, `backlog/{...}/`) — R3 + R49 retirement
+  (line ~3515).
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 6.9.a — `git mv .arc/reference/archive .arc/completed`.
+- **Next Action:** Start Task 6.7.o — sweep `active/{category}/` + `backlog/{provisional,planned}/[<cohort>/]<wu>/`
+  path references across workflows, strategies, templates, and briefs (~70 hits across ~15 files per task description).
 
 ---
