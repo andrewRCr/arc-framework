@@ -1000,6 +1000,70 @@ scope pressure surfaces during PRD work, the cleanup can split into its own sibl
 design dependency is the modality-introduction (which lifts the noise volume to the point where
 cleanup is clearly worthwhile), not strict workflow coupling.
 
+### 20. Park and resume lifecycle
+
+The conductor's worktree-spawn flow (§ 5) assumes planning progresses through to PRD and
+activation. In practice, planning often pauses indefinitely — first-pass synthesis can be the
+right place to stop and return weeks or months later. Two symmetric inverse operations cover
+this:
+
+- **Park** (`arc-plan --park`) — `Planning → backlog/{state}/<wu-name>/`. PR + merge to main with
+  plan-doc + meta-file landing in the per-WU backlog subdir; branch + worktree cleanup follows.
+  Meta-file `**State:**` stays `Planning`; `**Branch:**` clears to `[none]`. Commitment level
+  lives in dir choice (`provisional/` vs `planned/`) per WOR R21 — user picks at park time.
+
+- **Resume** (`arc-plan <wu-name>` when `<wu-name>` resolves to a backlog subdir) — spawn
+  worktree, create new `plan/<wu-name>` branch, `git mv backlog/{state}/<wu-name>/* active/`,
+  reconcile meta-file `**Branch:**` field. Continue planning at chosen depth + modality.
+
+Park makes parked WUs **more visible**, not less. ROADMAP renderer picks them up when `planned/`;
+`ls backlog/{state}/` shows them; arc-plan resolves them by name. Indefinite orphan worktrees +
+branches are the wrong default — they hide parked work and accumulate dead refs.
+
+§ 19's graduation-cleanup composes with park naturally: cleanup fires on park too, dropping
+planning-iteration noise from history before merging to main, same shape as Planning → Active.
+
+#### Tier-aware applicability
+
+- **Standard** — primary case. Substantial planning that may pause for weeks or months between
+  first-pass synthesis and PRD-ready maturity. Park/resume is the dominant flow.
+- **Atomic** — skips entirely (no planning phase to park).
+- **Quick** — rarely parks (planning is light enough that direct flow to impl is the norm).
+  Available but uncommon; park supports the case where quick-tier planning surfaces standard-tier
+  complexity and the user wants to step back before promotion.
+
+#### Cross-worktree coordination
+
+Park PR landing on main is structurally identical to any other PR — concurrent WU worktrees see
+main advance by one commit, same as any integration. No special coordination needed; standard
+"pull main before integrating" discipline (codified in CWC) covers it. If the parked WU was on
+ROADMAP (`planned/` destination), the park PR also regenerates ROADMAP — same one-line touch as
+any ROADMAP-regen commit.
+
+#### Workflow shape (PRD-time codification)
+
+Two new workflow files: `park-work-unit.md` (Planning → backlog) and `resume-work-unit.md`
+(backlog → Planning), invoked by the conductor. PRD work codifies:
+
+- **Park ordering** — graduation-cleanup → state + field updates → file moves → PR + merge →
+  branch + worktree cleanup
+- **Resume ordering** — backlog lookup → worktree spawn → branch creation → file moves →
+  meta-file reconcile → ROADMAP regen (if `planned/`) → planning resumption
+- **Idempotency contracts** — partial park / partial resume handling
+- **State transitions** — `**State:**` stays `Planning` across both operations; `**Branch:**`
+  field is the lifecycle pointer
+- **Resume-to-activate path** — resume followed immediately by `1_create-prd.md` +
+  `activate-work-unit.md` when the parked plan is already PRD-ready (no further planning needed)
+
+#### Relationship to `init-work-unit.md`
+
+WOR's tactical patch to `init-work-unit.md` Steps 3-4 handles the graduate-from-backlog case for
+the WOR-ship → conductor-ship transitional window. Once the conductor + `resume-work-unit.md`
+land, `init-work-unit.md` may become a sub-procedure of the conductor (handling the mechanical
+branch + meta-file scaffolding while the conductor owns upstream intent assessment) or retire
+entirely. PRD-time decision based on whether direct-invocation paths remain useful alongside
+conductor invocation.
+
 ---
 
 ## Proposed ARC Changes
@@ -1028,6 +1092,9 @@ cleanup is clearly worthwhile), not strict workflow coupling.
   draft in § Design Lean § 17)
 - Add `refine-prototype-loop.md` workflow file for prototype modality — bounded spike + learning
   capture + disposition decision per pass (see § Design Lean § 18)
+- Add `park-work-unit.md` workflow file for Planning → backlog transition (see § Design Lean § 20)
+- Add `resume-work-unit.md` workflow file for backlog → Planning transition with worktree spawn
+  (see § Design Lean § 20)
 - Add `graduation-cleanup.md` workflow file for the Planning → Active state-flip cleanup ceremony
   (see § Design Lean § 19); invoked by `1_create-prd.md` as the final step before state-flip, or
   runnable standalone for mid-planning cleanup
@@ -1353,6 +1420,8 @@ expand the WU touch points significantly:
 - `refine-plan-loop.md` (new workflow file — document modality)
 - `refine-prototype-loop.md` (new workflow file — prototype modality)
 - `graduation-cleanup.md` (new workflow file — cleanup ceremony)
+- `park-work-unit.md` (new workflow file — Planning → backlog transition; see § 20)
+- `resume-work-unit.md` (new workflow file — backlog → Planning transition with worktree spawn; see § 20)
 - session-init lifecycle-workflow branch (planning slot wiring for both loop workflows)
 - `activate-planning-branch.md` (conductor-callable + direct-invocable)
 - `1_create-prd.md` (integrates graduation-cleanup step before state-flip)

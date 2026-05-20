@@ -706,6 +706,18 @@ items:
   primitive scaffolds the meta file (unchanged shape). Worktree-mechanism scope is artifact-class
   agnostic; rename is content-sweep work only.
 
+- **WORKING-MEMORY entry — multi-WU integration discipline** (2026-05-19): At this WU's
+  activation, add a WORKING-MEMORY entry for the active identity capturing the transitional
+  vanilla-git fallback for multi-WU integration. Content: between this WU shipping and CWC
+  (`plan-concurrent-work-conventions.md`) integrating, integration-time discipline
+  (rebase-onto-main, conflict resolution, merge ordering between concurrent PRs, cross-worktree
+  state after rebase) is not yet codified in ARC workflows — apply vanilla git practice manually
+  when integrating concurrently with other in-flight WUs (fetch main, check `git log HEAD..main`,
+  rebase or merge-commit per preference, resolve conflicts). Sequential single-WU usage avoids
+  the gap entirely. Removal trigger: CWC integrates with codified rebase / merge discipline,
+  worktree operational guidance, and merge-ordering conventions (per CWC scope items at
+  `plan-concurrent-work-conventions.md` lines 188-212).
+
 ---
 
 [team-coord]: ../../reference/strategies/arc/strategy-team-coordination.md
