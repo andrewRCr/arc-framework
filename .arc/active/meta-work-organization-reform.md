@@ -11,13 +11,15 @@
 - **Cohort:** [none]
 
 - **Task List:** `tasks-work-organization-reform.md`
-- **Last Completed:** Task 6.7.o (`03c70174`) — Category-dir path sweep (R3 + R50 retirement) across 16 Framework +
-  3 project-instance surfaces; structural delete of legacy `backlog/{feature,technical}/` template dirs. Closes
-  Task 6.7 parent (15/15 subtasks `[x]`).
-- **Next Task:** Task 6.8.a — Slim `user/{identity}/SESSION-NOTES.md` (preamble strip per R59) (line ~3551).
+- **Last Completed:** Task 6.8 (`d3d0eae1`) — R59 SESSION-NOTES pointer alignment + ATOMIC-INBOX seed-template
+  retirement; closes 6.8 parent (4/4 subtasks; .b/.c/.d satisfied upstream and marked with outcome notes pointing
+  to where the work actually landed). Folded atomic completion: BACKLOG/ATOMIC-INBOX templates reclassified
+  Scaffolded (`b9a7ad71`). Incidental CI-unblock landed alongside: 6.7.o code-surface backfill (`3fecc021`) swept
+  stale BACKLOG-{FEATURE,TECHNICAL} refs from `init-recipe.json` + `classification.ts` + 3 test files.
+- **Next Task:** Task 6.9.a — Execute directory move (`git mv .arc/reference/archive .arc/completed`) (line ~3597).
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 6.8.a — strip preamble blockquote from instance SESSION-NOTES files per R59; retain
-  content H2s; audit shape (H1 immediately followed by content H2s).
+- **Next Action:** Start Task 6.9.a — promote `.arc/reference/archive` → `.arc/completed/` per R62; verify
+  historical content intact at new path before continuing to 6.9.b.
 
 ---
