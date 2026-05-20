@@ -79,7 +79,7 @@ edit the template in the package source. The `.arc/` rendered copy reflects this
 config (`team.mode: false`, `pm.mode: arc-in-git`) — conditional blocks for other modes are
 absent. Don't copy `.arc/` content back to the template without re-adding the conditionals.
 
-**Remaining 7 templates** (ROADMAP, backlogs, META-PRD, PROJECT-STATUS,
+**Remaining 6 templates** (ROADMAP, backlogs, META-PRD,
 TECHNICAL-OVERVIEW, QUICK-REFERENCE) are Scaffolded or Configurable — project-owned content,
 no sync concern.
 
@@ -174,7 +174,6 @@ arc-in-git files are annotated explicitly.
 - `reference/strategies/project/README.md`
 - `reference/strategies/project/style/README.md`
 - `reference/templates/template-adr.md`
-- `reference/templates/template-completion-doc.md`
 - `reference/templates/template-contributing.md`
 - `reference/templates/template-plan.md`
 - `reference/templates/template-prd.md`
@@ -254,7 +253,6 @@ arc-in-git files are annotated explicitly.
 - `backlog/feature/BACKLOG-FEATURE.template.md` → `backlog/feature/BACKLOG-FEATURE.md` (Scaffolded · arc-in-git)
 - `backlog/technical/BACKLOG-TECHNICAL.template.md` → `backlog/technical/BACKLOG-TECHNICAL.md` (Scaffolded · arc-in-git)
 - `reference/META-PRD.template.md` → `reference/META-PRD.md` (Scaffolded)
-- `reference/PROJECT-STATUS.template.md` → `reference/PROJECT-STATUS.md` (Scaffolded · arc-in-git)
 - `reference/QUICK-REFERENCE.template.md` → `reference/QUICK-REFERENCE.md` (Configurable)
 - `reference/TECHNICAL-OVERVIEW.template.md` → `reference/TECHNICAL-OVERVIEW.md` (Scaffolded)
 - `system/briefs/AGENT-BRIEF.PROJECT.template.md` → `system/briefs/AGENT-BRIEF.PROJECT.md` (Configurable)

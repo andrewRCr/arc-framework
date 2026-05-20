@@ -322,7 +322,7 @@ Config settings divide into two categories based on how changes take effect:
 **Structural settings** affect which files are installed and how templates render. Changing them requires
 `arc init --reconfigure`:
 
-- `pm.mode` — Adds or removes arc-in-git files (ROADMAP, backlogs, PROJECT-STATUS, strategies)
+- `pm.mode` — Adds or removes arc-in-git files (ROADMAP, backlogs, strategies)
 - `team.mode` — Adds or removes team coordination content in rendered templates
 - `project_name` — Re-renders token substitutions (`{{PROJECT_NAME}}`) across templates
 

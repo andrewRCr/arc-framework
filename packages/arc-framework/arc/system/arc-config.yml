@@ -155,7 +155,7 @@ platform.type: github
 
 # Project Management (PM) mode. Controls where project management lives.
 #   none       - Core methodology only. No PM artifacts installed. (default)
-#   arc-in-git - ARC's built-in PM suite (backlogs, roadmap, PROJECT-STATUS, ATOMIC-TASKS)
+#   arc-in-git - ARC's built-in PM suite (backlogs, roadmap, ATOMIC-TASKS)
 #   external   - External tool integration (Jira, Linear, GitHub Issues, etc.)
 # See strategy-configurability-architecture.md § Adoption flexibility model.
 pm.mode: arc-in-git

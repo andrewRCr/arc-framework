@@ -44,7 +44,7 @@ section-level.
 Created once during `arc init` from template. User replaces all placeholder content with
 project-specific content. Never touched by framework updates.
 
-**Examples:** META-PRD, PROJECT-STATUS, ROADMAP, backlog files.
+**Examples:** META-PRD, ROADMAP, backlog files.
 
 **Update behavior:** Skip entirely. These are project-owned after initialization.
 
@@ -125,7 +125,7 @@ produced from package-source `*.template.md` files with mustache-token replaceme
 have a parallel `reference/templates/template-*.md` entry. The package-source `.template`
 file is the canonical template; no second template surface exists for the same file class.
 
-**Governed files:** META-PRD, TECHNICAL-OVERVIEW, PROJECT-STATUS, ROADMAP, BACKLOG-FEATURE,
+**Governed files:** META-PRD, TECHNICAL-OVERVIEW, ROADMAP, BACKLOG-FEATURE,
 BACKLOG-TECHNICAL, AGENT-BRIEF.PROJECT, QUICK-REFERENCE. The CLI's init / join render
 pipeline is the canonical inventory.
 

@@ -22,13 +22,13 @@ are reference material consulted during planning and architecture decisions.
 Work through these steps when setting up a new project. Each document has inline guidance —
 the questions below help you think through what matters before filling it in.
 
-### Step 1: Define META-PRD
+### Step 1: Define PROJECT-PRD
 
 Your project's problem statement, scope, and guiding principles — the "what" and "why" that
 guide all other decisions. This is the canonical source for project direction; subsequent
 documents distill from it.
 
-**Template**: [META-PRD.md][meta-prd] → goes in `reference/`
+**Template**: [PROJECT-PRD.md][project-prd] → goes in `reference/`
 
 **Think through**:
 
@@ -57,7 +57,7 @@ the project.
 ### Step 3: Define AGENT-BRIEF.PROJECT
 
 Your project's executive summary for the agent — loaded every session. This distills
-META-PRD (what the project is) and TECHNICAL-OVERVIEW (how it's built) into a concise
+PROJECT-PRD (what the project is) and TECHNICAL-OVERVIEW (how it's built) into a concise
 briefing: project type, primary goal, technology stack, repository layout, and common
 friction points.
 
@@ -70,7 +70,7 @@ friction points.
 - What's the one-paragraph summary of what this project is?
 
 Keep it concise — this is loaded every session, not a comprehensive reference.
-META-PRD and TECHNICAL-OVERVIEW carry the detail.
+PROJECT-PRD and TECHNICAL-OVERVIEW carry the detail.
 
 ### Step 4: Define QUICK-REFERENCE
 
@@ -126,19 +126,6 @@ reactively.
 - What dependencies exist between work items?
 - What's explicitly deferred and why?
 
-### Step 7: Establish PROJECT-STATUS
-
-Progress tracking for initiatives and milestones — a snapshot of where the project stands
-against the roadmap.
-
-**Template**: [PROJECT-STATUS.md][project-status] → goes in `reference/`
-
-**Think through**:
-
-- How will progress toward project goals be tracked?
-- What milestones mark significant progress?
-- How often should status be reviewed and updated?
-
 <!-- arc:endif -->
 
 ---
@@ -160,12 +147,11 @@ say. When they drift from reality, the agent works from wrong assumptions.
 
 **Reference documents — keep honest:**
 
-- **META-PRD** — when the project's documented problem, scope, or principles shift. A
+- **PROJECT-PRD** — when the project's documented problem, scope, or principles shift. A
   pivot, a scope boundary redrawn, or a new constraint changes what work gets planned.
 <!-- arc:if pm.mode == arc-in-git -->
 - **ROADMAP** — when sequencing shifts, phases complete, or new work emerges. Stale
   roadmaps misguide next-work-unit discovery.
-- **PROJECT-STATUS** — when milestones are reached or project state changes materially.
 <!-- arc:endif -->
 
 TECHNICAL-OVERVIEW evolves naturally alongside the code — update it when architectural
@@ -179,11 +165,11 @@ Project definition is complete. Three of these documents — AGENT-BRIEF.PROJECT
 QUICK-REFERENCE, and DEV-RULES.PROJECT — are loaded by the agent at the start of every
 session.
 <!-- arc:if pm.mode == arc-in-git -->
-The rest (META-PRD, TECHNICAL-OVERVIEW, ROADMAP, PROJECT-STATUS) are reference
+The rest (PROJECT-PRD, TECHNICAL-OVERVIEW, ROADMAP) are reference
 material for consulting during planning and architecture decisions.
 <!-- arc:endif -->
 <!-- arc:if pm.mode != arc-in-git -->
-The rest (META-PRD, TECHNICAL-OVERVIEW) are reference material for consulting during
+The rest (PROJECT-PRD, TECHNICAL-OVERVIEW) are reference material for consulting during
 planning and architecture decisions.
 <!-- arc:endif -->
 
@@ -215,7 +201,7 @@ workflows to your tracker.
 <!-- arc:if pm.mode == external -->
 [configure-external]: 03_configure-external-integration.md
 <!-- arc:endif -->
-[meta-prd]: ../../../../reference/META-PRD.md
+[project-prd]: ../../../../reference/PROJECT-PRD.md
 [tech-overview]: ../../../../reference/TECHNICAL-OVERVIEW.md
 [agents-project]: ../../../briefs/AGENT-BRIEF.PROJECT.md
 [quick-ref]: ../../../../reference/QUICK-REFERENCE.md
@@ -223,7 +209,6 @@ workflows to your tracker.
 [dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md
 <!-- arc:if pm.mode == arc-in-git -->
 [roadmap]: ../../../../backlog/ROADMAP.md
-[project-status]: ../../../../reference/PROJECT-STATUS.md
 <!-- arc:endif -->
 <!-- arc:if pm.mode == none -->
 [create-prd]: ../1_create-prd.md

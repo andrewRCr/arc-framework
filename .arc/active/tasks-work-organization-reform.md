@@ -3208,8 +3208,39 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           returns 0 `status-*.md` matches in current-state references (only the deferred
           `completion-*.md` README hits remain, covered by 6.9.d); `lint:md` zero errors.
 
-    - `[ ]` **6.7.e Retired template/strategy/plan refs (`template-completion-doc`, `PROJECT-STATUS`,
+    - `[x]` **6.7.e Retired template/strategy/plan refs (`template-completion-doc`, `PROJECT-STATUS`,
       `plan-roadmap-evolution`, `plan-completion-status-consolidation`)**
+        - PROJECT-STATUS references retired across active surfaces (per R40, file retired at 6.6.a).
+          Substantive section retirements: `02_define-project.md` § Step 7 Establish PROJECT-STATUS
+          retired entirely (+ template mirror in arc-in-git conditional block) including
+          update-trigger bullet, Next Step rest-list mention, and `[project-status]` ref-link def;
+          `maintain-project-docs.md` § PROJECT-STATUS.md Changes subsection retired entirely (+
+          mirror) plus PROJECT-STATUS lines under META-PRD and TECHNICAL-OVERVIEW Changes.
+          List-entry retirements: `strategy-file-classification.md` § Scaffolded examples list
+          and § Governed files list (2 hits × 2 copies); `01_verify-and-configure.md` arc-in-git
+          review prompt; `strategy-configurability-architecture.md` `pm.mode` files list;
+          `arc-config.yml` PM-mode comment (both project + package copies).
+        - template-completion-doc references retired (file retired at 6.6.d):
+          `strategy-package-project-sync.md` Framework files list line 177 removed.
+        - PROJECT-STATUS template-mapping retired: `strategy-package-project-sync.md` line 257
+          removed (`PROJECT-STATUS.template.md → PROJECT-STATUS.md` mapping); line 82 "Remaining
+          templates" count updated 7 → 6, PROJECT-STATUS removed from the listed names.
+        - plan-roadmap-evolution / plan-completion-status-consolidation: no active-surface
+          references remained (files already deleted at 6.6.b/6.6.c via commit 37fe1b08; no
+          inbound refs surfaced during grep).
+        - **Folded in (forced by pre-commit validate-links):** `02_define-project.md` + template
+          mirror carried a pre-existing broken `[meta-prd]: ../../../../reference/META-PRD.md`
+          ref-link def (target file already renamed locally per R35; broken link surfaced only when
+          file was next staged per SESSION-NOTES's pre-existing-broken-refs caveat). Completed the
+          full META-PRD → PROJECT-PRD rename within this file (heading, body refs, ref-link label,
+          ref-link target) to unblock the commit. 6.7.k task description amended to note this file
+          is already handled.
+        - **Deferred to other phases / out of scope:** Internal-dev / historical surfaces
+          (ADR-019, analyses, research, WOR's own docs) retain references describing the
+          retirements per 2.13.e ADR-precedent.
+        - Verification: post-sweep grep on active surfaces (excluding pristine.json — generated
+          state, regenerate via CLI at end of sweep phase) returns 0 matches for all 4 patterns;
+          `lint:md` zero errors.
 
     - `[ ]` **6.7.f Lazy scope-tag example (`docs(arc):` in method examples, etc.)**
 
@@ -3266,10 +3297,12 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
         - Grep patterns: `META-PRD`, `META-PRD.md`, `template-meta-prd`, `META-PRD.template.md`.
         - Update each reference to `PROJECT-PRD` / `PROJECT-PRD.md` / `template-project-prd` / `PROJECT-PRD.template.md`
           respectively. Surface: README files, workflows (`1_create-prd.md`, `01_verify-and-configure.md`,
-          `02_define-project.md`, `maintain-project-docs.md`), strategies (`strategy-file-classification.md`,
+          `maintain-project-docs.md`), strategies (`strategy-file-classification.md`,
           `strategy-configurability-architecture.md`), briefs (`AGENT-BRIEF.PROJECT.template.md`), hooks
           (`system/githooks/pre-commit`), configs (`system/arc-config.yml`). Touch points already addressed by upstream
-          tasks: file rename (4.3.h), CLI hardcoded reference (5.4). 6.7.k sweeps remaining doc surface.
+          tasks: file rename (4.3.h), CLI hardcoded reference (5.4), `02_define-project.md` + template mirror
+          (folded into 6.7.e — pre-existing broken link to `META-PRD.md` blocked the 6.7.e commit; resolved
+          by completing the rename within that file). 6.7.k sweeps the remaining doc surface.
         - Reference-link definitions (e.g., `[meta-prd]:`) in any doc that uses them — rename link reference name and
           target together.
         - _Note:_ `manifest.json` + `pristine.json` regenerate via `arc update`; no manual edit needed.
