@@ -185,3 +185,14 @@ Atomic Task Completion for the full protocol.
   behind `origin/main` from integration work that landed on a sibling clone. The probe-side
   extension (session-init `mainSync` slot) is the larger concern — captured separately in
   `user/andrew/ATOMIC-INBOX.md` with forward-pointer to `plan-cross-machine-sync-coherence.md`.
+
+### `[x]` **Classify `backlog/{ATOMIC,BACKLOG}-INBOX.template.md` as Scaffolded**
+
+- _Outcome:_ Added both inbox templates to `SCAFFOLDED_FILES` in
+  `packages/arc-framework/src/lib/classification.ts`, restoring the adopter-owned classification
+  semantic from the retired predecessors (BACKLOG-FEATURE / BACKLOG-TECHNICAL). Templates now
+  skip `arc update` overwrites and treat adopter edits as content rather than drift. Test
+  coverage extended at `__tests__/unit/init.test.ts` — the existing `classifyFile` Scaffolded-
+  bucket assertion gained two new lines for the inbox templates. Full suite green post-edit.
+  Surfaced during 6.7.o code-surface backfill (`3fecc021`) and triaged separately because
+  reclassification is a behavior change, not a bug fix.
