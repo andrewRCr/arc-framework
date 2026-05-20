@@ -110,19 +110,19 @@ type; routing (wrapper or raw) follows § Workflow class-tag routing.
 - **Task list accuracy:** Before committing, verify task documentation reflects completed work
   (parent task marked `[x]` if all subtasks complete). Stage task list updates with the commit.
 
-- **Status-file timing:** Status file updates fire only at handoff commits and workflow-ceremony
+- **Meta-file timing:** Meta file updates fire only at handoff commits and workflow-ceremony
   commits (activate / integrate / sweep / deactivate / PRD generation / planning-lifecycle ops).
-  Task-completion code commits never touch the status file.
+  Task-completion code commits never touch the meta file.
 
-- **Status-file commit shape:** Status edits ride with concurrent ceremony content (file
-  moves, completion doc, PRD save, archival) — bundle into the ceremony commit. When the status
-  edit is the entire staged change, it lands as a dedicated `chore(status):` commit. The
-  staging area is the test: anything else staged → bundled; status alone → dedicated. Never
-  bundled with code commits (already enforced by status-file timing above).
+- **Meta-file commit shape:** Meta-file edits ride with concurrent ceremony content (file
+  moves, completion doc, PRD save, archival) — bundle into the ceremony commit. When the
+  meta-file edit is the entire staged change, it lands as a dedicated `chore(arc):` commit. The
+  staging area is the test: anything else staged → bundled; meta-file edit alone → dedicated.
+  Never bundled with code commits (already enforced by meta-file timing above).
 
 - **Contributor commit release:** Under `arc.commitInterlock: on-task-approval`, contributor-role
-  commit release stages code only — project-level status-file updates remain a maintainer responsibility.
-  Contributor status files (gitignored, `user/{identity}/active/`) update at handoff regardless of
+  commit release stages code only — project-level meta-file updates remain a maintainer responsibility.
+  Contributor meta files (gitignored, `user/{identity}/active/`) update at handoff regardless of
   interlock settings.
 
 **For complex commits** (multi-session accumulated work, interleaved concerns), load the
@@ -240,7 +240,7 @@ Before implementing any task, assess whether tests should be written first — s
 
 Session state uses two files with different update triggers:
 
-- **`status-{name}.md`** (tracked, `active/{category}/`) — the active WU's project pointer.
+- **`meta-{name}.md`** (tracked, `active/{category}/`) — the active WU's project pointer.
   Updated only at handoff commits and workflow-ceremony commits (activate / integrate / sweep /
   deactivate / PRD generation / planning-lifecycle ops); task-completion code commits never touch
   it. Mid-session updates are churn. See § Commit Discipline for the timing rule.
@@ -344,7 +344,7 @@ Meta-commentary vs. substantive reference: citations that justify the code by ap
 process artifacts — `per the team's TDD playbook`, `implements the spec from RFC-042`,
 `per the test-first method's batching-judgment clause` — are a form of documentation coupling,
 binding code to a document on its own evolution schedule. Replace them with what the code
-does; route process rationale to a planning artifact (PRDs, plans, task lists, status files,
+does; route process rationale to a planning artifact (PRDs, plans, task lists, meta files,
 ADRs, completion docs, work-unit notes, commit `Context:` footers). Substantive references —
 test names describing behavior, comments on non-obvious invariants — stay.
 
@@ -365,7 +365,7 @@ document.
 **Also applies to communication artifacts** — PR descriptions, notes files, and documentation
 handoffs describe what the artifact delivers, not the author's workflow continuity. Workflow
 continuity (post-merge activation, next actions, session boundaries, file-retirement metadata
-tied to specific commits) belongs in the active WU's `status-{name}.md` and SESSION-NOTES,
+tied to specific commits) belongs in the active WU's `meta-{name}.md` and SESSION-NOTES,
 not in the artifact body.
 
 **Examples of reader-hostile patterns:**
@@ -381,7 +381,7 @@ not in the artifact body.
 Load these documents when you reach the relevant work — not during session initialization.
 
 - **Before starting task execution:** The [process-task-loop workflow][process-task-loop] loads
-  conditionally at session-init when the active `status-{name}.md` shows active task work (see
+  conditionally at session-init when the active `meta-{name}.md` shows active task work (see
   session-init item 10). If it wasn't loaded at init, load it before beginning any task
 
 - **Before complex commits:** Load the [prepare-commits workflow][prepare-commits] — multi-session

@@ -5,7 +5,7 @@
 > tier rationale, monitoring responsibilities, and auto-compaction reasoning.
 
 Operational specification for context loading and session-operational flow in ARC. Covers the
-tiered context model and loading mechanisms (context); the interlock model, status-file timing,
+tiered context model and loading mechanisms (context); the interlock model, meta-file timing,
 and handoff-interior toggle pattern (flow); plus context monitoring and session state portability
 (operational rhythm). For session lifecycle workflows, see [session-init][session-init],
 [session-handoff][session-handoff], and [session-loop][session-loop].
@@ -20,9 +20,9 @@ and handoff-interior toggle pattern (flow); plus context monitoring and session 
 - [Method and Extension Loading](#method-and-extension-loading) — on-demand procedural content
 - [Interlock Model](#interlock-model) — interlock stack, ceremony, configurability, approval signals
 - [Failure-Mode Recovery](#failure-mode-recovery) — taxonomy and recovery paths for interlock cascades
-- [Status-File Timing](#status-file-timing) — when status updates land in commit history
+- [Meta-File Timing](#meta-file-timing) — when status updates land in commit history
 - [User Workspace Directory](#user-workspace-directory) — path-class layout for `user/{identity}/`
-- [SESSION-NOTES](#session-notes) — personal session-context companion to the status file
+- [SESSION-NOTES](#session-notes) — personal session-context companion to the meta file
 - [Working Memory](#working-memory) — cross-WU persistent context with eviction triggers
 - [Handoff-Interior Toggle Pattern](#handoff-interior-toggle-pattern) — config-key convention for handoff actions
 - [Context Monitoring](#context-monitoring) — shared responsibility model
@@ -54,7 +54,7 @@ work. Always loaded at session start.
 **T2 — State.** Content that orients the agent — where work stands, what happened last session,
 what comes next. Always loaded at session start.
 
-- status-{name}.md (per-WU tracked project pointer in active/{category}/; holds State, Branch,
+- meta-{name}.md (per-WU tracked project pointer in active/{category}/; holds State, Branch,
   Task List, Next Task, Last Completed, Blockers, Next Action)
 - SESSION-NOTES.md (personal session context from prior handoff)
 - Task list overview and current task section (strategic partial read)
@@ -74,7 +74,7 @@ Content meeting these criteria promotes from T3 to the session-init load set:
 
 | Content           | State Signal                                        | Promotes When             |
 |-------------------|-----------------------------------------------------|---------------------------|
-| process-task-loop | Status file resolved; `**Task List:**` not `[none]` | Active task work expected |
+| process-task-loop | Meta file resolved; `**Task List:**` not `[none]`   | Active task work expected |
 
 Sessions without active task lists (planning, evaluation, exploratory) don't need ~240 lines of
 dense procedural content. The state signal loads it precisely when relevant.
@@ -87,7 +87,7 @@ and subprocess calls:
 - **Non-destructive** — read-only, no mutations, no user prompts
 - **Harness-first** — agent-consumed via `--json`, not CLI-interactive
 - **Composite-first** — `arc status --session-init --json` returns identity, user-sync, extensions, config,
-  and active-status-file resolution in a single envelope. Fans out to slot probes via `Promise.all`; each slot
+  and active-meta-file resolution in a single envelope. Fans out to slot probes via `Promise.all`; each slot
   wraps into a typed `Probe<T>` union so one slot's failure doesn't invalidate the others
 
 Standalone probe commands (`arc user status`, `arc config status`, `arc extensions status`, `arc active
@@ -110,7 +110,7 @@ branch rather than rejecting the composite. Mirrors the session-init field table
 | `worktree`        | Worktree sync state vs. `origin/<current-branch>` — same shape as session-init's `worktree` slot                                                                          |
 | `user`            | Notes-sync state — same shape as session-init's `user` slot; identity-missing short-circuit applies when `arc.identity` is absent                                         |
 | `syncInterlock`   | `{value, source}` — resolved `arc.syncInterlock`. Gates whether handoff invokes `arc sync` (`on-handoff`) or surfaces unpushed state without firing (`manual`)            |
-| `active`          | Active status file resolution — same shape as session-init's `active` slot                                                                                                |
+| `active`          | Active meta file resolution — same shape as session-init's `active` slot                                                                                                  |
 | `head`            | Current `HEAD` short-hash (`value.hash`) — anchors the `Commit at Handoff` field written by the handoff workflow                                                          |
 | `pushability`     | Pushability pre-check matrix for the worktree push leg (`target: "worktree"`). Cross-reference with `worktree` for the full divergence picture                            |
 | `releaseRouting`  | Resolved release-wrapper routing per class-tag (`taskCommit` / `workflowCommit` / `workflowPush` to `wrapper` or `raw`), plus `rationale` snapshot                        |
@@ -356,7 +356,7 @@ Both avoid unnecessary body reads at init, but they serve different decisions an
 
 ## Interlock Model
 
-These sections define ARC's session-operational flow — the interlock model, status-file timing, and
+These sections define ARC's session-operational flow — the interlock model, meta-file timing, and
 handoff-interior toggle pattern. For at-session rule statements that constrain agent behavior in this
 domain, see [DEV-RULES.ARC][dev-rules-arc] § Review-Increment Invariant, § Commit Discipline, and
 § Session Management.
@@ -439,7 +439,7 @@ quality gate engages the interlock until the failure is resolved.
 ### Orthogonal Ceremony
 
 Session handoff sits orthogonal to the interlock stack — always human-invoked, regardless of
-interlock settings. Inside handoff, individual actions (status-file rotation, worktree push,
+interlock settings. Inside handoff, individual actions (meta-file rotation, worktree push,
 notes push, quality-gate finalization) follow the configurable handoff-interior toggle pattern (see
 § Handoff-Interior Toggle Pattern). Handoff is not a rung in the interlock stack; it consolidates
 next-session-serving bookkeeping into a single explicit ritual.
@@ -512,11 +512,11 @@ to manual-with-prompt.
 ### Contributor Commit Release Boundary
 
 Contributor-role commit-on-task-approval stages project code and task-list documentation only.
-Project-level status files stay maintainer-owned because they represent shared work-unit state
-and lifecycle ceremony, not contributor-local progress. Contributor status files live under
+Project-level meta files stay maintainer-owned because they represent shared work-unit state
+and lifecycle ceremony, not contributor-local progress. Contributor meta files live under
 `user/{identity}/active/`, are gitignored, and remain local session state.
 
-The contributor handoff cadence is mode-independent: contributor status files update at handoff
+The contributor handoff cadence is mode-independent: contributor meta files update at handoff
 regardless of `arc.commitInterlock` value (`manual`, `on-task-approval`, or `on-workflow`). This
 keeps commit release focused on reviewed code changes while preserving the session-state
 contract that handoff is the single update point for contributor-local active status.
@@ -627,7 +627,7 @@ git diff --cached --stat
 git log --oneline -n 10
 ```
 
-Read the active status file's `**Next Action:**` workflow-step pointer and compare it to the git
+Read the active meta file's `**Next Action:**` workflow-step pointer and compare it to the git
 state. If the pointer, staged diff, and commit history agree on the next operation, continue from
 that operation. If they disagree or the user may prefer rollback, surface the mismatch and prompt:
 continue the interrupted cascade, roll back with an explicit cascade-undo plan, or stop for manual
@@ -635,9 +635,9 @@ inspection.
 
 ---
 
-## Status-File Creation Contract
+## Meta-File Creation Contract
 
-Each work unit gets exactly one status file (`active/{category}/status-{name}.md`) tracked from creation
+Each work unit gets exactly one meta file (`active/{category}/meta-{name}.md`) tracked from creation
 through archival. Two convergent creation paths produce the same artifact shape; both apply idempotent
 guards so re-entry is safe.
 
@@ -660,7 +660,7 @@ handoff workflow) get a uniform parse surface — no field-omission ambiguity, n
 branching.
 
 **Filename-pointer convention.** Artifact-pointer fields (`**Task List:**`, `**Spec:**`) carry bare
-filenames. Path resolution derives from `dirname(status-file)` — co-location of status, task list, and
+filenames. Path resolution derives from `dirname(meta-file)` — co-location of status, task list, and
 PRD is invariant across the WU lifecycle. The probe's `deriveCompanions` consumes this directly.
 
 **State enum.** `Planning` (planning session) and `In Progress` (executing tasks) are the documented
@@ -669,7 +669,7 @@ treats `Planning` as case-exact (drives `sessionType: "planning"`); other values
 List / Next Action signals — preserving behavior for parenthetical-suffix variants like `Paused
 (2026-04-12)`.
 
-**Status-field migration.** When lifecycle fields become stricter, update existing active status files directly
+**Status-field migration.** When lifecycle fields become stricter, update existing active meta files directly
 as part of the work unit that introduces the rule. Keep structural validation strict for new commits instead of
 allowing legacy absence, and avoid one-off migration helpers until repeated project demand justifies the
 maintenance surface.
@@ -680,27 +680,27 @@ shelved removes the file (no WU follows; no pointer needed).
 
 ---
 
-## Status-File Timing
+## Meta-File Timing
 
-Status-file updates fire only at session-handoff commits and workflow-ceremony commits (activate /
+Meta-file updates fire only at session-handoff commits and workflow-ceremony commits (activate /
 integrate / sweep / deactivate / PRD generation / planning-lifecycle ops). Task-completion code
-commits never touch the status file. See [DEV-RULES.ARC][dev-rules-arc] § Commit Discipline for the
+commits never touch the meta file. See [DEV-RULES.ARC][dev-rules-arc] § Commit Discipline for the
 rule statement.
 
-**Why bound to ceremony commits.** Status-file fields (Next Task, Last Completed, Next Action) are
+**Why bound to ceremony commits.** Meta-file fields (Next Task, Last Completed, Next Action) are
 state pointers consumed at session-init. Per-task updates produce intermediate snapshots that no
 consumer reads; aligning state-change with the consumer boundary eliminates per-commit metadata churn
 and removes the per-commit shape-vs-rotation judgment call.
 
-**Tradeoff: dedicated handoff status commit.** Handoff produces a `chore(status): handoff …` commit
+**Tradeoff: dedicated handoff status commit.** Handoff produces a `chore(arc): handoff …` commit
 that's not bundled with code — a clear session-boundary marker, naturally atomic, conventional-commit-
 friendly, and visible in PR history as the explicit handoff point. Workflow-ceremony commits
 (activate, integrate, etc.) bundle their status updates into the ceremony commit itself.
 
 **Contrast: task-list checkboxes ride with content commits.** Task-list `[x]` flips bundle with the
-code commit that completes the task — the opposite rule from the status file (see
+code commit that completes the task — the opposite rule from the meta file (see
 [DEV-RULES.ARC][dev-rules-arc] § Atomicity, [prepare-commits.md][prepare-commits] § Granularity).
-The distinction is volatility versus derived state. Status-file fields are pointers whose value at
+The distinction is volatility versus derived state. Meta-file fields are pointers whose value at
 time T is stale by T+10min — deferring updates to ceremony boundaries discards no information
 because the next consumer (session-init) reads only the latest pointer. Task-list `[x]` flips are
 *terminal derived state*: a completion event that won't reverse, and one a future reader needs at
@@ -709,7 +709,7 @@ recovery cheap (interrupted sessions leave the git record matching reality) and 
 "what task did this commit complete" linkage in `git log` view.
 
 For deeper context on commit-history readability, commit-on-task-approval benefits, and what alternatives
-to task-list bundling would cost, see [status-file timing background][TODO-docs-site] and
+to task-list bundling would cost, see [meta-file timing background][TODO-docs-site] and
 [task-list timing background][TODO-docs-site].
 
 ---
@@ -747,7 +747,7 @@ physically separate.
 ## SESSION-NOTES
 
 SESSION-NOTES.md is personal session context, gitignored, paired with the active WU's project
-pointer — the maintainer-role `status-{name}.md` in `active/{category}/` or the contributor-role
+pointer — the maintainer-role `meta-{name}.md` in `active/{category}/` or the contributor-role
 `meta-{name}.md` in the per-WU workspace subdir. The project pointer carries the factual state
 (branch, task, blockers, next action); SESSION-NOTES carries the working context the next session
 needs to pick up where the last left off — approach, decisions, things tried, risks. Together
@@ -893,7 +893,7 @@ for the full key reference and defaults.
 
 **Composite handoff probe.** `arc status --session-handoff --json` returns the handoff envelope —
 dirty state, worktree state, notes-sync state, sync-interlock mode, pushability pre-check matrix,
-resolved active status file, and current HEAD short-hash. The handoff workflow consumes the
+resolved active meta file, and current HEAD short-hash. The handoff workflow consumes the
 envelope and gates on `syncInterlock`; the sync orchestrator owns push-interlock and notes-push
 resolution internally. See § Probe pattern § Extension contract for how new toggles add slots.
 

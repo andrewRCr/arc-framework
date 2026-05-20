@@ -3476,28 +3476,19 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
               prose "meta-file commit shape" at L53 retained — points at the DEV-RULES.ARC § Commit
               Discipline section that n.2 will rename from "Status-file commit shape".
 
-        - `[ ]` **6.7.n.2 Constitutional + strategy section heading migration (anchor-link cascade)**
-            - `DEV-RULES.ARC.md` full-file sweep (both copies) — § Commit Discipline (Status-file timing
-              bullet at L113, Status-file commit shape bullet at L117, `chore(status):` reference at L119,
-              "Status edits" prose, status-file-timing back-ref at L121, project-level status-file at L124,
-              Contributor status files at L125), § Session Management (`**status-{name}.md**` file class
-              descriptor at L243), § Documentation Boundaries (`status files,` at L347, `active WU's
-              status-{name}.md` at L368), § When to Load Additional Guidance (`active status-{name}.md`
-              at L384).
-            - `commit-footer.md` (both copies) — `chore(status):` example reference under Meta-file
-              references (L70).
-            - `strategy-session-operations.md` (both copies) — section heading migration:
-              `## Status-File Creation Contract` → `## Meta-File Creation Contract` (L638);
-              `## Status-File Timing` → `## Meta-File Timing` (L683); update TOC anchor at L23
-              (`[Status-File Timing](#status-file-timing)` → `[Meta-File Timing](#meta-file-timing)`);
-              update body refs at L8, L57, L90, L359, L442, L640, L663, L685, L690, L703, L712, L750.
-              Anchor cascade confirmed local-only via grep (no cross-strategy anchor refs to
-              `#status-file-*` outside this file).
-            - `arc-commit/SKILL.md` (both copies) — Status-file timing + Status-file commit shape refs
-              at L20-23.
-            - Post-edit verification: grep on `\bStatus[- ]?[Ff]ile\b` across the 4 named surfaces returns
-              empty (excepting `## Meta-File ...` headings); `#status-file-` anchor fragments grep empty;
-              two-copy parity confirmed; lint clean.
+        - `[x]` **6.7.n.2 Constitutional + strategy section heading migration (anchor-link cascade)**
+            - _Outcome:_ ~75 hits resolved across 4 surfaces (both copies, all byte-identical post-sweep):
+              `DEV-RULES.ARC.md` full-file sweep (§ Commit Discipline bullet labels + `chore(status):` →
+              `chore(arc):` + "Status edits" prose; § Session Management, § Documentation Boundaries,
+              § When to Load Additional Guidance — filename-token migration); `commit-footer.md` L70
+              example reference; `strategy-session-operations.md` § Status-File Timing + § Status-File
+              Creation Contract H2 headings renamed (with TOC anchor cascade — local-only,
+              `#status-file-` fragments grep clean post-sweep); `arc-commit/SKILL.md` L20-23 bullets.
+              Table-column alignment in `strategy-session-operations.md` (lines 77, 113) re-padded to
+              recover MD060 compliance after Status→Meta shortened cell content by 2 chars. § Commit
+              Discipline narrative also tightened during the multi-line edit: "When the status edit /
+              status alone → dedicated" simplified to "meta-file edit alone → dedicated" — single
+              concept instead of two-phrase repetition.
 
         - `[ ]` **6.7.n.3 Bulk prose + filename-token sweep across remaining surfaces**
             - Workflows (both copies, including `.template.md` siblings where applicable):

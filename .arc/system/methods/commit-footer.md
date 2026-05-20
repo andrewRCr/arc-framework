@@ -67,7 +67,7 @@ audit). Both take the same parentheticals.
 Used for WU lifecycle ceremonies (which edit the meta file) and for off-ceremony meta edits.
 
 - `Context: meta-[name].md (handoff)` — meta-file rotation at session boundary (dedicated
-  `chore(status):` commit per [DEV-RULES.ARC][dev-rules-arc] § Commit Discipline)
+  `chore(arc):` commit per [DEV-RULES.ARC][dev-rules-arc] § Commit Discipline)
 - `Context: meta-[name].md (activation)` — backlog → active transition
 - `Context: meta-[name].md (integration)` — integration prep (completion doc, cleanup, reference
   fixes; not review-driven fixes — see `(code review)` on `tasks-`/`plan-`)
