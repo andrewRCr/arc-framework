@@ -3442,45 +3442,88 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           (historical record).
 
     - `[ ]` **6.7.n Ceremony-commit shape migration + status→meta prose sweep (Design CLEAN)**
-        - Migrate ceremony-commit subject shapes across all WU lifecycle workflows + session-handoff to the
-          Design CLEAN convention codified in 6.1.d / 6.1.e. Migration targets:
-            - `chore(status): handoff` → `chore(arc): handoff — <position>` per 6.1.e template.
-              `Context: status-foo.md (handoff)` → `Context: meta-foo.md (handoff)` covered atomically by 6.2.i.
-            - `chore(meta): integrate {name}` (landed in `integrate-work-unit.md` at Phase 3 Task 3.4) →
-              `chore(arc): integrate {name}`.
-            - Any other `chore(meta):` or `chore(status):` references in workflow bodies, method examples, or
-              strategy docs → `chore(arc): <action>` shape per the convention.
-        - Also migrate "Status-file ..." prose → "Meta-file ..." prose across all surfaces.
-        - Companion to Task 6.2.a (file rename) and 6.2.i (hook regex + commit-footer body filename-token
-          flip) — 6.7.n covers the subject-scope shape + prose-nomenclature strata those tasks don't touch.
-          Hook regex change unnecessary: the type-enum regex captures any alphanum scope; `(arc)` is the
-          canonical reserved scope under the new convention.
-        - Grep patterns: `chore\(status\)`, `chore\(meta\)`, `Status-file timing`, `Status-file commit shape`,
-          `Status edits`, `status edit`, `\bstatus-file\b` (case-insensitive on the prose patterns).
-        - Touch points:
-            - Constitutional: `DEV-RULES.ARC.md` § Commit Discipline (Status-file timing bullet, Status-file
-              commit shape bullet, `chore(status):` reference, "Status edits" prose).
-            - Methods: `commit-footer.md` (line ~70 `chore(status):` example reference under Meta-file
-              references).
-            - Workflows: `1_create-prd.md`, `3_process-task-loop.md`, `prepare-commits.md` (multiple refs),
-              `session-handoff.md` (post-6.1.e codification — verify alignment, no re-sweep needed),
-              `integrate-work-unit.md` (Phase 3 Task 3.4 landed `chore(meta): integrate {name}` — retarget to
-              `chore(arc): integrate {name}`), `activate-work-unit.md` (verify already-landed `chore(arc):`
-              shape aligns with the `<action> <wu-name>` template; align if not),
-              `archive-work-unit.md`, `deactivate-work-unit.md` (audit + align).
-            - Skill: `arc-commit/SKILL.md`.
-            - Strategies: `strategy-session-operations.md`, `strategy-workflow-authoring.md`.
-        - **Exclusions:**
+        - _Goal:_ Migrate ceremony-commit subject shapes to the Design CLEAN convention codified in 6.1.d /
+          6.1.e; sweep residual `status-` / `status-file` / `status-{name}` prose + filename tokens across
+          adopter-facing surfaces; rename `## Status-File …` section headings in `strategy-session-operations.md`
+          with anchor-link cascade. Companion to Task 6.2.a (file rename) and 6.2.i (hook regex + commit-footer
+          body filename-token flip) — 6.7.n covers the subject-scope shape, prose-nomenclature, and residual
+          filename-token strata those tasks don't touch. Hook regex change unnecessary: type-enum regex
+          captures any alphanum scope; `(arc)` is the canonical reserved scope under the new convention.
+        - _Grep patterns_ (full set): `chore\(status\)`, `chore\(meta\)`, `\bStatus[- ]?[Ff]ile\b`,
+          `status-\{name\}`, `Status edits`, `status edit`. Captures ceremony commit shapes, prose
+          nomenclature (both `status-file` and `status file` variants), filename-token placeholders, and
+          section-heading patterns.
+        - _Scope total:_ ~170 unique hits across 20+ adopter-facing surfaces (339 hits counting both
+          copies). Atomic-per-op discipline (Phase 6 design) → split into 3 sequenced subtasks:
+          n.1 (narrow / high-impact integrate ceremony shape) → n.2 (constitutional + strategy section
+          heading migration with anchor cascade) → n.3 (bulk prose + filename-token sweep across remaining
+          workflows / briefs / templates / strategies). Each commits independently.
+        - _Sequencing prerequisites:_ Runs after 6.1.d (convention codification — the migration target
+          shape) AND 6.1.e (handoff template); after 6.2.a (file rename) + 6.2.i (hook regex flip) so the
+          end-to-end shape is coherent before this prose+shape sweep lands.
+        - **Exclusions** (apply to all 3 subtasks):
             - Historical archive (`completed/<dated>/` post-6.9 / `reference/archive/` pre-6.9):
               accurate-as-of-decision; do not touch.
             - Internal-dev surfaces describing historical decisions (e.g., `adr-016`,
               `research-pr-sizing-and-wu-boundary-estimation.md`) follow the 2.13.e ADR-precedent —
               historical record stays accurate as-of-decision; explicit per-doc judgment at execution.
-        - **Sequencing:** Runs after 6.1.d (convention codification — the migration target shape) AND 6.1.e
-          (handoff template); after 6.2.a (file rename) + 6.2.i (hook regex flip) so the end-to-end shape is
-          coherent before this prose+shape sweep lands.
-        - Post-sweep verification: grep on the patterns returns empty across adopter-facing surfaces;
-          internal-dev historical surfaces retain original phrasing where the as-of-decision case applies.
+
+        - `[ ]` **6.7.n.1 Integrate ceremony commit shape — `chore(meta): integrate` → `chore(arc): integrate`**
+            - The only lifecycle ceremony commit currently out-of-step with 6.1.d / 6.1.e. All other
+              lifecycle workflows (activate, archive, deactivate, session-handoff) already use
+              `chore(arc): <action> {name}`. Target: `integrate-work-unit.md` lines 52 + 56 (both copies,
+              byte-identical) — retarget `chore(meta): integrate {name}` → `chore(arc): integrate {name}`
+              including the surrounding workflow callout prose at line 52 (`subject chore(meta): per § Commit`).
+            - Post-edit verification: grep `chore\(meta\)` returns empty across adopter-facing surfaces;
+              two-copy parity confirmed; lint clean.
+
+        - `[ ]` **6.7.n.2 Constitutional + strategy section heading migration (anchor-link cascade)**
+            - `DEV-RULES.ARC.md` full-file sweep (both copies) — § Commit Discipline (Status-file timing
+              bullet at L113, Status-file commit shape bullet at L117, `chore(status):` reference at L119,
+              "Status edits" prose, status-file-timing back-ref at L121, project-level status-file at L124,
+              Contributor status files at L125), § Session Management (`**status-{name}.md**` file class
+              descriptor at L243), § Documentation Boundaries (`status files,` at L347, `active WU's
+              status-{name}.md` at L368), § When to Load Additional Guidance (`active status-{name}.md`
+              at L384).
+            - `commit-footer.md` (both copies) — `chore(status):` example reference under Meta-file
+              references (L70).
+            - `strategy-session-operations.md` (both copies) — section heading migration:
+              `## Status-File Creation Contract` → `## Meta-File Creation Contract` (L638);
+              `## Status-File Timing` → `## Meta-File Timing` (L683); update TOC anchor at L23
+              (`[Status-File Timing](#status-file-timing)` → `[Meta-File Timing](#meta-file-timing)`);
+              update body refs at L8, L57, L90, L359, L442, L640, L663, L685, L690, L703, L712, L750.
+              Anchor cascade confirmed local-only via grep (no cross-strategy anchor refs to
+              `#status-file-*` outside this file).
+            - `arc-commit/SKILL.md` (both copies) — Status-file timing + Status-file commit shape refs
+              at L20-23.
+            - Post-edit verification: grep on `\bStatus[- ]?[Ff]ile\b` across the 4 named surfaces returns
+              empty (excepting `## Meta-File ...` headings); `#status-file-` anchor fragments grep empty;
+              two-copy parity confirmed; lint clean.
+
+        - `[ ]` **6.7.n.3 Bulk prose + filename-token sweep across remaining surfaces**
+            - Workflows (both copies, including `.template.md` siblings where applicable):
+              `1_create-prd.md`, `3_process-task-loop.md`, `prepare-commits.md`,
+              `session-handoff.md` (`.template.md`), `session-init.md` (`.template.md`),
+              `session-init.contributor.md`, `manage-incidental-work.md`,
+              `01_verify-and-configure.md`, `activate-work-unit.md`, `archive-work-unit.md`,
+              `deactivate-work-unit.md` (verify alignment, no edit if already clean).
+            - Strategies (both copies): `strategy-team-coordination.md`, `strategy-work-organization.md`.
+            - Briefs (both copies): `AGENT-BRIEF.ARC.md`, `AGENT-BRIEF.CONTRIBUTOR.md`.
+            - Templates (both copies): `template-pull-request.md`.
+            - Methods (both copies): `session-state.md`.
+            - Other (both copies): `system/githooks/README.md`, `user/README.md`. Plus project workflow:
+              `system/workflows/project/address-pr-review.md` (.arc/ only — project-side).
+            - Migration patterns per-context:
+                - Prose `\bstatus file\b` (singular file-class noun) → `meta file`
+                - Compound `\bstatus-file\b` (hyphenated) → `meta-file`
+                - Filename-token `status-{name}.md` → `meta-{name}.md`
+                - Workflow body examples `chore(status):` → `chore(arc):` (with appropriate `<action>` per
+                  6.1.d / 6.1.e where context-appropriate)
+            - Per-context judgment: where "status" refers to git state (e.g., `git status`, "PR status",
+              "CI status"), retain — only file-class noun usage migrates.
+            - Post-sweep verification: grep on the full pattern set returns empty across adopter-facing
+              surfaces (excluding intentional retentions — git/PR/CI status usages, internal-dev historical
+              surfaces); two-copy parity confirmed; lint clean.
 
     - `[ ]` **6.7.o Category-dir path sweep (`active/{category}/`, `backlog/{...}/`) — R3 + R49 retirement**
         - **Action:** retire path references — under R3, `active/` is flat (one WU per branch, no category subdirs);
