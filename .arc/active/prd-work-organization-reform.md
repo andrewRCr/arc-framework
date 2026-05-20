@@ -1043,8 +1043,8 @@ ambiguities feeding back into `TECHNICAL-OVERVIEW.template.md` v1.1 if needed.
 
 R41 path references update from `archive/<dated>/{wu-name}/` to `completed/<dated>/{wu-name}/`. R42 path references
 update from `archive/2026-q*/{category}/` to `completed/2026-q*/{category}/`. Inbound-reference sweep across workflows,
-strategies, briefs, hooks, CLI code, backlog plans, and templates handled within Phase 6's cross-reference sweep
-(new subtasks 6.7.l / 6.7.m).
+strategies, briefs, hooks, CLI code, backlog plans, and templates handled within Phase 6's directory-promotion phases
+(new subtasks 6.9.b / 6.10.d — each migration phase is self-contained: rename → sweep → verify).
 
 ### One-shot template uniqueness (P0)
 

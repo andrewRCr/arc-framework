@@ -2629,7 +2629,7 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           default-specific convention into universal rules would couple them to override-able method content.
           Grep confirmed no residual `(arc)`-as-default prose elsewhere — nothing to remove.
         - PRD R26 reshape: deferred to WOR integration sweep per the task's stated scope split.
-        - Both copies synced (package source authoritative). Sequencing vs. 6.7.p preserved.
+        - Both copies synced (package source authoritative). Sequencing vs. 6.7.n preserved.
 
     - `[x]` **6.1.e Codify handoff-commit subject + body shape (session-handoff.md step 3)**
         - Codified in `session-handoff.md` step 3 (both copies — template + rendered): subject template
@@ -3127,13 +3127,13 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           `manage-incidental-work.md` 3 prose-dichotomy hits (`feature/technical work`, `active/{feature|technical}/...`
           path) → 6.7.i (grep patterns list augmented in this commit to explicitly include `feature/technical` and
           `active/{feature|technical}/`); remaining category-dir path references across ~15 files (~70 hits in
-          workflows, strategies, briefs, templates) → new subtask 6.7.q created (R3 + R49 substrate retirement,
+          workflows, strategies, briefs, templates) → new subtask 6.7.o created (R3 + R49 substrate retirement,
           distinct from 6.7.a's literal branch-prefix scope and 6.7.i's incidental-substrate scope). README META-PRD
           parenthetical (line 27) and archive "by work type" framing (line 34) left for 6.7.k (PROJECT-PRD rename)
-          and 6.7.l (archive→completed path sweep) respectively.
+          and 6.9.b (archive→completed path sweep) respectively.
         - Verification: `lint:md` zero errors on modified set; post-sweep grep in-scope surfaces shows 0
           branch-prefix-pattern references remaining (only the explicitly-deferred non-branch-prefix matches
-          remain, all covered by 6.7.i + 6.7.q).
+          remain, all covered by 6.7.i + 6.7.o).
 
     - `[x]` **6.7.b PR-prefix pattern (`[PLAN]:`)**
         - Verification-only: pattern is already entirely absent from active framework surfaces under sweep scope
@@ -3195,18 +3195,18 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           `packages/arc-framework/arc/reference/archive/README.md` (lines 41, 50, 58, 102-106
           describing pre-WOR archive WU shape) — broader structural rewrite needed since the whole
           README is pre-WOR (category subdirs, PROJECT-STATUS refs, incidental category framing).
-          Folded into new subtask 6.9.d (rewrite completed/README.md content for post-WOR shape;
+          Folded into new subtask 6.9.e (rewrite completed/README.md content for post-WOR shape;
           naturally co-located with Phase 6.9's archive→completed directory promotion).
           `strategy-package-project-sync.md:177` `template-completion-doc.md` ref → 6.7.e per
           its stated scope. Internal-dev / historical surfaces (ADR-019, analyses, WOR's own
           docs) retain references describing the retirement per 2.13.e ADR-precedent. The
           prose-noun `status-file` / `Status-file timing` pattern (distinct from the
-          file-prefix-with-extension pattern this task sweeps) is 6.7.p's scope (ceremony-commit
+          file-prefix-with-extension pattern this task sweeps) is 6.7.n's scope (ceremony-commit
           shape + status→meta prose sweep).
         - Verification: post-sweep grep on active surfaces (workflows, methods, extensions,
           briefs, strategies, constitution, templates, QUICK-REFERENCE + package mirrors)
           returns 0 `status-*.md` matches in current-state references (only the deferred
-          `completion-*.md` README hits remain, covered by 6.9.d); `lint:md` zero errors.
+          `completion-*.md` README hits remain, covered by 6.9.e); `lint:md` zero errors.
 
     - `[x]` **6.7.e Retired template/strategy/plan refs (`template-completion-doc`, `PROJECT-STATUS`,
       `plan-roadmap-evolution`, `plan-completion-status-consolidation`)**
@@ -3382,11 +3382,11 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
             - `packages/arc-framework/arc/backlog/ROADMAP.template.md` + `.arc/backlog/ROADMAP.md` lines 4-5 —
               PROJECT-STATUS sibling-doc sentence retired (template + rendered instance, identical header
               content).
-        - **Substantial gap routed to 6.7.l** (folded into that task's description in a separate commit):
+        - **Substantial gap routed to 6.9.b** (folded into that task's description in a separate commit):
           `archive/README.md` (both copies, byte-identical) describes the OLD pre-WOR archive layout (work-
           categorized subdirs, `completion-{name}.md` convention, PROJECT-STATUS refs, substrate triples in
-          navigation). Substantive content rewrite beyond directory rename — fits 6.7.l's archive→completed
-          scope when 6.7.l fires after 6.9.a's `git mv`.
+          navigation). Substantive content rewrite beyond directory rename — fits 6.9.b's archive→completed
+          scope when 6.9.b fires after 6.9.a's `git mv`.
         - **Out of scope:** internal-dev surfaces (`reference/research/`, `reference/analysis/`,
           `reference/adr/`) per 6.7.e ADR-precedent; backlog WU artifacts (Activation Audit); archive content
           (historical, distinct from `archive/README.md` routed above); `manage-incidental-work.md` itself
@@ -3412,48 +3412,12 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           on `maintain-project-docs.md` line 20 (126 chars pre-edit; 129 post-rename); wrapped in pair.
           83/83 affected tests pass; markdown lint zero violations.
 
-    - `[ ]` **6.7.l Archive → completed path sweep (per R62)**
-        - Grep patterns: `reference/archive`, `\.arc/reference/archive`, `[archive]:` reference-link definitions,
-          hardcoded archive paths in workflows / strategies / hooks / scripts / CLI code.
-        - Update to `completed/` / `\.arc/completed/` as appropriate. Surface: workflows (`archive-work-unit.md`,
-          `integrate-work-unit.md`, `verify-work-unit.md`, `clean-work-unit.md`, others), strategies
-          (`strategy-work-organization.md`, `strategy-file-classification.md`), hooks (`system/githooks/pre-commit`),
-          scripts (`system/scripts/validate-links.sh`), CLI code (`packages/arc-framework/src/` — path resolution /
-          classification touch points).
-        - **Exclusion:** content INSIDE `completed/` (formerly `archive/`) — historical archived documents retain their
-          original paths in their own bodies; sweep targets only references TO the directory, not references WITHIN it.
-        - **`archive/README.md` substantive rewrite (surfaced during 6.7.j verification, paired with the directory
-          rename):** `packages/arc-framework/arc/reference/archive/README.md` + `.arc/reference/archive/README.md`
-          (byte-identical) describe the OLD pre-WOR archive layout — work-categorized subdirs (`feature/`,
-          `technical/`, `incidental/`), `completion-{name}.md` file convention, PROJECT-STATUS sibling references,
-          substrate triples in the Navigation block. Beyond renaming `archive` → `completed` in body refs, the
-          README's content needs rewriting to reflect current state (flat WU subdirs, no category split, no
-          `completion-{name}.md` file convention, no PROJECT-STATUS). Bundle with this task's archive→completed
-          sweep commit.
-        - **Sequencing:** Task 6.9.a (`git mv`) must complete before this subtask fires (directory must exist at new
-          path); 6.9.b verifies after this completes. R41 / R42 textual references in the PRD itself update at PRD
-          amendment time (already landed in this folded-in pass), not in this sweep.
-
-    - `[ ]` **6.7.m Supplemental collapse path sweep (per R62)**
-        - Grep patterns: `reference/research`, `reference/analysis`, `\.arc/reference/research`,
-          `\.arc/reference/analysis`, `[research]:` and `[analysis]:` reference-link definitions, hardcoded research /
-          analysis paths in strategies / templates / backlog plans.
-        - Update to `reference/supplemental/research/` and `reference/supplemental/analysis/` respectively. Surface:
-          strategies (`strategy-work-organization.md`, `strategy-work-planning.md`, `strategy-package-project-sync.md`,
-          others as discovered), templates (`template-completion-doc.md` — retiring per R51, but sweep cleanly before
-          retirement), backlog plans (`plan-arc-modes.md`, `plan-docs-content-sweep.md`, `plan-wu5-public-release.md`,
-          `plan-post-release-methodology.md`), ADRs (`adr-012` and any others), READMEs.
-        - **Exclusion:** content INSIDE `supplemental/` — research / analysis documents retain their original paths in
-          their own bodies; sweep targets only inbound references.
-        - **Sequencing:** Task 6.10.b / 6.10.c (`git mv`) must complete before this subtask fires; 6.10.e verifies after
-          this completes.
-
-    - `[ ]` **6.7.n Audience-vocabulary sweep: "adopter" → neutral framing**
+    - `[ ]` **6.7.l Audience-vocabulary sweep: "adopter" → neutral framing**
         - Replace "adopter" references in adopter-facing surfaces with neutral framing — "projects", "teams", or
           actor-omitted phrasing as context fits. Rationale: "adopter" is framework-author perspective on the reader;
           from the reader's viewpoint they're just running a project, not "adopting" something. Surfaced mid-Task-2.10
           execution; small fold-in handled there for `strategy-file-classification.md` + two leftover phrases in
-          `strategy-work-organization.md`. 6.7.n sweeps the remaining surface.
+          `strategy-work-organization.md`. 6.7.l sweeps the remaining surface.
         - Grep pattern: `\badopter\b` (case-insensitive).
         - Surface (adopter-facing only): `strategy-team-coordination.md`,
           `system/workflows/arc/supplemental/setup-release-wrapper.md`, `system/extensions/README.md`,
@@ -3466,7 +3430,7 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
         - Post-sweep verification: grep on adopter-facing surface list returns empty (with the package-source mirror
           checked alongside `.arc/`).
 
-    - `[ ]` **6.7.o `archive.cadence` enum cleanup (`strategy-work-organization.md` § Archival)**
+    - `[ ]` **6.7.m `archive.cadence` enum cleanup (`strategy-work-organization.md` § Archival)**
         - `strategy-work-organization.md` § Archival § Sweep-as-you-go default currently enumerates three
           `archive.cadence` values (`with-integration` / `deferred` / `manual`) per Task 2.3's landed content. WOR
           resolved the enum to two values (`with-integration` / `manual`) per `notes-work-organization-reform.md`
@@ -3479,7 +3443,7 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           adopter-facing surfaces; retirement rationale survives in internal-dev-facing notes (this WU's notes
           file).
 
-    - `[ ]` **6.7.p Ceremony-commit shape migration + status→meta prose sweep (Design CLEAN)**
+    - `[ ]` **6.7.n Ceremony-commit shape migration + status→meta prose sweep (Design CLEAN)**
         - Migrate ceremony-commit subject shapes across all WU lifecycle workflows + session-handoff to the
           Design CLEAN convention codified in 6.1.d / 6.1.e. Migration targets:
             - `chore(status): handoff` → `chore(arc): handoff — <position>` per 6.1.e template.
@@ -3490,7 +3454,7 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
               strategy docs → `chore(arc): <action>` shape per the convention.
         - Also migrate "Status-file ..." prose → "Meta-file ..." prose across all surfaces.
         - Companion to Task 6.2.a (file rename) and 6.2.i (hook regex + commit-footer body filename-token
-          flip) — 6.7.p covers the subject-scope shape + prose-nomenclature strata those tasks don't touch.
+          flip) — 6.7.n covers the subject-scope shape + prose-nomenclature strata those tasks don't touch.
           Hook regex change unnecessary: the type-enum regex captures any alphanum scope; `(arc)` is the
           canonical reserved scope under the new convention.
         - Grep patterns: `chore\(status\)`, `chore\(meta\)`, `Status-file timing`, `Status-file commit shape`,
@@ -3520,7 +3484,7 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
         - Post-sweep verification: grep on the patterns returns empty across adopter-facing surfaces;
           internal-dev historical surfaces retain original phrasing where the as-of-decision case applies.
 
-    - `[ ]` **6.7.q Category-dir path sweep (`active/{category}/`, `backlog/{...}/`) — R3 + R49 retirement**
+    - `[ ]` **6.7.o Category-dir path sweep (`active/{category}/`, `backlog/{...}/`) — R3 + R49 retirement**
         - **Action:** retire path references — under R3, `active/` is flat (one WU per branch, no category subdirs);
           under R49, backlog reorganizes to `backlog/{provisional,planned}/[<cohort>/]<wu>/`. Update path examples,
           code-fence diagrams, prose mentions across doc surfaces. Distinct from 6.7.a (literal branch-prefix refs)
@@ -3584,25 +3548,48 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
       Historical content (`archive/2026-q*/{category}/`) moves alongside, preserving R42's read-only categorical layout
       intact (paths become `completed/2026-q*/{category}/`).
 
-    - _Sequencing:_ 6.9.a runs before 6.7.l (the inbound-reference sweep needs the directory to exist at its new path
-      to verify against). 6.9.b verifies after 6.7.l completes.
+    - _Sequencing:_ 6.9.a (rename) → 6.9.b (sweep) → 6.9.c (verify). 6.9.e (README rewrite) can run
+      in parallel with 6.9.c verification once 6.9.b completes.
 
     - `[ ]` **6.9.a Execute directory move**
         - `git mv .arc/reference/archive .arc/completed`.
         - Verify directory now exists at `.arc/completed/` with all historical content intact (currently three dated
           subdirs: `2025-q4/`, `2026-q1/`, `2026-q2/`).
 
-    - `[ ]` **6.9.b Verify inbound references swept (post-6.7.l)**
-        - After 6.7.l completes, grep across the documentation surface for `reference/archive`,
+    - `[ ]` **6.9.b Sweep inbound references (archive → completed paths)**
+        - Grep patterns: `reference/archive`, `\.arc/reference/archive`, `[archive]:` reference-link definitions,
+          hardcoded archive paths in workflows / strategies / hooks / scripts / CLI code.
+        - Update to `completed/` / `\.arc/completed/` as appropriate. Surface: workflows (`archive-work-unit.md`,
+          `integrate-work-unit.md`, `verify-work-unit.md`, `clean-work-unit.md`, others), strategies
+          (`strategy-work-organization.md`, `strategy-file-classification.md`), hooks (`system/githooks/pre-commit`),
+          scripts (`system/scripts/validate-links.sh`), CLI code (`packages/arc-framework/src/` — path resolution /
+          classification touch points).
+        - **Exclusion:** content INSIDE `completed/` (formerly `archive/`) — historical archived documents retain their
+          original paths in their own bodies; sweep targets only references TO the directory, not references WITHIN it.
+        - **`archive/README.md` substantive rewrite (surfaced during 6.7.j verification, paired with the directory
+          rename):** `packages/arc-framework/arc/reference/archive/README.md` + `.arc/reference/archive/README.md`
+          (byte-identical) describe the OLD pre-WOR archive layout — work-categorized subdirs (`feature/`,
+          `technical/`, `incidental/`), `completion-{name}.md` file convention, PROJECT-STATUS sibling references,
+          substrate triples in the Navigation block. Beyond renaming `archive` → `completed` in body refs, the
+          README's content needs rewriting to reflect current state (flat WU subdirs, no category split, no
+          `completion-{name}.md` file convention, no PROJECT-STATUS). Bundle with this task's archive→completed
+          sweep commit.
+        - **Sequencing:** Runs after 6.9.a (`git mv`) — directory must exist at the new path before
+          the sweep can verify. 6.9.c verifies after this completes. R41 / R42 textual references in
+          the PRD itself update at PRD amendment time (already landed in this folded-in pass), not in
+          this sweep.
+
+    - `[ ]` **6.9.c Verify inbound references swept (post-6.9.b)**
+        - After 6.9.b completes, grep across the documentation surface for `reference/archive`,
           `\.arc/reference/archive` — should return empty (excluding the WOR PRD / task list / status file themselves,
           which legitimately discuss the rename).
 
-    - `[ ]` **6.9.c Update hooks / scripts if needed**
+    - `[ ]` **6.9.d Update hooks / scripts if needed**
         - Verify `system/githooks/pre-commit`, `system/scripts/validate-links.sh`, and any other tooling don't carry
           stale `reference/archive/` references. `manifest.json` + `pristine.json` regenerate via `arc update`; manual
           edits unnecessary except for hook scripts.
 
-    - `[ ]` **6.9.d Rewrite `completed/README.md` content for post-WOR shape**
+    - `[ ]` **6.9.e Rewrite `completed/README.md` content for post-WOR shape**
         - The current `archive/README.md` (package source; mirrored to `.arc/` per package-project-sync) describes a
           pre-WOR archive shape: quarterly + category subdirs (`feature/`, `technical/`, `incidental/`) framed as
           current convention, `completion-{name}.md` artifact (retired per R30 — content folds into meta-file
@@ -3618,7 +3605,7 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           (package mirror; the package source's archive/ doesn't move under WOR because the package ships the directory
           structure, not the historical content).
         - **Sequencing:** runs after 6.9.a (directory move) so the .arc/ path is at its post-WOR location; can run
-          in parallel with 6.9.b verification.
+          in parallel with 6.9.c verification.
 
 ### `[ ]` **6.10 Supplemental collapse: `reference/research/` + `reference/analysis/` → `reference/supplemental/` (R62)**
 
@@ -3628,7 +3615,8 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
 
     - _Approach:_ Create `reference/supplemental/` parent dir; `git mv` research and analysis under it.
 
-    - _Sequencing:_ 6.10.a-c run before 6.7.m (the inbound-reference sweep). 6.10.e verifies after 6.7.m completes.
+    - _Sequencing:_ 6.10.a-c (moves) → 6.10.d (sweep) → 6.10.f (verify). 6.10.e (README) optional
+      after 6.10.c, runs in parallel with later steps.
 
     - `[ ]` **6.10.a Create `reference/supplemental/` parent**
         - `mkdir .arc/reference/supplemental` (and `packages/arc-framework/arc/reference/supplemental/` if any package
@@ -3641,14 +3629,28 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
     - `[ ]` **6.10.c Execute analysis directory move**
         - `git mv .arc/reference/analysis .arc/reference/supplemental/analysis`.
 
-    - `[ ]` **6.10.d Author `supplemental/README.md` (optional)**
+    - `[ ]` **6.10.d Sweep inbound references (supplemental collapse)**
+        - Grep patterns: `reference/research`, `reference/analysis`, `\.arc/reference/research`,
+          `\.arc/reference/analysis`, `[research]:` and `[analysis]:` reference-link definitions, hardcoded research /
+          analysis paths in strategies / templates / backlog plans.
+        - Update to `reference/supplemental/research/` and `reference/supplemental/analysis/` respectively. Surface:
+          strategies (`strategy-work-organization.md`, `strategy-work-planning.md`, `strategy-package-project-sync.md`,
+          others as discovered), templates (`template-completion-doc.md` — retiring per R51, but sweep cleanly before
+          retirement), backlog plans (`plan-arc-modes.md`, `plan-docs-content-sweep.md`, `plan-wu5-public-release.md`,
+          `plan-post-release-methodology.md`), ADRs (`adr-012` and any others), READMEs.
+        - **Exclusion:** content INSIDE `supplemental/` — research / analysis documents retain their original paths in
+          their own bodies; sweep targets only inbound references.
+        - **Sequencing:** Runs after 6.10.b / 6.10.c (`git mv`) — directories must exist at new paths
+          before sweep can verify. 6.10.f verifies after this completes.
+
+    - `[ ]` **6.10.e Author `supplemental/README.md` (optional)**
         - Brief README explaining the parent directory's role: "Non-load-bearing reference material — research and
           analysis artifacts that informed strategies and ADRs but aren't read at session-init or workflow-fire.
           Distinct from `adr/` / `constitution/` / `strategies/` / `templates/` (load-bearing)." Optional; can be
           deferred if existing per-subdir READMEs (`research/README.md`, `analysis/README.md`) carry sufficient framing.
 
-    - `[ ]` **6.10.e Verify inbound references swept (post-6.7.m)**
-        - After 6.7.m completes, grep across the documentation surface for `reference/research`, `reference/analysis`,
+    - `[ ]` **6.10.f Verify inbound references swept (post-6.10.d)**
+        - After 6.10.d completes, grep across the documentation surface for `reference/research`, `reference/analysis`,
           `\.arc/reference/research`, `\.arc/reference/analysis` — should return empty (excluding the WOR PRD / task
           list / status file themselves).
 
