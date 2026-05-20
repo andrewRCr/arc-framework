@@ -139,6 +139,10 @@ handoff-opt), `3_process-task-loop.md` stop conditions (~70), structured prompt 
 
 ### Cross-file de-duplication findings
 
+> **Fold-in (2026-05-20):** Both cross-file de-dup items below absorbed into
+> `plan-documentation-surface-routing.md` Lobe 1 (sibling WU). Same domain (documentation surface
+> routing). Content preserved here for rationale until this plan's own PRD trims it formally.
+
 Two pure-consolidation wins independent of any structural reforms:
 
 - **Atomicity / commit-grouping rules** appear in `prepare-commits.md` (L107-L124),
@@ -189,6 +193,11 @@ redundancy.
 ---
 
 ## Pillar 2: Skill Cache Discipline
+
+> **Fold-in (2026-05-20):** This pillar's scope absorbed into
+> `plan-documentation-surface-routing.md` (sibling WU). Mechanism choice (A/B/C/hybrid) decided
+> at that WU's PRD time; implementation lands there. Content preserved below for rationale until
+> this plan's own PRD trims it formally.
 
 ### The arc-commit case
 
@@ -661,6 +670,11 @@ returning to if the question surfaces concretely; not architecting speculatively
   skill-load discipline, and the next batch of envelope extensions.
 - **Handoff Optimization** (`plan-handoff-optimization.md`) — sibling. Same playbook
   applied to session-handoff. **Hard prerequisite for sequencing** — see § Sequencing.
+- **Documentation Surface Routing** (`plan-documentation-surface-routing.md`) — sibling.
+  Absorbs this plan's Pillar 2 (skill cache discipline for `arc-commit`) and Pillar 1 cross-file
+  de-dup items (atomicity rules across 3 surfaces; atomic-vs-task-list decision across 2
+  surfaces). Cohort renames to `instruction-discipline` at planning kickoff. PRD-time scope
+  trim on this plan removes the absorbed content.
 - **Work Organization Reform** (`prd-work-organization-reform.md`) — soft prerequisite for
   boundary items in `manage-incidental-work.md`. WOR's incidental-work lifecycle changes may absorb
   some of Pillar 1's E2 finding.

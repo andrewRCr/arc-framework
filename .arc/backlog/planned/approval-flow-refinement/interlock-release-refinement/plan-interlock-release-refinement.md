@@ -147,6 +147,23 @@ What remains is mostly *routing-half* work:
   dependency of the wrapper-routing migration above rather than a follow-up — see *Composition*
   below.
 
+- *Recurrence (2026-05-20):* Third occurrence in WOR execution session — agent fired
+  `arc release commit` for Tasks 6.7.i, 6.7.j, 6.7.q, 6.7.l after task completion BEFORE the
+  structured task-interlock approval gate released (only 6.7.h followed protocol). Agent's own
+  post-incident diagnostic named three contributing confusions: (1) conflating "wrapper bypasses
+  harness per-invocation prompt" with "wrapper bypasses user-approval gate"; (2) treating commit
+  as part of task execution rather than as gated interlock release; (3) self-invoking
+  deferred-review-like behavior on a single-transition approval. Diagnostic-recommended doc-side
+  fixes: `process-task-loop.md` step 4 bright-line ("commit fires AFTER affirmative response, not
+  before; staging or invoking arc-commit before user response is a protocol violation even under
+  on-task-approval / on-workflow"); `arc-commit/SKILL.md` antipattern naming ("firing commit as
+  part of post-task verification sequence"); CLAUDE.md / AGENTS.md wrapper-vs-approval guardrail
+  ("`arc release commit` bypasses the harness per-invocation prompt — it does NOT bypass the
+  user's task-interlock approval gate. Invoke only after structured-prompt user approval").
+  Third datapoint hardens act-pending-design posture and confirms doc-side intervention is
+  warranted alongside any mechanism guard. Doc-side surface coordination with
+  `plan-documentation-surface-routing.md` per § Cross-Plan Coordination.
+
 - *Composition (Layer 1 update):* The wrapper-routing migration raises the stakes on this item —
   off-task incidentals now route through wrapper, expanding the surface where agent-invoked
   `arc-commit` without prior approval could fire. Layer 1 makes this a hard dependency, not a
@@ -285,6 +302,13 @@ their respective domains:
   deduplication principle. Not an interlock concern per se, but surfaced during this plan's
   rule-spread audit. The principle governs how interlock work gets documented (operational
   decision tree at tier-0/1; rationale at tier-2).
+- **`plan-documentation-surface-routing.md`** — new sibling (cohort: `instruction-discipline`
+  post-planning-kickoff rename). Shares edit surfaces with this plan: DEV-RULES.ARC § Commit
+  Discipline, `process-task-loop.md`, `arc-commit/SKILL.md`, CLAUDE.md / AGENTS.md. The doc-side
+  fixes for the approval-provenance gap recurrence (process-task-loop bright-line, arc-commit
+  antipattern naming, CLAUDE.md guardrail) coordinate with that WU's salience-callout lobe.
+  CLAUDE.md / AGENTS.md guardrail composition (single combined vs two separate) resolved jointly
+  at PRD time.
 
 ## Sequencing
 
