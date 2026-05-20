@@ -3425,18 +3425,21 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           ships-as-is package source for STRATEGY-INDEX), which is clean. Audit also surfaced two surface-list gaps
           (`template-meta.md`, package-source `STRATEGY-INDEX.md`) folded in before the sweep ran.
 
-    - `[ ]` **6.7.m `archive.cadence` enum cleanup (`strategy-work-organization.md` § Archival)**
-        - `strategy-work-organization.md` § Archival § Sweep-as-you-go default currently enumerates three
-          `archive.cadence` values (`with-integration` / `deferred` / `manual`) per Task 2.3's landed content. WOR
-          resolved the enum to two values (`with-integration` / `manual`) per `notes-work-organization-reform.md`
-          § `archive.cadence: deferred` considered and rejected. Trim the strategy doc's enumeration to match: remove
-          the `deferred` bullet; verify no other `deferred` cadence references survive in the strategy body.
-        - Sweep target: `.arc/reference/strategies/arc/strategy-work-organization.md` + package-source mirror.
-          Companion verification: CLI validator (`validate-config.sh`) already enumerates 2 values — confirm no
-          drift; `arc-config.yml` carries no enum (default only) — no change needed.
-        - Post-sweep verification: grep on `\bdeferred\b` within `archive.cadence` context returns empty across
-          adopter-facing surfaces; retirement rationale survives in internal-dev-facing notes (this WU's notes
-          file).
+    - `[x]` **6.7.m `archive.cadence` enum cleanup (`strategy-work-organization.md` § Archival + `arc-config.yml`)**
+        - _Outcome:_ Strategy doc's `Sweep-as-you-go default` enum trimmed from 3 bullets to 2 — `deferred` retired
+          per `notes-work-organization-reform.md` § `archive.cadence: deferred` considered and rejected. **Audit
+          fold-in:** `arc-config.yml` carried a stale-pointer comment block (`` `deferred` is intentionally omitted
+          for v1; strategy-session-operations.md documents the rationale and future trigger criteria ``) — but
+          `strategy-session-operations.md` had zero `archive.cadence` references, so the pointer led nowhere. Retired
+          the entire 2-line comment outright rather than redirecting to internal-dev notes; adopters don't need
+          retired-value context. Touch surface (4 files, both copies × 2):
+          `.arc/reference/strategies/arc/strategy-work-organization.md` + package-source mirror;
+          `.arc/system/arc-config.yml` + package-source mirror. Verified clean: `integrate-work-unit.md` § 12 cadence
+          dispatch (2-value enum), `archive-work-unit.md`, `validate-config.sh`, `src/lib/config/status-reader.ts`
+          valid-set, `init.test.ts:473` comment-block test. **Intentionally untouched:** `status-reader.test.ts:381`
+          uses `archive.cadence: deferred` as the invalid-value fixture (test of rejection path — retired value is
+          appropriate); ADR-019 retains its enumeration of the original 3-value enum per 2.13.e ADR-precedent
+          (historical record).
 
     - `[ ]` **6.7.n Ceremony-commit shape migration + status→meta prose sweep (Design CLEAN)**
         - Migrate ceremony-commit subject shapes across all WU lifecycle workflows + session-handoff to the

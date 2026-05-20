@@ -221,6 +221,4 @@ user.notes_push: on-sync
 #   with-integration - Run archive ops with integration follow-through as a
 #                      separate commit in the integration PR. (default)
 #   manual           - Defer archival until explicitly invoked.
-# `deferred` is intentionally omitted for v1; strategy-session-operations.md
-# documents the rationale and future trigger criteria.
 archive.cadence: with-integration

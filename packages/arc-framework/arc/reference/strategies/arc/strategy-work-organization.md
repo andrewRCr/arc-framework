@@ -320,8 +320,6 @@ lifecycle on one branch through one merge.
 - **`with-integration`** (default) — sweep commits ride on the integration PR; the WU's meta
   file and any companions move from `active/` to `archive/<dated>/<wu-name>/` as part of the
   same merge that ships the code.
-- **`deferred`** — sweep fires at the next-WU planning batch instead, bundling archival of the
-  just-shipped WU with planning artifacts for the next one on a shared transition branch.
 - **`manual`** — sweep fires only on explicit invocation; no automatic ceremony coupling.
 
 Under `with-integration`, the integration PR carries a multi-commit structure: code commits →
