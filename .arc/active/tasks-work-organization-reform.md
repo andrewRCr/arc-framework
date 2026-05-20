@@ -3062,7 +3062,7 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
       (local `main` 47 commits behind `origin/main` on this machine) before new-WU branch
       creation rather than at it. Probe-side extension captured in user-scoped ATOMIC-INBOX.
 
-### `[ ]` **6.6 Retire deprecated docs (`PROJECT-STATUS.md` + three others)**
+### `[x]` **6.6 Retire deprecated docs (`PROJECT-STATUS.md` + three others)**
 
 - _Goal:_ Four deprecated docs retire — `PROJECT-STATUS.md` (function decomposes per R40 mapping; non-carried content
   logged in deletion commit message), two planning artifacts retire after content absorption, and
@@ -3072,6 +3072,7 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
   `research-worktree-tool-convergence.md`). The former doesn't exist (findings already absorbed pre-WOR); the latter
   exists and is retained until Worktree Foundation lands. PRD R51 needs symmetric correction at WOR integration — remove
   both research files from the retirement list.
+
     - `[x]` **6.6.a Retire `.arc/reference/PROJECT-STATUS.md` (R40)**
         - File deleted plus the coupled package-source template (`packages/arc-framework/arc/reference/PROJECT-STATUS.template.md`)
           so adopters don't render a retired doc on `arc init`. CLI surface trimmed: `SCAFFOLDED_FILES` entry in
@@ -3084,14 +3085,21 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           Adopter-facing workflow text references (`02_define-project.template.md`, `maintain-project-docs.md`,
           `01_verify-and-configure.md`, `arc-config.yml` comment) carry forward to 6.7's cross-reference sweep.
 
-    - `[ ]` **6.6.b Retire `plan-roadmap-evolution.md` (R51)**
-        - Tiered-horizons direction superseded by R37-R39 rendered-view shape.
+    - `[x]` **6.6.b Retire `plan-roadmap-evolution.md` (R51)**
+        - Verification-only: deletion already landed at commit `37fe1b08` (Task 6.4.d/e backlog
+          migration). File absent from `.arc/`.
 
-    - `[ ]` **6.6.c Retire `plan-completion-status-consolidation.md` (R51)**
-        - Absorbed into WOR R14, R30-R32.
+    - `[x]` **6.6.c Retire `plan-completion-status-consolidation.md` (R51)**
+        - Verification-only: deletion already landed at commit `37fe1b08` (Task 6.4.d/e backlog
+          migration). File absent from `.arc/`.
 
-    - `[ ]` **6.6.d Retire `template-completion-doc.md` (R51)**
-        - Folded into `template-meta.md` archive-phase sections (4.1).
+    - `[x]` **6.6.d Retire `template-completion-doc.md` (R51)**
+        - Both copies deleted (`git rm`): `.arc/reference/templates/template-completion-doc.md` and
+          `packages/arc-framework/arc/reference/templates/template-completion-doc.md`. CLI surface
+          trimmed: `init-recipe.json` top-level `include_files` entry removed (one line). No code
+          or test references existed (template-class files aren't in `SCAFFOLDED_FILES`; no e2e
+          asserted post-init existence). Content fold into `template-meta.md` archive-phase
+          sections already verified at Task 4.1.g.
 
 ### `[ ]` **6.7 Cross-reference sweep**
 

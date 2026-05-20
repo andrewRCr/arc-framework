@@ -86,11 +86,6 @@
       "layer": "core",
       "pristine_hash": "8c5e0f56ec966ab4241ca412b6e51e452f065642e83c83698ca75d3871373b05"
     },
-    "reference/templates/template-completion-doc.md": {
-      "classification": "Framework",
-      "layer": "core",
-      "pristine_hash": "ccef3fa6c2aad2fc90052a38c0c77269af970de487c78479cac947358887a341"
-    },
     "reference/templates/template-plan.md": {
       "classification": "Framework",
       "layer": "core",
@@ -480,11 +475,6 @@
       "classification": "Scaffolded",
       "layer": "arc-in-git",
       "pristine_hash": "110de18d71ed0f51425b43b7cc081198ad77c71c12023126c3abc53f38ea97d9"
-    },
-    "reference/PROJECT-STATUS.md": {
-      "classification": "Scaffolded",
-      "layer": "arc-in-git",
-      "pristine_hash": "7636bd99d4ca66b9856d06cd5abc52c4d974cc95578efed685db6a6766f2fd6b"
     },
     "reference/strategies/arc/strategy-planning-module.md": {
       "classification": "Framework",
