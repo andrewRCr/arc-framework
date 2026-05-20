@@ -99,7 +99,7 @@ hooks.test_patterns: __tests__/|\.test\.|\.spec\.|/test/|/tests/
 # Strict meta-project reference patterns scanned in ALL staged code, including
 # tests. These cover patterns rare enough in legitimate fixture data that the
 # test exemption is unsafe — PRD R-codes, bare requirement / behavior numeric
-# IDs, and section-symbol citations. META-PRD lines are filtered as a known
+# IDs, and section-symbol citations. PROJECT-PRD lines are filtered as a known
 # false positive (real framework template filename). Pipe-separated regex.
 #   default: 'PRD R[0-9]+|\b[RB][0-9]+\b|§ '
 hooks.strict_meta_ref_patterns: 'PRD R[0-9]+|\b[RB][0-9]+\b|§ '

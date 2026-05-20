@@ -11,13 +11,14 @@ audience: agent
 
 When constitutional documents change, update related files to keep documentation in sync:
 
-### META-PRD.md Changes
+### PROJECT-PRD.md Changes
 
 **Update these files:**
 
 - `briefs/AGENT-BRIEF.PROJECT.md` - Project overview and features section
 
-**Why**: META-PRD is the source of truth for project vision. Changes here ripple to reference docs that summarize that vision.
+**Why**: PROJECT-PRD is the source of truth for project vision. Changes here ripple to reference
+docs that summarize that vision.
 
 ### DEV-RULES.PROJECT.md Changes
 

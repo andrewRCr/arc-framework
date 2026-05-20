@@ -1,6 +1,6 @@
 # AGENT-BRIEF.PROJECT.md — {{PROJECT_NAME}} Orientation for Agents
 
-<!-- This file is an agent-facing executive summary. META-PRD.md (reference/constitution/)
+<!-- This file is an agent-facing executive summary. PROJECT-PRD.md (reference/)
      and TECHNICAL-OVERVIEW.md (reference/) contain the full versions. Keep this file
      concise — agents load it every session. -->
 

@@ -89,7 +89,7 @@ a configurability path (how teams adapt it).
 
 | Convention                                                  | Principle | Default                  | Configurability Path                                  |
 |-------------------------------------------------------------|-----------|--------------------------|-------------------------------------------------------|
-| Document hierarchy (META-PRD → PRD → tasks)                 | P1        | Full hierarchy           | Structural contract — workflows depend on structure   |
+| Document hierarchy (PROJECT-PRD → PRD → tasks)              | P1        | Full hierarchy           | Structural contract — workflows depend on structure   |
 | Template-first documents                                    | P1        | Copy-ready templates     | Structural contract — fill in, don't redesign         |
 | Per-task mandatory review stop                              | P2        | Stop after each checkbox | Behavioral guidance — adjust review increment scope   |
 | Completion protocol (check → mark → verify → report → stop) | P2        | Full ceremony            | Behavioral guidance — adjust protocol steps           |

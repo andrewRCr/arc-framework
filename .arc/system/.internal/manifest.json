@@ -26,10 +26,9 @@
       "layer": "core",
       "pristine_hash": "8f61630a75f78bfa49d82c02124432b408ec8d95a8a0b4f5378ac2141d340969"
     },
-    "reference/META-PRD.md": {
+    "reference/PROJECT-PRD.md": {
       "classification": "Scaffolded",
-      "layer": "core",
-      "pristine_hash": "75560b11c5e95496b4c6912259c64f667fc322e81cfb4c219a1e7c2fb707cce1"
+      "layer": "core"
     },
     "reference/TECHNICAL-OVERVIEW.md": {
       "classification": "Scaffolded",

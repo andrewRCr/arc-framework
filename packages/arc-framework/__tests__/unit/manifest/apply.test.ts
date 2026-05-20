@@ -107,26 +107,26 @@ describe("applyChangePlan", () => {
       const plan: FileChangePlan = {
         ...emptyPlan(),
         additions: [{
-          outputPath: "reference/META-PRD.md",
-          templateFile: "reference/META-PRD.template.md",
+          outputPath: "reference/PROJECT-PRD.md",
+          templateFile: "reference/PROJECT-PRD.template.md",
           classification: "Scaffolded",
           layer: "core",
         }],
         outputToTemplate: {
-          "reference/META-PRD.md": "reference/META-PRD.template.md",
+          "reference/PROJECT-PRD.md": "reference/PROJECT-PRD.template.md",
         },
       };
 
       const { io, renderCtx } = mockRenderCtx({
-        "reference/META-PRD.template.md": "# Meta PRD",
+        "reference/PROJECT-PRD.template.md": "# Meta PRD",
       });
 
       const result = await applyChangePlan(
         plan, "/project/.arc", makeManifest(), noopMerge, io, renderCtx,
       );
 
-      expect(result.newPristineStore["reference/META-PRD.md"]).toBeUndefined();
-      expect(result.newManifestFiles["reference/META-PRD.md"]).toBeDefined();
+      expect(result.newPristineStore["reference/PROJECT-PRD.md"]).toBeUndefined();
+      expect(result.newManifestFiles["reference/PROJECT-PRD.md"]).toBeDefined();
     });
   });
 
@@ -173,7 +173,7 @@ describe("applyChangePlan", () => {
       const plan: FileChangePlan = {
         ...emptyPlan(),
         removals: [{
-          outputPath: "reference/META-PRD.md",
+          outputPath: "reference/PROJECT-PRD.md",
           classification: "Scaffolded",
         }],
       };
@@ -513,7 +513,7 @@ describe("applyChangePlan", () => {
       const plan: FileChangePlan = {
         ...emptyPlan(),
         skipped: [{
-          outputPath: "reference/META-PRD.md",
+          outputPath: "reference/PROJECT-PRD.md",
           existingEntry,
         }],
       };
@@ -524,7 +524,7 @@ describe("applyChangePlan", () => {
       );
 
       expect(result.skipped).toBe(1);
-      expect(result.newManifestFiles["reference/META-PRD.md"]).toEqual({
+      expect(result.newManifestFiles["reference/PROJECT-PRD.md"]).toEqual({
         classification: "Scaffolded",
         layer: "core",
       });

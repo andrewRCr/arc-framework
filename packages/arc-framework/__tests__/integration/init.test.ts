@@ -418,7 +418,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
   it("pristine store excludes Scaffolded files", async () => {
     const store = await readPristineStore(tempDir);
 
-    expect(store["reference/META-PRD.md"]).toBeUndefined();
+    expect(store["reference/PROJECT-PRD.md"]).toBeUndefined();
   });
 
   it("pristine store content matches .arc/ files exactly", async () => {

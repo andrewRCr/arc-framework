@@ -217,7 +217,7 @@ Run `/arc-verify` to confirm that the installation is complete and consistent.
 
 ### Next Step
 
-Constitutional documents (META-PRD, TECHNICAL-OVERVIEW, AGENT-BRIEF.PROJECT, DEV-RULES.PROJECT,
+Constitutional documents (PROJECT-PRD, TECHNICAL-OVERVIEW, AGENT-BRIEF.PROJECT, DEV-RULES.PROJECT,
 QUICK-REFERENCE) already exist. Read them for project context rather than creating them —
 skip [02_define-project.md](02_define-project.md) unless documents need updating.
 

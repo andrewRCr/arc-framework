@@ -255,7 +255,7 @@ fi
 # Tiered patterns:
 #   - Strict (all staged code, including tests): patterns rare enough in
 #     legitimate fixture data that test exemption is unsafe (PRD R-codes,
-#     bare R/B numeric IDs, § citations). META-PRD lines are filtered as a
+#     bare R/B numeric IDs, § citations). PROJECT-PRD lines are filtered as a
 #     known false positive (real framework template filename).
 #   - Broad (non-test files only): patterns that legitimately appear in test
 #     fixtures (Context-footer parsers consume "Context: tasks-foo.md (Task
@@ -274,8 +274,8 @@ meta_project_refs=$(git diff --cached --name-only --diff-filter=ACMR | \
         added=$(git diff --cached -U0 -- "$file" 2>/dev/null | grep -E '^\+' || true)
         [ -z "$added" ] && continue
 
-        # Strict patterns apply to all staged code. META-PRD lines excluded.
-        strict_refs=$(echo "$added" | grep -nE "$strict_meta_ref_patterns" | grep -v 'META-PRD' || true)
+        # Strict patterns apply to all staged code. PROJECT-PRD lines excluded.
+        strict_refs=$(echo "$added" | grep -nE "$strict_meta_ref_patterns" | grep -v 'PROJECT-PRD' || true)
 
         # Broad patterns skip test files (legitimate fixture data).
         if echo "$file" | grep -qvE "$test_patterns"; then

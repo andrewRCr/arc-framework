@@ -22,7 +22,7 @@ full installation and setup walkthrough.
 │   └── planned/[<cohort>/]<wu>/   # Committed-to WUs, optionally grouped by cohort
 ├── reference/                 # Stable, long-lived documentation
 │   ├── QUICK-REFERENCE.md     # Environment context and command patterns
-│   ├── constitution/          # Foundational documents (META-PRD, rules, architecture)
+│   ├── constitution/          # Foundational documents (PROJECT-PRD, rules, architecture)
 │   ├── strategies/            # Codified implementation patterns
 │   │   ├── arc/               # Framework methodology (ships with ARC)
 │   │   └── project/           # Your project-specific patterns

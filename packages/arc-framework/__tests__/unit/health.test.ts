@@ -183,7 +183,7 @@ describe("runHealth", () => {
   it("reports Scaffolded files as scaffolded instead of modified", async () => {
     const manifest = buildManifest({
       files: {
-        "reference/META-PRD.md": {
+        "reference/PROJECT-PRD.md": {
           classification: "Scaffolded",
           layer: "core",
           // No pristine_hash — Scaffolded files are adopter-owned
@@ -199,15 +199,15 @@ describe("runHealth", () => {
     const io = buildIO({
       manifest,
       files: {
-        [`${CWD}/.arc/reference/META-PRD.md`]: "custom content\n",
+        [`${CWD}/.arc/reference/PROJECT-PRD.md`]: "custom content\n",
         [`${CWD}/.arc/system/arc-config.yml`]: FILE_CONTENT,
       },
-      arcFiles: ["reference/META-PRD.md", "system/arc-config.yml"],
+      arcFiles: ["reference/PROJECT-PRD.md", "system/arc-config.yml"],
     });
 
     const result = await runHealth({ cwd: CWD, io, frameworkVersion: "1.0.0" });
 
-    const scaffolded = result.fileStatuses.find((f) => f.path === "reference/META-PRD.md");
+    const scaffolded = result.fileStatuses.find((f) => f.path === "reference/PROJECT-PRD.md");
     expect(scaffolded).toBeDefined();
     expect(scaffolded!.state).toBe("scaffolded");
     expect(scaffolded!.classification).toBe("Scaffolded");
@@ -364,7 +364,7 @@ describe("buildHealthSummary", () => {
   it("shows scaffolded files with S label and count", () => {
     const summary = buildHealthSummary({
       fileStatuses: [
-        { path: "reference/META-PRD.md", state: "scaffolded", classification: "Scaffolded" },
+        { path: "reference/PROJECT-PRD.md", state: "scaffolded", classification: "Scaffolded" },
         { path: "system/arc-config.yml", state: "unmodified", classification: "Configurable" },
       ],
       versionInstalled: "1.0.0",
@@ -374,7 +374,7 @@ describe("buildHealthSummary", () => {
     });
 
     expect(summary).toContain("1 scaffolded");
-    expect(summary).toContain("S [Scaffolded] .arc/reference/META-PRD.md");
+    expect(summary).toContain("S [Scaffolded] .arc/reference/PROJECT-PRD.md");
   });
 
   it("omits legend when all files are unmodified", () => {

@@ -3396,19 +3396,21 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           per-file `validate-links.sh` clean across 4 touched files; byte-parity confirmed across the ROADMAP
           template + instance pair.
 
-    - `[ ]` **6.7.k META-PRD → PROJECT-PRD references (per R35 rename)**
-        - Grep patterns: `META-PRD`, `META-PRD.md`, `template-meta-prd`, `META-PRD.template.md`.
-        - Update each reference to `PROJECT-PRD` / `PROJECT-PRD.md` / `template-project-prd` / `PROJECT-PRD.template.md`
-          respectively. Surface: README files, workflows (`1_create-prd.md`, `01_verify-and-configure.md`,
-          `maintain-project-docs.md`), strategies (`strategy-file-classification.md`,
-          `strategy-configurability-architecture.md`), briefs (`AGENT-BRIEF.PROJECT.template.md`), hooks
-          (`system/githooks/pre-commit`), configs (`system/arc-config.yml`). Touch points already addressed by upstream
-          tasks: file rename (4.3.h), CLI hardcoded reference (5.4), `02_define-project.md` + template mirror
-          (folded into 6.7.e — pre-existing broken link to `META-PRD.md` blocked the 6.7.e commit; resolved
-          by completing the rename within that file). 6.7.k sweeps the remaining doc surface.
-        - Reference-link definitions (e.g., `[meta-prd]:`) in any doc that uses them — rename link reference name and
-          target together.
-        - _Note:_ `manifest.json` + `pristine.json` regenerate via `arc update`; no manual edit needed.
+    - `[x]` **6.7.k META-PRD → PROJECT-PRD references (per R35 rename)**
+        - _Outcome:_ Sweep landed across the named doc surface (8 markdown files × 2 copies + 2
+          internal-dev singles) plus three audit-surfaced expansions folded in as carried scope:
+          (1) **test fixtures** — `__tests__/{unit/manifest/apply,unit/health,unit/diff,integration/init}.test.ts`
+          carried 18 live `"reference/META-PRD{,.template}.md"` path-string fixtures that 5.4.f's
+          audit had reported clean; (2) **pre-commit hook literal-filter rename** — `grep -v 'META-PRD'`
+          in `system/githooks/pre-commit` flipped to `PROJECT-PRD` (both copies) so the strict-pattern
+          false-positive suppression continues to mask the renamed file's name; (3) **doubly-stale
+          path correction** — `AGENT-BRIEF.PROJECT.template.md` comment carried `(reference/constitution/)`
+          alongside the old name; both fixed in one edit. `manifest.json` hand-updated (key rename;
+          `pristine_hash` dropped to match current Scaffolded shape per `apply.ts:160`). `pristine.json`
+          values substring-updated narrowly; broader pristine staleness (legacy `system/agent/` keys,
+          flat-WU subdir refs) deferred — out of scope. Tier 1 lint surfaced one pre-existing under-wrap
+          on `maintain-project-docs.md` line 20 (126 chars pre-edit; 129 post-rename); wrapped in pair.
+          83/83 affected tests pass; markdown lint zero violations.
 
     - `[ ]` **6.7.l Archive → completed path sweep (per R62)**
         - Grep patterns: `reference/archive`, `\.arc/reference/archive`, `[archive]:` reference-link definitions,

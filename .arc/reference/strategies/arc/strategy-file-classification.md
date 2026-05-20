@@ -44,7 +44,7 @@ section-level.
 Created once during `arc init` from template. User replaces all placeholder content with
 project-specific content. Never touched by framework updates.
 
-**Examples:** META-PRD, ROADMAP, backlog files.
+**Examples:** PROJECT-PRD, ROADMAP, backlog files.
 
 **Update behavior:** Skip entirely. These are project-owned after initialization.
 
@@ -70,7 +70,7 @@ their own artifacts and recognize what a file is from its name alone.
 They're dashboards, indexes, and governance documents that serve as stable reference points.
 
 Examples: `AGENT-BRIEF.PROJECT.md`, `QUICK-REFERENCE.md`, `DEV-RULES.ARC.md`,
-`STRATEGY-INDEX.md`, `README.md`, `META-PRD.md`, `ROADMAP.md`
+`STRATEGY-INDEX.md`, `README.md`, `PROJECT-PRD.md`, `ROADMAP.md`
 
 **Lowercase with prefix** files are instances of a pattern — files you create *from* a convention.
 They're work artifacts that follow a naming template.
@@ -125,7 +125,7 @@ produced from package-source `*.template.md` files with mustache-token replaceme
 have a parallel `reference/templates/template-*.md` entry. The package-source `.template`
 file is the canonical template; no second template surface exists for the same file class.
 
-**Governed files:** META-PRD, TECHNICAL-OVERVIEW, ROADMAP, BACKLOG-FEATURE,
+**Governed files:** PROJECT-PRD, TECHNICAL-OVERVIEW, ROADMAP, BACKLOG-FEATURE,
 BACKLOG-TECHNICAL, AGENT-BRIEF.PROJECT, QUICK-REFERENCE. The CLI's init / join render
 pipeline is the canonical inventory.
 
