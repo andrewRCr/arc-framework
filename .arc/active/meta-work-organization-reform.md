@@ -11,11 +11,12 @@
 - **Cohort:** [none]
 
 - **Task List:** `tasks-work-organization-reform.md`
-- **Last Completed:** Tasks 6.7.f-g (`1b5c3ac9..44e86edf`) — lazy `docs(arc):` ceremony examples
-  and pre-* extension topology renames.
-- **Next Task:** Task 6.7.h — Retired meta-file field references (per R58 + R49a) — retire entirely (line ~3252).
+- **Last Completed:** Tasks 6.7.h-j (`49f62845..89963808`) — pause-pointer field retirement (6.7.h),
+  incidental WU substrate refs (6.7.i), post-sweep verification with 3 residual PROJECT-STATUS
+  gap fixes (6.7.j). Plus incidental 6.7.q + 6.7.l scope amendments (`6ccc2798`, `8fdf368a`).
+- **Next Task:** Task 6.7.k — META-PRD → PROJECT-PRD references (per R35 rename) (line ~3399).
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 6.7.h — retired meta-file field references sweep (R58 + R49a).
+- **Next Action:** Start Task 6.7.k — META-PRD → PROJECT-PRD reference sweep (R35).
 
 ---
