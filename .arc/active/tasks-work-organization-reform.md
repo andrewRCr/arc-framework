@@ -2964,16 +2964,30 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           "agile-parallelism" prose (~20 hits); ROADMAP plan-doc filename path updates after 6.4.d's per-WU subdir
           moves; broader audit of pre-rule path-form WU-artifact refs in other plans.
 
-    - `[ ]` **6.4.c Per-WU metadata backfill (interactive — Origin / Owner / Depends On / Cohort)**
-        - For each plan, user confirms the meta-file field values before file moves fire. Defaults applied
-          automatically: `Owner: {arc.identity}`, `Origin: [Internal]` (unless external tracker reference present in
-          plan body), `Depends On: [none]` (unless plan body carries explicit upstream WU names), `Cohort: [none]`
-          (unless 6.4.b assigned to a named cohort).
-        - **State value uniform:** all backlog WUs land `State: Planning` regardless of which commitment dir
-          (`provisional/` or `planned/`) they route to. Under the 4-state enum (PRD R9), commitment level lives in dir
-          location, not in State; `Planning` covers all pre-activation phases. State transitions only fire at workflow
-          ceremonies, not at backlog graduation.
-        - User reviews defaults per-WU; corrects values where the inference is wrong; confirms before 6.4.d moves files.
+    - `[x]` **6.4.c Per-WU metadata backfill (interactive — Origin / Owner / Depends On / Cohort)**
+        - Backfill values locked for 31 migrating WUs: `Owner: andrew`, `Origin: [internal]` uniform (no external
+          tracker URLs found — arc-modes' GitHub/AWS citations are research refs, not origin), `State: Planning`
+          uniform per PRD R9, `Depends On: [none]` defaulted with 2 chain exceptions captured (see below).
+        - **4 new cohorts codified** (6 total post-6.4.c, joining 6.4.b's `agile-parallelism` +
+          `architecture-remediation`): `agent-context-optimization` (handoff-opt + instruction-opt),
+          `release-readiness` (wu5-public-release + docs-site-refresh + docs-content-sweep + release-lifecycle),
+          `cross-machine-coherence` (coord-probe + cross-machine-sync-coherence), `approval-flow-refinement`
+          (commit-increments + interlock-release-refinement). Cohort bar re-checked against source codification —
+          `strategy-planning-module.md` § Cohort Wrapper Subdirs requires state-uniform + formal codification;
+          "coherent value together / parallel-executable" inferred from the two existing examples is **not codified**.
+          User's "thematic grouping for forced co-consideration / mental-model surfacing" satisfies the sibling-set
+          framing. All four new cohorts meet the codified bar.
+        - **2 Depends On chains captured:** instruction-optimization Depends On: handoff-optimization (sequential
+          per plan body); docs-content-sweep Depends On: docs-site-refresh (strict architectural sequencing per plan
+          body). Other inter-WU sequencing (within cohorts or across release-readiness members) deferred to
+          per-WU activation/promotion time — cohort field handles mental-model surfacing.
+        - **Count correction:** prior worksheet header (35 total / 33 migrating / 21 standalone) was stale relative
+          to actual table contents (33 rows / 31 migrating once RET subtracted). Corrected to ground-truth counts
+          throughout `notes-work-organization-reform.md` § Phase 6.4 Backlog Routing Worksheet. Final post-6.4.c:
+          17 cohort planned + 9 standalone planned + 5 provisional = 31 migrating.
+        - **Phase 6 ordering lean (b) confirmed:** retire `completion-status-consolidation` +
+          `roadmap-evolution` inline at 6.4.d (pull-forward from 6.6.b/6.6.c). 6.6.b/6.6.c collapse to
+          already-retired verification. 6.4.f stays clean.
 
     - `[ ]` **6.4.d File moves into per-WU subdirs + meta-file generation**
         - For each WU: create the target subdir (`backlog/{commitment}/<wu-name>/` or

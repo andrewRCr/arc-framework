@@ -809,25 +809,36 @@ decisions, 6.4.c for metadata backfill, 6.4.d for file moves + meta-file generat
 ### Inventory totals
 
 - `backlog/feature/`: 6 plan-docs (no companions)
-- `backlog/technical/`: 27 plan-docs + 2 backlog-stage PRDs + 2 `notes-*` companions
-- Total distinct WUs in backlog: **35** (29 in `technical/`, 6 in `feature/`)
-- **Migrating** to per-WU subdirs: **33** (2 retire at Phase 6.6 without migration —
-  `completion-status-consolidation` absorbed into WOR per PRD R14/R30-R32; `roadmap-evolution`
-  superseded by PRD R37-R39. Both flagged for Tasks 6.6.b/6.6.c retirement; skipping migration
-  saves move-then-delete cycles. Phase 6 ordering needs verification — 6.6 must run before
-  6.4.f's backlog-root structure check, or these two need explicit retirement at 6.4 time.)
-- Backlog-stage PRDs (demote-flagged): `prd-arcd-rebrand.md`, `prd-arcd-docs-site.md`
+- `backlog/technical/`: 27 plan-docs + 2 `notes-*` companions (2 backlog-stage PRDs demoted to
+  plan-docs at 6.4.b — `prd-arcd-rebrand.md` → `plan-arcd-rebrand.md`; `prd-arcd-docs-site.md` →
+  `plan-docs-site-refresh.md`)
+- Total distinct WUs in backlog: **33** (27 in `technical/`, 6 in `feature/`)
+- **Migrating** to per-WU subdirs: **31** (2 retire — `completion-status-consolidation` absorbed
+  into WOR per PRD R14/R30-R32; `roadmap-evolution` superseded by PRD R37-R39). Per the Phase 6
+  ordering implication below, the 2 retirements pull forward into 6.4.d's per-WU loop (notes-WOR
+  lean (b) — confirmed at 6.4.c) — saves move-then-delete cycles, keeps 6.4.f clean. 6.6.b/6.6.c
+  collapse to already-retired verification.
 - WU renames: `arcd-docs-site` → `docs-site-refresh` (paired with PRD demotion);
   `customization-architecture` → `customization-arch-realign` (rename only; no demotion)
 - Companion types found: `notes-*` only. No `tasks-*` / `atomic-*` / `research-*` / `analysis-*`
   companions in backlog.
-- Final commitment split of the 33 migrating: **28 planned** (21 standalone + 3 in
-  `agile-parallelism` cohort + 4 in `architecture-remediation` cohort) + **5 provisional**
-  (arc-backend, arcd-rebrand, post-release-methodology, meta-file-tracking-model,
-  workflow-template-loads).
+- **Final commitment split of the 31 migrating (post-6.4.c)**: **26 planned** (9 standalone + 17
+  in 6 codified cohorts) + **5 provisional** (arc-backend, arcd-rebrand, post-release-methodology,
+  meta-file-tracking-model, workflow-template-loads).
+    - Cohort planned breakdown (17 WUs across 6 cohorts): 3 `agile-parallelism` + 4
+      `architecture-remediation` (both codified at 6.4.b) + 2 `agent-context-optimization` + 4
+      `release-readiness` + 2 `cross-machine-coherence` + 2 `approval-flow-refinement` (all four
+      codified at 6.4.c).
+    - Standalone planned (9): arc-modes, arc-plan-conductor, arc-reinforce, cli-substrate-adoption,
+      config-storage-architecture, contributor-path, customization-arch-realign, quality-gate-hooks,
+      review-method-family.
 - Demote / rename flags: 2 PRD demotions (arcd-rebrand, arcd-docs-site); 2 WU renames
   (arcd-docs-site → docs-site-refresh paired with demotion; customization-architecture →
   customization-arch-realign standalone rename).
+- **Count correction (captured at 6.4.c)**: prior totals (35 total / 33 migrating / 21 standalone)
+  reflected an early baseline that didn't match the worksheet table contents (33 rows / 31
+  migrating once RET subtracted). Corrected counts above are ground-truth against directory
+  listing + table row enumeration.
 
 ### Routing rule recap
 
@@ -836,7 +847,9 @@ decisions, 6.4.c for metadata backfill, 6.4.d for file moves + meta-file generat
 - Codified cohort → `{commitment}/{cohort}/{wu-name}/`; standalone → `{commitment}/{wu-name}/`
 - "Borderline" rows flag plans where 6.4.b needs explicit user confirmation before file moves
 
-### Cohort assignments (codified at 6.4.b)
+### Cohort assignments (codified at 6.4.b and 6.4.c)
+
+**Codified at 6.4.b:**
 
 - **`agile-parallelism`** — worktree-foundation + agile-wu-lifecycle + concurrent-work-conventions.
   Renamed from earlier working name `parallelism-trio` at 6.4.b — "trio" was structural-only; the
@@ -849,6 +862,50 @@ decisions, 6.4.c for metadata backfill, 6.4.d for file moves + meta-file generat
   groups them as "parallel candidates after worktree infrastructure lands" but didn't codify a
   cohort name. Path: `backlog/planned/architecture-remediation/<wu-name>/`.
 
+**Codified at 6.4.c:**
+
+Reading of the codified cohort bar (`strategy-planning-module.md` § Cohort Wrapper Subdirs, PRD R13,
+ADR-019 line 123): "formally tracked sibling sets intended to ship together," state-uniform, formal
+codification (not ad-hoc). The "ship together" language is open to soft reading — the two cohorts
+codified at 6.4.b have members that integrate independently in practice. The unifying constraint is
+**state-uniform** (all members in the same commitment dir); "thematic grouping for forced
+co-consideration / mental-model surfacing" satisfies the sibling-set framing. Initial 6.4.c framing
+inferred a tighter bar from the two examples ("coherent value together OR parallel-executable") —
+not codified; corrected after re-checking source documents. All four new cohorts below meet the
+codified bar.
+
+- **`agent-context-optimization`** — handoff-optimization + instruction-optimization. The
+  instruction-optimization plan explicitly self-describes as *"Third sibling to Session-Init
+  Optimization and Handoff Optimization"* (Session-Init Optimization already shipped, out of cohort
+  scope). Both target agent-side context/reasoning load reduction: handoff-opt via pre-computation
+  short-circuiting workflow latency; instruction-opt via tightening instruction-surface density.
+  Sequential coupling (instruction-opt defers planning until handoff-opt lands per its plan body)
+  captured via `Depends On`. Path: `backlog/planned/agent-context-optimization/<wu-name>/`.
+- **`release-readiness`** — wu5-public-release + docs-site-refresh + docs-content-sweep +
+  release-lifecycle. The release-readiness cluster covers everything ARC needs to ship its first
+  public versioned release: the release event itself (wu5-public-release), the deployable docs
+  surface (docs-site-refresh format migration + docs-content-sweep methodology-drift update), and
+  the release-aggregation building blocks (release-lifecycle's CHANGELOG infra + version markers).
+  `arcd-rebrand` initially flagged as candidate but excluded — its `provisional` commitment dir
+  violates state-uniform constraint; promotes to cluster if it ever graduates to `planned/`. Path:
+  `backlog/planned/release-readiness/<wu-name>/`. docs-content-sweep `Depends On: docs-site-refresh`
+  captured for the strict architectural sequencing (content-sweep waits for format migration).
+- **`cross-machine-coherence`** — coord-probe + cross-machine-sync-coherence. Both touch the
+  "in-git state may be stale; right state lives elsewhere" problem space at different axes:
+  coord-probe at the external-coordination layer (Linear/Jira/GitHub adapters for multi-developer
+  "where should I be working"); cross-machine-sync-coherence at the partial-push invisibility gap
+  (same-developer multi-machine resume). Thematic-grouping rationale: forced co-consideration when
+  iterating on either prevents scope leak across the two axes; shared sync-substrate touch points.
+  Path: `backlog/planned/cross-machine-coherence/<wu-name>/`.
+- **`approval-flow-refinement`** — commit-increments + interlock-release-refinement. Both plans
+  converge on the approval signal as the unifying axis: interlock-release-refinement codifies "one
+  approval per unit of work; routing follows `releaseOptedIn` plus interlock mode";
+  commit-increments centers on "the approval signal is doing double duty" (review checkpoint AND
+  commit trigger). interlock-release-refinement's plan body explicitly: *"Composes with this plan
+  and with `plan-commit-increments.md`'s deferred-review framing"*. Shared edited surfaces likely
+  include DEV-RULES.ARC § Commit Discipline, `strategy-interlock-release-wrappers.md`,
+  `process-task-loop.md`. Path: `backlog/planned/approval-flow-refinement/<wu-name>/`.
+
 ### Worksheet — `backlog/feature/` (6 WUs)
 
 | WU name                     | Companions | RM | Cohort | Proposed target                                         | D | R |
@@ -858,46 +915,48 @@ decisions, 6.4.c for metadata backfill, 6.4.d for file moves + meta-file generat
 | arc-plan-conductor          | —          | y  | —      | `planned/arc-plan-conductor/`                           | n | n |
 | concurrent-work-conventions | —          | y  | ap     | `planned/agile-parallelism/concurrent-work-conventions/`| n | n |
 | post-release-methodology    | —          | n  | —      | `provisional/post-release-methodology/`                 | n | n |
-| wu5-public-release          | —          | y  | —      | `planned/wu5-public-release/`                           | n | n |
+| wu5-public-release          | —          | y  | rr     | `planned/release-readiness/wu5-public-release/`         | n | n |
 
 ### Worksheet — `backlog/technical/` (29 WUs)
 
 Column abbreviations: `RM` = ROADMAP-inclusion (`y` / `n` / `b` / `RET`). `y` covers both explicit
 ROADMAP entries and user-confirmed planned WUs (committed work, ROADMAP catches up at 6.7 sweep);
-`b` = borderline (resolved at 6.4.b); `RET` = retire at Phase 6.6, skip migration. Per-row routing
-provenance and overrides live in § Routing decisions locked in at 6.4.b below. `Cohort` = `ap`
-(agile-parallelism) / `ar` (architecture-remediation) / `—` (standalone). `D` / `R` = demote-PRD /
-rename flags.
+`b` = borderline (resolved at 6.4.b); `RET` = retire inline at 6.4.d (folded forward from 6.6 per
+notes-WOR Phase 6 ordering lean (b); confirmed at 6.4.c). Per-row routing provenance and overrides
+live in § Routing decisions locked in at 6.4.b / 6.4.c below. `Cohort` = `ap` (agile-parallelism) /
+`ar` (architecture-remediation) / `aco` (agent-context-optimization) / `rr` (release-readiness) /
+`cmc` (cross-machine-coherence) / `afr` (approval-flow-refinement) / `—` (standalone). `D` / `R` =
+demote-PRD / rename flags.
 
-| WU name (current → new)            | Companions                    | RM  | Cohort | Proposed target                                                | D | R |
-|------------------------------------|-------------------------------|-----|--------|----------------------------------------------------------------|---|---|
-| agile-wu-lifecycle                 | —                             | y   | ap     | `planned/agile-parallelism/agile-wu-lifecycle/`                | n | n |
-| arc-reinforce                      | —                             | y   | —      | `planned/arc-reinforce/`                                       | n | n |
-| arcd-docs-site → docs-site-refresh | —                             | b   | —      | `planned/docs-site-refresh/`                                   | y | y |
-| arcd-rebrand                       | `notes-arcd-rebrand.md`       | y   | —      | `provisional/arcd-rebrand/` *(routing override)*               | y | n |
-| cli-substrate-adoption             | —                             | y   | —      | `planned/cli-substrate-adoption/`                              | n | n |
-| commit-increments                  | —                             | y   | —      | `planned/commit-increments/`                                   | n | n |
-| completion-status-consolidation    | —                             | RET | —      | retire at 6.6.c — subsumed by WOR; skip migration              | n | n |
-| config-storage-architecture        | —                             | y   | —      | `planned/config-storage-architecture/`                         | n | n |
-| contributor-path                   | —                             | y   | —      | `planned/contributor-path/`                                    | n | n |
-| coord-probe                        | —                             | y   | —      | `planned/coord-probe/`                                         | n | n |
-| cross-machine-sync-coherence       | —                             | y   | —      | `planned/cross-machine-sync-coherence/`                        | n | n |
-| customization-arch-realign †       | —                             | y   | —      | `planned/customization-arch-realign/`                          | n | y |
-| docs-content-sweep                 | `notes-docs-content-sweep.md` | y   | —      | `planned/docs-content-sweep/`                                  | n | n |
-| handoff-optimization               | —                             | y   | —      | `planned/handoff-optimization/`                                | n | n |
-| instruction-optimization           | —                             | y   | —      | `planned/instruction-optimization/`                            | n | n |
-| interlock-release-refinement       | —                             | y   | —      | `planned/interlock-release-refinement/`                        | n | n |
-| lib-layer-type-extraction          | —                             | y   | ar     | `planned/architecture-remediation/lib-layer-type-extraction/`  | n | n |
-| meta-file-tracking-model           | —                             | n   | —      | `provisional/meta-file-tracking-model/`                        | n | n |
-| quality-gate-hooks                 | —                             | y   | —      | `planned/quality-gate-hooks/`                                  | n | n |
-| release-lifecycle                  | —                             | y   | —      | `planned/release-lifecycle/`                                   | n | n |
-| review-method-family               | —                             | y   | —      | `planned/review-method-family/`                                | n | n |
-| roadmap-evolution                  | —                             | RET | —      | retire at 6.6.b — superseded by PRD R37-R39; skip migration    | n | n |
-| schema-introspection-layer         | —                             | y   | ar     | `planned/architecture-remediation/schema-introspection-layer/` | n | n |
-| sync-handler-decomposition         | —                             | y   | ar     | `planned/architecture-remediation/sync-handler-decomposition/` | n | n |
-| user-sync-module-split             | —                             | y   | ar     | `planned/architecture-remediation/user-sync-module-split/`     | n | n |
-| workflow-template-loads            | —                             | n   | —      | `provisional/workflow-template-loads/`                         | n | n |
-| worktree-foundation                | —                             | y   | ap     | `planned/agile-parallelism/worktree-foundation/`               | n | n |
+| WU name (current → new)            | Companions                    | RM  | Cohort | Proposed target                                                    | D | R |
+|------------------------------------|-------------------------------|-----|--------|--------------------------------------------------------------------|---|---|
+| agile-wu-lifecycle                 | —                             | y   | ap     | `planned/agile-parallelism/agile-wu-lifecycle/`                    | n | n |
+| arc-reinforce                      | —                             | y   | —      | `planned/arc-reinforce/`                                           | n | n |
+| arcd-docs-site → docs-site-refresh | —                             | b   | rr     | `planned/release-readiness/docs-site-refresh/`                     | y | y |
+| arcd-rebrand                       | `notes-arcd-rebrand.md`       | y   | —      | `provisional/arcd-rebrand/` *(routing override)*                   | y | n |
+| cli-substrate-adoption             | —                             | y   | —      | `planned/cli-substrate-adoption/`                                  | n | n |
+| commit-increments                  | —                             | y   | afr    | `planned/approval-flow-refinement/commit-increments/`              | n | n |
+| completion-status-consolidation    | —                             | RET | —      | retire at 6.6.c — subsumed by WOR; skip migration                  | n | n |
+| config-storage-architecture        | —                             | y   | —      | `planned/config-storage-architecture/`                             | n | n |
+| contributor-path                   | —                             | y   | —      | `planned/contributor-path/`                                        | n | n |
+| coord-probe                        | —                             | y   | cmc    | `planned/cross-machine-coherence/coord-probe/`                     | n | n |
+| cross-machine-sync-coherence       | —                             | y   | cmc    | `planned/cross-machine-coherence/cross-machine-sync-coherence/`    | n | n |
+| customization-arch-realign †       | —                             | y   | —      | `planned/customization-arch-realign/`                              | n | y |
+| docs-content-sweep                 | `notes-docs-content-sweep.md` | y   | rr     | `planned/release-readiness/docs-content-sweep/`                    | n | n |
+| handoff-optimization               | —                             | y   | aco    | `planned/agent-context-optimization/handoff-optimization/`         | n | n |
+| instruction-optimization           | —                             | y   | aco    | `planned/agent-context-optimization/instruction-optimization/`     | n | n |
+| interlock-release-refinement       | —                             | y   | afr    | `planned/approval-flow-refinement/interlock-release-refinement/`   | n | n |
+| lib-layer-type-extraction          | —                             | y   | ar     | `planned/architecture-remediation/lib-layer-type-extraction/`      | n | n |
+| meta-file-tracking-model           | —                             | n   | —      | `provisional/meta-file-tracking-model/`                            | n | n |
+| quality-gate-hooks                 | —                             | y   | —      | `planned/quality-gate-hooks/`                                      | n | n |
+| release-lifecycle                  | —                             | y   | rr     | `planned/release-readiness/release-lifecycle/`                     | n | n |
+| review-method-family               | —                             | y   | —      | `planned/review-method-family/`                                    | n | n |
+| roadmap-evolution                  | —                             | RET | —      | retire at 6.6.b — superseded by PRD R37-R39; skip migration        | n | n |
+| schema-introspection-layer         | —                             | y   | ar     | `planned/architecture-remediation/schema-introspection-layer/`     | n | n |
+| sync-handler-decomposition         | —                             | y   | ar     | `planned/architecture-remediation/sync-handler-decomposition/`     | n | n |
+| user-sync-module-split             | —                             | y   | ar     | `planned/architecture-remediation/user-sync-module-split/`         | n | n |
+| workflow-template-loads            | —                             | n   | —      | `provisional/workflow-template-loads/`                             | n | n |
+| worktree-foundation                | —                             | y   | ap     | `planned/agile-parallelism/worktree-foundation/`                   | n | n |
 
 † Renamed from `customization-architecture` at 6.4.b — see § Routing decisions for rationale.
 
@@ -907,9 +966,10 @@ rename flags.
   Post-Agile-Parallelism section under the post-demotion plan-doc filename, but rebrand is no
   longer committed at portfolio-piece priority. ROADMAP entry update is a 6.7 ripple
   (re-positioning rather than removal).
-- **arcd-docs-site → docs-site-refresh** → `planned/docs-site-refresh/` (rename + demote). Docs
-  site work remains committed; ROADMAP currently bundles into WU5 scope. Split out as standalone
-  WU; ROADMAP gains a new entry at 6.7 sweep time.
+- **arcd-docs-site → docs-site-refresh** → `planned/docs-site-refresh/` (rename + demote at 6.4.b;
+  superseded by 6.4.c routing into `release-readiness` cohort). Docs site work remains committed;
+  ROADMAP currently bundles into WU5 scope. Split out as standalone WU; ROADMAP gains a new entry
+  at 6.7 sweep time.
 - **arc-backend** → `provisional/arc-backend/`. Not in ROADMAP; speculative scope.
 - **completion-status-consolidation** → **retire at 6.6.c** (skip migration). Absorbed into WOR
   per PRD R14, R30-R32 — meta-file lifecycle now carries archive-phase fields (Pull Request URL,
@@ -930,6 +990,43 @@ rename flags.
   arcd-rebrand (routing override despite ROADMAP entry), post-release-methodology,
   meta-file-tracking-model, workflow-template-loads.
 
+### Routing decisions locked in at 6.4.c
+
+- **4 new cohorts codified** (cohort-bar reading + naming rationale captured in § Cohort
+  assignments above): `agent-context-optimization`, `release-readiness`, `cross-machine-coherence`,
+  `approval-flow-refinement`. 10 previously-standalone WUs absorbed into cohort wrappers; their
+  worksheet-table rows updated above to reflect new Cohort + Proposed target columns.
+- **arcd-rebrand cohort eligibility:** considered for `release-readiness` membership but excluded —
+  provisional commitment violates the codified state-uniform constraint. If arcd-rebrand promotes
+  to planned (portfolio-piece scope refresh), revisit at promotion time.
+- **release-lifecycle in `release-readiness`:** initial lean was standalone (different abstraction
+  level — release-aggregation infra vs. first-release prep). Reversed at user prompt: wu5-public-
+  release IS the felt need that activates release-lifecycle's deferred building blocks. CHANGELOG
+  aggregation + version markers + tag conventions are prerequisites to cutting any versioned
+  release; cluster grows to 4 members.
+- **2 Depends On chains captured** (see § Depends On chains below) — orthogonal to cohort
+  membership per PRD R13 (cohort = sibling-set field; depends-on = upstream blockers).
+- **6.6.b / 6.6.c retirement timing:** confirmed pull-forward into 6.4.d's per-WU loop. The 2
+  retiring WUs (`completion-status-consolidation`, `roadmap-evolution`) retire inline at 6.4.d;
+  6.6.b / 6.6.c collapse to already-retired verification at Phase 6.6. Notes-WOR § Phase 6
+  ordering lean (b) confirmed; 6.4.f stays clean.
+
+### Depends On chains captured at 6.4.c
+
+Only strict architectural dependencies recorded. Cross-WU sequencing implied by ROADMAP order or
+loose plan-body "considers / composes with" framing not captured — cohort field handles the
+mental-model surfacing; Depends On reserved for hard upstream blockers.
+
+- **instruction-optimization Depends On: handoff-optimization** — per instruction-optimization's
+  plan body: *"Sequencing deferred until Handoff Optimization (`plan-handoff-optimization.md`)
+  lands and the parallelism trio + Work Organization Reform shapes settle."* The handoff-opt
+  dependency is the load-bearing one; WOR + parallelism-trio dependencies are environmental
+  framing (will have landed by activation time), not field-blocking.
+- **docs-content-sweep Depends On: docs-site-refresh** — per docs-content-sweep's plan body:
+  *"Activates after `plan-docs-site-refresh.md` merges. Running before the Starlight structure
+  lands would burn effort on mkdocs prose that gets transformed (or deleted) during the content
+  port."* Strict architectural sequencing.
+
 ### ROADMAP ripple work (deferred to 6.7 cross-reference sweep)
 
 - All ROADMAP `plan-doc` filename references update to per-WU-subdir paths
@@ -941,28 +1038,45 @@ rename flags.
   filename pointer or update to `backlog/provisional/arcd-rebrand/plan-arcd-rebrand.md`. Soften
   sequencing language ("After parallelism trio" → "Speculative; pending portfolio-piece scope
   refresh").
-- arcd-docs-site → docs-site-refresh: add a standalone ROADMAP entry under Post-Agile-Parallelism
-  section, separate from WU5 Public Release scope. Reference path:
-  `backlog/planned/docs-site-refresh/plan-docs-site-refresh.md`.
+- arcd-docs-site → docs-site-refresh: add a standalone ROADMAP entry under the release-readiness
+  cluster framing (separate from any direct WU5 Public Release line, with cluster co-membership
+  noted). Reference path: `backlog/planned/release-readiness/docs-site-refresh/plan-docs-site-refresh.md`.
 - arc-plan-conductor + concurrent-work-conventions: live in `feature/` today; ROADMAP references
   carry `feature/` prefix. After routing to `planned/{...}/`, ROADMAP refs update.
 - customization-architecture → customization-arch-realign: WU rename ripple across any
   cross-references in plan docs / notes / strategies (6.7 sweep target).
+- **4 new cohort wrappers** add ROADMAP-prose hits (cohort-name surfacing similar to
+  agile-parallelism / architecture-remediation patterns): `agent-context-optimization` (2 members),
+  `release-readiness` (4 members), `cross-machine-coherence` (2 members), `approval-flow-refinement`
+  (2 members). 6.7 sweep introduces cohort framing prose where ROADMAP currently lists members as
+  individual line items, and updates path refs to cohort-wrapped subdir form.
 - 11 newly-confirmed-planned WUs (arc-reinforce, commit-increments, config-storage-architecture,
   contributor-path, cross-machine-sync-coherence, docs-content-sweep, handoff-optimization,
-  instruction-optimization, interlock-release-refinement, release-lifecycle, review-method-family)
-  — ROADMAP currently has no entries for these. 6.7 sweep or post-WOR planning pass adds entries.
+  instruction-optimization, interlock-release-refinement, release-lifecycle, review-method-family) —
+  ROADMAP currently has no entries for these. 6.7 sweep or post-WOR planning pass adds entries. Of
+  these, **7 now route to cohort-wrapped paths post-6.4.c** (commit-increments, cross-machine-sync-
+  coherence, docs-content-sweep, handoff-optimization, instruction-optimization, interlock-release-
+  refinement, release-lifecycle); **4 stay standalone planned** (arc-reinforce,
+  config-storage-architecture, contributor-path, review-method-family). New cohort sibling
+  `coord-probe` was already in ROADMAP under its standalone framing; cohort wrap adds prose hits
+  there too.
 
 ### Verification
 
-- Enumeration cross-checked against directory listing (`ls -la`) — 35 WUs accounted for, 0 stray
-  files unflagged. Of the 35: **33 migrate** to per-WU subdirs at 6.4.d; **2 retire** at 6.6
-  (completion-status-consolidation, roadmap-evolution) without migration.
+- Enumeration cross-checked against directory listing (`ls -la`) at 6.4.c — **33 WUs in backlog**
+  (27 in `technical/` + 6 in `feature/`), 0 stray files unflagged. Of the 33: **31 migrate** at
+  6.4.d to per-WU subdirs; **2 retire inline at 6.4.d** (completion-status-consolidation, roadmap-
+  evolution — pull-forward from 6.6 per Phase 6 ordering lean (b) confirmed at 6.4.c).
 - Companion-type sweep (`plan-* / prd-* / notes-* / tasks-* / atomic-* / research-* / analysis-*`)
-  found only `plan-*`, `prd-*`, `notes-*` in backlog. No `tasks-*` etc. expected — backlog WUs
-  are pre-activation; task lists are activation artifacts.
-- Two flagged PRDs (`prd-arcd-rebrand.md`, `prd-arcd-docs-site.md`) confirmed present.
-- WU rename target (`docs-site-refresh`) confirmed against PRD R51 framing + 6.4 task description.
+  at 6.4.c — found only `plan-*` and `notes-*` in backlog (the 2 PRDs that lived at 6.4.a baseline
+  were demoted to plan-docs at 6.4.b). No `tasks-*` etc. expected — backlog WUs are pre-activation;
+  task lists are activation artifacts.
+- WU rename targets (`docs-site-refresh`, `customization-arch-realign`) confirmed against PRD R51
+  framing + 6.4 task description + 6.4.b execution.
+- **6 codified cohorts** post-6.4.c: 2 from 6.4.b (`agile-parallelism`, `architecture-remediation`),
+  4 from 6.4.c (`agent-context-optimization`, `release-readiness`, `cross-machine-coherence`,
+  `approval-flow-refinement`). 17 cohort planned + 9 standalone planned + 5 provisional = 31
+  migrating ✓.
 
 ### Phase 6 ordering implication for the 2 retiring WUs
 
@@ -978,4 +1092,8 @@ the 2 retiring WUs sit in `backlog/technical/` through 6.4.f — which checks "n
 Lean: **(b)** — retire the 2 files inline during 6.4.d's per-WU file-moves pass. Cohesive with
 the per-WU loop; saves a second `technical/` directory touch at 6.6; 6.4.f stays clean. 6.6.b
 and 6.6.c then collapse to verification checkpoints (already-retired confirmation) rather than
-active deletion ops. Flag for 6.4.d execution time.
+active deletion ops.
+
+**Confirmed at 6.4.c:** path (b) locked in. 6.4.d's per-WU loop processes 33 entries (31 migrate
+to per-WU subdirs + 2 retire-by-deletion). 6.6.b / 6.6.c reduce to one-liners verifying the inline
+retirements landed.
