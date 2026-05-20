@@ -105,9 +105,6 @@ Added to status files when the WU's state calls for cross-references. Omit other
 
 | Field                                                     | Appears On                                         | Set By                                                                               |
 | --------------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `**Interrupts:** {category}/{name}`                       | Incidental WU status files                         | [manage-incidental-work][manage-incidental] — names the parent WU being interrupted  |
-| `**Paused At:** <task-id>`                                | Parent WU status file (when interrupted)           | [manage-incidental-work][manage-incidental] — records the task at which work paused  |
-| `**Paused To:** {category}/{name}`                        | Parent WU status file                              | [manage-incidental-work][manage-incidental] — names the incidental that caused pause |
 | `**Superseded By:** tasks-{new-approach}.md (YYYY-MM-DD)` | WU status files with `State: Superseded (partial)` | [integrate-work-unit][integrate-work-unit] § Appendix — points to successor WU       |
 
 ---

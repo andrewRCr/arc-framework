@@ -3303,21 +3303,32 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           `validate-links.sh` clean across all 5 touched files; byte-parity confirmed for both
           two-copy file pairs.
 
-    - `[ ]` **6.7.h Retired meta-file field references (per R58 + R49a) — retire entirely**
-        - Grep patterns: `**Branch(es):**`, `**Base Branch:**`, `**Sibling Work Unit(s):**`, `**Integration:**`,
-          `**Interrupts:**`, `**Paused At:**`, `**Paused To:**`.
-        - Touch points already addressed by upstream tasks: in-flight meta-file migration (6.2.g); template-tasks header
-          (4.6); template-prd header (4.7); template-meta retirement acknowledgment (4.1.h). 6.7.h sweeps remaining doc
-          surface: strategy docs (esp. `strategy-work-organization.md` § Optional Pointer Fields if it survives 2.8's
-          reshape), workflows (`process-task-loop.md`, `session-init.md`, `session-handoff.md`,
-          `integrate-work-unit.md`, `archive-work-unit.md`, `activate-work-unit.md`, `deactivate-work-unit.md`,
-          `clean-work-unit.md`), templates (other than the ones already touched), briefs, rules.
-        - Reference-link cleanup: `[arc-config]:` definitions in templates that exist solely to support a now-retired
-          `Base Branch:` reference — audit and retire if no surviving references.
-        - **Action:** retire references entirely (distinct from 6.7.i's current-state-rewrite action). Pause-pointer
-          fields (`Interrupts:` / `Paused At:` / `Paused To:`) overlap with 6.7.i conceptually but the field-level
-          references retire here per R49a's substrate-retirement framing — the workflow-level references rewrite to
-          current-state language under 6.7.i.
+    - `[x]` **6.7.h Retired meta-file field references (per R58 + R49a) — retire entirely**
+        - **Sweep scope reduced to 1 file pair after audit.** Upstream tasks (6.2.g in-flight
+          meta-file migration + 4.6 / 4.7 / 4.1.h template-header retirements) absorbed 4 of 7
+          grep patterns (`**Branch(es):**`, `**Base Branch:**`, `**Sibling Work Unit(s):**`,
+          `**Integration:**`) — 0 active-surface hits remained on those. Wide-grep matches
+          confined to WOR-own (out of scope), backlog (Activation Audit), archive (historical),
+          and ADR-019 (per 6.7.e ADR-precedent).
+        - **Pause-pointer trio retired in `strategy-work-organization.md` § Optional Pointer Fields.**
+          3 table rows removed (`**Interrupts:** {category}/{name}`, `**Paused At:** <task-id>`,
+          `**Paused To:** {category}/{name}`); `**Superseded By:**` row preserved (still
+          current-state). 1-row table left intact — no restructure, future pointer fields may add.
+          Package source first, `.arc/` byte-mirrored.
+        - **Pause-pointer tokens in `manage-incidental-work.md` routed to 6.7.i.** Per the task's
+          own caveat, workflow-level references rewrite to current-state language under 6.7.i —
+          those tokens are inseparable from the procedural steps that use them. 6.7.h workflow
+          list already excludes `manage-incidental-work.md`; 6.7.i list includes it.
+        - **`[arc-config]:` ref-link def in `template-pull-request.md` preserved.** Surviving body
+          reference to `merge.strategy` at line 43 keeps the link live — unrelated to the retired
+          `**Base Branch:**` field that originally motivated the audit conditional.
+        - **Out of scope:** `manage-incidental-work.md` (→ 6.7.i); `.arc/backlog/` (Activation
+          Audit); `.arc/reference/archive/` (historical); WOR's own active artifacts; ADR-019
+          (per 6.7.e ADR-precedent).
+        - Verification: post-sweep grep across active framework surfaces + package mirror returns
+          0 matches for all 7 patterns (`manage-incidental-work.md` excluded as 6.7.i territory);
+          `lint:md` zero errors across 285 files; per-file `validate-links.sh` clean for both
+          touched files; byte-parity confirmed across the two-copy pair.
 
     - `[ ]` **6.7.i Incidental WU model substrate refs (`incidental/`, `manage-incidental-work`) — current-state rewrite**
         - **Action differs from other 6.7 patterns:** surviving references rewrite to current-state language (describe
