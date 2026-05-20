@@ -3503,6 +3503,14 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           `manage-incidental-work.md`, `session-handoff.md` — verify final), strategies (`strategy-team-coordination.md`,
           `strategy-session-operations.md`, `strategy-work-planning.md`, `strategy-package-project-sync.md`), briefs
           (`AGENT-BRIEF.ARC.md`), templates (`2_generate-tasks.template.md`).
+        - **Package-source structural residue (paired with 6.3.b + 6.4.d):**
+          `packages/arc-framework/arc/backlog/feature/BACKLOG-FEATURE.template.md` and
+          `packages/arc-framework/arc/backlog/technical/BACKLOG-TECHNICAL.template.md` survive in legacy category
+          subdirs — unmigrated counterparts to 6.3.b's `.arc/` BACKLOG-INBOX merge and 6.4.d's `.arc/backlog/`
+          per-WU-subdir restructure. `BACKLOG-INBOX.template.md` already exists at the package-source `backlog/`
+          root post-6.3.b, so the post-merge template form is in place; only the pre-merge sources + their
+          now-empty parent dirs (`backlog/feature/`, `backlog/technical/`) need cleanup. Action is structural
+          (file delete + dir removal), bundled with this task's text-sweep commit.
         - **Exclusions:** `.arc/system/.internal/{pristine,manifest}.json` are generated/derived state — regenerate via
           CLI if needed, do not hand-edit. `.arc/reference/analysis/**` and `.arc/reference/adr/**` are internal-dev
           surfaces retaining historical record (out of sweep scope; 2.13.e ADR-precedent).
