@@ -296,7 +296,6 @@ describe("toOutputPath", () => {
 describe("classifyFile", () => {
   it("classifies Scaffolded files", () => {
     expect(classifyFile("reference/PROJECT-PRD.template.md")).toBe("Scaffolded");
-    expect(classifyFile("reference/PROJECT-STATUS.template.md")).toBe("Scaffolded");
     expect(classifyFile("backlog/ROADMAP.template.md")).toBe("Scaffolded");
   });
 

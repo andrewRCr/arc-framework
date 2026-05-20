@@ -123,7 +123,6 @@ describe("init", () => {
     expect(await pathExists(join(tmpDir, ".arc", "backlog", "BACKLOG-INBOX.md"))).toBe(true);
     expect(await pathExists(join(tmpDir, ".arc", "backlog", "feature", "BACKLOG-FEATURE.md"))).toBe(true);
     expect(await pathExists(join(tmpDir, ".arc", "backlog", "technical", "BACKLOG-TECHNICAL.md"))).toBe(true);
-    expect(await pathExists(join(tmpDir, ".arc", "reference", "PROJECT-STATUS.md"))).toBe(true);
 
     // Per-user file set seeded (cross-PM-mode); legacy user/ATOMIC-INBOX retired.
     expect(await pathExists(join(tmpDir, ".arc", "user", "test-user", "WORKING-MEMORY.md"))).toBe(true);

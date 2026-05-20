@@ -50,7 +50,6 @@ function validRecipe(): Recipe {
       "pm.mode == arc-in-git": {
         include_files: [
           "backlog/ROADMAP.template.md",
-          "reference/PROJECT-STATUS.template.md",
         ],
       },
     },

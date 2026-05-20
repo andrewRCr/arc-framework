@@ -237,7 +237,6 @@ describe("runReconfigure", () => {
       "backlog/ROADMAP.template.md": "# Roadmap for {{PROJECT_NAME}}",
       "backlog/feature/BACKLOG-FEATURE.template.md": "# Feature Backlog",
       "backlog/technical/BACKLOG-TECHNICAL.template.md": "# Technical Backlog",
-      "reference/PROJECT-STATUS.template.md": "# Project Status",
       "reference/strategies/arc/strategy-planning-module.md": "# Planning Module",
     };
     const pristineStore = {
@@ -256,7 +255,6 @@ describe("runReconfigure", () => {
             "backlog/ROADMAP.template.md",
             "backlog/feature/BACKLOG-FEATURE.template.md",
             "backlog/technical/BACKLOG-TECHNICAL.template.md",
-            "reference/PROJECT-STATUS.template.md",
             "reference/strategies/arc/strategy-planning-module.md",
           ],
         },
@@ -280,7 +278,6 @@ describe("runReconfigure", () => {
     expect(result.added).toContain("backlog/ROADMAP.md");
     expect(result.added).toContain("backlog/feature/BACKLOG-FEATURE.md");
     expect(result.added).toContain("backlog/technical/BACKLOG-TECHNICAL.md");
-    expect(result.added).toContain("reference/PROJECT-STATUS.md");
     expect(result.added).toContain(
       "reference/strategies/arc/strategy-planning-module.md",
     );

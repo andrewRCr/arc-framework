@@ -3072,10 +3072,17 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
   `research-worktree-tool-convergence.md`). The former doesn't exist (findings already absorbed pre-WOR); the latter
   exists and is retained until Worktree Foundation lands. PRD R51 needs symmetric correction at WOR integration — remove
   both research files from the retirement list.
-    - `[ ]` **6.6.a Retire `.arc/reference/PROJECT-STATUS.md` (R40)**
-        - Completed-work history → already in (or will be in) per-WU Release Notes Entry sections. Project direction →
-          PROJECT-PRD. Done-vs-left → directory query. Content not directly carried forward is logged in the deletion
-          commit message.
+    - `[x]` **6.6.a Retire `.arc/reference/PROJECT-STATUS.md` (R40)**
+        - File deleted plus the coupled package-source template (`packages/arc-framework/arc/reference/PROJECT-STATUS.template.md`)
+          so adopters don't render a retired doc on `arc init`. CLI surface trimmed: `SCAFFOLDED_FILES` entry in
+          `src/lib/classification.ts` and the `pm.mode == arc-in-git` include in `init-recipe.json` removed. Test
+          coverage updated in lockstep — `e2e/init.e2e.test.ts` (post-init existence assertion), `unit/init.test.ts`
+          (`classifyFile` Scaffolded case), `unit/reconfigure.test.ts` (fixture template + condition include + added-set
+          assertion across the arc-in-git switch test), `unit/template/recipe.test.ts` (validRecipe helper fixture).
+          Content-not-carried-forward (early WUs without archived metas: Foundation, CineXplorer Sync, Dual-Maintenance
+          Sync; plus the Project Health Indicators rollup) logged in the deletion commit message per R40.
+          Adopter-facing workflow text references (`02_define-project.template.md`, `maintain-project-docs.md`,
+          `01_verify-and-configure.md`, `arc-config.yml` comment) carry forward to 6.7's cross-reference sweep.
 
     - `[ ]` **6.6.b Retire `plan-roadmap-evolution.md` (R51)**
         - Tiered-horizons direction superseded by R37-R39 rendered-view shape.
