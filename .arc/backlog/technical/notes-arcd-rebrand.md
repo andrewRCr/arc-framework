@@ -2,21 +2,23 @@
 
 **Purpose:** Two-fold.
 
-1. **Reference material.** Execution-useful content extracted from `plan-arcd-rebrand.md` before the plan
-   retired — preserves context that didn't fit naturally into `prd-arcd-rebrand.md`'s spec shape but is
+1. **Reference material.** Execution-useful content extracted from the earlier plan iteration before the prior
+   plan-doc retired — preserves context that didn't fit naturally into the plan-doc's spec shape but is
    valuable during task generation and execution.
 2. **Scratch space.** Durable capture surface for implementation observations, open questions, in-flight
    decision notes, and working context discovered during the rebrand WU's execution that doesn't belong in
-   task completion notes or the PRD itself. Use freely during implementation — the notes file is the right
+   task completion notes or the plan-doc itself. Use freely during implementation — the notes file is the right
    home for "I noticed X while working on task Y" content that would otherwise bloat task descriptions or
    session notes.
 
 **Intended lifespan:** Until the rebrand work unit is archived.
 
-> **2026-05-03 demotion note:** `tasks-arcd-rebrand.md` and `atomic-arcd-rebrand.md`
-> retired; `prd-arcd-rebrand.md` preserved as stale-spec home (see PRD § Status).
-> This file's reference content survives the demotion as-is and remains the home for
-> any pre-re-graduation working notes.
+> **2026-05-03:** `tasks-arcd-rebrand.md` and `atomic-arcd-rebrand.md` retired; the prior PRD form preserved
+> as stale-spec home (per the WU's demotion-from-active framing).
+> **2026-05-19:** Demoted from PRD to plan-doc (`plan-arcd-rebrand.md`) during WOR Phase 6.4 backlog
+> migration; routed `backlog/provisional/` pending scope refresh. References below to "the PRD" point at
+> the plan-doc post-2026-05-19; section anchors (§ Status, § Zero-adoption, etc.) map to the plan-doc's
+> renamed sections (see `plan-arcd-rebrand.md` § Working Direction and § Technical Considerations).
 
 ---
 
