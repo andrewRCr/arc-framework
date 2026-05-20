@@ -1064,6 +1064,17 @@ branch + meta-file scaffolding while the conductor owns upstream intent assessme
 entirely. PRD-time decision based on whether direct-invocation paths remain useful alongside
 conductor invocation.
 
+**Towards — life-phase-agnostic init (surfaced 2026-05-20 during WOR Task 6.7.c):** WOR ships
+`init-work-unit.md` as planning-only — Step 2 hardcodes `git checkout -b plan/{name}` and Step 4
+sets `**State:** Planning`. Under WOR-as-shipped, an atomic-tier or direct-impl WU that skips
+Planning has no codified init workflow; the meta file gets hand-created with `**State:** Active`
+on a `<type>/<name>` branch. When this conductor WU iterates, decide whether init should accept
+a life-phase parameter (Planning vs Active → branch-prefix follows) or whether atomic-tier WU
+init is a distinct entry path (e.g., `arc start` per `plan-agile-wu-lifecycle.md`). Surfaced
+during WOR's cross-reference sweep when reframing `2_generate-tasks.md`'s pre-WOR
+"directly-on-base-branch" bifurcation — that workflow was narrowed under WOR to the canonical
+planning-life-phase flow only.
+
 ---
 
 ## Proposed ARC Changes

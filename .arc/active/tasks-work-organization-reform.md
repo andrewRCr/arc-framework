@@ -3145,7 +3145,42 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           retirement records and reform-context citations describe what was retired and why.
         - No edits required. Sweep scope clean.
 
-    - `[ ]` **6.7.c Retired workflow refs (`integrate-planning-branch`, `activate-planning-branch`)**
+    - `[x]` **6.7.c Retired workflow refs (`integrate-planning-branch`, `activate-planning-branch`)**
+        - **Mechanical retirements:** `activate-planning-branch` refs updated to `init-work-unit` (per
+          ADR-019 rename); `integrate-planning-branch` refs retired entirely (under R5/R6 single
+          integration PR via `integrate-work-unit.md`, no separate planning-branch integration step).
+          Files touched (with package mirrors): `2_generate-tasks.md` (3 hits — prose ref + 2 ref-link
+          defs), `strategy-work-planning.md` (2 hits — prose ref + ref-link def updated to point at
+          `init-work-unit.md`), `template-pull-request.md` (2 hits — entire `## Planning PR Variant`
+          section retired since it described the now-retired multi-PR planning-branch model under
+          R6; + the section-link forward-pointer at line 14 + the `[integrate-planning-branch]`
+          ref-link def). `strategy-package-project-sync.md` file list updated (project-only — replaced
+          two retired entries with single `init-work-unit.md` entry).
+        - **Narrow rewrite of `2_generate-tasks.md`:** § Branch context + § Next Step reframed to
+          remove the pre-WOR "directly on base branch" bifurcation. Under WOR's
+          single-branch-per-WU model (R1, R2, R4) + strategy-work-organization.md § Branch
+          Protection Modes ("Planned work units require a branch from inception"), planned-WU task
+          generation always happens on the WU's planning branch (`plan/<name>`). Next-step path
+          simplified to `activate-work-unit.md` (state transition + branch rename per R4). The
+          atomic-tier / direct-impl init path is not codified under WOR-as-shipped — see
+          forward-compat notes below.
+        - **Forward-compat notes added to cohort backlog plans** (per zero-pre-WOR-tech-debt
+          principle): `plan-arc-plan-conductor.md` § "Relationship to `init-work-unit.md`" extended
+          with a `Towards — life-phase-agnostic init` note; `plan-agile-wu-lifecycle.md` §
+          "Atomic-the-character vs atomic-the-shape" extended with a `Towards — atomic-tier WU init
+          shape` note. Both notes describe WOR's planning-only init shape, point at the open
+          question (init accepts life-phase parameter, OR `arc start` is a distinct path, OR
+          conductor absorbs both), and credit the surfacing context (WOR Task 6.7.c reframing
+          discussion). Worktree-foundation + concurrent-work-conventions: no notes added — they
+          don't touch WU init shape directly.
+        - **Deferred to other phases / out of scope:** `analysis/` (4 files, 7 hits) + `adr-019` (5
+          hits) + WU's own internal docs (`prd-*`, `tasks-*`, `notes-*` for WOR) — historical /
+          internal-dev surfaces retain references describing the retirement (2.13.e ADR-precedent;
+          accurate-as-of-decision). `pristine.json` (9 hits) — generated/derived state, regenerate
+          via CLI when 6.7 sweep complete.
+        - Verification: post-sweep grep on active surfaces (workflows, methods, extensions, briefs,
+          strategies, constitution, templates, QUICK-REFERENCE + package mirrors) returns 0
+          matches; `lint:md` zero errors on modified set.
 
     - `[ ]` **6.7.d Retired file-prefix patterns (`status-*.md`, `completion-*.md`)**
 

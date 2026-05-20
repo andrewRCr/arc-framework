@@ -15,10 +15,9 @@ planning.
 
 ## Process
 
-**Branch context:** Under full protection (`branch.protection: full`), task generation happens on
-the same planning branch as the PRD — verify you're still on it. Under partial protection (the
-default), this may happen directly on the base branch. See
-[activate-planning-branch][activate-planning-branch] for how planning branches are set up.
+**Branch context:** Task generation happens on the WU's planning branch (`plan/<name>`) —
+verify you're still on it. See [init-work-unit][init-work-unit] for how the planning branch
+is created.
 
 Before starting, read the PRD thoroughly. If the PRD has pre-activation metadata (`**State:**` and/or
 `**Related Work:**` fields), check whether dependencies are resolved. If any show unresolved blockers, stop and
@@ -336,17 +335,8 @@ In arc-in-git mode, [activation][activate-work-unit] updates both paths when doc
 
 ## Next Step
 
-The next step depends on whether you're on a planning branch:
-
-**On a planning branch** (full protection, or partial protection with a planning branch):
-
-**→ [integrate-planning-branch.md][integrate-planning-branch]** — PR the planning branch to base,
-then activate from base
-
-**On the base branch** (partial protection, direct commit):
-
-**→ [activate-work-unit.md][activate-work-unit]** — Create implementation branch, move docs to
-active, update tracking
+**→ [activate-work-unit.md][activate-work-unit]** — Flip `**State:**` to `Active` and rename
+`plan/<name>` to `<type>/<name>`. Implementation begins on the renamed branch.
 
 Activation can be deferred if planning ahead. Activate when implementation is about to begin.
 
@@ -359,8 +349,7 @@ Activation can be deferred if planning ahead. Activate when implementation is ab
 [task-list-formatting]: ../../../reference/strategies/arc/strategy-task-list-formatting.md
 [arc-task-audit]: ../../skills/arc-task-audit/SKILL.md
 [template-tasks]: ../../../reference/templates/template-tasks.md
-[activate-planning-branch]: work-unit-lifecycle/planning/activate-planning-branch.md
-[integrate-planning-branch]: work-unit-lifecycle/planning/integrate-planning-branch.md
+[init-work-unit]: work-unit-lifecycle/planning/init-work-unit.md
 [arc-config]: ../../arc-config.yml
 [activate-work-unit]: work-unit-lifecycle/activate-work-unit.md
 <!-- arc:if team.mode == true -->

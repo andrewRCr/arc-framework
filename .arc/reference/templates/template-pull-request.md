@@ -11,8 +11,6 @@ delta) belongs in the work unit's durable record (status file) and SESSION-NOTES
 - Italic field labels (`_Field:_`) for in-section descriptors
 - Loose-list rendering when any bullet spans 2+ lines — blank line between every item in that list
 
-**Planning branches** use a smaller subset of this template — see § Planning PR Variant.
-
 ---
 
 ## PR Title Format
@@ -103,61 +101,6 @@ table-stakes redundancy. If no manual verification was performed, omit the secti
 
 ---
 
-## Planning PR Variant
-
-Planning branches deliver planning artifacts (PRDs, task lists, optional prior-WU archival) —
-not implementation. The template above is implementation-flavored; planning PRs use the same
-body structure with a smaller footprint.
-
-**Required:** `**Spec:**` (PRD or task-list filename) and `## Summary` (planned WU name, category,
-scope shape).
-
-**Typical shape — simple planning branch:**
-
-````markdown
-**Spec:** `{filename}` — `prd-{name}.md` or `tasks-{name}.md`
-
-## Summary
-
-{Name the planned WU, category, scope shape in one or two sentences. Reference the PRD for
-details rather than restating its contents.}
-
-## Changes
-
-- _{Artifact}_ — {what shipped: PRD with N requirements; task list with N phases / N tasks;
-  notes file; etc.}
-````
-
-**Omit by default:** Test Plan (markdown lint is CI-carried; planning artifacts have no manual
-verification surface beyond it), Out of Scope, Follow-Up Work — apply only when the planning
-work itself made explicit boundary calls or surfaced deferrable items.
-
-### Batch Planning Branch
-
-Combines archival of a completed WU with planning of the next. Two top-level sections keep
-the transitions distinct:
-
-````markdown
-**Spec:** `{filename of the new WU's planning artifact}`
-
-## Summary
-
-{Both transitions in one or two sentences — completed WU archived; new WU planned with scope shape.}
-
-## Archival
-
-- _{Completed WU}_ — {key outcomes, archive path}
-
-## Planning
-
-- _{New WU}_ — {scope shape, PRD requirement count, task-list phase/task count}
-````
-
-Cross-referenced from [integrate-planning-branch][integrate-planning-branch] as the canonical
-PR-body shape for planning branches.
-
----
-
 ## Section Guidance
 
 **Spec — required.** Mirrors the WU's status-file `**Spec:**` field exactly. Single value, not
@@ -214,6 +157,5 @@ naming for traceability. Summary doesn't need to repeat this — they're complem
 
 [task-list-formatting]: ../strategies/arc/strategy-task-list-formatting.md
 [dev-rules-arc]: ../constitution/DEV-RULES.ARC.md
-[integrate-planning-branch]: ../../system/workflows/arc/work-unit-lifecycle/planning/integrate-planning-branch.md
 [commit-format]: ../../system/methods/commit-format.md
 [arc-config]: ../../system/arc-config.yml

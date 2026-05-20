@@ -328,6 +328,18 @@ protection mode: under `partial`, atomic work goes direct-to-main with no branch
 under `full`, the same atomic intent becomes an atomic-tier WU with branch, minimal meta file, and
 PR. The word's meaning is consistent across modes; the framework's shape adapts.
 
+**Towards — atomic-tier WU init shape (surfaced 2026-05-20 during WOR Task 6.7.c):** WOR ships
+`init-work-unit.md` as planning-only — Step 2 hardcodes `git checkout -b plan/{name}` and Step 4
+sets `**State:** Planning`. Under WOR-as-shipped, an atomic-tier WU under `full` protection has
+no codified init workflow that skips Planning; the meta file gets hand-created with
+`**State:** Active` on a `<type>/<name>` branch. This WU's `arc start <name>` command (scope item
+4) is the natural home for that path — decide at PRD time whether `arc start` covers atomic-tier
+init directly (no Planning → Active transition), whether `init-work-unit.md` evolves to accept a
+life-phase parameter (Planning vs Active → branch-prefix follows), or whether the conductor
+(`plan-arc-plan-conductor.md`) absorbs both shapes. Surfaced during WOR's cross-reference sweep
+when reframing `2_generate-tasks.md`'s pre-WOR "directly-on-base-branch" bifurcation — that
+workflow narrowed under WOR to the canonical planning-life-phase flow only.
+
 ---
 
 ## Dependencies and Sequencing
