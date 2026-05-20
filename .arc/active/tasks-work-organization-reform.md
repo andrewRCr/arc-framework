@@ -3265,10 +3265,43 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           `validate-links.sh` clean across all 10 touched files (no pre-existing broken refs
           surfaced).
 
-    - `[ ]` **6.7.g Extension renames (`pre-execution-graduation`, `pre-stage-review`, and old `pre-merge-review` for
+    - `[x]` **6.7.g Extension renames (`pre-execution-graduation`, `pre-stage-review`, and old `pre-merge-review` for
       its pre-PR-creation semantic)**
-        - Distinguish carefully from the new `pre-merge-review` at the post-review-response fire-point (must NOT be
-          retired). Old `pre-merge-review` references update to `pre-pr-review`.
+        - **`pre-execution-graduation` — 0 active-surface hits.** The proposed name never propagated:
+          file shipped under final name `pre-activation` at 3.8.a.
+        - **`pre-stage-review` — 1 hit, single-copy.** `strategies/project/strategy-package-project-sync.md`
+          Configurable file inventory still listed the pre-rename filename. Inventory refresh folded
+          in: list updated to reflect post-WOR extension topology (added `pre-activation.md`,
+          `pre-commit-review.md`, `pre-pr-review.md`, `pre-push-review.md`; `pre-merge-review.md`
+          retained — filename unchanged, semantic shifted); count `22` → `25`. Internal-dev-only
+          file (no package mirror per Audience Boundaries).
+        - **`pre-merge-review` per-reference fire-point triage.** Found 20+ hits; semantic-classified
+          each against PRD R56 + strategy-configurability-architecture's three-extension sequence
+          (`pre-pr-review` → `review-response` → `pre-merge-review`). All retained as NEW-semantic
+          (extension file itself, README, configurability-architecture strategy, integrate-work-unit
+          workflow, diff-review method, namespace-listing references) except two OLD-semantic hits
+          renamed to `pre-pr-review`:
+            - `reference/templates/template-pull-request.md:148` — "Success-criteria status and
+              pre-merge-review meta-narration" anti-pattern referenced "I reviewed locally before
+              pushing" (pre-PR-creation push semantic).
+            - `system/skills/arc-task-review/SKILL.md:14` — contrast framing "Not a substitute for
+              the integration workflow's pre-merge-review (work-unit scope) or external code review
+              tools" indicated the actual diff-review activity, which post-WOR is `pre-pr-review`
+              (NEW `pre-merge-review` is the narrower final-state-checks gate).
+            - Both edits also added backticks to the extension token per established prose convention
+              (`pre-pr-review` vs bare prose).
+        - **Out of scope:** `.arc/backlog/` (Activation Audit pattern); `.arc/reference/archive/`
+          (historical); WOR's own active artifacts (PRD / notes / meta / tasks describe the renames
+          themselves); `pristine.json` / `.internal/manifest.json` (generated state, regenerated via
+          CLI per 6.7.c precedent).
+        - **Observed pre-existing drift (deferred — out of scope):** strategy-package-project-sync's
+          § Summary table count "Configurable | 15" mismatches the actual inventory list size
+          (was 22 pre-WOR, now 25). Pre-WOR drift, not WOR-introduced — not folded in.
+        - Verification: post-sweep grep returns 0 matches for `pre-execution-graduation` /
+          `pre-stage-review` across active framework surfaces + package mirror; remaining
+          `pre-merge-review` matches all NEW-semantic; `lint:md` zero errors; per-file
+          `validate-links.sh` clean across all 5 touched files; byte-parity confirmed for both
+          two-copy file pairs.
 
     - `[ ]` **6.7.h Retired meta-file field references (per R58 + R49a) — retire entirely**
         - Grep patterns: `**Branch(es):**`, `**Base Branch:**`, `**Sibling Work Unit(s):**`, `**Integration:**`,

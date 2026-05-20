@@ -216,7 +216,7 @@ arc-in-git files are annotated explicitly.
 - `system/workflows/project/README.md`
 - `user/README.md`
 
-### Configurable files (project sections expected to differ) — 22
+### Configurable files (project sections expected to differ) — 25
 
 - `reference/archive/README.md`
 - `reference/constitution/DEV-RULES.PROJECT.md`
@@ -230,8 +230,11 @@ arc-in-git files are annotated explicitly.
 - `system/extensions/post-unit-quality.md`
 - `system/extensions/post-work-unit-activate.md`
 - `system/extensions/post-work-unit-archive.md`
+- `system/extensions/pre-activation.md`
+- `system/extensions/pre-commit-review.md`
 - `system/extensions/pre-merge-review.md`
-- `system/extensions/pre-stage-review.md`
+- `system/extensions/pre-pr-review.md`
+- `system/extensions/pre-push-review.md`
 - `system/methods/commit-footer.md`
 - `system/methods/commit-format.md`
 - `system/methods/diff-review.md`
