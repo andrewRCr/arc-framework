@@ -3334,6 +3334,40 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           ROADMAP and BACKLOG-INBOX inclusion — the file's exploratory header carries its own state signal. Revisit if
           the thesis matures and warrants pipeline tracking.
 
+### `[x]` **6.12 Patch `init-work-unit.md` for backlog-meta graduation**
+
+- _Goal:_ Update `init-work-unit.md` Steps 3-4 to handle the post-6.4 shape where backlog WUs carry `meta-{name}.md`
+  (always) alongside any plan-doc + companions. Pre-6.4 Step 3 moved only the plan-doc and Step 4 always created the
+  meta-file from template — under post-6.4 layout, that orphans the backlog meta-file and nuks its backfilled fields
+  (`Origin`, `Owner`, `Depends On`, `Cohort`) at activation. Patch closes the broken-by-construction case for graduating
+  backlog WUs to active.
+
+    - `[x]` **6.12.a Update Step 3 to graduate the full backlog subdir**
+        - Step 3 renamed to "Graduate Backlog Subdir to Active." `git mv` block now covers `meta-{name}.md`
+          (always present), `plan-{name}.md` and `notes-{name}.md` (when present), and other companions; trailing
+          `rmdir .arc/backlog/{state}/{name}` removes the now-empty subdir. Body language updated to reflect the
+          per-WU subdir model and note that backfilled metadata survives via Step 4's Path A reconcile.
+
+    - `[x]` **6.12.b Update Step 4 to two-path (reconcile vs. create-from-template)**
+        - Step 4 now branches: Path A reconciles `Branch` / `Spec` / `Next Action` on a graduated meta-file while
+          preserving `Owner` / `Origin` / `Depends On` / `Cohort` and all other backfilled fields; Path B creates
+          from `template-meta.md` per pre-6.12 logic for fresh WUs. CAUTION block clarifies staging shape per path
+          (bundled file moves + reconcile under A; dedicated meta commit under B).
+
+    - `[x]` **6.12.c Add Non-Goals entry to PRD covering downstream scope**
+        - Added bullet to `prd-work-organization-reform.md` § Non-Goals: "Stub-creation workflow, park/resume
+          workflows, lightweight planning-entry surface — arc-plan Conductor." Notes WOR's structural shape vs.
+          operating workflows split; references Phase 6.12 as the transitional-window patch and conductor
+          (`plan-arc-plan-conductor.md` § 20) for full coverage.
+
+- _Outcome:_ `init-work-unit.md` now correctly graduates backlog stubs to active without nuking backfilled fields;
+  the metadata that Task 6.4.c carefully captures survives activation. Scope boundary explicitly drawn: WOR ships the
+  graduate-from-backlog path; new-stub creation, park (Planning → backlog), and resume (backlog → Planning, new
+  worktree) defer to arc-plan Conductor. Cross-cutting downstream-plan updates: § 20 (Park and resume lifecycle) added
+  to `plan-arc-plan-conductor.md` with `park-work-unit.md` + `resume-work-unit.md` workflows added to its Proposed ARC
+  Changes + Initial Scope Estimate; `plan-worktree-foundation.md` § Activation Audit gains an entry instructing a
+  WORKING-MEMORY note for vanilla-git multi-WU integration discipline (removal trigger: CWC integrates).
+
 ## **Phase 7:** Spec form scaling and artifact rename
 
 _Purpose:_ Execute the R66-R68 rename block — file-class renames (`prd-*` → `spec-*`, `plan-*` → `draft-*`), meta-file

@@ -67,21 +67,45 @@ exists):
 arc user open {name}
 ```
 
-### 3) Move Plan-Doc to Active · `arc-in-git` only
+### 3) Graduate Backlog Subdir to Active · `arc-in-git` only
 
-> **Skip this step** if `pm.mode` is `none` or `external`. Skip also if no plan-doc exists in
-> `backlog/{planned,provisional}/{name}/`.
+> **Skip this step** if `pm.mode` is `none` or `external`. Skip also if no backlog subdir exists
+> at `backlog/{planned,provisional}/{name}/`.
 
-If resuming from a backlog stub, move the plan-doc and any companions (`prd-{name}.md`, `notes-{name}.md`)
-into the active workspace:
+When resuming from a backlog stub, graduate the per-WU subdir contents into the active workspace.
+Under the per-WU subdir model, every backlog WU carries `meta-{name}.md` (always) plus any
+plan-doc and companions:
 
 ```bash
-git mv .arc/backlog/{state}/{name}/plan-{name}.md .arc/active/
+git mv .arc/backlog/{state}/{name}/meta-{name}.md .arc/active/
+git mv .arc/backlog/{state}/{name}/plan-{name}.md .arc/active/   # when present
+git mv .arc/backlog/{state}/{name}/notes-{name}.md .arc/active/  # when present
+# Move other companions present in the subdir
+rmdir .arc/backlog/{state}/{name}
 ```
+
+The meta-file carries the intentional metadata backfilled at backlog-stub creation (`Origin`,
+`Owner`, `Depends On`, `Cohort`); Step 4's Path A reconciles `Branch` and `Spec` without
+overwriting these fields.
 
 See [Work Planning Strategy][work-planning] for the plan-doc lifecycle.
 
-### 4) Create Meta File
+### 4) Create or Reconcile Meta File
+
+Two paths depending on Step 3's outcome:
+
+**Path A — Graduated from backlog** (`active/meta-{name}.md` exists from Step 3):
+
+Reconcile the existing meta-file to reflect the now-active planning state:
+
+1. **Branch** → current planning branch (e.g., `plan/{name}`)
+2. **Spec** → backticked `plan-{name}.md` filename when one exists; otherwise leave as-is
+3. **Next Action** → freeform planning-session prompt
+
+**Preserve** `Owner`, `Origin`, `Depends On`, `Cohort`, `State: Planning`, and all other
+backfilled fields. The backlog stub's intentional metadata survives graduation.
+
+**Path B — Fresh WU** (no backlog meta-file):
 
 Create `.arc/active/meta-{name}.md` from `template-meta.md`. Replace the H1 title
 (`# Metadata: {wu-name}`) with the actual work unit name, then apply these substitutions and overrides:
@@ -95,14 +119,15 @@ Create `.arc/active/meta-{name}.md` from `template-meta.md`. Replace the H1 titl
 
 Remaining fields take their `template-meta.md` defaults.
 
-**Idempotent create + reconcile.** If a meta file already exists on this branch (e.g., resuming a partial
-init), do not recreate it. Reconcile **Branch** and **Spec** to reflect the current branch name and
-plan-doc filename; preserve other field values as-is.
+**Idempotent.** If a meta file already exists on the branch (e.g., resuming a partial init from a
+prior session, not from backlog graduation), do not recreate it. Reconcile **Branch** and **Spec**
+as in Path A; preserve other field values.
 
 > [!CAUTION]
-> `commit-interlock` release — commit as `workflowCommit`. Stage the plan-doc move (when present)
-> with the meta file as a bundled init commit; otherwise dedicated. Subject per
-> [`commit-format`][commit-format]; meta-file commit shape per [DEV-RULES.ARC][dev-rules-arc]
+> `commit-interlock` release — commit as `workflowCommit`. Under Path A, stage the backlog-subdir
+> file moves (meta + plan-doc + companions) together with the meta-file reconcile edits as a
+> bundled init commit. Under Path B, stage the new meta file as a dedicated init commit. Subject
+> per [`commit-format`][commit-format]; meta-file commit shape per [DEV-RULES.ARC][dev-rules-arc]
 > § Commit Discipline.
 
 ### 5) Push Planning Branch
