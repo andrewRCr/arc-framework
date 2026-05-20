@@ -688,10 +688,10 @@ always seeded, no drain target under `pm.mode: none`. WOR widens the affected su
 
 **Not WOR's to resolve.** Two downstream WUs own the redecision:
 
-- `plan-arc-in-git-as-default.md` (R64 / Task 6.11) — the "modes scale rather than swap
+- `plan-arc-in-git-as-default.md` (R64 / Task 6.13) — the "modes scale rather than swap
   shapes" thesis is precisely this question generalized. The Implication Inventory section
-  (6.11.d) should call out USER-INBOX's role under each mode as a worked example. Task
-  6.11 carries an explicit "pull from this section" pointer.
+  (6.13.d) should call out USER-INBOX's role under each mode as a worked example. Task
+  6.13 carries an explicit "pull from this section" pointer.
 - `plan-arc-modes.md` Lite design pass — Lite is solo, single-WU, has no cross-WU
   coordination surface. USER-INBOX § Backlog reads even weirder there than under
   `pm.mode: none`. Plan-arc-modes flagged its own design pass is behind recent ARC

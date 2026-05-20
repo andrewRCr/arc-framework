@@ -3697,7 +3697,156 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           `\.arc/reference/research`, `\.arc/reference/analysis` — should return empty (excluding the WOR PRD / task
           list / status file themselves).
 
-### `[ ]` **6.11 Create `plan-arc-in-git-as-default.md` (R64)**
+### `[ ]` **6.11 System/reference re-tier: `constitution/` → `system/rules/` + `briefs/` → `reference/briefs/`**
+
+- _Goal:_ Reclassify content based on a sharper organizing axis: `system/` holds prescriptive/operational
+  machinery (workflows, methods, extensions, hooks, rules, config); `reference/` holds consultative look-up
+  material (briefs, strategies, ADRs, PROJECT-PRD, TECHNICAL-OVERVIEW, QUICK-REFERENCE, templates). Under that
+  criterion: dev-rules move INTO `system/` (prescriptive — they govern behavior every session); briefs move OUT
+  to `reference/` (orientation/look-up — they describe what's true, not what to do). Dir rename from
+  `constitution/` to `rules/` accompanies the move (the "constitution" label made sense when the dir housed
+  PROJECT-PRD and TECHNICAL-OVERVIEW; now it's just rules). Load cadence (every-session vs on-demand) is NOT the
+  organizing axis — QUICK-REFERENCE is loaded every session but reference-shaped.
+
+    - _Approach:_ `git mv` both directories at both copies (`.arc/` + `packages/arc-framework/arc/`). Codify the
+      split criterion in `strategy-file-classification.md` before the moves so the new organizing principle is
+      documented as the change lands. Sweep ~100 references to `constitution/` and a smaller surface for
+      `briefs/`.
+
+    - _Sequencing:_ 6.11.a (criterion codification) → 6.11.b + 6.11.c (moves, parallel) → 6.11.d (sweep) →
+      6.11.e (verify). README rewrites bundle with their respective moves.
+
+    - `[ ]` **6.11.a Codify split criterion in `strategy-file-classification.md`**
+        - Add new section: "Directory placement — system/ vs reference/, and intra-system tiering."
+        - Two axes covered:
+            1. Top-level: `system/` (prescriptive/operational) vs `reference/` (consultative/look-up).
+            2. Intra-system: user-facing (overrides, extensions, additions) vs `.internals/` (CLI-managed,
+               framework-internal; detailed nesting lands in Phase 6.12).
+        - Justifies both 6.11's moves (constitution → system; briefs → reference) and 6.12's nesting. Single
+          codification section serves both phases — no separate 6.12.a codification subtask needed.
+
+    - `[ ]` **6.11.b Execute `constitution/` → `system/rules/` move + README rewrite**
+        - `git mv .arc/reference/constitution .arc/system/rules`.
+        - `git mv packages/arc-framework/arc/reference/constitution packages/arc-framework/arc/system/rules`.
+        - Rewrite README at the new `system/rules/README.md` location: explain `rules/` purpose under the new
+          criterion; drop the "Domain-Scoped Rules" section entirely. The forward-compat content there
+          (describing `DEV-RULES.{DOMAIN}.md` pattern) will be reintroduced correctly by the
+          `rules-restructure` backlog WU with the `DOMAIN-RULES.*` pattern; leaking the in-flight scope into
+          the adopter surface violates DEV-RULES.PROJECT § Audience Boundaries.
+
+    - `[ ]` **6.11.c Execute `system/briefs/` → `reference/briefs/` move**
+        - `git mv .arc/system/briefs .arc/reference/briefs`.
+        - `git mv packages/arc-framework/arc/system/briefs packages/arc-framework/arc/reference/briefs`.
+        - Verify `briefs/README.md` content doesn't imply system/ placement — minor touch if existing text
+          frames briefs as system-tier; reframe as orientation/reference material under the new criterion.
+
+    - `[ ]` **6.11.d Sweep inbound references (constitution + briefs paths)**
+        - Grep patterns: `reference/constitution`, `\.arc/reference/constitution`, `system/briefs`,
+          `\.arc/system/briefs`, `[constitution]:` / `[briefs]:` reference-link definitions, hardcoded paths
+          across workflows / strategies / READMEs / package source. Inventory: ~100 references to
+          `constitution/`, smaller surface for `briefs/`.
+        - Update to `system/rules/` and `reference/briefs/` respectively. Surfaces include: session-init
+          workflow doc-load list (item 3), `session-init.contributor.md` variant, methods (`commit-format`,
+          `commit-footer`, `quality-gate-commands`), most strategies (cross-reference one or both via
+          reference-style links), DEV-RULES files themselves (cross-references between ARC and PROJECT
+          variants), AGENT-BRIEF cross-references, package source mirror, READMEs.
+        - **Exclusion:** content INSIDE `rules/` and `briefs/` — the moved files retain their own
+          cross-references at their new paths; sweep targets only references TO the directories.
+
+    - `[ ]` **6.11.e Verify inbound references swept (post-6.11.d)**
+        - Grep across documentation surface for `reference/constitution`, `\.arc/reference/constitution`,
+          `system/briefs`, `\.arc/system/briefs` — should return empty (excluding WOR's own PRD / task list /
+          notes which legitimately discuss the move).
+
+- _Outcome:_ `system/` becomes the home for all prescriptive/operational machinery; `reference/` becomes the
+  home for all consultative material. Criterion codified in `strategy-file-classification.md` as the
+  load-bearing organizing principle for future placement decisions. Backlog WU (`rules-restructure`) starts
+  from this substrate to introduce the `DEV-RULES.*` (always-loaded) / `DOMAIN-RULES.*` (on-demand) filename
+  split and the auto-loading wiring mechanism.
+
+### `[ ]` **6.12 Intra-system internals nesting: `.internal/` + `githooks/` + `scripts/` + `skills/` → `system/.internals/`**
+
+- _Goal:_ Separate user-facing customization surfaces (`arc-config.yml`, `extensions/`, `methods/`, `rules/`,
+  `workflows/`) from framework-internal machinery (`.internal/manifest.json`, `githooks/`, `scripts/`,
+  `skills/`) within `system/`. A developer walking into `system/` to override a method shouldn't have to
+  filter past 3-4 dirs of framework plumbing they don't edit. Single hidden parent (`.internals/`) signals
+  "framework-managed; don't touch" while keeping content discoverable for the workflows that consume it
+  (notably `add-agent` reads `skills/` for SKILL.md content during harness-dir bootstrapping).
+
+    - _Approach:_ Create `system/.internals/` parent at both copies; `git mv` each internals dir under it.
+      The criterion for this nesting is codified in 6.11.a (intra-system axis) — no separate codification
+      subtask needed here.
+
+    - _Sequencing:_ 6.12.a (parent) → 6.12.b-e (moves, parallel after parent exists) → 6.12.f (sweep) →
+      6.12.g (verify).
+
+    - `[ ]` **6.12.a Create `system/.internals/` parent**
+        - `mkdir .arc/system/.internals`.
+        - `mkdir packages/arc-framework/arc/system/.internals`.
+
+    - `[ ]` **6.12.b Move `.internal/manifest.json` → `.internals/manifest.json`**
+        - `git mv .arc/system/.internal/manifest.json .arc/system/.internals/manifest.json`.
+        - `git mv packages/arc-framework/arc/system/.internal/manifest.json
+          packages/arc-framework/arc/system/.internals/manifest.json`.
+        - Remove now-empty `.internal/` dirs at both copies post-move.
+        - Update manifest validation / regeneration logic in `packages/arc-framework/src/` to read from the
+          new path. Net effect: `.internal/manifest.json` → `.internals/manifest.json` (manifest.json
+          promotes one level; `.internal/` dir retires; `.internals/` becomes the new grouping bucket).
+
+    - `[ ]` **6.12.c Move `githooks/` → `.internals/githooks/`**
+        - `git mv .arc/system/githooks .arc/system/.internals/githooks`.
+        - `git mv packages/arc-framework/arc/system/githooks
+          packages/arc-framework/arc/system/.internals/githooks`.
+        - Sweep: hook-manager integration docs (Husky / Lefthook / pre-commit) in `githooks/README.md`, CLI
+          install logic (`arc init` / `arc join` set `core.hooksPath` and modify hook-manager configs — all
+          path-write sites need updating), manual-setup instructions in READMEs.
+        - Self-hosted update: re-set `git config core.hooksPath .arc/system/.internals/githooks` on this
+          repo after the move (one-time local op, not committed). Smoke-test commit confirms hooks fire from
+          the new path (6.12.g).
+
+    - `[ ]` **6.12.d Move `scripts/` → `.internals/scripts/`**
+        - `git mv .arc/system/scripts .arc/system/.internals/scripts`.
+        - `git mv packages/arc-framework/arc/system/scripts
+          packages/arc-framework/arc/system/.internals/scripts`.
+        - Sweep: `arc-verify` skill calls `verify-integrity.sh`; CLI calls `validate-config.sh`; `arc-lib.sh`
+          is sourced from other scripts; READMEs reference paths. Update all callers across CLI source +
+          shell scripts.
+
+    - `[ ]` **6.12.e Move `skills/` → `.internals/skills/`**
+        - `git mv .arc/system/skills .arc/system/.internals/skills`.
+        - `git mv packages/arc-framework/arc/system/skills packages/arc-framework/arc/system/.internals/skills`.
+        - Sweep: `add-agent` workflow (canonical-source path for harness-dir regeneration), Package-Project
+          Sync pairing logic (skill-file drift check), harness-regeneration source path in `arc init` /
+          `arc update` (CLI reads from package source for adopters; self-host path differs).
+        - **Verification step (critical):** manually walk through `add-agent` workflow mentally after the
+          path sweep to confirm path resolution; dynamic-path construction in the workflow may not be caught
+          by literal grep.
+
+    - `[ ]` **6.12.f Sweep inbound references (internals nesting paths)**
+        - Grep patterns: `system/\.internal/`, `\.arc/system/\.internal/`, `system/githooks`,
+          `\.arc/system/githooks`, `system/scripts`, `\.arc/system/scripts`, `system/skills`,
+          `\.arc/system/skills`, `[githooks]:` / `[scripts]:` / `[skills]:` reference-link definitions.
+        - Update to `system/.internals/{githooks,scripts,skills}/` and `system/.internals/manifest.json`
+          respectively. Surfaces include: workflows, strategies, READMEs, CLI source code, hook-manager
+          integration docs, package source mirror. Completion records (read-only historical) excluded.
+        - **Exclusion:** content INSIDE the moved dirs — same as 6.11.d, sweep only inbound refs.
+
+    - `[ ]` **6.12.g Verify inbound references swept + tooling smoke-test (post-6.12.f)**
+        - Grep across documentation surface for the old paths (`system/githooks`, `system/scripts`,
+          `system/skills`, `system/.internal/`) — should return empty (excluding WOR's own PRD / task list /
+          notes).
+        - Run `arc verify` end-to-end to confirm `verify-integrity.sh` and `validate-config.sh` resolve at
+          their new paths.
+        - Smoke-test commit on this repo to confirm hooks fire from the new path (`commit-msg` + `pre-commit`
+          both invoked correctly under the updated `core.hooksPath`).
+
+- _Outcome:_ `system/` cleanly separates user-facing customization surfaces (top-level children) from
+  framework-internal machinery (`.internals/` namespace). Developer mental burden when navigating `system/`
+  drops; the new structure auto-documents what's editable vs. CLI-managed via the dotfile convention. Skills
+  mirror retained (not removed) — `add-agent` workflow consumes it, justifying the `.internals/skills/`
+  placement as the canonical source.
+
+### `[ ]` **6.13 Create `plan-arc-in-git-as-default.md` (R64)**
 
 - _Goal:_ Create the exploratory `plan-*` doc capturing the "arc-in-git as default; modes scale around it" thesis per
   R64. Lands in `backlog/feature/` (legacy layout); graduates to `backlog/provisional/arc-in-git-as-default/` once Task
@@ -3709,23 +3858,23 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
     - _Companion read at execution:_ Skim `plan-arc-modes.md` (header / TOC, not full body) to ground the implication
       inventory and confirm the doc reshapes (rather than duplicates) plan-arc-modes content.
 
-    - `[ ]` **6.11.a Author `plan-arc-in-git-as-default.md`**
+    - `[ ]` **6.13.a Author `plan-arc-in-git-as-default.md`**
         - Header carries explicit exploratory framing: "**State:** Exploratory / Not yet committed — thesis-stage, not
           work-stage. This plan describes a deliberation to evaluate, not work to execute. Implementation sections are
           conditional on thesis acceptance."
 
-    - `[ ]` **6.11.b Author Thesis section**
+    - `[ ]` **6.13.b Author Thesis section**
         - Single paragraph stating the thesis: arc-in-git as default; modes scale rather than swap shapes. ARC remains
           agnostic / generalizable rather than competing with external trackers; backlog can complement Jira / Linear
           rather than replace or be replaced by them.
 
-    - `[ ]` **6.11.c Author Rationale section**
+    - `[ ]` **6.13.c Author Rationale section**
         - Research findings on out-of-band team coordination (teams resolve concurrency via Slack / meetings, not
           tooling); smaller WUs + ceremony-boundary updates as the actual decoupling mechanism for backlog drift; ARC's
           "scale up / down rather than swap shapes" framing. Reference WOR's own reshape of capture surfaces (R20's
           ceremony-only writes) as substrate for this thesis.
 
-    - `[ ]` **6.11.d Author Implication Inventory section**
+    - `[ ]` **6.13.d Author Implication Inventory section**
         - Per-mode implications:
             - `pm.mode: external` — semantic shift from "no backlog" to "backlog complements external tracker"
             - `pm.mode: none` — semantic shift; what survives, what doesn't
@@ -3741,22 +3890,22 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           Captured during WOR execution Task 5.6.e sanity-check; resolved as "PRD-consistent, defer to
           this plan and to `plan-arc-modes` Lite design pass."
 
-    - `[ ]` **6.11.e Author Decision Gate section**
+    - `[ ]` **6.13.e Author Decision Gate section**
         - Explicit gates: what deciding requires (e.g., evaluation of `plan-arc-modes`' current direction; verification
           that smaller WU pattern holds in practice; team-coordination research validation; concrete user feedback).
         - Frame: "this decision is not made by this plan; this plan organizes the inputs needed to make it."
 
-    - `[ ]` **6.11.f Author Cross-References section**
+    - `[ ]` **6.13.f Author Cross-References section**
         - Backlog plan-\* docs touched if thesis accepted: `plan-arc-modes` (independent consumer); `plan-arc-backend`
           (related); WOR (compatible with thesis but doesn't depend on it). Forward-link to ROADMAP / BACKLOG-INBOX as
           relevant.
 
-    - `[ ]` **6.11.g ROADMAP / BACKLOG-INBOX entry decision**
+    - `[ ]` **6.13.g ROADMAP / BACKLOG-INBOX entry decision**
         - Exploratory state should NOT appear in ROADMAP (which renders committed work per R37). Default: skip both
           ROADMAP and BACKLOG-INBOX inclusion — the file's exploratory header carries its own state signal. Revisit if
           the thesis matures and warrants pipeline tracking.
 
-### `[x]` **6.12 Patch `init-work-unit.md` for backlog-meta graduation**
+### `[x]` **6.14 Patch `init-work-unit.md` for backlog-meta graduation**
 
 - _Goal:_ Update `init-work-unit.md` Steps 3-4 to handle the post-6.4 shape where backlog WUs carry `meta-{name}.md`
   (always) alongside any plan-doc + companions. Pre-6.4 Step 3 moved only the plan-doc and Step 4 always created the
@@ -3764,22 +3913,22 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
   (`Origin`, `Owner`, `Depends On`, `Cohort`) at activation. Patch closes the broken-by-construction case for graduating
   backlog WUs to active.
 
-    - `[x]` **6.12.a Update Step 3 to graduate the full backlog subdir**
+    - `[x]` **6.14.a Update Step 3 to graduate the full backlog subdir**
         - Step 3 renamed to "Graduate Backlog Subdir to Active." `git mv` block now covers `meta-{name}.md`
           (always present), `plan-{name}.md` and `notes-{name}.md` (when present), and other companions; trailing
           `rmdir .arc/backlog/{state}/{name}` removes the now-empty subdir. Body language updated to reflect the
           per-WU subdir model and note that backfilled metadata survives via Step 4's Path A reconcile.
 
-    - `[x]` **6.12.b Update Step 4 to two-path (reconcile vs. create-from-template)**
+    - `[x]` **6.14.b Update Step 4 to two-path (reconcile vs. create-from-template)**
         - Step 4 now branches: Path A reconciles `Branch` / `Spec` / `Next Action` on a graduated meta-file while
           preserving `Owner` / `Origin` / `Depends On` / `Cohort` and all other backfilled fields; Path B creates
-          from `template-meta.md` per pre-6.12 logic for fresh WUs. CAUTION block clarifies staging shape per path
+          from `template-meta.md` per pre-6.14 logic for fresh WUs. CAUTION block clarifies staging shape per path
           (bundled file moves + reconcile under A; dedicated meta commit under B).
 
-    - `[x]` **6.12.c Add Non-Goals entry to PRD covering downstream scope**
+    - `[x]` **6.14.c Add Non-Goals entry to PRD covering downstream scope**
         - Added bullet to `prd-work-organization-reform.md` § Non-Goals: "Stub-creation workflow, park/resume
           workflows, lightweight planning-entry surface — arc-plan Conductor." Notes WOR's structural shape vs.
-          operating workflows split; references Phase 6.12 as the transitional-window patch and conductor
+          operating workflows split; references Phase 6.14 as the transitional-window patch and conductor
           (`plan-arc-plan-conductor.md` § 20) for full coverage.
 
 - _Outcome:_ `init-work-unit.md` now correctly graduates backlog stubs to active without nuking backfilled fields;

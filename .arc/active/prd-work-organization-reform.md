@@ -1106,7 +1106,7 @@ Backlog placement (vs. ROADMAP-tracked) reflects the not-yet-committed state.
   (`plan-arc-plan-conductor.md`). WOR delivers the structural shape (per-WU subdir, `meta-*` always); the workflows
   that operate on the shape for new-WU stub creation, mid-planning park (Planning → backlog), and parked-WU resume
   (backlog → Planning, new worktree) ship at conductor activation. WOR's tactical patch to `init-work-unit.md` Steps
-  3-4 (Phase 6.12) handles the graduate-from-backlog case for the transitional window; new-stub-creation, park, and
+  3-4 (Phase 6.14) handles the graduate-from-backlog case for the transitional window; new-stub-creation, park, and
   resume remain manual until conductor lands.
 - **Tier model, `arc start` command, ceremony scaling per tier, atomic-companion retirement** — Agile WU Lifecycle
 - **`manage-incidental-work.md` workflow retirement + conceptual references in workflows / strategies / templates that
