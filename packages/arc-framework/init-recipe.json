@@ -139,8 +139,6 @@
         "backlog/ROADMAP.template.md",
         "backlog/ATOMIC-INBOX.template.md",
         "backlog/BACKLOG-INBOX.template.md",
-        "backlog/feature/BACKLOG-FEATURE.template.md",
-        "backlog/technical/BACKLOG-TECHNICAL.template.md",
         "reference/strategies/arc/strategy-planning-module.md"
       ]
     },

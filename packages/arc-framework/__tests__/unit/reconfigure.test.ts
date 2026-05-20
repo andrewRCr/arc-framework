@@ -235,8 +235,8 @@ describe("runReconfigure", () => {
       "reference/README.md": "# Readme",
       "system/arc-config.yml": "pm.mode: none",
       "backlog/ROADMAP.template.md": "# Roadmap for {{PROJECT_NAME}}",
-      "backlog/feature/BACKLOG-FEATURE.template.md": "# Feature Backlog",
-      "backlog/technical/BACKLOG-TECHNICAL.template.md": "# Technical Backlog",
+      "backlog/ATOMIC-INBOX.template.md": "# Atomic Inbox",
+      "backlog/BACKLOG-INBOX.template.md": "# Backlog Inbox",
       "reference/strategies/arc/strategy-planning-module.md": "# Planning Module",
     };
     const pristineStore = {
@@ -253,8 +253,8 @@ describe("runReconfigure", () => {
         "pm.mode == arc-in-git": {
           include_files: [
             "backlog/ROADMAP.template.md",
-            "backlog/feature/BACKLOG-FEATURE.template.md",
-            "backlog/technical/BACKLOG-TECHNICAL.template.md",
+            "backlog/ATOMIC-INBOX.template.md",
+            "backlog/BACKLOG-INBOX.template.md",
             "reference/strategies/arc/strategy-planning-module.md",
           ],
         },
@@ -276,8 +276,8 @@ describe("runReconfigure", () => {
 
     // All arc-in-git files should appear as additions
     expect(result.added).toContain("backlog/ROADMAP.md");
-    expect(result.added).toContain("backlog/feature/BACKLOG-FEATURE.md");
-    expect(result.added).toContain("backlog/technical/BACKLOG-TECHNICAL.md");
+    expect(result.added).toContain("backlog/ATOMIC-INBOX.md");
+    expect(result.added).toContain("backlog/BACKLOG-INBOX.md");
     expect(result.added).toContain(
       "reference/strategies/arc/strategy-planning-module.md",
     );
