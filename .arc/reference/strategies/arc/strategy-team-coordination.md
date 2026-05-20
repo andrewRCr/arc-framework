@@ -9,7 +9,7 @@ team branching patterns, merge conflict handling, and external tracker integrati
 
 These conventions activate when `team.mode: true` is set in `arc-config.yml`. Some structural
 foundations are always present regardless of team mode — per-identity `user/{identity}/`
-directories, per-WU `status-{name}.md` files in `active/{category}/`. The conventions below
+directories, per-WU `meta-{name}.md` files in `active/{category}/`. The conventions below
 add coordination patterns on top of that foundation.
 
 **Prerequisite:** [Work Organization Strategy][work-org] (branching model, work categories,
@@ -46,7 +46,7 @@ in subsequent sections and referenced documents.
 | Aspect              | Solo (default)                       | Team mode                                         |
 |---------------------|--------------------------------------|---------------------------------------------------|
 | Session notes       | `user/{identity}/`                   | `user/{identity}/` (same structure)               |
-| Work status         | `active/{category}/status-{name}.md` | `active/{category}/status-{name}.md` (one per WU) |
+| Work status         | `active/{category}/meta-{name}.md`   | `active/{category}/meta-{name}.md` (one per WU)   |
 | ATOMIC-INBOX.md (1) | `user/{identity}/`                   | `user/{identity}/` (same structure)               |
 | One task at a time  | Single pair                          | Per developer-agent pair (concurrent pairs OK)    |
 | Task ownership      | Implicit                             | `(@name)` markers in task lists                   |
@@ -55,7 +55,7 @@ in subsequent sections and referenced documents.
 (1) ATOMIC-INBOX.md requires `pm.mode: arc-in-git`. Atomic tasks as a concept (task list
 sections for off-plan work) are Core and always available.
 
-**Key distinction:** Each active work unit has its own `status-{name}.md` in
+**Key distinction:** Each active work unit has its own `meta-{name}.md` in
 `active/{category}/`, tracked in git and shared across developers working on that WU. It
 represents **WU-level state** — "Next Task" is the WU's next incomplete task, not any
 individual developer's personal next task. In team mode, each developer resolves their
@@ -151,11 +151,11 @@ The incoming developer runs a standard session-init with these additions:
    ```
 
    The CLI extracts the outgoing developer's SESSION-NOTES and workspace files into a
-   readable format. This supplements the active WU's `status-{name}.md` with qualitative
+   readable format. This supplements the active WU's `meta-{name}.md` with qualitative
    context — decisions, gotchas, and approach notes that aren't captured in tracked artifacts.
 
 2. **Verify task ownership.** Check the task list for `(@name)` markers confirming which tasks
-   are assigned to you. The WU's `status-{name}.md` shows the current task; the markers show
+   are assigned to you. The WU's `meta-{name}.md` shows the current task; the markers show
    your personal scope.
 
 3. **Confirm understanding.** Report your understanding in the session-init orientation summary.
@@ -167,11 +167,11 @@ The incoming developer runs a standard session-init with these additions:
 Person-to-person handoff works asynchronously — the outgoing developer may not be available
 when the incoming developer starts.
 
-- **Documents must stand alone.** SESSION-NOTES.md + the active WU's `status-{name}.md`
+- **Documents must stand alone.** SESSION-NOTES.md + the active WU's `meta-{name}.md`
   should provide complete orientation without verbal walkthrough.
-- **`status-{name}.md` provides minimum viable context.** Even without SESSION-NOTES.md, the
+- **`meta-{name}.md` provides minimum viable context.** Even without SESSION-NOTES.md, the
   project pointer (branch, task list, current task, next action) is sufficient to start work.
-- **Graceful degradation.** If git notes weren't pushed, fall back to `status-{name}.md` +
+- **Graceful degradation.** If git notes weren't pushed, fall back to `meta-{name}.md` +
   task list + git log.
 - **Questions are expected.** The incoming developer may leave questions in commit messages,
   PR comments, or team channels.
@@ -310,14 +310,14 @@ Personal files in `user/{identity}/` (SESSION-NOTES.md and, with `pm.mode: arc-i
 ATOMIC-INBOX.md) are gitignored — no merge conflicts by design. Only one developer writes to
 each identity directory.
 
-Per-WU status files (`active/{category}/status-{name}.md`) are tracked and shared across
+Per-WU meta files (`active/{category}/meta-{name}.md`) are tracked and shared across
 developers working on the same WU. Parallel work units on independent branches never collide
-at the status-file layer — each WU carries its own file, and merges to the base branch never
+at the meta-file layer — each WU carries its own file, and merges to the base branch never
 touch the same path from both sides. Within-WU coordination (team sub-branches sharing one
-status file) resolves through normal git merge behavior: non-overlapping field edits merge
+meta file) resolves through normal git merge behavior: non-overlapping field edits merge
 cleanly, field-level collisions surface as merge conflicts that the integration branch owner
-resolves manually. `(@name)` marker discipline on task lists minimizes status-file field
-overlap in practice, and the status-file timing rule (see [DEV-RULES.ARC][dev-methodology]
+resolves manually. `(@name)` marker discipline on task lists minimizes meta-file field
+overlap in practice, and the meta-file timing rule (see [DEV-RULES.ARC][dev-methodology]
 § Commit Discipline) narrows the write surface further — the file is touched only at
 handoff and workflow-ceremony commits, so concurrent same-field writes are rare.
 
@@ -333,30 +333,30 @@ properties — address them separately.
 **Parallel work units on independent branches.** Alice works on
 `feat/auth-refresh` with its own `meta-auth-refresh.md`; Bob works on
 `chore/ci-matrix` with its own `meta-ci-matrix.md`. The work units don't coordinate at
-all at the status-file layer: different files, different branches, different task lists.
-Independent WUs merge to the base branch without ever touching each other's status files.
+all at the meta-file layer: different files, different branches, different task lists.
+Independent WUs merge to the base branch without ever touching each other's meta files.
 This is the dominant pattern for parallel solo work on independent concerns.
 
 **Within-WU team sub-branches.** Alice and Bob both work on the same WU via personal
 sub-branches (`feat/user-auth/alice`, `feat/user-auth/bob`) off a shared integration
-branch. They share one `status-{name}.md`. Coordination mechanisms:
+branch. They share one `meta-{name}.md`. Coordination mechanisms:
 
 - **Task list:** Each developer works their `(@name)`-assigned tasks. Conflicts only arise
   when both commit task list updates at the same time — pull before committing to reduce
   conflict frequency. Remaining conflicts are resolved as described under
   [Task Lists Are Shared Files](#task-lists-are-shared-files).
-- **Status file (`status-{name}.md`):** Shared write surface. Non-overlapping field edits
+- **Meta file (`meta-{name}.md`):** Shared write surface. Non-overlapping field edits
   merge cleanly; concurrent edits to the same field (e.g., both advancing `Next Task`)
   produce a merge conflict that the integration branch owner resolves manually. Last
   committer's update wins as the default convention when edits are compatible — each
   developer resolves their personal next task from `(@name)` markers at session-init and
-  doesn't depend on the shared status file for personal state.
+  doesn't depend on the shared meta file for personal state.
 - **SESSION-NOTES.md:** No conflict possible — each developer writes to their own
   `user/{identity}/` directory.
 
 ### Cross-WU Planning Dependencies
 
-Parallel work units on independent branches don't coordinate at the status-file layer (above), but
+Parallel work units on independent branches don't coordinate at the meta-file layer (above), but
 **planning artifacts within those WUs can still create dependencies**: one developer's WU may
 reference design decisions, scope choices, or task structures in another's evolving plan-doc. Each
 WU's planning artifacts live on its branch — a developer's worktree holds a sibling WU's state as

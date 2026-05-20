@@ -1,7 +1,7 @@
 # AGENT-BRIEF.CONTRIBUTOR.md — Contributor Role Orientation
 
 This briefing applies when `git config arc.role` is set to `contributor`. It replaces the
-maintainer-focused session initialization (status files, task lists, task execution workflow)
+maintainer-focused session initialization (meta files, task lists, task execution workflow)
 with a streamlined context appropriate for contributing to an ARC-managed project.
 
 ## What Contributors Do
@@ -31,7 +31,7 @@ for a worked example.
 
 Contributor sessions follow [session-init][session-init] and [session-handoff][session-handoff]
 with the contributor path. Personal active state under `user/{identity}/active/` mirrors maintainer
-structure (flat — no category subdir): `status-{name}.md` per in-flight contribution plus optional
+structure (flat — no category subdir): `meta-{name}.md` per in-flight contribution plus optional
 companion files. Loaded if present; absent state is fine for ad-hoc contributions.
 See [contributor session lifecycle][TODO-docs-site] for the full load set, skipped artifacts, and
 handoff differences.
@@ -46,7 +46,7 @@ recommended directory layout, and rationale.
 
 - `SESSION-NOTES.md` — session context, loaded at session-init, written at session-handoff
 - `ATOMIC-INBOX.md` — personal capture queue (arc-in-git upstream projects only)
-- `active/status-{name}.md` — personal active work state for an in-flight contribution (optional)
+- `active/meta-{name}.md` — personal active work state for an in-flight contribution (optional)
 - `active/tasks-{name}.md` + `notes-{name}.md` + `atomic-{name}.md` — task list and companion files when
   running a full planning pipeline
 

@@ -6,7 +6,7 @@ git hooks, and a CLI package — all agent-platform agnostic.
 ## How ARC Works
 
 **Session lifecycle:** Sessions are bounded — init via the `arc-resume` skill, handoff via
-`arc-handoff`. State files: active work unit's `status-{name}.md` (tracked, `active/{category}/`)
+`arc-handoff`. State files: active work unit's `meta-{name}.md` (tracked, `active/{category}/`)
 and `SESSION-NOTES.md` (gitignored, `user/{identity}/`).
 
 **Work pipeline:** PRD → task generation → task execution loop. One task = one review
@@ -26,8 +26,8 @@ DEV-RULES.ARC § Commit Discipline.
 
 Precise meanings — assume the technical sense.
 
-- **Work unit (WU):** Wrapper noun — a bounded chunk of work with one branch, a status file, and
-  one PR. Tier-invariant (atomic / quick / standard). Artifact group: `status-{name}.md` plus any
+- **Work unit (WU):** Wrapper noun — a bounded chunk of work with one branch, a meta file, and
+  one PR. Tier-invariant (atomic / quick / standard). Artifact group: `meta-{name}.md` plus any
   present `plan-*`, `tasks-*`, `atomic-*` companions. Not "any chunk of work".
 - **Atomic:** Work _character_ — single-bounded, indivisible, no internal stages. Applies at all
   scales: items (inbox entries), tasks (`atomic-{name}.md` companions), WUs (atomic-tier). Inboxes
@@ -50,12 +50,12 @@ Precise meanings — assume the technical sense.
 | DEV-RULES.PROJECT.md        | Project quality standards                     | `reference/constitution/` |
 | QUICK-REFERENCE.md          | Commands and environment context              | `reference/`              |
 | arc-config.yml              | Project settings                              | `system/`                 |
-| status-{name}.md            | Current task, blockers, next action           | `active/{category}/`      |
+| meta-{name}.md              | Current task, blockers, next action           | `active/{category}/`      |
 
 ## Directory Structure
 
 ```text
-├── active/      — Current work (status files, task lists)
+├── active/      — Current work (meta files, task lists)
 ├── backlog/     — Future work pipeline (arc-in-git PM only)
 ├── reference/   — Constitution, strategies, ADRs
 ├── system/      — Agent config, workflows, settings

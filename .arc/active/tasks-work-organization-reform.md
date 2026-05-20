@@ -3441,7 +3441,7 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           appropriate); ADR-019 retains its enumeration of the original 3-value enum per 2.13.e ADR-precedent
           (historical record).
 
-    - `[ ]` **6.7.n Ceremony-commit shape migration + status→meta prose sweep (Design CLEAN)**
+    - `[x]` **6.7.n Ceremony-commit shape migration + status→meta prose sweep (Design CLEAN)**
         - _Goal:_ Migrate ceremony-commit subject shapes to the Design CLEAN convention codified in 6.1.d /
           6.1.e; sweep residual `status-` / `status-file` / `status-{name}` prose + filename tokens across
           adopter-facing surfaces; rename `## Status-File …` section headings in `strategy-session-operations.md`
@@ -3490,30 +3490,27 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
               status alone → dedicated" simplified to "meta-file edit alone → dedicated" — single
               concept instead of two-phrase repetition.
 
-        - `[ ]` **6.7.n.3 Bulk prose + filename-token sweep across remaining surfaces**
-            - Workflows (both copies, including `.template.md` siblings where applicable):
-              `1_create-prd.md`, `3_process-task-loop.md`, `prepare-commits.md`,
-              `session-handoff.md` (`.template.md`), `session-init.md` (`.template.md`),
-              `session-init.contributor.md`, `manage-incidental-work.md`,
-              `01_verify-and-configure.md`, `activate-work-unit.md`, `archive-work-unit.md`,
-              `deactivate-work-unit.md` (verify alignment, no edit if already clean).
-            - Strategies (both copies): `strategy-team-coordination.md`, `strategy-work-organization.md`.
-            - Briefs (both copies): `AGENT-BRIEF.ARC.md`, `AGENT-BRIEF.CONTRIBUTOR.md`.
-            - Templates (both copies): `template-pull-request.md`.
-            - Methods (both copies): `session-state.md`.
-            - Other (both copies): `system/githooks/README.md`, `user/README.md`. Plus project workflow:
-              `system/workflows/project/address-pr-review.md` (.arc/ only — project-side).
-            - Migration patterns per-context:
-                - Prose `\bstatus file\b` (singular file-class noun) → `meta file`
-                - Compound `\bstatus-file\b` (hyphenated) → `meta-file`
-                - Filename-token `status-{name}.md` → `meta-{name}.md`
-                - Workflow body examples `chore(status):` → `chore(arc):` (with appropriate `<action>` per
-                  6.1.d / 6.1.e where context-appropriate)
-            - Per-context judgment: where "status" refers to git state (e.g., `git status`, "PR status",
-              "CI status"), retain — only file-class noun usage migrates.
-            - Post-sweep verification: grep on the full pattern set returns empty across adopter-facing
-              surfaces (excluding intentional retentions — git/PR/CI status usages, internal-dev historical
-              surfaces); two-copy parity confirmed; lint clean.
+        - `[x]` **6.7.n.3 Bulk prose + filename-token sweep across remaining surfaces**
+            - _Outcome:_ Sed-driven sweep across 35 adopter-facing surfaces (17 .arc/ + 17 package source +
+              1 project-side workflow with no package mirror). 13-pattern substitution set covered
+              `\bStatus[- ]?[Ff]ile\b` variants (caps + mixed + lowercase, hyphenated + spaced),
+              `status-{name}` filename tokens, `status-{incidental-name}` (manage-incidental-work),
+              `template-status.md` (retired template pointer in manage-incidental-work),
+              `chore(status):` workflow examples, and `Status edits / status edit` prose. **Surface
+              additions during sweep:** `verify-work-unit.md` (both copies) — `## Step 4 — Pre-align
+              Status File for Integration Handoff` H2 surfaced as residual after the bulk sweep (the
+              uppercase-F `Status File` title-case pattern wasn't in the initial sed set); folded in
+              with a follow-on pattern. **Lint repair:** 13 MD060 table-column-alignment errors caused
+              by `Status`→`Meta` shortening cell content by 2 chars; padded affected cells in 7 tables
+              (strategy-team-coordination, strategy-work-organization, AGENT-BRIEF.ARC, session-handoff and
+              its template, session-init and its template, user/README). **Lifecycle workflows already clean:**
+              `activate-work-unit.md`, `archive-work-unit.md`, `deactivate-work-unit.md` — no edits
+              (verified by audit). **Intentionally out of scope (TS/code surface):** 4 hits in
+              `packages/arc-framework/src/cli.ts`, `__tests__/unit/active/session-type.test.ts`,
+              `__tests__/unit/scripts/validate-meta-spec.test.ts`, and
+              `src/lib/release/types.ts` (the last is a deliberate backwards-compat-window pointer to
+              the legacy filename — KEEP). Code surface deferred to a future task; n.3 stays markdown-
+              focused per task scope.
 
     - `[ ]` **6.7.o Category-dir path sweep (`active/{category}/`, `backlog/{...}/`) — R3 + R49 retirement**
         - **Action:** retire path references — under R3, `active/` is flat (one WU per branch, no category subdirs);

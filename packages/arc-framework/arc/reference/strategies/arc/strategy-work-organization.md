@@ -71,12 +71,12 @@ Common multi-branch patterns:
 branches. Incidental task lists may live alongside the primary work when they stay on the same
 branch by design.
 
-**Per-WU status file behavior on branches.** Each active WU carries its own
-`status-{name}.md` at `active/{category}/`. The file is created by
+**Per-WU meta file behavior on branches.** Each active WU carries its own
+`meta-{name}.md` at `active/{category}/`. The file is created by
 [activate-work-unit][activate-work-unit] on the WU's branch and deleted by
 [archive-work-unit][archive-work-unit] at the end of the WU's lifecycle. Parallel WUs on
 independent branches carry different files — no cross-branch mutation conflict is possible at
-the status-file layer. For within-WU team sub-branches sharing one file, see
+the meta-file layer. For within-WU team sub-branches sharing one file, see
 [Team Coordination Strategy][team-coordination] § Session State Merge Behavior.
 
 Archive triggers when all tasks in the task list are complete, not when any individual branch
@@ -86,7 +86,7 @@ is merged or deleted. Branch cleanup happens independently as PRs merge.
 
 ## Work Unit State
 
-The `**State:**` field on each WU's `status-{name}.md` is the load-bearing lifecycle marker.
+The `**State:**` field on each WU's `meta-{name}.md` is the load-bearing lifecycle marker.
 Enum values and optional pointer fields below; workflows listed set each value.
 
 ### State Enum
@@ -101,11 +101,11 @@ Enum values and optional pointer fields below; workflows listed set each value.
 
 ### Optional Pointer Fields
 
-Added to status files when the WU's state calls for cross-references. Omit otherwise.
+Added to meta files when the WU's state calls for cross-references. Omit otherwise.
 
 | Field                                                     | Appears On                                         | Set By                                                                               |
 | --------------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `**Superseded By:** tasks-{new-approach}.md (YYYY-MM-DD)` | WU status files with `State: Superseded (partial)` | [integrate-work-unit][integrate-work-unit] § Appendix — points to successor WU       |
+| `**Superseded By:** tasks-{new-approach}.md (YYYY-MM-DD)` | WU meta files with `State: Superseded (partial)`   | [integrate-work-unit][integrate-work-unit] § Appendix — points to successor WU       |
 
 ---
 

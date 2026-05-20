@@ -3,7 +3,7 @@
 Template and guidance for composing pull request descriptions when integrating a work unit. The PR
 body is a pre-merge artifact written for the reviewer — focused on what the change is, what shipped,
 and what to verify. Post-merge content (workflow continuity, retrospective findings, plan-vs-shipped
-delta) belongs in the work unit's durable record (status file) and SESSION-NOTES, not the PR body.
+delta) belongs in the work unit's durable record (meta file) and SESSION-NOTES, not the PR body.
 
 **Formatting follows [strategy-task-list-formatting][task-list-formatting]:**
 
@@ -103,7 +103,7 @@ table-stakes redundancy. If no manual verification was performed, omit the secti
 
 ## Section Guidance
 
-**Spec — required.** Mirrors the WU's status-file `**Spec:**` field exactly. Single value, not
+**Spec — required.** Mirrors the WU's meta-file `**Spec:**` field exactly. Single value, not
 a list — the Spec field abstracts over the WU's authoritative scope source.
 
 - **In-repo artifact** — backtick-wrapped filename, no path: `` `prd-{name}.md` ``,
@@ -135,14 +135,14 @@ be what CI doesn't carry — manual scenarios, edge cases, reproduction steps. I
 verified, omit the section.
 
 **Post-merge workflow continuity.** Phrases like "Next action after merge: invoke X" or session-
-handoff continuity belong in the WU's status file and SESSION-NOTES, not the PR body. The reader is
+handoff continuity belong in the WU's meta file and SESSION-NOTES, not the PR body. The reader is
 reviewing a change set. See [DEV-RULES.ARC][dev-rules-arc] § Write for the reader.
 
 **Gitignored-file references.** SESSION-NOTES, ATOMIC-INBOX, and other gitignored files aren't
 visible to reviewers (or anyone outside the developer's clone). Don't cite them as evidence,
 context, or "see X for rationale" — the reference resolves to nothing for the audience. If the
 substance matters for review, restate it inline; if it's workflow continuity, it doesn't belong
-in the PR body at all. Tracked artifacts (status files, plans, ADRs, completion docs, strategies)
+in the PR body at all. Tracked artifacts (meta files, plans, ADRs, completion docs, strategies)
 are fine to reference.
 
 **Success-criteria status and `pre-pr-review` meta-narration.** PRD success-criteria status

@@ -10,7 +10,7 @@ team — each developer gets a `user/{identity}/` subdirectory.
 reference material — per-developer content that doesn't belong in the shared repo.
 
 **What does NOT belong here (for most users):** task lists, PRDs, work unit artifacts, per-WU
-status files. Those are project-level and live in `.arc/active/{category}/` — shared, tracked,
+meta files. Those are project-level and live in `.arc/active/{category}/` — shared, tracked,
 visible to the whole team. There is one niche exception for contributors running a personal
 planning pipeline, described at the end of this doc.
 
@@ -37,7 +37,7 @@ structure is identical — team scaling requires no migration. Add team members 
 
 | Location           | Contains                                              | Ownership                            |
 |--------------------|-------------------------------------------------------|--------------------------------------|
-| `active/`          | Task lists, PRDs, status files, work unit artifacts   | Project-level — shared, tracked      |
+| `active/`          | Task lists, PRDs, meta files, work unit artifacts     | Project-level — shared, tracked      |
 | `backlog/`         | ROADMAP, backlogs                                     | Project-level — shared, tracked      |
 | `user/{identity}/` | Session notes, personal captures, freeform notes      | Personal — one developer, gitignored |
 
@@ -60,7 +60,7 @@ the only paths the framework actively manages; everything else you put here is f
 | `ATOMIC-INBOX.md`  | session-init | Personal task capture queue (arc-in-git only)                   |
 
 That's the whole contract for most users. If you're running a personal planning pipeline as a
-contributor, `user/{identity}/active/status-{name}.md` (personal work state) and
+contributor, `user/{identity}/active/meta-{name}.md` (personal work state) and
 `user/{identity}/active/tasks-{name}.md` plus companion files are additional optional paths —
 see § Advanced: Personal Planning Pipeline below.
 

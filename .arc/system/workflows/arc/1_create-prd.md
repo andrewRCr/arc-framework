@@ -153,7 +153,7 @@ After substeps 1-3, stage all edits — PRD save (Step 6), any promotion-write i
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`. Subject `chore(arc): create prd-{name}`;
 > body itemizes the bundled changes per [DEV-RULES.ARC][dev-rules-arc] § Commit format and
-> § Status-file commit shape.
+> § Meta-file commit shape.
 
 ---
 

@@ -212,10 +212,10 @@ Output `0` → PR ready to merge.
   re-review pass count; commit count is independent.
 - **Skip the completion doc check for substantive cycles.** The completion doc IS the PR
   description; stale headline sections undermine the review it supports.
-- **Update the status file for cycle bookkeeping** (cycle numbers, drafted replies, commit
-  ranges). Cycle context lives in SESSION-NOTES, PR comments, and git log. The status file is
+- **Update the meta file for cycle bookkeeping** (cycle numbers, drafted replies, commit
+  ranges). Cycle context lives in SESSION-NOTES, PR comments, and git log. The meta file is
   stable through the review window — see [integrate-work-unit][integrate-work-unit] Phase 2
-  § Status file discipline.
+  § Meta file discipline.
 - **Skip post-push verification.** Auto-resolution isn't reliable enough to trust without
   checking. A 30-second scan catches the threads CR missed.
 

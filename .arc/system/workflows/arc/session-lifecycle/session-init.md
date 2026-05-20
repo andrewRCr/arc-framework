@@ -35,7 +35,7 @@ The probe returns a single JSON envelope the agent consumes:
 | `dirty`                     | Working-tree state from `git status --porcelain` (`value.state`: clean / dirty; `value.fileCount`). Folded into the user/worktree `recommendedPromptText` so Step 2 doesn't re-probe                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `extensions`                | `value.active`: the **active-extensions list** — consulted by fire-point directives in downstream workflows                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `config`                    | `value.settings`: session-relevant settings (`session.remote_sync`, `session.init_pull.worktree`, `session.init_pull.notes`, `session.init_load.notes`, `branch.protection`, `pm.mode`, `commit.format`, `commit.context_footer`, `commit.interlock`, `push.interlock`)                                                                                                                                                                                                                                                                                                                   |
-| `active`                    | Active status file resolution (`value.resolution`: single / multiple / none; `value.path`, `value.candidates`, `value.layout`)                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `active`                    | Active meta file resolution (`value.resolution`: single / multiple / none; `value.path`, `value.candidates`, `value.layout`)                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `domainRules`               | `value.rules`: `{path, domain, purpose}` tuples from `DEV-RULES.{DOMAIN}.md` files; `value.warnings`: frontmatter parse diagnostics                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `recommendedCombinedPrompt` | Top-level. Composed combined-prompt text when both `worktree` and `user` resolve to `recommendedAction === "prompt"`; `null` otherwise                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
@@ -129,8 +129,8 @@ section delimiter and compute Read offsets locally — never per-section greps. 
 when a stable file convention places the section at a known location.
 
 **Parallelism (prescriptive)**: Issue items 1–6, 8 (personal session context — both SESSION-NOTES
-and WORKING-MEMORY), and — when `active.resolution === "single"` — the active status file as Reads
-in a single tool-message. Items 9–10 follow after the status file resolves; they may parallel each
+and WORKING-MEMORY), and — when `active.resolution === "single"` — the active meta file as Reads
+in a single tool-message. Items 9–10 follow after the meta file resolves; they may parallel each
 other. Don't serialize when the platform supports parallel reads.
 
 The document set below is the [session-state method][arc-methods-session] default. If your project overrides
@@ -156,7 +156,7 @@ session-state, follow the override instead.
 
 **Active work context:**
 
-7. **Active status file** — resolve from `active.value` and read the file in full (small by
+7. **Active meta file** — resolve from `active.value` and read the file in full (small by
    convention; no partial-read offset needed):
     - `resolution: "single"`: path is `active.value.path`
     - `resolution: "none"`: no active work unit. Skip items 9–10; Step 5 handles next-work discovery
@@ -207,7 +207,7 @@ session-state, follow the override instead.
 
 **Resolve session type** — after the parallel batch and item 8 resolve, settle the session type that gates
 items 9–10. The probe envelope carries `active.value.sessionType` ∈
-`{"planning", "execution", "integration", null}` inferred from the resolved status file's `**State:**`
+`{"planning", "execution", "integration", null}` inferred from the resolved meta file's `**State:**`
 (primary, case-exact `Planning`) with branch-pattern fallback (`{category}/plan-{name}`) when State is
 unset/empty or no candidate is resolved. `null` covers two distinct cases:
 
@@ -223,12 +223,12 @@ warning in orientation.
 9. **Active task list** — **strategic partial read**. Reference material too large to internalize upfront;
     read other sections on-demand during work.
 
-    **Skip if** `sessionType === "planning"` (primary gate) or the active status file is not resolved or
+    **Skip if** `sessionType === "planning"` (primary gate) or the active meta file is not resolved or
     shows `**Task List:** [none]` (defense-in-depth shape checks — redundant under inference but kept as
     direct checks).
 
     - Path: `dirname(active.value.path) + '/' + <Task List value>` — the `**Task List:**` field
-      carries the bare filename (`tasks-[name].md`); the directory is the status file's directory
+      carries the bare filename (`tasks-[name].md`); the directory is the meta file's directory
       (co-located by convention). Path-form values (legacy) work too, used as-is.
     - **Always read** — three sections, nothing else:
         1. **Header** — bullet list above the first `## **Phase` heading
@@ -285,9 +285,9 @@ git log -1 --format=%h
 # Commits since handoff (skip if no handoff hash — no baseline)
 git log --oneline <handoff-hash>..HEAD
 
-# Active status file freshness (skip if no status file resolved)
-git log -1 --format=%h -- <status-file-path>
-# Differing from HEAD means the status file hasn't been updated across recent commits
+# Active meta file freshness (skip if no meta file resolved)
+git log -1 --format=%h -- <meta-file-path>
+# Differing from HEAD means the meta file hasn't been updated across recent commits
 ```
 
 A gap doesn't mean state is wrong — it means verify more carefully before trusting session documents. **Only
@@ -298,11 +298,11 @@ If the freshness gap suggests an interrupted session, run the crash-recovery rou
 
 ### Next work unit discovery
 
-**Skip if** an active status file was resolved AND (`sessionType === "planning"` OR `**Task List:**` is not
+**Skip if** an active meta file was resolved AND (`sessionType === "planning"` OR `**Task List:**` is not
 `[none]`) — discovery only applies between work units. A planning session is an active WU even with no task
-list yet; the status file's Next Action carries direction.
+list yet; the meta file's Next Action carries direction.
 
-When no active status file was resolved, or the resolved file shows `**Task List:** [none]` outside a
+When no active meta file was resolved, or the resolved file shows `**Task List:** [none]` outside a
 planning session, assess readiness for the next unit:
 
 1. Read `.arc/backlog/ROADMAP.md` — identify the next queued or suggested item
@@ -329,7 +329,7 @@ Produce the orientation summary.
 - **Current task**: One line. Task ID + title, or `none` between work units.
 - **Blockers**: `none` or freeform — mismatch detail and blocker context unbounded.
 
-**Next action:** One line on-task-list (status file pointer). Unbounded when off-task-list — carries work
+**Next action:** One line on-task-list (meta file pointer). Unbounded when off-task-list — carries work
 no other tracked source documents.
 
 Awaiting direction — proceed to Next Action?
@@ -397,7 +397,7 @@ If documented state doesn't match reality during initialization, use the trust h
 
 1. **Git state** — `git status`, `git log`, file contents on disk
 2. **Task list** — checkbox state, task descriptions
-3. **Active status file** — tracked project pointer
+3. **Active meta file** — tracked project pointer
 4. **Personal session context** — SESSION-NOTES.md (per-WU) and WORKING-MEMORY.md (cross-WU);
    gitignored, most volatile
 
@@ -406,11 +406,11 @@ If documented state doesn't match reality during initialization, use the trust h
 When higher-trust sources agree and a lower-trust source is the outlier, proceed with the ground truth and
 report the discrepancy in orientation.
 
-Report format: "Active status file said X. Git/task list show Y. Proceeding with Y."
+Report format: "Active meta file said X. Git/task list show Y. Proceeding with Y."
 
 Examples:
 
-- Active status file says "Task 3.3 in progress" but task list shows 3.3 marked `[x]` and git log confirms the
+- Active meta file says "Task 3.3 in progress" but task list shows 3.3 marked `[x]` and git log confirms the
   commit → proceed with Task 3.4 as current
 - `worktree.value.state == "diverged"` while session docs reflect clean state → git is ground truth.
   Surface as `Reconcile required:` (Step 6) and carry forward. Non-blocking; do not auto-reconcile.
@@ -425,8 +425,8 @@ Examples:
 
 - Git shows uncommitted changes to files not mentioned in any session doc — could be co-development, a
   partial task, or an interrupted session
-- The active status file references a task that doesn't exist in the task list — renumbered, removed, or the
-  status file points to the wrong task list
+- The active meta file references a task that doesn't exist in the task list — renumbered, removed, or the
+  meta file points to the wrong task list
 
 ---
 

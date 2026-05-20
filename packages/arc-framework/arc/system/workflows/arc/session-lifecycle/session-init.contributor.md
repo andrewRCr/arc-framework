@@ -17,7 +17,7 @@ After items 1–6 load, run items 7–10 with the contributor adjustments below.
 `contributor` — the envelope's `resolution`, `path`, `candidates`, and `companions` carry the
 contributor active state directly. No singleton file lookup.
 
-**Item 7 — Active status file.** Same shape as maintainer Step 3 item 7 — read `active.value.path` in full
+**Item 7 — Active meta file.** Same shape as maintainer Step 3 item 7 — read `active.value.path` in full
 when `resolution === "single"`. `resolution: "none"` skips items 9–10. `resolution: "multiple"` applies
 the documented precedence (SESSION-NOTES `**Working On:**`, branch match, `**State:** Active`,
 prompt) over `active.value.candidates`.
@@ -26,7 +26,7 @@ prompt) over `active.value.candidates`.
 8 universal) plus `.arc/system/briefs/AGENT-BRIEF.CONTRIBUTOR.md`. Both join the parallel batch with
 items 1–6 and item 7 per maintainer's parallelism rule.
 
-**Item 9 — Active task list.** Apply only when the resolved status file's `**Task List:**` is not
+**Item 9 — Active task list.** Apply only when the resolved meta file's `**Task List:**` is not
 `[none]`. Same partial-read shape as maintainer item 9 (header + current phase preamble + current
 task section). Companion paths come from `active.value.companions`.
 
@@ -42,7 +42,7 @@ Maintainer's `session-init.md` § 5 covers freshness (universal) and next-work-u
 - **Freshness:** Skip if SESSION-NOTES `Commit at Handoff` hash matches current HEAD. Otherwise
   surface the gap in orientation. If the gap suggests an interrupted session, run
   [process-task-loop § Crash Recovery](../3_process-task-loop.md#crash-recovery).
-- **Active status file freshness:** The contributor active file lives under
+- **Active meta file freshness:** The contributor active file lives under
   `.arc/user/{identity}/active/` and is gitignored — git-history-based freshness doesn't apply.
   The handoff-hash check above is the freshness signal.
 - **Skip** maintainer next-work-discovery — work-unit lifecycle isn't a contributor concern.
@@ -61,7 +61,7 @@ candidate), surface the chosen file's fields using maintainer's field bounds fro
 - **Current task**: One line. Task ID + title, or `none` between work units.
 - **Blockers**: `none` or freeform — mismatch detail and blocker context unbounded.
 
-**Next action:** One line on-task-list (resolved status-file pointer); unbounded when off-task-list.
+**Next action:** One line on-task-list (resolved meta-file pointer); unbounded when off-task-list.
 
 When `resolution === "none"`, keep orientation minimal — header line + Context note + the standalone
 **Next action:** "Ready for work. Use `Context: contribution (...)` commit footer."

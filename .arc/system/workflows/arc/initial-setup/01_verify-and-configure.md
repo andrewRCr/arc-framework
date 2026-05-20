@@ -24,7 +24,7 @@ This workflow runs once after init — for ongoing health checks, use `/arc-veri
 
 Confirm that `.arc/` was created at the repo root with the expected structure:
 
-- `active/` — Current work tracking (per-WU status files, task lists). Created
+- `active/` — Current work tracking (per-WU meta files, task lists). Created
   lazily at first work unit activation; absent immediately after init.
 - `backlog/` — Future work pipeline (ROADMAP, backlogs) · only with `pm.mode: arc-in-git`
 - `reference/` — Constitutional documents, strategies, ADRs
@@ -32,7 +32,7 @@ Confirm that `.arc/` was created at the repo root with the expected structure:
 
 ### Verify Session State
 
-No active status file exists yet — per-WU status files (`status-{name}.md`) are
+No active meta file exists yet — per-WU meta files (`meta-{name}.md`) are
 created in `.arc/active/{category}/` at first work unit activation, not at init.
 
 Initial session state lives in the bootstrap Persistent Context entry in

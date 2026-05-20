@@ -113,8 +113,8 @@ arc:
          unit, made irrelevant by a design decision, or superseded by a different approach — mark it `[~]`
          instead of `[x]`. Add a brief outcome note explaining why (e.g., "Deferred to WU3", "Superseded by
          ADR-011"). This distinguishes deliberate deferrals from incomplete work (`[ ]`).
-       - **Do not update `status-{name}.md` at this step.** See [DEV-RULES.ARC][dev-rules-arc]
-         § Status-file timing.
+       - **Do not update `meta-{name}.md` at this step.** See [DEV-RULES.ARC][dev-rules-arc]
+         § Meta-file timing.
      - **Extensions** · `#post-task-completion`: If `post-task-completion` appears in the active-extensions
        list (established at session init), load and execute its [`.actions`][arc-ext-task-completion].
        Otherwise, skip. Teams using external trackers (Jira, Linear, GitHub Issues) use this extension to
@@ -222,8 +222,8 @@ arc:
      <!-- arc:if team.mode == true -->
 
      **Shared branch concurrency:** When multiple developers commit to the same branch, pull
-     before committing to reduce merge conflicts on the status file and the task list. If a
-     conflict occurs, resolve the status file by updating it to reflect the current combined
+     before committing to reduce merge conflicts on the meta file and the task list. If a
+     conflict occurs, resolve the meta file by updating it to reflect the current combined
      state (not either side's version). Task list conflicts are resolved by accepting both
      sides' checkbox changes.
 
@@ -235,7 +235,7 @@ arc:
 ## Crash Recovery
 
 On session resume after a suspected agent crash mid-cascade, run the recovery scan: read the active
-status file's `**Next Action:**` workflow-step pointer, then inspect `git status --porcelain`,
+meta file's `**Next Action:**` workflow-step pointer, then inspect `git status --porcelain`,
 `git diff --cached --stat`, and recent commits (`git log --oneline -n 10`). Surface any mismatch between
 the workflow pointer, staged changes, and commit history; prompt the user to continue the interrupted
 cascade or roll it back. Full per-mode recovery procedures live in [Session Operations Strategy][session-ops]

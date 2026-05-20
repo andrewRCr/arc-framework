@@ -65,7 +65,7 @@ Enforces the commit message standard defined in
 - Task list file not found in active directories
 - Context footer issues when `commit.context_footer: recommended`
 - Contributor using non-`contribution` context footer pattern
-- Status file not advanced when committing a completed parent task (derived
+- Meta file not advanced when committing a completed parent task (derived
   from the staged task list's directory)
 
 ### pre-commit — File Safety
@@ -86,14 +86,14 @@ Enforces the commit message standard defined in
 - Large files (> 1MB, measured from staged content)
 - Debug statements (`console.log`, `debugger`, `pdb`, `breakpoint()`) in added lines
 - Modified task lists not staged (maintainer only)
-- Task list staged with completions but sibling status file not co-staged (maintainer only)
+- Task list staged with completions but sibling meta file not co-staged (maintainer only)
 - Task list changes without `(@name)` ownership markers (team mode only)
 
 ## Role-Aware Behavior
 
 Hooks read `arc.role` from git config (set during `arc init` or `arc join`).
 
-**Maintainer** (default): All checks run. Task list staging, task numbering, and status-file
+**Maintainer** (default): All checks run. Task list staging, task numbering, and meta-file
 co-staging checks are active.
 
 **Contributor**: Maintainer-only checks are skipped with a notice. A soft warning fires if the
