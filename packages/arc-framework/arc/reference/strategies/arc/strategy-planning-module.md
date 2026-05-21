@@ -281,7 +281,7 @@ events to external trackers.
 
 [work-planning]: strategy-work-planning.md
 [work-org]: strategy-work-organization.md
-[dev-rules]: ../../constitution/DEV-RULES.ARC.md
+[dev-rules]: ../../../system/rules/DEV-RULES.ARC.md
 [process-loop]: ../../../system/workflows/arc/3_process-task-loop.md
 [task-list-fmt]: strategy-task-list-formatting.md
 [team-coord]: strategy-team-coordination.md

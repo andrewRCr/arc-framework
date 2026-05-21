@@ -61,7 +61,7 @@ PROJECT-PRD (what the project is) and TECHNICAL-OVERVIEW (how it's built) into a
 briefing: project type, primary goal, technology stack, repository layout, and common
 friction points.
 
-**Template**: [AGENT-BRIEF.PROJECT.md][agents-project] → stays in `system/briefs/`
+**Template**: [AGENT-BRIEF.PROJECT.md][agents-project] → stays in `reference/briefs/`
 
 **Think through**:
 
@@ -93,7 +93,7 @@ are defined in DEV-RULES.PROJECT, quality gate *commands* are defined here.
 Your project's quality standards and development protocols — loaded every session. The rules
 specific to your codebase, tech stack, and team.
 
-**Template**: [DEV-RULES.PROJECT.md][dev-rules] → goes in `reference/constitution/`
+**Template**: [DEV-RULES.PROJECT.md][dev-rules] → goes in `system/rules/`
 
 **Note on scope:** ARC already provides framework-level development methodology — commit
 standards, session management, verification protocols, task execution rules — via
@@ -172,8 +172,8 @@ a PRD and task list for your first work unit. From there, the normal session rhy
 [init-arc]: 01_verify-and-configure.md
 [project-prd]: ../../../../reference/PROJECT-PRD.md
 [tech-overview]: ../../../../reference/TECHNICAL-OVERVIEW.md
-[agents-project]: ../../../briefs/AGENT-BRIEF.PROJECT.md
+[agents-project]: ../../../../reference/briefs/AGENT-BRIEF.PROJECT.md
 [quick-ref]: ../../../../reference/QUICK-REFERENCE.md
-[dev-rules]: ../../../../reference/constitution/DEV-RULES.PROJECT.md
-[dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md
+[dev-rules]: ../../../../system/rules/DEV-RULES.PROJECT.md
+[dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
 [roadmap]: ../../../../backlog/ROADMAP.md

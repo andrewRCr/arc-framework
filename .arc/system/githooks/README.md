@@ -42,7 +42,7 @@ chmod +x .arc/system/githooks/commit-msg .arc/system/githooks/pre-commit
 ### commit-msg — Message Format
 
 Enforces the commit message standard defined in
-[DEV-RULES.ARC.md](../../reference/constitution/DEV-RULES.ARC.md) § Commit format:
+[DEV-RULES.ARC.md](../../system/rules/DEV-RULES.ARC.md) § Commit format:
 
 **Errors (blocks commit):**
 

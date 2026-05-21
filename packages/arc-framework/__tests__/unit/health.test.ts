@@ -65,7 +65,7 @@ describe("runHealth", () => {
           layer: "core",
           pristine_hash: FILE_HASH,
         },
-        "reference/constitution/DEV-RULES.ARC.md": {
+        "system/rules/DEV-RULES.ARC.md": {
           classification: "Framework",
           layer: "core",
           pristine_hash: FILE_HASH,
@@ -77,11 +77,11 @@ describe("runHealth", () => {
       manifest,
       files: {
         [`${CWD}/.arc/system/arc-config.yml`]: FILE_CONTENT,
-        [`${CWD}/.arc/reference/constitution/DEV-RULES.ARC.md`]: FILE_CONTENT,
+        [`${CWD}/.arc/system/rules/DEV-RULES.ARC.md`]: FILE_CONTENT,
       },
       arcFiles: [
         "system/arc-config.yml",
-        "reference/constitution/DEV-RULES.ARC.md",
+        "system/rules/DEV-RULES.ARC.md",
       ],
     });
 

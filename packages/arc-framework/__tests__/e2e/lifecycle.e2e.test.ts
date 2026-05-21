@@ -56,8 +56,8 @@ describe("lifecycle", () => {
     const rulesPath = join(
       tmpDir,
       ".arc",
-      "reference",
-      "constitution",
+      "system",
+      "rules",
       "DEV-RULES.PROJECT.md",
     );
     const original = await readFile(rulesPath, "utf-8");

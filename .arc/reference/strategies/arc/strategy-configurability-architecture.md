@@ -572,7 +572,7 @@ the [Agent Hooks](https://andrewrcr.github.io/arc-framework/customization/hooks/
 
 [session-ops]: strategy-session-operations.md
 [interlock-release-wrappers]: strategy-interlock-release-wrappers.md
-[dev-rules-arc]: ../../constitution/DEV-RULES.ARC.md
+[dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
 [quality-gates]: strategy-quality-gates.md
 [work-org]: strategy-work-organization.md
 [workflow-authoring]: strategy-workflow-authoring.md

@@ -88,12 +88,12 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
 
     const expectedDirs = [
       "reference",
-      "reference/constitution",
+      "system/rules",
       "reference/strategies",
       "reference/strategies/arc",
       "reference/templates",
       "system",
-      "system/briefs",
+      "reference/briefs",
       "system/githooks",
       "system/scripts",
       "system/skills",
@@ -113,7 +113,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
 
   it("renders init-time tokens in output files", async () => {
     const briefing = await readFile(
-      join(arcDir, "system/briefs/AGENT-BRIEF.PROJECT.md"),
+      join(arcDir, "reference/briefs/AGENT-BRIEF.PROJECT.md"),
       "utf-8",
     );
     expect(briefing).toContain("Integration Test Project");
@@ -286,12 +286,12 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
 
   it("installs agent briefing files (ARC + PROJECT split)", async () => {
     const arcBriefing = await stat(
-      join(arcDir, "system/briefs/AGENT-BRIEF.ARC.md"),
+      join(arcDir, "reference/briefs/AGENT-BRIEF.ARC.md"),
     );
     expect(arcBriefing.isFile()).toBe(true);
 
     const projectBriefing = await stat(
-      join(arcDir, "system/briefs/AGENT-BRIEF.PROJECT.md"),
+      join(arcDir, "reference/briefs/AGENT-BRIEF.PROJECT.md"),
     );
     expect(projectBriefing.isFile()).toBe(true);
   });
@@ -426,7 +426,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     const checkPaths = [
       "README.md",
       "system/arc-config.yml",
-      "system/briefs/AGENT-BRIEF.ARC.md",
+      "reference/briefs/AGENT-BRIEF.ARC.md",
     ];
 
     for (const filePath of checkPaths) {

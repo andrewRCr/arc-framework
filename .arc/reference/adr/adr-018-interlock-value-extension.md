@@ -221,4 +221,4 @@ secondary because it requires the user to deliberately widen permission, which i
 
 [adr-016]: adr-016-configurable-autonomy-interlocks-for-session-operations.md
 [adr-017]: adr-017-release-wrapper-trust-model.md
-[dev-rules-arc]: ../constitution/DEV-RULES.ARC.md
+[dev-rules-arc]: ../../system/rules/DEV-RULES.ARC.md

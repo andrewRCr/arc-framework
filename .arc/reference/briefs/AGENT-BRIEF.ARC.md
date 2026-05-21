@@ -45,9 +45,9 @@ Precise meanings — assume the technical sense.
 
 | Document                    | Purpose                                       | Location                  |
 |-----------------------------|-----------------------------------------------|---------------------------|
-| AGENT-BRIEF.PROJECT.md      | Project overview, tech stack, friction points | `system/briefs/`          |
-| DEV-RULES.ARC.md            | ARC methodology rules                         | `reference/constitution/` |
-| DEV-RULES.PROJECT.md        | Project quality standards                     | `reference/constitution/` |
+| AGENT-BRIEF.PROJECT.md      | Project overview, tech stack, friction points | `reference/briefs/`       |
+| DEV-RULES.ARC.md            | ARC methodology rules                         | `system/rules/`           |
+| DEV-RULES.PROJECT.md        | Project quality standards                     | `system/rules/`           |
 | QUICK-REFERENCE.md          | Commands and environment context              | `reference/`              |
 | arc-config.yml              | Project settings                              | `system/`                 |
 | meta-{name}.md              | Current task, blockers, next action           | `active/`                 |

@@ -263,4 +263,4 @@ This is a configuration-shape amendment, not a reversal of the decision.
 
 ---
 
-[dev-rules-arc]: ../constitution/DEV-RULES.ARC.md
+[dev-rules-arc]: ../../system/rules/DEV-RULES.ARC.md

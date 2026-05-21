@@ -171,5 +171,5 @@ in [ADR Methodology Strategy][adr-methodology], but the decision itself changes 
 ---
 
 [dev-rules-arc]: DEV-RULES.ARC.md
-[quality-gates]: ../strategies/arc/strategy-quality-gates.md
-[adr-methodology]: ../strategies/arc/strategy-adr-methodology.md
+[quality-gates]: ../../reference/strategies/arc/strategy-quality-gates.md
+[adr-methodology]: ../../reference/strategies/arc/strategy-adr-methodology.md

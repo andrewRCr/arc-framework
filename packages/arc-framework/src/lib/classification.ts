@@ -70,10 +70,10 @@ const SCAFFOLDED_FILES: ReadonlySet<string> = new Set([
 const CONFIGURABLE_FILES: ReadonlySet<string> = new Set([
   // Rendered (have tokens or programmatic write)
   "system/arc-config.yml",
-  "system/briefs/AGENT-BRIEF.PROJECT.template.md",
+  "reference/briefs/AGENT-BRIEF.PROJECT.template.md",
   "reference/QUICK-REFERENCE.template.md",
   // Copied as-is (customized in place by adopters)
-  "reference/constitution/DEV-RULES.PROJECT.md",
+  "system/rules/DEV-RULES.PROJECT.md",
   "reference/strategies/STRATEGY-INDEX.md",
   "completed/README.md",
   // Per-file methods — adopters toggle `override-active` and populate `.override` bodies

@@ -73,10 +73,10 @@ are explained in [user/README.md][user-readme] for human reference._
 
 ---
 
-[arc-config]: ../arc-config.yml
-[dev-rules-project]: ../../reference/constitution/DEV-RULES.PROJECT.md
-[session-init]: ../workflows/arc/session-lifecycle/session-init.md
-[session-handoff]: ../workflows/arc/session-lifecycle/session-handoff.md
+[arc-config]: ../../system/arc-config.yml
+[dev-rules-project]: ../../system/rules/DEV-RULES.PROJECT.md
+[session-init]: ../../system/workflows/arc/session-lifecycle/session-init.md
+[session-handoff]: ../../system/workflows/arc/session-lifecycle/session-handoff.md
 [user-readme]: ../../user/README.md
 
 [TODO-docs-site]: # "Placeholder pending docs-content-sweep — see notes-docs-content-sweep.md"

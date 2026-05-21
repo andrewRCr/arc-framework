@@ -10,7 +10,7 @@ plus project orientation. Contributor sessions (`git config arc.role = contribut
 kept in separate files with appropriate merge strategies.
 
 **Loading model:** Briefs load in full at the top of the session-init load order — framework and project context
-before active work state. See [session-init.md][session-init] Step 4.
+before active work state. See [session-init.md][session-init] Step 3.
 
 ## Files
 
@@ -39,4 +39,4 @@ document loads.
 
 ---
 
-[session-init]: ../workflows/arc/session-lifecycle/session-init.md
+[session-init]: ../../system/workflows/arc/session-lifecycle/session-init.md

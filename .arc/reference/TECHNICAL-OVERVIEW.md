@@ -38,7 +38,7 @@ _Key characteristics:_
 The adopter-facing framework — everything here ships to users and is designed to be copied, customized, and
 committed to their repositories. Five top-level concerns:
 
-- **Constitutional rules** (`reference/constitution/`) — `DEV-RULES.ARC.md` (methodology rules) and
+- **Constitutional rules** (`system/rules/`) — `DEV-RULES.ARC.md` (methodology rules) and
   `DEV-RULES.PROJECT.md` (per-project standards). These define the baseline behavior contract.
 - **Project-level rendered documents** (`reference/` root) — `PROJECT-PRD.md`,
   `TECHNICAL-OVERVIEW.md`, `QUICK-REFERENCE.md`. Rendered once at `arc init` / `arc join` from `.template.md`

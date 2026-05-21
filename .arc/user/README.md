@@ -108,6 +108,6 @@ personal task lists live in `user/{identity}/active/` and are loaded by session-
 role is `contributor`.
 
 This is an opt-in advanced pattern documented in full by the contributor briefing
-(`system/briefs/AGENT-BRIEF.CONTRIBUTOR.md`, loaded automatically during contributor-role
+(`reference/briefs/AGENT-BRIEF.CONTRIBUTOR.md`, loaded automatically during contributor-role
 sessions). Maintainers do not use this path — project planning state belongs in `.arc/active/`
 where the team can see it.

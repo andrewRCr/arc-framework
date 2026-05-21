@@ -487,7 +487,7 @@ describe("runSessionInitStatus — orchestration", () => {
         domainRulesSessionInit({
           rules: [
             {
-              path: ".arc/reference/constitution/DEV-RULES.FRONTEND.md",
+              path: ".arc/system/rules/DEV-RULES.FRONTEND.md",
               domain: "frontend",
               purpose: "UI standards",
             },

@@ -309,6 +309,6 @@ structural blind spot for the identity-keyed audit-log destination.
 ---
 
 [setup-workflow]: ../../../system/workflows/arc/supplemental/setup-release-wrapper.md
-[dev-rules-arc]: ../../constitution/DEV-RULES.ARC.md
+[dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
 [sst/opencode#6676]: https://github.com/sst/opencode/issues/6676
 [sst/opencode#15507]: https://github.com/sst/opencode/issues/15507

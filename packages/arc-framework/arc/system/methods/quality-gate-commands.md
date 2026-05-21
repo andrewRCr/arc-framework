@@ -26,4 +26,4 @@ references quality gates uniformly through the method layer, and teams with non-
 ---
 
 [process-task-loop]: ../workflows/arc/3_process-task-loop.md
-[dev-rules-project]: ../../reference/constitution/DEV-RULES.PROJECT.md
+[dev-rules-project]: ../../system/rules/DEV-RULES.PROJECT.md

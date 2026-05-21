@@ -500,6 +500,6 @@ probe-2 otherwise (manual mode or identity absent). Both surfaces compose from c
   — same bounding as session-init orientation Next Action.
 
 [arc-methods-session]: ../../../methods/session-state.md
-[dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md
+[dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
 [team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md
 [session-ops]: ../../../../reference/strategies/arc/strategy-session-operations.md

@@ -138,13 +138,13 @@ session-state, follow the override instead.
 
 **Project identity and agent context:**
 
-1. `.arc/system/briefs/AGENT-BRIEF.ARC.md` — ARC framework orientation
-2. `.arc/system/briefs/AGENT-BRIEF.PROJECT.md` — project overview, tech stack, collaboration context
+1. `.arc/reference/briefs/AGENT-BRIEF.ARC.md` — ARC framework orientation
+2. `.arc/reference/briefs/AGENT-BRIEF.PROJECT.md` — project overview, tech stack, collaboration context
 
 **Constitutional and process context:**
 
-3. `.arc/reference/constitution/DEV-RULES.ARC.md`
-4. `.arc/reference/constitution/DEV-RULES.PROJECT.md`
+3. `.arc/system/rules/DEV-RULES.ARC.md`
+4. `.arc/system/rules/DEV-RULES.PROJECT.md`
     - Domain rules: the probe's `domainRules` field lists `{path, domain, purpose}` tuples for any
       `DEV-RULES.{DOMAIN}.md` files with the domain-rules frontmatter. Load on-demand when a task
       touches the relevant domain, not at init time.

@@ -5,7 +5,7 @@ purpose: One-line description of what this domain covers.
 
 <!--
 Scaffold for a DEV-RULES domain file — project-type-specific constitutional rules (e.g.,
-frontend, backend, mobile, data). Copy to `reference/constitution/DEV-RULES.{DOMAIN}.md` in
+frontend, backend, mobile, data). Copy to `system/rules/DEV-RULES.{DOMAIN}.md` in
 your project, fill in the frontmatter above, and replace the body below.
 
 **Filename/domain case contract (mechanical — enforced by the pre-commit frontmatter hook

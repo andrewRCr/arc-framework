@@ -222,5 +222,5 @@ Output `0` → PR ready to merge.
 ---
 
 [arc-methods-rt]: ../../methods/review-triage.md
-[dev-rules-project]: ../../../reference/constitution/DEV-RULES.PROJECT.md
+[dev-rules-project]: ../../../system/rules/DEV-RULES.PROJECT.md
 [integrate-work-unit]: ../arc/work-unit-lifecycle/integrate-work-unit.md

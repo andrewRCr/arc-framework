@@ -7,8 +7,8 @@ import { diffFileLists } from "../../../src/lib/manifest/index.js";
 
 describe("diffFileLists", () => {
   it("returns all files in keep when lists are identical", () => {
-    const manifest = ["reference/constitution/DEV-RULES.ARC.md", "system/arc-config.yml"];
-    const updated = ["reference/constitution/DEV-RULES.ARC.md", "system/arc-config.yml"];
+    const manifest = ["system/rules/DEV-RULES.ARC.md", "system/arc-config.yml"];
+    const updated = ["system/rules/DEV-RULES.ARC.md", "system/arc-config.yml"];
 
     const result = diffFileLists(manifest, updated);
 

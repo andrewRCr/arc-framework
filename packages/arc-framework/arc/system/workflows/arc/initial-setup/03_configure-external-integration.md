@@ -185,6 +185,6 @@ For ongoing reference on how ARC and external trackers work together, see the
 [arc-extensions]: ../../../extensions/README.md
 [arc-ext-post-task-completion]: ../../../extensions/post-task-completion.md
 [arc-methods]: ../../../methods/README.md
-[dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md
-[dev-rules-project]: ../../../../reference/constitution/DEV-RULES.PROJECT.md
+[dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
+[dev-rules-project]: ../../../../system/rules/DEV-RULES.PROJECT.md
 [team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md

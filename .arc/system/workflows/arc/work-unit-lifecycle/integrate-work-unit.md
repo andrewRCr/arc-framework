@@ -264,4 +264,4 @@ arc user close {name}
 [clean]: ../supplemental/clean-work-unit.md
 [create-prd]: ../1_create-prd.md
 [arc-config]: ../../../arc-config.yml
-[dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md
+[dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md

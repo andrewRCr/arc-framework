@@ -142,7 +142,7 @@ appropriate for one is often inappropriate for the other.
 
 - `.arc/system/**`
 - `.arc/reference/strategies/arc/**`
-- `.arc/reference/constitution/DEV-RULES.ARC.md`
+- `.arc/system/rules/DEV-RULES.ARC.md`
 - `.arc/reference/templates/**`
 - `.arc/reference/QUICK-REFERENCE.md`
 
@@ -154,9 +154,9 @@ in-flight, or what's coming.
 - `.arc/reference/strategies/project/**`
 - `.arc/reference/adr/**`
 - `.arc/reference/PROJECT-PRD.md`
-- `.arc/reference/constitution/DEV-RULES.PROJECT.md` (this file)
+- `.arc/system/rules/DEV-RULES.PROJECT.md` (this file)
 - `.arc/active/**`, `.arc/backlog/**`, `.arc/user/**`
-- `.arc/system/briefs/AGENT-BRIEF.PROJECT.md`
+- `.arc/reference/briefs/AGENT-BRIEF.PROJECT.md`
 - Any `notes-*.md` companion to a WU
 
 These reference internal WU names, in-flight scope, transitional state, and project-internal
@@ -218,7 +218,7 @@ for docs-site content.
 ---
 
 [dev-rules-arc]: DEV-RULES.ARC.md
-[quality-gates]: ../strategies/arc/strategy-quality-gates.md
-[adr-methodology]: ../strategies/arc/strategy-adr-methodology.md
-[testing-methodology]: ../strategies/project/strategy-testing-methodology.md
-[package-sync]: ../strategies/project/strategy-package-project-sync.md
+[quality-gates]: ../../reference/strategies/arc/strategy-quality-gates.md
+[adr-methodology]: ../../reference/strategies/arc/strategy-adr-methodology.md
+[testing-methodology]: ../../reference/strategies/project/strategy-testing-methodology.md
+[package-sync]: ../../reference/strategies/project/strategy-package-project-sync.md

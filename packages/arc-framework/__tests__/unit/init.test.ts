@@ -274,8 +274,8 @@ describe("toOutputPath", () => {
   });
 
   it("leaves non-template files unchanged", () => {
-    expect(toOutputPath("reference/constitution/DEV-RULES.ARC.md")).toBe(
-      "reference/constitution/DEV-RULES.ARC.md",
+    expect(toOutputPath("system/rules/DEV-RULES.ARC.md")).toBe(
+      "system/rules/DEV-RULES.ARC.md",
     );
   });
 
@@ -305,15 +305,15 @@ describe("classifyFile", () => {
     expect(classifyFile("system/arc-config.yml")).toBe("Configurable");
     expect(classifyFile("system/methods/commit-format.md")).toBe("Configurable");
     expect(classifyFile("system/extensions/post-task-quality.md")).toBe("Configurable");
-    expect(classifyFile("reference/constitution/DEV-RULES.PROJECT.md")).toBe("Configurable");
-    expect(classifyFile("system/briefs/AGENT-BRIEF.PROJECT.template.md")).toBe("Configurable");
+    expect(classifyFile("system/rules/DEV-RULES.PROJECT.md")).toBe("Configurable");
+    expect(classifyFile("reference/briefs/AGENT-BRIEF.PROJECT.template.md")).toBe("Configurable");
     expect(classifyFile("reference/QUICK-REFERENCE.template.md")).toBe("Configurable");
   });
 
   it("classifies everything else as Framework", () => {
     expect(classifyFile("README.md")).toBe("Framework");
-    expect(classifyFile("reference/constitution/DEV-RULES.ARC.md")).toBe("Framework");
-    expect(classifyFile("system/briefs/AGENT-BRIEF.ARC.md")).toBe("Framework");
+    expect(classifyFile("system/rules/DEV-RULES.ARC.md")).toBe("Framework");
+    expect(classifyFile("reference/briefs/AGENT-BRIEF.ARC.md")).toBe("Framework");
     expect(classifyFile("system/workflows/arc/3_process-task-loop.template.md")).toBe("Framework");
     // Per-file methods/extensions directory READMEs fall through to Framework —
     // only the 8 methods + 8 extensions themselves are adopter-customizable.
@@ -332,7 +332,7 @@ describe("needsRendering", () => {
 
   it("returns false for non-template files", () => {
     expect(needsRendering("README.md")).toBe(false);
-    expect(needsRendering("reference/constitution/DEV-RULES.ARC.md")).toBe(false);
+    expect(needsRendering("system/rules/DEV-RULES.ARC.md")).toBe(false);
     expect(needsRendering("system/arc-config.yml")).toBe(false);
   });
 });

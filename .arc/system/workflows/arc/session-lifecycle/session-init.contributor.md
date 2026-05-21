@@ -23,7 +23,7 @@ the documented precedence (SESSION-NOTES `**Working On:**`, branch match, `**Sta
 prompt) over `active.value.candidates`.
 
 **Item 8 — SESSION-NOTES + contributor briefing.** Read `.arc/user/{identity}/SESSION-NOTES.md` (item
-8 universal) plus `.arc/system/briefs/AGENT-BRIEF.CONTRIBUTOR.md`. Both join the parallel batch with
+8 universal) plus `.arc/reference/briefs/AGENT-BRIEF.CONTRIBUTOR.md`. Both join the parallel batch with
 items 1–6 and item 7 per maintainer's parallelism rule.
 
 **Item 9 — Active task list.** Apply only when the resolved meta file's `**Task List:**` is not

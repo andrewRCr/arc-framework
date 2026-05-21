@@ -157,5 +157,5 @@ With activation complete, proceed to task execution:
 [arc-ext-post-activate]: ../../../extensions/post-work-unit-activate.md
 [work-org-branching]: ../../../../reference/strategies/arc/strategy-work-organization.md#branching
 [work-org-roadmap]: ../../../../reference/strategies/arc/strategy-work-organization.md#roadmap
-[dev-rules-leave-cleaner]: ../../../../reference/constitution/DEV-RULES.ARC.md#leave-it-cleaner
-[dev-rules-atomicity]: ../../../../reference/constitution/DEV-RULES.ARC.md#atomicity
+[dev-rules-leave-cleaner]: ../../../../system/rules/DEV-RULES.ARC.md#leave-it-cleaner
+[dev-rules-atomicity]: ../../../../system/rules/DEV-RULES.ARC.md#atomicity

@@ -347,11 +347,11 @@ fi
 # CHECK 12: Domain-rules frontmatter validation (DEV-RULES.{DOMAIN}.md)
 # ============================================================================
 # Delegates to validate-frontmatter.ts — same validator as CHECK 11, scoped
-# to DEV-RULES.{DOMAIN}.md files under reference/constitution/. Reserved
+# to DEV-RULES.{DOMAIN}.md files under system/rules/. Reserved
 # filenames (DEV-RULES.ARC.md, DEV-RULES.PROJECT.md) are filtered by the
 # validator's classifier and not checked.
 domain_rules_candidates=$(git diff --cached --name-only --diff-filter=ACMR | \
-    grep -E '^(\.arc|packages/arc-framework/arc)/reference/constitution/DEV-RULES\.[^/]+\.md$' || true)
+    grep -E '^(\.arc|packages/arc-framework/arc)/system/rules/DEV-RULES\.[^/]+\.md$' || true)
 
 if [ -n "$domain_rules_candidates" ]; then
     # shellcheck disable=SC2086 # Intentional word splitting — newline-separated paths

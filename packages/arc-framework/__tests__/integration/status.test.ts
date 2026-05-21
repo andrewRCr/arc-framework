@@ -76,7 +76,7 @@ async function createFixture(): Promise<Fixture> {
   const extDir = join(configDir, "extensions");
   const wfDir = join(configDir, "workflows");
   const activeDir = join(arcDir, "active");
-  const constitutionDir = join(arcDir, "reference", "constitution");
+  const constitutionDir = join(arcDir, "system", "rules");
   await mkdir(extDir, { recursive: true });
   await mkdir(wfDir, { recursive: true });
   await mkdir(activeDir, { recursive: true });

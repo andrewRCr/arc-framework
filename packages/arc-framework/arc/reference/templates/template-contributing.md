@@ -71,7 +71,7 @@ tests, and build verification all apply equally. CI enforces these on every PR.
 the presence of planning concepts. If your contribution is substantial enough to benefit from
 ARC's full planning pipeline — plan docs, PRDs, task lists, shift lifecycle, handoffs — you can
 run it entirely in your personal workspace at `.arc/user/{identity}/`, which is gitignored and
-invisible to upstream. The contributor briefing (`.arc/system/briefs/AGENT-BRIEF.CONTRIBUTOR.md`,
+invisible to upstream. The contributor briefing (`.arc/reference/briefs/AGENT-BRIEF.CONTRIBUTOR.md`,
 loaded automatically for contributor-role sessions) explains the layout, framework read
 contract, and lifecycle in detail. For casual contributions, personal planning is optional —
 most contributors never need it.

@@ -497,7 +497,7 @@ installs, routing and graduation flow, inbox vs. companion file routing, and sca
 [archive-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/archive-work-unit.md
 [clean-work-unit]: ../../../system/workflows/arc/supplemental/clean-work-unit.md
 [manage-incidental]: ../../../system/workflows/arc/supplemental/manage-incidental-work.md
-[dev-rules-arc]: ../../constitution/DEV-RULES.ARC.md
+[dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
 [branch-format-method]: ../../../system/methods/branch-format.md
 [commit-format-method]: ../../../system/methods/commit-format.md
 [cb-spec]: https://conventional-branch.github.io/

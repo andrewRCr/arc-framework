@@ -291,7 +291,7 @@ updates**. Always update the task list file before reporting completion.
 
 [quality-gates]: ../../../reference/strategies/arc/strategy-quality-gates.md
 [config-arch]: ../../../reference/strategies/arc/strategy-configurability-architecture.md
-[dev-rules-arc]: ../../../reference/constitution/DEV-RULES.ARC.md
+[dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
 [manage-incidental]: supplemental/manage-incidental-work.md
 [arc-ext-task-quality]: ../../extensions/post-task-quality.md
 [arc-ext-task-completion]: ../../extensions/post-task-completion.md

@@ -344,7 +344,7 @@ Activation can be deferred if planning ahead. Activate when implementation is ab
 
 [strategy-index]: ../../../reference/strategies/STRATEGY-INDEX.md
 [quality-gates]: ../../../reference/strategies/arc/strategy-quality-gates.md
-[dev-rules-arc]: ../../../reference/constitution/DEV-RULES.ARC.md
+[dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
 [arc-methods-tf]: ../../methods/test-first.md
 [task-list-formatting]: ../../../reference/strategies/arc/strategy-task-list-formatting.md
 [arc-task-audit]: ../../skills/arc-task-audit/SKILL.md

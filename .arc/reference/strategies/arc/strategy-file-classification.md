@@ -225,7 +225,7 @@ See § Directory naming for how a directory is *named* once its placement is set
 
 - [Configurability Architecture Strategy][config-arch] — Customization mechanisms and project guidance
 - [Work Organization Strategy](strategy-work-organization.md) — Directory structure, work categories
-- [DEV-RULES.PROJECT](../../constitution/DEV-RULES.PROJECT.md) — Project quality standards
+- [DEV-RULES.PROJECT](../../../system/rules/DEV-RULES.PROJECT.md) — Project quality standards
 
 ---
 

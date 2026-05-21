@@ -78,27 +78,27 @@ describe("classifyPath", () => {
 
   it("classifies DEV-RULES.{DOMAIN}.md files as domain-rules", () => {
     expect(
-      classifyPath(".arc/reference/constitution/DEV-RULES.FRONTEND.md"),
+      classifyPath(".arc/system/rules/DEV-RULES.FRONTEND.md"),
     ).toBe("domain-rules");
     expect(
       classifyPath(
-        "packages/arc-framework/arc/reference/constitution/DEV-RULES.BACKEND.md",
+        "packages/arc-framework/arc/system/rules/DEV-RULES.BACKEND.md",
       ),
     ).toBe("domain-rules");
   });
 
   it("does not classify reserved DEV-RULES.ARC.md / DEV-RULES.PROJECT.md as domain-rules", () => {
-    expect(classifyPath(".arc/reference/constitution/DEV-RULES.ARC.md")).toBe(
+    expect(classifyPath(".arc/system/rules/DEV-RULES.ARC.md")).toBe(
       "other",
     );
     expect(
-      classifyPath(".arc/reference/constitution/DEV-RULES.PROJECT.md"),
+      classifyPath(".arc/system/rules/DEV-RULES.PROJECT.md"),
     ).toBe("other");
   });
 
   it("does not classify non-DEV-RULES files in constitution/ as domain-rules", () => {
-    expect(classifyPath(".arc/reference/constitution/README.md")).toBe("other");
-    expect(classifyPath(".arc/reference/constitution/OTHER.md")).toBe("other");
+    expect(classifyPath(".arc/system/rules/README.md")).toBe("other");
+    expect(classifyPath(".arc/system/rules/OTHER.md")).toBe("other");
   });
 });
 
@@ -178,7 +178,7 @@ describe("validateFiles", () => {
 
   it("passes when a DEV-RULES.{DOMAIN}.md file has valid frontmatter", () => {
     const files = {
-      ".arc/reference/constitution/DEV-RULES.FRONTEND.md": validDomainRules,
+      ".arc/system/rules/DEV-RULES.FRONTEND.md": validDomainRules,
     };
     const result = validateFiles(Object.keys(files), fakeReader(files));
     expect(result.pass).toBe(true);
@@ -193,14 +193,14 @@ describe("validateFiles", () => {
       "",
     ].join("\n");
     const files = {
-      ".arc/reference/constitution/DEV-RULES.BACKEND.md": invalid,
+      ".arc/system/rules/DEV-RULES.BACKEND.md": invalid,
     };
     const result = validateFiles(Object.keys(files), fakeReader(files));
     expect(result.pass).toBe(false);
     expect(
       result.diagnostics.some(
         (d) =>
-          d.includes(".arc/reference/constitution/DEV-RULES.BACKEND.md") &&
+          d.includes(".arc/system/rules/DEV-RULES.BACKEND.md") &&
           d.includes("`domain`"),
       ),
     ).toBe(true);
@@ -215,12 +215,12 @@ describe("validateFiles", () => {
       "",
     ].join("\n");
     const files = {
-      ".arc/reference/constitution/DEV-RULES.FRONTEND.md": mismatch,
+      ".arc/system/rules/DEV-RULES.FRONTEND.md": mismatch,
     };
     const result = validateFiles(Object.keys(files), fakeReader(files));
     expect(result.pass).toBe(false);
     const diag = result.diagnostics.find((d) =>
-      d.includes(".arc/reference/constitution/DEV-RULES.FRONTEND.md"),
+      d.includes(".arc/system/rules/DEV-RULES.FRONTEND.md"),
     );
     expect(diag).toBeDefined();
     expect(diag).toContain('"backend"');
@@ -232,8 +232,8 @@ describe("validateFiles", () => {
     // filters them to `other` before the validator runs, so even a bare body
     // must not surface a diagnostic.
     const files = {
-      ".arc/reference/constitution/DEV-RULES.ARC.md": "# no frontmatter\n",
-      ".arc/reference/constitution/DEV-RULES.PROJECT.md": "# no frontmatter\n",
+      ".arc/system/rules/DEV-RULES.ARC.md": "# no frontmatter\n",
+      ".arc/system/rules/DEV-RULES.PROJECT.md": "# no frontmatter\n",
     };
     const result = validateFiles(Object.keys(files), fakeReader(files));
     expect(result.pass).toBe(true);
@@ -249,14 +249,14 @@ describe("validateFiles", () => {
       "",
     ].join("\n");
     const files = {
-      ".arc/reference/constitution/DEV-RULES.FRONTEND.md": malformed,
+      ".arc/system/rules/DEV-RULES.FRONTEND.md": malformed,
     };
     const result = validateFiles(Object.keys(files), fakeReader(files));
     expect(result.pass).toBe(false);
     expect(
       result.diagnostics.some(
         (d) =>
-          d.includes(".arc/reference/constitution/DEV-RULES.FRONTEND.md") &&
+          d.includes(".arc/system/rules/DEV-RULES.FRONTEND.md") &&
           d.includes("malformed YAML"),
       ),
     ).toBe(true);
@@ -264,7 +264,7 @@ describe("validateFiles", () => {
 
   it("passes (empty diagnostics) when no staged paths classify as domain-rules", () => {
     const files = {
-      ".arc/reference/constitution/README.md": "# Constitution\n",
+      ".arc/system/rules/README.md": "# Constitution\n",
       "src/lib/frontmatter/dev-rules.ts": "// source file",
     };
     const result = validateFiles(Object.keys(files), fakeReader(files));

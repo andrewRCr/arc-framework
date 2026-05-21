@@ -286,7 +286,7 @@ export function buildPostInitMessage(result: InitResult): string {
 
   lines.push("");
   lines.push(
-    '  "Read .arc/system/briefs/AGENT-BRIEF.ARC.md for context, then follow',
+    '  "Read .arc/reference/briefs/AGENT-BRIEF.ARC.md for context, then follow',
   );
   lines.push(
     '   .arc/system/workflows/arc/initial-setup/01_verify-and-configure.md"',

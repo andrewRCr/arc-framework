@@ -18,8 +18,8 @@ function validRecipe(): Recipe {
   return {
     include_files: [
       "reference/QUICK-REFERENCE.template.md",
-      "system/briefs/AGENT-BRIEF.ARC.md",
-      "system/briefs/AGENT-BRIEF.PROJECT.template.md",
+      "reference/briefs/AGENT-BRIEF.ARC.md",
+      "reference/briefs/AGENT-BRIEF.PROJECT.template.md",
     ],
     computed_tokens: {
       COMPUTED_TOKEN: "Example computed token",

@@ -117,4 +117,4 @@ in [`arc-config.yml`][arc-config].
 
 [prepare-commits]: ../workflows/arc/supplemental/prepare-commits.md
 [arc-config]: ../arc-config.yml
-[dev-rules-arc]: ../../reference/constitution/DEV-RULES.ARC.md
+[dev-rules-arc]: ../../system/rules/DEV-RULES.ARC.md

@@ -156,8 +156,8 @@ arc-in-git files are annotated explicitly.
 
 - `README.md` (root)
 - `reference/adr/README.md`
-- `reference/constitution/DEV-RULES.ARC.md`
-- `reference/constitution/README.md`
+- `system/rules/DEV-RULES.ARC.md`
+- `system/rules/README.md`
 - `reference/strategies/README.md`
 - `reference/supplemental/analysis/README.md`
 - `reference/supplemental/research/README.md`
@@ -181,9 +181,9 @@ arc-in-git files are annotated explicitly.
 **System:**
 
 - `system/README.md`
-- `system/briefs/AGENT-BRIEF.ARC.md`
-- `system/briefs/AGENT-BRIEF.CONTRIBUTOR.md`
-- `system/briefs/README.md`
+- `reference/briefs/AGENT-BRIEF.ARC.md`
+- `reference/briefs/AGENT-BRIEF.CONTRIBUTOR.md`
+- `reference/briefs/README.md`
 - `system/githooks/README.md`
 - `system/githooks/commit-msg`
 - `system/githooks/pre-commit`
@@ -219,10 +219,10 @@ arc-in-git files are annotated explicitly.
 ### Configurable files (project sections expected to differ) — 25
 
 - `completed/README.md`
-- `reference/constitution/DEV-RULES.PROJECT.md`
+- `system/rules/DEV-RULES.PROJECT.md`
 - `reference/QUICK-REFERENCE.md` · template counterpart
 - `reference/strategies/STRATEGY-INDEX.md`
-- `system/briefs/AGENT-BRIEF.PROJECT.md` · template counterpart
+- `reference/briefs/AGENT-BRIEF.PROJECT.md` · template counterpart
 - `system/arc-config.yml`
 - `system/extensions/post-context-load.md`
 - `system/extensions/post-task-completion.md`
@@ -257,7 +257,7 @@ arc-in-git files are annotated explicitly.
 - `reference/PROJECT-PRD.template.md` → `reference/PROJECT-PRD.md` (Scaffolded)
 - `reference/QUICK-REFERENCE.template.md` → `reference/QUICK-REFERENCE.md` (Configurable)
 - `reference/TECHNICAL-OVERVIEW.template.md` → `reference/TECHNICAL-OVERVIEW.md` (Scaffolded)
-- `system/briefs/AGENT-BRIEF.PROJECT.template.md` → `system/briefs/AGENT-BRIEF.PROJECT.md` (Configurable)
+- `reference/briefs/AGENT-BRIEF.PROJECT.template.md` → `reference/briefs/AGENT-BRIEF.PROJECT.md` (Configurable)
 - `system/workflows/arc/2_generate-tasks.template.md` → `system/workflows/arc/2_generate-tasks.md` (Framework)
 - `system/workflows/arc/3_process-task-loop.template.md` → `system/workflows/arc/3_process-task-loop.md` (Framework)
 - `system/workflows/arc/initial-setup/02_define-project.template.md` →

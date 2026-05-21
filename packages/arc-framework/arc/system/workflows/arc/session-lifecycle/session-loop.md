@@ -105,5 +105,5 @@ Use whatever your platform provides. The key habit is checking periodically, not
 
 [session-init]: session-init.md
 [session-handoff]: session-handoff.md
-[dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md
+[dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
 [session-ops-strategy]: ../../../../reference/strategies/arc/strategy-session-operations.md

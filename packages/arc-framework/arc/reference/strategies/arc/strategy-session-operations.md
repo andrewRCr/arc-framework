@@ -1022,8 +1022,8 @@ When `arc user load` or session-init's SESSION-NOTES load fails, recover by erro
 [workflow-authoring]: strategy-workflow-authoring.md
 [config-arch]: strategy-configurability-architecture.md
 [interlock-release-wrappers]: strategy-interlock-release-wrappers.md
-[dev-rules-arc]: ../../constitution/DEV-RULES.ARC.md
-[dev-rules-project]: ../../constitution/DEV-RULES.PROJECT.md
+[dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
+[dev-rules-project]: ../../../system/rules/DEV-RULES.PROJECT.md
 [prepare-commits]: ../../../system/workflows/arc/supplemental/prepare-commits.md
 [arc-commit-skill]: ../../../system/skills/arc-commit/SKILL.md
 [git-notes]: https://git-scm.com/docs/git-notes

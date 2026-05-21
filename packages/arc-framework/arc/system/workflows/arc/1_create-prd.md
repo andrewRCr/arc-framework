@@ -171,4 +171,4 @@ Run [2_generate-tasks.md](2_generate-tasks.md) when ready — it consumes this P
 [integrate-work-unit]: work-unit-lifecycle/integrate-work-unit.md
 [init-work-unit]: work-unit-lifecycle/planning/init-work-unit.md
 [arc-config]: ../../arc-config.yml
-[dev-rules-arc]: ../../../reference/constitution/DEV-RULES.ARC.md
+[dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md

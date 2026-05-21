@@ -45,20 +45,20 @@
       "layer": "core",
       "pristine_hash": "5629c55322c345c6b00a3f810f72876d5f27e09fc9d2a68c67c0ec83074af9fd"
     },
-    "reference/constitution/DEV-RULES.ARC.md": {
+    "system/rules/DEV-RULES.ARC.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "69f8bcd14e8219d162464475ce135db9c0a7b2d0694a9bdc75eaefd00496b883"
+      "pristine_hash": "7ff6ea3e8cce186af80dc7dd339bc9c266164953f56f92167ec468251a9a0f2f"
     },
-    "reference/constitution/DEV-RULES.PROJECT.md": {
+    "system/rules/DEV-RULES.PROJECT.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "7493f7df38cb4ea0c574cbc3535302e77a8d7745b002a182171549ee80432ed7"
+      "pristine_hash": "7144b9ec4ae5487e05ca12569d502d3b9cc17d08b1e91b6d84a2b209d7130f59"
     },
-    "reference/constitution/README.md": {
+    "system/rules/README.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "380d2daaff4398ffd6b984e3caf22294d4de6cfb1f1f3db03dc039472df271a3"
+      "pristine_hash": "d1d35460cc9d567eddec0e4ea0e1edb93bafe853245249436be51d4cd3eb650d"
     },
     "reference/supplemental/research/README.md": {
       "classification": "Framework",
@@ -145,20 +145,20 @@
       "layer": "core",
       "pristine_hash": "25e5a1147528698024f162d38a9b8c1090b0d8feb242130ad900326b3ab57566"
     },
-    "system/briefs/AGENT-BRIEF.ARC.md": {
+    "reference/briefs/AGENT-BRIEF.ARC.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "8f453eb66ebf8d1f3ef247ae70c9909600397d4102f189c9da694dc69196db6c"
+      "pristine_hash": "cd1b4bdceb5af8df66c2469995fc67bce4b7669f4c998c1277fb07c6316e3b89"
     },
-    "system/briefs/AGENT-BRIEF.PROJECT.md": {
+    "reference/briefs/AGENT-BRIEF.PROJECT.md": {
       "classification": "Configurable",
       "layer": "core",
       "pristine_hash": "7f66e858173de8581383d0c0ee44f5137cf86cb4a4a2a614939ea029377a18b9"
     },
-    "system/briefs/README.md": {
+    "reference/briefs/README.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "98035b45416aea0ac0d70e6fe4e6e0605d93f8c1810dccbbab231c2bf4134fb5"
+      "pristine_hash": "76edbe4414a580f6736a36eae18fc3cac70a243f3ff5a9c39755064d0fe55907"
     },
     "system/arc-config.yml": {
       "classification": "Configurable",

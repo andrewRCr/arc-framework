@@ -457,14 +457,14 @@ All items must be `[x]` or `[~]` (with annotations) before running archive. Any 
 
 ## Related Documentation
 
-- [DEV-RULES.ARC](../../constitution/DEV-RULES.ARC.md) — test-first assessment
+- [DEV-RULES.ARC](../../../system/rules/DEV-RULES.ARC.md) — test-first assessment
 - [2_generate-tasks.md][generate-tasks] — planned work + pre-save format checklist
 - [manage-incidental-work.md][manage-incidental] — incidental work lifecycle
 - [3_process-task-loop.md][process-task-loop] — task execution workflow
 
 ---
 
-[dev-rules-arc]: ../../constitution/DEV-RULES.ARC.md
+[dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
 [generate-tasks]: ../../../system/workflows/arc/2_generate-tasks.md
 [manage-incidental]: ../../../system/workflows/arc/supplemental/manage-incidental-work.md
 [process-task-loop]: ../../../system/workflows/arc/3_process-task-loop.md

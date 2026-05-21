@@ -152,6 +152,6 @@ Set upstream for the planning branch.
 [create-prd]: ../../1_create-prd.md
 [commit-format]: ../../../../methods/commit-format.md
 [branch-format]: ../../../../methods/branch-format.md
-[dev-rules-arc]: ../../../../../reference/constitution/DEV-RULES.ARC.md
+[dev-rules-arc]: ../../../../../system/rules/DEV-RULES.ARC.md
 [work-org-protection]: ../../../../../reference/strategies/arc/strategy-work-organization.md#branch-protection-modes
 [work-planning]: ../../../../../reference/strategies/arc/strategy-work-planning.md

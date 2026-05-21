@@ -3845,7 +3845,7 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
   → `completed/README.md`, Configurable/arc-in-git). 6.10.e (parent README) deferred — no parent-README precedent in
   the sibling `supplemental/` dirs.
 
-### `[ ]` **6.11 System/reference re-tier: `constitution/` → `system/rules/` + `briefs/` → `reference/briefs/`**
+### `[x]` **6.11 System/reference re-tier: `constitution/` → `system/rules/` + `briefs/` → `reference/briefs/`**
 
 - _Goal:_ Reclassify content based on a sharper organizing axis: `system/` holds prescriptive/operational
   machinery (workflows, methods, extensions, hooks, rules, config); `reference/` holds consultative look-up
@@ -3856,23 +3856,6 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
   PROJECT-PRD and TECHNICAL-OVERVIEW; now it's just rules). Load cadence (every-session vs on-demand) is NOT the
   organizing axis — QUICK-REFERENCE is loaded every session but reference-shaped.
 
-    - _Approach:_ `git mv` both directories at both copies (`.arc/` + `packages/arc-framework/arc/`). Codify the
-      split criterion in `strategy-file-classification.md` before the moves so the new organizing principle is
-      documented as the change lands. Sweep ~100 references to `constitution/` and a smaller surface for
-      `briefs/`.
-
-    - _Sequencing:_ 6.11.a (criterion codification) → 6.11.b + 6.11.c (moves, parallel) → 6.11.d (sweep) →
-      6.11.e (verify). README rewrites bundle with their respective moves.
-
-    - _Decision (constitution → rules is a semantic rename, not just a path move):_ The CLI keys the
-      domain-rules feature to "constitution" — a resolver (`commands/constitution/status.ts`, which feeds the
-      session-init probe's `domainRules` field), a frontmatter-validation regex
-      (`scripts/validate-frontmatter.ts`), and an audit script (`scripts/audit-domain-rules.ts`). This WU
-      **repoints those paths** to `system/rules/` so domain-rules resolution doesn't silently break in the
-      interim. The CLI module/namespace rename (`commands/constitution/` → `rules/`) and the domain-rules
-      _mechanism_ rework (`DEV-RULES.*` always-loaded / `DOMAIN-RULES.*` on-demand split) defer to the
-      `rules-restructure` backlog WU — 6.11 changes paths, not the feature shape.
-
     - `[x]` **6.11.a Codify split criterion in `strategy-file-classification.md`**
         - Added a top-level `## Directory placement` section (after `## Naming Conventions`, both copies)
           codifying two axes: `system/` (prescriptive/operational machinery) vs `reference/` (consultative
@@ -3882,79 +3865,44 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           `.internal/` codified singular. Justifies 6.11's moves + 6.12's nesting — no separate codification
           subtask needed in Phase 6.12.
 
-    - `[ ]` **6.11.b Execute `constitution/` → `system/rules/` move + README rewrite**
-        - `git mv .arc/reference/constitution .arc/system/rules`.
-        - `git mv packages/arc-framework/arc/reference/constitution packages/arc-framework/arc/system/rules`.
-        - Rewrite README at the new `system/rules/README.md` location: explain `rules/` purpose under the new
-          criterion; drop the "Domain-Scoped Rules" section entirely. The forward-compat content there
-          (describing `DEV-RULES.{DOMAIN}.md` pattern) will be reintroduced correctly by the
-          `rules-restructure` backlog WU with the `DOMAIN-RULES.*` pattern; leaking the in-flight scope into
-          the adopter surface violates DEV-RULES.PROJECT § Audience Boundaries.
+    - `[x]` **6.11.b Execute `constitution/` → `system/rules/` move + README rewrite**
+        - `git mv`'d `constitution/` → `system/rules/` at both copies (3 files each: DEV-RULES.ARC,
+          DEV-RULES.PROJECT, README), tracked as renames.
+        - Rewrote `system/rules/README.md`: retitled "Rules" and dropped the "Domain-Scoped Rules" section
+          (the `DOMAIN-RULES.*` pattern reintroduces via the `rules-restructure` backlog WU — kept out of the
+          adopter surface per Audience Boundaries). README left purely descriptive; placement rationale lives
+          in the file-classification strategy, not the dir README.
 
-    - `[ ]` **6.11.c Execute `system/briefs/` → `reference/briefs/` move**
-        - `git mv .arc/system/briefs .arc/reference/briefs`.
-        - `git mv packages/arc-framework/arc/system/briefs packages/arc-framework/arc/reference/briefs`.
-        - Verify `briefs/README.md` content doesn't imply system/ placement — minor touch if existing text
-          frames briefs as system-tier; reframe as orientation/reference material under the new criterion.
+    - `[x]` **6.11.c Execute `system/briefs/` → `reference/briefs/` move**
+        - `git mv`'d `briefs/` → `reference/briefs/` at both copies (4 files each: 3 AGENT-BRIEF + README;
+          package ships `AGENT-BRIEF.PROJECT.template.md`, `.arc/` the rendered `.PROJECT.md`).
+        - README left as-is — already orientation-framed, no system-tier implication to correct. Its stale
+          `session-init` link + "Step 4" pointer fall to the 6.11.d sweep.
 
-    - `[ ]` **6.11.d Sweep all references — docs + inside-file links + CLI surface**
-        - **Group A — documentation references TO the dirs.** Grep `reference/constitution`,
-          `\.arc/reference/constitution`, `system/briefs`, `\.arc/system/briefs`, `[constitution]:` /
-          `[briefs]:` link defs, hardcoded paths across workflows / strategies / READMEs / package source.
-          Audit-time inventory: 91 files hit `reference/constitution`, 37 hit `system/briefs`. Update to
-          `system/rules/` and `reference/briefs/`. Named surfaces: session-init doc-load list (item 3) +
-          `session-init.contributor.md`, methods (`commit-format`, `commit-footer`, `quality-gate-commands`),
-          most strategies, both DEV-RULES files' cross-refs, AGENT-BRIEF cross-refs, package mirror, READMEs.
-        - **Group B — outbound links + textual paths INSIDE the moved files (the 6.10.c lesson).** Relative
-          links do NOT survive a depth/parent change; recompute every `../` / `../../` link in the moved
-          files and fix stale textual dir-references:
-            - `DEV-RULES.ARC.md` (15 link defs): `../../system/{methods,workflows}/…` → `../{methods,workflows}/…`;
-              `../strategies/…` → `../../reference/strategies/…`.
-            - `DEV-RULES.PROJECT.md` (4 strategy defs): `../strategies/…` → `../../reference/strategies/…`.
-            - `briefs/README.md` + `AGENT-BRIEF.CONTRIBUTOR.md`: `../workflows/…` → `../../system/workflows/…`,
-              `../arc-config.yml` → `../../system/arc-config.yml`. (Links via `../../` to the `.arc/` root —
-              e.g. `../../user/README.md` — survive; both dirs are depth-2.)
-            - Cross-links between the two moving dirs (compounded by both moves): `DEV-RULES.ARC.md` →
-              `AGENT-BRIEF.CONTRIBUTOR.md`, and `AGENT-BRIEF.CONTRIBUTOR.md` → `DEV-RULES.PROJECT.md` —
-              recompute against BOTH final locations.
-            - Stale textual paths: `AGENT-BRIEF.ARC.md` Key-Documents table (`reference/constitution/`,
-              `system/briefs/`); `DEV-RULES.PROJECT.md` Audience-Boundaries `.arc/...` taxonomy bullets.
-            - Opportunistic: `briefs/README.md` says session-init "Step 4"; brief loading is Step 3.
-        - **Group C — CLI / runtime / test surface (NOT just docs — the 6.10 red-test lesson).** Keyed by
-          source-relative path:
-            - `commands/constitution/status.ts` — domain-rules resolver dir (`reference/constitution` →
-              `system/rules`); feeds the session-init `domainRules` field.
-            - `scripts/validate-frontmatter.ts` — `DOMAIN_RULES_PATH` regex.
-            - `scripts/audit-domain-rules.ts` — hardcoded package-source path.
-            - `commands/init.ts` — the `"Read .arc/system/briefs/AGENT-BRIEF.ARC.md…"` guidance string.
-            - `lib/frontmatter/dev-rules.ts` — doc-comment path.
-            - `init-recipe.json` (7 entries: 3 constitution + 4 briefs incl. `.template.md`).
-            - `.arc/system/.internal/manifest.json` (6 entries: 3 + 3) — rename keys AND **recompute
-              `pristine_hash`** for any file whose content changed (README rewrites in 6.11.b/c + the Group-B
-              link fixes mean most moved files are NOT pure renames; hash = raw sha256 of the package-source
-              bytes). Preserve the rendered-vs-template asymmetry (manifest tracks `AGENT-BRIEF.PROJECT.md`;
-              recipe/classification track `.template.md`).
-            - `classification.ts` — `CONFIGURABLE_FILES` + `SCAFFOLDED_FILES` path constants.
-            - Test fixtures / expected-path assertions (~14 files): `constitution.test.ts`,
-              `validate-frontmatter.test.ts`, `init` (unit + integration), `manifest`, `recipe`, `status`.
-        - **Scope note:** references TO the dirs (Group A) AND outbound links FROM the moved files (Group B)
-          are both in scope — do not exclude inside-file content wholesale (the prior draft's blanket
-          exclusion was the 6.10.c defect).
+    - `[x]` **6.11.d Sweep all references — docs + inside-file links + CLI surface**
+        - Inbound refs across the live framework surface (workflows, methods, strategies, templates, githooks,
+          scripts, skills, READMEs, docs-site) repointed to `system/rules/` and `reference/briefs/`
+          (depth-preserved segment replace). Moved files' own outbound links recomputed (`../strategies/` →
+          `../../reference/strategies/`, briefs↔rules cross-links, `../workflows` / `../arc-config.yml` →
+          `../../system/...`) with root-routed `../../system/...` links left intact; stale textual paths +
+          the `briefs/README` Step pointer fixed.
+        - CLI/runtime/test: domain-rules resolver, frontmatter regex, and audit script repointed to
+          `system/rules`; recipe, classification, init guidance, dev-rules comment, and manifest (keys +
+          instance-based `pristine_hash`) updated; test/e2e fixtures repointed — including split-arg
+          `join(…, "system", "rules")` constructions the literal grep/sed couldn't catch.
+        - Scoped out by convention: `completed/` (frozen history), `backlog/` (swept at each WU's activation),
+          and WOR's own PRD/tasks.
 
-    - `[ ]` **6.11.e Verify — grep + build + test + domain-rules smoke (post-6.11.d)**
-        - Grep the repo for `reference/constitution`, `\.arc/reference/constitution`, `system/briefs`,
-          `\.arc/system/briefs` — should return empty (excluding WOR's own PRD / task list / notes, which
-          legitimately discuss the move).
-        - `npm run build` + `npm test` green — grep alone can't catch resolver/regex breakage or red fixtures
-          (the 6.10 lesson: 107 ENOENT while Tier 1 lint stayed green).
-        - Domain-rules smoke: `arc status --session-init --json` still resolves a `domainRules` field
-          (confirms the `status.ts` resolver repoint landed).
+    - `[x]` **6.11.e Verify — grep + build + test + domain-rules smoke (post-6.11.d)**
+        - Live-surface grep clean; `npm run build` + full `npm test` green; `arc status --session-init`
+          resolves `domainRules` from `system/rules/` (`ok: true`) — confirming the resolver repoint landed.
 
 - _Outcome:_ `system/` becomes the home for all prescriptive/operational machinery; `reference/` becomes the
   home for all consultative material. Criterion codified in `strategy-file-classification.md` as the
-  load-bearing organizing principle for future placement decisions. Backlog WU (`rules-restructure`) starts
-  from this substrate to introduce the `DEV-RULES.*` (always-loaded) / `DOMAIN-RULES.*` (on-demand) filename
-  split and the auto-loading wiring mechanism.
+  load-bearing organizing principle for future placement decisions. CLI domain-rules paths (resolver, regex,
+  audit script) repointed to `system/rules/`; the `commands/constitution/` module rename and the
+  `DEV-RULES.*` (always-loaded) / `DOMAIN-RULES.*` (on-demand) mechanism rework defer to the
+  `rules-restructure` backlog WU, which starts from this substrate.
 
 ### `[ ]` **6.12 Intra-system internals nesting: `githooks/` + `scripts/` + `skills/` → existing `system/.internal/`**
 

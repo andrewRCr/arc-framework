@@ -109,5 +109,5 @@ keep-a-changelog norms). No mechanical enforcement; convention only.
 [work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md
 [work-org-roadmap]: ../../../../reference/strategies/arc/strategy-work-organization.md#roadmap
 [integrate-work-unit]: integrate-work-unit.md
-[dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md
+[dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
 [arc-ext-post-archive]: ../../../extensions/post-work-unit-archive.md
