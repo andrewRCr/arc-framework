@@ -3794,21 +3794,30 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
   per R62. Mental model alignment with `system/workflows/arc/supplemental/`. Nested subdirectories preserved (research
   vs. analysis remain categorically distinguishable).
 
-    - _Approach:_ Create `reference/supplemental/` parent dir; `git mv` research and analysis under it.
+    - _Approach:_ Create `reference/supplemental/` parent dir (both copies — `.arc/` + package source); `git mv`
+      research and analysis under it. Each subtask spans both copies — the parallel-copy invariant matches the 6.9.a
+      precedent for the archive→completed promotion. Package source carries `research/` and `analysis/` as README-only
+      adopter-facing classification surfaces (byte-identical with `.arc/` copies).
 
-    - _Sequencing:_ 6.10.a-c (moves) → 6.10.d (sweep) → 6.10.f (verify). 6.10.e (README) optional
-      after 6.10.c, runs in parallel with later steps.
+    - _Sequencing:_ 6.10.a (mkdir, both copies) → 6.10.b (research mv, both copies) → 6.10.c (analysis mv, both
+      copies) → 6.10.d (sweep) → 6.10.f (verify). 6.10.e deferred — `system/workflows/arc/supplemental/` (R62's
+      mental-model parallel) ships with no parent README; consistency favors none here.
 
-    - `[ ]` **6.10.a Create `reference/supplemental/` parent**
-        - `mkdir .arc/reference/supplemental` (and `packages/arc-framework/arc/reference/supplemental/` if any package
-          source content lives there; verify at execution — current state is `.arc/`-only since research / analysis
-          aren't in the package render list).
+    - `[ ]` **6.10.a Create `reference/supplemental/` parent (both copies)**
+        - `mkdir .arc/reference/supplemental` AND `mkdir packages/arc-framework/arc/reference/supplemental`. Both
+          directories required before subsequent move ops (parallel-copy invariant). Package source confirmed to
+          carry `research/README.md` and `analysis/README.md` as adopter-facing classification stubs — same shape
+          ships to projects via `arc update`.
 
-    - `[ ]` **6.10.b Execute research directory move**
-        - `git mv .arc/reference/research .arc/reference/supplemental/research`.
+    - `[ ]` **6.10.b Execute research directory move (both copies)**
+        - `git mv .arc/reference/research .arc/reference/supplemental/research` AND
+          `git mv packages/arc-framework/arc/reference/research packages/arc-framework/arc/reference/supplemental/research`.
+          Single commit pairs both ops (matches 6.9.a precedent for paired archive-promotion moves).
 
-    - `[ ]` **6.10.c Execute analysis directory move**
-        - `git mv .arc/reference/analysis .arc/reference/supplemental/analysis`.
+    - `[ ]` **6.10.c Execute analysis directory move (both copies)**
+        - `git mv .arc/reference/analysis .arc/reference/supplemental/analysis` AND
+          `git mv packages/arc-framework/arc/reference/analysis packages/arc-framework/arc/reference/supplemental/analysis`.
+          Single commit pairs both ops.
 
     - `[ ]` **6.10.d Sweep inbound references (supplemental collapse)**
         - Grep patterns: `reference/research`, `reference/analysis`, `\.arc/reference/research`,
@@ -3819,21 +3828,32 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           others as discovered), templates (`template-completion-doc.md` — retiring per R51, but sweep cleanly before
           retirement), backlog plans (`plan-arc-modes.md`, `plan-docs-content-sweep.md`, `plan-wu5-public-release.md`,
           `plan-post-release-methodology.md`), ADRs (`adr-012` and any others), READMEs.
-        - **Exclusion:** content INSIDE `supplemental/` — research / analysis documents retain their original paths in
-          their own bodies; sweep targets only inbound references.
+        - **Exclusions:**
+            - Content INSIDE `supplemental/` (both copies) — research / analysis documents retain their original paths
+              in their own bodies; sweep targets only inbound references. Verified empty in practice today — no
+              `.arc/reference/research` or `.arc/reference/analysis` absolute paths exist inside those docs — clause
+              kept for future-proofing.
+            - `.arc/completed/**` and `packages/arc-framework/arc/completed/` — historical content is read-only per
+              R41/R42 and the WOR-wide convention (Phase 7.7.f filters `archive / completed / adr- paths` identically).
+              `validate-links.sh` already skips `*/completed/*|completed/*` per 6.9.a; lint-config matches. ~22 inbound
+              references across 12 files under `completed/` are preserved as-is (factual record of work done with old
+              paths).
         - **Sequencing:** Runs after 6.10.b / 6.10.c (`git mv`) — directories must exist at new paths
           before sweep can verify. 6.10.f verifies after this completes.
 
-    - `[ ]` **6.10.e Author `supplemental/README.md` (optional)**
-        - Brief README explaining the parent directory's role: "Non-load-bearing reference material — research and
-          analysis artifacts that informed strategies and ADRs but aren't read at session-init or workflow-fire.
-          Distinct from `adr/` / `constitution/` / `strategies/` / `templates/` (load-bearing)." Optional; can be
-          deferred if existing per-subdir READMEs (`research/README.md`, `analysis/README.md`) carry sufficient framing.
+    - `[~]` **6.10.e Author `supplemental/README.md`** — _Deferred (superseded by design decision)._
+        - Parallel `system/workflows/arc/supplemental/` (R62's mental-model anchor) ships with no parent README; the
+          `reference/` root itself also has no top-level README. Convention for grouping directories leans toward
+          "no parent README, navigate by contents." Existing per-subdir READMEs (`research/README.md`,
+          `analysis/README.md`) carry classification + naming + relationship guidance. R62 vocabulary framing routes
+          to `strategy-file-classification.md` if codification beyond the per-subdir READMEs is needed downstream.
 
     - `[ ]` **6.10.f Verify inbound references swept (post-6.10.d)**
         - After 6.10.d completes, grep across the documentation surface for `reference/research`, `reference/analysis`,
-          `\.arc/reference/research`, `\.arc/reference/analysis` — should return empty (excluding the WOR PRD / task
-          list / status file themselves).
+          `\.arc/reference/research`, `\.arc/reference/analysis` — should return empty after exclusions: WOR PRD /
+          task list / notes / status files (this WU's own content), `.arc/completed/**` and
+          `packages/arc-framework/arc/completed/` (historical, read-only per the 6.10.d exclusion above), and content
+          inside `supplemental/` itself (per 6.10.d exclusion).
 
 ### `[ ]` **6.11 System/reference re-tier: `constitution/` → `system/rules/` + `briefs/` → `reference/briefs/`**
 
