@@ -146,8 +146,8 @@ Two skill artifacts; structure mirrors the arc-commit pattern.
 
 ### `arc-reinforce` (shipped)
 
-- **Path:** `packages/arc-framework/arc/system/skills/arc-reinforce/SKILL.md` (canonical) →
-  ships to adopter `.arc/system/skills/arc-reinforce/SKILL.md` and harness mirrors
+- **Path:** `packages/arc-framework/arc/system/.internal/skills/arc-reinforce/SKILL.md` (canonical) →
+  ships to adopter `.arc/system/.internal/skills/arc-reinforce/SKILL.md` and harness mirrors
   (`.claude/skills/`, `.codex/skills/`) via `arc update`.
 - **Frontmatter:** standard skill fields (`name`, `description`).
 - **Scope:** Axis 1 ∈ {project, personal}.
@@ -157,8 +157,8 @@ Two skill artifacts; structure mirrors the arc-commit pattern.
 
 ### `arc-reinforce-dev` (maintainer-only)
 
-- **Path:** `.arc/system/skills/arc-reinforce-dev/SKILL.md` and harness mirrors. **Never** in
-  `packages/arc-framework/arc/system/skills/`.
+- **Path:** `.arc/system/.internal/skills/arc-reinforce-dev/SKILL.md` and harness mirrors. **Never** in
+  `packages/arc-framework/arc/system/.internal/skills/`.
 - **Frontmatter:** standard skill fields plus `distribution: internal`. Defense-in-depth marker
   alongside path-based exclusion. Generic enough to apply to any future `.arc/`-only file
   (workflows, methods, extensions).
@@ -168,7 +168,7 @@ Two skill artifacts; structure mirrors the arc-commit pattern.
   shipped and dev bounded by writing dev as explicit superset; manual diff at maintenance time
   keeps them aligned without composition machinery.
 - **Manifest caveat:** the package-project sync manifest must NOT auto-classify
-  `.arc/system/skills/arc-reinforce-dev/` as Framework. Verified silent under current manifest
+  `.arc/system/.internal/skills/arc-reinforce-dev/` as Framework. Verified silent under current manifest
   behavior (no entry → both classification branches skipped). Confirm during implementation that
   manifest regeneration preserves this.
 
@@ -277,15 +277,15 @@ Captured during pre-planning to lock in the dev-variant housing decision:
    `["dist", "arc", "templates", "init-recipe.json", "changelog"]` — all relative to the package
    directory. Repo-root `.arc/` is never reached. `npm pack --dry-run` confirms only
    package-relative paths in the tarball. **Zero leak risk** for
-   `.arc/system/skills/arc-reinforce-dev/`.
+   `.arc/system/.internal/skills/arc-reinforce-dev/`.
 
 4. **Pre-commit sync hook on `.arc/`-only entries:** Hook at `.husky/pre-commit` delegates to
    `scripts/check-package-sync.sh`. Logic looks up staged `.arc/` files in
    `.arc/system/.internal/manifest.json`; entries not in the manifest fall through both
    classification branches (Framework / Configurable) silently. Confirmed: a new
-   `.arc/system/skills/arc-reinforce-dev/SKILL.md` with no manifest entry stages cleanly with no
+   `.arc/system/.internal/skills/arc-reinforce-dev/SKILL.md` with no manifest entry stages cleanly with no
    warning, no error. **Caveat:** confirm during implementation that the manifest generation
-   process does not auto-add new `.arc/system/skills/` entries with Framework classification
+   process does not auto-add new `.arc/system/.internal/skills/` entries with Framework classification
    (which would start tripping the warning).
 
 ---
@@ -422,6 +422,6 @@ Small items deferred to PRD or implementation contact (not blockers for the plan
 
 ---
 
-[arc-commit]: ../../../system/skills/arc-commit/SKILL.md
+[arc-commit]: ../../../system/.internal/skills/arc-commit/SKILL.md
 [prepare-commits]: ../../../system/workflows/arc/supplemental/prepare-commits.md
 [package-sync]: ../../../reference/strategies/project/strategy-package-project-sync.md

@@ -1025,6 +1025,6 @@ When `arc user load` or session-init's SESSION-NOTES load fails, recover by erro
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
 [dev-rules-project]: ../../../system/rules/DEV-RULES.PROJECT.md
 [prepare-commits]: ../../../system/workflows/arc/supplemental/prepare-commits.md
-[arc-commit-skill]: ../../../system/skills/arc-commit/SKILL.md
+[arc-commit-skill]: ../../../system/.internal/skills/arc-commit/SKILL.md
 [git-notes]: https://git-scm.com/docs/git-notes
 [TODO-docs-site]: # "Placeholder pending docs-content-sweep — see notes-docs-content-sweep.md"

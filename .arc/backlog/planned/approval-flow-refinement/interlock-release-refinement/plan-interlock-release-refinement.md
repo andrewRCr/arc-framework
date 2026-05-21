@@ -173,7 +173,7 @@ What remains is mostly *routing-half* work:
   routing change makes the observed failure mode easier to hit, not harder.
 
 - *Scope if promoted:* Small-to-medium documentation/skill hardening. Likely touches
-  `.codex/skills/arc-commit/SKILL.md`, shipped `system/skills/arc-commit/SKILL.md`, and possibly
+  `.codex/skills/arc-commit/SKILL.md`, shipped `system/.internal/skills/arc-commit/SKILL.md`, and possibly
   DEV-RULES.ARC / `strategy-interlock-release-wrappers.md` depending on where the invariant
   belongs.
 

@@ -3969,33 +3969,17 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           Verified by a real `arc init` into a temp repo (all 8 skills generate from the new canonical path) +
           `validate-links.sh` on every moved `.md` + full `npm test` + build, all clean.
 
-    - `[ ]` **6.12.f Sweep inbound references (internals nesting paths)**
-        - Grep patterns: `system/\.internal/`, `\.arc/system/\.internal/`, `system/githooks`,
-          `\.arc/system/githooks`, `system/scripts`, `\.arc/system/scripts`, `system/skills`,
-          `\.arc/system/skills`, `[githooks]:` / `[scripts]:` / `[skills]:` reference-link definitions.
-          **Plus the segmented-`join` form** the literal patterns miss: `"system",\s*"(githooks|scripts|skills)"`.
-        - Update to `system/.internal/{githooks,scripts,skills}/`. Surfaces: workflows, strategies, READMEs, CLI
-          source, hook-manager integration docs, package source mirror, and the test-load-bearing config —
-          `init-recipe.json` (`include_files`), `manifest.json` keys (key-rename; hash recompute is hygiene for
-          pure moves), `pristine.json` keys, `package.json` `lint:sh`. `classification.ts` needs no change
-          (these dirs aren't Configurable/Scaffolded). Completion records (read-only historical) excluded.
-        - **Exclusion + carve-out:** skip _relative_ sibling refs inside moved dirs (they move together and stay
-          valid — the 6.11.d rule). But absolute / root-anchored refs inside moved dirs do NOT self-correct —
-          sweep `$ARC_DIR/system/…` and `.arc/system/…` refs in `verify-integrity.sh` and `arc-verify/SKILL.md`
-          (done in 6.12.d/e; re-grep here to confirm none remain).
-        - _Status (githooks+scripts done in the c+d commit):_ the full inbound sweep for `githooks/` + `scripts/`
-          landed with 6.12.c+d — CLI source, docs, strategy, the `quality-gate-hooks` backlog plan, `manifest.json`
-          keys, 9 test files, `.husky/`, and repo-root `scripts/check-*.sh` — plus the `listFiles` test helper
-          narrowed (`skipInternal` now skips only generated `manifest.json`/`pristine.json`, not recipe-installed
-          `.internal/` machinery). **Intentionally left:** the 3 ADRs (historical decision records — already carry
-          other stale paths) and `pristine.json` (600KB generated merge-cache, not test/verify-load-bearing,
-          broadly stale per BACKLOG-INBOX). 6.12.e carried the skills move's own coupled surfaces — the
-          test-load-bearing config (`init-recipe.json` + `manifest.json` skills keys), `add-agent.md` (both
-          copies), the package-sync drift surfaces (`strategy-package-project-sync.md`, `DEV-RULES.PROJECT.md`
-          § skill-file drift), and the 5 skills test files. Remaining skills work here is the doc-only surfaces
-          6.12.e didn't name — `strategy-session-operations.md` (both copies), the `arc-reinforce` /
-          `interlock-release-refinement` backlog plans, `pristine.json` keys (hygiene) — plus the final
-          whole-tree re-grep (ADRs + `completed/` stay excluded).
+    - `[x]` **6.12.f Sweep inbound references (internals nesting paths)**
+        - _Outcome:_ With `githooks/` + `scripts/` already swept in the c+d commit and the skills move's coupled
+          surfaces (CLI, test config, `add-agent.md`, package-sync drift docs, 5 test files) carried by 6.12.e,
+          this swept the remaining doc-only skills surfaces 6.12.e didn't name: `strategy-session-operations.md`
+          (both copies, `[arc-commit-skill]` link-def) and the `arc-reinforce` / `interlock-release-refinement`
+          backlog plans (`[arc-commit]` link-def + prose paths; `plan-arc-reinforce` describes its future skill at
+          the new `.internal/skills/` home). Final whole-tree re-grep clean across all four forms — literal
+          `system/{githooks,scripts,skills}`, segmented-`join`, `[githooks|scripts|skills]:` ref-defs, and the
+          `$ARC_DIR`/`.arc` absolute refs in `verify-integrity.sh` + `arc-verify/SKILL.md`. **Left as-is:**
+          `completed/**` + ADRs (historical) and `pristine.json` (broadly-stale generated cache, content as well
+          as keys — BACKLOG-INBOX tracks the regeneration; key-only rename would be misleading hygiene).
 
     - `[ ]` **6.12.g Verify inbound references swept + tooling smoke-test (post-6.12.f)**
         - Grep across the documentation surface for the old paths (`system/githooks`, `system/scripts`,
