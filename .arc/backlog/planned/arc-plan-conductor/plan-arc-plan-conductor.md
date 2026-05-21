@@ -361,6 +361,11 @@ ARC supports this with the **`refine-plan-loop`** workflow — the planning-side
 - **yes** explicitly collaborative, following ARC's co-development posture rather than implying
   autonomous agent planning
 
+> **Dependency:** the canonical loop pattern these workflows inherit is delivered by
+> `loadset-composition` (its `process-task-loop` core/detail redesign — see that plan § The Loop
+> Canon). `refine-plan-loop` / `refine-prototype-loop` consume it, so this WU sequences after
+> loadset-composition. Reflected in `Depends On`.
+
 The loop's contract stays narrow:
 
 1. resume and orient from the current `plan-*` and any carried-forward session pointer

@@ -7,7 +7,7 @@
 - **Origin:** [internal]
 - **Spec:** `plan-arc-plan-conductor.md`
 
-- **Depends On:** [none]
+- **Depends On:** loadset-composition
 - **Cohort:** [none]
 
 - **Task List:** [none]
