@@ -3904,7 +3904,7 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
   `DEV-RULES.*` (always-loaded) / `DOMAIN-RULES.*` (on-demand) mechanism rework defer to the
   `rules-restructure` backlog WU, which starts from this substrate.
 
-### `[ ]` **6.12 Intra-system internals nesting: `githooks/` + `scripts/` + `skills/` → existing `system/.internal/`**
+### `[x]` **6.12 Intra-system internals nesting: `githooks/` + `scripts/` + `skills/` → existing `system/.internal/`**
 
 - _Goal:_ Separate user-facing customization surfaces (`arc-config.yml`, `extensions/`, `methods/`, `rules/`,
   `workflows/`) from framework-internal machinery (`.internal/manifest.json`, `githooks/`, `scripts/`,
@@ -3981,18 +3981,15 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           `completed/**` + ADRs (historical) and `pristine.json` (broadly-stale generated cache, content as well
           as keys — BACKLOG-INBOX tracks the regeneration; key-only rename would be misleading hygiene).
 
-    - `[ ]` **6.12.g Verify inbound references swept + tooling smoke-test (post-6.12.f)**
-        - Grep across the documentation surface for the old paths (`system/githooks`, `system/scripts`,
-          `system/skills`) and the segmented-`join` form — should return empty (excluding WOR's own PRD /
-          task list / notes).
-        - `npm test` + `npm run lint:sh` — the load-bearing failure modes (`init-recipe.json` fixture build,
-          `manifest.json` key drift, `lint:sh` paths) surface here, not in Tier 1 lint.
-        - Run `arc verify` end-to-end to confirm `verify-integrity.sh` + `validate-config.sh` resolve at their
-          new paths (exercises the absolute-ref fixes from 6.12.d).
-        - Smoke-test commit on this repo to confirm hooks fire under the rewritten `.husky/` wrappers
-          (`commit-msg` + `pre-commit` both invoked at the new `.internal/githooks/` path).
-        - Hand-sync the gitignored harness copy `.claude/skills/arc-verify/SKILL.md` to the updated canonical
-          (no self-`arc update` here) so `/arc-verify` resolves the new script path next session.
+    - `[x]` **6.12.g Verify inbound references swept + tooling smoke-test (post-6.12.f)**
+        - _Outcome:_ Whole-tree re-grep clean across all four forms (literal, segmented-`join`, ref-defs,
+          absolute refs); full `npm test` (112 files / 1844 unit+integration + e2e) + `lint:sh` green.
+          `verify-integrity.sh` and `validate-config.sh` both resolve and run from `.internal/scripts/` with
+          0 errors (the 5 verify warnings are pre-existing exec-bit / Husky `core.hooksPath` / strategy-index,
+          none skills-related); `arc health` exit 0. Hook smoke-test satisfied by the two real `arc release
+          commit`s — the `.husky/` wrappers invoke `commit-msg` + `pre-commit` at the new `.internal/githooks/`
+          path. Hand-synced the gitignored harness `arc-verify/SKILL.md` (both `.claude/` and `.codex/` carried
+          the stale script path) to the canonical `.internal/scripts/` path for next session.
 
 - _Outcome:_ `system/` cleanly separates user-facing customization surfaces (top-level children) from
   framework-internal machinery (`.internal/` namespace). Developer mental burden when navigating `system/`
