@@ -3997,71 +3997,25 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
   mirror retained (not removed) — `add-agent` workflow consumes it, justifying the `.internal/skills/`
   placement as the canonical source.
 
-### `[ ]` **6.13 Create `plan-arc-in-git-as-default.md` (R64)**
+### `[x]` **6.13 Create `plan-arc-in-git-as-default.md` (R64)**
 
 - _Goal:_ Create the exploratory `plan-*` doc capturing the "arc-in-git as default; modes scale around it" thesis per
   R64. Lands in `backlog/feature/` (legacy layout); graduates to `backlog/provisional/arc-in-git-as-default/` once Task
   6.4 completes the backlog restructure.
 
-    - _Context:_ Captures a strategic deliberation surfaced during WOR scope discussion. Not committed work — explicit
-      "exploratory" state in header. Implementation scope is conditional on thesis acceptance.
-
-    - _Companion read at execution:_ Skim `plan-arc-modes.md` (header / TOC, not full body) to ground the implication
-      inventory and confirm the doc reshapes (rather than duplicates) plan-arc-modes content.
-
-    - `[ ]` **6.13.a Author `plan-arc-in-git-as-default.md`**
-        - Header carries explicit exploratory framing: "**State:** Exploratory / Not yet committed — thesis-stage, not
-          work-stage. This plan describes a deliberation to evaluate, not work to execute. Implementation sections are
-          conditional on thesis acceptance."
-
-    - `[ ]` **6.13.b Author Thesis section**
-        - Single paragraph stating the thesis: arc-in-git as default; modes scale rather than swap shapes. ARC remains
-          agnostic / generalizable rather than competing with external trackers; backlog can complement Jira / Linear
-          rather than replace or be replaced by them.
-
-    - `[ ]` **6.13.c Author Rationale section**
-        - Research findings on out-of-band team coordination (teams resolve concurrency via Slack / meetings, not
-          tooling); smaller WUs + ceremony-boundary updates as the actual decoupling mechanism for backlog drift; ARC's
-          "scale up / down rather than swap shapes" framing. Reference WOR's own reshape of capture surfaces (R20's
-          ceremony-only writes) as substrate for this thesis.
-
-    - `[ ]` **6.13.d Author Implication Inventory section**
-        - Per-mode implications:
-            - `pm.mode: external` — semantic shift from "no backlog" to "backlog complements external tracker"
-            - `pm.mode: none` — semantic shift; what survives, what doesn't
-            - `pm.mode: lite` — interaction with the question; whether Lite keeps a minimal backlog or remains
-              backlog-free
-            - `strategy-planning-module` — reshape implications (currently scoped to arc-in-git specifically)
-            - `plan-arc-modes` — consume / restructure implications (its mode framing may change)
-            - `plan-arc-backend` — interaction with the thesis (backend may be less necessary if the concurrency
-              problem is reframed)
-            - `archive.preserve` opt-out — config-axis implication (mode-adjacent, orthogonal to default-mode
-              question). Toggle where archive workflows delete WU artifacts at ceremony fire instead of moving
-              to `completed/`; git history as durable record. Removes `completed/` from the project layout when
-              off. Could exist regardless of which mode is default, but surfaces the same "what does the mode
-              materialize on disk" question the thesis interrogates — natural co-inventory.
-        - _Source:_ pull the USER-INBOX universality question (drain-target gap under `pm.mode: none`;
-          behavior under `pm.mode: lite`) from `notes-work-organization-reform.md` § Open Design Questions
-          into this section as a worked example for the `pm.mode: none` and `pm.mode: lite` bullets.
-          Captured during WOR execution Task 5.6.e sanity-check; resolved as "PRD-consistent, defer to
-          this plan and to `plan-arc-modes` Lite design pass." `archive.preserve` opt-out bullet captured
-          during WOR Task 6.9 pre-execution review (gating change discussion) — included pre-authoring so
-          the thesis-stage plan inventories it alongside the per-mode implications.
-
-    - `[ ]` **6.13.e Author Decision Gate section**
-        - Explicit gates: what deciding requires (e.g., evaluation of `plan-arc-modes`' current direction; verification
-          that smaller WU pattern holds in practice; team-coordination research validation; concrete user feedback).
-        - Frame: "this decision is not made by this plan; this plan organizes the inputs needed to make it."
-
-    - `[ ]` **6.13.f Author Cross-References section**
-        - Backlog plan-\* docs touched if thesis accepted: `plan-arc-modes` (independent consumer); `plan-arc-backend`
-          (related); WOR (compatible with thesis but doesn't depend on it). Forward-link to ROADMAP / BACKLOG-INBOX as
-          relevant.
-
-    - `[ ]` **6.13.g ROADMAP / BACKLOG-INBOX entry decision**
-        - Exploratory state should NOT appear in ROADMAP (which renders committed work per R37). Default: skip both
-          ROADMAP and BACKLOG-INBOX inclusion — the file's exploratory header carries its own state signal. Revisit if
-          the thesis matures and warrants pipeline tracking.
+- _Outcome:_ R64 fulfilled in expanded form via an `arc-plan` facilitation pass. The thesis widened from "arc-in-git as
+  default" to a principle-anchored **scalable core** — the same question generalized across the whole mode/config
+  surface — and was pressure-tested with five scenario traces against current code/workflows/scaffolding (the modes
+  proved to be a thin config/recipe/prose veneer over already-mode-orthogonal machinery). Landed three artifacts rather
+  than one: `adr-020-adopt-principle-anchored-scalable-core.md` (decision spine — invariant floor,
+  scale-grammar-not-discipline, mode→toggle decomposition, concurrency boundary, coordination directives to seven
+  sibling WUs); `meta-scalable-core.md` + `plan-scalable-core.md` (thesis WU + owned implementation slice + validated
+  seam inventory), in a new `provisional/scalable-core/` subdir; and a `provisional/composable-workflows/` stub
+  (resolve-then-load workflow scaling). The planned a–g sections (Thesis / Rationale / Implication Inventory / Decision
+  Gate / Cross-References / ROADMAP entry) were absorbed into those artifacts in restructured form rather than authored
+  verbatim; the USER-INBOX universality question (6.13.d worked example) folded into ADR-020 §6; 6.13.g's
+  keep-off-ROADMAP default resolved via `provisional/` placement. Doc named `plan-scalable-core.md`, not
+  `plan-arc-in-git-as-default.md`, to match the widened scope.
 
 ### `[x]` **6.14 Patch `init-work-unit.md` for backlog-meta graduation**
 
