@@ -3592,35 +3592,105 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
       intact (paths become `completed/2026-q*/{category}/`).
 
     - _Sequencing:_ 6.9.a (rename) → 6.9.b (sweep) → 6.9.c (verify). 6.9.e (README rewrite) can run
-      in parallel with 6.9.c verification once 6.9.b completes.
+      in parallel with 6.9.c verification once 6.9.b completes. 6.9.f (recipe gating reclassification)
+      runs after 6.9.a and is independent of 6.9.b's path sweep — distinct mechanical concern (block
+      placement in `init-recipe.json` + `classification.ts` layer assignment vs. path-string replacement).
 
-    - `[ ]` **6.9.a Execute directory move**
-        - `git mv .arc/reference/archive .arc/completed`.
-        - Verify directory now exists at `.arc/completed/` with all historical content intact (currently three dated
-          subdirs: `2025-q4/`, `2026-q1/`, `2026-q2/`).
+    - `[ ]` **6.9.a Execute directory move (both copies) + lint-config ignore-pattern update**
+        - **`.arc/` instance:** `git mv .arc/reference/archive .arc/completed`. Verify directory now at
+          `.arc/completed/` with all historical content intact (currently three dated subdirs:
+          `2025-q4/`, `2026-q1/`, `2026-q2/`).
+        - **Package source mirror:** `git mv packages/arc-framework/arc/reference/archive packages/arc-framework/arc/completed`.
+          Verify directory now at `packages/arc-framework/arc/completed/` with `README.md` intact (package
+          source carries only the README — no historical content, which lives exclusively in `.arc/`).
+        - **Lint config ignore pattern:** `.markdownlint-cli2.jsonc` `ignores` —
+          `.arc/reference/archive/**` → `.arc/completed/**`. Co-commits with the `git mv` ops because
+          the lint gate breaks immediately on the dir move without it (~210 lint errors surface in
+          historical content that's supposed to be lint-ignored per R42 read-only). Repo-internal
+          config; not shipped to adopters.
+        - **Why bundle:** the CLI resolves recipe paths 1:1 against the package source
+          (`src/commands/init.ts:161` — `srcPath = join(templateDir, templateFile)`). If only `.arc/`
+          moves, post-6.9.f recipe paths point at non-existent package locations and `arc init` breaks
+          for adopters. Both moves PLUS the lint-config update must land in the same atomic commit
+          (mv-without-config-update leaves an unrunnable intermediate state for the lint gate).
 
     - `[ ]` **6.9.b Sweep inbound references (archive → completed paths)**
-        - Grep patterns: `reference/archive`, `\.arc/reference/archive`, `[archive]:` reference-link definitions,
-          hardcoded archive paths in workflows / strategies / hooks / scripts / CLI code.
-        - Update to `completed/` / `\.arc/completed/` as appropriate. Surface: workflows (`archive-work-unit.md`,
-          `integrate-work-unit.md`, `verify-work-unit.md`, `clean-work-unit.md`, others), strategies
-          (`strategy-work-organization.md`, `strategy-file-classification.md`), hooks (`system/githooks/pre-commit`),
-          scripts (`system/scripts/validate-links.sh`), CLI code (`packages/arc-framework/src/` — path resolution /
-          classification touch points).
-        - **Exclusion:** content INSIDE `completed/` (formerly `archive/`) — historical archived documents retain their
-          original paths in their own bodies; sweep targets only references TO the directory, not references WITHIN it.
-        - **`archive/README.md` substantive rewrite (surfaced during 6.7.j verification, paired with the directory
-          rename):** `packages/arc-framework/arc/reference/archive/README.md` + `.arc/reference/archive/README.md`
-          (byte-identical) describe the OLD pre-WOR archive layout — work-categorized subdirs (`feature/`,
-          `technical/`, `incidental/`), `completion-{name}.md` file convention, PROJECT-STATUS sibling references,
-          substrate triples in the Navigation block. Beyond renaming `archive` → `completed` in body refs, the
-          README's content needs rewriting to reflect current state (flat WU subdirs, no category split, no
-          `completion-{name}.md` file convention, no PROJECT-STATUS). Bundle with this task's archive→completed
-          sweep commit.
-        - **Sequencing:** Runs after 6.9.a (`git mv`) — directory must exist at the new path before
-          the sweep can verify. 6.9.c verifies after this completes. R41 / R42 textual references in
-          the PRD itself update at PRD amendment time (already landed in this folded-in pass), not in
-          this sweep.
+        - **Two ref categories, two treatments** (per DEV-RULES.ARC § `.arc/` artifact references):
+            - **Directory-concept paths** (no specific WU artifact named — `reference/archive/`,
+              `archive/<dated>/<wu-name>/`, validate-links skip patterns, etc.): update path token
+              `archive/` → `completed/` per new layout.
+            - **WU-artifact-pointer paths** (path ends in `prd-*.md`, `tasks-*.md`, `plan-*.md`,
+              `notes-*.md`, `meta-*.md`, `completion-*.md`, `atomic-*.md`): reshape to compliant
+              backticked-filename-only form per DEV-RULES — many such refs predate the rule. Drop the
+              path, keep `` `prd-name.md` `` only (or "Task X.Y — `tasks-name.md`" for task refs).
+              Losing path context is the documented cost of the rule.
+        - **Grep patterns:**
+            - `reference/archive`
+            - `\.arc/reference/archive`
+            - `\.arc/archive/` _(post-R41 top-level form left in workflows)_
+            - `archive/<dated>` / `archive/{dated}` _(workflow template tokens)_
+            - `archive/2025` / `archive/2026` _(deep-link form — note ROADMAP carve-out below)_
+            - `[archive]:` _(reference-link definitions)_
+        - **Exclusions** (do NOT touch):
+            - Content INSIDE `completed/` (formerly `archive/`) — historical archived documents retain
+              their original paths in their own bodies; sweep targets only references TO the directory,
+              not references WITHIN it.
+            - `archive.cadence` config key — verb stays per R62.
+            - Filenames preserving the verb: `archive-work-unit.md`, `post-work-unit-archive.md`,
+              `post-work-unit-archive` extension key.
+            - "archive" as English verb in prose (the act of moving completion records).
+        - **ROADMAP carve-out:** `.arc/backlog/ROADMAP.md` carries 12+ `Archive:` deep-link refs in
+          R41-shape (`archive/2026-q*/technical/...`). ROADMAP is slated for wholesale overhaul to a
+          no-historical-record format in upcoming work. **Minimal touch here** — leave existing R41-shape
+          refs as-is rather than mid-cycle them through `completed/`; the upcoming overhaul retires them
+          entirely. Accept temporary path inaccuracy. 6.9.c verify acknowledges ROADMAP residuals as
+          known + expected.
+        - **Surface enumeration — directory-concept path updates** (two-copy: edit both `.arc/` and
+          `packages/arc-framework/arc/` per Package-Project Sync):
+            - Workflows: `archive-work-unit.md` (multiple `git mv` template lines + step prose — careful
+              manual attention; verb stays, path token changes), `integrate-work-unit.md` (steps
+              referencing `archive/<dated>/{name}/`), `verify-work-unit.md`, `clean-work-unit.md`.
+            - Strategies: `strategy-work-organization.md` (R41-shape path refs at lines 312, 321, 327,
+              402), `strategy-file-classification.md`, `strategy-package-project-sync.md`
+              (`reference/archive/` mentioned at lines 8 + 221).
+            - Hooks: `system/githooks/pre-commit` (verify — current state may not carry archive refs).
+            - Scripts + coupled test: `system/scripts/validate-links.sh:131` archive-skip pattern
+              (`*/reference/archive/*|reference/archive/*) return 0`) → `*/completed/*|completed/*`.
+              **Couples with** `packages/arc-framework/__tests__/integration/validate-links.test.ts:257–264`
+              which exercises that pattern with path token `reference/archive/old-plan.md` — both files
+              must update together to keep the test green.
+            - Lint config: `.markdownlint-cli2.jsonc` `ignores` entry —
+              `.arc/reference/archive/**` → `.arc/completed/**`. Repo-internal config (not shipped
+              to adopters; their projects use their own markdownlint config if any). **Folded into
+              6.9.a's commit** alongside the `git mv` ops — without it the project lint gate breaks
+              immediately on the dir move (~210 errors surfaced in historical content that's
+              supposed to be lint-ignored per R42 read-only).
+            - CLI code: `packages/arc-framework/src/lib/classification.ts:78` — handled in 6.9.f, not
+              here; overlap noted.
+            - User-facing docs: `.arc/user/README.md:77` + package mirror; `docs/work-planning.md:126`.
+        - **Surface enumeration — WU-artifact-pointer reshape** (per DEV-RULES, drop paths, keep
+          backticked filenames; eating own dogfood — these enumeration entries also use the
+          backticked-filename form for the files needing reshape):
+            - `plan-post-release-methodology.md` (line 12) — reshape inbound ref pointing at the
+              archived `prd-work-status-restructure.md` (currently a `reference/archive/2026-q2/...`
+              path) to `` `prd-work-status-restructure.md` `` (backticked filename only).
+            - `plan-interlock-release-refinement.md` (line 59) — reshape inbound ref currently
+              pointing at `reference/archive/2026-q2/technical/08_release-wrappers-foundation/` to
+              the backticked-filename form of the relevant WU artifact.
+            - `plan-arc-modes.md` (lines 5722–5723) — body refs reshape to backticked filenames;
+              drop the now-orphaned reference-link definitions at file end.
+            - `adr-012-adopt-unified-user-directory-model.md` — multiple `reference/archive/` refs
+              mixed with historical decision narrative. Decision-narrative refs describing the
+              original archive-conflict problem retain original form (ADRs record decisions in their
+              original context, not retroactively rewritten); current-state pointers reshape to
+              compliant backticked-filename form.
+        - **README content rewrite (6.9.e owns this):** 6.9.e handles the README's full content
+          rewrite (pre-WOR layout description → post-WOR shape). This sweep subtask handles path
+          tokens elsewhere; the README's content is its own concern.
+        - **Sequencing:** runs after 6.9.a (`git mv` on both copies); directory must exist at the new
+          path before the sweep can verify. 6.9.c verifies after this completes. R41 / R42 textual refs
+          in the WOR PRD itself update at PRD amendment time (already landed in a folded-in pass), not
+          in this sweep.
 
     - `[ ]` **6.9.c Verify inbound references swept (post-6.9.b)**
         - After 6.9.b completes, grep across the documentation surface for `reference/archive`,
@@ -3644,11 +3714,38 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           archive shape under WOR (single-branch-per-WU, meta-file with archive-phase Release Notes + Completion
           Notes per R30, no separate `completion-*.md`); navigation refs updated to post-WOR docs (PROJECT-PRD
           parent, post-6.7.k); category-retirement framing.
-        - Surface: `.arc/completed/README.md` (post-6.9.a path) + `packages/arc-framework/arc/reference/archive/README.md`
-          (package mirror; the package source's archive/ doesn't move under WOR because the package ships the directory
-          structure, not the historical content).
-        - **Sequencing:** runs after 6.9.a (directory move) so the .arc/ path is at its post-WOR location; can run
-          in parallel with 6.9.c verification.
+        - Surface: `.arc/completed/README.md` + `packages/arc-framework/arc/completed/README.md`
+          (both post-6.9.a paths — package source moves alongside `.arc/` per 6.9.a; only historical
+          content lives exclusively in `.arc/`, README mirror moves with the directory).
+        - **Sequencing:** runs after 6.9.a (both directory moves) so both paths are at their post-WOR
+          locations; can run in parallel with 6.9.c verification.
+
+    - `[ ]` **6.9.f Reclassify `completed/README.md` in `init-recipe.json` (core → arc-in-git conditional)**
+        - **Gating change, not path replacement:** today `reference/archive/README.md` sits in
+          `packages/arc-framework/init-recipe.json` core `include_files` (unconditional — every project
+          seeds it regardless of `pm.mode`). R62 restricts `completed/` to arc-in-git mode — same rule
+          that gates `backlog/` today. Move the entry (post-rename path: `completed/README.md`) from the
+          core list into the `pm.mode == arc-in-git` conditional block alongside
+          `backlog/ROADMAP.template.md` et al.
+        - **Coupled CLI surface:** `packages/arc-framework/src/lib/classification.ts` carries the path
+          string in its `CONFIGURABLE_FILES` set (line ~78). Token update only: `"reference/archive/README.md"`
+          → `"completed/README.md"`. **Classification stays Configurable; layer flip is automatic** —
+          `fileLayer()` reads from the `arcInGitFiles` set populated at `src/commands/init.ts:147–151`
+          from the recipe's `pm.mode == arc-in-git` conditional block, so once 6.9.f's recipe edit moves
+          the entry into that block, the layer returns `"arc-in-git"` without any change to layer logic.
+        - **Test impact:** `__tests__/integration/init.test.ts` + `__tests__/e2e/init.e2e.test.ts` — flip
+          seed-assertion expectations: default-mode init should NOT seed `completed/`; arc-in-git mode
+          should. Symmetric with existing `backlog/` arc-in-git-conditional assertions — add explicit
+          **positive coverage** that `completed/README.md` IS in the install output under arc-in-git
+          (mirrors the `backlog/ROADMAP.md` positive assertion already present), not just the negative
+          (absent under default mode).
+        - **Universal-mechanism boundary preserved:** `archive-work-unit.md` workflow + `post-work-unit-archive.md`
+          extension stay in the core seed list — only the _destination directory_ becomes mode-gated, not
+          the archive mechanism itself. Same shape as today's backlog (universal `init-work-unit.md`
+          mechanism + conditional `backlog/` artifacts).
+        - **Sequencing:** runs after 6.9.a (`git mv` establishes the on-disk path); independent of 6.9.b
+          (string sweep vs. block reclassification are distinct mechanical concerns); precedes 6.9.c
+          verify which should also confirm recipe layer assignment is correct.
 
 ### `[ ]` **6.10 Supplemental collapse: `reference/research/` + `reference/analysis/` → `reference/supplemental/` (R62)**
 
@@ -3884,11 +3981,18 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
             - `plan-arc-modes` — consume / restructure implications (its mode framing may change)
             - `plan-arc-backend` — interaction with the thesis (backend may be less necessary if the concurrency
               problem is reframed)
+            - `archive.preserve` opt-out — config-axis implication (mode-adjacent, orthogonal to default-mode
+              question). Toggle where archive workflows delete WU artifacts at ceremony fire instead of moving
+              to `completed/`; git history as durable record. Removes `completed/` from the project layout when
+              off. Could exist regardless of which mode is default, but surfaces the same "what does the mode
+              materialize on disk" question the thesis interrogates — natural co-inventory.
         - _Source:_ pull the USER-INBOX universality question (drain-target gap under `pm.mode: none`;
           behavior under `pm.mode: lite`) from `notes-work-organization-reform.md` § Open Design Questions
           into this section as a worked example for the `pm.mode: none` and `pm.mode: lite` bullets.
           Captured during WOR execution Task 5.6.e sanity-check; resolved as "PRD-consistent, defer to
-          this plan and to `plan-arc-modes` Lite design pass."
+          this plan and to `plan-arc-modes` Lite design pass." `archive.preserve` opt-out bullet captured
+          during WOR Task 6.9 pre-execution review (gating change discussion) — included pre-authoring so
+          the thesis-stage plan inventories it alongside the per-mode implications.
 
     - `[ ]` **6.13.e Author Decision Gate section**
         - Explicit gates: what deciding requires (e.g., evaluation of `plan-arc-modes`' current direction; verification
