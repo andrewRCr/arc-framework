@@ -94,8 +94,8 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       "reference/templates",
       "system",
       "reference/briefs",
-      "system/githooks",
-      "system/scripts",
+      "system/.internal/githooks",
+      "system/.internal/scripts",
       "system/skills",
       "system/workflows",
       "system/workflows/arc",
@@ -181,7 +181,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       ["config", "core.hooksPath"],
       { cwd: tempDir },
     );
-    expect(stdout.trim()).toBe(".arc/system/githooks");
+    expect(stdout.trim()).toBe(".arc/system/.internal/githooks");
   });
 
   it("stores identity in git config", async () => {
@@ -381,23 +381,23 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
 
   it("installs script files", async () => {
     const validateConfig = await stat(
-      join(arcDir, "system/scripts/validate-config.sh"),
+      join(arcDir, "system/.internal/scripts/validate-config.sh"),
     );
     expect(validateConfig.isFile()).toBe(true);
 
     const verifyIntegrity = await stat(
-      join(arcDir, "system/scripts/verify-integrity.sh"),
+      join(arcDir, "system/.internal/scripts/verify-integrity.sh"),
     );
     expect(verifyIntegrity.isFile()).toBe(true);
   });
 
   it("sets executable permissions on hooks and scripts", async () => {
     const executableFiles = [
-      "system/githooks/pre-commit",
-      "system/githooks/commit-msg",
-      "system/scripts/validate-config.sh",
-      "system/scripts/verify-integrity.sh",
-      "system/scripts/arc-lib.sh",
+      "system/.internal/githooks/pre-commit",
+      "system/.internal/githooks/commit-msg",
+      "system/.internal/scripts/validate-config.sh",
+      "system/.internal/scripts/verify-integrity.sh",
+      "system/.internal/scripts/arc-lib.sh",
     ];
     for (const relPath of executableFiles) {
       const s = await stat(join(arcDir, relPath));
@@ -772,6 +772,6 @@ describe("join integration", () => {
     const { stdout: hooksPath } = await execFileAsync(
       "git", ["config", "core.hooksPath"], { cwd: tempDir },
     );
-    expect(hooksPath.trim()).toBe(".arc/system/githooks");
+    expect(hooksPath.trim()).toBe(".arc/system/.internal/githooks");
   });
 });

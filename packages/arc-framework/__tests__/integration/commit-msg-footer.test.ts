@@ -19,7 +19,7 @@ import { fileURLToPath } from "node:url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const REPO_ROOT = resolve(__dirname, "..", "..", "..", "..");
-const HOOK_PATH = resolve(REPO_ROOT, ".arc/system/githooks/commit-msg");
+const HOOK_PATH = resolve(REPO_ROOT, ".arc/system/.internal/githooks/commit-msg");
 
 function buildMessage(subject: string, footer: string): string {
   return `${subject}\n\n${footer}\n`;

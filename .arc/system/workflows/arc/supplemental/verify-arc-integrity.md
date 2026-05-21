@@ -22,7 +22,7 @@ how to interpret severities, and what remediation to offer.
 From repository root:
 
 ```bash
-.arc/system/scripts/verify-integrity.sh
+.arc/system/.internal/scripts/verify-integrity.sh
 ```
 
 The script produces structured output — one line per check with a severity prefix (`PASS`, `WARN`,
@@ -70,10 +70,10 @@ directory. Only checks hooks that are enabled in config.
 
 ```bash
 # Fix permissions
-chmod +x .arc/system/githooks/commit-msg .arc/system/githooks/pre-commit
+chmod +x .arc/system/.internal/githooks/commit-msg .arc/system/.internal/githooks/pre-commit
 
 # Fix hooks path
-git config core.hooksPath .arc/system/githooks
+git config core.hooksPath .arc/system/.internal/githooks
 ```
 
 ### Strategy Index Consistency
@@ -143,9 +143,9 @@ When invoked via the `arc-verify` skill:
 
 ---
 
-_Verification scripts live in `.arc/system/scripts/`. See [scripts/README.md][scripts-readme] for
+_Verification scripts live in `.arc/system/.internal/scripts/`. See [scripts/README.md][scripts-readme] for
 the full script inventory._
 
 ---
 
-[scripts-readme]: ../../../scripts/README.md
+[scripts-readme]: ../../../.internal/scripts/README.md

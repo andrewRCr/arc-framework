@@ -8,7 +8,7 @@ disable-model-invocation: false
 
 1. Run the verification script.
 
-   - Execute `.arc/system/scripts/verify-integrity.sh` from the repository root.
+   - Execute `.arc/system/.internal/scripts/verify-integrity.sh` from the repository root.
    - Capture the full output and exit code.
 
 2. Interpret results using the workflow guidance.

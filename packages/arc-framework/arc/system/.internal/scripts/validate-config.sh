@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Validate arc-config.yml — enum checking, cross-field dependencies, unknown keys.
-# Location: .arc/system/scripts/validate-config.sh
+# Location: .arc/system/.internal/scripts/validate-config.sh
 #
 # Run from repository root:
-#   .arc/system/scripts/validate-config.sh
+#   .arc/system/.internal/scripts/validate-config.sh
 #
 # Output: one line per check with PASS/WARN/ERROR prefix.
 # Exit codes: 0 = all pass, 1 = warnings only, 2 = errors present.

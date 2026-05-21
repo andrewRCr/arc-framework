@@ -6,7 +6,7 @@ ARC's tiered quality gate system — Tier 1 (per-task), Tier 2 (coherent unit), 
 workflow-oriented: it tells developers/agents *when in their flow* to run which checks. The methodology
 is sound, but the execution model has two gaps:
 
-**1. No automatic enforcement at commit/push stages.** Pre-commit hooks at `.arc/system/githooks/pre-commit`
+**1. No automatic enforcement at commit/push stages.** Pre-commit hooks at `.arc/system/.internal/githooks/pre-commit`
 enforce structural properties (commit format, context footer, task staging, frontmatter validation, etc. —
 14 CHECKs as of 2026-04-24). They do NOT run the adopter's linters or tests. The assumption has been that
 agent/developer discipline plus CI is sufficient. In practice this creates a gap: a commit landed on
@@ -105,7 +105,7 @@ Whichever path lands, the rename touches DEV-RULES.ARC, strategy-quality-gates.m
 3_process-task-loop.md, QUICK-REFERENCE.md, session-init.md, and scattered tier references throughout
 the framework. PRD finalizes the path.
 
-**Pre-push hook as recognized stage.** New `.arc/system/githooks/pre-push` that dispatches to the
+**Pre-push hook as recognized stage.** New `.arc/system/.internal/githooks/pre-push` that dispatches to the
 adopter's push-gate commands. Config-gated via `hooks.pre_push` in `arc-config.yml`. Integrates through
 the existing hook-manager detection layer (ADR-014) — husky / lefthook / pre-commit.com / fallback all
 get the pre-push stage wired up.
@@ -199,7 +199,7 @@ shipped ARC defaults.
 
 ### Out of scope
 
-- Switching ARC's shipped hook script format (stays shell-based in `.arc/system/githooks/`).
+- Switching ARC's shipped hook script format (stays shell-based in `.arc/system/.internal/githooks/`).
   Hook-manager integration is already handled per ADR-014.
 - Rewriting or consolidating the existing 14 structural CHECKs. Framework-owned and fine.
 - Tech-stack-specific defaults in the shipped method. Configuration at initial-setup is the entry

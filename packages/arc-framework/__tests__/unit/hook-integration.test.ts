@@ -41,8 +41,8 @@ describe("integrateHooks — husky", () => {
 
     await integrateHooks(detection, io.readFile, io.writeFile);
 
-    expect(io.written["/repo/.husky/pre-commit"]).toContain(".arc/system/githooks/pre-commit");
-    expect(io.written["/repo/.husky/commit-msg"]).toContain(".arc/system/githooks/commit-msg $1");
+    expect(io.written["/repo/.husky/pre-commit"]).toContain(".arc/system/.internal/githooks/pre-commit");
+    expect(io.written["/repo/.husky/commit-msg"]).toContain(".arc/system/.internal/githooks/commit-msg $1");
     // Preserves existing content
     expect(io.written["/repo/.husky/pre-commit"]).toContain("npm run lint");
     expect(io.written["/repo/.husky/commit-msg"]).toContain("npx commitlint --edit $1");
@@ -54,14 +54,14 @@ describe("integrateHooks — husky", () => {
     await integrateHooks(detection, io.readFile, io.writeFile);
 
     expect(io.written["/repo/.husky/pre-commit"]).toMatch(/^#!/);
-    expect(io.written["/repo/.husky/pre-commit"]).toContain(".arc/system/githooks/pre-commit");
+    expect(io.written["/repo/.husky/pre-commit"]).toContain(".arc/system/.internal/githooks/pre-commit");
     expect(io.written["/repo/.husky/commit-msg"]).toMatch(/^#!/);
-    expect(io.written["/repo/.husky/commit-msg"]).toContain(".arc/system/githooks/commit-msg $1");
+    expect(io.written["/repo/.husky/commit-msg"]).toContain(".arc/system/.internal/githooks/commit-msg $1");
   });
 
   it("is idempotent — does not duplicate entries on second run", async () => {
-    const existing = "#!/usr/bin/env sh\n.arc/system/githooks/pre-commit\n";
-    const existingMsg = "#!/usr/bin/env sh\n.arc/system/githooks/commit-msg $1\n";
+    const existing = "#!/usr/bin/env sh\n.arc/system/.internal/githooks/pre-commit\n";
+    const existingMsg = "#!/usr/bin/env sh\n.arc/system/.internal/githooks/commit-msg $1\n";
     const io = makeIO({
       "/repo/.husky/pre-commit": existing,
       "/repo/.husky/commit-msg": existingMsg,
@@ -98,9 +98,9 @@ describe("integrateHooks — lefthook", () => {
     const output = io.written["/repo/lefthook.yml"];
     expect(output).toBeDefined();
     expect(output).toContain("arc-pre-commit");
-    expect(output).toContain(".arc/system/githooks/pre-commit");
+    expect(output).toContain(".arc/system/.internal/githooks/pre-commit");
     expect(output).toContain("arc-commit-msg");
-    expect(output).toContain(".arc/system/githooks/commit-msg {1}");
+    expect(output).toContain(".arc/system/.internal/githooks/commit-msg {1}");
     // Preserves existing commands
     expect(output).toContain("npm run lint");
   });
@@ -123,11 +123,11 @@ describe("integrateHooks — lefthook", () => {
       "pre-commit:",
       "  commands:",
       "    arc-pre-commit:",
-      "      run: .arc/system/githooks/pre-commit",
+      "      run: .arc/system/.internal/githooks/pre-commit",
       "commit-msg:",
       "  commands:",
       "    arc-commit-msg:",
-      "      run: .arc/system/githooks/commit-msg {1}",
+      "      run: .arc/system/.internal/githooks/commit-msg {1}",
       "",
     ].join("\n");
     const io = makeIO({ "/repo/lefthook.yml": existing });
@@ -163,9 +163,9 @@ describe("integrateHooks — pre-commit", () => {
     const output = io.written["/repo/.pre-commit-config.yaml"];
     expect(output).toBeDefined();
     expect(output).toContain("arc-pre-commit");
-    expect(output).toContain(".arc/system/githooks/pre-commit");
+    expect(output).toContain(".arc/system/.internal/githooks/pre-commit");
     expect(output).toContain("arc-commit-msg");
-    expect(output).toContain(".arc/system/githooks/commit-msg");
+    expect(output).toContain(".arc/system/.internal/githooks/commit-msg");
     expect(output).toContain("unsupported_script");
     // Preserves existing repos
     expect(output).toContain("trailing-whitespace");
@@ -214,14 +214,14 @@ describe("integrateHooks — pre-commit", () => {
       "    hooks:",
       "      - id: arc-pre-commit",
       "        name: ARC Pre-Commit",
-      "        entry: .arc/system/githooks/pre-commit",
+      "        entry: .arc/system/.internal/githooks/pre-commit",
       "        language: unsupported_script",
       "        stages:",
       "          - commit",
       "        files: .",
       "      - id: arc-commit-msg",
       "        name: ARC Commit Message",
-      "        entry: .arc/system/githooks/commit-msg",
+      "        entry: .arc/system/.internal/githooks/commit-msg",
       "        language: unsupported_script",
       "        stages:",
       "          - commit-msg",

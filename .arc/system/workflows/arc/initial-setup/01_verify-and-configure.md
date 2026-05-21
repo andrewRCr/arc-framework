@@ -172,7 +172,7 @@ Confirm that `arc init` set up the local environment:
   (e.g., `.claude/`, `.codex/`). These contain skills and settings.
 - **Git hooks** — if your project uses a hook manager (husky, lefthook, pre-commit),
   ARC hooks are integrated into the manager's config. Otherwise, `core.hooksPath` is set
-  to `.arc/system/githooks/`. Verify with `git config core.hooksPath` or check your
+  to `.arc/system/.internal/githooks/`. Verify with `git config core.hooksPath` or check your
   hook manager's config for ARC entries.
 - **Identity** — `git config arc.identity` is set. This determines your personal
   workspace directory (`user/{identity}/`).

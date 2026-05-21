@@ -1,8 +1,8 @@
 #!/bin/bash
 # Git commit-msg hook - Validates commit message format
-# Location: .arc/system/githooks/commit-msg
+# Location: .arc/system/.internal/githooks/commit-msg
 #
-# Setup: git config core.hooksPath .arc/system/githooks
+# Setup: git config core.hooksPath .arc/system/.internal/githooks
 # NOTE: Never use --no-verify to bypass hooks. Fix the issue instead.
 
 set -e

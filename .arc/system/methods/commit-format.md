@@ -71,7 +71,7 @@ probably wants splitting or its prose moved to a doc.
 blocks it. Preserves grep-ability: `git log --grep "Task 3.1"` should find the right commits.
 
 **Enforcement:** Git hooks validate format when `commit.format` is `conventional` or `custom`
-in [`arc-config.yml`][arc-config]. See `system/githooks/README.md` for setup.
+in [`arc-config.yml`][arc-config]. See `system/.internal/githooks/README.md` for setup.
 
 ---
 

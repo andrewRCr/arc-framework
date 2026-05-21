@@ -18,23 +18,23 @@ hook setup while adding ARC's validation:
 - **pre-commit** — adds local hooks to `.pre-commit-config.yaml`
 
 **No hook manager:** When no manager is detected, ARC sets `core.hooksPath` directly to
-`.arc/system/githooks/`.
+`.arc/system/.internal/githooks/`.
 
 **Manual setup** (if not using the CLI):
 
 ```bash
 # Option A: Direct hook path (no hook manager)
-git config core.hooksPath .arc/system/githooks
+git config core.hooksPath .arc/system/.internal/githooks
 
 # Option B: Hook manager — add calls to your manager's config
-# Husky: echo '.arc/system/githooks/pre-commit' >> .husky/pre-commit
+# Husky: echo '.arc/system/.internal/githooks/pre-commit' >> .husky/pre-commit
 # See the integration patterns below for each manager
 ```
 
 Hooks must be executable:
 
 ```bash
-chmod +x .arc/system/githooks/commit-msg .arc/system/githooks/pre-commit
+chmod +x .arc/system/.internal/githooks/commit-msg .arc/system/.internal/githooks/pre-commit
 ```
 
 ## What Gets Validated
@@ -42,7 +42,7 @@ chmod +x .arc/system/githooks/commit-msg .arc/system/githooks/pre-commit
 ### commit-msg — Message Format
 
 Enforces the commit message standard defined in
-[DEV-RULES.ARC.md](../../system/rules/DEV-RULES.ARC.md) § Commit format:
+[DEV-RULES.ARC.md](../../../system/rules/DEV-RULES.ARC.md) § Commit format:
 
 **Errors (blocks commit):**
 
@@ -138,7 +138,7 @@ GNU-specific dependencies required.
 
 ## Shared Library
 
-Both hooks source `.arc/system/scripts/arc-lib.sh` for config reading (`arc_config_get`) and
+Both hooks source `.arc/system/.internal/scripts/arc-lib.sh` for config reading (`arc_config_get`) and
 color definitions. If you add custom hooks, source the same library to avoid duplicating the
 config parser:
 
@@ -173,10 +173,10 @@ custom checks directly to the hook scripts in this directory.
 ```bash
 # If using core.hooksPath (no hook manager):
 git config core.hooksPath
-# Should output: .arc/system/githooks
+# Should output: .arc/system/.internal/githooks
 
 # If using a hook manager, check the manager's config for ARC hook entries:
-# Husky: cat .husky/pre-commit (should contain .arc/system/githooks/pre-commit)
+# Husky: cat .husky/pre-commit (should contain .arc/system/.internal/githooks/pre-commit)
 # Lefthook: grep arc-pre-commit lefthook.yml
 # pre-commit: grep arc-pre-commit .pre-commit-config.yaml
 ```
@@ -184,7 +184,7 @@ git config core.hooksPath
 **Permission denied:**
 
 ```bash
-chmod +x .arc/system/githooks/commit-msg .arc/system/githooks/pre-commit
+chmod +x .arc/system/.internal/githooks/commit-msg .arc/system/.internal/githooks/pre-commit
 ```
 
 **Testing hooks locally:**
@@ -192,8 +192,8 @@ chmod +x .arc/system/githooks/commit-msg .arc/system/githooks/pre-commit
 ```bash
 # Test commit-msg
 echo "test message" > /tmp/test-msg
-.arc/system/githooks/commit-msg /tmp/test-msg
+.arc/system/.internal/githooks/commit-msg /tmp/test-msg
 
 # Test pre-commit
-.arc/system/githooks/pre-commit
+.arc/system/.internal/githooks/pre-commit
 ```

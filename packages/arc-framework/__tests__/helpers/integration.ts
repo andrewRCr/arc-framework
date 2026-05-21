@@ -157,7 +157,14 @@ export async function listFiles(
     for (const entry of entries) {
       const fullPath = join(current, entry);
       const relPath = relative(dir, fullPath);
-      if (skipInternal && (relPath === "system/.internal" || relPath.startsWith("system/.internal/"))) {
+      // Skip generated bookkeeping artifacts (not part of the recipe-driven
+      // file inventory). Recipe-installed machinery under system/.internal/
+      // (githooks, scripts, skills) is real inventory and is still listed.
+      if (
+        skipInternal &&
+        (relPath === "system/.internal/manifest.json" ||
+          relPath === "system/.internal/pristine.json")
+      ) {
         continue;
       }
       // Skip user/{identity}/ directories (gitignored personal workspace)

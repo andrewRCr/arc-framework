@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Verify ARC installation integrity — config, files, references, hooks, session state.
-# Location: .arc/system/scripts/verify-integrity.sh
+# Location: .arc/system/.internal/scripts/verify-integrity.sh
 #
 # Run from repository root:
-#   .arc/system/scripts/verify-integrity.sh
+#   .arc/system/.internal/scripts/verify-integrity.sh
 #
 # Output: one line per check with ERROR/WARN/INFO prefix.
 # Exit codes: 0 = all pass, 1 = warnings only, 2 = errors present.
@@ -49,7 +49,7 @@ ARC_DIR="${ARC_DIR:-.arc}"
 
 echo "--- Config Validation ---"
 
-config_script="$ARC_DIR/system/scripts/validate-config.sh"
+config_script="$ARC_DIR/system/.internal/scripts/validate-config.sh"
 if [ -f "$config_script" ] && [ -x "$config_script" ]; then
     # Capture output and exit code
     config_exit=0
@@ -107,8 +107,8 @@ check_file "$ARC_DIR/system/workflows/arc/session-lifecycle/session-init.md" "Se
 check_file "$ARC_DIR/system/workflows/arc/3_process-task-loop.md" "Process task loop"
 
 # Scripts
-check_file "$ARC_DIR/system/scripts/arc-lib.sh" "Shared library"
-check_file "$ARC_DIR/system/scripts/validate-config.sh" "Config validator"
+check_file "$ARC_DIR/system/.internal/scripts/arc-lib.sh" "Shared library"
+check_file "$ARC_DIR/system/.internal/scripts/validate-config.sh" "Config validator"
 
 # PM-mode-dependent files
 pm_mode=$(ARC_CONFIG_FILE="$ARC_DIR/system/arc-config.yml" arc_config_get "pm.mode" "none")
@@ -124,7 +124,7 @@ echo ""
 
 echo "--- Hook Status ---"
 
-hooks_dir="$ARC_DIR/system/githooks"
+hooks_dir="$ARC_DIR/system/.internal/githooks"
 hooks_pre_commit=$(ARC_CONFIG_FILE="$ARC_DIR/system/arc-config.yml" arc_config_get "hooks.pre_commit" "enabled")
 hooks_commit_msg=$(ARC_CONFIG_FILE="$ARC_DIR/system/arc-config.yml" arc_config_get "hooks.commit_msg" "enabled")
 

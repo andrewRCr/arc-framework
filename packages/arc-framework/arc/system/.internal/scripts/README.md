@@ -28,10 +28,10 @@ All scripts expect to be run from the **repository root**:
 
 ```bash
 # Validate config only
-.arc/system/scripts/validate-config.sh
+.arc/system/.internal/scripts/validate-config.sh
 
 # Full integrity check
-.arc/system/scripts/verify-integrity.sh
+.arc/system/.internal/scripts/verify-integrity.sh
 ```
 
 ## Output Format

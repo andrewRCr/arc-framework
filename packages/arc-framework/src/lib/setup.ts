@@ -42,7 +42,7 @@ export async function configureGitIntegration(
   if (hookManager) {
     await integrateHooks(hookManager, readFile, writeFile);
   } else {
-    await exec("git", ["config", "core.hooksPath", ".arc/system/githooks"]);
+    await exec("git", ["config", "core.hooksPath", ".arc/system/.internal/githooks"]);
   }
 }
 

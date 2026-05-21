@@ -1,6 +1,6 @@
 # set -e required: husky wrapper exit code = exit of last command.
 # Without this, a failing ARC hook is swallowed by the second command succeeding.
 set -e
-bash .arc/system/githooks/pre-commit
+bash .arc/system/.internal/githooks/pre-commit
 bash scripts/check-package-sync.sh
 bash scripts/check-ts-quality.sh

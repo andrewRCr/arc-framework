@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Shared shell library for ARC scripts and hooks.
-# Location: .arc/system/scripts/arc-lib.sh
+# Location: .arc/system/.internal/scripts/arc-lib.sh
 #
 # Source this file — do not execute directly.
 # All callers must run from the repository root.

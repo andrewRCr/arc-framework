@@ -120,7 +120,7 @@ package source. Points here for the full architecture.
 ### Hook separation pattern
 
 Dev-only checks live in the husky layer (`.husky/pre-commit` → `scripts/*.sh`), not in the
-ARC pre-commit hook (`.arc/system/githooks/pre-commit`). The ARC hook is a Framework file
+ARC pre-commit hook (`.arc/system/.internal/githooks/pre-commit`). The ARC hook is a Framework file
 shipped to adopters — only universal checks belong there. This supersedes the prior
 `.arc-internal/` dual-hook approach from WU2.
 
@@ -184,11 +184,11 @@ arc-in-git files are annotated explicitly.
 - `reference/briefs/AGENT-BRIEF.ARC.md`
 - `reference/briefs/AGENT-BRIEF.CONTRIBUTOR.md`
 - `reference/briefs/README.md`
-- `system/githooks/README.md`
-- `system/githooks/commit-msg`
-- `system/githooks/pre-commit`
-- `system/scripts/README.md`
-- `system/scripts/arc-lib.sh`
+- `system/.internal/githooks/README.md`
+- `system/.internal/githooks/commit-msg`
+- `system/.internal/githooks/pre-commit`
+- `system/.internal/scripts/README.md`
+- `system/.internal/scripts/arc-lib.sh`
 - `system/skills/README.md`
 - `system/skills/arc-commit/SKILL.md`
 - `system/skills/arc-handoff/SKILL.md`

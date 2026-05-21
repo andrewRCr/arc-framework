@@ -15,7 +15,7 @@
 # transpile skips typechecking; eslint surfaces issues neither tsc pass does.
 # Failures collect through the chain so all three report in one shot.
 
-. .arc/system/scripts/arc-lib.sh
+. .arc/system/.internal/scripts/arc-lib.sh
 RED="$ARC_RED"
 NC="$ARC_NC"
 

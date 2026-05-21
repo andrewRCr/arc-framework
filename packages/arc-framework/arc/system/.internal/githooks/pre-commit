@@ -1,8 +1,8 @@
 #!/bin/bash
 # Git pre-commit hook - Runs before commit is created
-# Location: .arc/system/githooks/pre-commit
+# Location: .arc/system/.internal/githooks/pre-commit
 #
-# Setup: git config core.hooksPath .arc/system/githooks
+# Setup: git config core.hooksPath .arc/system/.internal/githooks
 # NOTE: Never use --no-verify to bypass hooks. Fix the issue instead.
 #
 # shellcheck disable=SC2001 # sed 's/^/   /' for multiline indentation is clearer than parameter expansion

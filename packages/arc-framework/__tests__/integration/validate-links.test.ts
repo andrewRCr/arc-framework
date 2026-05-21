@@ -18,7 +18,7 @@ const execFileAsync = promisify(execFile);
 const SCRIPT_PATH = resolve(
   dirname(fileURLToPath(import.meta.url)),
   "../../../..",
-  ".arc/system/scripts/validate-links.sh",
+  ".arc/system/.internal/scripts/validate-links.sh",
 );
 
 async function runScript(

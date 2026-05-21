@@ -215,17 +215,17 @@
       "layer": "core",
       "pristine_hash": "0ee6fd415971d1e88ce7a76cf7ba2143051dbe7bdd68e72babf529a77f707bbb"
     },
-    "system/githooks/commit-msg": {
+    "system/.internal/githooks/commit-msg": {
       "classification": "Framework",
       "layer": "core",
       "pristine_hash": "cd2652c15740510fdfa2818c81fef65dd76db349679bea32f65b5b1a9dc7c22b"
     },
-    "system/githooks/pre-commit": {
+    "system/.internal/githooks/pre-commit": {
       "classification": "Framework",
       "layer": "core",
       "pristine_hash": "c0ada81204b2abc92935675630758fe617a6c4a89438f07145de13f72011cb76"
     },
-    "system/githooks/README.md": {
+    "system/.internal/githooks/README.md": {
       "classification": "Framework",
       "layer": "core",
       "pristine_hash": "fc4e2058b9de8de86f33db9d5c617c509943c5d1c27de0f04ec706ba3e87ef62"
@@ -275,22 +275,22 @@
       "layer": "core",
       "pristine_hash": "09678b21feff4a370c8156e0efb253360374823d7c83cf1e8148977ee19da6d5"
     },
-    "system/scripts/arc-lib.sh": {
+    "system/.internal/scripts/arc-lib.sh": {
       "classification": "Framework",
       "layer": "core",
       "pristine_hash": "2b0eddbc85565cbca31e9f9a2aff7df571ee6f1e85f44897f0584c348d6e582a"
     },
-    "system/scripts/validate-config.sh": {
+    "system/.internal/scripts/validate-config.sh": {
       "classification": "Framework",
       "layer": "core",
       "pristine_hash": "73da57b725051cb8d79df010adcd742cc6266708749cb56705c846d5e34bdf17"
     },
-    "system/scripts/verify-integrity.sh": {
+    "system/.internal/scripts/verify-integrity.sh": {
       "classification": "Framework",
       "layer": "core",
       "pristine_hash": "cc2a68d1681cfb980d4b5df39017896e32a549be2f859552ae4682957279d8cc"
     },
-    "system/scripts/README.md": {
+    "system/.internal/scripts/README.md": {
       "classification": "Framework",
       "layer": "core",
       "pristine_hash": "df542b3b3845e940120c9eaee3c0059d815f5b2758df8b2dfdba6c2b366da91d"

@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const repoRoot = join(__dirname, "..", "..", "..", "..", "..");
-const scriptPath = join(repoRoot, "packages/arc-framework/arc/system/scripts/validate-config.sh");
+const scriptPath = join(repoRoot, "packages/arc-framework/arc/system/.internal/scripts/validate-config.sh");
 
 interface ScriptResult {
   code: number;

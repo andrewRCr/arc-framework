@@ -207,7 +207,7 @@ export async function runInit(
 
   // Set executable permissions on hooks and shell scripts
   for (const relPath of filesWritten) {
-    if (relPath.startsWith("system/githooks/") || relPath.endsWith(".sh")) {
+    if (relPath.startsWith("system/.internal/githooks/") || relPath.endsWith(".sh")) {
       await io.chmod(join(arcDir, relPath), 0o755);
     }
   }

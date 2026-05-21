@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Validate markdown link targets in staged files.
-# Location: .arc/system/scripts/validate-links.sh
+# Location: .arc/system/.internal/scripts/validate-links.sh
 #
 # Usage:
-#   .arc/system/scripts/validate-links.sh file1.md file2.md ...
+#   .arc/system/.internal/scripts/validate-links.sh file1.md file2.md ...
 #
 # Checks each markdown file for:
 # - Inline links     [text](target)    — target resolves to an existing file

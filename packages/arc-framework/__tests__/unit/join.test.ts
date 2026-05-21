@@ -156,7 +156,7 @@ describe("runJoin", () => {
     expect(hooksPath).toBeDefined();
     expect(hooksPath).toEqual([
       "git",
-      ["config", "core.hooksPath", ".arc/system/githooks"],
+      ["config", "core.hooksPath", ".arc/system/.internal/githooks"],
     ]);
 
     // guard: merge driver was retired in d8e5048 — no merge.* git config should be written

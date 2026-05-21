@@ -16,7 +16,7 @@ const __dirname = dirname(__filename);
 const repoRoot = join(__dirname, "..", "..", "..", "..", "..");
 
 const preCommitSource = readFileSync(
-  join(repoRoot, "packages/arc-framework/arc/system/githooks/pre-commit"),
+  join(repoRoot, "packages/arc-framework/arc/system/.internal/githooks/pre-commit"),
   "utf-8",
 );
 

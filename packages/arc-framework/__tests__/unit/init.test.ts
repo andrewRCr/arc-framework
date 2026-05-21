@@ -812,7 +812,7 @@ describe("runInit", () => {
       (c) => c[1]?.includes("core.hooksPath"),
     );
     expect(hooksPath).toBeDefined();
-    expect(hooksPath![1]).toContain(".arc/system/githooks");
+    expect(hooksPath![1]).toContain(".arc/system/.internal/githooks");
 
     // guard: .gitattributes and merge driver were retired in d8e5048 — no regression
     const gitattributesWrite = writeCalls.find(

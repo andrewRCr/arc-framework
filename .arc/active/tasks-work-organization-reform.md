@@ -3941,35 +3941,21 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           package-source copy). Keeping the parent singular means no promotion, no path change, and no
           manifest-path code change — `.internal/` simply gains sibling dirs alongside the manifest.
 
-    - `[ ]` **6.12.c Move `githooks/` → `.internal/githooks/`** — _commit together with 6.12.d (coupled)._
-        - `git mv .arc/system/githooks .arc/system/.internal/githooks`.
-        - `git mv packages/arc-framework/arc/system/githooks
-          packages/arc-framework/arc/system/.internal/githooks`. (`git mv` auto-creates the package-source
-          `.internal/` parent — none exists today; manifest/pristine are instance-only.)
-        - Sweep CLI path literals (grep-catchable): `setup.ts` (`core.hooksPath .arc/system/githooks` — adopter
-          install path), `hook-integration.ts` (`ARC_PRE_COMMIT` / `ARC_COMMIT_MSG` constants — the Husky /
-          Lefthook / pre-commit config writers), `init.ts` (`system/githooks/` prefix check), plus
-          `githooks/README.md` manual-setup instructions.
-        - Self-host re-wire — this repo runs **Husky**, not bare `core.hooksPath` (`core.hooksPath` = `.husky/_`):
-          edit the git-tracked `.husky/commit-msg` + `.husky/pre-commit` (each `bash .arc/system/githooks/…` →
-          `.internal/githooks/…`). Tracked → this is a **committed** edit in this bundle, not a local
-          `core.hooksPath` reset; required for the bundle's own commit hook to fire. Smoke-tested at 6.12.g.
+    - `[x]` **6.12.c Move `githooks/` → `.internal/githooks/`** — _committed with 6.12.d (coupled)._
+        - _Outcome:_ Both copies moved — package-source `.internal/` had to be `mkdir`'d first; `git mv` does
+          NOT auto-create the destination parent (the earlier `-n -k` dry-run masked this). Swept CLI literals
+          (`setup.ts` core.hooksPath, `hook-integration.ts` ARC_PRE_COMMIT/ARC_COMMIT_MSG, `init.ts` prefix +
+          `.sh`/githooks chmod check) and re-wired the tracked `.husky/{commit-msg,pre-commit}` to
+          `.internal/githooks/` (committed — this repo is Husky-based, not bare core.hooksPath).
 
-    - `[ ]` **6.12.d Move `scripts/` → `.internal/scripts/`** — _commit together with 6.12.c (coupled via the
-      hooks' `../scripts/` source lines)._
-        - `git mv .arc/system/scripts .arc/system/.internal/scripts`.
-        - `git mv packages/arc-framework/arc/system/scripts
-          packages/arc-framework/arc/system/.internal/scripts`.
-        - Inter-script sourcing is `dirname`-relative (`. "$(dirname "$0")/arc-lib.sh"`) and survives the move;
-          the hooks' `../scripts/…` refs survive too — but only **once both dirs have moved**, hence the joint
-          commit with 6.12.c.
-        - Sweep absolute refs that do NOT self-correct (they live inside the moved dir — see the 6.12.f
-          carve-out): `verify-integrity.sh` (`$ARC_DIR/system/scripts/{validate-config,arc-lib}.sh`,
-          `$ARC_DIR/system/githooks`) and `arc-verify/SKILL.md` (`.arc/system/scripts/verify-integrity.sh`,
-          both copies) → `.internal/…`.
-        - Quality-gate surface: `packages/arc-framework/package.json` `lint:sh` hard-codes
-          `arc/system/scripts/run-shellcheck.sh` + `arc/system/{githooks,scripts}/…` — update or `npm run lint:sh`
-          breaks. Plus `scripts/README.md` path references.
+    - `[x]` **6.12.d Move `scripts/` → `.internal/scripts/`** — _committed with 6.12.c._
+        - _Outcome:_ Both copies moved; `dirname`-relative inter-script and hook `../scripts/…` sourcing
+          survived intact. Fixed the absolute refs that don't self-correct: `verify-integrity.sh`
+          `$ARC_DIR/system/{scripts,githooks}` (both copies), `arc-verify/SKILL.md` script path (both copies),
+          `package.json` `lint:sh`. `sed -i` strips worktree exec bits, but `core.fileMode=false` preserves the
+          committed modes (`validate-links.sh` stays 100755, the rest 100644 + `arc init` chmod for adopters).
+          `verify-integrity.sh` runs clean from the new path (0 errors; the 5 warnings are pre-existing
+          Husky/exec-bit/strategy-index, not move-induced).
 
     - `[ ]` **6.12.e Move `skills/` → `.internal/skills/`** — _separable: own commit after 6.12.c+d._
         - `git mv .arc/system/skills .arc/system/.internal/skills`.
@@ -3981,6 +3967,11 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           Package-Project Sync skill-file drift logic, READMEs.
         - **Verification step (critical):** manually walk through the `add-agent` workflow after the sweep to
           confirm path resolution; segmented-`join` / dynamic-path construction is not caught by literal grep.
+        - **Depth-shift gotcha (from 6.12.c+d):** the move adds a directory level, so a moved file's own
+          `../`-relative links pointing _outside_ the moved dir (e.g., a `skills/*/SKILL.md` or `skills/README.md`
+          link to `../../system/...`) lose one `../` and break — regardless of target, so the path-pattern grep
+          misses them. Run `validate-links.sh` on every moved `.md` (READMEs + SKILL.md files) and add one `../`
+          to each outside-pointing link. (6.12.c+d caught this only at the pre-commit hook.)
 
     - `[ ]` **6.12.f Sweep inbound references (internals nesting paths)**
         - Grep patterns: `system/\.internal/`, `\.arc/system/\.internal/`, `system/githooks`,
@@ -3996,6 +3987,14 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           valid — the 6.11.d rule). But absolute / root-anchored refs inside moved dirs do NOT self-correct —
           sweep `$ARC_DIR/system/…` and `.arc/system/…` refs in `verify-integrity.sh` and `arc-verify/SKILL.md`
           (done in 6.12.d/e; re-grep here to confirm none remain).
+        - _Status (githooks+scripts done in the c+d commit):_ the full inbound sweep for `githooks/` + `scripts/`
+          landed with 6.12.c+d — CLI source, docs, strategy, the `quality-gate-hooks` backlog plan, `manifest.json`
+          keys, 9 test files, `.husky/`, and repo-root `scripts/check-*.sh` — plus the `listFiles` test helper
+          narrowed (`skipInternal` now skips only generated `manifest.json`/`pristine.json`, not recipe-installed
+          `.internal/` machinery). **Intentionally left:** the 3 ADRs (historical decision records — already carry
+          other stale paths) and `pristine.json` (600KB generated merge-cache, not test/verify-load-bearing,
+          broadly stale per BACKLOG-INBOX). After 6.12.e this reduces to the skills sweep + a final whole-tree
+          re-grep.
 
     - `[ ]` **6.12.g Verify inbound references swept + tooling smoke-test (post-6.12.f)**
         - Grep across the documentation surface for the old paths (`system/githooks`, `system/scripts`,
