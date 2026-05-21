@@ -18,12 +18,13 @@ freeform exploration.
 
 This plan was authored when WU artifact prefixes were `plan-*` (exploration) and `prd-*` (spec)
 with meta-file fields `**Spec:**` / `**Task List:**`. Work Organization Reform (WOR R66-R68)
-renames these to `draft-*` / `spec-*` and `**Design:**` / `**Blueprint:**` respectively, with
-spec form variation routed through template choice (heaviest variant `template-prd.md` preserved;
-lighter variants like `template-brief.md` deferred to this WU's scope).
+renames the file classes to `draft-*` / `spec-*` and the meta-file field `**Spec:**` → `**Design:**`
+(`**Task List:**` retained), with spec form variation routed through template choice (heaviest
+variant `template-prd.md` preserved; lighter variants deferred to this WU's scope — `brief` ruled
+out as a name, it collides with `reference/briefs/`).
 
 This plan's body content predates the rename. Comprehensive content sweep (`plan-*` → `draft-*`;
-`prd-*` → `spec-*`; `**Spec:**` field → `**Design:**`; `**Task List:**` field → `**Blueprint:**`;
+`prd-*` → `spec-*`; `**Spec:**` field → `**Design:**`; `**Task List:**` retained;
 `template-plan.md` → `template-draft.md`) **defers to this WU's activation** (Activation Audit
 pattern, following `plan-worktree-foundation.md` convention). Readers of this draft today should
 substitute terms inline. References to "PRD" as the artifact-form name remain appropriate where
@@ -41,10 +42,12 @@ Conductor-WU implications of the rename (substantive content captured here, not 
 2. **Atomic-tier spec stance.** Binary at PRD time: either atomic gets a required-and-tiny spec
    (one-paragraph form, supports reviewer validation) or atomic gets no spec at all. Not
    optional. Resolved here, not deferred.
-3. **Template-variant scaling under unified `spec-*`.** WOR locks the unified prefix; this WU
-   ships the template variants. `template-prd.md` is preserved as the heaviest variant. Candidate
-   additional variants: `template-brief.md` (atomic-tier shape), `template-plan.md` (re-introduced
-   here as a *middle-weight spec variant* — see filename-history note below), other forms as
+3. **Template-variant scaling under unified `spec-*`.** WOR locks the unified prefix and establishes
+   the spec-form template home at `reference/templates/arc/work-unit/spec/` (WOR Phase 7), with
+   `template-prd.md` preserved there as the heaviest variant; this WU ships the lighter variants
+   alongside it. Recommended: recycle `template-plan.md` as a *middle-weight spec variant*
+   (templating `spec-*` content — see filename-history note below). A lightest-weight variant is
+   needed too; name TBD, but **not `brief`** (collides with `reference/briefs/`). Other forms as
    patterns surface during PRD work.
 4. **`template-plan.md` filename-history note.** Under WOR, `template-plan.md` retires (renamed
    `template-draft.md` since `plan-*` → `draft-*`). If this WU re-introduces `template-plan.md` as

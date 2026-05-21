@@ -16,11 +16,11 @@ the agility gap where ARC's uniform ceremony costs more than the work for short-
 
 ## WOR alignment note (2026-05-19)
 
-WOR R66-R68 renames WU artifact prefixes (`plan-*` → `draft-*`, `prd-*` → `spec-*`) and meta-file
-fields (`**Spec:**` → `**Design:**`, `**Task List:**` → `**Blueprint:**`). Spec form variation
+WOR R66-R68 renames WU artifact prefixes (`plan-*` → `draft-*`, `prd-*` → `spec-*`) and the meta-file
+field `**Spec:**` → `**Design:**` (`**Task List:**` retained). Spec form variation
 routes through template choice under the unified `spec-*` filename — `template-prd.md` preserved as
-heaviest variant; lighter variants (e.g., `template-brief.md`) deferred to `plan-arc-plan-conductor`
-WU scope.
+heaviest variant; lighter variants deferred to `plan-arc-plan-conductor` WU scope (`brief` ruled out
+as a name — collides with `reference/briefs/`).
 
 Comprehensive content sweep of this plan defers to WU activation (Activation Audit pattern).
 Readers today should substitute terms inline.

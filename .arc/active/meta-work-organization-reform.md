@@ -16,10 +16,12 @@
   Phase 6 complete. (`85f5907a`, `b66073b5`)
 - **Blockers:** [none]
 
-- **Next Task:** Task 7.1 — Rename `prd-*` → `spec-*` (file class + workflow) (line ~4068).
+- **Next Task:** Task 7.1 — Rename `prd-*` → `spec-*` (file class + workflow) (line ~4080).
 
-- **Next Action:** Begin Phase 7 — the artifact-rename block. Per WORKING-MEMORY's Phase-7 terminology note,
-  this phase executes the `prd-*` / `plan-*` file-class renames and `**Spec:**` / `**Task List:**` field
-  renames the rest of WOR deferred; sequence them as one cohesive block starting at Task 7.1.
+- **Next Action:** Begin Phase 7 execution at Task 7.1. Phase 7 was re-specced this session — the meta-file
+  field rename is now **Design-only** (`**Spec:**` → `**Design:**`; `**Task List:**` retained), a
+  templates-directory restructure was added (Task 7.3: `arc/` + `project/` split, work-unit grouping), and the
+  pre-implementation audit's corrections are folded into the tasks. Execute 7.1–7.8 as one artifact-rename +
+  restructure block; see SESSION-NOTES for carry-as-context impl details.
 
 ---

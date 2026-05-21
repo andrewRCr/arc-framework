@@ -712,8 +712,8 @@ items:
   pause-pointer migration sweep here retires those fields entirely.
 
 - **WOR R66-R68 terminology rename** (2026-05-19): WOR renames `plan-*` → `draft-*`,
-  `prd-*` → `spec-*`, meta-file fields `**Spec:**` → `**Design:**` and `**Task List:**` →
-  `**Blueprint:**`, and the spec workflow `1_create-prd.md` → `1_create-spec.md`. This plan's body
+  `prd-*` → `spec-*`, the meta-file field `**Spec:**` → `**Design:**` (`**Task List:**` retained),
+  and the spec workflow `1_create-prd.md` → `1_create-spec.md`. This plan's body
   references the pre-rename vocabulary. Activation audit sweeps internal references — mechanical;
   no design changes implied. Substantive interactions: scope item 6's path-driven sync dispatch
   references meta-file class via `meta-<wu-name>.md` (unchanged); scope item 11's cold-start

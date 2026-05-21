@@ -5718,16 +5718,16 @@ during dormancy. Known drift items as of 2026-04-28:
   backlog entry was redirected from `plan-arc-lite.md` → `plan-arc-modes.md`, but this plan's
   internal stale refs were not touched — activation reconciliation completes the redirect.
 - **WOR R66-R68 terminology rename** (2026-05-19): WOR renames `plan-*` → `draft-*`,
-  `prd-*` → `spec-*`, meta-file fields `**Spec:**` → `**Design:**` and `**Task List:**` →
-  `**Blueprint:**`, spec workflow `1_create-prd.md` → `1_create-spec.md`, and `template-plan.md` →
+  `prd-*` → `spec-*`, the meta-file field `**Spec:**` → `**Design:**` (`**Task List:**` retained),
+  spec workflow `1_create-prd.md` → `1_create-spec.md`, and `template-plan.md` →
   `template-draft.md` (heaviest variant `template-prd.md` preserved). This plan's body references
   the pre-rename vocabulary extensively — particularly normative statements about Lite-mode
   discovery checking `plan-*.md` / `prd.md` in `.arc/active/`, and SQ2's `plan-*` location decision
   for Lite. Activation audit sweeps internal references to current vocabulary. Substantive
   interactions: Lite-mode's "reduced PRD template" concept (§ The Lite PRD) becomes one of several
-  spec template variants under the unified `spec-*` filename — name choice (`template-brief.md`,
-  re-introduced `template-plan.md` as middle-weight variant, or other) defers to
-  `plan-arc-plan-conductor.md` scope and downstream Lite-PRD ratification.
+  spec template variants under the unified `spec-*` filename — name choice (a recycled
+  `template-plan.md` middle-weight variant, or other; not `brief` — collides with `reference/briefs/`)
+  defers to `plan-arc-plan-conductor.md` scope and downstream Lite-PRD ratification.
 
 ---
 

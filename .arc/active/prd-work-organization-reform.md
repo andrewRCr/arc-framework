@@ -601,11 +601,11 @@ complement not duplicate).
     - Identity: `State`, `Owner`, `Branch`
     - Reference: `Origin`, `Design` (per R68, was `Spec` pre-rename)
     - Coordination: `Depends On`, `Cohort`
-    - Task pointers: `Blueprint` (per R68, was `Task List` pre-rename), `Last Completed`, `Next Task`, `Blockers`
+    - Task pointers: `Task List`, `Last Completed`, `Next Task`, `Blockers`
     - Directive: `Next Action`
     - Post-integration block (added at integration ceremony): `PR URL`, `Completed`
 - Reference-group ordering puts `Origin` before `Design` to reflect the chain-of-authority direction
-  (`Origin → Design → Blueprint → PR URL`); see R58a for the cross-file chain-model convention
+  (`Origin → Design → Task List → PR URL`); see R58a for the cross-file chain-model convention
 - Content H2s added at Active → Integrating transition: `## Release Notes Entry`, `## Completion Notes`
 - Session-init's `^## Work Unit Metadata` partial-read anchor retires; meta file becomes a full-read target (cost: 8
   additional concise fields per read; benefit: regex-anchor maintenance retired and archive-phase content gated by H2
@@ -640,12 +640,12 @@ complement not duplicate).
 
 **R58a.** Cross-file header convention follows the chain-of-authority model. Each non-meta WU artifact carries its
 immediate-upstream pointer as a header field; meta-\* carries the full chain as the canonical authority view. Field
-names reflect R68 rename (`Spec` → `Design`; `Task List` → `Blueprint`) and file-class names reflect R66/R67
+names reflect R68 rename (`Spec` → `Design`; `Task List` retained) and file-class names reflect R66/R67
 (`prd-*` → `spec-*`; `plan-*` → `draft-*`).
 
 | File       | Header field(s)                                                              | Substantive opening                       |
 | ---------- | ---------------------------------------------------------------------------- | ----------------------------------------- |
-| `meta-*`   | Full R58 field set (Origin / Design / Blueprint + post-integration PR URL)   | (none — meta is structural)               |
+| `meta-*`   | Full R58 field set (Origin / Design / Task List + post-integration PR URL)   | (none — meta is structural)               |
 | `draft-*`  | `**Origin:**` (default `[Internal]`)                                         | `**Purpose:**` follows as document thesis |
 | `spec-*`   | `**Origin:**` (default `[Internal]`)                                         | `**Purpose:**` follows as document thesis |
 | `tasks-*`  | `**Design:**` (the upstream spec artifact)                                   | (no thesis — derived execution surface)   |
@@ -655,7 +655,7 @@ names reflect R68 rename (`Spec` → `Design`; `Task List` → `Blueprint`) and 
 
 1. **Bounded duplication.** Each non-meta artifact carries exactly one 1-hop pointer to its immediate upstream. No
    two-hop or full-chain duplication outside meta-\*.
-2. **Meta authority.** Meta is the only artifact carrying the full chain — Origin + Design + Blueprint +
+2. **Meta authority.** Meta is the only artifact carrying the full chain — Origin + Design + Task List +
    post-integration PR URL. Reading meta-\* alone gives a complete trace from work origin to delivered PR.
 3. **Self-describing in isolation.** Opening a non-meta artifact cold tells the reader its immediate authority (Origin
    for draft / spec; Design for tasks) without needing to first read meta-\*.
@@ -666,7 +666,8 @@ names reflect R68 rename (`Spec` → `Design`; `Task List` → `Blueprint`) and 
 **`Design:` field generalizability (deliberate forward-compat; was `Spec:` pre-R68).** `**Design:**` names the upstream
 spec artifact regardless of artifact type. Today's standard-tier WUs have a PRD-shape spec; future tier variants per
 AWL (atomic / quick / standard) or future modes per arc-plan Conductor / Lite mode may use lighter-templated spec
-variants (`template-brief.md`, re-introduced `template-plan.md` as middle-weight variant, etc. — see R66). The field
+variants (e.g., a recycled `template-plan.md` middle-weight variant — see R66; `brief` is ruled out as a name, it
+collides with `reference/briefs/`). The field
 name does not lock to any single template variant — it points at whatever the spec artifact is for the WU's
 tier × mode × template-variant combination. PRD-shape is the today-default heaviest variant; the contract is
 generalizable.
@@ -797,12 +798,15 @@ prefix across `active/`, `backlog/`, and historical references. The spec-creatio
 `1_create-prd.md` renames to `1_create-spec.md` (both copies — package source + `.arc/`).
 
 Template handling: `template-prd.md` preserves its filename and content (becomes the **default
-heaviest spec template variant** — PRD-shape). Additional spec template variants
-(`template-brief.md` for lighter forms, etc.) are **out of WOR scope** — they land with
-`plan-arc-plan-conductor.md` as part of the scalable planning model. The spec doc's H1 carries
-form-signal (`# PRD: Foo` for full-PRD shape; lighter variants use their respective form-name
-H1, e.g., `# Brief: Foo`). Form variation lives in template choice + H1, not in filename — `spec-*`
-is uniform regardless of template variant.
+heaviest spec template variant** — PRD-shape). Additional, lighter spec template variants are
+**out of WOR scope** — they land with `plan-arc-plan-conductor.md` as part of the scalable planning
+model (`brief` is ruled out as a variant name — it collides with `reference/briefs/`). The spec
+doc's H1 carries form-signal (`# PRD: Foo` for full-PRD shape; lighter variants use their respective
+form-name H1). Form variation lives in template choice + H1, not in filename — `spec-*` is uniform
+regardless of template variant. The `reference/templates/` directory restructures to support this:
+an `arc/` + `project/` split (framework-managed vs. adopter-owned), WU-artifact templates grouped
+under `arc/work-unit/`, and spec-form templates under `arc/work-unit/spec/` — the home for
+`template-prd.md` and the future lighter variants (Phase 7.3 execution).
 
 The `**Design:**` field (per R68) accepts `spec-{name}.md` during Active / Integrating / Shipped
 phases — phase-varying value-set documented at R58a's `Spec:` field generalizability clause
@@ -840,11 +844,12 @@ it would be a same-name re-introduction with different role. No git conflict (fi
 post-WOR-rename); flagged in `plan-arc-plan-conductor.md` § WOR alignment note so the future
 author understands the history.
 
-**R68.** Meta-file field rename: `**Spec:**` → `**Design:**` and `**Task List:**` → `**Blueprint:**`.
-Field labels shift from artifact-type to artifact-role naming, aligning with the other role-based
-fields on the meta file (`Origin`, `State`, `Owner`, `Depends On`, `Cohort`, etc.). Per R58's
-field-grouping shape, the Identity / Reference / Coordination / Task-pointers / Directive groups
-retain their structure; only field labels rename within them.
+**R68.** Meta-file field rename: `**Spec:**` → `**Design:**` (`**Task List:**` retained). The
+upstream-design pointer shifts from artifact-type naming (`Spec`) to artifact-role naming
+(`Design`), aligning with the other role-based meta-file fields (`Origin`, `State`, `Owner`,
+`Depends On`, `Cohort`). The execution-decomposition pointer keeps its self-evident `Task List`
+label. Per R58's field-grouping shape, the Identity / Reference / Coordination / Task-pointers /
+Directive groups retain their structure; only the `Spec` label renames within them.
 
 Field values per phase (composes with R66 + R67):
 
@@ -852,26 +857,26 @@ Field values per phase (composes with R66 + R67):
 - `**Design:** draft-{name}.md` — Planning phase (was `**Spec:** plan-{name}.md` pre-WOR)
 - `**Design:** spec-{name}.md` — Active / Integrating / Shipped phases (was `**Spec:** prd-{name}.md`
   pre-WOR)
-- `**Blueprint:** [none]` — Planning phase (no task list yet)
-- `**Blueprint:** tasks-{name}.md` — Active / Integrating / Shipped phases (was `**Task List:**
-  tasks-{name}.md` pre-WOR)
+- `**Task List:**` is unchanged — `[none]` during Planning; `tasks-{name}.md` from Active onward.
 
 The `tasks-*` header field per R58a renames `**Spec:**` → `**Design:**` for vocabulary alignment
 with meta-*. Hook validators (`validate-meta-spec.ts` script + pre-commit hook), workflow files,
-strategy docs, and method docs that reference field names by name update per the rename
+strategy docs, and method docs that reference the `Spec` field name update per the rename
 (execution at Phase 7's cross-reference sweep).
 
-Rationale (design-before-implementation principle reinforcement): the meta-file's field labels
-read frequently — every session-init, status check, handoff. Label choice carries implicit
-teaching signal. `**Design:**` / `**Blueprint:**` pair reads as design precedes blueprint precedes
-implementation — reinforces ARC's spec-directed posture (design happens upfront, not during impl)
-through structural label naming. The artifact triad (spec doc → task list → code) already
-_structurally_ enforces the principle; field labels add _implicit reinforcement_ at every read.
+Rationale (Design-only — the asymmetry is deliberate): `Design` earns the rename because it recurs
+as a cross-file role — the 1-hop upstream pointer on every `tasks-*` (per R58a) — so a reader
+opening a task list cold learns the design-directed posture from the field itself, repeatedly and at
+the point of use; and `Design: spec-{name}.md` reads as meaningful where `Spec: spec-{name}.md` reads
+as a stutter. `Task List` is retained because the alternative (`Blueprint`) recurs nowhere as a
+cross-file role, over-claims for what a task list is, and is less self-evident than the plain term.
+Rename only where the word does recurring semantic work; don't elevate a lone synonym.
 
 Principle codification (load-bearing for the rename's teaching value):
 
-- `template-meta.md` comment block explicitly frames "Design captures intent; Blueprint
-  decomposes execution; design precedes execution."
+- `template-meta.md` comment block frames the design-directed posture plainly — "`**Design:**`
+  captures intent; the task list decomposes it into execution; design precedes implementation" —
+  stating the convention, not the rejected alternative.
 - `DEV-RULES.ARC` § Task Execution adds an explicit principle statement codifying
   design-before-implementation. (Currently implied through workflow structure; promoted to
   named principle.)
