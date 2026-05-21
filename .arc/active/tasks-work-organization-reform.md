@@ -3803,16 +3803,16 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
       copies) → 6.10.d (sweep) → 6.10.f (verify). 6.10.e deferred — `system/workflows/arc/supplemental/` (R62's
       mental-model parallel) ships with no parent README; consistency favors none here.
 
-    - `[ ]` **6.10.a Create `reference/supplemental/` parent (both copies)**
-        - `mkdir .arc/reference/supplemental` AND `mkdir packages/arc-framework/arc/reference/supplemental`. Both
-          directories required before subsequent move ops (parallel-copy invariant). Package source confirmed to
-          carry `research/README.md` and `analysis/README.md` as adopter-facing classification stubs — same shape
-          ships to projects via `arc update`.
+    - `[x]` **6.10.a Create `reference/supplemental/` parent (both copies)**
+        - Both parent dirs created (`.arc/reference/supplemental` + `packages/arc-framework/arc/reference/supplemental`).
+          Empty dirs are not git-tracked standalone — content (and this checkbox) lands with the 6.10.b research move.
+          Package source confirmed to carry `research/README.md` and `analysis/README.md` as adopter-facing
+          classification stubs shipped via `arc update`.
 
-    - `[ ]` **6.10.b Execute research directory move (both copies)**
-        - `git mv .arc/reference/research .arc/reference/supplemental/research` AND
-          `git mv packages/arc-framework/arc/reference/research packages/arc-framework/arc/reference/supplemental/research`.
-          Single commit pairs both ops (matches 6.9.a precedent for paired archive-promotion moves).
+    - `[x]` **6.10.b Execute research directory move (both copies)**
+        - `.arc/` copy (README + 22 research docs) and package source (README only) both `git mv`'d under
+          `supplemental/research/`. All tracked as renames; content preserved. Paired in one commit with the 6.10.a
+          mkdir checkbox (6.9.a precedent for paired moves).
 
     - `[ ]` **6.10.c Execute analysis directory move (both copies)**
         - `git mv .arc/reference/analysis .arc/reference/supplemental/analysis` AND
