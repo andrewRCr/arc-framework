@@ -128,7 +128,7 @@ context budget.
 Plans may be accompanied by supplemental files in the same directory:
 
 - `notes-*.md` — additional analysis, detailed notes
-- `research-*.md` — research synthesis (often moved to `reference/research/` for archival)
+- `research-*.md` — research synthesis (often moved to `reference/supplemental/research/` for archival)
 - `design-*.md` — design exploration documents
 
 These follow the same ephemeral convention: delete or archive after the work graduates.

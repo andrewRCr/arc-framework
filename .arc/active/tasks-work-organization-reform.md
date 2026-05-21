@@ -3788,20 +3788,11 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           init tests don't reference the archive/completed README path. T1 lint clean (0 / 287),
           typecheck clean, vitest 1844/1844 passing.
 
-### `[ ]` **6.10 Supplemental collapse: `reference/research/` + `reference/analysis/` → `reference/supplemental/` (R62)**
+### `[x]` **6.10 Supplemental collapse: `reference/research/` + `reference/analysis/` → `reference/supplemental/` (R62)**
 
 - _Goal:_ Collapse `reference/research/` and `reference/analysis/` under `reference/supplemental/{research,analysis}/`
   per R62. Mental model alignment with `system/workflows/arc/supplemental/`. Nested subdirectories preserved (research
   vs. analysis remain categorically distinguishable).
-
-    - _Approach:_ Create `reference/supplemental/` parent dir (both copies — `.arc/` + package source); `git mv`
-      research and analysis under it. Each subtask spans both copies — the parallel-copy invariant matches the 6.9.a
-      precedent for the archive→completed promotion. Package source carries `research/` and `analysis/` as README-only
-      adopter-facing classification surfaces (byte-identical with `.arc/` copies).
-
-    - _Sequencing:_ 6.10.a (mkdir, both copies) → 6.10.b (research mv, both copies) → 6.10.c (analysis mv, both
-      copies) → 6.10.d (sweep) → 6.10.f (verify). 6.10.e deferred — `system/workflows/arc/supplemental/` (R62's
-      mental-model parallel) ships with no parent README; consistency favors none here.
 
     - `[x]` **6.10.a Create `reference/supplemental/` parent (both copies)**
         - Both parent dirs created (`.arc/reference/supplemental` + `packages/arc-framework/arc/reference/supplemental`).
@@ -3822,28 +3813,18 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           (`[arc-ext-post-context-load]` → `system/extensions/`); bumped `../../` → `../../../`. Pre-commit
           validate-links caught it — sole escaping link across both moved trees (other `../` hits are prose/code).
 
-    - `[ ]` **6.10.d Sweep inbound references (supplemental collapse)**
-        - Grep patterns: `reference/research`, `reference/analysis`, `\.arc/reference/research`,
-          `\.arc/reference/analysis`, `[research]:` and `[analysis]:` reference-link definitions, hardcoded research /
-          analysis paths in strategies / templates / backlog plans.
-        - Update to `reference/supplemental/research/` and `reference/supplemental/analysis/` respectively. Surface:
-          strategies (`strategy-work-organization.md`, `strategy-work-planning.md`, `strategy-package-project-sync.md`,
-          others as discovered), templates (`template-completion-doc.md` — retiring per R51, but sweep cleanly before
-          retirement), backlog plans (`plan-arc-modes.md`, `plan-docs-content-sweep.md`, `plan-wu5-public-release.md`,
-          `plan-post-release-methodology.md`), ADRs (`adr-012` and any others), READMEs.
-        - **Exclusions:**
-            - Content INSIDE `supplemental/` (both copies) — the INBOUND sweep skips these docs' own bodies. Two
-              sub-cases: (a) absolute self-paths (`.arc/reference/research|analysis`) — none exist, verified;
-              (b) outbound relative links escaping the moved subtree — depth-adjusted at move time (6.10.c handled
-              the one such link), NOT here. Sibling cross-refs within `supplemental/` (research↔analysis) survive
-              the move unchanged (both subdirs moved together).
-            - `.arc/completed/**` and `packages/arc-framework/arc/completed/` — historical content is read-only per
-              R41/R42 and the WOR-wide convention (Phase 7.7.f filters `archive / completed / adr- paths` identically).
-              `validate-links.sh` already skips `*/completed/*|completed/*` per 6.9.a; lint-config matches. ~22 inbound
-              references across 12 files under `completed/` are preserved as-is (factual record of work done with old
-              paths).
-        - **Sequencing:** Runs after 6.10.b / 6.10.c (`git mv`) — directories must exist at new paths
-          before sweep can verify. 6.10.f verifies after this completes.
+    - `[x]` **6.10.d Sweep inbound references (supplemental collapse)**
+        - Swept `reference/{research,analysis}` → `reference/supplemental/...` across backlog plans
+          (`plan-arc-modes.md` ×3 link defs, `plan-arc-plan-conductor.md`, `notes-docs-content-sweep.md` ×2,
+          `plan-wu5-public-release.md` ×2), `ROADMAP.md`, strategies (`strategy-work-planning.md` both copies;
+          `strategy-package-project-sync.md` dependency list), and `1_create-prd.md` both copies.
+        - **Beyond the planned surface** — the pre-execution audit grepped `*.ts` only and missed JSON:
+          `init-recipe.json` seed paths and `manifest.json` README keys (both edited). The stale recipe had turned
+          the test suite red (ENOENT building fixtures from old paths) between the moves and this sweep; the recipe
+          fix restored green.
+        - **Exclusions held:** `.arc/completed/**` + package counterpart (historical, read-only per R41/R42 +
+          Phase 7.7.f convention; ~22 refs preserved); supplemental-internal bodies (outbound-link depth handled in
+          6.10.c); WOR's own files. No remaining `template-completion-doc.md` / `adr-012` hits (already clean).
 
     - `[~]` **6.10.e Author `supplemental/README.md`** — _Deferred (superseded by design decision)._
         - Parallel `system/workflows/arc/supplemental/` (R62's mental-model anchor) ships with no parent README; the
@@ -3852,12 +3833,17 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           `analysis/README.md`) carry classification + naming + relationship guidance. R62 vocabulary framing routes
           to `strategy-file-classification.md` if codification beyond the per-subdir READMEs is needed downstream.
 
-    - `[ ]` **6.10.f Verify inbound references swept (post-6.10.d)**
-        - After 6.10.d completes, grep across the documentation surface for `reference/research`, `reference/analysis`,
-          `\.arc/reference/research`, `\.arc/reference/analysis` — should return empty after exclusions: WOR PRD /
-          task list / notes / status files (this WU's own content), `.arc/completed/**` and
-          `packages/arc-framework/arc/completed/` (historical, read-only per the 6.10.d exclusion above), and content
-          inside `supplemental/` itself (per 6.10.d exclusion).
+    - `[x]` **6.10.f Verify inbound references swept (post-6.10.d)**
+        - Grep across the doc + CLI surface returns clean after exclusions (`completed/**`, supplemental-internal,
+          WOR's own files). Old `reference/{research,analysis}/` paths fully retired outside historical content.
+
+- _Outcome:_ `reference/{research,analysis}/` collapsed under `reference/supplemental/` in both copies (33 renames,
+  content preserved); all inbound refs swept. Two cascades surfaced beyond the audit's stated surface (it grepped
+  `*.ts`, not JSON): a moved analysis doc's outbound relative link broke on the +1 depth (fixed in 6.10.c), and
+  `init-recipe.json`'s seed paths went stale — turning the test suite red between the moves and the sweep until the
+  recipe fix restored it. Folded in the 6.9-leftover manifest fix per direction (stale `reference/archive/README.md`
+  → `completed/README.md`, Configurable/arc-in-git). 6.10.e (parent README) deferred — no parent-README precedent in
+  the sibling `supplemental/` dirs.
 
 ### `[ ]` **6.11 System/reference re-tier: `constitution/` → `system/rules/` + `briefs/` → `reference/briefs/`**
 

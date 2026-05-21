@@ -5719,14 +5719,14 @@ during dormancy. Known drift items as of 2026-04-28:
 
 ---
 
-[contrib-stress-test]: ../../../reference/analysis/analysis-modes-contributor-lifecycle-stress-test.md
-[solo-audit]: ../../../reference/analysis/analysis-modes-solo-dev-blind-spot-audit.md
+[contrib-stress-test]: ../../../reference/supplemental/analysis/analysis-modes-contributor-lifecycle-stress-test.md
+[solo-audit]: ../../../reference/supplemental/analysis/analysis-modes-solo-dev-blind-spot-audit.md
 [task-list-formatting]: ../../../reference/strategies/arc/strategy-task-list-formatting.md
 [prepare-commits]: ../../../system/workflows/arc/supplemental/prepare-commits.md
 [template-prd]: ../../../reference/templates/template-prd.md
 [create-prd]: ../../../system/workflows/arc/1_create-prd.md
 [work-planning]: ../../../reference/strategies/arc/strategy-work-planning.md
-[conditional-content-analysis]: ../../../reference/analysis/analysis-conditional-content-architecture.md
+[conditional-content-analysis]: ../../../reference/supplemental/analysis/analysis-conditional-content-architecture.md
 [vscode-103570]: https://github.com/microsoft/vscode/issues/103570
 [vscode-43505]: https://github.com/microsoft/vscode/issues/43505
 [aws-7369]: https://github.com/aws/aws-cli/issues/7369

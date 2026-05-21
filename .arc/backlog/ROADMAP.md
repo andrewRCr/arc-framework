@@ -472,7 +472,7 @@ holistically. Plan documents for each remain in `backlog/` for reference.
 
 **Architecture remediation (audit-derived; parallel candidates after worktree infrastructure
 lands).** Surfaced 2026-05-08 by an architecture audit
-(`reference/analysis/analysis-cli-architecture-solid-dry-audit.md`) during Interlock Release
+(`reference/supplemental/analysis/analysis-cli-architecture-solid-dry-audit.md`) during Interlock Release
 Wrappers WU1 Phase 1. All three are independent file scopes; intended to run in parallel via
 worktree once the parallelism trio + Coord Probe ship.
 

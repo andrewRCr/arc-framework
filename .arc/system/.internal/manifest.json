@@ -40,15 +40,10 @@
       "layer": "core",
       "pristine_hash": "ded3284cc14c7e9914a04c265222804d7b5b3bc656cc511afcdfee7ccc3916f4"
     },
-    "reference/analysis/README.md": {
+    "reference/supplemental/analysis/README.md": {
       "classification": "Framework",
       "layer": "core",
       "pristine_hash": "5629c55322c345c6b00a3f810f72876d5f27e09fc9d2a68c67c0ec83074af9fd"
-    },
-    "reference/archive/README.md": {
-      "classification": "Configurable",
-      "layer": "core",
-      "pristine_hash": "ff1add57b3cd2b41b5e5edaf7dc27c99271ac500ee6a727ab8bfc26e71dcaa3c"
     },
     "reference/constitution/DEV-RULES.ARC.md": {
       "classification": "Framework",
@@ -65,7 +60,7 @@
       "layer": "core",
       "pristine_hash": "380d2daaff4398ffd6b984e3caf22294d4de6cfb1f1f3db03dc039472df271a3"
     },
-    "reference/research/README.md": {
+    "reference/supplemental/research/README.md": {
       "classification": "Framework",
       "layer": "core",
       "pristine_hash": "74291e7a60f9d733ba0f74fd9a6afacd0a57492c9aca2bc2af9bf88325618e52"
@@ -479,6 +474,11 @@
       "classification": "Framework",
       "layer": "arc-in-git",
       "pristine_hash": "738a0df28debd0540eb7043b55fcae261316568124fba35f14e607a86142981a"
+    },
+    "completed/README.md": {
+      "classification": "Configurable",
+      "layer": "arc-in-git",
+      "pristine_hash": "6c5fe8065907bba27d3d6d14e3e88456704089ff4ac8f80daa81712d66c7e136"
     }
   }
 }

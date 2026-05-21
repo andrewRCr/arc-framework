@@ -1278,7 +1278,7 @@ pre-trim); package-source copy same line range — straight two-copy file.
 > **Files with lasting value** (move to reference — never duplicate):
 >
 > - `research-*` files — standalone reference docs by convention. Always route to
->   `.arc/reference/research/`. Research content embedded in `notes-*` files is different — it's
+>   `.arc/reference/supplemental/research/`. Research content embedded in `notes-*` files is different — it's
 >   tightly coupled to the work unit and archives normally.
 > - Reusable procedures (rollback plans, migration guides)
 > - Architecture diagrams, benchmark data, dependency maps, audits
@@ -1292,7 +1292,7 @@ pre-trim); package-source copy same line range — straight two-copy file.
 **Suggested destination:** `docs/methodology/archival/` § Reference vs Archive Routing or
 `docs/guides/work-unit-archival/` § What Has Lasting Value — adopter-facing pattern-recognition
 guide for deciding which artifacts survive the archive boundary. Natural pair with a docs
-explanation of the `.arc/reference/research/` vs `.arc/reference/analysis/` distinction.
+explanation of the `.arc/reference/supplemental/research/` vs `.arc/reference/supplemental/analysis/` distinction.
 
 **Stylistic integration notes:** Trimmed workflow keeps the operational core — the Decision
 question, the `research-*` convention rule (hoisted into its own prose paragraph since the

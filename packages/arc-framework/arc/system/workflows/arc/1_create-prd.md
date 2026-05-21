@@ -140,7 +140,7 @@ serve exploration and are deleted once the PRD captures the conclusions (see
    metadata. See [DEV-RULES.ARC][dev-rules-arc] § Documentation Boundaries.
 2. **Delete the plan**: `git rm` the `plan-*.md` file (and any supplemental files that fed into it,
    unless they have independent archival value — e.g., research files may belong in
-   `reference/research/`).
+   `reference/supplemental/research/`).
 3. **Update planning-state meta file** (when present): If
    `.arc/active/meta-{name}.md` exists with `**State:** Planning` (planning-branch
    sessions), advance its `**Next Action:**` to reflect the post-PRD step (e.g., "Run

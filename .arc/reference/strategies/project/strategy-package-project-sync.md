@@ -156,11 +156,11 @@ arc-in-git files are annotated explicitly.
 
 - `README.md` (root)
 - `reference/adr/README.md`
-- `reference/analysis/README.md`
 - `reference/constitution/DEV-RULES.ARC.md`
 - `reference/constitution/README.md`
-- `reference/research/README.md`
 - `reference/strategies/README.md`
+- `reference/supplemental/analysis/README.md`
+- `reference/supplemental/research/README.md`
 - `reference/strategies/arc/strategy-adr-methodology.md`
 - `reference/strategies/arc/strategy-configurability-architecture.md`
 - `reference/strategies/arc/strategy-file-classification.md`

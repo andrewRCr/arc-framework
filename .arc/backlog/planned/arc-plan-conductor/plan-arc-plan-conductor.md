@@ -1482,7 +1482,7 @@ iteration session.*
   and `2_generate-tasks.md` validation. Empirical anchor: 200–400 LOC review-effectiveness
   sweet spot.
 - **Research:** `research-pr-sizing-and-wu-boundary-estimation.md` (under
-  `.arc/reference/research/`) — synthesizes SmartBear/Cisco, Google (Sadowski et al.),
+  `.arc/reference/supplemental/research/`) — synthesizes SmartBear/Cisco, Google (Sadowski et al.),
   Microsoft (Bacchelli & Bird), and GitHub-scale studies, plus SPIDR/INVEST methodological
   frames. Includes draft section text ready to lift.
 - **Effort estimate:** S (atomic-tier — strategy edit + workflow cross-references)
