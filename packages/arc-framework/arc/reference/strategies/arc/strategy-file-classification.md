@@ -178,6 +178,49 @@ When creating project-specific artifacts:
 
 ---
 
+## Directory placement — `system/` vs. `reference/`, and intra-`system/` tiering
+
+Where a file *lives* is a separate axis from how it's *classified* (§ Taxonomy — merge strategy) and how
+it's *named* (§ Naming Conventions — name format). Tier and directory are independent: a Configurable file
+can sit under `system/` (`arc-config.yml`) or under `reference/` (`AGENT-BRIEF.PROJECT.md`). This section
+governs which top-level directory a file belongs in.
+
+### `system/` vs. `reference/`
+
+- **`system/` holds prescriptive / operational machinery** — content the methodology *runs*: workflows,
+  methods, extensions, githooks, development rules (`system/rules/`), and configuration (`arc-config.yml`).
+  This content governs behavior or is consumed by the process to do work.
+- **`reference/` holds consultative look-up material** — content you *consult* to orient or decide: agent
+  briefs (`reference/briefs/`), strategies, ADRs, PROJECT-PRD, TECHNICAL-OVERVIEW, QUICK-REFERENCE, and
+  templates. This content describes what is true, not what to do.
+
+**The test:** does the content govern behavior or get consumed by the process (→ `system/`), or do you look
+it up to orient or decide (→ `reference/`)? Development rules are prescriptive — they direct how every
+session operates — so they belong under `system/`. Briefs orient an agent to the framework and project — you
+read them to get situated — so they belong under `reference/`.
+
+**Load cadence is not the axis.** QUICK-REFERENCE loads at the top of every session yet is reference-shaped:
+a look-up surface, not behavior-governing machinery. Frequency of access does not determine placement;
+*shape* does.
+
+### Intra-`system/` tiering: user-facing vs. `.internal/`
+
+Within `system/`, content splits again by ownership:
+
+- **User-facing customization surfaces** sit at the top level of `system/` — `arc-config.yml`,
+  `extensions/`, `methods/`, `rules/`, `workflows/`. These are the surfaces teams override and extend.
+- **Framework-internal machinery** belongs under the hidden `system/.internal/` directory — CLI-managed
+  state (`manifest.json`), githooks, scripts, and skill sources. The dotfile signals "framework-managed;
+  don't edit."
+
+A developer opening `system/` to override a method should meet the editable surfaces first, without
+filtering past plumbing they never touch. `.internal/` stays singular — an adjective category label
+(cf. `.config/`, `.local/`), not a count of its contents.
+
+See § Directory naming for how a directory is *named* once its placement is settled.
+
+---
+
 ## Related Documentation
 
 - [Configurability Architecture Strategy][config-arch] — Customization mechanisms and project guidance

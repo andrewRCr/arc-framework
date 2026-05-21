@@ -3873,19 +3873,14 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
       _mechanism_ rework (`DEV-RULES.*` always-loaded / `DOMAIN-RULES.*` on-demand split) defer to the
       `rules-restructure` backlog WU — 6.11 changes paths, not the feature shape.
 
-    - `[ ]` **6.11.a Codify split criterion in `strategy-file-classification.md`**
-        - Add a new top-level `## Directory placement — system/ vs reference/, and intra-system tiering`
-          section. Distinct from the existing `### Directory naming` section (which governs name _format_,
-          not _placement_) — cross-reference the two.
-        - Two axes covered:
-            1. Top-level: `system/` (prescriptive/operational) vs `reference/` (consultative/look-up).
-            2. Intra-system: user-facing (overrides, extensions, additions) vs `.internal/` (CLI-managed,
-               framework-internal; detailed nesting lands in Phase 6.12). `.internal/` stays singular — an
-               adjective category label (cf. `.config/`, `.local/`), not a count of its contents.
-        - Worked examples must match this WU's on-disk layout at commit time — don't leak in-flight
-          reclassification into the adopter-facing strategy doc (Audience Boundaries).
-        - Justifies both 6.11's moves (constitution → system; briefs → reference) and 6.12's nesting. Single
-          codification section serves both phases — no separate codification subtask needed in Phase 6.12.
+    - `[x]` **6.11.a Codify split criterion in `strategy-file-classification.md`**
+        - Added a top-level `## Directory placement` section (after `## Naming Conventions`, both copies)
+          codifying two axes: `system/` (prescriptive/operational machinery) vs `reference/` (consultative
+          look-up), and intra-`system/` user-facing surfaces vs the hidden `.internal/` tier.
+        - Framed placement as orthogonal to Taxonomy (merge-tier) and Naming (name format); recorded the
+          prescriptive-vs-look-up test and the "load cadence is not the axis" caveat (QUICK-REFERENCE).
+          `.internal/` codified singular. Justifies 6.11's moves + 6.12's nesting — no separate codification
+          subtask needed in Phase 6.12.
 
     - `[ ]` **6.11.b Execute `constitution/` → `system/rules/` move + README rewrite**
         - `git mv .arc/reference/constitution .arc/system/rules`.
