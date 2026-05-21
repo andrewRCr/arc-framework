@@ -128,7 +128,7 @@ validate_file() {
     # time; rewriting links violates "document what is, not what was"
     # (DEV-RULES.ARC § Documentation Boundaries).
     case "$source_file" in
-        */reference/archive/*|reference/archive/*) return 0 ;;
+        */completed/*|completed/*) return 0 ;;
     esac
 
     local source_dir

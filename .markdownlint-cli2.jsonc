@@ -34,7 +34,7 @@
         "**/node_modules/**",
         "**/.venv*/**",
         "**/venv/**",
-        ".arc/reference/archive/**",
+        ".arc/completed/**",
         ".arc/**/temp-*.md",
         "arc/**",
     ],

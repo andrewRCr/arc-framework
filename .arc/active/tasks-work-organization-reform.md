@@ -3596,23 +3596,25 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
       runs after 6.9.a and is independent of 6.9.b's path sweep — distinct mechanical concern (block
       placement in `init-recipe.json` + `classification.ts` layer assignment vs. path-string replacement).
 
-    - `[ ]` **6.9.a Execute directory move (both copies) + lint-config ignore-pattern update**
-        - **`.arc/` instance:** `git mv .arc/reference/archive .arc/completed`. Verify directory now at
-          `.arc/completed/` with all historical content intact (currently three dated subdirs:
-          `2025-q4/`, `2026-q1/`, `2026-q2/`).
-        - **Package source mirror:** `git mv packages/arc-framework/arc/reference/archive packages/arc-framework/arc/completed`.
-          Verify directory now at `packages/arc-framework/arc/completed/` with `README.md` intact (package
-          source carries only the README — no historical content, which lives exclusively in `.arc/`).
-        - **Lint config ignore pattern:** `.markdownlint-cli2.jsonc` `ignores` —
-          `.arc/reference/archive/**` → `.arc/completed/**`. Co-commits with the `git mv` ops because
-          the lint gate breaks immediately on the dir move without it (~210 lint errors surface in
-          historical content that's supposed to be lint-ignored per R42 read-only). Repo-internal
-          config; not shipped to adopters.
-        - **Why bundle:** the CLI resolves recipe paths 1:1 against the package source
-          (`src/commands/init.ts:161` — `srcPath = join(templateDir, templateFile)`). If only `.arc/`
-          moves, post-6.9.f recipe paths point at non-existent package locations and `arc init` breaks
-          for adopters. Both moves PLUS the lint-config update must land in the same atomic commit
-          (mv-without-config-update leaves an unrunnable intermediate state for the lint gate).
+    - `[x]` **6.9.a Execute directory move (both copies) + lint-config + validate-links archive-skip updates**
+        - Both `git mv` ops landed: `.arc/reference/archive` → `.arc/completed/` (with `2025-q4/`,
+          `2026-q1/`, `2026-q2/` historical content intact) and
+          `packages/arc-framework/arc/reference/archive` → `packages/arc-framework/arc/completed/`
+          (README.md intact). All file moves tracked as renames by git; content preserved.
+        - `.markdownlint-cli2.jsonc` `ignores` updated `.arc/reference/archive/**` →
+          `.arc/completed/**` to restore lint suppression of historical content (~210 transient
+          errors surfaced by the move before the config update landed). Repo-internal config —
+          not shipped to adopters.
+        - `system/scripts/validate-links.sh:131` archive-skip pattern updated in both copies
+          (`.arc/` + package source) — `*/reference/archive/*|reference/archive/*` →
+          `*/completed/*|completed/*`. Same job as the lint-config ignore (suppress
+          link-validation on R42 read-only historical content); same co-dependency on the dir move
+          (pre-commit hook blocks the commit without it; ~50 pre-existing broken links surfaced
+          in historical content before the script update landed). Coupled integration test
+          (`__tests__/integration/validate-links.test.ts:257–264`) updated to assert against
+          `completed/` fixture path to match the new pattern.
+        - T1 lint + pre-commit hook clean post-edit (0 errors across 287 files; link validation
+          passes).
 
     - `[ ]` **6.9.b Sweep inbound references (archive → completed paths)**
         - **Two ref categories, two treatments** (per DEV-RULES.ARC § `.arc/` artifact references):
@@ -3654,17 +3656,11 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
               402), `strategy-file-classification.md`, `strategy-package-project-sync.md`
               (`reference/archive/` mentioned at lines 8 + 221).
             - Hooks: `system/githooks/pre-commit` (verify — current state may not carry archive refs).
-            - Scripts + coupled test: `system/scripts/validate-links.sh:131` archive-skip pattern
-              (`*/reference/archive/*|reference/archive/*) return 0`) → `*/completed/*|completed/*`.
-              **Couples with** `packages/arc-framework/__tests__/integration/validate-links.test.ts:257–264`
-              which exercises that pattern with path token `reference/archive/old-plan.md` — both files
-              must update together to keep the test green.
-            - Lint config: `.markdownlint-cli2.jsonc` `ignores` entry —
-              `.arc/reference/archive/**` → `.arc/completed/**`. Repo-internal config (not shipped
-              to adopters; their projects use their own markdownlint config if any). **Folded into
-              6.9.a's commit** alongside the `git mv` ops — without it the project lint gate breaks
-              immediately on the dir move (~210 errors surfaced in historical content that's
-              supposed to be lint-ignored per R42 read-only).
+            - Scripts and coupled test: `system/scripts/validate-links.sh:131` archive-skip pattern;
+              coupled test `validate-links.test.ts:257–264` — **landed in 6.9.a** (pre-commit gate
+              co-dependency, parallel to lint config).
+            - Lint config: `.markdownlint-cli2.jsonc` `ignores` entry — **landed in 6.9.a**
+              (pre-commit gate co-dependency on the dir move).
             - CLI code: `packages/arc-framework/src/lib/classification.ts:78` — handled in 6.9.f, not
               here; overlap noted.
             - User-facing docs: `.arc/user/README.md:77` + package mirror; `docs/work-planning.md:126`.
