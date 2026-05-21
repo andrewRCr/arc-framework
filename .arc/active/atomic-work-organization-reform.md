@@ -68,6 +68,21 @@ Atomic Task Completion for the full protocol.
   isn't, per current layout decisions). Low severity — no current break, accuracy/future-proofing.
 - _Captured:_ during WOR scenario-trace validation — fold in before WOR closes.
 
+### `[ ]` **Whole-tree stale-link sweep before WOR closes (`reference/constitution/` etc.)**
+
+- _Goal:_ Sweep backlog plan-docs (and any non-frozen tracked `.md`) for stale link definitions left by
+  WOR's directory migrations. The pre-commit `validate-links.sh` only checks *staged* files, so latent
+  broken links in untouched docs escaped Phase 6 sweeps and surface only when each file is next staged.
+- _Scope:_ One confirmed instance fixed inline (`agile-wu-lifecycle`: `reference/constitution/` →
+  `system/rules/`, commit `b66073b5`). `grep -rl 'reference/constitution' .arc` flags further candidates
+  (`plan-docs-content-sweep`, `plan-rules-restructure`, `plan-commit-increments`, others) — verify which
+  carry broken *link defs* vs. prose mentions (WOR's own `prd-`/`tasks-` migration prose legitimately names
+  the old path; `completed/` is frozen and excluded). Run a whole-tree link check (not staged-only), fix
+  real broken defs, and check other WOR-moved paths (`../briefs/`, etc.) per the 6.11 dual-form note.
+- _Captured:_ during the ADR-020 sibling-coordination commit (`b66073b5`), when the pre-commit link check
+  caught the agile-wu-lifecycle def. Fold in before WOR integrates (matches WOR's own whole-tree
+  link-check intent).
+
 ### `[x]` **Audience-vocabulary sweep — WU docs (PRD + task list)**
 
 - _Outcome:_ Swept both WU docs for `\badopters?\b` (case-insensitive). 14 replacements total:
