@@ -3814,10 +3814,13 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           `supplemental/research/`. All tracked as renames; content preserved. Paired in one commit with the 6.10.a
           mkdir checkbox (6.9.a precedent for paired moves).
 
-    - `[ ]` **6.10.c Execute analysis directory move (both copies)**
-        - `git mv .arc/reference/analysis .arc/reference/supplemental/analysis` AND
-          `git mv packages/arc-framework/arc/reference/analysis packages/arc-framework/arc/reference/supplemental/analysis`.
-          Single commit pairs both ops.
+    - `[x]` **6.10.c Execute analysis directory move (both copies)**
+        - `.arc/` copy (README + 7 analysis docs) and package source (README only) both `git mv`'d under
+          `supplemental/analysis/`. All renames; content preserved. Both `research/` and `analysis/` now live under
+          `reference/supplemental/`; old `reference/{research,analysis}/` roots gone in both copies.
+        - Move depth (+1 level) broke one outbound reference-style link in `analysis-workflow-clarity-audit.md`
+          (`[arc-ext-post-context-load]` → `system/extensions/`); bumped `../../` → `../../../`. Pre-commit
+          validate-links caught it — sole escaping link across both moved trees (other `../` hits are prose/code).
 
     - `[ ]` **6.10.d Sweep inbound references (supplemental collapse)**
         - Grep patterns: `reference/research`, `reference/analysis`, `\.arc/reference/research`,
@@ -3829,10 +3832,11 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           retirement), backlog plans (`plan-arc-modes.md`, `plan-docs-content-sweep.md`, `plan-wu5-public-release.md`,
           `plan-post-release-methodology.md`), ADRs (`adr-012` and any others), READMEs.
         - **Exclusions:**
-            - Content INSIDE `supplemental/` (both copies) — research / analysis documents retain their original paths
-              in their own bodies; sweep targets only inbound references. Verified empty in practice today — no
-              `.arc/reference/research` or `.arc/reference/analysis` absolute paths exist inside those docs — clause
-              kept for future-proofing.
+            - Content INSIDE `supplemental/` (both copies) — the INBOUND sweep skips these docs' own bodies. Two
+              sub-cases: (a) absolute self-paths (`.arc/reference/research|analysis`) — none exist, verified;
+              (b) outbound relative links escaping the moved subtree — depth-adjusted at move time (6.10.c handled
+              the one such link), NOT here. Sibling cross-refs within `supplemental/` (research↔analysis) survive
+              the move unchanged (both subdirs moved together).
             - `.arc/completed/**` and `packages/arc-framework/arc/completed/` — historical content is read-only per
               R41/R42 and the WOR-wide convention (Phase 7.7.f filters `archive / completed / adr- paths` identically).
               `validate-links.sh` already skips `*/completed/*|completed/*` per 6.9.a; lint-config matches. ~22 inbound
