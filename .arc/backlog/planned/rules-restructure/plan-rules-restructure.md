@@ -44,6 +44,12 @@ table; the framework could surface domain rules automatically when relevant work
 - Design the wiring mechanism — how domain rules auto-load when relevant work is in scope.
 - Implement the wiring mechanism — likely involves session-init, workflow declarations, and/or
   extension contracts.
+- **CLI module/identifier rename (deferred from WOR Phase 6.11).** WOR repointed the domain-rules
+  paths to `system/rules/` but intentionally left the CLI's "constitution" naming in place to keep
+  that phase scoped to paths, not renames: the `commands/constitution/` module, the `constitutionDir`
+  resolver helper, and related identifiers still say "constitution" while resolving `system/rules`.
+  Rename them to the `rules` / `domain-rules` vocabulary here (e.g., `commands/constitution/` →
+  `commands/rules/`, `constitutionDir` → `rulesDir`). Mechanical; no behavior change.
 
 ## Alternatives
 
@@ -80,6 +86,9 @@ WOR Phase 6.11 establishes the substrate this WU builds on:
   explicitly dropped in 6.11.b in anticipation of this WU reintroducing it correctly with the
   `DOMAIN-RULES.*` pattern (avoids leaking in-flight scope into the adopter surface per
   DEV-RULES.PROJECT § Audience Boundaries).
+- The CLI domain-rules **paths** (resolver, frontmatter regex, audit script) are already repointed to
+  `system/rules/` by WOR Phase 6.11; only the "constitution" **naming** of the CLI module and
+  identifiers is deferred to this WU (see Scope).
 
 This WU cannot activate until WOR ships. `Depends On: work-organization-reform` reflects that
 sequencing constraint.
