@@ -3582,7 +3582,7 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
   USER-INBOX rename; integration test at `__tests__/integration/init.test.ts:238` already asserts
   retirement at seed time).
 
-### `[ ]` **6.9 Archive directory promotion: `reference/archive/` → `.arc/completed/` (R62)**
+### `[x]` **6.9 Archive directory promotion: `reference/archive/` → `.arc/completed/` (R62)**
 
 - _Goal:_ Promote `.arc/reference/archive/` to top-level `.arc/completed/` per R62. Pipeline visibility: `backlog/`
   → `active/` → `completed/` becomes evident at directory-tree level (symmetric with existing `active/` and `backlog/`).
@@ -3751,7 +3751,7 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
         - Adopter-facing language preserved: no transitional framing, no internal-roadmap
           forward-pointers, no R-ID citations (per DEV-RULES.PROJECT § Audience Boundaries).
 
-    - `[ ]` **6.9.g Reclassify `completed/README.md` in `init-recipe.json` (core → arc-in-git conditional)**
+    - `[x]` **6.9.g Reclassify `completed/README.md` in `init-recipe.json` (core → arc-in-git conditional)**
         - **Gating change, not path replacement:** today `reference/archive/README.md` sits in
           `packages/arc-framework/init-recipe.json` core `include_files` (unconditional — every project
           seeds it regardless of `pm.mode`). R62 restricts `completed/` to arc-in-git mode — same rule
@@ -3778,6 +3778,15 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           6.9.b/c/d/e (path-string + dir-shape changes; distinct mechanical concern from block
           reclassification). Final subtask of 6.9 — its verification confirms recipe layer
           assignment is correct.
+
+        - **Outcome:** `init-recipe.json` — `reference/archive/README.md` removed from core
+          `include_files`; `completed/README.md` added to the `pm.mode == arc-in-git` conditional
+          block alongside `backlog/ROADMAP.template.md` et al. `classification.ts:78` path string
+          updated `"reference/archive/README.md"` → `"completed/README.md"` in
+          `CONFIGURABLE_FILES`; classification stays Configurable, layer flip automatic via
+          recipe-driven `arcInGitFiles` at `init.ts:147-151`. No test edits needed — existing
+          init tests don't reference the archive/completed README path. T1 lint clean (0 / 287),
+          typecheck clean, vitest 1844/1844 passing.
 
 ### `[ ]` **6.10 Supplemental collapse: `reference/research/` + `reference/analysis/` → `reference/supplemental/` (R62)**
 
