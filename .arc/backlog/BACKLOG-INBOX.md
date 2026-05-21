@@ -210,4 +210,33 @@
 
 - _Captured during:_ WOR Task 6.3.b drain (2026-05-19).
 
+### `[ ]` **Self-host manifest freshness / install-state reconciliation**
+
+- _Observation:_ The `.arc/system/.internal/manifest.json` `pristine_hash` values drift stale in the
+  self-hosting repo. Adopters refresh pristine via `arc update`; this repo never runs `arc update` against
+  itself, so framework-source files evolve (hand-mirrored to `.arc/`) while their manifest hashes don't.
+  Two consequences: (a) every framework directory move (WOR's `research/` / `analysis/` collapses, the
+  constitution/briefs re-tier) requires error-prone hand-editing of manifest keys + recomputed hashes; (b)
+  `arc health` / `arc diff` run against this repo would mis-report stale entries as "modified." Inert today
+  only because nothing runs those against self and `framework-sync.test.ts` validates content equality, not
+  hashes.
+
+- _Proposed action (two candidate directions, not yet chosen):_
+    1. A reconciliation command — `arc manifest reconcile` (or `arc update --self`) that recomputes
+       `pristine_hash` from current package source and adds / renames / removes entries to match the recipe,
+       so framework moves stop needing manual manifest surgery.
+    2. Reduce the hash-maintenance surface — make the content-equality check (à la `framework-sync.test.ts`)
+       the authority for Framework files and derive or de-emphasize stored `pristine_hash`, leaving the
+       self-hosting manifest less mutable state to keep fresh.
+
+- _Notes:_ Distinct from the config-key migration registry entry (config values, not install-state hashes)
+  and from the link-validation entries. `config-storage-architecture` explicitly leaves the system
+  `.internal/` manifest out of its scope.
+
+- _Scope:_ S–M (command + tests; or a content-authority refactor of the sync check).
+
+- _Branch:_ Own branch when promoted.
+
+- _Captured during:_ WOR Task 6.11.d manifest sweep (2026-05-20).
+
 ---
