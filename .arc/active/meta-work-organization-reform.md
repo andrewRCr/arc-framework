@@ -11,15 +11,15 @@
 - **Cohort:** [none]
 
 - **Task List:** `tasks-work-organization-reform.md`
-- **Last Completed:** Task 6.12 — intra-system internals nesting complete: `githooks/` + `scripts/` +
-  `skills/` all nested under `system/.internal/`. Skills move + inbound sweep + verify landed this session
-  (`79defe55`, `401cc129`, `e305c996`).
+- **Last Completed:** Task 6.13 — R64 fulfilled in expanded form: the principle-anchored "scalable core"
+  thesis (`adr-020`) + `scalable-core` and `composable-workflows` backlog stubs + sibling-plan coordination.
+  Phase 6 complete. (`85f5907a`, `b66073b5`)
 - **Blockers:** [none]
 
-- **Next Task:** Task 6.13 — Create `plan-arc-in-git-as-default.md` (R64) (line ~4000).
+- **Next Task:** Task 7.1 — Rename `prd-*` → `spec-*` (file class + workflow) (line ~4068).
 
-- **Next Action:** Execute Task 6.13 — author the exploratory `plan-arc-in-git-as-default.md` (the "arc-in-git
-  as default" thesis; lands in `backlog/feature/`). Mode shift from migration to plan-doc authoring; per the
-  task's companion-read note, skim `plan-arc-modes` header/TOC first.
+- **Next Action:** Begin Phase 7 — the artifact-rename block. Per WORKING-MEMORY's Phase-7 terminology note,
+  this phase executes the `prd-*` / `plan-*` file-class renames and `**Spec:**` / `**Task List:**` field
+  renames the rest of WOR deferred; sequence them as one cohesive block starting at Task 7.1.
 
 ---
