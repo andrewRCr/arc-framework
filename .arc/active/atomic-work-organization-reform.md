@@ -71,12 +71,12 @@ Atomic Task Completion for the full protocol.
 ### `[ ]` **Whole-tree stale-link sweep before WOR closes (`reference/constitution/` etc.)**
 
 - _Goal:_ Sweep backlog plan-docs (and any non-frozen tracked `.md`) for stale link definitions left by
-  WOR's directory migrations. The pre-commit `validate-links.sh` only checks *staged* files, so latent
+  WOR's directory migrations. The pre-commit `validate-links.sh` only checks _staged_ files, so latent
   broken links in untouched docs escaped Phase 6 sweeps and surface only when each file is next staged.
 - _Scope:_ One confirmed instance fixed inline (`agile-wu-lifecycle`: `reference/constitution/` →
   `system/rules/`, commit `b66073b5`). `grep -rl 'reference/constitution' .arc` flags further candidates
   (`plan-docs-content-sweep`, `plan-rules-restructure`, `plan-commit-increments`, others) — verify which
-  carry broken *link defs* vs. prose mentions (WOR's own `prd-`/`tasks-` migration prose legitimately names
+  carry broken _link defs_ vs. prose mentions (WOR's own `prd-`/`tasks-` migration prose legitimately names
   the old path; `completed/` is frozen and excluded). Run a whole-tree link check (not staged-only), fix
   real broken defs, and check other WOR-moved paths (`../briefs/`, etc.) per the 6.11 dual-form note.
 - _Captured:_ during the ADR-020 sibling-coordination commit (`b66073b5`), when the pre-commit link check
