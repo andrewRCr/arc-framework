@@ -3671,7 +3671,7 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           verify-integrity.sh, README) returns zero stale `reference/archive` / `.arc/archive` refs.
         - `manifest.json` + `pristine.json` regenerate via `arc update`; no manual edits.
 
-    - `[ ]` **6.9.e Reshape historical content under `completed/` to R41 layout (drop category subdir; add NN where absent)**
+    - `[x]` **6.9.e Reshape historical content under `completed/` to R41 layout (drop category subdir; add NN where absent)**
         - _Goal:_ Apply R41 directory shape uniformly across all historical content under `completed/`.
           The `.arc/` root promotion (6.9.a) made the pre-WOR categorical heterogeneity (some quarters
           with `feature/`/`technical/`/`incidental/` subdirs; partial NN coverage) visible enough to
@@ -3722,6 +3722,17 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
 
         - **Sequencing:** runs after 6.9.a/b/c/d; precedes 6.9.f (README rewrite reflects
           post-reshape state). Independent of 6.9.g (recipe gating).
+
+        - **Outcome:** 72 file renames executed across 3 dated subdirs. 2026-q1 + 2026-q2
+          dropped category subdirs in place (existing NN preserved). 2025-q4 required NN
+          reconstruction for 4 items: cinexplorer-10-17 → NN 01, cinexplorer-10-24 → NN 02
+          (dates from filenames), terminology-refactoring → NN 03 (mid-Q4 framework work,
+          no precise date), enhance-docs-content-p1 → NN 04 (`**Completed:** 2025-12-26`
+          per tasks-list metadata). All file contents preserved; only directory structure
+          changed (verified via `git status --porcelain` — 72 `R` entries, 0 add/delete/
+          modify). Atomic roll-up `completed-atomic-2026-q1.md` stays at quarterly root
+          (no WU, no NN). T1 lint + validate-links pre-commit gates clean post-reshape
+          (configs already exclude `.arc/completed/**`).
 
     - `[ ]` **6.9.f Rewrite `completed/README.md` content for post-WOR shape**
         - The current `archive/README.md` (package source; mirrored to `.arc/` per package-project-sync) describes a
