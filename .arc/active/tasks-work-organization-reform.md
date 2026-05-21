@@ -3651,15 +3651,24 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           edits applied to both `.arc/` and `packages/arc-framework/arc/` mirrors;
           `diff` byte-equality verified post-edit on each pair.
 
-    - `[ ]` **6.9.c Verify inbound references swept (post-6.9.b)**
-        - After 6.9.b completes, grep across the documentation surface for `reference/archive`,
-          `\.arc/reference/archive` — should return empty (excluding the WOR PRD / task list / status file themselves,
-          which legitimately discuss the rename).
+    - `[x]` **6.9.c Verify inbound references swept (post-6.9.b)**
+        - Verification performed inline at 6.9.b completion: final grep across `*.md`, `*.ts`,
+          `*.sh`, `*.json` surfaces returned only intentionally-out-of-scope hits
+          (init-recipe.json + classification.ts:78 deferred to 6.9.f; manifest.json auto-regen;
+          meta-file Next Task pointer at handoff per Meta-file timing; WOR PRD/tasks/notes;
+          ADR-019 + ADR-012:267 historical decision narrative; analysis-modes-contributor-
+          lifecycle-stress-test.md historical analysis; ROADMAP carve-out; `docs/reference/`
+          docs-site paths).
+        - T1 lint clean (0 / 287 files); `validate-links.sh` exit 0; two-copy mirror-pair
+          byte-equality verified post-edit on workflows + extensions + strategies + user-README.
 
-    - `[ ]` **6.9.d Update hooks / scripts if needed**
-        - Verify `system/githooks/pre-commit`, `system/scripts/validate-links.sh`, and any other tooling don't carry
-          stale `reference/archive/` references. `manifest.json` + `pristine.json` regenerate via `arc update`; manual
-          edits unnecessary except for hook scripts.
+    - `[x]` **6.9.d Update hooks / scripts if needed**
+        - Verification only — no edits needed at this step. `validate-links.sh` archive-skip pattern
+          and `.markdownlint-cli2.jsonc` ignore landed in 6.9.a (pre-commit gate co-dependency). Final
+          scan across both copies of `system/githooks/` (commit-msg, pre-commit, README) and
+          `system/scripts/` (arc-lib.sh, run-shellcheck.sh, validate-config.sh, validate-links.sh,
+          verify-integrity.sh, README) returns zero stale `reference/archive` / `.arc/archive` refs.
+        - `manifest.json` + `pristine.json` regenerate via `arc update`; no manual edits.
 
     - `[ ]` **6.9.e Rewrite `completed/README.md` content for post-WOR shape**
         - The current `archive/README.md` (package source; mirrored to `.arc/` per package-project-sync) describes a
