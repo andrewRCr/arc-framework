@@ -40,6 +40,34 @@ Atomic Task Completion for the full protocol.
   in-template consistency. Remaining `[Title Case]` placeholders across the rest of the
   template family are mechanical alignment work, not WU scope.
 
+### `[ ]` **SESSION-NOTES seed path divergence — flat seed vs per-WU-subdir consumers**
+
+- _Goal:_ Reconcile where SESSION-NOTES is seeded with where it's consumed. `setup.ts:77` and
+  `add.ts:26` seed it flat at `user/{identity}/SESSION-NOTES.md`, but every consumer expects the
+  per-WU-subdir form `user/{identity}/<wu-name>/SESSION-NOTES.md` — `session-init.md:185`,
+  `session-handoff.md:70,235`, and the resolver `session-notes-path.ts`. The per-WU subdir is
+  created lazily by `arc user open` (`open.ts:27-41`); on disk only the subdir form exists, so the
+  init-seeded flat file is vestigial relative to the workflows that read it.
+- _Scope:_ Likely drop the flat seed and let `arc user open` own subdir creation (decide at
+  execution — alternative is to seed the subdir form directly, but there's no anchored WU at
+  `arc init`/`arc user add` time, which is why the flat seed exists). Touches `setup.ts`, `add.ts`
+  (package source); confirm no consumer relies on the flat path; add/adjust a test.
+- _Captured:_ during WOR scenario-trace validation (team × module-on trace). A WOR-era oversight
+  (the per-WU-subdir migration landed in `user/{identity}/` layout work but the seed sites weren't
+  swept) — fold in before WOR closes.
+
+### `[ ]` **`meta-reader` non-recursive scan vs. `types.ts` "subdir" layout comment**
+
+- _Goal:_ Reconcile `findMetaFiles` (`meta-reader.ts:101-122`, a non-recursive `readdir` of the
+  active root) with `active/types.ts:18-21`, which documents a possible category-subdir layout the
+  reader would silently miss. Current canonical layout is flat (`init-work-unit.md:108-120` creates
+  `active/meta-{name}.md` flat; on-disk confirms), so the reader is correct for today and the type
+  comment overstates capability.
+- _Scope:_ Correct the `types.ts` comment to state flat-is-canonical (the conservative fix matching
+  current behavior); no reader change needed unless category-subdir support is ever intended (it
+  isn't, per current layout decisions). Low severity — no current break, accuracy/future-proofing.
+- _Captured:_ during WOR scenario-trace validation — fold in before WOR closes.
+
 ### `[x]` **Audience-vocabulary sweep — WU docs (PRD + task list)**
 
 - _Outcome:_ Swept both WU docs for `\badopters?\b` (case-insensitive). 14 replacements total:
