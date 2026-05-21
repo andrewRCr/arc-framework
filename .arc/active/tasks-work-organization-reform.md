@@ -3734,23 +3734,22 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           (no WU, no NN). T1 lint + validate-links pre-commit gates clean post-reshape
           (configs already exclude `.arc/completed/**`).
 
-    - `[ ]` **6.9.f Rewrite `completed/README.md` content for post-WOR shape**
-        - The current `archive/README.md` (package source; mirrored to `.arc/` per package-project-sync) describes a
-          pre-WOR archive shape: quarterly + category subdirs (`feature/`, `technical/`, `incidental/`) framed as
-          current convention, `completion-{name}.md` artifact (retired per R30 — content folds into meta-file
-          archive-phase sections), `PROJECT-STATUS.md` reference (retired per R40), "incidental" category framing
-          (retired per R49a). Substantive rewrite needed — bigger than 6.7.d's surface scope, naturally co-located
-          with this WU since the directory is being repromoted here.
-        - **Action:** rewrite content to reflect post-WOR archive shape — categorical layout preserved as
-          read-only historical record per R42 (don't restructure existing `2026-q*/{category}/` subdirs); new-WU
-          archive shape under WOR (single-branch-per-WU, meta-file with archive-phase Release Notes + Completion
-          Notes per R30, no separate `completion-*.md`); navigation refs updated to post-WOR docs (PROJECT-PRD
-          parent, post-6.7.k); category-retirement framing.
-        - Surface: `.arc/completed/README.md` + `packages/arc-framework/arc/completed/README.md`
-          (both post-6.9.a paths — package source moves alongside `.arc/` per 6.9.a; only historical
-          content lives exclusively in `.arc/`, README mirror moves with the directory).
-        - **Sequencing:** runs after 6.9.a (both directory moves) so both paths are at their post-WOR
-          locations; can run in parallel with 6.9.c verification.
+    - `[x]` **6.9.f Rewrite `completed/README.md` content for post-WOR shape**
+        - README rewritten in both copies (`.arc/completed/README.md` +
+          `packages/arc-framework/arc/completed/README.md`; byte-identical post-edit). 123 lines →
+          58 lines.
+        - Pre-WOR shape claims retired: quarterly + category subdirs (`feature/`/`technical/`/
+          `incidental/`); `completion-{name}.md` as separate artifact; PROJECT-STATUS reference;
+          incidental-category framing; "completion ceremony overhead" and "global sequence number"
+          explainers.
+        - Post-WOR shape codified: `completed/<YYYY-q*>/{NN}_{wu-name}/` layout (matches amended R41
+          and 6.9.e-reshaped reality); meta-file as durable record with archive-phase sections
+          (Release Notes + Completion Notes) per R30; per-tier companion presence (atomic-tier:
+          meta plus optional atomic; quick-tier: plus tasks; standard-tier: plus prd plus tasks
+          plus optional notes/atomic); archival-workflow refs point to `integrate-work-unit.md`
+          plus `archive-work-unit.md` with `archive.cadence` mode hint.
+        - Adopter-facing language preserved: no transitional framing, no internal-roadmap
+          forward-pointers, no R-ID citations (per DEV-RULES.PROJECT § Audience Boundaries).
 
     - `[ ]` **6.9.g Reclassify `completed/README.md` in `init-recipe.json` (core → arc-in-git conditional)**
         - **Gating change, not path replacement:** today `reference/archive/README.md` sits in

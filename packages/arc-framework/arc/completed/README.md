@@ -1,122 +1,48 @@
-# Archive
+# Completed
 
-This archive contains documentation for completed work, preserving the development history while keeping active
-working directories clean and focused.
+Archive of shipped work units. Pipeline destination after `backlog/` → `active/` → `completed/`.
 
-## Archive Organization
+## Layout
 
-The archive uses **quarterly directories** with **work-categorized subdirectories**:
-
-```
-archive/
-├── {{QUARTER}}/                    # e.g., 2025-q4
-│   ├── feature/
-│   │   └── {{NN}}_{{name}}/       # e.g., 08_user-authentication/
-│   ├── technical/
-│   │   └── {{NN}}_{{name}}/       # e.g., 01_logging-system/
-│   └── incidental/
-│       └── {{NN}}_{{name}}/       # e.g., 04_security-fixes/
+```text
+completed/
+└── <YYYY-q*>/                       # quarterly grouping; NN resets per quarter
+    └── {NN}_{wu-name}/              # per-WU subdir with completion-order prefix
+        ├── meta-{wu-name}.md        # always present — durable record
+        ├── prd-{wu-name}.md         # standard-tier WUs
+        ├── tasks-{wu-name}.md       # WUs with task lists
+        ├── notes-{wu-name}.md       # optional development notes
+        └── atomic-{wu-name}.md      # atomic-companion capture (when present)
 ```
 
-**Categories:**
+**Quarterly subdir** (`<YYYY-q*>`, e.g. `2026-q2`) — temporal grouping. NN counter resets per quarter.
 
-- **`feature/`** - User-facing planned work (each feature has its own subdirectory)
-- **`technical/`** - Infrastructure planned work (each technical work has its own subdirectory)
-- **`incidental/`** - Unplanned reactive work (each gets its own subdirectory)
+**NN prefix** — 2-digit completion-order number assigned at archival. Gives filesystem-browse-time
+ordering (`ls .arc/completed/<quarter>/` lists WUs in completion sequence).
 
-**Sequence numbering:**
+**Per-WU subdir** — all WU artifacts live here together, relocated from `active/` by integration.
 
-- `{{NN}}` is a global sequence number (01-99) across ALL categories in the quarter
-- Assigned by completion order (when archived, not when started)
-- Gaps between numbers in a category show where other categories' work completed
-- Reset to 01 at start of each quarter
+## What lives in a per-WU subdir
 
-### Work Package Structure
+`meta-{name}.md` is the durable record. Its archive-phase sections (Release Notes Entry, Completion Notes)
+carry the outward-facing summary composed at integration; the rest of the body retains the in-flight
+metadata captured during execution.
 
-Each completed work gets its own subdirectory containing:
+Companion artifacts stay alongside the meta file for historical reference. Which companions are present
+depends on WU tier:
 
-- `prd-{name}.md` - Product Requirements Document (planned work only)
-- `tasks-{name}.md` - Task implementation documentation
-- `notes-{name}.md` - Development notes (optional)
-- `completion-{name}.md` - Completion metadata and summary
+- **Atomic-tier** — `meta-*` plus optional `atomic-*` (no PRD or task list)
+- **Quick-tier** — `meta-*` plus `tasks-*` (no PRD)
+- **Standard-tier** — `meta-*` plus `prd-*` plus `tasks-*` plus optional `notes-*` and `atomic-*`
 
-**Example:**
+## Adding new archives
 
-```
-archive/2025-q4/technical/01_logging-system/
-├── prd-logging-system.md
-├── tasks-logging-system.md
-├── notes-logging-system.md
-└── completion-logging-system.md
-```
-
-### Incidental Work Organization
-
-Incidental work (unplanned reactive fixes/improvements) follows the same structure:
-
-- All incidental work gets a subdirectory with sequence prefix
-- Contains at minimum: `tasks-{name}.md` and `completion-{name}.md`
-- Notes file optional based on work complexity
-
-## Completed Work
-
-_This section will be populated as work is completed and archived._
+Archival fires from the integration ceremony — see [`integrate-work-unit.md`][integrate-work-unit] for the
+full lifecycle. The file-move sweep is handled by [`archive-work-unit.md`][archive-work-unit] (invoked
+inline by integration under the default `archive.cadence: with-integration`, or standalone post-merge under
+`manual` cadence).
 
 ---
 
-## Navigation
-
-### Active Documentation
-
-- **Current Work**: [`.arc/active/`](../../active/) (feature/, technical/, incidental/)
-- **Backlog**: [`.arc/backlog/`](../../backlog/) (ROADMAP, feature/, technical/)
-- **Project Status**: [`PROJECT-STATUS.md`](../PROJECT-STATUS.md)
-- **Workflows**: [`workflows/`](../workflows/)
-
-### Archive Workflow
-
-- **Integration**: [`integrate-work-unit.md`](../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md)
-- **Archival**: [`archive-work-unit.md`](../../system/workflows/arc/work-unit-lifecycle/archive-work-unit.md)
-- **Work Categorization**: Refer to workflows for categorization guidance
-
-## Purpose
-
-This archive serves multiple purposes:
-
-1. **Professional Documentation**: Demonstrates systematic development methodology
-2. **Reference Material**: Provides context for similar future features
-3. **Development History**: Preserves the evolution from planning to completion
-4. **Knowledge Base**: Creates searchable resource of completed work organized by work type
-5. **Clean Workspace**: Keeps active directories focused on current/planned work
-
-## Benefits of Work-Categorized Organization
-
-- **All related docs in one place**: PRD, tasks, notes, and completion metadata together
-- **Easier navigation**: Find everything about a piece of work in one subdirectory
-- **Simpler archival**: Move all files together instead of distributing across multiple directories
-- **Better git history**: Related documents move together, preserving relationships
-- **Consistent structure**: Active, upcoming, and archive all use same work categorization
-
-## File Naming Conventions
-
-- **PRDs**: `prd-{name}.md`
-- **Tasks**: `tasks-{name}.md`
-- **Notes**: `notes-{name}.md` (optional)
-- **Completion**: `completion-{name}.md`
-
-## Adding New Archives
-
-When work is completed, follow the [Integration Workflow](../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md)
-and [Archive Workflow](../../system/workflows/arc/work-unit-lifecycle/archive-work-unit.md):
-
-1. Verify completion (all tasks marked [x], quality gates passing)
-2. Run integrate-work-unit workflow (handles content cleanup via Step 5 — invokes clean-work-unit toolkit as needed)
-3. Create work unit directory (if multiple docs) and move all files together
-4. Create completion metadata with summary and metrics
-5. Update PROJECT-STATUS references
-6. Commit archive changes with descriptive message
-7. Update this README with new entry (optional but recommended)
-
----
-
-_Archive maintained as part of the ARC development framework_
+[integrate-work-unit]: ../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md
+[archive-work-unit]: ../system/workflows/arc/work-unit-lifecycle/archive-work-unit.md
