@@ -2631,7 +2631,7 @@ required because Full may have multiple task lists across work units in the pipe
 
 **`Following Task List` field removal — carved out to the Work-Status Restructure WU
 (R17).** This decision's resolution has moved out of plan-arc-modes; see
-[`prd-work-status-restructure.md`][restructure-prd] for the current source of truth. The
+`prd-work-status-restructure.md` for the current source of truth. The
 FTL Yes/No flag was found redundant with the Next Task + Next Action pair, and removal
 applied symmetrically across both modes — the full reasoning, scope analysis, and
 live-migration plan are carried by the restructure WU.
@@ -3218,10 +3218,10 @@ carries assertion, but here the assertion has a pre-condition that the CLI verif
   code. This is the biggest orphan category and existing infrastructure covers it for free.
 - **Category B — runtime user artifacts not in the manifest.** Active work units beyond the
   single-WU constraint (addressed by the entry-state gate above), archived work units created
-  post-init under `.arc/archive/`, user-authored content in `.arc/backlog/`, surviving `plan-*`
+  post-init under `.arc/completed/`, user-authored content in `.arc/backlog/`, surviving `plan-*`
   docs in `backlog/` or elsewhere. Not visible to `buildChangePlan`. Requires a filesystem walk
   over top-level directories that become Full-only, reported per-directory (not per-file):
-  _"`.arc/archive/` contains 3 archived WUs — keep / delete?"_. Coarser granularity is
+  _"`.arc/completed/` contains 3 archived WUs — keep / delete?"_. Coarser granularity is
   appropriate — finer re-implements per-file UX for off-manifest content.
 - **Category C — semantic decay.** Decomposes into two subsurfaces:
     - **C1 — stale path/filename references.** The transition renames
@@ -4453,14 +4453,14 @@ It's universal.
 
 ### Alignment with Work-Status Restructure WU
 
-The Work-Status Restructure WU (see [`prd-work-status-restructure.md`][restructure-prd] and
-[`notes-work-status-restructure.md`][restructure-notes]) changes the substrate this section
+The Work-Status Restructure WU (see `prd-work-status-restructure.md` and
+`notes-work-status-restructure.md`) changes the substrate this section
 was originally designed against. Pre-restructure, state lived in task list `**Status:**`
 headers (Pure Option C, 2026-04-09) because no per-WU `WORK-STATUS`-equivalent file
 existed. Post-restructure, `**State:**` lives in a per-WU `status-{name}.md` file in
 `active/{category}/`. The shift-lifecycle design survives the substrate change — only the
 host field moves. The full re-validation record lives in
-[`notes-work-status-restructure.md`][restructure-notes] § Harmony with shift lifecycle;
+`notes-work-status-restructure.md` § Harmony with shift lifecycle;
 this subsection captures the load-bearing points.
 
 **Per-WU file harmonizes with metadata-in-place.** A paused WU's `status-{name}.md` stays
@@ -5719,8 +5719,6 @@ during dormancy. Known drift items as of 2026-04-28:
 
 ---
 
-[restructure-prd]: ../../../reference/archive/2026-q2/technical/03_work-status-restructure/prd-work-status-restructure.md
-[restructure-notes]: ../../../reference/archive/2026-q2/technical/03_work-status-restructure/notes-work-status-restructure.md
 [contrib-stress-test]: ../../../reference/analysis/analysis-modes-contributor-lifecycle-stress-test.md
 [solo-audit]: ../../../reference/analysis/analysis-modes-solo-dev-blind-spot-audit.md
 [task-list-formatting]: ../../../reference/strategies/arc/strategy-task-list-formatting.md

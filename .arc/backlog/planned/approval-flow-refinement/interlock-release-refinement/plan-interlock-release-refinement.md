@@ -55,9 +55,9 @@ What remains is mostly *routing-half* work:
   Problem / Motivation above for what landed.
 - **`b2d8162d` (2026-05-16) "surface interlock modes at prompt-composition decision point"** —
   envelope payload + DEV-RULES rule mapping; closes today's interlock-prompt-shape miss.
-- **Earlier interlock/wrapper history:** Release Wrappers Foundation (shipped, archived under
-  `reference/archive/2026-q2/technical/08_release-wrappers-foundation/`) plus the
-  Release Wrappers Ergonomics PRD (archived).
+- **Earlier interlock/wrapper history:** Release Wrappers Foundation (shipped, archived; see
+  `prd-release-wrappers-foundation.md` + `tasks-release-wrappers-foundation.md`) plus the
+  Release Wrappers Ergonomics PRD (archived; `prd-release-wrappers-ergonomics.md`).
 
 ## In-Flight / Planned
 

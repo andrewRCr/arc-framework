@@ -3616,77 +3616,40 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
         - T1 lint + pre-commit hook clean post-edit (0 errors across 287 files; link validation
           passes).
 
-    - `[ ]` **6.9.b Sweep inbound references (archive → completed paths)**
-        - **Two ref categories, two treatments** (per DEV-RULES.ARC § `.arc/` artifact references):
-            - **Directory-concept paths** (no specific WU artifact named — `reference/archive/`,
-              `archive/<dated>/<wu-name>/`, validate-links skip patterns, etc.): update path token
-              `archive/` → `completed/` per new layout.
-            - **WU-artifact-pointer paths** (path ends in `prd-*.md`, `tasks-*.md`, `plan-*.md`,
-              `notes-*.md`, `meta-*.md`, `completion-*.md`, `atomic-*.md`): reshape to compliant
-              backticked-filename-only form per DEV-RULES — many such refs predate the rule. Drop the
-              path, keep `` `prd-name.md` `` only (or "Task X.Y — `tasks-name.md`" for task refs).
-              Losing path context is the documented cost of the rule.
-        - **Grep patterns:**
-            - `reference/archive`
-            - `\.arc/reference/archive`
-            - `\.arc/archive/` _(post-R41 top-level form left in workflows)_
-            - `archive/<dated>` / `archive/{dated}` _(workflow template tokens)_
-            - `archive/2025` / `archive/2026` _(deep-link form — note ROADMAP carve-out below)_
-            - `[archive]:` _(reference-link definitions)_
-        - **Exclusions** (do NOT touch):
-            - Content INSIDE `completed/` (formerly `archive/`) — historical archived documents retain
-              their original paths in their own bodies; sweep targets only references TO the directory,
-              not references WITHIN it.
-            - `archive.cadence` config key — verb stays per R62.
-            - Filenames preserving the verb: `archive-work-unit.md`, `post-work-unit-archive.md`,
-              `post-work-unit-archive` extension key.
-            - "archive" as English verb in prose (the act of moving completion records).
-        - **ROADMAP carve-out:** `.arc/backlog/ROADMAP.md` carries 12+ `Archive:` deep-link refs in
-          R41-shape (`archive/2026-q*/technical/...`). ROADMAP is slated for wholesale overhaul to a
-          no-historical-record format in upcoming work. **Minimal touch here** — leave existing R41-shape
-          refs as-is rather than mid-cycle them through `completed/`; the upcoming overhaul retires them
-          entirely. Accept temporary path inaccuracy. 6.9.c verify acknowledges ROADMAP residuals as
-          known + expected.
-        - **Surface enumeration — directory-concept path updates** (two-copy: edit both `.arc/` and
-          `packages/arc-framework/arc/` per Package-Project Sync):
-            - Workflows: `archive-work-unit.md` (multiple `git mv` template lines + step prose — careful
-              manual attention; verb stays, path token changes), `integrate-work-unit.md` (steps
-              referencing `archive/<dated>/{name}/`), `verify-work-unit.md`, `clean-work-unit.md`.
-            - Strategies: `strategy-work-organization.md` (R41-shape path refs at lines 312, 321, 327,
-              402), `strategy-file-classification.md`, `strategy-package-project-sync.md`
-              (`reference/archive/` mentioned at lines 8 + 221).
-            - Hooks: `system/githooks/pre-commit` (verify — current state may not carry archive refs).
-            - Scripts and coupled test: `system/scripts/validate-links.sh:131` archive-skip pattern;
-              coupled test `validate-links.test.ts:257–264` — **landed in 6.9.a** (pre-commit gate
-              co-dependency, parallel to lint config).
-            - Lint config: `.markdownlint-cli2.jsonc` `ignores` entry — **landed in 6.9.a**
-              (pre-commit gate co-dependency on the dir move).
-            - CLI code: `packages/arc-framework/src/lib/classification.ts:78` — handled in 6.9.f, not
-              here; overlap noted.
-            - User-facing docs: `.arc/user/README.md:77` + package mirror; `docs/work-planning.md:126`.
-        - **Surface enumeration — WU-artifact-pointer reshape** (per DEV-RULES, drop paths, keep
-          backticked filenames; eating own dogfood — these enumeration entries also use the
-          backticked-filename form for the files needing reshape):
-            - `plan-post-release-methodology.md` (line 12) — reshape inbound ref pointing at the
-              archived `prd-work-status-restructure.md` (currently a `reference/archive/2026-q2/...`
-              path) to `` `prd-work-status-restructure.md` `` (backticked filename only).
-            - `plan-interlock-release-refinement.md` (line 59) — reshape inbound ref currently
-              pointing at `reference/archive/2026-q2/technical/08_release-wrappers-foundation/` to
-              the backticked-filename form of the relevant WU artifact.
-            - `plan-arc-modes.md` (lines 5722–5723) — body refs reshape to backticked filenames;
-              drop the now-orphaned reference-link definitions at file end.
-            - `adr-012-adopt-unified-user-directory-model.md` — multiple `reference/archive/` refs
-              mixed with historical decision narrative. Decision-narrative refs describing the
-              original archive-conflict problem retain original form (ADRs record decisions in their
-              original context, not retroactively rewritten); current-state pointers reshape to
-              compliant backticked-filename form.
-        - **README content rewrite (6.9.e owns this):** 6.9.e handles the README's full content
-          rewrite (pre-WOR layout description → post-WOR shape). This sweep subtask handles path
-          tokens elsewhere; the README's content is its own concern.
-        - **Sequencing:** runs after 6.9.a (`git mv` on both copies); directory must exist at the new
-          path before the sweep can verify. 6.9.c verifies after this completes. R41 / R42 textual refs
-          in the WOR PRD itself update at PRD amendment time (already landed in a folded-in pass), not
-          in this sweep.
+    - `[x]` **6.9.b Sweep inbound references (archive → completed paths)**
+        - **Directory-concept path updates (15 files)** — `archive/` → `completed/` per R62:
+          `archive-work-unit.md` (verb stays; sweep path tokens in step prose + 5 `git mv` template
+          lines + body), `integrate-work-unit.md` (lines 174, 203), `strategy-work-organization.md`
+          (lines 312, 321, 327, 402), `strategy-package-project-sync.md` (scope clause + Configurable
+          file enumeration), `post-work-unit-archive.md` extension contract surface,
+          `.arc/user/README.md` + package mirror (tracked-layout list), `docs/work-planning.md:126`
+          (pipeline narrative), `.arc/backlog/BACKLOG-INBOX.md:63` (captured lifecycle-link-reanchor
+          item), `plan-release-lifecycle.md:59` (aggregation read-path),
+          `plan-arc-modes.md:3221+3224` (Category B post-init artifacts walk),
+          `notes-docs-content-sweep.md:280+350` (personal-workspace recommendation),
+          `adr-012:316` (current-state recommendation only; line 267 implementation-plan narrative
+          preserved). All edits two-copy where applicable.
+        - **WU-artifact-pointer reshapes (3 files)** — per DEV-RULES.ARC § `.arc/` artifact references
+          (backticked-filename-only; drop path + Markdown links):
+          `plan-post-release-methodology.md:12` (inbound `prd-work-status-restructure.md` ref),
+          `plan-interlock-release-refinement.md:59` (release-wrappers WU pointers),
+          `plan-arc-modes.md` (body refs at lines 2634, 4456-7, 4463; orphaned link defs at 5722-5723
+          dropped).
+        - **Carve-outs honored:** ROADMAP.md `Archive:` deep-link refs left R41-shape per task
+          sequencing note (upcoming wholesale overhaul retires them entirely; mid-cycling = wasted
+          churn); WOR PRD / tasks / notes excluded per task sequencing; ADR-019 + ADR-012
+          decision-narrative refs preserved (record-not-living-doc discipline); `analysis-*.md`
+          historical analysis preserved (already stale on R41 dimension; not a sweep target);
+          `docs/reference/` docs-site paths different concern; `archive.cadence` config key,
+          `archive-work-unit.md` filename, `post-work-unit-archive` extension key — verb stays
+          per R62.
+        - **Deferred / out-of-scope (intentional):** `init-recipe.json:9` +
+          `classification.ts:78` deferred to 6.9.f (recipe gating reclassification);
+          `manifest.json` auto-regen via `arc update`; `meta-work-organization-reform.md:19` Next
+          Task pointer updates at next handoff per DEV-RULES § Meta-file timing.
+        - **Two-copy discipline preserved.** All workflows + strategies + extensions + user-README
+          edits applied to both `.arc/` and `packages/arc-framework/arc/` mirrors;
+          `diff` byte-equality verified post-edit on each pair.
 
     - `[ ]` **6.9.c Verify inbound references swept (post-6.9.b)**
         - After 6.9.b completes, grep across the documentation surface for `reference/archive`,

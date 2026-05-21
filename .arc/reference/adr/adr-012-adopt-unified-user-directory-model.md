@@ -312,8 +312,8 @@ Personal scratch notes, investigation logs, reference links, archived completed 
 strategies, personal conventions — anything else the developer wants. ARC does not load, validate,
 or manage this content.
 
-**Recommended convention:** Mirror ARC's tracked directory structure (`active/`, `reference/`,
-`reference/archive/`, etc.) when adding to the personal workspace. The recommendation is for the
+**Recommended convention:** Mirror ARC's tracked directory structure (`active/`, `backlog/`,
+`completed/`, `reference/`, etc.) when adding to the personal workspace. The recommendation is for the
 developer's consistency and mental model — not for framework functionality. ARC cannot enforce
 the structure of a gitignored personal directory, and making this honest is more useful than
 pretending otherwise.

@@ -56,7 +56,7 @@ should be considered the minimum surface:
 - **Version markers** — some discoverable boundary that says "this is what was shipped at
   point X." Format (semver / calver / dates / arbitrary tags) is adopter-chosen; *presence* is
   required for aggregation to define a range.
-- **Aggregation read-path** — tooling that walks `archive/<dated>/<wu-name>/meta-*.md` and
+- **Aggregation read-path** — tooling that walks `completed/<dated>/<wu-name>/meta-*.md` and
   composes per-WU Release Notes Entries into a CHANGELOG-shaped artifact. Output format
   adopter-configurable; Keep-a-Changelog is the obvious default candidate (WOR's per-WU
   entries already match its 7-category taxonomy).

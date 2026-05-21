@@ -60,7 +60,7 @@
 ### `[ ]` **Lifecycle-aware link reanchoring for movable ARC artifacts**
 
 - _Observation:_ In `pm.mode: arc-in-git`, lifecycle workflows move PRDs, task lists, atomic companions, plan
-  docs, and archives between `backlog/`, `active/`, and `reference/archive/`. Markdown links inside moved
+  docs, and archives between `backlog/`, `active/`, and `completed/`. Markdown links inside moved
   files can go stale because relative paths are anchored to the source file's old directory. The pre-commit
   link validator catches the failure, but recovery is manual and interrupts activation/archive flow.
 

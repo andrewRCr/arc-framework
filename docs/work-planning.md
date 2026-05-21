@@ -123,7 +123,7 @@ decision guide (how to categorize edge cases) and common pitfalls, see the
 [Work Organization reference](reference/work-organization.md).
 
 Branch naming, directory structure, and archive paths all align:
-`feature/user-authentication` → `.arc/active/feature/` → `.arc/reference/archive/`.
+`feature/user-authentication` → `.arc/active/feature/` → `.arc/completed/`.
 
 ### Work unit lifecycle
 

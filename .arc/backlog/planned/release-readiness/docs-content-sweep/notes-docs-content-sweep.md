@@ -277,7 +277,7 @@ thematic unit ("what the personal workspace is and how to organize it").
 > ### Recommended convention: mirror ARC's structure
 >
 > If you add to your workspace beyond the framework-managed paths, follow ARC's tracked directory
-> layout (`active/`, `reference/`, `reference/archive/`, etc.). This keeps your mental model
+> layout (`active/`, `backlog/`, `completed/`, `reference/`, etc.). This keeps your mental model
 > consistent with the framework and makes graduation from informal personal use to the full
 > planning pipeline natural. The recommendation is for your consistency — not for framework
 > functionality. ARC cannot enforce the structure of a gitignored personal directory, and making
@@ -347,7 +347,7 @@ shift second-person ("Your `.arc/user/{identity}/` directory") to third-person f
 > 2. Move on
 >
 > If you want historical reference for your own completed work, mirror ARC's archive structure
-> inside your workspace (`user/{identity}/reference/archive/<quarter>/<category>/`). This is a
+> inside your workspace (`user/{identity}/completed/<dated>/<wu-name>/`). This is a
 > personal choice, not a framework requirement. `git log` with your `Context: contribution (...)`
 > footers is a sufficient historical record for most contributors.
 >

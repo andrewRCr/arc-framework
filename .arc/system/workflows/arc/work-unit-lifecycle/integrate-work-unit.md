@@ -171,7 +171,7 @@ cleaner for the capture-routing table.
 > `workflow-interlock`: Stop before commit + sweep + push. Surface:
 >
 > 1. Composed Release Notes Entry + Completion Notes (Steps 8–9)
-> 2. Planned sweep target: `active/meta-{name}.md` → `archive/<dated>/{name}/meta-{name}.md` (Step 12 under
+> 2. Planned sweep target: `active/meta-{name}.md` → `completed/<dated>/{name}/meta-{name}.md` (Step 12 under
 >    `with-integration`)
 > 3. ROADMAP delta the upcoming regen will produce (Step 12 under `with-integration`)
 >
@@ -200,7 +200,7 @@ Read `archive.cadence` from [`arc-config.yml`][arc-config]:
 
 - **`with-integration`** (default): Invoke [`archive-work-unit.md`][archive-work-unit] inline. archive handles
   state flip `Integrating → Shipped`, sweep commits (`active/meta-{name}.md` →
-  `archive/<dated>/{name}/meta-{name}.md`), and ROADMAP regen per its cadence-invariant body. Returns; resume at
+  `completed/<dated>/{name}/meta-{name}.md`), and ROADMAP regen per its cadence-invariant body. Returns; resume at
   Step 13.
 - **`manual`**: Skip inline invocation. Archive runs separately post-merge via explicit `archive-work-unit.md`
   invocation. Step 13's push covers completion content only under this cadence.

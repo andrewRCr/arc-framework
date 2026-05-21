@@ -309,7 +309,7 @@ via the `**Spec:**` pointer.
 
 ## Archival
 
-WU archival is the file-move ceremony that retires a shipped WU from `active/` to `archive/`.
+WU archival is the file-move ceremony that retires a shipped WU from `active/` to `completed/`.
 Archival rides on the integration PR by default (sweep-as-you-go), keeping the WU's entire
 lifecycle on one branch through one merge.
 
@@ -318,13 +318,13 @@ lifecycle on one branch through one merge.
 `archive.cadence` in `arc-config.yml` controls when the file-move sweep fires:
 
 - **`with-integration`** (default) — sweep commits ride on the integration PR; the WU's meta
-  file and any companions move from `active/` to `archive/<dated>/<wu-name>/` as part of the
+  file and any companions move from `active/` to `completed/<dated>/<wu-name>/` as part of the
   same merge that ships the code.
 - **`manual`** — sweep fires only on explicit invocation; no automatic ceremony coupling.
 
 Under `with-integration`, the integration PR carries a multi-commit structure: code commits →
 completion content (Release Notes Entry + Completion Notes composed into the meta file) → sweep
-commits (file moves from `active/` to `archive/<dated>/<wu-name>/`). Reviewers focus per-commit.
+commits (file moves from `active/` to `completed/<dated>/<wu-name>/`). Reviewers focus per-commit.
 
 See [integrate-work-unit.md][integrate-work-unit] and [archive-work-unit.md][archive-work-unit]
 for the full ceremony workflows.
@@ -399,7 +399,7 @@ ROADMAP regenerates at ceremony boundaries, not on every meta-file edit:
   ROADMAP for the first time.
 - **WU activation** (`backlog/planned/<wu>/` → `active/<wu>/`, `State: Planning → Active`) —
   moves the WU from a planned tier to In Flight.
-- **WU integration** (`active/<wu>/` → `archive/<dated>/<wu>/`, `State: Integrating → Shipped`)
+- **WU integration** (`active/<wu>/` → `completed/<dated>/<wu>/`, `State: Integrating → Shipped`)
   — removes the WU from ROADMAP (shipped WUs aren't tracked there).
 - **Dependency-field edit** on any planned or active meta file — recomputes the topological
   ordering when `**Depends On:**` changes.

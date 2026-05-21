@@ -9,7 +9,7 @@ arc:
 # Workflow: Archive Work Unit
 
 Archival mechanics for a shipped WU — state flip `Integrating → Shipped`, file sweep from `active/` to
-`archive/<dated>/<wu-name>/`, ROADMAP regen. Body is invariant across invocation contexts: invoked inline
+`completed/<dated>/<wu-name>/`, ROADMAP regen. Body is invariant across invocation contexts: invoked inline
 from [`integrate-work-unit.md`][integrate-work-unit] under `archive.cadence: with-integration` (default),
 or standalone post-merge under `manual` cadence per [Work Organization Strategy][work-org] § Archival.
 
@@ -36,15 +36,15 @@ is the prerequisite. State flip below is the only transition archive owns.
 
 Edit `active/meta-{name}.md`: `**State:** Integrating` → `**State:** Shipped`. Single direction; always.
 
-### 3) Sweep — move WU files to `archive/`
+### 3) Sweep — move WU files to `completed/`
 
 ```bash
-mkdir -p .arc/archive/{dated}/{name}
-git mv .arc/active/meta-{name}.md   .arc/archive/{dated}/{name}/
-git mv .arc/active/prd-{name}.md    .arc/archive/{dated}/{name}/   # when WU has a PRD
-git mv .arc/active/tasks-{name}.md  .arc/archive/{dated}/{name}/   # when WU has a task list
-git mv .arc/active/notes-{name}.md  .arc/archive/{dated}/{name}/   # when present
-git mv .arc/active/atomic-{name}.md .arc/archive/{dated}/{name}/   # when present
+mkdir -p .arc/completed/{dated}/{name}
+git mv .arc/active/meta-{name}.md   .arc/completed/{dated}/{name}/
+git mv .arc/active/prd-{name}.md    .arc/completed/{dated}/{name}/   # when WU has a PRD
+git mv .arc/active/tasks-{name}.md  .arc/completed/{dated}/{name}/   # when WU has a task list
+git mv .arc/active/notes-{name}.md  .arc/completed/{dated}/{name}/   # when present
+git mv .arc/active/atomic-{name}.md .arc/completed/{dated}/{name}/   # when present
 ```
 
 `{dated}` follows `YYYY-q*` (e.g., `2026-q2`). Adjust the file list to what exists for the WU —
@@ -75,7 +75,7 @@ Bundle state flip + sweep + ROADMAP regen.
 chore(arc): archive {name}
 
 - Flip State: Integrating → Shipped
-- Sweep meta + companions to archive/{dated}/{name}/
+- Sweep meta + companions to completed/{dated}/{name}/
 - Regenerate ROADMAP
 
 Context: meta-{name}.md (archival)

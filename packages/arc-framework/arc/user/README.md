@@ -74,8 +74,8 @@ The framework does not load, validate, or manage personal content. You can reorg
 delete it, or expand it without breaking anything.
 
 **Light recommendation:** when your workspace grows past a few files, consider mirroring ARC's
-tracked directory layout (`reference/`, `reference/archive/`, etc.) as a personal organizing
-convention. It keeps your mental model consistent and is strictly optional — ARC doesn't enforce
+tracked directory layout (`active/`, `backlog/`, `completed/`, `reference/`, etc.) as a personal
+organizing convention. It keeps your mental model consistent and is strictly optional — ARC doesn't enforce
 or validate the structure of this gitignored directory.
 
 ## Portability

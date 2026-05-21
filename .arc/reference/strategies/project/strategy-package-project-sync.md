@@ -5,7 +5,7 @@ content drift between the package source (`packages/arc-framework/arc/`) and the
 instance (`.arc/`). Project-level strategy — not shipped to adopters.
 
 **Scope:** Files under `.arc/reference/` and `.arc/system/` that have counterparts in the
-package source. Does not apply to `active/`, `backlog/`, `user/`, or `reference/archive/` —
+package source. Does not apply to `active/`, `backlog/`, `user/`, or `completed/` —
 those are project-owned with no package counterparts.
 
 ---
@@ -218,7 +218,7 @@ arc-in-git files are annotated explicitly.
 
 ### Configurable files (project sections expected to differ) — 25
 
-- `reference/archive/README.md`
+- `completed/README.md`
 - `reference/constitution/DEV-RULES.PROJECT.md`
 - `reference/QUICK-REFERENCE.md` · template counterpart
 - `reference/strategies/STRATEGY-INDEX.md`
