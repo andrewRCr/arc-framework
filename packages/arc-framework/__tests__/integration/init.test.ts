@@ -96,7 +96,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       "reference/briefs",
       "system/.internal/githooks",
       "system/.internal/scripts",
-      "system/skills",
+      "system/.internal/skills",
       "system/workflows",
       "system/workflows/arc",
     ];

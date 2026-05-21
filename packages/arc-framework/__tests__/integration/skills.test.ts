@@ -141,7 +141,7 @@ describe("skill generation (integration)", () => {
 
     for (const name of CANONICAL_SKILLS) {
       const canonical = await readFile(
-        join(templateDir, "system/skills", name, "SKILL.md"),
+        join(templateDir, "system/.internal/skills", name, "SKILL.md"),
         "utf-8",
       );
       const generated = await readFile(

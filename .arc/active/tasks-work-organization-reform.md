@@ -3957,21 +3957,17 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           `verify-integrity.sh` runs clean from the new path (0 errors; the 5 warnings are pre-existing
           Husky/exec-bit/strategy-index, not move-induced).
 
-    - `[ ]` **6.12.e Move `skills/` → `.internal/skills/`** — _separable: own commit after 6.12.c+d._
-        - `git mv .arc/system/skills .arc/system/.internal/skills`.
-        - `git mv packages/arc-framework/arc/system/skills packages/arc-framework/arc/system/.internal/skills`.
-        - CLI canonical-source dir is a **segmented `join`**, invisible to a literal `system/skills` grep —
-          update all 5 sites to `join(templateDir, "system", ".internal", "skills")`: `init.ts`, `join.ts` (×2),
-          `update.ts`, `reconfigure.ts`. (`generation.ts` receives it as the `canonicalSkillsDir` param — no edit.)
-        - Sweep literal refs: `add-agent.md` (both copies — `.arc/system/skills/` at the scan-loop lines),
-          Package-Project Sync skill-file drift logic, READMEs.
-        - **Verification step (critical):** manually walk through the `add-agent` workflow after the sweep to
-          confirm path resolution; segmented-`join` / dynamic-path construction is not caught by literal grep.
-        - **Depth-shift gotcha (from 6.12.c+d):** the move adds a directory level, so a moved file's own
-          `../`-relative links pointing _outside_ the moved dir (e.g., a `skills/*/SKILL.md` or `skills/README.md`
-          link to `../../system/...`) lose one `../` and break — regardless of target, so the path-pattern grep
-          misses them. Run `validate-links.sh` on every moved `.md` (READMEs + SKILL.md files) and add one `../`
-          to each outside-pointing link. (6.12.c+d caught this only at the pre-commit hook.)
+    - `[x]` **6.12.e Move `skills/` → `.internal/skills/`** — _separable: own commit after 6.12.c+d._
+        - _Outcome:_ Both copies moved (package-source `.internal/` already present from c+d). Repointed the 5
+          segmented-`join` canonical-source sites (`init.ts`, `update.ts`, `reconfigure.ts`, `join.ts` ×2) plus
+          two doc-comments (`generation.ts` — param-only, no logic change; `resolution.ts`). Swept the named doc
+          surfaces: `add-agent.md` (both copies), the package-sync drift surfaces (`strategy-package-project-sync.md`
+          file-list, `DEV-RULES.PROJECT.md` § skill-file drift), and 5 test files. Test-coupled config rode with
+          the move to keep the commit green — `init-recipe.json` `include_files` + `manifest.json` keys (key-rename
+          only; content/hashes unchanged for a pure move). Depth-shift fix: `arc-task-audit/SKILL.md`'s lone
+          outside-pointing link gained one `../` (both copies); the other 16 moved files carry no relative links.
+          Verified by a real `arc init` into a temp repo (all 8 skills generate from the new canonical path) +
+          `validate-links.sh` on every moved `.md` + full `npm test` + build, all clean.
 
     - `[ ]` **6.12.f Sweep inbound references (internals nesting paths)**
         - Grep patterns: `system/\.internal/`, `\.arc/system/\.internal/`, `system/githooks`,
@@ -3993,8 +3989,13 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           narrowed (`skipInternal` now skips only generated `manifest.json`/`pristine.json`, not recipe-installed
           `.internal/` machinery). **Intentionally left:** the 3 ADRs (historical decision records — already carry
           other stale paths) and `pristine.json` (600KB generated merge-cache, not test/verify-load-bearing,
-          broadly stale per BACKLOG-INBOX). After 6.12.e this reduces to the skills sweep + a final whole-tree
-          re-grep.
+          broadly stale per BACKLOG-INBOX). 6.12.e carried the skills move's own coupled surfaces — the
+          test-load-bearing config (`init-recipe.json` + `manifest.json` skills keys), `add-agent.md` (both
+          copies), the package-sync drift surfaces (`strategy-package-project-sync.md`, `DEV-RULES.PROJECT.md`
+          § skill-file drift), and the 5 skills test files. Remaining skills work here is the doc-only surfaces
+          6.12.e didn't name — `strategy-session-operations.md` (both copies), the `arc-reinforce` /
+          `interlock-release-refinement` backlog plans, `pristine.json` keys (hygiene) — plus the final
+          whole-tree re-grep (ADRs + `completed/` stay excluded).
 
     - `[ ]` **6.12.g Verify inbound references swept + tooling smoke-test (post-6.12.f)**
         - Grep across the documentation surface for the old paths (`system/githooks`, `system/scripts`,

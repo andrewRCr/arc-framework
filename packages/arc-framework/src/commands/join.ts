@@ -102,7 +102,7 @@ export async function runJoin(options: JoinOptions): Promise<JoinResult> {
   const existingSkillDirs = await detectExistingSkillDirs(cwd, io.access);
   const skillResult = await generateSkills(
     prompts.tools,
-    join(templateDir, "system", "skills"),
+    join(templateDir, "system", ".internal", "skills"),
     existingSkillDirs,
     cwd,
     { readFile: io.readFile },
@@ -199,7 +199,7 @@ export async function runJoinReconfigure(
   // Generate NEW skills
   const skillResult = await generateSkills(
     prompts.tools,
-    join(templateDir, "system", "skills"),
+    join(templateDir, "system", ".internal", "skills"),
     existingSkillDirs,
     cwd,
     { readFile: io.readFile },

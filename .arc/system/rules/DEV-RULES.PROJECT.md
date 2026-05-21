@@ -125,8 +125,8 @@ template handling guidance.
 **Self-hosting skill-file drift:** The harness-local skill directories (`.claude/skills/`,
 `.codex/skills/`, `.gemini/skills/`, etc. — all gitignored) are regenerated deterministically by
 `arc update` for adopters. This repo doesn't run `arc update` against itself, so those harness
-copies can drift from canonical sources in `.arc/system/skills/` and
-`packages/arc-framework/arc/system/skills/` when canonical content changes. On a fresh
+copies can drift from canonical sources in `.arc/system/.internal/skills/` and
+`packages/arc-framework/arc/system/.internal/skills/` when canonical content changes. On a fresh
 self-hosting session, if a skill's behavior surprises you, suspect drift — hand-sync by copying
 the canonical `SKILL.md` into the harness subdirectory. Adopters aren't affected; their harness
 copies regenerate on every `arc update`.

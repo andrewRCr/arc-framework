@@ -361,7 +361,7 @@ export async function runUpdate(
   const existingSkillDirs = await detectExistingSkillDirs(cwd, io.access);
   const skillResult = await generateSkills(
     ic.tools,
-    join(templateDir, "system", "skills"),
+    join(templateDir, "system", ".internal", "skills"),
     existingSkillDirs,
     cwd,
     { readFile: io.readFile },

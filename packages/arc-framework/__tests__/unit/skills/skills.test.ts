@@ -68,7 +68,7 @@ function buildIO(files: Record<string, string>): SkillGenerationIO {
   };
 }
 
-const SKILLS_DIR = "/repo/.arc/system/skills";
+const SKILLS_DIR = "/repo/.arc/system/.internal/skills";
 const CWD = "/repo";
 
 // --- Tests ---

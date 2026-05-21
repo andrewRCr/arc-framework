@@ -13,7 +13,7 @@ import type { SkillRemovalIO } from "../../src/lib/skills/index.js";
 function canonicalSkillFiles(templateDir: string): Record<string, string> {
   const files: Record<string, string> = {};
   for (const name of CANONICAL_SKILLS) {
-    files[`${templateDir}/system/skills/${name}/SKILL.md`] = [
+    files[`${templateDir}/system/.internal/skills/${name}/SKILL.md`] = [
       "---",
       `name: ${name}`,
       `description: Stub skill for testing.`,

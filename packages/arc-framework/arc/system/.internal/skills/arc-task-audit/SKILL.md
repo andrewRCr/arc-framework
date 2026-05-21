@@ -79,4 +79,4 @@ logic below applies.
    - Do not implement fixes — present findings and wait for the user to decide how to
      proceed.
 
-[generate-tasks]: ../../workflows/arc/2_generate-tasks.md
+[generate-tasks]: ../../../workflows/arc/2_generate-tasks.md

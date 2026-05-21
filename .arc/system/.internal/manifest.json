@@ -295,47 +295,47 @@
       "layer": "core",
       "pristine_hash": "df542b3b3845e940120c9eaee3c0059d815f5b2758df8b2dfdba6c2b366da91d"
     },
-    "system/skills/arc-setup/SKILL.md": {
+    "system/.internal/skills/arc-setup/SKILL.md": {
       "classification": "Framework",
       "layer": "core",
       "pristine_hash": "75d11c781c9118ce49c79dec923d4aba151686c9ef061e8544c28b4dd078ce50"
     },
-    "system/skills/arc-commit/SKILL.md": {
+    "system/.internal/skills/arc-commit/SKILL.md": {
       "classification": "Framework",
       "layer": "core",
       "pristine_hash": "8ee2cf5bb0dd05d89158cd2cc0e5646d1fff906fd6f63dbfc17f58b4a4015b5b"
     },
-    "system/skills/arc-handoff/SKILL.md": {
+    "system/.internal/skills/arc-handoff/SKILL.md": {
       "classification": "Framework",
       "layer": "core",
       "pristine_hash": "b4e12b419b18029ab79f7123242c7c9b8b53dafcca66735e56c2a18c37e24049"
     },
-    "system/skills/arc-resume/SKILL.md": {
+    "system/.internal/skills/arc-resume/SKILL.md": {
       "classification": "Framework",
       "layer": "core",
       "pristine_hash": "81bfc0b5cb84b5cc13421a8ddac84cb54e4eb5fbe7889adba8417dc477b3dcec"
     },
-    "system/skills/arc-task-audit/SKILL.md": {
+    "system/.internal/skills/arc-task-audit/SKILL.md": {
       "classification": "Framework",
       "layer": "core",
       "pristine_hash": "cc62d9b0d574b3b2886d377778d0d2ddca21711a5a7090734a945b778c0cc2f5"
     },
-    "system/skills/arc-task-review/SKILL.md": {
+    "system/.internal/skills/arc-task-review/SKILL.md": {
       "classification": "Framework",
       "layer": "core",
       "pristine_hash": "2b62268b880bd206377f26d490bc4cbd41f788033f19a8e1eb6cd0531067562e"
     },
-    "system/skills/arc-plan/SKILL.md": {
+    "system/.internal/skills/arc-plan/SKILL.md": {
       "classification": "Framework",
       "layer": "core",
       "pristine_hash": "fae2af0409d3096c30897afcd8c702926b5ce8f743f7154baed1186a39630d34"
     },
-    "system/skills/arc-verify/SKILL.md": {
+    "system/.internal/skills/arc-verify/SKILL.md": {
       "classification": "Framework",
       "layer": "core",
       "pristine_hash": "71e70ff2888ebd283cafcabff616dd163fe415884467022dc618820d25bea6ed"
     },
-    "system/skills/README.md": {
+    "system/.internal/skills/README.md": {
       "classification": "Framework",
       "layer": "core",
       "pristine_hash": "89eed70534d49fbb0fea6212423ebba82ddcb8caf8e2f3d5a0c5eb2de3be766a"
