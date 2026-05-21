@@ -11,17 +11,16 @@
 - **Cohort:** [none]
 
 - **Task List:** `tasks-work-organization-reform.md`
-- **Last Completed:** Task 6.11 (`a49b6473`) — System/reference re-tier: `constitution/` → `system/rules/`,
-  `briefs/` → `reference/briefs/` (both copies; full inbound + inside-file-link + CLI/test sweep, 124 files).
-  CLI module rename + domain-rules mechanism deferred to `rules-restructure` (captured in its plan).
+- **Last Completed:** Task 6.12.c+d (`720fa797`) — nest `githooks/` + `scripts/` under `system/.internal/`
+  (both copies; full inbound sweep — CLI, `.husky/`, init-recipe, manifest keys, docs, 9 tests; hooks
+  smoke-tested from the new path). Phase 6.12 audit + 6.12 subtask reshape landed at `5326741a`.
 - **Blockers:** [none]
 
-- **Next Task:** Task 6.12.c — Move `githooks/` → `system/.internal/githooks/` (line ~3936). 6.12.a/b
-  superseded (`.internal/` kept singular — parent already exists, manifest stays).
+- **Next Task:** Task 6.12.e — Move `skills/` → `system/.internal/skills/` (line ~3960).
 
-- **Next Action:** Audit Phase 6.12 first (arc-task-audit) — its CLI surface (`core.hooksPath` writes, script
-  callers, `add-agent` skill-source path) needs the same pre-execution pass 6.11 got; the audit may reshape
-  subtasks. Then execute 6.12.c-g. See WORKING-MEMORY § framework-dir moves for the both-link-forms +
-  CLI-surface + manifest-hash gotchas.
+- **Next Action:** Execute Task 6.12.e; its description carries the c+d-derived hazards — 5 segmented-`join`
+  CLI sites invisible to literal grep, bare-relative link-defs at 3 depths (not a blanket sed), and the
+  depth-shift that breaks a moved `.md`'s own outside-pointing `../` links by one level. Then 6.12.f (final
+  skills sweep) + 6.12.g (verify) close Phase 6.12.
 
 ---
