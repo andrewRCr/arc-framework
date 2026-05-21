@@ -3920,65 +3920,95 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
       The criterion for this nesting is codified in 6.11.a (intra-system axis) — no separate codification
       subtask needed here.
 
-    - _Sequencing:_ 6.12.a + 6.12.b superseded (parent kept singular; manifest stays put) → 6.12.c-e (moves,
-      parallel) → 6.12.f (sweep) → 6.12.g (verify). _Note:_ 6.12's own CLI surface (`core.hooksPath` writes,
-      script callers, `add-agent` skill-source path) still warrants a pre-execution audit before starting.
+    - _Sequencing:_ 6.12.a + 6.12.b superseded (parent kept singular; manifest stays put). The remaining moves
+      are NOT independent: the repo's own hooks source `../scripts/arc-lib.sh` + `../scripts/validate-links.sh`,
+      so `githooks/` and `scripts/` must move in ONE commit — any split leaves a commit whose hook can't find
+      its relocated sibling, and `--no-verify` is barred. Order: **6.12.c + 6.12.d together (one commit, includes
+      the `.husky/` re-wire)** → 6.12.e (skills — separable, own commit) → 6.12.f (sweep) → 6.12.g (verify).
+    - _Audit outcome (pre-execution pass complete):_ the CLI surface is wider than literal-grep reach — the
+      skills source dir is a segmented `join(…, "system", "skills")` at 5 sites, and `init-recipe.json` /
+      `manifest.json` / `package.json` `lint:sh` break tests or gates if missed. `classification.ts` needs no
+      change. The self-host hook wiring is **Husky** (tracked `.husky/*`), not bare `core.hooksPath`. Details
+      folded into the subtasks below.
 
     - `[~]` **6.12.a Create parent** — _Superseded by the `.internal/` naming decision (6.11.a)._
-        - `system/.internal/` is kept singular and already exists, so there is no parent to create — the
-          remaining internals dirs nest into it directly.
+        - `.arc/system/.internal/` is kept singular and already exists (instance-only — holds `manifest.json` +
+          `pristine.json`), so no parent to create there. The package source has no `.internal/` yet, but `git mv`
+          auto-creates it during 6.12.c-e (dry-run confirmed) — still no explicit create step needed.
 
     - `[~]` **6.12.b Move manifest.json** — _Superseded by the `.internal/` naming decision (6.11.a)._
         - `manifest.json` already lives at `.arc/system/.internal/manifest.json` (instance-only; no
           package-source copy). Keeping the parent singular means no promotion, no path change, and no
           manifest-path code change — `.internal/` simply gains sibling dirs alongside the manifest.
 
-    - `[ ]` **6.12.c Move `githooks/` → `.internal/githooks/`**
+    - `[ ]` **6.12.c Move `githooks/` → `.internal/githooks/`** — _commit together with 6.12.d (coupled)._
         - `git mv .arc/system/githooks .arc/system/.internal/githooks`.
         - `git mv packages/arc-framework/arc/system/githooks
-          packages/arc-framework/arc/system/.internal/githooks`.
-        - Sweep: hook-manager integration docs (Husky / Lefthook / pre-commit) in `githooks/README.md`, CLI
-          install logic (`arc init` / `arc join` set `core.hooksPath` and modify hook-manager configs — all
-          path-write sites need updating), manual-setup instructions in READMEs.
-        - Self-hosted update: re-set `git config core.hooksPath .arc/system/.internal/githooks` on this
-          repo after the move (one-time local op, not committed). Smoke-test commit confirms hooks fire from
-          the new path (6.12.g).
+          packages/arc-framework/arc/system/.internal/githooks`. (`git mv` auto-creates the package-source
+          `.internal/` parent — none exists today; manifest/pristine are instance-only.)
+        - Sweep CLI path literals (grep-catchable): `setup.ts` (`core.hooksPath .arc/system/githooks` — adopter
+          install path), `hook-integration.ts` (`ARC_PRE_COMMIT` / `ARC_COMMIT_MSG` constants — the Husky /
+          Lefthook / pre-commit config writers), `init.ts` (`system/githooks/` prefix check), plus
+          `githooks/README.md` manual-setup instructions.
+        - Self-host re-wire — this repo runs **Husky**, not bare `core.hooksPath` (`core.hooksPath` = `.husky/_`):
+          edit the git-tracked `.husky/commit-msg` + `.husky/pre-commit` (each `bash .arc/system/githooks/…` →
+          `.internal/githooks/…`). Tracked → this is a **committed** edit in this bundle, not a local
+          `core.hooksPath` reset; required for the bundle's own commit hook to fire. Smoke-tested at 6.12.g.
 
-    - `[ ]` **6.12.d Move `scripts/` → `.internal/scripts/`**
+    - `[ ]` **6.12.d Move `scripts/` → `.internal/scripts/`** — _commit together with 6.12.c (coupled via the
+      hooks' `../scripts/` source lines)._
         - `git mv .arc/system/scripts .arc/system/.internal/scripts`.
         - `git mv packages/arc-framework/arc/system/scripts
           packages/arc-framework/arc/system/.internal/scripts`.
-        - Sweep: `arc-verify` skill calls `verify-integrity.sh`; CLI calls `validate-config.sh`; `arc-lib.sh`
-          is sourced from other scripts; READMEs reference paths. Update all callers across CLI source +
-          shell scripts.
+        - Inter-script sourcing is `dirname`-relative (`. "$(dirname "$0")/arc-lib.sh"`) and survives the move;
+          the hooks' `../scripts/…` refs survive too — but only **once both dirs have moved**, hence the joint
+          commit with 6.12.c.
+        - Sweep absolute refs that do NOT self-correct (they live inside the moved dir — see the 6.12.f
+          carve-out): `verify-integrity.sh` (`$ARC_DIR/system/scripts/{validate-config,arc-lib}.sh`,
+          `$ARC_DIR/system/githooks`) and `arc-verify/SKILL.md` (`.arc/system/scripts/verify-integrity.sh`,
+          both copies) → `.internal/…`.
+        - Quality-gate surface: `packages/arc-framework/package.json` `lint:sh` hard-codes
+          `arc/system/scripts/run-shellcheck.sh` + `arc/system/{githooks,scripts}/…` — update or `npm run lint:sh`
+          breaks. Plus `scripts/README.md` path references.
 
-    - `[ ]` **6.12.e Move `skills/` → `.internal/skills/`**
+    - `[ ]` **6.12.e Move `skills/` → `.internal/skills/`** — _separable: own commit after 6.12.c+d._
         - `git mv .arc/system/skills .arc/system/.internal/skills`.
         - `git mv packages/arc-framework/arc/system/skills packages/arc-framework/arc/system/.internal/skills`.
-        - Sweep: `add-agent` workflow (canonical-source path for harness-dir regeneration), Package-Project
-          Sync pairing logic (skill-file drift check), harness-regeneration source path in `arc init` /
-          `arc update` (CLI reads from package source for adopters; self-host path differs).
-        - **Verification step (critical):** manually walk through `add-agent` workflow mentally after the
-          path sweep to confirm path resolution; dynamic-path construction in the workflow may not be caught
-          by literal grep.
+        - CLI canonical-source dir is a **segmented `join`**, invisible to a literal `system/skills` grep —
+          update all 5 sites to `join(templateDir, "system", ".internal", "skills")`: `init.ts`, `join.ts` (×2),
+          `update.ts`, `reconfigure.ts`. (`generation.ts` receives it as the `canonicalSkillsDir` param — no edit.)
+        - Sweep literal refs: `add-agent.md` (both copies — `.arc/system/skills/` at the scan-loop lines),
+          Package-Project Sync skill-file drift logic, READMEs.
+        - **Verification step (critical):** manually walk through the `add-agent` workflow after the sweep to
+          confirm path resolution; segmented-`join` / dynamic-path construction is not caught by literal grep.
 
     - `[ ]` **6.12.f Sweep inbound references (internals nesting paths)**
         - Grep patterns: `system/\.internal/`, `\.arc/system/\.internal/`, `system/githooks`,
           `\.arc/system/githooks`, `system/scripts`, `\.arc/system/scripts`, `system/skills`,
           `\.arc/system/skills`, `[githooks]:` / `[scripts]:` / `[skills]:` reference-link definitions.
-        - Update to `system/.internal/{githooks,scripts,skills}/` and `system/.internal/manifest.json`
-          respectively. Surfaces include: workflows, strategies, READMEs, CLI source code, hook-manager
-          integration docs, package source mirror. Completion records (read-only historical) excluded.
-        - **Exclusion:** content INSIDE the moved dirs — same as 6.11.d, sweep only inbound refs.
+          **Plus the segmented-`join` form** the literal patterns miss: `"system",\s*"(githooks|scripts|skills)"`.
+        - Update to `system/.internal/{githooks,scripts,skills}/`. Surfaces: workflows, strategies, READMEs, CLI
+          source, hook-manager integration docs, package source mirror, and the test-load-bearing config —
+          `init-recipe.json` (`include_files`), `manifest.json` keys (key-rename; hash recompute is hygiene for
+          pure moves), `pristine.json` keys, `package.json` `lint:sh`. `classification.ts` needs no change
+          (these dirs aren't Configurable/Scaffolded). Completion records (read-only historical) excluded.
+        - **Exclusion + carve-out:** skip _relative_ sibling refs inside moved dirs (they move together and stay
+          valid — the 6.11.d rule). But absolute / root-anchored refs inside moved dirs do NOT self-correct —
+          sweep `$ARC_DIR/system/…` and `.arc/system/…` refs in `verify-integrity.sh` and `arc-verify/SKILL.md`
+          (done in 6.12.d/e; re-grep here to confirm none remain).
 
     - `[ ]` **6.12.g Verify inbound references swept + tooling smoke-test (post-6.12.f)**
-        - Grep across documentation surface for the old paths (`system/githooks`, `system/scripts`,
-          `system/skills`, `system/.internal/`) — should return empty (excluding WOR's own PRD / task list /
-          notes).
-        - Run `arc verify` end-to-end to confirm `verify-integrity.sh` and `validate-config.sh` resolve at
-          their new paths.
-        - Smoke-test commit on this repo to confirm hooks fire from the new path (`commit-msg` + `pre-commit`
-          both invoked correctly under the updated `core.hooksPath`).
+        - Grep across the documentation surface for the old paths (`system/githooks`, `system/scripts`,
+          `system/skills`) and the segmented-`join` form — should return empty (excluding WOR's own PRD /
+          task list / notes).
+        - `npm test` + `npm run lint:sh` — the load-bearing failure modes (`init-recipe.json` fixture build,
+          `manifest.json` key drift, `lint:sh` paths) surface here, not in Tier 1 lint.
+        - Run `arc verify` end-to-end to confirm `verify-integrity.sh` + `validate-config.sh` resolve at their
+          new paths (exercises the absolute-ref fixes from 6.12.d).
+        - Smoke-test commit on this repo to confirm hooks fire under the rewritten `.husky/` wrappers
+          (`commit-msg` + `pre-commit` both invoked at the new `.internal/githooks/` path).
+        - Hand-sync the gitignored harness copy `.claude/skills/arc-verify/SKILL.md` to the updated canonical
+          (no self-`arc update` here) so `/arc-verify` resolves the new script path next session.
 
 - _Outcome:_ `system/` cleanly separates user-facing customization surfaces (top-level children) from
   framework-internal machinery (`.internal/` namespace). Developer mental burden when navigating `system/`
