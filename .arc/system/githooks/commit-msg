@@ -265,13 +265,8 @@ case "$context_footer_mode" in
                 spec_found=false
                 if [ -f ".arc/active/$spec_file" ]; then
                     spec_found=true
-                else
-                    for dir in .arc/backlog/*/; do
-                        if [ -f "$dir$spec_file" ]; then
-                            spec_found=true
-                            break
-                        fi
-                    done
+                elif find .arc/backlog -type f -name "$spec_file" 2>/dev/null | grep -q .; then
+                    spec_found=true
                 fi
 
                 if [ "$spec_found" = false ]; then
