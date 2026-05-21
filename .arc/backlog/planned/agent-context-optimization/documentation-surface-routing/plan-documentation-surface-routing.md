@@ -272,6 +272,17 @@ additions; possibly reference-card generator.
   directory rename + the two existing sibling meta files + notes-WOR worksheet (if WOR notes
   still live by then) + ROADMAP refs.
 
+### With scalable-core (ADR-020)
+
+- **Ownership split:** this WU owns *what* completion surfaces carry (the synthesis-over-record routing);
+  ADR-020 owns *whether* `completed/` persists (the `archive.preserve` toggle). Complementary, no overlap.
+- **Supplies the toggle's value-prop:** the synthesis-vs-record framing is what `archive.preserve: false`
+  trades away — not the record (git holds that, P6) but the durable *synthesis* layer. ADR-020 cites this
+  framing directly.
+- **Reinforcing:** as this WU succeeds in making completion notes less restate-y of git (more pure
+  synthesis), the archive becomes less reconstructable from git → the cost of deleting rises → reinforces
+  `archive.preserve: true` as the correct default.
+
 ### With existing capture surfaces
 
 - **USER-INBOX `Meta-file Last Completed / Next Action length drift` entry:** folds into this

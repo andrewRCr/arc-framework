@@ -53,6 +53,24 @@ Substantive AWL-specific implications (captured here):
   ARC's current uniform ceremony, which doesn't fit team practice where small WUs are spun up and
   shipped constantly.
 
+## Scalable-core alignment note (ADR-020)
+
+ADR-020 (principle-anchored scalable core) ratifies this plan's tiered-artifacts / invariant-execution
+thesis and adds two steers to absorb at PRD:
+
+1. **Spec is always a separate document.** ADR-020's invariant floor kills the quick-tier "spec via
+   task-list `## Scope` header" option in the § Three-Tier Model table — quick-tier (and above) carries a
+   separate `spec-*` doc that scales by template variant (PRD → brief → paragraph), never a header section.
+   This narrows § Open Questions' "quick-tier spec shape" further: the answer is a separate doc, lightest
+   variant.
+2. **Intent-verification survives at quick tier, scaled.** The table's quick-tier closeout ("tasks
+   complete + T2 gates") drops the intent check; ADR-020 keeps it — success criteria exist and are checked
+   at quick tier, scaling from one falsifiable criterion up. Verification-as-an-explicit-phase still scales
+   (gate-check at quick, phase at standard), but *that* intent-verification happens does not. Atomic
+   remains the exemption (commit/PR self-review).
+
+The tier model otherwise stands. Comprehensive reconciliation defers to WU activation.
+
 ---
 
 ## Problem / Motivation
@@ -579,7 +597,7 @@ concrete examples for the strategy doc.
 
 ---
 
-[dev-rules]: ../../../../reference/constitution/DEV-RULES.ARC.md
+[dev-rules]: ../../../../system/rules/DEV-RULES.ARC.md
 [strategy-work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md
 [tasklist-fmt]: ../../../../reference/strategies/arc/strategy-task-list-formatting.md
 [template-meta]: ../../../../reference/templates/template-meta.md

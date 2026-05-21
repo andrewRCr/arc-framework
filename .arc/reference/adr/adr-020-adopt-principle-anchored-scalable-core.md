@@ -151,9 +151,14 @@ This ADR is a coordinating north star for several in-flight work units; it asser
 shape. Cross-references resolve through it.
 
 - **`plan-arc-modes.md`** — the planned `pm.mode → pm.layer` rename changes *shape*, not just name: a
-  boolean Planning Module toggle, not a renamed enum. Lite is the core at scaled depth, not a shape-swap
-  (no "no work units"). Local stays an orthogonal storage axis. `team.mode → team.enabled` is consistent
-  with the toggle direction.
+  boolean Planning Module toggle, not a renamed enum. **Lite dissolves entirely** — it is not a distinct
+  mode but a region of the scaling axes (Planning Module off/minimal + atomic/quick tier + minimum depth,
+  reached by the guided-init defaults). Its "no work units, one flat task list" structural shape is
+  eliminated by the invariant floor, and the name does not survive (consistent with ADR-010's
+  replace-profiles-with-strong-defaults stance). Lite therefore stops being a *deliverable* of arc-modes
+  and becomes a *consequence* of this ADR; **Local remains arc-modes' live, orthogonal deliverable**
+  (storage/visibility axis, unaffected). `team.mode → team.enabled` is consistent with the toggle
+  direction. arc-modes owns finalizing the disposition at its PRD; this ADR steers it.
 - **`plan-agile-wu-lifecycle.md`** — ratifies the floor; absorbs two steers: (a) the spec is always a
   separate document (kill quick-tier scope-in-header), (b) intent-verification survives at quick tier,
   scaled. The tier model otherwise stands.

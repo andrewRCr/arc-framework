@@ -288,6 +288,12 @@ own PRD-promotion time.
 `strategy-storage-evolution.md` at PRD time and confirm the design composes with backend-tier
 semantics. None require rework today.
 
+**Scalable-core (`plan-scalable-core.md`, ADR-020).** ADR-020 sharpens this plan's scope rather than
+flagging it: the backend is the canonical store for *mutable shared state* (inbox drains,
+priority/ordering), which is unsolvable in-git by git's nature. Derived shared state (ROADMAP) is solvable
+in-git via serialization-point regeneration and is not backend-dependent. This reinforces the concurrency
+calibration note above — the backend's load-bearing value is canonical mutable storage, not sync generally.
+
 ---
 
 [strategy-storage-evolution]: ../../../reference/strategies/project/strategy-storage-evolution.md

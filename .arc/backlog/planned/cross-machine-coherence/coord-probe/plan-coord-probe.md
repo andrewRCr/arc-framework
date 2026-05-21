@@ -286,6 +286,15 @@ When adapter fails (network down, auth expired, `gh` not installed), session-ini
 probe is advisory. How prominently is failure surfaced? Silent fallback to in-git? Brief warning? Full
 error in orientation? PRD decision.
 
+### Scalable-core alignment (ADR-020)
+
+ADR-020 collapses `pm.mode: external` into `module-off + tracker-configured` — `external` ceases to be a
+config value. `coord.adapter` therefore no longer keys off `pm.mode == external`: it activates whenever a
+tracker pointer is configured, in *any* Planning Module state — including the newly-expressible
+`module-on + tracker` (an in-git backlog whose `Origin`s link to an external tracker). The
+single-`coord.adapter` / multi-tracker-foreclosed stance is preserved and reinforced (per-WU `Origin`
+carries heterogeneous trackers; the project-level adapter stays singular). Absorb at PRD.
+
 ---
 
 ## Scope Estimate

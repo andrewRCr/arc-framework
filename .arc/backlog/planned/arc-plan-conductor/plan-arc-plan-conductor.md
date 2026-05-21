@@ -58,6 +58,13 @@ Conductor-WU implications of the rename (substantive content captured here, not 
    refinement passes) matches `refine-draft-loop` more cleanly than `refine-plan-loop` does
    post-rename.
 
+**Scalable-core alignment (ADR-020).** ADR-020 steers this WU to extend depth-selection / single-entry
+beyond the planning entry point to the *lifecycle* workflows (init / activate / integrate / archive) —
+"resolve-then-load over carry-and-skip," anchored on the existing extension / active-set mechanism so
+simple cases don't carry complex-case instructions. The mechanism's design (and the `system/workflows/`
+navigability question) is owned by `plan-composable-workflows.md`; the conductor is the integration point.
+ADR-020 §9 carries the requirement.
+
 - **Origin:** Live pressure from `plan-arc-modes.md` exposed a gap between ARC's
   intentionally light plan stage and the needs of large greenfield shaping work. The 2026-04-29
   conductor reframe emerged from interlock-foundation PRD discussion: that PRD's planning-session

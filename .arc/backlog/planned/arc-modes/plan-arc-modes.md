@@ -38,6 +38,18 @@ until design decisions are resolved.
 >   rather than reusing Full's. Treat as a new design surface during PRD scoping; don't assume Full's
 >   probe shape extends.
 
+<!-- -->
+
+> **Scalable-core reframe — Lite dissolves (ADR-020):** The scalable-core thesis collapses Lite into the
+> scaling axes — Lite is _not_ a distinct mode but a region of (Planning Module off/minimal + atomic/quick
+> tier + minimum depth), reached by guided-init defaults. Its "no work units, one flat task list" shape is
+> eliminated by the invariant floor (work units, a separate spec, and a task list are non-negotiable above
+> atomic). The name does not survive (per ADR-010's anti-profile stance). **Consequence:** Lite is no
+> longer a deliverable of this WU — it becomes a consequence of ADR-020. **Local is unaffected** and
+> remains this WU's live, orthogonal deliverable (storage/visibility axis), as do shift lifecycle and
+> mode-aware scaffolding (which reshape, not dissolve). This plan predates the reframe and is due a broader
+> refresh; comprehensive reconciliation defers to WU activation (Activation Audit pattern).
+
 **Upstream dependency:** Methodology Maturation (`prd-methodology-maturation.md`) — settles the
 methodology/implementation boundary, language consistency, and content architecture that this work unit
 builds on. **Completed** (2026-04-08, archived). The conditional content architecture analysis

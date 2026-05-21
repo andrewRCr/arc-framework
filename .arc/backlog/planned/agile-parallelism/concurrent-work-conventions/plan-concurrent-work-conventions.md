@@ -334,6 +334,21 @@ The visualization gap (sequential layout claiming "parallelizable") is a documen
 concern, not a tooling concern. Adopting better visualization patterns is a strategy-doc + ROADMAP-
 template change, not a CLI/lint addition. Research-informed redesign at PRD time.
 
+### Shared-file concurrency: derived vs. mutated (ADR-020)
+
+ADR-020 splits the in-git concurrency problem precisely, and this WU owns codifying the conventions:
+
+- **Derived shared state (ROADMAP) is solvable in-git.** It is a pure projection over branch-isolated
+  `meta-*` files; deterministic regeneration at a *single serialization point* (post-merge on the
+  integration branch, not hand-edited on feature branches) makes it conflict-free. This is the
+  conventions-side fix for the ROADMAP-parallelism gap above.
+- **Mutated shared state (inbox drains, any human-editable priority/ordering) is not solvable in-git.**
+  Git's line-merge is not a CRDT — concurrent appends to a queue's tail conflict, and edits/reordering
+  conflict regardless of sharding — so this is `plan-arc-backend.md` territory (canonical mutable store).
+- **Partial mitigation worth a convention:** `merge=union` via `.gitattributes` makes concurrent inbox
+  *appends* auto-merge, but loses *intentional deletions* (a drained entry can resurrect) — an
+  append-safety aid, not a drain-safe solution. Document the caveat if adopted.
+
 ---
 
 ## Dependencies and Sequencing
