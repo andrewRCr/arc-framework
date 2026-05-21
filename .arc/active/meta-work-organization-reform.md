@@ -11,16 +11,15 @@
 - **Cohort:** [none]
 
 - **Task List:** `tasks-work-organization-reform.md`
-- **Last Completed:** Task 6.12.c+d (`720fa797`) — nest `githooks/` + `scripts/` under `system/.internal/`
-  (both copies; full inbound sweep — CLI, `.husky/`, init-recipe, manifest keys, docs, 9 tests; hooks
-  smoke-tested from the new path). Phase 6.12 audit + 6.12 subtask reshape landed at `5326741a`.
+- **Last Completed:** Task 6.12 — intra-system internals nesting complete: `githooks/` + `scripts/` +
+  `skills/` all nested under `system/.internal/`. Skills move + inbound sweep + verify landed this session
+  (`79defe55`, `401cc129`, `e305c996`).
 - **Blockers:** [none]
 
-- **Next Task:** Task 6.12.e — Move `skills/` → `system/.internal/skills/` (line ~3960).
+- **Next Task:** Task 6.13 — Create `plan-arc-in-git-as-default.md` (R64) (line ~4000).
 
-- **Next Action:** Execute Task 6.12.e; its description carries the c+d-derived hazards — 5 segmented-`join`
-  CLI sites invisible to literal grep, bare-relative link-defs at 3 depths (not a blanket sed), and the
-  depth-shift that breaks a moved `.md`'s own outside-pointing `../` links by one level. Then 6.12.f (final
-  skills sweep) + 6.12.g (verify) close Phase 6.12.
+- **Next Action:** Execute Task 6.13 — author the exploratory `plan-arc-in-git-as-default.md` (the "arc-in-git
+  as default" thesis; lands in `backlog/feature/`). Mode shift from migration to plan-doc authoring; per the
+  task's companion-read note, skim `plan-arc-modes` header/TOC first.
 
 ---
