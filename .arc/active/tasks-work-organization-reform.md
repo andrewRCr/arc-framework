@@ -3933,28 +3933,28 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           package-source copy). Keeping the parent singular means no promotion, no path change, and no
           manifest-path code change — `.internal/` simply gains sibling dirs alongside the manifest.
 
-    - `[ ]` **6.12.c Move `githooks/` → `.internals/githooks/`**
-        - `git mv .arc/system/githooks .arc/system/.internals/githooks`.
+    - `[ ]` **6.12.c Move `githooks/` → `.internal/githooks/`**
+        - `git mv .arc/system/githooks .arc/system/.internal/githooks`.
         - `git mv packages/arc-framework/arc/system/githooks
-          packages/arc-framework/arc/system/.internals/githooks`.
+          packages/arc-framework/arc/system/.internal/githooks`.
         - Sweep: hook-manager integration docs (Husky / Lefthook / pre-commit) in `githooks/README.md`, CLI
           install logic (`arc init` / `arc join` set `core.hooksPath` and modify hook-manager configs — all
           path-write sites need updating), manual-setup instructions in READMEs.
-        - Self-hosted update: re-set `git config core.hooksPath .arc/system/.internals/githooks` on this
+        - Self-hosted update: re-set `git config core.hooksPath .arc/system/.internal/githooks` on this
           repo after the move (one-time local op, not committed). Smoke-test commit confirms hooks fire from
           the new path (6.12.g).
 
-    - `[ ]` **6.12.d Move `scripts/` → `.internals/scripts/`**
-        - `git mv .arc/system/scripts .arc/system/.internals/scripts`.
+    - `[ ]` **6.12.d Move `scripts/` → `.internal/scripts/`**
+        - `git mv .arc/system/scripts .arc/system/.internal/scripts`.
         - `git mv packages/arc-framework/arc/system/scripts
-          packages/arc-framework/arc/system/.internals/scripts`.
+          packages/arc-framework/arc/system/.internal/scripts`.
         - Sweep: `arc-verify` skill calls `verify-integrity.sh`; CLI calls `validate-config.sh`; `arc-lib.sh`
           is sourced from other scripts; READMEs reference paths. Update all callers across CLI source +
           shell scripts.
 
-    - `[ ]` **6.12.e Move `skills/` → `.internals/skills/`**
-        - `git mv .arc/system/skills .arc/system/.internals/skills`.
-        - `git mv packages/arc-framework/arc/system/skills packages/arc-framework/arc/system/.internals/skills`.
+    - `[ ]` **6.12.e Move `skills/` → `.internal/skills/`**
+        - `git mv .arc/system/skills .arc/system/.internal/skills`.
+        - `git mv packages/arc-framework/arc/system/skills packages/arc-framework/arc/system/.internal/skills`.
         - Sweep: `add-agent` workflow (canonical-source path for harness-dir regeneration), Package-Project
           Sync pairing logic (skill-file drift check), harness-regeneration source path in `arc init` /
           `arc update` (CLI reads from package source for adopters; self-host path differs).
@@ -3966,7 +3966,7 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
         - Grep patterns: `system/\.internal/`, `\.arc/system/\.internal/`, `system/githooks`,
           `\.arc/system/githooks`, `system/scripts`, `\.arc/system/scripts`, `system/skills`,
           `\.arc/system/skills`, `[githooks]:` / `[scripts]:` / `[skills]:` reference-link definitions.
-        - Update to `system/.internals/{githooks,scripts,skills}/` and `system/.internals/manifest.json`
+        - Update to `system/.internal/{githooks,scripts,skills}/` and `system/.internal/manifest.json`
           respectively. Surfaces include: workflows, strategies, READMEs, CLI source code, hook-manager
           integration docs, package source mirror. Completion records (read-only historical) excluded.
         - **Exclusion:** content INSIDE the moved dirs — same as 6.11.d, sweep only inbound refs.
@@ -3981,9 +3981,9 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           both invoked correctly under the updated `core.hooksPath`).
 
 - _Outcome:_ `system/` cleanly separates user-facing customization surfaces (top-level children) from
-  framework-internal machinery (`.internals/` namespace). Developer mental burden when navigating `system/`
+  framework-internal machinery (`.internal/` namespace). Developer mental burden when navigating `system/`
   drops; the new structure auto-documents what's editable vs. CLI-managed via the dotfile convention. Skills
-  mirror retained (not removed) — `add-agent` workflow consumes it, justifying the `.internals/skills/`
+  mirror retained (not removed) — `add-agent` workflow consumes it, justifying the `.internal/skills/`
   placement as the canonical source.
 
 ### `[ ]` **6.13 Create `plan-arc-in-git-as-default.md` (R64)**
