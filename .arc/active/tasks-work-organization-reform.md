@@ -3195,7 +3195,7 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           `packages/arc-framework/arc/reference/archive/README.md` (lines 41, 50, 58, 102-106
           describing pre-WOR archive WU shape) — broader structural rewrite needed since the whole
           README is pre-WOR (category subdirs, PROJECT-STATUS refs, incidental category framing).
-          Folded into new subtask 6.9.e (rewrite completed/README.md content for post-WOR shape;
+          Folded into new subtask 6.9.f (rewrite completed/README.md content for post-WOR shape;
           naturally co-located with Phase 6.9's archive→completed directory promotion).
           `strategy-package-project-sync.md:177` `template-completion-doc.md` ref → 6.7.e per
           its stated scope. Internal-dev / historical surfaces (ADR-019, analyses, WOR's own
@@ -3206,7 +3206,7 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
         - Verification: post-sweep grep on active surfaces (workflows, methods, extensions,
           briefs, strategies, constitution, templates, QUICK-REFERENCE + package mirrors)
           returns 0 `status-*.md` matches in current-state references (only the deferred
-          `completion-*.md` README hits remain, covered by 6.9.e); `lint:md` zero errors.
+          `completion-*.md` README hits remain, covered by 6.9.f); `lint:md` zero errors.
 
     - `[x]` **6.7.e Retired template/strategy/plan refs (`template-completion-doc`, `PROJECT-STATUS`,
       `plan-roadmap-evolution`, `plan-completion-status-consolidation`)**
@@ -3588,13 +3588,14 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
   → `active/` → `completed/` becomes evident at directory-tree level (symmetric with existing `active/` and `backlog/`).
 
     - _Approach:_ `git mv .arc/reference/archive .arc/completed` — directory rename + promotion in one operation.
-      Historical content (`archive/2026-q*/{category}/`) moves alongside, preserving R42's read-only categorical layout
-      intact (paths become `completed/2026-q*/{category}/`).
+      Historical content moves alongside. R42 amended this WU (see 6.9.e) — historical layout reshaped to R41
+      (`completed/<dated>/{NN}_{wu-name}/`) post-promotion; file contents preserved as-is.
 
-    - _Sequencing:_ 6.9.a (rename) → 6.9.b (sweep) → 6.9.c (verify). 6.9.e (README rewrite) can run
-      in parallel with 6.9.c verification once 6.9.b completes. 6.9.f (recipe gating reclassification)
-      runs after 6.9.a and is independent of 6.9.b's path sweep — distinct mechanical concern (block
-      placement in `init-recipe.json` + `classification.ts` layer assignment vs. path-string replacement).
+    - _Sequencing:_ 6.9.a (rename) → 6.9.b (sweep) → 6.9.c (verify) → 6.9.d (hooks/scripts verify) →
+      6.9.e (historical content reshape) → 6.9.f (README rewrite, reflects post-reshape shape).
+      6.9.g (recipe gating reclassification) runs after 6.9.a and is independent of the sweep +
+      reshape path — distinct mechanical concern (block placement in `init-recipe.json` +
+      `classification.ts` layer assignment vs. path-string + dir-shape changes).
 
     - `[x]` **6.9.a Execute directory move (both copies) + lint-config + validate-links archive-skip updates**
         - Both `git mv` ops landed: `.arc/reference/archive` → `.arc/completed/` (with `2025-q4/`,
@@ -3644,7 +3645,7 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           `archive-work-unit.md` filename, `post-work-unit-archive` extension key — verb stays
           per R62.
         - **Deferred / out-of-scope (intentional):** `init-recipe.json:9` +
-          `classification.ts:78` deferred to 6.9.f (recipe gating reclassification);
+          `classification.ts:78` deferred to 6.9.g (recipe gating reclassification);
           `manifest.json` auto-regen via `arc update`; `meta-work-organization-reform.md:19` Next
           Task pointer updates at next handoff per DEV-RULES § Meta-file timing.
         - **Two-copy discipline preserved.** All workflows + strategies + extensions + user-README
@@ -3654,7 +3655,7 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
     - `[x]` **6.9.c Verify inbound references swept (post-6.9.b)**
         - Verification performed inline at 6.9.b completion: final grep across `*.md`, `*.ts`,
           `*.sh`, `*.json` surfaces returned only intentionally-out-of-scope hits
-          (init-recipe.json + classification.ts:78 deferred to 6.9.f; manifest.json auto-regen;
+          (init-recipe.json + classification.ts:78 deferred to 6.9.g; manifest.json auto-regen;
           meta-file Next Task pointer at handoff per Meta-file timing; WOR PRD/tasks/notes;
           ADR-019 + ADR-012:267 historical decision narrative; analysis-modes-contributor-
           lifecycle-stress-test.md historical analysis; ROADMAP carve-out; `docs/reference/`
@@ -3670,7 +3671,59 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           verify-integrity.sh, README) returns zero stale `reference/archive` / `.arc/archive` refs.
         - `manifest.json` + `pristine.json` regenerate via `arc update`; no manual edits.
 
-    - `[ ]` **6.9.e Rewrite `completed/README.md` content for post-WOR shape**
+    - `[ ]` **6.9.e Reshape historical content under `completed/` to R41 layout (drop category subdir; add NN where absent)**
+        - _Goal:_ Apply R41 directory shape uniformly across all historical content under `completed/`.
+          The `.arc/` root promotion (6.9.a) made the pre-WOR categorical heterogeneity (some quarters
+          with `feature/`/`technical/`/`incidental/` subdirs; partial NN coverage) visible enough to
+          motivate normalization. File contents preserved; only directory structure changes.
+
+        - **Target shape (per amended R41):** `completed/<dated>/{NN}_{wu-name}/` — NN as 2-digit
+          completion-order prefix within the dated subdir.
+
+        - **PRD amendments precede this execution** (landed in the planning-capture commit
+          that inserted this subtask):
+            - R41 path template updated to `completed/<dated>/{NN}_{wu-name}/` with explicit NN
+              preservation clause + rationale.
+            - R42 rewritten to codify the reshape: "directory layout reshaped to R41 at 6.9.e;
+              file contents preserved as-is; no retroactive content migration; NN reconstructed
+              from git history where absent in pre-WOR layout."
+
+        - **Heterogeneity inventory + reshape plan:**
+            - `2025-q4/feature/` — 1 WU (`enhance-docs-content-p1`), no NN, no per-WU subdir.
+              Files live directly in `feature/`. Need to: create per-WU subdir, assign NN by
+              completion order, `git mv` files into the new subdir.
+            - `2025-q4/incidental/` — 3 tasks-only items (`tasks-chore-sync-cinexplorer-2025-10-17.md`,
+              `tasks-chore-sync-cinexplorer-2025-10-24.md`, `tasks-incidental-terminology-refactoring.md`),
+              no per-WU subdirs. Each gets its own `{NN}_{name}/` subdir at the quarter root.
+            - `2026-q1/` — 7 technical WUs with NN already, under `technical/` category subdir.
+              `git mv 2026-q1/technical/* 2026-q1/` to drop the category layer. Atomic roll-up
+              `completed-atomic-2026-q1.md` stays at quarterly root (no WU, no NN).
+            - `2026-q2/` — 8 technical WUs + 1 feature WU, all with NN, under category subdirs.
+              `git mv 2026-q2/{feature,technical}/* 2026-q2/` to drop category layers.
+
+        - **NN reconstruction for pre-NN content (2025-q4):**
+            - For each WU/incidental lacking NN: `git log --follow --diff-filter=A --format=%aI
+              <primary-task-list-path>` returns the first-add commit timestamp. Rank chronologically
+              within the quarter, assign NN starting from 01. 2025-q4 total: 1 feature + 3
+              incidentals = 4 NN slots.
+
+        - **Boundaries (do NOT touch):**
+            - File contents — no renames inside subdirs. `status-*.md` stays `status-*.md`;
+              `completion-*.md` stays `completion-*.md`; no field backfill on historical meta files.
+            - Atomic roll-up `completed-atomic-2026-q1.md` — not a WU, no NN, stays at quarterly root.
+            - Lint/validate-links configs — already exclude `.arc/completed/**`; no edit needed.
+
+        - **Verification:**
+            - `ls .arc/completed/<quarter>/` shows numbered WU subdirs in completion order; no
+              category subdirs remain.
+            - `git status --short` shows only `R` (rename) entries — no add/delete pairs, no modify.
+            - T1 lint + `validate-links.sh` pre-commit gates pass (configs unchanged; surface
+              skipped under `.arc/completed/**`).
+
+        - **Sequencing:** runs after 6.9.a/b/c/d; precedes 6.9.f (README rewrite reflects
+          post-reshape state). Independent of 6.9.g (recipe gating).
+
+    - `[ ]` **6.9.f Rewrite `completed/README.md` content for post-WOR shape**
         - The current `archive/README.md` (package source; mirrored to `.arc/` per package-project-sync) describes a
           pre-WOR archive shape: quarterly + category subdirs (`feature/`, `technical/`, `incidental/`) framed as
           current convention, `completion-{name}.md` artifact (retired per R30 — content folds into meta-file
@@ -3688,7 +3741,7 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
         - **Sequencing:** runs after 6.9.a (both directory moves) so both paths are at their post-WOR
           locations; can run in parallel with 6.9.c verification.
 
-    - `[ ]` **6.9.f Reclassify `completed/README.md` in `init-recipe.json` (core → arc-in-git conditional)**
+    - `[ ]` **6.9.g Reclassify `completed/README.md` in `init-recipe.json` (core → arc-in-git conditional)**
         - **Gating change, not path replacement:** today `reference/archive/README.md` sits in
           `packages/arc-framework/init-recipe.json` core `include_files` (unconditional — every project
           seeds it regardless of `pm.mode`). R62 restricts `completed/` to arc-in-git mode — same rule
@@ -3699,7 +3752,7 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           string in its `CONFIGURABLE_FILES` set (line ~78). Token update only: `"reference/archive/README.md"`
           → `"completed/README.md"`. **Classification stays Configurable; layer flip is automatic** —
           `fileLayer()` reads from the `arcInGitFiles` set populated at `src/commands/init.ts:147–151`
-          from the recipe's `pm.mode == arc-in-git` conditional block, so once 6.9.f's recipe edit moves
+          from the recipe's `pm.mode == arc-in-git` conditional block, so once 6.9.g's recipe edit moves
           the entry into that block, the layer returns `"arc-in-git"` without any change to layer logic.
         - **Test impact:** `__tests__/integration/init.test.ts` + `__tests__/e2e/init.e2e.test.ts` — flip
           seed-assertion expectations: default-mode init should NOT seed `completed/`; arc-in-git mode
@@ -3711,9 +3764,10 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
           extension stay in the core seed list — only the _destination directory_ becomes mode-gated, not
           the archive mechanism itself. Same shape as today's backlog (universal `init-work-unit.md`
           mechanism + conditional `backlog/` artifacts).
-        - **Sequencing:** runs after 6.9.a (`git mv` establishes the on-disk path); independent of 6.9.b
-          (string sweep vs. block reclassification are distinct mechanical concerns); precedes 6.9.c
-          verify which should also confirm recipe layer assignment is correct.
+        - **Sequencing:** runs after 6.9.a (`git mv` establishes the on-disk path); independent of
+          6.9.b/c/d/e (path-string + dir-shape changes; distinct mechanical concern from block
+          reclassification). Final subtask of 6.9 — its verification confirms recipe layer
+          assignment is correct.
 
 ### `[ ]` **6.10 Supplemental collapse: `reference/research/` + `reference/analysis/` → `reference/supplemental/` (R62)**
 

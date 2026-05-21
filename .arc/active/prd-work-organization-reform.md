@@ -462,11 +462,18 @@ ceremony workflow includes a regenerate-ROADMAP step. Interim discipline pre-CLI
 No replacement artifact. Content not directly carried forward by Release Notes Entries or PROJECT-PRD logged in the
 deletion commit message.
 
-**R41.** New archive shape: `archive/<dated>/{wu-name}/` (drop `{category}/` subdir; symmetric with backlog's group-dir
-collapse). Temporal grouping (`2026-q*`) retained.
+**R41.** New archive shape: `completed/<dated>/{NN}_{wu-name}/` (drop `{category}/` subdir; symmetric with backlog's
+group-dir collapse; preserves `NN` completion-order prefix). Temporal grouping (`2026-q*`) retained.
+**NN preserved** as a 2-digit completion-order prefix assigned at archival; resets per dated subdir. Provides
+filesystem-browse-time ordering (`ls .arc/completed/<quarter>/` shows WUs by completion sequence) at zero UX cost —
+alphabetical sort without NN scrambles intra-quarter completion order.
 
-**R42.** Historical archive (`archive/2026-q*/{category}/`) read-only — retains categorical layout, `status-*` and
-`completion-*` filenames, uncodified field values. No retroactive migration.
+**R42.** Historical archive layout reshaped to R41 shape at WOR Task 6.9.e (`completed/<dated>/{NN}_{wu-name}/`) —
+the `.arc/` root promotion via R62 made the prior categorical heterogeneity visible enough to motivate normalization.
+**File contents preserved as-is** — `status-*.md` keeps its filename (no rename to `meta-*`); `completion-*.md` stays
+in place (no fold into meta archive-phase per R30); no field backfill on historical meta files. Directory structure
+changes only; no retroactive content migration. NN reconstructed from git history (first-add commit on primary
+task list) for pre-WOR-layout content that lacked NN.
 
 **R43.** Backward-compat tooling requirement: anything reading the archive (renderer, future CLI, search/audit) must
 handle both legacy shape and new shape. Contract on downstream CLI work, stated here so future WUs honor it.
