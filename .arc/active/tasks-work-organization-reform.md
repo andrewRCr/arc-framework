@@ -3864,14 +3864,28 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
     - _Sequencing:_ 6.11.a (criterion codification) → 6.11.b + 6.11.c (moves, parallel) → 6.11.d (sweep) →
       6.11.e (verify). README rewrites bundle with their respective moves.
 
+    - _Decision (constitution → rules is a semantic rename, not just a path move):_ The CLI keys the
+      domain-rules feature to "constitution" — a resolver (`commands/constitution/status.ts`, which feeds the
+      session-init probe's `domainRules` field), a frontmatter-validation regex
+      (`scripts/validate-frontmatter.ts`), and an audit script (`scripts/audit-domain-rules.ts`). This WU
+      **repoints those paths** to `system/rules/` so domain-rules resolution doesn't silently break in the
+      interim. The CLI module/namespace rename (`commands/constitution/` → `rules/`) and the domain-rules
+      _mechanism_ rework (`DEV-RULES.*` always-loaded / `DOMAIN-RULES.*` on-demand split) defer to the
+      `rules-restructure` backlog WU — 6.11 changes paths, not the feature shape.
+
     - `[ ]` **6.11.a Codify split criterion in `strategy-file-classification.md`**
-        - Add new section: "Directory placement — system/ vs reference/, and intra-system tiering."
+        - Add a new top-level `## Directory placement — system/ vs reference/, and intra-system tiering`
+          section. Distinct from the existing `### Directory naming` section (which governs name _format_,
+          not _placement_) — cross-reference the two.
         - Two axes covered:
             1. Top-level: `system/` (prescriptive/operational) vs `reference/` (consultative/look-up).
-            2. Intra-system: user-facing (overrides, extensions, additions) vs `.internals/` (CLI-managed,
-               framework-internal; detailed nesting lands in Phase 6.12).
+            2. Intra-system: user-facing (overrides, extensions, additions) vs `.internal/` (CLI-managed,
+               framework-internal; detailed nesting lands in Phase 6.12). `.internal/` stays singular — an
+               adjective category label (cf. `.config/`, `.local/`), not a count of its contents.
+        - Worked examples must match this WU's on-disk layout at commit time — don't leak in-flight
+          reclassification into the adopter-facing strategy doc (Audience Boundaries).
         - Justifies both 6.11's moves (constitution → system; briefs → reference) and 6.12's nesting. Single
-          codification section serves both phases — no separate 6.12.a codification subtask needed.
+          codification section serves both phases — no separate codification subtask needed in Phase 6.12.
 
     - `[ ]` **6.11.b Execute `constitution/` → `system/rules/` move + README rewrite**
         - `git mv .arc/reference/constitution .arc/system/rules`.
@@ -3888,23 +3902,58 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
         - Verify `briefs/README.md` content doesn't imply system/ placement — minor touch if existing text
           frames briefs as system-tier; reframe as orientation/reference material under the new criterion.
 
-    - `[ ]` **6.11.d Sweep inbound references (constitution + briefs paths)**
-        - Grep patterns: `reference/constitution`, `\.arc/reference/constitution`, `system/briefs`,
-          `\.arc/system/briefs`, `[constitution]:` / `[briefs]:` reference-link definitions, hardcoded paths
-          across workflows / strategies / READMEs / package source. Inventory: ~100 references to
-          `constitution/`, smaller surface for `briefs/`.
-        - Update to `system/rules/` and `reference/briefs/` respectively. Surfaces include: session-init
-          workflow doc-load list (item 3), `session-init.contributor.md` variant, methods (`commit-format`,
-          `commit-footer`, `quality-gate-commands`), most strategies (cross-reference one or both via
-          reference-style links), DEV-RULES files themselves (cross-references between ARC and PROJECT
-          variants), AGENT-BRIEF cross-references, package source mirror, READMEs.
-        - **Exclusion:** content INSIDE `rules/` and `briefs/` — the moved files retain their own
-          cross-references at their new paths; sweep targets only references TO the directories.
+    - `[ ]` **6.11.d Sweep all references — docs + inside-file links + CLI surface**
+        - **Group A — documentation references TO the dirs.** Grep `reference/constitution`,
+          `\.arc/reference/constitution`, `system/briefs`, `\.arc/system/briefs`, `[constitution]:` /
+          `[briefs]:` link defs, hardcoded paths across workflows / strategies / READMEs / package source.
+          Audit-time inventory: 91 files hit `reference/constitution`, 37 hit `system/briefs`. Update to
+          `system/rules/` and `reference/briefs/`. Named surfaces: session-init doc-load list (item 3) +
+          `session-init.contributor.md`, methods (`commit-format`, `commit-footer`, `quality-gate-commands`),
+          most strategies, both DEV-RULES files' cross-refs, AGENT-BRIEF cross-refs, package mirror, READMEs.
+        - **Group B — outbound links + textual paths INSIDE the moved files (the 6.10.c lesson).** Relative
+          links do NOT survive a depth/parent change; recompute every `../` / `../../` link in the moved
+          files and fix stale textual dir-references:
+            - `DEV-RULES.ARC.md` (15 link defs): `../../system/{methods,workflows}/…` → `../{methods,workflows}/…`;
+              `../strategies/…` → `../../reference/strategies/…`.
+            - `DEV-RULES.PROJECT.md` (4 strategy defs): `../strategies/…` → `../../reference/strategies/…`.
+            - `briefs/README.md` + `AGENT-BRIEF.CONTRIBUTOR.md`: `../workflows/…` → `../../system/workflows/…`,
+              `../arc-config.yml` → `../../system/arc-config.yml`. (Links via `../../` to the `.arc/` root —
+              e.g. `../../user/README.md` — survive; both dirs are depth-2.)
+            - Cross-links between the two moving dirs (compounded by both moves): `DEV-RULES.ARC.md` →
+              `AGENT-BRIEF.CONTRIBUTOR.md`, and `AGENT-BRIEF.CONTRIBUTOR.md` → `DEV-RULES.PROJECT.md` —
+              recompute against BOTH final locations.
+            - Stale textual paths: `AGENT-BRIEF.ARC.md` Key-Documents table (`reference/constitution/`,
+              `system/briefs/`); `DEV-RULES.PROJECT.md` Audience-Boundaries `.arc/...` taxonomy bullets.
+            - Opportunistic: `briefs/README.md` says session-init "Step 4"; brief loading is Step 3.
+        - **Group C — CLI / runtime / test surface (NOT just docs — the 6.10 red-test lesson).** Keyed by
+          source-relative path:
+            - `commands/constitution/status.ts` — domain-rules resolver dir (`reference/constitution` →
+              `system/rules`); feeds the session-init `domainRules` field.
+            - `scripts/validate-frontmatter.ts` — `DOMAIN_RULES_PATH` regex.
+            - `scripts/audit-domain-rules.ts` — hardcoded package-source path.
+            - `commands/init.ts` — the `"Read .arc/system/briefs/AGENT-BRIEF.ARC.md…"` guidance string.
+            - `lib/frontmatter/dev-rules.ts` — doc-comment path.
+            - `init-recipe.json` (7 entries: 3 constitution + 4 briefs incl. `.template.md`).
+            - `.arc/system/.internal/manifest.json` (6 entries: 3 + 3) — rename keys AND **recompute
+              `pristine_hash`** for any file whose content changed (README rewrites in 6.11.b/c + the Group-B
+              link fixes mean most moved files are NOT pure renames; hash = raw sha256 of the package-source
+              bytes). Preserve the rendered-vs-template asymmetry (manifest tracks `AGENT-BRIEF.PROJECT.md`;
+              recipe/classification track `.template.md`).
+            - `classification.ts` — `CONFIGURABLE_FILES` + `SCAFFOLDED_FILES` path constants.
+            - Test fixtures / expected-path assertions (~14 files): `constitution.test.ts`,
+              `validate-frontmatter.test.ts`, `init` (unit + integration), `manifest`, `recipe`, `status`.
+        - **Scope note:** references TO the dirs (Group A) AND outbound links FROM the moved files (Group B)
+          are both in scope — do not exclude inside-file content wholesale (the prior draft's blanket
+          exclusion was the 6.10.c defect).
 
-    - `[ ]` **6.11.e Verify inbound references swept (post-6.11.d)**
-        - Grep across documentation surface for `reference/constitution`, `\.arc/reference/constitution`,
-          `system/briefs`, `\.arc/system/briefs` — should return empty (excluding WOR's own PRD / task list /
-          notes which legitimately discuss the move).
+    - `[ ]` **6.11.e Verify — grep + build + test + domain-rules smoke (post-6.11.d)**
+        - Grep the repo for `reference/constitution`, `\.arc/reference/constitution`, `system/briefs`,
+          `\.arc/system/briefs` — should return empty (excluding WOR's own PRD / task list / notes, which
+          legitimately discuss the move).
+        - `npm run build` + `npm test` green — grep alone can't catch resolver/regex breakage or red fixtures
+          (the 6.10 lesson: 107 ENOENT while Tier 1 lint stayed green).
+        - Domain-rules smoke: `arc status --session-init --json` still resolves a `domainRules` field
+          (confirms the `status.ts` resolver repoint landed).
 
 - _Outcome:_ `system/` becomes the home for all prescriptive/operational machinery; `reference/` becomes the
   home for all consultative material. Criterion codified in `strategy-file-classification.md` as the
@@ -3912,34 +3961,34 @@ order with execution order (must precede Phase 3 lifecycle workflow restructures
   from this substrate to introduce the `DEV-RULES.*` (always-loaded) / `DOMAIN-RULES.*` (on-demand) filename
   split and the auto-loading wiring mechanism.
 
-### `[ ]` **6.12 Intra-system internals nesting: `.internal/` + `githooks/` + `scripts/` + `skills/` → `system/.internals/`**
+### `[ ]` **6.12 Intra-system internals nesting: `githooks/` + `scripts/` + `skills/` → existing `system/.internal/`**
 
 - _Goal:_ Separate user-facing customization surfaces (`arc-config.yml`, `extensions/`, `methods/`, `rules/`,
   `workflows/`) from framework-internal machinery (`.internal/manifest.json`, `githooks/`, `scripts/`,
   `skills/`) within `system/`. A developer walking into `system/` to override a method shouldn't have to
-  filter past 3-4 dirs of framework plumbing they don't edit. Single hidden parent (`.internals/`) signals
-  "framework-managed; don't touch" while keeping content discoverable for the workflows that consume it
-  (notably `add-agent` reads `skills/` for SKILL.md content during harness-dir bootstrapping).
+  filter past 3-4 dirs of framework plumbing they don't edit. Single hidden parent (`.internal/` — already
+  present, holds `manifest.json` today) signals "framework-managed; don't touch" while keeping content
+  discoverable for the workflows that consume it (notably `add-agent` reads `skills/` for SKILL.md content
+  during harness-dir bootstrapping).
 
-    - _Approach:_ Create `system/.internals/` parent at both copies; `git mv` each internals dir under it.
+    - _Approach:_ `system/.internal/` already exists (`.arc/` instance only — holds `manifest.json`, which is
+      project-generated and unshipped); `git mv` each remaining internals dir (`githooks/`, `scripts/`,
+      `skills/`) under it. Kept singular per the 6.11.a naming decision — no rename of the existing parent.
       The criterion for this nesting is codified in 6.11.a (intra-system axis) — no separate codification
       subtask needed here.
 
-    - _Sequencing:_ 6.12.a (parent) → 6.12.b-e (moves, parallel after parent exists) → 6.12.f (sweep) →
-      6.12.g (verify).
+    - _Sequencing:_ 6.12.a + 6.12.b superseded (parent kept singular; manifest stays put) → 6.12.c-e (moves,
+      parallel) → 6.12.f (sweep) → 6.12.g (verify). _Note:_ 6.12's own CLI surface (`core.hooksPath` writes,
+      script callers, `add-agent` skill-source path) still warrants a pre-execution audit before starting.
 
-    - `[ ]` **6.12.a Create `system/.internals/` parent**
-        - `mkdir .arc/system/.internals`.
-        - `mkdir packages/arc-framework/arc/system/.internals`.
+    - `[~]` **6.12.a Create parent** — _Superseded by the `.internal/` naming decision (6.11.a)._
+        - `system/.internal/` is kept singular and already exists, so there is no parent to create — the
+          remaining internals dirs nest into it directly.
 
-    - `[ ]` **6.12.b Move `.internal/manifest.json` → `.internals/manifest.json`**
-        - `git mv .arc/system/.internal/manifest.json .arc/system/.internals/manifest.json`.
-        - `git mv packages/arc-framework/arc/system/.internal/manifest.json
-          packages/arc-framework/arc/system/.internals/manifest.json`.
-        - Remove now-empty `.internal/` dirs at both copies post-move.
-        - Update manifest validation / regeneration logic in `packages/arc-framework/src/` to read from the
-          new path. Net effect: `.internal/manifest.json` → `.internals/manifest.json` (manifest.json
-          promotes one level; `.internal/` dir retires; `.internals/` becomes the new grouping bucket).
+    - `[~]` **6.12.b Move manifest.json** — _Superseded by the `.internal/` naming decision (6.11.a)._
+        - `manifest.json` already lives at `.arc/system/.internal/manifest.json` (instance-only; no
+          package-source copy). Keeping the parent singular means no promotion, no path change, and no
+          manifest-path code change — `.internal/` simply gains sibling dirs alongside the manifest.
 
     - `[ ]` **6.12.c Move `githooks/` → `.internals/githooks/`**
         - `git mv .arc/system/githooks .arc/system/.internals/githooks`.
