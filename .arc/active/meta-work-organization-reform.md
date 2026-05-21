@@ -11,20 +11,21 @@
 - **Cohort:** [none]
 
 - **Task List:** `tasks-work-organization-reform.md`
-- **Last Completed:** Task 6.9 (`c7a80dc0`) — Archive directory promotion (`reference/archive/` →
-  `.arc/completed/`) per R62; closes 6.9 parent (7/7 subtasks). Pipeline-trifecta `backlog/` → `active/` →
-  `completed/` now structurally evident at `.arc/` root. Audit-driven scope expansion: validate-links +
-  markdownlint configs co-committed with 6.9.a (pre-commit gate co-deps). Historical content reshaped to
-  R41 layout in 6.9.e (drop category subdir + add NN where absent; 72 file renames, content preserved).
-  PRD amendments landed in planning capture (`f7d80c8e`): R41 explicit NN preservation; R42 inverted to
-  codify the reshape decision. Recipe gates `completed/` to arc-in-git mode (6.9.g) — same rule as
-  `backlog/`. README rewritten for post-WOR shape (6.9.f, both copies). Co-located capture: `archive.preserve`
-  opt-out idea captured under Task 6.13.d (`e699f07c`).
-- **Next Task:** Task 6.10.a — Create `reference/supplemental/` parent directory (line ~3802).
+- **Last Completed:** Task 6.10 (`6fb60134`) — Supplemental collapse: `reference/{research,analysis}/` →
+  `reference/supplemental/{research,analysis}/` (R62, both copies, 33 renames, content preserved). Closes 6.10
+  parent (a-d, f; 6.10.e parent-README deferred — no parent-README precedent in sibling `supplemental/` dirs).
+  Pre-execution audit (arc-task-audit) caught the completed/ exclusion + both-copies discipline upfront. Two
+  cascades surfaced during execution that the audit's `*.ts`-only CLI grep missed: a moved analysis doc's
+  outbound relative link broke on +1 depth (fixed in 6.10.c), and `init-recipe.json` seed paths went stale —
+  reddening the test suite (107 ENOENT) until the sweep repointed recipe + `manifest.json`. Folded in a
+  6.9-leftover manifest fix per direction (stale `reference/archive/README.md` → `completed/README.md`).
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 6.10 — Supplemental collapse: `reference/research/` + `reference/analysis/`
-  → `reference/supplemental/` (R62). Sequencing: 6.10.a (mkdir parent) → 6.10.b/c (move research +
-  analysis under parent) → 6.10.d (inbound-ref sweep) → 6.10.f (verify). 6.10.e (README) optional.
+- **Next Task:** Task 6.11.a — Codify split criterion in `strategy-file-classification.md` (line ~3867).
+
+- **Next Action:** Start Task 6.11 — System/reference re-tier (`constitution/` → `system/rules/`, `briefs/` →
+  `reference/briefs/`). Sequencing: 6.11.a (split criterion) → 6.11.b (constitution move) → 6.11.c (briefs
+  move) → 6.11.d (inbound + CLI-seed-surface sweep) → 6.11.e (verify). See WORKING-MEMORY: 6.11.d must sweep
+  `init-recipe.json` + `manifest.json` + `classification.ts`, not just docs (both dirs are in all three).
 
 ---
