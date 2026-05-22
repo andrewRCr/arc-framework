@@ -8,7 +8,7 @@
 - **Design:** `draft-scalable-core.md`
 
 - **Depends On:** [none]
-- **Cohort:** [none]
+- **Cohort:** principle-anchored-core
 
 - **Task List:** [none]
 - **Last Completed:** [none]

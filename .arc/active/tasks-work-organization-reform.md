@@ -4337,12 +4337,14 @@ substantive enabler, not a reformat. The "roadmap" rename, direction's home, and
           cohort placement and the broader mis-bin scan folded into 7.R.1.b). No path-form inbound refs to
           fix — `**Depends On:**` edges key on WU-name, so the bin move leaves the dependency graph intact.
 
-    - `[ ]` **7.R.1.b Cohort review + alignment**
-        - Review all planned + provisional WUs for cohort membership — group by thematic intent (shared
-          design goal even when orthogonal) as well as sequential/dependency coupling. Surface new cohort
-          candidates and any misaligned current `**Cohort:**` values; confirm with the user before applying.
-          Apply confirmed edits to meta files, with `git mv` into a cohort subdir where a new cohort warrants
-          one.
+    - `[x]` **7.R.1.b Cohort review + alignment**
+        - Promoted `workflow-template-loads` and `meta-file-tracking-model` (the latter as exploration only,
+          its proposals undecided) from `provisional/` → `planned/`; `arcd-rebrand` confirmed provisional.
+          Created the `principle-anchored-core` cohort (the ADR-020 thesis) holding `scalable-core`
+          (config-toggle facet) + `composable-workflows` + `workflow-template-loads` (resolve-then-load
+          machinery); `**Cohort:**` set on each. Existing six cohorts unchanged (`schema-introspection-layer`
+          kept in `architecture-remediation`); `customization-arch-realign` ⇄ `review-method-family` coupling
+          routed to 7.R.1.c as a dependency edge.
 
     - `[ ]` **7.R.1.c Dependency baseline with hidden-dep hunt**
         - Backfill `**Depends On:**` across planned (+ active WOR) meta files from the reconciled truth —
