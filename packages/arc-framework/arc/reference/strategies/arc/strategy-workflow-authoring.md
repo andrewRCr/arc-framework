@@ -156,7 +156,7 @@ the resolved routing.
     > `commit-interlock` release — commit as `workflowCommit`:
 
     ```text
-    chore(status): handoff
+    chore(arc): handoff
 
     Context: meta-name.md (handoff)
     ```
