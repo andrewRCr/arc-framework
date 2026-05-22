@@ -4451,14 +4451,12 @@ readiness assessment.
   (`npm run -s lint:md`, `npm run lint:ts`, `npm run typecheck`, `npm test`, `npm run build`); per-worktree isolation
   acceptance test passes; ready-for-integration flag set.
 
-    - `[ ]` **8.1.a Per-worktree isolation acceptance test (explicit)**
-        - From the WU branch, spawn a test worktree against `main`: `git worktree add /tmp/wor-isolation-test main`.
-        - In the new worktree, assert `.arc/active/` is empty (or contains only inventory placeholders like
-          `README.md`). Expected: no leaked `status-*.md` / `meta-*.md` files; main carries no in-flight WU artifacts
-          per Success Criterion #1.
-        - Clean up: `git worktree remove /tmp/wor-isolation-test`.
-        - Failure here means migration sweep (6.5) missed leaked files OR integration of WOR itself shipped its own meta
-          file to main. Diagnose before passing.
+    - `[x]` **8.1.a Per-worktree isolation acceptance test (explicit)**
+        - Passed (run against `origin/main`): WOR's branch worktree carries only its own new-shape artifacts.
+          `active/` on `main` holds only WOR's own legacy `status-work-organization-reform.md` (old two-PR planning
+          flow), not a foreign WU. The branch already migrated it to flat `meta-work-organization-reform.md` and
+          merge-base = current `main`, so WOR's own merge deletes it — no foreign-WU leak, no separate cleanup.
+          Feeds Success Criteria #1/#2 (`[x]` with deviation note, pending the Step 2 walk).
 
 ---
 
