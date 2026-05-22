@@ -42,6 +42,14 @@ Candidate command set (final split confirmed at PRD time):
 - **`arc cohort list`** (or equivalent) — enumerate cohort members from `**Cohort:**` fields.
 - **`arc graduate <type>`** — branch-rename ergonomics for the `plan/<name>` → `<type>/<name>` graduation.
 
+Companion doc deliverable (lands with the renderer): **significantly repurpose `strategy-work-organization.md
+§ ROADMAP`.** Once the renderer carries the step-by-step, that section should be slimmed to the contract it
+actually governs — the tier definitions, dependency-satisfaction-by-absence and its invariants, and the
+regeneration fire-points — and point at `arc roadmap render` for the mechanics. The numbered render procedure
+(glob-walk, parse order, markdown emit) sits in the strategy today only because hand-maintenance needs a precise
+procedure with no tool to carry it; landing the renderer removes that reason. Keep the contract in the strategy;
+move the mechanics to the renderer's spec/tests.
+
 Possible adjacent capture (decide at PRD): a Release Notes Entry validation check (e.g. `arc state set
 integrating` validates archive-phase section presence on the meta file).
 
