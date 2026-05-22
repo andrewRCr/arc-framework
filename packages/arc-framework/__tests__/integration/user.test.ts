@@ -148,7 +148,7 @@ describe("user save and load", () => {
   let tempDir: string;
 
   beforeEach(async () => {
-    // Full init creates user directory with SESSION-NOTES.md
+    // Full init creates the user directory (SESSION-NOTES is per-WU, seeded by `arc user open`)
     tempDir = await initInTempRepo(DEFAULT_PROMPTS, "test-user");
     // Need at least one commit for git notes to attach to
     await makeCommit(tempDir, "initial commit");
@@ -697,7 +697,7 @@ describe("user add", () => {
     await cleanupTempDir(tempDir);
   });
 
-  it("creates user directory with SESSION-NOTES.md, WORKING-MEMORY.md, and USER-INBOX.md", async () => {
+  it("creates user directory with WORKING-MEMORY.md and USER-INBOX.md", async () => {
     const io = makeUserIO(tempDir);
 
     await runUserAdd({
@@ -708,7 +708,6 @@ describe("user add", () => {
     });
 
     const userDir = join(tempDir, ".arc", "user", "new-dev");
-    expect(await readFile(join(userDir, "SESSION-NOTES.md"), "utf-8")).toContain("Session Notes");
     expect(await readFile(join(userDir, "WORKING-MEMORY.md"), "utf-8")).toContain("Working Memory");
     expect(await readFile(join(userDir, "USER-INBOX.md"), "utf-8")).toContain("User Inbox");
   });
@@ -1481,7 +1480,11 @@ describe("user open", () => {
       join(tempDir, ".arc", "user", "test-user", "feature-x", "SESSION-NOTES.md"),
       "utf-8",
     );
-    expect(sessionNotes).toContain("Session Notes");
+    const template = await readFile(
+      join(getInternalTemplatePath(), "user", "SESSION-NOTES.md"),
+      "utf-8",
+    );
+    expect(sessionNotes).toBe(template);
   });
 
   it("idempotent on second invocation — preserves existing SESSION-NOTES edits", async () => {

@@ -59,7 +59,6 @@ describe("user add", () => {
     expect(result.exitCode).toBe(0);
     const userDir = join(tmpDir, ".arc", "user", "alice");
     expect(await pathExists(userDir)).toBe(true);
-    expect(await pathExists(join(userDir, "SESSION-NOTES.md"))).toBe(true);
     expect(await pathExists(join(userDir, "WORKING-MEMORY.md"))).toBe(true);
     expect(await pathExists(join(userDir, "USER-INBOX.md"))).toBe(true);
   });
@@ -79,7 +78,6 @@ describe("user add", () => {
 
       expect(result.exitCode).toBe(0);
       const userDir = join(tmpDir2, ".arc", "user", "bob");
-      expect(await pathExists(join(userDir, "SESSION-NOTES.md"))).toBe(true);
       expect(await pathExists(join(userDir, "WORKING-MEMORY.md"))).toBe(true);
       expect(await pathExists(join(userDir, "USER-INBOX.md"))).toBe(true);
       // Legacy user/ATOMIC-INBOX seed path retired in WOR.
@@ -104,9 +102,9 @@ describe("user save/load", () => {
   it("save/load round-trip: files restored after deletion", async () => {
     await initAndCommit(tmpDir);
 
-    // User directory exists after init (SESSION-NOTES.md)
+    // User directory exists after init (WORKING-MEMORY.md)
     const userDir = join(tmpDir, ".arc", "user", "test-user");
-    expect(await pathExists(join(userDir, "SESSION-NOTES.md"))).toBe(true);
+    expect(await pathExists(join(userDir, "WORKING-MEMORY.md"))).toBe(true);
 
     // Save user directory to git note
     const save = await runArc(["user", "save"], tmpDir);
@@ -125,7 +123,7 @@ describe("user save/load", () => {
     expect(loadOutput).toContain("Load");
 
     // Files restored
-    expect(await pathExists(join(userDir, "SESSION-NOTES.md"))).toBe(true);
+    expect(await pathExists(join(userDir, "WORKING-MEMORY.md"))).toBe(true);
   });
 
   it("save without identity exits non-zero", async () => {
@@ -200,7 +198,7 @@ describe("sync orchestrator", () => {
     expect(result.exitCode).toBe(0);
     await expect(
       git(["notes", "--ref", "refs/notes/arc/user/test-user", "show", "HEAD"], tmpDir),
-    ).resolves.toContain("SESSION-NOTES.md");
+    ).resolves.toContain("WORKING-MEMORY.md");
   });
 });
 
@@ -257,7 +255,7 @@ describe("user push/pull portability", () => {
 
     // Verify files are present in the clone
     const userDir = join(cloneDir, ".arc", "user", "test-user");
-    expect(await pathExists(join(userDir, "SESSION-NOTES.md"))).toBe(true);
+    expect(await pathExists(join(userDir, "WORKING-MEMORY.md"))).toBe(true);
   });
 });
 

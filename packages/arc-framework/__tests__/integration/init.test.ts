@@ -195,38 +195,6 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
 
   // --- User Directory ---
 
-  it("creates user/{identity}/ directory with SESSION-NOTES.md", async () => {
-    const sessionNotes = await stat(
-      join(arcDir, "user/test-user/SESSION-NOTES.md"),
-    );
-    expect(sessionNotes.isFile()).toBe(true);
-  });
-
-  it("SESSION-NOTES.md matches CLI-internal template content", async () => {
-    const installed = await readFile(
-      join(arcDir, "user/test-user/SESSION-NOTES.md"),
-      "utf-8",
-    );
-    const template = await readFile(
-      join(internalTemplateDir, "user/SESSION-NOTES.md"),
-      "utf-8",
-    );
-    expect(installed).toBe(template);
-  });
-
-  it("SESSION-NOTES.md ships without orientation preamble", async () => {
-    const installed = await readFile(
-      join(arcDir, "user/test-user/SESSION-NOTES.md"),
-      "utf-8",
-    );
-    // Seeded file is content-only — orientation lives in strategy docs,
-    // not in each new user's instance file.
-    expect(installed).not.toContain("About this file:");
-    expect(installed).not.toContain("**Lifecycle:**");
-    expect(installed).not.toContain("**Portability:**");
-    expect(installed).not.toContain("**Writing guide:**");
-  });
-
   it("seeds WORKING-MEMORY.md and USER-INBOX.md in user directory (cross-PM-mode)", async () => {
     const workingMemory = await stat(join(arcDir, "user/test-user/WORKING-MEMORY.md"));
     expect(workingMemory.isFile()).toBe(true);
@@ -544,7 +512,7 @@ describe("init integration (fresh mode, pm.mode=arc-in-git)", () => {
     expect(config).toContain("pm.mode: arc-in-git");
   });
 
-  it("installs the per-user file set (SESSION-NOTES, WORKING-MEMORY, USER-INBOX) under arc-in-git", async () => {
+  it("installs the per-user file set (WORKING-MEMORY, USER-INBOX) under arc-in-git", async () => {
     const recipe = await loadRecipe();
     const io = makeIOContext(tempDir);
 
@@ -559,7 +527,7 @@ describe("init integration (fresh mode, pm.mode=arc-in-git)", () => {
     });
 
     const userDir = join(tempDir, ".arc/user/test-user");
-    for (const filename of ["SESSION-NOTES.md", "WORKING-MEMORY.md", "USER-INBOX.md"]) {
+    for (const filename of ["WORKING-MEMORY.md", "USER-INBOX.md"]) {
       const stats = await stat(join(userDir, filename));
       expect(stats.isFile()).toBe(true);
       // Each seeded file matches the internal template byte-for-byte
@@ -735,11 +703,6 @@ describe("join integration", () => {
     expect(manifestAfter).toBe(manifestBefore);
 
     // Second developer's user directory created with the per-user file set
-    const sessionNotes = await stat(
-      join(tempDir, ".arc/user/second-dev/SESSION-NOTES.md"),
-    );
-    expect(sessionNotes.isFile()).toBe(true);
-
     const workingMemory = await stat(
       join(tempDir, ".arc/user/second-dev/WORKING-MEMORY.md"),
     );
@@ -751,10 +714,10 @@ describe("join integration", () => {
     expect(userInbox.isFile()).toBe(true);
 
     // First developer's user directory still intact
-    const firstDevNotes = await stat(
-      join(tempDir, ".arc/user/first-dev/SESSION-NOTES.md"),
+    const firstDevMemory = await stat(
+      join(tempDir, ".arc/user/first-dev/WORKING-MEMORY.md"),
     );
-    expect(firstDevNotes.isFile()).toBe(true);
+    expect(firstDevMemory.isFile()).toBe(true);
 
     // Identity stored for second developer
     const { stdout } = await execFileAsync(

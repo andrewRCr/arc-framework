@@ -85,7 +85,6 @@ describe("runJoin", () => {
       // Canonical skill templates
       ...canonicalSkillFiles("/templates"),
       // Internal templates for user directory setup
-      "/internal-templates/user/SESSION-NOTES.md": "# Session Notes\n",
       "/internal-templates/user/WORKING-MEMORY.md": "# Working Memory\n",
       "/internal-templates/user/USER-INBOX.md": "# User Inbox\n",
     });
@@ -176,10 +175,10 @@ describe("runJoin", () => {
     expect(userDirCall).toBeDefined();
 
     const writeCalls = (io.writeFile as ReturnType<typeof vi.fn>).mock.calls as [string, string][];
-    const sessionNotesWrite = writeCalls.find(
-      (c) => c[0] === "/project/.arc/user/andrew/SESSION-NOTES.md",
+    const workingMemoryWrite = writeCalls.find(
+      (c) => c[0] === "/project/.arc/user/andrew/WORKING-MEMORY.md",
     );
-    expect(sessionNotesWrite).toBeDefined();
+    expect(workingMemoryWrite).toBeDefined();
   });
 
   it("writes managed gitignore block", async () => {
