@@ -140,7 +140,7 @@ Update session state files before ending session:
     - `Phase N complete, next: Task X.Y` — last-completed task closes a phase boundary
     - `next: Task X.Y[.z]` — within a phase (task ID encodes phase position)
     - `between work units` — no active WU
-    - `planning <wu-name>` — on a plan-doc branch
+    - `planning <wu-name>` — on a draft-doc branch
     - `work unit complete, next: integrate` — all tasks complete; integration pending
     - `off-task-list — <brief>` — off-task-list work mid-WU
 
@@ -332,7 +332,7 @@ Markers:
     - **Anti-pattern (planning sessions):** writing an entry for every mechanism decision
       resolved in the plan doc — WORKING-MEMORY is not a substitute for § Resolved Decisions.
     - **Anti-pattern (future-WU drift):** activation-audit reminders inside a backlog
-      `plan-*.md` for an unactivated WU. Write them into the plan doc itself; the activating
+      `draft-*.md` for an unactivated WU. Write them into the plan doc itself; the activating
       session sees them naturally.
 
     Review at each handoff: remove entries whose triggers are met, AND entries whose information

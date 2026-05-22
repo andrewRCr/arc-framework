@@ -293,7 +293,7 @@ against the pre-save checklist and bundles the commit.
 - [ ] All "carry as context" findings from Pass 3 are durably captured (inline `_Note:_` or
       cross-reference to `notes-{name}.md` companion file)
 - [ ] Task instructions targeting shipped or published files are written in the shipped-content
-      register — no movable WU artifact references (`plan-*` / `prd-*` / `tasks-*` / `status-*` /
+      register — no movable WU artifact references (`draft-*` / `spec-*` / `tasks-*` / `status-*` /
       companions) that would survive verbatim execution into the target. See
       [strategy-task-list-formatting § Instruction Audience][task-list-formatting]
 - [ ] Atomic companion file created alongside task list (`atomic-{name}.md`, same directory)
@@ -306,7 +306,7 @@ against the pre-save checklist and bundles the commit.
 - **none / external** (no backlog): `.arc/active/tasks-{{WORK_NAME}}.md`
   (create the directory first if it doesn't exist: `mkdir -p .arc/active/`)
 
-Name matches the PRD (e.g., `prd-api-modernization.md` → `tasks-api-modernization.md`).
+Name matches the PRD (e.g., `spec-api-modernization.md` → `tasks-api-modernization.md`).
 
 **Companion file** at `atomic-{name}.md` (same directory, same name stem) — created at Pass 1
 as the empty capture surface for atomic tasks discovered during implementation. Skeleton per
@@ -347,8 +347,8 @@ Activation can be deferred if planning ahead. Activate when implementation is ab
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
 [arc-methods-tf]: ../../methods/test-first.md
 [task-list-formatting]: ../../../reference/strategies/arc/strategy-task-list-formatting.md
-[arc-task-audit]: ../../skills/arc-task-audit/SKILL.md
-[template-tasks]: ../../../reference/templates/template-tasks.md
+[arc-task-audit]: ../../.internal/skills/arc-task-audit/SKILL.md
+[template-tasks]: ../../../reference/templates/arc/work-unit/template-tasks.md
 [init-work-unit]: work-unit-lifecycle/planning/init-work-unit.md
 [arc-config]: ../../arc-config.yml
 [activate-work-unit]: work-unit-lifecycle/activate-work-unit.md

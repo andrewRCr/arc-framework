@@ -28,7 +28,7 @@ Precise meanings — assume the technical sense.
 
 - **Work unit (WU):** Wrapper noun — a bounded chunk of work with one branch, a meta file, and
   one PR. Tier-invariant (atomic / quick / standard). Artifact group: `meta-{name}.md` plus any
-  present `plan-*`, `tasks-*`, `atomic-*` companions. Not "any chunk of work".
+  present `draft-*`, `tasks-*`, `atomic-*` companions. Not "any chunk of work".
 - **Atomic:** Work _character_ — single-bounded, indivisible, no internal stages. Applies at all
   scales: items (inbox entries), tasks (`atomic-{name}.md` companions), WUs (atomic-tier). Inboxes
   route by character, not wrapper presence. Not "atomic" in the concurrency sense.

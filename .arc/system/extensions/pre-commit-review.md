@@ -22,5 +22,5 @@ active: false
 
 ---
 
-[arc-commit-skill]: ../skills/arc-commit/SKILL.md
+[arc-commit-skill]: ../.internal/skills/arc-commit/SKILL.md
 [prepare-commits]: ../workflows/arc/supplemental/prepare-commits.md

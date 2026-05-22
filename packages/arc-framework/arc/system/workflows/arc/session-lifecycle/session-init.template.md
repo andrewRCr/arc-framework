@@ -326,21 +326,21 @@ planning session, assess readiness for the next unit:
 
 <!-- arc:if pm.mode == arc-in-git -->
 1. Read `.arc/backlog/ROADMAP.md` — identify the next queued or suggested item
-2. Check `.arc/backlog/` for existing artifacts (PRDs, `plan-*` docs) matching that item
+2. Check `.arc/backlog/` for existing artifacts (PRDs, `draft-*` docs) matching that item
 3. Report what exists and its readiness state in orientation
 4. Propose next steps; ask for confirmation before proceeding
 <!-- arc:endif -->
 
 <!-- arc:if pm.mode != arc-in-git -->
-1. Check `.arc/active/` for existing planning artifacts (PRDs, `plan-*` docs, task lists)
+1. Check `.arc/active/` for existing planning artifacts (PRDs, `draft-*` docs, task lists)
 2. If artifacts exist, report readiness state (draft PRD → needs refinement; complete PRD → ready for task
    generation; task list present → ready for activation) and propose next steps
-3. If no artifacts exist, the next action is to create a PRD when ready → [1_create-prd.md][create-prd]
+3. If no artifacts exist, the next action is to create a PRD when ready → [1_create-spec.md][create-spec]
 <!-- arc:endif -->
 
 > **Full protection (`branch.protection: full`):** Planning work requires a branch. When the user confirms
-> next steps, run [init-work-unit][init-work-unit] before creating plan documents or PRDs.
-> Under partial protection (the default), proceed directly to [1_create-prd.md][create-prd] — no planning
+> next steps, run [init-work-unit][init-work-unit] before creating draft documents or PRDs.
+> Under partial protection (the default), proceed directly to [1_create-spec.md][create-spec] — no planning
 > branch needed.
 
 ## 6. Confirm Orientation
@@ -459,7 +459,7 @@ Examples:
 ---
 
 [init-work-unit]: ../work-unit-lifecycle/planning/init-work-unit.md
-[create-prd]: ../1_create-prd.md
+[create-spec]: ../1_create-spec.md
 [arc-methods-session]: ../../../methods/session-state.md
 [arc-ext-post-context-load]: ../../../extensions/post-context-load.md
 [team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md

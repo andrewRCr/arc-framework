@@ -146,7 +146,7 @@ Variation above the invariants happens along two axes:
 ### Deferred contract
 
 This strategy codifies the invariants and the scaling axes. The per-mode × per-tier optionality
-contract — which spec form applies under which combination, whether `plan-*` is required vs.
+contract — which spec form applies under which combination, whether `draft-*` is required vs.
 optional, the verification model under tier collapse — is not codified here. The invariants
 establish what's stable; the contract that builds on them lives with the surfaces that
 orchestrate per-mode and per-tier policy.
@@ -190,7 +190,7 @@ project's commit-format type set regardless of the branch's prefix.
 
 ### Planning branches: `plan/<name>`
 
-Planning work — discovery, plan-doc iteration, PRD authoring, task generation — runs on a
+Planning work — discovery, draft-doc iteration, PRD authoring, task generation — runs on a
 `plan/<name>` branch. The prefix marks the WU's life-phase, distinct from the execution-phase
 type prefix the WU adopts at activation.
 
@@ -261,13 +261,13 @@ artifact carrying the full chain end-to-end.
 
 ### Per-file header fields
 
-| File      | Header field(s)                                                            | Substantive opening                       |
-| --------- | -------------------------------------------------------------------------- | ----------------------------------------- |
-| `meta-*`  | Full chain: `Origin`, `Spec`, `Task List`, plus `PR URL` after integration | (none — meta is structural)               |
-| `plan-*`  | `**Origin:**` (default `[Internal]`)                                       | `**Purpose:**` follows as document thesis |
-| `prd-*`   | `**Origin:**` (default `[Internal]`)                                       | `**Purpose:**` follows as document thesis |
-| `tasks-*` | `**Spec:**` (the upstream spec artifact)                                   | (no thesis — derived execution surface)   |
-| `notes-*` | (none — companion to the entire WU; no formal upstream)                    | (free-form content)                       |
+| File      | Header field(s)                                                              | Substantive opening                       |
+| --------- | ---------------------------------------------------------------------------- | ----------------------------------------- |
+| `meta-*`  | Full chain: `Origin`, `Design`, `Task List`, plus `PR URL` after integration | (none — meta is structural)               |
+| `draft-*` | `**Origin:**` (default `[Internal]`)                                         | `**Purpose:**` follows as document thesis |
+| `spec-*`  | `**Origin:**` (default `[Internal]`)                                         | `**Purpose:**` follows as document thesis |
+| `tasks-*` | `**Design:**` (the upstream spec artifact)                                   | (no thesis — derived execution surface)   |
+| `notes-*` | (none — companion to the entire WU; no formal upstream)                      | (free-form content)                       |
 
 ### Bounded duplication and drift cost
 
@@ -275,10 +275,10 @@ Each non-meta artifact carries exactly one 1-hop upstream pointer — no two-hop
 duplication outside `meta-*`. The pointer values that do appear in more than one place are
 structurally immutable:
 
-- `Origin` appears on `meta-*`, `plan-*`, and `prd-*`. The value is set at WU creation and
+- `Origin` appears on `meta-*`, `draft-*`, and `spec-*`. The value is set at WU creation and
   effectively never changes.
 - `Spec` appears on `meta-*` and `tasks-*`. The `tasks-*` value is fixed at task-list
-  creation; `meta-*`'s value transitions exactly once (at activation, from `plan-*` to the
+  creation; `meta-*`'s value transitions exactly once (at activation, from `draft-*` to the
   spec artifact). Both positions are immutable post-set.
 
 Drift risk across the redundant positions is therefore near-zero. `meta-*` retains authority
@@ -291,10 +291,10 @@ first having to consult `meta-*`.
 
 ### `Spec` field generalizability
 
-`**Spec:**` names the upstream spec artifact regardless of artifact type. The default ARC
-pipeline pairs each WU with a PRD (`prd-*.md`) as its spec, but the field name does not lock
+`**Design:**` names the upstream spec artifact regardless of artifact type. The default ARC
+pipeline pairs each WU with a PRD (`spec-*.md`) as its spec, but the field name does not lock
 to "PRD." Projects may pair WUs with lighter-templated specs — compact PRDs, scope-section
-variants, external-tracker-referenced specs — and `**Spec:**` still names whichever artifact
+variants, external-tracker-referenced specs — and `**Design:**` still names whichever artifact
 carries the spec for that WU.
 
 ### Purpose statement lives on the spec
@@ -303,7 +303,7 @@ The WU's purpose statement is substantive content, not an upstream pointer. It l
 the spec artifact (PRD by default) and not on `tasks-*` — duplicating it would carry a prose
 field rather than a 1-hop pointer, a substantially larger drift surface than the
 effectively-immutable pointer values above. Readers of `tasks-*` reach the purpose statement
-via the `**Spec:**` pointer.
+via the `**Design:**` pointer.
 
 ---
 
@@ -334,7 +334,7 @@ for the full ceremony workflows.
 ```text
 .arc/completed/<dated>/
   <wu-name>/
-    meta-*.md, prd-*.md, tasks-*.md, notes-*.md, ...
+    meta-*.md, spec-*.md, tasks-*.md, notes-*.md, ...
 ```
 
 Each shipped WU gets its own subdir directly under the temporal grouping. The `<dated>` segment
@@ -456,15 +456,15 @@ All changes require branches and PR review. No direct base branch commits.
   meta-<name>.md         # WU metadata + state (always present)
   prd-<name>.md          # product requirements (when WU has a PRD)
   tasks-<name>.md        # execution spec (when WU has a task list)
-  notes-<name>.md        # working context (optional; may carry content graduated from plan-*)
+  notes-<name>.md        # working context (optional; may carry content graduated from draft-*)
   atomic-<name>.md       # atomic-task companion (optional)
 ```
 
 `active/` is flat — per-worktree isolation (see [§ Per-Worktree Isolation](#per-worktree-isolation))
 means each worktree's `active/` carries one WU's artifacts at a time, so per-WU and per-category
 subdirs would be redundant. Artifact applicability scales with mode and tier; see
-[§ Spec-Flow Invariants](#spec-flow-invariants) for the invariants and scaling axes. `plan-*.md` is
-the pre-PRD synthesis artifact, deleted at PRD creation per `1_create-prd.md` (with optional
+[§ Spec-Flow Invariants](#spec-flow-invariants) for the invariants and scaling axes. `draft-*.md` is
+the pre-PRD synthesis artifact, deleted at PRD creation per `1_create-spec.md` (with optional
 graduation of substantive persisting content into `notes-*.md`); it never appears in `active/`.
 Archive-phase content (Release Notes Entry, Completion Notes, PR URL, Completed date) composes into
 the meta file at integration — there is no separate `completion-<name>.md` artifact.

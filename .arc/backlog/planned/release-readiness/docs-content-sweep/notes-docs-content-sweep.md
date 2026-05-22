@@ -49,7 +49,7 @@ docs-only readership, anchor IDs that must be retained for inbound link stabilit
   `<section-anchor>` is the markdownlint slug of the source heading the extraction came from
   (e.g., `commit-discipline`). Numbering (`Entry N`) is global across this file, not per source —
   increment monotonically.
-- **Source path:** repo-root-relative (e.g., `.arc/reference/constitution/DEV-RULES.ARC.md`); line range
+- **Source path:** repo-root-relative (e.g., `.arc/system/rules/DEV-RULES.ARC.md`); line range
   references the pre-trim line numbers so reviewers can compare against `git show` at the extraction
   commit. If the extraction spans non-contiguous regions of the source, file separate entries — one
   entry per contiguous extraction.
@@ -375,7 +375,7 @@ as conceptual reference.
 
 ## Entry 7 — DEV-RULES.ARC.md § Sub-agent scope — first paragraph
 
-**Source:** `.arc/reference/constitution/DEV-RULES.ARC.md` (lines 103-108, pre-trim)
+**Source:** `.arc/system/rules/DEV-RULES.ARC.md` (lines 103-108, pre-trim)
 
 **Content:**
 
@@ -399,7 +399,7 @@ adopters reading the concept page fresh.
 
 ## Entry 8 — DEV-RULES.ARC.md § Context quality — session-length rationale
 
-**Source:** `.arc/reference/constitution/DEV-RULES.ARC.md` (lines 213-216, pre-trim)
+**Source:** `.arc/system/rules/DEV-RULES.ARC.md` (lines 213-216, pre-trim)
 
 **Content:**
 
@@ -421,7 +421,7 @@ unchanged (already reader-facing).
 
 ## Entry 9 — DEV-RULES.ARC.md § Write for the reader — overflow examples
 
-**Source:** `.arc/reference/constitution/DEV-RULES.ARC.md` (lines 332-339, pre-trim) — four of
+**Source:** `.arc/system/rules/DEV-RULES.ARC.md` (lines 332-339, pre-trim) — four of
 six original examples; two retained inline as canonical illustrations.
 
 **Content:**
@@ -447,7 +447,7 @@ worth preserving in adopter-facing docs. Voice adaptation: unchanged.
 
 ## Entry 10 — DEV-RULES.ARC.md § Preamble — P1-P11 framing + rule→principle mapping table
 
-**Source:** `.arc/reference/constitution/DEV-RULES.ARC.md` (lines 9-17, pre-trim — preamble
+**Source:** `.arc/system/rules/DEV-RULES.ARC.md` (lines 9-17, pre-trim — preamble
 paragraph) plus rule-heading annotations removed throughout the file (17 sites).
 
 **Content:**
@@ -2539,7 +2539,7 @@ slides off.
 [arc-methods-dir]: ../../../../system/methods/README.md
 [core-philosophy]: https://andrewrcr.github.io/arc-framework/philosophy/
 [arc-methods-session]: ../../../../system/methods/session-state.md
-[dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md
+[dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
 [manage-incidental]: ../../../../system/workflows/arc/supplemental/manage-incidental-work.md
 [work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md
 [work-org-branches]: ../../../../reference/strategies/arc/strategy-work-organization.md#task-lists-and-branches

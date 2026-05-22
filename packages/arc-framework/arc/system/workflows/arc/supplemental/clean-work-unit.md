@@ -69,7 +69,7 @@ implementation findings, quality gate results.
 
 Standard task list structure to preserve:
 
-- Header metadata (`**Spec:**` — single pointer to PRD or plan-doc per chain-model header)
+- Header metadata (`**Design:**` — single pointer to PRD or draft-doc per chain-model header)
 - Overview / Scope (Will Do / Won't Do)
 - Tasks (phases with subtasks)
 - Success Criteria

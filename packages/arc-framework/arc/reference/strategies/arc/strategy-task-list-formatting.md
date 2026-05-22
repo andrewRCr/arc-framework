@@ -32,7 +32,7 @@ Two variants. See [`template-tasks.md`][template-tasks] for skeletons.
 **Planned** (`# Task List: {Name}`) — work with an upstream spec artifact (PRD by default):
 
 - Title uses `Task List:` prefix
-- `**Spec:**` names the upstream spec artifact (filename only) — single header field per the
+- `**Design:**` names the upstream spec artifact (filename only) — single header field per the
   chain-of-authority model. See [strategy-work-organization.md § WU Artifact
   Headers][work-org-wu-headers] for the full chain rationale and Spec field generalizability
 - Horizontal rule (`---`) separates header from tasks
@@ -60,7 +60,7 @@ Current State, Testing Strategy) only when the work needs them.
 
 Convention tracks document role, not a single global rule:
 
-- **File-header metadata** uses `**Bold:**` field labels — task list `**Spec:**`; atomic file
+- **File-header metadata** uses `**Bold:**` field labels — task list `**Design:**`; atomic file
   `**Purpose:**`, `**Ordering:**`. These describe the file.
 
 - **Work descriptors** use `_Italic:_` field labels — phase preamble `_Purpose:_`, parent-task
@@ -272,7 +272,7 @@ Blank lines required:
   even when both are short
 
 **File-header metadata blocks follow a different rule** from content lists. The bullet block
-at the top of a `meta-*`, `plan-*`, `prd-*`, or similar tracked-artifact metadata cluster is
+at the top of a `meta-*`, `draft-*`, `spec-*`, or similar tracked-artifact metadata cluster is
 shape-mixed: key/value and enum-shaped fields (Origin, Spec, Task List, Branch, State, etc.)
 describe the doc; descriptive-prose fields (Purpose, Context) describe what the work is. The
 two shapes get different visual treatment:
@@ -298,7 +298,7 @@ Task instructions inherit the audience of the file they target — not the audie
 list itself. The task list is internal-dev content and references movable WU artifacts freely
 (per [DEV-RULES.ARC][dev-rules-arc] § `.arc/` artifact references), but an instruction modifying
 a shipped or published file must be written in the shipped-content register — don't pre-load
-`plan-*` / `prd-*` / `tasks-*` references the executing agent would have to strip on the way in.
+`draft-*` / `spec-*` / `tasks-*` references the executing agent would have to strip on the way in.
 Route executor-only context to the task's `_Note:_` peer descriptor or `notes-{name}.md`, not
 the target file.
 
@@ -471,6 +471,6 @@ All items must be `[x]` or `[~]` (with annotations) before running archive. Any 
 [verify-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md
 [arc-methods-it]: ../../../system/methods/issue-triage.md
 [arc-methods-tf]: ../../../system/methods/test-first.md
-[template-tasks]: ../../templates/template-tasks.md
+[template-tasks]: ../../templates/arc/work-unit/template-tasks.md
 [team-coordination]: strategy-team-coordination.md
 [work-org-wu-headers]: strategy-work-organization.md#wu-artifact-headers

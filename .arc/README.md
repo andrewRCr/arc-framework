@@ -15,7 +15,7 @@ full installation and setup walkthrough.
 ```text
 .arc/
 ├── active/                    # Current WU artifacts (flat — one WU per branch)
-│                              # carries meta-*.md, plan-*.md, prd-*.md, tasks-*.md, companions
+│                              # carries meta-*.md, draft-*.md, spec-*.md, tasks-*.md, companions
 ├── backlog/                   # Future work pipeline (arc-in-git pm.mode only)
 │   ├── ROADMAP.md             # Sequencing strategy for upcoming work
 │   ├── provisional/<wu>/      # Captured WU stubs, not yet committed-to

@@ -173,10 +173,10 @@ arc-in-git files are annotated explicitly.
 - `reference/strategies/arc/strategy-work-planning.md`
 - `reference/strategies/project/README.md`
 - `reference/strategies/project/style/README.md`
-- `reference/templates/template-adr.md`
-- `reference/templates/template-contributing.md`
-- `reference/templates/template-plan.md`
-- `reference/templates/template-prd.md`
+- `reference/templates/arc/template-adr.md`
+- `reference/templates/arc/template-contributing.md`
+- `reference/templates/arc/work-unit/template-draft.md`
+- `reference/templates/arc/work-unit/spec/template-prd.md`
 
 **System:**
 
@@ -198,7 +198,7 @@ arc-in-git files are annotated explicitly.
 - `system/.internal/skills/arc-task-audit/SKILL.md`
 - `system/.internal/skills/arc-task-review/SKILL.md`
 - `system/.internal/skills/arc-verify/SKILL.md`
-- `system/workflows/arc/1_create-prd.md`
+- `system/workflows/arc/1_create-spec.md`
 - `system/workflows/arc/initial-setup/01_verify-and-configure.md`
 - `system/workflows/arc/session-lifecycle/session-loop.md`
 - `system/workflows/arc/supplemental/add-agent.md`

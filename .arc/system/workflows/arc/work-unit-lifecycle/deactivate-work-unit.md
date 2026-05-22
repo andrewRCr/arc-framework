@@ -128,12 +128,12 @@ git push origin --delete {type}/{name}      # remote (if pushed)
 
 ### 4) Clean up base-branch leftovers (per `pm.mode`)
 
-Branch deletion in Step 3 removed the WU's in-flight artifacts (`active/meta-*`, `active/prd-*`, `active/tasks-*`,
-`active/atomic-*`, `active/notes-*`, any residual `active/plan-*`) — they lived only on the deleted branch and
+Branch deletion in Step 3 removed the WU's in-flight artifacts (`active/meta-*`, `active/spec-*`, `active/tasks-*`,
+`active/atomic-*`, `active/notes-*`, any residual `active/draft-*`) — they lived only on the deleted branch and
 were never merged. The remaining cleanup concerns base-branch leftovers that activation never touched:
 
 - **`arc-in-git`:** If the WU originated from a backlog stub, `backlog/{state}/{name}/` may still exist on base
-  (init moved its plan-doc + companions onto the WU branch but the source folder isn't removed on base until
+  (init moved its draft-doc + companions onto the WU branch but the source folder isn't removed on base until
   merge). Remove if present. ROADMAP may also need regen to drop the abandoned WU's tier entry — see
   [Work Organization Strategy § ROADMAP][work-org-roadmap].
 - **`external`:** Update the external tracker — move the work item back to its pre-activation state or to an
@@ -158,7 +158,7 @@ Context: meta-{name}.md (deactivation)
 ## Next Step
 
 Deactivation has no session-level next action. The developer decides what follows — resume another WU, return to
-`1_create-prd.md` on the now-planning branch (Case A), or start something new.
+`1_create-spec.md` on the now-planning branch (Case A), or start something new.
 
 ---
 

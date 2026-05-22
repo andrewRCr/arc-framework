@@ -1,6 +1,6 @@
 # Task List: Work Organization Reform
 
-- **Spec:** `prd-work-organization-reform.md`
+- **Design:** `spec-work-organization-reform.md`
 
 ---
 
@@ -4077,183 +4077,194 @@ _Design decisions:_
   filename holds (R66); spec form varies by template choice, not filename. Lighter spec-template variants — and a name
   for the lightest (not `brief`, which collides with `reference/briefs/`) — are conductor-WU scope.
 
-### `[ ]` **7.1 Rename `prd-*` → `spec-*` (file class + workflow)**
+### `[x]` **7.1 Rename `prd-*` → `spec-*` (file class + workflow)**
 
 - _Goal:_ Per PRD R66, WU spec artifacts adopt `spec-{name}.md` filename prefix; spec-creation workflow renames.
   `template-prd.md` preserved (heaviest variant); lighter variants deferred to conductor WU.
 
-    - `[ ]` **7.1.a Rename active `prd-work-organization-reform.md` → `spec-work-organization-reform.md`**
-        - `git mv .arc/active/prd-work-organization-reform.md .arc/active/spec-work-organization-reform.md`.
-        - Update active `meta-work-organization-reform.md` `**Spec:**` field value to `spec-work-organization-reform.md`
-          (the field label becomes `**Design:**` at 7.4.b).
+    - `[x]` **7.1.a Rename active `prd-work-organization-reform.md` → `spec-work-organization-reform.md`**
+        - `git mv` preserved history; active `meta-work-organization-reform.md` `**Spec:**` value updated to
+          `spec-work-organization-reform.md` (label stays `**Spec:**` until 7.4.b).
 
-    - `[ ]` **7.1.b Rename backlog `prd-*` files → `spec-*`**
-        - `git mv` on the backlog-stage PRDs that didn't demote at 6.4. Inventory expected: zero (6.4.b demotes both
-          `prd-arcd-rebrand.md` and `prd-arcd-docs-site.md` to `plan-arcd-*` form before Phase 7 fires).
-        - Verify: `find .arc/backlog -name 'prd-*' -type f` returns empty post-task.
+    - `[x]` **7.1.b Rename backlog `prd-*` files → `spec-*`**
+        - No-op confirmed: `find .arc/backlog -name 'prd-*' -type f` is empty (6.4.b already demoted
+          `prd-arcd-rebrand.md` and `prd-arcd-docs-site.md` to `plan-arcd-*`).
 
-    - `[ ]` **7.1.c Rename workflow `1_create-prd.md` → `1_create-spec.md` (both copies)**
-        - `git mv .arc/system/workflows/arc/1_create-prd.md .arc/system/workflows/arc/1_create-spec.md`.
-        - `git mv packages/arc-framework/arc/system/workflows/arc/1_create-prd.md
-          packages/arc-framework/arc/system/workflows/arc/1_create-spec.md`.
-        - Workflow body sweep: internal references to "PRD" stay where contextually appropriate (PRD is one template
-          variant); references to `prd-*` filename pattern update to `spec-*`; references to `template-prd.md` stay
-          (preserved per R66).
+    - `[x]` **7.1.c Rename workflow `1_create-prd.md` → `1_create-spec.md` (both copies)**
+        - `git mv` on both copies; bodies stay byte-identical. Narrow sweep: the `spec-{{WORK_NAME}}.md` save-location
+          paths and the emitted `chore(arc): create spec-{name}` subject moved off `prd-`. Prose "PRD" and
+          `template-prd.md` refs preserved — PRD remains the default spec form, so the body framing stays PRD-centric.
 
-    - `[ ]` **7.1.d Verify no false `template-prd` rewrites**
-        - `template-prd.md` preserves its filename (the heaviest spec-form variant). Confirm no `template-prd` reference
-          was rewritten to `template-spec` during the file-class rename. Quick grep check. (Its relocation into
-          `arc/work-unit/spec/` is handled at 7.3.)
+    - `[x]` **7.1.d Verify no false `template-prd` rewrites**
+        - Grep confirms no `template-prd` → `template-spec` rewrite; `template-prd.md` refs intact in both workflow
+          copies. (Relocation into `arc/work-unit/spec/` handled at 7.3.)
 
-### `[ ]` **7.2 Rename `plan-*` → `draft-*` (file class)**
+    - `[x]` **7.1.e CLI seed-surface sweep for the workflow rename**
+        - Workflows are listed per-file in the seed surface, so 7.1.c invalidated it: `init-recipe.json` include path +
+          `manifest.json` files key repointed `1_create-prd.md` → `1_create-spec.md` (manifest hash left as-is — repo
+          manifest is broadly stale / regenerated via `arc update`, and `framework-sync.test` checks content equality,
+          not hashes). Also repointed the `active.test.ts` mock `nextAction` string — the `1_create-prd` workflow-name
+          pattern isn't matched by 7.8's `prd-[a-z]` final sweep, so it would otherwise slip through. `npm test` green
+          (init fixture build no longer ENOENTs). Gap-closure: 7.1.c's spec omitted the seed sweep that the per-file
+          recipe listing requires.
+
+### `[x]` **7.2 Rename `plan-*` → `draft-*` (file class)**
 
 - _Goal:_ Per PRD R67, pre-spec exploration artifacts adopt `draft-{name}.md` filename prefix. The `arc-plan` skill name
   is preserved. The `template-plan.md` → `template-draft.md` rename folds into the 7.3 restructure (renamed + relocated
   in one motion).
 
-    - `[ ]` **7.2.a Rename backlog `plan-*` files → `draft-*`**
-        - `git mv` across all `backlog/{planned,provisional}/<wu-name>/plan-*.md` → `backlog/.../draft-*.md`. Inventory:
-          ~37 files (verified count; grew past the original ~25-27 estimate as the backlog expanded). Includes
-          `plan-arcd-rebrand.md` and `plan-docs-site-refresh.md` (post-6.4 demotions).
-        - Active `plan-*` inventory: zero (WOR's own plan retired pre-PRD per R51; no other active `plan-*` files).
+    - `[x]` **7.2.a Rename backlog `plan-*` files → `draft-*`**
+        - `git mv` on all 37 backlog `plan-*.md` (verified inventory) → `draft-*.md`, directories unchanged. Active
+          `plan-*`: zero. No seed-surface impact — backlog WU artifacts aren't in `init-recipe.json` / `manifest.json`.
+          `template-plan.md` excluded (7.3 owns it); `.arc/completed/` archive untouched (historical).
 
-### `[ ]` **7.3 Templates directory restructure (`arc/` + `project/` split; work-unit grouping)**
+    - `[x]` **7.2.b Rewrite renamed-doc H1s (`# Plan:` → `# Draft:`)**
+        - All 37 docs carried a uniform `# Plan: <Title>` H1; rewritten to `# Draft:` so each artifact's self-declared
+          type matches its new `draft-` class. Safe uniform transform (verified one H1 per file).
+        - **Deferred to activation (not 7.2):** the 358 internal `plan-`/`prd-` cross-refs inside backlog docs. Of the
+          58 distinct targets, 37 are live (renamed here) but 21 are historical (completed / retired / archived — e.g.
+          `plan-work-organization-reform.md`, `prd-cli-implementation.md`) and must not be blindly rewritten. The
+          live-vs-historical call per ref is the activation audit's job, made in-context when each WU activates.
+
+### `[x]` **7.3 Templates directory restructure (`arc/` + `project/` split; work-unit grouping)**
 
 - _Goal:_ Restructure flat `reference/templates/` into the `arc/` + `project/` split that `workflows/` and `strategies/`
   already use (framework-managed vs. adopter-owned / update-safe boundary), grouping WU-artifact templates under
   `arc/work-unit/` and spec-form templates under `arc/work-unit/spec/`. Materializes the uniform-`spec-*` +
   form-via-template model (R66). All moves apply to both copies (`.arc/` + package source); `git mv` preserves history.
 
-    - `[ ]` **7.3.a Create the `arc/` + `project/` split and work-unit subdirs (both copies)**
-        - `reference/templates/arc/`, `reference/templates/project/`, `reference/templates/arc/work-unit/`, and
-          `reference/templates/arc/work-unit/spec/` — in both `.arc/` and `packages/arc-framework/arc/`.
+    - `[x]` **7.3.a Create the `arc/` + `project/` split and work-unit subdirs (both copies)**
+        - Created `arc/`, `arc/work-unit/`, `arc/work-unit/spec/`, `project/` under `reference/templates/` in both
+          copies. All populated by the moves below + 7.3.d's README, so no keep-files needed.
 
-    - `[ ]` **7.3.b Relocate WU-artifact templates into `arc/work-unit/` (both copies)**
-        - `git mv` `template-meta.md`, `template-tasks.md`, `template-pull-request.md` → `arc/work-unit/`.
-        - `git mv template-prd.md` → `arc/work-unit/spec/template-prd.md` (filename preserved per R66 — the heaviest
-          spec-form variant; future lighter variants land alongside via the conductor WU).
-        - `git mv template-plan.md` → `arc/work-unit/template-draft.md` (rename + relocate in one motion; H1
-          `# Plan: ...` → `# Draft: ...` — verify current H1 shape first). Draft is a work-unit sibling, not under
-          `spec/`: it is the pre-spec stage, not a spec form.
+    - `[x]` **7.3.b Relocate WU-artifact templates into `arc/work-unit/` (both copies)**
+        - `git mv` (history preserved): `template-meta.md`, `template-tasks.md`, `template-pull-request.md` →
+          `arc/work-unit/`; `template-prd.md` → `arc/work-unit/spec/` (filename preserved per R66, heaviest spec-form
+          variant); `template-plan.md` → `arc/work-unit/template-draft.md`, H1 `# Plan: [Work Name]` → `# Draft:`.
 
-    - `[ ]` **7.3.c Relocate authoring / doc templates into `arc/` (flat, both copies)**
+    - `[x]` **7.3.c Relocate authoring / doc templates into `arc/` (flat, both copies)**
         - `git mv` `template-workflow.md`, `template-dev-rules.md`, `template-adr.md`, `template-contributing.md` →
-          `arc/` (top level of `arc/`, not `work-unit/` — these template ARC framework / repo docs, not WU artifacts).
+          `arc/` (flat). Final split of the 9 templates: 4 `arc/` + 4 `arc/work-unit/` + 1 `arc/work-unit/spec/`.
 
-    - `[ ]` **7.3.d Create `reference/templates/project/README.md` (both copies)**
-        - Establishes the dir's purpose (adopter-owned, update-safe templates — not touched by `arc update`) and serves
-          as the keep-file for the otherwise-empty dir. Mirror the framing of `strategies/project/README.md`.
+    - `[x]` **7.3.d Create `reference/templates/project/README.md` (both copies)**
+        - Adopter-owned / update-safe framing, modeled on `strategies/project/README.md` (neutral voice, no
+          internal-dev content); byte-identical across copies (Framework parity). Seeded too — see 7.3.e.
 
-    - `[ ]` **7.3.e CLI seed-surface sweep for moved template paths**
-        - `init-recipe.json` `include_files` (template paths); `manifest.json` `files` keys (path-keyed — key-rename for
-          pure moves; recompute `pristine_hash` only if content changed); `classification.ts` path constants
-          (`CONFIGURABLE_FILES` / `SCAFFOLDED_FILES` + any hardcoded template paths). Run `npm test` (not just lint) —
-          integration tests build fixtures from `init-recipe.json`; stale paths fail them.
+    - `[x]` **7.3.e CLI seed-surface sweep for moved template paths**
+        - `init-recipe.json`: 6 template include-paths repointed; **added** `templates/project/README.md` to the seed
+          (sibling `project/` READMEs are seeded, so this one is too). `manifest.json`: 3 tracked template keys renamed
+          (`template-adr`, `template-plan`→`template-draft`, `template-prd`) + new README entry; `template-draft` hash
+          recomputed (H1 changed), others key-rename only. `classification.ts`: no change — carries no
+          `reference/templates/` path constants (grep-confirmed).
+        - `npm test` green (1844 + 60). Two e2e tests (`lifecycle.e2e`, `init.e2e`) hardcoded the old flat
+          `template-meta.md` via segmented `join(...)` → repointed to `arc/work-unit/`; fixed here (not 7.8) because
+          segmented joins escape 7.8's `reference/templates/template-*` grep. The 4 remaining unit-test string-literal
+          refs are non-breaking (`toOutputPath`/`classifyPath` example inputs) and defer to 7.8.e, which greps them.
 
     - `[ ]` **7.3.f Inbound-reference sweep for template paths (both copies)**
         - Workflows / strategies / methods / READMEs referencing `reference/templates/template-*.md` update to the new
           `arc/...` paths (notably `1_create-spec.md`'s `template-prd.md` reference → `arc/work-unit/spec/`). Sweep both
           link forms (full-path + bare-relative); run a whole-tree link check before the phase commit.
 
-### `[ ]` **7.4 Meta-file field rename: `**Spec:**` → `**Design:**` (`**Task List:**` retained)**
+### `[x]` **7.4 Meta-file field rename: `**Spec:**` → `**Design:**` (`**Task List:**` retained)**
 
 - _Goal:_ Per PRD R68 (amended to Design-only), the upstream-design pointer shifts from artifact-type naming
   (`**Spec:**`) to role naming (`**Design:**`) — reinforcing the design-directed posture and reading cleanly as the
   `tasks-*` 1-hop upstream pointer (R58a). `**Task List:**` is retained: "Blueprint" recurs nowhere as a cross-file
   role, over-claims for a task list, and "Task List" is self-evident. The asymmetry is deliberate.
 
-    - `[ ]` **7.4.a Update `template-meta.md` field labels + comment block (both copies)**
-        - Replace `**Spec:**` → `**Design:**` in the field bullets; keep `**Task List:**` unchanged.
-        - Comment chain-of-authority: `Origin → Spec → Task List → PR URL` → `Origin → Design → Task List → PR URL`.
-        - Update the `Design` field-semantics comment: accepts `draft-{name}.md` (Planning) and `spec-{name}.md`
-          (Active+); also fix the file-class names in that comment (`plan-{name}.md` → `draft-{name}.md`;
-          `prd-{name}.md` → `spec-{name}.md`) — this correction survives independently of the label rename.
-        - Add a one-line design-before-implementation framing tied to `**Design:**` (intent captured upfront in the
-          design; the task list decomposes it).
-        - Both copies byte-identical post-edit.
+    - `[x]` **7.4.a Update `template-meta.md` field labels + comment block (both copies)**
+        - Field bullet relabeled `**Spec:**` → `**Design:**`; chain-of-authority comment now
+          `Origin → Design → Task List → PR URL`; field-semantics comment rewritten (role-named; accepts
+          `draft-{name}.md` planning / `spec-{name}.md` execution; design-directed framing added). Also corrected the
+          stale `plan-*` / `prd-*` file-class names in the Title/Description comment (same-file consistency).
+          Byte-identical across copies.
 
-    - `[ ]` **7.4.b Update active meta-file (`meta-work-organization-reform.md`) field label**
-        - Replace the `**Spec:**` line with `**Design:**` (value reflects post-7.1.a rename:
-          `spec-work-organization-reform.md`). Keep `**Task List:**` unchanged.
+    - `[x]` **7.4.b Update active meta-file (`meta-work-organization-reform.md`) field label**
+        - Field line relabeled to `**Design:**`; value already `spec-work-organization-reform.md` (set in 7.1.a).
+          `**Task List:**` retained.
 
-    - `[ ]` **7.4.c Update `tasks-work-organization-reform.md` header field**
-        - Header line `**Spec:** spec-work-organization-reform.md` → `**Design:** spec-work-organization-reform.md`
-          (the R58a `tasks-*` upstream pointer; field went `**PRD:**` → `**Spec:**` in 6.2.h — terminal target
-          `**Design:**`, one-step migration).
+    - `[x]` **7.4.c Update `tasks-work-organization-reform.md` header field**
+        - Header now `**Design:** spec-work-organization-reform.md`. Absorbed a deferred value fix too — the line was
+          still `**Spec:** prd-work-organization-reform.md` (7.1.a updated only the meta's value), so this was a
+          label + value change.
 
-    - `[ ]` **7.4.d Backlog meta-file field labels**
-        - For each `backlog/{planned,provisional}/<wu-name>/meta-<wu-name>.md` from 6.4.d: replace `**Spec:**` →
-          `**Design:**`; keep `**Task List:**`. Field values may be `[none]` (Planning) or `draft-{name}.md`
-          (post-7.2.a rename).
+    - `[x]` **7.4.d Backlog meta-file field labels**
+        - 37 `backlog/.../meta-*.md`: relabeled `**Spec:**` → `**Design:**` and updated the value `plan-X.md` →
+          `draft-X.md` (reflecting 7.2's rename). Every Design value verified to resolve to a co-located `draft-*.md`;
+          no `[none]` cases in practice.
 
-### `[ ]` **7.5 Validator + hook updates for the `**Design:**` field label**
+    - `[x]` **7.4.e Rename the upstream-pointer field in `template-tasks.md` (both copies)**
+        - Gap-closure: 7.4.a covered `template-meta` and 7.4.c the active `tasks-*` file, but the tasks _template_ also
+          carries the field — unrenamed it would generate `**Spec:**` task lists forever. Example
+          `- **Spec:** prd-{name}.md` → `- **Design:** spec-{name}.md`; explanatory prose `Spec`/`spec` →
+          `Design`/`design`. Byte-identical across copies.
+
+### `[x]` **7.5 Validator + hook updates for the `**Design:**` field label**
 
 - _Goal:_ The meta-spec validator and pre-commit hook recognize the renamed field. Audit findings narrow the scope:
   the validator's value-shape check is filename-agnostic (no `prd-`/`spec-` prefix pattern exists), so the only change
   is the field-name literal; the commit-msg footer check is filename-agnostic too (no token regex to update).
 
-    - `[ ]` **7.5.a Update `validate-meta-spec.ts` for the `**Design:**` field name**
-        - Field-name literal only: `collectFieldValues(content, "Spec")` → `"Design"`; diagnostic strings
-          (`missing **Spec:** line`, `multiple **Spec:** lines`, `invalid **Spec:** value`) → `**Design:**`; file-level
-          doc comment. The value-shape logic (`MD_FILENAME` / `[none]` / URL) is unchanged — there is no spec-filename
-          prefix pattern to broaden (the original "update the `/spec-…/` pattern" premise was a phantom).
-        - Tests: update fixtures to `**Design:**`; keep positive cases for `[none]`, `draft-*.md`, `spec-*.md` values.
-          Smoke-test against the active meta file post-7.4.b (exit 0).
+    - `[x]` **7.5.a Update `validate-meta-spec.ts` for the `**Design:**` field name**
+        - `collectFieldValues(content, "Spec")` → `"Design"`; the three diagnostic strings and the field-referencing
+          doc comments → `**Design:**`. Value-shape logic untouched (filename-agnostic — the `/spec-…/` pattern was
+          confirmed a phantom). Function name `validateSpec` and the `validate-meta-spec.ts` filename retained (the
+          validator's identity; 7.5.b keeps the invocation), so only the field literal + messages moved.
+        - Test rewritten: fixtures → `**Design:**`; the bare-filename positive case now exercises both `draft-*` and
+          `spec-*` values; stale `reference/templates/template-meta.md` example paths refreshed to the 7.3 location
+          (clears them from 7.8.e). Validator smoke-tested on the active + a backlog meta (exit 0); negative control
+          (a `**Spec:**` file) now fails as required.
 
-    - `[ ]` **7.5.b Update the pre-commit hook (both copies) for the CHECK 16 `**Design:**` label**
-        - `.arc/system/.internal/githooks/pre-commit` + `packages/arc-framework/arc/system/.internal/githooks/pre-commit`
-          (post-6.12 `.internal/` location): CHECK 16 label → "Meta-file `**Design:**` field shape validation";
-          invocation unchanged (still calls `validate-meta-spec.ts`); shell-variable / diagnostic-message renames as
-          needed.
+    - `[x]` **7.5.b Update the pre-commit hook (both copies) for the CHECK 16 `**Design:**` label**
+        - CHECK 16 comment label + the two user-facing diagnostics relabeled to `**Design:**` / "Design field". The
+          `meta_spec_*` shell vars and the `validate-meta-spec.ts` invocation are unchanged (script identity retained).
+          Byte-identical across copies.
 
-    - `[ ]` **7.5.c Verify the commit-msg hook (both copies) — expected no-op**
-        - `.arc/system/.internal/githooks/commit-msg`: footer validation in `required` mode checks for a `Context:`
-          line only (filename-agnostic); illustrative examples use `tasks-*`, not `prd-`/`plan-`. Confirm there is no
-          file-class token regex; no change expected. Note the finding if confirmed.
+    - `[x]` **7.5.c Commit-msg hook (both copies) — footer regex was NOT a no-op (corrected in 7.8.e)**
+        - Audit correction: the footer validator DID carry a file-class token regex
+          (`^Context: (plan|prd)-[name].md (planning|code review)$`) plus a `plan-*` example — the "no-op" call here
+          was wrong. Found + fixed during 7.8.e: regex → `(draft|spec)-`, example → `draft-`, "Plan/PRD file"
+          diagnostic → "Draft/spec file". (The `Context:`-presence check IS filename-agnostic; the class regex was the
+          miss.)
 
-### `[ ]` **7.6 Strategy + constitution doc updates (pipeline + design-directed principle)**
+### `[x]` **7.6 Strategy + constitution doc updates (pipeline + design-directed principle)**
 
 - _Goal:_ Update the docs that authoritatively describe the WU artifact pipeline, and codify the
   design-before-implementation principle — reinforcing the `**Design:**` field as its structural carrier.
 
-    - `[ ]` **7.6.a `strategy-work-planning.md` updates**
-        - Pipeline diagram (`Idea → plan-*.md → PRD → Task list`) updates to
-          `Idea → draft-*.md → spec-*.md → Task list (tasks-*.md)`.
-        - § Plan Documents renames to § Draft Documents (or equivalent); body references `plan-*` → `draft-*`;
-          `plan-{descriptor}.md` → `draft-{descriptor}.md`.
-        - § PRD Conventions renames to § Spec Conventions; body references `prd-*` → `spec-*`; `PRD` retains where
-          contextually appropriate (PRD is one template variant under `spec-*`); uniform `spec-*` + H1 form-signal
-          convention noted (`# PRD: ...` vs. lighter variants).
-        - Add the principle statement: "Design precedes implementation. The spec doc (`spec-*`) defines intent; the
-          task list (`tasks-*`) decomposes execution; the code realizes intent. Design happens upfront in the spec,
-          not during implementation."
+    - `[x]` **7.6.a `strategy-work-planning.md` updates**
+        - Full rewrite (both copies): pipeline diagram → `Idea → draft-*.md → spec-*.md → Task list (tasks-*.md)`;
+          § Plan Documents → § Draft Documents, § PRD Readiness → § Spec Readiness, § PRD Conventions → § Spec
+          Conventions (Contents + anchors updated); body `plan-*`/`prd-*` → `draft-*`/`spec-*`; "PRD" retained as the
+          default spec form (H1 `# PRD:` signal, lighter variants noted). Added the "Design precedes implementation"
+          principle. Link defs repointed for the 7.1/7.3 moves (`create-spec`, relocated `template-prd`/`template-draft`);
+          `validate-links` clean.
 
-    - `[ ]` **7.6.b `strategy-file-classification.md` prefix table update**
-        - Prefix table updates: `plan-` → `draft-` ("Work draft (pre-spec)"); `prd-` → `spec-` ("Work unit spec —
-          PRD-shape by default; lighter variants per template choice").
-        - Sub-note: "Filename `spec-*` is uniform; spec form (PRD-shape by default, lighter variants per template)
-          varies by template choice + H1 signal."
-        - Where the doc references template locations, reflect the 7.3 move (`reference/templates/arc/work-unit/...`).
+    - `[x]` **7.6.b `strategy-file-classification.md` prefix table update**
+        - Prefix table: `prd-` → `spec-` ("Work unit spec"), `plan-` → `draft-` ("Work draft (pre-spec)"); added the
+          uniform-`spec-*` / form-via-template sub-note. Swept the doc's WU-class examples + workflow ref
+          (`1_create-prd` → `1_create-spec`) and repointed template-location refs to `reference/templates/arc/`. Kept
+          `PROJECT-PRD`, the `plan/` branch prefix, and the preserved `template-prd.md`.
 
-    - `[ ]` **7.6.c `DEV-RULES.ARC` § Task Execution — codify design-before-implementation**
-        - Add a named principle near "One task at a time": "**Design-before-implementation (spec-directed work).**
-          ARC's spec-directed posture: design decisions are made upfront in the spec (`spec-*.md`), not during
-          implementation. The task list (`tasks-*.md`) decomposes the spec's design into actionable steps; the code
-          realizes the design. When design questions surface during implementation, route them back to the spec —
-          don't accumulate design debt in code or task notes."
-        - Reinforce via the `**Design:**` field as the structural carrier: R58a's `tasks-*` upstream pointer plus the
-          meta-file chain make "design" a recurring, self-describing role (not a one-off label).
+    - `[x]` **7.6.c `DEV-RULES.ARC` § Task Execution — codify design-before-implementation**
+        - New "Design before implementation (spec-directed work)" subsection after "One task at a time" (both copies),
+          with the `**Design:**` field as the structural carrier. Adopter-neutral phrasing; the internal R-ID rationale
+          was deliberately omitted per the no-planning-IDs / audience-boundary rules.
 
-### `[ ]` **7.7 Companion docs: `notes-*` co-location with renamed WU (verify-only)**
+### `[x]` **7.7 Companion docs: `notes-*` co-location with renamed WU (verify-only)**
 
 - _Goal:_ Companion `notes-*.md` files share the WU's slug — no rename needed (the prefix `notes-` stays). Verification
   only: confirm companion files weren't accidentally caught by 7.1/7.2 patterns. Quick filesystem walk.
 
-    - `[ ]` **7.7.a Verify companion files (`notes-*`, `atomic-*`, `analysis-*`, `research-*`) untouched**
-        - `find .arc -name 'notes-*' -o -name 'atomic-*' -o -name 'analysis-*' -o -name 'research-*'` returns expected
-          inventory unchanged from pre-Phase-7 state. Companion file prefixes are stable across the rename block.
+    - `[x]` **7.7.a Verify companion files (`notes-*`, `atomic-*`, `analysis-*`, `research-*`) untouched**
+        - Inventory intact across active / backlog / completed / supplemental; zero companion files appear in
+          `git status` from Phase 7, and none were absorbed into `spec-`/`draft-`. Prefixes stable across the rename
+          block, as designed (the 7.2 `plan-*` glob and `# Plan:` H1 sed are prefix-anchored, so they can't match
+          `notes-`/`atomic-`/`analysis-`/`research-`).
 
-### `[ ]` **7.8 Cross-reference sweep for rename-introduced patterns**
+### `[x]` **7.8 Cross-reference sweep for rename-introduced patterns**
 
 - _Goal:_ Narrow sweep targeting only the rename-introduced patterns; Phase 6.7 already swept Phases 1-6 patterns
   (status→meta, branch-prefix retirement, etc.). Phase 7.8 catches `prd-` / `plan-` / `template-plan` / `1_create-prd`
@@ -4261,40 +4272,42 @@ _Design decisions:_
   methods / templates / rules / briefs / test fixtures / CLI source that survived Phase 7's targeted updates.
   `**Task List:**` is retained (Design-only field rename) and is NOT a sweep target.
 
-    - `[ ]` **7.8.a Grep + update inbound references — workflow files**
-        - Patterns: `prd-` filename refs (not `template-prd`, which preserves); `plan-` filename refs (not the
-          historical `plan/` branch-prefix references, which are commit-msg domain); `1_create-prd` workflow-name refs;
-          `**Spec:**` field refs (→ `**Design:**`); `reference/templates/template-*` paths (→ `arc/...` per 7.3).
-        - Surfaces: `.arc/system/workflows/arc/**/*.md` + `packages/arc-framework/arc/system/workflows/arc/**/*.md`.
-        - Update in-place; both copies stay byte-identical.
+    - `[x]` **7.8.a Grep + update inbound references — workflow files**
+        - Swept both trees (byte-identical): `1_create-prd` → `1_create-spec`; old `reference/templates/template-*`
+          paths → relocated `arc/...`; `**Spec:**` → `**Design:**`; `plan-doc` → `draft-doc`. All broken inbound links
+          to renamed/moved targets repointed (validated by the whole-tree link check).
 
-    - `[ ]` **7.8.b Grep + update inbound references — strategies + constitution + briefs**
-        - Surfaces: `.arc/reference/strategies/**/*.md`, `.arc/reference/constitution/*.md`,
-          `.arc/system/briefs/*.md`, and their package-source mirrors.
-        - Same pattern set as 7.8.a. Particular attention to `strategy-work-organization.md`,
-          `strategy-configurability-architecture.md`, `strategy-task-list-formatting.md`.
+    - `[x]` **7.8.b Grep + update inbound references — strategies + briefs**
+        - Same pattern set across `reference/strategies/**` + `reference/briefs/**` (both trees). Spec's surface paths
+          were stale (`reference/constitution/` doesn't exist — DEV-RULES live at `system/rules/`; briefs are at
+          `reference/briefs/`, not `system/briefs/`); swept the actual locations. `strategy-work-organization.md`
+          State-Enum table left as-is (retired-state drift is a Phase-6 leftover, not a rename pattern).
 
-    - `[ ]` **7.8.c Grep + update inbound references — methods + extensions**
-        - Surfaces: `.arc/system/methods/*.md`, `.arc/system/extensions/*.md`, and their package-source mirrors.
+    - `[x]` **7.8.c Grep + update inbound references — methods + extensions**
+        - `commit-footer.md` class refs → `draft-`/`spec-`; `pre-activation` "plan-quality" kept (descriptive
+          compound, not a file class). Both trees.
 
-    - `[ ]` **7.8.d Grep + update inbound references — templates + READMEs**
-        - Surfaces: `reference/templates/**/*.md` (excluding `template-prd.md` content, which stays), `.arc/README.md`,
-          `.arc/reference/README.md`, etc. Account for the 7.3 relocation (templates now under `arc/work-unit/` etc.).
+    - `[x]` **7.8.d Grep + update inbound references — templates + READMEs**
+        - Template-path refs → `arc/...`; `template-draft.md` self-reference corrected (`plan-*` → `draft-*`).
+          `template-prd.md` content preserved per R66.
 
-    - `[ ]` **7.8.e Grep + update — CLI source + tests**
-        - Surfaces: `packages/arc-framework/src/**/*.ts` + `packages/arc-framework/__tests__/**/*.ts`.
-        - Hardcoded file-class patterns, fixture filenames, mock data, template paths. Lint + typecheck + test pass
-          post-update.
+    - `[x]` **7.8.e Grep + update — CLI source + tests**
+        - `commit-msg-footer.test.ts` fixtures (`plan-foo`/`prd-foo` → `draft-foo`/`spec-foo`); `init.test.ts`
+          `toOutputPath` example repointed to the relocated `template-prd` path. **Also fixed the commit-msg hook gap
+          7.5.c missed** — its `(plan|prd)-` footer regex → `(draft|spec)-` (both copies). Lint + typecheck + test green.
 
-    - `[ ]` **7.8.f Final grep verification**
-        - Final sweep — `prd-[a-z]` pattern across `.arc/`, `packages/arc-framework/arc/`,
-          `packages/arc-framework/src/` (`.md` + `.ts` includes) returns empty or only intentional pre-rename
-          historical references in archived material. Filter out `template-prd` (preserved per R66) and
-          archive / completed / adr- paths (historical, read-only).
-        - Same sweep for `plan-[a-z]` pattern — excluding `plan/` branch prefix (commit-msg domain), `template-plan`
-          (renamed + relocated under 7.3, so empty post-rename), and `arc-plan` skill name (preserved).
-        - Same sweep for `**Spec:**` field references in non-historical content (→ `**Design:**`). `**Task List:**` is
-          retained — not swept.
+    - `[x]` **7.8.f Final grep verification**
+        - Whole-tree link check: 0 broken. `prd-[a-z]` / `plan-[a-z]` clean in current surfaces; residue is only
+          intentional — descriptive compounds (`plan-content`, `plan-quality`, `plan-vs-shipped`), branch-pattern test
+          fixtures, historical `adr-`/`completed/`/`supplemental/`, and deferred backlog draft text-refs. Extended the
+          verification beyond the spec's `[a-z]` regex to the **glob form** (`plan-*`/`prd-*`) — a pattern blind spot —
+          and swept those class refs to `draft-*`/`spec-*` across 13 files.
+
+- _Outcome:_ Sweep cleared **both** commit gates — CHECK 16 (meta-field validator, 7.5) and CHECK 13 (link
+  resolution). Three things beyond the literal spec: (1) absorbed the 8 pre-existing stale links (the captured
+  `skills/` → `.internal/skills/` and `constitution/` → `system/rules/` oversight) so the tree is fully link-clean;
+  (2) surfaced + fixed the commit-msg footer validator gap that 7.5.c had called a no-op; (3) swept glob-form
+  (`plan-*`/`prd-*`) class refs that the `[a-z]` patterns missed. Full suite green (1844 + 60); parity holds.
 
 ## **Phase 8:** Verification
 

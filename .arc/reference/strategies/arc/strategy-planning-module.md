@@ -79,7 +79,7 @@ companion files): `arc log --atomic`.
 
 ### `backlog/BACKLOG-INBOX.md` — project-shared multi-step capture
 
-Committed-tracked queue of multi-step entries awaiting plan-doc maturation. Ceremony-only writes
+Committed-tracked queue of multi-step entries awaiting draft-doc maturation. Ceremony-only writes
 (same fire-points as ATOMIC-INBOX). When scope and plan emerge, entries graduate to a per-WU
 subdir at `backlog/{planned,provisional}/<wu-name>/` carrying their `plan-<wu-name>.md` and any
 companions — see § State-Dir Graduation.

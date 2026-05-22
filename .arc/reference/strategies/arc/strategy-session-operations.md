@@ -427,7 +427,7 @@ design — orientation surfaces actionable session-shifts, not steady configurat
 detection — flagging when the resolved wrapper routing has changed between sessions because
 interlock keys were edited in git-config since last handoff — is the orientation-worthy
 state-shift signal; the snapshot-at-handoff plus diff-at-init mechanism is specified in
-`plan-handoff-optimization.md` and surfaces in orientation when that work integrates.
+`draft-handoff-optimization.md` and surfaces in orientation when that work integrates.
 
 **Integration-interlock.** Merge to integration / main requires explicit human approval. Agents must not
 infer merge approval from task approval, review completion, passing checks, or general "proceed" language.
@@ -644,7 +644,7 @@ guards so re-entry is safe.
 **Convergent paths:**
 
 - **Planning activation** ([`init-work-unit.md`][activate-plan]) creates the file when a planning
-  branch starts, with `**State:** Planning` and the plan-doc filename in `**Spec:**`.
+  branch starts, with `**State:** Planning` and the draft-doc filename in `**Design:**`.
   Idempotent: existing file → skip.
 - **WU activation without planning ceremony** ([`activate-work-unit.md`][activate-wu] Step 4 creation
   path) creates the file at WU activation when no planning branch preceded (e.g., partial-protection
@@ -659,7 +659,7 @@ are always present; empty optional fields use the `[none]` literal. Consumers (t
 handoff workflow) get a uniform parse surface — no field-omission ambiguity, no per-state shape
 branching.
 
-**Filename-pointer convention.** Artifact-pointer fields (`**Task List:**`, `**Spec:**`) carry bare
+**Filename-pointer convention.** Artifact-pointer fields (`**Task List:**`, `**Design:**`) carry bare
 filenames. Path resolution derives from `dirname(meta-file)` — co-location of status, task list, and
 PRD is invariant across the WU lifecycle. The probe's `deriveCompanions` consumes this directly.
 
@@ -819,7 +819,7 @@ live-write capture surface — entries land any time, drain at lifecycle boundar
 **Section structure.**
 
 - **`## Atomic`** — single-step entries shaped like `atomic-{name}.md` items.
-- **`## Backlog`** — multi-step entries that need plan-doc / PRD treatment before scheduling.
+- **`## Backlog`** — multi-step entries that need draft-doc / PRD treatment before scheduling.
 
 **Lifecycle.** Writes accepted any time (the live-capture role). Drain fires at WU lifecycle
 boundaries; destinations vary by PM mode:
@@ -1017,7 +1017,7 @@ When `arc user load` or session-init's SESSION-NOTES load fails, recover by erro
 [activate-plan]: ../../../system/workflows/arc/work-unit-lifecycle/planning/init-work-unit.md
 [activate-wu]: ../../../system/workflows/arc/work-unit-lifecycle/activate-work-unit.md
 [integrate-plan]: ../../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md
-[template-meta]: ../../templates/template-meta.md
+[template-meta]: ../../templates/arc/work-unit/template-meta.md
 [strategy-index]: ../STRATEGY-INDEX.md
 [workflow-authoring]: strategy-workflow-authoring.md
 [config-arch]: strategy-configurability-architecture.md

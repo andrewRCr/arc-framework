@@ -137,7 +137,7 @@ Using `pm.mode: arc-in-git` — deferred work routes through ARC's built-in capt
 
 - **Atomic tasks for this work unit** → atomic companion file (`atomic-{name}.md`)
 - **Atomic tasks for later** → `user/{identity}/ATOMIC-INBOX.md`
-- **Multi-step work for later** → appropriate backlog file or existing plan document
+- **Multi-step work for later** → appropriate backlog file or existing draft document
 
 See [DEV-RULES.ARC][dev-rules-arc] § Leave it cleaner for the full routing table.
 

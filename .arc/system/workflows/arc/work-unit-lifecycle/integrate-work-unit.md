@@ -132,7 +132,7 @@ a structural no-op.
 > `workflow-interlock`: Stop before composition begins. Surface that review is settled (open threads resolved,
 > required approvals received, checks green); await approval before proceeding to alignment + composition.
 
-Both soft; rarely block if [`1_create-prd.md`][create-prd]'s alignment checks passed. Surface any conflicts
+Both soft; rarely block if [`1_create-spec.md`][create-spec]'s alignment checks passed. Surface any conflicts
 discovered against final reviewed scope.
 
 #### PROJECT-PRD
@@ -259,9 +259,9 @@ arc user close {name}
 [diff-review]: ../../../methods/diff-review.md
 [review-triage]: ../../../methods/review-triage.md
 [commit-footer]: ../../../methods/commit-footer.md
-[template-pull-request]: ../../../../reference/templates/template-pull-request.md
+[template-pull-request]: ../../../../reference/templates/arc/work-unit/template-pull-request.md
 [archive-work-unit]: archive-work-unit.md
 [clean]: ../supplemental/clean-work-unit.md
-[create-prd]: ../1_create-prd.md
+[create-spec]: ../1_create-spec.md
 [arc-config]: ../../../arc-config.yml
 [dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md

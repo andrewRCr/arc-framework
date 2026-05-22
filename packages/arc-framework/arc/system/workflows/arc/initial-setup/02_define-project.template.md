@@ -185,7 +185,7 @@ a PRD and task list for your first work unit. From there, the normal session rhy
 Clear your context and start a fresh session by invoking the `arc-resume` skill (invocation
 syntax is agent-specific). With no active work unit yet, session initialization reports the
 empty state and awaits your direction. When ready to begin your first work unit, follow
-[1_create-prd.md][create-prd] to define it from your project docs, then
+[1_create-spec.md][create-spec] to define it from your project docs, then
 [2_generate-tasks.md][generate-tasks] for the task list. From there, the normal session
 rhythm — `arc-resume`, task execution, `arc-commit`, `arc-handoff` — takes over.
 <!-- arc:endif -->
@@ -211,6 +211,6 @@ workflows to your tracker.
 [roadmap]: ../../../../backlog/ROADMAP.md
 <!-- arc:endif -->
 <!-- arc:if pm.mode == none -->
-[create-prd]: ../1_create-prd.md
+[create-spec]: ../1_create-spec.md
 [generate-tasks]: ../2_generate-tasks.md
 <!-- arc:endif -->

@@ -343,4 +343,4 @@ token. Write tokens expire at 90 days max — rotate before expiry.
 
 [quality-gates]: strategies/arc/strategy-quality-gates.md
 [session-ops]: strategies/arc/strategy-session-operations.md
-[dev-rules-arc]: constitution/DEV-RULES.ARC.md
+[dev-rules-arc]: ../system/rules/DEV-RULES.ARC.md

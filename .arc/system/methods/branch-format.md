@@ -43,7 +43,7 @@ override-active: false
 - `hotfix/<name>` — urgent production-bypass fix; typically atomic-tier, light-ceremony
 
 **Planning life-phase prefix:** `plan/<branch-name>` — used during the planning life-phase of a
-WU (discovery, plan-doc iteration, spec authoring, task generation). Rotates to one of the type
+WU (discovery, draft-doc iteration, spec authoring, task generation). Rotates to one of the type
 prefixes above at activation. See `strategy-work-organization.md` § Branching for the rotation
 mechanics.
 

@@ -358,7 +358,7 @@ branch. They share one `meta-{name}.md`. Coordination mechanisms:
 
 Parallel work units on independent branches don't coordinate at the meta-file layer (above), but
 **planning artifacts within those WUs can still create dependencies**: one developer's WU may
-reference design decisions, scope choices, or task structures in another's evolving plan-doc. Each
+reference design decisions, scope choices, or task structures in another's evolving draft-doc. Each
 WU's planning artifacts live on its branch — a developer's worktree holds a sibling WU's state as
 of her branch creation plus any explicit fetches, not the sibling's current state.
 
@@ -375,7 +375,7 @@ Mechanisms:
   execution before the other begins planning).
 
 For most teams, out-of-band coordination is sufficient. Codified inter-WU sync primitives are a
-future-ARC concern — see `plan-arc-backend.md` for the architectural answer to coordination needs
+future-ARC concern — see `draft-arc-backend.md` for the architectural answer to coordination needs
 that exceed Git's affordances.
 
 ### Configuration Notes

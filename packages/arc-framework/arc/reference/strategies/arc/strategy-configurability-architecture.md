@@ -576,5 +576,5 @@ the [Agent Hooks](https://andrewrcr.github.io/arc-framework/customization/hooks/
 [quality-gates]: strategy-quality-gates.md
 [work-org]: strategy-work-organization.md
 [workflow-authoring]: strategy-workflow-authoring.md
-[template-workflow]: ../../templates/template-workflow.md
+[template-workflow]: ../../templates/arc/template-workflow.md
 [agent-skills-spec]: https://agentskills.io/

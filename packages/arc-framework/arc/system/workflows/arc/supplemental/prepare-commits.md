@@ -140,6 +140,6 @@ strategy — lives in [Work Organization Strategy][work-org].
 
 [dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
 [work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md
-[arc-commit-skill]: ../../../skills/arc-commit/SKILL.md
+[arc-commit-skill]: ../../../.internal/skills/arc-commit/SKILL.md
 [arc-methods-cf]: ../../../methods/commit-format.md
 [arc-methods-ccf]: ../../../methods/commit-footer.md

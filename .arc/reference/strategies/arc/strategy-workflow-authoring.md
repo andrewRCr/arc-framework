@@ -189,6 +189,6 @@ established contract regardless of how the push itself routes.
 
 ---
 
-[template-workflow]: ../../templates/template-workflow.md
+[template-workflow]: ../../templates/arc/template-workflow.md
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
 [agent-brief-arc]: ../../../reference/briefs/AGENT-BRIEF.ARC.md

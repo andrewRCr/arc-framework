@@ -19,9 +19,9 @@ is mandatory vs the default path.
 **What comes after:**
 
 ```text
-plan-* exploration (optional, when scope warrants synthesis)
+draft-* exploration (optional, when scope warrants synthesis)
     ↓
-1_create-prd                — requirements
+1_create-spec                — requirements
     ↓
 2_generate-tasks            — task list
     ↓
@@ -74,11 +74,11 @@ arc user open {name}
 
 When resuming from a backlog stub, graduate the per-WU subdir contents into the active workspace.
 Under the per-WU subdir model, every backlog WU carries `meta-{name}.md` (always) plus any
-plan-doc and companions:
+draft-doc and companions:
 
 ```bash
 git mv .arc/backlog/{state}/{name}/meta-{name}.md .arc/active/
-git mv .arc/backlog/{state}/{name}/plan-{name}.md .arc/active/   # when present
+git mv .arc/backlog/{state}/{name}/draft-{name}.md .arc/active/   # when present
 git mv .arc/backlog/{state}/{name}/notes-{name}.md .arc/active/  # when present
 # Move other companions present in the subdir
 rmdir .arc/backlog/{state}/{name}
@@ -88,7 +88,7 @@ The meta-file carries the intentional metadata backfilled at backlog-stub creati
 `Owner`, `Depends On`, `Cohort`); Step 4's Path A reconciles `Branch` and `Spec` without
 overwriting these fields.
 
-See [Work Planning Strategy][work-planning] for the plan-doc lifecycle.
+See [Work Planning Strategy][work-planning] for the draft-doc lifecycle.
 
 ### 4) Create or Reconcile Meta File
 
@@ -99,7 +99,7 @@ Two paths depending on Step 3's outcome:
 Reconcile the existing meta-file to reflect the now-active planning state:
 
 1. **Branch** → current planning branch (e.g., `plan/{name}`)
-2. **Spec** → backticked `plan-{name}.md` filename when one exists; otherwise leave as-is
+2. **Spec** → backticked `draft-{name}.md` filename when one exists; otherwise leave as-is
 3. **Next Action** → freeform planning-session prompt
 
 **Preserve** `Owner`, `Origin`, `Depends On`, `Cohort`, `State: Planning`, and all other
@@ -113,9 +113,9 @@ Create `.arc/active/meta-{name}.md` from `template-meta.md`. Replace the H1 titl
 1. **State** → `Planning`
 2. **Owner** → substitute the `{arc.identity}` placeholder with the resolved `arc.identity` value
 3. **Branch** → current planning branch (e.g., `plan/{name}`)
-4. **Spec** → backticked `plan-{name}.md` filename when one exists; otherwise `[none]`
-5. **Next Action** → freeform planning-session prompt (e.g., "Run `1_create-prd.md`" or "Continue
-   `plan-*` exploration")
+4. **Spec** → backticked `draft-{name}.md` filename when one exists; otherwise `[none]`
+5. **Next Action** → freeform planning-session prompt (e.g., "Run `1_create-spec.md`" or "Continue
+   `draft-*` exploration")
 
 Remaining fields take their `template-meta.md` defaults.
 
@@ -125,7 +125,7 @@ as in Path A; preserve other field values.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`. Under Path A, stage the backlog-subdir
-> file moves (meta + plan-doc + companions) together with the meta-file reconcile edits as a
+> file moves (meta + draft-doc + companions) together with the meta-file reconcile edits as a
 > bundled init commit. Under Path B, stage the new meta file as a dedicated init commit. Subject
 > per [`commit-format`][commit-format]; meta-file commit shape per [DEV-RULES.ARC][dev-rules-arc]
 > § Commit Discipline.
@@ -143,13 +143,13 @@ Set upstream for the planning branch.
 
 ### 6) Proceed to Next Step
 
-- If the work needs synthesis exploration first: create `plan-*.md` documents (see [Work Planning
+- If the work needs synthesis exploration first: create `draft-*.md` documents (see [Work Planning
   Strategy][work-planning] for conventions)
-- If ready for requirements: proceed to [1_create-prd][create-prd]
+- If ready for requirements: proceed to [1_create-spec][create-spec]
 
 ---
 
-[create-prd]: ../../1_create-prd.md
+[create-spec]: ../../1_create-spec.md
 [commit-format]: ../../../../methods/commit-format.md
 [branch-format]: ../../../../methods/branch-format.md
 [dev-rules-arc]: ../../../../../system/rules/DEV-RULES.ARC.md

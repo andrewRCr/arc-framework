@@ -33,7 +33,7 @@ Verify the activation context is well-formed:
 
 - Currently on a `plan/<name>` branch (per [`branch-format`][branch-format])
 - `.arc/active/meta-{name}.md` exists and shows `**State:** Planning`
-- `.arc/active/prd-{name}.md` and `.arc/active/tasks-{name}.md` are present
+- `.arc/active/spec-{name}.md` and `.arc/active/tasks-{name}.md` are present
 
 If any check fails, surface the mismatch and halt — do not proceed to state-flip or branch rename.
 
@@ -56,17 +56,17 @@ Fires only when TECHNICAL-OVERVIEW has been edited since the WU's PRD was approv
 technical surfaces (tech stack, architecture, runtime, dependencies, infrastructure). Soft check; rarely blocks.
 Independent of the PROJECT-PRD check — scope distinction is the trigger.
 
-### 4) State-flip + plan-doc removal
+### 4) State-flip + draft-doc removal
 
 Edit `active/meta-{name}.md`: `**State:** Planning` → `**State:** Active`.
 
-Remove any residual plan-doc:
+Remove any residual draft-doc:
 
 ```bash
-git rm .arc/active/plan-{name}.md
+git rm .arc/active/draft-{name}.md
 ```
 
-Safety-catch — the plan-doc should already be absent (deleted at PRD creation per `1_create-prd.md`); this covers
+Safety-catch — the draft-doc should already be absent (deleted at PRD creation per `1_create-spec.md`); this covers
 paths that skipped the create-PRD boundary.
 
 Stage both edits.
@@ -78,7 +78,7 @@ Stage both edits.
 chore(arc): activate {work-name} work unit
 
 - Flip State: Planning → Active
-- Remove plan-{name}.md (graduated to PRD; safety-catch)
+- Remove draft-{name}.md (graduated to PRD; safety-catch)
 
 Context: meta-{name}.md (activation)
 ```

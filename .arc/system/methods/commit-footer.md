@@ -26,7 +26,7 @@ override-active: false
 
 **Chain naming.** The footer names the deepest spec-shaped artifact under edit along the WU chain:
 
-`meta-{name}` (lifecycle / maintenance) → `plan-{name}` / `prd-{name}` (Spec) → `tasks-{name}`
+`meta-{name}` (lifecycle / maintenance) → `draft-{name}` / `spec-{name}` (Spec) → `tasks-{name}`
 (execution spec) → `atomic-{name}` (atomic-companion scope)
 
 Walk down from `meta-*` to the most specific artifact this commit edits. Ceremony and maintenance
@@ -50,17 +50,17 @@ Used when the commit operates on a task spec or on the task list itself.
 - `Context: tasks-[name].md (maintenance)` — task list maintenance only
 - `Context: tasks-[name].md (code review)` — review-driven changes to task-listed work
 
-### Plan-doc / PRD references — `plan-[name].md` or `prd-[name].md`
+### Draft-doc / spec references — `draft-[name].md` or `spec-[name].md`
 
-Used during planning sessions when iterating a spec-shaped artifact. `plan-*` covers
-pre-PRD planning artifacts; `prd-*` covers post-PRD-generation iteration on the formalized
+Used during planning sessions when iterating a spec-shaped artifact. `draft-*` covers
+pre-PRD planning artifacts; `spec-*` covers post-PRD-generation iteration on the formalized
 spec (e.g., requirement amendments or scope clarification surfaced during pre-implementation
 audit). Both take the same parentheticals.
 
-- `Context: plan-[name].md (planning)` — plan iteration
-- `Context: plan-[name].md (code review)` — review-driven changes to the plan
-- `Context: prd-[name].md (planning)` — PRD iteration
-- `Context: prd-[name].md (code review)` — review-driven changes to the PRD
+- `Context: draft-[name].md (planning)` — plan iteration
+- `Context: draft-[name].md (code review)` — review-driven changes to the plan
+- `Context: spec-[name].md (planning)` — PRD iteration
+- `Context: spec-[name].md (code review)` — review-driven changes to the PRD
 
 ### Meta-file references — `meta-[name].md`
 
@@ -97,7 +97,7 @@ describes the kind of work.
 
 **Off-WU `(planning)` vs. file-pointer `(planning)`.** Off-WU `(planning)` is queue-shaping work
 that organizes future work without iterating a specific spec (ROADMAP, BACKLOG-INBOX edits).
-File-pointer `(planning)` — e.g., `tasks-[name].md (planning)` or `plan-[name].md (planning)` — is
+File-pointer `(planning)` — e.g., `tasks-[name].md (planning)` or `draft-[name].md (planning)` — is
 spec iteration on an active artifact.
 
 ### Contributor

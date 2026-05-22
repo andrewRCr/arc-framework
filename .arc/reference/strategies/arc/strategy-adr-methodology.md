@@ -152,7 +152,7 @@ Document what becomes easier or harder as a result.
 - **Negative:** What becomes harder, trade-offs accepted
 - **Risks (optional):** Concerns requiring monitoring, follow-up work
 
-**Template:** See [template-adr.md](../../templates/template-adr.md) for the copy-ready starting point.
+**Template:** See [template-adr.md](../../templates/arc/template-adr.md) for the copy-ready starting point.
 
 ---
 
@@ -238,7 +238,7 @@ Deprecated - upstream API now supports native filtering as of v3.2 (2026-03-15)
 
 ## Template
 
-Copy from [template-adr.md](../../templates/template-adr.md) when creating new ADRs. The template includes
+Copy from [template-adr.md](../../templates/arc/template-adr.md) when creating new ADRs. The template includes
 inline guidance for each section (Context, Decision, Consequences with Positive/Negative/Risks).
 
 ---

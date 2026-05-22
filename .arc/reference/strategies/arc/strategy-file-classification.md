@@ -53,7 +53,7 @@ project-specific content. Never touched by framework updates.
 Created by users during project development. Not part of the `.arc/` template system.
 Never included in or affected by framework updates.
 
-**Examples:** ADRs, task lists, PRDs, notes files, project strategy docs, research docs.
+**Examples:** ADRs, task lists, specs, notes files, project strategy docs, research docs.
 
 **Update behavior:** Ignore. CLI never reads or writes these files.
 
@@ -75,7 +75,7 @@ Examples: `AGENT-BRIEF.PROJECT.md`, `QUICK-REFERENCE.md`, `DEV-RULES.ARC.md`,
 **Lowercase with prefix** files are instances of a pattern — files you create *from* a convention.
 They're work artifacts that follow a naming template.
 
-Examples: `prd-authentication.md`, `tasks-api-modernization.md`, `strategy-work-organization.md`
+Examples: `spec-authentication.md`, `tasks-api-modernization.md`, `strategy-work-organization.md`
 
 **The distinction:** ALL-CAPS signals "there's one of these per project/directory, and it's a
 coordination point." Lowercase prefix signals "there can be many of these, and the prefix tells
@@ -86,9 +86,9 @@ you what kind."
 | Prefix      | What It Is               | Created By       | Example                           |
 |-------------|--------------------------|------------------|-----------------------------------|
 | `meta-`     | Work-unit pointer        | Agent            | `meta-api-modernization.md`       |
-| `prd-`      | Product Requirements Doc | User/agent       | `prd-authentication.md`           |
+| `spec-`     | Work unit spec           | User/agent       | `spec-authentication.md`          |
 | `tasks-`    | Task list                | User/agent       | `tasks-api-modernization.md`      |
-| `plan-`     | Work plan (pre-PRD)      | User/agent       | `plan-api-migration.md`           |
+| `draft-`    | Work draft (pre-spec)    | User/agent       | `draft-api-migration.md`          |
 | `notes-`    | Work unit notes          | Agent            | `notes-api-modernization.md`      |
 | `atomic-`   | Atomic companion file    | Agent            | `atomic-api-modernization.md`     |
 | `strategy-` | Strategy document        | Framework / user | `strategy-work-organization.md`   |
@@ -96,9 +96,12 @@ you what kind."
 | `adr-`      | Architecture Decision    | User/agent       | `adr-001-define-core-identity.md` |
 | `template-` | Copy-ready template      | Framework / user | `template-prd.md`                 |
 
-Work unit artifacts (`meta-`, `plan-`, `prd-`, `tasks-`, `notes-`, `atomic-`) share a slug
+Work unit artifacts (`meta-`, `draft-`, `spec-`, `tasks-`, `notes-`, `atomic-`) share a slug
 across files — the slug is the work unit's identity. `meta-authentication.md`,
-`prd-authentication.md`, and `tasks-authentication.md` all belong to the same work unit.
+`spec-authentication.md`, and `tasks-authentication.md` all belong to the same work unit.
+
+The `spec-*` filename is uniform; the spec's *form* (PRD-shape by default, lighter variants per
+template) varies by template choice and is signalled by the H1.
 
 ### Template suffix: `.template.md`
 
@@ -114,29 +117,29 @@ place (e.g., `DEV-RULES.PROJECT.md`, `STRATEGY-INDEX.md`, `system/methods/commit
 because no rendering transformation occurs — they're copied as-is during init and edited directly
 by teams.
 
-The `template-` *prefix* (in `reference/templates/`) is different — those are copy-ready document
-templates used during work (e.g., `template-prd.md` is copied when creating a new PRD). They keep
+The `template-` *prefix* (in `reference/templates/arc/`) is different — those are copy-ready document
+templates used during work (e.g., `template-prd.md` is copied when creating a new spec). They keep
 the prefix in use, not just at init time.
 
 ### One-shot template uniqueness
 
 Files rendered exactly once per project at CLI initialization or repository-join time —
 produced from package-source `*.template.md` files with mustache-token replacement — do not
-have a parallel `reference/templates/template-*.md` entry. The package-source `.template`
+have a parallel `reference/templates/arc/**/template-*.md` entry. The package-source `.template`
 file is the canonical template; no second template surface exists for the same file class.
 
 **Governed files:** PROJECT-PRD, TECHNICAL-OVERVIEW, ROADMAP, BACKLOG-FEATURE,
 BACKLOG-TECHNICAL, AGENT-BRIEF.PROJECT, QUICK-REFERENCE. The CLI's init / join render
 pipeline is the canonical inventory.
 
-**Distinction from agent-facing templates.** `template-*.md` files in `reference/templates/`
+**Distinction from agent-facing templates.** `template-*.md` files in `reference/templates/arc/`
 (e.g., `template-prd.md`, `template-tasks.md`, `template-adr.md`) are copy-ready templates
 for content created repeatedly during work by agents and workflows. They use the
 bracket-placeholder convention. The two surfaces address different needs and do not
 duplicate — the one-shot principle does not extend to them.
 
 **Optional starter templates.** `template-dev-rules.md` and `template-contributing.md` are a
-third category: present in `reference/templates/` but not in the init render list. Projects
+third category: present in `reference/templates/arc/` but not in the init render list. Projects
 copy or reference them as starting points for optional files; this principle does not govern
 them.
 
@@ -144,7 +147,7 @@ them.
 
 Core pipeline workflows are numbered to indicate execution sequence:
 
-- `1_create-prd.md` → `2_generate-tasks.md` → `3_process-task-loop.md`
+- `1_create-spec.md` → `2_generate-tasks.md` → `3_process-task-loop.md`
 
 Setup workflows use zero-padded numbers: `01_verify-and-configure.md`, `02_define-project.md`,
 `03_configure-external-integration.md`.
@@ -173,7 +176,7 @@ When creating project-specific artifacts:
 - **Domain-specific dev-rules** follow `DEV-RULES.{DOMAIN}.md` in ALL-CAPS: `DEV-RULES.FRONTEND.md`
 - **ADRs** continue the sequential numbering: `adr-011-your-decision.md`
 - **Research docs** use the `research-` prefix: `research-performance-benchmarks.md`
-- **Work unit artifacts** always use the matching prefixes (`prd-`, `tasks-`, etc.) with a shared
+- **Work unit artifacts** always use the matching prefixes (`spec-`, `tasks-`, etc.) with a shared
   slug
 
 ---

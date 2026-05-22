@@ -158,6 +158,14 @@ See [Team Coordination Strategy][team-coordination] for task ownership, branchin
 **For the full task execution protocol** (completion steps, quality gate checkpoints, mandatory
 stop, implied permission, deferred review), load the [process-task-loop workflow][process-task-loop].
 
+### Design before implementation (spec-directed work)
+
+ARC is spec-directed: design decisions are made upfront in the spec (`spec-*.md`), not during
+implementation. The task list (`tasks-*.md`) decomposes the spec's design into actionable steps;
+the code realizes the design. When design questions surface during implementation, route them back
+to the spec — don't accumulate design debt in code or task notes. The meta file's `**Design:**`
+field carries this pointer, making the spec the recurring, self-describing upstream of the work.
+
 ### Sub-agent scope
 
 **Task-list work stays in the primary agent's context.** Delegating a task to a sub-agent bypasses
@@ -350,7 +358,7 @@ test names describing behavior, comments on non-obvious invariants — stay.
 
 ### `.arc/` artifact references
 
-Movable WU artifacts (`plan-*`, `prd-*`, `tasks-*`, `status-*`, companions) are project-internal —
+Movable WU artifacts (`draft-*`, `spec-*`, `tasks-*`, `status-*`, companions) are project-internal —
 shipped or published content cannot reference them at all. Within internal docs, use backticked
 filenames only; no Markdown links or paths. For tasks, include task ID + task-list filename:
 "Task X.Y - `tasks-name.md`". Paths are for current-location metadata, commands, and stable docs.

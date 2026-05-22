@@ -185,5 +185,5 @@ Incidental work follows standard workflows with no special procedures:
 
 [dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
 [task-list-formatting]: ../../../../reference/strategies/arc/strategy-task-list-formatting.md
-[template-status]: ../../../../reference/templates/template-meta.md
+[template-status]: ../../../../reference/templates/arc/work-unit/template-meta.md
 [work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md

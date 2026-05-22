@@ -324,6 +324,6 @@ updates**. Always update the task list file before reporting completion.
 [arc-methods-it]: ../../methods/issue-triage.md
 [arc-methods-qg]: ../../methods/quality-gate-commands.md
 [team-coordination]: ../../../reference/strategies/arc/strategy-team-coordination.md
-[arc-commit-skill]: ../../skills/arc-commit/SKILL.md
+[arc-commit-skill]: ../../.internal/skills/arc-commit/SKILL.md
 [session-ops]: ../../../reference/strategies/arc/strategy-session-operations.md
 [strat-tlf]: ../../../reference/strategies/arc/strategy-task-list-formatting.md

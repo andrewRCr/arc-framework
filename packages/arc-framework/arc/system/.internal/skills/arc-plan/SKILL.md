@@ -9,7 +9,7 @@ disable-model-invocation: false
 Works for two common scenarios:
 
 - starting from a vague idea with no planning artifact yet
-- resuming or refining an existing `plan-*` document that is still rough
+- resuming or refining an existing `draft-*` document that is still rough
 
 The agent should help surface ambiguity, assumptions, alternatives, risks,
 trade-offs, and scope boundaries while the human works through the problem.
@@ -30,10 +30,10 @@ comprehensive research report.
 
 1. Determine starting point.
 
-   - **If a plan document exists** (`plan-*.md` referenced by the user or
+   - **If a draft document exists** (`draft-*.md` referenced by the user or
      found in the expected directory): Read it first. This is the primary
      continuity artifact. Do **not** perform broad rediscovery by default.
-   - **If no plan document exists**: The user has an idea or direction.
+   - **If no draft document exists**: The user has an idea or direction.
      Proceed to broader context gathering with whatever the user has
      described.
 
@@ -66,7 +66,7 @@ comprehensive research report.
    - **Related prior work** — scan active and archive directories for
      work units (PRDs, completion docs, task lists) that touch the same
      area. What decisions were made? What was deferred?
-   - **Captured ideas** — look for backlog entries, other plan documents,
+   - **Captured ideas** — look for backlog entries, other draft documents,
      or inbox items related to the work. Has prior thinking been captured
      that should inform this exploration?
    - **Design context** — check for ADRs in `reference/adr/` and
@@ -107,8 +107,8 @@ comprehensive research report.
    progression toward PRD readiness is visible.
 
    - **State** — where the plan sits on the progression:
-       - **fresh** — no `plan-*` document yet, shaping the idea
-       - **rough** — `plan-*` exists but has significant gaps or
+       - **fresh** — no `draft-*` document yet, shaping the idea
+       - **rough** — `draft-*` exists but has significant gaps or
          unresolved direction
        - **maturing** — scope known, open items are detail-design rather
          than fundamentals
@@ -121,7 +121,7 @@ comprehensive research report.
      have not been tested against code, prior work, or external sources
    - **Open — scope boundaries** — where in-scope / out-of-scope is still
      soft and could shift under pressure
-   - **Next** — continue exploring, update the `plan-*` document, or
+   - **Next** — continue exploring, update the `draft-*` document, or
      propose moving to create-prd
 
    Empty categories are fine — say so explicitly rather than manufacturing

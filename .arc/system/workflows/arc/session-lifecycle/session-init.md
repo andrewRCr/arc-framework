@@ -306,13 +306,13 @@ When no active meta file was resolved, or the resolved file shows `**Task List:*
 planning session, assess readiness for the next unit:
 
 1. Read `.arc/backlog/ROADMAP.md` — identify the next queued or suggested item
-2. Check `.arc/backlog/` for existing artifacts (PRDs, `plan-*` docs) matching that item
+2. Check `.arc/backlog/` for existing artifacts (PRDs, `draft-*` docs) matching that item
 3. Report what exists and its readiness state in orientation
 4. Propose next steps; ask for confirmation before proceeding
 
 > **Full protection (`branch.protection: full`):** Planning work requires a branch. When the user confirms
-> next steps, run [init-work-unit][init-work-unit] before creating plan documents or PRDs.
-> Under partial protection (the default), proceed directly to [1_create-prd.md][create-prd] — no planning
+> next steps, run [init-work-unit][init-work-unit] before creating draft documents or PRDs.
+> Under partial protection (the default), proceed directly to [1_create-spec.md][create-spec] — no planning
 > branch needed.
 
 ## 6. Confirm Orientation
@@ -431,7 +431,7 @@ Examples:
 ---
 
 [init-work-unit]: ../work-unit-lifecycle/planning/init-work-unit.md
-[create-prd]: ../1_create-prd.md
+[create-spec]: ../1_create-spec.md
 [arc-methods-session]: ../../../methods/session-state.md
 [arc-ext-post-context-load]: ../../../extensions/post-context-load.md
 [team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md
