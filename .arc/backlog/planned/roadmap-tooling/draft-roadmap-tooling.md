@@ -35,6 +35,10 @@ Candidate command set (final split confirmed at PRD time):
   within tier, WUs rendered by canonical WU-name with owner + `◂ <dep-wu-name>` pointers, header marker
   (generated-by note + last-rendered commit hash). Target: reproduce the WOR-era hand baseline (first run is a
   no-op diff).
+- **Dependency-edge validation** (render-time, or a `--check` mode) — resolving `**Depends On:**` by absence
+  (a dep is met once its WU leaves `active/` + `backlog/`) silently treats a *dangling* edge — a typo'd or
+  renamed target — as satisfied. Distinguish *absent-because-shipped* (target in `completed/` / archive →
+  satisfied) from *absent-everywhere* (→ warn). Surfaced during WOR's dependency-baseline pass.
 - **`arc cohort list`** (or equivalent) — enumerate cohort members from `**Cohort:**` fields.
 - **`arc graduate <type>`** — branch-rename ergonomics for the `plan/<name>` → `<type>/<name>` graduation.
 
