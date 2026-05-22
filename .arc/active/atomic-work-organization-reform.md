@@ -16,73 +16,6 @@ Atomic Task Completion for the full protocol.
 
 ## Tasks
 
-### `[ ]` **Template-family placeholder convention alignment + durable doc**
-
-- _Goal:_ Align H1 / slot placeholders across the `template-*.md` family on the dominant
-  `{kebab-token}` form, retiring the `[Title Case Phrase]` dialect. Codify the resulting
-  convention durably so future template authoring follows it without rediscovering the
-  pattern.
-- _Scope:_
-    - Templates touched: `template-prd.md`, `template-plan.md`, `template-adr.md`,
-      `template-workflow.md`, `template-dev-rules.md`, `template-contributing.md` — both
-      package source and `.arc/` instance. H1 placeholders (`[Work Name]`, `[Project Name]`,
-      `[Title]`, `[Domain Title]`, `[Short Title in Present Tense Imperative]`) plus any
-      analogous in-body slot placeholders.
-    - Convention doc — likely `.arc/reference/templates/README.md` (currently absent;
-      doubles as closing the DEV-RULES.PROJECT "READMEs required for each directory" gap
-      for this dir) OR a section in `strategy-file-classification.md`. Decide at execution:
-      README is discoverable at point of authoring; strategy is canonical for cross-cutting
-      conventions.
-    - Codified semantic: `{x}` = something substituted here (programmatic or authored);
-      `[lowercase-sentinel]` = the literal empty-value marker (`[none]`, `[internal]`).
-- _Captured:_ 2026-05-17 during WOR Task 4.1 — `template-meta.md` adopted `{wu-name}` per
-  R58 and migrated its Owner default from `[arc.identity]` → `{arc.identity}` for
-  in-template consistency. Remaining `[Title Case]` placeholders across the rest of the
-  template family are mechanical alignment work, not WU scope.
-
-### `[ ]` **SESSION-NOTES seed path divergence — flat seed vs per-WU-subdir consumers**
-
-- _Goal:_ Reconcile where SESSION-NOTES is seeded with where it's consumed. `setup.ts:77` and
-  `add.ts:26` seed it flat at `user/{identity}/SESSION-NOTES.md`, but every consumer expects the
-  per-WU-subdir form `user/{identity}/<wu-name>/SESSION-NOTES.md` — `session-init.md:185`,
-  `session-handoff.md:70,235`, and the resolver `session-notes-path.ts`. The per-WU subdir is
-  created lazily by `arc user open` (`open.ts:27-41`); on disk only the subdir form exists, so the
-  init-seeded flat file is vestigial relative to the workflows that read it.
-- _Scope:_ Likely drop the flat seed and let `arc user open` own subdir creation (decide at
-  execution — alternative is to seed the subdir form directly, but there's no anchored WU at
-  `arc init`/`arc user add` time, which is why the flat seed exists). Touches `setup.ts`, `add.ts`
-  (package source); confirm no consumer relies on the flat path; add/adjust a test.
-- _Captured:_ during WOR scenario-trace validation (team × module-on trace). A WOR-era oversight
-  (the per-WU-subdir migration landed in `user/{identity}/` layout work but the seed sites weren't
-  swept) — fold in before WOR closes.
-
-### `[ ]` **`meta-reader` non-recursive scan vs. `types.ts` "subdir" layout comment**
-
-- _Goal:_ Reconcile `findMetaFiles` (`meta-reader.ts:101-122`, a non-recursive `readdir` of the
-  active root) with `active/types.ts:18-21`, which documents a possible category-subdir layout the
-  reader would silently miss. Current canonical layout is flat (`init-work-unit.md:108-120` creates
-  `active/meta-{name}.md` flat; on-disk confirms), so the reader is correct for today and the type
-  comment overstates capability.
-- _Scope:_ Correct the `types.ts` comment to state flat-is-canonical (the conservative fix matching
-  current behavior); no reader change needed unless category-subdir support is ever intended (it
-  isn't, per current layout decisions). Low severity — no current break, accuracy/future-proofing.
-- _Captured:_ during WOR scenario-trace validation — fold in before WOR closes.
-
-### `[ ]` **Whole-tree stale-link sweep before WOR closes (`reference/constitution/` etc.)**
-
-- _Goal:_ Sweep backlog plan-docs (and any non-frozen tracked `.md`) for stale link definitions left by
-  WOR's directory migrations. The pre-commit `validate-links.sh` only checks _staged_ files, so latent
-  broken links in untouched docs escaped Phase 6 sweeps and surface only when each file is next staged.
-- _Scope:_ One confirmed instance fixed inline (`agile-wu-lifecycle`: `reference/constitution/` →
-  `system/rules/`, commit `b66073b5`). `grep -rl 'reference/constitution' .arc` flags further candidates
-  (`plan-docs-content-sweep`, `plan-rules-restructure`, `plan-commit-increments`, others) — verify which
-  carry broken _link defs_ vs. prose mentions (WOR's own `prd-`/`tasks-` migration prose legitimately names
-  the old path; `completed/` is frozen and excluded). Run a whole-tree link check (not staged-only), fix
-  real broken defs, and check other WOR-moved paths (`../briefs/`, etc.) per the 6.11 dual-form note.
-- _Captured:_ during the ADR-020 sibling-coordination commit (`b66073b5`), when the pre-commit link check
-  caught the agile-wu-lifecycle def. Fold in before WOR integrates (matches WOR's own whole-tree
-  link-check intent).
-
 ### `[x]` **Audience-vocabulary sweep — WU docs (PRD + task list)**
 
 - _Outcome:_ Swept both WU docs for `\badopters?\b` (case-insensitive). 14 replacements total:
@@ -239,3 +172,37 @@ Atomic Task Completion for the full protocol.
   bucket assertion gained two new lines for the inbox templates. Full suite green post-edit.
   Surfaced during 6.7.o code-surface backfill (`3fecc021`) and triaged separately because
   reclassification is a behavior change, not a bug fix.
+
+### `[x]` **`meta-reader` non-recursive scan vs. `types.ts` "subdir" layout comment**
+
+- _Outcome:_ Corrected the `active/types.ts` layout comment to state flat-is-canonical, matching
+  `findMetaFiles`' non-recursive `readdir` (`meta-reader.ts`); no reader change needed since flat is
+  the canonical active layout (`init-work-unit.md` creates `active/meta-{name}.md` flat). Folded into
+  the category-subdir deadwood removal (`a714e361`), which retired the same stale subdir-layout
+  assumption from the release resolver / audit log / types.
+
+### `[x]` **SESSION-NOTES seed path divergence — flat seed vs per-WU-subdir consumers**
+
+- _Outcome:_ Dropped the vestigial flat `user/{identity}/SESSION-NOTES.md` seed at `arc init` /
+  `arc user add` (`setup.ts`, `add.ts`); `arc user open` owns per-WU-subdir creation, matching every
+  consumer's `user/{identity}/<wu-name>/SESSION-NOTES.md` expectation. Tests updated across init /
+  user / join / e2e. Landed `2ab88514`.
+
+### `[x]` **Template-family placeholder convention alignment + durable doc**
+
+- _Outcome:_ Aligned the `template-*` family on the `{kebab-token}` slot form, retiring the
+  `[Title Case]` dialect across `template-adr` / `-contributing` / `-dev-rules` / `-workflow`,
+  `spec/template-prd`, and `template-draft` (both package source and `.arc/` instance). Codified the
+  convention durably in a new `reference/templates/arc/README.md` (also closing the per-directory
+  README gap) plus a `strategy-file-classification.md` addition: `{x}` = substitution slot,
+  `[lowercase-sentinel]` = the literal empty-value marker (`[none]`, `[internal]`). Landed `6294bae4`.
+
+### `[x]` **Whole-tree stale-link sweep before WOR closes (`reference/constitution/` etc.)**
+
+- _Outcome:_ Whole-tree sweep confirms no broken reference-style link definitions to WOR-moved paths
+  remain — `audit-section-refs` clean across 274 files; retired-dir link-def grep
+  (`backlog/{feature,technical}`, `reference/archive`, `reference/constitution`) returns no link
+  forms. One residual stale def fixed inline in `draft-commit-increments.md` (`b2833e3a`); the
+  remaining `reference/constitution/` hits are legitimate prose — WOR's own migration documentation
+  and backlog drafts (`docs-content-sweep`, `rules-restructure`) reconciled at their own planning —
+  not broken links.
