@@ -5,7 +5,7 @@
 - **Branch:** [none]
 
 - **Origin:** [internal]
-- **Spec:** `plan-arc-reinforce.md`
+- **Design:** `draft-arc-reinforce.md`
 
 - **Depends On:** [none]
 - **Cohort:** [none]

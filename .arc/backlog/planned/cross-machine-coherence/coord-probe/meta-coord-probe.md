@@ -5,7 +5,7 @@
 - **Branch:** [none]
 
 - **Origin:** [internal]
-- **Spec:** `plan-coord-probe.md`
+- **Design:** `draft-coord-probe.md`
 
 - **Depends On:** [none]
 - **Cohort:** cross-machine-coherence

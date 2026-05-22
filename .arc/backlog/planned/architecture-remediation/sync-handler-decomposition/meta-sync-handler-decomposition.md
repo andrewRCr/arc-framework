@@ -5,7 +5,7 @@
 - **Branch:** [none]
 
 - **Origin:** [internal]
-- **Spec:** `plan-sync-handler-decomposition.md`
+- **Design:** `draft-sync-handler-decomposition.md`
 
 - **Depends On:** [none]
 - **Cohort:** architecture-remediation

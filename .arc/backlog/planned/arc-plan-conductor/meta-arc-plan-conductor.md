@@ -5,7 +5,7 @@
 - **Branch:** [none]
 
 - **Origin:** [internal]
-- **Spec:** `plan-arc-plan-conductor.md`
+- **Design:** `draft-arc-plan-conductor.md`
 
 - **Depends On:** loadset-composition
 - **Cohort:** [none]

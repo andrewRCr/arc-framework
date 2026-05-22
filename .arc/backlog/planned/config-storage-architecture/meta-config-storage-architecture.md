@@ -5,7 +5,7 @@
 - **Branch:** [none]
 
 - **Origin:** [internal]
-- **Spec:** `plan-config-storage-architecture.md`
+- **Design:** `draft-config-storage-architecture.md`
 
 - **Depends On:** [none]
 - **Cohort:** [none]

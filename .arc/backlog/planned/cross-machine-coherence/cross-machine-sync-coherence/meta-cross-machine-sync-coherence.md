@@ -5,7 +5,7 @@
 - **Branch:** [none]
 
 - **Origin:** [internal]
-- **Spec:** `plan-cross-machine-sync-coherence.md`
+- **Design:** `draft-cross-machine-sync-coherence.md`
 
 - **Depends On:** [none]
 - **Cohort:** cross-machine-coherence

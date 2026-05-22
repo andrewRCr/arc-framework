@@ -5,7 +5,7 @@
 - **Branch:** [none]
 
 - **Origin:** [internal]
-- **Spec:** `plan-contributor-path.md`
+- **Design:** `draft-contributor-path.md`
 
 - **Depends On:** [none]
 - **Cohort:** [none]

@@ -5,7 +5,7 @@
 - **Branch:** [none]
 
 - **Origin:** [internal]
-- **Spec:** `plan-review-method-family.md`
+- **Design:** `draft-review-method-family.md`
 
 - **Depends On:** [none]
 - **Cohort:** [none]

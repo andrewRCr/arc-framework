@@ -5,7 +5,7 @@
 - **Branch:** [none]
 
 - **Origin:** [internal]
-- **Spec:** `plan-loadset-composition.md`
+- **Design:** `draft-loadset-composition.md`
 
 - **Depends On:** [none]
 - **Cohort:** agent-context-optimization

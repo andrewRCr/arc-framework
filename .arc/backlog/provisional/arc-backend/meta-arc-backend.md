@@ -5,7 +5,7 @@
 - **Branch:** [none]
 
 - **Origin:** [internal]
-- **Spec:** `plan-arc-backend.md`
+- **Design:** `draft-arc-backend.md`
 
 - **Depends On:** [none]
 - **Cohort:** [none]

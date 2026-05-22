@@ -5,7 +5,7 @@
 - **Branch:** [none]
 
 - **Origin:** [internal]
-- **Spec:** `plan-lib-layer-type-extraction.md`
+- **Design:** `draft-lib-layer-type-extraction.md`
 
 - **Depends On:** [none]
 - **Cohort:** architecture-remediation

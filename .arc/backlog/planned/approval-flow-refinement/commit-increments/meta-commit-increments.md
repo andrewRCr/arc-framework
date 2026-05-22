@@ -5,7 +5,7 @@
 - **Branch:** [none]
 
 - **Origin:** [internal]
-- **Spec:** `plan-commit-increments.md`
+- **Design:** `draft-commit-increments.md`
 
 - **Depends On:** [none]
 - **Cohort:** approval-flow-refinement

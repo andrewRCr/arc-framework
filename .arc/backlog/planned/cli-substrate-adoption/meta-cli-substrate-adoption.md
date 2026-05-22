@@ -5,7 +5,7 @@
 - **Branch:** [none]
 
 - **Origin:** [internal]
-- **Spec:** `plan-cli-substrate-adoption.md`
+- **Design:** `draft-cli-substrate-adoption.md`
 
 - **Depends On:** [none]
 - **Cohort:** [none]

@@ -5,7 +5,7 @@
 - **Branch:** [none]
 
 - **Origin:** [internal]
-- **Spec:** `plan-compaction-seed.md`
+- **Design:** `draft-compaction-seed.md`
 
 - **Depends On:** [none]
 - **Cohort:** [none]

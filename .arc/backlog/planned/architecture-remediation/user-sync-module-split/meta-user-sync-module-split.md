@@ -5,7 +5,7 @@
 - **Branch:** [none]
 
 - **Origin:** [internal]
-- **Spec:** `plan-user-sync-module-split.md`
+- **Design:** `draft-user-sync-module-split.md`
 
 - **Depends On:** [none]
 - **Cohort:** architecture-remediation

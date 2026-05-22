@@ -5,7 +5,7 @@
 - **Branch:** [none]
 
 - **Origin:** [internal]
-- **Spec:** `plan-release-lifecycle.md`
+- **Design:** `draft-release-lifecycle.md`
 
 - **Depends On:** [none]
 - **Cohort:** release-readiness

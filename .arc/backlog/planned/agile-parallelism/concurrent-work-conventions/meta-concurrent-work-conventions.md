@@ -5,7 +5,7 @@
 - **Branch:** [none]
 
 - **Origin:** [internal]
-- **Spec:** `plan-concurrent-work-conventions.md`
+- **Design:** `draft-concurrent-work-conventions.md`
 
 - **Depends On:** [none]
 - **Cohort:** agile-parallelism

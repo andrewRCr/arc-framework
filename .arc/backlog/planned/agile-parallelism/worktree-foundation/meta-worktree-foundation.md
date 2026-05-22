@@ -5,7 +5,7 @@
 - **Branch:** [none]
 
 - **Origin:** [internal]
-- **Spec:** `plan-worktree-foundation.md`
+- **Design:** `draft-worktree-foundation.md`
 
 - **Depends On:** [none]
 - **Cohort:** agile-parallelism

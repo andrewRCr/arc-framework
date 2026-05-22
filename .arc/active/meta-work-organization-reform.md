@@ -5,7 +5,7 @@
 - **Branch:** technical/work-organization-reform
 
 - **Origin:** [internal]
-- **Spec:** `prd-work-organization-reform.md`
+- **Design:** `spec-work-organization-reform.md`
 
 - **Depends On:** [none]
 - **Cohort:** [none]

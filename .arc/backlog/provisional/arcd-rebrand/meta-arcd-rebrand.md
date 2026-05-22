@@ -5,7 +5,7 @@
 - **Branch:** [none]
 
 - **Origin:** [internal]
-- **Spec:** `plan-arcd-rebrand.md`
+- **Design:** `draft-arcd-rebrand.md`
 
 - **Depends On:** [none]
 - **Cohort:** [none]

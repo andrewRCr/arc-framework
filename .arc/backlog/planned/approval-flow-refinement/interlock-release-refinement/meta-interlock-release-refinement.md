@@ -5,7 +5,7 @@
 - **Branch:** [none]
 
 - **Origin:** [internal]
-- **Spec:** `plan-interlock-release-refinement.md`
+- **Design:** `draft-interlock-release-refinement.md`
 
 - **Depends On:** [none]
 - **Cohort:** approval-flow-refinement

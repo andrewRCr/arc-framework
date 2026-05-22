@@ -5,7 +5,7 @@
 - **Branch:** [none]
 
 - **Origin:** [internal]
-- **Spec:** `plan-quality-gate-hooks.md`
+- **Design:** `draft-quality-gate-hooks.md`
 
 - **Depends On:** [none]
 - **Cohort:** [none]

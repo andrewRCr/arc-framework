@@ -5,7 +5,7 @@
 - **Branch:** [none]
 
 - **Origin:** [internal]
-- **Spec:** `plan-docs-site-refresh.md`
+- **Design:** `draft-docs-site-refresh.md`
 
 - **Depends On:** [none]
 - **Cohort:** release-readiness

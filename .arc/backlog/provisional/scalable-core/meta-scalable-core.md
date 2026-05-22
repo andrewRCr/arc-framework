@@ -5,7 +5,7 @@
 - **Branch:** [none]
 
 - **Origin:** [internal]
-- **Spec:** `plan-scalable-core.md`
+- **Design:** `draft-scalable-core.md`
 
 - **Depends On:** [none]
 - **Cohort:** [none]

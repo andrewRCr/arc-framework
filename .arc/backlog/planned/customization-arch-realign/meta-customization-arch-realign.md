@@ -5,7 +5,7 @@
 - **Branch:** [none]
 
 - **Origin:** [internal]
-- **Spec:** `plan-customization-arch-realign.md`
+- **Design:** `draft-customization-arch-realign.md`
 
 - **Depends On:** [none]
 - **Cohort:** [none]

@@ -5,7 +5,7 @@
 - **Branch:** [none]
 
 - **Origin:** [internal]
-- **Spec:** `plan-workflow-template-loads.md`
+- **Design:** `draft-workflow-template-loads.md`
 
 - **Depends On:** [none]
 - **Cohort:** [none]

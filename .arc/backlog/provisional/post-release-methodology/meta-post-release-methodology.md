@@ -5,7 +5,7 @@
 - **Branch:** [none]
 
 - **Origin:** [internal]
-- **Spec:** `plan-post-release-methodology.md`
+- **Design:** `draft-post-release-methodology.md`
 
 - **Depends On:** [none]
 - **Cohort:** [none]

@@ -5,7 +5,7 @@
 - **Branch:** [none]
 
 - **Origin:** [internal]
-- **Spec:** `plan-docs-content-sweep.md`
+- **Design:** `draft-docs-content-sweep.md`
 
 - **Depends On:** docs-site-refresh
 - **Cohort:** release-readiness

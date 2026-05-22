@@ -5,7 +5,7 @@
 - **Branch:** [none]
 
 - **Origin:** [internal]
-- **Spec:** `plan-agile-wu-lifecycle.md`
+- **Design:** `draft-agile-wu-lifecycle.md`
 
 - **Depends On:** [none]
 - **Cohort:** agile-parallelism

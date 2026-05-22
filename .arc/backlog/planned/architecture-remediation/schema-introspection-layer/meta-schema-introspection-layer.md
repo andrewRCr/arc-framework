@@ -5,7 +5,7 @@
 - **Branch:** [none]
 
 - **Origin:** [internal]
-- **Spec:** `plan-schema-introspection-layer.md`
+- **Design:** `draft-schema-introspection-layer.md`
 
 - **Depends On:** [none]
 - **Cohort:** architecture-remediation

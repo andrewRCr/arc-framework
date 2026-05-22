@@ -5,7 +5,7 @@
 - **Branch:** [none]
 
 - **Origin:** [internal]
-- **Spec:** `plan-meta-file-tracking-model.md`
+- **Design:** `draft-meta-file-tracking-model.md`
 
 - **Depends On:** [none]
 - **Cohort:** [none]

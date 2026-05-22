@@ -5,7 +5,7 @@
 - **Branch:** [none]
 
 - **Origin:** [internal]
-- **Spec:** `plan-documentation-surface-routing.md`
+- **Design:** `draft-documentation-surface-routing.md`
 
 - **Depends On:** [none]
 - **Cohort:** agent-context-optimization

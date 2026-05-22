@@ -5,7 +5,7 @@
 - **Branch:** [none]
 
 - **Origin:** [internal]
-- **Spec:** `plan-rules-restructure.md`
+- **Design:** `draft-rules-restructure.md`
 
 - **Depends On:** work-organization-reform
 - **Cohort:** [none]

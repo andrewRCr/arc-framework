@@ -5,7 +5,7 @@
 - **Branch:** [none]
 
 - **Origin:** [internal]
-- **Spec:** `plan-arc-modes.md`
+- **Design:** `draft-arc-modes.md`
 
 - **Depends On:** [none]
 - **Cohort:** [none]

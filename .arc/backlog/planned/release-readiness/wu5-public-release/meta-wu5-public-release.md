@@ -5,7 +5,7 @@
 - **Branch:** [none]
 
 - **Origin:** [internal]
-- **Spec:** `plan-wu5-public-release.md`
+- **Design:** `draft-wu5-public-release.md`
 
 - **Depends On:** [none]
 - **Cohort:** release-readiness

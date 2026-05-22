@@ -5,7 +5,7 @@
 - **Branch:** [none]
 
 - **Origin:** [internal]
-- **Spec:** `plan-composable-workflows.md`
+- **Design:** `draft-composable-workflows.md`
 
 - **Depends On:** [none]
 - **Cohort:** [none]

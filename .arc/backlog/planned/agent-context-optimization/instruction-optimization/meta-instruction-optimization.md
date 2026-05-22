@@ -5,7 +5,7 @@
 - **Branch:** [none]
 
 - **Origin:** [internal]
-- **Spec:** `plan-instruction-optimization.md`
+- **Design:** `draft-instruction-optimization.md`
 
 - **Depends On:** handoff-optimization
 - **Cohort:** agent-context-optimization
