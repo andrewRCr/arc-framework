@@ -1,4 +1,4 @@
-# Draft: [Work Name]
+# Draft: {work-name}
 
 <!--
   `draft-*` is the pre-PRD synthesis artifact for substantive shaping work — ephemeral by design. The file is

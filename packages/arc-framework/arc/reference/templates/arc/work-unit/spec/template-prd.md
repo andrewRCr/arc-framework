@@ -1,4 +1,4 @@
-# PRD: [Work Name]
+# PRD: {work-name}
 
 - **Origin:** {`[internal]` default; external tracker URL when applicable.}
 

@@ -26,11 +26,11 @@ are skipped by the probe — this template does not apply to them.
 Delete this comment block after customizing the file.
 -->
 
-# Development Rules ([Domain Title])
+# Development Rules ({domain-title})
 
-[One-paragraph statement of scope — what kind of rules live here and how they relate to
+{One-paragraph statement of scope — what kind of rules live here and how they relate to
 the broader methodology ([DEV-RULES.ARC][dev-rules-arc]) and project-wide standards
-([DEV-RULES.PROJECT][dev-rules-project]).]
+([DEV-RULES.PROJECT][dev-rules-project]).}
 
 ---
 

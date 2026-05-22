@@ -135,13 +135,35 @@ pipeline is the canonical inventory.
 **Distinction from agent-facing templates.** `template-*.md` files in `reference/templates/arc/`
 (e.g., `template-prd.md`, `template-tasks.md`, `template-adr.md`) are copy-ready templates
 for content created repeatedly during work by agents and workflows. They use the
-bracket-placeholder convention. The two surfaces address different needs and do not
-duplicate — the one-shot principle does not extend to them.
+placeholder convention (see § Template placeholders). The two surfaces address different
+needs and do not duplicate — the one-shot principle does not extend to them.
 
 **Optional starter templates.** `template-dev-rules.md` and `template-contributing.md` are a
 third category: present in `reference/templates/arc/` but not in the init render list. Projects
 copy or reference them as starting points for optional files; this principle does not govern
 them.
+
+### Template placeholders
+
+`template-*.md` files mark fill-in points with three distinct syntaxes — keep them distinct
+when authoring or editing a template:
+
+- **`{slot}` — author-substitution slot.** A single-brace span the author replaces when copying
+  the template. Short name slots use a kebab token (`{work-name}`, `{project-name}`,
+  `{domain-title}`, `{title}`); longer slots carry the authoring instruction as prose inside the
+  braces (`{One-paragraph statement of scope …}`) or an enum of choices
+  (`{Proposed | Accepted | Deprecated}`). This is the dominant convention — prefer it for any
+  value the author fills in.
+- **`{{TOKEN}}` — render-engine token.** A double-brace mustache token the CLI substitutes
+  programmatically at `arc init` / `arc user open` time (e.g. `{{short-hash}}`). Not
+  author-edited; produced by the render pipeline. See § Template suffix.
+- **`[lowercase-sentinel]` — literal empty-value marker.** A bracketed lowercase token that is
+  itself the value, not a slot to replace: `[none]`, `[internal]`, `[standalone]`. It stays in
+  the rendered file to signal "intentionally empty / not applicable."
+
+**Not placeholders:** Markdown reference links (`[text][ref]`) and inline links (`[text](url)`)
+keep their brackets — they are link syntax, not slots. The `[Title Case Phrase]` dialect (e.g.,
+`[Work Name]`) is retired; convert any survivors to `{kebab-token}`.
 
 ### Workflow numbering
 

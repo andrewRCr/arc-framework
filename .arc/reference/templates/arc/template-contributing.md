@@ -1,7 +1,7 @@
-# Contributing to [Project Name]
+# Contributing to {project-name}
 
 <!-- ARC Framework contributing template. Adapt this for your project:
-     - Replace [Project Name] and placeholder commands
+     - Replace {project-name} and placeholder commands
      - Add project-specific sections (community channels, recognition, etc.)
      - Link to your CODE_OF_CONDUCT.md if you have one
      - See ARC docs for contributor role details -->

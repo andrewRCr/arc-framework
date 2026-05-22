@@ -1,8 +1,8 @@
-# ADR-NNN: [Short Title in Present Tense Imperative]
+# ADR-NNN: {title}
 
 ## Status
 
-[Proposed | Accepted | Deprecated | Superseded by ADR-XXX]
+{Proposed | Accepted | Deprecated | Superseded by ADR-XXX}
 
 ## Context
 
@@ -60,7 +60,7 @@ What becomes easier or more difficult as a result of this decision? List both po
 - **Corrections** (typos, broken links, formatting): Fix directly — no ceremony needed.
 - **Amendments** (post-implementation learnings, clarifications that don't change the decision):
   Append a dated annotation to the Consequences section:
-  **Amendment (YYYY-MM-DD):** [what changed and why]
+  **Amendment (YYYY-MM-DD):** {what changed and why}
 - **Supersession** (the decision itself changes): Write a new ADR and update this one's Status
   to "Superseded by ADR-XXX."
 

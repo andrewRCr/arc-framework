@@ -19,7 +19,7 @@ Reference: strategy-workflow-authoring.md — full schema, author-side declarati
            body conventions.
 -->
 
-# Workflow: [Title]
+# Workflow: {title}
 
 Body. Structure this however fits the workflow — numbered `## Steps`, named phases, or prose
 sections as needed. In-step markdown links to methods and extensions remain for reader
