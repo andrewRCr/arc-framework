@@ -4386,21 +4386,18 @@ substantive enabler, not a reformat. The "roadmap" rename, direction's home, and
   WU has multiple deps). Reconciled `§ ROADMAP`'s render step (both copies) to the table layout. Every
   Depends-on cell was cross-checked against the meta `Depends On` fields.
 
-### `[ ]` **7.R.4 Boundary-workflow ROADMAP-step alignment**
+### `[x]` **7.R.4 Boundary-workflow ROADMAP-step alignment**
 
 - _Goal:_ The WU-lifecycle ceremony workflows that hand-maintain ROADMAP (interim, until `arc roadmap render`
   ships) point at the revised derived shape, so ceremony regen produces correct output and won't re-stale.
   Sequences after 7.R.2 (consumes the revised algorithm).
-    - De-hardcode the old tier vocabulary: `activate-work-unit.md` Step 7 and `deactivate-work-unit.md` both
-      say "tier entry" — repoint to `§ ROADMAP`-delegating phrasing so future algorithm changes don't re-stale
-      them. Verify `integrate-work-unit.md` / `archive-work-unit.md` regen-step prose reads correctly under
-      In Flight / Ready / Blocked (`archive` Step 4 already renders by absence). Both copies (package + `.arc/`).
-    - Fix `draft-docs-site-refresh.md` prose still asserting the `arcd-rebrand` hard dependency (decoupled in
-      7.R.1.b/c).
-    - _Out of scope:_ `**Depends On:**` field maintenance. The render resolves satisfaction by absence (a dep
-      is met once its WU leaves `active/` + `backlog/`), so shipped deps need no pruning, and lifecycle
-      workflows must not fan-out-edit dependents' metas (concurrency-unsafe mutated shared state). The
-      dangling-edge validation gap (shipped-vs-typo) is captured to `roadmap-tooling`.
+- _Outcome:_ Repointed the boundary-workflow regen steps to the derived render (both copies each): `activate`
+  Step 7 (tier-placement → re-render per § ROADMAP; "single tier-line move" → single-row move into In Flight)
+  and `deactivate` ("tier entry" → re-render to drop the WU). `integrate` / `archive` already delegate to
+  § ROADMAP and read correctly (archive renders by absence) — left as-is. Corrected `draft-docs-site-refresh.md`
+  from a hard `arcd-rebrand` dependency to the decoupled `[none]` reality (either order, soft preference).
+  Surfaced + captured a planning-time regen-trigger gap (graduation + `Depends On` edits fire outside the four
+  ceremonies) to `draft-roadmap-tooling.md`.
 
 ## **Phase 8:** Verification
 

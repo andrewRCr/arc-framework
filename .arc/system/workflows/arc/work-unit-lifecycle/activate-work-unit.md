@@ -124,11 +124,11 @@ See [DEV-RULES.ARC § Leave it cleaner][dev-rules-leave-cleaner] for the capture
 
 > **Skip this step** under `pm.mode: none` or `external`.
 
-Hand-maintain (interim, pre-CLI) per [Work Organization Strategy § ROADMAP][work-org-roadmap]: update the WU's
-tier placement to reflect its new `Active` state.
+Hand-maintain (interim, pre-CLI) by re-rendering per [Work Organization Strategy § ROADMAP][work-org-roadmap] —
+activation moves the WU into the In Flight tier.
 
 Default: dedicated `chore(arc):` commit (`workflowCommit`). May ride the activation commit (Step 4) only when the
-edit is trivial (single tier-line move) — see [DEV-RULES.ARC § Atomicity][dev-rules-atomicity].
+edit is trivial (a single-row move into In Flight) — see [DEV-RULES.ARC § Atomicity][dev-rules-atomicity].
 
 ### 8) Fire `post-work-unit-activate` extension
 

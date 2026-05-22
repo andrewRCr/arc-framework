@@ -214,9 +214,11 @@ mkdocs toolchain in a single cleanup commit:
 
 ## Technical Considerations
 
-### Dependency on `plan-arcd-rebrand.md`
+### Relationship to `plan-arcd-rebrand.md`
 
-This work unit assumes the rebrand has landed. Specifically, it requires:
+Not a hard dependency — the dependency graph records `**Depends On:** [none]`, and the two WUs can land in
+either order. The rebrand's renamed namespace is convenient if it has already landed, in which case this WU
+inherits rather than re-derives:
 
 - Package directory renamed to `packages/arcd/`
 - Repository renamed to `andrewRCr/ARCd-framework`
@@ -225,8 +227,9 @@ This work unit assumes the rebrand has landed. Specifically, it requires:
   URLs in place
 - `ARCd-config.yml` in use as the installed config file
 
-If the rebrand has not fully landed, this work unit cannot proceed beyond monorepo scaffolding without
-introducing naming inconsistencies that the rebrand was designed to prevent.
+If the rebrand hasn't landed, this WU proceeds with current naming; the rebrand's later `docs/` sweep
+reconciles the ported content (see below). Either order works — landing the rebrand first just avoids a small
+amount of naming rework.
 
 **Plan-arcd-rebrand exception for `docs/` sweep:** The rebrand plan excepts `docs/*.md` from its content sweep
 Indicative completion signals because those files are deleted here. The branding sweep on `docs/*.md` happens
@@ -421,14 +424,13 @@ No blockers identified.
 
 ## Sequencing
 
-**Planned.** Hard dependency on the rebrand WU (`plan-arcd-rebrand.md`): rebrand needs to land before this work
-unit proceeds beyond monorepo scaffolding. Under the rebrand's provisional routing at 6.4.b, the rebrand's
-sequencing is itself pending portfolio-piece scope refresh — which means this WU's downstream timing tracks the
-rebrand's timing.
+**Planned.** No hard dependency on the rebrand WU (`plan-arcd-rebrand.md`) — `**Depends On:** [none]`; the two
+can land in either order. If the rebrand lands first this WU inherits its renamed namespace, otherwise it
+proceeds with current naming and the rebrand's later `docs/` sweep reconciles the ported content.
 
-- **Upstream:** ARCd Rebrand (post-rebrand namespace requirement — package dir, repo name, package publish,
-  config file, content sweep). Work Organization Reform (meta-file shape and lifecycle convention; no rename
-  churn during sweep).
+- **Upstream:** Work Organization Reform (meta-file shape and lifecycle convention; no rename churn during
+  sweep). ARCd Rebrand is a soft sequencing preference, not a hard upstream (see § Relationship to
+  `plan-arcd-rebrand.md`).
 - **Downstream:** WU5 Public Release (consumes settled public docs surface). Any post-1.0 docs-content work.
 
 ---

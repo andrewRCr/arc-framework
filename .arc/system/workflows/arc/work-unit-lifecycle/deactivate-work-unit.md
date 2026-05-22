@@ -134,7 +134,7 @@ were never merged. The remaining cleanup concerns base-branch leftovers that act
 
 - **`arc-in-git`:** If the WU originated from a backlog stub, `backlog/{state}/{name}/` may still exist on base
   (init moved its draft-doc + companions onto the WU branch but the source folder isn't removed on base until
-  merge). Remove if present. ROADMAP may also need regen to drop the abandoned WU's tier entry — see
+  merge). Remove if present. ROADMAP may also need a re-render to drop the abandoned WU — see
   [Work Organization Strategy § ROADMAP][work-org-roadmap].
 - **`external`:** Update the external tracker — move the work item back to its pre-activation state or to an
   abandoned bucket. No local file cleanup needed.
