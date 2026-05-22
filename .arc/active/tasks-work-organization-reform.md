@@ -4332,10 +4332,10 @@ substantive enabler, not a reformat. The "roadmap" rename, direction's home, and
   render is faithful: merely-unsequenced provisional WUs are promoted, `**Cohort:**` reflects real grouping,
   and `**Depends On:**` records the true dependency graph including non-obvious edges.
 
-    - `[ ]` **7.R.1.a Promote unsequenced provisional WUs to `planned/`**
-        - `git mv` `backlog/provisional/composable-workflows/` and `backlog/provisional/scalable-core/` →
-          `backlog/planned/`. These are committed-but-unsequenced, not pre-commitment thinking. Confirm no
-          other `provisional/` WU is similarly mis-binned during the cohort pass.
+    - `[x]` **7.R.1.a Promote unsequenced provisional WUs to `planned/`**
+        - `git mv`'d `composable-workflows/` and `scalable-core/` from `provisional/` → `planned/` (bare;
+          cohort placement and the broader mis-bin scan folded into 7.R.1.b). No path-form inbound refs to
+          fix — `**Depends On:**` edges key on WU-name, so the bin move leaves the dependency graph intact.
 
     - `[ ]` **7.R.1.b Cohort review + alignment**
         - Review all planned + provisional WUs for cohort membership — group by thematic intent (shared
