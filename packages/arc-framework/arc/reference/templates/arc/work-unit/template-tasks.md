@@ -11,13 +11,13 @@ reference, test-first patterns, and annotated examples. The Quick Format Checkli
 
 ## Work Unit Task List
 
-`Spec` is a bare filename — path is derived from the task list's directory, so backlog → active rotation needs
-no field edit. The spec is canonical for Scope (Will Do / Won't Do); the task list focuses on execution.
+`Design` is a bare filename — path is derived from the task list's directory, so backlog → active rotation needs
+no field edit. The design is canonical for Scope (Will Do / Won't Do); the task list focuses on execution.
 
 ```markdown
 # Task List: {Work Name}
 
-- **Spec:** `prd-{name}.md`
+- **Design:** `spec-{name}.md`
 
 ---
 

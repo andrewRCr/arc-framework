@@ -48,7 +48,7 @@ underlying commits stay Conventional-Commits-clean.
 ## Template
 
 ```markdown
-**Spec:** `{filename}` or {URL}
+**Design:** `{filename}` or {URL}
 
 ## Summary
 
@@ -90,23 +90,23 @@ table-stakes redundancy. If no manual verification was performed, omit the secti
 <!-- -->
 
 > **Follow-Up Work** — Add when items are deferred from this PR with forward pointers (issues,
-> plan-docs, atomic-inbox entries). Distinct from Out of Scope: these *will* happen, captured here
+> draft-docs, atomic-inbox entries). Distinct from Out of Scope: these *will* happen, captured here
 > as forward commitments. Omit if no deferrals.
 >
 > ```markdown
 > ## Follow-Up Work
 >
-> - {Deferred item} — {pointer to issue, plan-doc, or atomic-inbox entry}
+> - {Deferred item} — {pointer to issue, draft-doc, or atomic-inbox entry}
 > ```
 
 ---
 
 ## Section Guidance
 
-**Spec — required.** Mirrors the WU's meta-file `**Spec:**` field exactly. Single value, not
+**Spec — required.** Mirrors the WU's meta-file `**Design:**` field exactly. Single value, not
 a list — the Spec field abstracts over the WU's authoritative scope source.
 
-- **In-repo artifact** — backtick-wrapped filename, no path: `` `prd-{name}.md` ``,
+- **In-repo artifact** — backtick-wrapped filename, no path: `` `spec-{name}.md` ``,
   `` `tasks-{name}.md` ``. Filename-only follows
   [DEV-RULES.ARC § `.arc` artifact references][dev-rules-arc] — files move over the WU lifecycle.
 - **External tracker** — bare URL (no backticks). GitHub auto-links bare URLs; backticks

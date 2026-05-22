@@ -22,13 +22,14 @@
   - **Owner** — single `arc.identity` value.
   - **Branch** — branch this WU lives on; single value (single-branch-per-WU).
 
-  Reference (chain-of-authority order: Origin → Spec → Task List → PR URL):
+  Reference (chain-of-authority order: Origin → Design → Task List → PR URL):
   - **Origin** — default `[internal]`; external tracker URL when applicable.
-    Orthogonal to Spec; the chain head.
-  - **Spec** — `[none]` | backticked `.md` filename of the upstream spec
-    artifact (`plan-{name}.md` during planning; `prd-{name}.md` or other
-    spec-artifact during execution). Generalizable across tier × mode
-    combinations — not locked to "PRD."
+    Orthogonal to Design; the chain head.
+  - **Design** — `[none]` | backticked `.md` filename of the upstream design
+    artifact (`draft-{name}.md` during planning; `spec-{name}.md` during
+    execution). Role-named, not artifact-typed — generalizes across spec-form
+    variants and tier × mode combinations. Design-directed: intent is set
+    upfront here; the task list decomposes it.
 
   Coordination:
   - **Depends On** — bare WU-name list; default `[none]`. Renders into
@@ -83,7 +84,7 @@
   - `Created:` / state-transition dates (`Activated:`, etc.) — derivable
     from git log on meta-* edits; metrics-flavor, out of scope here.
   - `Title:` / `Description:` — WU name in H1 covers identification; the
-    substantive WU thesis lives in the co-located `plan-*` / `prd-*` per
+    substantive WU thesis lives in the co-located `draft-*` / `spec-*` per
     the chain-model header convention.
 -->
 
@@ -92,7 +93,7 @@
 - **Branch:** —
 
 - **Origin:** [internal]
-- **Spec:** [none]
+- **Design:** [none]
 
 - **Depends On:** [none]
 - **Cohort:** [none]

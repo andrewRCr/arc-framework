@@ -42,7 +42,7 @@ describe("lifecycle", () => {
     expect(configContent).toContain("branch.base: main");
 
     const statusTemplate = await readFile(
-      join(tmpDir, ".arc", "reference", "templates", "template-meta.md"),
+      join(tmpDir, ".arc", "reference", "templates", "arc", "work-unit", "template-meta.md"),
       "utf-8",
     );
     expect(statusTemplate).toContain("# Metadata: {wu-name}");
