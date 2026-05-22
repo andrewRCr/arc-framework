@@ -4371,13 +4371,20 @@ substantive enabler, not a reformat. The "roadmap" rename, direction's home, and
   `§ ROADMAP`; only the literal "tier entry" vocab in `activate-work-unit.md` / `deactivate-work-unit.md`
   remains, parked for 7.R.4.
 
-### `[ ]` **7.R.3 Render `backlog/ROADMAP.md` from meta-file state**
+### `[x]` **7.R.3 Render `backlog/ROADMAP.md` from meta-file state**
 
 - _Goal:_ Replace the doc with a render of the revised algorithm — In Flight / Ready / Blocked tiers,
   topologically ordered within Blocked, cohort members grouped within tier, each WU shown by WU-name with
   `**Owner:**` and `◂ <dep-wu-name>` pointers, footer to `provisional/`, header marker + last-rendered commit
   hash. Includes `roadmap-tooling` and the two promoted WUs; targets the algorithm's literal output so the
   future `arc roadmap render` reproduces it.
+- _Outcome:_ Rendered `backlog/ROADMAP.md` from the 35-WU render set (1 In Flight / 11 Ready / 23 Blocked,
+  Depth 1–3), replacing the stale 807-line narrative. Format landed as **per-tier markdown tables**
+  (Work unit · Owner · Depends on · Cohort; uniform column widths; `—` for empty cells), not the planned
+  `◂`-pointer bullets — picked over list / forest / mermaid prototypes for raw scannability; the ASCII
+  dependency forest was dropped (marginal value over the Depends-on column + depth bands, and fragile once a
+  WU has multiple deps). Reconciled `§ ROADMAP`'s render step (both copies) to the table layout. Every
+  Depends-on cell was cross-checked against the meta `Depends On` fields.
 
 ### `[ ]` **7.R.4 Boundary-workflow ROADMAP-step alignment**
 
