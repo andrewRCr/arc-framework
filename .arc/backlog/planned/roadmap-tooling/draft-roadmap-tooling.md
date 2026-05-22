@@ -17,13 +17,18 @@ hand-maintenance discipline, not the tool. WOR's Phase 7.R then reshaped the doc
 readiness view** (In Flight / Ready / Blocked, rendered by WU-name from `State` / `Owner` / `Depends On`; no
 hand-maintained content) and hand-rendered the first baseline.
 
-Two standing costs remain until this WU lands:
+Three standing costs remain until this WU lands:
 
 - **The renderer is assumed to exist.** `arc-plan-conductor`'s park/resume workflows treat "ROADMAP regen" as a
   one-line mechanism; the boundary workflows (`activate` / `integrate` / `archive` / `deactivate`) hand-maintain
   per the algorithm in the interim. Every ceremony pays a manual-render tax and risks drift.
 - **Sibling helpers are deferred alongside it.** WOR's CLI-tooling capture lists `arc cohort list` and
   `arc graduate <type>` next to the renderer — all three read or mutate the same meta-file + backlog surface.
+- **Planning-time edits have no regen trigger.** `§ ROADMAP` lists graduation (`provisional/` → `planned/`) and
+  dependency-field edits as regen fire-points, but those happen during planning — outside the four boundary
+  ceremonies that carry a regen step — so the ROADMAP silently lags after a promotion or a `**Depends On:**`
+  change until the next ceremony re-render. The renderer makes regen cheap enough to run on demand, closing the
+  gap.
 
 ## Scope
 
