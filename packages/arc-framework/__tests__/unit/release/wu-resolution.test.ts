@@ -60,7 +60,6 @@ describe("resolveActiveWu — single full-layout candidate", () => {
     expect(result).toEqual({
       status: "resolved",
       path: ".arc/active/meta-foo.md",
-      category: "",
       name: "foo",
     });
   });
@@ -121,7 +120,7 @@ describe("resolveActiveWu — lite layout", () => {
   beforeEach(async () => { fixture = await createFixture(); });
   afterEach(async () => { await rm(fixture.root, { recursive: true, force: true }); });
 
-  it("resolves the single status.md with empty category and name", async () => {
+  it("resolves the single status.md with an empty name", async () => {
     await writeFile(join(fixture.activeDir, "status.md"), statusBody("Active"));
 
     const result = await resolveActiveWu({ cwd: fixture.root });
@@ -129,7 +128,6 @@ describe("resolveActiveWu — lite layout", () => {
     expect(result).toEqual({
       status: "resolved",
       path: ".arc/active/status.md",
-      category: "",
       name: "",
     });
   });

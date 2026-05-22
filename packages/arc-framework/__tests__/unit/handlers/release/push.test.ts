@@ -59,10 +59,8 @@ function statusBody(state = "Active"): string {
 
 async function writeStatus(
   root: string,
-  _category: string,
   name: string,
 ): Promise<void> {
-  void _category;
   await writeFile(
     join(root, ".arc", "active", `meta-${name}.md`),
     statusBody(),
@@ -188,7 +186,7 @@ describe("runReleasePush — code 12 (destructive-flag)", () => {
     ["-d"],
     ["--mirror"],
   ])("refuses with code 12 and audit entry carrying flag detail (%s)", async (flag) => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const { deps, spawnPush } = buildDeps(fixture.root, { argv: [flag] });
 
     const result = await runReleasePush(deps);
@@ -209,7 +207,7 @@ describe("runReleasePush — code 12 (destructive-flag)", () => {
   });
 
   it("refuses with code 12 on a leading-`+` refspec (force-push pattern)", async () => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const { deps, spawnPush, stderr } = buildDeps(fixture.root, { argv: ["+main:main"] });
 
     const result = await runReleasePush(deps);
@@ -223,7 +221,7 @@ describe("runReleasePush — code 12 (destructive-flag)", () => {
   });
 
   it("emits a three-line refusal message that names the flag", async () => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const { deps, stderr } = buildDeps(fixture.root, { argv: ["--force"] });
 
     await runReleasePush(deps);
@@ -280,7 +278,7 @@ describe("runReleasePush — code 15 (arg-grammar-fallthrough)", () => {
   });
 
   it("writes a refused audit entry with the original argv preserved", async () => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const { deps } = buildDeps(fixture.root, {
       argv: ["origin", "other-branch"],
       currentBranch: "feature/x",
@@ -340,8 +338,8 @@ describe("runReleasePush — code 10 (no-active-wu)", () => {
   });
 
   it("refuses with code 10 + disambiguation hint on multi-candidate", async () => {
-    await writeStatus(fixture.root, "technical", "alpha");
-    await writeStatus(fixture.root, "feature", "beta");
+    await writeStatus(fixture.root, "alpha");
+    await writeStatus(fixture.root, "beta");
     const { deps, stderr } = buildDeps(fixture.root);
 
     const result = await runReleasePush(deps);
@@ -365,7 +363,7 @@ describe("runReleasePush — code 13 (branch-protection-violation)", () => {
   afterEach(async () => { await rm(fixture.root, { recursive: true, force: true }); });
 
   it("refuses with code 13 when branch.protection: full and currentBranch === branch.base", async () => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const settings = buildSettings({
       branchProtection: "full",
       branchBase: "main",
@@ -397,7 +395,7 @@ describe("runReleasePush — code 13 (branch-protection-violation)", () => {
   });
 
   it("does not refuse under branch.protection: partial regardless of branch", async () => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const settings = buildSettings({
       branchProtection: "partial",
       branchBase: "main",
@@ -446,7 +444,7 @@ describe("runReleasePush — code 14 (pushability-precheck-failed)", () => {
       },
     ],
   ])("refuses with code 14 on blocking condition: %s", async (_, condition) => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const { deps, spawnPush, stderr } = buildDeps(fixture.root, {
       pushability: pushabilityWith([condition]),
     });
@@ -470,7 +468,7 @@ describe("runReleasePush — code 14 (pushability-precheck-failed)", () => {
   });
 
   it("refuses with code 14 on advisory force-push-required (always-refuse contract)", async () => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const condition: PushabilityCondition = {
       kind: "force-push-required",
       disposition: "advisory",
@@ -489,7 +487,7 @@ describe("runReleasePush — code 14 (pushability-precheck-failed)", () => {
   });
 
   it("does not refuse on auto-fixed disposition (matrix self-resolved)", async () => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const condition: PushabilityCondition = {
       kind: "missing-notes-refspec",
       disposition: "auto-fixed",
@@ -509,7 +507,7 @@ describe("runReleasePush — code 14 (pushability-precheck-failed)", () => {
   });
 
   it("never spawns push on any pushability refusal path", async () => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const { deps, spawnPush } = buildDeps(fixture.root, {
       pushability: pushabilityWith([
         { kind: "detached-head", disposition: "block", guidance: "—" },
@@ -537,7 +535,7 @@ describe("runReleasePush — caller-resolvable no-upstream-branch", () => {
   };
 
   it("auto-injects -u when push_interlock=on-workflow and argv lacks -u", async () => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const { deps, spawnPush } = buildDeps(fixture.root, {
       argv: [],
       pushability: pushabilityWith([noUpstream]),
@@ -553,7 +551,7 @@ describe("runReleasePush — caller-resolvable no-upstream-branch", () => {
   });
 
   it("passes argv through unchanged when -u is already present", async () => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const { deps, spawnPush } = buildDeps(fixture.root, {
       argv: ["-u"],
       pushability: pushabilityWith([noUpstream]),
@@ -570,7 +568,7 @@ describe("runReleasePush — caller-resolvable no-upstream-branch", () => {
   });
 
   it("recognizes --set-upstream as the same intent signal as -u", async () => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const { deps, spawnPush } = buildDeps(fixture.root, {
       argv: ["--set-upstream"],
       pushability: pushabilityWith([noUpstream]),
@@ -585,7 +583,7 @@ describe("runReleasePush — caller-resolvable no-upstream-branch", () => {
   });
 
   it("refuses with code 14 when push_interlock=manual and argv lacks -u", async () => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const settings = buildSettings({ pushInterlock: "manual" });
     const { deps, spawnPush, stderr } = buildDeps(fixture.root, {
       argv: [],
@@ -601,7 +599,7 @@ describe("runReleasePush — caller-resolvable no-upstream-branch", () => {
   });
 
   it("auto-resolves when push_interlock=manual but argv carries -u", async () => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const settings = buildSettings({ pushInterlock: "manual" });
     const { deps, spawnPush } = buildDeps(fixture.root, {
       argv: ["-u"],
@@ -629,7 +627,7 @@ describe("runReleasePush — code 11 (interlock-not-authorized)", () => {
   it.each<[PushInterlock]>([["manual"], ["on-sync"]])(
     "refuses with code 11 when push_interlock=%s",
     async (pushInterlock) => {
-      await writeStatus(fixture.root, "technical", "sample");
+      await writeStatus(fixture.root, "sample");
       const settings = buildSettings({ pushInterlock });
       const { deps, spawnPush, stderr } = buildDeps(fixture.root, { settings });
 
@@ -708,7 +706,7 @@ describe("runReleasePush — short-circuit order", () => {
   });
 
   it("13 fires before 14 (branch-protection wins over pushability)", async () => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const settings = buildSettings({
       branchProtection: "full",
       branchBase: "main",
@@ -728,7 +726,7 @@ describe("runReleasePush — short-circuit order", () => {
   });
 
   it("14 fires before 11 (pushability wins over interlock)", async () => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const settings = buildSettings({ pushInterlock: "manual" });
     const { deps } = buildDeps(fixture.root, {
       settings,
@@ -753,7 +751,7 @@ describe("runReleasePush — success path", () => {
   }
 
   it("forwards branch + argv to spawnPush when authorized and bubbles exit 0", async () => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const argv = ["--dry-run"];
     const { deps, spawnPush } = buildDeps(fixture.root, {
       argv,
@@ -778,7 +776,7 @@ describe("runReleasePush — success path", () => {
   });
 
   it("strips a matching positional `<remote> <branch>` pair before spawnPush", async () => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const { deps, spawnPush } = buildDeps(fixture.root, {
       argv: ["origin", "feature/x"],
       settings: authorizingSettings(),
@@ -803,7 +801,7 @@ describe("runReleasePush — success path", () => {
   });
 
   it("strips a matching `-u origin <branch>` triple but preserves the flag", async () => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const { deps, spawnPush } = buildDeps(fixture.root, {
       argv: ["-u", "origin", "feature/x"],
       settings: authorizingSettings(),
@@ -825,7 +823,7 @@ describe("runReleasePush — success path", () => {
   });
 
   it("writes a proceeded audit entry with kind: push and parsed refStatus", async () => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const { deps } = buildDeps(fixture.root, {
       argv: [],
       settings: authorizingSettings(),
@@ -851,7 +849,7 @@ describe("runReleasePush — success path", () => {
   });
 
   it("falls back to refStatus: 'ok' when stderr has no parseable ref-status line", async () => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const { deps } = buildDeps(fixture.root, {
       settings: authorizingSettings(),
       spawnPush: () => Promise.resolve({
@@ -868,7 +866,7 @@ describe("runReleasePush — success path", () => {
   });
 
   it("bubbles non-zero exit and writes hook-failed entry attributed to pre-push", async () => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const { deps } = buildDeps(fixture.root, {
       settings: authorizingSettings(),
       spawnPush: () => Promise.resolve({
@@ -897,7 +895,7 @@ describe("runReleasePush — success path", () => {
     ["remote rejected", "remote rejected feature/x (branch policy)\n"],
     ["bracketed rejected", "! [rejected]        main -> main (fetch first)\n"],
   ])("attributes server-side reject (%s) to hook: 'server'", async (_, stderr) => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const { deps } = buildDeps(fixture.root, {
       settings: authorizingSettings(),
       spawnPush: () => Promise.resolve({
@@ -919,7 +917,7 @@ describe("runReleasePush — success path", () => {
   });
 
   it("falls back to hook: 'unknown' when no marker matches", async () => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const { deps } = buildDeps(fixture.root, {
       settings: authorizingSettings(),
       spawnPush: () => Promise.resolve({
@@ -942,7 +940,7 @@ describe("runReleasePush — success path", () => {
   });
 
   it("writes the audit entry with release-push interlockState (push + sync)", async () => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const { deps } = buildDeps(fixture.root, {
       settings: authorizingSettings(),
       spawnPush: () => Promise.resolve({

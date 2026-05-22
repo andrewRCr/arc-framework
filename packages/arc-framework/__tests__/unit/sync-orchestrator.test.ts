@@ -196,8 +196,7 @@ function resetMockDefaults() {
   mockAppendAuditEntry.mockResolvedValue({ ok: true });
   mockResolveActiveWu.mockResolvedValue({
     status: "resolved",
-    path: ".arc/active/technical/meta-test.md",
-    category: "technical",
+    path: ".arc/active/meta-test.md",
     name: "test",
   });
   mockGitExec.mockImplementation(async (_cmd: unknown, args: unknown) => {
@@ -1211,7 +1210,7 @@ describe("audit-log integration", () => {
       schemaVersion: 1,
       command: "sync",
       args: [],
-      wu: { category: "technical", name: "test" },
+      wu: { name: "test" },
       interlockState: {
         command: "sync",
         pushInterlock: { value: "manual", source: "default" },

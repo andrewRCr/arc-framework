@@ -12,9 +12,9 @@ import type { GitExec } from "../../lib/git/index.js";
 /**
  * Directory layout discovered on disk.
  *
- * - `full` — `meta-*.md` (post-WOR canonical) or `status-*.md` (legacy)
- *   files; rooted at the active dir (flat) or under category
- *   subdirectories (subdir).
+ * - `full` — `meta-*.md` files rooted directly at the active dir. The
+ *   reader enumerates the active root non-recursively, so this is a flat
+ *   layout: meta files placed in subdirectories are not discovered.
  * - `lite` — single fixed-path `.arc/active/status.md`.
  *
  * Determined by file presence: `.arc/active/status.md` wins when both
@@ -160,8 +160,8 @@ export interface ActiveStatusOptions {
  * contributor-meta inside) is the eventual replacement for the flat
  * `active/` subdir; the scan-shape reshape composes with broader
  * contributor-lifecycle support that isn't wired through this resolver yet.
- * Maintainer flow (or absent role) scans `.arc/active/` with category
- * subdirs.
+ * Maintainer flow (or absent role) scans `.arc/active/` directly (flat —
+ * the reader is non-recursive; see `ActiveLayout`).
  *
  * When `role === "contributor"` and `identity === null`, the probe short-
  * circuits to `resolution: "none"` with a diagnostic warning — the contributor
