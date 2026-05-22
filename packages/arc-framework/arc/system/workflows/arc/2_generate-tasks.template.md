@@ -293,7 +293,7 @@ against the pre-save checklist and bundles the commit.
 - [ ] All "carry as context" findings from Pass 3 are durably captured (inline `_Note:_` or
       cross-reference to `notes-{name}.md` companion file)
 - [ ] Task instructions targeting shipped or published files are written in the shipped-content
-      register — no movable WU artifact references (`draft-*` / `spec-*` / `tasks-*` / `status-*` /
+      register — no movable WU artifact references (`draft-*` / `spec-*` / `tasks-*` / `meta-*` /
       companions) that would survive verbatim execution into the target. See
       [strategy-task-list-formatting § Instruction Audience][task-list-formatting]
 - [ ] Atomic companion file created alongside task list (`atomic-{name}.md`, same directory)

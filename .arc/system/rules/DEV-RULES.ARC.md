@@ -17,7 +17,7 @@ documentation style — live in [DEV-RULES.PROJECT][dev-rules-project]. Contribu
 
 - [Review-Increment Invariant](#review-increment-invariant) — universal approval-gate principle
 - [Commit Discipline](#commit-discipline) — control, format, atomicity
-- [Task Execution](#task-execution) — one at a time, sub-agent scope, quality gates, leave-it-cleaner, test-first
+- [Task Execution](#task-execution) — task interlock, sub-agent scope, quality gates, leave-it-cleaner, test-first
 - [Session Management](#session-management) — state control, handoff, context quality
 - [Verification and Discovery](#verification-and-discovery) — verify, consult strategies, load methods/extensions
 - [Documentation Boundaries](#documentation-boundaries) — code and methodology separation
@@ -44,13 +44,12 @@ task-interlock approval; `workflowCommit` releases commit-interlock at workflow-
 type; routing (wrapper or raw) follows § Workflow class-tag routing.
 
 - **Commit triggering** · `[configurable]`:
-    - Follows `arc.commitInterlock` (the *commit-interlock*). Default `manual` requires explicit user
-      approval before each commit.
+    - Follows `arc.commitInterlock`. Default `manual` requires explicit user approval before each commit.
     - Per-mode behavior lives in the [process-task-loop workflow][process-task-loop].
 
 - **Push triggering** · `[configurable]`:
-    - Follows `arc.pushInterlock` (the *push-interlock*). Default `manual` requires explicit user
-      invocation; `on-handoff` mode fires push at handoff only — never per commit.
+    - Follows `arc.pushInterlock`. Default `manual` requires explicit user invocation; `on-handoff`
+      mode fires push at handoff only — never per commit.
     - Per-mode behavior lives in the [session-handoff workflow][session-handoff].
 
 - **Implied-approval scope** · Approval released at a structured approval gate — surfaced changes +
@@ -90,7 +89,7 @@ type; routing (wrapper or raw) follows § Workflow class-tag routing.
     - `arc sync` handles its own internal push (single-leg sync push); sync invocations are
       captured on the audit umbrella but do not re-route through `arc release push`.
 
-- **Merge to integration / main requires explicit approval** (the *integration-interlock*). Agents
+- **Merge to integration / main requires explicit approval** (the integration-interlock). Agents
   must not infer merge approval from task approval, review completion, passing checks, or general
   "proceed" language. Integration may happen only when the user explicitly authorizes it.
 
@@ -111,11 +110,11 @@ type; routing (wrapper or raw) follows § Workflow class-tag routing.
   (parent task marked `[x]` if all subtasks complete). Stage task list updates with the commit.
 
 - **Meta-file timing:** Meta file updates fire only at handoff commits and workflow-ceremony
-  commits (activate / integrate / sweep / deactivate / PRD generation / planning-lifecycle ops).
+  commits (activate / integrate / sweep / deactivate / spec generation / planning-lifecycle ops).
   Task-completion code commits never touch the meta file.
 
 - **Meta-file commit shape:** Meta-file edits ride with concurrent ceremony content (file
-  moves, completion doc, PRD save, archival) — bundle into the ceremony commit. When the
+  moves, spec save, archival) — bundle into the ceremony commit. When the
   meta-file edit is the entire staged change, it lands as a dedicated `chore(arc):` commit. The
   staging area is the test: anything else staged → bundled; meta-file edit alone → dedicated.
   Never bundled with code commits (already enforced by meta-file timing above).
@@ -142,15 +141,14 @@ changes by task; commit shared documentation (task list updates) last.
 
 ## Task Execution
 
-### One task at a time
+### Task interlock
 
 Each checkbox in the task list is one *review increment* — a bounded chunk of autonomous execution
-between human review points. Every increment requires explicit user approval (the *task-interlock*)
-before the agent advances; deferred review is a bounded user-scoped convenience, not an autonomy mode.
-
-> [!IMPORTANT]
-> `task-interlock`: Stop after reporting task completion. Surface verification status and await
-> approval before advancing.
+between human review points. The [Review-Increment Invariant](#review-increment-invariant) applies at
+this default boundary: the increment closes with a structured approval gate before the agent advances or
+commits, and that gate is the task-interlock — stop after reporting completion, surface verification
+status, and await explicit user approval. Deferred review is a bounded user-scoped convenience, not an
+autonomy mode.
 
 In team mode, this applies per developer-agent pair — concurrent pairs may work on different tasks simultaneously.
 See [Team Coordination Strategy][team-coordination] for task ownership, branching patterns, and handoff conventions.
@@ -249,16 +247,16 @@ Before implementing any task, assess whether tests should be written first — s
 Session state uses two files with different update triggers:
 
 - **`meta-{name}.md`** (tracked, `active/`) — the active WU's project pointer.
-  Updated only at handoff commits and workflow-ceremony commits (activate / integrate / sweep /
-  deactivate / PRD generation / planning-lifecycle ops); task-completion code commits never touch
-  it. Mid-session updates are churn. See § Commit Discipline for the timing rule.
+  Updated only at handoff commits and workflow-ceremony commits; task-completion code commits never
+  touch it. Mid-session updates are churn. See § Commit Discipline for the timing rule and the
+  ceremony list.
 
 - **SESSION-NOTES.md** (gitignored, `user/{identity}/`) — written only at session handoff.
   Personal working context for the next session. Per-developer directory (`user/{identity}/`);
   see [Session Operations Strategy][session-ops] § Portability for cross-machine portability
   via git notes.
 
-AI reports progress throughout the session; session state files capture the summary at handoff
+The agent reports progress throughout the session; session state files capture the summary at handoff
 and ceremony boundaries.
 
 ### Handoff
@@ -352,13 +350,13 @@ Meta-commentary vs. substantive reference: citations that justify the code by ap
 process artifacts — `per the team's TDD playbook`, `implements the spec from RFC-042`,
 `per the test-first method's batching-judgment clause` — are a form of documentation coupling,
 binding code to a document on its own evolution schedule. Replace them with what the code
-does; route process rationale to a planning artifact (PRDs, plans, task lists, meta files,
-ADRs, completion docs, work-unit notes, commit `Context:` footers). Substantive references —
+does; route process rationale to a planning artifact (specs, drafts, task lists, meta files,
+ADRs, work-unit notes, commit `Context:` footers). Substantive references —
 test names describing behavior, comments on non-obvious invariants — stay.
 
 ### `.arc/` artifact references
 
-Movable WU artifacts (`draft-*`, `spec-*`, `tasks-*`, `status-*`, companions) are project-internal —
+Movable WU artifacts (`draft-*`, `spec-*`, `tasks-*`, `meta-*`, companions) are project-internal —
 shipped or published content cannot reference them at all. Within internal docs, use backticked
 filenames only; no Markdown links or paths. For tasks, include task ID + task-list filename:
 "Task X.Y - `tasks-name.md`". Paths are for current-location metadata, commands, and stable docs.
