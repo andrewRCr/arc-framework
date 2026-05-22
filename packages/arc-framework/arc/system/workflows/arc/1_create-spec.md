@@ -22,9 +22,9 @@ directly on the base branch.
 
 ### Step 1: Check for Existing Planning Artifacts
 
-Check if a `plan-*.md` document exists for this work. Plan documents capture resolved decisions,
+Check if a `draft-*.md` document exists for this work. Plan documents capture resolved decisions,
 alternatives considered, and approach direction before requirements crystallize into a PRD. See
-[Work Planning Strategy][work-planning] for `plan-*` conventions and the discovery checklist.
+[Work Planning Strategy][work-planning] for `draft-*` conventions and the discovery checklist.
 
 Where to look depends on your project's PM mode ([`arc-config.yml`][arc-config] → `pm.mode`):
 
@@ -110,35 +110,35 @@ compound names.
 
 **Save location** depends on your project's PM mode ([`arc-config.yml`][arc-config] → `pm.mode`):
 
-- **arc-in-git**: `.arc/backlog/{provisional,planned}/{{WORK_NAME}}/prd-{{WORK_NAME}}.md` — PRDs start
+- **arc-in-git**: `.arc/backlog/{provisional,planned}/{{WORK_NAME}}/spec-{{WORK_NAME}}.md` — PRDs start
   in backlog and graduate to `active/` during [activation][activate-work-unit]
-- **none / external**: `.arc/active/prd-{{WORK_NAME}}.md` — PRDs save directly to
+- **none / external**: `.arc/active/spec-{{WORK_NAME}}.md` — PRDs save directly to
   active (no backlog directory). Create the directory first if it doesn't exist:
   `mkdir -p .arc/active/`
 
 **Promotion-write (`arc-in-git`, conditional):** If this PRD originates as a direct promotion from
-a `backlog/BACKLOG-INBOX.md` entry (no intermediate `plan-*` doc), delete the inbox entry in the
+a `backlog/BACKLOG-INBOX.md` entry (no intermediate `draft-*` doc), delete the inbox entry in the
 same commit as the PRD save. Routing record lives in the deletion commit message — preserves the
 ceremony-only write discipline for shared inboxes (see [DEV-RULES.ARC][dev-rules-arc]
-§ Leave it cleaner). Inbox entries promoted via an intermediate `plan-*` doc are deleted at
-plan-doc creation, not here.
+§ Leave it cleaner). Inbox entries promoted via an intermediate `draft-*` doc are deleted at
+draft-doc creation, not here.
 
-### Step 7: Retire Plan Documents
+### Step 7: Retire Draft Documents
 
 > [!IMPORTANT]
 > `workflow-interlock`: Stop after the PRD is saved. Surface the PRD location for review; await
 > approval before proceeding to plan retirement + meta update + commit.
 
-If a `plan-*.md` document fed into this PRD, retire it now. Plan documents are ephemeral — they
+If a `draft-*.md` document fed into this PRD, retire it now. Plan documents are ephemeral — they
 serve exploration and are deleted once the PRD captures the conclusions (see
-[Work Planning Strategy][work-planning] § Plan Documents).
+[Work Planning Strategy][work-planning] § Draft Documents).
 
 1. **Audit for reference content**: Scan the plan for implementation detail, design rationale, or
    context that the PRD doesn't capture but would be valuable during task generation or execution.
    Migrate this to a `notes-*.md` file alongside the PRD (same directory). Keep the notes file
    header minimal (title + contents only) — no purpose block, no provenance to the plan, no commit
    metadata. See [DEV-RULES.ARC][dev-rules-arc] § Documentation Boundaries.
-2. **Delete the plan**: `git rm` the `plan-*.md` file (and any supplemental files that fed into it,
+2. **Delete the plan**: `git rm` the `draft-*.md` file (and any supplemental files that fed into it,
    unless they have independent archival value — e.g., research files may belong in
    `reference/supplemental/research/`).
 3. **Update planning-state meta file** (when present): If
@@ -151,7 +151,7 @@ After substeps 1-3, stage all edits — PRD save (Step 6), any promotion-write i
 6, arc-in-git), plan deletion + `notes-*` migration, meta update.
 
 > [!CAUTION]
-> `commit-interlock` release — commit as `workflowCommit`. Subject `chore(arc): create prd-{name}`;
+> `commit-interlock` release — commit as `workflowCommit`. Subject `chore(arc): create spec-{name}`;
 > body itemizes the bundled changes per [DEV-RULES.ARC][dev-rules-arc] § Commit format and
 > § Meta-file commit shape.
 
@@ -166,7 +166,7 @@ Run [2_generate-tasks.md](2_generate-tasks.md) when ready — it consumes this P
 [work-org]: ../../../reference/strategies/arc/strategy-work-organization.md
 [work-planning]: ../../../reference/strategies/arc/strategy-work-planning.md
 [discovery-checklist]: ../../../reference/strategies/arc/strategy-work-planning.md#discovery-checklist
-[template-prd]: ../../../reference/templates/template-prd.md
+[template-prd]: ../../../reference/templates/arc/work-unit/spec/template-prd.md
 [activate-work-unit]: work-unit-lifecycle/activate-work-unit.md
 [integrate-work-unit]: work-unit-lifecycle/integrate-work-unit.md
 [init-work-unit]: work-unit-lifecycle/planning/init-work-unit.md
