@@ -415,20 +415,35 @@ the target's **absence** from the `active/` + `backlog/` pipeline (a shipped WU 
 
 ### Regeneration fire-points
 
-ROADMAP regenerates at ceremony boundaries, not on every meta-file edit:
+ROADMAP regenerates at the events that change its render inputs — not on every meta-file edit. Each
+regeneration re-reads current state, so a regen reflects whatever changed since the last one.
 
-- **WU graduation** (`backlog/provisional/<wu>/` → `backlog/planned/<wu>/`) — adds the WU to ROADMAP
-  for the first time.
-- **WU activation** (`backlog/planned/<wu>/` → `active/<wu>/`, `State: Planning → Active`) — moves
-  the WU into In Flight.
-- **WU integration** (`active/<wu>/` → `completed/<dated>/<wu>/`, `State: Integrating → Shipped`) —
-  drops the WU from the render set; by the same absence its dependents re-evaluate from Blocked to
-  Ready at this regen, with no edits to their meta files.
-- **Dependency-field edit** on a planned or active meta file — recomputes that WU's Ready/Blocked
-  placement and ordering when its own `**Depends On:**` changes.
+**Ceremony-wired** — the lifecycle workflow that owns the transition carries a regenerate-ROADMAP
+step, so these need no separate discipline:
 
-Each ceremony workflow (graduation, activation, integration) carries a regenerate-ROADMAP step, so
-ROADMAP stays consistent with meta-file state at every published ceremony commit.
+- **Activation** (`backlog/planned/<wu>/` → `active/<wu>/`, `State: Planning → Active`) — moves the WU
+  into In Flight.
+- **Integration / archive** (`active/<wu>/` → `completed/<dated>/<wu>/`, `State: Integrating →
+  Shipped`) — drops the WU from the render set; by the same absence its dependents re-evaluate from
+  Blocked to Ready, with no edits to their meta files.
+- **Deactivation** (`active/<wu>/` abandoned) — drops the WU from the render set.
+
+Because each re-renders from current state, these ceremonies also **self-heal** any manual trigger
+missed since the previous one.
+
+**Manual discipline** — these change a render input but have no ceremony workflow to carry the step,
+so re-render by hand (per § Render algorithm) when you make the change:
+
+- **Backlog membership** — graduation (`backlog/provisional/<wu>/` → `backlog/planned/<wu>/`) adds a
+  WU to the render; demotion (the reverse) and creating a stub directly in `backlog/planned/` likewise
+  change the render set.
+- **Render-field edits** on a planned or active meta — a `**Depends On:**` change re-tiers the WU
+  between Ready and Blocked; `**Owner:**` and `**Cohort:**` changes alter the owner column and
+  within-tier grouping. These are ordinary file edits, not ceremonies, so nothing else prompts the
+  re-render.
+
+A skipped manual re-render is bounded, not permanent: the next ceremony-wired regeneration sweeps the
+ROADMAP back into agreement with meta-file state.
 
 ---
 

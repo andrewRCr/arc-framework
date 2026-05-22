@@ -460,6 +460,43 @@ if [ -n "$meta_spec_candidates" ]; then
 fi
 
 # ============================================================================
+# CHECK 17: ROADMAP regeneration trigger (arc-in-git only)
+# ============================================================================
+# When a staged meta file under active/ or backlog/planned/ changes a ROADMAP
+# render field (Depends On / Owner / Cohort), backlog/ROADMAP.md should be
+# re-rendered in the same commit (interim hand-maintenance per
+# strategy-work-organization.md § ROADMAP). Field-specific by design: lifecycle
+# ceremonies change State and paths, not these fields, and regen via their own
+# dedicated step — so they never trip this check. Warn-only: a manual re-render
+# is multi-step, so this nudges rather than blocks.
+pm_mode=$(arc_config_get "pm.mode" "none")
+
+if [ "$pm_mode" = "arc-in-git" ]; then
+    roadmap_staged=$(git diff --cached --name-only --diff-filter=ACMR | \
+        grep -E '^\.arc/backlog/ROADMAP\.md$' || true)
+
+    if [ -z "$roadmap_staged" ]; then
+        roadmap_field_changes=$(git diff --cached --name-only --diff-filter=ACMR | \
+            grep -E '^\.arc/(active|backlog/planned)/([^/]+/)*meta-[^/]+\.md$' | \
+            while IFS= read -r file; do
+                if git diff --cached -U0 -- "$file" 2>/dev/null | \
+                    grep -qE '^[-+][[:space:]]*-[[:space:]]+\*\*(Depends On|Owner|Cohort):\*\*'; then
+                    echo "$file"
+                fi
+            done)
+
+        if [ -n "$roadmap_field_changes" ]; then
+            echo -e "${YELLOW}Warning: ROADMAP render fields changed without re-rendering backlog/ROADMAP.md:${NC}"
+            echo "$roadmap_field_changes" | sed 's/^/   /'
+            echo "   Depends On / Owner / Cohort feed the ROADMAP render."
+            echo "   Re-render per strategy-work-organization.md § ROADMAP and stage backlog/ROADMAP.md."
+            echo "   (Lifecycle ceremonies regen via their own step — disregard if this is one.)"
+            warnings=$((warnings + 1))
+        fi
+    fi
+fi
+
+# ============================================================================
 # Summary
 # ============================================================================
 echo ""

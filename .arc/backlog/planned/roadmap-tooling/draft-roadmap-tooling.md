@@ -29,6 +29,12 @@ Three standing costs remain until this WU lands:
   ceremonies that carry a regen step — so the ROADMAP silently lags after a promotion or a `**Depends On:**`
   change until the next ceremony re-render. The renderer makes regen cheap enough to run on demand, closing the
   gap.
+- **Interim enforcement landed in WOR (Task 7.R.5); two upgrades remain here.** WOR added the standing regen rule
+  (DEV-RULES.ARC § Commit Discipline) plus a field-specific pre-commit warning (CHECK 17, warn-only), and split
+  `§ ROADMAP` fire-points into ceremony-wired vs. manual discipline. Deferred to this WU: (1) a **ceremony-aware
+  dir-move check** (graduation / demotion / create-into-`planned/`) — belongs in the commit-msg hook, which has
+  the commit message for the ceremony exemption pre-commit lacks; (2) **escalate CHECK 17 from warn to block**
+  once `arc roadmap render` makes the fix a one-command stage-and-recommit.
 
 ## Scope
 

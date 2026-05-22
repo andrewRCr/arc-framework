@@ -109,6 +109,11 @@ type; routing (wrapper or raw) follows § Workflow class-tag routing.
 - **Task list accuracy:** Before committing, verify task documentation reflects completed work
   (parent task marked `[x]` if all subtasks complete). Stage task list updates with the commit.
 
+- **ROADMAP regen:** Under `pm.mode: arc-in-git`, a commit changing a render field
+  (`Depends On` / `Owner` / `Cohort`) on an `active/` or `backlog/planned/` meta — or moving a WU into
+  or out of `backlog/planned/` — re-renders `backlog/ROADMAP.md` in the same commit (lifecycle
+  ceremonies regen via their own step). See [strategy-work-organization § ROADMAP][work-org-roadmap].
+
 - **Meta-file timing:** Meta file updates fire only at handoff commits and workflow-ceremony
   commits (activate / integrate / sweep / deactivate / spec generation / planning-lifecycle ops).
   Task-completion code commits never touch the meta file.
@@ -414,6 +419,7 @@ Load these documents when you reach the relevant work — not during session ini
 [arc-methods-tf]: ../../system/methods/test-first.md
 [arc-methods-dir]: ../../system/methods/README.md
 [config-arch]: ../../reference/strategies/arc/strategy-configurability-architecture.md
+[work-org-roadmap]: ../../reference/strategies/arc/strategy-work-organization.md#roadmap
 [workflow-authoring]: ../../reference/strategies/arc/strategy-workflow-authoring.md
 [session-ops]: ../../reference/strategies/arc/strategy-session-operations.md
 [process-task-loop]: ../../system/workflows/arc/3_process-task-loop.md

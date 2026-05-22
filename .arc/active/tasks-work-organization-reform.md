@@ -4399,6 +4399,47 @@ substantive enabler, not a reformat. The "roadmap" rename, direction's home, and
   Surfaced + captured a planning-time regen-trigger gap (graduation + `Depends On` edits fire outside the four
   ceremonies) to `draft-roadmap-tooling.md`.
 
+### `[x]` **7.R.5 ROADMAP regen-trigger discipline — interim hand-maintenance enforcement**
+
+- _Goal:_ Close the planning-side regen-trigger gap 7.R.4 surfaced so the derived ROADMAP doesn't silently stale
+  before `arc roadmap render` lands. Every render-input change point carries a trigger: active-side transitions stay
+  workflow-wired (7.R.4); ad-hoc planning-side edits get a standing rule; render-field edits get a commit-time
+  warning. Makes Success Criterion #8's `[~]` interim honest rather than a fig leaf — the trigger is needed
+  regardless of mechanism (an uncalled renderer is the same gap as a forgotten hand-render).
+
+    - `[x]` **7.R.5.a Strategy § ROADMAP fire-points — honest ceremony-wired vs. manual split (both copies)**
+        - Restructured `§ Regeneration fire-points` into **ceremony-wired** (activation / integration / archive /
+          deactivation — each re-renders from current state, so they self-heal any missed manual trigger) vs.
+          **manual discipline** (graduation / demotion / create-into-`planned/` and `Depends On` / `Owner` /
+          `Cohort` edits — re-render per § Render algorithm when made). Dropped the false "graduation ceremony
+          workflow carries a regen step" claim; added the bounded-not-permanent staleness note.
+
+    - `[x]` **7.R.5.b DEV-RULES.ARC standing regen rule (both copies; token-efficient — always-loaded file)**
+        - Added a terse `**ROADMAP regen**` bullet to § Commit Discipline (beside "Task list accuracy" /
+          "Meta-file timing") plus the `[work-org-roadmap]` link def: under `pm.mode: arc-in-git`, a render-field
+          edit on an `active/`/`backlog/planned/` meta — or a `backlog/planned/` move — re-renders ROADMAP in the
+          same commit; ceremonies exempt. Always-loaded surface = the unmissable trigger for the ad-hoc class.
+
+    - `[x]` **7.R.5.c Pre-commit CHECK 17 — render-field regen warning (both hook copies)**
+        - Added CHECK 17 (bash, mirroring CHECK 7 / CHECK 9): under `pm.mode: arc-in-git`, warns when a staged
+          `active/`/`backlog/planned/` meta changes a `Depends On` / `Owner` / `Cohort` line without
+          `backlog/ROADMAP.md` co-staged. Field-specific so lifecycle ceremonies (which change `State` + paths,
+          never those three fields) never trip it; warn-only. Verified: regex matches the three fields and ignores
+          handoff fields + diff headers; shellcheck-clean; fires end-to-end on a staged render-field change at exit 0.
+
+    - `[x]` **7.R.5.d Capture deferred enforcement to `draft-roadmap-tooling.md`**
+        - Noted two upgrades beyond interim scope alongside the existing planning-time-regen-gap entry: (1) a
+          ceremony-aware dir-move check (graduation / demotion / create-into-`planned/`) in the commit-msg hook,
+          which has the message for the ceremony exemption pre-commit lacks; (2) escalate CHECK 17 from warn to
+          block once `arc roadmap render` makes the fix a one-command stage-and-recommit.
+
+- _Outcome:_ Regen-trigger coverage is now complete and honest across three layers — strategy procedure (the
+  event catalog), the DEV-RULES standing rule (always-loaded obligation), and pre-commit CHECK 17 (commit-time
+  catch) — with the active-side ceremonies self-healing as the backstop. The permanently-ad-hoc field-edit class
+  (`Depends On` / `Owner` / `Cohort`) is now caught regardless of mechanism: the same triggers carry over unchanged
+  when hand-render gives way to `arc roadmap render`. Dir-move enforcement + warn→block escalation deferred to
+  `roadmap-tooling`.
+
 ## **Phase 8:** Verification
 
 _Purpose:_ Tier-3 quality gates, success-criteria walkthrough, per-worktree isolation acceptance test, integration
