@@ -4374,6 +4374,22 @@ substantive enabler, not a reformat. The "roadmap" rename, direction's home, and
   hash. Includes `roadmap-tooling` and the two promoted WUs; targets the algorithm's literal output so the
   future `arc roadmap render` reproduces it.
 
+### `[ ]` **7.R.4 Boundary-workflow ROADMAP-step alignment**
+
+- _Goal:_ The WU-lifecycle ceremony workflows that hand-maintain ROADMAP (interim, until `arc roadmap render`
+  ships) point at the revised derived shape, so ceremony regen produces correct output and won't re-stale.
+  Sequences after 7.R.2 (consumes the revised algorithm).
+    - De-hardcode the old tier vocabulary: `activate-work-unit.md` Step 7 and `deactivate-work-unit.md` both
+      say "tier entry" — repoint to `§ ROADMAP`-delegating phrasing so future algorithm changes don't re-stale
+      them. Verify `integrate-work-unit.md` / `archive-work-unit.md` regen-step prose reads correctly under
+      In Flight / Ready / Blocked (`archive` Step 4 already renders by absence). Both copies (package + `.arc/`).
+    - Fix `draft-docs-site-refresh.md` prose still asserting the `arcd-rebrand` hard dependency (decoupled in
+      7.R.1.b/c).
+    - _Out of scope:_ `**Depends On:**` field maintenance. The render resolves satisfaction by absence (a dep
+      is met once its WU leaves `active/` + `backlog/`), so shipped deps need no pruning, and lifecycle
+      workflows must not fan-out-edit dependents' metas (concurrency-unsafe mutated shared state). The
+      dangling-edge validation gap (shipped-vs-typo) is captured to `roadmap-tooling`.
+
 ## **Phase 8:** Verification
 
 _Purpose:_ Tier-3 quality gates, success-criteria walkthrough, per-worktree isolation acceptance test, integration
