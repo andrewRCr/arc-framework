@@ -16,17 +16,16 @@ delta) belongs in the work unit's durable record (meta file) and SESSION-NOTES, 
 ## PR Title Format
 
 PR titles follow ARC's [commit-format method][commit-format] (Conventional Commits —
-`type(scope): description`), with an optional bracket prefix signaling PR lifecycle stage:
+`type(scope): description`). Most PRs need no prefix:
 
 ```text
-[PLAN] type(scope): description       — planning branch PR
 type(scope): description              — implementation, fix, chore, etc.
 ```
 
 Implementation is the default activity in a code repository — flagging every implementation
-PR is noise. Planning and other lifecycle deviations get prefixes because they're scannable
-exceptions in a PR list otherwise dominated by code work. Matches Rust (`RFC:` on design PRs
-only) and Kubernetes (`KEP-###:` on enhancement PRs only).
+PR is noise. The reserved prefixes below (design RFCs, releases) are the scannable exceptions
+in a PR list otherwise dominated by code work. Matches Rust (`RFC:` on design PRs only) and
+Kubernetes (`KEP-###:` on enhancement PRs only).
 
 **Smaller-scope PRs ride on the Conventional Commits type alone — no bracket prefix.** A typo
 fix is `docs(scope): fix typo`, a dependency bump is `chore(deps): bump foo`, a one-file
