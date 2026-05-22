@@ -334,6 +334,17 @@ The visualization gap (sequential layout claiming "parallelizable") is a documen
 concern, not a tooling concern. Adopting better visualization patterns is a strategy-doc + ROADMAP-
 template change, not a CLI/lint addition. Research-informed redesign at PRD time.
 
+**Coordination (WOR Phase 7.R, 2026-05-22).** WOR reshaped `backlog/ROADMAP.md` into a fully-derived
+readiness view (In Flight / Ready / Blocked, from meta `State` / `Owner` / `Depends On`; rendered by WU-name;
+no hand-maintained content) and explicitly deferred **parallel-safety** here — "which Ready WUs are
+concurrency-safe with what's in flight." Open for this WU's PRD: is it reliably deterministic at all? Meta
+files don't declare file-scope/domain, predicted paths ≠ actual, and cognitive-load is judgment; industry
+leans on conventions + pick-time accounting (WIP limits, swimlane/value-stream partitioning, module ownership)
+over a computed "safe-to-parallelize." Likely an on-contact convention, not a rendered field — research how
+the ecosystem handles it. Hard constraint from WOR: if a parallel view is ever hand-curated, it is a
+**sibling** artifact; the derived ROADMAP stays hand-maintenance-free to avoid drift. (The renderer itself +
+the "roadmap" rename/semantics live in the `roadmap-tooling` WU.)
+
 ### Shared-file concurrency: derived vs. mutated (ADR-020)
 
 ADR-020 splits the in-git concurrency problem precisely, and this WU owns codifying the conventions:

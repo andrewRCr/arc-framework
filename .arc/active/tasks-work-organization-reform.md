@@ -4309,6 +4309,68 @@ _Design decisions:_
   (2) surfaced + fixed the commit-msg footer validator gap that 7.5.c had called a no-op; (3) swept glob-form
   (`plan-*`/`prd-*`) class refs that the `[a-z]` patterns missed. Full suite green (1844 + 60); parity holds.
 
+## **Phase 7.R:** ROADMAP rendered-view baseline + render
+
+_Purpose:_ Land the data layer + first render of the ROADMAP rendered-view pattern. Phase 2 codified an
+algorithm and Phase 3 wired ceremony regen-steps, but the source-of-truth fields and the rendered doc never
+landed — `backlog/ROADMAP.md` is a stale hand-narrative with no markers. Brings it to a fully-derived readiness
+view sourced from meta-file state, so a future `arc roadmap render` reproduces it. Satisfies Success
+Criterion #8 as `[~]` (renderer CLI deferred to the new `roadmap-tooling` WU).
+
+_Design decisions:_ Purely derived — "what's in flight, what depends on what, what's available"; no priority or
+personal "what's next" (drift-prone, and preference is a session/PM concern, not a shared-artifact one —
+`**Owner:**` already carries assignment). Replaces the Phase-2 tiers (Foundation / Tier 2+ / Independent) with a
+startability scheme — In Flight / Ready (deps shipped) / Blocked (waiting on, by dep depth) — and renders WUs by
+canonical WU-name (matches `**Depends On:**` + dir/meta names; SOT-isomorphic + greppable). The `**Depends On:**`
+fields are `[none]` almost everywhere today, so 7.R.1's dependency baseline (incl. hidden edges) is the
+substantive enabler, not a reformat. The "roadmap" rename, direction's home, and parallel-safety are deferred to
+`roadmap-tooling` / CWC — see `draft-roadmap-tooling.md`.
+
+### `[ ]` **7.R.1 Backlog baseline — promotions, cohorts, dependency graph**
+
+- _Goal:_ Every `active/**` and `backlog/planned/**` meta file carries accurate relational fields so the
+  render is faithful: merely-unsequenced provisional WUs are promoted, `**Cohort:**` reflects real grouping,
+  and `**Depends On:**` records the true dependency graph including non-obvious edges.
+
+    - `[ ]` **7.R.1.a Promote unsequenced provisional WUs to `planned/`**
+        - `git mv` `backlog/provisional/composable-workflows/` and `backlog/provisional/scalable-core/` →
+          `backlog/planned/`. These are committed-but-unsequenced, not pre-commitment thinking. Confirm no
+          other `provisional/` WU is similarly mis-binned during the cohort pass.
+
+    - `[ ]` **7.R.1.b Cohort review + alignment**
+        - Review all planned + provisional WUs for cohort membership — group by thematic intent (shared
+          design goal even when orthogonal) as well as sequential/dependency coupling. Surface new cohort
+          candidates and any misaligned current `**Cohort:**` values; confirm with the user before applying.
+          Apply confirmed edits to meta files, with `git mv` into a cohort subdir where a new cohort warrants
+          one.
+
+    - `[ ]` **7.R.1.c Dependency baseline with hidden-dep hunt**
+        - Backfill `**Depends On:**` across planned (+ active WOR) meta files from the reconciled truth —
+          drafts are most current; ROADMAP prose is stale in places; some fields already drifted (e.g.
+          `arc-plan-conductor` → `loadset-composition`). Deliberately hunt for hidden/unassumed edges; this
+          sets the baseline, so do it right. Surface ambiguous or newly-found edges for confirmation before
+          writing.
+
+### `[ ]` **7.R.2 Revise the codified ROADMAP algorithm + framing**
+
+- _Goal:_ `strategy-work-organization.md § ROADMAP` (both copies) replaces the four-tier scheme with the
+  derived startability scheme — In Flight / Ready / Blocked (by dep depth, cohort-grouped within tier), keyed on
+  dependency-satisfaction (a dep is met once its WU is shipped — absent from `active/` + `backlog/`) — and
+  reframes the doc's purpose as a derived readiness/dependency view: not priority (direction is constitutional /
+  out of scope), `**Owner:**` carries assignment, WUs render by canonical WU-name. Header-marker spec + filename
+  retained.
+    - Inbound refs checked (`strategy-planning-module`, lifecycle workflows cross-ref § ROADMAP rather than
+      hardcode tier names — verify low ripple). Spec R37–R39 are the historical record; the strategy doc is the
+      living algorithm.
+
+### `[ ]` **7.R.3 Render `backlog/ROADMAP.md` from meta-file state**
+
+- _Goal:_ Replace the doc with a render of the revised algorithm — In Flight / Ready / Blocked tiers,
+  topologically ordered within Blocked, cohort members grouped within tier, each WU shown by WU-name with
+  `**Owner:**` and `◂ <dep-wu-name>` pointers, footer to `provisional/`, header marker + last-rendered commit
+  hash. Includes `roadmap-tooling` and the two promoted WUs; targets the algorithm's literal output so the
+  future `arc roadmap render` reproduces it.
+
 ## **Phase 8:** Verification
 
 _Purpose:_ Tier-3 quality gates, success-criteria walkthrough, per-worktree isolation acceptance test, integration
@@ -4319,6 +4381,7 @@ readiness assessment.
 - _Goal:_ All Success Criteria below resolve to `[x]` or `[~]` (with annotations); Tier-3 quality gates pass
   (`npm run -s lint:md`, `npm run lint:ts`, `npm run typecheck`, `npm test`, `npm run build`); per-worktree isolation
   acceptance test passes; ready-for-integration flag set.
+
     - `[ ]` **8.1.a Per-worktree isolation acceptance test (explicit)**
         - From the WU branch, spawn a test worktree against `main`: `git worktree add /tmp/wor-isolation-test main`.
         - In the new worktree, assert `.arc/active/` is empty (or contains only inventory placeholders like
