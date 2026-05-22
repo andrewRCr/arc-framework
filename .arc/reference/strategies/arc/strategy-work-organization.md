@@ -355,9 +355,13 @@ until those land.
 
 ## ROADMAP
 
-ROADMAP.md is a rendered artifact derived from `active/**` and `backlog/planned/**` meta files.
-The meta files are the source of truth for state, ownership, dependencies, and cohort
-membership; ROADMAP is a tier-grouped, topologically-sorted view of those fields.
+ROADMAP.md is a rendered artifact derived from `active/**` and `backlog/planned/**` meta files — a
+**readiness and dependency view**: what is in flight, what is ready to start, and what is blocked and
+on what. It is **not a priority ordering**. Relative importance and what to pick up next are
+project-governance and session/PM concerns, not properties derivable from meta-file state; the only
+assignment signal the view carries is `**Owner:**`. The meta files are the source of truth for state,
+ownership, dependencies, and cohort membership; ROADMAP is a tiered, dependency-ordered projection of
+those fields, with each WU rendered by its canonical WU-name.
 
 ### Source of truth
 
@@ -368,26 +372,42 @@ canonical fields ROADMAP renders from:
 - `**Owner:**` — single owner (per WU)
 - `**Depends On:**` — dependency list (bare WU names; `[none]` if independent)
 - `**Cohort:**` — cohort membership (`[none]` for solo WUs)
-- Title — H1 of the meta file
 
-ROADMAP's header carries a `Generated from meta files — re-render at ceremony boundaries` note
-plus the commit reference of the last regeneration. Edits to ROADMAP without a corresponding
-meta-file edit drift from the source of truth and should be avoided.
+Each WU renders under its **canonical WU-name** — the `<wu-name>` token from its directory and
+`meta-<wu-name>.md` filename, the same token `**Depends On:**` entries reference. Keying on the
+WU-name rather than the meta-file title keeps the render greppable and isomorphic with the source.
+
+ROADMAP's header carries a `Generated from meta files — re-render at ceremony boundaries` note plus
+the commit reference of the last regeneration. Edits to ROADMAP without a corresponding meta-file
+edit drift from the source of truth and should be avoided.
+
+### Dependency satisfaction by absence
+
+A WU's listed dependency is **satisfied** once its target has shipped — resolved at render time by
+the target's **absence** from the `active/` + `backlog/` pipeline (a shipped WU has moved on to
+`completed/`). Two consequences follow from resolving satisfaction this way:
+
+- `**Depends On:**` entries are never pruned when a target ships — the target simply stops appearing
+  in the scanned set, and the next render reflects it.
+- Ceremony workflows never reach into dependents' meta files: a WU shipping flips its dependents from
+  Blocked to Ready at the next regen, with no fan-out edits to shared state.
 
 ### Render algorithm
 
-1. Walk `active/**` and `backlog/planned/**` recursively for `meta-*.md` files. The recursive
-   glob handles both standalone subdirs (`backlog/planned/<wu-name>/`) and cohort-wrapped
-   subdirs (`backlog/planned/<cohort>/<wu-name>/`).
-2. Parse `**State:**`, `**Owner:**`, `**Depends On:**`, `**Cohort:**`, and title from each
-   meta file.
-3. Topologically sort by `**Depends On:**` so dependencies precede dependents in the rendered
-   order.
-4. Group into tiers: **In Flight** (`State: Active | Integrating`), **Foundation** (planned
-   work with no dependencies on other planned work), **Tier 2+** (planned work with planned
-   dependencies; ordered by topological depth), **Independent Tracks** (planned work whose
-   dependencies have all shipped or are external).
-5. Render markdown per tier, with cohort members grouped within their tier.
+1. Walk `active/**` and `backlog/planned/**` recursively for `meta-*.md` files — the **render set**.
+   The recursive glob handles both standalone subdirs (`backlog/planned/<wu-name>/`) and
+   cohort-wrapped subdirs (`backlog/planned/<cohort>/<wu-name>/`).
+2. Parse `**State:**`, `**Owner:**`, `**Depends On:**`, and `**Cohort:**` from each meta file.
+3. Resolve each `**Depends On:**` entry against the `active/` + `backlog/` set (planned and
+   provisional): a target still present is unsatisfied; an absent target is satisfied (shipped).
+4. Group into three tiers:
+    - **In Flight** — `State: Active | Integrating`.
+    - **Ready** — planned work with no unsatisfied dependencies (deps all shipped, or none to begin
+      with).
+    - **Blocked** — planned work with at least one unsatisfied dependency, ordered by dependency
+      depth (shallowest first) so each WU follows the deps it waits on.
+5. Within each tier, group cohort members together; render each WU by canonical WU-name with its
+   `**Owner:**` and `◂ <dep-wu-name>` pointers to the WUs it depends on.
 6. Footer note pointing to `backlog/provisional/` for pre-commitment thinking that hasn't been
    sequenced.
 
@@ -395,17 +415,18 @@ meta-file edit drift from the source of truth and should be avoided.
 
 ROADMAP regenerates at ceremony boundaries, not on every meta-file edit:
 
-- **WU graduation** (`backlog/provisional/<wu>/` → `backlog/planned/<wu>/`) — adds the WU to
-  ROADMAP for the first time.
-- **WU activation** (`backlog/planned/<wu>/` → `active/<wu>/`, `State: Planning → Active`) —
-  moves the WU from a planned tier to In Flight.
-- **WU integration** (`active/<wu>/` → `completed/<dated>/<wu>/`, `State: Integrating → Shipped`)
-  — removes the WU from ROADMAP (shipped WUs aren't tracked there).
-- **Dependency-field edit** on any planned or active meta file — recomputes the topological
-  ordering when `**Depends On:**` changes.
+- **WU graduation** (`backlog/provisional/<wu>/` → `backlog/planned/<wu>/`) — adds the WU to ROADMAP
+  for the first time.
+- **WU activation** (`backlog/planned/<wu>/` → `active/<wu>/`, `State: Planning → Active`) — moves
+  the WU into In Flight.
+- **WU integration** (`active/<wu>/` → `completed/<dated>/<wu>/`, `State: Integrating → Shipped`) —
+  drops the WU from the render set; by the same absence its dependents re-evaluate from Blocked to
+  Ready at this regen, with no edits to their meta files.
+- **Dependency-field edit** on a planned or active meta file — recomputes that WU's Ready/Blocked
+  placement and ordering when its own `**Depends On:**` changes.
 
-Each ceremony workflow (graduation, activation, integration) carries a regenerate-ROADMAP step,
-so ROADMAP stays consistent with meta-file state at every published ceremony commit.
+Each ceremony workflow (graduation, activation, integration) carries a regenerate-ROADMAP step, so
+ROADMAP stays consistent with meta-file state at every published ceremony commit.
 
 ---
 

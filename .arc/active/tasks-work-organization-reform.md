@@ -4354,7 +4354,7 @@ substantive enabler, not a reformat. The "roadmap" rename, direction's home, and
           edgeless within the cohort (co-design); `docs-site-refresh` kept `[none]` (decoupled from
           `arcd-rebrand`).
 
-### `[ ]` **7.R.2 Revise the codified ROADMAP algorithm + framing**
+### `[x]` **7.R.2 Revise the codified ROADMAP algorithm + framing**
 
 - _Goal:_ `strategy-work-organization.md § ROADMAP` (both copies) replaces the four-tier scheme with the
   derived startability scheme — In Flight / Ready / Blocked (by dep depth, cohort-grouped within tier), keyed on
@@ -4362,9 +4362,14 @@ substantive enabler, not a reformat. The "roadmap" rename, direction's home, and
   reframes the doc's purpose as a derived readiness/dependency view: not priority (direction is constitutional /
   out of scope), `**Owner:**` carries assignment, WUs render by canonical WU-name. Header-marker spec + filename
   retained.
-    - Inbound refs checked (`strategy-planning-module`, lifecycle workflows cross-ref § ROADMAP rather than
-      hardcode tier names — verify low ripple). Spec R37–R39 are the historical record; the strategy doc is the
-      living algorithm.
+- _Outcome:_ Both copies of `§ ROADMAP` now describe the three-tier In Flight / Ready / Blocked view, replacing
+  Foundation / Tier 2+ / Independent Tracks. A new "Dependency satisfaction by absence" subsection codifies the
+  render-by-absence model and its two invariants — `**Depends On:**` is never pruned when a target ships, and
+  ceremonies never fan-out-edit dependents' metas (the next regen flips Blocked → Ready). Intro reframed as a
+  non-priority readiness/dependency view; render keyed on canonical WU-name (dropped the Title render field).
+  Inbound-ref ripple confirmed low — `strategy-planning-module` and the lifecycle workflows delegate to
+  `§ ROADMAP`; only the literal "tier entry" vocab in `activate-work-unit.md` / `deactivate-work-unit.md`
+  remains, parked for 7.R.4.
 
 ### `[ ]` **7.R.3 Render `backlog/ROADMAP.md` from meta-file state**
 
