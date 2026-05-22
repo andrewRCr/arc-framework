@@ -1,6 +1,6 @@
 # Metadata: Work Organization Reform
 
-- **State:** Active
+- **State:** Integrating
 - **Owner:** andrew
 - **Branch:** technical/work-organization-reform
 
