@@ -71,10 +71,17 @@ integrating` validates archive-phase section presence on the meta file).
   readiness view, not a priority timeline — "roadmap" may be the wrong name. Rename candidates (work-graph / WU
   board / pipeline) vs. keeping the familiar `ROADMAP.md`; the cascade cost (workflows, strategies, ADRs, CLI
   seed/manifest, file-classification governed files, session-init discovery) is real. WOR deliberately kept the
-  filename and parked the rename here.
+  filename and parked the rename here. If a directional now/next/later doc is later adopted (see the
+  direction-layer note below), it may claim the freed `roadmap` name — making this view's rename a forcing move
+  rather than optional.
 - **Direction's home.** The directional / "what's important" half a roadmap traditionally carries is constitutional
   (PROJECT-PRD mission + principles) or simply out of in-git scope (session/PM). Confirm no orphaned need before
-  any rename.
+  any rename. If a real directional need surfaces, the clean resolution is a *separate* now/next/later artifact
+  (human-curated priority / time-horizon) that takes the `roadmap` name, freeing this derived dep-state view to
+  rename (per the semantics note above) — keeping the two layers discrete rather than shoehorning priority back
+  into the doc WOR 7.R just stripped it from. WOR 7.R research confirms now/next/later is the standard directional
+  idiom, distinct from a dependency view; ARC has no directional layer today, so whether to add one is the open
+  call.
 - **Parallel-safety — deterministic or not?** "Which Ready WUs are concurrency-safe with what's in flight" is
   high-value but likely not deterministic from ARC data (meta files don't declare file-scope/domain; predicted
   paths ≠ actual; cognitive-load is judgment). Industry leans on conventions + pick-time accounting (WIP limits,
