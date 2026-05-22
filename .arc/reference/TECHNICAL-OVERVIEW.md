@@ -45,14 +45,15 @@ committed to their repositories. Five top-level concerns:
   sources; adopter-owned thereafter.
 - **Reference material** (`reference/`) — `strategies/` (codified pattern guidance, indexed by
   `STRATEGY-INDEX.md`; `arc/` ships with the framework, `project/` is team-created), `adr/` (architecture
-  decision records), `research/` (technical research with lasting reference value), `archive/` (completed work,
-  organized by category), `templates/` (artifact skeletons).
+  decision records), `research/` (technical research with lasting reference value), and `templates/` (artifact
+  skeletons).
 - **System layer** (`system/`) — `workflows/` (numbered lifecycle workflows plus supplemental ones), `methods/`
   (overridable defaults), `extensions/` (lifecycle hook points), `briefs/` (session-init orientation by role),
   `githooks/` (commit message validation), `arc-config.yml` (flat key-value project settings), `skills/`
   (canonical skill sources rendered to harness-specific subdirectories).
-- **Work surfaces** — `active/` (in-flight work units: meta files plus task lists and companions, flat layout)
-  and `backlog/` (future-work pipeline with `ROADMAP.md` and category sub-backlogs).
+- **Work surfaces** — `active/` (in-flight work units: meta files plus task lists and companions, flat layout),
+  `backlog/` (future-work pipeline: `ROADMAP.md` plus `planned/` and `provisional/` state-dirs and inbox
+  surfaces), and `completed/` (archived work units, organized by date — `YYYY-qN`).
 
 ### CLI Package (`packages/arc-framework/`)
 
