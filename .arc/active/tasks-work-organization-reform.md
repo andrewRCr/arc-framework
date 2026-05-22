@@ -4445,7 +4445,7 @@ substantive enabler, not a reformat. The "roadmap" rename, direction's home, and
 _Purpose:_ Tier-3 quality gates, success-criteria walkthrough, per-worktree isolation acceptance test, integration
 readiness assessment.
 
-### `[ ]` **8.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+### `[x]` **8.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
 
 - _Goal:_ All Success Criteria below resolve to `[x]` or `[~]` (with annotations); Tier-3 quality gates pass
   (`npm run -s lint:md`, `npm run lint:ts`, `npm run typecheck`, `npm test`, `npm run build`); per-worktree isolation
@@ -4458,130 +4458,171 @@ readiness assessment.
           merge-base = current `main`, so WOR's own merge deletes it — no foreign-WU leak, no separate cleanup.
           Feeds Success Criteria #1/#2 (`[x]` with deviation note, pending the Step 2 walk).
 
+- _Quality gates:_ md lint (300 files), TS lint, typecheck, build, and the full vitest suite (1839 unit + integration,
+  60 e2e) — all passed.
+- _Success criteria:_ 48 criteria — 46 `[x]` (9 with deviation notes), 2 `[~]`. Superseded: ROADMAP deterministic
+  auto-regen (renderer CLI deferred to `roadmap-tooling`) and the CB-CC alignment premise (corrected per Task 2.1.d /
+  PRD R28 — relocated to the `branch-format` method). No genuine gaps. One in-scope leak fixed during the walk
+  (`chore(status):` → `chore(arc):` handoff example, both copies); spec R37–R39 and notes § ROADMAP annotated as
+  superseded.
+- _Atomic tasks:_ companion file — 14 items, all `[x]`; none deferred.
+
 ---
 
 ## Success Criteria
 
-- `[ ]` `main` carries no in-flight WU artifacts — `.arc/active/` on `main` empty (or holds only inventory placeholders)
-- `[ ]` Per-worktree isolation acceptance test passes — worktree branched from `main` contains only its own WU's
+- `[x]` `main` carries no in-flight WU artifacts — `.arc/active/` on `main` empty (or holds only inventory placeholders)
+    - **Deviation:** `main`'s only `active/` artifact is WOR's own legacy `status-work-organization-reform.md` (pre-WOR
+      two-PR flow); the branch already migrated it to flat `meta-*` and merge-base = current `main`, so WOR's own
+      integration merge removes it — no foreign-WU leak, no separate cleanup (Task 8.1.a).
+- `[x]` Per-worktree isolation acceptance test passes — worktree branched from `main` contains only its own WU's
   `meta-*.md` in `active/`
-- `[ ]` No `[PLAN]:` PR pattern remains — new WUs ship a single PR at integration
-- `[ ]` All in-flight WU meta files use the new shape — `# Metadata:` H1 + blank-line-grouped field blocks;
+    - **Deviation:** isolation holds for the single-branch-per-WU model; verified against `origin/main` (local `main`
+      was 47 commits stale and produced a ghost finding). See Task 8.1.a.
+- `[x]` No `[PLAN]:` PR pattern remains — new WUs ship a single PR at integration
+- `[x]` All in-flight WU meta files use the new shape — `# Metadata:` H1 + blank-line-grouped field blocks;
   `**Owner:**`, `**Depends On:**`, `**Origin:**`, `**Cohort:**` fields present; codified `**State:**` value-set; no
   internal `## Work Unit Metadata` H2 wrapper
-- `[ ]` Completion-doc consolidation complete — `template-completion-doc.md` deleted; new archives use meta-file
+- `[x]` Completion-doc consolidation complete — `template-completion-doc.md` deleted; new archives use meta-file
   archive-phase content H2s (`## Release Notes Entry` + `## Completion Notes`)
-- `[ ]` `PROJECT-STATUS.md` retired — file deleted; function distributed across PROJECT-PRD + Release Notes Entries +
+- `[x]` `PROJECT-STATUS.md` retired — file deleted; function distributed across PROJECT-PRD + Release Notes Entries +
   directory queries
-- `[ ]` PROJECT-PRD content reflects new shape — Mission + numbered principles + anti-goals + problem + design tradeoffs
-- `[ ]` ROADMAP.md regenerates deterministically from meta-file state per documented algorithm — header carries
+- `[x]` PROJECT-PRD content reflects new shape — Mission + numbered principles + anti-goals + problem + design tradeoffs
+    - **Deviation:** principles landed as **named** identifiers (not numbered) per research, and anti-goals folded into
+      § Scope `### Out of Scope` per PMI convention (Tasks 4.2.b / 4.2.c). Mission + Problem + Design Tradeoffs present.
+- `[~]` ROADMAP.md regenerates deterministically from meta-file state per documented algorithm — header carries
   generated-by marker + last-rendered commit hash
-- `[ ]` Instance files carry no preamble — SESSION-NOTES, USER-INBOX, BACKLOG-INBOX, `backlog/ATOMIC-INBOX.md` read
+    - **Superseded:** the `arc roadmap render` CLI (the deterministic auto-regen half) is deferred to the
+      `roadmap-tooling` WU. The rendered-view baseline + documented algorithm (7.R) and regen-trigger discipline
+      (7.R.5) ship here; ROADMAP is hand-maintained per the algorithm in the interim.
+- `[x]` Instance files carry no preamble — SESSION-NOTES, USER-INBOX, BACKLOG-INBOX, `backlog/ATOMIC-INBOX.md` read
   content-only; orientation lives in strategy docs + workflows
-- `[ ]` `system/githooks/commit-msg` enforces tuned 8-type set
+    - **Deviation:** R59's shape refined to a **minimal 1–3 line anchoring pointer** per file (not zero-preamble);
+      heavy About/Lifecycle/Portability/Writing-guide blocks were removed and relocated to
+      `strategy-session-operations.md` § SESSION-NOTES + `strategy-planning-module.md` § Inbox Family (Task 6.8).
+- `[x]` `system/githooks/commit-msg` enforces tuned 8-type set
   (`feat | fix | chore | docs | refactor | test | perf | revert`)
-- `[ ]` Three-layer scope convention codified per Design CLEAN — `commit-format.md` § Scope documents subject
+- `[x]` Three-layer scope convention codified per Design CLEAN — `commit-format.md` § Scope documents subject
   scope as locus, footer parenthetical as lifecycle action, subject body as specific work; `(arc)` reserved for
   cross-cutting framework + ARC lifecycle ceremony invocations; no mechanical scope-denylist
-- `[ ]` Ceremony commits across WU lifecycle workflows use `chore(arc): <action>` pattern (handoff / activate /
+- `[x]` Ceremony commits across WU lifecycle workflows use `chore(arc): <action>` pattern (handoff / activate /
   integrate / archive / deactivate) — verified by grep returning no `chore(status):` or `chore(meta):`
   references in adopter-facing surfaces
-- `[ ]` Handoff commits carry informative subject (`chore(arc): handoff — <position>`) and structured body
+    - **Deviation:** verification found one residual `chore(status): handoff` example in `strategy-workflow-authoring.md`
+      (both copies) teaching the retired pattern; corrected to `chore(arc): handoff` during the walk. Lifecycle
+      workflows themselves already use `chore(arc): {activate,integrate,archive,deactivate,handoff,…}`.
+- `[x]` Handoff commits carry informative subject (`chore(arc): handoff — <position>`) and structured body
   (`Last Completed` + `Next Task` field-delta lines) per `session-handoff.md` § Comprehensive Handoff Format
   step 3
-- `[ ]` CB-CC alignment documented in `strategy-work-organization.md` § branching with the cognitive-load rationale +
+- `[~]` CB-CC alignment documented in `strategy-work-organization.md` § branching with the cognitive-load rationale +
   intentional divergence on `test` / `revert`
-- `[ ]` Five-extension fire-point family ships with honest fire-point names per the codified convention
+    - **Superseded:** premise corrected during implementation (Task 2.1.d, PRD R28 amendment) — the "core-6 /
+      intentional test/revert divergence" framing rested on incorrect research about the Conventional Branch spec.
+      CB-relationship framing relocated to the `branch-format` method preamble ("inspired-by, not aligned-with");
+      § Branching carries only the `branch-format`/`commit-format` independent-axes composition note.
+- `[x]` Five-extension fire-point family ships with honest fire-point names per the codified convention
   (`pre-activation`, `pre-commit-review`, `pre-pr-review`, `pre-push-review`, `pre-merge-review`); naming convention
   documented in `strategy-configurability-architecture.md`
-- `[ ]` `pre-commit-review` wired into both `arc-commit` skill and `prepare-commits.md` workflow
-- `[ ]` `pre-push-review` wired into push wrapper (`arc release push` / `arc sync` push pathway)
-- `[ ]` New `pre-merge-review` wired into `integrate-work-unit.md` at the post-review-response fire-point (sits between
+- `[x]` `pre-commit-review` wired into both `arc-commit` skill and `prepare-commits.md` workflow
+- `[x]` `pre-push-review` wired into push wrapper (`arc release push` / `arc sync` push pathway)
+- `[x]` New `pre-merge-review` wired into `integrate-work-unit.md` at the post-review-response fire-point (sits between
   `review-response` and merge action)
-- `[ ]` Extension descriptions/contracts pass complete — every touched extension file's description, Contract block, and
+- `[x]` Extension descriptions/contracts pass complete — every touched extension file's description, Contract block, and
   "Use for" framing audited and aligned with WOR family conventions; decision boundaries between extensions and adjacent
   mechanisms (e.g., `pre-commit-review` vs git pre-commit hook) clarified
-- `[ ]` No broken cross-references after migration sweep — grep returns no orphans across workflows / strategies / rules
+- `[x]` No broken cross-references after migration sweep — grep returns no orphans across workflows / strategies / rules
   / briefs / templates
-- `[ ]` Roster cascade function ships in `packages/arc-framework/src/lib/git/` with Vitest unit + integration coverage;
+    - **Deviation:** enumerated surfaces clean. One orphan outside this scope — `commit-context-format.md` in
+      `.arc/system/.internal/manifest.json` (renamed file) — was found and fixed during the walk; the broader
+      self-hosting manifest-drift issue is captured to `backlog/ATOMIC-INBOX.md`.
+- `[x]` Roster cascade function ships in `packages/arc-framework/src/lib/git/` with Vitest unit + integration coverage;
   documented tuple shape returned
-- `[ ]` CLI init/join strips instance-file preamble injection — package source updated; seeded files in this repo
+- `[x]` CLI init/join strips instance-file preamble injection — package source updated; seeded files in this repo
   migrated; lint passes
-- `[ ]` Companion ADR landed in `.arc/reference/adr/` — records constitutional shift; parallel scale to ADR-016
-- `[ ]` § Spec-Flow Invariants section landed in `strategy-work-organization.md` — codifies the three invariants
+- `[x]` Companion ADR landed in `.arc/reference/adr/` — records constitutional shift; parallel scale to ADR-016
+- `[x]` § Spec-Flow Invariants section landed in `strategy-work-organization.md` — codifies the three invariants
   (`meta-*` always exists; task list structure invariant; parseable spec exists in some form before tasks) and the two
   scaling axes (mode + tier); spec-flow optionality contract explicitly deferred to arc-plan Conductor + AWL
-- `[ ]` `template-plan.md` framing clarified — "optional" hedge in preamble removed (deletion behavior preserved);
+- `[x]` `template-plan.md` framing clarified — "optional" hedge in preamble removed (deletion behavior preserved);
   framing describes `plan-*` as pre-PRD synthesis artifact deleted at PRD creation with optional `notes-*.md`
   graduation of substantive persisting content
-- `[ ]` Backlog migration complete — `backlog/feature/` and `backlog/technical/` retired; per-WU subdirs under
+    - **Deviation:** hedge dropped at Task 4.5; the file was then renamed `template-plan.md` → `template-draft.md`
+      (R67, Phase 7.3). The clarified framing is preserved in `template-draft.md`.
+- `[x]` Backlog migration complete — `backlog/feature/` and `backlog/technical/` retired; per-WU subdirs under
   `backlog/{planned,provisional}/<wu-name>/` carry meta + plan + companions; backlog root contains exactly `planned/`,
   `provisional/`, `ATOMIC-INBOX.md`, `BACKLOG-INBOX.md`, `ROADMAP.md`
-- `[ ]` Backlog-stage PRDs demoted — `prd-arcd-rebrand.md` and `prd-arcd-docs-site.md` renamed to `plan-*`; content
+- `[x]` Backlog-stage PRDs demoted — `prd-arcd-rebrand.md` and `prd-arcd-docs-site.md` renamed to `plan-*`; content
   reshaped from PRD commitment-language to plan-doc framing; docs-site WU additionally renamed `arcd-docs-site` →
   `docs-site-refresh`; routing per commitment (rebrand → provisional; docs-site-refresh → planned)
-- `[ ]` `commit-context-format` method renamed to `commit-footer` — file renamed in both copies; inbound references
+    - **Deviation:** renamed `prd-*` → `draft-*` (R67) rather than the SC's `plan-*`. Routing as specified —
+      `arcd-rebrand` → `provisional/`, `docs-site-refresh` → `planned/release-readiness/`; content reshaped to plan-doc
+      framing.
+- `[x]` `commit-context-format` method renamed to `commit-footer` — file renamed in both copies; inbound references
   updated (hook comment, prepare-commits frontmatter, arc-commit skill, DEV-RULES.ARC reference link, methods/README);
   config key `commit.context_footer` retained
-- `[ ]` Hook regex accepts the new parenthetical matrix per R29a — smoke tests cover positive cases (one per matrix
+- `[x]` Hook regex accepts the new parenthetical matrix per R29a — smoke tests cover positive cases (one per matrix
   cell) and negative cases (known-invalid patterns: `status-` prefix; `(content)`; `(maintenance)` on `plan-*`;
   `(planning)` on `meta-*`; old `(no associated task list)` shape); method documentation aligns with hook regex (no
   drift)
-- `[ ]` `**Cohort:**` field default value is `[none]` — not `[standalone]`; CLI tuple resolution treats `[none]` as
+- `[x]` `**Cohort:**` field default value is `[none]` — not `[standalone]`; CLI tuple resolution treats `[none]` as
   undefined cohort
-- `[ ]` Lifecycle workflow alignment complete — `deactivate-work-unit.md` restructured for single-branch model with new
+- `[x]` Lifecycle workflow alignment complete — `deactivate-work-unit.md` restructured for single-branch model with new
   case matrix; `clean-work-unit.md` updated for 4-state enum + meta-\* file shape + redirected completion handoff to
   integrate-work-unit composition; `rotate-branch.md` retired
-- `[ ]` `META-PRD` → `PROJECT-PRD` rename complete per R35 — file renamed in both copies (`.arc/reference/META-PRD.md` →
+- `[x]` `META-PRD` → `PROJECT-PRD` rename complete per R35 — file renamed in both copies (`.arc/reference/META-PRD.md` →
   `PROJECT-PRD.md`; package source template `META-PRD.template.md` → `PROJECT-PRD.template.md`); content rewritten per
   the new template shape; CLI `classification.ts` hardcoded reference updated (Task 5.4.f); cross-reference sweep clean
   (Task 6.7.k)
-- `[ ]` Orientation-content precondition satisfied per R59a — `strategy-session-operations.md` and
+- `[x]` Orientation-content precondition satisfied per R59a — `strategy-session-operations.md` and
   `strategy-planning-module.md` carry the SESSION-NOTES / inbox-family orientation content before instance-file
   preambles are stripped in Phase 6.8; zero net orientation loss across the R59 transition
-- `[ ]` `strategy-file-classification.md` updated — `meta-` file class introduced; `completion-` retired (folds into
+- `[x]` `strategy-file-classification.md` updated — `meta-` file class introduced; `completion-` retired (folds into
   meta archive-phase sections per R14); CB core-6 + `plan/` work-category prose reshape per R1
-- `[ ]` `strategy-task-list-formatting.md` updated — tasks-\* header reduces to `**Design:**` only per R58a + R68;
+- `[x]` `strategy-task-list-formatting.md` updated — tasks-\* header reduces to `**Design:**` only per R58a + R68;
   retired field labels (`**PRD:**`, `**Branch(es):**`, `**Purpose:**`) removed from header conventions
-- `[ ]` Phase 2 method/hook propagation lands before Phase 3 — commit-format `docs` discipline + `commit-context-format`
+- `[x]` Phase 2 method/hook propagation lands before Phase 3 — commit-format `docs` discipline + `commit-context-format`
   → `commit-footer` rename + hook regex matrix + smoke tests (Task 2.13) execute before Phase 3 lifecycle workflow
   restructures emit the new parenthetical patterns
-- `[ ]` TECHNICAL-OVERVIEW content reflects new shape per R61 — existing architecture / components / critical-path
+- `[x]` TECHNICAL-OVERVIEW content reflects new shape per R61 — existing architecture / components / critical-path
   sections preserved or refreshed; new update-trigger discipline section added; v1.1 template revisions ride the same
   Phase 4 work if shape ambiguities surface
-- `[ ]` TECHNICAL-OVERVIEW ceremony fire-points wired per R60 — `1_create-prd.md` carries the alignment check when PRDs
+- `[x]` TECHNICAL-OVERVIEW ceremony fire-points wired per R60 — `1_create-prd.md` carries the alignment check when PRDs
   touch technical surfaces; `activate-work-unit.md` and `integrate-work-unit.md` carry supplementary checks
-- `[ ]` Reference directory restructure complete per R62 — `.arc/completed/` present (promoted from `reference/archive/`
+- `[x]` Reference directory restructure complete per R62 — `.arc/completed/` present (promoted from `reference/archive/`
   with historical content intact); `.arc/reference/supplemental/{research,analysis}/` present (collapsed from sibling
   directories); inbound-reference sweep clean
-- `[ ]` One-shot template uniqueness principle codified per R63 — `strategy-file-classification.md` carries the
+- `[x]` One-shot template uniqueness principle codified per R63 — `strategy-file-classification.md` carries the
   principle + enumerated governed files; no `template-project-prd.md` or `template-technical-overview.md` created in
   `reference/templates/`
-- `[ ]` `plan-arc-in-git-as-default.md` created per R64 — exploratory `plan-*` doc in `backlog/feature/` (graduates to
+- `[x]` `plan-arc-in-git-as-default.md` created per R64 — exploratory `plan-*` doc in `backlog/feature/` (graduates to
   `backlog/provisional/<wu-name>/` once Task 6.4 completes); header explicitly marks exploratory state; Thesis +
   Rationale + Implication Inventory + Decision Gate + Cross-References sections present
-- `[ ]` Spec form scaling rename complete per R66 — `prd-*` file class retired in favor of `spec-*` (active + backlog);
+    - **Deviation:** fulfilled in expanded form via an `arc-plan` pass (Task 6.13) — the thesis widened to a
+      principle-anchored scalable core and landed `adr-020` + `meta`/`draft-scalable-core.md` (under
+      `backlog/planned/principle-anchored-core/scalable-core/`) + a `composable-workflows` stub, instead of a single
+      `plan-arc-in-git-as-default.md`.
+- `[x]` Spec form scaling rename complete per R66 — `prd-*` file class retired in favor of `spec-*` (active + backlog);
   spec-creation workflow renamed `1_create-prd.md` → `1_create-spec.md` (both copies); `template-prd.md` preserved as
   heaviest variant; lighter variants explicitly deferred to conductor WU scope; spec form variation routes through
   template choice + H1 signal (not filename)
-- `[ ]` Pre-spec exploration rename complete per R67 — `plan-*` file class retired in favor of `draft-*` (active +
+- `[x]` Pre-spec exploration rename complete per R67 — `plan-*` file class retired in favor of `draft-*` (active +
   backlog); `template-plan.md` renamed to `template-draft.md` (both copies, relocated under 7.3); `arc-plan` skill name
   preserved
-- `[ ]` Templates directory restructure complete (Phase 7.3) — `reference/templates/` split into `arc/` + `project/`
+- `[x]` Templates directory restructure complete (Phase 7.3) — `reference/templates/` split into `arc/` + `project/`
   (both copies); WU-artifact templates under `arc/work-unit/` with spec-form templates under `arc/work-unit/spec/`
   (`template-prd.md`) and `template-draft.md` as a work-unit sibling; `project/README.md` present as the adopter-owned
   keep-file; CLI seed surface (init-recipe / manifest / classification) + inbound template-path references swept;
   `npm test` green
-- `[ ]` Meta-file field rename complete per R68 — `**Spec:**` field renamed to `**Design:**` (`**Task List:**`
+- `[x]` Meta-file field rename complete per R68 — `**Spec:**` field renamed to `**Design:**` (`**Task List:**`
   retained) across template-meta.md, in-flight meta files, `tasks-*` header fields, validator script, pre-commit hook;
   chain-of-authority order on meta now reads `Origin → Design → Task List → PR URL`
-- `[ ]` Design-before-implementation principle codified per R68 — DEV-RULES.ARC § Task Execution carries the explicit
+- `[x]` Design-before-implementation principle codified per R68 — DEV-RULES.ARC § Task Execution carries the explicit
   principle statement; strategy-work-planning.md carries the principle as a pipeline invariant; template-meta.md comment
   block frames the design-directed semantic plainly; the `**Design:**` field reinforces the principle as its structural
   carrier (no rejected-alternative framing in adopter-facing docs)
-- `[ ]` All quality gates pass (`npm run -s lint:md`, `npm run lint:ts`, `npm run typecheck`, `npm test`,
+- `[x]` All quality gates pass (`npm run -s lint:md`, `npm run lint:ts`, `npm run typecheck`, `npm test`,
   `npm run build`)
-- `[ ]` Ready for integration
+- `[x]` Ready for integration
 
 ---
 

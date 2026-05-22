@@ -391,6 +391,14 @@ Alternatives:
   fields and documented rendering algorithm, ROADMAP can't surface parallelizability for
   worktree-per-WU operationally.
 
+**Update (Phase 7.R / 7.R.5):** The rendered-view *principle* above holds, but the original render *algorithm* it
+implied — spec R38's four-tier grouping (In Flight / Foundation / Tier 2+ / Independent Tracks) — was superseded by a
+startability model (In Flight / Ready / Blocked, keyed on `Depends On` satisfaction) when 7.R established the ROADMAP
+rendered-view baseline. The canonical algorithm now lives in `strategy-work-organization.md` § ROADMAP.
+Interim-coverage reality: the `arc roadmap render` CLI is deferred to the `roadmap-tooling` WU; what ships in WOR is the
+render baseline (7.R) plus regen-trigger discipline (7.R.5), hand-maintained per the documented algorithm. 7.R.5.a
+corrected the earlier assumption that all graduation / dep-edit fire-points are ceremony-wired.
+
 ### META-PRD as load-bearing reference, not standalone document
 
 External research's strongest finding on vision-doc liveness: live vision docs are referenced as

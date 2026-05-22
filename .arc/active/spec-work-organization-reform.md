@@ -451,6 +451,17 @@ of truth is the meta files (`**State:**`, `**Owner:**`, `**Depends On:**`). ROAD
 (`planned/` → `active/`); WU integration (`active/` → archive); dep-field edit on any planned/active meta-file. Each
 ceremony workflow includes a regenerate-ROADMAP step. Interim discipline pre-CLI: hand-maintain per algorithm.
 
+**Amendment (Phase 7.R / 7.R.5).** R37–R39 above describe the original render design and are preserved verbatim; the
+canonical algorithm now lives in `strategy-work-organization.md` § ROADMAP and supersedes the specifics here:
+
+- R38 step 2's `title fields` no longer apply — Title was dropped; ROADMAP renders by canonical WU-name.
+- R38 step 4's four-tier grouping (In Flight / Foundation / Tier 2+ / Independent Tracks) is replaced by the
+  startability model (In Flight / Ready / Blocked), keyed on `Depends On` satisfaction.
+- R39 overstates fire-point coverage — WU graduation and dep-field edits are not all ceremony-wired; 7.R.5.a documents
+  the actual regen-trigger split (including the planning-time gap).
+- R37's `arc roadmap render` auto-generation is deferred to the `roadmap-tooling` WU; what shipped here is the
+  rendered-view baseline (7.R) + regen-trigger discipline (7.R.5), hand-maintained per the documented algorithm.
+
 ### Archive shape and PROJECT-STATUS retirement (P0)
 
 **R40.** `.arc/reference/PROJECT-STATUS.md` deletes entirely. Function decomposes:
