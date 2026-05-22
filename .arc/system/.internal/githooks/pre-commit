@@ -437,13 +437,13 @@ if [ -n "$extension_point_candidates" ]; then
 fi
 
 # ============================================================================
-# CHECK 16: Meta-file `**Spec:**` field shape validation
+# CHECK 16: Meta-file `**Design:**` field shape validation
 # ============================================================================
-# Validates the shape of the `**Spec:**` field on staged meta files under
+# Validates the shape of the `**Design:**` field on staged meta files under
 # `.arc/active/` (flat layout) or `.arc/active/{category}/` (subdir layout).
 # Allowed values: empty, [none], bare-basename .md filename, or https?:// URL.
 # Surrounding whitespace and a single wrapping backtick pair are stripped before
-# matching. Tier-aware semantics (per-WU-type Spec requirements) are deferred to
+# matching. Tier-aware semantics (per-WU-type Design requirements) are deferred to
 # a downstream WU.
 meta_spec_candidates=$(git diff --cached --name-only --diff-filter=ACMR | \
     grep -E '^\.arc/active/([^/]+/)?meta-[^/]+\.md$' || true)
@@ -451,10 +451,10 @@ meta_spec_candidates=$(git diff --cached --name-only --diff-filter=ACMR | \
 if [ -n "$meta_spec_candidates" ]; then
     # shellcheck disable=SC2086 # Intentional word splitting — newline-separated paths
     if ! meta_spec_output=$(npx tsx packages/arc-framework/src/scripts/validate-meta-spec.ts $meta_spec_candidates 2>&1); then
-        echo -e "${RED}Error: Meta-file Spec field validation failed:${NC}"
+        echo -e "${RED}Error: Meta-file Design field validation failed:${NC}"
         echo "$meta_spec_output" | sed 's/^/   /'
         echo ""
-        echo "   Fix the \`**Spec:**\` value in the files listed above."
+        echo "   Fix the \`**Design:**\` value in the files listed above."
         errors=$((errors + 1))
     fi
 fi

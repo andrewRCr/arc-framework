@@ -169,7 +169,7 @@ case "$context_footer_mode" in
             echo "   Context: tasks-data-pipeline.md (planning)"
             echo "   Context: tasks-theme-system.md (maintenance)"
             echo "   Context: tasks-auth-system.md (code review)"
-            echo "   Context: plan-user-sync-ux.md (planning)"
+            echo "   Context: draft-user-sync-ux.md (planning)"
             echo "   Context: meta-auth-system.md (handoff)"
             echo "   Context: meta-structural-pass.md (activation)"
             echo "   Context: meta-auth-system.md (integration)"
@@ -258,9 +258,9 @@ case "$context_footer_mode" in
                     echo "   Your Context line: $context_line"
                 fi
 
-            # Matches: Context: (plan|prd)-[name].md (planning|code review)
-            elif echo "$context_line" | grep -qE '^Context: (plan|prd)-[a-zA-Z0-9-]+\.md \((planning|code review)\)$'; then
-                spec_file=$(echo "$context_line" | sed -E 's/Context: ((plan|prd)-[a-zA-Z0-9-]+\.md).*/\1/')
+            # Matches: Context: (draft|spec)-[name].md (planning|code review)
+            elif echo "$context_line" | grep -qE '^Context: (draft|spec)-[a-zA-Z0-9-]+\.md \((planning|code review)\)$'; then
+                spec_file=$(echo "$context_line" | sed -E 's/Context: ((draft|spec)-[a-zA-Z0-9-]+\.md).*/\1/')
 
                 spec_found=false
                 if [ -f ".arc/active/$spec_file" ]; then
@@ -270,7 +270,7 @@ case "$context_footer_mode" in
                 fi
 
                 if [ "$spec_found" = false ]; then
-                    echo -e "${YELLOW}Warning: Plan/PRD file '$spec_file' not found in active or backlog directories${NC}"
+                    echo -e "${YELLOW}Warning: Draft/spec file '$spec_file' not found in active or backlog directories${NC}"
                     echo "   This may be intentional if the file was just created or archived"
                     warnings=$((warnings + 1))
                 fi
@@ -323,8 +323,8 @@ case "$context_footer_mode" in
                 echo "   - Context: tasks-[name].md (Tasks X.Y-X.Z)"
                 echo "   - Context: tasks-[name].md (incidental during <context>)"
                 echo "   - Context: tasks-[name].md (planning), (maintenance), or (code review)"
-                echo "   - Context: plan-[name].md (planning) or (code review)"
-                echo "   - Context: prd-[name].md (planning) or (code review)"
+                echo "   - Context: draft-[name].md (planning) or (code review)"
+                echo "   - Context: spec-[name].md (planning) or (code review)"
                 echo "   - Context: meta-[name].md (handoff), (activation), (integration), (archival), (deactivation), or (maintenance)"
                 echo "   - Context: meta-[name].md (incidental during <context>)"
                 echo "   - Context: atomic-[name].md"

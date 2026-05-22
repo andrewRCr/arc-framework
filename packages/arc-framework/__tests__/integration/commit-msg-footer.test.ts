@@ -59,11 +59,11 @@ const positiveCases: FooterCase[] = [
   { name: "tasks-* (maintenance)", footer: "Context: tasks-foo.md (maintenance)" },
   { name: "tasks-* (code review)", footer: "Context: tasks-foo.md (code review)" },
 
-  // plan-* / prd-*
-  { name: "plan-* (planning)", footer: "Context: plan-foo.md (planning)" },
-  { name: "plan-* (code review)", footer: "Context: plan-foo.md (code review)" },
-  { name: "prd-* (planning)", footer: "Context: prd-foo.md (planning)" },
-  { name: "prd-* (code review)", footer: "Context: prd-foo.md (code review)" },
+  // draft-* / spec-*
+  { name: "draft-* (planning)", footer: "Context: draft-foo.md (planning)" },
+  { name: "draft-* (code review)", footer: "Context: draft-foo.md (code review)" },
+  { name: "spec-* (planning)", footer: "Context: spec-foo.md (planning)" },
+  { name: "spec-* (code review)", footer: "Context: spec-foo.md (code review)" },
 
   // meta-*
   { name: "meta-* (handoff)", footer: "Context: meta-foo.md (handoff)" },
@@ -94,8 +94,8 @@ const negativeCases: FooterCase[] = [
   // Retired phrasing `(incidental - discovered during X)`
   { name: "tasks-* (incidental - discovered during X) — retired phrasing", footer: "Context: tasks-foo.md (incidental - discovered during Task 1.2)" },
 
-  // (maintenance) is for tasks-* / meta-* / standalone — not plan-* / prd-*
-  { name: "plan-* (maintenance) — invalid", footer: "Context: plan-foo.md (maintenance)" },
+  // (maintenance) is for tasks-* / meta-* / standalone — not draft-* / spec-*
+  { name: "draft-* (maintenance) — invalid", footer: "Context: draft-foo.md (maintenance)" },
 
   // (planning) is not in the meta-* parenthetical set
   { name: "meta-* (planning) — invalid", footer: "Context: meta-foo.md (planning)" },

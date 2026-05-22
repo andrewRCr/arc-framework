@@ -3,7 +3,7 @@
  *
  * Given a list of staged file paths, identifies meta-files (`meta-*.md`)
  * under both flat (`.arc/active/meta-*.md`) and subdir
- * (`.arc/active/<category>/meta-*.md`) layouts. Validates the `**Spec:**`
+ * (`.arc/active/<category>/meta-*.md`) layouts. Validates the `**Design:**`
  * field value against the allowed shapes: empty, `[none]`, bare-basename
  * `.md` filename, or `https?://` URL; requires a valid `**State:**` value
  * from the codified four-value enum. Surrounding whitespace and a single
@@ -68,18 +68,18 @@ function collectFieldValues(content: string, field: string): string[] {
 }
 
 /**
- * Locate `**Spec:**` lines in a meta file and validate the value's shape.
+ * Locate `**Design:**` lines in a meta file and validate the value's shape.
  * Returns one diagnostic per problem; an empty array means the file passes.
  */
 export function validateSpec(content: string, path: string): string[] {
-  const captures = collectFieldValues(content, "Spec");
+  const captures = collectFieldValues(content, "Design");
 
   if (captures.length === 0) {
-    return [`${path}: missing \`**Spec:**\` line`];
+    return [`${path}: missing \`**Design:**\` line`];
   }
   if (captures.length > 1) {
     return [
-      `${path}: multiple \`**Spec:**\` lines (found ${captures.length})`,
+      `${path}: multiple \`**Design:**\` lines (found ${captures.length})`,
     ];
   }
 
@@ -91,7 +91,7 @@ export function validateSpec(content: string, path: string): string[] {
   if (URL_SHAPE.test(value)) return [];
 
   return [
-    `${path}: invalid \`**Spec:**\` value "${value}"; ${EXPECTED_SHAPE}`,
+    `${path}: invalid \`**Design:**\` value "${value}"; ${EXPECTED_SHAPE}`,
   ];
 }
 
