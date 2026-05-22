@@ -11,17 +11,14 @@
 - **Cohort:** [none]
 
 - **Task List:** `tasks-work-organization-reform.md`
-- **Last Completed:** Task 6.13 — R64 fulfilled in expanded form: the principle-anchored "scalable core"
-  thesis (`adr-020`) + `scalable-core` and `composable-workflows` backlog stubs + sibling-plan coordination.
-  Phase 6 complete. (`85f5907a`, `b66073b5`)
+- **Last Completed:** Task 7.8 — rename-pattern cross-reference sweep. Phase 7 complete: prd→spec / plan→draft
+  file-class rename + templates restructure (`arc/` + `project/`) + Design field, landed across 6 commits
+  (`7d0b0266`..`9e8be890`).
 - **Blockers:** [none]
 
-- **Next Task:** Task 7.1 — Rename `prd-*` → `spec-*` (file class + workflow) (line ~4080).
+- **Next Task:** Task 8.1 — Complete verification (load `verify-work-unit.md`) (line ~4317).
 
-- **Next Action:** Begin Phase 7 execution at Task 7.1. Phase 7 was re-specced this session — the meta-file
-  field rename is now **Design-only** (`**Spec:**` → `**Design:**`; `**Task List:**` retained), a
-  templates-directory restructure was added (Task 7.3: `arc/` + `project/` split, work-unit grouping), and the
-  pre-implementation audit's corrections are folded into the tasks. Execute 7.1–7.8 as one artifact-rename +
-  restructure block; see SESSION-NOTES for carry-as-context impl details.
+- **Next Action:** Begin Phase 8 — load and follow `verify-work-unit.md` for Task 8.1. Phase 7 is committed and
+  green (links / lint / tests); verification then integration remain in WOR.
 
 ---
