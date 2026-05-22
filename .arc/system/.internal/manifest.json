@@ -235,10 +235,10 @@
       "layer": "core",
       "pristine_hash": "fc4e2058b9de8de86f33db9d5c617c509943c5d1c27de0f04ec706ba3e87ef62"
     },
-    "system/methods/commit-context-format.md": {
+    "system/methods/commit-footer.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "093b0ed41baa6210cccde6295b9a36769a1ac2587b07dbed5a7be225cd873f18"
+      "pristine_hash": "3948fa3a628cf33e6d43466548037e7b1d188b19216852f2a00f996cf2f93245"
     },
     "system/methods/commit-format.md": {
       "classification": "Configurable",
