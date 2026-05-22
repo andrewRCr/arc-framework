@@ -245,10 +245,10 @@ each ripple is small. Not atomic because the design decisions warrant a plan doc
 - Update `system/workflows/arc/3_process-task-loop.md` — bundling check integration at task
   completion; deferred-review rule revision (commits release at leaves; bundling signals still
   fire).
-- Update `reference/constitution/DEV-RULES.ARC.md` — § Task Execution (review increment +
+- Update `system/rules/DEV-RULES.ARC.md` — § Task Execution (review increment +
   commit increment vocabulary, deferred-review behavior under each interlock mode) and
   § Commit Discipline (atomicity rule references the new method).
-- Update `system/briefs/AGENT-BRIEF.ARC.md` — vocabulary section adds commit increment;
+- Update `reference/briefs/AGENT-BRIEF.ARC.md` — vocabulary section adds commit increment;
   deferred-review summary updated.
 - Optional: update `arc-task-audit` skill and `2_generate-tasks.md` workflow to consult the
   method for design-time atomicity awareness. May be deferred to a follow-up if the runtime
