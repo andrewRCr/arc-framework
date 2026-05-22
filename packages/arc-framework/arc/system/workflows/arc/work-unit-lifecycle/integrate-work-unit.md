@@ -147,7 +147,7 @@ infrastructure). Independent of the PROJECT-PRD check — scope distinction is t
 ### 8) Compose Release Notes Entry — uncommitted
 
 Compose a user-facing entry into `active/meta-{name}.md`'s archive-phase Release Notes section per
-`template-meta.md`'s schema, reflecting final reviewed scope.
+[`template-meta.md`][template-meta]'s schema, reflecting final reviewed scope.
 
 Leave the edit uncommitted — Step 11's interlock surfaces it alongside the rest of the composition for review
 before the commit fires.
@@ -155,7 +155,7 @@ before the commit fires.
 ### 9) Compose Completion Notes — uncommitted
 
 Compose narrative Completion Notes into the meta file's archive-phase Completion Notes section per
-`template-meta.md`'s schema. Same uncommitted-surfacing pattern as Step 8.
+[`template-meta.md`][template-meta]'s schema. Same uncommitted-surfacing pattern as Step 8.
 
 ### 10) Drain-write — uncommitted · `arc-in-git` only
 
@@ -260,6 +260,7 @@ arc user close {name}
 [review-triage]: ../../../methods/review-triage.md
 [commit-footer]: ../../../methods/commit-footer.md
 [template-pull-request]: ../../../../reference/templates/arc/work-unit/template-pull-request.md
+[template-meta]: ../../../../reference/templates/arc/work-unit/template-meta.md
 [archive-work-unit]: archive-work-unit.md
 [clean]: ../supplemental/clean-work-unit.md
 [create-spec]: ../1_create-spec.md
