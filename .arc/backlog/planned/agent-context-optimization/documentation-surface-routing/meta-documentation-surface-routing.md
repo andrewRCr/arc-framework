@@ -7,7 +7,7 @@
 - **Origin:** [internal]
 - **Design:** `draft-documentation-surface-routing.md`
 
-- **Depends On:** [none]
+- **Depends On:** handoff-optimization
 - **Cohort:** agent-context-optimization
 
 - **Task List:** [none]

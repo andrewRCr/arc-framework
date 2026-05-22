@@ -7,7 +7,7 @@
 - **Origin:** [internal]
 - **Design:** `draft-contributor-path.md`
 
-- **Depends On:** [none]
+- **Depends On:** agile-wu-lifecycle
 - **Cohort:** [none]
 
 - **Task List:** [none]

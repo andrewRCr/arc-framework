@@ -7,7 +7,7 @@
 - **Origin:** [internal]
 - **Design:** `draft-agile-wu-lifecycle.md`
 
-- **Depends On:** [none]
+- **Depends On:** worktree-foundation
 - **Cohort:** agile-parallelism
 
 - **Task List:** [none]

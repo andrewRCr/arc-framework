@@ -7,7 +7,7 @@
 - **Origin:** [internal]
 - **Design:** `draft-handoff-optimization.md`
 
-- **Depends On:** [none]
+- **Depends On:** work-organization-reform
 - **Cohort:** agent-context-optimization
 
 - **Task List:** [none]

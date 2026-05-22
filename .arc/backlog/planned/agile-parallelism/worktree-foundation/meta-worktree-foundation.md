@@ -7,7 +7,7 @@
 - **Origin:** [internal]
 - **Design:** `draft-worktree-foundation.md`
 
-- **Depends On:** [none]
+- **Depends On:** work-organization-reform
 - **Cohort:** agile-parallelism
 
 - **Task List:** [none]

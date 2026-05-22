@@ -7,7 +7,7 @@
 - **Origin:** [internal]
 - **Design:** `draft-concurrent-work-conventions.md`
 
-- **Depends On:** [none]
+- **Depends On:** agile-wu-lifecycle
 - **Cohort:** agile-parallelism
 
 - **Task List:** [none]

@@ -7,7 +7,7 @@
 - **Origin:** [internal]
 - **Design:** `draft-coord-probe.md`
 
-- **Depends On:** [none]
+- **Depends On:** worktree-foundation
 - **Cohort:** cross-machine-coherence
 
 - **Task List:** [none]

@@ -7,7 +7,7 @@
 - **Origin:** [internal]
 - **Design:** `draft-cli-substrate-adoption.md`
 
-- **Depends On:** [none]
+- **Depends On:** work-organization-reform
 - **Cohort:** [none]
 
 - **Task List:** [none]

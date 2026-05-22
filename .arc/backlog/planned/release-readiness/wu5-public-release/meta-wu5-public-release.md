@@ -7,7 +7,7 @@
 - **Origin:** [internal]
 - **Design:** `draft-wu5-public-release.md`
 
-- **Depends On:** [none]
+- **Depends On:** docs-content-sweep
 - **Cohort:** release-readiness
 
 - **Task List:** [none]

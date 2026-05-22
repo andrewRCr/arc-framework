@@ -7,7 +7,7 @@
 - **Origin:** [internal]
 - **Design:** `draft-loadset-composition.md`
 
-- **Depends On:** [none]
+- **Depends On:** work-organization-reform
 - **Cohort:** agent-context-optimization
 
 - **Task List:** [none]

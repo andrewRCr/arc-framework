@@ -7,7 +7,7 @@
 - **Origin:** [internal]
 - **Design:** `draft-schema-introspection-layer.md`
 
-- **Depends On:** [none]
+- **Depends On:** cli-substrate-adoption
 - **Cohort:** architecture-remediation
 
 - **Task List:** [none]

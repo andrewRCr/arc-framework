@@ -7,7 +7,7 @@
 - **Origin:** [internal]
 - **Design:** `draft-cross-machine-sync-coherence.md`
 
-- **Depends On:** [none]
+- **Depends On:** worktree-foundation
 - **Cohort:** cross-machine-coherence
 
 - **Task List:** [none]

@@ -7,7 +7,7 @@
 - **Origin:** [internal]
 - **Design:** `draft-scalable-core.md`
 
-- **Depends On:** [none]
+- **Depends On:** work-organization-reform
 - **Cohort:** principle-anchored-core
 
 - **Task List:** [none]

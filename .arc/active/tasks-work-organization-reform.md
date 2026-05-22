@@ -4326,7 +4326,7 @@ fields are `[none]` almost everywhere today, so 7.R.1's dependency baseline (inc
 substantive enabler, not a reformat. The "roadmap" rename, direction's home, and parallel-safety are deferred to
 `roadmap-tooling` / CWC — see `draft-roadmap-tooling.md`.
 
-### `[ ]` **7.R.1 Backlog baseline — promotions, cohorts, dependency graph**
+### `[x]` **7.R.1 Backlog baseline — promotions, cohorts, dependency graph**
 
 - _Goal:_ Every `active/**` and `backlog/planned/**` meta file carries accurate relational fields so the
   render is faithful: merely-unsequenced provisional WUs are promoted, `**Cohort:**` reflects real grouping,
@@ -4346,12 +4346,13 @@ substantive enabler, not a reformat. The "roadmap" rename, direction's home, and
           kept in `architecture-remediation`); `customization-arch-realign` ⇄ `review-method-family` coupling
           routed to 7.R.1.c as a dependency edge.
 
-    - `[ ]` **7.R.1.c Dependency baseline with hidden-dep hunt**
-        - Backfill `**Depends On:**` across planned (+ active WOR) meta files from the reconciled truth —
-          drafts are most current; ROADMAP prose is stale in places; some fields already drifted (e.g.
-          `arc-plan-conductor` → `loadset-composition`). Deliberately hunt for hidden/unassumed edges; this
-          sets the baseline, so do it right. Surface ambiguous or newly-found edges for confirmation before
-          writing.
+    - `[x]` **7.R.1.c Dependency baseline with hidden-dep hunt**
+        - Backfilled `**Depends On:**` hard + proximate only — soft sequencing prefs stay in draft prose. 19
+          edges written (+4 pre-existing kept); 12 WUs stay `[none]`. WOR anchors the first wave (auto-flips
+          Blocked→Ready when it ships). Notable: `architecture-remediation`'s internal order is all soft (only
+          `schema-introspection-layer` hard-needs `cli-substrate-adoption`); `principle-anchored-core` left
+          edgeless within the cohort (co-design); `docs-site-refresh` kept `[none]` (decoupled from
+          `arcd-rebrand`).
 
 ### `[ ]` **7.R.2 Revise the codified ROADMAP algorithm + framing**
 

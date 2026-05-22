@@ -7,7 +7,7 @@
 - **Origin:** [internal]
 - **Design:** `draft-review-method-family.md`
 
-- **Depends On:** [none]
+- **Depends On:** work-organization-reform
 - **Cohort:** [none]
 
 - **Task List:** [none]

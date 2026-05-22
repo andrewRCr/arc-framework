@@ -7,7 +7,7 @@
 - **Origin:** [internal]
 - **Design:** `draft-composable-workflows.md`
 
-- **Depends On:** [none]
+- **Depends On:** work-organization-reform
 - **Cohort:** principle-anchored-core
 
 - **Task List:** [none]
