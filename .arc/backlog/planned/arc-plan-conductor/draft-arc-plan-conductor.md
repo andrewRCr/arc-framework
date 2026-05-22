@@ -60,6 +60,13 @@ Conductor-WU implications of the rename (substantive content captured here, not 
    this WU's PRD time — note that the workflow's scope (operating on `draft-*` docs through
    refinement passes) matches `refine-draft-loop` more cleanly than `refine-plan-loop` does
    post-rename.
+6. **`1_create-spec.md` body still PRD-framed.** WOR renamed the workflow file (`1_create-prd.md` →
+   `1_create-spec.md`) and the spec file class (`prd-*` → `spec-*`), but deliberately left the
+   workflow *body* PRD-centric — H1 "Workflow: Create PRD", PRD-shaped prose throughout (WOR Task
+   7.1.c). The form-agnostic reframe — generalizing the workflow beyond PRD, paired with the lighter
+   spec-form templates (§ 3) — is this WU's scope. Until then the filename leads the content: a
+   reader opening `1_create-spec.md` finds a create-PRD workflow. Sequence the body reframe with the
+   template-variant work (§ 3) so the workflow generalizes as the forms it targets land.
 
 **Scalable-core alignment (ADR-020).** ADR-020 steers this WU to extend depth-selection / single-entry
 beyond the planning entry point to the *lifecycle* workflows (init / activate / integrate / archive) —
