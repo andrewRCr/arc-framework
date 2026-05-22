@@ -11,16 +11,14 @@
 - **Cohort:** [none]
 
 - **Task List:** `tasks-work-organization-reform.md`
-- **Last Completed:** Task 7.8 (Phase 7 complete). This session: 4 atomic-companion items + Tier-3 gates (all
-  green) across 5 commits (`a714e361`..`b2833e3a`); Task 8.1 verification in progress, not yet closed.
-- **Blockers:** Task 8.1 SC #8 (ROADMAP deterministic-regen + generated-by/last-rendered markers) open — algorithm
-  codified (Task 2.4) but no regen tool and markers absent; needs downstream-absorption check + decision before 8.1
-  closes (see SESSION-NOTES).
+- **Last Completed:** Phase 7 complete + 4 atomic items closed; scoped Phase 7.R (ROADMAP rendered-view
+  baseline) + created the `roadmap-tooling` backlog stub (commits `ddf7a82c`, `bdb8d673`).
+- **Blockers:** [none]
 
-- **Next Task:** Task 8.1 — Complete verification (load `verify-work-unit.md`) (line ~4317).
+- **Next Task:** Task 7.R.1 — Backlog baseline: promotions, cohorts, dependency graph (line ~4330).
 
-- **Next Action:** Resume Task 8.1 — evaluate the #8 ROADMAP-regen question (downstream absorption + bridge options,
-  see SESSION-NOTES), then apply the criteria marks + Step 3 atomic resolution + Step 4 meta pre-align + mark 8.1.
-  Load `verify-work-unit.md`.
+- **Next Action:** Begin Task 7.R.1 — backlog baseline: promote `composable-workflows` + `scalable-core` to
+  `planned/`, cohort review/alignment, then the careful `Depends On` baseline (hidden-dep hunt; surface ambiguous
+  edges). Then 7.R.2 (revise § ROADMAP algorithm, both copies) + 7.R.3 (render).
 
 ---
