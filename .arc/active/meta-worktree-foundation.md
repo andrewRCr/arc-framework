@@ -11,11 +11,11 @@
 - **Cohort:** agile-parallelism
 
 - **Task List:** [none]
-- **Last Completed:** Cohort shift-design reconciliation (shift extracted + shift-state cut; WF/AWL/CWC harmonized)
+- **Last Completed:** Change work-class capture — ADR-021 (Proposed) + `cohort-agile-parallelism.md` + WF seam
 - **Next Task:** [none]
 - **Blockers:** [none]
 
 - **Next Action:** Resolve `draft-worktree-foundation.md` open questions (worktree lifecycle
-  ceremony, detection depth, dashboard candidate, pivot naming), then `1_create-spec.md`.
+  ceremony, detection depth, Change-class seam, pivot naming), then `1_create-spec.md`.
 
 ---
