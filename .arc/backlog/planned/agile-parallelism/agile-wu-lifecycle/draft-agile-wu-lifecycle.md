@@ -16,15 +16,13 @@ the agility gap where ARC's uniform ceremony costs more than the work for short-
 
 ## WOR alignment note (2026-05-19)
 
-WOR R66-R68 renames WU artifact prefixes (`plan-*` → `draft-*`, `prd-*` → `spec-*`) and the meta-file
-field `**Spec:**` → `**Design:**` (`**Task List:**` retained). Spec form variation
-routes through template choice under the unified `spec-*` filename — `template-prd.md` preserved as
-heaviest variant; lighter variants deferred to `plan-arc-plan-conductor` WU scope (`brief` ruled out
-as a name — collides with `reference/briefs/`).
-
-The shift-state reconciliation is applied inline below (cohort planning — see
-`notes-worktree-foundation.md`). The WOR terminology renames above (`plan-*` → `draft-*`, etc.) still
-want a separate inline substitution pass.
+WOR R66-R68's renames are applied throughout this draft: WU artifact prefixes `plan-*` → `draft-*`
+and `prd-*` → `spec-*`, and the meta field `Spec` → `Design` (`Task List` retained). Spec form
+variation routes through template choice under the unified `spec-*` filename — `template-prd.md`
+preserved as the heaviest variant; lighter variants defer to `draft-arc-plan-conductor` WU scope
+(`brief` ruled out as a name — collides with `reference/briefs/`). References to completed WUs
+(Session-Operational Flow, Work Organization Reform, User Sync UX) keep their as-shipped artifact
+names. The shift-state reconciliation is applied inline too — see `notes-worktree-foundation.md`.
 
 Substantive AWL-specific implications (captured here):
 
@@ -42,10 +40,9 @@ Substantive AWL-specific implications (captured here):
 3. **Atomic-tier spec — binary at conductor PRD time.** Per WOR follow-on planning: atomic either
    gets a required-and-tiny spec (one-paragraph form) OR no spec at all. Not optional. Resolution
    defers to conductor WU's PRD.
-4. **Meta-file field values** (current scope item 3) — under WOR rename, `**Spec:**` field becomes
-   `**Design:**`; values become `draft-{name}.md` (Planning), `spec-{name}.md` (Active+). Form
-   variation (PRD vs brief vs etc.) lives in template choice + H1, not in filename. Update scope
-   item 3's value examples accordingly at WU activation.
+4. **Meta field values** (scope item 3) — the field is `**Design:**` (renamed from `Spec`); values are
+   `draft-{name}.md` (Planning), `spec-{name}.md` (Active+). Form variation (PRD vs brief vs etc.)
+   lives in template choice + H1, not in filename.
 
 - **Origin:** Surfaced during the agile/mobility expansion discussion when Worktree
   Foundation (mechanism) and Concurrent Work Conventions (conventions) were carved out
@@ -109,7 +106,7 @@ PR review for shared branches. That discipline drives quality and is invariant a
 What scales with WU size is **artifact ceremony**: planning artifacts (plan-*, PRD), task structure
 (phased vs flat vs none), and archival artifacts (completion doc vs PR description).
 
-This framing **explicitly answers the `plan-arc-modes.md` § Mode 1 rejection** of the
+This framing **explicitly answers the `draft-arc-modes.md` § Mode 1 rejection** of the
 "Required vs Available" model. That rejection was about making *execution discipline* optional — task
 interlocks removed, quality gates skipped, "trust the dev." This WU does none of that: execution
 discipline is enforced at every tier. What varies is where the spec lives, how tasks are organized,
@@ -164,21 +161,21 @@ get promoted: add the plan-*/PRD, restructure the task list into phases, continu
 2. **`**Tier:**` field on every meta file** — source of truth, declared at activation. Existing
    in-flight WUs migrate to `**Tier: standard**` (matches their current ceremony level).
 
-3. **`**Spec:**` field on every meta file** — pointer to where the work's specification lives.
-   **Field introduction is upstream:** `**Spec:**` is introduced as a generic optional pointer in
+3. **`**Design:**` field on every meta file** — pointer to where the work's specification lives.
+   **Field introduction is upstream:** `**Design:**` is introduced as a generic optional pointer in
    Session-Operational Flow Phase 1 (planning-session active surface scope, with
-   `**Spec:** plan-{name}.md` value). This WU adds tier-specific value semantics and tier-aware
+   `**Design:** draft-{name}.md` value). This WU adds tier-specific value semantics and tier-aware
    validation on top of the already-introduced field.
 
-   **Orthogonality with `**Origin:**`** (per WOR's Origin ⊥ Spec design decision): `**Spec:**`
+   **Orthogonality with `**Origin:**`** (per WOR's Origin ⊥ Design orthogonality): `**Design:**`
    always points at an ARC-owned planning artifact. External trackers (GitHub issues, Jira, Linear)
-   go in `**Origin:**`, never `**Spec:**`. The two fields are independent — a quick-tier WU can have
-   an external `**Origin:**` and an internal `**Spec:** tasks-{name}.md`.
+   go in `**Origin:**`, never `**Design:**`. The two fields are independent — a quick-tier WU can have
+   an external `**Origin:**` and an internal `**Design:** tasks-{name}.md`.
 
    Values:
-    - `**Spec:** plan-{name}.md` — planning state (introduced upstream)
-    - `**Spec:** prd-{name}.md` — standard tier, in-repo PRD
-    - `**Spec:** tasks-{name}.md` — quick tier under `pm.layer: arc-pm`, points to Scope section in
+    - `**Design:** draft-{name}.md` — planning state (introduced upstream)
+    - `**Design:** spec-{name}.md` — standard tier, in-repo PRD
+    - `**Design:** tasks-{name}.md` — quick tier under `pm.layer: arc-pm`, points to Scope section in
       the task list header (or to a compact PRD doc — see open question below)
     - omitted for atomic — work is self-evident from PR description; `**Origin:**` carries any
       external-tracker reference
@@ -194,7 +191,7 @@ get promoted: add the plan-*/PRD, restructure the task list into phases, continu
    Standard tier reached via the planning workflow path (plan → PRD → activate), not via
    `arc start`.
 
-   **Composition with the cold-start primitive (`plan-worktree-foundation.md` item 11).**
+   **Composition with the cold-start primitive (`draft-worktree-foundation.md` item 11).**
    `arc start` is the spawn-from-existing-session entry point — it creates the worktree (when
    applicable per tier), scaffolds the meta file, and reports the new worktree path so a fresh
    session can pick up via the cold-start primitive. Adopters working in tool-spawned worktrees
@@ -203,7 +200,7 @@ get promoted: add the plan-*/PRD, restructure the task list into phases, continu
    different entry point. Both paths converge once the meta file is written.
 
 5. **Quick-tier task list shape.** Flat task list (no phases). Required `## Scope` prose section at
-   the top (3-5 sentences, bounded by convention) when no external `**Spec:**` is set — fills the
+   the top (3-5 sentences, bounded by convention) when no external `**Design:**` is set — fills the
    internal-spec gap under `pm.layer: arc-pm`. New section in [strategy-task-list-formatting.md][
    tasklist-fmt] § Quick Tier.
 
@@ -325,8 +322,8 @@ work.
 Frontmatter is for metadata; the scope is content. A `## Scope` prose section at the top of the
 quick-tier task list is human-readable, version-controlled, naturally bounded by convention. The
 scope section is the in-repo spec surface regardless of whether an external tracker is the WU's
-Origin — under WOR's Origin ⊥ Spec orthogonality, external trackers go in `**Origin:**`, not
-`**Spec:**`, and the internal spec always lives in an ARC-owned artifact.
+Origin — under WOR's Origin ⊥ Design orthogonality, external trackers go in `**Origin:**`, not
+`**Design:**`, and the internal spec always lives in an ARC-owned artifact.
 
 ### Atomic tier preserves task discipline at commit boundaries
 
@@ -358,7 +355,7 @@ no codified init workflow that skips Planning; the meta file gets hand-created w
 4) is the natural home for that path — decide at PRD time whether `arc start` covers atomic-tier
 init directly (no Planning → Active transition), whether `init-work-unit.md` evolves to accept a
 life-phase parameter (Planning vs Active → branch-prefix follows), or whether the conductor
-(`plan-arc-plan-conductor.md`) absorbs both shapes. Surfaced during WOR's cross-reference sweep
+(`draft-arc-plan-conductor.md`) absorbs both shapes. Surfaced during WOR's cross-reference sweep
 when reframing `2_generate-tasks.md`'s pre-WOR "directly-on-base-branch" bifurcation — that
 workflow narrowed under WOR to the canonical planning-life-phase flow only.
 
@@ -459,7 +456,7 @@ PRD-time decision after observing usage patterns under the new tier model.
 
 ### Default `**Origin:**` population with an external tracker present
 
-Under WOR's Origin ⊥ Spec orthogonality, external trackers populate `**Origin:**`, not `**Spec:**`
+Under WOR's Origin ⊥ Design orthogonality, external trackers populate `**Origin:**`, not `**Design:**`
 (retired `pm.layer: external` value, framing collapsed per WOR's design decision). Should
 `arc start --tier quick` default to populating `**Origin:**` from the current branch's linked
 PR/issue (via coord-probe) when a `coord.adapter` is configured? Or always require explicit
@@ -479,22 +476,22 @@ Likely manual + structural-detection nudges, but PRD decision.
 
 ### Tier-aware Spec field validation
 
-Should pre-commit hooks validate the `**Spec:**` field matches tier expectations (standard tier must
+Should pre-commit hooks validate the `**Design:**` field matches tier expectations (standard tier must
 point at PRD; quick must point at task list or compact PRD; atomic omits)? Validation adds
 strictness; relaxed handling tolerates in-flight transitions. Probably warn-not-block; PRD decision.
-External-tracker URLs (now in `**Origin:**`, not `**Spec:**`, per WOR's orthogonality framing) are
+External-tracker URLs (now in `**Origin:**`, not `**Design:**`, per WOR's orthogonality framing) are
 out of this validation's scope.
 
 ### Quick-tier spec shape — task-list header vs reduced PRD doc
 
-Under WOR's Origin ⊥ Spec orthogonality framing, `**Spec:**` always points at an ARC-owned
+Under WOR's Origin ⊥ Design orthogonality framing, `**Design:**` always points at an ARC-owned
 artifact (external trackers go in `**Origin:**`). The remaining question is where the
 quick-tier internal spec lives:
 
 - **Task-list header `## Scope` section** (current scope item 5): in-repo spec surface as a
   prose section at the top of `tasks-{name}.md`. Minimal — no separate doc.
 - **Reuse Lite mode's reduced PRD template**: quick tier under `pm.layer: arc-pm` points its
-  `**Spec:**` field at a compact PRD doc rather than a section of the task list. Creates
+  `**Design:**` field at a compact PRD doc rather than a section of the task list. Creates
   cross-mode parallelism: Lite project's PRD has the same shape as Full mode's quick-tier PRD, and
   graduation Lite → Full preserves the spec shape for the first quick WU.
 
@@ -514,7 +511,7 @@ quick-tier internal spec lives:
 - *(Against compact-PRD)* "PRD" naming carries weight quick tier may not warrant — could rename
   for the reduced shape (Spec? Brief? compact-PRD?) but that fragments naming across modes.
 
-**Coordination:** depends on Lite mode's reduced PRD template shape, which is `plan-arc-modes.md`
+**Coordination:** depends on Lite mode's reduced PRD template shape, which is `draft-arc-modes.md`
 § The Lite PRD scope. If Lite PRD template lands first or in parallel, this WU adopts it for
 quick tier directly. If Lite mode is still iterating, this WU may need to either wait or ship
 with the task-list-header fallback and migrate later.
@@ -524,7 +521,7 @@ spec patterns.
 
 ### Status template versioning during migration
 
-Adding `**Tier:**` and `**Spec:**` fields to template-status is a template change. Existing in-flight
+Adding `**Tier:**` and `**Design:**` fields to template-meta is a template change. Existing in-flight
 meta files don't have the fields. Migration: assume `Tier: standard`, `Spec: prd-{name}.md` if
 PRD exists else `tasks-{name}.md`. Auto-migrate at session-init? Manual? PRD decision.
 
@@ -540,7 +537,7 @@ Phases (provisional):
 1. **Constitutional foundation** — ADR drafting, DEV-RULES.ARC tier-definition amendments,
    tiered-artifacts/invariant-discipline framing, alignment with plan-arc-modes' rejection of
    "Required vs Available" model (explicit answer in the constitutional language).
-2. **Meta template + Spec field** — `**Tier:**` and `**Spec:**` fields on `template-meta.md`
+2. **Meta template + Spec field** — `**Tier:**` and `**Design:**` fields on `template-meta.md`
    (no separate `**Integration:**` field — WOR folded merge-position into `**State:**`); migration
    handling for existing WUs.
 3. **`arc start` command** — CLI subcommand implementation, default-tier semantics, flag handling,
@@ -596,7 +593,7 @@ concrete examples for the strategy doc.
   tools (Cluster 1: Zed, Warp, Worktrunk; Cluster 2: Conductor, emdash, Maestro; Cluster 3: Super,
   Superset, T3code, Soloterm, Nora). Closes the question of whether `arc start` retains a clear
   role alongside parallel workspace tools — yes, as the spawn-from-existing-session entry point,
-  paired with `plan-worktree-foundation.md` item 11's cold-start primitive (the tool-spawned-
+  paired with `draft-worktree-foundation.md` item 11's cold-start primitive (the tool-spawned-
   worktree entry point). Both entry points produce the same scaffolded meta file; adopters pick
   per WU based on origin. Tier model survives unchanged — tier selection at `arc start`
   (`--tier atomic | quick | standard`) and at the cold-start primitive operates on the same

@@ -4,14 +4,14 @@
 as the canonical home for activation-time concurrency-check guidance, parallelism decision rubrics,
 rebase / merge discipline for concurrent WUs, worktree operational guidance, async-merge
 accommodation, and main-worktree-under-full-protection framing. Composes with
-`plan-worktree-foundation.md` (mechanism) and `plan-agile-wu-lifecycle.md` (tier model) to deliver
+`draft-worktree-foundation.md` (mechanism) and `draft-agile-wu-lifecycle.md` (tier model) to deliver
 "agile, principled, multi-WU work."
 
 - **State:** Draft — pre-PRD exploration captured. Renamed from former Work-Unit Mobility WU as part
   of the agile/mobility split (mechanism → Worktree Foundation; tier model → Agile WU Lifecycle;
   conventions → this WU). Iteration expected before PRD promotion. Updated 2026-05-08:
   redesigned around external-research-informed lighter shape — focus-role field model rejected;
-  conventions land as judgment-based protocols + strategy-doc guidance, not as new status-file
+  conventions land as judgment-based protocols + strategy-doc guidance, not as new meta-file
   fields. See `research-focus-wip-attention-discipline.md`,
   `research-active-work-coordination-vocabulary.md`, `research-concurrent-work-mechanism-layer.md`,
   and `research-integration-conflict-handling.md` for the research underpinning the redesign.
@@ -23,8 +23,8 @@ accommodation, and main-worktree-under-full-protection framing. Composes with
   planning branch as the conventions layer of mobility. Carved out from the original Work-Unit
   Mobility plan during the agile/mobility design discussion when three-layer scope (mechanism +
   conventions + agile lifecycle) proved too large for one WU. Mechanism extracted to
-  `plan-worktree-foundation.md`; agile-lifecycle scope newly identified and split to
-  `plan-agile-wu-lifecycle.md`; this WU retains the conventions layer.
+  `draft-worktree-foundation.md`; agile-lifecycle scope newly identified and split to
+  `draft-agile-wu-lifecycle.md`; this WU retains the conventions layer.
 
   **2026-05-08 redesign.** During Interlock Release Wrappers WU1 the parallelization-safety gap
   was surfaced — none of the trio plans modeled "is this WU safe to parallelize against in-flight
@@ -34,14 +34,14 @@ accommodation, and main-worktree-under-full-protection framing. Composes with
   touched-files / scope-overlap probes are not idiomatic and brittle in practice; conflict
   prediction tools exist but adoption is limited. Reframe: rely on agent judgment at activation,
   soft conventions in the strategy doc, and operational guidance for handling conflicts at
-  integration. No new status-file field, no overlap probe, no formal primacy model.
+  integration. No new meta-file field, no overlap probe, no formal primacy model.
 
 ---
 
 ## Problem / Motivation
 
-`plan-worktree-foundation.md` ships the mechanism for parallel work — worktrees, shift, session-init
-worktree-awareness, branch-gone detection. `plan-agile-wu-lifecycle.md` ships the tier model for
+`draft-worktree-foundation.md` ships the mechanism for parallel work — worktrees, shift, session-init
+worktree-awareness, branch-gone detection. `draft-agile-wu-lifecycle.md` ships the tier model for
 fast WU spin-up. But mechanism and tier model alone leave the **patterns of multi-WU usage**
 unaddressed:
 
@@ -64,7 +64,7 @@ ARC's attention-discipline principles.
 independent branches are structurally supported:
 
 > Parallel work units on independent branches... The work units don't coordinate at all at the
-> status-file layer: different files, different branches, different task lists.
+> meta-file layer: different files, different branches, different task lists.
 > **This is the dominant pattern for parallel solo work on independent concerns.**
 
 The phrase "parallel solo work" is doing heavy lifting. With Worktree Foundation shipped, the
@@ -111,7 +111,7 @@ This framing has direct implications for conventions in this WU:
 
 ### Why no formal focus-role model
 
-The plan's earlier shape proposed a `**Focus Role:**` status-file field with values
+The plan's earlier shape proposed a `**Focus Role:**` meta-file field with values
 `primary | companion | awaiting-external | parked`, blessed pairings, swap discipline, and per-WU
 tenure tracking. External research (2026-05-08) found no PM-tool precedent for this shape — every
 tool surveyed (Linear, Jira, GitHub Projects, Shortcut, Notion, Asana, Trello, Height) models
@@ -132,7 +132,7 @@ ARC adopts the lighter posture: rely on agent judgment + protocols, not field-en
   `**Integration:**` field). No new enum value needed.
 - **"Companion"** conflated runtime focus with backlog grouping. The grouping concern is already
   covered by `plan-work-organization-reform.md`'s group-dir convention plus the existing
-  `**Sibling Work Unit(s):**` status field. No runtime equivalent needed.
+  `**Sibling Work Unit(s):**` meta field. No runtime equivalent needed.
 - **"Parked"** maps to GTD's Someday/Maybe — soft convention guidance in the strategy doc, not
   field-encoded.
 
@@ -173,11 +173,11 @@ the posture as "tolerated" or "principled at modest scale."
       → serialize. Concrete examples per `research-integration-conflict-handling.md`.
 
     - **Activation-time concurrency check.** Agent-led, judgment-based protocol: at WU activation,
-      agent reads in-flight WUs (`git worktree list` + identity-filtered status files), assesses
+      agent reads in-flight WUs (`git worktree list` + identity-filtered meta files), assesses
       scope overlap by reading their `**Purpose:**` / Spec content + `**Sibling Work Unit(s):**`
       declarations, and either proceeds, surfaces concerns to user, or suggests sequencing change.
       Non-deterministic; advisory; no probe tooling. The strategy doc gives the judgment
-      heuristics; the check fires from both of `plan-worktree-foundation.md`'s entry points —
+      heuristics; the check fires from both of `draft-worktree-foundation.md`'s entry points —
       `arc start` / spawn (item 4) for ARC-managed worktree creation, and the cold-start
       primitive (item 11) for tool-spawned or manually-created worktrees. Same check, same
       heuristics; entry point varies with WU origin. Scope boundary: the check applies only to
@@ -201,7 +201,7 @@ the posture as "tolerated" or "principled at modest scale."
       management tool spawns worktrees (Conductor, emdash, Maestro, Warp, Worktrunk, Zed, etc.),
       the tool typically owns cleanup, branch naming, and location conventions per its own UX.
       Coexistence guidance: honor the tool's branch naming (advisory under ARC's branch-naming
-      method per `plan-worktree-foundation.md` item 10); defer cleanup to the tool when it
+      method per `draft-worktree-foundation.md` item 10); defer cleanup to the tool when it
       provides it; do not relocate tool-managed worktrees. ARC's structural discipline (meta-*
       lifecycle, state machine, sweep-as-you-go integration) applies uniformly regardless of
       who spawned the worktree.
@@ -239,7 +239,7 @@ the posture as "tolerated" or "principled at modest scale."
 2. **Integration-surface async-merge audit.** [integrate-work-unit.md][integrate-wu] and related
    lifecycle workflows currently assume synchronous merge (PR created → merged → cleanup in one
    flow). With async-merge as a legitimate pattern (post-PR + awaiting-review-latency), workflows
-   need accommodation — handoff transitions, status-file updates, worktree cleanup advisory,
+   need accommodation — handoff transitions, meta-file updates, worktree cleanup advisory,
    archival ordering — for the awaiting-review state. Audit sync-merge assumptions; adjust
    touchpoints additively (option B per Design Decisions). Includes detailed guidance in
    `strategy-concurrent-work.md` § Async-merge guidance.
@@ -247,7 +247,7 @@ the posture as "tolerated" or "principled at modest scale."
 3. **Awaiting-review state semantics.** Confirm WOR's `**State:** Integrating` cleanly expresses the
    awaiting-external state (PR open, awaiting merge) across handoff, archival, and worktree-cleanup
    workflows — merge-position is folded into State, so no separate `**Integration:**` field or new
-   enum value is needed. Coordinate with `plan-agile-wu-lifecycle.md`'s state-machine rollout.
+   enum value is needed. Coordinate with `draft-agile-wu-lifecycle.md`'s state-machine rollout.
 
 ### Out of scope
 
@@ -256,15 +256,17 @@ the posture as "tolerated" or "principled at modest scale."
 - **Touched-files / scope-overlap probe** — explicitly rejected. Activation-time concurrency check
   is judgment-based, not probe-based.
 - **Worktree mechanism, shift lifecycle, session-init worktree detection, branch-gone detection,
-  inbox sync** — `plan-worktree-foundation.md`.
+  inbox sync** — `draft-worktree-foundation.md`.
 - **Tier model, `arc start` command, ceremony scaling, atomic-companion retirement, incidental
-  category retirement** — `plan-agile-wu-lifecycle.md`.
-- **External tracker integration for "what's @teammate working on"** — `plan-coord-probe.md`.
+  category retirement** — `draft-agile-wu-lifecycle.md`.
+- **External tracker integration for "what's @teammate working on"** — `draft-coord-probe.md`.
 - **Group-dir convention for sibling WUs** — `plan-work-organization-reform.md`. The existing
-  `**Sibling Work Unit(s):**` status field plus group-dir convention from WOR cover the
+  `**Sibling Work Unit(s):**` meta field plus group-dir convention from WOR cover the
   "sibling / companion" relational concept; no runtime equivalent needed.
 - **ROADMAP form-factor evolution (parallel/multi-stream visualization, sequencing-artifact
-  brittleness, horizon tiers)** — `plan-roadmap-evolution.md`.
+  brittleness, horizon tiers)** — superseded: WOR reworked the ROADMAP into the derived readiness
+  view; the renderer / CLI lives in the `roadmap-tooling` WU. (The pre-WOR `roadmap-evolution` WU was
+  retired.)
 - **Blessing concurrent agent sessions.** Framework won't block two simultaneous agent sessions in
   different worktrees, but documentation is explicit: this potentially violates P2 (co-development
   bandwidth). Adopter's call, not ARC's recommendation.
@@ -312,7 +314,7 @@ activation rather than field-encoded role. Research strongly supports the lighte
 - **A — Full rewrite of state transitions** to treat async-merge as a primary path alongside
   sync-merge. Cleanest end state; heaviest change.
 - **B — Additive treatment at key touchpoints.** Sync-merge stays the primary flow;
-  awaiting-review state gets explicit accommodation at session-handoff, status-file updates,
+  awaiting-review state gets explicit accommodation at session-handoff, meta-file updates,
   worktree cleanup, and archival. Lighter; preserves existing workflow shape.
   **(Lean — formerly current lean in original Mobility plan; reaffirmed here.)**
 - **C — Mixed.** Primary rewrite of integrate-work-unit.md plus additive treatment elsewhere.
@@ -324,7 +326,7 @@ PRD-time decision informed by audit findings.
 
 Evaluated extending `strategy-team-coordination.md` with a same-dev section. Rejected — putting
 same-human concurrency under "team coordination" is structurally misleading. New doc is cleaner;
-the two strategies reference each other where overlap exists (branching patterns, status-file
+the two strategies reference each other where overlap exists (branching patterns, meta-file
 merge behavior).
 
 ### ROADMAP parallelism is conventions-side, not infrastructure-side
@@ -354,7 +356,7 @@ ADR-020 splits the in-git concurrency problem precisely, and this WU owns codify
   conventions-side fix for the ROADMAP-parallelism gap above.
 - **Mutated shared state (inbox drains, any human-editable priority/ordering) is not solvable in-git.**
   Git's line-merge is not a CRDT — concurrent appends to a queue's tail conflict, and edits/reordering
-  conflict regardless of sharding — so this is `plan-arc-backend.md` territory (canonical mutable store).
+  conflict regardless of sharding — so this is `draft-arc-backend.md` territory (canonical mutable store).
 - **Partial mitigation worth a convention:** `merge=union` via `.gitattributes` makes concurrent inbox
   *appends* auto-merge, but loses *intentional deletions* (a drained entry can resurrect) — an
   append-safety aid, not a drain-safe solution. Document the caveat if adopted.
@@ -369,10 +371,10 @@ ADR-020 splits the in-git concurrency problem precisely, and this WU owns codify
   isolation foundation, group-dir convention, the consolidated boundary workflows, and the
   `**Sibling Work Unit(s):**` field convention. Concurrent-work conventions and async-merge
   audit compose on top. Hard upstream dependency.
-- **Worktree Foundation** (`plan-worktree-foundation.md`): mechanism layer — worktrees, shift,
+- **Worktree Foundation** (`draft-worktree-foundation.md`): mechanism layer — worktrees, shift,
   branch-gone detection, pause-pointer migration. The activation-time concurrency check fires
   from Worktree Foundation's spawn workflow per the strategy doc's heuristics.
-- **Agile WU Lifecycle** (`plan-agile-wu-lifecycle.md`): tier model + `**State:**` machine rollout
+- **Agile WU Lifecycle** (`draft-agile-wu-lifecycle.md`): tier model + `**State:**` machine rollout
   (WOR's 4-state; merge-position folded into `Integrating`, no separate `**Integration:**` field).
   Concurrent-work conventions consume the `Integrating` state for awaiting-review accommodation.
   Async-merge audit interacts with tier-aware archival flows.
@@ -385,12 +387,12 @@ ADR-020 splits the in-git concurrency problem precisely, and this WU owns codify
 ### Downstream
 
 - **ARCd Rebrand:** stable concurrent-work terminology absorbed into rename pass.
-- **ARC Operating Modes:** consumes shift lifecycle (delivered by `plan-worktree-foundation.md`)
+- **ARC Operating Modes:** consumes shift lifecycle (delivered by `draft-worktree-foundation.md`)
   as prerequisite; concurrent-work conventions inform mode-specific guidance.
 
 ### Recommended sequencing
 
-Work Organization Reform → `plan-worktree-foundation.md` → `plan-agile-wu-lifecycle.md` →
+Work Organization Reform → `draft-worktree-foundation.md` → `draft-agile-wu-lifecycle.md` →
 **Concurrent Work Conventions**.
 
 ---
@@ -399,7 +401,7 @@ Work Organization Reform → `plan-worktree-foundation.md` → `plan-agile-wu-li
 
 ### SESSION-NOTES divergence per worktree (resolved upstream)
 
-`plan-worktree-foundation.md` resolves this by establishing per-worktree SESSION-NOTES semantics.
+`draft-worktree-foundation.md` resolves this by establishing per-worktree SESSION-NOTES semantics.
 This WU's conventions consume that resolution; no new pressure here.
 
 ### Team-mode relationship clarity
@@ -411,7 +413,7 @@ multi-WU-single-human; both can coexist; neither requires the other.
 
 ### Async-merge scope boundary
 
-[integrate-work-unit.md][integrate-wu] is shared with `plan-agile-wu-lifecycle.md` (which adds
+[integrate-work-unit.md][integrate-wu] is shared with `draft-agile-wu-lifecycle.md` (which adds
 tier-aware branches). Coordination required: async-merge audit lands additive accommodation atop
 the tier-aware flow, not via independent rewrite. PRD-time sequencing care.
 
@@ -498,21 +500,21 @@ deferred to a later hooks-completeness pass — but flagged here for explicit PR
 
 **Medium-Small.** Conventions-layer work is doc-heavy — strategy doc creation, async-merge audit,
 state-field semantics coordination. Lighter than the pre-redesign shape (focus-role model design
-phase removed). Less mechanism-heavy than `plan-worktree-foundation.md` or
-`plan-agile-wu-lifecycle.md`.
+phase removed). Less mechanism-heavy than `draft-worktree-foundation.md` or
+`draft-agile-wu-lifecycle.md`.
 
 Phases (provisional):
 
 1. **Strategy doc creation** — `strategy-concurrent-work.md` covering all the sub-sections listed
    in scope item 1. Substantial doc; consolidates findings from four research files.
 2. **Async-merge integration audit** — option B implementation; identify and additive-treat each
-   touchpoint in integration-adjacent workflows. Coordinate with `plan-agile-wu-lifecycle.md`'s
+   touchpoint in integration-adjacent workflows. Coordinate with `draft-agile-wu-lifecycle.md`'s
    tier-aware archival flow.
-3. **Awaiting-review state semantics** — coordinate with `plan-agile-wu-lifecycle.md` so WOR's
+3. **Awaiting-review state semantics** — coordinate with `draft-agile-wu-lifecycle.md` so WOR's
    `**State:** Integrating` cleanly expresses awaiting-review across handoff, archival, and worktree
    cleanup workflows (no separate `**Integration:**` field).
 4. **Documentation cascade** — ensure references and examples align (strategy cross-references;
-   ROADMAP examples; template-status notes if needed).
+   ROADMAP examples; template-meta notes if needed).
 
 Phase 1 carries most of the weight. Phases 2-4 are mostly independent of Phase 1; can ship in any
 order once Phase 1 lands.
@@ -528,7 +530,7 @@ The PRD should explicitly address:
   principle is maintained by the soft single-active-focus convention (one worktree as the
   agent's active focus at any moment).
 - **P5 (Context Preservation):** Conventions improve context preservation — worktree-local
-  SESSION-NOTES (mechanism via `plan-worktree-foundation.md`) is correct WU-scoped context, not
+  SESSION-NOTES (mechanism via `draft-worktree-foundation.md`) is correct WU-scoped context, not
   degradation. Activation-time concurrency check surfaces "what was I doing before" via in-flight
   WU enumeration.
 - **P7 (Discrete Steps):** One task at a time stays within-WU, not cross-WU. Soft swap discipline
