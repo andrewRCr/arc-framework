@@ -698,6 +698,679 @@ The 2026-04-28 external research on mature git practice (cited in Design Decisio
 "Worktree-by-default at quick/standard tier") established the baseline ARC's default diverges from.
 Specific URLs captured in the design-decisions section above.
 
+## Extracted Shift Lifecycle Design
+
+*Verbatim extraction from `draft-arc-modes.md` (Phase 1 of the shift-lifecycle move). Not yet
+reconciled against current ARC — Phase 2 resolves pre-WOR vocabulary (`WORK-STATUS.md`,
+task-list-header state / "Pure Option C"), the "session-init stays unchanged" stance that
+contradicts scope item 4, the `/arc-status` naming collision formerly chained to the now-provisional
+ARCd Rebrand, dangling references to arc-modes audit findings, and integration with this draft's own
+Scope and Design Decisions.*
+
+## Shift Lifecycle
+
+**Cross-cutting deliverable — applies to all ARC modes.**
+
+### The Gap This Fills
+
+Work units don't always move from activation through completion without interruption. Real team
+workflows regularly park a WU mid-stream while waiting on code review, stakeholder feedback, blocking
+work from another team, or an external dependency. Meanwhile the developer is often ready to start the
+next thing.
+
+Full ARC today has no formal model for this state. The implicit workaround — leaving the WU "active"
+on its branch while starting a new feature branch for the next WU — works mechanically in tracked mode
+(git swaps files per branch) but creates a stale-state problem: WORK-STATUS on branch A says "finish
+integration, Next Action X" when you've actually moved on. Session-init reports misleading state.
+Nothing formally captures why the WU is paused or when it's expected to resume.
+
+This gap is largely invisible in solo-sequential workflows (complete one WU, archive, start next) but
+is everyday reality in team contexts and multi-stream work. Local mode surfaces it hard — without the
+branch-swap implicit mechanism to hide the problem, Local Full can't support "waiting on review"
+at all without a formal pause.
+
+### Design Philosophy
+
+**Metadata-in-place, not file relocation.** A paused WU stays where it is. Its files don't move.
+WORK-STATUS tracks the state change, the WU's own status header reflects the new state, and session-init
+reads both. Rolling back a pause is a metadata flip, not a filesystem operation.
+
+**One user-facing skill, unified workflow.** The skill is `arc-shift`, the workflow is
+`shift-work-unit.md`. "Shift" reads naturally for all three transitions:
+
+- "Let's shift away from this while we wait on review" — pure pause
+- "Let's shift to feature-Y" — rotate (pause current, resume target)
+- "Let's shift back to feature-X" — resume (when no in-progress WU, or suspend current first)
+
+The workflow reads current WORK-STATUS state and the target argument (if any), determines which
+transition this is, and executes accordingly.
+
+**Works identically in Full and Local, with only the persist step differing.** The metadata updates,
+document status headers, and WORK-STATUS changes are mode-agnostic. The final "persist" step commits
+in tracked Full and syncs the backing store in Local. Developers reading the workflow see one
+description, not two.
+
+### State Model
+
+A work unit in the pipeline can be in one of these states:
+
+| State         | Location   | Meaning                             |
+|---------------|------------|-------------------------------------|
+| `planned`     | `backlog/` | Scoped but not yet activated        |
+| `in-progress` | `active/`  | Currently being worked on           |
+| `paused`      | `active/`  | In flight but temporarily set aside |
+| `archived`    | archive    | Completed (or abandoned), terminal  |
+
+The critical observation: `active/` holds both `in-progress` and `paused` WUs. Directory membership
+means "in flight, between backlog and archive." Per-WU state is metadata, not location.
+
+### State Lives in Task List Headers (Pure Option C)
+
+**Decided 2026-04-09** after walking the audit's scenario battery against Options B and C
+(Option A was previously ruled out by the contributor-lifecycle stress test —
+see `analysis-modes-contributor-lifecycle-stress-test.md` § S5). The walk
+established that task list headers as the sole source of truth — with no registry file and no
+per-dev cache — is the cleanest shape under the reframe described below. The full walk and
+failure-mode analysis is preserved in the follow-up session's record; this section captures the
+resolved shape.
+
+**Key reframe that shaped the decision:** session-init does not need to know about inactive or
+paused WUs. Multi-WU awareness is an on-demand concern, not a session-init concern — the
+developer already knows what they paused, and if they need a reminder they can ask. Baking
+multi-WU reporting into every session-init orientation is noise for both human and agent. This
+reframe collapsed a complex registry-vs-cache-vs-file-vs-skill design space into something much
+simpler.
+
+**The shape:**
+
+Each WU's status file carries its own state in the `**State:**` field. A paused WU's status
+file has, for example:
+
+```markdown
+**State:** Paused (2026-04-09) — awaiting code review from Alice
+```
+
+Or for external-blocking states (see [Finding B resolution](#finding-b-paused-vs-waiting-for-vocabulary-split) below):
+
+```markdown
+**State:** Waiting-For Review (2026-04-09) — Alice, PR #42
+```
+
+Valid `State:` values: `In Progress` / `Paused` / `Waiting-For {category}` / `Complete`. Inline
+date in parentheses is the pause timestamp (ceremony-free, auto-observed per Clarification #4 in
+the audit). Freeform reason follows the dash.
+
+**Branch-local WU pointer is per-WU, single-slot.** No In Flight registry, no Active Focus
+section. Under the Work-Status Restructure WU (see
+[§ Alignment with Work-Status Restructure WU](#alignment-with-work-status-restructure-wu) below),
+the pointer is the per-WU `status-{name}.md` file in `active/{category}/` — one status file per
+WU, with a flat field set (State / Branch / Task List / Next Task / Last Completed / Blockers /
+Next Action). The file is single-slot by construction (one WU, one file); it is not a multi-WU
+registry. Pre-restructure, this role was served by a singular `active/WORK-STATUS.md`; the per-WU
+file preserves Clarification #2's semantic distinction (branch-local WU pointer) while
+eliminating the parallel-WU concurrency flaw.
+
+**No index file.** No `user/{identity}/IN-FLIGHT.md`, no per-dev cache, no registry file in any
+form. The walk's honest-failure-mode analysis demonstrated that any cache introduces drift risk
+that erodes the "trust the system" value prop, and that the self-healing discipline needed to
+keep a cache trustworthy exceeds the UX benefit it provides. Task list headers are the only
+state.
+
+**Mid-session multi-WU awareness is on-demand via `/arc-status` skill.** See
+[Mid-Session Orientation](#mid-session-orientation) below. The skill reads headers and composes
+a current-state view only when invoked. This keeps multi-WU reporting out of session-init
+orientation entirely, aligned with the reframe above.
+
+**How this resolves the scenario battery's findings:**
+
+- **Scenario 1 (solo tracked Full, 2 WUs on 2 branches):** Current-branch scan sees only the
+  current branch's task lists. That is the expected behavior under the reframe — the developer
+  knows about the other branch, and if they need an explicit reminder they invoke `/arc-status`
+  (which can offer an on-demand cross-branch git query as an opt-in for the rare case).
+- **Scenario 2 (solo Local Full, 2 WUs):** `.arc/` is shared across branches in Local mode, so
+  any scan naturally finds all in-flight task lists. Clean.
+- **Scenario 3 (team merges to main):** Tracked task lists travel with their branches. After
+  merges, main's `active/` naturally carries the aggregate view. Clean.
+- **Scenario 4 (person-to-person handoff):** The paused task list is in tracked `active/` and
+  moves with the branch on pull. Personal context still moves via SESSION-NOTES git notes as
+  today. No additional state to coordinate.
+- **Scenario 5 (activate new while one is paused):** `activate-work-unit` writes the new WU's
+  status file with `State: In Progress`. The paused WU's status file is untouched. No
+  cross-workflow coordination.
+- **Scenario 7 (rotate between two paused WUs):** Shift updates two status file `**State:**`
+  fields (the pausing WU's flips to `Paused (date) — reason`; the resuming WU's flips to
+  `In Progress`). Atomicity is local to two file writes; under the restructure there is no
+  separate per-branch registry pointer to update.
+- **Scenario 8 (resume after long pause):** Pause timestamp lives inline in the `State:` field.
+  Shift reads the field on resume and surfaces a staleness warning if the interval exceeds one
+  week (fixed, not configurable — see Resolved Decisions → "Staleness
+  threshold").
+- **Scenario 9 (waiting-for-review distinction):** Encoded as a specific `State:` value. See
+  Finding B resolution.
+
+**What this decision removes from scope (vs. the earlier "In Flight registry" sketch):**
+
+- Registry file design (none needed)
+- Per-dev cache file and its rebuild/self-healing logic (none needed)
+- Multi-WU registry template (none needed — the per-WU status file is single-slot by
+  construction)
+- Session-init integration work for multi-WU reporting (unchanged — session-init stays lean)
+- Cross-file atomicity discipline between registry and per-WU state (single source of truth
+  means no sync concern)
+
+The cascade of simplification from the reframe is intentional and the primary value of walking
+the scenario battery carefully — the design gets smaller, not bigger.
+
+### Document Status Headers
+
+PRDs and task lists carry status headers today (e.g., `Status: In Progress`). Shift lifecycle
+extends the vocabulary with two new values — `Paused` and `Waiting-For` — and adds an inline
+date and freeform reason format. Per the
+[State Lives in Task List Headers](#state-lives-in-task-list-headers-pure-option-c) resolution,
+these headers are the sole source of truth for WU state; there is no cache or registry to keep
+in sync.
+
+**Field format:**
+
+```markdown
+**State:** In Progress
+**State:** Paused (2026-04-09) — blocked on session token decision
+**State:** Waiting-For Review (2026-04-09) — Alice, PR #42
+**State:** Waiting-For Approval (2026-04-09) — ARB signoff expected Thursday
+**State:** Complete
+```
+
+PRDs retain `**Status:**` headers and follow the same value format on shift transitions.
+
+**Valid Status values:**
+
+- `In Progress` — active work. Default state for an activated WU.
+- `Paused` — developer is the next mover; they set it aside and will return to do more work.
+  Counts against the growth nudge (WIP pressure).
+- `Waiting-For {category}` — external actor is the next mover; the developer cannot unblock it
+  from their side. Does **not** count against the growth nudge — waiting on three PRs is a
+  normal pipeline, not WIP pressure.
+- `Complete` — terminal state, prelude to archival.
+
+**`Waiting-For` categories** (committed pre-PRD — these five are the final set):
+
+- `Review` — awaiting code review
+- `Approval` — awaiting stakeholder / ARB / compliance signoff
+- `Delivery` — awaiting downstream deployment or external artifact
+- `Decision` — awaiting a decision from someone else (not a self-decision — that's `Paused`)
+- `Other` — freeform, with the reason string carrying the detail
+
+The five are locked because each implies a distinct follow-up action (reviewer vs.
+decision-maker vs. external party vs. architect vs. freeform), which is what the category is
+for. Freeform `Other` + the reason string handle anything the five don't cover directly.
+
+#### Finding B: Paused vs Waiting-For vocabulary split
+
+The `Paused` / `Waiting-For` distinction came from the solo-dev audit's Finding B and is backed
+by Kanban literature, GTD's "Waiting For" list, and empirical research on PR review latency
+(see `analysis-modes-solo-dev-blind-spot-audit.md` § B for evidence). The
+distinction matters because:
+
+- **Orientation reporting can triage differently.** "Waiting for review (3d)" suggests nudging
+  the reviewer; "paused on incidental (2d)" is self-state with no external action available.
+- **WIP nudges should only apply to developer-paused WUs.** Three items in `Waiting-For Review`
+  is a normal PR pipeline; three developer-paused WUs is WIP pressure.
+- **Pause reason taxonomy becomes simpler** — the state itself carries the "what kind of
+  waiting" category, so the freeform reason only needs to carry the detail (who/what/when).
+
+**Cost:** Trivial. One extra Status enum value plus a category modifier for `Waiting-For`. No
+mechanism change beyond the existing Status header. Documentation sweep in
+`strategy-task-list-formatting.md` to catalog the valid values.
+
+**Scope:**
+
+- **PRD `**Status:**` header** — updated on shift transitions (value + date + reason)
+- **Status file `**State:**` field** — updated on shift transitions (same format)
+- **Supplementary docs** (`atomic-*.md`, `notes-*.md`) — deferred to implementation. Gut-level:
+  skip them, they're supplementary and the churn isn't worth it. Revisit if implementation
+  surfaces a reason.
+
+### Workflow Shape
+
+`shift-work-unit.md` encodes the three transitions via state-driven branching.
+
+**Inputs:** Current WORK-STATUS state, optional target WU name, optional reason string.
+
+**Transition detection:**
+
+- Active Focus exists, no target → **pure pause** (pause current)
+- Active Focus exists, target is in In Flight as paused → **rotate** (pause current, resume target)
+- Active Focus exists, target is new or in backlog → **shift-with-activation** (pause current, hand off
+  to activate-work-unit workflow for the target)
+- No Active Focus, target exists as paused → **pure resume** (resume target)
+- No Active Focus, no target → invalid, report and exit
+
+**Uncommitted work handling:**
+
+Before any pause, the workflow detects uncommitted changes in the working tree. When found, it surfaces
+the state to the user with a recommended default of **commit first** (clean pause is the reliable
+default), but allows override:
+
+1. **Commit first (recommended)** — workflow prompts for commit message or invokes arc-commit
+2. **Stash** — `git stash push` with a descriptive message tied to the WU
+3. **Leave as-is** — pause proceeds, dirty state remains in working tree, noted in WORK-STATUS entry
+
+The workflow presents commit as the default; the user is in charge of the final choice. This preserves
+reliability bias without being dogmatic.
+
+**Local-mode scope.** The three options apply to tracked project-repo files; `.arc/` content is
+untracked in Local mode and outside `git stash`'s reach, so uncommitted `.arc/` edits structurally
+follow **leave as-is** regardless of which option is chosen for tracked code. They remain in the
+working tree and are captured by the next `arcd backing sync` at session handoff. A Local-mode user
+pausing with both project-code changes and `.arc/` edits can commit or stash the former via the
+normal options while the latter takes leave-as-is automatically.
+
+**State-update steps (common to all transitions):**
+
+1. Gather reason and context (ask if not supplied and transition needs one)
+2. Optionally snapshot SESSION-NOTES to the WU's directory as preserved context
+3. Update the affected WU(s) status file `**State:**` field — e.g., feature-x's State flips
+   from `In Progress` to `Paused (YYYY-MM-DD) — reason`, and for rotations feature-y's State
+   flips from `Paused` (with its own old timestamp) to `In Progress`
+4. Update PRD Status header(s) to match (same format as task list)
+5. Update `WORK-STATUS.md` to reflect the new current-branch WU (single-slot, branch-local)
+6. Persist — commit in tracked Full (via arc-commit invocation or inline commit step), backing
+   store sync in Local
+
+Step 3 is the canonical state write. Everything else derives from it or is a surface for local
+discoverability. There is no registry file or cache to keep in sync — task list headers are the
+single source of truth per the
+[State Lives in Task List Headers](#state-lives-in-task-list-headers-pure-option-c) decision.
+
+**`shift-with-activation` coordination:**
+
+When the transition is `shift-with-activation` (Active Focus exists, target is new or in
+backlog), the workflow pauses the current WU, reports pause success, and then proceeds into
+`activate-work-unit` for the target in the same invocation — **one user confirmation at the
+top, one workflow walk across both steps**. Not a two-step conversation where the user must
+re-invoke after the pause, and not a silent auto-handoff that hides the second step.
+
+The pause half is the clean failure boundary: if the pause write succeeds but activation fails
+partway, the user is left in a clean paused-current state with a clear "activate {target}?"
+resumption point, not in half-state where the current WU is paused *and* the target is
+partially activated. This matches ARC's general "mandatory stops between operations" idiom
+while avoiding the unnecessary friction of forcing the user to type two commands for what is
+semantically one transition.
+
+The protocol is specified in `shift-work-unit.md` at implementation time; the coordination
+shape (one confirmation, sequential walk, pause is the failure boundary) is the load-bearing
+decision and is locked in pre-PRD.
+
+**Resume-side additions:**
+
+On resume transitions, the workflow additionally:
+
+1. Surfaces the preserved SESSION-NOTES snapshot (if any) as recovery context
+2. Checks branch alignment in tracked Full, suggests the switch if needed
+3. Reads the pause timestamp from the status file `**State:**` field and reports pause age (e.g.,
+   "paused 2d ago", "paused 9d ago — assumptions may be stale"). If the pause exceeds **1 week**
+   (fixed, not configurable), surfaces an advisory prompt to re-read the PRD and task list
+   before proceeding. The prompt is dismissible — it nudges, it doesn't gate. 1 week fits
+   common-case memory loss for detailed project context; configurability is explicitly
+   rejected as premature flexibility (most users wouldn't touch it, and the wrong-default
+   tolerance is high because the prompt is advisory). Revisit only if evidence shows the
+   threshold is actively wrong in practice.
+
+### Session-Init Integration
+
+**Session-init stays unchanged from today.** Multi-WU awareness is an on-demand concern, not a
+session-init concern. Per the reframe that drove the
+[State Lives in Task List Headers](#state-lives-in-task-list-headers-pure-option-c) decision,
+paused and waiting-for WU information is not load-bearing for every session orientation — the
+developer already knows what they paused, and if they need a reminder they can invoke
+`/arc-status` (see [Mid-Session Orientation](#mid-session-orientation)).
+
+Session-init continues to read `WORK-STATUS.md` as the branch-local WU pointer and reports that
+single WU's state (branch, current task, next action, blockers). It does not scan `active/` for
+paused task list headers. It does not summarize cross-WU state. This keeps the orientation
+summary focused on "what am I doing right now?" — which is all session-init needs to answer
+for the common single-WU case, and all it *should* answer for the multi-WU case where extra
+information would be noise.
+
+The only session-init touchpoint the shift lifecycle adds is **drift detection** — if the
+status file `**State:**` field reads `Paused` or `Waiting-For` while the PRD `**Status:**`
+header still says `In Progress` (or vice versa), the orientation surfaces the mismatch ("PRD
+says active, but the status file is paused — did you interrupt a shift without completing all
+updates?"). This is a safety check, not a multi-WU report.
+
+### Skill Shape
+
+`/arc-shift` ships with the shift lifecycle, following the established thin-skill pattern
+(skill file is a short pointer; the workflow carries the logic). The complementary `/arc-status`
+skill lives in its own [Mid-Session Orientation](#mid-session-orientation) section — it is
+mode-universal rather than Full-only, and the structural placement reflects that.
+
+Backed by `shift-work-unit.md`. Handles the state transitions described in
+[Workflow Shape](#workflow-shape) above.
+
+User invocations that naturally route through `/arc-shift`:
+
+- "Let's shift this aside while we wait on review"
+- "Shift to feature-y"
+- "Let's shift back to feature-x now that review landed"
+- "Shift this and start the auth refactor incidental WU"
+
+### Integration Interaction with Shift States
+
+The shift lifecycle introduces `Paused` and `Waiting-For {category}` as valid mid-flight states for
+an in-progress work unit. `integrate-work-unit.md` is the terminal transition point — it takes a
+completed WU and prepares it for merge. Without explicit handling, the expanded state vocabulary
+leaves an ambiguity: what should integrate do when invoked on a WU whose status file
+`**State:**` field reads something other than `In Progress`?
+
+#### Current workflow does not validate the State field
+
+A reading of `integrate-work-unit.md` clarifies the pre-shift-lifecycle behavior. Step 1 ("Verify
+Work Completion") is agent-enforced prose. Its validation checks are: all subtasks and parent
+tasks marked `[x]`, Success Criteria all checked, quality gates passed.
+
+The state line in Step 1 — `[ ] Status file **State:** updated to Complete` — is
+phrased as an **imperative**, not a gate. It instructs the agent to ensure the State field reads
+`Complete` before proceeding, and the transition itself is a silent side effect of Step 2's
+`clean-work-unit.md` Mode 2 run (which sets `State: Complete` unconditionally during doc cleanup).
+There is no validation today that refuses integration if the current State value is something
+else — the workflow effectively assumes `In Progress` and rewrites the State field during prep.
+
+This reframes Finding #13 from "add a validation layer" to **"surface the state transition
+explicitly so it can accept the shift-lifecycle vocabulary."** The resolution is primarily a
+widening of the entry contract, not a new mechanism.
+
+#### Acceptance matrix
+
+| Entry state            | Behavior                                                         |
+|------------------------|------------------------------------------------------------------|
+| `In Progress`          | Accept. Standard happy path.                                     |
+| `Complete`             | Accept. Idempotent (e.g., re-running after a crash).             |
+| `Waiting-For Review`   | Accept. Transition to `Complete`.                                |
+| `Waiting-For Approval` | Accept. Transition to `Complete`.                                |
+| `Waiting-For Delivery` | Accept. Transition to `Complete`.                                |
+| `Waiting-For Decision` | Accept. Transition to `Complete`.                                |
+| `Waiting-For Other`    | Accept. Transition to `Complete`.                                |
+| `Paused`               | Warn, prompt for confirmation, proceed or abort per user choice. |
+
+The transition to `Complete` continues to happen in `clean-work-unit.md` Mode 2 (no change to that
+workflow). Step 1 of `integrate-work-unit.md` gains an explicit state-vocabulary read upstream of
+the existing checks — reporting the current state, applying the acceptance matrix, and
+short-circuiting with a prompt in the `Paused` case.
+
+#### Invocation is the assertion
+
+The semantic that makes the acceptance matrix work: **invoking integrate on a `Waiting-For` WU is
+the user's assertion that the wait is over.** When the developer runs integrate on a WU in
+`Waiting-For Review`, they are stating "the review landed." The workflow does not need to validate
+what was waited for — the invocation itself carries the signal. This is why `Waiting-For Review`
+→ integrate is the natural transition path rather than an error condition requiring
+resume-then-integrate churn, which was the user-identified anti-pattern driving Finding #13.
+
+The semantic holds symmetrically across the `Waiting-For` categories (including `Other`, where the
+freeform reason carries whatever the user knew at pause time). The workflow's job is to transition
+state and proceed with integration; judging whether the wait is actually over is the user's
+responsibility, discharged by the invocation.
+
+#### Paused is warn-and-confirm, not hard refuse
+
+Per the [Finding B vocabulary split](#finding-b-paused-vs-waiting-for-vocabulary-split), `Paused`
+specifically means "the developer is the next mover." A `Paused` WU at integrate time is
+semantically suspicious — either the state is stale (the developer forgot to shift-resume after
+finishing) or the work isn't actually done. Neither case is a hard "refuse and abort," but neither
+is a silent "just integrate."
+
+The resolution is an inline prompt along the lines of:
+
+```text
+This work unit is Paused (2026-04-09 — reason) — dev-next-mover state.
+Proceed with integration anyway? [y/N]
+```
+
+Default is no. If the user confirms, the workflow proceeds through the standard path,
+transitioning `Paused` → `Complete` via `clean-work-unit.md` Mode 2 like any other accepted state.
+No `--force` flag; the prompt surfaces the decision inline where the user already is, matching
+ARC's established warn-and-confirm idiom (see [Workflow Shape](#workflow-shape) above for the
+parallel pattern in uncommitted-work handling at pause time).
+
+#### Integrate owns the terminal transition
+
+A related question raised during the pre-PRD audit: **does `integrate-work-unit` or `/arc-shift`
+own the final `→ Complete` state transition?** The resolution: **integrate owns it.**
+
+- `/arc-shift` owns *mid-flight* transitions: pause, resume, rotate. These are reversible and
+  expose personal developer state changes while a WU is in flight.
+- `integrate-work-unit` owns the terminal `→ Complete` transition. It is coupled to the merge
+  operation and is not a "shift" — it is the close-out.
+
+This is already implicitly true today (`clean-work-unit.md` Mode 2 performs the transition during
+integrate's Step 2). The resolution does not move the transition; it preserves locality — the
+workflow that finalizes the WU owns the final state write — while making the entry-state check
+explicit upstream. `/arc-shift` never writes `State: Complete`.
+
+#### Feedforward to implementation
+
+The `integrate-work-unit.md` workflow needs a small, targeted edit during the modes WU
+implementation phase: insert an explicit state-vocabulary read and acceptance-matrix check at the
+top of Step 1, before the existing subtask/success-criteria validations. The existing Step 1
+Status-header checkbox line becomes a natural landing for the matrix evaluation. No changes to
+`clean-work-unit.md`. No changes to `/arc-shift`. The change is a small block of workflow prose
+plus an updated checklist item in Step 1.
+
+This is implementation-phase content; the task list will carry it as a concrete task when the PRD
+generates it. No standalone ADR is expected — the decision is a behavioral extension of the
+shift-lifecycle vocabulary already captured in the § Shift Lifecycle content above, and composes
+with the shift-lifecycle ADR that Findings #8, #9, and #10 defer to PRD implementation.
+
+### Why This Lives in Its Own Cross-Cutting Section
+
+Shift was initially scoped as a Local-mode necessity — needed because Local Full's single-active
+invariant would be too restrictive without it. But the gap it fills exists in tracked Full too, where
+it's currently masked by implicit branch-switching. Making it explicit gives tracked Full something
+it was missing: a formal model for "paused awaiting external progress" that the framework can reason
+about, report on, and help manage.
+
+This is why shift lives in its own cross-cutting section rather than inside the Local mode treatment.
+It's universal.
+
+### Out of Scope (For This Plan Doc Iteration)
+
+- **Pause-reason taxonomy** — should reasons be freeform, or structured with categories (`awaiting-review`
+  / `blocked-external` / `deferred` / `other`)? Freeform is simpler; structured enables better
+  reporting. Revisit during detail design.
+- **Cross-branch paused visibility in tracked Full** — is branch-local paused state sufficient, or
+  should there be a way to see "all paused WUs across all branches" from one location? Lean
+  branch-local for simplicity, revisit if team mode dogfooding says otherwise.
+- **Expected-resume-date field** — useful context ("expected back Thursday") but potentially stale.
+  Consider during detail design.
+
+### Alignment with Work-Status Restructure WU
+
+The Work-Status Restructure WU (see `prd-work-status-restructure.md` and
+`notes-work-status-restructure.md`) changes the substrate this section
+was originally designed against. Pre-restructure, state lived in task list `**Status:**`
+headers (Pure Option C, 2026-04-09) because no per-WU `WORK-STATUS`-equivalent file
+existed. Post-restructure, `**State:**` lives in a per-WU `status-{name}.md` file in
+`active/{category}/`. The shift-lifecycle design survives the substrate change — only the
+host field moves. The full re-validation record lives in
+`notes-work-status-restructure.md` § Harmony with shift lifecycle;
+this subsection captures the load-bearing points.
+
+**Per-WU file harmonizes with metadata-in-place.** A paused WU's `status-{name}.md` stays
+where it is; its files don't move; the `**State:**` field flips in place. Rolling back a
+pause is still a metadata flip. Metadata-in-place is strengthened — status file and task
+list live next to each other in `active/{category}/` and travel together under full
+protection.
+
+**Source-of-truth simplifies.** Pure Option C chose task list headers because no per-WU
+status file existed. The restructure introduced `status-{name}.md` as the explicit per-WU
+surface, so `**State:**` joins its existing field set (Branch / Task List / Next Task /
+Last Completed / Blockers / Next Action) without new machinery. Task list `**Status:**`
+header removal (R16) retires a redundant surface. Pure Option C's concerns remain fully
+satisfied — the status file is per-WU and single-slot, not a cross-WU registry; no cache;
+no session-init multi-WU noise; session-init still reads one file per WU.
+
+**Ownership of terminal transition unchanged.** `integrate-work-unit.md` via
+`clean-work-unit.md` Mode 2 still owns the `→ Complete` write — it now writes the status
+file `**State:**` field instead of the task list `**Status:**` header. `/arc-shift` still
+never writes `Complete`.
+
+**Vocabulary unchanged.** The value set (`In Progress` / `Paused (date) — reason` /
+`Waiting-For {category} (date) — reason` / `Complete`) is preserved verbatim. Only the
+host field name changes (task list `**Status:**` → status file `**State:**`). Task 5.2 of
+the restructure WU applied the mechanical swap throughout this section.
+
+**Scenario battery re-validation.** The nine-scenario battery evaluated under
+task-list-header-as-home carries forward under status-file-as-home — each scenario's
+answer stays identical or simplifies:
+
+- **Scenarios 1–4** (solo tracked, Local, team merge, person-to-person handoff): status
+  files travel with branches just like task list headers did; same branch-local semantics
+  and portability.
+- **Scenario 5** (activate new while paused): new WU's status file is created with
+  `State: In Progress`; paused WU's status file is untouched.
+- **Scenario 7** (rotate): two status file `**State:**` writes, no separate per-branch
+  pointer. *Simplifies* — three writes pre-restructure become two.
+- **Scenario 8** (resume after long pause): pause timestamp reads natively from the
+  `State:` field.
+- **Scenario 9** (waiting-for distinction): encoded as a specific `State:` value.
+
+No scenario breaks under the substrate change.
+
+**Mid-Session Orientation scope caveat.** The `## Mid-Session Orientation` section below
+(and the `/arc-status` skill described there) retains its original pre-restructure
+WORK-STATUS references. The `/arc-status` skill will be re-designed in its own PRD at
+activation time; those references describe skill design thinking at the time of writing.
+Read them as "the WU's status file" under the restructure premise — the underlying logic
+(on-demand multi-WU awareness via a skill, session-init stays lean) is unchanged.
+
+---
+
+## Mid-Session Orientation
+
+Cross-cutting section for `/arc-status`, the mid-session "warm orient" skill. Mode-universal
+(ships in both Lite and Full), complementary to the existing session-lifecycle skills
+`/arc-resume` (cold orient at session start) and `/arc-handoff` (close session at end).
+
+`/arc-status` is backed by `mid-session-status.md` (new workflow in `session-lifecycle/`). It
+provides on-demand warm orientation — a concise snapshot of current work state composed from a
+small targeted set of reads, distinct from the cold orientation session-init performs.
+
+**Why this skill exists:** The most common use is a mid-session refresher when the developer
+has stepped away, switched contexts, or wants a quick "where am I?" bookmark without restarting
+the session — post-lunch, post-meeting, post-interruption. This is mode-universal; every ARC
+project benefits from it. As a complementary use, the skill also hosts multi-WU visibility for
+Full-mode projects running the [Shift Lifecycle](#shift-lifecycle) — surfacing paused and
+`Waiting-For` WUs on demand. Multi-WU visibility was the original driver that justified creating
+the skill, but is no longer its primary value proposition; it is scoped to Full specifically,
+where the shift lifecycle applies at all.
+
+**Slot in the session lifecycle:**
+
+```text
+/arc-resume    — cold orient at session start  (workflow: session-init.md)
+/arc-status    — warm orient mid-session       (workflow: mid-session-status.md)
+/arc-handoff   — close session at end          (workflow: session-handoff.md)
+```
+
+Three skills, three workflows, three lifecycle points. Symmetric and cleanly namespaced.
+
+**Naming note:** The CLI-side rename that resolves the naming ambiguity happens across two WUs.
+Session-Init Optimization renames the existing `arc status` CLI command (framework installation
+health) to `arc health` (see `tasks-session-init-optimization.md` Task 3.R.k.a). The ARCd
+Rebrand WU then sweeps `arc health` → `arcd health` as part of its global `arc` → `arcd` binary
+rename. The skill is a slash-command invocation (`/arc-status`) and occupies a different
+namespace from CLI binaries anyway, but the rename resolves the ambiguity at its root. See
+`plan-arcd-rebrand.md` § Scope Sketch — Layer 2 (CLI command surface cleanup) for the reframed
+rebrand-era scope.
+
+**Output shape:**
+
+The output has a mode-universal core and a Full-only supplemental block. Lite sessions
+structurally never see the supplemental block; Full sessions see it only when paused or
+`Waiting-For` state exists on the current branch.
+
+```markdown
+**Current focus** · `branch-name` · clean|dirty
+
+- **Working on**: feature-x, Task 4.2 — Implement token validation
+- **Since session start**: 3 tasks completed (Tasks 3.5, 4.0, 4.1), 2 commits landed
+- **Uncommitted**: [files, if any] | none
+
+**In flight** · [Full mode only; appears only when paused/Waiting-For state is present]
+
+- **Paused**: incidental-auth-refactor (paused 2d ago — blocked on session token decision)
+- **Waiting for**: feature-y (review from Alice, 1d ago)
+
+**Next action**: Resume token validation in Task 4.2.b — schema check for malformed tokens
+
+**Flags**: [blockers, quality gate state, stale assumptions, etc. — or omitted]
+```
+
+**Composition rules:**
+
+- **Mode-conditional "In flight" block.** In Lite, the block is structurally absent — Lite has
+  no concept of multi-WU state, so there is nothing to surface. In Full, the block appears only
+  when paused or `Waiting-For` state is actually present on the current branch; single-WU Full
+  sessions see the mode-universal core output without the supplemental block.
+- **No blockers means no "Flags" block.** Only show what is load-bearing right now. The output
+  is length-variable by design — a clean single-WU Lite session might be three lines; a multi-WU
+  Full session with blockers might be ten. Either way, no noise.
+- **Do not duplicate session-init.** If a line would repeat what `/arc-resume` already told
+  the user, omit it. The skill's value is **what has changed or emerged since session-init** —
+  completed tasks, new commits, shifts, drift, uncommitted mid-implementation state. If
+  nothing has changed, say so tersely and suggest the next action without re-recapping.
+- **Suggest, do not re-quote.** "Next action" in session-init comes from `WORK-STATUS.md`
+  verbatim. "Next action" in `/arc-status` is composed from mid-session state — reflects what
+  was just done, what is uncommitted, what the task list checkbox state implies next. Often
+  the same as `WORK-STATUS.md`'s Next Action, often not.
+- **Cheap enough to invoke freely.** Tens of milliseconds of reads, no heavy workflow
+  machinery. Should feel lightweight enough that "let me just check" is reflexive.
+
+**Input sources** (all targeted, none expensive):
+
+Mode-universal:
+
+1. `git status` + `git log HEAD@{session-start}..HEAD` — working-tree state, commits since
+   session start
+2. `WORK-STATUS.md` — current WU pointer (with drift detection against the task list header
+   per the [Session-Init Integration](#session-init-integration) note)
+3. **Current task list** (path from `WORK-STATUS.md`) — checkbox state of current phase, used
+   to compute "what has been completed this session" by cross-referencing the checkbox
+   transitions with the git log since session start
+4. `SESSION-NOTES.md` Persistent Context section — for active constraints worth restating if
+   relevant to the current state
+
+Full mode only (feeds the supplemental "In flight" block):
+
+5. **Scan of current-branch `active/`** for task list Status headers — surfaces `Paused` and
+   `Waiting-For {category}` state for WUs other than the current focus. Lite does not scan;
+   there is no concept of multiple task lists in a single Lite project.
+
+**Use cases:**
+
+- "I stepped out for lunch — what was I doing?" (post-context-switch bookmark, mode-universal)
+- "I've been working for a while, quick check on where I am" (mid-session refresh, mode-universal)
+- "What's next after this?" (looking ahead when the current unit lands, mode-universal)
+- "I suspect my WORK-STATUS.md is stale — what does the world actually look like?" (drift
+  detection, mode-universal)
+- "What else do I have in flight?" (Full-mode multi-WU visibility on demand — the original
+  driver, still supported)
+
+**Out of scope for this skill:**
+
+- Installation/framework health (that is `arcd health` post-rebrand)
+- Team-aggregate view across developers (requires cross-identity git notes aggregation,
+  deferred to external tooling or a future WU)
+- Cross-branch paused-WU enumeration in tracked Full — by default the skill only sees
+  current-branch state. A `--all-branches` opt-in flag (or equivalent agent behavior) can
+  perform an on-demand git query for task lists with paused Status headers across all
+  branches when the user explicitly asks. Pay-for-what-you-request.
+- **Mode-fit detection or graduation prompting.** The skill reports current work state; it
+  does not assess whether the project is "outgrowing" its current mode. Mode-fit communication
+  lives in Mode Fit Communication below and is handled entirely
+  through upfront framing, not runtime detection.
+
 ---
 
 [team-coord]: ../reference/strategies/arc/strategy-team-coordination.md
