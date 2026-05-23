@@ -22,8 +22,9 @@ routes through template choice under the unified `spec-*` filename — `template
 heaviest variant; lighter variants deferred to `plan-arc-plan-conductor` WU scope (`brief` ruled out
 as a name — collides with `reference/briefs/`).
 
-Comprehensive content sweep of this plan defers to WU activation (Activation Audit pattern).
-Readers today should substitute terms inline.
+The shift-state reconciliation is applied inline below (cohort planning — see
+`notes-worktree-foundation.md`). The WOR terminology renames above (`plan-*` → `draft-*`, etc.) still
+want a separate inline substitution pass.
 
 Substantive AWL-specific implications (captured here):
 
@@ -221,9 +222,10 @@ get promoted: add the plan-*/PRD, restructure the task list into phases, continu
       (via `arc start`), so the checkpoint doesn't apply to them.
     - `integrate-work-unit.md` (post-WOR shape — single integration boundary with sweep-as-you-go
       bundled): skip clean-work-unit and completion-doc steps for atomic; lightweight for quick
-      (PR description as archive); full ceremony for standard. Integration-time updates include
-      the `**Integration:**` field per metadata-state model and a one-line ROADMAP/PROJECT-STATUS
-      touch (one WU's status line) — tracking docs are current at merge, not stale until sweep.
+      (PR description as archive); full ceremony for standard. Integration-time updates advance
+      `**State:**` to `Integrating` (WOR folded merge-position into State — no separate
+      `**Integration:**` field) plus a one-line ROADMAP touch (one WU's line) — tracking docs are
+      current at merge, not stale until sweep.
     - `archive-work-unit.md`: shape depends on Work Organization Reform's resolution of
       the default `archive.cadence` open question. Under `with-integration` default (current
       lean), this workflow collapses into `integrate-work-unit.md`; under `deferred` default, it
@@ -236,19 +238,19 @@ get promoted: add the plan-*/PRD, restructure the task list into phases, continu
     consuming Work Organization Reform's sweep-as-you-go foundation. Concrete deliverables
     that remain in this WU's scope (post-2026-05-08 split):
 
-    - **State + Integration field rollout.** `**State:**` enum:
-      `Planning | In Progress | Complete | Paused | Superseded` (`Planning` introduced upstream in
-      Session-Operational Flow Phase 1; this WU operates on the post-introduction
-      enum); optional `**Integration:** Merged` marker added to template-status. Workflow updates
-      compose with WOR's consolidated boundaries: `clean-work-unit.md` Mode 2 sets State to
-      Complete (current); PR review state remains in the PR; archival marks Integration as Merged
-      before moving files.
+    - **State enum.** WOR settled the strict 4-state machine `Planning | Active | Integrating |
+      Shipped` (`Superseded (partial)` as a variant) in `template-meta.md`, folding merge-position
+      into the `Integrating` state — so there is no separate `**Integration:**` field, and no
+      `Paused` / `In Progress` (the pre-WOR / shift-state vocabulary; see
+      `notes-worktree-foundation.md`). Workflow updates compose with WOR's consolidated boundaries:
+      `clean-work-unit.md` Mode 2 advances State at integration; PR review state lives in the PR (the
+      WU sits in `Integrating` while awaiting review).
     - **Tier-aware sweep ceremony.** Atomic WUs: trivial sweep (single meta file delete in
       integration PR). Quick: standard sweep. Standard: full sweep with ROADMAP/PROJECT-STATUS
       updates. Layered on top of WOR's sweep-as-you-go shape.
-    - **CodeRabbit-flagged contradictoriness fix.** `State: Complete` + integration-step
-      `Next Action` no longer reads as contradictory; `Integration:` field carries the in-flight
-      workflow position cleanly separated from execution-state.
+    - **CodeRabbit-flagged contradictoriness fix.** The `State: Complete` + integration-step
+      `Next Action` contradiction is resolved by WOR's `Integrating` state itself — it carries the
+      in-flight workflow position without a separate `Integration:` field.
 
     **Moved to Work Organization Reform** (load-bearing for per-worktree isolation; not
     tier-specific):
@@ -265,14 +267,15 @@ get promoted: add the plan-*/PRD, restructure the task list into phases, continu
    OR spin up atomic WU OR backlog. Open question: retire entirely or repurpose as session-scoped
    "noticed-pending-decision" capture that drains at handoff. PRD-time question.
 
-9. **Incidental concept retirement.** With shift lifecycle handling "unplanned, interrupts another
-   WU" and the tier model handling "lighter ceremony," the incidental concept becomes redundant.
+9. **Incidental concept retirement.** With worktree isolation handling "unplanned, interrupts another
+   WU" (spin up an atomic-tier WU in its own worktree via `arc start --tier atomic`, ship via PR) and
+   the tier model handling "lighter ceremony," the incidental concept becomes redundant.
    Work Organization Reform retires the `incidental/` category prefix as part of its
    broader category-prefix retirement (`feature/` / `technical/` / `incidental/` → Conventional
    Branch alignment); this WU retires the remaining conceptual references in workflows, strategy
    docs, and templates that frame incidental as a distinct WU shape. Mechanical sweep across
-   those surfaces. (The pointer-field migration is Worktree Foundation scope; the
-   conceptual retirement lands here.)
+   those surfaces. (WOR already retired the pause-pointer fields; nothing migrates to a shift state —
+   see `notes-worktree-foundation.md`.)
 
 10. **Documentation cascade.** [DEV-RULES.ARC][dev-rules] tier definitions and boundary tests;
     [strategy-task-list-formatting.md][tasklist-fmt] tier-aware task list shapes;
@@ -334,10 +337,11 @@ commit. Execution discipline preserved; task-list ceremony stripped.
 
 ### Incidental retirement, not repurposing
 
-The incidental category was a workaround for ARC not having mobility infrastructure. With shift
-lifecycle handling interrupts and tier model handling lighter ceremony, the category has no
-remaining function. Renaming or repurposing would create migration confusion; clean retirement is
-simpler. Workflows that reference incidental migrate to use shift state and tier instead.
+The incidental category was a workaround for ARC not having mobility infrastructure. With worktree
+isolation handling interrupts (an interrupt spins up its own atomic-tier WU/worktree) and the tier
+model handling lighter ceremony, the category has no remaining function. Renaming or repurposing
+would create migration confusion; clean retirement is simpler. Workflows that reference incidental
+migrate to the tier model + worktree-spawn, not to a shift state.
 
 ### Atomic-the-character vs atomic-the-shape
 
@@ -371,8 +375,9 @@ workflow narrowed under WOR to the canonical planning-life-phase flow only.
 - **Worktree Foundation:** clean activate/integrate workflows post-pointer-field retirement;
   the tier model's `arc start` command operates on the worktree-aware activation substrate. Pointer
   fields are retired in WF; the incidental category retirement here folds in cleanly afterward.
-- **Session-Operational Flow** (shipped): consumes Phase 7 (metadata-state foundation —
-  State + Integration field model). Sweep cadence config moved to WOR; this WU consumes it. Phase 2
+- **Session-Operational Flow** (shipped): consumes Phase 7 (metadata-state foundation — the
+  `**State:**` model; WOR later folded merge-position into the `Integrating` state, so no separate
+  Integration field). Sweep cadence config moved to WOR; this WU consumes it. Phase 2
   (meta-file timing split) also informs which fields belong on commit vs handoff.
 
 ### Downstream
@@ -535,13 +540,15 @@ Phases (provisional):
 1. **Constitutional foundation** — ADR drafting, DEV-RULES.ARC tier-definition amendments,
    tiered-artifacts/invariant-discipline framing, alignment with plan-arc-modes' rejection of
    "Required vs Available" model (explicit answer in the constitutional language).
-2. **Status template, Spec field, and Integration field** — `**Tier:**`, `**Spec:**`, and
-   `**Integration:**` fields on template-status; migration handling for existing WUs.
+2. **Meta template + Spec field** — `**Tier:**` and `**Spec:**` fields on `template-meta.md`
+   (no separate `**Integration:**` field — WOR folded merge-position into `**State:**`); migration
+   handling for existing WUs.
 3. **`arc start` command** — CLI subcommand implementation, default-tier semantics, flag handling,
    error semantics, tests.
 4. **Integration-workflow restructure** — implements the metadata-state foundation from
-   Session-Operational Flow Phase 7. State + Integration field rollout in
-   workflows; sweep cadence configuration; sweep-as-you-go integration PR shape (multi-commit with
+   Session-Operational Flow Phase 7. `**State:**` rollout in workflows (advancing to `Integrating`
+   at integration; no separate Integration field per WOR); sweep cadence configuration;
+   sweep-as-you-go integration PR shape (multi-commit with
    isolated sweep commit); deferred sweep variant; tier-aware sweep ceremony. Resolves CodeRabbit
    contradictoriness and stale-tracking-doc inbox concerns.
 5. **Workflow tier-awareness** — activate-work-unit, integrate-work-unit, archive-work-unit
