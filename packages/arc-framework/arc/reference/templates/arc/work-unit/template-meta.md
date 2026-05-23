@@ -106,3 +106,42 @@
 - **Next Action:** —
 
 ---
+
+<!--
+  Archive-phase sections — materialized after the field block + `---` above at the
+  Active → Integrating transition (integrate-work-unit.md Steps 8-9); absent during
+  Planning / Active. Fill this skeleton:
+
+  ## Release Notes Entry
+
+  {One-paragraph, user-facing summary of what shipped.}
+
+  **Breaking Changes:** {bullets flagging stability-contract breaks; omit the callout
+  entirely when there are none.}
+
+  ### Added
+  - {new capabilities or surfaces}
+  ### Changed
+  - {behavior / convention changes}
+  ### Removed
+  - {retired surfaces}
+  ### Fixed
+  - {corrected behavior}
+  ### Infrastructure
+  - {build / CI / tooling / test-harness}
+  ### Deprecated
+  - {scheduled-for-removal, still present}
+  ### Security
+  - {security-relevant changes}
+
+  Omit any category with no entries (Keep a Changelog norm); keep this order.
+  Release Notes lines are user-facing: neutral voice, no internal WU names or
+  roadmap pointers.
+
+  ## Completion Notes
+
+  {Narrative synthesis — design intent, what actually shipped, key deviations /
+  supersessions from plan, verification outcome. Complements, does NOT repeat, the
+  task list's verbatim record and git history. Internal-dev audience; WU names and
+  cross-references are fine here.}
+-->
