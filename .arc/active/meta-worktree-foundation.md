@@ -2,7 +2,7 @@
 
 - **State:** Planning
 - **Owner:** andrew
-- **Branch:** [none]
+- **Branch:** plan/worktree-foundation
 
 - **Origin:** [internal]
 - **Design:** `draft-worktree-foundation.md`
@@ -15,6 +15,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [none]
+- **Next Action:** Activation drift sweep on `draft-worktree-foundation.md` (WOR R66–R68 vocab
+  refresh + the draft's listed audit items), then iterate toward spec authoring.
 
 ---

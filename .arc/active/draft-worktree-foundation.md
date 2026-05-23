@@ -734,8 +734,8 @@ items:
 
 ---
 
-[team-coord]: ../../../../reference/strategies/arc/strategy-team-coordination.md
-[strategy-work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md
-[template-meta]: ../../../../reference/templates/arc/work-unit/template-meta.md
-[clean-work-unit]: ../../../../system/workflows/arc/supplemental/clean-work-unit.md
-[session-init]: ../../../../system/workflows/arc/session-lifecycle/session-init.md
+[team-coord]: ../reference/strategies/arc/strategy-team-coordination.md
+[strategy-work-org]: ../reference/strategies/arc/strategy-work-organization.md
+[template-meta]: ../reference/templates/arc/work-unit/template-meta.md
+[clean-work-unit]: ../system/workflows/arc/supplemental/clean-work-unit.md
+[session-init]: ../system/workflows/arc/session-lifecycle/session-init.md
