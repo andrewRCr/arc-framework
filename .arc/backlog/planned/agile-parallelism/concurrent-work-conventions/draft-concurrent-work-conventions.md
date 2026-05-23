@@ -102,8 +102,8 @@ sweep ceremonies, planning).
 This framing has direct implications for conventions in this WU:
 
 - "Developers pivot between WUs" means alt-tab between separate sessions, not in-session WU
-  switching. The metadata-only shift remains available for the niche atomic-detour case but is
-  not the dominant pattern.
+  switching. The in-session worktree pivot (Worktree Foundation's surviving "shift") remains
+  available for the niche short-detour case but is not the dominant pattern.
 - Single-active-focus is implicit in worktree presence — the worktree the agent is currently in
   is the active focus. No field needed.
 - Transitions between active worktrees happen at review-increment boundaries (the same task-
@@ -127,9 +127,9 @@ ARC adopts the lighter posture: rely on agent judgment + protocols, not field-en
 
 - **"Primary"** maps to the existing implicit signal: which worktree is the agent currently in?
   That's the active focus. No field needed.
-- **"Awaiting-external"** maps to `**State:** Complete` + `**Integration:** Awaiting Review` using
-  fields already defined by `plan-agile-wu-lifecycle.md` + plan-session-operational-flow Phase 7.
-  No new enum value needed.
+- **"Awaiting-external"** maps to `**State:** Integrating` — WOR's 4-state machine, where
+  "awaiting PR review" *is* the `Integrating` phase (merge-position folded into State; no separate
+  `**Integration:**` field). No new enum value needed.
 - **"Companion"** conflated runtime focus with backlog grouping. The grouping concern is already
   covered by `plan-work-organization-reform.md`'s group-dir convention plus the existing
   `**Sibling Work Unit(s):**` status field. No runtime equivalent needed.
@@ -181,9 +181,9 @@ the posture as "tolerated" or "principled at modest scale."
       `arc start` / spawn (item 4) for ARC-managed worktree creation, and the cold-start
       primitive (item 11) for tool-spawned or manually-created worktrees. Same check, same
       heuristics; entry point varies with WU origin. Scope boundary: the check applies only to
-      worktree-based activation, not to the metadata-only shift available for atomic detours —
-      the latter stays in the current worktree and is bounded by review-increment discipline
-      rather than cross-WU concurrency overlap.
+      worktree-based activation, not to in-current-worktree atomic-tier work (a side-branch detour) —
+      that stays in the current worktree and is bounded by review-increment discipline rather than
+      cross-WU concurrency overlap.
 
     - **Branch and rebase discipline.** Periodic-rebase-onto-main vs end-of-flight rebase
       trade-off (lifetime threshold around 2 days per industry research); rerere setup for
@@ -212,9 +212,9 @@ the posture as "tolerated" or "principled at modest scale."
       WU.
 
     - **Async-merge guidance.** Managing WUs through awaiting-review latency (days to a week);
-      how `**State:** Complete + **Integration:** Awaiting Review` interacts with session-
-      handoff, archival, and worktree cleanup; soft conventions for handling the post-PR-pre-
-      merge state.
+      how `**State:** Integrating` (WOR's state for "PR open, awaiting merge") interacts with
+      session-handoff, archival, and worktree cleanup; soft conventions for the post-PR-pre-merge
+      state.
 
     - **Soft anti-pattern guidance.** Single-thread attention (only one active focus at a time);
       avoiding same-domain concurrents (informed by attention-residue research); review-
@@ -244,11 +244,10 @@ the posture as "tolerated" or "principled at modest scale."
    touchpoints additively (option B per Design Decisions). Includes detailed guidance in
    `strategy-concurrent-work.md` § Async-merge guidance.
 
-3. **State + Integration field semantics for awaiting-review.** Coordinate with
-   `plan-agile-wu-lifecycle.md` (which delivers the State + Integration fields per
-   plan-session-operational-flow Phase 7) so the `**State:** Complete + **Integration:** Awaiting
-   Review` combination cleanly expresses the awaiting-external state without requiring a separate
-   field or enum value.
+3. **Awaiting-review state semantics.** Confirm WOR's `**State:** Integrating` cleanly expresses the
+   awaiting-external state (PR open, awaiting merge) across handoff, archival, and worktree-cleanup
+   workflows — merge-position is folded into State, so no separate `**Integration:**` field or new
+   enum value is needed. Coordinate with `plan-agile-wu-lifecycle.md`'s state-machine rollout.
 
 ### Out of scope
 
@@ -293,8 +292,8 @@ awaiting-external | parked` values, blessed pairings, swap discipline, and tenur
 `**Focus Since:**`. External research determined this is a re-invention without PM-tool precedent
 and conflates concerns better handled by:
 
-- **Existing State + Integration fields** for `awaiting-external`
-  (`plan-agile-wu-lifecycle.md` + plan-session-operational-flow Phase 7 deliver these).
+- **WOR's `Integrating` state** for `awaiting-external` — "awaiting PR review" is the `Integrating`
+  phase of the 4-state machine; no separate field needed.
 - **Sibling Work Unit(s) field + group-dir convention** for the relational concept "companion"
   was hinting at (`plan-work-organization-reform.md`).
 - **Implicit worktree presence** for "primary" — the worktree the agent is currently in is the
@@ -373,9 +372,10 @@ ADR-020 splits the in-git concurrency problem precisely, and this WU owns codify
 - **Worktree Foundation** (`plan-worktree-foundation.md`): mechanism layer — worktrees, shift,
   branch-gone detection, pause-pointer migration. The activation-time concurrency check fires
   from Worktree Foundation's spawn workflow per the strategy doc's heuristics.
-- **Agile WU Lifecycle** (`plan-agile-wu-lifecycle.md`): tier model + `**State:**` and
-  `**Integration:**` field rollout. Concurrent-work conventions consume those fields for
-  awaiting-review accommodation. Async-merge audit interacts with tier-aware archival flows.
+- **Agile WU Lifecycle** (`plan-agile-wu-lifecycle.md`): tier model + `**State:**` machine rollout
+  (WOR's 4-state; merge-position folded into `Integrating`, no separate `**Integration:**` field).
+  Concurrent-work conventions consume the `Integrating` state for awaiting-review accommodation.
+  Async-merge audit interacts with tier-aware archival flows.
 - **User Sync UX Polish** (`prd-user-sync-ux.md`): clean sync state machine before
   worktree-axis-plus-concurrent-work conventions land on it.
 - **Session-Operational Flow Phases 3/5/6:** configurable autonomy modes — reduce approval
@@ -508,9 +508,9 @@ Phases (provisional):
 2. **Async-merge integration audit** — option B implementation; identify and additive-treat each
    touchpoint in integration-adjacent workflows. Coordinate with `plan-agile-wu-lifecycle.md`'s
    tier-aware archival flow.
-3. **State + Integration field semantics** — coordinate with `plan-agile-wu-lifecycle.md` so the
-   `**State:** Complete + **Integration:** Awaiting Review` combination cleanly expresses
-   awaiting-review across handoff, archival, and worktree cleanup workflows.
+3. **Awaiting-review state semantics** — coordinate with `plan-agile-wu-lifecycle.md` so WOR's
+   `**State:** Integrating` cleanly expresses awaiting-review across handoff, archival, and worktree
+   cleanup workflows (no separate `**Integration:**` field).
 4. **Documentation cascade** — ensure references and examples align (strategy cross-references;
    ROADMAP examples; template-status notes if needed).
 
