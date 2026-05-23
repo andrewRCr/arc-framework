@@ -1,6 +1,6 @@
 # Metadata: Work Organization Reform
 
-- **State:** Integrating
+- **State:** Shipped
 - **Owner:** andrew
 - **Branch:** technical/work-organization-reform
 
@@ -17,7 +17,10 @@
 
 - **Next Task:** [none] — verification complete; WU ready for integration.
 
-- **Next Action:** integrate-work-unit Step 1 — verify completion.
+- **Next Action:** [none] — shipped.
+
+- **PR URL:** https://github.com/andrewRCr/arc-framework/pull/34
+- **Completed:** 2026-05-22
 
 ---
 
