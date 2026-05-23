@@ -11,11 +11,11 @@
 - **Cohort:** agile-parallelism
 
 - **Task List:** [none]
-- **Last Completed:** Activation + post-WOR draft drift sweep
+- **Last Completed:** Cohort shift-design reconciliation (shift extracted + shift-state cut; WF/AWL/CWC harmonized)
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Iterate `draft-worktree-foundation.md` toward spec-readiness — pressure-test
-  open questions + edge cases — then `1_create-spec.md`.
+- **Next Action:** Resolve `draft-worktree-foundation.md` open questions (worktree lifecycle
+  ceremony, detection depth, dashboard candidate, pivot naming), then `1_create-spec.md`.
 
 ---
