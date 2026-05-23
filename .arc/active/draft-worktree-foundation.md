@@ -622,6 +622,21 @@ Minimum: session-init surfaces worktree context in orientation. Maximum: arc-con
 awareness, CLI worktree subcommand, strategy-doc diagrams, worktree-aware commit hooks. Where's the
 right floor for "worktree-aware" vs "worktree-integrated"?
 
+### Planning-layer Changes and the concurrency oracle
+
+Worktree Foundation is the mechanism behind the Change work class (ADR-021) — cross-cutting and
+trivially-small work that takes an ephemeral branch without becoming a WU. Two seams land here:
+
+- **Cheap-branch affordance.** A Change needs a worktree / branch spun off `main` and torn down on
+  merge, with no meta / lifecycle. Does the spawn primitive (phase 2) grow a Change mode, or is a
+  Change just a manual `git worktree add` + ephemeral branch riding the lighter merge gate? Where is
+  the floor?
+- **Concurrency oracle.** The activation-time concurrency check (phase 2) generalizes to an all-owner,
+  on-demand in-flight detector sourced from remote refs + open PRs (not `main`-derived state, which is
+  blind to unmerged work; not branch-name → WU, since a Change branch maps to no WU). This is also the
+  oracle the user-scoped in-flight view consumes. How much does WF build vs. defer to roadmap-tooling
+  (render) and Concurrent Work Conventions (the gate doctrine)? See `cohort-agile-parallelism.md`.
+
 ---
 
 ## Scope Estimate
