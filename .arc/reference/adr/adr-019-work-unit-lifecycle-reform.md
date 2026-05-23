@@ -281,3 +281,10 @@ convention.
 
 <!-- Reserved for post-implementation learnings per the three-tier amendment model (strategy-adr-methodology.md).
      Append dated annotations as `**Amendment (YYYY-MM-DD):** …`. -->
+
+**Amendment (2026-05-22):** The "CB core-6 alignment / intentional `test` + `revert` divergence per CB spec
+rationale" framing in § Context and § Decision (surface 2) rested on a misreading of the Conventional Branch
+spec, caught during implementation. ARC's branch-prefix set is *inspired by* Conventional Branch, not aligned to
+a fixed "core-6"; the corrected "inspired-by, not aligned-with" framing lives in the `branch-format` method
+preamble, with `strategy-work-organization.md` § Branching treating `branch-format` and `commit-format` as
+independent axes. The branch-prefix decision itself is unchanged — only its rationale is corrected.
