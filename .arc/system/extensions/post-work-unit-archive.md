@@ -8,7 +8,7 @@ active: false
 
 > - **Workflow:** [archive-work-unit.md][archive-work-unit]
 > - **Fires:** After core archival completes — state flip `Integrating → Shipped`, sweep
->   (`active/` → `completed/<dated>/<wu-name>/`), and ROADMAP regen — and immediately before the
+>   (`active/` → `completed/<dated>/<NN>_<wu-name>/`), and ROADMAP regen — and immediately before the
 >   archival commit lands.
 >
 > - **Contract:** Perform additional actions after a work unit is archived. The workflow's built-in

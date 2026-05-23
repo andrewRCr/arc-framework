@@ -9,7 +9,7 @@ arc:
 # Workflow: Archive Work Unit
 
 Archival mechanics for a shipped WU — state flip `Integrating → Shipped`, file sweep from `active/` to
-`completed/<dated>/<wu-name>/`, ROADMAP regen. Body is invariant across invocation contexts: invoked inline
+`completed/<dated>/<NN>_<wu-name>/`, ROADMAP regen. Body is invariant across invocation contexts: invoked inline
 from [`integrate-work-unit.md`][integrate-work-unit] under `archive.cadence: with-integration` (default),
 or standalone post-merge under `manual` cadence per [Work Organization Strategy][work-org] § Archival.
 
@@ -39,17 +39,19 @@ Edit `active/meta-{name}.md`: `**State:** Integrating` → `**State:** Shipped`.
 ### 3) Sweep — move WU files to `completed/`
 
 ```bash
-mkdir -p .arc/completed/{dated}/{name}
-git mv .arc/active/meta-{name}.md   .arc/completed/{dated}/{name}/
-git mv .arc/active/prd-{name}.md    .arc/completed/{dated}/{name}/   # when WU has a PRD
-git mv .arc/active/tasks-{name}.md  .arc/completed/{dated}/{name}/   # when WU has a task list
-git mv .arc/active/notes-{name}.md  .arc/completed/{dated}/{name}/   # when present
-git mv .arc/active/atomic-{name}.md .arc/completed/{dated}/{name}/   # when present
+mkdir -p .arc/completed/{dated}/{NN}_{name}
+git mv .arc/active/meta-{name}.md   .arc/completed/{dated}/{NN}_{name}/
+git mv .arc/active/prd-{name}.md    .arc/completed/{dated}/{NN}_{name}/   # when WU has a PRD
+git mv .arc/active/tasks-{name}.md  .arc/completed/{dated}/{NN}_{name}/   # when WU has a task list
+git mv .arc/active/notes-{name}.md  .arc/completed/{dated}/{NN}_{name}/   # when present
+git mv .arc/active/atomic-{name}.md .arc/completed/{dated}/{NN}_{name}/   # when present
 ```
 
-`{dated}` follows `YYYY-q*` (e.g., `2026-q2`). Adjust the file list to what exists for the WU —
-per-worktree isolation means `active/` carries only this WU's artifacts (see [Work Organization
-Strategy][work-org] § Per-Worktree Isolation).
+`{dated}` follows `YYYY-q*` (e.g., `2026-q2`). `{NN}` is a 2-digit completion-order prefix assigned at
+archival — the next index after the highest already present in the `{dated}` subdir (e.g., `10_` when
+`01_`–`09_` exist), reset per quarter — giving a browse-time "by completion order" view. Adjust the file
+list to what exists for the WU — per-worktree isolation means `active/` carries only this WU's artifacts
+(see [Work Organization Strategy][work-org] § Per-Worktree Isolation).
 
 ### 4) Regenerate ROADMAP · `arc-in-git` only
 
@@ -75,7 +77,7 @@ Bundle state flip + sweep + ROADMAP regen.
 chore(arc): archive {name}
 
 - Flip State: Integrating → Shipped
-- Sweep meta + companions to completed/{dated}/{name}/
+- Sweep meta + companions to completed/{dated}/{NN}_{name}/
 - Regenerate ROADMAP
 
 Context: meta-{name}.md (archival)

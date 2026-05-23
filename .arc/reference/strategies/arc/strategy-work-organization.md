@@ -318,13 +318,13 @@ lifecycle on one branch through one merge.
 `archive.cadence` in `arc-config.yml` controls when the file-move sweep fires:
 
 - **`with-integration`** (default) — sweep commits ride on the integration PR; the WU's meta
-  file and any companions move from `active/` to `completed/<dated>/<wu-name>/` as part of the
+  file and any companions move from `active/` to `completed/<dated>/<NN>_<wu-name>/` as part of the
   same merge that ships the code.
 - **`manual`** — sweep fires only on explicit invocation; no automatic ceremony coupling.
 
 Under `with-integration`, the integration PR carries a multi-commit structure: code commits →
 completion content (Release Notes Entry + Completion Notes composed into the meta file) → sweep
-commits (file moves from `active/` to `completed/<dated>/<wu-name>/`). Reviewers focus per-commit.
+commits (file moves from `active/` to `completed/<dated>/<NN>_<wu-name>/`). Reviewers focus per-commit.
 
 See [integrate-work-unit.md][integrate-work-unit] and [archive-work-unit.md][archive-work-unit]
 for the full ceremony workflows.
@@ -333,13 +333,16 @@ for the full ceremony workflows.
 
 ```text
 .arc/completed/<dated>/
-  <wu-name>/
+  <NN>_<wu-name>/
     meta-*.md, spec-*.md, tasks-*.md, notes-*.md, ...
 ```
 
 Each shipped WU gets its own subdir directly under the temporal grouping. The `<dated>` segment
-follows a `<YYYY-q*>` convention (e.g., `2026-q2/`). Subdir contains all WU artifacts that
-existed at integration time, symmetric with the backlog's per-WU subdir convention (see
+follows a `<YYYY-q*>` convention (e.g., `2026-q2/`); the `<NN>` prefix is a 2-digit completion-order
+index assigned at archival, reset per `<dated>` subdir (the next index after the highest already
+present). It gives a browse-time "by completion order" view — `ls completed/<quarter>/` lists WUs in the
+order they shipped, which a plain alphabetical sort would scramble. The subdir contains all WU artifacts
+that existed at integration time, symmetric with the backlog's per-WU subdir convention (see
 [Planning Module Strategy](strategy-planning-module.md)).
 
 ### Tier and async-merge accommodations
