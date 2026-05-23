@@ -11,11 +11,11 @@
 - **Cohort:** agile-parallelism
 
 - **Task List:** [none]
-- **Last Completed:** [none]
+- **Last Completed:** Activation + post-WOR draft drift sweep
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Activation drift sweep on `draft-worktree-foundation.md` (WOR R66–R68 vocab
-  refresh + the draft's listed audit items), then iterate toward spec authoring.
+- **Next Action:** Iterate `draft-worktree-foundation.md` toward spec-readiness — pressure-test
+  open questions + edge cases — then `1_create-spec.md`.
 
 ---
