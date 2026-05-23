@@ -112,7 +112,13 @@ function composeWorktreePromptText(behind: number, dirty: DirtyStateResult): str
  * - `remote-ahead` / `conflict` + `always` → action=pull, prompt text empty.
  * - `remote-ahead` / `conflict` + `manual` → action=surface, prompt text empty.
  * - `remote-unavailable` → action=surface, prompt text empty.
- * - `clean` / `disabled` → action=skip.
+ * - `clean` + `refState === "local-ahead"` → action=surface (informational orientation; no pull).
+ * - `clean` (otherwise) / `disabled` → action=skip.
+ *
+ * The `clean` + local-ahead branch reads `refState` because the 5-state
+ * `UserSessionInitState` enum encodes pull-direction dispatch and intentionally
+ * collapses `same` and `local-ahead` to `clean` — raw topology lives on the
+ * parallel `refState` field.
  *
  * Returns skip when `user` is null (identity missing or probe failed) — the
  * notes channel has no path without identity.
@@ -141,6 +147,10 @@ function inferUser(
     case "remote-unavailable":
       return { recommendedAction: "surface", recommendedPromptText: "" };
     case "clean":
+      if (user.refState === "local-ahead") {
+        return { recommendedAction: "surface", recommendedPromptText: "" };
+      }
+      return { recommendedAction: "skip", recommendedPromptText: "" };
     case "disabled":
       return { recommendedAction: "skip", recommendedPromptText: "" };
   }

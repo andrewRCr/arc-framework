@@ -7,7 +7,7 @@
  * - {@link runActiveSessionInitStatus} — resolved path / null / candidate
  *   list for the session-init harness (Step 2 Item 8 consumer).
  *
- * Both share the filesystem work through {@link readActiveStatusCandidates};
+ * Both share the filesystem work through {@link readActiveMetaCandidates};
  * the session-init variant applies a thin resolution-state shaping on top.
  *
  * @module
@@ -16,10 +16,7 @@
 import { stat } from "node:fs/promises";
 import { join, sep } from "node:path";
 
-import {
-  readActiveStatusCandidates,
-  type ActiveScanShape,
-} from "../../lib/active/status-reader.js";
+import { readActiveMetaCandidates } from "../../lib/active/meta-reader.js";
 import { getCurrentBranch } from "../../lib/git/index.js";
 import type {
   ActiveLayout,
@@ -29,7 +26,7 @@ import type {
   ActiveStatusOptions,
   ActiveStatusResult,
   SessionType,
-  StatusFileCandidate,
+  MetaFileCandidate,
 } from "./types.js";
 
 const CONTRIBUTOR_IDENTITY_MISSING_WARNING =
@@ -48,28 +45,42 @@ const TASK_LIST_PLANNING_VALUES = new Set(["[none]", "[none associated]"]);
 const INTEGRATION_WORKFLOW_PREFIX = /^(integrate-work-unit|archive-work-unit)\b(?!-)/i;
 
 /**
- * Branch-name pattern signaling a planning session: `{category}/plan-{name}`.
+ * Branch-name pattern signaling a planning session: `plan/<name>`.
  * Used as the fallback signal when no status file is present (orphan case)
- * or its `**State:**` is unset/empty (in-flight pre-migration files).
+ * or its `**State:**` is unset/empty (in-flight pre-migration files). The
+ * narrow `plan/` prefix (not `<category>/plan-<name>`) intentionally fails
+ * to match CB core-6 execution branches (`feature/foo`, `technical/foo`,
+ * etc.) — specificity replaces an enumerated category list.
  */
-const PLANNING_BRANCH_PATTERN = /^[^/]+\/plan-.+$/;
+const PLANNING_BRANCH_PATTERN = /^plan\/.+$/;
 
 /**
  * Infer session type from a resolved candidate's status fields.
  *
  * Rules (precedence top-down):
  *
- * - `**State:**` is exactly `Planning` (case-exact) → `planning`
+ * - **Unambiguous codified States fast-path** (State alone is decisive):
+ *     - `Planning` (case-exact) → `planning`
+ *     - `Integrating` → `integration`
+ *     - `Shipped` → `null`
  * - `**State:**` is unset/empty (whitespace-only) → branch-pattern fallback:
- *   `currentBranch` matches `{category}/plan-{name}` → `planning`; otherwise `null`
- * - Non-`Planning` `**State:**` falls through to existing Task List / Next Action logic:
+ *   `currentBranch` matches `plan/<name>` → `planning`; otherwise `null`.
+ * - All other States — `Active` (codified phase, not session-type) and any
+ *   unrecognized value — fall through to Task-List / Next-Action inference:
  *     - `**Task List:**` is `[none]` / `[none associated]` / missing → `planning`
  *     - `**Next Action:**` matches `^(integrate-work-unit|archive-work-unit)\b` → `integration`
  *     - Otherwise → `execution`
  *
- * The State-based primary preserves behavior for in-flight pre-migration files (covers
- * parenthetical-suffix States like `Paused (2026-04-12)` via the fall-through). Caller
- * handles the `multiple` (deferred → null) case at `classifyResolution`.
+ * **Design — State carries phase, Next-Action carries activity.** State alone
+ * is decisive only for the unambiguous endpoints: `Planning` opens a WU before
+ * task work; `Integrating` / `Shipped` close it after. `Active` spans the full
+ * execution interior, where session-type depends on the current activity —
+ * `State: Active + Next-Action: integrate-work-unit` routes to integration
+ * via the Next-Action arm, because the codified phase doesn't disambiguate
+ * what's happening within it. The structural fall-through doubles as
+ * defensive forward-compat for unrecognized State values.
+ *
+ * Caller handles the `multiple` (deferred → null) case at `classifyResolution`.
  */
 export function inferSessionType(
   state: string | null,
@@ -78,6 +89,8 @@ export function inferSessionType(
   currentBranch: string | null,
 ): SessionType | null {
   if (state === "Planning") return "planning";
+  if (state === "Integrating") return "integration";
+  if (state === "Shipped") return null;
   if (state === null || state.trim() === "") {
     return inferFromBranchPattern(currentBranch);
   }
@@ -99,7 +112,7 @@ function inferFromBranchPattern(currentBranch: string | null): SessionType | nul
 export async function runActiveStatus(
   options: ActiveStatusOptions,
 ): Promise<ActiveStatusResult> {
-  const { layout, candidates, warnings } = await readActiveStatusCandidates(options.cwd);
+  const { layout, candidates, warnings } = await readActiveMetaCandidates(options.cwd);
   return {
     mode: "full",
     layout,
@@ -150,7 +163,7 @@ export async function runActiveSessionInitStatus(
 
   const readerOptions = resolveReaderOptions(role, identity);
   const [scan, currentBranch] = await Promise.all([
-    readActiveStatusCandidates(options.cwd, readerOptions),
+    readActiveMetaCandidates(options.cwd, readerOptions),
     getCurrentBranch(options.exec),
   ]);
   return resolveSessionInit(options.cwd, scan.layout, scan.candidates, scan.warnings, currentBranch);
@@ -159,11 +172,14 @@ export async function runActiveSessionInitStatus(
 function resolveReaderOptions(
   role: string | null,
   identity: string | null,
-): { rootSegments: readonly string[]; scanShape: ActiveScanShape } | undefined {
+): { rootSegments: readonly string[] } | undefined {
   if (role === "contributor" && identity !== null) {
+    // Contributor role: scan the user-scoped active subdir. The eventual
+    // per-WU subdir layout (user/{identity}/<wu-name>/) requires a reshape
+    // that composes with broader contributor-lifecycle support; not wired
+    // through this resolver yet.
     return {
       rootSegments: [".arc", "user", identity, "active"],
-      scanShape: "flat",
     };
   }
   return undefined;
@@ -172,12 +188,12 @@ function resolveReaderOptions(
 interface ResolutionFields {
   resolution: ActiveSessionInitResolution;
   path: string | null;
-  candidates: StatusFileCandidate[];
+  candidates: MetaFileCandidate[];
   sessionType: SessionType | null;
 }
 
 function classifyResolution(
-  input: StatusFileCandidate[],
+  input: MetaFileCandidate[],
   currentBranch: string | null,
 ): ResolutionFields {
   const [only] = input;
@@ -203,7 +219,7 @@ function classifyResolution(
 async function resolveSessionInit(
   cwd: string,
   layout: ActiveLayout,
-  candidates: StatusFileCandidate[],
+  candidates: MetaFileCandidate[],
   warnings: string[],
   currentBranch: string | null,
 ): Promise<ActiveSessionInitResult> {

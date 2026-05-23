@@ -39,7 +39,7 @@ describe("update", () => {
     expect(init.exitCode).toBe(0);
 
     // Modify a Configurable file — DEV-RULES.PROJECT.md
-    const rulesPath = join(tmpDir, ".arc", "reference", "constitution", "DEV-RULES.PROJECT.md");
+    const rulesPath = join(tmpDir, ".arc", "system", "rules", "DEV-RULES.PROJECT.md");
     const original = await readFile(rulesPath, "utf-8");
     const customized = original + "\n## My Custom Section\n\nProject-specific rules here.\n";
     await writeFile(rulesPath, customized, "utf-8");
@@ -61,7 +61,7 @@ describe("update", () => {
     // Pick a Configurable file — merge behavior (three-way merge with conflict
     // detection) only applies to Configurable files. Framework files are
     // wholesale-replaced on update.
-    const configFile = "reference/constitution/DEV-RULES.PROJECT.md";
+    const configFile = "system/rules/DEV-RULES.PROJECT.md";
     const filePath = join(tmpDir, ".arc", configFile);
     const pristineStorePath = join(tmpDir, ".arc", "system", ".internal", "pristine.json");
 

@@ -23,7 +23,7 @@ function validManifest() {
       tools: ["claude"],
     },
     files: {
-      "reference/constitution/DEV-RULES.ARC.md": buildFileEntry(),
+      "system/rules/DEV-RULES.ARC.md": buildFileEntry(),
     },
   });
 }

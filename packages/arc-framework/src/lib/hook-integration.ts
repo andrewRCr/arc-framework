@@ -18,10 +18,10 @@ import type { HookManagerResult } from "./hook-manager.js";
 import type { ReadFileFn, WriteFileFn } from "./template/index.js";
 
 /** Relative path from repo root to ARC's pre-commit hook. */
-const ARC_PRE_COMMIT = ".arc/system/githooks/pre-commit";
+const ARC_PRE_COMMIT = ".arc/system/.internal/githooks/pre-commit";
 
 /** Relative path from repo root to ARC's commit-msg hook. */
-const ARC_COMMIT_MSG = ".arc/system/githooks/commit-msg";
+const ARC_COMMIT_MSG = ".arc/system/.internal/githooks/commit-msg";
 
 /**
  * Integrate ARC hooks into the detected hook manager's configuration.

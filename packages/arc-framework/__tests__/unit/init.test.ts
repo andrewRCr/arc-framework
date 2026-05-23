@@ -63,7 +63,7 @@ function makeInitResult(overrides: Partial<InitResult> = {}): InitResult {
 function canonicalSkillFiles(templateDir: string): Record<string, string> {
   const files: Record<string, string> = {};
   for (const name of CANONICAL_SKILLS) {
-    files[`${templateDir}/system/skills/${name}/SKILL.md`] = [
+    files[`${templateDir}/system/.internal/skills/${name}/SKILL.md`] = [
       "---",
       `name: ${name}`,
       `description: Stub skill for testing.`,
@@ -270,12 +270,12 @@ describe("resolveFileList — actual recipe", () => {
 
 describe("toOutputPath", () => {
   it("strips .template suffix from .template.md files", () => {
-    expect(toOutputPath("reference/META-PRD.template.md")).toBe("reference/META-PRD.md");
+    expect(toOutputPath("reference/PROJECT-PRD.template.md")).toBe("reference/PROJECT-PRD.md");
   });
 
   it("leaves non-template files unchanged", () => {
-    expect(toOutputPath("reference/constitution/DEV-RULES.ARC.md")).toBe(
-      "reference/constitution/DEV-RULES.ARC.md",
+    expect(toOutputPath("system/rules/DEV-RULES.ARC.md")).toBe(
+      "system/rules/DEV-RULES.ARC.md",
     );
   });
 
@@ -284,8 +284,8 @@ describe("toOutputPath", () => {
   });
 
   it("leaves files with template in directory name unchanged", () => {
-    expect(toOutputPath("reference/templates/template-prd.md")).toBe(
-      "reference/templates/template-prd.md",
+    expect(toOutputPath("reference/templates/arc/work-unit/spec/template-prd.md")).toBe(
+      "reference/templates/arc/work-unit/spec/template-prd.md",
     );
   });
 });
@@ -295,24 +295,25 @@ describe("toOutputPath", () => {
 
 describe("classifyFile", () => {
   it("classifies Scaffolded files", () => {
-    expect(classifyFile("reference/META-PRD.template.md")).toBe("Scaffolded");
-    expect(classifyFile("reference/PROJECT-STATUS.template.md")).toBe("Scaffolded");
+    expect(classifyFile("reference/PROJECT-PRD.template.md")).toBe("Scaffolded");
     expect(classifyFile("backlog/ROADMAP.template.md")).toBe("Scaffolded");
+    expect(classifyFile("backlog/ATOMIC-INBOX.template.md")).toBe("Scaffolded");
+    expect(classifyFile("backlog/BACKLOG-INBOX.template.md")).toBe("Scaffolded");
   });
 
   it("classifies Configurable files", () => {
     expect(classifyFile("system/arc-config.yml")).toBe("Configurable");
     expect(classifyFile("system/methods/commit-format.md")).toBe("Configurable");
     expect(classifyFile("system/extensions/post-task-quality.md")).toBe("Configurable");
-    expect(classifyFile("reference/constitution/DEV-RULES.PROJECT.md")).toBe("Configurable");
-    expect(classifyFile("system/briefs/AGENT-BRIEF.PROJECT.template.md")).toBe("Configurable");
+    expect(classifyFile("system/rules/DEV-RULES.PROJECT.md")).toBe("Configurable");
+    expect(classifyFile("reference/briefs/AGENT-BRIEF.PROJECT.template.md")).toBe("Configurable");
     expect(classifyFile("reference/QUICK-REFERENCE.template.md")).toBe("Configurable");
   });
 
   it("classifies everything else as Framework", () => {
     expect(classifyFile("README.md")).toBe("Framework");
-    expect(classifyFile("reference/constitution/DEV-RULES.ARC.md")).toBe("Framework");
-    expect(classifyFile("system/briefs/AGENT-BRIEF.ARC.md")).toBe("Framework");
+    expect(classifyFile("system/rules/DEV-RULES.ARC.md")).toBe("Framework");
+    expect(classifyFile("reference/briefs/AGENT-BRIEF.ARC.md")).toBe("Framework");
     expect(classifyFile("system/workflows/arc/3_process-task-loop.template.md")).toBe("Framework");
     // Per-file methods/extensions directory READMEs fall through to Framework —
     // only the 8 methods + 8 extensions themselves are adopter-customizable.
@@ -325,13 +326,13 @@ describe("classifyFile", () => {
 
 describe("needsRendering", () => {
   it("returns true for .template files", () => {
-    expect(needsRendering("reference/META-PRD.template.md")).toBe(true);
+    expect(needsRendering("reference/PROJECT-PRD.template.md")).toBe(true);
     expect(needsRendering("system/workflows/arc/3_process-task-loop.template.md")).toBe(true);
   });
 
   it("returns false for non-template files", () => {
     expect(needsRendering("README.md")).toBe(false);
-    expect(needsRendering("reference/constitution/DEV-RULES.ARC.md")).toBe(false);
+    expect(needsRendering("system/rules/DEV-RULES.ARC.md")).toBe(false);
     expect(needsRendering("system/arc-config.yml")).toBe(false);
   });
 });
@@ -356,7 +357,7 @@ describe("buildManifestFiles", () => {
   it("creates file entries with classification, layer, and hash", () => {
     const fileContents: Record<string, string> = {
       "README.md": "# Hello",
-      "reference/META-PRD.md": "# Meta PRD",
+      "reference/PROJECT-PRD.md": "# Meta PRD",
     };
     const arcInGitFiles = new Set<string>();
     const entries = buildManifestFiles(fileContents, arcInGitFiles);
@@ -368,15 +369,15 @@ describe("buildManifestFiles", () => {
   });
 
   it("uses output path (not template path) for classification lookup", () => {
-    // META-PRD.template.md → Scaffolded via template path, but buildManifestFiles
-    // receives the output path (META-PRD.md). classifyFile checks template paths,
+    // PROJECT-PRD.template.md → Scaffolded via template path, but buildManifestFiles
+    // receives the output path (PROJECT-PRD.md). classifyFile checks template paths,
     // so the output path doesn't match SCAFFOLDED_FILES and falls through to Framework.
     const fileContents: Record<string, string> = {
-      "reference/META-PRD.md": "# Meta PRD",
+      "reference/PROJECT-PRD.md": "# Meta PRD",
     };
     const entries = buildManifestFiles(fileContents, new Set());
-    expect(entries["reference/META-PRD.md"]).toBeDefined();
-    expect(entries["reference/META-PRD.md"]!.classification).toBe("Framework");
+    expect(entries["reference/PROJECT-PRD.md"]).toBeDefined();
+    expect(entries["reference/PROJECT-PRD.md"]!.classification).toBe("Framework");
   });
 });
 
@@ -386,7 +387,8 @@ describe("buildManifestFiles", () => {
 function userTemplateFiles(internalDir: string): Record<string, string> {
   return {
     [`${internalDir}/user/SESSION-NOTES.md`]: "# Session Notes\n",
-    [`${internalDir}/user/ATOMIC-INBOX.md`]: "# Atomic Inbox\n",
+    [`${internalDir}/user/WORKING-MEMORY.md`]: "# Working Memory\n",
+    [`${internalDir}/user/USER-INBOX.md`]: "# User Inbox\n",
   };
 }
 
@@ -508,12 +510,12 @@ describe("runInit", () => {
 
   it("fresh mode: strips .template from output filenames", async () => {
     const recipe: Recipe = {
-      include_files: ["reference/META-PRD.template.md"],
+      include_files: ["reference/PROJECT-PRD.template.md"],
       prompts: minimalRecipe.prompts,
       conditions: {},
     };
     const io = mockIO({
-      "/templates/reference/META-PRD.template.md": "# Meta PRD",
+      "/templates/reference/PROJECT-PRD.template.md": "# Meta PRD",
     });
 
     await runInit({
@@ -528,7 +530,7 @@ describe("runInit", () => {
 
     const writeCalls = (io.writeFile as ReturnType<typeof vi.fn>).mock.calls;
     const metaPrdWrite = writeCalls.find(
-      (c) => c[0] === "/project/.arc/reference/META-PRD.md",
+      (c) => c[0] === "/project/.arc/reference/PROJECT-PRD.md",
     );
     expect(metaPrdWrite).toBeDefined();
   });
@@ -699,10 +701,10 @@ describe("runInit", () => {
     const io = mockIO({
       "/templates/README.md": "# framework file",
       "/templates/system/arc-config.yml": "pm.mode: none",
-      "/templates/reference/META-PRD.template.md": "# scaffolded",
+      "/templates/reference/PROJECT-PRD.template.md": "# scaffolded",
     });
     const recipe: Recipe = {
-      include_files: ["README.md", "system/arc-config.yml", "reference/META-PRD.template.md"],
+      include_files: ["README.md", "system/arc-config.yml", "reference/PROJECT-PRD.template.md"],
       prompts: minimalRecipe.prompts,
       conditions: {},
     };
@@ -734,7 +736,7 @@ describe("runInit", () => {
     expect(pristineStore["system/arc-config.yml"]).toBeDefined();
 
     // Scaffolded file NOT in pristine store
-    expect(pristineStore["reference/META-PRD.md"]).toBeUndefined();
+    expect(pristineStore["reference/PROJECT-PRD.md"]).toBeUndefined();
   });
 
   it("fresh mode: returns correct filesWritten and tools for message building", async () => {
@@ -810,7 +812,7 @@ describe("runInit", () => {
       (c) => c[1]?.includes("core.hooksPath"),
     );
     expect(hooksPath).toBeDefined();
-    expect(hooksPath![1]).toContain(".arc/system/githooks");
+    expect(hooksPath![1]).toContain(".arc/system/.internal/githooks");
 
     // guard: .gitattributes and merge driver were retired in d8e5048 — no regression
     const gitattributesWrite = writeCalls.find(

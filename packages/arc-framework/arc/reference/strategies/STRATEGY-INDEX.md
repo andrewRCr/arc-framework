@@ -38,7 +38,7 @@ mode is active (`pm.mode: arc-in-git` in `arc-config.yml`).
 Create project-specific strategies in `project/` as your project's patterns emerge.
 See `project/README.md` for guidance on when to create one.
 
-**Example strategies adopters might create** (illustrations — these files don't exist until you
+**Example project strategies** (illustrations — these files don't exist until you
 create them):
 
 - `project/strategy-authentication.md` - Auth flow, session management

@@ -28,6 +28,15 @@ export {
 } from "./worktree-sync.js";
 
 export {
+  runWorktreeRoster,
+  type WorktreeRosterEntry,
+  type WorktreeRosterFs,
+  type WorktreeRosterResult,
+  type WorktreeRosterState,
+  type RunWorktreeRosterOptions,
+} from "./worktree-roster.js";
+
+export {
   runDirtyStateStatus,
   type DirtyState,
   type DirtyStateResult,
@@ -35,6 +44,7 @@ export {
 } from "./dirty-state.js";
 
 export {
+  isRefusalCondition,
   runPushabilityStatus,
   type AccessFn,
   type PushabilityCondition,

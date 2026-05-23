@@ -10,8 +10,8 @@ invoke_skill "arc-resume"
 # --- Phase 2: Context loading ---
 tool_use "Read .arc/system/agent/AGENT-BRIEFING.ARC.md"
 tool_use "Read .arc/system/agent/AGENT-BRIEFING.PROJECT.md"
-tool_use "Read .arc/reference/constitution/DEV-RULES.ARC.md"
-tool_use "Read .arc/reference/constitution/DEV-RULES.PROJECT.md"
+tool_use "Read .arc/system/rules/DEV-RULES.ARC.md"
+tool_use "Read .arc/system/rules/DEV-RULES.PROJECT.md"
 tool_use "Read .arc/reference/QUICK-REFERENCE.md"
 tool_use "Glob .arc/active/**/status-*.md"
 

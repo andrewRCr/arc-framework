@@ -1,23 +1,21 @@
 ---
 name: pre-merge-review
-description: Additional review ceremony before merge, on top of the diff-review method
+description: Final pre-merge gate after review-response processing — reserved for final-state checks before merge
 active: false
 ---
 
 # Extension: pre-merge-review
 
 > - **Workflow:** [integrate-work-unit.md][integrate-work-unit]
-> - **Fires:** After the [diff-review method][diff-review] completes, before push and PR creation
+> - **Fires:** After `review-response` processing completes, before the merge action
 >
-> - **Contract:** Add review ceremony on top of the default diff review. The [diff-review
->   method][diff-review] defines the base review activity (lightweight diff review by default, overridable);
->   this extension adds additional actions. Both are gated by `review.pre_merge` in
->   [`arc-config.yml`][arc-config] — when disabled, neither method nor extension fires.
-
-Use for: AI review tool integration (CodeRabbit, Copilot, etc.), multi-pass review strategies, structured
-human review protocols, or any additional ceremony beyond the method's review. When processing findings from
-any review source, use the [review-triage method][review-triage] for classification
-(fix-now/defer/reject/silent-fix).
+> - **Contract:** Sequential execution with halt-on-fail. The integrate-work-unit workflow's review-and-merge
+>   sequence runs `pre-pr-review` (before PR creation, after the [diff-review method][diff-review]) →
+>   `review-response` processing (handling AI / human review findings) → `pre-merge-review` (this extension,
+>   before merge). This extension fires last in that sequence — it has visibility into review-response
+>   outcomes that the earlier `pre-pr-review` couldn't anticipate. Reserved-pending-final-state-check use
+>   cases: verifying review-response fixes haven't introduced regressions, post-fix quality-gate re-runs,
+>   final approval ceremonies before the merge action lands.
 
 ## pre-merge-review.actions
 
@@ -27,5 +25,3 @@ any review source, use the [review-triage method][review-triage] for classificat
 
 [integrate-work-unit]: ../workflows/arc/work-unit-lifecycle/integrate-work-unit.md
 [diff-review]: ../methods/diff-review.md
-[review-triage]: ../methods/review-triage.md
-[arc-config]: ../arc-config.yml

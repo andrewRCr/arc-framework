@@ -76,7 +76,7 @@ async function createFixture(): Promise<Fixture> {
   const extDir = join(configDir, "extensions");
   const wfDir = join(configDir, "workflows");
   const activeDir = join(arcDir, "active");
-  const constitutionDir = join(arcDir, "reference", "constitution");
+  const constitutionDir = join(arcDir, "system", "rules");
   await mkdir(extDir, { recursive: true });
   await mkdir(wfDir, { recursive: true });
   await mkdir(activeDir, { recursive: true });
@@ -126,23 +126,20 @@ async function writeExtension(
 
 async function writeStatusFile(
   activeDir: string,
-  category: string,
+  _category: string,
   filename: string,
   body: { branch: string; state: string; taskList?: string; nextAction?: string },
 ): Promise<void> {
-  const dir = join(activeDir, category);
-  await mkdir(dir, { recursive: true });
+  void _category;
   const lines: string[] = [
-    "# Status: fixture",
-    "",
-    "## Work Unit Metadata",
+    "# Metadata: fixture",
     "",
     `- **State:** ${body.state}`,
     `- **Branch:** ${body.branch}`,
   ];
   if (body.taskList !== undefined) lines.push(`- **Task List:** ${body.taskList}`);
   if (body.nextAction !== undefined) lines.push(`- **Next Action:** ${body.nextAction}`);
-  await writeFile(join(dir, filename), lines.join("\n"));
+  await writeFile(join(activeDir, filename), lines.join("\n"));
 }
 
 // Stub user result — the probe is exercised in its own suite; here we just
@@ -292,9 +289,9 @@ describe("runStatus — clean state", () => {
     await writeConfig(fixture.configPath);
     await writeExtension(fixture.extDir, "pre-merge-review", true);
     await writeExtension(fixture.extDir, "post-task-quality", false);
-    await writeStatusFile(fixture.activeDir, "technical", "status-alpha.md", {
+    await writeStatusFile(fixture.activeDir, "technical", "meta-alpha.md", {
       branch: "technical/alpha",
-      state: "In Progress",
+      state: "Active",
     });
   });
   afterEach(async () => {
@@ -337,13 +334,13 @@ describe("runSessionInitStatus — multi-WU state", () => {
     fixture = await createFixture();
     await writeConfig(fixture.configPath);
     await writeExtension(fixture.extDir, "pre-merge-review", true);
-    await writeStatusFile(fixture.activeDir, "feature", "status-alpha.md", {
+    await writeStatusFile(fixture.activeDir, "feature", "meta-alpha.md", {
       branch: "feature/alpha",
-      state: "In Progress",
+      state: "Active",
     });
-    await writeStatusFile(fixture.activeDir, "technical", "status-beta.md", {
+    await writeStatusFile(fixture.activeDir, "technical", "meta-beta.md", {
       branch: "technical/beta",
-      state: "Paused",
+      state: "Integrating",
     });
   });
   afterEach(async () => {
@@ -364,7 +361,7 @@ describe("runSessionInitStatus — multi-WU state", () => {
       expect(result.active.value.resolution).toBe("multiple");
       expect(result.active.value.candidates).toHaveLength(2);
       const filenames = result.active.value.candidates.map((c) => c.filename).sort();
-      expect(filenames).toEqual(["status-alpha.md", "status-beta.md"]);
+      expect(filenames).toEqual(["meta-alpha.md", "meta-beta.md"]);
     }
     expect(result.extensions.ok).toBe(true);
     if (result.extensions.ok) {
@@ -379,23 +376,19 @@ describe("runSessionInitStatus — companion-file resolution carry-through", () 
     fixture = await createFixture();
     await writeConfig(fixture.configPath);
     await writeExtension(fixture.extDir, "pre-merge-review", true);
-    const sub = join(fixture.activeDir, "technical");
-    await mkdir(sub, { recursive: true });
     await writeFile(
-      join(sub, "status-foo.md"),
+      join(fixture.activeDir, "meta-foo.md"),
       [
-        "# Status: fixture",
+        "# Metadata: fixture",
         "",
-        "## Work Unit Metadata",
-        "",
-        "- **State:** In Progress",
+        "- **State:** Active",
         "- **Branch:** technical/foo",
-        "- **Task List:** `.arc/active/technical/tasks-foo.md`",
+        "- **Task List:** `.arc/active/tasks-foo.md`",
       ].join("\n"),
     );
-    await writeFile(join(sub, "tasks-foo.md"), "# tasks\n");
-    await writeFile(join(sub, "notes-foo.md"), "# notes\n");
-    await writeFile(join(sub, "atomic-foo.md"), "# atomic\n");
+    await writeFile(join(fixture.activeDir, "tasks-foo.md"), "# tasks\n");
+    await writeFile(join(fixture.activeDir, "notes-foo.md"), "# notes\n");
+    await writeFile(join(fixture.activeDir, "atomic-foo.md"), "# atomic\n");
   });
   afterEach(async () => {
     await rm(fixture.root, { recursive: true, force: true });
@@ -413,8 +406,8 @@ describe("runSessionInitStatus — companion-file resolution carry-through", () 
     if (result.active.ok) {
       expect(result.active.value.resolution).toBe("single");
       expect(result.active.value.companions).toEqual({
-        notes: ".arc/active/technical/notes-foo.md",
-        atomic: ".arc/active/technical/atomic-foo.md",
+        notes: ".arc/active/notes-foo.md",
+        atomic: ".arc/active/atomic-foo.md",
       });
     }
   });
@@ -429,13 +422,11 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
     const userActiveDir = join(fixture.root, ".arc", "user", "alice", "active");
     await mkdir(userActiveDir, { recursive: true });
     await writeFile(
-      join(userActiveDir, "status-foo.md"),
+      join(userActiveDir, "meta-foo.md"),
       [
-        "# Status: fixture",
+        "# Metadata: fixture",
         "",
-        "## Work Unit Metadata",
-        "",
-        "- **State:** In Progress",
+        "- **State:** Active",
         "- **Branch:** user/alice/foo",
         "- **Task List:** `.arc/user/alice/active/tasks-foo.md`",
       ].join("\n"),
@@ -472,7 +463,7 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
     expect(result.active.ok).toBe(true);
     if (result.active.ok) {
       expect(result.active.value.resolution).toBe("single");
-      expect(result.active.value.path).toBe(".arc/user/alice/active/status-foo.md");
+      expect(result.active.value.path).toBe(".arc/user/alice/active/meta-foo.md");
       expect(result.active.value.companions).toEqual({
         notes: ".arc/user/alice/active/notes-foo.md",
         atomic: null,
@@ -489,9 +480,9 @@ describe("runStatus — mixed (one probe errors, others succeed)", () => {
     // Intentionally remove the extensions dir to force the extensions probe
     // to throw (readdir on ENOENT).
     await rm(fixture.extDir, { recursive: true, force: true });
-    await writeStatusFile(fixture.activeDir, "technical", "status-alpha.md", {
+    await writeStatusFile(fixture.activeDir, "technical", "meta-alpha.md", {
       branch: "technical/alpha",
-      state: "In Progress",
+      state: "Active",
     });
   });
   afterEach(async () => {
@@ -755,10 +746,10 @@ describe("runSessionInitStatus — sessionType envelope coverage", () => {
   });
 
   it("carries sessionType=execution through the composite for a single-WU + Start-Task fixture", async () => {
-    await writeStatusFile(fixture.activeDir, "technical", "status-foo.md", {
+    await writeStatusFile(fixture.activeDir, "technical", "meta-foo.md", {
       branch: "technical/foo",
-      state: "In Progress",
-      taskList: "`.arc/active/technical/tasks-foo.md`",
+      state: "Active",
+      taskList: "`.arc/active/tasks-foo.md`",
       nextAction: "Start Task 4.2 — write unit tests",
     });
 
@@ -777,10 +768,10 @@ describe("runSessionInitStatus — sessionType envelope coverage", () => {
   });
 
   it("carries sessionType=integration through the composite when Next Action begins with integrate-work-unit", async () => {
-    await writeStatusFile(fixture.activeDir, "technical", "status-foo.md", {
+    await writeStatusFile(fixture.activeDir, "technical", "meta-foo.md", {
       branch: "technical/foo",
-      state: "In Progress",
-      taskList: "`.arc/active/technical/tasks-foo.md`",
+      state: "Active",
+      taskList: "`.arc/active/tasks-foo.md`",
       nextAction: "integrate-work-unit Step 7 — push and create PR",
     });
 
@@ -799,16 +790,16 @@ describe("runSessionInitStatus — sessionType envelope coverage", () => {
   });
 
   it("carries sessionType=null through the composite when resolution is multiple (defer until disambiguation)", async () => {
-    await writeStatusFile(fixture.activeDir, "feature", "status-alpha.md", {
+    await writeStatusFile(fixture.activeDir, "feature", "meta-alpha.md", {
       branch: "feature/alpha",
-      state: "In Progress",
-      taskList: "`.arc/active/feature/tasks-alpha.md`",
+      state: "Active",
+      taskList: "`.arc/active/tasks-alpha.md`",
       nextAction: "Start Task 1.1 — kick off",
     });
-    await writeStatusFile(fixture.activeDir, "technical", "status-beta.md", {
+    await writeStatusFile(fixture.activeDir, "technical", "meta-beta.md", {
       branch: "technical/beta",
-      state: "In Progress",
-      taskList: "`.arc/active/technical/tasks-beta.md`",
+      state: "Active",
+      taskList: "`.arc/active/tasks-beta.md`",
       nextAction: "integrate-work-unit Step 1 — verify completion",
     });
 

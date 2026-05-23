@@ -42,4 +42,4 @@ destination based on scope and PM mode. Never defer to completion notes or sessi
 ---
 
 [process-task-loop]: ../workflows/arc/3_process-task-loop.md
-[dev-rules-arc]: ../../reference/constitution/DEV-RULES.ARC.md
+[dev-rules-arc]: ../../system/rules/DEV-RULES.ARC.md

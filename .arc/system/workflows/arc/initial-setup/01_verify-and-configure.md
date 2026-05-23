@@ -24,7 +24,7 @@ This workflow runs once after init — for ongoing health checks, use `/arc-veri
 
 Confirm that `.arc/` was created at the repo root with the expected structure:
 
-- `active/` — Current work tracking (per-WU status files, task lists). Created
+- `active/` — Current work tracking (per-WU meta files, task lists). Created
   lazily at first work unit activation; absent immediately after init.
 - `backlog/` — Future work pipeline (ROADMAP, backlogs) · only with `pm.mode: arc-in-git`
 - `reference/` — Constitutional documents, strategies, ADRs
@@ -32,8 +32,8 @@ Confirm that `.arc/` was created at the repo root with the expected structure:
 
 ### Verify Session State
 
-No active status file exists yet — per-WU status files (`status-{name}.md`) are
-created in `.arc/active/{category}/` at first work unit activation, not at init.
+No active meta file exists yet — per-WU meta files (`meta-{name}.md`) are
+created in `.arc/active/` at first work unit activation, not at init.
 
 Initial session state lives in the bootstrap Persistent Context entry in
 `.arc/user/{identity}/SESSION-NOTES.md`, pre-populated by `arc init`:
@@ -99,7 +99,7 @@ ARC has two additional customization surfaces worth knowing about:
 
 - **`system/methods/`** — one file per method, each replacing *how* ARC does something.
   Example: a team using Jira populates the `.override` section in
-  `commit-context-format.md` to reference tickets instead of task lists.
+  `commit-footer.md` to reference tickets instead of task lists.
 - **`system/extensions/`** — one file per extension point, each adding *extra steps* at
   workflow points. Example: populate `.actions` in `post-task-quality.md` to run a security
   scan after every task, or `post-task-completion.md` to sync task completion to an external
@@ -172,7 +172,7 @@ Confirm that `arc init` set up the local environment:
   (e.g., `.claude/`, `.codex/`). These contain skills and settings.
 - **Git hooks** — if your project uses a hook manager (husky, lefthook, pre-commit),
   ARC hooks are integrated into the manager's config. Otherwise, `core.hooksPath` is set
-  to `.arc/system/githooks/`. Verify with `git config core.hooksPath` or check your
+  to `.arc/system/.internal/githooks/`. Verify with `git config core.hooksPath` or check your
   hook manager's config for ARC entries.
 - **Identity** — `git config arc.identity` is set. This determines your personal
   workspace directory (`user/{identity}/`).
@@ -217,12 +217,11 @@ Run `/arc-verify` to confirm that the installation is complete and consistent.
 
 ### Next Step
 
-Constitutional documents (META-PRD, TECHNICAL-OVERVIEW, AGENT-BRIEF.PROJECT, DEV-RULES.PROJECT,
+Constitutional documents (PROJECT-PRD, TECHNICAL-OVERVIEW, AGENT-BRIEF.PROJECT, DEV-RULES.PROJECT,
 QUICK-REFERENCE) already exist. Read them for project context rather than creating them —
 skip [02_define-project.md](02_define-project.md) unless documents need updating.
 
-> **With arc-in-git PM** (`pm.mode: arc-in-git`) — Review ROADMAP.md and PROJECT-STATUS.md
-> for current project state.
+> **With arc-in-git PM** (`pm.mode: arc-in-git`) — Review ROADMAP.md for current project state.
 
 ---
 

@@ -139,23 +139,16 @@ describe("sanitizeArgs — commit-message redaction rules", () => {
 });
 
 describe("toAuditWorkUnit — resolver-result mapping", () => {
-  it("returns null for resolver-empty (lite layout — both fields empty)", () => {
-    expect(toAuditWorkUnit({ category: "", name: "" })).toBeNull();
+  it("returns null for resolver-empty (lite layout — empty name)", () => {
+    expect(toAuditWorkUnit({ name: "" })).toBeNull();
   });
 
   it("returns null when input is null", () => {
     expect(toAuditWorkUnit(null)).toBeNull();
   });
 
-  it("omits empty category when name is present (future flat layout)", () => {
-    expect(toAuditWorkUnit({ category: "", name: "foo" })).toEqual({ name: "foo" });
-  });
-
-  it("preserves category and name when both present (full layout)", () => {
-    expect(toAuditWorkUnit({ category: "technical", name: "foo" })).toEqual({
-      category: "technical",
-      name: "foo",
-    });
+  it("maps a resolved name to the audit wu field", () => {
+    expect(toAuditWorkUnit({ name: "foo" })).toEqual({ name: "foo" });
   });
 });
 
@@ -165,7 +158,7 @@ function commitEntry(overrides: Partial<AuditEntry> = {}): AuditEntry {
     timestamp: "2026-05-08T12:00:00.000Z",
     command: "release-commit",
     args: ["-m", "<redacted>"],
-    wu: { category: "technical", name: "foo" },
+    wu: { name: "foo" },
     interlockState: {
       command: "release-commit",
       commitInterlock: { value: "on-task-approval", source: "git-config" },
@@ -184,7 +177,7 @@ function pushEntry(overrides: Partial<AuditEntry> = {}): AuditEntry {
     timestamp: "2026-05-08T12:00:01.000Z",
     command: "release-push",
     args: ["push", "origin", "main"],
-    wu: { category: "technical", name: "foo" },
+    wu: { name: "foo" },
     interlockState: {
       command: "release-push",
       pushInterlock: { value: "on-sync", source: "git-config" },
@@ -342,15 +335,6 @@ describe("appendAuditEntry — schema enforcement (throws on violation)", () => 
     await expect(
       appendAuditEntry({ ...ctx(fixture.root), entry }),
     ).rejects.toThrow(/outcome/);
-  });
-
-  it("throws when wu.category is empty string (must be omitted)", async () => {
-    const entry = commitEntry({
-      wu: { category: "", name: "foo" } as AuditEntry["wu"],
-    });
-    await expect(
-      appendAuditEntry({ ...ctx(fixture.root), entry }),
-    ).rejects.toThrow(/category/);
   });
 
   it("throws when decision is `proceeded` but refusalCode is non-null", async () => {

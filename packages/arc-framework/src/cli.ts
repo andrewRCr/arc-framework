@@ -17,7 +17,7 @@ import { handleInit } from "./handlers/init.js";
 import { handleJoin } from "./handlers/join.js";
 import { handleUpdate, handleHealth, handleDiff } from "./handlers/lifecycle.js";
 import {
-  handleUserAdd, handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
+  handleUserAdd, handleUserClose, handleUserOpen, handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
 } from "./handlers/user.js";
 import { handleExtensionsStatus } from "./handlers/extensions.js";
 import { handleConfigStatus } from "./handlers/config.js";
@@ -98,6 +98,16 @@ userCmd
   .command("add <identity>")
   .description("Create a user directory for a team member")
   .action(handleUserAdd);
+
+userCmd
+  .command("open <wu-name>")
+  .description("Open per-WU user workspace subdir (seeds SESSION-NOTES.md from template)")
+  .action(handleUserOpen);
+
+userCmd
+  .command("close <wu-name>")
+  .description("Close per-WU user workspace subdir (removes user/{identity}/<wu-name>/ recursively)")
+  .action(handleUserClose);
 
 userCmd
   .command("save")

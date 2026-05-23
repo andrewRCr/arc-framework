@@ -42,10 +42,10 @@ describe("lifecycle", () => {
     expect(configContent).toContain("branch.base: main");
 
     const statusTemplate = await readFile(
-      join(tmpDir, ".arc", "reference", "templates", "template-status.md"),
+      join(tmpDir, ".arc", "reference", "templates", "arc", "work-unit", "template-meta.md"),
       "utf-8",
     );
-    expect(statusTemplate).toContain("Status: [Work Name]");
+    expect(statusTemplate).toContain("# Metadata: {wu-name}");
 
     // --- Health after clean init ---
     const cleanOutput = await runHealthCheck(tmpDir);
@@ -56,8 +56,8 @@ describe("lifecycle", () => {
     const rulesPath = join(
       tmpDir,
       ".arc",
-      "reference",
-      "constitution",
+      "system",
+      "rules",
       "DEV-RULES.PROJECT.md",
     );
     const original = await readFile(rulesPath, "utf-8");

@@ -34,25 +34,36 @@ The probe returns a single JSON envelope the agent consumes:
 | `worktree`                  | Worktree sync state vs. `origin/<current-branch>` (`value.state`: clean / local-ahead / remote-ahead / diverged / no-upstream / detached-head / no-remote / remote-unavailable / skipped; `value.ahead` and `value.behind` populated for healthy states). Carries `value.recommendedAction` / `value.recommendedPromptText` mirroring the user slot                                                                                                                                                                                                                                       |
 | `dirty`                     | Working-tree state from `git status --porcelain` (`value.state`: clean / dirty; `value.fileCount`). Folded into the user/worktree `recommendedPromptText` so Step 2 doesn't re-probe                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `extensions`                | `value.active`: the **active-extensions list** — consulted by fire-point directives in downstream workflows                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `config`                    | `value.settings`: session-relevant settings (`session.remote_sync`, `session.init_pull.worktree`, `session.init_pull.notes`, `session.init_load.notes`, `branch.protection`, `pm.mode`, `commit.format`, `commit.context_footer`)                                                                                                                                                                                                                                                                                                                                                         |
-| `active`                    | Active status file resolution (`value.resolution`: single / multiple / none; `value.path`, `value.candidates`, `value.layout`)                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `config`                    | `value.settings`: session-relevant settings (`session.remote_sync`, `session.init_pull.worktree`, `session.init_pull.notes`, `session.init_load.notes`, `branch.protection`, `pm.mode`, `commit.format`, `commit.context_footer`, `commit.interlock`, `push.interlock`)                                                                                                                                                                                                                                                                                                                   |
+| `active`                    | Active meta file resolution (`value.resolution`: single / multiple / none; `value.path`, `value.candidates`, `value.layout`)                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `domainRules`               | `value.rules`: `{path, domain, purpose}` tuples from `DEV-RULES.{DOMAIN}.md` files; `value.warnings`: frontmatter parse diagnostics                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `recommendedCombinedPrompt` | Top-level. Composed combined-prompt text when both `worktree` and `user` resolve to `recommendedAction === "prompt"`; `null` otherwise                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+
+**Raw notes-ref topology on `user.value.refState?`**: The notes spine's 5-state `value.state` enum encodes
+pull-direction dispatch and collapses `same` and `local-ahead` into `clean` (both mean "no pull needed"). The
+parallel `value.refState?` field preserves raw topology (`same` / `local-ahead` / `remote-ahead` / `diverged` /
+`remote-unavailable`; omitted only when `state == "disabled"`). Step 6 reads it inside the `clean` arm to
+distinguish the collapsed cases for orientation surfacing.
+
+**Interlock-mode keys on `config.value.settings.{commit.interlock, push.interlock}`**: Both are
+git-config-resolved from `arc.commitInterlock` / `arc.pushInterlock` (with documented defaults when
+unset) rather than yaml-sourced. Load-bearing for prompt-prefix composition at any commit or push
+fire site — see DEV-RULES.ARC § Implied-approval scope for the prefix mapping.
 
 Carry `config` values forward as behavioral awareness. Do not surface configuration in orientation — defaults
 and overrides reach the user at the consuming operation.
 
 **Identity absent** (`identity.identity === null`): Skip all user workspace access — SESSION-NOTES,
-ATOMIC-INBOX, and git notes all depend on identity for path resolution. Surface a warning in orientation.
-Sessions without identity cannot perform handoff.
+WORKING-MEMORY, USER-INBOX, and git notes all depend on identity for path resolution. Surface a
+warning in orientation. Sessions without identity cannot perform handoff.
 
 **Role is `contributor`**: After Step 3 items 1–6, switch to [`session-init.contributor.md`][session-init-contributor]
 for item 7+, Step 5 skip, and Step 6 contributor orientation. Step 4 and Step 7 apply universally.
 
 **Probe failure fallback**: If the composite call fails, fall back to direct commands:
 `git config arc.identity` / `arc.role`, `grep -l "^active: true" .arc/system/extensions/*.md`, and a scan
-of the role-resolved active root — `.arc/active/**/status-*.md` for maintainer / null role,
-`.arc/user/{identity}/active/status-*.md` (flat) for contributor with identity resolved. Skip Step 2 (no
+of the role-resolved active root — `.arc/active/**/meta-*.md` for maintainer / null role,
+`.arc/user/{identity}/active/meta-*.md` (flat) for contributor with identity resolved. Skip Step 2 (no
 user-sync state available) and note the degradation in orientation.
 
 ## 2. Conditional Sync Pulls
@@ -117,23 +128,23 @@ section-level partial read) and the active task list (item 9 — strategic parti
 section delimiter and compute Read offsets locally — never per-section greps. Skip the grep entirely
 when a stable file convention places the section at a known location.
 
-**Parallelism (prescriptive)**: Issue items 1–6, 8 (SESSION-NOTES), and — when
-`active.resolution === "single"` — the active status file as Reads in a single tool-message. Items 9–10
-follow after the status file resolves; they may parallel each other. Don't serialize when the platform
-supports parallel reads.
+**Parallelism (prescriptive)**: Issue items 1–6, 8 (personal session context — both SESSION-NOTES
+and WORKING-MEMORY), and — when `active.resolution === "single"` — the active meta file as Reads
+in a single tool-message. Items 9–10 follow after the meta file resolves; they may parallel each
+other. Don't serialize when the platform supports parallel reads.
 
 The document set below is the [session-state method][arc-methods-session] default. If your project overrides
 session-state, follow the override instead.
 
 **Project identity and agent context:**
 
-1. `.arc/system/briefs/AGENT-BRIEF.ARC.md` — ARC framework orientation
-2. `.arc/system/briefs/AGENT-BRIEF.PROJECT.md` — project overview, tech stack, collaboration context
+1. `.arc/reference/briefs/AGENT-BRIEF.ARC.md` — ARC framework orientation
+2. `.arc/reference/briefs/AGENT-BRIEF.PROJECT.md` — project overview, tech stack, collaboration context
 
 **Constitutional and process context:**
 
-3. `.arc/reference/constitution/DEV-RULES.ARC.md`
-4. `.arc/reference/constitution/DEV-RULES.PROJECT.md`
+3. `.arc/system/rules/DEV-RULES.ARC.md`
+4. `.arc/system/rules/DEV-RULES.PROJECT.md`
     - Domain rules: the probe's `domainRules` field lists `{path, domain, purpose}` tuples for any
       `DEV-RULES.{DOMAIN}.md` files with the domain-rules frontmatter. Load on-demand when a task
       touches the relevant domain, not at init time.
@@ -145,15 +156,15 @@ session-state, follow the override instead.
 
 **Active work context:**
 
-7. **Active status file** — resolve from `active.value` and partial-read the `## Work Unit Metadata`
-   section (heading line through the last `**Field:**` line):
+7. **Active meta file** — resolve from `active.value` and read the file in full (small by
+   convention; no partial-read offset needed):
     - `resolution: "single"`: path is `active.value.path`
     - `resolution: "none"`: no active work unit. Skip items 9–10; Step 5 handles next-work discovery
     - `resolution: "multiple"` (full mode only): apply disambiguation after SESSION-NOTES loads (item 8) —
       precedence:
         1. SESSION-NOTES `**Working On:**` value matches a candidate filename
         2. Candidate `**Branch:**` matches the current git branch
-        3. Candidate `**State:** In Progress`
+        3. Candidate `**State:** Active`
         4. Prompt the user with each candidate shown as:
 
             ```text
@@ -164,24 +175,31 @@ session-state, follow the override instead.
 
             Include an abort option (`[q]`). If the user aborts, surface the candidate list and halt
             session-init.
-    - **Read scope:** `## Work Unit Metadata` carries the load-bearing fields (State, Branch, Task List,
-      Next Task, Last Completed, Blockers, Next Action) plus optional fields when present (Integration,
-      Interrupts, Paused At, Paused To, Superseded By). The "About this file" blockquote and any other surrounding
-      content are not read at init. **Contract boundary:** any content an agent needs at session-init
-      must live inside `## Work Unit Metadata`.
     - **Task reference format**: `**Next Task:**` uses triple-anchor format —
       `Task 5.5 — Implement validation (line ~1903)`. All three anchors should be present; any two are
       sufficient for reliable lookup.
 
-8. `.arc/user/{identity}/SESSION-NOTES.md` — **Read directly** (no `test -f` precheck — Read tool handles
-   missing files gracefully). Uses `{identity}` from Step 1
-    - Personal working context from prior session: approach, decisions, things tried, known risks
-    - **Persistent context**: The `## Persistent Context` section carries entries that survive across handoffs
-      (each has an explicit removal trigger). Treat these as active constraints for this session
-    - **If absent or stale**: Try `arc user load` (walks ancestors for `refs/notes/arc/user/{identity}`). If no
-      notes either, fall back to `git log --oneline -10`. Tracked state + git history is sufficient
-    - **Load errors:** See [SESSION-NOTES Load Error Recovery][session-ops-load-errors] for diagnostic
-      commands per error class
+8. **Personal session context** — read both per-WU and cross-WU surfaces. Uses `{identity}` from
+   Step 1. Read directly (no `test -f` precheck — Read tool handles missing files gracefully).
+
+    1. `.arc/user/{identity}/<wu-name>/SESSION-NOTES.md` — per-WU session context. Derive
+       `<wu-name>` from the active meta filename (basename of `active.value.path`, strip `meta-`
+       prefix and `.md` suffix). When `active.resolution === "none"` or `"multiple"` (pre-
+       disambiguation), no WU is anchored — skip the SESSION-NOTES read.
+        - Personal working context from prior session: approach, decisions, things tried, known
+          risks.
+        - **If absent or stale**: Try `arc user load` (walks ancestors for
+          `refs/notes/arc/user/{identity}`). If no notes either, fall back to
+          `git log --oneline -10`. Tracked state + git history is sufficient.
+
+    2. `.arc/user/{identity}/WORKING-MEMORY.md` — cross-WU persistent context. Entries each carry
+       a `_Remove when:_` trigger; treat them as active constraints for this session until their
+       trigger condition is met.
+        - **If absent**: no persistent context yet — common for fresh repos or sessions before
+          any entry has been added.
+
+    - **Load errors** (both files): See [SESSION-NOTES Load Error Recovery][session-ops-load-errors]
+      for diagnostic commands per error class.
 
 > **Person-to-person handoff:** If bootstrapping from another developer's handoff, fetch their git notes
 > namespace (`refs/notes/arc/user/{their-identity}`). See [Team Coordination Strategy][team-coordination]
@@ -189,7 +207,7 @@ session-state, follow the override instead.
 
 **Resolve session type** — after the parallel batch and item 8 resolve, settle the session type that gates
 items 9–10. The probe envelope carries `active.value.sessionType` ∈
-`{"planning", "execution", "integration", null}` inferred from the resolved status file's `**State:**`
+`{"planning", "execution", "integration", null}` inferred from the resolved meta file's `**State:**`
 (primary, case-exact `Planning`) with branch-pattern fallback (`{category}/plan-{name}`) when State is
 unset/empty or no candidate is resolved. `null` covers two distinct cases:
 
@@ -205,12 +223,12 @@ warning in orientation.
 9. **Active task list** — **strategic partial read**. Reference material too large to internalize upfront;
     read other sections on-demand during work.
 
-    **Skip if** `sessionType === "planning"` (primary gate) or the active status file is not resolved or
+    **Skip if** `sessionType === "planning"` (primary gate) or the active meta file is not resolved or
     shows `**Task List:** [none]` (defense-in-depth shape checks — redundant under inference but kept as
     direct checks).
 
     - Path: `dirname(active.value.path) + '/' + <Task List value>` — the `**Task List:**` field
-      carries the bare filename (`tasks-[name].md`); the directory is the status file's directory
+      carries the bare filename (`tasks-[name].md`); the directory is the meta file's directory
       (co-located by convention). Path-form values (legacy) work too, used as-is.
     - **Always read** — three sections, nothing else:
         1. **Header** — bullet list above the first `## **Phase` heading
@@ -267,9 +285,9 @@ git log -1 --format=%h
 # Commits since handoff (skip if no handoff hash — no baseline)
 git log --oneline <handoff-hash>..HEAD
 
-# Active status file freshness (skip if no status file resolved)
-git log -1 --format=%h -- <status-file-path>
-# Differing from HEAD means the status file hasn't been updated across recent commits
+# Active meta file freshness (skip if no meta file resolved)
+git log -1 --format=%h -- <meta-file-path>
+# Differing from HEAD means the meta file hasn't been updated across recent commits
 ```
 
 A gap doesn't mean state is wrong — it means verify more carefully before trusting session documents. **Only
@@ -280,21 +298,21 @@ If the freshness gap suggests an interrupted session, run the crash-recovery rou
 
 ### Next work unit discovery
 
-**Skip if** an active status file was resolved AND (`sessionType === "planning"` OR `**Task List:**` is not
+**Skip if** an active meta file was resolved AND (`sessionType === "planning"` OR `**Task List:**` is not
 `[none]`) — discovery only applies between work units. A planning session is an active WU even with no task
-list yet; the status file's Next Action carries direction.
+list yet; the meta file's Next Action carries direction.
 
-When no active status file was resolved, or the resolved file shows `**Task List:** [none]` outside a
+When no active meta file was resolved, or the resolved file shows `**Task List:** [none]` outside a
 planning session, assess readiness for the next unit:
 
 1. Read `.arc/backlog/ROADMAP.md` — identify the next queued or suggested item
-2. Check `.arc/backlog/` for existing artifacts (PRDs, `plan-*` docs) matching that item
+2. Check `.arc/backlog/` for existing artifacts (PRDs, `draft-*` docs) matching that item
 3. Report what exists and its readiness state in orientation
 4. Propose next steps; ask for confirmation before proceeding
 
 > **Full protection (`branch.protection: full`):** Planning work requires a branch. When the user confirms
-> next steps, run [activate-planning-branch][activate-planning-branch] before creating plan documents or PRDs.
-> Under partial protection (the default), proceed directly to [1_create-prd.md][create-prd] — no planning
+> next steps, run [init-work-unit][init-work-unit] before creating draft documents or PRDs.
+> Under partial protection (the default), proceed directly to [1_create-spec.md][create-spec] — no planning
 > branch needed.
 
 ## 6. Confirm Orientation
@@ -311,7 +329,7 @@ Produce the orientation summary.
 - **Current task**: One line. Task ID + title, or `none` between work units.
 - **Blockers**: `none` or freeform — mismatch detail and blocker context unbounded.
 
-**Next action:** One line on-task-list (status file pointer). Unbounded when off-task-list — carries work
+**Next action:** One line on-task-list (meta file pointer). Unbounded when off-task-list — carries work
 no other tracked source documents.
 
 Awaiting direction — proceed to Next Action?
@@ -338,6 +356,36 @@ tracked source documents the work.
   **Local-ahead:** {ahead} unpushed commit(s) on `{branch}`.
   ```
 
+- `user.value.state == "clean"` AND `user.value.refState == "local-ahead"`:
+
+  ```text
+  **Local-ahead notes:** local user-notes ref is ahead of remote. Push (or `arc sync`) when ready; non-blocking.
+  ```
+
+- `worktree.value.state == "no-upstream"`:
+
+  ```text
+  **New branch:** `{branch}` has no upstream — will be set on first push.
+  ```
+
+- `worktree.value.state == "detached-head"`:
+
+  ```text
+  **Detached HEAD:** check out a branch before push/sync.
+  ```
+
+- `worktree.value.state == "no-remote"`:
+
+  ```text
+  **No remote:** `origin` not configured. Set up a remote before push/sync.
+  ```
+
+- `dirty.value.state == "dirty"`:
+
+  ```text
+  **Uncommitted changes:** {fileCount} file(s) dirty in working tree.
+  ```
+
 **Never include**: configuration overrides, active-extensions list (any state), defaults active, freshness
 clean, environment checks passed.
 
@@ -349,19 +397,20 @@ If documented state doesn't match reality during initialization, use the trust h
 
 1. **Git state** — `git status`, `git log`, file contents on disk
 2. **Task list** — checkbox state, task descriptions
-3. **Active status file** — tracked project pointer
-4. **SESSION-NOTES.md** — personal session context (gitignored, most volatile)
+3. **Active meta file** — tracked project pointer
+4. **Personal session context** — SESSION-NOTES.md (per-WU) and WORKING-MEMORY.md (cross-WU);
+   gitignored, most volatile
 
 **Tier 1 — Auto-recover with notice:**
 
 When higher-trust sources agree and a lower-trust source is the outlier, proceed with the ground truth and
 report the discrepancy in orientation.
 
-Report format: "Active status file said X. Git/task list show Y. Proceeding with Y."
+Report format: "Active meta file said X. Git/task list show Y. Proceeding with Y."
 
 Examples:
 
-- Active status file says "Task 3.3 in progress" but task list shows 3.3 marked `[x]` and git log confirms the
+- Active meta file says "Task 3.3 in progress" but task list shows 3.3 marked `[x]` and git log confirms the
   commit → proceed with Task 3.4 as current
 - `worktree.value.state == "diverged"` while session docs reflect clean state → git is ground truth.
   Surface as `Reconcile required:` (Step 6) and carry forward. Non-blocking; do not auto-reconcile.
@@ -376,13 +425,13 @@ Examples:
 
 - Git shows uncommitted changes to files not mentioned in any session doc — could be co-development, a
   partial task, or an interrupted session
-- The active status file references a task that doesn't exist in the task list — renumbered, removed, or the
-  status file points to the wrong task list
+- The active meta file references a task that doesn't exist in the task list — renumbered, removed, or the
+  meta file points to the wrong task list
 
 ---
 
-[activate-planning-branch]: ../work-unit-lifecycle/planning/activate-planning-branch.md
-[create-prd]: ../1_create-prd.md
+[init-work-unit]: ../work-unit-lifecycle/planning/init-work-unit.md
+[create-spec]: ../1_create-spec.md
 [arc-methods-session]: ../../../methods/session-state.md
 [arc-ext-post-context-load]: ../../../extensions/post-context-load.md
 [team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md

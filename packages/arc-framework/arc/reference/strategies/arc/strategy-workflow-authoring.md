@@ -98,12 +98,32 @@ interlock concept.
 
 - **Trigger** — when the stop fires (`after X is committed`, `before creating the PR`).
 - **Surface** — what the agent presents at the stop (typically the state of the gated artifact).
-- **Next-action** — what proceeds on approval (the destructive cascade or downstream workflow boundary
-  the marker gates).
+- **Next-action** — what proceeds on approval (the destructive cascade or downstream workflow
+  boundary the marker gates). Specify the advance signal; bare `await direction` is too thin.
+  Two acceptable shapes:
+    - **Quoted-verb form** — `await explicit '<verb>' direction` (e.g., `'merge'`, `'commit'`,
+      `'sweep'`). Use for destructive or named-action gates where the verb is the load-bearing
+      signal — user's instruction contains the verb.
+    - **Named-target form** — `await approval before proceeding to <named-target>` (e.g., `Pass 2`,
+      `archive ceremony`). Use for progression gates where the next step is already known —
+      user's approval triggers advancement to the named target.
 
-**Placement:** At the START of the gated step or section. The agent reads the marker and stops before
-executing the gated work — for step-level gates, immediately under the step heading; for cascade
-boundaries (e.g., a destructive sub-step sequence), at the entry point of the cascade.
+**Placement:** Embed the marker at the position its trigger fires:
+
+- **"After X" triggers** (`Stop after the PRD is saved`) — marker at the end of the step that produces X,
+  before the next step's heading.
+- **"Before X" triggers** (`Stop before composition begins`) — marker at the start of the step that
+  performs X, immediately under that step's heading. Use this for destructive cascades (commit, merge,
+  sweep, push) where the gate must fire before the action begins.
+
+The marker is an embedded gate, not a numbered body step. Don't allocate a step whose entire content is
+the callout — dissolve into the trigger-appropriate position.
+
+**Don't entangle gate with fire.** Interlocks gate progress; they don't perform the operation.
+When the gated step contains a commit (or other named action), write the action as a separate
+line below the marker — e.g., ``Then commit (`workflowCommit`): ...`` — not folded into the
+marker's `await direction before ... committing` language. The fire stays scannable as its own
+action; the marker stays clean as a pure gate.
 
 ### Routing class tags
 
@@ -117,34 +137,41 @@ section covers author-side declaration shape.
 
 - `taskCommit` — per-task commits inside the task execution loop
 - `workflowCommit` — ceremony commits (activate / integrate / handoff / archive)
-- `workflowPush` — ceremony pushes (handoff / activation / integration / rotate-branch)
+- `workflowPush` — ceremony pushes (handoff / activation / integration)
 
 Ad-hoc commits, recovery operations, and push paths that should always run raw remain
 unannotated; they route as `raw` regardless of opt-in state.
 
-**Verb-elision pattern.** The class tag annotates the verb so the workflow text stays
-single-shape across raw and wrapper modes — the agent supplies `git commit -m` or
-`arc release commit` per the resolved routing.
+**Admonition pattern.** Class-tagged fire sites use a `[!CAUTION]` admonition mirroring the
+interlock-marker shape (gate/fire structural symmetry: both backtick-wrap the interlock name in
+leading position). The admonition names the interlock being released and the class tag firing —
+the agent supplies `git commit -m` / `arc release commit` (or `git push` / `arc release push`) per
+the resolved routing.
 
-- **Commit fire sites:** annotate the verb with the tag, then provide the message body in a
-  `text` codeblock immediately below — no `git commit -m` literal:
+- **Commit fire sites:** admonition with backtick-wrapped interlock name + class tag + colon,
+  then message body in a `text` codeblock:
 
     ````markdown
-    Then commit (`workflowCommit`):
+    > [!CAUTION]
+    > `commit-interlock` release — commit as `workflowCommit`:
 
     ```text
-    chore(status): handoff
+    chore(arc): handoff
 
-    Context: status-name.md (handoff)
+    Context: meta-name.md (handoff)
     ```
     ````
 
-- **Push fire sites:** annotate the verb with the tag, then provide push args as inline
-  backticked prose — no `git push` literal:
+- **Push fire sites:** admonition with interlock name + class tag + push args inline:
 
     ```markdown
-    Push the branch upstream (`workflowPush`): `-u origin {branch-name}`.
+    > [!CAUTION]
+    > `push-interlock` release — `workflowPush`: `-u origin {branch-name}`.
     ```
+
+- **Multi-step bash sequences:** When a fire is part of a multi-command sequence (e.g., branch
+  rename + push + remote-cleanup), inline `# <class>` comment annotation in the bash block is
+  acceptable — admonition extraction would fragment the sequence.
 
 **Destructive flags stay literal.** Flags like `--delete`, `--force`, and `--force-with-lease`
 are never class-tagged — the wrapper refuses them by design. Workflows needing destructive
@@ -155,8 +182,13 @@ class-tag annotation.
 on the audit umbrella but do not re-route through `arc release push`. Workflows that invoke
 `arc sync` rely on its internal handling and do not class-tag the implicit push.
 
+The exception is class-tag-routing scope only — extension markers (`pre-push-review` and the
+broader pre-* family) still fire on workflow steps that invoke a push, including `arc sync`. Place
+the marker before the sync invocation; the agent loads the extension's `.actions` per the
+established contract regardless of how the push itself routes.
+
 ---
 
-[template-workflow]: ../../templates/template-workflow.md
-[dev-rules-arc]: ../../constitution/DEV-RULES.ARC.md
-[agent-brief-arc]: ../../../system/briefs/AGENT-BRIEF.ARC.md
+[template-workflow]: ../../templates/arc/template-workflow.md
+[dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
+[agent-brief-arc]: ../../../reference/briefs/AGENT-BRIEF.ARC.md

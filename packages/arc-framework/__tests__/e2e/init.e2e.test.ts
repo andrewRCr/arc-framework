@@ -105,8 +105,8 @@ describe("init", () => {
 
     // Key files exist
     expect(await pathExists(join(tmpDir, ".arc", "system", "arc-config.yml"))).toBe(true);
-    expect(await pathExists(join(tmpDir, ".arc", "reference", "constitution", "DEV-RULES.ARC.md"))).toBe(true);
-    expect(await pathExists(join(tmpDir, ".arc", "reference", "templates", "template-status.md"))).toBe(true);
+    expect(await pathExists(join(tmpDir, ".arc", "system", "rules", "DEV-RULES.ARC.md"))).toBe(true);
+    expect(await pathExists(join(tmpDir, ".arc", "reference", "templates", "arc", "work-unit", "template-meta.md"))).toBe(true);
   });
 
   it("init with --pm-mode arc-in-git installs arc-in-git files", async () => {
@@ -119,12 +119,13 @@ describe("init", () => {
 
     // arc-in-git specific files
     expect(await pathExists(join(tmpDir, ".arc", "backlog", "ROADMAP.md"))).toBe(true);
-    expect(await pathExists(join(tmpDir, ".arc", "backlog", "feature", "BACKLOG-FEATURE.md"))).toBe(true);
-    expect(await pathExists(join(tmpDir, ".arc", "backlog", "technical", "BACKLOG-TECHNICAL.md"))).toBe(true);
-    expect(await pathExists(join(tmpDir, ".arc", "reference", "PROJECT-STATUS.md"))).toBe(true);
+    expect(await pathExists(join(tmpDir, ".arc", "backlog", "ATOMIC-INBOX.md"))).toBe(true);
+    expect(await pathExists(join(tmpDir, ".arc", "backlog", "BACKLOG-INBOX.md"))).toBe(true);
 
-    // ATOMIC-INBOX created in user directory
-    expect(await pathExists(join(tmpDir, ".arc", "user", "test-user", "ATOMIC-INBOX.md"))).toBe(true);
+    // Per-user file set seeded (cross-PM-mode); legacy user/ATOMIC-INBOX retired.
+    expect(await pathExists(join(tmpDir, ".arc", "user", "test-user", "WORKING-MEMORY.md"))).toBe(true);
+    expect(await pathExists(join(tmpDir, ".arc", "user", "test-user", "USER-INBOX.md"))).toBe(true);
+    expect(await pathExists(join(tmpDir, ".arc", "user", "test-user", "ATOMIC-INBOX.md"))).toBe(false);
 
     // Config reflects pm.mode
     const configContent = await readFile(join(tmpDir, ".arc", "system", "arc-config.yml"), "utf-8");
@@ -136,14 +137,15 @@ describe("init", () => {
     expect(result.exitCode).toBe(0);
 
     const methodNames = [
-      "commit-context-format", "commit-format", "diff-review",
+      "commit-footer", "commit-format", "diff-review",
       "issue-triage", "quality-gate-commands", "review-triage",
       "session-state", "test-first",
     ];
     const extensionNames = [
       "post-context-load", "post-task-completion", "post-task-quality",
       "post-unit-quality", "post-work-unit-activate",
-      "post-work-unit-archive", "pre-merge-review", "pre-stage-review",
+      "post-work-unit-archive", "pre-activation", "pre-commit-review",
+      "pre-merge-review", "pre-pr-review", "pre-push-review",
     ];
 
     for (const name of methodNames) {

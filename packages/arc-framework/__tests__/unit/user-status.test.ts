@@ -1322,6 +1322,7 @@ describe("runUserSessionInitStatus", () => {
     });
 
     expect(result.state).toBe("disabled");
+    expect(result.refState).toBeUndefined();
     expect(result.shouldPromptToPull).toBe(false);
     expect(result.loadNeeded).toBeUndefined();
     expect(buildUserSessionInitStatusSummary(result)).toContain("session-init remote sync disabled");
@@ -1351,11 +1352,38 @@ describe("runUserSessionInitStatus", () => {
     });
 
     expect(result.state).toBe("clean");
+    expect(result.refState).toBe("same");
     expect(calls).toEqual(expect.arrayContaining([
       { cmd: "git", args: ["rev-parse", "--verify", "refs/notes/arc/user/andrew"] },
       { cmd: "git", args: ["ls-remote", "origin", "refs/notes/arc/user/andrew"] },
     ]));
     expect(calls.some(({ args }) => args[0] === "fetch")).toBe(false);
+  });
+
+  it("preserves refState=local-ahead on the clean spine state for orientation surfacing", async () => {
+    const probeIO = {
+      ...io,
+      exec: async (_cmd: string, args: string[]) => {
+        if (args[0] === "rev-parse" && args[1] === "--verify") {
+          return { stdout: "local123\n", stderr: "" };
+        }
+        if (args[0] === "ls-remote") {
+          return { stdout: "", stderr: "" };
+        }
+        return { stdout: "", stderr: "" };
+      },
+    };
+
+    const result = await runUserSessionInitStatus({
+      cwd: "/repo",
+      io: probeIO,
+      identity: "andrew",
+      remoteSyncEnabled: true,
+    });
+
+    expect(result.state).toBe("clean");
+    expect(result.refState).toBe("local-ahead");
+    expect(result.shouldPromptToPull).toBe(false);
   });
 
   it("surfaces stale local-note freshness when matching refs are behind HEAD", async () => {

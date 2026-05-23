@@ -6,6 +6,13 @@
  */
 
 export { runUserAdd } from "./user/add.js";
+export { runUserClose } from "./user/close.js";
+export {
+  findStaleUserWuSubdirs,
+  listUserWuSubdirContents,
+  removeStaleUserWuSubdir,
+  runUserOpen,
+} from "./user/open.js";
 export {
   clearPartialPushMarker,
   findNearestUserNote,
@@ -52,7 +59,9 @@ export {
   type UserLoadOutcome,
   type UserLoadOptions,
   type UserLoadResult,
+  type UserCloseOptions,
   type UserLoadWalkExhausted,
+  type UserOpenOptions,
   type PairedPushLegOutcome,
   type PairedPushNotesContext,
   type PairedPushNotesOutcome,

@@ -27,6 +27,11 @@ import {
   runUserSave,
   runUserLoad,
   runUserAdd,
+  runUserClose,
+  runUserOpen,
+  findStaleUserWuSubdirs,
+  listUserWuSubdirContents,
+  removeStaleUserWuSubdir,
   runUserPush,
   runUserPull,
   runUserSessionInitStatus,
@@ -143,7 +148,7 @@ describe("user save and load", () => {
   let tempDir: string;
 
   beforeEach(async () => {
-    // Full init creates user directory with SESSION-NOTES.md
+    // Full init creates the user directory (SESSION-NOTES is per-WU, seeded by `arc user open`)
     tempDir = await initInTempRepo(DEFAULT_PROMPTS, "test-user");
     // Need at least one commit for git notes to attach to
     await makeCommit(tempDir, "initial commit");
@@ -657,7 +662,9 @@ describe("user save/load — subdirectory support", () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
-    // Create nested file structure
+    // Reset to a known minimal structure — init-seeded files would otherwise
+    // inflate the save count and obscure the round-trip assertion.
+    await rm(userDir, { recursive: true, force: true });
     await mkdir(join(userDir, "drafts"), { recursive: true });
     await writeFile(join(userDir, "SESSION-NOTES.md"), "# Notes", "utf-8");
     await writeFile(join(userDir, "drafts", "idea.md"), "# Draft idea", "utf-8");
@@ -690,7 +697,7 @@ describe("user add", () => {
     await cleanupTempDir(tempDir);
   });
 
-  it("creates user directory with SESSION-NOTES.md", async () => {
+  it("creates user directory with WORKING-MEMORY.md and USER-INBOX.md", async () => {
     const io = makeUserIO(tempDir);
 
     await runUserAdd({
@@ -698,17 +705,14 @@ describe("user add", () => {
       io,
       identity: "new-dev",
       internalTemplateDir: getInternalTemplatePath(),
-      pmMode: "none",
     });
 
-    const sessionNotes = await readFile(
-      join(tempDir, ".arc", "user", "new-dev", "SESSION-NOTES.md"),
-      "utf-8",
-    );
-    expect(sessionNotes).toContain("Session Notes");
+    const userDir = join(tempDir, ".arc", "user", "new-dev");
+    expect(await readFile(join(userDir, "WORKING-MEMORY.md"), "utf-8")).toContain("Working Memory");
+    expect(await readFile(join(userDir, "USER-INBOX.md"), "utf-8")).toContain("User Inbox");
   });
 
-  it("includes ATOMIC-INBOX.md when pm.mode is arc-in-git", async () => {
+  it("seeds the per-user file set cross-PM-mode (no ATOMIC-INBOX.md at user root)", async () => {
     const io = makeUserIO(tempDir);
 
     await runUserAdd({
@@ -716,14 +720,13 @@ describe("user add", () => {
       io,
       identity: "new-dev",
       internalTemplateDir: getInternalTemplatePath(),
-      pmMode: "arc-in-git",
     });
 
-    const inbox = await readFile(
-      join(tempDir, ".arc", "user", "new-dev", "ATOMIC-INBOX.md"),
-      "utf-8",
-    );
-    expect(inbox).toContain("Atomic");
+    // Per R65b the user-directory seed set is the same regardless of pm.mode;
+    // the legacy user/ATOMIC-INBOX seed path retired here.
+    await expect(
+      readFile(join(tempDir, ".arc", "user", "new-dev", "ATOMIC-INBOX.md"), "utf-8"),
+    ).rejects.toThrow();
   });
 
   it("relies on wildcard gitignore from init (no per-identity entry)", async () => {
@@ -734,7 +737,6 @@ describe("user add", () => {
       io,
       identity: "new-dev",
       internalTemplateDir: getInternalTemplatePath(),
-      pmMode: "none",
     });
 
     const gitignore = await readFile(
@@ -1449,5 +1451,157 @@ describe("user status", () => {
     ).toBe(false);
     // No worktree probe was invoked, so the field is omitted.
     expect(result.worktree).toBeUndefined();
+  });
+});
+
+describe("user open", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await initInTempRepo(DEFAULT_PROMPTS, "test-user");
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tempDir);
+  });
+
+  it("seeds SESSION-NOTES.md from template into user/{identity}/{wuName}/", async () => {
+    const io = makeUserIO(tempDir);
+
+    await runUserOpen({
+      cwd: tempDir,
+      io,
+      identity: "test-user",
+      wuName: "feature-x",
+      internalTemplateDir: getInternalTemplatePath(),
+    });
+
+    const sessionNotes = await readFile(
+      join(tempDir, ".arc", "user", "test-user", "feature-x", "SESSION-NOTES.md"),
+      "utf-8",
+    );
+    const template = await readFile(
+      join(getInternalTemplatePath(), "user", "SESSION-NOTES.md"),
+      "utf-8",
+    );
+    expect(sessionNotes).toBe(template);
+  });
+
+  it("idempotent on second invocation — preserves existing SESSION-NOTES edits", async () => {
+    const io = makeUserIO(tempDir);
+
+    await runUserOpen({
+      cwd: tempDir,
+      io,
+      identity: "test-user",
+      wuName: "feature-x",
+      internalTemplateDir: getInternalTemplatePath(),
+    });
+
+    const seedPath = join(tempDir, ".arc", "user", "test-user", "feature-x", "SESSION-NOTES.md");
+    const customContent = "# Custom session notes\n\nIn-flight edits.\n";
+    await writeFile(seedPath, customContent, "utf-8");
+
+    await runUserOpen({
+      cwd: tempDir,
+      io,
+      identity: "test-user",
+      wuName: "feature-x",
+      internalTemplateDir: getInternalTemplatePath(),
+    });
+
+    expect(await readFile(seedPath, "utf-8")).toBe(customContent);
+  });
+
+  it("findStaleUserWuSubdirs returns other WU subdirs sorted, excluding the target", async () => {
+    const io = makeUserIO(tempDir);
+    const tplDir = getInternalTemplatePath();
+
+    await runUserOpen({ cwd: tempDir, io, identity: "test-user", wuName: "alpha", internalTemplateDir: tplDir });
+    await runUserOpen({ cwd: tempDir, io, identity: "test-user", wuName: "bravo", internalTemplateDir: tplDir });
+
+    const stale = await findStaleUserWuSubdirs({
+      cwd: tempDir, io, identity: "test-user", wuName: "alpha",
+    });
+    expect(stale).toEqual(["bravo"]);
+  });
+
+  it("findStaleUserWuSubdirs returns [] when no other WU subdirs exist", async () => {
+    const io = makeUserIO(tempDir);
+
+    await runUserOpen({
+      cwd: tempDir, io, identity: "test-user", wuName: "alpha",
+      internalTemplateDir: getInternalTemplatePath(),
+    });
+
+    const stale = await findStaleUserWuSubdirs({
+      cwd: tempDir, io, identity: "test-user", wuName: "alpha",
+    });
+    expect(stale).toEqual([]);
+  });
+
+  it("listUserWuSubdirContents returns the subdir's file entries", async () => {
+    const io = makeUserIO(tempDir);
+
+    await runUserOpen({
+      cwd: tempDir, io, identity: "test-user", wuName: "alpha",
+      internalTemplateDir: getInternalTemplatePath(),
+    });
+
+    const entries = await listUserWuSubdirContents({
+      cwd: tempDir, io, identity: "test-user", subdir: "alpha",
+    });
+    expect(entries.map((e) => e.name)).toContain("SESSION-NOTES.md");
+  });
+
+  it("removeStaleUserWuSubdir removes the subdir recursively", async () => {
+    const io = makeUserIO(tempDir);
+
+    await runUserOpen({
+      cwd: tempDir, io, identity: "test-user", wuName: "alpha",
+      internalTemplateDir: getInternalTemplatePath(),
+    });
+
+    const staleSeed = join(tempDir, ".arc", "user", "test-user", "alpha", "SESSION-NOTES.md");
+    await expect(readFile(staleSeed, "utf-8")).resolves.toBeTruthy();
+
+    await removeStaleUserWuSubdir({
+      cwd: tempDir, identity: "test-user", subdir: "alpha",
+    });
+
+    await expect(readFile(staleSeed, "utf-8")).rejects.toThrow();
+  });
+});
+
+describe("user close", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await initInTempRepo(DEFAULT_PROMPTS, "test-user");
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tempDir);
+  });
+
+  it("removes user/{identity}/<wu-name>/ recursively for the same WU as `arc user open`", async () => {
+    const io = makeUserIO(tempDir);
+
+    await runUserOpen({
+      cwd: tempDir, io, identity: "test-user", wuName: "feature-x",
+      internalTemplateDir: getInternalTemplatePath(),
+    });
+    const seedPath = join(tempDir, ".arc", "user", "test-user", "feature-x", "SESSION-NOTES.md");
+    await expect(readFile(seedPath, "utf-8")).resolves.toBeTruthy();
+
+    await runUserClose({ cwd: tempDir, identity: "test-user", wuName: "feature-x" });
+
+    await expect(readFile(seedPath, "utf-8")).rejects.toThrow();
+  });
+
+  it("idempotent on absent subdir — no error when nothing to remove", async () => {
+    await expect(
+      runUserClose({ cwd: tempDir, identity: "test-user", wuName: "never-opened" }),
+    ).resolves.toBeUndefined();
   });
 });

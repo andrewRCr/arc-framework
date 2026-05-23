@@ -166,6 +166,8 @@ function makeSessionInitResult(
           "pm.mode": "none",
           "commit.format": "conventional",
           "commit.context_footer": "required",
+          "commit.interlock": "manual",
+          "push.interlock": "manual",
         },
         defaultsApplied: [],
         warnings: [],
@@ -190,7 +192,7 @@ function makeSessionInitResult(
         mode: "session-init",
         layout: "full",
         resolution: "single",
-        path: ".arc/active/technical/status-foo.md",
+        path: ".arc/active/technical/meta-foo.md",
         candidates: [],
         sessionType: "execution",
         warnings: [],
@@ -301,7 +303,7 @@ describe("buildSessionInitStatusSummary — scoped mode", () => {
     expect(summary).toContain("taskCommit: raw");
     expect(summary).toContain("workflowCommit: raw");
     expect(summary).toContain("workflowPush: raw");
-    expect(summary).toContain("Resolved: .arc/active/technical/status-foo.md");
+    expect(summary).toContain("Resolved: .arc/active/technical/meta-foo.md");
   });
 
   it("renders the Worktree section between User and Extensions", () => {
@@ -398,7 +400,7 @@ describe("buildSessionInitStatusSummary — scoped mode", () => {
             mode: "session-init",
             rules: [
               {
-                path: ".arc/reference/constitution/DEV-RULES.FRONTEND.md",
+                path: ".arc/system/rules/DEV-RULES.FRONTEND.md",
                 domain: "frontend",
                 purpose: "UI standards",
               },

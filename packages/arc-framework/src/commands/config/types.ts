@@ -33,10 +33,14 @@ export interface ConfigSettings {
 /**
  * Init-gating subset — fields that affect session-init decisions before a
  * dedicated workflow or method loads (sync probe, planning branch under
- * full protection, capture routing, commit format for first commit).
+ * full protection, capture routing, commit format for first commit,
+ * commit/push interlock modes for prompt-prefix composition).
  *
  * `user.notes_push` carries a three-tier-resolved value (git-config → yaml
- * → default); other keys carry raw yaml values per `readConfigSettings`.
+ * → default); `commit.interlock` / `push.interlock` carry git-config-resolved
+ * values from `arc.commitInterlock` / `arc.pushInterlock` (with documented
+ * defaults when unset); other keys carry raw yaml values per
+ * `readConfigSettings`.
  */
 export interface ConfigSessionInitSettings {
   "session.remote_sync": string;
@@ -48,6 +52,8 @@ export interface ConfigSessionInitSettings {
   "pm.mode": string;
   "commit.format": string;
   "commit.context_footer": string;
+  "commit.interlock": string;
+  "push.interlock": string;
 }
 
 /** Full settings view — default rendering. */

@@ -11,14 +11,14 @@ audience: agent
 
 When constitutional documents change, update related files to keep documentation in sync:
 
-### META-PRD.md Changes
+### PROJECT-PRD.md Changes
 
 **Update these files:**
 
 - `briefs/AGENT-BRIEF.PROJECT.md` - Project overview and features section
-- `PROJECT-STATUS.md` - If scope or priorities change
 
-**Why**: META-PRD is the source of truth for project vision. Changes here ripple to reference docs that summarize that vision.
+**Why**: PROJECT-PRD is the source of truth for project vision. Changes here ripple to reference
+docs that summarize that vision.
 
 ### DEV-RULES.PROJECT.md Changes
 
@@ -36,18 +36,8 @@ changes versus AI interpretation.
 **Update these files:**
 
 - `briefs/AGENT-BRIEF.PROJECT.md` - Technology stack and patterns section
-- `PROJECT-STATUS.md` - If architectural decisions affect roadmap
 
 **Why**: Technical architecture decisions cascade to implementation patterns and project timelines.
-
-### PROJECT-STATUS.md Changes
-
-**Consider:**
-
-- If major status changes affect ongoing work priorities
-- Update active task lists if completion status changes priorities
-
-**Why**: Status changes may require reprioritization of current work.
 
 ## Maintenance Best Practices
 

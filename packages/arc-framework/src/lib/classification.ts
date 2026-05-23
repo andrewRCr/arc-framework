@@ -16,10 +16,10 @@ import type { Classification, Layer, FileEntry, Recipe } from "./types.js";
  * Compute the output path for a template file, stripping the `.template` suffix.
  *
  * Convention from file-classification strategy: template files like
- * `META-PRD.template.md` become `META-PRD.md` in the installed output.
+ * `PROJECT-PRD.template.md` become `PROJECT-PRD.md` in the installed output.
  * Only strips `.template` immediately before the file extension in the filename.
  *
- * @param templatePath - Template-relative path (e.g., `reference/META-PRD.template.md`)
+ * @param templatePath - Template-relative path (e.g., `reference/PROJECT-PRD.template.md`)
  * @returns Output path with `.template` stripped from filename
  */
 export function toOutputPath(templatePath: string): string {
@@ -56,12 +56,11 @@ export function needsRendering(templatePath: string): boolean {
  * and should never happen without deliberate planning.
  */
 const SCAFFOLDED_FILES: ReadonlySet<string> = new Set([
-  "reference/META-PRD.template.md",
+  "reference/PROJECT-PRD.template.md",
   "reference/TECHNICAL-OVERVIEW.template.md",
-  "reference/PROJECT-STATUS.template.md",
   "backlog/ROADMAP.template.md",
-  "backlog/feature/BACKLOG-FEATURE.template.md",
-  "backlog/technical/BACKLOG-TECHNICAL.template.md",
+  "backlog/ATOMIC-INBOX.template.md",
+  "backlog/BACKLOG-INBOX.template.md",
 ]);
 
 /**
@@ -71,14 +70,14 @@ const SCAFFOLDED_FILES: ReadonlySet<string> = new Set([
 const CONFIGURABLE_FILES: ReadonlySet<string> = new Set([
   // Rendered (have tokens or programmatic write)
   "system/arc-config.yml",
-  "system/briefs/AGENT-BRIEF.PROJECT.template.md",
+  "reference/briefs/AGENT-BRIEF.PROJECT.template.md",
   "reference/QUICK-REFERENCE.template.md",
   // Copied as-is (customized in place by adopters)
-  "reference/constitution/DEV-RULES.PROJECT.md",
+  "system/rules/DEV-RULES.PROJECT.md",
   "reference/strategies/STRATEGY-INDEX.md",
-  "reference/archive/README.md",
+  "completed/README.md",
   // Per-file methods — adopters toggle `override-active` and populate `.override` bodies
-  "system/methods/commit-context-format.md",
+  "system/methods/commit-footer.md",
   "system/methods/commit-format.md",
   "system/methods/diff-review.md",
   "system/methods/issue-triage.md",
@@ -93,8 +92,11 @@ const CONFIGURABLE_FILES: ReadonlySet<string> = new Set([
   "system/extensions/post-unit-quality.md",
   "system/extensions/post-work-unit-activate.md",
   "system/extensions/post-work-unit-archive.md",
+  "system/extensions/pre-activation.md",
+  "system/extensions/pre-commit-review.md",
   "system/extensions/pre-merge-review.md",
-  "system/extensions/pre-stage-review.md",
+  "system/extensions/pre-pr-review.md",
+  "system/extensions/pre-push-review.md",
 ]);
 
 /**

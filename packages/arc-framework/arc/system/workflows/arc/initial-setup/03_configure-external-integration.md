@@ -131,9 +131,9 @@ Two ARC methods may benefit from tracker-specific customization. Review each and
 whether the defaults work or whether an override is needed.
 
 **Open** [`system/methods/`][arc-methods] to review these methods (one file each —
-`commit-context-format.md` and `issue-triage.md`).
+`commit-footer.md` and `issue-triage.md`).
 
-### commit-context-format
+### commit-footer
 
 ARC's default `Context:` footer references ARC task lists. If your team's convention
 includes tracker references in commits (e.g., `PROJ-123`, `#42`), you can override the
@@ -185,6 +185,6 @@ For ongoing reference on how ARC and external trackers work together, see the
 [arc-extensions]: ../../../extensions/README.md
 [arc-ext-post-task-completion]: ../../../extensions/post-task-completion.md
 [arc-methods]: ../../../methods/README.md
-[dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md
-[dev-rules-project]: ../../../../reference/constitution/DEV-RULES.PROJECT.md
+[dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
+[dev-rules-project]: ../../../../system/rules/DEV-RULES.PROJECT.md
 [team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md

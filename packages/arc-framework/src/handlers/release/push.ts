@@ -45,11 +45,55 @@ import type {
   AuthorizationDecision,
   RefusalCode,
 } from "../../lib/release/types.js";
+import { isRefusalCondition } from "../../lib/git/pushability.js";
 import type {
   PushabilityCondition,
   PushabilityResult,
 } from "../../lib/git/pushability.js";
-import type { ResolvedSettingsResult } from "../../lib/config/resolved-settings.js";
+import type { PushInterlock, ResolvedSettingsResult } from "../../lib/config/resolved-settings.js";
+
+const SET_UPSTREAM_FLAGS: ReadonlySet<string> = new Set(["-u", "--set-upstream"]);
+
+/**
+ * Outcome of evaluating whether the wrapper should resolve a
+ * `caller-resolvable` `no-upstream-branch` condition inline by injecting
+ * `-u` into the wrapped spawn.
+ *
+ * - `none`: pushability did not surface `no-upstream-branch`; standard flow.
+ * - `resolved`: condition surfaced and the caller is permitted to resolve
+ *   (argv-declared `-u`, or `pushInterlock !== "manual"`). The caller filters
+ *   the condition out of the refusal set and injects `-u` if not already in
+ *   argv.
+ * - `would-refuse`: condition surfaced and neither permission signal applied;
+ *   the condition stays in the refusal set and the wrapper refuses with the
+ *   matrix-supplied `Set upstream first` guidance.
+ */
+type UpstreamInjection =
+  | { kind: "none" }
+  | { kind: "resolved"; alreadyInArgv: boolean }
+  | { kind: "would-refuse" };
+
+/**
+ * Apply the argv-as-intent OR config-authorized-cascade rule for the
+ * `no-upstream-branch` caller-resolvable condition. Pure function — settings
+ * value flows in pre-resolved, no I/O.
+ */
+function decideUpstreamInjection(
+  conditions: readonly PushabilityCondition[],
+  spawnArgs: readonly string[],
+  pushInterlock: PushInterlock,
+): UpstreamInjection {
+  const noUpstream = conditions.find((c) => c.kind === "no-upstream-branch");
+  if (noUpstream === undefined) return { kind: "none" };
+
+  const alreadyInArgv = spawnArgs.some((a) => SET_UPSTREAM_FLAGS.has(a));
+  const configPermits = pushInterlock !== "manual";
+
+  if (alreadyInArgv || configPermits) {
+    return { kind: "resolved", alreadyInArgv };
+  }
+  return { kind: "would-refuse" };
+}
 
 /**
  * Pushability matrix probe used by the orchestrator. The CLI adapter
@@ -186,7 +230,15 @@ export async function runReleasePush(
 
   // Step 4 (rev-list + git config reads): pushability matrix (14).
   const pushability = await deps.runPushability();
-  const refusalConditions = filterRefusalConditions(pushability.conditions);
+  const upstreamInjection = decideUpstreamInjection(
+    pushability.conditions,
+    spawnArgs,
+    deps.settings.resolved.pushInterlock.value,
+  );
+  const conditionsAfterResolution = upstreamInjection.kind === "resolved"
+    ? pushability.conditions.filter((c) => c.kind !== "no-upstream-branch")
+    : pushability.conditions;
+  const refusalConditions = filterRefusalConditions(conditionsAfterResolution);
   if (refusalConditions.length > 0) {
     return refuse(
       {
@@ -211,10 +263,16 @@ export async function runReleasePush(
 
   // Authorize: run wrapped `git push`, attribute the outcome, audit, exit.
   // `spawnArgs` carries `deps.argv` with any matched positional ref-pairs
-  // stripped — the audit entry still reflects the original argv.
+  // stripped — the audit entry still reflects the original argv. When
+  // pushability surfaced a `no-upstream-branch` condition and the caller is
+  // permitted to resolve it (argv-declared `-u`, or `pushInterlock != manual`),
+  // inject `-u` into the wrapped spawn so the push sets upstream on first land.
+  const finalSpawnArgs = upstreamInjection.kind === "resolved" && !upstreamInjection.alreadyInArgv
+    ? ["-u", ...spawnArgs]
+    : spawnArgs;
   const spawned = await deps.spawnPush({
     branch: deps.currentBranch,
-    args: spawnArgs,
+    args: finalSpawnArgs,
     cwd: deps.cwd,
   });
   const outcome: AuditOutcome = spawned.status === "success"
@@ -291,16 +349,18 @@ function detectPushHook(output: string): string {
 }
 
 /**
- * Filter pushability conditions to the refusal-causing subset: `block`
- * dispositions plus the `force-push-required` advisory (which inherits
- * an always-refuse contract from `pushability.ts`). `auto-fixed`
- * dispositions pass through — the matrix already resolved them.
+ * Filter pushability conditions to the refusal-causing subset: anything
+ * {@link isRefusalCondition} flags (`block` and `caller-resolvable`) plus the
+ * `force-push-required` advisory (always-refuse contract from
+ * `pushability.ts`). `auto-fixed` and other `advisory` dispositions pass
+ * through — the matrix already resolved them or surfaces them for caller
+ * judgment.
  */
 function filterRefusalConditions(
   conditions: readonly PushabilityCondition[],
 ): PushabilityCondition[] {
   return conditions.filter((c) =>
-    c.disposition === "block" || c.kind === "force-push-required",
+    isRefusalCondition(c) || c.kind === "force-push-required",
   );
 }
 

@@ -225,7 +225,7 @@ export async function runReconfigure(
   const existingSkillDirs = await detectExistingSkillDirs(cwd, io.access);
   const skillResult = await generateSkills(
     newInstallConfig.tools,
-    join(templateDir, "system", "skills"),
+    join(templateDir, "system", ".internal", "skills"),
     existingSkillDirs,
     cwd,
     { readFile: io.readFile },

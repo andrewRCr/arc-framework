@@ -168,6 +168,8 @@ function configSessionInit(
       "pm.mode": "none",
       "commit.format": "conventional",
       "commit.context_footer": "required",
+      "commit.interlock": "manual",
+      "push.interlock": "manual",
     },
     defaultsApplied: [],
     warnings: [],
@@ -485,7 +487,7 @@ describe("runSessionInitStatus — orchestration", () => {
         domainRulesSessionInit({
           rules: [
             {
-              path: ".arc/reference/constitution/DEV-RULES.FRONTEND.md",
+              path: ".arc/system/rules/DEV-RULES.FRONTEND.md",
               domain: "frontend",
               purpose: "UI standards",
             },
@@ -577,7 +579,9 @@ describe("runSessionInitStatus — orchestration", () => {
         "branch.protection",
         "commit.context_footer",
         "commit.format",
+        "commit.interlock",
         "pm.mode",
+        "push.interlock",
         "session.init_load.notes",
         "session.init_pull.notes",
         "session.init_pull.worktree",
@@ -1225,7 +1229,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       active: vi.fn(async () =>
         activeSessionInit({
           resolution: "single",
-          path: ".arc/active/technical/status-foo.md",
+          path: ".arc/active/technical/meta-foo.md",
         }),
       ),
     });
@@ -1237,7 +1241,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
     expect(result.active.ok).toBe(true);
     if (result.active.ok) {
       expect(result.active.value.resolution).toBe("single");
-      expect(result.active.value.path).toBe(".arc/active/technical/status-foo.md");
+      expect(result.active.value.path).toBe(".arc/active/technical/meta-foo.md");
     }
   });
 

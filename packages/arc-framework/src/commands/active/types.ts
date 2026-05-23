@@ -12,7 +12,9 @@ import type { GitExec } from "../../lib/git/index.js";
 /**
  * Directory layout discovered on disk.
  *
- * - `full` — per-category subdirectories with `status-*.md` files.
+ * - `full` — `meta-*.md` files rooted directly at the active dir. The
+ *   reader enumerates the active root non-recursively, so this is a flat
+ *   layout: meta files placed in subdirectories are not discovered.
  * - `lite` — single fixed-path `.arc/active/status.md`.
  *
  * Determined by file presence: `.arc/active/status.md` wins when both
@@ -22,6 +24,40 @@ export type ActiveLayout = "full" | "lite";
 
 /** Resolution state of the session-init-scoped probe. */
 export type ActiveSessionInitResolution = "none" | "single" | "multiple";
+
+/**
+ * Codified work-unit lifecycle states — one value per phase of the state
+ * machine: Planning → Active → Integrating → Shipped. Branch creation and
+ * commitment level (provisional vs planned) live elsewhere (branch
+ * existence and `backlog/` subdirectory), not in State.
+ */
+export type WorkUnitState = "Planning" | "Active" | "Integrating" | "Shipped";
+
+/**
+ * Narrow a raw `**State:**` field value to the codified `WorkUnitState`
+ * enum. Anything unrecognized — including `null`, the empty string, and
+ * whitespace-only — returns `"unknown"`.
+ *
+ * Parsers (`parseMetaFile`, meta-field readers) return the raw `State`
+ * string verbatim; callers that need enum narrowing import and apply
+ * `validateState` explicitly.
+ *
+ * @param s - Raw `**State:**` field value, or `null` when absent.
+ * @returns The narrowed `WorkUnitState`, or `"unknown"` when the input
+ *   does not match a codified value.
+ */
+export function validateState(s: string | null): WorkUnitState | "unknown" {
+  if (s === null) return "unknown";
+  switch (s) {
+    case "Planning":
+    case "Active":
+    case "Integrating":
+    case "Shipped":
+      return s;
+    default:
+      return "unknown";
+  }
+}
 
 /**
  * Resolved session type — drives session-init's per-type loadset (Step 3
@@ -41,17 +77,17 @@ export type ActiveSessionInitResolution = "none" | "single" | "multiple";
 export type SessionType = "planning" | "execution" | "integration";
 
 /**
- * One parsed status file. `path` is always relative to the probe's cwd so
+ * One parsed meta file. `path` is always relative to the probe's cwd so
  * consumers can cross-reference against other probe results without
  * normalization.
  */
-export interface StatusFileCandidate {
-  /** Path relative to cwd — e.g. `.arc/active/technical/status-foo.md`. */
+export interface MetaFileCandidate {
+  /** Path relative to cwd — e.g. `.arc/active/meta-foo.md`. */
   path: string;
-  /** Basename — e.g. `status-foo.md`. Used by session-init's SESSION-NOTES-first precedence. */
+  /** Basename — e.g. `meta-foo.md`. Used by session-init's SESSION-NOTES-first precedence. */
   filename: string;
   branch: string | null;
-  /** Raw `**State:**` value verbatim — e.g. `In Progress`, `Paused (2026-04-12)`, `Waiting For Review`. */
+  /** Raw `**State:**` value verbatim — e.g. `Active`, `Integrating`, `Paused (2026-04-12)`. */
   state: string | null;
   /** Raw `**Next Task:**` value — triple-anchor format `Task X.Y — title (line ~N)`. */
   nextTask: string | null;
@@ -65,7 +101,7 @@ export interface StatusFileCandidate {
 export interface ActiveStatusResult {
   mode: "full";
   layout: ActiveLayout;
-  candidates: StatusFileCandidate[];
+  candidates: MetaFileCandidate[];
   /** Diagnostics from missing directories or unreadable files. */
   warnings: string[];
 }
@@ -85,7 +121,7 @@ export interface ActiveSessionInitResult {
   /** Resolved candidate path when `resolution === "single"`; otherwise `null`. */
   path: string | null;
   /** Candidate list when `resolution === "multiple"`; empty otherwise. */
-  candidates: StatusFileCandidate[];
+  candidates: MetaFileCandidate[];
   /**
    * Resolved companion-file paths for the active task list, derived only when
    * `resolution === "single"` and the parsed `**Task List:**` filename matches
@@ -119,8 +155,13 @@ export interface ActiveStatusOptions {
  * Session-init probe options.
  *
  * `identity` and `role` drive role-aware active resolution: contributor flow
- * scans `.arc/user/{identity}/active/` (flat scan-shape — no category subdirs);
- * maintainer flow (or absent role) scans `.arc/active/` with category subdirs.
+ * scans `.arc/user/{identity}/active/` (flat scan-shape — no category subdirs).
+ * A per-WU subdir layout (`.arc/user/{identity}/<wu-name>/` with
+ * contributor-meta inside) is the eventual replacement for the flat
+ * `active/` subdir; the scan-shape reshape composes with broader
+ * contributor-lifecycle support that isn't wired through this resolver yet.
+ * Maintainer flow (or absent role) scans `.arc/active/` directly (flat —
+ * the reader is non-recursive; see `ActiveLayout`).
  *
  * When `role === "contributor"` and `identity === null`, the probe short-
  * circuits to `resolution: "none"` with a diagnostic warning — the contributor

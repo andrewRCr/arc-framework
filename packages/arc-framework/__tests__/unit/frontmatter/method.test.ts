@@ -14,7 +14,7 @@ const validMethod = [
   "name: commit-format",
   "description: Commit message format",
   "related:",
-  "  - commit-context-format",
+  "  - commit-footer",
   "override-active: false",
   "---",
   "",
@@ -27,7 +27,7 @@ describe("parseMethodFrontmatter", () => {
     expect(result.frontmatter).toEqual({
       name: "commit-format",
       description: "Commit message format",
-      related: ["commit-context-format"],
+      related: ["commit-footer"],
       "override-active": false,
     });
   });

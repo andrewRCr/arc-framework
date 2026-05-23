@@ -20,13 +20,6 @@ arc:
   autonomous execution between human review points. Complete one, mark it `[x]`, report, and **stop**
   for user approval.
 
-- **Branch/task list coupling:** A task list may span one or more branches (stacked PRs, team
-  sub-branches, phased delivery). Archive when all tasks are marked complete — branch cleanup
-  happens independently as PRs merge. When creating additional branches for an existing task list,
-  update the `**Branch(es):**` header field to include the new branch name. For intermediate merges,
-  see [rotate-branch][rotate-branch]. See [Work Organization Strategy][work-org] for the full
-  relationship model.
-
 - **Co-development awareness:** The developer may be editing files or making commits alongside you.
   Treat parallel changes as expected context, not interruptions. If changes conflict with your
   current task, flag the conflict and ask how to proceed.
@@ -106,8 +99,8 @@ arc:
          unit, made irrelevant by a design decision, or superseded by a different approach — mark it `[~]`
          instead of `[x]`. Add a brief outcome note explaining why (e.g., "Deferred to WU3", "Superseded by
          ADR-011"). This distinguishes deliberate deferrals from incomplete work (`[ ]`).
-       - **Do not update `status-{name}.md` at this step.** See [DEV-RULES.ARC][dev-rules-arc]
-         § Status-file timing.
+       - **Do not update `meta-{name}.md` at this step.** See [DEV-RULES.ARC][dev-rules-arc]
+         § Meta-file timing.
      - **Extensions** · `#post-task-completion`: If `post-task-completion` appears in the active-extensions
        list (established at session init), load and execute its [`.actions`][arc-ext-task-completion].
        Otherwise, skip. Teams using external trackers (Jira, Linear, GitHub Issues) use this extension to
@@ -218,7 +211,7 @@ arc:
 ## Crash Recovery
 
 On session resume after a suspected agent crash mid-cascade, run the recovery scan: read the active
-status file's `**Next Action:**` workflow-step pointer, then inspect `git status --porcelain`,
+meta file's `**Next Action:**` workflow-step pointer, then inspect `git status --porcelain`,
 `git diff --cached --stat`, and recent commits (`git log --oneline -n 10`). Surface any mismatch between
 the workflow pointer, staged changes, and commit history; prompt the user to continue the interrupted
 cascade or roll it back. Full per-mode recovery procedures live in [Session Operations Strategy][session-ops]
@@ -269,6 +262,14 @@ When you complete an atomic task (in the companion file or ATOMIC-INBOX), follow
 3. **Verify ordering** — incomplete tasks at the top, then a visual gap (blank line), then
    completed tasks in chronological completion order.
 
+### Incidental Commit Discipline
+
+Off-workflow / incidental commits follow the review-increment invariant
+([DEV-RULES.ARC][dev-rules-arc] § Review-Increment Invariant): surface what landed (file list,
+summary, or diff sample), then end with the structured prompt — `Commit and proceed to
+<next-target>?` (releasing) or `Proceed?` (manual). The affirmative covers both work AND commit.
+Informal mid-discussion approval ("ok", "looks good") does not release commit.
+
 ### Complete Workflow
 
 **For full incidental work lifecycle** (creation, execution, archival), see:
@@ -288,11 +289,9 @@ updates**. Always update the task list file before reporting completion.
 
 ---
 
-[work-org]: ../../../reference/strategies/arc/strategy-work-organization.md
 [quality-gates]: ../../../reference/strategies/arc/strategy-quality-gates.md
 [config-arch]: ../../../reference/strategies/arc/strategy-configurability-architecture.md
-[dev-rules-arc]: ../../../reference/constitution/DEV-RULES.ARC.md
-[rotate-branch]: work-unit-lifecycle/rotate-branch.md
+[dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
 [manage-incidental]: supplemental/manage-incidental-work.md
 [arc-ext-task-quality]: ../../extensions/post-task-quality.md
 [arc-ext-task-completion]: ../../extensions/post-task-completion.md
@@ -301,6 +300,6 @@ updates**. Always update the task list file before reporting completion.
 [arc-methods-it]: ../../methods/issue-triage.md
 [arc-methods-qg]: ../../methods/quality-gate-commands.md
 [team-coordination]: ../../../reference/strategies/arc/strategy-team-coordination.md
-[arc-commit-skill]: ../../skills/arc-commit/SKILL.md
+[arc-commit-skill]: ../../.internal/skills/arc-commit/SKILL.md
 [session-ops]: ../../../reference/strategies/arc/strategy-session-operations.md
 [strat-tlf]: ../../../reference/strategies/arc/strategy-task-list-formatting.md

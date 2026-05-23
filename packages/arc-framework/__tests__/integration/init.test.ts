@@ -88,15 +88,15 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
 
     const expectedDirs = [
       "reference",
-      "reference/constitution",
+      "system/rules",
       "reference/strategies",
       "reference/strategies/arc",
       "reference/templates",
       "system",
-      "system/briefs",
-      "system/githooks",
-      "system/scripts",
-      "system/skills",
+      "reference/briefs",
+      "system/.internal/githooks",
+      "system/.internal/scripts",
+      "system/.internal/skills",
       "system/workflows",
       "system/workflows/arc",
     ];
@@ -113,7 +113,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
 
   it("renders init-time tokens in output files", async () => {
     const briefing = await readFile(
-      join(arcDir, "system/briefs/AGENT-BRIEF.PROJECT.md"),
+      join(arcDir, "reference/briefs/AGENT-BRIEF.PROJECT.md"),
       "utf-8",
     );
     expect(briefing).toContain("Integration Test Project");
@@ -181,7 +181,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       ["config", "core.hooksPath"],
       { cwd: tempDir },
     );
-    expect(stdout.trim()).toBe(".arc/system/githooks");
+    expect(stdout.trim()).toBe(".arc/system/.internal/githooks");
   });
 
   it("stores identity in git config", async () => {
@@ -195,29 +195,18 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
 
   // --- User Directory ---
 
-  it("creates user/{identity}/ directory with SESSION-NOTES.md", async () => {
-    const sessionNotes = await stat(
-      join(arcDir, "user/test-user/SESSION-NOTES.md"),
-    );
-    expect(sessionNotes.isFile()).toBe(true);
+  it("seeds WORKING-MEMORY.md and USER-INBOX.md in user directory (cross-PM-mode)", async () => {
+    const workingMemory = await stat(join(arcDir, "user/test-user/WORKING-MEMORY.md"));
+    expect(workingMemory.isFile()).toBe(true);
+
+    const userInbox = await stat(join(arcDir, "user/test-user/USER-INBOX.md"));
+    expect(userInbox.isFile()).toBe(true);
   });
 
-  it("SESSION-NOTES.md matches CLI-internal template content", async () => {
-    const installed = await readFile(
-      join(arcDir, "user/test-user/SESSION-NOTES.md"),
-      "utf-8",
-    );
-    const template = await readFile(
-      join(internalTemplateDir, "user/SESSION-NOTES.md"),
-      "utf-8",
-    );
-    expect(installed).toBe(template);
-  });
-
-  it("does not install ATOMIC-INBOX.md when pm.mode=none", async () => {
+  it("does not install user/ATOMIC-INBOX.md at user root (seed path retired)", async () => {
     try {
       await stat(join(arcDir, "user/test-user/ATOMIC-INBOX.md"));
-      expect.fail("ATOMIC-INBOX should not exist for pm.mode=none");
+      expect.fail("user/ATOMIC-INBOX should not exist post-WOR seed-path retirement");
     } catch (err: unknown) {
       expect((err as NodeJS.ErrnoException).code).toBe("ENOENT");
     }
@@ -265,12 +254,12 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
 
   it("installs agent briefing files (ARC + PROJECT split)", async () => {
     const arcBriefing = await stat(
-      join(arcDir, "system/briefs/AGENT-BRIEF.ARC.md"),
+      join(arcDir, "reference/briefs/AGENT-BRIEF.ARC.md"),
     );
     expect(arcBriefing.isFile()).toBe(true);
 
     const projectBriefing = await stat(
-      join(arcDir, "system/briefs/AGENT-BRIEF.PROJECT.md"),
+      join(arcDir, "reference/briefs/AGENT-BRIEF.PROJECT.md"),
     );
     expect(projectBriefing.isFile()).toBe(true);
   });
@@ -279,7 +268,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
 
   it("installs all 8 per-file methods plus README in system/methods/", async () => {
     const methodFiles = [
-      "commit-context-format.md",
+      "commit-footer.md",
       "commit-format.md",
       "diff-review.md",
       "issue-triage.md",
@@ -295,7 +284,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     }
   });
 
-  it("installs all 8 per-file extensions plus README in system/extensions/", async () => {
+  it("installs all 11 per-file extensions plus README in system/extensions/", async () => {
     const extensionFiles = [
       "post-context-load.md",
       "post-task-completion.md",
@@ -303,8 +292,11 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       "post-unit-quality.md",
       "post-work-unit-activate.md",
       "post-work-unit-archive.md",
+      "pre-activation.md",
+      "pre-commit-review.md",
       "pre-merge-review.md",
-      "pre-stage-review.md",
+      "pre-pr-review.md",
+      "pre-push-review.md",
       "README.md",
     ];
     for (const name of extensionFiles) {
@@ -314,19 +306,20 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
   });
 
   it(
-    "registers all 18 per-file methods/extensions in manifest — 16 Configurable, 2 READMEs Framework",
+    "registers all 21 per-file methods/extensions in manifest — 19 Configurable, 2 READMEs Framework",
     async () => {
       const manifest = await readManifestFile(tempDir);
 
       const methodNames = [
-        "commit-context-format", "commit-format", "diff-review",
+        "commit-footer", "commit-format", "diff-review",
         "issue-triage", "quality-gate-commands", "review-triage",
         "session-state", "test-first",
       ];
       const extensionNames = [
         "post-context-load", "post-task-completion", "post-task-quality",
         "post-unit-quality", "post-work-unit-activate",
-        "post-work-unit-archive", "pre-merge-review", "pre-stage-review",
+        "post-work-unit-archive", "pre-activation", "pre-commit-review",
+        "pre-merge-review", "pre-pr-review", "pre-push-review",
       ];
 
       for (const name of methodNames) {
@@ -356,23 +349,23 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
 
   it("installs script files", async () => {
     const validateConfig = await stat(
-      join(arcDir, "system/scripts/validate-config.sh"),
+      join(arcDir, "system/.internal/scripts/validate-config.sh"),
     );
     expect(validateConfig.isFile()).toBe(true);
 
     const verifyIntegrity = await stat(
-      join(arcDir, "system/scripts/verify-integrity.sh"),
+      join(arcDir, "system/.internal/scripts/verify-integrity.sh"),
     );
     expect(verifyIntegrity.isFile()).toBe(true);
   });
 
   it("sets executable permissions on hooks and scripts", async () => {
     const executableFiles = [
-      "system/githooks/pre-commit",
-      "system/githooks/commit-msg",
-      "system/scripts/validate-config.sh",
-      "system/scripts/verify-integrity.sh",
-      "system/scripts/arc-lib.sh",
+      "system/.internal/githooks/pre-commit",
+      "system/.internal/githooks/commit-msg",
+      "system/.internal/scripts/validate-config.sh",
+      "system/.internal/scripts/verify-integrity.sh",
+      "system/.internal/scripts/arc-lib.sh",
     ];
     for (const relPath of executableFiles) {
       const s = await stat(join(arcDir, relPath));
@@ -393,7 +386,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
   it("pristine store excludes Scaffolded files", async () => {
     const store = await readPristineStore(tempDir);
 
-    expect(store["reference/META-PRD.md"]).toBeUndefined();
+    expect(store["reference/PROJECT-PRD.md"]).toBeUndefined();
   });
 
   it("pristine store content matches .arc/ files exactly", async () => {
@@ -401,7 +394,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     const checkPaths = [
       "README.md",
       "system/arc-config.yml",
-      "system/briefs/AGENT-BRIEF.ARC.md",
+      "reference/briefs/AGENT-BRIEF.ARC.md",
     ];
 
     for (const filePath of checkPaths) {
@@ -519,7 +512,7 @@ describe("init integration (fresh mode, pm.mode=arc-in-git)", () => {
     expect(config).toContain("pm.mode: arc-in-git");
   });
 
-  it("installs both SESSION-NOTES.md and ATOMIC-INBOX.md in user directory", async () => {
+  it("installs the per-user file set (WORKING-MEMORY, USER-INBOX) under arc-in-git", async () => {
     const recipe = await loadRecipe();
     const io = makeIOContext(tempDir);
 
@@ -533,26 +526,18 @@ describe("init integration (fresh mode, pm.mode=arc-in-git)", () => {
       identityResult: "test-user",
     });
 
-    const sessionNotes = await stat(
-      join(tempDir, ".arc/user/test-user/SESSION-NOTES.md"),
-    );
-    expect(sessionNotes.isFile()).toBe(true);
+    const userDir = join(tempDir, ".arc/user/test-user");
+    for (const filename of ["WORKING-MEMORY.md", "USER-INBOX.md"]) {
+      const stats = await stat(join(userDir, filename));
+      expect(stats.isFile()).toBe(true);
+      // Each seeded file matches the internal template byte-for-byte
+      const installed = await readFile(join(userDir, filename), "utf-8");
+      const template = await readFile(join(internalTemplateDir, "user", filename), "utf-8");
+      expect(installed).toBe(template);
+    }
 
-    const atomicInbox = await stat(
-      join(tempDir, ".arc/user/test-user/ATOMIC-INBOX.md"),
-    );
-    expect(atomicInbox.isFile()).toBe(true);
-
-    // Verify content matches templates
-    const installedInbox = await readFile(
-      join(tempDir, ".arc/user/test-user/ATOMIC-INBOX.md"),
-      "utf-8",
-    );
-    const templateInbox = await readFile(
-      join(internalTemplateDir, "user/ATOMIC-INBOX.md"),
-      "utf-8",
-    );
-    expect(installedInbox).toBe(templateInbox);
+    // Legacy user/ATOMIC-INBOX seed path retired — no longer seeded under any pm.mode.
+    await expect(stat(join(userDir, "ATOMIC-INBOX.md"))).rejects.toThrow();
   });
 
   it("does not produce any completed-atomic files in arc-in-git mode", async () => {
@@ -708,7 +693,6 @@ describe("join integration", () => {
       internalTemplateDir,
       prompts: { role: "maintainer", tools: ["cursor"] },
       identityResult: "second-dev",
-      pmMode: "arc-in-git",
     });
 
     expect(result.role).toBe("maintainer");
@@ -718,22 +702,22 @@ describe("join integration", () => {
     const manifestAfter = await readFile(manifestPath(tempDir), "utf-8");
     expect(manifestAfter).toBe(manifestBefore);
 
-    // Second developer's user directory created
-    const sessionNotes = await stat(
-      join(tempDir, ".arc/user/second-dev/SESSION-NOTES.md"),
+    // Second developer's user directory created with the per-user file set
+    const workingMemory = await stat(
+      join(tempDir, ".arc/user/second-dev/WORKING-MEMORY.md"),
     );
-    expect(sessionNotes.isFile()).toBe(true);
+    expect(workingMemory.isFile()).toBe(true);
 
-    const atomicInbox = await stat(
-      join(tempDir, ".arc/user/second-dev/ATOMIC-INBOX.md"),
+    const userInbox = await stat(
+      join(tempDir, ".arc/user/second-dev/USER-INBOX.md"),
     );
-    expect(atomicInbox.isFile()).toBe(true);
+    expect(userInbox.isFile()).toBe(true);
 
     // First developer's user directory still intact
-    const firstDevNotes = await stat(
-      join(tempDir, ".arc/user/first-dev/SESSION-NOTES.md"),
+    const firstDevMemory = await stat(
+      join(tempDir, ".arc/user/first-dev/WORKING-MEMORY.md"),
     );
-    expect(firstDevNotes.isFile()).toBe(true);
+    expect(firstDevMemory.isFile()).toBe(true);
 
     // Identity stored for second developer
     const { stdout } = await execFileAsync(
@@ -751,6 +735,6 @@ describe("join integration", () => {
     const { stdout: hooksPath } = await execFileAsync(
       "git", ["config", "core.hooksPath"], { cwd: tempDir },
     );
-    expect(hooksPath.trim()).toBe(".arc/system/githooks");
+    expect(hooksPath.trim()).toBe(".arc/system/.internal/githooks");
   });
 });

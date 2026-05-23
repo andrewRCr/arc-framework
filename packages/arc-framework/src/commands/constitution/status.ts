@@ -2,7 +2,7 @@
  * DEV-RULES domain-rules probe implementation.
  *
  * {@link runDomainRulesSessionInitStatus} enumerates `DEV-RULES.*.md`
- * files in `.arc/reference/constitution/`, filters by frontmatter
+ * files in `.arc/system/rules/`, filters by frontmatter
  * presence, and returns `{path, domain, purpose}` tuples. Files without
  * a frontmatter block are silently skipped — that's the enumeration
  * discriminator, so `DEV-RULES.ARC.md` and `DEV-RULES.PROJECT.md` (and
@@ -28,9 +28,9 @@ import type {
 const DEV_RULES_FILENAME_RE = /^DEV-RULES\..+\.md$/;
 const MISSING_BLOCK_ERROR = "missing frontmatter block";
 
-/** Locate the constitution directory inside an ARC install. */
+/** Locate the domain-rules directory inside an ARC install. */
 function constitutionDir(cwd: string): string {
-  return join(cwd, ".arc", "reference", "constitution");
+  return join(cwd, ".arc", "system", "rules");
 }
 
 /**

@@ -40,21 +40,19 @@ async function writeStatusFixture(
   stem: string,
   fields: { taskList?: string; nextAction: string },
 ): Promise<void> {
-  const dir = join(arcRoot, ".arc", "active", category);
+  const dir = join(arcRoot, ".arc", "active");
   await mkdir(dir, { recursive: true });
   const lines: string[] = [
-    `# Status: ${stem}`,
+    `# Metadata: ${stem}`,
     "",
-    "## Work Unit Metadata",
-    "",
-    "- **State:** In Progress",
+    "- **State:** Active",
     `- **Branch:** ${category}/${stem}`,
   ];
   if (fields.taskList !== undefined) {
     lines.push(`- **Task List:** ${fields.taskList}`);
   }
   lines.push(`- **Next Action:** ${fields.nextAction}`);
-  await writeFile(join(dir, `status-${stem}.md`), lines.join("\n"));
+  await writeFile(join(dir, `meta-${stem}.md`), lines.join("\n"));
 }
 
 function parseJsonEnvelope(stdout: string): SessionInitEnvelope {
@@ -87,7 +85,7 @@ describe("session-init E2E — sessionType across type variants", () => {
     );
     await execFileAsync(
       "git",
-      ["checkout", "-b", "technical/plan-foo"],
+      ["checkout", "-b", "plan/foo"],
       { cwd: tmpDir },
     );
 
@@ -102,7 +100,7 @@ describe("session-init E2E — sessionType across type variants", () => {
   });
 
   it("emits sessionType=null when resolution=none + branch does not match plan-pattern (orphan)", async () => {
-    // Default branch from `git init` does not match `{category}/plan-{name}` —
+    // Default branch from `git init` does not match `plan/<name>` —
     // no candidate, no planning branch → null per the orphan-fallback rule.
     const result = await runArc(["status", "--session-init", "--json"], tmpDir);
     expect(result.exitCode).toBe(0);
@@ -116,7 +114,7 @@ describe("session-init E2E — sessionType across type variants", () => {
 
   it("emits sessionType=execution for a single-WU + Start-Task fixture", async () => {
     await writeStatusFixture(tmpDir, "technical", "foo", {
-      taskList: "`.arc/active/technical/tasks-foo.md`",
+      taskList: "`.arc/active/tasks-foo.md`",
       nextAction: "Start Task 4.2 — write unit tests",
     });
 
@@ -131,7 +129,7 @@ describe("session-init E2E — sessionType across type variants", () => {
 
   it("emits sessionType=integration when Next Action begins with integrate-work-unit", async () => {
     await writeStatusFixture(tmpDir, "technical", "foo", {
-      taskList: "`.arc/active/technical/tasks-foo.md`",
+      taskList: "`.arc/active/tasks-foo.md`",
       nextAction: "integrate-work-unit Step 7 — push and create PR",
     });
 

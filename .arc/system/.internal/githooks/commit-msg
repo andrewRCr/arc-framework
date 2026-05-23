@@ -1,0 +1,410 @@
+#!/bin/bash
+# Git commit-msg hook - Validates commit message format
+# Location: .arc/system/.internal/githooks/commit-msg
+#
+# Setup: git config core.hooksPath .arc/system/.internal/githooks
+# NOTE: Never use --no-verify to bypass hooks. Fix the issue instead.
+
+set -e
+
+# Source shared library (config reader, colors)
+. "$(dirname "$0")/../scripts/arc-lib.sh"
+
+# Convenience aliases for color variables
+RED="$ARC_RED"
+YELLOW="$ARC_YELLOW"
+GREEN="$ARC_GREEN"
+NC="$ARC_NC"
+
+commit_msg_file="$1"
+commit_msg=$(cat "$commit_msg_file")
+
+hook_enabled=$(arc_config_get "hooks.commit_msg" "enabled")
+commit_format=$(arc_config_get "commit.format" "conventional")
+context_footer_mode=$(arc_config_get "commit.context_footer" "required")
+custom_pattern=$(arc_config_get "commit.custom_pattern" "")
+context_pattern=$(arc_config_get "commit.context_pattern" "")
+subject_max_length=$(arc_config_get "hooks.subject_max_length" "72")
+body_max_lines=$(arc_config_get "hooks.body_max_lines" "100")
+body_max_line_length=$(arc_config_get "hooks.body_max_line_length" "100")
+arc_role=$(git config arc.role 2>/dev/null || echo "maintainer")
+
+# Exit early if hook is disabled
+if [ "$hook_enabled" = "disabled" ]; then
+    exit 0
+fi
+
+# Extract components
+subject=$(echo "$commit_msg" | head -n1)
+subject_length=${#subject}
+body=$(echo "$commit_msg" | tail -n +3) # Skip subject and blank line
+
+errors=0
+warnings=0
+
+# Helper: report context footer issue — severity depends on config
+# required → error (blocks commit), recommended → warning (advisory)
+context_issue() {
+    local message="$1"
+    if [ "$context_footer_mode" = "recommended" ]; then
+        echo -e "${YELLOW}Warning: ${message}${NC}"
+        warnings=$((warnings + 1))
+    else
+        echo -e "${RED}Error: ${message}${NC}"
+        errors=$((errors + 1))
+    fi
+}
+
+# Helper: check if a string is a valid extended regex for grep -E
+# Exit codes from grep: 0=match, 1=no match (valid regex), 2=invalid regex
+# Must be called in an if/|| context so set -e doesn't trigger on grep exit 1.
+is_valid_ere() {
+    local exit_code
+    echo "" | grep -E "$1" >/dev/null 2>&1
+    exit_code=$?
+    [ "$exit_code" -ne 2 ]
+}
+
+echo -e "${GREEN}Validating commit message...${NC}"
+
+# ============================================================================
+# RULE 1: Commit Format Validation (config-aware)
+# ============================================================================
+# Behavior determined by commit.format setting in arc-config.yml:
+#   conventional - type(scope): description (default)
+#   custom       - validates against commit.custom_pattern regex
+#   any          - no format validation
+case "$commit_format" in
+    conventional)
+        if ! echo "$subject" | grep -qE '^(feat|fix|chore|docs|refactor|test|perf|revert)\([a-z][a-z0-9-]*\): .+'; then
+            echo -e "${RED}Error: Subject must follow Conventional Commits format${NC}"
+            echo "   Expected: <type>(scope): description"
+            echo "   Types: feat, fix, chore, docs, refactor, test, perf, revert"
+            echo "   Example: feat(auth): add JWT token refresh endpoint"
+            echo ""
+            echo "   Your subject: $subject"
+            errors=$((errors + 1))
+        fi
+        ;;
+    custom)
+        if [ -z "$custom_pattern" ]; then
+            echo -e "${RED}Error: commit.format is 'custom' but commit.custom_pattern is empty${NC}"
+            echo "   Set commit.custom_pattern in arc-config.yml"
+            errors=$((errors + 1))
+        elif ! is_valid_ere "$custom_pattern"; then
+            echo -e "${RED}Error: commit.custom_pattern contains invalid regex${NC}"
+            echo "   Pattern: $custom_pattern"
+            echo "   Fix the regex in arc-config.yml"
+            errors=$((errors + 1))
+        elif ! echo "$subject" | grep -qE "$custom_pattern"; then
+            echo -e "${RED}Error: Subject does not match custom format pattern${NC}"
+            echo "   Pattern: $custom_pattern"
+            echo "   Your subject: $subject"
+            errors=$((errors + 1))
+        fi
+        ;;
+    any)
+        # No format validation
+        ;;
+esac
+
+# ============================================================================
+# RULE 2: Subject Line Length (configurable)
+# Default max 72 — GitHub UI breakpoint and `git log --oneline` width.
+# Skipped when commit.format: any (no format opinion → no length opinion).
+# Authorial discipline aims at conventional ~50 chars; the hook only blocks
+# at the hard limit to avoid warning fatigue.
+# ============================================================================
+if [ "$commit_format" != "any" ]; then
+    if [ "$subject_length" -lt 10 ]; then
+        echo -e "${RED}Error: Subject line too short (${subject_length} chars, minimum 10)${NC}"
+        errors=$((errors + 1))
+    elif [ "$subject_length" -gt "$subject_max_length" ]; then
+        echo -e "${RED}Error: Subject line too long (${subject_length} chars, maximum ${subject_max_length})${NC}"
+        errors=$((errors + 1))
+    fi
+fi
+
+# ============================================================================
+# RULE 3: Context Footer (config-aware)
+# ============================================================================
+# Behavior determined by commit.context_footer setting in arc-config.yml:
+#   required    - Context: line must be present and valid (default)
+#   recommended - warns if missing/invalid, does not block
+#   custom      - validates against commit.context_pattern regex
+#   disabled    - no context footer validation
+case "$context_footer_mode" in
+    disabled)
+        # No context footer validation
+        ;;
+    custom)
+        if [ -z "$context_pattern" ]; then
+            echo -e "${RED}Error: commit.context_footer is 'custom' but commit.context_pattern is empty${NC}"
+            echo "   Set commit.context_pattern in arc-config.yml"
+            errors=$((errors + 1))
+        elif ! is_valid_ere "$context_pattern"; then
+            echo -e "${RED}Error: commit.context_pattern contains invalid regex${NC}"
+            echo "   Pattern: $context_pattern"
+            echo "   Fix the regex in arc-config.yml"
+            errors=$((errors + 1))
+        elif ! echo "$commit_msg" | grep -qE "$context_pattern"; then
+            echo -e "${RED}Error: No line matches custom context footer pattern${NC}"
+            echo "   Pattern: $context_pattern"
+            errors=$((errors + 1))
+        fi
+        ;;
+    required|recommended)
+        if ! echo "$commit_msg" | grep -qE '^Context: '; then
+            context_issue "Missing 'Context:' footer"
+            echo "   Every commit should include a Context: line"
+            echo ""
+            echo "   Examples:"
+            echo "   Context: tasks-auth-system.md (Task 3.6)"
+            echo "   Context: tasks-api-modernization.md (Tasks 1.4-1.7)"
+            echo "   Context: tasks-theme-system.md (Task 2.3.a)"
+            echo "   Context: tasks-theme-system.md (Tasks 2.3.c-e)"
+            echo "   Context: tasks-theme-system.md (Tasks 6.1.h, 6.2.a-d; maintenance)"
+            echo "   Context: tasks-auth-system.md (incidental during Task 3.6)"
+            echo "   Context: tasks-design-system.md (incidental during code review)"
+            echo "   Context: tasks-data-pipeline.md (planning)"
+            echo "   Context: tasks-theme-system.md (maintenance)"
+            echo "   Context: tasks-auth-system.md (code review)"
+            echo "   Context: draft-user-sync-ux.md (planning)"
+            echo "   Context: meta-auth-system.md (handoff)"
+            echo "   Context: meta-structural-pass.md (activation)"
+            echo "   Context: meta-auth-system.md (integration)"
+            echo "   Context: meta-auth-system.md (archival)"
+            echo "   Context: meta-auth-system.md (deactivation)"
+            echo "   Context: meta-auth-system.md (maintenance)"
+            echo "   Context: atomic-auth-system.md"
+            echo "   Context: standalone (maintenance)"
+            echo "   Context: standalone (planning)"
+            echo "   Context: standalone (documentation)"
+            echo "   Context: standalone (refactor)"
+            echo "   Context: contribution (fix typo in README)"
+        else
+            # Extract Context line for further validation
+            context_line=$(echo "$commit_msg" | grep '^Context: ' | head -n1)
+
+            # ================================================================
+            # RULE 4: Context Footer Format
+            # ================================================================
+
+            # Check for task list reference
+            if echo "$context_line" | grep -qE '^Context: tasks-[a-zA-Z0-9-]+\.md'; then
+                # Task list reference format
+
+                # Extract filename
+                task_file=$(echo "$context_line" | sed -E 's/Context: (tasks-[a-zA-Z0-9-]+\.md).*/\1/')
+
+                # Check if task list file exists at the active root (flat layout)
+                task_found=false
+                if [ -f ".arc/active/$task_file" ]; then
+                    task_found=true
+                fi
+
+                if [ "$task_found" = false ]; then
+                    echo -e "${YELLOW}Warning: Task list file '$task_file' not found at .arc/active/${NC}"
+                    echo "   This may be intentional if the file was just created or archived"
+                    warnings=$((warnings + 1))
+                fi
+
+                # Validate task reference format
+                # Support multi-level task numbering: X.Y, X.Y.a, X.Y.a.1, etc.
+                # Level 3 uses letters for readability: 2.3.a, 2.3.b
+                # Special case: 'R' (capital) for revised/remedial/remaining work: X.Y.R, X.Y.R.1, X.Y.a.R
+                # Ranges can be abbreviated (e.g., 2.3.c-e means 2.3.c-2.3.e)
+                # Matches: (Task 2.3), (Task 2.3.a), (Task 2.3.a.1), (Task 2.3.R)
+                if echo "$context_line" | grep -qE '\(Task [0-9]+(\.[0-9A-Za-z]+)+\)$'; then
+                    :
+                # Matches: (Tasks 2.2-2.3), (Tasks 2.3.a-2.3.d), (Tasks 2.3.c-e)
+                elif echo "$context_line" | grep -qE '\(Tasks [0-9]+(\.[0-9A-Za-z]+)+-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*\)$'; then
+                    :
+                # Matches: (Tasks 2.3, 4.5), (Tasks 2.3.a, 4.5.b, 6.7), (Tasks 4.3, 5.1.a-c)
+                # Each element can be simple (4.3, 5.1.a) or range (5.1.a-c, 2.3-2.5)
+                elif echo "$context_line" | grep -qE '\(Tasks [0-9]+(\.[0-9A-Za-z]+)+(-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?(, [0-9]+(\.[0-9A-Za-z]+)+(-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?)+\)$'; then
+                    :
+                # Matches: (Task 7.2.c; planning), (Task 2.3.a; maintenance)
+                elif echo "$context_line" | grep -qE '\(Task [0-9]+(\.[0-9A-Za-z]+)+; (planning|maintenance)\)$'; then
+                    :
+                # Matches: (Tasks 6.1.h, 6.2.a-d; maintenance), (Tasks 2.3.a-c; planning)
+                elif echo "$context_line" | grep -qE '\(Tasks .+; (planning|maintenance)\)$'; then
+                    :
+                # Matches: (incidental during Task 2.3), (incidental during code review),
+                # (incidental during Phase 5 planning), etc. Freeform context after prefix.
+                elif echo "$context_line" | grep -qE '\(incidental during .+\)$'; then
+                    :
+                # Matches: (planning), (maintenance), (code review) — task-list metadata or review-driven
+                # Lifecycle ceremony markers (handoff, activation, integration, archival) attach to meta-*.md.
+                elif echo "$context_line" | grep -qE '\((planning|maintenance|code review)\)$'; then
+                    :
+                else
+                    context_issue "Invalid task reference format in Context: line"
+                    echo "   Expected formats for task list references:"
+                    echo "   - (Task X.Y) or (Task X.Y.a) - level 3 uses letters"
+                    echo "   - (Task X.Y.a.1) - level 4 if needed"
+                    echo "   - (Task X.Y.R) or (Task X.Y.R.1) - 'R' for revised/remedial work"
+                    echo "   - (Tasks X.Y-X.Z) or (Tasks X.Y.a-X.Y.d) - task range"
+                    echo "   - (Tasks X.Y.c-e) or (Tasks 2.3.c-e) - abbreviated range"
+                    echo "   - (Tasks X.Y, A.B, C.D) - non-contiguous tasks"
+                    echo "   - (Task X.Y; planning) or (Task X.Y; maintenance) - single task with extra work"
+                    echo "   - (Tasks X.Y, A.B; planning) - multiple tasks with extra work"
+                    echo "   - (incidental during <context>) - freeform discovery context"
+                    echo "   - (planning), (maintenance), or (code review) - task list metadata or review-driven changes"
+                    echo "   Note: lifecycle ceremonies (handoff, activation, integration, archival) attach to meta-*.md, not tasks-*.md"
+                    echo ""
+                    echo "   Note: Parenthetical is REQUIRED for all commits"
+                    echo ""
+                    echo "   Your Context line: $context_line"
+                fi
+
+            # Matches: Context: (draft|spec)-[name].md (planning|code review)
+            elif echo "$context_line" | grep -qE '^Context: (draft|spec)-[a-zA-Z0-9-]+\.md \((planning|code review)\)$'; then
+                spec_file=$(echo "$context_line" | sed -E 's/Context: ((draft|spec)-[a-zA-Z0-9-]+\.md).*/\1/')
+
+                spec_found=false
+                if [ -f ".arc/active/$spec_file" ]; then
+                    spec_found=true
+                elif find .arc/backlog -type f -name "$spec_file" 2>/dev/null | grep -q .; then
+                    spec_found=true
+                fi
+
+                if [ "$spec_found" = false ]; then
+                    echo -e "${YELLOW}Warning: Draft/spec file '$spec_file' not found in active or backlog directories${NC}"
+                    echo "   This may be intentional if the file was just created or archived"
+                    warnings=$((warnings + 1))
+                fi
+
+            # Matches: Context: meta-[name].md (handoff|activation|integration|archival|deactivation|maintenance)
+            # Also accepts: (incidental during <context>) for fixes folded into ceremony / maintenance commits
+            elif echo "$context_line" | grep -qE '^Context: meta-[a-zA-Z0-9-]+\.md \((handoff|activation|integration|archival|deactivation|maintenance|incidental during .+)\)$'; then
+                meta_file=$(echo "$context_line" | sed -E 's/Context: (meta-[a-zA-Z0-9-]+\.md).*/\1/')
+
+                meta_found=false
+                if [ -f ".arc/active/$meta_file" ]; then
+                    meta_found=true
+                fi
+
+                if [ "$meta_found" = false ]; then
+                    echo -e "${YELLOW}Warning: Meta file '$meta_file' not found in active directory${NC}"
+                    echo "   This may be intentional if the file was just created or archived"
+                    warnings=$((warnings + 1))
+                fi
+
+            # Matches: Context: atomic-[name].md (work-unit-scoped atomic task)
+            elif echo "$context_line" | grep -qE '^Context: atomic-[a-z0-9-]+\.md$'; then
+                # Atomic companion file reference — valid, no task number needed
+                atomic_file=$(echo "$context_line" | sed -E 's/Context: (atomic-[a-z0-9-]+\.md).*/\1/')
+
+                # Check if atomic companion file exists at .arc/active/ root
+                atomic_found=false
+                if [ -f ".arc/active/$atomic_file" ]; then
+                    atomic_found=true
+                fi
+
+                if [ "$atomic_found" = false ]; then
+                    echo -e "${YELLOW}Warning: Atomic companion file '$atomic_file' not found in active directory${NC}"
+                    echo "   This may be intentional if the file was just created or archived"
+                    warnings=$((warnings + 1))
+                fi
+
+            # Matches: Context: standalone (maintenance|planning|documentation|refactor) — off-WU work
+            elif echo "$context_line" | grep -qE '^Context: standalone \((maintenance|planning|documentation|refactor)\)$'; then
+                :
+
+            # Matches: Context: contribution (freeform description)
+            # Used by contributors (arc.role=contributor) but accepted from any role.
+            elif echo "$context_line" | grep -qE '^Context: contribution \(.+\)$'; then
+                :
+            else
+                context_issue "Invalid Context: format"
+                echo "   Expected formats — name the most specific spec-shaped artifact under edit:"
+                echo "   - Context: tasks-[name].md (Task X.Y)"
+                echo "   - Context: tasks-[name].md (Tasks X.Y-X.Z)"
+                echo "   - Context: tasks-[name].md (incidental during <context>)"
+                echo "   - Context: tasks-[name].md (planning), (maintenance), or (code review)"
+                echo "   - Context: draft-[name].md (planning) or (code review)"
+                echo "   - Context: spec-[name].md (planning) or (code review)"
+                echo "   - Context: meta-[name].md (handoff), (activation), (integration), (archival), (deactivation), or (maintenance)"
+                echo "   - Context: meta-[name].md (incidental during <context>)"
+                echo "   - Context: atomic-[name].md"
+                echo "   - Context: standalone (maintenance|planning|documentation|refactor)"
+                echo "   - Context: contribution (description)"
+                echo ""
+                echo "   Off-WU categories: maintenance, planning, documentation, refactor"
+                echo "   Note: Parenthetical is REQUIRED for all commits"
+                echo ""
+                echo "   Your Context line: $context_line"
+            fi
+        fi
+
+        # Contributor context footer advisory (MW-M14)
+        # When a contributor uses a valid but non-contribution context pattern,
+        # warn — the contribution pattern is the expected convention for contributors.
+        if [ "$arc_role" = "contributor" ]; then
+            context_line_check=$(echo "$commit_msg" | grep '^Context: ' | head -n1)
+            if [ -n "$context_line_check" ] && ! echo "$context_line_check" | grep -qE '^Context: contribution \(.+\)$'; then
+                echo -e "${YELLOW}Warning: Contributors typically use 'Context: contribution (description)'${NC}"
+                echo "   See .arc/system/methods/commit-footer.md for the contributor pattern"
+                warnings=$((warnings + 1))
+            fi
+        fi
+        ;;
+    *)
+        echo -e "${RED}Error: Unknown commit.context_footer value: '${context_footer_mode}'${NC}"
+        echo "   Valid values: required, recommended, custom, disabled"
+        echo "   Config: .arc/system/arc-config.yml"
+        errors=$((errors + 1))
+        ;;
+esac
+
+# ============================================================================
+# RULE 5: Body Runaway Detection (hard errors)
+# ============================================================================
+# Catches genuinely runaway commit bodies — no soft warnings. Authorial
+# discipline aims at ~72-char wrap (see commit-format method); these limits
+# are backstops for accidental paste / forgotten wrap, not style enforcement.
+body_lines=$(echo "$body" | grep -vc '^$' || true)
+
+if [ "$body_lines" -gt "$body_max_lines" ]; then
+    echo -e "${RED}Error: Commit body is ${body_lines} lines (maximum ${body_max_lines})${NC}"
+    echo "   Past this length the commit is usually better split, or the prose moved to a doc."
+    errors=$((errors + 1))
+fi
+
+long_line_count=$(echo "$body" | awk -v max="$body_max_line_length" 'length > max { count++ } END { print count + 0 }')
+if [ "$long_line_count" -gt 0 ]; then
+    echo -e "${RED}Error: Commit body has ${long_line_count} line(s) over ${body_max_line_length} chars${NC}"
+    echo "   Aim at ~72-char wrap (commit-format method); this hard limit catches accidental paste / forgotten wrap."
+    errors=$((errors + 1))
+fi
+
+# ============================================================================
+# RULE 6: Phases vs. Tasks (hard error)
+# ============================================================================
+# Phases use bare integers; tasks use dotted form. "Phase X.Y" is a category
+# mismatch that corrupts grep-ability of commit history.
+# Excludes dotted IDs with 3+ segments (e.g., 5.3.a) — those are unambiguously tasks.
+if echo "$commit_msg" | grep -qE 'Phase [0-9]+\.[0-9]+($|[^.])'; then
+    echo -e "${RED}Error: Found 'Phase X.Y' in commit message${NC}"
+    echo "   Phases use single integers (Phase 1, Phase 2). Use 'Task X.Y' for specific tasks."
+    echo "   Preserves grep-ability: \`git log --grep \"Task 3.1\"\` should find the right commits."
+    errors=$((errors + 1))
+fi
+
+# ============================================================================
+# Summary
+# ============================================================================
+echo ""
+if [ $errors -gt 0 ]; then
+    echo -e "${RED}Commit validation FAILED with $errors error(s) and $warnings warning(s)${NC}"
+    echo ""
+    echo "Fix the issues above and retry."
+    exit 1
+elif [ $warnings -gt 0 ]; then
+    echo -e "${GREEN}Commit validation PASSED with $warnings warning(s)${NC}"
+    exit 0
+else
+    echo -e "${GREEN}Commit validation PASSED${NC}"
+    exit 0
+fi

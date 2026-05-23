@@ -19,7 +19,7 @@ three-way merge. They are the primary surface where your project's identity take
 
 The agent reads these during initialization and treats them as authoritative project context:
 
-- **DEV-RULES.PROJECT** (`reference/constitution/`): your project's quality standards, testing
+- **DEV-RULES.PROJECT** (`system/rules/`): your project's quality standards, testing
   requirements, architecture rules, and code quality expectations.
 - **QUICK-REFERENCE** (`reference/`): commands, environment context, path references, and
   tooling. The agent's operational cheat sheet for your project.
@@ -41,7 +41,7 @@ guidance for your specific domain:
   work touches the domain.
 - **Project workflows** (`system/workflows/project/`): project-specific procedures not covered
   by ARC — deploy checklists, release workflows, environment setup.
-- **Domain-specific rules** (`reference/constitution/`): extend `DEV-RULES.PROJECT.md` with
+- **Domain-specific rules** (`system/rules/`): extend `DEV-RULES.PROJECT.md` with
   domain files like `DEV-RULES.FRONTEND.md` or `DEV-RULES.AUTH.md`. Loaded on-demand when
   work touches the relevant domain.
 

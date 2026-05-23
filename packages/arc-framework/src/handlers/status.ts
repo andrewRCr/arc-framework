@@ -15,7 +15,6 @@
  */
 
 import { access } from "node:fs/promises";
-import { join } from "node:path";
 
 import * as p from "@clack/prompts";
 
@@ -54,6 +53,7 @@ import { runHeadHashStatus } from "../lib/git/head-hash.js";
 import { runPushabilityStatus } from "../lib/git/pushability.js";
 import { runWorktreeSyncStatus } from "../lib/git/worktree-sync.js";
 import { deriveRestateCandidates } from "../lib/handoff/restate-candidates.js";
+import { resolveSessionNotesPath } from "../lib/handoff/session-notes-path.js";
 import {
   resolveAllSettings,
   type ResolvedSettingsResult,
@@ -157,11 +157,13 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
         target: "worktree",
       }),
       restateCandidates: async () => {
-        const sessionNotes = identity === null
-          ? null
-          : await io
-              .readFile(join(cwd, ".arc", "user", identity, "SESSION-NOTES.md"))
-              .catch(() => null);
+        let sessionNotes: string | null = null;
+        if (identity !== null) {
+          const path = await resolveSessionNotesPath(cwd, identity, io);
+          if (path !== null) {
+            sessionNotes = await io.readFile(path).catch(() => null);
+          }
+        }
         return deriveRestateCandidates({ exec: gitExec, sessionNotes });
       },
       releaseRouting: async () => releaseRoutingFromSettings(await resolvedSettingsP),

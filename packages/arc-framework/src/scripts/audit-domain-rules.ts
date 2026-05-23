@@ -37,7 +37,7 @@ const RESERVED_FRAGMENTS = new Set(["ARC", "PROJECT"]);
  * Enumerate `DEV-RULES.{DOMAIN}.md` basenames under `dir`, sorted, excluding
  * reserved filenames (`DEV-RULES.ARC.md`, `DEV-RULES.PROJECT.md`) and any
  * non-DEV-RULES files. The audit walks the returned list; callers should
- * pass the absolute path of `reference/constitution/`.
+ * pass the absolute path of `system/rules/`.
  */
 export function enumerateDomainFiles(dir: string): string[] {
   return readdirSync(dir)
@@ -82,7 +82,7 @@ function main(): void {
   const root = resolveRepoRoot();
   const constitutionDir = join(
     root,
-    "packages/arc-framework/arc/reference/constitution",
+    "packages/arc-framework/arc/system/rules",
   );
   const result = audit(constitutionDir);
   if (!result.pass) {

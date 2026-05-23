@@ -34,14 +34,14 @@ export interface ValidationResult {
 
 const METHOD_PATH = /(?:^|\/)system\/methods\/([^/]+)\.md$/;
 const EXTENSION_PATH = /(?:^|\/)system\/extensions\/([^/]+)\.md$/;
-const DOMAIN_RULES_PATH = /(?:^|\/)reference\/constitution\/DEV-RULES\.([^/]+)\.md$/;
+const DOMAIN_RULES_PATH = /(?:^|\/)system\/rules\/DEV-RULES\.([^/]+)\.md$/;
 const DOMAIN_RULES_RESERVED = new Set(["ARC", "PROJECT"]);
 
 /**
  * Classify a path by schema directory.
  *
  * - Method / extension: any `.md` under the respective directory except `README.md`.
- * - Domain-rules: `DEV-RULES.{DOMAIN}.md` under `reference/constitution/` where
+ * - Domain-rules: `DEV-RULES.{DOMAIN}.md` under `system/rules/` where
  *   `{DOMAIN}` is neither `ARC` nor `PROJECT` (those carry no frontmatter and
  *   are discovered by the session-init probe via frontmatter presence).
  */

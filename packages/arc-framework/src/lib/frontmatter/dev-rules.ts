@@ -2,7 +2,7 @@
  * DEV-RULES domain-file frontmatter schema parser.
  *
  * Validates the flat `{domain, purpose}` schema on `DEV-RULES.{DOMAIN}.md`
- * files in `reference/constitution/`. `purpose` is required non-empty.
+ * files in `system/rules/`. `purpose` is required non-empty.
  *
  * Case contract — asymmetric by design:
  * - Filename `{DOMAIN}` fragment must be uppercase (e.g., `DEV-RULES.FRONTEND.md`).

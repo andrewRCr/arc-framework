@@ -1,7 +1,7 @@
 /**
  * Integration tests for the DEV-RULES domain-rules probe.
  *
- * Builds a synthetic `.arc/reference/constitution/` tree in a temp
+ * Builds a synthetic `.arc/system/rules/` tree in a temp
  * directory and exercises `runDomainRulesSessionInitStatus` against it
  * — covering empty directories, reserved-name skipping, alphabetical
  * ordering, malformed-frontmatter warnings, and non-`.md` exclusion.
@@ -21,7 +21,7 @@ interface Fixture {
 
 async function createFixture(): Promise<Fixture> {
   const root = await mkdtemp(join(tmpdir(), "arc-constitution-"));
-  const dir = join(root, ".arc", "reference", "constitution");
+  const dir = join(root, ".arc", "system", "rules");
   await mkdir(dir, { recursive: true });
   return { root, dir };
 }
@@ -73,7 +73,7 @@ describe("runDomainRulesSessionInitStatus", () => {
     const result = await runDomainRulesSessionInitStatus({ cwd: fixture.root });
     expect(result.rules).toEqual([
       {
-        path: ".arc/reference/constitution/DEV-RULES.FRONTEND.md",
+        path: ".arc/system/rules/DEV-RULES.FRONTEND.md",
         domain: "frontend",
         purpose: "UI component standards",
       },

@@ -1,3 +1,4 @@
+import { isRefusalCondition } from "../../lib/git/index.js";
 import type {
   AccessFn,
   DirEntry,
@@ -131,7 +132,22 @@ export interface UserAddOptions {
   io: UserIOContext;
   identity: string;
   internalTemplateDir: string;
-  pmMode: string;
+}
+
+/** Options for the open operation (per-WU user workspace subdir). */
+export interface UserOpenOptions {
+  cwd: string;
+  io: UserIOContext;
+  identity: string;
+  wuName: string;
+  internalTemplateDir: string;
+}
+
+/** Options for the close operation (retires a per-WU user workspace subdir). */
+export interface UserCloseOptions {
+  cwd: string;
+  identity: string;
+  wuName: string;
 }
 
 /** Options for the push operation. */
@@ -172,7 +188,7 @@ export class UserPushBlockedError extends Error {
 }
 
 function buildBlockedMessage(conditions: PushabilityCondition[]): string {
-  const blocking = conditions.filter((c) => c.disposition === "block");
+  const blocking = conditions.filter(isRefusalCondition);
   if (blocking.length === 0) {
     return "Push blocked by pre-check matrix.";
   }
@@ -289,6 +305,14 @@ export interface RunPairedPushOptions {
   branch: string;
   /** Pre-resolved worktree sync state for force-push detection. */
   worktreeSyncState?: WorktreeSyncState;
+  /**
+   * When `true`, the worktree leg pushes with `-u` to publish and set
+   * upstream in one operation, and the pushability `no-upstream-branch`
+   * caller-resolvable condition is filtered out of the refusal check.
+   * The orchestrator (sync `decideWorktree`) decides this based on
+   * `pushInterlock` and current state. Default `false`.
+   */
+  setUpstream?: boolean;
   /**
    * Notes-leg pusher delegate. Production wires
    * `pushWithInteractiveRecovery` so the paired flow inherits its
@@ -533,6 +557,16 @@ export interface UserSessionLocalNoteFreshness {
 export interface UserSessionInitStatusResult {
   identity: string;
   state: UserSessionInitState;
+  /**
+   * Raw notes-ref topology, parallel to the action-dispatch `state` field.
+   * `state` collapses `same` and `local-ahead` to `clean` because both mean
+   * "no pull needed" — the action enum encodes pull-direction dispatch, not
+   * raw state. Consumers that need to distinguish the collapsed cases
+   * (e.g., surfacing local-ahead notes informationally) check `refState`
+   * within the `clean` arm. Omitted when remote sync is disabled
+   * (`state === "disabled"`); present on every other arm.
+   */
+  refState?: UserSyncRefState;
   /** Coherence detail preserved without expanding the five-state session-init surface. */
   coherenceState?: UserSyncCoherenceState;
   summary: string;

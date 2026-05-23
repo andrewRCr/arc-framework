@@ -2,7 +2,7 @@
  * Active-work-unit resolver consumed by the release commit and push
  * handlers.
  *
- * Composes {@link readActiveStatusCandidates} from the active-status
+ * Composes {@link readActiveMetaCandidates} from the active-meta
  * reader. Accepts any `**State:**` value — Planning, In Progress,
  * Paused, etc. — and refuses only on no-candidate or multi-candidate
  * ambiguity. Both refusal shapes map to refusal code 10
@@ -12,9 +12,7 @@
  * @module
  */
 
-import { readActiveStatusCandidates } from "../active/status-reader.js";
-import type { ActiveScanShape } from "../active/status-reader.js";
-import type { ActiveLayout } from "../../commands/active/types.js";
+import { readActiveMetaCandidates } from "../active/meta-reader.js";
 
 const DEFAULT_ROOT_SEGMENTS = [".arc", "active"] as const;
 
@@ -25,24 +23,24 @@ export interface ResolveActiveWuOptions {
   cwd: string;
   /**
    * Active-root segments. Defaults to maintainer scope (`[".arc", "active"]`);
-   * contributor scope is `[".arc", "user", identity, "active"]`.
+   * contributor scope is `[".arc", "user", identity, "active"]`. The eventual
+   * per-WU subdir convention (`[".arc", "user", identity, "<wu-name>"]`)
+   * will replace the flat `active/` subdir once contributor-lifecycle
+   * support that populates per-WU contributor-meta files lands.
    */
   rootSegments?: readonly string[];
-  /** Scan shape under the active root. Defaults to `subdir` (maintainer). */
-  scanShape?: ActiveScanShape;
 }
 
 /**
  * Successful resolution: the unambiguous active WU.
  *
  * `path` is relative to `cwd` and matches the active-status reader's
- * shape. `category` and `name` are parsed from the path against the
- * active root; both are empty strings for the lite layout (`status.md`
- * directly under the active root) where neither concept applies.
+ * shape. `name` is parsed from the meta filename; it is the empty string
+ * for the lite layout (`status.md` directly under the active root), which
+ * carries no parseable WU name.
  */
 export interface ResolvedWu {
   path: string;
-  category: string;
   name: string;
 }
 
@@ -56,7 +54,7 @@ export type WuResolution =
  * - 0 candidates → refused (no hint; the wrapper formats a default
  *   "no active work unit" message at refusal-code 10).
  * - 2+ candidates → refused with disambiguation hint.
- * - 1 candidate → resolved with parsed `path`, `category`, `name`.
+ * - 1 candidate → resolved with parsed `path` and `name`.
  *
  * Any `**State:**` value resolves — release wrappers operate on the
  * full WU lifecycle, not just `In Progress`.
@@ -65,9 +63,8 @@ export async function resolveActiveWu(
   opts: ResolveActiveWuOptions,
 ): Promise<WuResolution> {
   const rootSegments = opts.rootSegments ?? DEFAULT_ROOT_SEGMENTS;
-  const reader = await readActiveStatusCandidates(opts.cwd, {
+  const reader = await readActiveMetaCandidates(opts.cwd, {
     rootSegments,
-    scanShape: opts.scanShape,
   });
 
   if (reader.candidates.length === 0) {
@@ -79,39 +76,17 @@ export async function resolveActiveWu(
 
   const candidate = reader.candidates[0];
   if (!candidate) return { status: "refused" };
-  const { category, name } = parseCategoryAndName(
-    candidate.path,
-    rootSegments,
-    reader.layout,
-  );
-  return { status: "resolved", path: candidate.path, category, name };
+  const name = parseNameFromPath(candidate.path);
+  return { status: "resolved", path: candidate.path, name };
 }
 
-function parseCategoryAndName(
-  candidatePath: string,
-  rootSegments: readonly string[],
-  layout: ActiveLayout,
-): { category: string; name: string } {
-  if (layout === "lite") {
-    return { category: "", name: "" };
-  }
-
-  const rootPrefix = `${rootSegments.join("/")}/`;
-  const trailing = candidatePath.startsWith(rootPrefix)
-    ? candidatePath.slice(rootPrefix.length)
-    : candidatePath;
-  const parts = trailing.split("/");
-
-  if (parts.length === 1) {
-    const filename = parts[0] ?? "";
-    return { category: "", name: parseNameFromFilename(filename) };
-  }
-  const category = parts[0] ?? "";
-  const filename = parts[parts.length - 1] ?? "";
-  return { category, name: parseNameFromFilename(filename) };
-}
-
-function parseNameFromFilename(filename: string): string {
-  const match = /^status-(.+)\.md$/.exec(filename);
+/**
+ * Parse the WU name from the resolved meta-file path. Reads the basename
+ * and matches the `meta-{name}.md` shape; anything else — e.g. the
+ * lite-layout `status.md` — yields the empty string.
+ */
+function parseNameFromPath(candidatePath: string): string {
+  const filename = candidatePath.split("/").pop() ?? "";
+  const match = /^meta-(.+)\.md$/.exec(filename);
   return match?.[1] ?? "";
 }

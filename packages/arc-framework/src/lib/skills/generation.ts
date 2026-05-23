@@ -117,7 +117,7 @@ export function buildCodexYaml(frontmatter: SkillFrontmatter): string {
  *
  * @param tools - Selected tool identifiers from init prompts
  * @param canonicalSkillsDir - Absolute path to canonical skills directory
- *   (e.g., `/path/to/repo/<arc-dir>/system/skills`)
+ *   (e.g., `/path/to/repo/<arc-dir>/system/.internal/skills`)
  * @param existingDirs - Skill directories that already exist in the repo
  * @param cwd - Repository root (for reading existing files during modification detection)
  * @param io - Injectable I/O dependencies

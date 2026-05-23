@@ -16,7 +16,7 @@ const __dirname = dirname(__filename);
 const repoRoot = join(__dirname, "..", "..", "..", "..", "..");
 const validateLinksScript = join(
   repoRoot,
-  "packages/arc-framework/arc/system/scripts/validate-links.sh",
+  "packages/arc-framework/arc/system/.internal/scripts/validate-links.sh",
 );
 
 describe("validate-links.sh", () => {

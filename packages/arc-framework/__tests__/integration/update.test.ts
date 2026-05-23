@@ -43,9 +43,9 @@ import type { Recipe } from "../../src/lib/types.js";
 // --- Minimal recipe for synthetic tests ---
 
 const FRAMEWORK_FILE = "README.md";
-const CONFIGURABLE_FILE = "reference/constitution/DEV-RULES.PROJECT.md";
-const SCAFFOLDED_FILE = "reference/META-PRD.template.md";
-const SCAFFOLDED_OUTPUT = "reference/META-PRD.md";
+const CONFIGURABLE_FILE = "system/rules/DEV-RULES.PROJECT.md";
+const SCAFFOLDED_FILE = "reference/PROJECT-PRD.template.md";
+const SCAFFOLDED_OUTPUT = "reference/PROJECT-PRD.md";
 
 function makeRecipe(
   includeFiles: string[],
@@ -133,18 +133,19 @@ describe("update integration — baseline (real recipe)", () => {
     expect(result.removed).toEqual([]);
     expect(result.reclassified).toEqual([]);
 
-    // Per-file methods/extensions specifically: none of the 18 entries moved
+    // Per-file methods/extensions specifically: none of the 21 entries moved
     // through added/removed/updated/conflicts.
     const perFilePaths = [
       ...[
-        "commit-context-format", "commit-format", "diff-review",
+        "commit-footer", "commit-format", "diff-review",
         "issue-triage", "quality-gate-commands", "review-triage",
         "session-state", "test-first",
       ].map((n) => `system/methods/${n}.md`),
       ...[
         "post-context-load", "post-task-completion", "post-task-quality",
         "post-unit-quality", "post-work-unit-activate",
-        "post-work-unit-archive", "pre-merge-review", "pre-stage-review",
+        "post-work-unit-archive", "pre-activation", "pre-commit-review",
+        "pre-merge-review", "pre-pr-review", "pre-push-review",
       ].map((n) => `system/extensions/${n}.md`),
       "system/methods/README.md",
       "system/extensions/README.md",

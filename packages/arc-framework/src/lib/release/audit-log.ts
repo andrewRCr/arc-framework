@@ -84,19 +84,16 @@ export function sanitizeArgs(args: readonly string[]): string[] {
 }
 
 /**
- * Map the active-WU resolver result to the audit-entry `wu` field. Drops
- * resolver-empties: a resolver `{category: "", name: ""}` (lite layout) maps
- * to `null`; an empty `category` paired with a non-empty `name` (future flat
- * layout) emits `{name}` only — the writer never persists empty-string
- * category values.
+ * Map the active-WU resolver result to the audit-entry `wu` field. A
+ * resolver result with an empty `name` — the lite layout carries no
+ * parseable WU name — maps to `null`; otherwise the name is carried through.
  */
 export function toAuditWorkUnit(
-  resolved: { category: string; name: string } | null,
+  resolved: { name: string } | null,
 ): AuditWorkUnit | null {
   if (!resolved) return null;
   if (resolved.name === "") return null;
-  if (resolved.category === "") return { name: resolved.name };
-  return { category: resolved.category, name: resolved.name };
+  return { name: resolved.name };
 }
 
 /**
@@ -174,14 +171,8 @@ function validateEntry(entry: unknown): asserts entry is AuditEntry {
   }
   validateOutcomeForCommand(command, outcomeKind);
 
-  if (e.wu !== null) {
-    if (typeof e.wu !== "object") {
-      throw new Error("audit-log: wu must be an object or null");
-    }
-    const wu = e.wu as Record<string, unknown>;
-    if (wu.category === "") {
-      throw new Error("audit-log: wu.category must be omitted (undefined), not empty string");
-    }
+  if (e.wu !== null && typeof e.wu !== "object") {
+    throw new Error("audit-log: wu must be an object or null");
   }
 
   if (e.decision !== "proceeded" && e.decision !== "refused") {

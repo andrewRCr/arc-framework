@@ -15,10 +15,9 @@ planning.
 
 ## Process
 
-**Branch context:** Under full protection (`branch.protection: full`), task generation happens on
-the same planning branch as the PRD — verify you're still on it. Under partial protection (the
-default), this may happen directly on the base branch. See
-[activate-planning-branch][activate-planning-branch] for how planning branches are set up.
+**Branch context:** Task generation happens on the WU's planning branch (`plan/<name>`) —
+verify you're still on it. See [init-work-unit][init-work-unit] for how the planning branch
+is created.
 
 Before starting, read the PRD thoroughly. If the PRD has pre-activation metadata (`**State:**` and/or
 `**Related Work:**` fields), check whether dependencies are resolved. If any show unresolved blockers, stop and
@@ -284,17 +283,21 @@ against the pre-save checklist and bundles the commit.
 - [ ] Verification phase as final phase (single task pointing to `verify-work-unit.md`)
 - [ ] All "carry as context" findings from Pass 3 are durably captured (inline `_Note:_` or
       cross-reference to `notes-{name}.md` companion file)
+- [ ] Task instructions targeting shipped or published files are written in the shipped-content
+      register — no movable WU artifact references (`draft-*` / `spec-*` / `tasks-*` / `meta-*` /
+      companions) that would survive verbatim execution into the target. See
+      [strategy-task-list-formatting § Instruction Audience][task-list-formatting]
 - [ ] Atomic companion file created alongside task list (`atomic-{name}.md`, same directory)
 - [ ] Success Criteria section at bottom with checkboxes (checked during verification phase)
 
 **Destination path** (referenced by Pass 1's file creation; depends on
 [`arc-config.yml`][arc-config] → `pm.mode`):
 
-- **arc-in-git** (backlog pipeline): `.arc/backlog/{category}/tasks-{{WORK_NAME}}.md`
-- **none / external** (no backlog): `.arc/active/{category}/tasks-{{WORK_NAME}}.md`
-  (create the directory first if it doesn't exist: `mkdir -p .arc/active/{category}/`)
+- **arc-in-git** (backlog pipeline): `.arc/backlog/{provisional,planned}/{{WORK_NAME}}/tasks-{{WORK_NAME}}.md`
+- **none / external** (no backlog): `.arc/active/tasks-{{WORK_NAME}}.md`
+  (create the directory first if it doesn't exist: `mkdir -p .arc/active/`)
 
-Name matches the PRD (e.g., `prd-api-modernization.md` → `tasks-api-modernization.md`).
+Name matches the PRD (e.g., `spec-api-modernization.md` → `tasks-api-modernization.md`).
 
 **Companion file** at `atomic-{name}.md` (same directory, same name stem) — created at Pass 1
 as the empty capture surface for atomic tasks discovered during implementation. Skeleton per
@@ -323,17 +326,8 @@ In arc-in-git mode, [activation][activate-work-unit] updates both paths when doc
 
 ## Next Step
 
-The next step depends on whether you're on a planning branch:
-
-**On a planning branch** (full protection, or partial protection with a planning branch):
-
-**→ [integrate-planning-branch.md][integrate-planning-branch]** — PR the planning branch to base,
-then activate from base
-
-**On the base branch** (partial protection, direct commit):
-
-**→ [activate-work-unit.md][activate-work-unit]** — Create implementation branch, move docs to
-active, update tracking
+**→ [activate-work-unit.md][activate-work-unit]** — Flip `**State:**` to `Active` and rename
+`plan/<name>` to `<type>/<name>`. Implementation begins on the renamed branch.
 
 Activation can be deferred if planning ahead. Activate when implementation is about to begin.
 
@@ -341,12 +335,11 @@ Activation can be deferred if planning ahead. Activate when implementation is ab
 
 [strategy-index]: ../../../reference/strategies/STRATEGY-INDEX.md
 [quality-gates]: ../../../reference/strategies/arc/strategy-quality-gates.md
-[dev-rules-arc]: ../../../reference/constitution/DEV-RULES.ARC.md
+[dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
 [arc-methods-tf]: ../../methods/test-first.md
 [task-list-formatting]: ../../../reference/strategies/arc/strategy-task-list-formatting.md
-[arc-task-audit]: ../../skills/arc-task-audit/SKILL.md
-[template-tasks]: ../../../reference/templates/template-tasks.md
-[activate-planning-branch]: work-unit-lifecycle/planning/activate-planning-branch.md
-[integrate-planning-branch]: work-unit-lifecycle/planning/integrate-planning-branch.md
+[arc-task-audit]: ../../.internal/skills/arc-task-audit/SKILL.md
+[template-tasks]: ../../../reference/templates/arc/work-unit/template-tasks.md
+[init-work-unit]: work-unit-lifecycle/planning/init-work-unit.md
 [arc-config]: ../../arc-config.yml
 [activate-work-unit]: work-unit-lifecycle/activate-work-unit.md

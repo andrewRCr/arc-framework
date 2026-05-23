@@ -99,7 +99,7 @@ hooks.test_patterns: __tests__/|\.test\.|\.spec\.|/test/|/tests/
 # Strict meta-project reference patterns scanned in ALL staged code, including
 # tests. These cover patterns rare enough in legitimate fixture data that the
 # test exemption is unsafe — PRD R-codes, bare requirement / behavior numeric
-# IDs, and section-symbol citations. META-PRD lines are filtered as a known
+# IDs, and section-symbol citations. PROJECT-PRD lines are filtered as a known
 # false positive (real framework template filename). Pipe-separated regex.
 #   default: 'PRD R[0-9]+|\b[RB][0-9]+\b|§ '
 hooks.strict_meta_ref_patterns: 'PRD R[0-9]+|\b[RB][0-9]+\b|§ '
@@ -155,7 +155,7 @@ platform.type: github
 
 # Project Management (PM) mode. Controls where project management lives.
 #   none       - Core methodology only. No PM artifacts installed. (default)
-#   arc-in-git - ARC's built-in PM suite (backlogs, roadmap, PROJECT-STATUS, ATOMIC-TASKS)
+#   arc-in-git - ARC's built-in PM suite (backlogs, roadmap, ATOMIC-TASKS)
 #   external   - External tool integration (Jira, Linear, GitHub Issues, etc.)
 # See strategy-configurability-architecture.md § Adoption flexibility model.
 pm.mode: arc-in-git
@@ -221,6 +221,4 @@ user.notes_push: on-sync
 #   with-integration - Run archive ops with integration follow-through as a
 #                      separate commit in the integration PR. (default)
 #   manual           - Defer archival until explicitly invoked.
-# `deferred` is intentionally omitted for v1; strategy-session-operations.md
-# documents the rationale and future trigger criteria.
 archive.cadence: with-integration

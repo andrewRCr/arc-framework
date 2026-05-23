@@ -14,17 +14,15 @@ full installation and setup walkthrough.
 
 ```text
 .arc/
-├── active/                    # Current work in progress (lazily created at first WU activation)
-│   ├── feature/               # Active feature development (contains per-WU status files + task lists)
-│   ├── technical/             # Active technical/infrastructure work (contains per-WU status files + task lists)
-│   └── incidental/            # Active maintenance and discovered work (contains per-WU status files + task lists)
+├── active/                    # Current WU artifacts (flat — one WU per branch)
+│                              # carries meta-*.md, draft-*.md, spec-*.md, tasks-*.md, companions
 ├── backlog/                   # Future work pipeline (arc-in-git pm.mode only)
 │   ├── ROADMAP.md             # Sequencing strategy for upcoming work
-│   ├── feature/               # Feature backlog
-│   └── technical/             # Technical backlog
+│   ├── provisional/<wu>/      # Captured WU stubs, not yet committed-to
+│   └── planned/[<cohort>/]<wu>/   # Committed-to WUs, optionally grouped by cohort
 ├── reference/                 # Stable, long-lived documentation
 │   ├── QUICK-REFERENCE.md     # Environment context and command patterns
-│   ├── constitution/          # Foundational documents (META-PRD, rules, architecture)
+│   ├── constitution/          # Foundational documents (PROJECT-PRD, rules, architecture)
 │   ├── strategies/            # Codified implementation patterns
 │   │   ├── arc/               # Framework methodology (ships with ARC)
 │   │   └── project/           # Your project-specific patterns

@@ -207,7 +207,7 @@ export async function runInit(
 
   // Set executable permissions on hooks and shell scripts
   for (const relPath of filesWritten) {
-    if (relPath.startsWith("system/githooks/") || relPath.endsWith(".sh")) {
+    if (relPath.startsWith("system/.internal/githooks/") || relPath.endsWith(".sh")) {
       await io.chmod(join(arcDir, relPath), 0o755);
     }
   }
@@ -224,7 +224,7 @@ export async function runInit(
   const existingSkillDirs = await detectExistingSkillDirs(cwd, io.access);
   const skillResult = await generateSkills(
     prompts.tools,
-    join(templateDir, "system", "skills"),
+    join(templateDir, "system", ".internal", "skills"),
     existingSkillDirs,
     cwd,
     { readFile: io.readFile },
@@ -244,8 +244,7 @@ export async function runInit(
 
   // Identity, user directory, and notes refspec setup
   await runPostInitSetup({
-    arcDir, internalTemplateDir, io,
-    pmMode: prompts.pm_mode, identityResult,
+    arcDir, internalTemplateDir, io, identityResult,
   });
 
   return {
@@ -287,7 +286,7 @@ export function buildPostInitMessage(result: InitResult): string {
 
   lines.push("");
   lines.push(
-    '  "Read .arc/system/briefs/AGENT-BRIEF.ARC.md for context, then follow',
+    '  "Read .arc/reference/briefs/AGENT-BRIEF.ARC.md for context, then follow',
   );
   lines.push(
     '   .arc/system/workflows/arc/initial-setup/01_verify-and-configure.md"',

@@ -304,7 +304,7 @@ translation.
 
 ### opencode caveat
 
-opencode adopters use the agent-adaptive path with two documented limitations:
+opencode projects use the agent-adaptive path with two documented limitations:
 
 - [sst/opencode#6676] — flag-parsing bug may cause `arc release commit -m "..."` to not match patterns
   reliably.

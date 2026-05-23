@@ -3,7 +3,7 @@
 > **Status:** In-development reference. Captures current architectural direction for ARC's storage
 > tiering, not a stable description of what ARC is today. Plans and PRDs touching storage / multi-user
 > / external-tool integration self-check against this document during authoring and PRD promotion.
-> Direction may evolve as the [`plan-arc-backend.md`][backend-plan] target develops.
+> Direction may evolve as the `draft-arc-backend.md` target develops.
 
 **Purpose:** Forward-compat discipline for ARC's storage architecture. Defines the storage tiers ARC
 supports today and is evolving toward, and the architectural principles that keep interim work
@@ -35,7 +35,7 @@ with public / OSS repo wanting private PM, multi-machine workflows, small teams 
 concurrency primitives over text-file merge mechanics, and larger teams where in-repo is a
 non-starter.
 
-See [`plan-arc-backend.md`][backend-plan] for the full target shape, audience-fit details, and the
+See `draft-arc-backend.md` for the full target shape, audience-fit details, and the
 Local-mode-is-the-bridge framing.
 
 ---
@@ -74,7 +74,7 @@ ARC tracks work units separately from branches. Multi-WU-per-branch and WU-witho
 independent of any single repo's branch state — current direction supports this; don't regress.
 
 **Anti-pattern:** New design that infers WU state from branch existence (e.g., "a branch matching
-`feature/{name}` implies WU named `{name}` is active"). Implicit coupling like this works in-repo
+`feat/{name}` implies WU named `{name}` is active"). Implicit coupling like this works in-repo
 but breaks in backend-tier multi-developer scenarios.
 
 ### 4. Workflow logic stays mode-agnostic
@@ -86,7 +86,7 @@ sync is one ceremony among several).
 
 **Anti-pattern:** Workflow steps that branch on `pm.mode` or `arc-config.yml` storage settings
 inline. Mode-aware behavior either lives in the storage layer or is rendered out at install time
-(per `plan-arc-modes.md` Mechanism A/B for mode-conditional content).
+(per `draft-arc-modes.md` Mechanism A/B for mode-conditional content).
 
 ### 5. Team-mode collapses into backend-tier
 
@@ -167,10 +167,10 @@ the tension explicitly during PRD authoring rather than deferring.
 
 ## Relationship to Other Documents
 
-- **[`plan-arc-backend.md`][backend-plan]** — North-star plan for the backend tier. Detailed
+- **`draft-arc-backend.md`** — North-star plan for the backend tier. Detailed
   motivation, audience fit, open questions, research areas, sequencing intent, and the full
   backlog compat audit.
-- **[`plan-arc-modes.md`][modes-plan]** — Lite + Local modes. Local mode is the architectural
+- **`draft-arc-modes.md`** — Lite + Local modes. Local mode is the architectural
   bridge to the backend tier; its backing-store mechanics generalize to the multi-user case.
 - **[`strategy-configurability-architecture.md`][config-arch]** — Customization mechanisms (config,
   extensions, methods). Storage tiering interacts with the configurability axes; #6 above
@@ -178,6 +178,4 @@ the tension explicitly during PRD authoring rather than deferring.
 
 ---
 
-[backend-plan]: ../../../backlog/feature/plan-arc-backend.md
-[modes-plan]: ../../../backlog/feature/plan-arc-modes.md
 [config-arch]: ../arc/strategy-configurability-architecture.md

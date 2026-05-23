@@ -4,9 +4,9 @@ audience: agent
 arc:
   methods:
     - commit-format
-    - commit-context-format
+    - commit-footer
   extensions:
-    - pre-stage-review
+    - pre-commit-review
 ---
 
 # Workflow: Prepare Commits
@@ -24,7 +24,7 @@ routed to the complex path.
 - Session-end commits with mixed completed and partial work
 
 For straightforward commits (single task, clear scope), arc-commit's simple path plus
-[commit-format][arc-methods-cf] / [commit-context-format][arc-methods-ccf] (loaded via this
+[commit-format][arc-methods-cf] / [commit-footer][arc-methods-ccf] (loaded via this
 workflow's frontmatter) plus git hook validation are sufficient.
 
 ## Atomicity Guide
@@ -52,9 +52,9 @@ updates to a final `docs(...): update [doc] for Tasks X.Y-X.Z` commit after the 
   sweeps). Commit groupings follow § Granularity guidance below.
 - **Does NOT apply** to task list updates. These are derived state that rides with the content
   commit that triggered them — see § Granularity guidance.
-- **Does NOT apply** to status-file updates. These fire only at handoff or workflow-ceremony
-  boundaries; the exact commit shape (dedicated `chore(status):` vs. bundled with concurrent
-  ceremony content) follows [DEV-RULES.ARC][dev-rules-arc] § Status-file timing and § Status-file
+- **Does NOT apply** to meta-file updates. These fire only at handoff or workflow-ceremony
+  boundaries; the exact commit shape (dedicated `chore(arc):` vs. bundled with concurrent
+  ceremony content) follows [DEV-RULES.ARC][dev-rules-arc] § Meta-file timing and § Meta-file
   commit shape.
 
 ### Parent Task Completion
@@ -89,7 +89,7 @@ Examine changes that might not be immediately obvious — config files, document
 
 ### 3. Map Changes to Tasks
 
-- Find relevant task lists in `.arc/active/` (feature/, technical/, incidental/)
+- Find relevant task lists in `.arc/active/`
 - Compare actual changes against task documentation
 - Identify which tasks each change belongs to
 - Check if completing subtasks makes any parent tasks complete
@@ -100,8 +100,8 @@ Examine changes that might not be immediately obvious — config files, document
 - Mark parent tasks `[x]` ONLY if ALL subtasks are complete
 - Update progress notes and add any discovered tasks
 
-The active status file is **not** updated here — see [DEV-RULES.ARC][dev-rules-arc]
-§ Status-file timing.
+The active meta file is **not** updated here — see [DEV-RULES.ARC][dev-rules-arc]
+§ Meta-file timing.
 
 ### 5. Plan Commit Sequence
 
@@ -119,14 +119,14 @@ guidance below.
 - **Task list checkboxes ride with content commits.** They are derived state that belongs with
   the commit that produced the content change — not a separate meta-commit and not hunk-split to
   keep 1:1 task-ID-to-checkbox granularity.
-- **Status-file updates do not ride with code commits.** They fire only at handoff or
+- **Meta-file updates do not ride with code commits.** They fire only at handoff or
   workflow-ceremony boundaries; shape (dedicated vs bundled with concurrent ceremony content)
-  follows [DEV-RULES.ARC][dev-rules-arc] § Status-file timing and § Status-file commit shape.
+  follows [DEV-RULES.ARC][dev-rules-arc] § Meta-file timing and § Meta-file commit shape.
 
 ### 6. Execute and Verify
 
 Stage and commit each group using the [commit-format][arc-methods-cf] and
-[commit-context-format][arc-methods-ccf] methods. After all commits:
+[commit-footer][arc-methods-ccf] methods. After all commits:
 
 ```bash
 git log --oneline -10    # Review commit messages
@@ -138,8 +138,8 @@ strategy — lives in [Work Organization Strategy][work-org].
 
 ---
 
-[dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md
+[dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
 [work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md
-[arc-commit-skill]: ../../../skills/arc-commit/SKILL.md
+[arc-commit-skill]: ../../../.internal/skills/arc-commit/SKILL.md
 [arc-methods-cf]: ../../../methods/commit-format.md
-[arc-methods-ccf]: ../../../methods/commit-context-format.md
+[arc-methods-ccf]: ../../../methods/commit-footer.md

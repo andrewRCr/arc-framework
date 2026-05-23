@@ -18,7 +18,7 @@ const execFileAsync = promisify(execFile);
 const SCRIPT_PATH = resolve(
   dirname(fileURLToPath(import.meta.url)),
   "../../../..",
-  ".arc/system/scripts/validate-links.sh",
+  ".arc/system/.internal/scripts/validate-links.sh",
 );
 
 async function runScript(
@@ -254,14 +254,14 @@ describe("validate-links.sh", () => {
     expect(r.stderr).toBe("");
   });
 
-  it("skips files under `reference/archive/` — archives document historical state, not current links", async () => {
-    const dir = join(tmp, "case-archive-skip");
+  it("skips files under `completed/` — archives document historical state, not current links", async () => {
+    const dir = join(tmp, "case-completed-skip");
     await writeFixture(
       dir,
-      "reference/archive/old-plan.md",
+      "completed/old-plan.md",
       "See [the superseded doc](does-not-exist.md) for historical context.\n",
     );
-    const r = await runScript(dir, ["reference/archive/old-plan.md"]);
+    const r = await runScript(dir, ["completed/old-plan.md"]);
     expect(r.code).toBe(0);
     expect(r.stderr).toBe("");
   });

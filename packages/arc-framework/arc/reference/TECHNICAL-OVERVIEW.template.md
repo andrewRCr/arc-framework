@@ -1,9 +1,32 @@
+<!-- Canonical technical-overview template. Rendered once at `arc init` / `arc join` time (per `classification.ts`)
+     into a hand-editable file in your project's `reference/` directory. Shape edits land here in the `.template`
+     file; content edits land in the rendered file. No parallel template exists in `reference/templates/` — this is
+     the sole canonical surface.
+
+     Visual conventions:
+     - Use `_italic_` for sub-section intros that introduce a bullet group (e.g., "_Key characteristics:_" before
+       a bullet list). Reserve `**bold**` for bullet labels readers scan to. Prevents visual competition between
+       group frame and item labels in list-dense sections.
+     - For flat lists exceeding ~8 items, chunk into 2-4 logical groups with italic frame labels (parallel pattern). -->
+
 # {{PROJECT_NAME}} Technical Overview
 
 This document outlines the technical architecture of {{PROJECT_NAME}} — the technology choices,
 component structure, and infrastructure that shape how the project is built and maintained.
 Both human contributors and AI agents reference this to make decisions consistent with the
 architecture.
+
+> [!IMPORTANT]
+> **Update Discipline.** This document updates on two triggers — never on cadence.
+>
+> - **Organic**: When a PR surfaces conflict or ambiguity against documented architecture, components, or
+>   infrastructure (a new pattern doesn't fit any documented component; recorded tooling commands don't match
+>   reality; a directory structure has drifted), resolve it here as part of that PR. The conflict is the signal.
+> - **Event-driven**: Tech-stack changes (language or framework added or retired), major refactors (component
+>   boundaries redrawn), dependency upgrades (significant version jumps), or infrastructure shifts (new
+>   deployment target, build-system change, CI/CD reshape). These edits ride a dedicated commit with rationale.
+>
+> Cadence-driven reviews are not used; they drift the document from real decisions.
 
 ## 1. Overview
 

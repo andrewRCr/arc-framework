@@ -15,15 +15,15 @@ import {
 import type {
   ActiveSessionInitResult,
   ActiveStatusResult,
-  StatusFileCandidate,
+  MetaFileCandidate,
 } from "../../src/commands/active/types.js";
 
-function candidate(overrides: Partial<StatusFileCandidate> = {}): StatusFileCandidate {
+function candidate(overrides: Partial<MetaFileCandidate> = {}): MetaFileCandidate {
   return {
-    path: ".arc/active/technical/status-foo.md",
-    filename: "status-foo.md",
+    path: ".arc/active/technical/meta-foo.md",
+    filename: "meta-foo.md",
     branch: "technical/foo",
-    state: "In Progress",
+    state: "Active",
     nextTask: "Task 1.1 — do thing (line ~10)",
     taskList: ".arc/active/technical/tasks-foo.md",
     nextAction: "Start Task 1.1 — do thing",
@@ -72,8 +72,8 @@ describe("buildActiveStatusSummary — counts + layout", () => {
     const summary = buildActiveStatusSummary(
       fullResult({
         candidates: [
-          candidate({ filename: "status-a.md" }),
-          candidate({ filename: "status-b.md" }),
+          candidate({ filename: "meta-a.md" }),
+          candidate({ filename: "meta-b.md" }),
         ],
       }),
     );
@@ -91,10 +91,10 @@ describe("buildActiveStatusSummary — counts + layout", () => {
 describe("buildActiveStatusSummary — per-candidate fields", () => {
   it("renders every parsed field on indented rows", () => {
     const summary = buildActiveStatusSummary(fullResult({ candidates: [candidate()] }));
-    expect(summary).toContain("  status-foo.md");
-    expect(summary).toContain("path:       .arc/active/technical/status-foo.md");
+    expect(summary).toContain("  meta-foo.md");
+    expect(summary).toContain("path:       .arc/active/technical/meta-foo.md");
     expect(summary).toContain("branch:     technical/foo");
-    expect(summary).toContain("state:      In Progress");
+    expect(summary).toContain("state:      Active");
     expect(summary).toContain("next task:  Task 1.1 — do thing (line ~10)");
     expect(summary).toContain("task list:  .arc/active/technical/tasks-foo.md");
   });
@@ -135,10 +135,10 @@ describe("buildActiveSessionInitSummary — resolution states", () => {
     const summary = buildActiveSessionInitSummary(
       sessionInitResult({
         resolution: "single",
-        path: ".arc/active/technical/status-foo.md",
+        path: ".arc/active/technical/meta-foo.md",
       }),
     );
-    expect(summary).toContain("Resolved: .arc/active/technical/status-foo.md");
+    expect(summary).toContain("Resolved: .arc/active/technical/meta-foo.md");
   });
 
   it("lists candidates for resolution=multiple with branch and state", () => {
@@ -146,14 +146,14 @@ describe("buildActiveSessionInitSummary — resolution states", () => {
       sessionInitResult({
         resolution: "multiple",
         candidates: [
-          candidate({ filename: "status-alpha.md", branch: "feature/alpha", state: "In Progress" }),
-          candidate({ filename: "status-beta.md", branch: "technical/beta", state: "Paused" }),
+          candidate({ filename: "meta-alpha.md", branch: "feature/alpha", state: "Active" }),
+          candidate({ filename: "meta-beta.md", branch: "technical/beta", state: "Integrating" }),
         ],
       }),
     );
     expect(summary).toContain("2 candidates — disambiguation required:");
-    expect(summary).toContain("- status-alpha.md · feature/alpha · In Progress");
-    expect(summary).toContain("- status-beta.md · technical/beta · Paused");
+    expect(summary).toContain("- meta-alpha.md · feature/alpha · Active");
+    expect(summary).toContain("- meta-beta.md · technical/beta · Integrating");
   });
 
   it("appends Warnings in the session-init shape when present", () => {
@@ -170,7 +170,7 @@ describe("buildActiveSessionInitSummary — companion rendering", () => {
     const summary = buildActiveSessionInitSummary(
       sessionInitResult({
         resolution: "single",
-        path: ".arc/active/technical/status-foo.md",
+        path: ".arc/active/technical/meta-foo.md",
         companions: {
           notes: ".arc/active/technical/notes-foo.md",
           atomic: ".arc/active/technical/atomic-foo.md",
@@ -185,7 +185,7 @@ describe("buildActiveSessionInitSummary — companion rendering", () => {
     const summary = buildActiveSessionInitSummary(
       sessionInitResult({
         resolution: "single",
-        path: ".arc/active/technical/status-foo.md",
+        path: ".arc/active/technical/meta-foo.md",
         companions: {
           notes: ".arc/active/technical/notes-foo.md",
           atomic: null,
@@ -200,7 +200,7 @@ describe("buildActiveSessionInitSummary — companion rendering", () => {
     const summary = buildActiveSessionInitSummary(
       sessionInitResult({
         resolution: "single",
-        path: ".arc/active/technical/status-foo.md",
+        path: ".arc/active/technical/meta-foo.md",
         companions: {
           notes: null,
           atomic: ".arc/active/technical/atomic-foo.md",
@@ -215,7 +215,7 @@ describe("buildActiveSessionInitSummary — companion rendering", () => {
     const summary = buildActiveSessionInitSummary(
       sessionInitResult({
         resolution: "single",
-        path: ".arc/active/technical/status-foo.md",
+        path: ".arc/active/technical/meta-foo.md",
         companions: { notes: null, atomic: null },
       }),
     );
@@ -227,7 +227,7 @@ describe("buildActiveSessionInitSummary — companion rendering", () => {
     const summary = buildActiveSessionInitSummary(
       sessionInitResult({
         resolution: "single",
-        path: ".arc/active/technical/status-foo.md",
+        path: ".arc/active/technical/meta-foo.md",
       }),
     );
     expect(summary).not.toContain("notes:");
@@ -245,26 +245,26 @@ describe("JSON round-trip — typed result shape is stable", () => {
     expect(roundTripped.mode).toBe("full");
     expect(roundTripped.layout).toBe("full");
     expect(roundTripped.candidates).toHaveLength(1);
-    expect(roundTripped.candidates[0]!.filename).toBe("status-foo.md");
+    expect(roundTripped.candidates[0]!.filename).toBe("meta-foo.md");
     expect(roundTripped.warnings).toEqual(["oops"]);
   });
 
   it("session-init single result preserves path and null candidates", () => {
     const result = sessionInitResult({
       resolution: "single",
-      path: ".arc/active/technical/status-foo.md",
+      path: ".arc/active/technical/meta-foo.md",
     });
     const roundTripped = JSON.parse(JSON.stringify(result)) as ActiveSessionInitResult;
     expect(roundTripped.mode).toBe("session-init");
     expect(roundTripped.resolution).toBe("single");
-    expect(roundTripped.path).toBe(".arc/active/technical/status-foo.md");
+    expect(roundTripped.path).toBe(".arc/active/technical/meta-foo.md");
     expect(roundTripped.candidates).toEqual([]);
   });
 
   it("session-init multiple result preserves the candidate list with null path", () => {
     const result = sessionInitResult({
       resolution: "multiple",
-      candidates: [candidate({ filename: "status-a.md" }), candidate({ filename: "status-b.md" })],
+      candidates: [candidate({ filename: "meta-a.md" }), candidate({ filename: "meta-b.md" })],
     });
     const roundTripped = JSON.parse(JSON.stringify(result)) as ActiveSessionInitResult;
     expect(roundTripped.resolution).toBe("multiple");

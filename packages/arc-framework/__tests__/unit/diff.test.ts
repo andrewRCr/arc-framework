@@ -113,7 +113,7 @@ describe("runDiff", () => {
   it("excludes Scaffolded files from output", async () => {
     const manifest = buildManifest({
       files: {
-        "reference/META-PRD.md": {
+        "reference/PROJECT-PRD.md": {
           classification: "Scaffolded",
           layer: "core",
           pristine_hash: FILE_HASH,
@@ -129,7 +129,7 @@ describe("runDiff", () => {
     const io = buildIO({
       manifest,
       files: {
-        [`${CWD}/.arc/reference/META-PRD.md`]: MODIFIED_CONTENT,
+        [`${CWD}/.arc/reference/PROJECT-PRD.md`]: MODIFIED_CONTENT,
         [`${CWD}/.arc/system/arc-config.yml`]: FILE_CONTENT,
       },
     });

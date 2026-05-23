@@ -196,8 +196,7 @@ function resetMockDefaults() {
   mockAppendAuditEntry.mockResolvedValue({ ok: true });
   mockResolveActiveWu.mockResolvedValue({
     status: "resolved",
-    path: ".arc/active/technical/status-test.md",
-    category: "technical",
+    path: ".arc/active/meta-test.md",
     name: "test",
   });
   mockGitExec.mockImplementation(async (_cmd: unknown, args: unknown) => {
@@ -356,9 +355,12 @@ describe("handleSync orchestrator matrix dispatch", () => {
     expect(mockRunPairedPush).not.toHaveBeenCalled();
     expect(mockPushWithRecovery).not.toHaveBeenCalled();
     expect(pushedBranchInvocations()).toEqual([]);
-    expect(mockLog.warn).toHaveBeenCalledWith(
-      expect.stringContaining("push the worktree first"),
-    );
+    const warnings = mockLog.warn.mock.calls.map((c) => String(c[0] ?? ""));
+    expect(warnings.some((line) =>
+      /Notes saved locally/i.test(line)
+      && /local-ahead/i.test(line)
+      && /arc release push|git push/.test(line),
+    )).toBe(true);
     expect(process.exitCode).toBe(1);
   });
 
@@ -459,7 +461,6 @@ describe("handleSync orchestrator matrix dispatch", () => {
 
   it.each([
     ["remote-ahead", 0, 3, "main"],
-    ["no-upstream", 0, 0, "main"],
     ["remote-unavailable", 0, 0, "main"],
     ["detached-head", 0, 0, null],
   ] satisfies Array<[WorktreeSyncState, number, number, string | null]>)(
@@ -501,6 +502,82 @@ describe("handleSync orchestrator matrix dispatch", () => {
       });
     },
   );
+
+  it("no-upstream + push_interlock: on-sync → paired-push-with-upstream-init cell; setUpstream threaded", async () => {
+    setConfig("on-sync");
+    setNotesPolicy("on-sync");
+    setWorktree("no-upstream", 0, 0, "main");
+    mockRunPairedPush.mockResolvedValue({
+      save: {
+        status: "success",
+        result: { identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] },
+      },
+      worktree: { status: "success" },
+      notes: { status: "success" },
+      conditions: [],
+      exitCode: 0,
+    });
+
+    const outcome = await captureSyncJson();
+
+    expect(mockRunPairedPush).toHaveBeenCalledTimes(1);
+    expect(mockRunPairedPush).toHaveBeenCalledWith(expect.objectContaining({
+      branch: "main",
+      worktreeSyncState: "no-upstream",
+      setUpstream: true,
+    }));
+    expect(outcome.cell).toBe("paired-push-with-upstream-init");
+    expect(outcome.exitCode).toBe(0);
+  });
+
+  it("no-upstream + push_interlock: manual → falls through to existing notes-blocked path (not auto-resolved)", async () => {
+    setConfig("manual");
+    setNotesPolicy("on-sync");
+    setWorktree("no-upstream", 0, 0, "main");
+    mockRunUserSave.mockResolvedValue({
+      identity: "andrew",
+      commit: "abc1234",
+      fileCount: 1,
+      warnings: [],
+    });
+
+    const outcome = await captureSyncJson();
+
+    expect(mockRunPairedPush).not.toHaveBeenCalled();
+    expect(outcome.cell).toBe("notes-blocked");
+    expect(outcome).toMatchObject({
+      worktree: { action: "skip", result: "skipped", detail: "not-configured" },
+      save: { action: "save", result: "success" },
+      notes: {
+        action: "push",
+        result: "blocked",
+        detail: "notes-blocked-by-worktree:no-upstream",
+      },
+      exitCode: 1,
+    });
+  });
+
+  it("no-upstream + push_interlock: manual surfaces split-state guidance (saved locally; push deferred)", async () => {
+    setConfig("manual");
+    setNotesPolicy("on-sync");
+    setWorktree("no-upstream", 0, 0, "main");
+    mockRunUserSave.mockResolvedValue({
+      identity: "andrew",
+      commit: "abc1234",
+      fileCount: 1,
+      warnings: [],
+    });
+
+    await handleSync();
+
+    const warnings = mockLog.warn.mock.calls.map((c) => String(c[0] ?? ""));
+    expect(warnings.some((line) =>
+      /Notes saved locally/i.test(line)
+      && /no upstream/i.test(line)
+      && /git push -u/i.test(line),
+    )).toBe(true);
+    expect(process.exitCode).toBe(1);
+  });
 
   it("rebase-in-progress skips save with guidance before refusing sync", async () => {
     setConfig("manual");
@@ -1133,7 +1210,7 @@ describe("audit-log integration", () => {
       schemaVersion: 1,
       command: "sync",
       args: [],
-      wu: { category: "technical", name: "test" },
+      wu: { name: "test" },
       interlockState: {
         command: "sync",
         pushInterlock: { value: "manual", source: "default" },
@@ -1157,7 +1234,6 @@ describe("audit-log integration", () => {
   it.each([
     ["diverged", 1, 2, "main"],
     ["remote-ahead", 0, 3, "main"],
-    ["no-upstream", 0, 0, "main"],
     ["detached-head", 0, 0, null],
     ["no-remote", 0, 0, "main"],
     ["remote-unavailable", 0, 0, "main"],

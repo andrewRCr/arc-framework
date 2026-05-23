@@ -40,11 +40,9 @@ async function createFixture(): Promise<Fixture> {
   return { root };
 }
 
-function statusBody(state = "In Progress"): string {
+function statusBody(state = "Active"): string {
   return [
-    "# Status: Sample",
-    "",
-    "## Work Unit Metadata",
+    "# Metadata: Sample",
     "",
     `- **State:** ${state}`,
     "- **Branch:** technical/sample",
@@ -55,12 +53,12 @@ function statusBody(state = "In Progress"): string {
 
 async function writeStatus(
   root: string,
-  category: string,
   name: string,
 ): Promise<void> {
-  const dir = join(root, ".arc", "active", category);
-  await mkdir(dir, { recursive: true });
-  await writeFile(join(dir, `status-${name}.md`), statusBody());
+  await writeFile(
+    join(root, ".arc", "active", `meta-${name}.md`),
+    statusBody(),
+  );
 }
 
 interface SettingsOverrides {
@@ -170,7 +168,7 @@ describe("runReleaseCommit — code 12 (destructive-flag)", () => {
     ["--allow-empty"],
     ["--no-verify"],
   ])("refuses with code 12 and audit entry carrying flag detail (%s)", async (flag) => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const { deps, spawnGit } = buildDeps(fixture.root, { argv: [flag, "-m", "subject"] });
 
     const result = await runReleaseCommit(deps);
@@ -190,7 +188,7 @@ describe("runReleaseCommit — code 12 (destructive-flag)", () => {
   });
 
   it("emits a three-line refusal message that names the flag", async () => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const { deps, stderr } = buildDeps(fixture.root, { argv: ["--amend"] });
 
     await runReleaseCommit(deps);
@@ -210,7 +208,7 @@ describe("runReleaseCommit — code 12 (destructive-flag)", () => {
   });
 
   it("redacts -m payload in the audit args field", async () => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const { deps } = buildDeps(fixture.root, { argv: ["--amend", "-m", "secret"] });
 
     await runReleaseCommit(deps);
@@ -246,8 +244,8 @@ describe("runReleaseCommit — code 10 (no-active-wu)", () => {
   });
 
   it("refuses with code 10 + disambiguation hint on multi-candidate", async () => {
-    await writeStatus(fixture.root, "technical", "alpha");
-    await writeStatus(fixture.root, "feature", "beta");
+    await writeStatus(fixture.root, "alpha");
+    await writeStatus(fixture.root, "beta");
     const { deps, stderr } = buildDeps(fixture.root, { argv: ["-m", "subject"] });
 
     const result = await runReleaseCommit(deps);
@@ -277,7 +275,7 @@ describe("runReleaseCommit — code 13 (branch-protection-violation)", () => {
   afterEach(async () => { await rm(fixture.root, { recursive: true, force: true }); });
 
   it("refuses with code 13 when branch.protection: full and currentBranch === branch.base", async () => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const settings = buildSettings({
       branchProtection: "full",
       branchBase: "main",
@@ -303,12 +301,12 @@ describe("runReleaseCommit — code 13 (branch-protection-violation)", () => {
       command: "release-commit",
       decision: "refused",
       refusalCode: 13,
-      wu: { category: "technical", name: "sample" },
+      wu: { name: "sample" },
     });
   });
 
   it("does not refuse under branch.protection: partial regardless of branch", async () => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const settings = buildSettings({
       branchProtection: "partial",
       branchBase: "main",
@@ -327,7 +325,7 @@ describe("runReleaseCommit — code 13 (branch-protection-violation)", () => {
   });
 
   it("does not refuse with full when currentBranch !== branch.base", async () => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     // Branch-protection passes (branch != base); fall through to interlock,
     // which refuses with 11 (interlock=manual). The cascade reaching 11
     // confirms 13 did not fire.
@@ -355,7 +353,7 @@ describe("runReleaseCommit — code 11 (interlock-not-authorized)", () => {
   afterEach(async () => { await rm(fixture.root, { recursive: true, force: true }); });
 
   it("refuses with code 11 when commit_interlock=manual", async () => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const settings = buildSettings({ commitInterlock: "manual" });
     const { deps, spawnGit, stderr } = buildDeps(fixture.root, {
       argv: ["-m", "subject"],
@@ -416,7 +414,7 @@ describe("runReleaseCommit — short-circuit order", () => {
   });
 
   it("13 fires before 11 (branch-protection wins over interlock)", async () => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const settings = buildSettings({
       branchProtection: "full",
       branchBase: "main",
@@ -446,7 +444,7 @@ describe("runReleaseCommit — success path", () => {
   }
 
   it("forwards argv to spawnGit when authorized and bubbles exit code 0", async () => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const argv = ["-m", "subject"];
     const { deps, spawnGit } = buildDeps(fixture.root, {
       argv,
@@ -467,7 +465,7 @@ describe("runReleaseCommit — success path", () => {
   });
 
   it("writes a proceeded audit entry with kind: commit and the resolved hash", async () => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const { deps, resolveHead } = buildDeps(fixture.root, {
       argv: ["-m", "subject"],
       settings: authorizingSettings(),
@@ -489,14 +487,14 @@ describe("runReleaseCommit — success path", () => {
       decision: "proceeded",
       refusalCode: null,
       outcome: { kind: "commit", hash: FULL_HASH },
-      wu: { category: "technical", name: "sample" },
+      wu: { name: "sample" },
     });
     // -m payload still redacted on the success path.
     expect(entries[0]?.args).toEqual(["-m", "<redacted>"]);
   });
 
   it("bubbles non-zero git exit code and writes a hook-failed entry attributed via stderr", async () => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const { deps, resolveHead } = buildDeps(fixture.root, {
       argv: ["-m", "subject"],
       settings: authorizingSettings(),
@@ -523,7 +521,7 @@ describe("runReleaseCommit — success path", () => {
   });
 
   it("attributes commit-msg hook rejection from captured output", async () => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const { deps } = buildDeps(fixture.root, {
       argv: ["-m", "subject"],
       settings: authorizingSettings(),
@@ -545,7 +543,7 @@ describe("runReleaseCommit — success path", () => {
   });
 
   it("attributes prepare-commit-msg ahead of commit-msg when both substrings appear", async () => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const { deps } = buildDeps(fixture.root, {
       argv: ["-m", "subject"],
       settings: authorizingSettings(),
@@ -567,7 +565,7 @@ describe("runReleaseCommit — success path", () => {
   });
 
   it("falls back to hook: 'unknown' when no hook keyword matches", async () => {
-    await writeStatus(fixture.root, "technical", "sample");
+    await writeStatus(fixture.root, "sample");
     const { deps } = buildDeps(fixture.root, {
       argv: ["-m", "subject"],
       settings: authorizingSettings(),

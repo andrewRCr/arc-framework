@@ -5,7 +5,7 @@
 > tier rationale, monitoring responsibilities, and auto-compaction reasoning.
 
 Operational specification for context loading and session-operational flow in ARC. Covers the
-tiered context model and loading mechanisms (context); the interlock model, status-file timing,
+tiered context model and loading mechanisms (context); the interlock model, meta-file timing,
 and handoff-interior toggle pattern (flow); plus context monitoring and session state portability
 (operational rhythm). For session lifecycle workflows, see [session-init][session-init],
 [session-handoff][session-handoff], and [session-loop][session-loop].
@@ -20,7 +20,10 @@ and handoff-interior toggle pattern (flow); plus context monitoring and session 
 - [Method and Extension Loading](#method-and-extension-loading) — on-demand procedural content
 - [Interlock Model](#interlock-model) — interlock stack, ceremony, configurability, approval signals
 - [Failure-Mode Recovery](#failure-mode-recovery) — taxonomy and recovery paths for interlock cascades
-- [Status-File Timing](#status-file-timing) — when status updates land in commit history
+- [Meta-File Timing](#meta-file-timing) — when status updates land in commit history
+- [User Workspace Directory](#user-workspace-directory) — path-class layout for `user/{identity}/`
+- [SESSION-NOTES](#session-notes) — personal session-context companion to the meta file
+- [Working Memory](#working-memory) — cross-WU persistent context with eviction triggers
 - [Handoff-Interior Toggle Pattern](#handoff-interior-toggle-pattern) — config-key convention for handoff actions
 - [Context Monitoring](#context-monitoring) — shared responsibility model
 - [Auto-Compaction](#auto-compaction) — operational guidance
@@ -51,7 +54,7 @@ work. Always loaded at session start.
 **T2 — State.** Content that orients the agent — where work stands, what happened last session,
 what comes next. Always loaded at session start.
 
-- status-{name}.md (per-WU tracked project pointer in active/{category}/; holds State, Branch,
+- meta-{name}.md (per-WU tracked project pointer in active/; holds State, Branch,
   Task List, Next Task, Last Completed, Blockers, Next Action)
 - SESSION-NOTES.md (personal session context from prior handoff)
 - Task list overview and current task section (strategic partial read)
@@ -71,7 +74,7 @@ Content meeting these criteria promotes from T3 to the session-init load set:
 
 | Content           | State Signal                                        | Promotes When             |
 |-------------------|-----------------------------------------------------|---------------------------|
-| process-task-loop | Status file resolved; `**Task List:**` not `[none]` | Active task work expected |
+| process-task-loop | Meta file resolved; `**Task List:**` not `[none]`   | Active task work expected |
 
 Sessions without active task lists (planning, evaluation, exploratory) don't need ~240 lines of
 dense procedural content. The state signal loads it precisely when relevant.
@@ -84,7 +87,7 @@ and subprocess calls:
 - **Non-destructive** — read-only, no mutations, no user prompts
 - **Harness-first** — agent-consumed via `--json`, not CLI-interactive
 - **Composite-first** — `arc status --session-init --json` returns identity, user-sync, extensions, config,
-  and active-status-file resolution in a single envelope. Fans out to slot probes via `Promise.all`; each slot
+  and active-meta-file resolution in a single envelope. Fans out to slot probes via `Promise.all`; each slot
   wraps into a typed `Probe<T>` union so one slot's failure doesn't invalidate the others
 
 Standalone probe commands (`arc user status`, `arc config status`, `arc extensions status`, `arc active
@@ -107,7 +110,7 @@ branch rather than rejecting the composite. Mirrors the session-init field table
 | `worktree`        | Worktree sync state vs. `origin/<current-branch>` — same shape as session-init's `worktree` slot                                                                          |
 | `user`            | Notes-sync state — same shape as session-init's `user` slot; identity-missing short-circuit applies when `arc.identity` is absent                                         |
 | `syncInterlock`   | `{value, source}` — resolved `arc.syncInterlock`. Gates whether handoff invokes `arc sync` (`on-handoff`) or surfaces unpushed state without firing (`manual`)            |
-| `active`          | Active status file resolution — same shape as session-init's `active` slot                                                                                                |
+| `active`          | Active meta file resolution — same shape as session-init's `active` slot                                                                                                  |
 | `head`            | Current `HEAD` short-hash (`value.hash`) — anchors the `Commit at Handoff` field written by the handoff workflow                                                          |
 | `pushability`     | Pushability pre-check matrix for the worktree push leg (`target: "worktree"`). Cross-reference with `worktree` for the full divergence picture                            |
 | `releaseRouting`  | Resolved release-wrapper routing per class-tag (`taskCommit` / `workflowCommit` / `workflowPush` to `wrapper` or `raw`), plus `rationale` snapshot                        |
@@ -344,7 +347,7 @@ Both avoid unnecessary body reads at init, but they serve different decisions an
 | quality-gate-commands | process-task-loop   | Universal — every task execution session   |
 | test-first            | process-task-loop   | Conditional — tasks with test-first marker |
 | commit-format         | prepare-commits     | User-triggered commit events               |
-| commit-context-format | prepare-commits     | User-triggered commit events               |
+| commit-footer         | prepare-commits     | User-triggered commit events               |
 | diff-review           | integrate-work-unit | Integration phase only                     |
 | review-triage         | integrate-work-unit | Integration phase only                     |
 | session-state         | session-handoff     | Session end only                           |
@@ -353,9 +356,10 @@ Both avoid unnecessary body reads at init, but they serve different decisions an
 
 ## Interlock Model
 
-These sections define ARC's session-operational flow — the interlock model, status-file timing, and
+These sections define ARC's session-operational flow — the interlock model, meta-file timing, and
 handoff-interior toggle pattern. For at-session rule statements that constrain agent behavior in this
-domain, see [DEV-RULES.ARC][dev-rules-arc] § Commit Discipline and § Session Management.
+domain, see [DEV-RULES.ARC][dev-rules-arc] § Review-Increment Invariant, § Commit Discipline, and
+§ Session Management.
 
 ### Vocabulary
 
@@ -423,7 +427,7 @@ design — orientation surfaces actionable session-shifts, not steady configurat
 detection — flagging when the resolved wrapper routing has changed between sessions because
 interlock keys were edited in git-config since last handoff — is the orientation-worthy
 state-shift signal; the snapshot-at-handoff plus diff-at-init mechanism is specified in
-`plan-handoff-optimization.md` and surfaces in orientation when that work integrates.
+`draft-handoff-optimization.md` and surfaces in orientation when that work integrates.
 
 **Integration-interlock.** Merge to integration / main requires explicit human approval. Agents must not
 infer merge approval from task approval, review completion, passing checks, or general "proceed" language.
@@ -435,7 +439,7 @@ quality gate engages the interlock until the failure is resolved.
 ### Orthogonal Ceremony
 
 Session handoff sits orthogonal to the interlock stack — always human-invoked, regardless of
-interlock settings. Inside handoff, individual actions (status-file rotation, worktree push,
+interlock settings. Inside handoff, individual actions (meta-file rotation, worktree push,
 notes push, quality-gate finalization) follow the configurable handoff-interior toggle pattern (see
 § Handoff-Interior Toggle Pattern). Handoff is not a rung in the interlock stack; it consolidates
 next-session-serving bookkeeping into a single explicit ritual.
@@ -508,11 +512,11 @@ to manual-with-prompt.
 ### Contributor Commit Release Boundary
 
 Contributor-role commit-on-task-approval stages project code and task-list documentation only.
-Project-level status files stay maintainer-owned because they represent shared work-unit state
-and lifecycle ceremony, not contributor-local progress. Contributor status files live under
+Project-level meta files stay maintainer-owned because they represent shared work-unit state
+and lifecycle ceremony, not contributor-local progress. Contributor meta files live under
 `user/{identity}/active/`, are gitignored, and remain local session state.
 
-The contributor handoff cadence is mode-independent: contributor status files update at handoff
+The contributor handoff cadence is mode-independent: contributor meta files update at handoff
 regardless of `arc.commitInterlock` value (`manual`, `on-task-approval`, or `on-workflow`). This
 keeps commit release focused on reviewed code changes while preserving the session-state
 contract that handoff is the single update point for contributor-local active status.
@@ -623,7 +627,7 @@ git diff --cached --stat
 git log --oneline -n 10
 ```
 
-Read the active status file's `**Next Action:**` workflow-step pointer and compare it to the git
+Read the active meta file's `**Next Action:**` workflow-step pointer and compare it to the git
 state. If the pointer, staged diff, and commit history agree on the next operation, continue from
 that operation. If they disagree or the user may prefer rollback, surface the mismatch and prompt:
 continue the interrupted cascade, roll back with an explicit cascade-undo plan, or stop for manual
@@ -631,23 +635,23 @@ inspection.
 
 ---
 
-## Status-File Creation Contract
+## Meta-File Creation Contract
 
-Each work unit gets exactly one status file (`active/{category}/status-{name}.md`) tracked from creation
+Each work unit gets exactly one meta file (`active/meta-{name}.md`) tracked from creation
 through archival. Two convergent creation paths produce the same artifact shape; both apply idempotent
 guards so re-entry is safe.
 
 **Convergent paths:**
 
-- **Planning activation** ([`activate-planning-branch.md`][activate-plan] Step 5) creates the file when a
-  planning branch starts, with `**State:** Planning` and the plan-doc filename in `**Spec:**`.
+- **Planning activation** ([`init-work-unit.md`][activate-plan]) creates the file when a planning
+  branch starts, with `**State:** Planning` and the draft-doc filename in `**Design:**`.
   Idempotent: existing file → skip.
 - **WU activation without planning ceremony** ([`activate-work-unit.md`][activate-wu] Step 4 creation
   path) creates the file at WU activation when no planning branch preceded (e.g., partial-protection
-  direct activation), with `**State:** In Progress`. Idempotent: existing file → take the transition
-  path (Planning → In Progress, populate execution fields).
+  direct activation), with `**State:** Active`. Idempotent: existing file → take the transition
+  path (Planning → Active, populate execution fields).
 
-**Single template, single shape.** [`template-status.md`][template-status] is the canonical source for
+**Single template, single shape.** [`template-meta.md`][template-meta] is the canonical source for
 both paths — no planning-variant template. The `**State:**` field carries the lifecycle phase.
 
 **Always-present fields with `[none]` markers.** All fields in the template's `## Work Unit Metadata` section
@@ -655,8 +659,8 @@ are always present; empty optional fields use the `[none]` literal. Consumers (t
 handoff workflow) get a uniform parse surface — no field-omission ambiguity, no per-state shape
 branching.
 
-**Filename-pointer convention.** Artifact-pointer fields (`**Task List:**`, `**Spec:**`) carry bare
-filenames. Path resolution derives from `dirname(status-file)` — co-location of status, task list, and
+**Filename-pointer convention.** Artifact-pointer fields (`**Task List:**`, `**Design:**`) carry bare
+filenames. Path resolution derives from `dirname(meta-file)` — co-location of status, task list, and
 PRD is invariant across the WU lifecycle. The probe's `deriveCompanions` consumes this directly.
 
 **State enum.** `Planning` (planning session) and `In Progress` (executing tasks) are the documented
@@ -665,38 +669,38 @@ treats `Planning` as case-exact (drives `sessionType: "planning"`); other values
 List / Next Action signals — preserving behavior for parenthetical-suffix variants like `Paused
 (2026-04-12)`.
 
-**Status-field migration.** When lifecycle fields become stricter, update existing active status files directly
+**Status-field migration.** When lifecycle fields become stricter, update existing active meta files directly
 as part of the work unit that introduces the rule. Keep structural validation strict for new commits instead of
 allowing legacy absence, and avoid one-off migration helpers until repeated project demand justifies the
 maintenance surface.
 
-**Disposition at integration.** [`integrate-planning-branch.md`][integrate-plan] Step 2 routes by
-graduated / shelved: graduated leaves the file in place for `activate-work-unit` Step 4 to transition;
+**Disposition at integration.** [`integrate-work-unit.md`][integrate-plan] routes by
+graduated / shelved: graduated leaves the file in place for `activate-work-unit` to transition;
 shelved removes the file (no WU follows; no pointer needed).
 
 ---
 
-## Status-File Timing
+## Meta-File Timing
 
-Status-file updates fire only at session-handoff commits and workflow-ceremony commits (activate /
+Meta-file updates fire only at session-handoff commits and workflow-ceremony commits (activate /
 integrate / sweep / deactivate / PRD generation / planning-lifecycle ops). Task-completion code
-commits never touch the status file. See [DEV-RULES.ARC][dev-rules-arc] § Commit Discipline for the
+commits never touch the meta file. See [DEV-RULES.ARC][dev-rules-arc] § Commit Discipline for the
 rule statement.
 
-**Why bound to ceremony commits.** Status-file fields (Next Task, Last Completed, Next Action) are
+**Why bound to ceremony commits.** Meta-file fields (Next Task, Last Completed, Next Action) are
 state pointers consumed at session-init. Per-task updates produce intermediate snapshots that no
 consumer reads; aligning state-change with the consumer boundary eliminates per-commit metadata churn
 and removes the per-commit shape-vs-rotation judgment call.
 
-**Tradeoff: dedicated handoff status commit.** Handoff produces a `chore(status): handoff …` commit
+**Tradeoff: dedicated handoff status commit.** Handoff produces a `chore(arc): handoff …` commit
 that's not bundled with code — a clear session-boundary marker, naturally atomic, conventional-commit-
 friendly, and visible in PR history as the explicit handoff point. Workflow-ceremony commits
 (activate, integrate, etc.) bundle their status updates into the ceremony commit itself.
 
 **Contrast: task-list checkboxes ride with content commits.** Task-list `[x]` flips bundle with the
-code commit that completes the task — the opposite rule from the status file (see
+code commit that completes the task — the opposite rule from the meta file (see
 [DEV-RULES.ARC][dev-rules-arc] § Atomicity, [prepare-commits.md][prepare-commits] § Granularity).
-The distinction is volatility versus derived state. Status-file fields are pointers whose value at
+The distinction is volatility versus derived state. Meta-file fields are pointers whose value at
 time T is stale by T+10min — deferring updates to ceremony boundaries discards no information
 because the next consumer (session-init) reads only the latest pointer. Task-list `[x]` flips are
 *terminal derived state*: a completion event that won't reverse, and one a future reader needs at
@@ -705,8 +709,133 @@ recovery cheap (interrupted sessions leave the git record matching reality) and 
 "what task did this commit complete" linkage in `git log` view.
 
 For deeper context on commit-history readability, commit-on-task-approval benefits, and what alternatives
-to task-list bundling would cost, see [status-file timing background][TODO-docs-site] and
+to task-list bundling would cost, see [meta-file timing background][TODO-docs-site] and
 [task-list timing background][TODO-docs-site].
+
+---
+
+## User Workspace Directory
+
+`user/{identity}/` carries per-developer session-state content. Its layout encodes semantic class
+through path structure: WU-scoped content lives in a per-WU subdir; developer-scoped (cross-WU)
+content lives flat at the root.
+
+**Layout:**
+
+```text
+user/{identity}/
+├── <wu-name>/                 # Per-WU subdir — WU-scoped
+│   ├── SESSION-NOTES.md       # Per-WU session context
+│   └── meta-<wu-name>.md      # Contributor-role meta file (when applicable)
+├── USER-INBOX.md              # Cross-WU personal capture
+├── WORKING-MEMORY.md          # Cross-WU persistent context
+└── .internal/                 # Per-machine state (excluded from notes serialization)
+```
+
+**Path-class invariant.** Path determines sync class. Per-WU subdir contents are bounded to the
+WU's lifecycle and travel with that WU's branch; cross-WU root files carry developer-scoped
+context that persists across work units. The `.internal/` dotdir is per-machine and never
+serialized — see § Session State Portability.
+
+Each worktree's `user/{identity}/` filesystem holds exactly one WU subdir (its own WU's), making
+worktree-correctness inspectable at a glance: `ls user/{identity}/` shows which WU this worktree
+serves. Multi-worktree concurrent use produces non-colliding subdirs because worktrees are
+physically separate.
+
+---
+
+## SESSION-NOTES
+
+SESSION-NOTES.md is personal session context, gitignored, paired with the active WU's project
+pointer — the maintainer-role `meta-{name}.md` in `active/` or the contributor-role
+`meta-{name}.md` in the per-WU workspace subdir. The project pointer carries the factual state
+(branch, task, blockers, next action); SESSION-NOTES carries the working context the next session
+needs to pick up where the last left off — approach, decisions, things tried, risks. Together
+they cover the WHAT (tracked) and the HOW-it's-going (personal) of in-flight work.
+
+**Location.** `user/{identity}/<wu-name>/SESSION-NOTES.md` — per-WU subdir under the developer's
+workspace. The subdir is created at WU activation and removed when the WU integrates.
+
+**Lifecycle.** Created at session handoff (the handoff workflow writes the file), consumed at
+session-init (the init workflow reads it as T2 state). The per-WU subdir scopes the file to its
+work unit — when the WU integrates, the subdir is removed along with its contents.
+
+**Portability.** Local by default. Cross-machine and team handoff travel through git notes — see
+§ Session State Portability for the operational model, config keys, and load-error recovery.
+
+**Writing guide.** The [session-handoff workflow][session-handoff] carries detailed content
+guidance for what to include vs. omit.
+
+---
+
+## Working Memory
+
+WORKING-MEMORY.md carries the developer's cross-WU persistent context — constraints,
+things-to-watch, pragmatic tradeoffs pending downstream work. Where SESSION-NOTES is a per-WU
+snapshot (write at handoff, consume at next session-init for the same WU, discard at integration)
+and USER-INBOX is a capture surface (live additions draining at ceremony boundaries),
+WORKING-MEMORY persists across work units with explicit eviction triggers per entry.
+
+**Location.** `user/{identity}/WORKING-MEMORY.md` — flat at the workspace root, cross-WU scope.
+
+**Per-entry shape.** Each entry carries an explicit removal trigger inline:
+
+```markdown
+**Short header naming the constraint or tradeoff:**
+*Remove when: [explicit trigger condition].*
+
+Body — context, scope, what to watch for or work around.
+```
+
+Triggers are concrete observable events (a downstream WU integrates, a tool lands, a known
+workaround becomes obsolete). Vague triggers (`once we figure out X`) defeat the
+eviction-on-trigger discipline and let entries accumulate indefinitely.
+
+**Lifecycle.** Written at session handoff alongside SESSION-NOTES; read at session-init as part
+of T2 state load. Reviewed at each handoff — entries whose triggers have fired are removed.
+Surviving entries travel with the developer's workspace across WU boundaries.
+
+**Distinguishing the three personal surfaces:**
+
+- **SESSION-NOTES** — per-WU snapshot. Bounded to one WU's working state.
+- **USER-INBOX** — capture surface. Live writes; drains at ceremony boundaries.
+- **WORKING-MEMORY** — cross-WU persistent context. Eviction-triggered.
+
+The eviction-trigger convention is what makes WORKING-MEMORY work as persistent context without
+accumulating into noise — the trigger is the commitment that keeps the file actionable.
+
+---
+
+## USER-INBOX
+
+USER-INBOX.md is the developer's personal capture surface for items to handle later —
+single-step (`## Atomic` section) or multi-step (`## Backlog` section). Gitignored, cross-WU,
+branch-agnostic. Where SESSION-NOTES is a per-WU snapshot (write at handoff, discard at
+integration) and WORKING-MEMORY is eviction-triggered persistent context, USER-INBOX is a
+live-write capture surface — entries land any time, drain at lifecycle boundaries.
+
+**Location.** `user/{identity}/USER-INBOX.md` — flat at the workspace root, cross-WU scope.
+
+**Section structure.**
+
+- **`## Atomic`** — single-step entries shaped like `atomic-{name}.md` items.
+- **`## Backlog`** — multi-step entries that need draft-doc / PRD treatment before scheduling.
+
+**Lifecycle.** Writes accepted any time (the live-capture role). Drain fires at WU lifecycle
+boundaries; destinations vary by PM mode:
+
+- **`pm.mode: arc-in-git`** — entries flow to the project-shared backlog inboxes
+  (`backlog/ATOMIC-INBOX.md` and `backlog/BACKLOG-INBOX.md`) at WU ceremony fire-points. See
+  `strategy-planning-module.md` § Inbox Family and § Ceremony-Only Writes to Shared Inboxes
+  for operational details.
+- **`pm.mode: external`** — entries route to the external tracker per the project's integration
+  model. See `strategy-team-coordination.md` § External Tracker Integration.
+- **`pm.mode: none`** — drain destination follows project convention (DEV-RULES.PROJECT may
+  codify a target, otherwise developer routes by judgment).
+
+**Cross-WU scope.** Branch-agnostic, persists across WU boundaries until drained. On-disk file
+is local to the worktree; cross-machine and cross-worktree transport runs through git notes —
+see § Session State Portability.
 
 ---
 
@@ -764,7 +893,7 @@ for the full key reference and defaults.
 
 **Composite handoff probe.** `arc status --session-handoff --json` returns the handoff envelope —
 dirty state, worktree state, notes-sync state, sync-interlock mode, pushability pre-check matrix,
-resolved active status file, and current HEAD short-hash. The handoff workflow consumes the
+resolved active meta file, and current HEAD short-hash. The handoff workflow consumes the
 envelope and gates on `syncInterlock`; the sync orchestrator owns push-interlock and notes-push
 resolution internally. See § Probe pattern § Extension contract for how new toggles add slots.
 
@@ -885,17 +1014,17 @@ When `arc user load` or session-init's SESSION-NOTES load fails, recover by erro
 [session-loop]: ../../../system/workflows/arc/session-lifecycle/session-loop.md
 [session-init]: ../../../system/workflows/arc/session-lifecycle/session-init.md
 [session-handoff]: ../../../system/workflows/arc/session-lifecycle/session-handoff.md
-[activate-plan]: ../../../system/workflows/arc/work-unit-lifecycle/planning/activate-planning-branch.md
+[activate-plan]: ../../../system/workflows/arc/work-unit-lifecycle/planning/init-work-unit.md
 [activate-wu]: ../../../system/workflows/arc/work-unit-lifecycle/activate-work-unit.md
-[integrate-plan]: ../../../system/workflows/arc/work-unit-lifecycle/planning/integrate-planning-branch.md
-[template-status]: ../../templates/template-status.md
+[integrate-plan]: ../../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md
+[template-meta]: ../../templates/arc/work-unit/template-meta.md
 [strategy-index]: ../STRATEGY-INDEX.md
 [workflow-authoring]: strategy-workflow-authoring.md
 [config-arch]: strategy-configurability-architecture.md
 [interlock-release-wrappers]: strategy-interlock-release-wrappers.md
-[dev-rules-arc]: ../../constitution/DEV-RULES.ARC.md
-[dev-rules-project]: ../../constitution/DEV-RULES.PROJECT.md
+[dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
+[dev-rules-project]: ../../../system/rules/DEV-RULES.PROJECT.md
 [prepare-commits]: ../../../system/workflows/arc/supplemental/prepare-commits.md
-[arc-commit-skill]: ../../../system/skills/arc-commit/SKILL.md
+[arc-commit-skill]: ../../../system/.internal/skills/arc-commit/SKILL.md
 [git-notes]: https://git-scm.com/docs/git-notes
 [TODO-docs-site]: # "Placeholder pending docs-content-sweep — see notes-docs-content-sweep.md"

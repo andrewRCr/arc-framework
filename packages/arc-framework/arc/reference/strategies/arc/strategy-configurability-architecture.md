@@ -89,7 +89,7 @@ a configurability path (how teams adapt it).
 
 | Convention                                                  | Principle | Default                  | Configurability Path                                  |
 |-------------------------------------------------------------|-----------|--------------------------|-------------------------------------------------------|
-| Document hierarchy (META-PRD → PRD → tasks)                 | P1        | Full hierarchy           | Structural contract — workflows depend on structure   |
+| Document hierarchy (PROJECT-PRD → PRD → tasks)              | P1        | Full hierarchy           | Structural contract — workflows depend on structure   |
 | Template-first documents                                    | P1        | Copy-ready templates     | Structural contract — fill in, don't redesign         |
 | Per-task mandatory review stop                              | P2        | Stop after each checkbox | Behavioral guidance — adjust review increment scope   |
 | Completion protocol (check → mark → verify → report → stop) | P2        | Full ceremony            | Behavioral guidance — adjust protocol steps           |
@@ -103,6 +103,7 @@ a configurability path (how teams adapt it).
 | Zero-tolerance quality gates            | P4        | All errors must be fixed            | Behavioral guidance — adjust severity levels          |
 | Tiered quality gate system (Tier 1/2/3) | P4        | Per-task / per-unit / per-phase     | Behavioral guidance — adjust tier boundaries          |
 | Pre-merge aggregate review              | P4        | Lightweight diff review before push | Config setting — `review.pre_merge` + Method override |
+| Planning checkpoint review              | P2 / P4   | No checkpoint stop                  | Extension — `pre-activation`                          |
 | Leave it cleaner (capture floor)        | P4        | Fix or document pre-existing issues | Method override — fix-now vs. capture-and-defer       |
 | Test-first assessment                   | P4        | Decision tree by change type        | Method override — substitute assessment criteria      |
 | Conventional commit format              | P6        | `type(scope): description`          | Config setting — `commit.format`                      |
@@ -321,7 +322,7 @@ Config settings divide into two categories based on how changes take effect:
 **Structural settings** affect which files are installed and how templates render. Changing them requires
 `arc init --reconfigure`:
 
-- `pm.mode` — Adds or removes arc-in-git files (ROADMAP, backlogs, PROJECT-STATUS, strategies)
+- `pm.mode` — Adds or removes arc-in-git files (ROADMAP, backlogs, strategies)
 - `team.mode` — Adds or removes team coordination content in rendered templates
 - `project_name` — Re-renders token substitutions (`{{PROJECT_NAME}}`) across templates
 
@@ -365,6 +366,46 @@ framework updates.
 
 Each preset file includes: which workflow it extends, when it fires, what the contract allows, and an empty
 `.actions` section.
+
+### Naming convention
+
+Extension files follow `{pre|post}-{lifecycle-event-name}`, where the event-name is the next concrete workflow
+step or git operation:
+
+- `pre-*` fires before the named event; `post-*` fires after.
+- Event-names reflect the **actual local fire-point** — the literal workflow step or git operation — not an
+  upstream UI-level event. For example, `pre-pr-review` names the pre-PR-creation push fire-point, not the
+  GitHub-side "open PR" UI event; `pre-merge-review` names the genuine pre-merge fire-point at
+  `integrate-work-unit.md`, not "before the PR merges from the platform's perspective."
+- The fire-point's **frequency** must match the name's semantic. If an extension is named `pre-commit-review`,
+  it must fire at every commit pathway — wiring that catches one workflow's commit step while another's skips
+  it violates the convention. Names that promise broad coverage demand broad wiring.
+
+### Fire-point family
+
+Five extension fire-points span the work-unit lifecycle:
+
+| Extension           | Fire-point                                                | Wired into                                   | Default                         |
+|---------------------|-----------------------------------------------------------|----------------------------------------------|---------------------------------|
+| `pre-activation`    | `activate-work-unit.md` pre-condition gate                | `activate-work-unit.md`                      | inactive                        |
+| `pre-commit-review` | After staging, before commit creation                     | `arc-commit` skill + `prepare-commits.md`    | inactive                        |
+| `pre-pr-review`     | `integrate-work-unit.md` pre-PR-creation push             | `integrate-work-unit.md`                     | inactive                        |
+| `pre-push-review`   | Any push via the push wrapper                             | `arc release push` / `arc sync` push pathway | inactive; no default `.actions` |
+| `pre-merge-review`  | `integrate-work-unit.md` post-review-response, pre-merge  | `integrate-work-unit.md`                     | inactive; no default `.actions` |
+
+All extensions ship as inactive by default — teams populate `.actions` and flip `active: true` in frontmatter
+to opt in. Entries marked "no default `.actions`" ship as no-op shells without a provided action body; teams
+supplying their own actions activate them like any other extension.
+
+### Reserved names
+
+Some extension names ship as files but without a default `.actions` body — namespace reserved for project use
+or for future defaults. Two entries from the family above carry this status today:
+
+- `pre-push-review` — fires for any push via the push wrapper.
+- `pre-merge-review` — fires post-review-response, pre-merge at `integrate-work-unit.md`.
+
+New reserved names land here when codified, keeping the namespace coherent before defaults emerge.
 
 ### References in workflows
 
@@ -416,7 +457,7 @@ defines HOW:
 
 ```markdown
 5. Commit using the [commit-format][arc-methods-cf] and
-   [commit-context-format][arc-methods-ccf] methods
+   [commit-footer][arc-methods-ccf] methods
 ```
 
 ### Hook interaction
@@ -531,9 +572,9 @@ the [Agent Hooks](https://andrewrcr.github.io/arc-framework/customization/hooks/
 
 [session-ops]: strategy-session-operations.md
 [interlock-release-wrappers]: strategy-interlock-release-wrappers.md
-[dev-rules-arc]: ../../constitution/DEV-RULES.ARC.md
+[dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
 [quality-gates]: strategy-quality-gates.md
 [work-org]: strategy-work-organization.md
 [workflow-authoring]: strategy-workflow-authoring.md
-[template-workflow]: ../../templates/template-workflow.md
+[template-workflow]: ../../templates/arc/template-workflow.md
 [agent-skills-spec]: https://agentskills.io/

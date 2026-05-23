@@ -5,7 +5,7 @@ content drift between the package source (`packages/arc-framework/arc/`) and the
 instance (`.arc/`). Project-level strategy — not shipped to adopters.
 
 **Scope:** Files under `.arc/reference/` and `.arc/system/` that have counterparts in the
-package source. Does not apply to `active/`, `backlog/`, `user/`, or `reference/archive/` —
+package source. Does not apply to `active/`, `backlog/`, `user/`, or `completed/` —
 those are project-owned with no package counterparts.
 
 ---
@@ -79,7 +79,7 @@ edit the template in the package source. The `.arc/` rendered copy reflects this
 config (`team.mode: false`, `pm.mode: arc-in-git`) — conditional blocks for other modes are
 absent. Don't copy `.arc/` content back to the template without re-adding the conditionals.
 
-**Remaining 7 templates** (ROADMAP, backlogs, META-PRD, PROJECT-STATUS,
+**Remaining 6 templates** (ROADMAP, backlogs, PROJECT-PRD,
 TECHNICAL-OVERVIEW, QUICK-REFERENCE) are Scaffolded or Configurable — project-owned content,
 no sync concern.
 
@@ -120,7 +120,7 @@ package source. Points here for the full architecture.
 ### Hook separation pattern
 
 Dev-only checks live in the husky layer (`.husky/pre-commit` → `scripts/*.sh`), not in the
-ARC pre-commit hook (`.arc/system/githooks/pre-commit`). The ARC hook is a Framework file
+ARC pre-commit hook (`.arc/system/.internal/githooks/pre-commit`). The ARC hook is a Framework file
 shipped to adopters — only universal checks belong there. This supersedes the prior
 `.arc-internal/` dual-hook approach from WU2.
 
@@ -156,11 +156,11 @@ arc-in-git files are annotated explicitly.
 
 - `README.md` (root)
 - `reference/adr/README.md`
-- `reference/analysis/README.md`
-- `reference/constitution/DEV-RULES.ARC.md`
-- `reference/constitution/README.md`
-- `reference/research/README.md`
+- `system/rules/DEV-RULES.ARC.md`
+- `system/rules/README.md`
 - `reference/strategies/README.md`
+- `reference/supplemental/analysis/README.md`
+- `reference/supplemental/research/README.md`
 - `reference/strategies/arc/strategy-adr-methodology.md`
 - `reference/strategies/arc/strategy-configurability-architecture.md`
 - `reference/strategies/arc/strategy-file-classification.md`
@@ -173,36 +173,36 @@ arc-in-git files are annotated explicitly.
 - `reference/strategies/arc/strategy-work-planning.md`
 - `reference/strategies/project/README.md`
 - `reference/strategies/project/style/README.md`
-- `reference/templates/template-adr.md`
-- `reference/templates/template-completion-doc.md`
-- `reference/templates/template-contributing.md`
-- `reference/templates/template-plan.md`
-- `reference/templates/template-prd.md`
+- `reference/templates/arc/template-adr.md`
+- `reference/templates/arc/template-contributing.md`
+- `reference/templates/arc/work-unit/template-draft.md`
+- `reference/templates/arc/work-unit/spec/template-prd.md`
 
 **System:**
 
 - `system/README.md`
-- `system/briefs/AGENT-BRIEF.ARC.md`
-- `system/briefs/AGENT-BRIEF.CONTRIBUTOR.md`
-- `system/briefs/README.md`
-- `system/githooks/README.md`
-- `system/githooks/commit-msg`
-- `system/githooks/pre-commit`
-- `system/scripts/README.md`
-- `system/scripts/arc-lib.sh`
-- `system/skills/README.md`
-- `system/skills/arc-commit/SKILL.md`
-- `system/skills/arc-handoff/SKILL.md`
-- `system/skills/arc-plan/SKILL.md`
-- `system/skills/arc-resume/SKILL.md`
-- `system/skills/arc-setup/SKILL.md`
-- `system/skills/arc-task-audit/SKILL.md`
-- `system/skills/arc-task-review/SKILL.md`
-- `system/skills/arc-verify/SKILL.md`
-- `system/workflows/arc/1_create-prd.md`
+- `reference/briefs/AGENT-BRIEF.ARC.md`
+- `reference/briefs/AGENT-BRIEF.CONTRIBUTOR.md`
+- `reference/briefs/README.md`
+- `system/.internal/githooks/README.md`
+- `system/.internal/githooks/commit-msg`
+- `system/.internal/githooks/pre-commit`
+- `system/.internal/scripts/README.md`
+- `system/.internal/scripts/arc-lib.sh`
+- `system/.internal/skills/README.md`
+- `system/.internal/skills/arc-commit/SKILL.md`
+- `system/.internal/skills/arc-handoff/SKILL.md`
+- `system/.internal/skills/arc-plan/SKILL.md`
+- `system/.internal/skills/arc-resume/SKILL.md`
+- `system/.internal/skills/arc-setup/SKILL.md`
+- `system/.internal/skills/arc-task-audit/SKILL.md`
+- `system/.internal/skills/arc-task-review/SKILL.md`
+- `system/.internal/skills/arc-verify/SKILL.md`
+- `system/workflows/arc/1_create-spec.md`
 - `system/workflows/arc/initial-setup/01_verify-and-configure.md`
 - `system/workflows/arc/session-lifecycle/session-loop.md`
 - `system/workflows/arc/supplemental/add-agent.md`
+- `system/workflows/arc/supplemental/clean-work-unit.md`
 - `system/workflows/arc/supplemental/integrate-external-content.md`
 - `system/workflows/arc/supplemental/maintain-project-docs.md`
 - `system/workflows/arc/supplemental/manage-incidental-work.md`
@@ -210,22 +210,19 @@ arc-in-git files are annotated explicitly.
 - `system/workflows/arc/supplemental/verify-arc-integrity.md`
 - `system/workflows/arc/work-unit-lifecycle/activate-work-unit.md`
 - `system/workflows/arc/work-unit-lifecycle/archive-work-unit.md`
-- `system/workflows/arc/work-unit-lifecycle/clean-work-unit.md`
 - `system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md`
-- `system/workflows/arc/work-unit-lifecycle/planning/activate-planning-branch.md`
-- `system/workflows/arc/work-unit-lifecycle/planning/integrate-planning-branch.md`
-- `system/workflows/arc/work-unit-lifecycle/rotate-branch.md`
+- `system/workflows/arc/work-unit-lifecycle/planning/init-work-unit.md`
 - `system/workflows/arc/work-unit-lifecycle/verify-work-unit.md`
 - `system/workflows/project/README.md`
 - `user/README.md`
 
-### Configurable files (project sections expected to differ) — 22
+### Configurable files (project sections expected to differ) — 25
 
-- `reference/archive/README.md`
-- `reference/constitution/DEV-RULES.PROJECT.md`
+- `completed/README.md`
+- `system/rules/DEV-RULES.PROJECT.md`
 - `reference/QUICK-REFERENCE.md` · template counterpart
 - `reference/strategies/STRATEGY-INDEX.md`
-- `system/briefs/AGENT-BRIEF.PROJECT.md` · template counterpart
+- `reference/briefs/AGENT-BRIEF.PROJECT.md` · template counterpart
 - `system/arc-config.yml`
 - `system/extensions/post-context-load.md`
 - `system/extensions/post-task-completion.md`
@@ -233,9 +230,12 @@ arc-in-git files are annotated explicitly.
 - `system/extensions/post-unit-quality.md`
 - `system/extensions/post-work-unit-activate.md`
 - `system/extensions/post-work-unit-archive.md`
+- `system/extensions/pre-activation.md`
+- `system/extensions/pre-commit-review.md`
 - `system/extensions/pre-merge-review.md`
-- `system/extensions/pre-stage-review.md`
-- `system/methods/commit-context-format.md`
+- `system/extensions/pre-pr-review.md`
+- `system/extensions/pre-push-review.md`
+- `system/methods/commit-footer.md`
 - `system/methods/commit-format.md`
 - `system/methods/diff-review.md`
 - `system/methods/issue-triage.md`
@@ -253,13 +253,11 @@ arc-in-git files are annotated explicitly.
 ### Template counterparts (package `.template.md` → `.arc/` `.md`)
 
 - `backlog/ROADMAP.template.md` → `backlog/ROADMAP.md` (Scaffolded · arc-in-git)
-- `backlog/feature/BACKLOG-FEATURE.template.md` → `backlog/feature/BACKLOG-FEATURE.md` (Scaffolded · arc-in-git)
-- `backlog/technical/BACKLOG-TECHNICAL.template.md` → `backlog/technical/BACKLOG-TECHNICAL.md` (Scaffolded · arc-in-git)
-- `reference/META-PRD.template.md` → `reference/META-PRD.md` (Scaffolded)
-- `reference/PROJECT-STATUS.template.md` → `reference/PROJECT-STATUS.md` (Scaffolded · arc-in-git)
+- `backlog/BACKLOG-INBOX.template.md` → `backlog/BACKLOG-INBOX.md` (Scaffolded · arc-in-git)
+- `reference/PROJECT-PRD.template.md` → `reference/PROJECT-PRD.md` (Scaffolded)
 - `reference/QUICK-REFERENCE.template.md` → `reference/QUICK-REFERENCE.md` (Configurable)
 - `reference/TECHNICAL-OVERVIEW.template.md` → `reference/TECHNICAL-OVERVIEW.md` (Scaffolded)
-- `system/briefs/AGENT-BRIEF.PROJECT.template.md` → `system/briefs/AGENT-BRIEF.PROJECT.md` (Configurable)
+- `reference/briefs/AGENT-BRIEF.PROJECT.template.md` → `reference/briefs/AGENT-BRIEF.PROJECT.md` (Configurable)
 - `system/workflows/arc/2_generate-tasks.template.md` → `system/workflows/arc/2_generate-tasks.md` (Framework)
 - `system/workflows/arc/3_process-task-loop.template.md` → `system/workflows/arc/3_process-task-loop.md` (Framework)
 - `system/workflows/arc/initial-setup/02_define-project.template.md` →

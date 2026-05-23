@@ -22,13 +22,13 @@ project (use `arc join`).
 If you are an AI agent reading this, start by reading these two documents in full — they explain
 what ARC is and how this project uses it:
 
-1. `.arc/system/briefs/AGENT-BRIEF.ARC.md` — ARC framework orientation
-2. `.arc/system/briefs/AGENT-BRIEF.PROJECT.md` — Project-specific context
+1. `.arc/reference/briefs/AGENT-BRIEF.ARC.md` — ARC framework orientation
+2. `.arc/reference/briefs/AGENT-BRIEF.PROJECT.md` — Project-specific context
 
 ### Step 2: Generate Skill Files
 
 ARC uses skills to trigger key workflows — session resume, commit, handoff, etc. Canonical
-skill definitions live in `.arc/system/skills/`. Each subdirectory contains a `SKILL.md` with
+skill definitions live in `.arc/system/.internal/skills/`. Each subdirectory contains a `SKILL.md` with
 the skill's name, description, and instructions.
 
 **Identify your skill directory:**
@@ -39,7 +39,7 @@ and any tool-specific directories), use it. If not, create the directory your ag
 
 **Copy skills:**
 
-For each subdirectory in `.arc/system/skills/` (e.g., `arc-resume/`, `arc-commit/`):
+For each subdirectory in `.arc/system/.internal/skills/` (e.g., `arc-resume/`, `arc-commit/`):
 
 1. Read the canonical `SKILL.md`
 2. Create the matching subdirectory in your skill location (e.g., `{your-skill-dir}/arc-resume/`)

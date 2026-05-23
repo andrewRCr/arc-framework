@@ -39,7 +39,14 @@ const SESSION_INIT_KEYS = [
   "pm.mode",
   "commit.format",
   "commit.context_footer",
+  "commit.interlock",
+  "push.interlock",
 ] as const satisfies ReadonlyArray<keyof ConfigSessionInitSettings>;
+
+const RESOLVED_KEY_SOURCES = {
+  "commit.interlock": "commitInterlock",
+  "push.interlock": "pushInterlock",
+} as const;
 
 /** Produce the full settings view for `arc config status` (default mode). */
 export async function runConfigStatus(
@@ -72,7 +79,7 @@ export async function runConfigSessionInitStatus(
 ): Promise<ConfigSessionInitResult> {
   const exec = options.exec ?? gitExec;
   const readFile = options.readFile ?? ((path: string) => nodeReadFile(path, "utf-8"));
-  const { settings, defaultsApplied, warnings } = options.resolvedSettings
+  const { settings, resolved, defaultsApplied, warnings } = options.resolvedSettings
     ?? await resolveAllSettings({
       cwd: options.cwd,
       exec,
@@ -80,7 +87,12 @@ export async function runConfigSessionInitStatus(
     });
   const scoped = {} as ConfigSessionInitSettings;
   for (const key of SESSION_INIT_KEYS) {
-    scoped[key] = settings[key];
+    if (key in RESOLVED_KEY_SOURCES) {
+      const source = RESOLVED_KEY_SOURCES[key as keyof typeof RESOLVED_KEY_SOURCES];
+      scoped[key] = resolved[source].value;
+    } else {
+      scoped[key] = settings[key as keyof typeof settings];
+    }
   }
   const scopedKeys: readonly string[] = SESSION_INIT_KEYS;
   const scopedDefaults = defaultsApplied.filter((k) => scopedKeys.includes(k));

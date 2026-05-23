@@ -66,6 +66,7 @@ import {
 } from "../lib/config/resolved-settings.js";
 import { formatError, UserFacingError } from "../lib/errors.js";
 import {
+  isRefusalCondition,
   runPushabilityStatus,
   type PushabilityCondition,
 } from "../lib/git/index.js";
@@ -122,7 +123,14 @@ type WorktreeAction =
     behind: number;
     branch: string | null;
   }
-  | { kind: "push"; branch: string };
+  | { kind: "push"; branch: string }
+  /**
+   * Push the branch with `-u` to publish + set upstream in one operation.
+   * Emitted when `worktreeState === "no-upstream"` and `pushInterlock !==
+   * "manual"` — the matrix surfaces no-upstream as `caller-resolvable`, and
+   * sync's policy is "auto-resolve when push is authorized to cascade."
+   */
+  | { kind: "push-with-upstream-init"; branch: string };
 
 type NotesAction =
   | { kind: "save-only" }
@@ -152,11 +160,15 @@ interface MatrixInput {
  * covers the full set per the release-wrapper refusal taxonomy. The
  * `notes-blocked` cell is intentionally absent: its worktree leg fires
  * (proceeded), with the per-leg notes record carrying the partial state.
+ * `blocked-no-upstream` is intentionally absent — sync auto-resolves
+ * no-upstream when `pushInterlock !== "manual"` (cell is
+ * `paired-push-with-upstream-init` and friends); under `manual`, sync
+ * short-circuits to `skip-not-configured` before the block-state check,
+ * so the `blocked-no-upstream` cell label is structurally unreachable.
  */
 const REFUSED_SYNC_CELLS: ReadonlySet<string> = new Set([
   "blocked-diverged",
   "blocked-remote-ahead",
-  "blocked-no-upstream",
   "blocked-detached-head",
   "blocked-no-remote",
   "blocked-remote-unavailable",
@@ -182,7 +194,12 @@ const NOTES_BLOCK_WORKTREE_STATES: ReadonlySet<WorktreeSyncState> = new Set([
 const WORKTREE_PUSH_BLOCK_STATES: ReadonlySet<WorktreeSyncState> = new Set([
   "diverged",
   "remote-ahead",
-  "no-upstream",
+  // "no-upstream" is intentionally absent — sync auto-resolves it via
+  // `push-with-upstream-init` when `pushInterlock !== "manual"`. The
+  // `NOTES_BLOCK_WORKTREE_STATES` set above keeps "no-upstream" because
+  // `manual` still blocks the worktree push (via skip-not-configured),
+  // and the notes-block condition there uses `pushInterlock === "manual"`
+  // as its first arm.
   "detached-head",
   "no-remote",
   "remote-unavailable",
@@ -215,6 +232,9 @@ function decideWorktree(input: MatrixInput): WorktreeAction {
       behind: input.worktreeBehind,
       branch: input.branch,
     };
+  }
+  if (input.worktreeState === "no-upstream") {
+    return { kind: "push-with-upstream-init", branch: input.branch };
   }
   return { kind: "push", branch: input.branch };
 }
@@ -251,6 +271,15 @@ function cellNameFor(worktree: WorktreeAction, notes: NotesAction): string {
   if (worktree.kind === "push" && notes.kind === "save+push") return "paired-push";
   if (worktree.kind === "push" && notes.kind === "save-only") return "worktree-only";
   if (worktree.kind === "push" && notes.kind === "save+prompt") return "worktree+notes-prompt";
+  if (worktree.kind === "push-with-upstream-init" && notes.kind === "save+push") {
+    return "paired-push-with-upstream-init";
+  }
+  if (worktree.kind === "push-with-upstream-init" && notes.kind === "save-only") {
+    return "worktree-only-with-upstream-init";
+  }
+  if (worktree.kind === "push-with-upstream-init" && notes.kind === "save+prompt") {
+    return "worktree-with-upstream-init+notes-prompt";
+  }
   if (notes.kind === "save+push") return "notes-only";
   if (notes.kind === "save+prompt") return "notes-prompt";
   if (notes.kind === "save+notes-blocked") return "notes-blocked";
@@ -442,8 +471,15 @@ async function execute(ctx: ExecuteContext): Promise<ExecutedOutcome> {
     return executeBlockedWorktree(ctx, decision.worktree);
   }
 
-  if (decision.worktree.kind === "push" && decision.notes.kind === "save+push") {
-    return executePaired(ctx, decision.worktree.branch);
+  if (
+    (decision.worktree.kind === "push" || decision.worktree.kind === "push-with-upstream-init")
+    && decision.notes.kind === "save+push"
+  ) {
+    return executePaired(
+      ctx,
+      decision.worktree.branch,
+      decision.worktree.kind === "push-with-upstream-init",
+    );
   }
 
   return executeSingleLeg(ctx);
@@ -473,7 +509,7 @@ function executeRebaseBlocked(ctx: ExecuteContext): ExecutedOutcome {
 }
 
 function rebaseWorktreeRecord(worktree: WorktreeAction): LegOutcomeRecord {
-  if (worktree.kind === "push") {
+  if (worktree.kind === "push" || worktree.kind === "push-with-upstream-init") {
     return { action: "push", result: "blocked", detail: "rebase-in-progress" };
   }
   if (worktree.kind === "skip-blocked-worktree") {
@@ -533,7 +569,11 @@ function blockedWorktreeNotesRecord(
   };
 }
 
-async function executePaired(ctx: ExecuteContext, branch: string): Promise<ExecutedOutcome> {
+async function executePaired(
+  ctx: ExecuteContext,
+  branch: string,
+  setUpstream: boolean,
+): Promise<ExecutedOutcome> {
   const result = await runPairedPush({
     io: ctx.io,
     identity: ctx.identity,
@@ -541,6 +581,7 @@ async function executePaired(ctx: ExecuteContext, branch: string): Promise<Execu
     access,
     branch,
     worktreeSyncState: ctx.worktreeState,
+    setUpstream,
     pushNotes: (context) => pairedNotesAdapter(context, ctx.yes, ctx.output),
   });
   renderPairedResult(result, branch, ctx.output);
@@ -644,7 +685,7 @@ function renderPairedResult(
   branch: string,
   output: SyncOutput,
 ): void {
-  for (const condition of result.conditions.filter((c) => c.disposition === "block")) {
+  for (const condition of result.conditions.filter(isRefusalCondition)) {
     output.log.error(condition.guidance);
   }
   for (const condition of result.conditions.filter(
@@ -695,7 +736,7 @@ function renderPairedNotesOutcome(result: PairedPushResult, output: SyncOutput):
       output.log.warn("Partial publish recorded; recover with `arc user push` (idempotent).");
       return;
     case "blocked":
-      for (const condition of notes.conditions.filter((c) => c.disposition === "block")) {
+      for (const condition of notes.conditions.filter(isRefusalCondition)) {
         output.log.error(condition.guidance);
       }
       output.log.warn("Partial publish recorded; recover with `arc user push` (idempotent).");
@@ -721,13 +762,18 @@ async function executeSingleLeg(ctx: ExecuteContext): Promise<ExecutedOutcome> {
   let worktreeRecord: LegOutcomeRecord;
   let worktreeFailed = false;
 
-  if (decision.worktree.kind === "push") {
+  if (decision.worktree.kind === "push" || decision.worktree.kind === "push-with-upstream-init") {
+    const setUpstream = decision.worktree.kind === "push-with-upstream-init";
     const result = await pushWorktreeBranch({
       exec: ctx.io.exec,
       branch: decision.worktree.branch,
+      args: setUpstream ? ["-u"] : [],
     });
     if (result.status === "success") {
-      ctx.output.log.info(`Worktree pushed: \`${decision.worktree.branch}\``);
+      const successMsg = setUpstream
+        ? `Worktree pushed with new upstream: \`${decision.worktree.branch}\``
+        : `Worktree pushed: \`${decision.worktree.branch}\``;
+      ctx.output.log.info(successMsg);
       worktreeRecord = { action: "push", result: "success" };
     } else {
       worktreeFailed = true;
@@ -870,7 +916,7 @@ async function pushNotesLeg(ctx: ExecuteContext): Promise<LegOutcomeRecord> {
       ctx.output.log.error("No remote configured. Push requires a remote repository.");
       return { action: "push", result: "failed", detail: "no-remote" };
     case "blocked":
-      for (const condition of result.conditions.filter((c) => c.disposition === "block")) {
+      for (const condition of result.conditions.filter(isRefusalCondition)) {
         ctx.output.log.error(condition.guidance);
       }
       return { action: "push", result: "blocked" };
@@ -985,7 +1031,10 @@ function buildDryRunOutcome(
   decision: MatrixDecision,
   branch: string | null,
 ): ExecutedOutcome {
-  const worktreeAction = decision.worktree.kind === "push" ? "push" : "skip";
+  const worktreeAction =
+    decision.worktree.kind === "push" || decision.worktree.kind === "push-with-upstream-init"
+      ? "push"
+      : "skip";
   const fireSeparateSave =
     decision.worktree.kind === "skip-blocked-worktree"
     || decision.notes.kind === "save+notes-blocked";
@@ -1041,6 +1090,8 @@ function describeWorktreeAction(action: WorktreeAction): string {
   switch (action.kind) {
     case "push":
       return `push origin ${action.branch}`;
+    case "push-with-upstream-init":
+      return `push -u origin ${action.branch}`;
     case "skip-not-configured":
       return "skip (push_interlock: manual)";
     case "skip-blocked-worktree":
@@ -1074,24 +1125,34 @@ function worktreeBlockGuidance(
 }
 
 function reconcileGuidance(state: WorktreeSyncState): string {
+  const prefix = "Notes saved locally; push deferred.";
   switch (state) {
     case "diverged":
-      return (
-        "Notes push blocked: worktree diverged from origin. "
-        + "Manual rebase or merge needed before pushing notes. "
-        + "(worktree state: diverged)"
-      );
+      return `${prefix} Worktree diverged from origin — reconcile (rebase or merge) `
+        + "before notes can publish.";
     case "remote-ahead":
-      return (
-        "Notes push blocked: origin is ahead of worktree. "
-        + "Fast-forward (`git pull --ff-only`) before pushing notes. "
-        + "(worktree state: remote-ahead)"
-      );
-    default:
-      return (
-        "Notes push blocked: push the worktree first, then `arc user push`. "
-        + `(worktree state: ${state})`
-      );
+      return `${prefix} Worktree behind origin (remote-ahead) — fast-forward `
+        + "(`git pull --ff-only`) before notes can publish.";
+    case "local-ahead":
+      return `${prefix} Worktree local-ahead under \`pushInterlock: manual\` — push `
+        + "(`arc release push` or `git push`) or raise `pushInterlock` to enable cascade.";
+    case "no-upstream":
+      return `${prefix} Branch has no upstream under \`pushInterlock: manual\` — push with `
+        + "`-u` (`git push -u origin <branch>`) or raise `pushInterlock` to enable auto-init.";
+    case "detached-head":
+      return `${prefix} HEAD is detached — check out a branch before notes can publish.`;
+    case "no-remote":
+      return `${prefix} No \`origin\` remote configured — set up a remote before notes can publish.`;
+    case "remote-unavailable":
+      return `${prefix} Origin unavailable — retry when reachable.`;
+    case "clean":
+    case "skipped":
+      // Defensive — reconcileGuidance only fires on save+notes-blocked, which
+      // requires `state ∈ NOTES_BLOCK_WORKTREE_STATES`. `clean` and `skipped`
+      // are structurally outside that set; this arm preserves total-function
+      // shape without inventing user-facing text for a state the path can't
+      // actually reach.
+      return `${prefix} Worktree state: ${state}.`;
   }
 }
 

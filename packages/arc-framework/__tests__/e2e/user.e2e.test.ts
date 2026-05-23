@@ -53,15 +53,17 @@ describe("user add", () => {
     await cleanupTempDir(tmpDir);
   });
 
-  it("creates user directory with SESSION-NOTES.md", async () => {
+  it("creates user directory with the per-user file set", async () => {
     const result = await runArc(["user", "add", "alice"], tmpDir);
 
     expect(result.exitCode).toBe(0);
-    expect(await pathExists(join(tmpDir, ".arc", "user", "alice"))).toBe(true);
-    expect(await pathExists(join(tmpDir, ".arc", "user", "alice", "SESSION-NOTES.md"))).toBe(true);
+    const userDir = join(tmpDir, ".arc", "user", "alice");
+    expect(await pathExists(userDir)).toBe(true);
+    expect(await pathExists(join(userDir, "WORKING-MEMORY.md"))).toBe(true);
+    expect(await pathExists(join(userDir, "USER-INBOX.md"))).toBe(true);
   });
 
-  it("with arc-in-git PM mode also creates ATOMIC-INBOX.md", async () => {
+  it("seeds the same per-user file set under arc-in-git PM mode (no user/ATOMIC-INBOX)", async () => {
     // Re-init with arc-in-git so config reflects PM mode
     const tmpDir2 = await createTempRepo();
 
@@ -75,8 +77,11 @@ describe("user add", () => {
       const result = await runArc(["user", "add", "bob"], tmpDir2);
 
       expect(result.exitCode).toBe(0);
-      expect(await pathExists(join(tmpDir2, ".arc", "user", "bob", "SESSION-NOTES.md"))).toBe(true);
-      expect(await pathExists(join(tmpDir2, ".arc", "user", "bob", "ATOMIC-INBOX.md"))).toBe(true);
+      const userDir = join(tmpDir2, ".arc", "user", "bob");
+      expect(await pathExists(join(userDir, "WORKING-MEMORY.md"))).toBe(true);
+      expect(await pathExists(join(userDir, "USER-INBOX.md"))).toBe(true);
+      // Legacy user/ATOMIC-INBOX seed path retired in WOR.
+      expect(await pathExists(join(userDir, "ATOMIC-INBOX.md"))).toBe(false);
     } finally {
       await cleanupTempDir(tmpDir2);
     }
@@ -97,9 +102,9 @@ describe("user save/load", () => {
   it("save/load round-trip: files restored after deletion", async () => {
     await initAndCommit(tmpDir);
 
-    // User directory exists after init (SESSION-NOTES.md)
+    // User directory exists after init (WORKING-MEMORY.md)
     const userDir = join(tmpDir, ".arc", "user", "test-user");
-    expect(await pathExists(join(userDir, "SESSION-NOTES.md"))).toBe(true);
+    expect(await pathExists(join(userDir, "WORKING-MEMORY.md"))).toBe(true);
 
     // Save user directory to git note
     const save = await runArc(["user", "save"], tmpDir);
@@ -118,7 +123,7 @@ describe("user save/load", () => {
     expect(loadOutput).toContain("Load");
 
     // Files restored
-    expect(await pathExists(join(userDir, "SESSION-NOTES.md"))).toBe(true);
+    expect(await pathExists(join(userDir, "WORKING-MEMORY.md"))).toBe(true);
   });
 
   it("save without identity exits non-zero", async () => {
@@ -193,7 +198,7 @@ describe("sync orchestrator", () => {
     expect(result.exitCode).toBe(0);
     await expect(
       git(["notes", "--ref", "refs/notes/arc/user/test-user", "show", "HEAD"], tmpDir),
-    ).resolves.toContain("SESSION-NOTES.md");
+    ).resolves.toContain("WORKING-MEMORY.md");
   });
 });
 
@@ -250,6 +255,61 @@ describe("user push/pull portability", () => {
 
     // Verify files are present in the clone
     const userDir = join(cloneDir, ".arc", "user", "test-user");
-    expect(await pathExists(join(userDir, "SESSION-NOTES.md"))).toBe(true);
+    expect(await pathExists(join(userDir, "WORKING-MEMORY.md"))).toBe(true);
+  });
+});
+
+describe("user open / close lifecycle", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await createTempRepo();
+    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
+    expect(init.exitCode).toBe(0);
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tmpDir);
+  });
+
+  it("opens a per-WU subdir and seeds SESSION-NOTES.md from template", async () => {
+    const result = await runArc(["user", "open", "feature-x"], tmpDir);
+
+    expect(result.exitCode).toBe(0);
+    const subdir = join(tmpDir, ".arc", "user", "test-user", "feature-x");
+    expect(await pathExists(subdir)).toBe(true);
+    expect(await pathExists(join(subdir, "SESSION-NOTES.md"))).toBe(true);
+  });
+
+  it("idempotent on second open — preserves in-flight SESSION-NOTES edits", async () => {
+    const first = await runArc(["user", "open", "feature-x"], tmpDir);
+    expect(first.exitCode).toBe(0);
+
+    const seedPath = join(tmpDir, ".arc", "user", "test-user", "feature-x", "SESSION-NOTES.md");
+    const { writeFile, readFile } = await import("node:fs/promises");
+    const customContent = "# Custom session notes\n\nIn-flight edits.\n";
+    await writeFile(seedPath, customContent, "utf-8");
+
+    const second = await runArc(["user", "open", "feature-x"], tmpDir);
+    expect(second.exitCode).toBe(0);
+
+    expect(await readFile(seedPath, "utf-8")).toBe(customContent);
+  });
+
+  it("closes a per-WU subdir, removing it recursively", async () => {
+    const open = await runArc(["user", "open", "feature-x"], tmpDir);
+    expect(open.exitCode).toBe(0);
+    const subdir = join(tmpDir, ".arc", "user", "test-user", "feature-x");
+    expect(await pathExists(subdir)).toBe(true);
+
+    const close = await runArc(["user", "close", "feature-x"], tmpDir);
+    expect(close.exitCode).toBe(0);
+
+    expect(await pathExists(subdir)).toBe(false);
+  });
+
+  it("close is idempotent — no error when the subdir is already absent", async () => {
+    const result = await runArc(["user", "close", "never-opened"], tmpDir);
+    expect(result.exitCode).toBe(0);
   });
 });

@@ -1,10 +1,11 @@
 import { describe, it, expect } from "vitest";
 
-import { runPushabilityStatus } from "../../../src/lib/git/pushability.js";
+import { isRefusalCondition, runPushabilityStatus } from "../../../src/lib/git/pushability.js";
 import type {
   ExecResult,
   GitExec,
   GitExecOptions,
+  PushabilityCondition,
 } from "../../../src/lib/git/index.js";
 
 type ResponseFn = (
@@ -126,7 +127,7 @@ describe("runPushabilityStatus", () => {
     expect(detached?.guidance).toContain("HEAD is detached");
   });
 
-  it("worktree branch with no upstream blocks target 'worktree' with -u guidance", async () => {
+  it("worktree branch with no upstream surfaces caller-resolvable condition with -u guidance", async () => {
     const responses = cleanRepoResponses();
     responses[REV_PARSE_HEAD] = { stdout: "feature/x", stderr: "" };
     responses[REV_PARSE_UPSTREAM] = () => {
@@ -139,7 +140,7 @@ describe("runPushabilityStatus", () => {
 
     expect(result.allowed).toBe(false);
     const noUpstream = result.conditions.find((c) => c.kind === "no-upstream-branch");
-    expect(noUpstream?.disposition).toBe("block");
+    expect(noUpstream?.disposition).toBe("caller-resolvable");
     expect(noUpstream?.branch).toBe("feature/x");
     expect(noUpstream?.guidance).toBe("Set upstream first: `git push -u origin feature/x`");
   });
@@ -544,5 +545,32 @@ describe("runPushabilityStatus", () => {
       expect(result.allowed).toBe(false);
       expect(result.conditions.find((c) => c.kind === "no-upstream-branch")).toBeDefined();
     });
+  });
+});
+
+describe("isRefusalCondition", () => {
+  function mkCondition(disposition: PushabilityCondition["disposition"]): PushabilityCondition {
+    return {
+      kind: "no-upstream-branch",
+      disposition,
+      branch: "feature/x",
+      guidance: "—",
+    };
+  }
+
+  it("returns true for block disposition", () => {
+    expect(isRefusalCondition(mkCondition("block"))).toBe(true);
+  });
+
+  it("returns true for caller-resolvable disposition", () => {
+    expect(isRefusalCondition(mkCondition("caller-resolvable"))).toBe(true);
+  });
+
+  it("returns false for advisory disposition", () => {
+    expect(isRefusalCondition(mkCondition("advisory"))).toBe(false);
+  });
+
+  it("returns false for auto-fixed disposition", () => {
+    expect(isRefusalCondition(mkCondition("auto-fixed"))).toBe(false);
   });
 });

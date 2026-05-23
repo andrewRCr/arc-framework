@@ -199,7 +199,7 @@ Task lists typically include a final "Testing & Quality" phase for Tier 3:
 
 ---
 
-[dev-rules-arc]: ../../constitution/DEV-RULES.ARC.md
-[dev-rules-project]: ../../constitution/DEV-RULES.PROJECT.md
+[dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
+[dev-rules-project]: ../../../system/rules/DEV-RULES.PROJECT.md
 [process-task-loop]: ../../../system/workflows/arc/3_process-task-loop.md
 [generate-tasks]: ../../../system/workflows/arc/2_generate-tasks.md

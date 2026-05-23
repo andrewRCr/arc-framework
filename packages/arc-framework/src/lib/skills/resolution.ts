@@ -60,7 +60,7 @@ export interface SkillGenerationTarget {
 /**
  * Canonical skill names shipped with the framework.
  *
- * These live in `<arc-dir>/system/skills/<name>/SKILL.md` and are the source
+ * These live in `<arc-dir>/system/.internal/skills/<name>/SKILL.md` and are the source
  * of truth for all generated per-tool copies.
  */
 export const CANONICAL_SKILLS = [

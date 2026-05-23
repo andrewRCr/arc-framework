@@ -1,260 +1,168 @@
 ---
-purpose: Revert a work unit activation when no task work has started — return to pre-activation state.
+purpose: Reverse a work unit activation when no task work has executed — state-flip + branch rename, or full deletion.
 audience: collaborative (human and agent)
+arc:
+  methods:
+    - branch-format
+  extensions:
+    - pre-push-review
 ---
 
 # Workflow: Deactivate Work Unit
 
-Returns the project to its pre-activation state: implementation branch gone, planning artifacts back
-in their pre-activation location, no status file. Applicable only when nothing has merged to the
-base branch.
+Reverses an activation when no task work has executed and nothing has merged. Two variants: return the WU to Planning
+(inverse of [`activate-work-unit.md`][activate]), or abandon it entirely (branch and artifacts removed).
 
-**When to use:** A WU was activated, but circumstances changed before any task execution — priorities
-shifted, the design needs rework, the feature was cancelled. The activation itself is the only thing
-to undo.
+**When to use:** A WU was activated, but circumstances changed before any task execution — priorities shifted, the
+design needs rework, the feature was cancelled. The activation itself is the only thing to undo.
 
-> **Incidental WU that interrupted a parent:** If the WU being deactivated was activated via the
-> coordinated pause pattern in [`manage-incidental-work.md`][incidental], deactivation must also
-> resume the paused parent — see [`manage-incidental-work.md`][incidental] § Coordinated Pause/Resume
-> for the paired protocol.
+> **Interrupted parent WU:** If the WU being deactivated is interrupting another WU (per
+> [`manage-incidental-work.md`][incidental]), deactivation must also resume the paused parent — see
+> [`manage-incidental-work.md`][incidental] for the paired protocol.
+
+---
 
 ## Case Matrix
 
-|                        | No task work executed        | Some task work executed           |
-| ---------------------- | ---------------------------- | --------------------------------- |
-| **Not merged to base** | **Case A** — this workflow   | **Case B** → `arc-shift` (future) |
-| **Merged to base**     | **Case C** — noted edge case | **Case D** → integrate or clean   |
+|                        | No task work executed                       | Some task work executed           |
+| ---------------------- | ------------------------------------------- | --------------------------------- |
+| **Not merged to base** | **Case A** — this workflow (or A-delete)    | **Case B** → `arc-shift` (future) |
+| **Merged to base**     | **Case C** — noted edge case below          | **Case D** → integrate or clean   |
 
-## Prerequisites (Case A)
+**Case A** has two variants — the user chooses; surface the variant decision when invoking the workflow:
 
-- No task work executed on the implementation branch (task list checkboxes all `[ ]`)
+- **A (default)** — return the WU to Planning (state flip + branch rename, inverse of activation)
+- **A-delete** — abandon the WU entirely (branch and artifacts removed)
+
+## Prerequisites (Case A / A-delete)
+
+- Currently on the WU's `<type>/<name>` branch (per [`branch-format`][branch-format])
+- `.arc/active/meta-{name}.md` exists and shows `**State:** Active`
+- Task list checkboxes all `[ ]` (no task work executed)
 - No commits from this WU have merged to the base branch (PRs closed without merge, or never opened)
 - Developer has write access to the remote if the branch was pushed
 
-> **Team mode:** Branch deletion is cross-developer by design. Confirm with collaborators before
-> deleting a shared branch — if anyone has local commits, coordinate their handling before
-> proceeding.
-
-## Mode Detection
-
-Reversion semantics differ by [`arc-config.yml`][arc-config] → `pm.mode`:
-
-- **arc-in-git**: Activation moved PRD / task list / atomic companion from `backlog/` to `active/`
-  on the branch ([`activate-work-unit.md`][activate] Step 3). Branch deletion reverts those moves
-  automatically — the base branch still shows the artifacts in `backlog/`. Apply Step 4.
-- **external**: Local `active/` artifacts are agent-facing scaffold; the external tracker holds the
-  source of truth. Apply Step 5.
-- **none**: Local `active/` artifacts are the only copies. Apply Step 6.
-
-## Steps (Case A)
-
-### Step 1: Close Any Open PR
-
-If a pull request was opened for the implementation branch, close it without merging. Note the
-deactivation in the closure comment — this leaves a search trail for anyone later wondering why
-the branch disappeared.
-
-```bash
-# GitHub example — adjust for your platform (see QUICK-REFERENCE § Platform Commands for alternatives)
-gh pr close {pr-number} --comment "Deactivating work unit; no task work executed."
-```
-
-### Step 2: Switch to Base Branch
-
-```bash
-git checkout {base-branch}
-```
-
-### Step 3: Delete the Implementation Branch
-
-**Local:**
-
-```bash
-git branch -D {feature|technical|incidental}/{branch-name}
-```
-
-Use `-D` (force) — the branch carries the activation commit that was never merged to the base
-branch. That's expected for Case A.
-
-**Remote (if pushed):**
-
-```bash
-git push origin --delete {feature|technical|incidental}/{branch-name}
-```
-
-### Step 4: Verify Pre-Activation State · `arc-in-git` only
-
-> **Skip this step** if `pm.mode` is `external` or `none`.
-
-Branch deletion reverted the `git mv` from `backlog/` to `active/` and discarded the activation
-commit's status file creation and PROJECT-STATUS / ROADMAP updates. The base branch should now
-match pre-activation state. Verify:
-
-```bash
-ls .arc/backlog/{category}/prd-{name}.md \
-   .arc/backlog/{category}/tasks-{name}.md \
-   .arc/backlog/{category}/atomic-{name}.md
-# Expected: all three present
-
-ls .arc/active/{category}/status-{name}.md 2>/dev/null
-# Expected: no such file or directory
-```
-
-No further action required — the WU is back in planning state.
-
-### Step 5: Clean Up Local Artifacts · `external` only
-
-> **Skip this step** if `pm.mode` is `arc-in-git` or `none`.
-
-Local `active/` artifacts persist on the base branch after branch deletion — activation never moved them,
-since `external` mode has no `backlog/` directory. The external tracker holds the source of truth;
-these local files are scaffold that should be removed.
-
-1. **Update the tracker**: Move the work item back to its pre-activation state (backlog / icebox /
-   equivalent) in the external system.
-2. **Set up commit branch** (full protection only): Under `branch.protection: full`, the deletion
-   commit requires its own branch. Skip under partial — commit directly to base.
-
-   ```bash
-   git checkout -b chore/deactivate-{name}
-   ```
-
-3. **Delete local artifacts**:
-
-   ```bash
-   git rm .arc/active/{category}/prd-{name}.md \
-          .arc/active/{category}/tasks-{name}.md \
-          .arc/active/{category}/atomic-{name}.md
-   ```
-
-4. **Commit** (`workflowCommit`):
-
-   ```text
-   docs(arc): deactivate {work-name} work unit
-
-   Context: tasks-{name}.md (deactivation)
-   ```
-
-5. **Push and open a PR** (full protection only): Push (`workflowPush`)
-   `-u origin chore/deactivate-{name}` and merge via PR. Under partial protection, the
-   commit is already on base — nothing more to do.
-
-   ```bash
-   gh pr create --base {base-branch} --head chore/deactivate-{name}
-   ```
-
-Reactivation later re-renders artifacts from the tracker.
-
-### Step 6: Clean Up Local Artifacts · `none` only
-
-> **Skip this step** if `pm.mode` is `arc-in-git` or `external`.
-
-Local `active/` artifacts are the only copies of the PRD, task list, and atomic companion. `none`
-mode does not track dormant plans — if the content should be preserved for possible later reuse,
-copy it out of `.arc/` first before deleting. ARC does not prescribe a destination under `none`
-mode.
-
-1. **Optional preservation**: Copy artifacts to a location outside `.arc/` if the content is worth
-   keeping.
-2. **Set up commit branch** (full protection only): Under `branch.protection: full`, the deletion
-   commit requires its own branch. Skip under partial — commit directly to base.
-
-   ```bash
-   git checkout -b chore/deactivate-{name}
-   ```
-
-3. **Delete local artifacts**:
-
-   ```bash
-   git rm .arc/active/{category}/prd-{name}.md \
-          .arc/active/{category}/tasks-{name}.md \
-          .arc/active/{category}/atomic-{name}.md
-   ```
-
-4. **Commit** (`workflowCommit`):
-
-   ```text
-   docs(arc): deactivate {work-name} work unit
-
-   Context: tasks-{name}.md (deactivation)
-   ```
-
-5. **Push and open a PR** (full protection only): Push (`workflowPush`)
-   `-u origin chore/deactivate-{name}` and merge via PR. Under partial protection, the
-   commit is already on base — nothing more to do.
-
-   ```bash
-   gh pr create --base {base-branch} --head chore/deactivate-{name}
-   ```
+> **Team mode:** Branch operations are cross-developer. Confirm with collaborators before renaming or deleting a
+> shared branch — if anyone has local commits, coordinate their handling before proceeding.
 
 ---
 
-## When NOT to Deactivate
+## Steps (Case A — return to Planning)
 
-Cases B, C, and D from the Case Matrix route elsewhere. Each block below opens with a one-sentence
-rationale for why the case is not deactivation.
+### 1) Close any open PR
 
-### Case B — Not merged, some work executed → Pause
+If a PR was opened for `<type>/<name>`, close it without merging — note the deactivation in the closure comment
+to leave a search trail.
 
-A WU with partial task work that the developer wants to park is `arc-shift` pause territory. Shift
-uses a metadata-in-place pattern — the `State:` field flips to `Paused`, artifacts stay where they
-are, no file relocation.
+```bash
+gh pr close {pr-number} --comment "Deactivating work unit; returning to Planning. No task work executed."
+```
 
-> **Status:** `arc-shift` is a future workflow (see `plan-arc-modes.md`). Until it ships, the
-> recommendation for a WU with partial work is to either complete it via
-> [`integrate-work-unit.md`][integrate] or abandon it via [`clean-work-unit.md`][clean] —
-> attempting manual parking without `arc-shift` protocol support invites state drift.
+See QUICK-REFERENCE § Platform Commands for non-GitHub equivalents.
 
-### Case C — Merged to base branch, no work executed → Reversal PR (edge case)
+### 2) State-flip + Branch field edit
 
-**Procedure (rare):**
+Edit `.arc/active/meta-{name}.md`:
 
-1. Create a new branch from the base branch (e.g., `technical/deactivate-{name}`)
-2. Reverse activation's changes on the branch:
-    - `git mv` PRD / task list / atomic companion from `active/{category}/` back to
-      `backlog/{category}/` (arc-in-git); or `git rm` them (external / none)
-    - `git rm` the status file in `active/{category}/`
-    - Restore pre-activation state in PROJECT-STATUS.md and ROADMAP.md
-3. Open a deactivation PR (required under full protection; optional under partial)
+- `**State:** Active` → `**State:** Planning`
+- `**Branch:** {type}/{name}` → `**Branch:** plan/{name}`
 
-This retains Case A's postconditions via explicit inverse commits. No separate workflow ships for
-Case C — use this section as the reference.
+Stage both edits.
 
-### Case D — Merged to base branch, some work executed → Integrate or Clean
+> [!CAUTION]
+> `commit-interlock` release — commit as `workflowCommit`:
 
-- **Complete and ship the WU**: finish remaining tasks, then [`integrate-work-unit.md`][integrate]
-- **Abandon remaining work**: archive with abandoned status via [`clean-work-unit.md`][clean]
+```text
+chore(arc): deactivate {work-name} work unit
+
+- Flip State: Active → Planning
+- Branch field: {type}/{name} → plan/{name}
+
+Context: meta-{name}.md (deactivation)
+```
+
+### 3) Branch rename · 3-step routing
+
+Inverse of activation:
+
+- **Extensions** · `#pre-push-review`: If `pre-push-review` appears in the active-extensions list
+  (established at session init), load and execute its `.actions` before the `workflowPush` push.
+  Halt-on-fail surfaces an actionable message; user fix-and-retries or explicit-invoke bypasses.
+  Otherwise, skip.
+
+```bash
+git branch -m {type}/{name} plan/{name}    # local rename (raw)
+git push -u origin plan/{name}              # workflowPush
+git push origin --delete {type}/{name}      # raw — destructive flag stays literal
+```
+
+`<type>` per [`branch-format`][branch-format]. The wrapper refuses `--delete` by design, so the old-remote deletion
+stays as raw `git`.
 
 ---
 
-## Checklist Summary
+## Steps (Case A-delete — abandon entirely)
 
-Before considering the work unit deactivated, verify:
+### 1) Close any open PR
 
-- [ ] Implementation branch deleted locally and on remote
-- [ ] Any open PR for the branch closed without merge
-- [ ] `arc-in-git`: artifacts back in `backlog/{category}/`; no status file in `active/`
-- [ ] `external`: local artifacts removed; external tracker updated to pre-activation state
-- [ ] `none`: local artifacts removed (preserved elsewhere first if desired)
+```bash
+gh pr close {pr-number} --comment "Deactivating work unit; abandoning. No task work executed."
+```
 
-## Postconditions
+See QUICK-REFERENCE § Platform Commands for non-GitHub equivalents.
 
-- Base branch matches pre-activation state for tracked ARC content
-- No implementation branch for this WU exists locally or on remote
-- Reactivation later starts from the equivalent pre-activation position (backlog entry, tracker
-  item, or fresh planning round per mode)
+### 2) Switch to base branch
+
+```bash
+git switch {base-branch}
+```
+
+### 3) Delete the branch
+
+```bash
+git branch -D {type}/{name}                 # local
+git push origin --delete {type}/{name}      # remote (if pushed)
+```
+
+`-D` (force) is required — the activation commit on the branch never merged to base. That's expected.
+
+### 4) Clean up base-branch leftovers (per `pm.mode`)
+
+Branch deletion in Step 3 removed the WU's in-flight artifacts (`active/meta-*`, `active/spec-*`, `active/tasks-*`,
+`active/atomic-*`, `active/notes-*`, any residual `active/draft-*`) — they lived only on the deleted branch and
+were never merged. The remaining cleanup concerns base-branch leftovers that activation never touched:
+
+- **`arc-in-git`:** If the WU originated from a backlog stub, `backlog/{state}/{name}/` may still exist on base
+  (init moved its draft-doc + companions onto the WU branch but the source folder isn't removed on base until
+  merge). Remove if present. ROADMAP may also need a re-render to drop the abandoned WU — see
+  [Work Organization Strategy § ROADMAP][work-org-roadmap].
+- **`external`:** Update the external tracker — move the work item back to its pre-activation state or to an
+  abandoned bucket. No local file cleanup needed.
+- **`none`:** No file cleanup needed.
+
+If a commit is required for the cleanup (arc-in-git with backlog/ROADMAP edits), full protection wants its own
+branch — `git checkout -b chore/deactivate-{name}` — pushed (`workflowPush`) and merged via PR. Under partial
+protection, the commit lands directly on base.
+
+> [!CAUTION]
+> `commit-interlock` release — commit as `workflowCommit`:
+
+```text
+chore(arc): abandon {work-name} work unit
+
+Context: meta-{name}.md (deactivation)
+```
 
 ---
 
 ## Next Step
 
-No session-level next action follows deactivation. The developer decides what to work on next
-independently — resume another WU, reactivate this one later, or start something new.
+Deactivation has no session-level next action. The developer decides what follows — resume another WU, return to
+`1_create-spec.md` on the now-planning branch (Case A), or start something new.
 
 ---
 
 [activate]: activate-work-unit.md
-[arc-config]: ../../../arc-config.yml
-[clean]: clean-work-unit.md
+[branch-format]: ../../../methods/branch-format.md
 [incidental]: ../supplemental/manage-incidental-work.md
-[integrate]: integrate-work-unit.md
+[work-org-roadmap]: ../../../../reference/strategies/arc/strategy-work-organization.md#roadmap

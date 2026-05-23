@@ -62,8 +62,8 @@ describe("buildChangePlan", () => {
 
     test("classifies added arc-in-git files with correct layer", () => {
       const manifest = makeManifest({});
-      const templateFiles = ["backlog/feature/BACKLOG-FEATURE.template.md"];
-      const arcInGitFiles = new Set(["backlog/feature/BACKLOG-FEATURE.template.md"]);
+      const templateFiles = ["backlog/BACKLOG-INBOX.template.md"];
+      const arcInGitFiles = new Set(["backlog/BACKLOG-INBOX.template.md"]);
 
       const plan = buildChangePlan(manifest, templateFiles, {}, arcInGitFiles);
 
@@ -77,7 +77,7 @@ describe("buildChangePlan", () => {
       const manifest = makeManifest({
         "reference/README.md": frameworkEntry(),
         "system/arc-config.yml": configurableEntry(),
-        "reference/META-PRD.md": scaffoldedEntry(),
+        "reference/PROJECT-PRD.md": scaffoldedEntry(),
       });
 
       // New file list is empty — all files removed
@@ -90,7 +90,7 @@ describe("buildChangePlan", () => {
       );
       expect(byPath["reference/README.md"]!.classification).toBe("Framework");
       expect(byPath["system/arc-config.yml"]!.classification).toBe("Configurable");
-      expect(byPath["reference/META-PRD.md"]!.classification).toBe("Scaffolded");
+      expect(byPath["reference/PROJECT-PRD.md"]!.classification).toBe("Scaffolded");
     });
 
     test("skips removals for files not in old manifest", () => {
@@ -153,16 +153,16 @@ describe("buildChangePlan", () => {
     test("skips scaffolded files into the skipped list", () => {
       const existingEntry = scaffoldedEntry();
       const manifest = makeManifest({
-        "reference/META-PRD.md": existingEntry,
+        "reference/PROJECT-PRD.md": existingEntry,
       });
-      const templateFiles = ["reference/META-PRD.template.md"];
+      const templateFiles = ["reference/PROJECT-PRD.template.md"];
 
       const plan = buildChangePlan(manifest, templateFiles, {}, new Set());
 
       expect(plan.merges).toHaveLength(0);
       expect(plan.skipped).toHaveLength(1);
       expect(plan.skipped[0]).toEqual({
-        outputPath: "reference/META-PRD.md",
+        outputPath: "reference/PROJECT-PRD.md",
         existingEntry,
       });
     });
@@ -210,14 +210,14 @@ describe("buildChangePlan", () => {
       const manifest = makeManifest({});
       const templateFiles = [
         "reference/README.md",
-        "reference/META-PRD.template.md",
+        "reference/PROJECT-PRD.template.md",
       ];
 
       const plan = buildChangePlan(manifest, templateFiles, {}, new Set());
 
       expect(plan.outputToTemplate).toEqual({
         "reference/README.md": "reference/README.md",
-        "reference/META-PRD.md": "reference/META-PRD.template.md",
+        "reference/PROJECT-PRD.md": "reference/PROJECT-PRD.template.md",
       });
     });
   });

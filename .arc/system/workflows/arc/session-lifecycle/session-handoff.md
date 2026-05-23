@@ -4,6 +4,8 @@ audience: agent
 arc:
   methods:
     - session-state
+  extensions:
+    - pre-push-review
 ---
 
 # Workflow: Session Handoff
@@ -18,7 +20,7 @@ duration of this workflow.
 
 Open with the composite probe — single call, slot-wise envelope, per-slot error handling matching
 the session-init pattern. This is **probe-1**; a second invocation (**probe-2**) fires later in
-the workflow to refresh slots that the status-file commit mutates.
+the workflow to refresh slots that the meta-file commit mutates.
 
 ```bash
 arc status --session-handoff --json
@@ -32,13 +34,13 @@ arc status --session-handoff --json
 | `worktree`               | Worktree sync vs `origin/<branch>` — same state vocabulary as session-init. Re-read from probe-2 for unpushed counts  |
 | `user`                   | Notes sync state (`value.state`: clean / remote-ahead / conflict / disabled / remote-unavailable)                     |
 | `syncInterlock`          | `{value, source}` — gates handoff auto-invoke of `arc sync` (`on-handoff`/`on-workflow` fire; `manual` skips)         |
-| `active`                 | Active status file resolution + sessionType (same shape as session-init)                                              |
+| `active`                 | Active meta file resolution + sessionType (same shape as session-init)                                                |
 | `head`                   | `{hash: string \| null}` — current HEAD short-hash. Re-read from probe-2 for the `Commit at Handoff` anchor           |
 | `pushability`            | Pushability pre-check matrix for the worktree push leg                                                                |
 | `restateCandidates`      | Structured payload backing the SESSION-NOTES restate filter — read from probe-1 (stable across step 3)                |
 | `recommendedSummaryLine` | Pre-composed top-of-Confirm-Handoff line (`**Reconcile required:** ...` / `**Worktree:** N unpushed ...` / `null`)    |
 
-**Slot freshness contract.** Probe-1 captures pre-step-3 state. The status-file commit at step 3
+**Slot freshness contract.** Probe-1 captures pre-step-3 state. The meta-file commit at step 3
 mutates `worktree`, `dirty`, and `head`; those slots must be re-read from probe-2 to render
 post-step-3 truth. Other slots (`identity`, `branch`, `syncInterlock`, `active`, `user`,
 `pushability`, `restateCandidates`) are stable from probe-1.
@@ -60,28 +62,32 @@ Session state is split across tracked project state and personal session state (
 [session-state method][arc-methods-session] default — if your project overrides session-state,
 follow the override instead):
 
-- **Active status file** (tracked) — project state for the active work unit:
-  `status-{name}.md` in `.arc/active/{category}/` for Full mode, `status.md` in `.arc/active/`
+- **Active meta file** (tracked) — project state for the active work unit:
+  `meta-{name}.md` in `.arc/active/` for Full mode, `meta.md` in `.arc/active/`
   for Lite mode. Carries `**State:**`, `**Branch:**`, `**Task List:**`, `**Next Task:**`,
   `**Last Completed:**`, `**Blockers:**`, and `**Next Action:**`. Between work units or during
-  planning cycles with no active WU, no tracked status file exists.
-- **SESSION-NOTES.md** (gitignored, `.arc/user/{identity}/`) — personal context: completed work, decisions,
-  debugging insights, things tried. Replaced each handoff (not appended). Created only when there's context
-  worth preserving. Between work units, reset to persistent context only (if any exists) or a minimal
-  completion marker. Identity resolved from `git config arc.identity`.
+  planning cycles with no active WU, no tracked meta file exists.
+- **SESSION-NOTES.md** (gitignored, `.arc/user/{identity}/<wu-name>/`) — per-WU session context:
+  completed work, decisions, debugging insights, things tried. Replaced each handoff (not appended).
+  Between work units, reset to a minimal completion marker. Identity resolved from
+  `git config arc.identity`; `<wu-name>` derived from the active meta filename (basename of
+  `active.value.path`, strip `meta-` prefix and `.md` suffix).
+- **WORKING-MEMORY.md** (gitignored, `.arc/user/{identity}/`) — cross-WU persistent context. Entries
+  survive across handoffs, each carrying an explicit `_Remove when:_` trigger reviewed at each handoff
+  (see § Persistent Context).
 
 > **Person-to-person handoff:** If handing off to a different developer (not just ending your
 > own session), write SESSION-NOTES.md for someone with no prior context on this work and
 > reassign task ownership via `(@name)` markers. See [Team Coordination
 > Strategy][team-coordination] § Person-to-Person Task Handoff for the full protocol.
 
-**Every handoff** — active status file (if an active WU exists) and SESSION-NOTES.md
+**Every handoff** — active meta file (if an active WU exists) and SESSION-NOTES.md
 session context
 
 **When context changes** — Working directory paths or environment expectations in the active
-status file (if one exists)
+meta file (if one exists)
 
-**Preserve persistent context** — `## Persistent Context` carries cross-session entries with explicit
+**Preserve persistent context** — `WORKING-MEMORY.md` carries cross-session entries with explicit
 removal triggers. See § Comprehensive Handoff Format step 1 and § Persistent Context below for the
 preservation criterion and review cadence.
 
@@ -89,20 +95,20 @@ preservation criterion and review cadence.
 
 Update session state files before ending session:
 
-1. **Review `## Persistent Context`** — apply the criterion in the Persistent Context entry
-   below. Remove entries whose triggers are met, AND entries whose information is now carried in
-   tracked state (the criterion catches drift introduced by earlier sessions). Surface removals in
-   the handoff summary; do not silently rewrite.
+1. **Review `WORKING-MEMORY.md`** — apply the criterion in the Persistent Context entry below.
+   Remove entries whose triggers are met, AND entries whose information is now carried in tracked
+   state (the criterion catches drift introduced by earlier sessions). Surface removals in the
+   handoff summary; do not silently rewrite.
 2. **Write SESSION-NOTES `**Working On:**`** using the marker vocabulary established in the
    SESSION-NOTES template:
-    - `status-{name}.md` — normal case, file reference
+    - `meta-{name}.md` — normal case, file reference
     - `[none]` — no active work
     - `[planning: {category}/{name}]` — planning cycle, no WU yet
     - `[between work units]` — between activation and archive of adjacent WUs
-3. **Update the active status file + commit** (if an active WU exists) — advance
+3. **Update the active meta file + commit** (if an active WU exists) — advance
    `**Last Completed:**`, `**Next Task:**`, `**Next Action:**`, and any other load-bearing fields.
-   Status-file changes land as a dedicated `chore(status): handoff` commit per
-   [DEV-RULES.ARC][dev-rules-arc] § Status-file commit shape — at handoff, status is the
+   Meta-file changes land as a dedicated `chore(arc): handoff — <position>` commit per
+   [DEV-RULES.ARC][dev-rules-arc] § Meta-file commit shape — at handoff, the meta file is the
    entire staged change.
 
     **Skip threshold.** Update fields only when changes are materially relevant to next-session
@@ -118,30 +124,57 @@ Update session state files before ending session:
     change, cosmetic reorderings, restating the same Next Action in different words.
 
     **Skill invocation is the approval.** `/arc-handoff` is user-initiated; the invocation grants
-    approval for the workflow's bundled actions, including the `chore(status): handoff` commit.
+    approval for the workflow's bundled actions, including the `chore(arc): handoff` commit.
     No separate per-commit prompt fires under either push-interlock mode — push behavior is gated
     by `arc sync` internally (see § Sync), where remote-side consequences justify granular gating.
-    Stage the status file and lint it (catches authoring errors before the chore-commit lands):
+    Stage the meta file and lint it (catches authoring errors before the chore-commit lands):
 
     ```bash
-    git add <resolved-status-file-path>
+    git add <resolved-meta-file-path>
     <project markdown lint on the staged file>  # fix + re-stage on failure
     ```
 
-    Then invoke `workflowCommit` with message body:
+    **Compose the commit message** from the codified subject + body templates. Position-string
+    selection is field-delta driven (minimal judgment):
+
+    - `Phase N complete, next: Task X.Y` — last-completed task closes a phase boundary
+    - `next: Task X.Y[.z]` — within a phase (task ID encodes phase position)
+    - `between work units` — no active WU
+    - `planning <wu-name>` — on a draft-doc branch
+    - `work unit complete, next: integrate` — all tasks complete; integration pending
+    - `off-task-list — <brief>` — off-task-list work mid-WU
+
+    Body template:
 
     ```text
-    chore(status): handoff
+    chore(arc): handoff — <position>
 
-    Context: <status-file>.md (handoff)
+    Last Completed: <prev> → <curr>
+    Next Task: <prev> → <curr>
+    [State: <value> (changed | unchanged)]
+    [Blockers: <delta if changed>]
+
+    Context: meta-<wu-name>.md (handoff)
     ```
+
+    `Last Completed` + `Next Task` lines always present; `State` line included only when value
+    changed; `Blockers` line included only when delta exists. Prev-value derived from
+    `git show <Commit at Handoff>:<meta-path>` (the hash from SESSION-NOTES); curr-value from
+    staged content.
+
+    **Subject-length guard.** Codified position templates fit under the 72-char hook limit with
+    typical WU/task names. Long WU names (>~30 chars) may force shortened forms — convention for
+    fallback: trim WU name to its last segment.
+
+    > [!CAUTION]
+    > `commit-interlock` release — invoke `workflowCommit` with the composed message.
 
     When the previous block staged a change, the new HEAD becomes the `**Commit at Handoff:**`
     value written in step 5. When no field cleared the skip threshold, nothing is staged and the
     commit is a no-op — step 5 carries the prior `Commit at Handoff:` value forward.
 
-    Contributors (`arc.role = contributor`) skip the commit — their personal active status file at
-    `.arc/user/{identity}/active/status-{name}.md` is gitignored, so the field update lands
+    Contributors (`arc.role = contributor`) skip the commit — their personal active meta file at
+    `.arc/user/{identity}/active/meta-{name}.md` is gitignored, so the field update lands
     without staging.
 4. **Refresh probe** — re-run the composite probe to pick up post-step-3 state:
 
@@ -159,14 +192,14 @@ Update session state files before ending session:
 5. **Write SESSION-NOTES** per the guidance below. Record `**Commit at Handoff:**` from
    probe-2's `head.value.hash` — that's the post-step-3 HEAD whether or not step 3 committed.
 
-**Update the active status file** (tracked project state, if an active WU exists):
+**Update the active meta file** (tracked project state, if an active WU exists):
 
 ```markdown
 ## Work Unit Metadata
 
-**State:** In Progress
-**Branch**: [current branch name, e.g., feature/config-parser]
-**Task List**: [path to task list, e.g., .arc/active/feature/tasks-config-parser.md]
+**State:** Active
+**Branch**: [current branch name, e.g., feat/config-parser]
+**Task List**: [filename of task list, e.g., tasks-config-parser.md]
   [OR: [none associated] for planning/boundary work between task lists]
 **Next Task**: Task 3.3 — Write unit tests (line ~247)
   [REQUIRED when following task list — triple-anchor format enables graduated lookup at session init]
@@ -184,25 +217,28 @@ Update session state files before ending session:
 _Note: Next Task shows WHICH task (stable pointer — always the next incomplete task). Next Action shows
 WHAT to do next (freeform — can be prep work, off-task-list activity, or specific subtask in progress)._
 
-_Content discipline: the status file is a project pointer, not session narrative. Keep each field to one
+_Content discipline: the meta file is a project pointer, not session narrative. Keep each field to one
 line (Next Action may span two when it names a multi-file scope). Push longer context elsewhere — commit
 body for what-and-why, SESSION-NOTES for next-session context, task list completion notes for per-task
 detail. If Last Completed or Next Action exceeds ~2 lines, the content likely belongs in one of those
 surfaces instead. When fields do span lines, wrap to the 120-char target — under-wrapping (60-80 chars on
 continuation lines) is the common failure here._
 
-_Workflow step pointer: When the next action resumes a lifecycle workflow (integrate, archive,
-rotate, activate-planning-branch), use the literal format `<workflow-name> Step <N> — <description>`
-— e.g., "integrate-work-unit Step 7 — push and create PR". The kebab-case workflow name matches the
-workflow filename without `.md`. Both the pre-commit validator (RULE 7 freshness check) and
-session-init's sessionType inference key on this prefix. Task-list-driven workflows
-(process-task-loop) don't need this; the task list checkbox state is the pointer._
+_Workflow step pointer: When the next action resumes a lifecycle workflow (integrate, archive), use
+the literal format `<workflow-name> Step <N> — <description>` — e.g., "integrate-work-unit Step 7 —
+push and create PR". The kebab-case workflow name matches the workflow filename without `.md`. Both
+the pre-commit validator (RULE 7 freshness check) and session-init's sessionType inference key on
+this prefix. Task-list-driven workflows (process-task-loop) don't need this; the task list checkbox
+state is the pointer._
 ```
 
-**Update `.arc/user/{identity}/SESSION-NOTES.md`** (personal session context — gitignored):
+**Update `.arc/user/{identity}/<wu-name>/SESSION-NOTES.md`** (per-WU session context — gitignored).
+Derive `<wu-name>` from the active meta filename (basename of `active.value.path`, strip `meta-`
+prefix and `.md` suffix). When no active WU is anchored, SESSION-NOTES has no subdir home —
+write a minimal between-WUs marker via the next-session pointer instead:
 
 **Audience:** The next session's agent loading from cold context. They already have tracked state —
-git log, task list, status file, commit bodies, `notes-*.md`, PRD, constitution, strategies. Write
+git log, task list, meta file, commit bodies, `notes-*.md`, PRD, constitution, strategies. Write
 only what they can't derive from any of that. Volume is a side effect, not a target.
 
 **Filter pipeline — apply both passes:**
@@ -228,20 +264,20 @@ If any criterion fails, omit. Empty sections write `[none]`.
 ```markdown
 ## Handoff Metadata
 
-**Working On:** status-{name}.md
+**Working On:** meta-{name}.md
 <!--
 Markers:
   [none]                        — no active work
   [planning: {category}/{name}] — planning cycle, no WU yet
   [between work units]          — between activation and archive of adjacent WUs
-  status-{name}.md              — normal case, file reference
+  meta-{name}.md              — normal case, file reference
 -->
 
 **Commit at Handoff:** `{{short-hash}}`
 <!--
   **Session Type:** {planning | execution | integration}
   Optional override; absent → inferred from tracked state. Set only when the next session's
-  intent diverges from what the active status file implies. Case-insensitive. Invalid value →
+  intent diverges from what the active meta file implies. Case-insensitive. Invalid value →
   ignored + warning at session-init.
 -->
 
@@ -259,23 +295,13 @@ Markers:
 ## Additional Context
 
 [Only if the filter passes. Otherwise: [none].]
-
-## Persistent Context
-
-<!-- Entries that survive across handoffs. Each has an explicit removal trigger. -->
-<!-- Review at each handoff: remove entries whose triggers have been met. -->
-
-**[Entry name]:**
-_Remove when: [explicit trigger condition]_
-
-- [Context that must persist until trigger is met]
 ```
 
 **Per-section guidance:**
 
 - **Working On / Session Type override:** Marker vocabulary in the template. `Session Type` is
   optional; absent → session-init infers. Set only when the next session's intent diverges from
-  what the active status file implies (e.g., status points at execution, next session will plan
+  what the active meta file implies (e.g., status points at execution, next session will plan
   a separate concern).
 - **Uncommitted Work:** Work the next session can only see in `git diff` — committed work is
   already in `git log`. Use commit-level granularity so the next session can reconstruct atomic
@@ -295,7 +321,8 @@ _Remove when: [explicit trigger condition]_
   ruled out, observed risks, "currently mid-X with concrete next action Y" mid-task stops.
   Filter applies — empty is normal.
 
-- **Persistent Context:** Entries that survive across handoffs. Each needs an explicit removal
+- **WORKING-MEMORY entries:** Cross-WU persistent context — entries that survive across handoffs
+  (and WU boundaries) at `.arc/user/{identity}/WORKING-MEMORY.md`. Each needs an explicit removal
   trigger (not tied to full work unit completion). Same filter as above.
 
     - **Passes:** forward-looking constraints (terminology for an unlanded rename), un-codified
@@ -303,9 +330,9 @@ _Remove when: [explicit trigger condition]_
     - **Fails:** mechanism decisions already in a plan doc's § Resolved Decisions, rules already
       in a strategy doc, behavioral guidance already in DEV-RULES.
     - **Anti-pattern (planning sessions):** writing an entry for every mechanism decision
-      resolved in the plan doc — Persistent Context is not a substitute for § Resolved Decisions.
+      resolved in the plan doc — WORKING-MEMORY is not a substitute for § Resolved Decisions.
     - **Anti-pattern (future-WU drift):** activation-audit reminders inside a backlog
-      `plan-*.md` for an unactivated WU. Write them into the plan doc itself; the activating
+      `draft-*.md` for an unactivated WU. Write them into the plan doc itself; the activating
       session sees them naturally.
 
     Review at each handoff: remove entries whose triggers are met, AND entries whose information
@@ -326,14 +353,14 @@ filter pipeline above for the full case.)
 
 **Example 1: Off-task-list with known path back**
 
-status-data-pipeline.md:
+meta-data-pipeline.md:
 
 ```markdown
 ## Work Unit Metadata
 
-**State:** In Progress
-**Branch**: feature/data-pipeline
-**Task List**: .arc/active/feature/tasks-data-pipeline.md
+**State:** Active
+**Branch**: feat/data-pipeline
+**Task List**: tasks-data-pipeline.md
 **Next Task**: Task 4.1 — Add retry logic to ingestion step (line ~312)
 **Last Completed**: Task 3.5 — Schema validation for input records
 **Blockers**: [none]
@@ -369,7 +396,7 @@ SESSION-NOTES.md:
 
 **When work is complete and/or task list has been archived**, use this expanded format:
 
-status-{name}.md while the WU is still active:
+meta-{name}.md while the WU is still active:
 
 ```markdown
 ## Work Unit Metadata
@@ -377,12 +404,12 @@ status-{name}.md while the WU is still active:
 **State:** Complete
 **Last Completed**: [Task list name] (Tasks X-Y, archived)
 **Blockers**: [none]
-**Next Action:** archive-work-unit Step 1 — archive artifacts and retire the status file
+**Next Action:** archive-work-unit Step 1 — archive artifacts and retire the meta file
 ```
 
-If the work unit has already been archived, no active status file remains. SESSION-NOTES.md at
-completion is minimal — accomplishment summary with commit hashes, archive path. Preserve any
-Persistent Context entries that span work units; reset ephemeral sections.
+If the work unit has already been archived, no active meta file remains. The per-WU SESSION-NOTES
+subdir is retired alongside the WU (`arc user close` handles this); WORKING-MEMORY.md persists
+unchanged across the archive boundary — its entries' eviction triggers handle cross-WU lifecycle.
 
 ## Post-Update Cleanup
 
@@ -398,6 +425,14 @@ Strategy][session-ops] § Push Toggles for the underlying model.
 
 - **`on-handoff`** (default) / **`on-workflow`** — auto-invoke and consume the structured
   output. Both values fire sync at handoff.
+
+    - **Extensions** · `#pre-push-review`: If `pre-push-review` appears in the active-extensions
+      list (established at session init), load and execute its `.actions` before invoking sync.
+      Halt-on-fail surfaces an actionable message; user fix-and-retries or explicit-invoke
+      bypasses. Otherwise, skip.
+
+    > [!CAUTION]
+    > `sync-interlock` release — auto-invoke `arc sync`:
 
     ```bash
     arc sync --json
@@ -420,7 +455,7 @@ Strategy][session-ops] § Push Toggles for the underlying model.
 
 ## Confirm Handoff
 
-After updating the active status file (if any) and SESSION-NOTES.md, deliver a verbal summary to the user.
+After updating the active meta file (if any) and SESSION-NOTES.md, deliver a verbal summary to the user.
 This is a quick confirmation for the human — the session state files are the durable artifacts.
 
 **ARC session handoff complete** · `{branch-name}` · {clean | uncommitted changes}
@@ -449,12 +484,12 @@ probe-2 otherwise (manual mode or identity absent). Both surfaces compose from c
 **Formatting guidance:**
 
 - Mirrors the session-init orientation summary — bookend pattern. Confirm Handoff doesn't restate
-  what got done (SESSION-NOTES, git log, task list, and status-file `**Last Completed:**` already
+  what got done (SESSION-NOTES, git log, task list, and meta-file `**Last Completed:**` already
   carry it); the verbal output is operational confirmation, not a session retrospective.
-- **Next session**: one line on-task-list (status file pointer); unbounded only when off-task-list
+- **Next session**: one line on-task-list (meta file pointer); unbounded only when off-task-list
   — same bounding as session-init orientation Next Action.
 
 [arc-methods-session]: ../../../methods/session-state.md
-[dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md
+[dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
 [team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md
 [session-ops]: ../../../../reference/strategies/arc/strategy-session-operations.md
