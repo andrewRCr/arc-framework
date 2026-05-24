@@ -193,32 +193,49 @@ rationale.
 
 **Iterative.** User feedback can prompt revision before declaring this pass complete.
 
-### Pass 3: Grounding audit
+### Pass 3: Grounding audit + coherent revision
 
-Phase-by-phase pre-impl-readiness gate. Catches assumptions, codebase drift, and masked design
-decisions before they become impl-time surprises.
+Per-phase pre-impl-readiness gate, run **one phase at a time, top-down**: audit the phase, surface its
+findings and any design decisions, confirm before editing, then revise the phase coherently. Settling each
+phase before the next keeps it commit- and handoff-able mid-pass, and surfaces cross-phase dependencies at the
+boundaries. The **verification phase is audit-exempt** — its single `verify-work-unit.md` pointer has nothing
+to ground.
 
-#### Step 3.1: Invoke arc-task-audit per phase
+Run Steps 3.1–3.3 for each non-verification phase in order; run Step 3.4 once, after the last phase.
 
-For each phase in the Pass 2 draft, invoke the [arc-task-audit][arc-task-audit] skill scoped to
-that phase. The skill is the meat of Pass 3 — it surfaces the eight categories of issues
-(unexposed assumptions, masked design decisions, codebase drift, ordering risks, scope ambiguity,
-interface contracts, test strategy gaps, missing acceptance criteria).
+#### Step 3.1: Audit the phase
+
+Invoke the [arc-task-audit][arc-task-audit] skill scoped to the phase. It surfaces the eight issue categories
+(unexposed assumptions, masked design decisions, codebase drift, ordering risks, scope ambiguity, interface
+contracts, test strategy gaps, missing acceptance criteria).
 
 Generation-time framing differs from the skill's typical pre-impl use:
 
-- **Greenfield:** the task list was just authored. Codebase drift is unlikely; file-path /
-  symbol assumptions are common. Focus on grounding (verifying named files and symbols exist).
-- **Phase-by-phase:** audit one phase at a time, top-down. Phase-internal ordering risks
-  surface naturally; cross-phase dependencies appear at boundaries.
-- **Pre-impl-ready gate:** the phase isn't ready until "fix before starting" findings are
-  addressed. "Carry as context" findings can ride.
+- **Greenfield:** the task list was just authored. Codebase drift is unlikely; file-path / symbol assumptions
+  are common. Focus on grounding (verifying named files and symbols exist).
+- **Pre-impl-ready gate:** the phase isn't ready until "fix before starting" findings are resolved.
+  "Carry as context" findings can ride.
 
-#### Step 3.2: Apply corrections
+#### Step 3.2: Surface findings + decisions, then confirm
 
-For each "fix before starting" finding, edit `tasks-{name}.md` in place — update file paths,
-clarify scope, add subtasks for masked design decisions, etc. Save after each phase's
-corrections land.
+> [!IMPORTANT]
+> `workflow-interlock`: Surface the phase's findings — per-finding (category → severity → finding →
+> recommendation), with reflection woven in — **plus any masked design decisions, each stated with a lean**.
+> Stop and await direction **before editing**. Resolving the decisions first means corrections land coherently
+> in one pass instead of as "(pending)" caveats re-edited later.
+
+Don't apply edits in this step. Masked design decisions are confirmed here, not deferred into the task body.
+
+#### Step 3.3: Revise the phase coherently
+
+Apply the confirmed corrections so the phase reads **as if the design were always this way** — no audit /
+correction / "pending" provenance in the task bodies (per [DEV-RULES.ARC][dev-rules-arc] § Write for the
+reader: document what *is*, not what *was*). Fold "fix before starting" findings into Goals, bodies, and
+subtasks directly; a corrected mechanism *becomes* the design statement, not an annotation on the old one.
+
+**Spec-propagation.** When a finding corrects a *spec-level* assumption — a requirement's named mechanism,
+shape, or interface was wrong — route the correction back to the spec (`spec-{name}.md`), not only the task
+list, so the whole WU suite stays coherent (per [DEV-RULES.ARC][dev-rules-arc] § Design before implementation).
 
 **Generation-time durable-capture discipline.** "Carry as context" findings need a durable
 home before save — at generation time, no implementing-session context exists to absorb them
@@ -235,23 +252,22 @@ lives in the implementing agent's session memory. Generation-time durability is 
 the implementing agent will be a different session, possibly different agent, weeks or months
 from now.
 
-> [!IMPORTANT]
-> `workflow-interlock`: Stop after the audit findings and corrections are applied per phase.
-> Surface findings with reflection woven in; await direction before declaring the task list
-> impl-ready.
+#### Step 3.4: Final suite-coherence pass (once, after all phases)
 
-Same surfacing discipline — weave observations into the findings presentation. Per-finding
-shape (category → severity → finding → recommendation) keeps fix-before-starting and
-carry-as-context handled distinctly.
+A coherence **read** across the full suite — `tasks-{name}.md`, `spec-{name}.md`, and `notes-{name}.md` — after
+every phase has been revised. Not a re-audit: it checks cross-phase consistency (terminology, cross-references,
+ordering language), suite-level alignment (the spec's Goals / Success Criteria / Open Questions match the
+amended requirements; resolved open-questions reflected), dangling references, and that the task list reads as
+one coherent forward artifact. Always read; **edit only on drift** — often a near-no-op when per-phase revision
+was clean, heavier when phases interlock tightly. If this pass surfaces a *new design issue* (not mere
+inconsistency), loop back to that phase's Step 3.2 — the coherence pass is not a second decision venue.
 
-**Internal lenses for this pass:**
+**Internal lenses:**
 
-- **Fix-before-starting addressed** — every "fix before starting" finding applied as a
-  task-body edit
-- **Carry-as-context durably captured** — every carry-as-context finding has a durable home
-  (inline `_Note:_` or `notes-{name}.md` cross-reference)
-- **Impl-ready vs another cycle** — does the task list genuinely settle here, or does
-  another Pass 2 / Pass 3 cycle help?
+- **Fix-before-starting resolved** — every "fix before starting" finding folded into the design, not annotated
+- **Coherent forward artifact** — no audit / correction / "pending" provenance survives in any task body
+- **Suite coherence** — spec-level corrections propagated; tasks, spec, and notes read consistently
+- **Impl-ready vs another cycle** — does the suite genuinely settle, or does another Pass 2 / Pass 3 cycle help?
 
 **Iterative.** User feedback can prompt revision before declaring impl-ready.
 
@@ -295,6 +311,9 @@ against the pre-save checklist and bundles the commit.
 - [ ] Verification phase as final phase (single task pointing to `verify-work-unit.md`)
 - [ ] All "carry as context" findings from Pass 3 are durably captured (inline `_Note:_` or
       cross-reference to `notes-{name}.md` companion file)
+- [ ] Task bodies read as a coherent forward artifact — no audit / correction / "pending" / amendment
+      provenance (Pass 3 corrections folded into the design, per [DEV-RULES.ARC][dev-rules-arc] § Write for
+      the reader)
 - [ ] Task instructions targeting shipped or published files are written in the shipped-content
       register — no movable WU artifact references (`draft-*` / `spec-*` / `tasks-*` / `meta-*` /
       companions) that would survive verbatim execution into the target. See
