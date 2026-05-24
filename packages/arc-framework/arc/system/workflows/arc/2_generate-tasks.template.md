@@ -76,8 +76,10 @@ through Passes 2-3 and Step 4.
 
 **Pass 1 file shape:**
 
-- Header per [`template-tasks.md`][template-tasks] Feature/Technical variant — PRD ref,
-  Branch(es), Base Branch, Purpose; fill from PRD
+- Header per [`template-tasks.md`][template-tasks] planned variant — the single `**Design:**`
+  chain-of-authority pointer (bare spec filename). No `Purpose` / `Branch` / `Base Branch` on
+  `tasks-*`: Purpose lives on the spec, branch on `meta-*`. See
+  [strategy-task-list-formatting § Task List Headers][task-list-formatting]
 - Phase shapes: `## **Phase X:**` headings with `_Purpose:_` line; optional `_Design decisions:_`
   block stating key calls
 - Parent-task skeletons (titles only — H3 headings with backtick-wrapped marker per
@@ -262,8 +264,9 @@ against the pre-save checklist and bundles the commit.
 
 **Verify the file against this checklist:**
 
-- [ ] Header includes `**Purpose:**` field — one-line summary; full Scope lives in the PRD
-      (Feature/Technical only; Incidental retains `## Context` + `## Scope`)
+- [ ] Header is the single `**Design:**` chain-of-authority pointer (bare spec filename) — no
+      `Purpose` / `Branch` / `Base Branch` on `tasks-*` (Purpose lives on the spec, branch on
+      `meta-*`). Incidental retains `## Context` + `## Scope` (it is its own spec)
 - [ ] Phase headers use `## **Phase X:** Description` format (H2; no `## Tasks` wrapper)
 - [ ] Phase preambles open with `_Purpose:_` line (italic); optional `_Design decisions:_` block
       links to `notes-{name}.md` for full rationale; soft cap ~12 lines per preamble
@@ -323,13 +326,12 @@ See [Task Processing Loop](3_process-task-loop.md) for how task lists are execut
 
 ## Task List Format
 
-See [template-tasks.md][template-tasks] for the header and body skeleton (header with Purpose,
-Tasks with phase preambles, Verification Phase, Success Criteria). See
+See [template-tasks.md][template-tasks] for the header and body skeleton (header with the single
+`**Design:**` pointer, Tasks with phase preambles, Verification Phase, Success Criteria). See
 [strategy-task-list-formatting.md][task-list-formatting] for formatting rules and conventions.
 
-The PRD path should reflect the PRD's current location (matching the task list's save location).
-In arc-in-git mode, [activation][activate-work-unit] updates both paths when documents move to
-`active/`.
+`**Design:**` is a bare spec filename — the path derives from the task list's directory, so a
+backlog → active move needs no field edit.
 
 ---
 
