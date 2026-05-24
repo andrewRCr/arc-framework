@@ -395,6 +395,18 @@ cross-cutting section rather than inside the Local mode treatment. It's universa
       `template-meta.md` (schema authority) and `strategy-work-organization.md` § Source of truth — rides
       phase 8's shipped-doc edits, no new phase. roadmap-tooling narrows to *automating* the render + the
       directional derivation of an already-standardized field.
+    - **Priority — settled details + non-goals (2026-05-24).** Levels are **P1 / P2 / P3** — `P0` is avoided:
+      it carries an emergency / stop-the-world connotation that collides with incident-severity culture and
+      misfits a *standing* attention scale (external validation concurs; no prior art exists for priority
+      across concurrent agent worktrees, so this is novel-space design). Durability is the **tracked field +
+      git history** — every change is an authored, timestamped commit carrying its rationale in the message;
+      no in-file change-log array (hand-curated mutable state per ADR-020, redundant with git). Anti-inflation
+      discipline (a soft cap on concurrent P1s) is **documentation guidance only** — strategy doc + docs site,
+      never an agent-surfaced nag or render-time signal: ARC renders the state you consult, it does not
+      editorialize; over-use is the operator's prerogative. An emergency / expedite signal, if ever wanted, is
+      an **orthogonal lane / flag — never a `P0` level** — with "halt parallel expansion (no new spawns) until
+      it lands" semantics, and one of the rare *explicit-block* cases (a soft nag would be useless here);
+      **YAGNI now**, noted so the idea survives as an orthogonal axis rather than a priority level.
     - **Directional layer largely dissolves.** With `State × Depends-On × Priority`, now/next/later is
       *derivable* (Now = In Flight; Next = Ready, priority-ordered; Later = the rest) — a render mode, not a
       curated doc; narrative direction lives in PROJECT-PRD. Routed to roadmap-tooling's "should ARC add a
