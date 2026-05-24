@@ -83,6 +83,15 @@ change is still an Errand) — and it carries the chore-like, not-the-main-conce
 wants. The name lives at the taxonomy layer only; commits use the `standalone (...)` footer regardless,
 so "Errand" never enters commit syntax.
 
+**Open question — renaming the "Work Unit" wrapper itself (deferred).** Codifying the Errand sibling
+surfaced whether "Work Unit" / `WU` is the right name for the heavy class. Considered and **not adopted**:
+*program* (maximal collision in a software-methodology tool — every adopter writes programs) and *labor*
+(connotation baggage, and less precise than "work unit"). "Work unit" stays — neutral, accurate, a
+recognized term; its only wart is the `WU` abbreviation, addressed far more cheaply by a
+spell-it-out-on-user-surfaces style rule than by a constitutional rename. A class rename would be an
+ADR-led dedicated sweep (workflows, strategies, templates, CLI, `meta-*` naming) — out of scope for the
+cohort. Revisit only if a clearly superior, collision-free term emerges; none has.
+
 **The 1:1 relaxation.** A branch + PR no longer implies a WU. Under full / host-protected `main` an
 Errand may take an ephemeral `chore`-type branch + PR; under partial protection it is a direct commit.
 Either way it has no meta file and never enters lifecycle, orientation, handoff, or archival. ADR-019's
