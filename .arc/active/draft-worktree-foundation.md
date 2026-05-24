@@ -368,7 +368,8 @@ cross-cutting section rather than inside the Local mode treatment. It's universa
       user-scoped in-flight (`STATUS.USER`, this WU, `Owner = me`) / direction (now/next/later — see below).
       `STATUS.USER` is a **filtered mode of the same source**, not a second generator; the user/project
       split mostly bites in team mode (solo: `Owner = me` ≈ all). Scope `STATUS.USER` to the in-flight-mine
-      slice (the cross-worktree-invisible part); not-in-flight stays in the project view.
+      slice (the cross-worktree-invisible part); not-in-flight stays in the project view. What counts as
+      in-flight — does it include Planning-in-active? — is a spec-blocking open question (§ Open Questions).
     - **Priority render-seam (forward-compat).** Render a `**Priority:**` meta field (P3 default / P2 / P1)
       *if present*; do **not** introduce the field here — it is cross-cutting schema (renders in both
       views), routed to roadmap-tooling. Priority must be a per-WU *field* (derived, conflict-free), never a
@@ -808,6 +809,33 @@ ARC's session-init reads explain when to use it.
 
 ## Open Questions
 
+### In-flight definition — does it include Planning-in-active? (blocks spec)
+
+**Surfaced 2026-05-24.** `strategy-work-organization.md` § ROADMAP step 4 defines **In Flight =
+`State: Active | Integrating`**. So a WU *actively in planning* — `State: Planning`, living in `active/`, on
+a `plan/` branch, with ongoing sessions (worktree-foundation itself) — renders as **Ready**,
+indistinguishable from a never-started WU. The project ROADMAP shows this now (`_None in flight._` while WF
+is mid-planning; correct per the algorithm, not a missed regen). The same predicate feeds the user view:
+the cohort doc specs STATUS.USER as "ROADMAP's in-flight rows filtered to `Owner = me`," so **as specced
+STATUS.USER would omit your own actively-planned WU** — defeating its purpose (a worklist should show what
+you are working *now*, including planning).
+
+**Decision needed before spec** — the oracle's in-flight predicate (item 13) depends on it:
+
+- **Lean: Planning-in-active counts as in-flight.** A `plan/` branch is checked out and being mutated, which
+  is the concurrency signal that matters: a foreign WU in Planning is in flight, so writes to its plan
+  artifacts are off-limits to blind editing and must be coordinated (ties to CWC's concurrency gate and the
+  Errand isolation doctrine). "In flight" = *work is checked out and being mutated*, not *execution has
+  begun*. (Deferred — capture only; resolve next session.)
+- Open sub-questions: whether the project ROADMAP and the user view share one in-flight predicate or
+  diverge; whether In-Flight subdivides by explicit `State` or stays a single bucket; whether STATUS.USER
+  renders the explicit `State` value (cohort doc says the user view carries State; the project ROADMAP
+  buckets only — so explicit-State display was specced for the user view, not the project one).
+- **Execution consequence (gated on the decision):** § ROADMAP's In-Flight definition (step 4) and its
+  activation framing (`active/ ⟹ State: Active`, which the lived full-protection model contradicts — a
+  `Planning` WU lives in `active/`) both need updating; the § Work Unit State enum table also still lists
+  the stale `In Progress` value. Folds into Scope Estimate phase 8 (shipped-doc drift-fix).
+
 ### Worktree lifecycle ceremony — resolved (one spec detail remains)
 
 **Resolved:** worktree creation lives in the WU verbs (spawn / `arc start`, cold-start, materialize),
@@ -872,6 +900,8 @@ Phases (provisional):
    capture path (item 14); remove the cut shift-state-machine rows (`Paused` / `Waiting-For`, labeled
    "future arc-shift") from `strategy-work-organization.md` and reconcile its state table with
    `template-meta.md`; reconcile `deactivate-work-unit.md`'s Case Matrix "arc-shift (future)" reference.
+   Also reconcile § ROADMAP's In-Flight definition (step 4) and its `active/ ⟹ Active` activation framing
+   per the resolved in-flight-definition open question (see § Open Questions).
    Frees "shift" for `arc-shift` (item 2).
 9. **Documentation / tests / examples** — standard closing phase.
 
