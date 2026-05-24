@@ -198,6 +198,17 @@ cross-cutting section rather than inside the Local mode treatment. It's universa
     - **Concurrent push reconcile on `refs/notes/arc/user/{identity}`.** When parallel worktrees
       push and the second hits non-fast-forward, reconcile via `git notes merge` (cat_sort_uniq
       default); surface conflict to user when non-trivial.
+    - **Retired-subdir reconciliation.** `arc user close <wu>` removes `user/{id}/<wu>/` at WU
+      retirement, but the trigger is machine-local: a sibling clone that synced the subdir before
+      retirement has no trigger to close it, so a stale `user/{id}/<retired-wu>/SESSION-NOTES.md`
+      lingers (observed 2026-05-23 after a WU integrated on one machine, then main pull / prune /
+      checkout on another). Close it here, where the per-WU subdir load logic already lives:
+      `arc user load` / `pull` / session-init reconciles retired subdirs (local subdir present +
+      absent from recent notes + WU shipped → offer or auto-close with `.internal/` backup), or a
+      session-init stale-subdir sweep. Composes with the orphan-warning T2 (subdir-grouped retirement
+      messaging) in Pressure Points. (Pulled from USER-INBOX 2026-05-23 — the retirement-reconciliation
+      half of this WU's per-WU subdir sync; the mechanism is item 6's load logic, not the partial-push
+      trust signal that stays with `cross-machine-sync-coherence`.)
 
    WOR ships the structural foundation (file relocations, strategy + workflow updates, in-flight
    migration); this WU layers mechanism on top of resolved structure. No allowlist file, no
@@ -351,6 +362,23 @@ cross-cutting section rather than inside the Local mode treatment. It's universa
       (items 3, 11, 12); and CWC's concurrency gate (downstream). The PR-source degrades to refs-only
       when no coord adapter is present (mirrors the branch-gone cascade's coord-probe coupling).
 
+14. **Retire the `atomic-*` companion file in light of the Errand class.** The `atomic-{name}.md`
+    companion was a per-WU holding area for atomic items noticed mid-WU. With the Errand class (cheap
+    standalone work) and worktree-isolated WU spin-up, that holding role evaporates — so WF retires the
+    `atomic-*` file type rather than carrying it forward. Resolves AWL's open question (its scope item 8,
+    "retire or repurpose") in the **retire** direction; AWL item 8 points here. Captured at WF because
+    the Errand mechanism WF's spec ratifies is what obsoletes the companion, and WF is already in the
+    capture-pipeline plumbing (item 6).
+
+    - **Capture reroute (what replaces it).** In-WU atomic work routes by intent: fold into the commit
+      (doing it now), add a task to the task list (part of this WU's plan), spin an Errand (standalone
+      or cross-cutting), or `user/{identity}/USER-INBOX.md` § Atomic (not-yet-actionable). The shared
+      `ATOMIC-INBOX.md` surface and the `atomic` *character* are unaffected — only the per-WU
+      `atomic-*` companion file type retires.
+    - **Sweep scope.** Retire references across DEV-RULES.ARC § Leave it cleaner (capture-routing
+      table), `strategy-task-list-formatting.md` § Atomic Companion File, the `commit-footer` method
+      (the `atomic-[name].md` context anchor), templates, and workflow mentions. Mechanical but broad.
+
 ### Out of scope
 
 - **Focus-role model** (primary/companion/awaiting-external/parked) — landed by
@@ -497,6 +525,41 @@ the worktree exists with a scaffolded meta-* file; bootstrap is uniform downstre
 Adopters composing ARC with an external worktree-management tool get the full structural discipline;
 the advisory conventions become recommendations the adopter applies via their tool's UX (most
 surveyed tools accept user-provided branch names per § External Research Citations).
+
+### Lifecycle workflow impact (lifecycle round, 2026-05-23)
+
+A systematic pass over the lifecycle workflows confirmed how the entry-point and worktree work touches
+them. The *design* impact is captured here; the workflow rewrites are execution-time.
+
+- **`init-work-unit`** gains a **worktree-creating mode**: Step 2's `git checkout -b plan/{name}`
+  (which switches the current tree) becomes `git worktree add <templated-path> -b plan/{name}` when
+  invoked via spawn, leaving the originating session in place and reporting the path. This is the
+  concrete content of "spawn = thin wrapper over `init-work-unit`" (item 3) — the wrapper supplies
+  worktree creation, init supplies branch + meta + push. The in-place mode survives for the
+  single-worktree / atomic-launchpad case. (`init` itself stays planning-welded; the life-phase
+  generalization is AWL's seam.)
+- **`activate-work-unit`** is largely unaffected: the branch rename runs inside the WU's worktree and
+  the worktree path stays (per the lifecycle-ceremony resolution in Open Questions); `arc user open`
+  reappears defensively (benign idempotence, not a leak).
+- **`integrate-work-unit`** adds a post-merge worktree-removal advisory after `arc user close`. Detail:
+  a worktree cannot remove itself, so it is removed from another worktree (main) — which composes with
+  the batched-archive note (archive runs in main, so the WU worktree is removable immediately
+  post-merge). Origin-agnostic phrasing per Pressure Points § Cleanup ownership.
+- **`deactivate-work-unit`** Case A-delete runs `git worktree remove <path>` **before** `git branch -D`
+  (git refuses to delete a branch checked out in a worktree). Its Case Matrix's "Case B → `arc-shift`
+  (future)" reference points at the *cut* state machine, not the surviving `arc-shift` — reconcile it in
+  the phase-8 shift-state purge.
+- **`session-handoff`** needs **no structural change**: it delegates push / sync to `arc sync`, whose
+  matrix owns worktree + notes coherence and partial-push recovery — so item 6's concurrent-push
+  reconcile lands in the CLI, not the workflow. It already uses per-WU SESSION-NOTES subdirs and works
+  in any worktree. (Optional symmetry touch: surface worktree context in the Confirm Handoff summary, as
+  session-init's orientation does.) The in-flight view needs no handoff regen-trigger — it regenerates
+  on read at the next orient.
+- **`session-init`** is the heavy touch and is already scoped: worktree detection + branch-gone
+  (item 4), materialize discovery (item 12), in-flight-view regen-at-orient (item 13), `arc-session`
+  rename, Step 7 dual-axis split.
+- **`archive-work-unit`** is worktree-neutral / low-risk — its sweep already lands on the WU branch
+  before merge; not separately examined.
 
 ---
 
@@ -708,20 +771,22 @@ Phases (provisional):
 
 1. **Worktree-awareness phase** — session-init worktree detection + branch-gone cascade,
    `integrate-work-unit.md` cleanup advisory.
-2. **Entry-point phase** — tier-agnostic spawn (thin wrapper over `init-work-unit`), cold-start
-   (incl. named-branch-no-meta recognition), materialize (discovery-led pick-up of a remote WU), the
-   activation-time concurrency check, auto-mode boundary.
+2. **Entry-point phase** — tier-agnostic spawn (the worktree-creating mode of `init-work-unit`),
+   cold-start (incl. named-branch-no-meta recognition), materialize (discovery-led pick-up of a remote
+   WU), the activation-time concurrency check, auto-mode boundary.
 3. **In-session shift phase** — the thin `arc-shift` skill, uncommitted-work handling,
    resume-staleness advisory.
 4. **Main-on-main pattern documentation** — strategy doc + workflow guidance. Lightweight; mostly prose.
 5. **Cross-WU sync phase** — `arc user save/load` path-driven dispatch, per-WU subdir load, cross-WU
-   merge, tombstones, concurrent-push reconcile.
+   merge, tombstones, concurrent-push reconcile, retired-subdir reconciliation.
 6. **Oracle + in-flight view phase** — the in-flight-detection primitive (refs + PRs, refs-only
    degrade) and the view file + strategy-doc standard (derivation algorithm, regen triggers).
 7. **Worktree conventions** — branch-naming method + location template (substrate for phases 2-3).
-8. **Shipped-doc drift-fix** — remove the cut shift-state-machine rows (`Paused` / `Waiting-For`, labeled
+8. **Retirements + shipped-doc drift-fix** — retire the `atomic-*` companion file type and reroute its
+   capture path (item 14); remove the cut shift-state-machine rows (`Paused` / `Waiting-For`, labeled
    "future arc-shift") from `strategy-work-organization.md` and reconcile its state table with
-   `template-meta.md` (rides with this WU per the contract). Frees "shift" for `arc-shift` (item 2).
+   `template-meta.md`; reconcile `deactivate-work-unit.md`'s Case Matrix "arc-shift (future)" reference.
+   Frees "shift" for `arc-shift` (item 2).
 9. **Documentation / tests / examples** — standard closing phase.
 
 Phases 1-2 relatively independent; phase 3 builds on phase 2; phases 4-8 independent.

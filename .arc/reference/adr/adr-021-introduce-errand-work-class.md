@@ -72,7 +72,12 @@ path are the seams that already make this possible.
 but generic — every WU also produces changes — so it carries no lightweight signal. *Patch* is
 fix-shaped and misfits the class's maintenance-leaning center (cohort cross-references, dependency
 notes, doc fixes). *Increment* is the most precise (an Errand is exactly one review increment) but
-clunky as a count-noun. *Errand* names the small, complete, standalone, untracked side-task: its
+clunky as a count-noun. *Atomic* — ARC's own term — was the strongest challenger, rejected on
+principle rather than surface collision: "atomic" is a cross-scale *character* (atomic commits, tasks,
+WUs), and ADR-019 deliberately separated character from wrapper, so naming the class "Atomic" would
+re-tangle them — and it does not nominalize ("an atomic" is awkward). It stays the character; an Errand
+*is* atomic-character work that skips the wrapper. *Errand* names the small, complete, standalone,
+untracked side-task: its
 defining trait is being a bounded task you just complete — not triviality (a consequential one-commit
 change is still an Errand) — and it carries the chore-like, not-the-main-concern signal the class
 wants. The name lives at the taxonomy layer only; commits use the `standalone (...)` footer regardless,

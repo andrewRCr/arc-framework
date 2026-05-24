@@ -259,10 +259,12 @@ get promoted: add the plan-*/PRD, restructure the task list into phases, continu
     - Per-worktree isolation invariant (meta file on WU branch only, not on main while in
       flight)
 
-8. **Atomic companion file retirement (or repurposing).** With cheap atomic-WU spin-up, the
-   companion's "holding area before decision" role largely evaporates — noticed → fold into commit
-   OR spin up atomic WU OR backlog. Open question: retire entirely or repurpose as session-scoped
-   "noticed-pending-decision" capture that drains at handoff. PRD-time question.
+8. **Atomic companion file retirement — owned by Worktree Foundation.** WF retires the `atomic-*`
+   companion file type in light of the Errand class (WF scope item 14): the "holding area before
+   decision" role evaporates with cheap Errands + worktree-isolated spin-up, and in-WU atomic captures
+   reroute by intent (commit / task / Errand / USER-INBOX § Atomic). This WU's earlier "retire or
+   repurpose" question resolves in the **retire** direction at WF; AWL inherits the cleaned-up capture
+   model rather than owning the decision.
 
 9. **Incidental concept retirement.** With worktree isolation handling "unplanned, interrupts another
    WU" (spin up an atomic-tier WU in its own worktree via `arc start --tier atomic`, ship via PR) and
@@ -449,18 +451,12 @@ standard, 2 atomic"); auto-cleanup of completed-but-not-archived atomic WUs at s
 
 ## Open Questions
 
-### Atomic-companion retirement vs repurpose
+### Atomic-companion retirement — resolved at Worktree Foundation (retire)
 
-The companion's "holding area before decision" role largely evaporates with cheap atomic-WU
-spin-up. Two paths:
-
-- **Retire entirely.** Migration: existing companion-file content reviewed at retirement, items
-  routed to atomic WUs / commits / backlog as appropriate.
-- **Repurpose as session-scoped capture.** The companion becomes a per-session "noticed-pending-
-  decision" surface that drains at session-handoff (each item resolves to fold-in / new-WU /
-  defer). Lighter than current; preserves a holding area for in-flight decisions.
-
-PRD-time decision after observing usage patterns under the new tier model.
+Resolved: WF retires the `atomic-*` companion file type (WF scope item 14) in light of the Errand
+class — the "holding area before decision" role evaporates with cheap Errands + worktree-isolated
+spin-up. In-WU atomic captures reroute by intent (commit / task / Errand / USER-INBOX § Atomic). This
+WU no longer owns the retire-vs-repurpose decision; it inherits the cleaned-up capture model.
 
 ### Default `**Origin:**` population with an external tracker present
 
