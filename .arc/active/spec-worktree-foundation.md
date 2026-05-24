@@ -98,9 +98,10 @@ it falls out cheaply.
 - **R1 [P0]** — Session-init detects worktree context via `git rev-parse` and surfaces it in orientation
   when the session is in a non-primary worktree (e.g. `worktree: ../arc-wu-b`). Cheap, always on.
 - **R2 [P0]** — Introduce `branch-gone` as a distinct `worktree.value.state`, split from
-  `remote-unavailable`. It **reinterprets the outcome of the bounded `git fetch origin <branch>` the probe
-  already runs** (upstream resolves to `gone` post-prune) rather than adding a fetch — branch-gone detection
-  rides free.
+  `remote-unavailable`. It **classifies the failure of the bounded `git fetch origin <branch>` the probe
+  already runs**: when the upstream branch is deleted, that fetch fails ("couldn't find remote ref", exit 128),
+  and `boundedFetch` surfaces that failure kind (rather than discarding it) and classifies it as `branch-gone`,
+  distinct from timeout / network / auth `error`. No added fetch — detection rides the existing one.
 - **R3 [P0]** — On `branch-gone`, run a resolution cascade: `git worktree list` (other active worktrees) →
   per-worktree meta reads via WOR's cross-worktree roster cascade (active WU branches by `**Branch:**`,
   identity-filtered by `(@identity)` in team mode) → recently-active remote branches within
@@ -184,8 +185,9 @@ flat at `user/{identity}/**`; `user/{identity}/.internal/**` never synced).
   WU's subdir; older notes' subdirs for different WU names skip. Resolves the spawn → first-load overwrite
   case (a fresh worktree's load does not pick up the prior WU's SESSION-NOTES from main's ancestor walk).
 - **R18 [P0]** — **Cross-WU file merge.** Read the N most-recent notes ref-wide and merge file contents via
-  value-level list-union of H3-headed entries (the codified shape for USER-INBOX and WORKING-MEMORY); dedupe
-  by entry identity (heading).
+  value-level list-union of each file's entries, deduped by per-file entry identity: `WORKING-MEMORY` by its
+  bold-field entry header (`**...:**`) under `## Memories`; `USER-INBOX` by list-item lead-in within each
+  `## Atomic` / `## Backlog` section (section boundaries preserved).
 - **R19 [P0]** — **Tombstones for cross-WU deletions.** Entry removal writes a `## Removed: {name}` marker
   with timestamp; merge respects the most recent tombstone over earlier inclusion. GC = a **generous fixed
   TTL filtered at merge time** (default ~90 days from the marker timestamp): tombstones past the window stop
@@ -209,7 +211,7 @@ flat at `user/{identity}/**`; `user/{identity}/.internal/**` never synced).
 - **R24 [P0]** — **Coherence-WU forward-compat seams (concrete).** Item D touches `.internal/.sync-state.json`
   and establishes the per-WU sync class. Leave a *concrete* seam so `cross-machine-sync-coherence`'s remote
   partial-push marker and T3 drift-detection layer on without a rewrite — **leave the seam, do not build the
-  marker**: (i) **version** the `.sync-state.json` schema (`schemaVersion`); (ii) keep its shape
+  marker**: (i) **bump** the `.sync-state.json` schema `version` field (the existing field, `3` → `4`); (ii) keep its shape
   **worktree-aware** — do not bake in a single (main-worktree) HEAD assumption, since Foundation makes
   concurrent worktrees real and partial-push state is per-worktree; (iii) reserve extension points for a
   `priorFileList` (T3's drift signal, routed downstream) and remote-marker provenance, without implementing
@@ -220,11 +222,11 @@ flat at `user/{identity}/**`; `user/{identity}/.internal/**` never synced).
 
 ### E. Worktree conventions (overridable methods)
 
-- **R25 [P0]** — **Branch-naming method** (`branch.naming_convention`), implemented under `system/methods/`
-  with the full method-override machinery. Default = Conventional Branch alignment per WOR's settled type-set
-  (core execution types + `plan/<name>`); the method defers the type-set to WOR rather than hardcoding.
-  Override surface mirrors `commit.format`. When ARC creates branches the convention applies; when branches
-  arrive externally it is **advisory** (warn on mismatch, never refuse or relocate).
+- **R25 [P0]** — **Branch-naming convention**, delivered by **extending the existing `branch-format` method** —
+  which already owns the branch type-set (core execution types + `plan/<name>`) and the method-override
+  machinery — rather than adding a parallel method or config key. Add the worktree branch-naming convention to
+  `branch-format` plus an **advisory warn-on-external-mismatch**: when ARC creates branches the convention
+  applies; when branches arrive externally it warns on mismatch, never refusing or relocating.
 - **R26 [P0]** — **Worktree location template** (`worktree.location_template`), implemented under
   `system/methods/`. Default = `../{repo}.{branch}` (flat sibling-parent; slashes → `-`). Documents override
   examples (in-repo `.worktrees/{branch}`, centralized, home-rooted). When ARC creates worktrees the template
@@ -398,25 +400,32 @@ Validated explicitly at work-unit completion:
 - **Methods are genuinely overridable** — `branch.naming_convention` and `worktree.location_template` resolve
   defaults and accept overrides through the standard method-override machinery.
 
-## Open Questions
+## Design Decisions
 
-### Resolve before / during early task generation
+Settled during planning; final implementation details ratified when the relevant task is built.
 
-- **Examine `cross-machine-sync-coherence` alongside Item D before its planning advances.** Foundation owes
-  that WU the `.sync-state.json` schema seam (R24) and *enlarges* the partial-push surface; its plan predates
-  WOR R65 and this WU and needs a worktree-aware refresh. Foundation is not blocked, but the seam shape
-  should be designed with that consumer in view. *(Sequencing awareness, not a Foundation blocker.)*
+### Resolved at task generation
 
-### Resolve during work (leanings stated; ratify at implementation)
+- **`cross-machine-sync-coherence` seam examined alongside Item D.** Foundation owes that WU the
+  `.sync-state.json` schema seam (R24) and *enlarges* the partial-push surface; its plan predates WOR R65 and
+  this WU and gets a worktree-aware refresh at its own promotion. R24 leaves the versioned, worktree-aware seam;
+  `notes-{name}.md` records the partial-push-surface widening. Sequencing awareness only — not a Foundation
+  blocker.
+- **Branch-naming delivery (R25).** Extend the existing `branch-format` method rather than add a parallel
+  method or config key — `branch-format` already owns the type-set and override machinery.
+- **Spawn's home (R8).** Spawn's worktree-creating mechanics live in the shared CLI-level primitive cold-start
+  uses, invoked from the `arc-session` skill — not a standalone CLI command.
+
+### Decided during planning (final details ratified at implementation)
 
 - **Cold-start spec-input model** — interactive prompt vs. the optional `/arc-session <pointer>` seed.
-  *Lean: interactive default, seed optional.*
+  *Decided: interactive default, seed optional.*
 - **`arc-shift` target selection** — discovery-led pick from `git worktree list` vs. a required arg.
-  *Lean: discovery-led default, optional arg (mirrors the general args posture).*
+  *Decided: discovery-led default, optional arg (mirrors the general args posture).*
 - **Cold-start marker semantics for tool-made worktrees** — when cold-start scaffolds into a worktree ARC did
   not create (external tool / manual `git worktree add`), does ARC write an ownership marker (→
-  offer-to-execute removal) or stay advisory (the tool owns cleanup)? Does not affect orphan-prevention (the
-  R34 sweep surfaces it either way); affects only the offer-vs-advise boundary. *Lean: write the marker only
-  when ARC creates the worktree; advisory for tool-made ones.*
-- **Cold-start as a shared CLI-level scaffolding primitive** that both `arc start` and `arc-session` invoke
-  — confirm the primitive's home so both surfaces stay thin (R9). *Lean: yes, CLI-level.*
+  offer-to-execute removal) or stay advisory (the tool owns cleanup)? Affects only the offer-vs-advise boundary
+  (the R34 sweep surfaces it either way). *Decided: write the marker only when ARC creates the worktree;
+  advisory for tool-made ones.*
+- **Cold-start as a shared CLI-level scaffolding primitive** — confirm the primitive's home so both
+  `arc-session` and the downstream `arc start` stay thin (R9). *Decided: yes, CLI-level.*
