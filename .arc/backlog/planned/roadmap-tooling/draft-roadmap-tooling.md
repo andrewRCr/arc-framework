@@ -105,6 +105,26 @@ integrating` validates archive-phase section presence on the meta file).
 - Output-stability contract: the renderer should reproduce the WOR-era hand baseline exactly, so the cutover is
   a no-op diff. Confirm the hand baseline matches the algorithm closely enough that this holds.
 
+### Cross-WU design input (Worktree Foundation planning, 2026-05-24)
+
+WF's planning round, while designing its user-scoped in-flight view (`STATUS.USER`), settled several points
+that bear on this WU's open questions:
+
+- **Render priority in the project view too.** WF proposes a per-WU `**Priority:**` field (P3 default / P2 /
+  P1); both the project readiness view and WF's `STATUS.USER` render it, deriving conflict-free per ADR-020
+  (a *field* is derived shared state; a hand-curated ordering *doc* is mutated state — avoid). The field is
+  cross-cutting schema, unowned today — this WU (render owner) is its natural home; WF leaves only a
+  render-seam.
+- **Answers "Direction's home."** With `State × Depends-On × Priority`, now/next/later is *derivable* (Now =
+  In Flight; Next = Ready, priority-ordered; Later = the rest) — a render mode, not a separately-curated doc.
+  Narrative direction stays in PROJECT-PRD. So the open call leans **no separate directional doc**; the
+  freed name goes to a derived view, not a hand-maintained timeline.
+- **The rename leans toward `STATUS`.** Adding priority shifts the project view from a pure dependency graph
+  toward a status/priority board — so a `STATUS`/dashboard-flavored name fits better than the earlier
+  graph/pipeline candidates, and **`STATUS.PROJECT`** pairs with WF's **`STATUS.USER`** under the
+  `TYPE.QUALIFIER` convention (see the `doc-naming-convention` provisional stub). The rename + cascade stays
+  this WU's to execute.
+
 ## Scope Estimate
 
 Small–Medium. Three bounded commands plus tests; no new constitutional surface. Lighter if `cohort` / `graduate`
