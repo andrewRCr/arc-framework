@@ -368,12 +368,33 @@ cross-cutting section rather than inside the Local mode treatment. It's universa
       user-scoped in-flight (`STATUS.USER`, this WU, `Owner = me`) / direction (now/next/later — see below).
       `STATUS.USER` is a **filtered mode of the same source**, not a second generator; the user/project
       split mostly bites in team mode (solo: `Owner = me` ≈ all). Scope `STATUS.USER` to the in-flight-mine
-      slice (the cross-worktree-invisible part); not-in-flight stays in the project view. What counts as
-      in-flight — does it include Planning-in-active? — is a spec-blocking open question (§ Open Questions).
-    - **Priority render-seam (forward-compat).** Render a `**Priority:**` meta field (P3 default / P2 / P1)
-      *if present*; do **not** introduce the field here — it is cross-cutting schema (renders in both
-      views), routed to roadmap-tooling. Priority must be a per-WU *field* (derived, conflict-free), never a
-      hand-curated ordering *doc* (mutated shared state per ADR-020 — a drift-trap).
+      slice (the cross-worktree-invisible part); not-in-flight stays in the project view. In-flight is
+      location/ref-based and shared across both views (resolved — § Open Questions): a WU in `active/**`
+      (≡ an unmerged WU branch on the remote) is in flight, so `STATUS.USER` surfaces your actively-planned
+      WUs, not just executing ones.
+    - **Render standard — columns + sort (resolved 2026-05-24).** Both `STATUS.*` views derive from one
+      source; each table renders only the columns that distinguish its rows — **omit any column constant
+      across that table**. Per-table sets: **In Flight** = WU · State · [Priority] · Owner · Depends-on ·
+      Cohort; **Ready** = WU · [Priority] · Owner · Cohort (State constant `Planning`; Depends-on constant
+      `—`, since every Ready row has only satisfied deps); **Blocked** = WU · [Priority] · Owner · Depends-on
+      · Cohort (State constant; Depends-on = the blocking dep); **`STATUS.USER`** (In-Flight-mine only) = WU ·
+      State · [Priority] · Depends-on · Cohort (Owner constant `= me`). `[Priority]` is itself conditional —
+      rendered only when the field is present. Tables are exempt from line-length lint (`MD013.tables: false`)
+      and pad per-table, so width is a readability call, not a gate. **Sort key (uniform):**
+      `(priority, cohort, wu-name)`; Blocked additionally grouped by dependency-depth band (shallowest
+      first). Absent priority resolves to `P3`, so the key reduces to today's `(cohort, wu-name)`
+      pre-priority; WU-name is the total-order tiebreak, so renders are byte-identical for identical inputs
+      (no spurious regen diffs). `STATUS.USER` shares the project In-Flight sort (filtered, not re-sorted).
+    - **Priority — standardized + rendered here (resolved 2026-05-24; was a render-seam).** WF introduces the
+      per-WU `**Priority:**` field rather than deferring it to roadmap-tooling: it is an *input* field
+      (hand-set, like `Owner` / `Depends On`), so it lands where first needed — and the multi-in-flight
+      worklist this WU ships is that place (a flat worklist can't be triaged). Three bounded levels, `P3`
+      default: **P1** top focus (context-switch back first) / **P2** elevated / **P3** baseline ("whenever
+      there's capacity"; unset = `P3`). Owner-set, mutable, conflict-free under worktrees — a per-WU *field*,
+      never a hand-curated ordering *doc* (mutated shared state per ADR-020). Adds `**Priority:**` to
+      `template-meta.md` (schema authority) and `strategy-work-organization.md` § Source of truth — rides
+      phase 8's shipped-doc edits, no new phase. roadmap-tooling narrows to *automating* the render + the
+      directional derivation of an already-standardized field.
     - **Directional layer largely dissolves.** With `State × Depends-On × Priority`, now/next/later is
       *derivable* (Now = In Flight; Next = Ready, priority-ordered; Later = the rest) — a render mode, not a
       curated doc; narrative direction lives in PROJECT-PRD. Routed to roadmap-tooling's "should ARC add a
@@ -809,32 +830,44 @@ ARC's session-init reads explain when to use it.
 
 ## Open Questions
 
-### In-flight definition — does it include Planning-in-active? (blocks spec)
+### In-flight definition — resolved (location-based, shared predicate)
 
-**Surfaced 2026-05-24.** `strategy-work-organization.md` § ROADMAP step 4 defines **In Flight =
-`State: Active | Integrating`**. So a WU *actively in planning* — `State: Planning`, living in `active/`, on
-a `plan/` branch, with ongoing sessions (worktree-foundation itself) — renders as **Ready**,
-indistinguishable from a never-started WU. The project ROADMAP shows this now (`_None in flight._` while WF
-is mid-planning; correct per the algorithm, not a missed regen). The same predicate feeds the user view:
-the cohort doc specs STATUS.USER as "ROADMAP's in-flight rows filtered to `Owner = me`," so **as specced
-STATUS.USER would omit your own actively-planned WU** — defeating its purpose (a worklist should show what
-you are working *now*, including planning).
+**Resolved 2026-05-24.** In-flight is defined by **location, not the `State` enum**: a WU in `active/**` is
+in flight; a stub in `backlog/planned/**` is not. `State: Planning` is overloaded — worn by both an
+actively-planned WU (in `active/`, on a live `plan/` branch) and a parked backlog stub (`Branch: [none]`) —
+so the predicate cannot key on `State` alone. Under WOR's location-by-state + single-branch-per-WU model,
+`active/` only ever holds `{Planning, Active, Integrating}` (Shipped WUs leave for `completed/`), so **In
+Flight = lives in `active/**`** ≡ `State ∈ {Planning, Active, Integrating}` *with the location guard*. The
+oracle's remote view maps 1:1: **In Flight = an unmerged WU branch exists on the remote** (`plan/` or a
+type-prefix; backlog stubs carry no branch, so the oracle never sees them). The local `active/**` walk and
+the remote-ref scan yield the same in-flight set (modulo sync lag) — a consistency invariant the spec states.
 
-**Decision needed before spec** — the oracle's in-flight predicate (item 13) depends on it:
+This corrects the original framing (`In Flight = State: Active | Integrating`), which rendered an
+actively-planned WU as **Ready** — indistinguishable from a never-started stub — and, via the same
+predicate, omitted it from `STATUS.USER`, gutting the worklist (a worklist must show what you are working
+*now*, including planning).
 
-- **Lean: Planning-in-active counts as in-flight.** A `plan/` branch is checked out and being mutated, which
-  is the concurrency signal that matters: a foreign WU in Planning is in flight, so writes to its plan
-  artifacts are off-limits to blind editing and must be coordinated (ties to CWC's concurrency gate and the
-  Errand isolation doctrine). "In flight" = *work is checked out and being mutated*, not *execution has
-  begun*. (Deferred — capture only; resolve next session.)
-- Open sub-questions: whether the project ROADMAP and the user view share one in-flight predicate or
-  diverge; whether In-Flight subdivides by explicit `State` or stays a single bucket; whether STATUS.USER
-  renders the explicit `State` value (cohort doc says the user view carries State; the project ROADMAP
-  buckets only — so explicit-State display was specced for the user view, not the project one).
-- **Execution consequence (gated on the decision):** § ROADMAP's In-Flight definition (step 4) and its
-  activation framing (`active/ ⟹ State: Active`, which the lived full-protection model contradicts — a
-  `Planning` WU lives in `active/`) both need updating; the § Work Unit State enum table also still lists
-  the stale `In Progress` value. Folds into Scope Estimate phase 8 (shipped-doc drift-fix).
+**Sub-questions resolved:**
+
+- **Shared predicate** across project and user views — `STATUS.USER` stays a *filtered mode* of the one
+  source (in-flight rows where `Owner = me`), not a second generator.
+- **Single In-Flight bucket + a per-row `State` annotation** (not sub-tiers). `State` now varies meaningfully
+  within In-Flight (Planning = plan mutating → CWC's concurrency gate; Active = executing), so it renders as
+  a column on In-Flight rows in both views — omitted on Ready/Blocked, where it is constant (see item 13
+  render standard).
+
+**Execution consequence (phase 8 shipped-doc drift-fix — now a *semantic* change, not a relabel):**
+
+- § ROADMAP **step 4** redefines In Flight as location-based and scopes Ready/Blocked to
+  `backlog/planned/**`; the `active/ ⟹ State: Active` activation framing (contradicted by the lived
+  full-protection model — a `Planning` WU lives in `active/`) is corrected to `active/ ⟹ in flight`.
+- **Regen fire-point shifts earlier.** A WU enters In Flight when it lands in `active/**` (born there, or
+  graduated `backlog → active` at planning-kickoff) — *not* at activation, which becomes a `State`-annotation
+  change within In-Flight. The kickoff path needs a regen trigger; partly wired in `init-work-unit` (WOR),
+  partly deferred to arc-plan Conductor — interim is hand-regen under the existing manual-discipline category.
+- The § Work Unit State enum table still lists the pre-WOR `In Progress` (→ `Active`) alongside the cut
+  `Paused` / `Waiting-For` rows already targeted by phase 8; reconcile all three against `template-meta.md`'s
+  4-state machine in one pass.
 
 ### Worktree lifecycle ceremony — resolved (one spec detail remains)
 

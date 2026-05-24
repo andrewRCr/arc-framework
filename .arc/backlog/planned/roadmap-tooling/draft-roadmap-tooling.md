@@ -110,11 +110,12 @@ integrating` validates archive-phase section presence on the meta file).
 WF's planning round, while designing its user-scoped in-flight view (`STATUS.USER`), settled several points
 that bear on this WU's open questions:
 
-- **Render priority in the project view too.** WF proposes a per-WU `**Priority:**` field (P3 default / P2 /
-  P1); both the project readiness view and WF's `STATUS.USER` render it, deriving conflict-free per ADR-020
-  (a *field* is derived shared state; a hand-curated ordering *doc* is mutated state — avoid). The field is
-  cross-cutting schema, unowned today — this WU (render owner) is its natural home; WF leaves only a
-  render-seam.
+- **Priority field — standardized by WF (updated 2026-05-24).** The per-WU `**Priority:**` field (3 bounded
+  levels, `P3` default; a *field*, never a hand-curated ordering *doc* per ADR-020) is introduced by WF, not
+  here: it is an *input* field that lands where first needed, and WF's multi-in-flight worklist is that
+  place. WF adds it to `template-meta.md` + `strategy-work-organization.md` and renders it in both `STATUS.*`
+  views. **This WU's scope narrows to *automating* the render** + the directional derivation (now/next/later)
+  of an already-standardized field — it no longer introduces the field.
 - **Answers "Direction's home."** With `State × Depends-On × Priority`, now/next/later is *derivable* (Now =
   In Flight; Next = Ready, priority-ordered; Later = the rest) — a render mode, not a separately-curated doc.
   Narrative direction stays in PROJECT-PRD. So the open call leans **no separate directional doc**; the
