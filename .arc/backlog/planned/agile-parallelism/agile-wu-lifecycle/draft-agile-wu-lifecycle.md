@@ -22,7 +22,7 @@ variation routes through template choice under the unified `spec-*` filename —
 preserved as the heaviest variant; lighter variants defer to `draft-arc-plan-conductor` WU scope
 (`brief` ruled out as a name — collides with `reference/briefs/`). References to completed WUs
 (Session-Operational Flow, Work Organization Reform, User Sync UX) keep their as-shipped artifact
-names. The shift-state reconciliation is applied inline too — see `notes-worktree-foundation.md`.
+names. The shift-state reconciliation is applied inline too — see `cohort-agile-parallelism.md`.
 
 Substantive AWL-specific implications (captured here):
 
@@ -239,7 +239,7 @@ get promoted: add the plan-*/PRD, restructure the task list into phases, continu
       Shipped` (`Superseded (partial)` as a variant) in `template-meta.md`, folding merge-position
       into the `Integrating` state — so there is no separate `**Integration:**` field, and no
       `Paused` / `In Progress` (the pre-WOR / shift-state vocabulary; see
-      `notes-worktree-foundation.md`). Workflow updates compose with WOR's consolidated boundaries:
+      `cohort-agile-parallelism.md`). Workflow updates compose with WOR's consolidated boundaries:
       `clean-work-unit.md` Mode 2 advances State at integration; PR review state lives in the PR (the
       WU sits in `Integrating` while awaiting review).
     - **Tier-aware sweep ceremony.** Atomic WUs: trivial sweep (single meta file delete in
@@ -272,7 +272,7 @@ get promoted: add the plan-*/PRD, restructure the task list into phases, continu
    Branch alignment); this WU retires the remaining conceptual references in workflows, strategy
    docs, and templates that frame incidental as a distinct WU shape. Mechanical sweep across
    those surfaces. (WOR already retired the pause-pointer fields; nothing migrates to a shift state —
-   see `notes-worktree-foundation.md`.)
+   see `cohort-agile-parallelism.md`.)
 
 10. **Documentation cascade.** [DEV-RULES.ARC][dev-rules] tier definitions and boundary tests;
     [strategy-task-list-formatting.md][tasklist-fmt] tier-aware task list shapes;
@@ -358,6 +358,14 @@ life-phase parameter (Planning vs Active → branch-prefix follows), or whether 
 (`draft-arc-plan-conductor.md`) absorbs both shapes. Surfaced during WOR's cross-reference sweep
 when reframing `2_generate-tasks.md`'s pre-WOR "directly-on-base-branch" bifurcation — that
 workflow narrowed under WOR to the canonical planning-life-phase flow only.
+
+**WF coordination (2026-05-23):** Worktree Foundation ships its `spawn` primitive **tier-agnostic** —
+always-worktree, built as a thin wrapper over `init-work-unit` — and deliberately leaves the life-phase
+parameter as the seam this WU fills. So the tier-conditional spawn behavior (atomic → no worktree, an
+Errand on the bare-git path; quick / standard → worktree) is **AWL's** to layer onto WF's tier-agnostic
+primitive, and the life-phase param (`Planning` vs `Active` → branch-prefix follows) flows through WF's
+wrapper without reshaping it. WF references whatever tier set this WU lands; this WU references WF's
+spawn contract.
 
 ---
 

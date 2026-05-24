@@ -1,4 +1,4 @@
-# ADR-021: Introduce the Change Work Class and Make the Work-Unit Wrapper Optional
+# ADR-021: Introduce the Errand Work Class and Make the Work-Unit Wrapper Optional
 
 ## Status
 
@@ -53,23 +53,33 @@ gives a size sanity-check (not a primary criterion).
 - **Defer all such edits to capture surfaces (USER-INBOX) and drain later.** Rejected for
   stub-ready / actionable work — double-work plus inbox bloat. Capture surfaces remain correct for
   *not-yet-actionable* pointers only.
-- **Introduce a Change work class (chosen).** A wrapper-optional class for work fully consumed in a
+- **Introduce an Errand work class (chosen).** A wrapper-optional class for work fully consumed in a
   single review increment.
 
 ## Decision
 
-We will define **Change** as a first-class work class alongside Work Unit, and make the WU wrapper
+We will define **Errand** as a first-class work class alongside Work Unit, and make the WU wrapper
 optional for work that does not need it.
 
-**The Change class.** A Change is a single review increment, fully consumed when its commit lands: no
+**The Errand class.** An Errand is a single review increment, fully consumed when its commit lands: no
 meta file, no `State` / lifecycle, no name-as-WU. It is tracked by git history (Conventional Commits +
 context footer), not by the planning layer (ROADMAP / backlog / `active/`). Its commit carries the
-existing `standalone (...)` footer — the Change *is* the work that anchor was reserved for. A Change
+existing `standalone (...)` footer — the Errand *is* the work that anchor was reserved for. An Errand
 routes *around* WU machinery rather than through it; the `standalone` footer and the session-init orphan
 path are the seams that already make this possible.
 
-**The 1:1 relaxation.** A branch + PR no longer implies a WU. Under full / host-protected `main` a
-Change may take an ephemeral `chore`-type branch + PR; under partial protection it is a direct commit.
+**Naming.** "Errand" over the alternatives. *Change* (Gerrit's review noun) is precedented and neutral
+but generic — every WU also produces changes — so it carries no lightweight signal. *Patch* is
+fix-shaped and misfits the class's maintenance-leaning center (cohort cross-references, dependency
+notes, doc fixes). *Increment* is the most precise (an Errand is exactly one review increment) but
+clunky as a count-noun. *Errand* names the small, complete, standalone, untracked side-task: its
+defining trait is being a bounded task you just complete — not triviality (a consequential one-commit
+change is still an Errand) — and it carries the chore-like, not-the-main-concern signal the class
+wants. The name lives at the taxonomy layer only; commits use the `standalone (...)` footer regardless,
+so "Errand" never enters commit syntax.
+
+**The 1:1 relaxation.** A branch + PR no longer implies a WU. Under full / host-protected `main` an
+Errand may take an ephemeral `chore`-type branch + PR; under partial protection it is a direct commit.
 Either way it has no meta file and never enters lifecycle, orientation, handoff, or archival. ADR-019's
 "one WU = one branch" is unchanged — every WU still has exactly one branch; ADR-021 adds that not every
 branch is a WU.
@@ -81,30 +91,30 @@ branch is a WU.
 3. it must be **tracked or resumed** as future or owned work (a roadmap slot, dependencies, an owner, a
    cross-session lifecycle).
 
-None of these → it is a Change. As an empirical *symptom* check (not the primary criterion), a candidate
-Change that cannot be reviewed in one window (~400 lines / ~60 minutes) is almost certainly
+None of these → it is an Errand. As an empirical *symptom* check (not the primary criterion), a candidate
+Errand that cannot be reviewed in one window (~400 lines / ~60 minutes) is almost certainly
 multi-increment and is therefore a WU. The trunk-based one-day rule is explicitly *not* the line: it
 governs integration cadence at the review-increment grain, not tracking-worthiness — ARC WUs are
 design-bearing and legitimately span sessions.
 
 **Create vs. maintain.** Creating a new tracked unit of future work — a backlog stub — is a (small) WU
 even when it is one commit, because its output is a tracked deliverable with a meta file. *Maintaining*
-an existing artifact — a dependency note, a cohort cross-reference, a doc fix — is a Change. The
+an existing artifact — a dependency note, a cohort cross-reference, a doc fix — is an Errand. The
 create/maintain distinction scopes the 1:1 relaxation to precisely where it is justified.
 
 **Atomic-as-character, extended.** ADR-019 separated "atomic" (character) from "work unit" (wrapper) but
 still required a wrapper for all work. ADR-021 makes the wrapper *optional* for atomic-character work:
-such work now **defaults to a Change**, and is promoted to a WU only when the threshold trips. "Atomic"
+such work now **defaults to an Errand**, and is promoted to a WU only when the threshold trips. "Atomic"
 remains strictly a character adjective ("an atomic change," "an atomic task") and is not a work class.
 The fate of the *atomic-tier* name within the tier model (atomic / quick / standard) belongs to Agile WU
 Lifecycle, which owns the tier model; ADR-021 only shifts the *default realization* of atomic-character
-work from "atomic-tier WU" to "Change."
+work from "atomic-tier WU" to "Errand."
 
 **Operational conventions (named here, ratified at the cohort PRDs).** The plumbing that makes the
-Change class safe and cheap is owned by the agile-parallelism cohort and detailed in
+Errand class safe and cheap is owned by the agile-parallelism cohort and detailed in
 [`cohort-agile-parallelism.md`][cohort]:
 
-- **Worktree Foundation** — the cheap ephemeral-branch mechanism for Changes, and the concurrency
+- **Worktree Foundation** — the cheap ephemeral-branch mechanism for Errands, and the concurrency
   oracle's hook (in-flight detection from remote refs + open PRs, path/content-based, all-owner). The
   in-flight blind spot is closed by `init-work-unit`'s existing branch-push step.
 - **Concurrent Work Conventions** — the isolation doctrine (do actionable work once, in its real place;
@@ -112,7 +122,7 @@ Change class safe and cheap is owned by the agile-parallelism cohort and detaile
   only when its WU is not in flight; own work uses the user-scoped check, foreign in-flight work is
   coordinated), and the path-graded lighter merge gate (planning / grooming auto-merges, constitutional
   docs stay reviewed; implemented via a conditional "merge-ok" status job, not naive CI path-filtering).
-- **Agile WU Lifecycle** — reconciling the tier model to the Change/WU split and atomic-as-character.
+- **Agile WU Lifecycle** — reconciling the tier model to the Errand/WU split and atomic-as-character.
 
 The concurrency oracle is derived shared state (per [ADR-020][adr-020]'s derived-vs-mutated split):
 regenerated from refs / PRs on demand, conflict-free.
@@ -121,15 +131,16 @@ regenerated from refs / PRs on demand, conflict-free.
 
 ### Positive
 
-- Ceremony is proportionate: a typo is a Change, not a work unit. The WU namespace stays free of
+- Ceremony is proportionate: a typo is an Errand, not a work unit. The WU namespace stays free of
   throwaway entries.
 - WU PR diffs stay clean — cross-cutting work no longer pollutes a member branch or plants cross-branch
   conflicts. The isolation Worktree Foundation provides extends to planning artifacts.
-- The "do it once, in the right place" discipline becomes affordable: a Change is cheap enough that
+- The "do it once, in the right place" discipline becomes affordable: an Errand is cheap enough that
   deferring actionable work to a capture surface (and re-doing it later) stops being the path of least
   resistance.
-- Vocabulary coheres: "atomic" is unambiguously a character; "Change" names a category industry left
-  unnamed, using idiomatic precedent.
+- Vocabulary coheres: "atomic" is unambiguously a character; "Errand" names the small, complete,
+  standalone, untracked side-task as its own class — the lightweight, chore-like signal that "work
+  unit" lacks and that the generic "change" (which every WU also produces) blurs.
 - ARC's existing `standalone` footer and orphan-session seams gain a name and a purpose rather than
   sitting as latent affordances.
 
@@ -144,7 +155,7 @@ regenerated from refs / PRs on demand, conflict-free.
 
 ### Risks
 
-- *Threshold mis-application* (work that should be a WU done as a Change). Mitigation: the empirical size
+- *Threshold mis-application* (work that should be a WU done as an Errand). Mitigation: the empirical size
   symptom-check and the create/maintain split.
 - *Lighter-gate misclassification* letting a substantive change through a light lane. Mitigation:
   path-graded gating keeps constitutional surfaces reviewed; the conditional "merge-ok" job avoids the

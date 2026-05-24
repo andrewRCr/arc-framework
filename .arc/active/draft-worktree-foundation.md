@@ -1,9 +1,9 @@
 # Draft: Worktree Foundation
 
-**Purpose:** Land the mechanism layer for parallel and mobile work — extract shift lifecycle as
-mode-universal infrastructure, add worktree-aware shift, give session-init worktree context awareness
-including branch-gone detection, and resolve cross-WU file sync semantics. Mechanism only; conventions
-land in `draft-concurrent-work-conventions.md`.
+**Purpose:** Land the mechanism layer for parallel and mobile work — the WU entry primitives
+(spawn / cold-start / materialize) and the `arc-session` resume skill, the in-session `arc-shift`,
+worktree-aware session-init including branch-gone detection, cross-WU file sync, and the in-flight
+oracle + view. Mechanism only; conventions land in `draft-concurrent-work-conventions.md`.
 
 - **State:** Draft — pre-spec exploration captured during agile/mobility expansion discussion 2026-04-28.
   Split from former Work-Unit Mobility WU; the conventions layer became Concurrent Work Conventions and
@@ -69,72 +69,64 @@ cross-cutting section rather than inside the Local mode treatment. It's universa
 
 ### In scope
 
-1. **Shift reconciliation — see `notes-worktree-foundation.md`.** The shift lifecycle was extracted
+1. **Shift reconciliation — see `cohort-agile-parallelism.md`.** The shift lifecycle was extracted
    from `draft-arc-modes.md` (Phase 1) and then evaluated against the cohort model. Conclusion: the
    shift *state* machine (`Paused` / `Waiting-For`) is obsolete — superseded by WOR's `Integrating`
    state and worktree-as-parking isolation — and `/arc-status` is cut. "Shift lifecycle" as a distinct
    concept dissolves; WF's surviving shift-related deliverables are the worktree transition primitives
    (items 2, 3, 11) and worktree-aware session-init (item 4). The cohort transition-shape contract in
-   `notes-worktree-foundation.md` is the governing record.
+   `cohort-agile-parallelism.md` is the governing record.
 
-2. **In-session worktree pivot (the surviving "shift").** A thin skill (provisional — a quick-trigger /
+2. **In-session worktree shift (`arc-shift`).** A thin skill (provisional — a quick-trigger /
    canonical entrypoint over a workflow, the `arc-handoff` / `arc-commit` pattern) that repoints the
    current session to another **existing** in-flight worktree, preserving the agent's accumulated
    context. This is the niche case for a short detour where a fresh parallel session would lose that
-   context. Creating a worktree for a new WU is spawn (item 3), not the pivot; the dominant multi-WU
-   pattern is parallel sessions (`cd <worktree> && arc-resume`) per Session-Operational Flow's
+   context. Creating a worktree for a new WU is spawn (item 3), not the shift; the dominant multi-WU
+   pattern is parallel sessions (`cd <worktree> && arc-session`) per Session-Operational Flow's
    concurrency model.
-    - **Naming watch:** "shift" historically named the now-cut state machine; the pivot may rename to
-      `/arc-pivot` (or similar) at spec to avoid importing the dead mental model.
-    - **Uncommitted work at the pivot** (survivor folded from the extracted design): before switching,
+    - **Naming (settled 2026-05-23):** `/arc-shift`. "shift" once named the now-cut state machine, but
+      that machine was never shipped to adopters, so there is no live mental model to import — the only
+      cleanup is purging its `Paused` / `Waiting-For` references (Scope Estimate phase 8), after which
+      "shift" carries a single meaning: moving the session laterally to another worktree.
+    - **Uncommitted work at the shift** (survivor folded from the extracted design): before switching,
       detect uncommitted changes and offer commit (recommended) / stash / leave-as-is; the operator
       chooses. In Local mode, untracked `.arc/` edits follow leave-as-is structurally.
     - **Resume-staleness advisory** (survivor): arriving in a long-idle worktree surfaces a dismissible
       "assumptions may be stale — re-read the spec" nudge past a fixed threshold.
 
-3. **Spawn vs continue separation for new-WU creation.** Distinguishes two operations conflated under today's
-   "starting a WU" mental model:
-    - **Spawn** = one-shot operation invoked from an existing session that creates infrastructure for a new WU:
-      branch, worktree (when applicable per tier), meta file with appropriate tier defaults, empty
-      SESSION-NOTES (optionally seeded with a one-line breadcrumb pointing to the spawning context). Reports the
-      new worktree path. Returns to the originating session's context.
-    - **Continue** is realized via item 11's cold-start bootstrap primitive. A fresh session in the new
-      worktree invokes the primitive, which onboards via `arc-resume` semantics and picks up the
-      scaffolded state. Same primitive serves fresh sessions in worktrees ARC did not spawn (manual
-      `git worktree add`, externally tool-spawned) — bootstrap is uniform across origin.
+3. **Spawn — create a new WU's infrastructure (tier-agnostic at WF).** Spawn is the one-shot operation,
+   invoked from an existing session, that creates a new WU's branch, worktree, meta file, and empty
+   SESSION-NOTES (optionally seeded with a one-line breadcrumb to the spawning context), then reports the
+   new worktree path and returns to the originating session's context. It is the create-side primitive
+   that AWL's `arc start` and arc-plan Conductor's entry verb both delegate to (consumers, not the
+   inverse). See Design Decisions § Entry-point model for how spawn / cold-start / materialize relate.
 
-   This separation solves the "session continues in wrong worktree with stale context" problem of today's
-   single-operation model. The originating session does the spawn; a fresh session in the new worktree does the
-   work via the cold-start primitive. Output ergonomics: spawn reports the path with an actionable invocation
-   hint (e.g., `cd <path> && arc-resume`).
+   **Tier-agnostic at WF (the seam for AWL).** Spawn ships tier-agnostic: it always creates a worktree
+   and a Planning-state meta, built as a **thin wrapper over `init-work-unit`** so AWL's life-phase
+   parameter (`Planning` vs `Active` → branch-prefix follows) flows through later without reshaping the
+   primitive. At WF-ship there is no `**Tier:**` field (AWL introduces it) and `init-work-unit` is
+   planning-only, so every spawned WU pays today's full Planning→Active ceremony — WF adds worktree
+   isolation and one-command ergonomics, not ceremony reduction. The tier-conditional behavior
+   (atomic → no worktree; quick / standard → worktree) is **AWL's** to layer on; WF accepts a
+   forward-compat `--tier` / `--type` it does not yet branch on.
 
-   **Activation-time concurrency check (advisory).** Before creating the worktree, the spawning session reads
-   in-flight WUs (`git worktree list` plus identity-filtered meta files) and assesses scope overlap with the
-   new WU per Concurrent Work Conventions's strategy-doc heuristics — agent-led, judgment-based, advisory.
-   Surfaces concerns to user before spawn (e.g., "WU-X is currently in flight in `../arc-wu-x` and touches the
-   same module — proceed in parallel, or sequence after WU-X integrates?"); does not gate spawn. No probe
-   tooling, no `**Touches:**` field — relies on agent reading existing scope descriptions in the in-flight WUs'
-   `**Purpose:**` / spec content. Forward-compat: degrades to no-op when no other in-flight WUs exist
-   (single-WU world). When this WU ships before Concurrent Work Conventions codifies the heuristics,
-   the check falls back to general agent judgment over `**Purpose:**` / spec text — the check shape is stable;
-   the heuristics document calibrates what counts as overlap. The same check fires from item 11's cold-start
-   primitive — entering a fresh worktree triggers the read against `git worktree list`, surfaces the same
-   advisory regardless of which entry point invoked it.
+   **Errand / atomic work does not spawn.** An Errand (ADR-021) has no meta and never enters lifecycle,
+   so it never touches the spawn primitive — it launches from the **main worktree** (the atomic
+   launchpad, item 8) on a branch off `main`, ships via the lighter gate, and tears down. "Launches from
+   the current worktree" means the main launchpad, **not** an active WU's worktree: PR cleanliness is a
+   function of branch topology (the Errand commit lands off `main`, never on the WU's branch), and
+   running it from the main worktree (or a throwaway worktree off `main`) — never a stash-switch inside
+   an active WU's worktree — is what avoids disrupting in-progress WU state.
 
-   **Tier-aware spawn applicability:**
-
-   - **atomic** tier: no worktree, no spawn — atomic work happens in the current worktree on a side-branch (under
-     `branch.protection: full`) or direct-to-main (under `partial`). Spawn-vs-continue separation doesn't apply.
-   - **quick** tier: worktree by default under `full` protection; optional under `partial`. Spawn applies when
-     concurrent execution is intended.
-   - **standard** tier: worktree always under `full`. Spawn-vs-continue is the dominant path — originating session
-     is almost never the working session.
-
-   **Naming TBD:** the spawn operation may be `/arc-spawn` or `/arc-shift --detach`. Resolves at
-   WF spec. Under the 2026-05-20 resequence (WF ahead of AWL and Conductor), the previously-floated
-   "extend `draft-agile-wu-lifecycle.md`'s proposed `arc start` command with an `--into-worktree` flag"
-   option no longer fits this WU — AWL's `arc start`, when it lands, delegates to whatever spawn
-   primitive WF settles here rather than the inverse.
+   **Activation-time concurrency check (advisory).** Before creating the worktree, the spawning session
+   reads in-flight WUs (`git worktree list` plus the oracle's identity-filtered, refs + PRs view) and
+   assesses scope overlap with the new WU per Concurrent Work Conventions's strategy-doc heuristics —
+   agent-led, judgment-based, advisory. Surfaces concerns before spawn (e.g., "WU-X is in flight in
+   `../arc-wu-x` and touches the same module — parallel, or sequence after it integrates?"); does not
+   gate. No probe tooling, no `**Touches:**` field. Forward-compat: degrades to no-op when nothing else
+   is in flight; when WF ships before CWC codifies the heuristics, the check falls back to general agent
+   judgment over `**Purpose:**` / spec text — the check shape is stable, CWC calibrates what counts as
+   overlap. The same check fires from the cold-start (item 11) and materialize (item 12) entry points.
 
    **Auto-mode boundary:** spawn never fires under auto-cascade. Always an explicit user act.
 
@@ -171,7 +163,7 @@ cross-cutting section rather than inside the Local mode treatment. It's universa
       entry, identity-filter on meta files yields one match, notes-pull confirms. Shipping isn't gated on
       worktree adoption; today's single-WU multi-machine recovery is the simplest instance of the same mechanism.
 
-5. **`/arc-status` skill — cut.** Dropped per `notes-worktree-foundation.md`: the project-wide
+5. **`/arc-status` skill — cut.** Dropped per `cohort-agile-parallelism.md`: the project-wide
    in-flight view is the derived ROADMAP, and session-scoped orientation is something operators already
    hold. The genuinely-distinct value (a user-scoped, cross-WU view of in-flight WUs, including those
    with no open session) is captured as the **user-scoped in-flight dashboard** candidate in the
@@ -276,24 +268,24 @@ cross-cutting section rather than inside the Local mode treatment. It's universa
       `worktree.location_template`) per current arc-config convention. Eventual flat-vs-nested
       schema evaluation may relocate these keys; this WU uses provisional flat-dotted form.
 
-11. **Cold-start bootstrap primitive (provisional name TBD at spec).** Second entry point
-    alongside `arc start` / spawn, for bootstrapping a WU inside any existing worktree —
-    ARC-spawned (the "continue" half of item 4), manually `git worktree add`-ed, or spawned
-    by an external worktree-management tool (Conductor, emdash, Maestro, Zed, Warp, Worktrunk,
-    Super, Superset, T3code, Soloterm, Nora — see External Research Citations):
+11. **Cold-start — scaffold a WU inside an existing worktree.** The create-in-place mechanic (Design
+    Decisions § Entry-point model): bootstrapping a WU inside any existing worktree that has no meta —
+    manually `git worktree add`-ed, or spawned by an external worktree-management tool (Conductor,
+    emdash, Maestro, Zed, Warp, Worktrunk, Super, Superset, T3code, Soloterm, Nora — see External
+    Research Citations):
 
     - Takes any spec input — file pointer, URL, issue link, existing ARC plan-doc, or just a
       name plus brief description — and scaffolds a meta-* file in the current worktree. Honors
       WOR's Origin ⊥ Design orthogonality: external references populate `**Origin:**`; ARC-owned
       artifacts populate `**Design:**`.
 
-    - Subsumes the "continue" role of item 4's spawn-vs-continue separation. When `arc start` /
-      spawn creates a worktree in an existing session, the fresh session in the new worktree
-      invokes the cold-start primitive to pick up scaffolded state. Same primitive handles
-      "agent enters a tool-spawned worktree with no prior ARC context" — bootstrap is uniform
-      across origin.
+    - **Reached from both entry verbs.** `arc-session` invokes it when it finds a bare worktree with no
+      meta; `arc start` invokes it to create a WU in a worktree that already exists (vs spawn, which
+      makes the worktree). Either way it scaffolds the meta and bootstrap is uniform downstream. (When
+      ARC spawned the worktree *and* scaffolded the meta, the fresh session simply *resumes* via
+      `arc-session` — not cold-start.)
 
-    - Fires the activation-time concurrency check (item 4, advisory) from this entry point as
+    - Fires the activation-time concurrency check (item 3, advisory) from this entry point as
       well as from spawn. Same check, same heuristics — the cold-start path reads in-flight WUs
       via `git worktree list` plus identity-filtered meta-file reads, surfaces the same
       advisory regardless of which entry point invoked it.
@@ -302,16 +294,62 @@ cross-cutting section rather than inside the Local mode treatment. It's universa
       doesn't match the configured branch-naming convention; reads worktree location from
       `git worktree list` rather than enforcing the location template).
 
-    - **Surface:** an `arc-resume`-style entry point. Concrete shape TBD at spec — branching
-      within existing `arc-resume` skill logic (cold-start triggered when no active WU is
-      found), a dedicated `arc-resume --bootstrap` flag, or a separate skill. Naming defers to
-      spec.
+    - **Surface:** a dispatch branch of the `arc-session` skill (Design Decisions § Entry-point
+      model) — when no active WU is found in the worktree, `arc-session` offers cold-start.
+      Cold-start is the meta-scaffolding *mechanic*, not a separate command: it is reachable from
+      `arc-session` (bare worktree) and from `arc start` (deliberate create-in-place).
 
     - **Discoverability** has two surfaces with different audiences (see Pressure Points §
       "Discoverability of the cold-start primitive"). User-side handled by strategy docs + docs
       site; agent-side handled within ARC's own session-init reads (`AGENT-BRIEF.ARC.md`,
-      `arc-resume` skill content). No CLAUDE.md / AGENTS.md modification — ARC concerns stay
+      `arc-session` skill content). No CLAUDE.md / AGENTS.md modification — ARC concerns stay
       within ARC's namespace.
+
+12. **Materialize — pick up an existing remote WU on this machine.** The fourth entry-point quadrant
+    (Design Decisions § Entry-point model): a WU that already exists (branch + committed meta on the
+    remote, SESSION-NOTES in the notes ref) but is not checked out as a worktree here. Without it,
+    cross-machine resume is a teaser — the oracle surfaces "`new-wu` is in flight remotely," then drops
+    the operator to raw `git worktree add`.
+
+    - **Discovery-led, no direct-by-name surface.** Triggered as an `arc-session` dispatch branch: when
+      no local active WU resolves and the oracle surfaces remote-only in-flight WUs the operator owns,
+      `arc-session` offers to materialize the chosen one. The candidate list is the correctness
+      mechanism — you select a real in-flight WU, so a phantom or typo'd name is impossible. A
+      direct-by-name flag (`--materialize <name>`) is **consciously deferred**: it reintroduces the
+      "rely on memory" failure the oracle exists to remove (you are on machine B *because* you lack the
+      context), and it is a purely additive flag later if a real need (e.g., automation) appears.
+
+    - **Thin orchestration over existing pieces.** `git worktree add <templated-path> origin/<branch>`
+      (path from item 10's location template) → `arc user pull` (per-WU subdir load, item 6) → orient.
+      The only genuinely new logic is the dispatch + offer. Git refuses double-checkout, so if the
+      branch is already materialized somewhere, materialize points to the existing worktree — free
+      safety.
+
+    - **Boundary with cross-machine coherence.** Materialize is the *mechanism* to pick up a remote WU;
+      the *guarantee* that what you pick up is complete (the partial-push trust signal) stays with
+      `cross-machine-sync-coherence` (downstream, depends on WF). Materialize gives that WU a concrete
+      first-class verb to harden rather than a manual git incantation.
+
+13. **User-scoped in-flight view — oracle + file + standard (rendered later by roadmap-tooling).** Build
+    the **oracle** — the in-flight-detection primitive (remote refs + open PRs, parsed path /
+    content-based; WU metas read off remote refs via `git show`, no checkout) — and establish the
+    **view file + its strategy-doc standard** (derivation algorithm, hand-maintenance procedure, regen
+    triggers), so the cross-WU / cross-machine in-flight view is usable from WF-ship and hand-maintained
+    in the interim exactly as ROADMAP is today (`roadmap-tooling` automates the render later). See
+    `cohort-agile-parallelism.md` § user-scoped in-flight view.
+
+    - **Purely derived, no annotation layer.** Carries only oracle-derived state (in-flight WUs +
+      State); per-WU human context stays in SESSION-NOTES, cross-WU in WORKING-MEMORY. Regenerated at
+      orient / shift / state-change ceremonies; concurrent writes resolve "regenerate wins."
+
+    - **On-demand with an optional local cache — does not need to sync.** Because the core derives from
+      *remote* refs + PRs, every machine regenerates it identically; a persisted cache is a read
+      convenience, not synced human content. No worktree paths are stored — resolve them live from
+      `git worktree list` for locally-checked-out WUs, omit for the rest.
+
+    - **The oracle is consumed three ways:** this view's render; the activation-time concurrency check
+      (items 3, 11, 12); and CWC's concurrency gate (downstream). The PR-source degrades to refs-only
+      when no coord adapter is present (mirrors the branch-gone cascade's coord-probe coupling).
 
 ### Out of scope
 
@@ -321,11 +359,11 @@ cross-cutting section rather than inside the Local mode treatment. It's universa
 - **`strategy-concurrent-work.md`** — landed by `draft-concurrent-work-conventions.md` (depends on
   mechanism + agile lifecycle landing first).
 - **Tier model and `arc start` command** — landed by `draft-agile-wu-lifecycle.md`.
-- **Automated worktree lifecycle CLI (`arc worktree create/remove`).** No standalone `arc worktree`
-  command (per the contract): worktree creation lives inside the WU transition verbs (spawn /
-  `arc start`, cold-start), which invoke `git worktree add` under the hood; cross-site consistency
-  comes from item 10's conventions. Worktree cleanup after merge is documented in
-  `integrate-work-unit.md` as an advisory step, not automated.
+- **Generic worktree-wrapper CLI (`arc worktree create/remove`).** No generic git-worktree wrapper —
+  ARC does not reimplement git. Worktree creation / teardown is owned by **WU-level verbs** (spawn,
+  cold-start, materialize — Design Decisions § Entry-point model), which invoke `git worktree add` under
+  the hood; cross-site consistency comes from item 10's conventions. Worktree cleanup after merge is
+  documented in `integrate-work-unit.md` as an advisory step, not automated.
 - **Hooks at shift transitions (`post-shift-pause` etc.).** Hook symmetry deferred to a later
   hooks-completeness pass. No clear current need; hooks can be added later without breaking
   integrations.
@@ -406,21 +444,32 @@ Consequence for [session-init.md][session-init] Step 7's trust hierarchy: the ex
 task 3.3 actually committed?) but the hierarchy says nothing about *which work am I picking up*, where status
 files + identity ownership are authoritative. Spec work splits Step 7 into two axes (scope item 4 sub-bullet).
 
-### Two entry points and the discipline-layer model
+### Entry-point model — the 2×2, and the discipline-layer model
 
-ARC supports two entry points for starting work in a worktree, both universally available without a
-config flag to select between them:
+The operations for getting into a WU form a 2×2 over *does a local worktree exist?* × *does the WU
+(branch + meta) already exist?*. Three cells were designed piecemeal; the fourth — an existing remote WU
+not checked out here — is the gap materialize (item 12) fills:
 
-- **`arc start` / spawn (items 3, 4)** creates the worktree and scaffolds the WU from an existing
-  session. The originating session does the spawn; a fresh session in the new worktree picks up via
-  the cold-start primitive.
-- **Cold-start bootstrap primitive (item 11)** scaffolds a WU inside an existing worktree — whether
-  ARC-spawned, manually `git worktree add`-ed, or spawned by an external worktree-management tool.
+|                           | **WU exists** (branch + meta)        | **WU is new** (nothing yet)         |
+| ------------------------- | ------------------------------------ | ----------------------------------- |
+| **Local worktree exists** | resume — `arc-session`               | cold-start — scaffold meta in place |
+| **No local worktree**     | **materialize** — check out + orient | spawn — create worktree + scaffold  |
 
-Adopters pick per WU based on which fits the WU's origin. The two paths converge once the worktree
-exists with a scaffolded meta-* file; the agent's bootstrap is uniform downstream of that point. No
-mode-conditional behavior, no `worktree.management` config axis — adopters who exclusively use an
-external tool simply never invoke `arc start`; adopters who never use one always do.
+These collapse to **two user-facing verbs plus the shift**:
+
+- **Create a new WU** → `arc start` (AWL's verb; delegates to WF's **spawn** primitive). Its two
+  mechanics are *spawn* (ARC makes the worktree) and *cold-start* (you are already in a bare tool /
+  manual worktree).
+- **Resume an existing WU** → the **`arc-session`** skill. Its two mechanics are *resume* (local) and
+  *materialize* (remote → local, via the discovery offer — item 12). "Continue" is not a separate verb;
+  it is resume.
+- **Shift** the current session to another existing worktree → **`arc-shift`** (item 2).
+
+So **spawn, cold-start, materialize, and "continue" are internal vocabulary, not user-facing commands** —
+the surface is `arc start` + `arc-session` + `arc-shift` (+ `arc-handoff` to close). Both entry verbs are
+universally available without a config flag: adopters who exclusively use an external worktree tool never
+invoke `arc start`'s worktree-creating path; adopters who never use one always do. The paths converge once
+the worktree exists with a scaffolded meta-* file; bootstrap is uniform downstream.
 
 **Layering — what each layer owns.** This shape sits on top of two layers ARC does not own:
 
@@ -457,7 +506,7 @@ surveyed tools accept user-provided branch names per § External Research Citati
 
 - **Session-Init Optimization** (shipped): clean session-init substrate to extend.
 - **Session-Operational Flow** (shipped): consumes the parallel-session
-  concurrency model framing (Phase 1) for spawn-vs-continue semantics; consumes the metadata-state
+  concurrency model framing (Phase 1) for the spawn / resume entry-point semantics; consumes the metadata-state
   foundation (Phase 7) indirectly via `draft-agile-wu-lifecycle.md` for tier-aware archive ceremony
   forward-references. Surface-conflict avoidance on session-init workflow edits also applies.
 - **Work Organization Reform** (shipped): delivers the per-worktree isolation foundation
@@ -489,7 +538,7 @@ surveyed tools accept user-provided branch names per § External Research Citati
 - **Concurrent Work Conventions** (`draft-concurrent-work-conventions.md`): consumes mechanism layer
   entirely.
 - **ARC Operating Modes (Local mode):** the shift lifecycle dissolved (see
-  `notes-worktree-foundation.md`); no longer a prerequisite handoff. Any residual shift-*state*
+  `cohort-agile-parallelism.md`); no longer a prerequisite handoff. Any residual shift-*state*
   semantics, if needed, are a Local-mode concern (single working tree, no worktree-as-parking), not a
   WF deliverable.
 
@@ -554,13 +603,26 @@ behavior is correct and stays unchanged across all tiers — only surfacing chan
 Composes with scope item 6's path-driven class dispatch — class awareness ("per-WU subdir retired"
 vs "cross-WU file changed") informs which tier applies and what cleanup hint to suggest.
 
-**Cross-ref:** `draft-cross-machine-sync-coherence.md` covers partial-push invisibility (sibling
-clones can't see that an originating machine had a partial push). That plan predates WOR R65 and
-this WU; likely stale and needs a worktree-aware refresh at this WU's spec iteration — its proposed
-remote-marker mechanism interacts with the per-WU subdir sync class scope item 6 establishes and
-could share or extend the `.internal/.sync-state.json` schema T3 contemplates. Concurrent
-worktrees also change the partial-push surface area (multiple worktrees may push the notes ref).
-Examine the two plans together before either advances to spec.
+### Cross-machine resume seam (what WF closes, what it owes the coherence WU)
+
+Resuming a WU created today on machine A from machine B decomposes into **discovery** (B learns the WU
+exists), **materialization** (B gets a local worktree), **notes** (B gets the right SESSION-NOTES), and
+**coherence** (B can trust the handoff landed). WF closes the first three: discovery via the oracle /
+in-flight view (item 13), which reads remote-only in-flight WUs off refs (`git show`, no checkout);
+materialization via item 12; notes via item 6's per-WU subdir load. **Coherence is not WF's** — a silent
+partial push (branch pushed, notes push failed) leaves B reading stale notes, and that trust signal is
+`cross-machine-sync-coherence`'s charter (downstream, depends on WF).
+
+WF owes that WU two forward-compat seams, to leave deliberately rather than incidentally:
+
+- **Schema seam.** Item 6 touches `.internal/.sync-state.json` and establishes the per-WU sync class;
+  design both so the coherence WU's remote-marker layers on without a rewrite — leave the seam, do not
+  design the marker.
+- **Surface-area note.** Item 6's concurrent-worktree notes-push *widens* the partial-push surface
+  (multiple worktrees may push the notes ref), so WF does not merely inherit the coherence gap — it
+  enlarges it, which is why the downstream WU is genuinely necessary. Examine the two plans together
+  before either advances to spec; `draft-cross-machine-sync-coherence.md` predates WOR R65 and this WU
+  and needs a worktree-aware refresh.
 
 ### Cleanup ownership for externally-spawned worktrees
 
@@ -584,9 +646,9 @@ know to invoke it. Two surfaces with different audiences:
 - **User-side** — strategy docs + docs site cover "in any worktree, invoke the cold-start primitive
   to start your ARC session." Covers adopters new to ARC and adopters new to a project. Not an
   ARC-mechanism concern; documentation handles it.
-- **Agent-side** — once the user invokes `/arc-resume` (or equivalent), the agent needs to know
+- **Agent-side** — once the user invokes `/arc-session` (or equivalent), the agent needs to know
   the cold-start branch is an option when no active WU is found in the worktree. Lives within ARC's
-  own session-init reads (`AGENT-BRIEF.ARC.md`, `arc-resume` skill content). ARC concerns stay
+  own session-init reads (`AGENT-BRIEF.ARC.md`, `arc-session` skill content). ARC concerns stay
   within ARC's namespace.
 
 No `arc update`-injected modifications to harness files (CLAUDE.md / AGENTS.md). The skill-discovery
@@ -597,73 +659,72 @@ ARC's session-init reads explain when to use it.
 
 ## Open Questions
 
-### Worktree lifecycle ceremony
+### Worktree lifecycle ceremony — resolved (one spec detail remains)
 
-Who owns worktree creation and removal?
+**Resolved:** worktree creation lives in the WU verbs (spawn / `arc start`, cold-start, materialize),
+removal-after-merge is an advisory step in `integrate-work-unit.md`, and stale-worktree detection (branch
+merged, worktree lingers) is a session-init surface. No `arc worktree` CLI. The **worktree path is a
+creation-time artifact, decoupled from branch renames** — `worktree.location_template` (item 10) governs
+*creation only*; an Active→Planning demotion (`feat/x` → `plan/x`) leaves the worktree path as-is rather
+than chasing the branch name. Lowest-mechanism answer, matches how git treats the path (incidental), and
+composes with externally-created worktrees (which ARC never relocates).
 
-- Creation: spawn / `arc start` invokes `git worktree add`. Manual worktrees also fine.
-- Removal after merge: integrate-work-unit gets an advisory step? CLI helper? Pure developer
-  responsibility?
-- Stale worktrees (branch merged, worktree still exists): how does session-init handle this?
-- Batched archive composition (full protection): when WU-A's archive batches with WU-C's planning
-  branch, WU-A's worktree can be removed immediately post-merge (archive happens in the main
-  worktree, not WU-A's) — but the advisory should make this sequencing explicit so adopters don't
-  wait on the batched archive before cleaning up.
-- Removal on deactivation: deactivate-work-unit needs a worktree-cleanup addendum. Case A-delete
-  (abandon entirely) implies worktree removal alongside branch deletion (`git worktree remove`
-  before `git branch -D`). Case A (return to Planning) opens a design question: rename the
-  worktree to match the renamed branch, remove and respawn at `plan/<name>`, or leave the
-  worktree path decoupled from the branch name? Depends on whether worktree paths track branch
-  names by convention or operate independently. Resolve at spec.
+**Spec detail:** deactivate-work-unit's worktree-cleanup addendum — Case A-delete removes the worktree
+before `git branch -D`; Case A (return to Planning) leaves the decoupled path in place (no rename, no
+respawn).
 
-### Worktree detection depth
+### Worktree detection depth — retired
 
-Minimum: session-init surfaces worktree context in orientation. Maximum: arc-config
-awareness, CLI worktree subcommand, strategy-doc diagrams, worktree-aware commit hooks. Where's the
-right floor for "worktree-aware" vs "worktree-integrated"?
+Answered by scope decisions made since it was written: floor = session-init detection + branch-gone
+(item 4); config-awareness = item 10's two methods; CLI subcommand = cut (Out of scope); worktree-aware
+hooks = deferred to a hooks-completeness pass. No live decision remains.
 
-### Planning-layer Changes and the concurrency oracle
+### Errand cheap-branch seam + the concurrency oracle — resolved
 
-Worktree Foundation is the mechanism behind the Change work class (ADR-021) — cross-cutting and
-trivially-small work that takes an ephemeral branch without becoming a WU. Two seams land here:
+Worktree Foundation is the mechanism behind the Errand work class (ADR-021). Both seams resolve:
 
-- **Cheap-branch affordance.** A Change needs a worktree / branch spun off `main` and torn down on
-  merge, with no meta / lifecycle. Does the spawn primitive (phase 2) grow a Change mode, or is a
-  Change just a manual `git worktree add` + ephemeral branch riding the lighter merge gate? Where is
-  the floor?
-- **Concurrency oracle.** The activation-time concurrency check (phase 2) generalizes to an all-owner,
-  on-demand in-flight detector sourced from remote refs + open PRs (not `main`-derived state, which is
-  blind to unmerged work; not branch-name → WU, since a Change branch maps to no WU). This is also the
-  oracle the user-scoped in-flight view consumes. How much does WF build vs. defer to roadmap-tooling
-  (render) and Concurrent Work Conventions (the gate doctrine)? See `cohort-agile-parallelism.md`.
+- **Cheap-branch floor = the floor (build nothing Errand-specific).** An Errand has no meta by
+  definition, so it never touches the spawn primitive. It rides bare git — `git worktree add` (or the
+  main launchpad) + a `chore/`-type branch off `main`, the lighter merge gate, teardown. WF's deliverable
+  here is *documenting that path*, not a spawn "Errand mode."
+- **Oracle = build the data-primitive, defer the dashboards and policies.** WF builds the in-flight
+  detection primitive (remote refs + open PRs, path / content-based; refs-only when no coord adapter —
+  item 13) and consumes it for its own advisory concurrency check. The *rendered view* defers to
+  `roadmap-tooling`; the *gate doctrine* defers to Concurrent Work Conventions. Since ADR-021 is Proposed
+  and ratifies at the cohort PRDs, **WF's spec is the first ratification point for these operational
+  pieces** (the cheap-branch floor and the oracle) — state which ADR-021 claims WF validates so the
+  promotion path is trackable. See `cohort-agile-parallelism.md`.
 
 ---
 
 ## Scope Estimate
 
 **Medium.** The shift-state machine and `/arc-status` are cut, shrinking the original
-extraction-heavy estimate. Worktree-aware session-init, the cross-WU sync mechanism, the spawn /
-cold-start primitives, and the thin in-session pivot are the real implementation work.
+extraction-heavy estimate. Worktree-aware session-init, the cross-WU sync mechanism, the
+spawn / cold-start / materialize primitives, the oracle + in-flight view, and the thin in-session shift
+are the real implementation work.
 
 Phases (provisional):
 
 1. **Worktree-awareness phase** — session-init worktree detection + branch-gone cascade,
    `integrate-work-unit.md` cleanup advisory.
-2. **Spawn + cold-start phase** — spawn primitive (creates worktree + scaffolds + reports path),
-   cold-start bootstrap primitive (incl. named-branch-no-meta recognition), tier-aware applicability,
+2. **Entry-point phase** — tier-agnostic spawn (thin wrapper over `init-work-unit`), cold-start
+   (incl. named-branch-no-meta recognition), materialize (discovery-led pick-up of a remote WU), the
    activation-time concurrency check, auto-mode boundary.
-3. **In-session pivot phase** — the thin pivot skill (provisional naming), uncommitted-work handling,
+3. **In-session shift phase** — the thin `arc-shift` skill, uncommitted-work handling,
    resume-staleness advisory.
 4. **Main-on-main pattern documentation** — strategy doc + workflow guidance. Lightweight; mostly prose.
 5. **Cross-WU sync phase** — `arc user save/load` path-driven dispatch, per-WU subdir load, cross-WU
    merge, tombstones, concurrent-push reconcile.
-6. **Worktree conventions** — branch-naming method + location template (substrate for phases 2-3).
-7. **Shipped-doc drift-fix** — remove the "future arc-shift" `Paused` / `Waiting-For` rows from
-   `strategy-work-organization.md` and reconcile its state table with `template-meta.md` (rides with
-   this WU per the contract).
-8. **Documentation / tests / examples** — standard closing phase.
+6. **Oracle + in-flight view phase** — the in-flight-detection primitive (refs + PRs, refs-only
+   degrade) and the view file + strategy-doc standard (derivation algorithm, regen triggers).
+7. **Worktree conventions** — branch-naming method + location template (substrate for phases 2-3).
+8. **Shipped-doc drift-fix** — remove the cut shift-state-machine rows (`Paused` / `Waiting-For`, labeled
+   "future arc-shift") from `strategy-work-organization.md` and reconcile its state table with
+   `template-meta.md` (rides with this WU per the contract). Frees "shift" for `arc-shift` (item 2).
+9. **Documentation / tests / examples** — standard closing phase.
 
-Phases 1-2 relatively independent; phase 3 builds on phase 2; phases 4-7 independent.
+Phases 1-2 relatively independent; phase 3 builds on phase 2; phases 4-8 independent.
 
 ---
 
