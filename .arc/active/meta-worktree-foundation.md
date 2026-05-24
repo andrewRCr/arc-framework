@@ -11,11 +11,14 @@
 - **Cohort:** agile-parallelism
 
 - **Task List:** [none]
-- **Last Completed:** Resolved WF open questions; captured scope, naming (Errand / `arc-session` /
-  `arc-shift`), and the lifecycle-workflow round across the draft, ADR-021, and cohort doc
+- **Last Completed:** Captured the WF planning round — entry-surface naming + dispatch model, session-init
+  probe / turn-budget design, STATUS.USER + priority layering — plus the `doc-naming-convention` stub and
+  routed notes (roadmap-tooling, ADR-021)
 - **Next Task:** [none]
-- **Blockers:** [none]
+- **Blockers:** Spec-blocking open question — in-flight definition (does it include Planning-in-active?);
+  lean: Planning = in-flight. See draft § Open Questions.
 
-- **Next Action:** Open questions resolved; draft is spec-ready. Proceed to `1_create-spec.md`.
+- **Next Action:** Resolve the in-flight-definition open question (draft § Open Questions), then proceed
+  to `1_create-spec.md`. The draft is otherwise spec-ready.
 
 ---
