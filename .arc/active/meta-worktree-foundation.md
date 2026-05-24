@@ -11,11 +11,11 @@
 - **Cohort:** agile-parallelism
 
 - **Task List:** [none]
-- **Last Completed:** Change work-class capture — ADR-021 (Proposed) + `cohort-agile-parallelism.md` + WF seam
+- **Last Completed:** Resolved WF open questions; captured scope, naming (Errand / `arc-session` /
+  `arc-shift`), and the lifecycle-workflow round across the draft, ADR-021, and cohort doc
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Resolve `draft-worktree-foundation.md` open questions (worktree lifecycle
-  ceremony, detection depth, Change-class seam, pivot naming), then `1_create-spec.md`.
+- **Next Action:** Open questions resolved; draft is spec-ready. Proceed to `1_create-spec.md`.
 
 ---
