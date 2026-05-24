@@ -362,6 +362,22 @@ cross-cutting section rather than inside the Local mode treatment. It's universa
       (items 3, 11, 12); and CWC's concurrency gate (downstream). The PR-source degrades to refs-only
       when no coord adapter is present (mirrors the branch-gone cascade's coord-probe coupling).
 
+    - **Naming + layering (2026-05-24).** The rendered surface is **`STATUS.USER`** — the user-scoped
+      sibling of the project readiness view (today's `ROADMAP`, which roadmap-tooling renames to
+      `STATUS.PROJECT`). Three layers: project readiness/dependency (`STATUS.PROJECT`, all-owners) /
+      user-scoped in-flight (`STATUS.USER`, this WU, `Owner = me`) / direction (now/next/later — see below).
+      `STATUS.USER` is a **filtered mode of the same source**, not a second generator; the user/project
+      split mostly bites in team mode (solo: `Owner = me` ≈ all). Scope `STATUS.USER` to the in-flight-mine
+      slice (the cross-worktree-invisible part); not-in-flight stays in the project view.
+    - **Priority render-seam (forward-compat).** Render a `**Priority:**` meta field (P3 default / P2 / P1)
+      *if present*; do **not** introduce the field here — it is cross-cutting schema (renders in both
+      views), routed to roadmap-tooling. Priority must be a per-WU *field* (derived, conflict-free), never a
+      hand-curated ordering *doc* (mutated shared state per ADR-020 — a drift-trap).
+    - **Directional layer largely dissolves.** With `State × Depends-On × Priority`, now/next/later is
+      *derivable* (Now = In Flight; Next = Ready, priority-ordered; Later = the rest) — a render mode, not a
+      curated doc; narrative direction lives in PROJECT-PRD. Routed to roadmap-tooling's "should ARC add a
+      directional layer?" open question.
+
 14. **Retire the `atomic-*` companion file in light of the Errand class.** The `atomic-{name}.md`
     companion was a per-WU holding area for atomic items noticed mid-WU. With the Errand class (cheap
     standalone work) and worktree-isolated WU spin-up, that holding role evaporates — so WF retires the
@@ -485,12 +501,20 @@ not checked out here — is the gap materialize (item 12) fills:
 
 These collapse to **two user-facing verbs plus the shift**:
 
-- **Create a new WU** → `arc start` (AWL's verb; delegates to WF's **spawn** primitive). Its two
-  mechanics are *spawn* (ARC makes the worktree) and *cold-start* (you are already in a bare tool /
-  manual worktree).
-- **Resume an existing WU** → the **`arc-session`** skill. Its two mechanics are *resume* (local) and
-  *materialize* (remote → local, via the discovery offer — item 12). "Continue" is not a separate verb;
-  it is resume.
+- **Create a new WU** → `arc start` (AWL's verb — a CLI command with structured flags, e.g. `--tier`;
+  delegates to WF's **spawn** primitive). Its two mechanics are *spawn* (ARC makes the worktree) and
+  *cold-start* (you are already in a bare tool / manual worktree). Cold-start is thus a **shared
+  mechanic**, reached from both `arc start` (deliberate create-in-place) and `arc-session` (discovery, on
+  finding a bare worktree) — best implemented as a CLI-level scaffolding primitive both surfaces invoke, so
+  each stays thin (spec detail). `arc start` stays a flat command, not an `arc wu` namespace: no second
+  `arc wu` member materialized, since the user-scoped in-flight view is `arc user …` (item 13), not
+  `arc wu list`.
+- **Enter a WU** → the **`arc-session`** skill — the session-*entry* surface. It does not presume
+  resumption; it **dispatches on detected worktree state**: *resume* (a local meta is present),
+  *materialize* (no local worktree but the WU exists on the remote — the discovery offer, item 12), or
+  *cold-start* (a bare worktree with no meta — the scaffolding offer, item 11). Two of the three branches
+  are resumption (resume = local; materialize = cross-machine resume of existing work); cold-start is not.
+  "Continue" is not a separate verb; it is resume.
 - **Shift** the current session to another existing worktree → **`arc-shift`** (item 2).
 
 So **spawn, cold-start, materialize, and "continue" are internal vocabulary, not user-facing commands** —
@@ -525,6 +549,68 @@ the worktree exists with a scaffolded meta-* file; bootstrap is uniform downstre
 Adopters composing ARC with an external worktree-management tool get the full structural discipline;
 the advisory conventions become recommendations the adopter applies via their tool's UX (most
 surveyed tools accept user-provided branch names per § External Research Citations).
+
+### Entry-surface naming, args posture, and open spec details (2026-05-24 planning round)
+
+**Why `arc-session`, not `arc-resume`.** The skill spans more than resumption — its cold-start branch
+(landing in a bare tool-spawned worktree and scaffolding a meta in place) is *creation*, not resumption —
+so `arc-resume` is a misnomer. `arc-session` names it correctly: the session-entry surface that inspects
+the worktree and dispatches. The rename's correctness is **coupled to cold-start staying in the skill**: if
+cold-start were `arc start`-only, the skill would be resume + materialize (both "pick up existing work")
+and `arc-resume` would still fit. Cold-start is *not* split into its own skill, on a discoverability
+argument — an operator landing in a bare worktree (often via an external tool) should run one entry surface
+that detects "no meta here" and offers to scaffold, rather than pre-classifying which command to invoke
+when they have the least information. The deliberate *create* intent keeps its own front door
+(`arc start`); `arc-session`'s bare-worktree branch is the discovery safety net, and it *offers* cold-start
+(detect-stop-prompt), never auto-scaffolds.
+
+**Command vs. skill.** CLI commands (`arc start`, `arc user …`, `arc sync`, `arc status`) are ARC's
+harness-agnostic substrate — invoked by skills/workflows *and* directly by power-users in skill-less
+harnesses. Skills (`arc-session`, `arc-shift`, `arc-handoff`) are the harness-optimized human entry.
+spawn / cold-start / materialize / "continue" are internal mechanics, surfaced *through* the command/skill
+layer.
+
+**Args posture.** Skills are arg-free / discovery-led by default; any skill arg is *optional* and
+NL-/typo-safe with the agent confirming ambiguity — never a required structured arg. Commands embrace
+structured flags (`arc start --tier …`). One sanctioned optional skill arg: `/arc-session <pointer-or-blurb>`
+may pre-seed cold-start (file / URL / issue / name+line), confirmed before use; absent or ambiguous, the
+skill just asks.
+
+**Open spec details (arg-free by design; ratify at spec):** (1) cold-start spec-input — interactive vs. the
+optional seed above (lean interactive); (2) `arc-shift` target — discovery-led pick from `git worktree
+list` vs. an arg (lean discovery, mirroring materialize); (3) cold-start as a shared CLI-level scaffolding
+primitive both `arc start` and `arc-session` invoke.
+
+### Session-init probe deltas and the turn-count budget (2026-05-24 planning round)
+
+**Governing principle.** The session-init probe (`arc status --session-init`) is the latency budget *and*
+the turn-count budget: every datum a dispatch decision needs is pre-resolved in one CLI pass, so
+`arc-session` reaches the right prompt — or no prompt — in a single turn. The anti-pattern is `arc-session`
+running its own `git fetch` / `worktree list` / meta-reads / PR calls across multiple turns before it can
+present options. Hard constraint: **the common path (resume an existing local WU) must not get slower** —
+heavy capabilities fire only in their triggering branch.
+
+**Init-probe deltas:**
+
+- **Worktree identity** in `worktree.value` (path, primary vs. non-primary) — cheap, always on (item 4).
+- **`branch-gone`** as a distinct `worktree.value.state`, split from `remote-unavailable` (item 4).
+- **Pre-computed roster** — identity-filtered in-flight WUs via WOR's cross-worktree meta cascade; feeds the
+  branch-gone resolution cascade and the Step 7 dual-axis split. One local pass; fires in the
+  branch-gone / no-WU branch.
+- **Gated oracle** — the materialize-discovery oracle (remote-only in-flight WUs you own) fires **only when
+  `active.resolution === "none"`**, so the resume path pays zero oracle cost.
+- **`STATUS.USER` render is lazy-on-read**, not eager-at-init (item 13) — preserves init latency.
+
+**Two impl facts to verify at spec:** (1) does the probe already `git fetch`? — if so, branch-gone
+detection rides free; if not, it adds a fetch. (2) eager-vs-lazy in-flight-view regen (lean lazy).
+
+**Handoff probe is light.** `session-handoff` needs no structural change — it delegates push/sync to
+`arc sync` (so item 6's concurrent-push reconcile lands in the CLI), and the in-flight view has no handoff
+regen-trigger. Only candidate change: surface worktree context in the Confirm-Handoff summary.
+
+**Prompt-flow DX targets (spec-time).** Pin a scenario → target-turns table the probe must make achievable:
+resume-clean → 0 prompts; resume-needs-sync → 1; cold-start (bare worktree) → 1; branch-gone → 1 *with
+pre-computed candidates*; materialize → 1. Probe pre-computation is the mechanism that hits these.
 
 ### Lifecycle workflow impact (lifecycle round, 2026-05-23)
 
