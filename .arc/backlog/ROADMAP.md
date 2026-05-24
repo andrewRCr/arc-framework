@@ -48,6 +48,7 @@ _None in flight._
 | documentation-surface-routing | andrew | handoff-optimization     | agent-context-optimization |
 | instruction-optimization      | andrew | handoff-optimization     | agent-context-optimization |
 | agile-wu-lifecycle            | andrew | worktree-foundation      | agile-parallelism          |
+| in-flight-awareness           | andrew | worktree-foundation      | agile-parallelism          |
 | coord-probe                   | andrew | worktree-foundation      | cross-machine-coherence    |
 | cross-machine-sync-coherence  | andrew | worktree-foundation      | cross-machine-coherence    |
 | schema-introspection-layer    | andrew | cli-substrate-adoption   | architecture-remediation   |

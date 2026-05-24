@@ -155,6 +155,15 @@ The narrow scope is sufficient for the immediate concern. The broad scope is the
 comparable. A remote sync-state mechanism that handles partial-push + sibling-sessions + load-symmetry
 verification is more general than a partial-push-specific marker.
 
+**Inbound from Worktree Foundation (2026-05-24): the orphan-warning T3 tier routes here.** WF's
+orphan-warning surfacing ships T1 (content-equivalence rename detection) + T2 (subdir-grouped retirement
+messaging), but defers **T3 — sync-state-aware drift detection** to this WU. T3 extends
+`.internal/.sync-state.json` with the prior file-list so a warning can distinguish "intentional retirement
+at source" from "real local drift, possibly unsaved work" — the same file and the same coherence question
+as the broader scope above. WF establishes the `.sync-state.json` schema seam (so this WU's remote-marker
+and T3 layer on without a rewrite); this WU owns the drift-detection layer. Fold T3 into the broader-scope
+decision at PRD time.
+
 ---
 
 ## Alternatives

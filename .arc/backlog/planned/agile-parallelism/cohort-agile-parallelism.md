@@ -1,7 +1,8 @@
 # Cohort: Agile Parallelism
 
 > Cohort-level design record for the agile-parallelism cohort — Worktree Foundation (active),
-> Agile WU Lifecycle (`draft-agile-wu-lifecycle.md`), Concurrent Work Conventions
+> In-Flight Awareness (`draft-in-flight-awareness.md`), Agile WU Lifecycle
+> (`draft-agile-wu-lifecycle.md`), Concurrent Work Conventions
 > (`draft-concurrent-work-conventions.md`). Internal-dev-facing; not shipped. The detailed designs live
 > in each member's draft; this record holds what the cohort owns *as a whole* — the shared thesis, the
 > boundary map, cross-member contracts, the cross-cutting design spine, and candidates not yet owned by
@@ -25,10 +26,13 @@ laid the single-branch-per-WU substrate; this cohort builds the parallelism on t
 
 ## Membership and ownership map
 
-- **Worktree Foundation** (active — mechanism): the WU entry primitives (spawn / cold-start / materialize)
-  and the `arc-session` resume skill, the in-session worktree shift (`arc-shift` — thin, provisional),
-  worktree-aware session-init + branch-gone handling, cross-WU sync, the in-flight-view oracle + file /
-  standard (below), and the Errand-class cheap-branch / oracle hooks.
+- **Worktree Foundation** (active — worktree mechanics): the WU entry primitives (spawn / cold-start) and
+  the `arc-session` skill, the in-session worktree shift (`arc-shift` — thin, provisional), worktree-aware
+  session-init + branch-gone handling, cross-WU sync, and the Errand-class cheap-branch mechanism.
+- **In-Flight Awareness** (awareness layer): the in-flight-detection oracle, the user-scoped `STATUS.USER`
+  view + file / standard (below), the per-WU `Priority` field, materialize (the 4th entry-point quadrant),
+  and the oracle-backed activation-time concurrency check. Split from Worktree Foundation 2026-05-24;
+  depends on it.
 - **Agile WU Lifecycle** (verbs / lifecycle): tier model (atomic / quick / standard), `arc start`, the
   `**State:**`-machine rollout, and tier-model reconciliation to the Errand/WU split.
 - **Concurrent Work Conventions** (conventions): when to parallelize, awaiting-review handling, parked =
@@ -52,6 +56,9 @@ ADR-021 decides the taxonomy; the operational plumbing is owned across the cohor
 **Worktree Foundation owns:**
 
 - The cheap ephemeral-branch mechanism that makes an Errand affordable under full / host-protected `main`.
+
+**In-Flight Awareness owns:**
+
 - The **concurrency oracle** hook: in-flight detection from remote refs + open PRs, parsed
   path / content-based (not branch-name → WU, since an Errand branch maps to no WU). Closes the in-flight
   blind spot via `init-work-unit`'s existing branch-push step. The branch *prefix* (`plan/` vs a type
@@ -89,7 +96,7 @@ cleanup ceremony (drop a WU's *own* planning-noise commits before the Planning �
 lighter-gate / planning-layer merge treatment here. Related but distinct — the cleanup is intra-WU
 history hygiene; the lighter gate is cross-WU merge routing.
 
-## User-scoped in-flight view — oracle-derived (WF builds oracle + file; roadmap-tooling renders)
+## User-scoped in-flight view — oracle-derived (In-Flight Awareness builds oracle + file; roadmap-tooling renders)
 
 A gap distinct from both ROADMAP and the cut `/arc-status`: a **user-scoped, cross-WU view of in-flight
 WUs and their states** — including WUs in flight with no open session right now, and WUs checked out only
@@ -100,13 +107,14 @@ of the concurrency gate**: the all-owner variant (sourced from refs + open PRs, 
 state is blind to unmerged work) is the gate's safety oracle, while the `Owner = me` filter is the
 operator's work-awareness view.
 
-**Ownership (settled 2026-05-23).** WF builds the **oracle** — the in-flight-detection primitive (remote
-refs + open PRs, parsed path / content-based; WU metas read off remote refs via `git show`, no checkout
-needed) — and establishes the **view file + its strategy-doc standard** (derivation algorithm,
-hand-maintenance procedure, regen triggers), so the view is usable from WF-ship and hand-maintained in
-the interim exactly as ROADMAP is today. `roadmap-tooling` later automates the render. WF's `arc-session`
-skill consumes the oracle for cross-machine discovery (surfacing remote-only in-flight WUs to
-materialize) and for the advisory concurrency check.
+**Ownership (settled 2026-05-23; reassigned to In-Flight Awareness in the 2026-05-24 split).** In-Flight
+Awareness builds the **oracle** — the in-flight-detection primitive (remote refs + open PRs, parsed
+path / content-based; WU metas read off remote refs via `git show`, no checkout needed) — and establishes
+the **view file + its strategy-doc standard** (derivation algorithm, hand-maintenance procedure, regen
+triggers), so the view is usable from ship and hand-maintained in the interim exactly as ROADMAP is today.
+`roadmap-tooling` later automates the render. The oracle is consumed via Worktree Foundation's
+`arc-session` skill (which In-Flight Awareness extends with the materialize dispatch branch) for
+cross-machine discovery and the advisory concurrency check.
 
 - **Purely derived, never hand-edited** (per [ADR-020][adr-020]'s derived / mutated split): regenerated
   from the oracle; concurrent writes resolve by "regenerate wins." **No annotation layer** — per-WU human

@@ -1,9 +1,11 @@
 # Draft: Worktree Foundation
 
-**Purpose:** Land the mechanism layer for parallel and mobile work — the WU entry primitives
-(spawn / cold-start / materialize) and the `arc-session` resume skill, the in-session `arc-shift`,
-worktree-aware session-init including branch-gone detection, cross-WU file sync, and the in-flight
-oracle + view. Mechanism only; conventions land in `draft-concurrent-work-conventions.md`.
+**Purpose:** Land the worktree-mechanics layer for parallel and mobile work — the WU entry primitives
+(spawn / cold-start) and the `arc-session` skill, the in-session `arc-shift`, worktree-aware
+session-init including branch-gone detection, and cross-WU file sync. Mechanism only; conventions land
+in `draft-concurrent-work-conventions.md`. **The awareness layer — the in-flight oracle, `STATUS.USER`
+view, `Priority` field, and materialize — split out to In-Flight Awareness
+(`draft-in-flight-awareness.md`) on 2026-05-24 (the 2-way Foundation | Awareness split).**
 
 - **State:** Draft — pre-spec exploration captured during agile/mobility expansion discussion 2026-04-28.
   Split from former Work-Unit Mobility WU; the conventions layer became Concurrent Work Conventions and
@@ -118,15 +120,17 @@ cross-cutting section rather than inside the Local mode treatment. It's universa
    running it from the main worktree (or a throwaway worktree off `main`) — never a stash-switch inside
    an active WU's worktree — is what avoids disrupting in-progress WU state.
 
-   **Activation-time concurrency check (advisory).** Before creating the worktree, the spawning session
-   reads in-flight WUs (`git worktree list` plus the oracle's identity-filtered, refs + PRs view) and
-   assesses scope overlap with the new WU per Concurrent Work Conventions's strategy-doc heuristics —
-   agent-led, judgment-based, advisory. Surfaces concerns before spawn (e.g., "WU-X is in flight in
-   `../arc-wu-x` and touches the same module — parallel, or sequence after it integrates?"); does not
-   gate. No probe tooling, no `**Touches:**` field. Forward-compat: degrades to no-op when nothing else
-   is in flight; when WF ships before CWC codifies the heuristics, the check falls back to general agent
-   judgment over `**Purpose:**` / spec text — the check shape is stable, CWC calibrates what counts as
-   overlap. The same check fires from the cold-start (item 11) and materialize (item 12) entry points.
+   **Activation-time concurrency check (advisory; Foundation ships the degrading stub).** Before creating
+   the worktree, the spawning session reads in-flight WUs (`git worktree list` plus — once In-Flight
+   Awareness lands — the oracle's identity-filtered, refs + PRs view) and assesses scope overlap with the
+   new WU per Concurrent Work Conventions's strategy-doc heuristics — agent-led, judgment-based, advisory.
+   Surfaces concerns before spawn (e.g., "WU-X is in flight in `../arc-wu-x` and touches the same module —
+   parallel, or sequence after it integrates?"); does not gate. No probe tooling, no `**Touches:**` field.
+   Forward-compat: degrades to no-op when nothing else is in flight. **Foundation ships only this degrading
+   stub** — `git worktree list` + general agent judgment over `**Purpose:**` / spec text; In-Flight
+   Awareness upgrades it to the oracle-backed version. The check shape is stable; CWC calibrates what counts
+   as overlap. The same check fires from the cold-start (item 11) entry point, and (in In-Flight Awareness)
+   from materialize.
 
    **Auto-mode boundary:** spawn never fires under auto-cascade. Always an explicit user act.
 
@@ -193,8 +197,17 @@ cross-cutting section rather than inside the Local mode treatment. It's universa
       value-level list-union of H3-headed entries (matching the codified shape for both
       USER-INBOX and WORKING-MEMORY). Dedupe by entry identity (heading).
     - **Tombstones for cross-WU deletions.** Entry removal writes a `## Removed: {name}` marker
-      with timestamp; merge respects the most recent tombstone over earlier inclusion. GC
-      strategy (after N notes / N days) — spec decision.
+      with timestamp; merge respects the most recent tombstone over earlier inclusion. **GC = a
+      generous fixed TTL, filtered at merge time (resolved 2026-05-24, external-research-backed):**
+      tombstones older than the window (default ~90 days, measured from the marker's timestamp) stop
+      propagating and drop. The resurrection hazard (an offline replica re-adding a deleted entry) is
+      the failure to prevent, but its severity is low for ARC — re-deleting a note, not data loss — so
+      a generous window is conservatively safe and, since tombstones are tiny, free. The decision is
+      the *mechanism* (time-based TTL filter-at-merge, from tombstone creation), not the constant.
+      Consensus-based GC (needs a bounded/known replica set — ARC has neither) and causal-stability GC
+      (the list-union model is not a causal DAG) were evaluated and rejected as ill-fit; Merkle
+      anti-entropy is over-engineering over git notes. No user-facing "sync within N days" contract —
+      the mild failure mode keeps the TTL an internal cleanup detail.
     - **Concurrent push reconcile on `refs/notes/arc/user/{identity}`.** When parallel worktrees
       push and the second hits non-fast-forward, reconcile via `git notes merge` (cat_sort_uniq
       default); surface conflict to user when non-trivial.
@@ -214,17 +227,28 @@ cross-cutting section rather than inside the Local mode treatment. It's universa
    migration); this WU layers mechanism on top of resolved structure. No allowlist file, no
    frontmatter convention — the path-class invariant is established by WOR and consumed here.
 
-7. **Pause-pointer fields — already retired by WOR; nothing to migrate to.** WOR's incidental-model
-   reform retired `Interrupts:` / `Paused At:` / `Paused To:` / `Spawned:`, and the strict 4-state
-   machine (`Planning | Active | Integrating | Shipped`) has no `Paused` state to migrate them into.
-   The original "migrate pointers to shift state" plan is moot. WF's only residual task: confirm no
-   dangling pointer-field references remain in workflows / templates.
+7. **Pause-pointer fields retired by WOR — but `manage-incidental-work.md` is stranded on them
+   (corrected 2026-05-24).** WOR's incidental-model reform retired `Interrupts:` / `Paused At:` /
+   `Paused To:` / `Spawned:` from `template-meta.md` (which now documents them as retired), and the
+   strict 4-state machine (`Planning | Active | Integrating | Shipped`) has no `Paused` state to
+   migrate them into. The original "migrate pointers to shift state" plan is moot. **But the residual
+   was assumed to be a no-op confirmation and isn't:** the `manage-incidental-work.md` supplemental
+   workflow is still built end-to-end on the retired pause-pointer model — it instructs setting
+   `Interrupts:` / `Paused At:` / `Paused To:` that the template now calls retired. WOR retired the
+   fields but left this workflow stranded.
 
-   **Reverse-pointer (WOR § Incidental Work Model):** WOR left a transitional framing of mid-execution
-   interrupt handling ("capture on the current branch with clear commit boundaries"). Reconcile it to
-   the worktree-isolation model — an interrupt spins up an atomic-tier WU in its own worktree
-   (`arc start --tier atomic`, AWL) and ships via PR, rather than pausing the current WU. This pairs
-   with the incidental-concept retirement in `draft-agile-wu-lifecycle.md` (item 9).
+   **WF's bounded responsibility — surgical interim correctness, not a redesign.** WF *obsoletes the
+   workflow's premise*: under worktree isolation an interrupt spins up an atomic-tier WU / Errand in
+   its own worktree rather than pausing the parent (interim mechanism = WF's Errand cheap-branch path,
+   main launchpad off `main`; upgrades to `arc start --tier atomic` once AWL ships). So WF neutralizes
+   the obsolete pause-pointer mechanic so the workflow no longer contradicts the template. WF does
+   **not** own the deeper reshape — *whether a standalone workflow is even the right shape* (vs.
+   always-loaded DEV-RULES routing + a design-time strategy) and the work-class / granularity
+   single-source-of-truth consolidation. That reshape belongs to the **agent-context-optimization
+   cohort**: `documentation-surface-routing` owns the routing single-home, and `instruction-optimization`
+   already targets this file (it flags the atomic-vs-task-list duplication and the Pause/Resume protocol
+   as a PRD-time ownership decision); WF's premise-obsoletion is captured there to sharpen that call.
+   Pairs with the incidental-concept retirement in `draft-agile-wu-lifecycle.md` (item 9).
 
 8. **Main-on-main pattern (no separate admin worktree).** External research (2026-04-28) confirms mature
    git-using projects don't maintain a separate dedicated administrative worktree — main itself serves the
@@ -316,101 +340,13 @@ cross-cutting section rather than inside the Local mode treatment. It's universa
       `arc-session` skill content). No CLAUDE.md / AGENTS.md modification — ARC concerns stay
       within ARC's namespace.
 
-12. **Materialize — pick up an existing remote WU on this machine.** The fourth entry-point quadrant
-    (Design Decisions § Entry-point model): a WU that already exists (branch + committed meta on the
-    remote, SESSION-NOTES in the notes ref) but is not checked out as a worktree here. Without it,
-    cross-machine resume is a teaser — the oracle surfaces "`new-wu` is in flight remotely," then drops
-    the operator to raw `git worktree add`.
-
-    - **Discovery-led, no direct-by-name surface.** Triggered as an `arc-session` dispatch branch: when
-      no local active WU resolves and the oracle surfaces remote-only in-flight WUs the operator owns,
-      `arc-session` offers to materialize the chosen one. The candidate list is the correctness
-      mechanism — you select a real in-flight WU, so a phantom or typo'd name is impossible. A
-      direct-by-name flag (`--materialize <name>`) is **consciously deferred**: it reintroduces the
-      "rely on memory" failure the oracle exists to remove (you are on machine B *because* you lack the
-      context), and it is a purely additive flag later if a real need (e.g., automation) appears.
-
-    - **Thin orchestration over existing pieces.** `git worktree add <templated-path> origin/<branch>`
-      (path from item 10's location template) → `arc user pull` (per-WU subdir load, item 6) → orient.
-      The only genuinely new logic is the dispatch + offer. Git refuses double-checkout, so if the
-      branch is already materialized somewhere, materialize points to the existing worktree — free
-      safety.
-
-    - **Boundary with cross-machine coherence.** Materialize is the *mechanism* to pick up a remote WU;
-      the *guarantee* that what you pick up is complete (the partial-push trust signal) stays with
-      `cross-machine-sync-coherence` (downstream, depends on WF). Materialize gives that WU a concrete
-      first-class verb to harden rather than a manual git incantation.
-
-13. **User-scoped in-flight view — oracle + file + standard (rendered later by roadmap-tooling).** Build
-    the **oracle** — the in-flight-detection primitive (remote refs + open PRs, parsed path /
-    content-based; WU metas read off remote refs via `git show`, no checkout) — and establish the
-    **view file + its strategy-doc standard** (derivation algorithm, hand-maintenance procedure, regen
-    triggers), so the cross-WU / cross-machine in-flight view is usable from WF-ship and hand-maintained
-    in the interim exactly as ROADMAP is today (`roadmap-tooling` automates the render later). See
-    `cohort-agile-parallelism.md` § user-scoped in-flight view.
-
-    - **Purely derived, no annotation layer.** Carries only oracle-derived state (in-flight WUs +
-      State); per-WU human context stays in SESSION-NOTES, cross-WU in WORKING-MEMORY. Regenerated at
-      orient / shift / state-change ceremonies; concurrent writes resolve "regenerate wins."
-
-    - **On-demand with an optional local cache — does not need to sync.** Because the core derives from
-      *remote* refs + PRs, every machine regenerates it identically; a persisted cache is a read
-      convenience, not synced human content. No worktree paths are stored — resolve them live from
-      `git worktree list` for locally-checked-out WUs, omit for the rest.
-
-    - **The oracle is consumed three ways:** this view's render; the activation-time concurrency check
-      (items 3, 11, 12); and CWC's concurrency gate (downstream). The PR-source degrades to refs-only
-      when no coord adapter is present (mirrors the branch-gone cascade's coord-probe coupling).
-
-    - **Naming + layering (2026-05-24).** The rendered surface is **`STATUS.USER`** — the user-scoped
-      sibling of the project readiness view (today's `ROADMAP`, which roadmap-tooling renames to
-      `STATUS.PROJECT`). Three layers: project readiness/dependency (`STATUS.PROJECT`, all-owners) /
-      user-scoped in-flight (`STATUS.USER`, this WU, `Owner = me`) / direction (now/next/later — see below).
-      `STATUS.USER` is a **filtered mode of the same source**, not a second generator; the user/project
-      split mostly bites in team mode (solo: `Owner = me` ≈ all). Scope `STATUS.USER` to the in-flight-mine
-      slice (the cross-worktree-invisible part); not-in-flight stays in the project view. In-flight is
-      location/ref-based and shared across both views (resolved — § Open Questions): a WU in `active/**`
-      (≡ an unmerged WU branch on the remote) is in flight, so `STATUS.USER` surfaces your actively-planned
-      WUs, not just executing ones.
-    - **Render standard — columns + sort (resolved 2026-05-24).** Both `STATUS.*` views derive from one
-      source; each table renders only the columns that distinguish its rows — **omit any column constant
-      across that table**. Per-table sets: **In Flight** = WU · State · [Priority] · Owner · Depends-on ·
-      Cohort; **Ready** = WU · [Priority] · Owner · Cohort (State constant `Planning`; Depends-on constant
-      `—`, since every Ready row has only satisfied deps); **Blocked** = WU · [Priority] · Owner · Depends-on
-      · Cohort (State constant; Depends-on = the blocking dep); **`STATUS.USER`** (In-Flight-mine only) = WU ·
-      State · [Priority] · Depends-on · Cohort (Owner constant `= me`). `[Priority]` is itself conditional —
-      rendered only when the field is present. Tables are exempt from line-length lint (`MD013.tables: false`)
-      and pad per-table, so width is a readability call, not a gate. **Sort key (uniform):**
-      `(priority, cohort, wu-name)`; Blocked additionally grouped by dependency-depth band (shallowest
-      first). Absent priority resolves to `P3`, so the key reduces to today's `(cohort, wu-name)`
-      pre-priority; WU-name is the total-order tiebreak, so renders are byte-identical for identical inputs
-      (no spurious regen diffs). `STATUS.USER` shares the project In-Flight sort (filtered, not re-sorted).
-    - **Priority — standardized + rendered here (resolved 2026-05-24; was a render-seam).** WF introduces the
-      per-WU `**Priority:**` field rather than deferring it to roadmap-tooling: it is an *input* field
-      (hand-set, like `Owner` / `Depends On`), so it lands where first needed — and the multi-in-flight
-      worklist this WU ships is that place (a flat worklist can't be triaged). Three bounded levels, `P3`
-      default: **P1** top focus (context-switch back first) / **P2** elevated / **P3** baseline ("whenever
-      there's capacity"; unset = `P3`). Owner-set, mutable, conflict-free under worktrees — a per-WU *field*,
-      never a hand-curated ordering *doc* (mutated shared state per ADR-020). Adds `**Priority:**` to
-      `template-meta.md` (schema authority) and `strategy-work-organization.md` § Source of truth — rides
-      phase 8's shipped-doc edits, no new phase. roadmap-tooling narrows to *automating* the render + the
-      directional derivation of an already-standardized field.
-    - **Priority — settled details + non-goals (2026-05-24).** Levels are **P1 / P2 / P3** — `P0` is avoided:
-      it carries an emergency / stop-the-world connotation that collides with incident-severity culture and
-      misfits a *standing* attention scale (external validation concurs; no prior art exists for priority
-      across concurrent agent worktrees, so this is novel-space design). Durability is the **tracked field +
-      git history** — every change is an authored, timestamped commit carrying its rationale in the message;
-      no in-file change-log array (hand-curated mutable state per ADR-020, redundant with git). Anti-inflation
-      discipline (a soft cap on concurrent P1s) is **documentation guidance only** — strategy doc + docs site,
-      never an agent-surfaced nag or render-time signal: ARC renders the state you consult, it does not
-      editorialize; over-use is the operator's prerogative. An emergency / expedite signal, if ever wanted, is
-      an **orthogonal lane / flag — never a `P0` level** — with "halt parallel expansion (no new spawns) until
-      it lands" semantics, and one of the rare *explicit-block* cases (a soft nag would be useless here);
-      **YAGNI now**, noted so the idea survives as an orthogonal axis rather than a priority level.
-    - **Directional layer largely dissolves.** With `State × Depends-On × Priority`, now/next/later is
-      *derivable* (Now = In Flight; Next = Ready, priority-ordered; Later = the rest) — a render mode, not a
-      curated doc; narrative direction lives in PROJECT-PRD. Routed to roadmap-tooling's "should ARC add a
-      directional layer?" open question.
+> **Items 12–13 split out to In-Flight Awareness (`draft-in-flight-awareness.md`), 2026-05-24.** The
+> awareness subsystem — **materialize** (discovery-led pickup of a remote WU, the 4th entry-point
+> quadrant), the in-flight **oracle**, the **`STATUS.USER`** view + render standard, and the **`Priority`**
+> field — lifted whole into its own WU (the 2-way Foundation | Awareness split). The **oracle-backed**
+> activation-time concurrency check went with them; this WU (Foundation) ships only the *degrading
+> advisory stub* of that check (see item 3). The entry-point 2×2's *materialize* quadrant is implemented
+> there; Foundation implements resume / cold-start / spawn. See `cohort-agile-parallelism.md`.
 
 14. **Retire the `atomic-*` companion file in light of the Errand class.** The `atomic-{name}.md`
     companion was a per-WU holding area for atomic items noticed mid-WU. With the Errand class (cheap
@@ -525,8 +461,10 @@ files + identity ownership are authoritative. Spec work splits Step 7 into two a
 ### Entry-point model — the 2×2, and the discipline-layer model
 
 The operations for getting into a WU form a 2×2 over *does a local worktree exist?* × *does the WU
-(branch + meta) already exist?*. Three cells were designed piecemeal; the fourth — an existing remote WU
-not checked out here — is the gap materialize (item 12) fills:
+(branch + meta) already exist?*. The full 2×2 is the cohort-shared contract
+(`cohort-agile-parallelism.md`); Foundation implements **resume / cold-start / spawn**, while the fourth
+cell — **materialize**, an existing remote WU not checked out here — is **In-Flight Awareness**'s
+(discovery-led off the oracle):
 
 |                           | **WU exists** (branch + meta)        | **WU is new** (nothing yet)         |
 | ------------------------- | ------------------------------------ | ----------------------------------- |
@@ -541,12 +479,13 @@ These collapse to **two user-facing verbs plus the shift**:
   mechanic**, reached from both `arc start` (deliberate create-in-place) and `arc-session` (discovery, on
   finding a bare worktree) — best implemented as a CLI-level scaffolding primitive both surfaces invoke, so
   each stays thin (spec detail). `arc start` stays a flat command, not an `arc wu` namespace: no second
-  `arc wu` member materialized, since the user-scoped in-flight view is `arc user …` (item 13), not
-  `arc wu list`.
+  `arc wu` member materialized, since the user-scoped in-flight view is `arc user …` (In-Flight Awareness),
+  not `arc wu list`.
 - **Enter a WU** → the **`arc-session`** skill — the session-*entry* surface. It does not presume
   resumption; it **dispatches on detected worktree state**: *resume* (a local meta is present),
-  *materialize* (no local worktree but the WU exists on the remote — the discovery offer, item 12), or
-  *cold-start* (a bare worktree with no meta — the scaffolding offer, item 11). Two of the three branches
+  *materialize* (no local worktree but the WU exists on the remote — the discovery offer, In-Flight
+  Awareness), or *cold-start* (a bare worktree with no meta — the scaffolding offer, item 11). Two of the
+  three branches
   are resumption (resume = local; materialize = cross-machine resume of existing work); cold-start is not.
   "Continue" is not a separate verb; it is resume.
 - **Shift** the current session to another existing worktree → **`arc-shift`** (item 2).
@@ -631,12 +570,17 @@ heavy capabilities fire only in their triggering branch.
 - **Pre-computed roster** — identity-filtered in-flight WUs via WOR's cross-worktree meta cascade; feeds the
   branch-gone resolution cascade and the Step 7 dual-axis split. One local pass; fires in the
   branch-gone / no-WU branch.
-- **Gated oracle** — the materialize-discovery oracle (remote-only in-flight WUs you own) fires **only when
-  `active.resolution === "none"`**, so the resume path pays zero oracle cost.
-- **`STATUS.USER` render is lazy-on-read**, not eager-at-init (item 13) — preserves init latency.
+- **Gated oracle + `STATUS.USER` regen — now In-Flight Awareness.** The materialize-discovery oracle
+  (fires only when `active.resolution === "none"`) and the ceremony-triggered `STATUS.USER` render (oracle
+  network slice gated to a subset of triggers, not every init) moved to In-Flight Awareness with the rest
+  of the awareness layer. The probe is the shared surface both WUs extend; the gating *principle* (the
+  common resume path pays zero oracle cost) is the governing constraint for both. Detail in
+  `draft-in-flight-awareness.md` § Oracle gating + `STATUS.USER` regeneration.
 
-**Two impl facts to verify at spec:** (1) does the probe already `git fetch`? — if so, branch-gone
-detection rides free; if not, it adds a fetch. (2) eager-vs-lazy in-flight-view regen (lean lazy).
+**Impl fact (resolved 2026-05-24):** the probe *already* runs a bounded `git fetch origin <branch>`
+(`lib/git/worktree-sync.ts`), so **branch-gone detection rides free** — it reinterprets the existing
+fetch's outcome (upstream `gone`) rather than adding a fetch. (The eager-vs-lazy in-flight-view regen
+fact moved to In-Flight Awareness with the oracle.)
 
 **Handoff probe is light.** `session-handoff` needs no structural change — it delegates push/sync to
 `arc sync` (so item 6's concurrent-push reconcile lands in the CLI), and the in-flight view has no handoff
@@ -676,8 +620,8 @@ them. The *design* impact is captured here; the workflow rewrites are execution-
   session-init's orientation does.) The in-flight view needs no handoff regen-trigger — it regenerates
   on read at the next orient.
 - **`session-init`** is the heavy touch and is already scoped: worktree detection + branch-gone
-  (item 4), materialize discovery (item 12), in-flight-view regen-at-orient (item 13), `arc-session`
-  rename, Step 7 dual-axis split.
+  (item 4), `arc-session` rename, Step 7 dual-axis split (Foundation), plus materialize discovery +
+  in-flight-view regen-at-orient (In-Flight Awareness, layered on the same shared probe).
 - **`archive-work-unit`** is worktree-neutral / low-risk — its sweep already lands on the WU branch
   before merge; not separately examined.
 
@@ -704,6 +648,11 @@ them. The *design* impact is captured here; the workflow rewrites are execution-
 
 ### Downstream
 
+- **In-Flight Awareness** (`draft-in-flight-awareness.md`): the awareness layer split out of this WU
+  (2026-05-24) — the in-flight oracle, `STATUS.USER` view, `Priority` field, and materialize. Hard
+  downstream: it builds on Foundation's worktree mechanics, cross-WU sync, and `arc-session` dispatch.
+  Consumers needing the oracle / in-flight view (Concurrent Work Conventions's concurrency gate,
+  roadmap-tooling, Coord Probe's PR-signal role) depend on **In-Flight Awareness**, not this WU.
 - **arc-plan Conductor** (`draft-arc-plan-conductor.md`): canonical planning entry verb delegates to
   this WU's spawn primitive (consumer, not design-coupled). Sequencing inversion 2026-05-20:
   Conductor previously held the spawn invocation contract; spawn now ships here as a standalone
@@ -718,8 +667,8 @@ them. The *design* impact is captured here; the workflow rewrites are execution-
 - **Agile WU Lifecycle** (`draft-agile-wu-lifecycle.md`): consumes clean activate/integrate workflows
   post-pointer-field retirement; the tier model's `arc start` command operates on the worktree-aware
   activation substrate.
-- **Concurrent Work Conventions** (`draft-concurrent-work-conventions.md`): consumes mechanism layer
-  entirely.
+- **Concurrent Work Conventions** (`draft-concurrent-work-conventions.md`): consumes the mechanism layer
+  entirely; its concurrency *gate* consumes In-Flight Awareness's oracle (not this WU's directly).
 - **ARC Operating Modes (Local mode):** the shift lifecycle dissolved (see
   `cohort-agile-parallelism.md`); no longer a prerequisite handoff. Any residual shift-*state*
   semantics, if needed, are a Local-mode concern (single working tree, no worktree-as-parking), not a
@@ -728,8 +677,9 @@ them. The *design* impact is captured here; the workflow rewrites are execution-
 ### Recommended sequencing
 
 Session-Operational Flow → Interlock Release Wrappers (WU1 + WU2) → Work Organization Reform →
-**Worktree Foundation** → (CLI Substrate Adoption ‖ arc-plan Conductor ‖ Coord Probe — pick
-parallel pairs at activation time per file-scope disjoint and cognitive-load match) →
+**Worktree Foundation** → **In-Flight Awareness** (‖ arc-plan Conductor / CLI Substrate Adoption /
+Coord Probe — these need only Foundation; pick parallel pairs at activation time per file-scope disjoint
+and cognitive-load match; CWC + roadmap-tooling additionally need In-Flight Awareness) →
 Agile WU Lifecycle → Concurrent Work Conventions.
 
 ---
@@ -783,18 +733,26 @@ behavior is correct and stays unchanged across all tiers — only surfacing chan
   sync's manifest, now absent) from "real local drift, possibly unsaved work" (file appeared after
   last sync). Only the latter warrants alarm; the former is informational at most.
 
+**Scope resolved (2026-05-24): WF ships T1 + T2; T3 routes to `cross-machine-sync-coherence`.** T3
+extends `.internal/.sync-state.json` — the same file and the same "is my local sync-state coherent with
+reality / detect drift" question that the coherence WU's § Scope of the Concern already claims as its
+broader-scope surface. WF establishes the `.sync-state.json` schema seam (already owed to that WU — see
+§ Cross-machine resume seam); the coherence WU layers T3's drift-detection on top. T1 (content-equivalence
+rename) + T2 (subdir-grouped retirement messaging) stay in WF as the highest-signal WF-driven wins.
+
 Composes with scope item 6's path-driven class dispatch — class awareness ("per-WU subdir retired"
 vs "cross-WU file changed") informs which tier applies and what cleanup hint to suggest.
 
-### Cross-machine resume seam (what WF closes, what it owes the coherence WU)
+### Cross-machine resume seam (what the cohort closes, what it owes the coherence WU)
 
 Resuming a WU created today on machine A from machine B decomposes into **discovery** (B learns the WU
 exists), **materialization** (B gets a local worktree), **notes** (B gets the right SESSION-NOTES), and
-**coherence** (B can trust the handoff landed). WF closes the first three: discovery via the oracle /
-in-flight view (item 13), which reads remote-only in-flight WUs off refs (`git show`, no checkout);
-materialization via item 12; notes via item 6's per-WU subdir load. **Coherence is not WF's** — a silent
-partial push (branch pushed, notes push failed) leaves B reading stale notes, and that trust signal is
-`cross-machine-sync-coherence`'s charter (downstream, depends on WF).
+**coherence** (B can trust the handoff landed). The agile-parallelism cohort closes the first three, now
+split across two WUs: discovery via the oracle / in-flight view and materialization are **In-Flight
+Awareness**'s (the oracle reads remote-only in-flight WUs off refs via `git show`, no checkout; materialize
+checks out + orients); **notes** is **this WU**'s (item 6's per-WU subdir load). **Coherence is neither's**
+— a silent partial push (branch pushed, notes push failed) leaves B reading stale notes, and that trust
+signal is `cross-machine-sync-coherence`'s charter (downstream, depends on both).
 
 WF owes that WU two forward-compat seams, to leave deliberately rather than incidentally:
 
@@ -815,11 +773,25 @@ worktree, cleanup is the tool's responsibility — most tools surveyed handle it
 `wt remove` with safety gates; emdash's stale-detection auto-cleanup at session start; Conductor's
 archive pattern), but some defer to the user entirely.
 
-Spec owes: `integrate-work-unit.md` cleanup advisory phrasing that doesn't assume worktree origin.
-Detection options (spec-time decision): cross-check `git worktree list` against ARC-spawn markers
-(an opt-in marker file ARC writes at spawn) to recognize ARC-owned vs. externally-owned worktrees;
-absent reliable detection, the advisory becomes generic ("worktree cleanup recommended post-merge —
-check your tool's UX for handling, or `git worktree remove <path>` if managing manually").
+**Resolved (2026-05-24): a self-cleaning, worktree-local ownership marker gates an *executable* cleanup
+— not just an advisory.** At spawn (and cold-start when ARC scaffolds), ARC writes a small gitignored,
+identity-agnostic marker into the worktree (e.g. `.arc/.worktree-marker.json`:
+`{ spawnedByArc, wuName, spawningIdentity, createdAt }`). It is **self-cleaning** — it lives in the
+worktree's tree, so `git worktree remove` deletes it; it cannot go stale. That matters because this WU is
+already fighting stale-state reconciliation in several places (orphan warnings, retired-subdir,
+branch-gone) and must not add a reconciled registry. A central registry in main (staleness + concurrency)
+and git's per-worktree config (`extensions.worktreeConfig` is an invasive repo-global migration in an
+adopter's repo) were both rejected for that reason; location-template inference is too fuzzy (the path is
+deliberately incidental). At `integrate-work-unit` (run from main — a worktree cannot remove itself), the
+marker flips *advise* into *offer-to-execute*: **marker present + worktree clean** → interlock-gated
+offer to `git worktree remove`; **marker present + uncommitted/unpushed** → never auto-remove, surface the
+dirty state (no `--force` without explicit instruction); **no marker** → advisory only ("looks
+externally-managed; your tool likely handles cleanup, or `git worktree remove <path>` manually"). Absence
+⇒ external ⇒ advise is the safe default — ARC auto-acts only where it is certain it owns the worktree. The
+clean-+-merged safety guard is mandatory regardless of placement; the marker is purely the ownership
+signal. **Note:** this upgrades the draft's earlier "cleanup is advisory, not automated" stance to
+interlock-gated execution — a deliberate change (a lifecycle-ceremony action, not the rejected generic
+`arc worktree` wrapper). Remaining spec detail: the exact filename + `.gitignore` entry.
 
 ### Discoverability of the cold-start primitive
 
@@ -865,8 +837,8 @@ predicate, omitted it from `STATUS.USER`, gutting the worklist (a worklist must 
   source (in-flight rows where `Owner = me`), not a second generator.
 - **Single In-Flight bucket + a per-row `State` annotation** (not sub-tiers). `State` now varies meaningfully
   within In-Flight (Planning = plan mutating → CWC's concurrency gate; Active = executing), so it renders as
-  a column on In-Flight rows in both views — omitted on Ready/Blocked, where it is constant (see item 13
-  render standard).
+  a column on In-Flight rows in both views — omitted on Ready/Blocked, where it is constant (see In-Flight
+  Awareness's render standard).
 
 **Execution consequence (phase 8 shipped-doc drift-fix — now a *semantic* change, not a relabel):**
 
@@ -909,22 +881,49 @@ Worktree Foundation is the mechanism behind the Errand work class (ADR-021). Bot
   definition, so it never touches the spawn primitive. It rides bare git — `git worktree add` (or the
   main launchpad) + a `chore/`-type branch off `main`, the lighter merge gate, teardown. WF's deliverable
   here is *documenting that path*, not a spawn "Errand mode."
-- **Oracle = build the data-primitive, defer the dashboards and policies.** WF builds the in-flight
-  detection primitive (remote refs + open PRs, path / content-based; refs-only when no coord adapter —
-  item 13) and consumes it for its own advisory concurrency check. The *rendered view* defers to
-  `roadmap-tooling`; the *gate doctrine* defers to Concurrent Work Conventions. Since ADR-021 is Proposed
-  and ratifies at the cohort PRDs, **WF's spec is the first ratification point for these operational
-  pieces** (the cheap-branch floor and the oracle) — state which ADR-021 claims WF validates so the
-  promotion path is trackable. See `cohort-agile-parallelism.md`.
+- **Oracle = build the data-primitive, defer the dashboards and policies.** The in-flight detection
+  primitive (remote refs + open PRs, path / content-based; refs-only when no coord adapter) is built by
+  **In-Flight Awareness** (split out of this WU 2026-05-24), which consumes it for the advisory concurrency
+  check; the *rendered view* defers to `roadmap-tooling` and the *gate doctrine* to Concurrent Work
+  Conventions. Since ADR-021 is Proposed and ratifies at the cohort PRDs, the **cheap-branch floor ratifies
+  in this WU's (Foundation's) spec and the oracle in In-Flight Awareness's** — each should state which
+  ADR-021 claims it validates so the promotion path is trackable. See `cohort-agile-parallelism.md`.
+
+### Cross-WU ephemeral-context model: scope tier + tombstone GC — resolved (2026-05-24, post-research)
+
+External research (idiomatic deletion-propagation / GC + ephemeral-context governance) plus a planning
+round settled two coupled questions:
+
+- **No project-scoped *ephemeral* tier.** Item 6's cross-WU sync stays user-scoped only; the path-class
+  taxonomy needs no project-scope class (no seam). Research confirmed the pattern across multi-agent
+  frameworks, engineering teams, and local-first tools: "shared ephemeral" reliably collapses into
+  ceremony (review it → people stop using it for transient content; don't → the team stops trusting it),
+  so a low-ceremony shared tier is a known trap. It is also principle-aligned — a surface loaded at
+  everyone's session-init spends everyone's attention budget without consent, which the
+  attention-as-design-primitive thesis exists to protect. Duplicating broadly-applicable interim notes
+  across individuals is the accepted, cheap cost.
+- **Tombstone GC** = generous fixed TTL filtered at merge (see item 6) — the GC half of the same
+  ephemeral-context design area.
+
+**Sharpening routed out of WF (not WF scope).** The research's own taxonomy implies our *current*
+WORKING-MEMORY entries are largely *project interim-doctrine* ("use X until WU-Y ships") miscategorized as
+personal scaffolding — that class arguably belongs in a tracked, reviewed, **init-loaded** surface with
+explicit removal triggers (for ARC the init-loaded home is a demarcated interim section of
+`AGENT-BRIEF.PROJECT` / `DEV-RULES.PROJECT`, *not* a generic CONTRIBUTING the agent never reads), while
+only truly-personal scaffolding stays user-scoped. Near-moot solo, real in team mode; it is a
+content-surface-routing question, routed to `documentation-surface-routing`. **Design constraint carried
+with it:** any removal-trigger-bearing surface needs a *paired evaluation cadence* or it rots — for a
+tracked interim surface that cadence is a review-time discipline, distinct from the user-scoped
+handoff / probe sweep (see `handoff-optimization` item 3).
 
 ---
 
 ## Scope Estimate
 
-**Medium.** The shift-state machine and `/arc-status` are cut, shrinking the original
-extraction-heavy estimate. Worktree-aware session-init, the cross-WU sync mechanism, the
-spawn / cold-start / materialize primitives, the oracle + in-flight view, and the thin in-session shift
-are the real implementation work.
+**Medium.** The shift-state machine and `/arc-status` are cut, and the awareness layer (oracle + view +
+`Priority` + materialize) split out to In-Flight Awareness (2026-05-24), leaving this WU at its mechanics
+core. Worktree-aware session-init, the cross-WU sync mechanism, the spawn / cold-start primitives, and the
+thin in-session shift are the real implementation work.
 
 Phases (provisional):
 
@@ -938,8 +937,9 @@ Phases (provisional):
 4. **Main-on-main pattern documentation** — strategy doc + workflow guidance. Lightweight; mostly prose.
 5. **Cross-WU sync phase** — `arc user save/load` path-driven dispatch, per-WU subdir load, cross-WU
    merge, tombstones, concurrent-push reconcile, retired-subdir reconciliation.
-6. **Oracle + in-flight view phase** — the in-flight-detection primitive (refs + PRs, refs-only
-   degrade) and the view file + strategy-doc standard (derivation algorithm, regen triggers).
+6. **[moved to In-Flight Awareness]** — the oracle + `STATUS.USER` view + `Priority` + materialize phase
+   split out (2026-05-24). Foundation retains only the degrading advisory stub of the activation-time
+   concurrency check (phase 2).
 7. **Worktree conventions** — branch-naming method + location template (substrate for phases 2-3).
 8. **Retirements + shipped-doc drift-fix** — retire the `atomic-*` companion file type and reroute its
    capture path (item 14); remove the cut shift-state-machine rows (`Paused` / `Waiting-For`, labeled

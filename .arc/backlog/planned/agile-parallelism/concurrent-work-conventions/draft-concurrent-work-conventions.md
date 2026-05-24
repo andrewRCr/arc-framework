@@ -373,7 +373,11 @@ ADR-020 splits the in-git concurrency problem precisely, and this WU owns codify
   audit compose on top. Hard upstream dependency.
 - **Worktree Foundation** (`draft-worktree-foundation.md`): mechanism layer — worktrees, shift,
   branch-gone detection, pause-pointer migration. The activation-time concurrency check fires
-  from Worktree Foundation's spawn workflow per the strategy doc's heuristics.
+  from Worktree Foundation's spawn workflow per the strategy doc's heuristics (Foundation ships the
+  degrading advisory stub).
+- **In-Flight Awareness** (`draft-in-flight-awareness.md`): the in-flight **oracle** this WU's
+  concurrency *gate* consumes (all-owner refs + open PRs), plus the oracle-backed activation-time
+  concurrency check. Split from Worktree Foundation 2026-05-24; depends on it.
 - **Agile WU Lifecycle** (`draft-agile-wu-lifecycle.md`): tier model + `**State:**` machine rollout
   (WOR's 4-state; merge-position folded into `Integrating`, no separate `**Integration:**` field).
   Concurrent-work conventions consume the `Integrating` state for awaiting-review accommodation.

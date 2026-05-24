@@ -128,7 +128,13 @@ columns of bullets — table candidate keyed on `(content type → include? → 
 
 **`manage-incidental-work.md` Pause/Resume protocol** — Three parallel scenarios (Activation /
 Completion / Abandonment) compress to 3-row table by scenario. ~150 tokens. **Boundary item with
-work-organization-reform** — flag at PRD time for ownership decision.
+work-organization-reform** — flag at PRD time for ownership decision. **Update (WF planning, 2026-05-24):**
+Worktree Foundation *obsoletes this protocol's premise* — under worktree isolation an interrupt spins up an
+atomic-tier WU / Errand in its own worktree rather than pausing the parent, so the pause-pointer mechanic
+(`Interrupts:` / `Paused At:` / `Paused To:`, already retired from `template-meta.md`) is dead. WF
+neutralizes the mechanic for interim correctness; whether this workflow survives *as a workflow* (vs.
+folding into always-loaded DEV-RULES routing + a design-time strategy) is this WU's /
+`documentation-surface-routing`'s ownership call — not a mere table-compression.
 
 **Smaller wins:** `session-init.md` Step 7 trust hierarchy + examples (~150 tokens),
 `session-init.md` Step 6 conditional orientation prose (~80 tokens pure-compression, more if

@@ -331,6 +331,18 @@ Strategy doc's audience-analysis section consumes the research findings directly
   surface any required adjustments. Atomic-task work; outcome confirmed at PRD-time audit.
 - **Future scope re-entry.** If salience layer proves insufficient post-ship, body-vs-Outcome
   duplication detection re-enters as a future-WU candidate.
+- **Interim project-doctrine surface routing (captured from Worktree Foundation planning, 2026-05-24).**
+  Some `WORKING-MEMORY.md` entries are project *interim-doctrine* ("use pattern X until WU-Y ships") —
+  broadly-applicable and removal-triggered — rather than personal scaffolding. WF resolved that ARC adds
+  no project-scoped *ephemeral* tier (shared-ephemeral collapses into ceremony; loading it at everyone's
+  init spends attention without consent). The residual routing question lands here: should this content
+  route to a **tracked, reviewed, init-loaded** surface with explicit removal triggers — for ARC the
+  init-loaded home is a demarcated interim section of `AGENT-BRIEF.PROJECT` / `DEV-RULES.PROJECT`, not a
+  discover-by-asking CONTRIBUTING the agent never reads — while truly-personal scaffolding stays in
+  user-scoped `WORKING-MEMORY`? Near-moot solo; real in team mode (interim doctrine becomes visible +
+  reviewed instead of invisible + duplicated). **Constraint:** any removal-trigger-bearing surface needs
+  a paired evaluation cadence or it rots; for a tracked surface that cadence is review-time discipline,
+  distinct from the user-scoped handoff/probe sweep (see `handoff-optimization` item 3).
 
 ## Alternatives Considered
 
