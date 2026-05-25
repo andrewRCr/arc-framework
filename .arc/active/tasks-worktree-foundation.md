@@ -243,19 +243,24 @@ evolution; keep it clean and self-documenting, do not build a general slot frame
   declined / deferred case (consistent now with its sibling conditional sections), and the `recovery`
   probe-field row re-points to Step 2. Both copies; R4 reworded to match.
 
-### `[ ]` **2.6 Dual-axis Step 7 trust refactor**
+### `[x]` **2.6 Dual-axis Step 7 trust refactor**
 
 - _Goal:_ session-init's single trust hierarchy splits into two axes — _truth of work state_ (git
   authoritative, narrowed to "was this actually committed?") and _which work am I picking up_ (identity-filtered
   metas + worktree list authoritative) — with the existing mismatch examples redistributed and notes
   deliberately absent from the roster axis.
 
-    - `[ ]` **2.6.a Refactor the trust-hierarchy section** (session-init workflow, both copies)
-        - Replace the single hierarchy with the two named axes.
+    - `[x]` **2.6.a Refactor the trust-hierarchy section** (session-init workflow, both copies)
+        - Replaced the single git > task-list > meta > notes hierarchy with two named axes; the task list,
+          meta, and notes became _claims_ verified against git on Axis 1.
 
-    - `[ ]` **2.6.b Redistribute mismatch examples**
-        - _Note:_ notes answer the _context_ question, not the _roster_ question — keep them out of the
-          branch-gone cascade axis.
+    - `[x]` **2.6.b Redistribute mismatch examples**
+        - Tagged each example by axis: the meta-vs-committed and diverged-worktree cases plus the
+          uncommitted-changes ambiguity → Axis 1; the meta-points-to-missing-task case → Axis 2.
+
+- _Outcome:_ Step 7 is now two axes over an orthogonal auto-recover / stop-and-ask escalation. Axis 2 names the
+  same authority the Step-2 branch-gone recovery uses (identity-filtered metas + worktree list), with notes
+  explicitly excluded as context-not-roster — closing the conceptual loop with Task 2.5's relocation. Both copies.
 
 ### `[ ]` **2.7 Stale-worktree sweep at main-worktree session-init**
 

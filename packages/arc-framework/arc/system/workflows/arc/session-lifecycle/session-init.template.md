@@ -455,42 +455,38 @@ clean, environment checks passed.
 
 ## 7. Handle Context Mismatches
 
-If documented state doesn't match reality during initialization, use the trust hierarchy.
+If documented state doesn't match reality during initialization, resolve along the axis the mismatch belongs
+to. A mismatch answers one of two distinct questions, each with its own authoritative source — don't apply one
+axis's authority to the other's question.
 
-**Trust hierarchy** (highest to lowest):
+**Axis 1 — Truth of work state** ("was this actually committed?"). Git is authoritative: commits, file
+contents on disk, `git status`. The task list, the active meta file, and personal session context
+(SESSION-NOTES, WORKING-MEMORY) are *claims* about work state — verify them against git, which wins on conflict.
 
-1. **Git state** — `git status`, `git log`, file contents on disk
-2. **Task list** — checkbox state, task descriptions
-3. **Active meta file** — tracked project pointer
-4. **Personal session context** — SESSION-NOTES.md (per-WU) and WORKING-MEMORY.md (cross-WU);
-   gitignored, most volatile
+**Axis 2 — Which work am I picking up** (the roster question). Identity-filtered metas + the worktree list are
+authoritative — the same authority the Step-2 branch-gone recovery uses to pick a target. Personal notes are
+deliberately absent from this axis: they answer the *context* question (how the work was approached), not the
+*roster* question (which WU / branch / task this session resumes).
 
-**Tier 1 — Auto-recover with notice:**
+**Acting on a mismatch.** Auto-recover when one axis's authority resolves it cleanly; stop and ask when it
+stays ambiguous.
 
-When higher-trust sources agree and a lower-trust source is the outlier, proceed with the ground truth and
-report the discrepancy in orientation.
+**Auto-recover with notice** — the authoritative source is unambiguous; proceed with ground truth and report
+the discrepancy in orientation. Report format: "Active meta file said X. Git/task list show Y. Proceeding
+with Y."
 
-Report format: "Active meta file said X. Git/task list show Y. Proceeding with Y."
-
-Examples:
-
-- Active meta file says "Task 3.3 in progress" but task list shows 3.3 marked `[x]` and git log confirms the
-  commit → proceed with Task 3.4 as current
-- `worktree.value.state == "diverged"` while session docs reflect clean state → git is ground truth.
+- *Axis 1:* active meta file says "Task 3.3 in progress" but the task list shows 3.3 `[x]` and git log confirms
+  the commit → proceed with Task 3.4 as current.
+- *Axis 1:* `worktree.value.state == "diverged"` while session docs reflect clean state → git is ground truth.
   Surface as `Reconcile required:` (Step 6) and carry forward. Non-blocking; do not auto-reconcile.
 
-**Tier 2 — Stop and ask:**
+**Stop and ask** — multiple plausible explanations, or same-tier sources within an axis disagree. Report each
+source's view with specific details and wait for explicit direction before any corrective action.
 
-When the mismatch is ambiguous — multiple plausible explanations, or sources at the same trust tier disagree —
-stop, report each source's view with specific details, and wait for explicit direction before any corrective
-action.
-
-Examples:
-
-- Git shows uncommitted changes to files not mentioned in any session doc — could be co-development, a
-  partial task, or an interrupted session
-- The active meta file references a task that doesn't exist in the task list — renumbered, removed, or the
-  meta file points to the wrong task list
+- *Axis 1:* git shows uncommitted changes to files not mentioned in any session doc — could be co-development,
+  a partial task, or an interrupted session.
+- *Axis 2:* the active meta file references a task that doesn't exist in the task list — renumbered, removed,
+  or the meta file points to the wrong task list.
 
 ---
 
