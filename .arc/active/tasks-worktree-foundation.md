@@ -501,11 +501,12 @@ wrapper"; the removal-side ceremony edits live in Phase 7.
 - _Goal:_ a one-shot spawn, invoked from an existing session, creates a new WU's branch, worktree, meta, and
   empty SESSION-NOTES, reports the new worktree path, and returns the originating session unchanged to its own
   context — no stash-switch, no disruption to in-flight state.
-- _Approach:_ the testable git-mechanics (`git worktree add` via 5.1's mode + marker write + empty
-  SESSION-NOTES) live in the shared CLI-level primitive cold-start (5.3) also uses, invoked from the
-  `arc-session` skill — not a standalone CLI command. Ships tier-agnostic (always a worktree + Planning-state
-  meta); accepts a forward-compat `--tier` / `--type` it does **not** branch on (AWL's seam); **never fires
-  under auto-cascade**.
+- _Approach:_ the testable git/fs mechanics live in **one shared CLI-level scaffolding primitive** that
+  cold-start (5.3) also calls, parameterized by **(a) a worktree-target mode** — create-new at the templated
+  path (via 5.1's `git worktree add` mode) vs. use-existing — and **(b) a created-by-arc flag** driving the
+  marker. Spawn calls it create-new + flag true (worktree + Planning-state meta + empty SESSION-NOTES +
+  marker), invoked from the `arc-session` skill — not a standalone CLI command. Ships tier-agnostic; accepts a
+  forward-compat `--tier` / `--type` it does **not** branch on (AWL's seam); **never fires under auto-cascade**.
 - _Note:_ "returns to origin" is automatic at the git level (`git worktree add` doesn't touch the invoking
   worktree); the residual discipline is in the skill — do NOT `cd` into the spawned path, only report it.
 - **Strategies:** `strategy-work-organization.md`
@@ -522,24 +523,32 @@ wrapper"; the removal-side ceremony edits live in Phase 7.
 
 ### `[ ]` **5.3 Cold-start scaffolding primitive**
 
-- _Goal:_ a shared CLI-level scaffolding primitive creates a meta in an existing bare worktree from any spec
+- _Goal:_ the shared scaffolding primitive (5.2's) creates a meta in an existing bare worktree from any spec
   input (file pointer / URL / issue / plan-doc / name + description), honoring WOR's Origin ⊥ Design
   orthogonality, invoked from `arc-session` (discovery) and, later, `arc start` (deliberate create-in-place).
-- _Note:_ write the ownership marker only when ARC created the worktree; advisory for tool-made ones. Honors
-  the `branch-format` convention when ARC creates state (warn-only on external mismatch).
+- _Note:_ cold-start calls the shared primitive in **use-existing** mode — it enters a worktree ARC did not
+  create (tool / manual `git worktree add`), so in Foundation it is **always advisory** (created-by-arc flag
+  false → no marker). The create-new + marker branch is spawn's (and later `arc start`'s). Honors the
+  `branch-format` convention when ARC creates state (warn-only on external mismatch).
 - **Strategies:** `strategy-work-organization.md`
 
-    - `[ ]` **5.3.a Shared scaffolding primitive (CLI-level)**
-        - _Note:_ `arc start` is downstream (Agile WU Lifecycle's) — build the primitive standalone with
-          `arc-session` as its only current caller (and ready for the future `arc start`).
+    - `[ ]` **5.3.a Shared scaffolding primitive (CLI-level)** — the use-existing path of 5.2's primitive
+        - _Note:_ one primitive serves both spawn (create-new) and cold-start (use-existing); `arc start` is
+          downstream (Agile WU Lifecycle's), so build it standalone with `arc-session` as its only current
+          caller (ready for the future `arc start`).
         - Build `test-first` (one behavior at a time):
-            - scaffolds a Planning-state meta in a bare worktree
+            - scaffolds a Planning-state meta in a bare worktree (use-existing, no `git worktree add`)
             - invoked via `arc-session` discovery
     - `[ ]` **5.3.b Spec-input parser**
+        - _Note:_ written plainly now (hand-rolled per-variant); CSA later migrates the 5-variant parser to a
+          zod discriminated union — leave the seam. _Notes:_ See `notes-worktree-foundation.md` § Phases 5 & 6.
         - Build `test-first` (one behavior at a time):
             - file pointer / URL / issue link / plan-doc / name + description each parse to the right shape
             - external reference → `**Origin:**`; ARC-owned artifact → `**Design:**`
-    - `[ ]` **5.3.c Marker semantics for tool-made vs ARC-made worktrees**
+    - `[ ]` **5.3.c Marker semantics via the created-by-arc flag**
+        - The shared primitive's created-by-arc flag drives the marker: spawn → true (writes); cold-start in
+          Foundation → false (advisory only — tool / manual worktree). The flag-true cold-start path is
+          exercised later by `arc start` — present as a seam, not built here.
 
 ### `[ ]` **5.4 `arc-session` entry skill (rename from `arc-resume`, dispatch)**
 
@@ -548,9 +557,13 @@ wrapper"; the removal-side ceremony edits live in Phase 7.
   with the _materialize_ dispatch seam present (In-Flight Awareness fills it). Arg-free / discovery-led by
   default; one optional `/arc-session <pointer-or-blurb>` may pre-seed cold-start, confirmed before use.
 
-    - `[ ]` **5.4.a Rename + reframe the skill** (canonical sources, both copies)
-        - `arc-resume` → `arc-session` across `system/.internal/skills/`; reframe from resume-only to
-          entry/dispatch.
+    - `[ ]` **5.4.a Rename + reframe the skill + sweep references** (canonical sources, both copies)
+        - Rename `arc-resume` → `arc-session` in `system/.internal/skills/` and reframe from resume-only to
+          entry/dispatch; then **grep-sweep all ~19 `arc-resume` references** so none dangle — `.arc/system/**`
+          (session-loop, initial-setup 01/02, add-agent, skills/README) and `.arc/reference/**`
+          (strategy-session-operations, strategy-package-project-sync, AGENT-BRIEF.ARC, analysis docs), both
+          copies where applicable. _Note:_ ADR-011 names `arc-resume` as an example — update for accuracy
+          (illustrative reference, not a claim about the name).
     - `[ ]` **5.4.b Dispatch logic**
         - _Note:_ dispatch reads the Phase 2 probe pre-resolution; the skill does not run its own
           fetch / worktree-list / meta-reads across turns.

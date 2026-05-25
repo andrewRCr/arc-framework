@@ -174,6 +174,17 @@ implementing session is a different session; read the relevant subsection before
   uncommitted-only; the R29 marker-gating separately handles unpushed for removal).
 - **ADR-021 confirmed** (`adr-021-introduce-errand-work-class.md`, Status: Proposed; names Worktree
   Foundation as the cheap-branch ratification owner). 5.6 ratifies it as intended.
+- **One shared scaffolding primitive, parameterized (5.2 / 5.3).** meta + SESSION-NOTES (`runUserOpen`-style
+  seed) + conditional marker, parameterized by worktree-target mode (create-new via 5.1's `git worktree add`
+  vs. use-existing) and a created-by-arc flag. Spawn = create-new + flag true; cold-start = use-existing + flag
+  false (advisory). Avoid a monolith that conflates worktree-creation with scaffolding — cold-start creates no
+  worktree; the `git worktree add` lives in 5.1's `init-work-unit` mode, invoked on the create-new path only.
+- **Spec-input parser is a CSA migration target (5.3.b).** Hand-rolled per-variant now (file / URL / issue /
+  plan-doc / name+description); CSA migrates the 5-variant parser to a zod discriminated union — leave the seam.
+- **`arc-resume` → `arc-session` is a ~19-reference grep sweep (5.4.a),** not just the skill dir: `.arc/system/**`
+  workflows (session-loop, initial-setup, add-agent, skills/README) + `.arc/reference/**` (strategies,
+  AGENT-BRIEF.ARC, analysis); ADR-011's example reference updated for accuracy. Harness copies (`.claude`,
+  `.codex`) hand-synced per 5.4.d.
 
 ### Phase 7 — lifecycle, retirements, drift
 
