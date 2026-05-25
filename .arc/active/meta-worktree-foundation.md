@@ -11,13 +11,13 @@
 - **Cohort:** agile-parallelism
 
 - **Task List:** tasks-worktree-foundation.md
-- **Last Completed:** Task 1.1 — Worktree branch posture stated in `branch-format`'s `.default` section (both
-  copies): the existing type set + `plan/` prefix govern ARC-created worktree branches; externally-arrived
-  branches are advisory (warn on mismatch, never refuse).
-- **Next Task:** Task 1.2 — Worktree location template config key (`worktree.location_template`) (line ~50)
+- **Last Completed:** Task 1.2 — Worktree location template config key (`worktree.location_template`): freeform
+  config key (default `../{repo}.{branch}`) registered across both copies + inline docs, plus the pure
+  `resolveWorktreeLocation` helper (`lib/git/worktree-location.ts`).
+- **Next Task:** Task 1.3 — Worktree-ownership marker primitive (line ~70)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.2 (register `worktree.location_template` config key + inline docs, then the
-  template-resolution helper) per `3_process-task-loop.md`.
+- **Next Action:** Begin Task 1.3 (marker schema + write/read lib, generated `.gitignore` entry, and the single
+  gating-decision fn — the `merged`-check is greenfield here) per `3_process-task-loop.md`.
 
 ---
