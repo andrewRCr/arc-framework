@@ -11,12 +11,11 @@
 - **Cohort:** agile-parallelism
 
 - **Task List:** tasks-worktree-foundation.md
-- **Last Completed:** Generated the task list (`tasks-worktree-foundation.md`) via `2_generate-tasks.md` —
-  8 phases, 33 parent tasks across the 34 requirements. Ran the per-phase grounding audit and a
-  suite-coherence pass: amended the spec to the verified mechanisms (R2 branch-gone = classify the failing
-  fetch; R18 per-file cross-WU merge-keys; R24 `.sync-state` `version` bump; R25 extend `branch-format`) and
-  recorded the resolved Design Decisions; `notes-worktree-foundation.md` carries the implementation reference.
-- **Next Task:** Task 1.1 — Extend `branch-format` with the worktree branch-naming convention (line ~27)
+- **Last Completed:** Re-ran `2_generate-tasks.md` Pass 3 (per-phase grounding audit + Step 3.4 coherence)
+  across all 7 phases — grounded each against the codebase, folded impl-readiness corrections in as design,
+  amended the spec, scoped docs-site out WU-wide, and assigned the probe orchestration-model to In-Flight
+  Awareness. 5 commits (`5189bd1b`..`74eee1ce`); `notes-worktree-foundation.md` carries the impl reference.
+- **Next Task:** Task 1.1 — Worktree branch posture in `branch-format` (line ~31)
 - **Blockers:** [none]
 
 - **Next Action:** Run `activate-work-unit.md` to flip State → Active and rename `plan/worktree-foundation`
