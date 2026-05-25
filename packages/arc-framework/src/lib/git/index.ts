@@ -78,6 +78,14 @@ export {
 } from "./worktree-marker.js";
 
 export {
+  isBranchMerged,
+  decideWorktreeCleanup,
+  type IsBranchMergedOptions,
+  type WorktreeCleanupDecision,
+  type WorktreeCleanupInputs,
+} from "./worktree-cleanup.js";
+
+export {
   slugifyIdentity,
   resolveIdentity,
   type IdentityOptions,

@@ -67,14 +67,11 @@ applies), and `.internal/scripts/validate-config.sh` `known_keys` (both copies).
           live locations from `git worktree list`) rather than recomputing on a branch rename. Reading external
           locations and never relocating stays doc-behavior, not code.
 
-### `[ ]` **1.3 Worktree-ownership marker primitive**
+### `[x]` **1.3 Worktree-ownership marker primitive**
 
 - _Goal:_ a machine-local, gitignored marker records that ARC created a worktree, and one gating-decision
   function turns (marker presence × clean × merged) into the correct cleanup action at every call site — with
   no cross-machine reconciliation.
-- _Rationale:_ the marker is self-cleaning — it lives inside the worktree and shares its lifetime exactly, so
-  `git worktree remove` deletes it; it states a permanent fact, stable across an Active→Planning rename. The
-  no-shared-state property (never synced) is what makes cross-machine cleanup coherent.
 
     - `[x]` **1.3.a Marker schema + write/read lib**
         - New lib `lib/git/worktree-marker.ts` (re-exported via `lib/git/index.ts`): the `WorktreeMarker` schema
@@ -90,17 +87,18 @@ applies), and `.internal/scripts/validate-config.sh` `known_keys` (both copies).
           marker untracked on the `arc join` contributor path (R29 never-synced). Existing `toContain` gitignore
           assertions stay valid — no test changes needed.
 
-    - `[ ]` **1.3.c The single gating-decision function**
-        - _Shape:_ marker present + clean + merged → interlock-gated offer to `git worktree remove`; present +
-          uncommitted/unpushed → surface the dirty state, never auto-remove (no `--force` without explicit
-          instruction); no marker → advisory only ("looks externally-managed"). Absence ⇒ external ⇒ advise.
-        - _Note:_ inputs — `clean` reuses `lib/git/dirty-state.ts`; `merged` needs a new `git branch --merged` /
-          merge-base check built here (2.4b / 2.7b / 7.1 consume this fn, so the merged-check must be real).
-        - Build `test-first` (one behavior at a time):
-            - present + clean + merged → offer-remove
-            - present + dirty → surface, no auto-remove
-            - present + unpushed → surface, no auto-remove
-            - absent → advisory only
+    - `[x]` **1.3.c The single gating-decision function**
+        - New `lib/git/worktree-cleanup.ts` (re-exported via `index.ts`): pure `decideWorktreeCleanup` maps
+          (marker × clean × merged) → `offer-remove` (present + clean + merged) | `surface` with reason
+          `uncommitted` or `unmerged` (present but not removable — never auto-removes) | `advisory` (absent
+          _or_ malformed marker ⇒ externally-managed). The real `merged` input is `isBranchMerged` via `git
+          merge-base --is-ancestor` (exit 0 → merged; non-zero/error → not merged); the unpushed case folds
+          into `merged: false`. `clean` stays the caller's `dirty-state.ts` result.
+
+- _Outcome:_ The marker primitive ships end-to-end — write/read lib, managed-gitignore registration, and the
+  single cleanup-gating fn — so every later removal site (branch-gone cascade, sweep, integrate) gates on one
+  settled decision. The greenfield `merged`-check is real (`git merge-base --is-ancestor`), so 2.4b / 2.7b / 7.1
+  build on a real signal, not a stub. Known boundary: `--is-ancestor` reads squash/rebase merges as not-merged.
 
 ## **Phase 2:** Worktree-aware session-init & branch-gone recovery
 
