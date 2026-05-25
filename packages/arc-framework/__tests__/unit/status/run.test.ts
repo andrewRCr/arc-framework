@@ -48,6 +48,7 @@ import type { PushabilityResult } from "../../../src/lib/git/pushability.js";
 import type { WorktreeSyncStatusResult } from "../../../src/lib/git/worktree-sync.js";
 import type { WorktreeRosterResult } from "../../../src/lib/git/worktree-roster.js";
 import type { WorktreeIdentity } from "../../../src/lib/git/worktree-identity.js";
+import type { CascadeResolution } from "../../../src/lib/session-init/branch-gone-cascade.js";
 import type { RestateCandidatesResult } from "../../../src/lib/handoff/restate-candidates.js";
 import type { ReleaseRoutingValue } from "../../../src/lib/release/routing.js";
 
@@ -279,6 +280,7 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
     domainRules: vi.fn(async () => domainRulesSessionInit()),
     releaseRouting: vi.fn(async () => releaseRouting()),
     roster: vi.fn(async () => rosterResult()),
+    recovery: vi.fn(async (): Promise<CascadeResolution> => ({ kind: "main-fallback" })),
     ...overrides,
   };
 }
@@ -1062,6 +1064,75 @@ describe("runSessionInitStatus — in-flight roster gating", () => {
     });
     expect(probes.roster).not.toHaveBeenCalled();
     expect("roster" in result).toBe(false);
+  });
+});
+
+describe("runSessionInitStatus — branch-gone recovery gating", () => {
+  it("fires recovery on branch-gone, passing the resolved roster and current branch", async () => {
+    const rosterValue = rosterResult({ entries: [{ worktreePath: "/wt", branch: "feat/a" }] });
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "branch-gone", branch: "feat/gone" })),
+      roster: vi.fn(async () => rosterValue),
+      recovery: vi.fn(async (): Promise<CascadeResolution> => ({
+        kind: "resolved",
+        candidate: { branch: "feat/a", worktreePath: "/wt", proposedAction: "switch" },
+      })),
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(probes.recovery).toHaveBeenCalledTimes(1);
+    expect(probes.recovery).toHaveBeenCalledWith(rosterValue, "feat/gone");
+    expect(result.recovery?.ok).toBe(true);
+    if (result.recovery?.ok) expect(result.recovery.value.kind).toBe("resolved");
+  });
+
+  it("does not fire recovery on the no-WU path — recovery is branch-gone only", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "clean" })),
+      active: vi.fn(async () => activeSessionInit({ resolution: "none", path: null })),
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    // Roster fires on no-WU, but recovery is gated strictly on branch-gone.
+    expect(probes.roster).toHaveBeenCalledTimes(1);
+    expect(probes.recovery).not.toHaveBeenCalled();
+    expect("recovery" in result).toBe(false);
+  });
+
+  it("omits recovery on the clean resume path", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "clean" })),
+      active: vi.fn(async () =>
+        activeSessionInit({ resolution: "single", path: ".arc/active/meta-x.md" })),
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(probes.recovery).not.toHaveBeenCalled();
+    expect("recovery" in result).toBe(false);
+  });
+
+  it("skips recovery when the roster probe failed on branch-gone (recovery needs the roster)", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "branch-gone", branch: "feat/gone" })),
+      roster: async () => { throw new Error("roster scan failed"); },
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.roster?.ok).toBe(false);
+    expect(probes.recovery).not.toHaveBeenCalled();
+    expect("recovery" in result).toBe(false);
   });
 });
 

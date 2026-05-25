@@ -23,6 +23,9 @@
  * @module
  */
 
+import { decideWorktreeCleanup } from "../git/worktree-cleanup.js";
+import type { WorktreeMarkerReadResult } from "../git/worktree-marker.js";
+
 /** Proposed disposition for a recovery candidate's worktree. */
 export type CandidateAction = "switch" | "offer-remove" | "advisory";
 
@@ -89,4 +92,49 @@ function resolveTier(candidates: CascadeCandidate[]): CascadeResolution | null {
     return { kind: "resolved", candidate: first };
   }
   return { kind: "surface", candidates };
+}
+
+/** Signals for determining a recovery candidate's proposed action. */
+export interface CandidateActionInputs {
+  /**
+   * Whether the worktree is the main / admin checkout (no WU). Such a worktree
+   * is always a safe switch destination, so it short-circuits the cleanup
+   * decision below.
+   */
+  isMainOrAdmin: boolean;
+  /** Result of reading the candidate worktree's ownership marker. */
+  marker: WorktreeMarkerReadResult;
+  /** Whether the candidate worktree's tree is clean. */
+  clean: boolean;
+  /** Whether the candidate's branch is merged into the integration target. */
+  merged: boolean;
+}
+
+/**
+ * Determine the proposed action for a recovery candidate's worktree.
+ *
+ * A main / admin worktree is always a `switch` destination. For a WU worktree,
+ * the shared cleanup decision is mapped to a candidate action: a shipped-and-
+ * clean WU (branch merged, trustworthy marker) offers removal; a live WU
+ * (uncommitted or unmerged) is a `switch` target; an untrustworthy marker
+ * (absent / malformed) stays `advisory`.
+ *
+ * @param inputs - Worktree role plus marker / clean / merged signals
+ * @returns The candidate action
+ */
+export function determineCandidateAction(inputs: CandidateActionInputs): CandidateAction {
+  if (inputs.isMainOrAdmin) return "switch";
+  const decision = decideWorktreeCleanup({
+    marker: inputs.marker,
+    clean: inputs.clean,
+    merged: inputs.merged,
+  });
+  switch (decision.action) {
+    case "offer-remove":
+      return "offer-remove";
+    case "surface":
+      return "switch";
+    case "advisory":
+      return "advisory";
+  }
 }

@@ -38,6 +38,7 @@ The probe returns a single JSON envelope the agent consumes:
 | `active`                    | Active meta file resolution (`value.resolution`: single / multiple / none; `value.path`, `value.candidates`, `value.layout`)                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `domainRules`               | `value.rules`: `{path, domain, purpose}` tuples from `DEV-RULES.{DOMAIN}.md` files; `value.warnings`: frontmatter parse diagnostics                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `recommendedCombinedPrompt` | Top-level. Composed combined-prompt text when both `worktree` and `user` resolve to `recommendedAction === "prompt"`; `null` otherwise                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `recovery`                  | Pre-computed branch-gone recovery resolution; present only on the `branch-gone` arm, and only when `roster` resolved (it consumes the roster to assemble candidates). `value.kind`: `resolved` (one high-confidence candidate), `surface` (multiple — operator chooses), or `main-fallback` (none — offer `main`). Candidates carry `branch`, optional `worktreePath`, and `proposedAction` (`switch` / `offer-remove` / `advisory`). Rendered by Step 6's branch-gone arm                                                                                                                |
 
 **Raw notes-ref topology on `user.value.refState?`**: The notes spine's 5-state `value.state` enum encodes
 pull-direction dispatch and collapses `same` and `local-ahead` into `clean` (both mean "no pull needed"). The
@@ -379,6 +380,18 @@ tracked source documents the work.
   ```text
   **Reconcile required:** `{branch}` diverged from `origin/{branch}` ({ahead} ahead, {behind} behind).
   Manual rebase or merge needed before pushing. Carried forward — commit/push requests will be flagged.
+  ```
+
+- `worktree.value.state == "branch-gone"` — the branch's upstream was deleted on `origin` (it shipped
+  elsewhere). The `recovery` slot carries pre-computed candidates; render them as a single recovery prompt
+  (no scanning across turns), branched on `recovery.value.kind`: `resolved` offers the one candidate directly —
+  or, when its `proposedAction` is `offer-remove`, offers to remove the shipped worktree and archive its meta
+  instead of switching (`advisory` candidates are surfaced, not acted on); `surface` lists each candidate's
+  `branch` + `proposedAction` for the operator to choose, never guessing; `main-fallback` offers `main`.
+
+  ```text
+  **Branch gone:** `{branch}`'s upstream was deleted on `origin`. Recover onto `{candidate.branch}`?
+  (surface → list candidates, ask which; main-fallback → switch to `main`?)
   ```
 
 - `worktree.value.state == "local-ahead"`:

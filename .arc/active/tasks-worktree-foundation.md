@@ -187,29 +187,11 @@ evolution; keep it clean and self-documenting, do not build a general slot frame
   `team.mode` in resolved settings, since the session-init envelope's config slot intentionally doesn't expose
   it; the orchestrator stays purely a gate. Slot is produced but unconsumed until 2.4.
 
-### `[ ]` **2.4 Branch-gone resolution cascade**
+### `[x]` **2.4 Branch-gone resolution cascade**
 
 - _Goal:_ on branch-gone, a deterministic cascade produces high-confidence recovery candidates — stopping and
   prompting rather than guessing under ambiguity — and trivializes to a one-candidate resolve in the
   single-worktree case so it ships value pre-worktree-adoption.
-- _Approach:_ cascade order — `git worktree list` → per-worktree meta via the 2.3 roster (identity-filtered) →
-  recently-active remote branches within the recency window → coord-probe (when available) → fall back to `main`
-  with explicit confirmation. Per-worktree action varies (stranded in main/admin → propose switch; stranded in a
-  WU worktree whose branch merged externally → propose worktree removal + meta archival, gated by the Phase 1
-  marker decision).
-- _Architecture (resolved at pre-impl audit):_ the cascade is **pre-computed in the session-init probe** as a
-  thin gated `recovery` slot, sibling to the 2.3 `roster` slot and gated on `branch-gone` only (narrower than
-  the roster's branch-gone / no-WU gate). Chosen over a dedicated `arc recover` subcommand: the roster is already
-  an envelope slot with two consumers (the dual-axis orientation and this cascade), so a slot keeps it computed
-  once and consumed in one pass, and it rides the gated-slot evolution IFA owns plus CSA's `Probe → Result`
-  sweep. Resolution stays a **pure lib function** (signals in, resolution out — no I/O) fed by thin
-  signal-gatherers, so the slot is a thin gated wrapper: the probe gates a call to a recovery module, it does not
-  hold recovery logic.
-- _Note:_ the recency window is a **fixed 30-day Foundation-internal constant** — the configurable
-  `coord.recency_days` key is the coord-probe WU's to add (it does not exist yet); do not register it here.
-  coord-probe is unbuilt, so its cascade step is a forward-compat **no-op** (skip the signal; do not stub a
-  call). _Notes:_ See `notes-worktree-foundation.md` § Phase 2.
-- **Strategies:** `strategy-session-operations.md`, `strategy-work-organization.md`
 
     - `[x]` **2.4.a Cascade resolution logic + output contract** (`lib/session-init/branch-gone-cascade.ts`)
         - `resolveCascade` + the `resolved` / `surface` / `main-fallback` union (candidate carries
@@ -217,32 +199,33 @@ evolution; keep it clean and self-documenting, do not build a general slot frame
           branches; first non-empty tier decides (lone → resolved, ≥2 → surface), all-empty → main. R7 is the
           single-entry path, not a special case; `proposedAction` is carried for 2.4.b to fill, not read here.
 
-    - `[ ]` **2.4.b Per-worktree action determination**
-        - Fill each candidate's `proposedAction` via the Phase 1 decision fn (`decideWorktreeCleanup`,
-          `lib/git/worktree-cleanup.ts`): merged-externally WU worktree → removal + archival offer; stranded in
-          main/admin → switch proposal. Gather the `{ marker, clean, merged }` inputs it needs per candidate
-          worktree — the 2.3 roster carries path / branch / meta only, so read each worktree's marker, dirty
-          state, and `isBranchMerged` against the target.
-        - Build `test-first` (one behavior at a time):
-            - WU worktree, branch merged, marker present + clean → removal + archival offer
-            - stranded in main → switch proposal
-            - no marker → advisory only
+    - `[x]` **2.4.b Per-worktree action determination** (`lib/session-init/branch-gone-cascade.ts`)
+        - `determineCandidateAction` maps a candidate worktree to its `proposedAction`: main/admin → `switch`;
+          else via `decideWorktreeCleanup` — shipped-clean (merged + present marker) → `offer-remove`, live WU
+          (uncommitted / unmerged) → `switch`, untrustworthy marker (absent / malformed) → `advisory`. Pure
+          mapping; per-worktree `{ marker, clean, merged }` gathering is 2.4.c's I/O. `proposedAction` dispositions
+          each _candidate_ worktree (`isMainOrAdmin` = roster `metaFilePath` absence); the current branch-gone
+          worktree's own teardown is the stale-worktree sweep's job, since a worktree cannot self-remove.
 
-    - `[ ]` **2.4.c Signal gathering + probe `recovery` slot wiring** (`commands/status/run.ts` + `.../types.ts`)
-        - Add the recently-active-remote-branches gatherer (`git for-each-ref --sort=-committerdate
-          refs/remotes/origin`, filtered to the 30-day window — greenfield; no `for-each-ref` precedent in
-          `src/`). Wire roster + recent branches → resolution fn → per-worktree actions into the probe as the
-          gated `recovery` slot (branch-gone only) via the existing `Probe<T>` wrapper, extending 2.3's two-stage
-          seam.
-        - Build `test-first` (one behavior at a time):
-            - branch-gone → `recovery` slot present (cascade computed)
-            - clean resume / no-WU → `recovery` slot absent (no scan)
-            - gatherer filters branches by the recency window
+    - `[x]` **2.4.c Signal gathering + probe `recovery` slot wiring**
+        - `recent-remote-branches.ts` (`runRecentRemoteBranches` — `for-each-ref --sort=-committerdate`, 30-day
+          window, `origin/HEAD` filtered) + `branch-gone-recovery.ts` (`runBranchGoneRecovery`): consumes the
+          resolved roster, gathers per-WU-worktree marker/clean/merged (cwd-scoped `status`, `isBranchMerged`),
+          folds in the recent-branch tier (gone / base / worktree-represented excluded), resolves. Wired into the
+          probe as the gated `recovery` slot — branch-gone only, and only when the roster slot resolved (one
+          roster computation, two consumers) — extending 2.3's two-stage seam.
 
-    - `[ ]` **2.4.d Session-init workflow doc** (both copies)
-        - Document the branch-gone recovery arm: a Step-6 orientation arm renders the pre-computed `recovery`
-          slot candidates and reaches single-prompt resolution in one turn (resolved → confirm; surface → choose;
-          main-fallback → confirm).
+    - `[x]` **2.4.d Session-init workflow doc** (both copies)
+        - Added the `recovery` slot to the Step-1 probe-field table and a Step-6 branch-gone arm rendering the
+          pre-computed candidates as a single recovery prompt, branched on `recovery.value.kind` (`resolved` →
+          offer, `offer-remove` → remove + archive; `surface` → choose; `main-fallback` → offer `main`). Both
+          copies (`session-init.md` + `session-init.template.md`).
+
+- _Outcome:_ branch-gone recovery is a gated `recovery` envelope slot (branch-gone only, consuming the 2.3
+  roster — one computation, two consumers) layered over a pure resolver (`branch-gone-cascade.ts`: tier walk +
+  the `resolved` / `surface` / `main-fallback` contract + per-candidate action mapping) and an I/O assembler
+  (`branch-gone-recovery.ts`: recent-branch gather + per-worktree marker/clean/merged). The session-init Step-6
+  arm renders it as a single recovery prompt. Slot-over-subcommand rationale: commit `ab572dec`.
 
 ### `[ ]` **2.5 Branch-gone sync ordering reversal (git-align before notes-pull)**
 

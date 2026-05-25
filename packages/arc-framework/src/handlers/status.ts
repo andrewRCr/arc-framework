@@ -52,6 +52,11 @@ import {
   gitConfigGet,
   runWorktreeRoster,
 } from "../lib/git/index.js";
+import { runRecentRemoteBranches } from "../lib/git/recent-remote-branches.js";
+import {
+  runBranchGoneRecovery,
+  RECOVERY_RECENCY_DAYS,
+} from "../lib/session-init/branch-gone-recovery.js";
 import { runDirtyStateStatus } from "../lib/git/dirty-state.js";
 import { runHeadHashStatus } from "../lib/git/head-hash.js";
 import { runPushabilityStatus } from "../lib/git/pushability.js";
@@ -211,6 +216,20 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
           },
         });
         return filterRosterByIdentity(roster, { identity, teamMode });
+      },
+      recovery: async (roster, currentBranch) => {
+        const resolved = await resolvedSettingsP;
+        const recentBranches = await runRecentRemoteBranches({
+          exec: gitExec,
+          withinDays: RECOVERY_RECENCY_DAYS,
+        });
+        return runBranchGoneRecovery({
+          roster,
+          currentBranch,
+          baseBranch: resolved.settings["branch.base"],
+          recentBranches,
+          exec: gitExec,
+        });
       },
     };
     const result = await runSessionInitStatus({ identity, role, probes });

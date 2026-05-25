@@ -1,9 +1,11 @@
 import { describe, it, expect } from "vitest";
 
 import {
+  determineCandidateAction,
   resolveCascade,
   type CascadeCandidate,
 } from "../../../src/lib/session-init/branch-gone-cascade.js";
+import type { WorktreeMarkerReadResult } from "../../../src/lib/git/worktree-marker.js";
 
 function candidate(overrides: Partial<CascadeCandidate> = {}): CascadeCandidate {
   return { branch: "feat/x", proposedAction: "switch", ...overrides };
@@ -89,5 +91,83 @@ describe("resolveCascade", () => {
     });
 
     expect(result).toEqual({ kind: "resolved", candidate: wt });
+  });
+});
+
+describe("determineCandidateAction", () => {
+  const presentMarker: WorktreeMarkerReadResult = {
+    kind: "present",
+    marker: {
+      spawnedByArc: true,
+      wuName: "alpha",
+      spawningIdentity: "andrew",
+      createdAt: "2026-05-01T00:00:00Z",
+    },
+  };
+
+  it("offers removal for a shipped WU worktree (branch merged, marker present + clean)", () => {
+    const action = determineCandidateAction({
+      isMainOrAdmin: false,
+      marker: presentMarker,
+      clean: true,
+      merged: true,
+    });
+
+    expect(action).toBe("offer-remove");
+  });
+
+  it("proposes a switch for a main / admin worktree regardless of merge state", () => {
+    const action = determineCandidateAction({
+      isMainOrAdmin: true,
+      marker: { kind: "absent" },
+      clean: true,
+      merged: false,
+    });
+
+    expect(action).toBe("switch");
+  });
+
+  it("stays advisory for a WU worktree with no marker", () => {
+    const action = determineCandidateAction({
+      isMainOrAdmin: false,
+      marker: { kind: "absent" },
+      clean: true,
+      merged: true,
+    });
+
+    expect(action).toBe("advisory");
+  });
+
+  it("proposes a switch for a live WU worktree (clean but unmerged)", () => {
+    const action = determineCandidateAction({
+      isMainOrAdmin: false,
+      marker: presentMarker,
+      clean: true,
+      merged: false,
+    });
+
+    expect(action).toBe("switch");
+  });
+
+  it("proposes a switch for a WU worktree with uncommitted changes", () => {
+    const action = determineCandidateAction({
+      isMainOrAdmin: false,
+      marker: presentMarker,
+      clean: false,
+      merged: true,
+    });
+
+    expect(action).toBe("switch");
+  });
+
+  it("stays advisory for a malformed marker", () => {
+    const action = determineCandidateAction({
+      isMainOrAdmin: false,
+      marker: { kind: "malformed", message: "bad json", path: "/wt/.arc/system/.internal/worktree-marker.json" },
+      clean: true,
+      merged: true,
+    });
+
+    expect(action).toBe("advisory");
   });
 });

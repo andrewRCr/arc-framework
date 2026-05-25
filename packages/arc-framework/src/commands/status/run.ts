@@ -222,6 +222,15 @@ export async function runSessionInitStatus(
     ? await safeProbe(() => probes.roster())
     : undefined;
 
+  // Branch-gone recovery — a second gated slot, narrower than the roster gate
+  // (branch-gone only, not no-WU). It consumes the roster resolved just above,
+  // so one roster computation feeds both consumers and recovery fires only when
+  // the worktree is branch-gone and the roster resolved.
+  const recovery =
+    worktree.ok && worktree.value.state === "branch-gone" && roster?.ok
+      ? await safeProbe(() => probes.recovery(roster.value, worktree.value.branch))
+      : undefined;
+
   return {
     mode: "session-init",
     identity: buildIdentity(identity, role),
@@ -234,6 +243,7 @@ export async function runSessionInitStatus(
     domainRules,
     releaseRouting,
     ...(roster !== undefined ? { roster } : {}),
+    ...(recovery !== undefined ? { recovery } : {}),
     recommendedCombinedPrompt: recommendations.recommendedCombinedPrompt,
   };
 }

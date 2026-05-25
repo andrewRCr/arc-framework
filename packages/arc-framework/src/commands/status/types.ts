@@ -35,6 +35,7 @@ import type { PushabilityResult } from "../../lib/git/pushability.js";
 import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
 import type { WorktreeRosterResult } from "../../lib/git/worktree-roster.js";
 import type { WorktreeIdentity } from "../../lib/git/worktree-identity.js";
+import type { CascadeResolution } from "../../lib/session-init/branch-gone-cascade.js";
 import type { RestateCandidatesResult } from "../../lib/handoff/restate-candidates.js";
 import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
 import type { RecommendedAction } from "../../lib/session-init/recommended-action.js";
@@ -124,6 +125,15 @@ export interface SessionInitProbeResult {
    * "an empty roster".
    */
   roster?: Probe<WorktreeRosterResult>;
+  /**
+   * Pre-computed branch-gone recovery resolution. Present ONLY on the
+   * branch-gone arm (narrower than the roster's branch-gone / no-WU gate) and
+   * only when the roster resolved — it consumes that roster to assemble
+   * candidate destinations. Carries the cascade outcome (`resolved` /
+   * `surface` / `main-fallback`) the workflow renders into the single-prompt
+   * recovery arm. Absent on every other path.
+   */
+  recovery?: Probe<CascadeResolution>;
   /**
    * Per-channel offer text composed when both the worktree and user slots
    * resolve to `recommendedAction === "prompt"`. Null when only one channel
@@ -257,6 +267,16 @@ export interface SessionInitProbes {
    * mode is a pass-through).
    */
   roster: () => Promise<WorktreeRosterResult>;
+  /**
+   * Branch-gone recovery resolver. Receives the already-resolved roster and the
+   * current (branch-gone) branch from the orchestrator; the handler gathers the
+   * recent-branch tier + per-worktree signals and resolves the cascade. Called
+   * ONLY on the branch-gone arm when the roster resolved.
+   */
+  recovery: (
+    roster: WorktreeRosterResult,
+    currentBranch: string | null,
+  ) => Promise<CascadeResolution>;
 }
 
 /** Probe functions in session-handoff mode — bound to cwd and any required I/O. */
