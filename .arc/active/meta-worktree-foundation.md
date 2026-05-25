@@ -1,8 +1,8 @@
 # Metadata: Worktree Foundation
 
-- **State:** Planning
+- **State:** Active
 - **Owner:** andrew
-- **Branch:** plan/worktree-foundation
+- **Branch:** feat/worktree-foundation
 
 - **Origin:** [internal]
 - **Design:** `spec-worktree-foundation.md`
@@ -18,7 +18,6 @@
 - **Next Task:** Task 1.1 — Worktree branch posture in `branch-format` (line ~31)
 - **Blockers:** [none]
 
-- **Next Action:** Run `activate-work-unit.md` to flip State → Active and rename `plan/worktree-foundation`
-  to its execution branch, then begin Task 1.1 per `3_process-task-loop.md`.
+- **Next Action:** Begin Task 1.1 (Worktree branch posture in `branch-format`) per `3_process-task-loop.md`.
 
 ---
