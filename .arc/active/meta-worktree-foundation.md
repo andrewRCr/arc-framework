@@ -11,13 +11,13 @@
 - **Cohort:** agile-parallelism
 
 - **Task List:** tasks-worktree-foundation.md
-- **Last Completed:** Task 1.2 — Worktree location template config key (`worktree.location_template`): freeform
-  config key (default `../{repo}.{branch}`) registered across both copies + inline docs, plus the pure
-  `resolveWorktreeLocation` helper (`lib/git/worktree-location.ts`).
-- **Next Task:** Task 1.3 — Worktree-ownership marker primitive (line ~70)
+- **Last Completed:** Task 1.3 — Worktree-ownership marker primitive: write/read lib (`worktree-marker.ts`),
+  managed-gitignore registration (init/reconfigure/update/join), and the single cleanup-gating fn
+  `decideWorktreeCleanup` + real `isBranchMerged` (`worktree-cleanup.ts`). Phase 1 complete.
+- **Next Task:** Task 2.1 — Worktree-identity detection in the probe (line ~122)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.3 (marker schema + write/read lib, generated `.gitignore` entry, and the single
-  gating-decision fn — the `merged`-check is greenfield here) per `3_process-task-loop.md`.
+- **Next Action:** Begin Phase 2, Task 2.1 per `3_process-task-loop.md`. Phase 2 note: land 2.2a (branch-gone
+  fetch classification) + 2.2b (exhaustive-switch updates) together in one green build.
 
 ---
