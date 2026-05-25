@@ -211,18 +211,11 @@ evolution; keep it clean and self-documenting, do not build a general slot frame
   call). _Notes:_ See `notes-worktree-foundation.md` § Phase 2.
 - **Strategies:** `strategy-session-operations.md`, `strategy-work-organization.md`
 
-    - `[ ]` **2.4.a Cascade resolution logic + output contract** (pure lib fn)
-        - Define the resolution discriminated union 2.4.d renders and 2.5 consumes: `{ kind: "resolved";
-          candidate }` | `{ kind: "surface"; candidates[] }` | `{ kind: "main-fallback" }`, where a candidate
-          carries `{ worktreePath, branch, proposedAction }` (`proposedAction` filled by 2.4.b). Pure — roster
-          entries + recent remote branches in, resolution out; no git I/O.
-        - _Note:_ detect-stop-prompt is the default for ambiguity; R7 trivialization (one worktree → one match →
-          notes-pull confirms) must fall out of the single-entry path, not a special-case branch.
-        - Build `test-first` (one behavior at a time):
-            - single high-confidence signal → resolves to one candidate
-            - multiple plausible signals → stop, surface candidates (no guess)
-            - one worktree / one identity match → trivial resolve (R7)
-            - no signal anywhere → `main` fallback with explicit confirmation
+    - `[x]` **2.4.a Cascade resolution logic + output contract** (`lib/session-init/branch-gone-cascade.ts`)
+        - `resolveCascade` + the `resolved` / `surface` / `main-fallback` union (candidate carries
+          `{ branch, worktreePath?, proposedAction }`). Pure tier walk — worktree candidates, then recent
+          branches; first non-empty tier decides (lone → resolved, ≥2 → surface), all-empty → main. R7 is the
+          single-entry path, not a special case; `proposedAction` is carried for 2.4.b to fill, not read here.
 
     - `[ ]` **2.4.b Per-worktree action determination**
         - Fill each candidate's `proposedAction` via the Phase 1 decision fn (`decideWorktreeCleanup`,
