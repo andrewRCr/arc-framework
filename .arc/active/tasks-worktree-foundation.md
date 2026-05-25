@@ -271,8 +271,9 @@ evolution; keep it clean and self-documenting, do not build a general slot frame
           re-roll a porcelain parser.
         - _Note:_ pin the match key — worktree branch (`plan/foo` / `feat/foo`) won't string-match
           `completed/{quarter}/NN_{wu-name}` dir names; normalize (strip `NN_` + branch type-prefix, compare
-          WU-name slug) and decide the quarter-dir glob scope. _Notes:_ See `notes-worktree-foundation.md`
-          § Phase 2.
+          WU-name slug) and decide the quarter-dir glob scope. This shipped-WU predicate (normalize +
+          `completed/` cross-ref) is **shared with 4.2's** retired-subdir reconciliation — build it once.
+          _Notes:_ See `notes-worktree-foundation.md` § Phase 2.
         - Build `test-first` (one behavior at a time):
             - lingering worktree for a shipped WU → surfaced
             - active-WU worktree → not surfaced
@@ -479,10 +480,10 @@ and the Errand cheap-branch path documentation.
 
 _Design decisions:_ Consumes Phase 1 (methods resolve location/naming; marker written at create), Phase 2 (probe
 pre-resolves dispatch data so `arc-session` reaches the right prompt in one turn), and Phase 3 (correct per-WU
-load). The git-mechanics of creating a worktree + scaffolding live in a shared CLI-level primitive that both
-spawn and cold-start invoke; the entry surfaces (`arc-session`, and the downstream `arc start`) stay thin
-skills over it. R28's `init-work-unit` worktree-creating mode (5.1) is the concrete content of R8's "thin
-wrapper"; the removal-side ceremony edits live in Phase 7.
+load). Spawn and cold-start share **one** CLI-level scaffolding primitive, parameterized by worktree-target
+mode (create-new vs. use-existing) — spawn creates the worktree, cold-start enters an existing one; the entry
+surfaces (`arc-session`, and the downstream `arc start`) stay thin skills over it. R28's `init-work-unit`
+worktree-creating mode (5.1) is the create-new path; the removal-side ceremony edits live in Phase 7.
 
 ### `[ ]` **5.1 `init-work-unit` worktree-creating mode**
 
@@ -511,7 +512,7 @@ wrapper"; the removal-side ceremony edits live in Phase 7.
   worktree); the residual discipline is in the skill — do NOT `cd` into the spawned path, only report it.
 - **Strategies:** `strategy-work-organization.md`
 
-    - `[ ]` **5.2.a Spawn via the shared worktree primitive**
+    - `[ ]` **5.2.a Spawn via the shared scaffolding primitive (create-new)**
         - Build `test-first` (one behavior at a time):
             - creates branch + worktree + meta + empty SESSION-NOTES at the templated path
             - the originating session is unchanged, still on its own branch/worktree
@@ -607,10 +608,22 @@ verbs so there are worktrees to shift between.
 - _Goal:_ a thin `/arc-shift` skill repoints the current session to another existing in-flight worktree,
   preserving the agent's accumulated context, with discovery-led target selection from `git worktree list` and
   an optional arg.
+- _Mechanism:_ "repoint" = re-orient the agent to the target worktree **within the same conversation** (read
+  its `meta-*` + SESSION-NOTES, operate against its path) — **not** a new session. Shift is **return-intent
+  sidequesting**: a short detour you intend to return from before handoff, which is what makes
+  context-preservation worth it (a permanent switch is just handoff + fresh session; a mis-launch is clear +
+  re-init — neither has accumulated context to preserve). Each worktree is independently handoff-able, so a
+  sidequest that outgrows the detour can handoff in place then shift back — no special handling.
+- _Note:_ the fuller sidequest _usage doctrine_ (focus roles, when to parallelize, the return discipline) is
+  Concurrent Work Conventions's (a Non-Goal here); 6.1 ships the mechanism + the minimal framing that justifies
+  it.
 
     - `[ ]` **6.1.a Skill authoring** (canonical sources + harness hand-sync)
     - `[ ]` **6.1.b Target selection (discovery-led + optional arg)**
-        - _Note:_ creating a worktree for a new WU is spawn, not shift.
+        - _Note:_ creating a worktree for a new WU is spawn, not shift. Reuse `runWorktreeRoster` /
+          `parseWorktreeList` (`worktree-roster.ts`) for the worktree enumeration — same as 2.4 / 2.7a / 5.5.
+          The stale "arc-shift (future)" references (`deactivate-work-unit.md`, `strategy-work-organization.md`)
+          reconcile to this shipped skill in 7.5.
 
 ### `[ ]` **6.2 Uncommitted-work handling at the shift**
 
@@ -634,6 +647,11 @@ decisions create.
 _Design decisions:_ Sequenced last so the doc reconciliation lands against everything built. R28's removal-side
 ceremony edits join here with R29's cleanup-site wiring (7.1). R32's sweep includes `2_generate-tasks.md`
 itself — and this WU dogfoods the retirement (no `atomic-*` companion was created for it).
+
+_Note:_ "(both copies)" maps to per-file package suffixes — `.template.md` for `session-handoff` (7.1d),
+`2_generate-tasks` + `3_process-task-loop` (swept by 7.4); plain `.md` for the work-unit-lifecycle ceremonies
+(7.1a-c) and `manage-incidental-work` (7.2). Docs-site content (`docs/`) is out of scope WU-wide (dedicated
+docs WU). _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
 
 ### `[ ]` **7.1 Lifecycle ceremony worktree touches (marker-gated cleanup)**
 
@@ -685,7 +703,7 @@ itself — and this WU dogfoods the retirement (no `atomic-*` companion was crea
   surface, `USER-INBOX § Atomic`, and the atomic _character_ unaffected; only the per-WU companion file type
   retires.
 - _Note:_ a grep-driven sweep, not a fixed list — companion-type refs extend well beyond the named anchors
-  (e.g. `strategy-planning-module.md` ~6 refs, `strategy-file-classification.md`'s file-type registry row,
+  (e.g. `strategy-planning-module.md` ~17 refs, `strategy-file-classification.md`'s file-type registry row,
   `3_process-task-loop.md`, `DEV-RULES.PROJECT.md`, `completed/README.md`, and `USER-INBOX` / `ATOMIC-INBOX`
   template §-cross-links that dangle on removal). _Notes:_ See `notes-worktree-foundation.md` § Phase 7 for the
   full found-list.
@@ -695,14 +713,19 @@ itself — and this WU dogfoods the retirement (no `atomic-*` companion was crea
           Companion File; `commit-footer` method; `template-tasks.md`; plus the full found-list. Acceptance:
           zero `atomic-{name}` / `atomic-*` / "atomic companion file" companion-type refs remain in live
           shipped content (reword dangling §-links rather than deleting the surfaces they point at).
+        - _Scope:_ live shipped ARC content (rules / strategies / methods / templates / workflows / briefs).
+          **Out:** docs-site (`docs/` — dedicated docs WU), historical ADRs (e.g. `adr-008`, immutable record),
+          internal analysis / supplemental docs, and this WU's own `spec-*` (self-referential — it describes
+          the retirement). **Preserve:** the `ATOMIC-INBOX` / `USER-INBOX § Atomic` surfaces and the atomic
+          _character_.
     - `[ ]` **7.4.b Sweep workflow mentions** (both copies)
         - `2_generate-tasks.md` (companion creation at Pass 1 + Step 4 checklist), `activate` / `verify` /
           `deactivate` / `archive` work-unit workflows. _Note:_ `integrate-work-unit.md` carries only the
           protected `§ Atomic → ATOMIC-INBOX` surface — verify-only, nothing to sweep.
-    - `[ ]` **7.4.c Resolve docs-site + AGENT-BRIEF scope, then document the rerouted capture**
-        - _Note:_ PRD R32's success-criterion names only "rules / strategies / methods / templates /
-          workflows" — decide whether the docs site (`docs/**`) and `AGENT-BRIEF.{ARC,CONTRIBUTOR}.md` are
-          in-scope here or a stated deferral.
+    - `[ ]` **7.4.c Document the rerouted capture** (AGENT-BRIEF in scope; docs-site out)
+        - `AGENT-BRIEF.{ARC,CONTRIBUTOR}.md` are in-scope shipped briefs — sweep their companion-type refs. The
+          docs site (`docs/**`) is out of scope WU-wide (dedicated docs WU). Document the rerouted capture (fold
+          into commit / add a task / spin an Errand / `USER-INBOX § Atomic`) in the swept ARC docs.
 
 ### `[ ]` **7.5 Shipped-doc drift-fix**
 
@@ -751,7 +774,7 @@ itself — and this WU dogfoods the retirement (no `atomic-*` companion was crea
   worktree for a shipped WU is surfaced at the next main-worktree session-init or on reopen (verified against a
   spawn-on-A / integrate-on-B / resume-on-A trace)
 - `[ ]` Framework self-consistency — no dangling `atomic-*` companion references across rules / strategies /
-  methods / templates / workflows; `strategy-work-organization.md` and § ROADMAP carry no cut
+  methods / templates / workflows / briefs; `strategy-work-organization.md` and § ROADMAP carry no cut
   shift-state-machine rows and use the location-based In-Flight definition; `manage-incidental-work.md` no
   longer sets retired pause-pointer fields
 - `[ ]` Methods genuinely overridable — the worktree branch posture (via `branch-format`) and

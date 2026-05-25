@@ -328,7 +328,14 @@ flat at `user/{identity}/**`; `user/{identity}/.internal/**` never synced).
   created it; it does not orchestrate the creating tool. R9's cold-start is the tool-agnostic integration
   surface.
 - **No `arc update`-injected harness-file changes** (CLAUDE.md / AGENTS.md). Cold-start discoverability is
-  handled user-side by strategy docs + docs site and agent-side within ARC's own session-init reads.
+  handled user-side by ARC strategy docs and agent-side within ARC's own session-init reads (the docs-site
+  treatment is the dedicated docs WU's, per below).
+- **Docs-site content (`docs/`) — out of scope WU-wide.** A dedicated docs WU (planned far out, once the
+  backlog is closer to cleared and ARC is more stable, to avoid interim churn) does the large docs-site sweep.
+  This WU edits **ARC docs** (strategies, workflows, methods, rules, briefs under `.arc/**`, which ship via the
+  package) but never the published docs site. Applies to every requirement — notably R32's `atomic-*`
+  retirement sweep, whose success-criterion already scopes to rules / strategies / methods / templates /
+  workflows.
 - **The deeper `manage-incidental-work.md` reshape** and work-class single-source consolidation —
   agent-context-optimization cohort. Foundation does only the surgical premise-neutralization (R30).
 - **T3 sync-state drift-detection** — routes to `cross-machine-sync-coherence`. Foundation ships T1 + T2
@@ -388,15 +395,16 @@ Validated explicitly at work-unit completion:
 - **Spawn returns to origin** — after spawning, the originating session is unchanged and on its own
   branch/worktree; the new worktree exists at the templated path with branch + meta + empty SESSION-NOTES.
 - **Cross-WU sync correctness** — a spawn → first-load does not import the prior WU's SESSION-NOTES; cross-WU
-  USER-INBOX / WORKING-MEMORY entries merge by heading with tombstones honored; concurrent worktree pushes
-  reconcile without data loss; retired-WU subdirs reconcile rather than linger.
+  USER-INBOX / WORKING-MEMORY entries merge by entry identity (header / list-item lead-in) with tombstones
+  honored; concurrent worktree pushes reconcile without data loss; retired-WU subdirs reconcile rather than
+  linger.
 - **External-worktree composability** — ARC reads location from `git worktree list` and never relocates or
   refuses an externally-created worktree; branch-naming mismatch is a warning, not a block.
 - **No permanent orphaned worktrees or markers** — a marker cannot outlive its worktree (coupled lifetime);
   every lingering worktree for a shipped WU is surfaced for cleanup at the next main-worktree session-init
   (R34) or on reopen (R3). Verified against a spawn-on-A / integrate-on-B / resume-on-A trace.
 - **Framework self-consistency at ship** — no dangling `atomic-*` companion references remain across rules /
-  strategies / methods / templates / workflows; `strategy-work-organization.md` and § ROADMAP carry no cut
+  strategies / methods / templates / workflows / briefs; `strategy-work-organization.md` and § ROADMAP carry no cut
   shift-state-machine rows and use the location-based In-Flight definition; `manage-incidental-work.md` no
   longer instructs setting retired pause-pointer fields.
 - **Methods are genuinely overridable** — the worktree branch posture (via `branch-format`) and
@@ -414,10 +422,12 @@ Settled during planning; final implementation details ratified when the relevant
   this WU and gets a worktree-aware refresh at its own promotion. R24 leaves the versioned, worktree-aware seam;
   `notes-{name}.md` records the partial-push-surface widening. Sequencing awareness only — not a Foundation
   blocker.
-- **Branch-naming delivery (R25).** Extend the existing `branch-format` method rather than add a parallel
-  method or config key — `branch-format` already owns the type-set and override machinery.
-- **Spawn's home (R8).** Spawn's worktree-creating mechanics live in the shared CLI-level primitive cold-start
-  uses, invoked from the `arc-session` skill — not a standalone CLI command.
+- **Worktree branch posture (R25).** A WU branch is a WU branch regardless of worktree, so there is no separate
+  worktree naming convention: state the posture in `branch-format`'s default (extend the method) rather than add
+  a parallel method or config key — `branch-format` already owns the type-set and override machinery.
+- **Spawn's home (R8).** Spawn and cold-start share one CLI-level scaffolding primitive, parameterized by
+  worktree-target mode (create-new vs. use-existing) — spawn creates the worktree (via `init-work-unit`'s mode),
+  cold-start enters an existing one; invoked from the `arc-session` skill, not a standalone CLI command.
 
 ### Decided during planning (final details ratified at implementation)
 

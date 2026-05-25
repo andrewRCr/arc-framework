@@ -172,6 +172,12 @@ implementing session is a different session; read the relevant subsection before
   path, only report it.
 - **6.2 `runDirtyStateStatus` covers uncommitted, not unpushed** — correct as scoped (commit/stash/leave is
   uncommitted-only; the R29 marker-gating separately handles unpushed for removal).
+- **arc-shift = return-intent sidequesting, same-session re-orient (6.1).** "Repoint" re-orients the agent to
+  the target worktree's `meta-*` + SESSION-NOTES within the same conversation (operate against its path), not a
+  new session — context-preservation earns its keep only because you intend to return before handoff. Permanent
+  switch = handoff + fresh session; mis-launch = clear + re-init. The mechanism is Foundation's; the sidequest
+  usage doctrine (focus roles, when to parallelize, return discipline) is Concurrent Work Conventions's
+  (Non-Goal) — don't bake it into the skill.
 - **ADR-021 confirmed** (`adr-021-introduce-errand-work-class.md`, Status: Proposed; names Worktree
   Foundation as the cheap-branch ratification owner). 5.6 ratifies it as intended.
 - **One shared scaffolding primitive, parameterized (5.2 / 5.3).** meta + SESSION-NOTES (`runUserOpen`-style
@@ -188,15 +194,20 @@ implementing session is a different session; read the relevant subsection before
 
 ### Phase 7 — lifecycle, retirements, drift
 
+- **Package workflow suffix map (`.md` vs `.template.md`) — affects every "(both copies)" workflow edit.**
+  Package `.template.md`: `session-init` (Phase 2), `session-handoff` (7.1d), `2_generate-tasks` +
+  `3_process-task-loop` (7.4 sweep). Package plain `.md`: `1_create-spec`, `session-loop`, and all
+  work-unit-lifecycle ceremonies (`activate` / `deactivate` / `integrate` / `verify` / `archive`-work-unit,
+  `manage-incidental-work`). Edit the matching suffix; the `.arc/` copy is always plain `.md`.
 - **The R32 atomic-sweep found-list.** Live companion-type refs beyond the task's named anchors:
-  `strategy-planning-module.md` (~6 refs incl. a § link), `strategy-file-classification.md` (the `atomic-`
+  `strategy-planning-module.md` (~17 refs incl. a § link), `strategy-file-classification.md` (the `atomic-`
   file-type registry row), `strategy-session-operations.md` (shape analogy — reword, don't delete),
-  `3_process-task-loop.md`(+`.template`) (routing instruction), `DEV-RULES.PROJECT.md` (capture-routing row),
-  `AGENT-BRIEF.ARC.md` + `AGENT-BRIEF.CONTRIBUTOR.md`, `completed/README.md`, `templates/user/USER-INBOX.md`
-  (shape analogy + § link), `backlog/ATOMIC-INBOX.template.md` (§ cross-link that dangles when the § is
-  removed), and the docs site (`docs/work-planning.md`, `docs/reference/glossary.md`,
-  `docs/reference/task-lists.md`). PRESERVE the shared `ATOMIC-INBOX` surface, `USER-INBOX § Atomic`, and the
-  atomic *character* — only reword dangling §-links.
+  `3_process-task-loop.md` (package `.template.md`) (routing instruction), `DEV-RULES.PROJECT.md`
+  (capture-routing row), `AGENT-BRIEF.ARC.md` + `AGENT-BRIEF.CONTRIBUTOR.md`, `completed/README.md`,
+  `templates/user/USER-INBOX.md` (shape analogy + § link), and `backlog/ATOMIC-INBOX.template.md` (§ cross-link
+  that dangles when the § is removed). **Out of scope:** docs-site (`docs/` — dedicated docs WU), historical
+  ADRs, internal analysis docs, and this WU's own `spec-*`. PRESERVE the shared `ATOMIC-INBOX` surface,
+  `USER-INBOX § Atomic`, and the atomic *character* — only reword dangling §-links.
 - **`integrate-work-unit.md` is verify-only for the sweep** — its only `atomic` refs are the protected
   `§ Atomic → ATOMIC-INBOX` surface, no companion ref.
 - **`Spawned:` field does not exist** in `manage-incidental-work` or `template-meta` (only `Interrupts:` /
