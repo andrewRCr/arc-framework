@@ -164,6 +164,16 @@ as the broader scope above. WF establishes the `.sync-state.json` schema seam (s
 and T3 layer on without a rewrite); this WU owns the drift-detection layer. Fold T3 into the broader-scope
 decision at PRD time.
 
+**Inbound from Worktree Foundation (2026-05-25): the `branch-gone` `arc sync` notes-push softening routes
+here.** WF's new `branch-gone` worktree state (split from `remote-unavailable`) inherits the conservative
+sync treatment — both push legs blocked, refused with code 14 — to avoid regressing into auto-recreating a
+deleted upstream. The worktree-push block is unconditionally correct (pushing a gone branch resurrects it);
+the notes-push block is over-conservative for the common merged-then-deleted case, where the commits stay
+reachable from `origin/main` so the notes wouldn't dangle. Refinement to evaluate: gate the notes push on
+`HEAD`-reachable-from-`origin/main`, blocking only the rare unmerged force-delete — a "what's safe to push"
+coherence judgment on this WU's surface. WF ships the conservative block; fold the reachability-gated
+softening into the scope decision at PRD time.
+
 ---
 
 ## Alternatives
