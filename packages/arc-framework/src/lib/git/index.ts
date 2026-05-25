@@ -64,6 +64,11 @@ export {
 export { shortHash } from "./short-hash.js";
 
 export {
+  resolveWorktreeLocation,
+  type WorktreeLocationParams,
+} from "./worktree-location.js";
+
+export {
   slugifyIdentity,
   resolveIdentity,
   type IdentityOptions,

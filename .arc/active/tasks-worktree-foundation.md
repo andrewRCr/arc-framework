@@ -47,18 +47,11 @@ applies), and `.internal/scripts/validate-config.sh` `known_keys` (both copies).
           mismatch but never refuses or relocates them. Doc-behavior: there is no branch-name validator to
           hook, so the posture is the deliverable and there is no code path.
 
-### `[ ]` **1.2 Worktree location template config key (`worktree.location_template`)**
+### `[x]` **1.2 Worktree location template config key (`worktree.location_template`)**
 
 - _Goal:_ ARC resolves a worktree's filesystem path from a configurable template (default `../{repo}.{branch}`,
   slashes → `-`) at creation time, reads external worktrees' locations from `git worktree list` without
   enforcement, and treats the path as a creation-time artifact decoupled from later branch renames.
-- _Context:_ a config key, not a method — the value is consumed by code (the resolution helper at
-  worktree-creation time), so it sits with ARC's other code-consumed config values (cf. `hooks.test_patterns`),
-  not in `system/methods/` (which house agent-read activities). A "documentation-only method" would be a
-  category error. Supporting docs (semantics + override examples) ship inline with the key for now; the
-  method-vs-config boundary and the inline-vs-reference doc-home route to `customization-arch-realign` and
-  `config-storage-architecture` respectively (see spec § Design Decisions).
-- **Strategies:** `strategy-configurability-architecture.md`
 
     - `[x]` **1.2.a Register the config key + inline supporting docs**
         - Registered `worktree.location_template` (freeform; default `../{repo}.{branch}`) across both
@@ -67,18 +60,12 @@ applies), and `.internal/scripts/validate-config.sh` `known_keys` (both copies).
           plus `ConfigSettings`, `status-reader.ts` `DEFAULTS`, and both `validate-config.sh` `known_keys` lists.
           Default-in-code, so no `ENUM_VALIDATORS` entry and no `classification.ts` registration (no method file). [R27]
 
-    - `[ ]` **1.2.b Template-resolution logic**
-        - _Note:_ lives as a new lib helper (e.g. `lib/git/worktree-location.ts`), consumed at worktree-creation
-          time by `init-work-unit`'s worktree mode (5.1) and the Phase 5 spawn primitive — the slug/expansion
-          mechanics are code (hence `test-first`).
-        - _Note:_ the path is decoupled from branch renames — an Active→Planning demotion leaves it as-is. Slug
-          collisions (`plan/foo` and `plan-foo` both → `plan-foo`) are creation-time, last-write-wins /
-          user-resolved (a line in the inline docs, not collision-handling code). Reading external locations from
-          `git worktree list` and never relocating is doc-behavior, not a unit test.
-        - Build `test-first` (one behavior at a time):
-            - default template resolves `../{repo}.{branch}` with slashes slugged to `-`
-            - override template resolves to its pattern
-            - a branch rename does not recompute or move the path
+    - `[x]` **1.2.b Template-resolution logic**
+        - New pure helper `lib/git/worktree-location.ts` (`resolveWorktreeLocation`, re-exported via
+          `lib/git/index.ts`) expands `{repo}` / `{branch}`, slugging branch separators to `-`. It reads no
+          ambient git state, so the resolved path is a creation-time artifact — callers persist it (and read
+          live locations from `git worktree list`) rather than recomputing on a branch rename. Reading external
+          locations and never relocating stays doc-behavior, not code.
 
 ### `[ ]` **1.3 Worktree-ownership marker primitive**
 
