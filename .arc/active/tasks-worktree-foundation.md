@@ -83,12 +83,12 @@ applies), and `.internal/scripts/validate-config.sh` `known_keys` (both copies).
           so absence (ENOENT) is "no marker", not an error — the signal 1.3c gates on; `atomicWriteJson` creates the
           `.internal/` parent. Identity-agnostic path (no `{identity}` segment, per R29).
 
-    - `[ ]` **1.3.b `.gitignore` entry** (generated, not static)
-        - Add `.arc/system/.internal/worktree-marker.json` to every hardcoded managed-gitignore array that
-          mirrors the `pristine.json` entry — `commands/{init,reconfigure,update}.ts` plus `commands/join.ts`
-          (two array sites): four files, five array literals. The dev-repo `.gitignore` re-renders on next
-          update. _Note:_ omitting `join.ts` leaves the marker tracked on the `arc join` contributor path,
-          breaking R29's never-synced contract.
+    - `[x]` **1.3.b `.gitignore` entry** (generated, not static)
+        - Added `.arc/system/.internal/worktree-marker.json` beside the `pristine.json` line in all five
+          managed-gitignore arrays — `commands/{init,reconfigure,update}.ts` + `commands/join.ts` (×2). The
+          rendered `.gitignore` re-generates on the next init/update/reconfigure; the `join.ts` sites keep the
+          marker untracked on the `arc join` contributor path (R29 never-synced). Existing `toContain` gitignore
+          assertions stay valid — no test changes needed.
 
     - `[ ]` **1.3.c The single gating-decision function**
         - _Shape:_ marker present + clean + merged → interlock-gated offer to `git worktree remove`; present +

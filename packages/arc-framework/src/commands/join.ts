@@ -113,6 +113,7 @@ export async function runJoin(options: JoinOptions): Promise<JoinResult> {
   const gitignorePath = join(cwd, ".gitignore");
   const gitignoreEntries = [
     ".arc/system/.internal/pristine.json",
+    ".arc/system/.internal/worktree-marker.json",
     ".arc/user/*/",
     ...skillGitignoreEntries(skillResult.targetDirs),
   ];
@@ -217,6 +218,7 @@ export async function runJoinReconfigure(
   const gitignorePath = join(cwd, ".gitignore");
   const gitignoreEntries = [
     ".arc/system/.internal/pristine.json",
+    ".arc/system/.internal/worktree-marker.json",
     ".arc/user/*/",
     ...skillGitignoreEntries(skillResult.targetDirs),
   ];

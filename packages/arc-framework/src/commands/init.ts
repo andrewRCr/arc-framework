@@ -234,6 +234,7 @@ export async function runInit(
   // Write managed gitignore block with all ARC entries
   const gitignoreEntries = [
     ".arc/system/.internal/pristine.json",
+    ".arc/system/.internal/worktree-marker.json",
     ".arc/user/*/",
     ...skillGitignoreEntries(skillResult.targetDirs),
   ];
