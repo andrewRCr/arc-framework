@@ -11,13 +11,13 @@
 - **Cohort:** agile-parallelism
 
 - **Task List:** tasks-worktree-foundation.md
-- **Last Completed:** Re-ran `2_generate-tasks.md` Pass 3 (per-phase grounding audit + Step 3.4 coherence)
-  across all 7 phases — grounded each against the codebase, folded impl-readiness corrections in as design,
-  amended the spec, scoped docs-site out WU-wide, and assigned the probe orchestration-model to In-Flight
-  Awareness. 5 commits (`5189bd1b`..`74eee1ce`); `notes-worktree-foundation.md` carries the impl reference.
-- **Next Task:** Task 1.1 — Worktree branch posture in `branch-format` (line ~31)
+- **Last Completed:** Task 1.1 — Worktree branch posture stated in `branch-format`'s `.default` section (both
+  copies): the existing type set + `plan/` prefix govern ARC-created worktree branches; externally-arrived
+  branches are advisory (warn on mismatch, never refuse).
+- **Next Task:** Task 1.2 — Worktree location template config key (`worktree.location_template`) (line ~50)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 (Worktree branch posture in `branch-format`) per `3_process-task-loop.md`.
+- **Next Action:** Begin Task 1.2 (register `worktree.location_template` config key + inline docs, then the
+  template-resolution helper) per `3_process-task-loop.md`.
 
 ---
