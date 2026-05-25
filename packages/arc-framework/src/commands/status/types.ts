@@ -33,11 +33,12 @@ import type { DirtyStateResult } from "../../lib/git/dirty-state.js";
 import type { HeadHashResult } from "../../lib/git/head-hash.js";
 import type { PushabilityResult } from "../../lib/git/pushability.js";
 import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
+import type { WorktreeIdentity } from "../../lib/git/worktree-identity.js";
 import type { RestateCandidatesResult } from "../../lib/handoff/restate-candidates.js";
 import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
 import type { RecommendedAction } from "../../lib/session-init/recommended-action.js";
 
-export type { RecommendedAction };
+export type { RecommendedAction, WorktreeIdentity };
 
 /**
  * Worktree slot in the session-init envelope. Extends the raw probe result
@@ -47,6 +48,12 @@ export interface SessionInitWorktreeValue extends WorktreeSyncStatusResult {
   recommendedAction: RecommendedAction;
   /** Composed prompt text when `recommendedAction === "prompt"`; empty string otherwise. */
   recommendedPromptText: string;
+  /**
+   * Which physical worktree the session is in. Folded in from the
+   * `worktreeIdentity` probe; defaults to `{ kind: "primary" }` when that
+   * probe failed. Orientation surfaces a `worktree:` line only when `linked`.
+   */
+  identity: WorktreeIdentity;
 }
 
 /**
@@ -209,6 +216,12 @@ export interface SessionHandoffResult {
 export interface SessionInitProbes {
   user: (identity: string) => Promise<UserSessionInitStatusResult>;
   worktree: () => Promise<WorktreeSyncStatusResult>;
+  /**
+   * Physical-worktree detection (primary vs. linked). Local rev-parse only —
+   * no network — so it rides every session-init pass. Folded onto the worktree
+   * slot in the orchestrator rather than surfaced as a top-level slot.
+   */
+  worktreeIdentity: () => Promise<WorktreeIdentity>;
   dirty: () => Promise<DirtyStateResult>;
   extensions: () => Promise<ExtensionsSessionInitResult>;
   config: () => Promise<ConfigSessionInitResult>;

@@ -195,6 +195,7 @@ function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
   return {
     user: async (identity) => stubUserSessionInit(identity),
     worktree: async () => ({ state: "skipped", ahead: 0, behind: 0, branch: "main" }),
+    worktreeIdentity: async () => ({ kind: "primary" }),
     dirty: async () => ({ state: "clean", fileCount: 0 }),
     extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
     config: () => runConfigSessionInitStatus({ cwd: fixture.root }),
@@ -234,6 +235,7 @@ function makeResolvedReleaseModeSessionInitProbes(
   return {
     user: async (identity) => stubUserSessionInit(identity),
     worktree: async () => ({ state: "skipped", ahead: 0, behind: 0, branch: "main" }),
+    worktreeIdentity: async () => ({ kind: "primary" }),
     dirty: async () => ({ state: "clean", fileCount: 0 }),
     extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
     config: async () =>
@@ -442,6 +444,7 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
     const probes: SessionInitProbes = {
       user: async (id) => stubUserSessionInit(id),
       worktree: async () => ({ state: "skipped", ahead: 0, behind: 0, branch: "main" }),
+      worktreeIdentity: async () => ({ kind: "primary" }),
       dirty: async () => ({ state: "clean", fileCount: 0 }),
       extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
       config: () => runConfigSessionInitStatus({ cwd: fixture.root }),
@@ -599,6 +602,7 @@ function makeRealWorktreeProbes(
         exec: makeGitExec(fixture.root),
         remoteSyncEnabled,
       }),
+    worktreeIdentity: async () => ({ kind: "primary" }),
     dirty: async () => ({ state: "clean", fileCount: 0 }),
     extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
     config: () => runConfigSessionInitStatus({ cwd: fixture.root }),

@@ -46,6 +46,7 @@ import type { DirtyStateResult } from "../../../src/lib/git/dirty-state.js";
 import type { HeadHashResult } from "../../../src/lib/git/head-hash.js";
 import type { PushabilityResult } from "../../../src/lib/git/pushability.js";
 import type { WorktreeSyncStatusResult } from "../../../src/lib/git/worktree-sync.js";
+import type { WorktreeIdentity } from "../../../src/lib/git/worktree-identity.js";
 import type { RestateCandidatesResult } from "../../../src/lib/handoff/restate-candidates.js";
 import type { ReleaseRoutingValue } from "../../../src/lib/release/routing.js";
 
@@ -152,6 +153,10 @@ function worktreeSync(
   overrides: Partial<WorktreeSyncStatusResult> = {},
 ): WorktreeSyncStatusResult {
   return { state: "clean", ahead: 0, behind: 0, branch: "main", ...overrides };
+}
+
+function worktreeIdentity(value: WorktreeIdentity = { kind: "primary" }): WorktreeIdentity {
+  return value;
 }
 
 function configSessionInit(
@@ -261,6 +266,7 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
   return {
     user: vi.fn(async () => userSessionInit()),
     worktree: vi.fn(async () => worktreeSync()),
+    worktreeIdentity: vi.fn(async () => worktreeIdentity()),
     dirty: vi.fn(async () => dirtyState()),
     extensions: vi.fn(async () => extensionsSessionInit()),
     config: vi.fn(async () => configSessionInit()),
@@ -474,6 +480,7 @@ describe("runSessionInitStatus — orchestration", () => {
     await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
     expect(probes.user).toHaveBeenCalledTimes(1);
     expect(probes.worktree).toHaveBeenCalledTimes(1);
+    expect(probes.worktreeIdentity).toHaveBeenCalledTimes(1);
     expect(probes.dirty).toHaveBeenCalledTimes(1);
     expect(probes.extensions).toHaveBeenCalledTimes(1);
     expect(probes.config).toHaveBeenCalledTimes(1);
@@ -633,6 +640,54 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
       expect(result.worktree.value.state).toBe("remote-ahead");
       expect(result.worktree.value.ahead).toBe(0);
       expect(result.worktree.value.behind).toBe(3);
+    }
+  });
+
+  it("folds linked worktree identity onto the worktree slot with its path", async () => {
+    const probes = sessionInitProbes({
+      worktreeIdentity: vi.fn(async () =>
+        worktreeIdentity({ kind: "linked", path: "/Users/dev/arc-wu-b" })),
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.worktree.ok).toBe(true);
+    if (result.worktree.ok) {
+      expect(result.worktree.value.identity).toEqual({
+        kind: "linked",
+        path: "/Users/dev/arc-wu-b",
+      });
+    }
+  });
+
+  it("folds primary worktree identity onto the worktree slot (no surface)", async () => {
+    const probes = sessionInitProbes();
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.worktree.ok).toBe(true);
+    if (result.worktree.ok) {
+      expect(result.worktree.value.identity).toEqual({ kind: "primary" });
+    }
+  });
+
+  it("defaults identity to primary when the identity probe fails; worktree slot still resolves", async () => {
+    const probes = sessionInitProbes({
+      worktreeIdentity: async () => { throw new Error("rev-parse failed"); },
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.worktree.ok).toBe(true);
+    if (result.worktree.ok) {
+      expect(result.worktree.value.identity).toEqual({ kind: "primary" });
+      expect(result.worktree.value.state).toBe("clean");
     }
   });
 

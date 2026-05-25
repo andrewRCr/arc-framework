@@ -69,6 +69,11 @@ export {
 } from "./worktree-location.js";
 
 export {
+  resolveWorktreeIdentity,
+  type WorktreeIdentity,
+} from "./worktree-identity.js";
+
+export {
   readWorktreeMarker,
   writeWorktreeMarker,
   resolveWorktreeMarkerPath,

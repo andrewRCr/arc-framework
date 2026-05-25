@@ -32,6 +32,7 @@ import type {
   SessionInitWorktreeValue,
   StatusIdentity,
   StatusResult,
+  WorktreeIdentity,
 } from "./types.js";
 import {
   inferSessionInitRecommendations,
@@ -137,6 +138,7 @@ export async function runSessionInitStatus(
     ? Promise.resolve(identityMissing())
     : safeProbe(() => probes.user(identity));
   const worktreeTask: Promise<RawWorktree> = safeProbe(() => probes.worktree());
+  const worktreeIdentityTask = safeProbe(() => probes.worktreeIdentity());
   const dirtyTask = safeProbe(() => probes.dirty());
   const extensionsTask = safeProbe(() => probes.extensions());
   const configTask = safeProbe(() => probes.config());
@@ -145,11 +147,12 @@ export async function runSessionInitStatus(
   const releaseRoutingTask = safeProbe(() => probes.releaseRouting());
 
   const [
-    user, worktree, dirty, extensions, config, active, domainRules,
-    releaseRouting,
+    user, worktree, worktreeIdentitySlot, dirty, extensions, config, active,
+    domainRules, releaseRouting,
   ] = await Promise.all([
     userTask,
     worktreeTask,
+    worktreeIdentityTask,
     dirtyTask,
     extensionsTask,
     configTask,
@@ -157,6 +160,12 @@ export async function runSessionInitStatus(
     domainRulesTask,
     releaseRoutingTask,
   ]);
+
+  // Worktree identity is non-critical and always-on: a failed probe degrades
+  // to "primary" (surface nothing) rather than masking the whole worktree slot.
+  const worktreeIdentity: WorktreeIdentity = worktreeIdentitySlot.ok
+    ? worktreeIdentitySlot.value
+    : { kind: "primary" };
 
   // Cross-channel qualifier: when the notes-clean verdict is true only
   // because local HEAD is behind origin, attach the qualifier to user
@@ -181,6 +190,7 @@ export async function runSessionInitStatus(
         ...worktree.value,
         recommendedAction: recommendations.worktree.recommendedAction,
         recommendedPromptText: recommendations.worktree.recommendedPromptText,
+        identity: worktreeIdentity,
       } satisfies SessionInitWorktreeValue,
     }
     : worktree;

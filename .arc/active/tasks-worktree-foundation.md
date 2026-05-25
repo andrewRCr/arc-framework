@@ -119,20 +119,26 @@ deliberately minimal two-phase seam designed to be absorbed by In-Flight Awarene
 evolution; keep it clean and self-documenting, do not build a general slot framework here. _Notes:_ See
 `notes-worktree-foundation.md` § Phase 2.
 
-### `[ ]` **2.1 Worktree-identity detection in the probe**
+### `[x]` **2.1 Worktree-identity detection in the probe**
 
 - _Goal:_ session-init orientation names which physical worktree the session is in when it is non-primary,
   derived cheaply and always-on from one `git rev-parse` in the existing probe pass.
 
-    - `[ ]` **2.1.a Probe-side detection** (`lib/git/` + `commands/status/run.ts`)
-        - Resolve worktree identity (primary vs linked) via `git rev-parse`; attach to the worktree slot.
-        - Build `test-first` (one behavior at a time):
-            - primary worktree → no extra surface
-            - linked worktree → identity datum populated with its path
-            - detection adds no fetch/network call (cheap, always-on)
+    - `[x]` **2.1.a Probe-side detection** (`lib/git/` + `commands/status/run.ts`)
+        - New `lib/git/worktree-identity.ts` (`resolveWorktreeIdentity`): primary-vs-linked by comparing
+          `git rev-parse --git-dir` against `--git-common-dir` (equal ⇒ primary), `--show-toplevel` supplies
+          the linked path. Local rev-parse only — no fetch. Fired as a dedicated `worktreeIdentity` probe
+          slot and folded onto the worktree envelope value in `run.ts`; defaults to `{kind: "primary"}` when
+          the probe fails.
 
-    - `[ ]` **2.1.b Orientation surface** (session-init workflow, both copies)
-        - Emit a `worktree: ../arc-wu-b`-style line in orientation only when non-primary.
+    - `[x]` **2.1.b Orientation surface** (session-init workflow, both copies)
+        - Orientation header gains a `` · `worktree: {path}` `` segment when `identity.kind === "linked"`;
+          `value.identity` documented in the Step 1 probe-field table. Both copies (`session-init.md` +
+          `session-init.template.md`).
+
+- _Outcome:_ Identity rides a separate probe slot rather than folding into `runWorktreeSyncStatus` — that
+  module is a distinct concern (HEAD-vs-origin) whose tests assert exact git-call counts an extra rev-parse
+  would break. The datum nests under `worktree.value.identity`; it is not a top-level envelope slot.
 
 ### `[ ]` **2.2 `branch-gone` probe state (split from `remote-unavailable`)**
 
