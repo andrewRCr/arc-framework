@@ -298,24 +298,38 @@ success criterion.
 
 - _Goal:_ `arc user save`/`load` infer per-WU vs cross-WU sync class purely from path structure
   (`user/{identity}/<wu-name>/**` per-WU; flat `user/{identity}/**` cross-WU; `.internal/**` never synced) — no
-  allowlist file, no in-band class declaration.
-- _Note:_ the per-WU vs cross-WU distinction is new; `.internal/` exclusion is already enforced incidentally at
-  the io-layer (dotfile-prefix skip) — decide whether the new classifier becomes the single source of truth.
+  sync-class allowlist, no in-band class declaration.
+- _Context:_ this is a **separate axis** from `serialize`'s existing file-**type** allowlist (`isAllowedFile` /
+  `ALLOWED_EXTENSIONS` + `EXCLUDED_NAMES`, which decides whether a file serializes at all) — R16's "no
+  allowlist" means no _sync-class_ allowlist; the type filter stays. The new classifier owns the sync-class
+  semantic and is its single source of truth; the io-layer dotfile skip (`io-context.ts` `readUserDir`,
+  `user-sync.ts` `serialize`) stays as a cheap walk-time prefilter (single consumer, no external breakage) —
+  don't replicate class logic across the two.
 
-    - `[ ]` **3.1.a Classification function**
+    - `[ ]` **3.1.a Sync-class classification function**
+        - Owns the per-WU / cross-WU / never-synced decision; the file-type allowlist applies on its own axis.
         - Build `test-first` (one behavior at a time):
             - subdir path → per-WU class
             - flat identity-root path → cross-WU class
             - `.internal/**` path → never-synced
     - `[ ]` **3.1.b Wire into save/load** (`lib/git/user-sync.ts`, `commands/user/save-load.ts`)
+        - _Note:_ keep the classifier modular (a `lib/user-sync/` home) — `user-sync-module-split` later extracts
+          into `lib/user-sync/*`, and entangling it with `save-load.ts` flow widens that split. _Notes:_ See
+          `notes-worktree-foundation.md` § Phases 3 & 4.
 
 ### `[ ]` **3.2 Per-WU subdir load**
 
 - _Goal:_ a load restores from the most recent reachable note containing the current WU's subdir and skips
   older notes' other-WU subdirs — resolving the spawn → first-load overwrite where a fresh worktree's
   ancestor-walk would otherwise import the prior WU's SESSION-NOTES.
+- _Context:_ the load path carries no current-WU signal today — `UserLoadOptions` (`{ cwd, io, identity,
+  maxAncestorWalk? }`, defined in both `commands/user/types.ts` and `handlers/user.ts`) and
+  `findNearestUserNote` must gain a current-WU-name input, derived from active-meta resolution / branch →
+  wu-name (the same derivation session-init uses).
 
-    - `[ ]` **3.2.a Subdir-aware note resolution** (extend `findNearestUserNote`)
+    - `[ ]` **3.2.a Subdir-aware note resolution** (extend `findNearestUserNote` + thread the WU-name input)
+        - Add the current WU name to `UserLoadOptions` (both definitions) and `findNearestUserNote`'s signature;
+          resolve the note search by "contains the current WU's subdir."
         - Build `test-first` (one behavior at a time):
             - restores from the most-recent note containing the current WU subdir
             - an older note's different-WU subdir → skipped
@@ -329,20 +343,26 @@ success criterion.
 - _Note:_ the two files have different entry shapes. `WORKING-MEMORY` entries = bold-field header (`**...:**`) +
   `_Remove when:_` + body under `## Memories`; `USER-INBOX` entries = list items (`- **lead-in** — text`)
   within `## Atomic` / `## Backlog` H2 sections. Merge-key per file (WORKING-MEMORY → bold-field header;
-  USER-INBOX → list-item lead-in, section-scoped). _Notes:_ See `notes-worktree-foundation.md` § Phases 3 & 4.
+  USER-INBOX → list-item lead-in, section-scoped). Same entry-identity with a divergent body →
+  most-recent-note wins (recency-ordered), consistent with 3.4's tombstone recency; the older body survives in
+  its note history. Keep the merge modular (`lib/user-sync/` home) for the `user-sync-module-split` extraction.
+  _Notes:_ See `notes-worktree-foundation.md` § Phases 3 & 4.
 
     - `[ ]` **3.3.a Per-file entry parser + list-union / dedupe**
         - Build `test-first` (one behavior at a time):
             - WORKING-MEMORY: disjoint bold-field entries from two notes → union of all
-            - WORKING-MEMORY: same header in both → single deduped entry
+            - WORKING-MEMORY: same header in both, identical body → single deduped entry
+            - WORKING-MEMORY: same header, divergent body → most-recent-note's body wins
             - USER-INBOX: list items merge within their `## Atomic` / `## Backlog` section (boundaries kept)
             - malformed / unparseable entry → surfaced, not silently dropped
-    - `[ ]` **3.3.b Ref-wide N-most-recent-note read**
+    - `[ ]` **3.3.b Ref-wide N-most-recent-note read** (recency-ordered)
         - _Note:_ a new read mode distinct from `findNearestUserNote`'s first-hit walk (N-most-recent across
-          the whole notes ref).
+          the whole notes ref). Must expose note **recency order** — both 3.3's divergent-body resolution and
+          3.4's tombstone recency depend on it, so it returns an ordered sequence, not a set.
         - Build `test-first` (one behavior at a time):
             - N bound respected
             - fewer-than-N notes available → reads what exists
+            - notes returned in recency order (most-recent first)
             - empty ref → no-op
     - `[ ]` **3.3.c Wire merge into load**
 
@@ -377,14 +397,18 @@ that all worktrees share.
 - _Goal:_ when parallel worktrees push notes and the second hits non-fast-forward, the push reconciles via
   `git notes merge` (cat_sort_uniq default) and surfaces to the user only when the conflict is non-trivial.
 
-    - `[ ]` **4.1.a Non-ff detection + notes-merge reconcile** (`push-fetch.ts` / `paired-push.ts`)
-        - _Note:_ this path precedes the existing push-recovery `[rejected]` handler
-          (`handlers/push-recovery.ts`) — define whether notes-merge reconcile replaces or runs before the
-          rejection prompt for the notes ref. _Notes:_ See `notes-worktree-foundation.md` § Phases 3 & 4.
+    - `[ ]` **4.1.a Non-ff detection + notes-merge reconcile** (`paired-push.ts` / `push-fetch.ts`)
+        - At the notes-push leg of `runPairedPush`: on non-ff, fetch + `git notes merge` (cat_sort_uniq) +
+          re-push, automatically — **instead of** the generic interactive recovery
+          (`pushWithInteractiveRecovery`, `push-recovery.ts`), a single force/merge/cancel path with no
+          notes-vs-branch distinction. Notes merges auto-reconcile losslessly; the interactive recovery stays
+          for the worktree/branch leg only (`runUserPush` surfaces the non-ff signal). _Notes:_ See
+          `notes-worktree-foundation.md` § Phases 3 & 4.
         - Build `test-first` (one behavior at a time):
             - second push hits non-ff → `git notes merge` reconcile, push succeeds
             - cat_sort_uniq unions both sides without loss
             - clean fast-forward → no merge invoked
+            - branch/worktree-leg rejection → unchanged (still the interactive recovery path)
     - `[ ]` **4.1.b Non-trivial-conflict surfacing**
         - Build `test-first` (one behavior at a time):
             - cat_sort_uniq union (no true conflict) → no surface
@@ -395,7 +419,11 @@ that all worktrees share.
 - _Goal:_ `arc user load` / `pull` / session-init reconcile retired-WU subdirs that linger after a WU shipped on
   another machine — local subdir present + absent from recent notes + WU shipped → offer or auto-close with a
   `.internal/` backup.
-- _Context:_ builds on `findStaleUserWuSubdirs` (`commands/user/open.ts`).
+- _Context:_ `findStaleUserWuSubdirs` (`commands/user/open.ts`) is **detection-only and has no shipped-check** —
+  it returns non-target subdir names; `removeStaleUserWuSubdir` is the separate removal primitive. 4.2 adds the
+  missing pieces: a **"WU shipped" predicate** (cross-ref `completed/` with the same match-key normalization as
+  2.7a's sweep — strip `NN_` + branch type-prefix, compare WU-name slug; **build once, share with 2.7a**), then
+  wires reconcile = shipped-predicate + `removeStaleUserWuSubdir` + `.internal/` backup.
 
     - `[ ]` **4.2.a Reconciliation logic**
         - Build `test-first` (one behavior at a time):

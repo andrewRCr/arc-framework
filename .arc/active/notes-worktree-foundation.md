@@ -132,6 +132,35 @@ implementing session is a different session; read the relevant subsection before
 - **Test coverage to add:** 3.3.b (ref-wide N-most-recent read) and 4.1.b (non-trivial-conflict surfacing)
   need behavior bullets; 3.3.a needs a per-section USER-INBOX case + a malformed-entry case; 4.1 needs a
   notes-merge-failure error path. (Folded into the task list.)
+- **Sync-class dispatch is a separate axis from the existing type allowlist (3.1).** `serialize` already filters
+  by file *type* (`isAllowedFile` / `ALLOWED_EXTENSIONS` + `EXCLUDED_NAMES`, `user-sync.ts`); R16's "no
+  allowlist" means no *sync-class* allowlist — the type filter stays. The new classifier owns the per-WU /
+  cross-WU / never-synced *semantic* (its single source of truth); the io-layer dotfile skips (`io-context.ts`
+  `readUserDir`, `serialize`) — both on the single serialize path, no other `readUserDir` consumer — stay as a
+  cheap walk-time prefilter. Don't replicate class logic across the sites.
+- **The load path needs a current-WU input (3.2).** `UserLoadOptions` (`commands/user/types.ts` +
+  `handlers/user.ts`, both) and `findNearestUserNote` carry no WU signal; thread the current WU name (active-meta
+  resolution / branch → wu-name) so the note search filters by "contains the current WU's subdir."
+- **Merge divergent-body resolution = most-recent wins (3.3).** Same entry-identity (header / lead-in) with a
+  divergent body resolves to the most-recent note's body, recency-ordered — consistent with 3.4's tombstone
+  recency. The 3.3.b N-most-recent read must therefore return notes in recency order (a sequence, not a set);
+  both merge body-resolution and tombstone recency consume that ordering.
+- **Forward-compat — keep new logic modular for `user-sync-module-split`.** That WU extracts `sync-status.ts` +
+  ref/manifest helpers into `lib/user-sync/*` (not `save-load.ts`), so Phase 3 is forward-compatible; isolate
+  the sync-class classifier (3.1) and the entry-merge (3.3) into their own functions / a `lib/user-sync/` home
+  rather than inlining into `save-load.ts`, so the later split stays clean.
+- **4.1 reconcile is a notes-specific arm, not the generic recovery.** `pushWithInteractiveRecovery`
+  (`push-recovery.ts`) is one generic `[rejected]` path (force/merge/cancel; force-fetch + re-save + re-push)
+  with no notes-vs-branch distinction. 4.1 adds an automatic `git notes merge` (cat_sort_uniq) arm at
+  `runPairedPush`'s notes-push leg, run instead of the interactive recovery for the notes ref; the interactive
+  path stays for the worktree/branch leg. Forward-compat: the arm lives in the push leg (`paired-push.ts`),
+  below `sync-handler-decomposition`'s target (`handlers/sync.ts` matrix/execute/render split) — orthogonal.
+  CSA later moves the reconcile's error handling onto execa's typed errors.
+- **Shared "WU shipped" predicate (2.7a ↔ 4.2).** Both the stale-worktree sweep (2.7a) and retired-subdir
+  reconciliation (4.2) need "is this WU shipped?" via the `completed/{quarter}/NN_{wu-name}` cross-ref +
+  match-key normalization (strip `NN_` + branch type-prefix, compare WU-name slug). Build it once, consume in
+  both; `findStaleUserWuSubdirs` is detection-only today and carries no shipped-check. (2.7a's task text
+  predates this sharing — add the back-pointer in the final coherence pass.)
 
 ### Phases 5 & 6 — entry primitives, arc-shift
 
