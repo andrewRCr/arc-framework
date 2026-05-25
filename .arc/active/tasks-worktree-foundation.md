@@ -657,8 +657,9 @@ docs WU). _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
 
 - _Goal:_ the lifecycle ceremonies wire worktree removal with marker-gated cleanup — `integrate-work-unit` adds
   a post-merge worktree-removal step run from main; `deactivate-work-unit` Case A-delete runs `git worktree
-  remove` before `git branch -D` while Case A return-to-Planning leaves the decoupled path; `activate`'s `arc
-  user open` reappears defensively; `session-handoff` gets an optional worktree-context surface.
+  remove` before `git branch -D` while Case A return-to-Planning leaves the decoupled path; `activate` gets a
+  defensive `arc user open` reaffirm plus Step-4 meta-field sync (`Branch` + `Next Action`); `session-handoff`
+  gets an optional worktree-context surface.
 - _Note:_ a worktree cannot remove itself — removal runs from the main worktree, composing with the
   batched-archive step. All cleanup consults the Phase 1 marker decision; phrasing is origin-agnostic
   (ARC-spawned and external both reach the same advisory/offer).
@@ -671,6 +672,11 @@ docs WU). _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
     - `[ ]` **7.1.d `session-handoff` optional worktree-context surface** (both copies)
         - _Note:_ handoff already surfaces worktree context (worktree probe slot + summary line) — extend,
           don't add from scratch.
+    - `[ ]` **7.1.e `activate-work-unit` Step 4 meta-field completeness** (both copies)
+        - _Note:_ Step 4 flips only `**State:**`, but Step 5 renames the branch `plan/<name>` → `<type>/<name>` —
+          leaving meta `**Branch:**` stale, which breaks session-init's branch-match disambiguation.
+          `deactivate-work-unit` Step 2 updates both `State` and `Branch`; activate should mirror it. Also refresh
+          the now-stale `**Next Action:**` pointer (still names the activation workflow after activation completes).
 
 ### `[ ]` **7.2 Pause-pointer neutralization in `manage-incidental-work.md`**
 
