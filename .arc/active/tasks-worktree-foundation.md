@@ -269,19 +269,15 @@ evolution; keep it clean and self-documenting, do not build a general slot frame
   integrate-on-B / never-reopen-A gap — without scanning siblings on the resume-a-WU path.
 - **Strategies:** `strategy-session-operations.md`
 
-    - `[ ]` **2.7.a Sweep logic**
-        - Cross-ref worktree list against `completed/` (local, network-light). Reuse the existing
-          `parseWorktreeList` (`lib/git/worktree-roster.ts`) / `runWorktreeRoster` for enumeration — do not
-          re-roll a porcelain parser.
-        - _Note:_ pin the match key — worktree branch (`plan/foo` / `feat/foo`) won't string-match
-          `completed/{quarter}/NN_{wu-name}` dir names; normalize (strip `NN_` + branch type-prefix, compare
-          WU-name slug) and decide the quarter-dir glob scope. This shipped-WU predicate (normalize +
-          `completed/` cross-ref) is **shared with 4.2's** retired-subdir reconciliation — build it once.
-          _Notes:_ See `notes-worktree-foundation.md` § Phase 2.
-        - Build `test-first` (one behavior at a time):
-            - lingering worktree for a shipped WU → surfaced
-            - active-WU worktree → not surfaced
-            - sweep runs only in the main worktree (resume path never scans siblings)
+    - `[x]` **2.7.a Sweep logic**
+        - The shipped-WU predicate lives in `lib/work-unit/completed-index.ts` (neutral home, not under
+          `session-init/`, since 4.2's retired-subdir reconciliation shares it): `readShippedWorkUnits`
+          scans every `completed/<quarter>/NN_<slug>` dir into a slug set; `branchToWorkUnitSlug` strips the
+          type-prefix (`feat/foo` / `plan/foo` → `foo`, no-`/` → null); `isShippedWorkUnit` joins them.
+          All-quarters scan — a lingering worktree's WU may have shipped in any quarter.
+        - `findStaleWorktreeCandidates` (`lib/session-init/stale-worktree-sweep.ts`) cross-refs the reused
+          roster (`runWorktreeRoster`) against the slug set, returning shipped-WU entries; empty when
+          `worktreeIdentity.kind !== "primary"` so the linked-worktree resume path never scans siblings.
 
     - `[ ]` **2.7.b Marker-gated surfacing + workflow doc**
         - Consume the Phase 1 decision fn; document the sweep step in the session-init workflow (both copies).
