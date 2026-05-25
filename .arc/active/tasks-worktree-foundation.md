@@ -6,36 +6,44 @@
 
 ## **Phase 1:** Worktree conventions & ownership marker
 
-_Purpose:_ Land the small, well-specified primitives every later phase depends on — the worktree branch-naming
-convention, the worktree location-template method, and the machine-local worktree-ownership marker. Nothing
-upstream; built first so the entry verbs resolve locations and apply naming, and every cleanup site gates
-against one settled decision.
+_Purpose:_ Land the small, well-specified primitives every later phase depends on — the worktree branch posture
+in `branch-format`, the worktree location-template method, and the machine-local worktree-ownership marker.
+Nothing upstream; built first so the entry verbs resolve locations and apply naming, and every cleanup site
+gates against one settled decision.
 
-_Design decisions:_ Branch naming extends the existing `branch-format` method (which already owns the branch
-type-set and the override machinery) rather than adding a parallel method; the worktree location-template (1.2)
-is a new method, and the marker (1.3) is a new lib. Methods follow the established override machinery
-(`override-active` frontmatter + `.override` / `.default` sections) — override resolution is agent-side (read
-the markdown), so only string/path mechanics (template expansion, marker round-trip, gating decision) carry
-`test-first`. The marker ships with its call sites wired later: written at spawn / cold-start (Phase 5),
-consulted at the branch-gone cascade and sweep (Phase 2) and the ceremonies (Phase 7).
+_Design decisions:_ A WU branch is a WU branch regardless of which worktree checks it out, so there is no
+separate worktree branch-naming convention — `branch-format`'s existing type-set and `plan/` prefix already
+govern ARC-created worktree branches. 1.1 therefore states the worktree posture in `branch-format`'s default
+section (ARC-authored: the convention applies to ARC-created branches; externally-arrived branches are
+advisory) rather than adding a parallel method or a `branch.naming_convention` key; adopters override it through
+the method's existing override machinery (the `.override` section, untouched here). The worktree location (1.2)
+— genuinely worktree-native, with no analog in `branch-format` — is its own new method; the marker (1.3) is a
+new lib. Override resolution is agent-side (read the markdown), so only string/path mechanics (template
+expansion, marker round-trip, gating decision) carry `test-first`. The marker ships with its call sites wired
+later: written at spawn / cold-start (Phase 5), consulted at the branch-gone cascade and sweep (Phase 2) and the
+ceremonies (Phase 7).
 
 _New config keys register across multiple sites_ — `arc-config.yml` (both copies), `commands/config/types.ts`
 `ConfigSettings`, `lib/config/status-reader.ts` (`DEFAULTS` + `ENUM_VALIDATORS` / `AGENT_CONSUMABLE_KEYS` as
 applies), and `.internal/scripts/validate-config.sh` `known_keys` (both copies); a new method file also
 registers in `lib/classification.ts` `CONFIGURABLE_FILES`. See `notes-worktree-foundation.md` § Phase 1.
 
-### `[ ]` **1.1 Extend `branch-format` with the worktree branch-naming convention**
+### `[ ]` **1.1 Worktree branch posture in `branch-format` (existing convention + external-mismatch advisory)**
 
-- _Goal:_ the existing `branch-format` method governs ARC-created worktree branch names and warns — rather than
-  refuses — when a branch arrives not matching the convention, so ARC composes with externally-created branches
-  without relocating or rejecting them.
-- _Context:_ `branch-format` already owns the branch type-set (core execution types + `plan/<name>`) and the
-  `override-active` / `.override` / `.default` machinery — extend it rather than add a parallel method or key.
+- _Goal:_ `branch-format`'s existing convention is affirmed to govern the branches ARC creates in linked
+  worktrees, and an advisory warns — rather than refuses — when a branch arrives not matching it, so ARC
+  composes with externally-created branches without relocating or rejecting them.
+- _Context:_ a WU branch is a WU branch regardless of worktree, so there is no separate naming convention to add
+  — `branch-format` already owns the type-set (core execution types + `plan/<name>`) and the `override-active` /
+  `.override` / `.default` machinery. 1.1 states the worktree posture, not a new convention or a
+  `branch.naming_convention` key.
 - **Strategies:** `strategy-configurability-architecture.md`, `strategy-work-organization.md`
 
-    - `[ ]` **1.1.a Add the worktree branch-naming convention to `branch-format`** (both copies)
-        - Cover ARC-created worktree branches under the existing type-set; reuse `branch-format`'s override
-          surface (no parallel `branch.naming_convention` key).
+    - `[ ]` **1.1.a State the worktree posture in `branch-format`'s default section** (both copies)
+        - Affirm in the ARC-authored `.default` section that the existing convention governs ARC-created
+          worktree branches; externally-arrived branches are advisory (warn on mismatch, never refuse). Adopters
+          override through the method's existing override machinery — the `.override` section is untouched, and
+          no `branch.naming_convention` key is added.
 
     - `[ ]` **1.1.b Advisory warn-on-external-mismatch**
         - ARC-created branch → the convention applies; externally-arrived branch → advisory, warn on mismatch,
@@ -58,6 +66,9 @@ registers in `lib/classification.ts` `CONFIGURABLE_FILES`. See `notes-worktree-f
           `validate-config.sh` `known_keys`; register the method in `classification.ts`. [R27]
 
     - `[ ]` **1.2.c Template-resolution logic**
+        - _Note:_ lives as a new lib helper (e.g. `lib/git/worktree-location.ts`), consumed at worktree-creation
+          time by `init-work-unit`'s worktree mode (5.1) and the Phase 5 spawn primitive — the slug/expansion
+          mechanics are code (hence `test-first`), not agent-side markdown resolution.
         - _Note:_ the path is decoupled from branch renames — an Active→Planning demotion leaves it as-is. Slug
           collisions (`plan/foo` and `plan-foo` both → `plan-foo`) are creation-time, last-write-wins /
           user-resolved (a line in the method, not collision-handling code). Reading external locations from
@@ -84,9 +95,11 @@ registers in `lib/classification.ts` `CONFIGURABLE_FILES`. See `notes-worktree-f
             - read tolerates an absent marker (returns "no marker", not an error)
 
     - `[ ]` **1.3.b `.gitignore` entry** (generated, not static)
-        - Add `.arc/system/.internal/worktree-marker.json` to the hardcoded managed-gitignore arrays in
-          `commands/{init,reconfigure,update}.ts` (mirrors the `pristine.json` entry); the dev-repo `.gitignore`
-          re-renders on next update.
+        - Add `.arc/system/.internal/worktree-marker.json` to every hardcoded managed-gitignore array that
+          mirrors the `pristine.json` entry — `commands/{init,reconfigure,update}.ts` plus `commands/join.ts`
+          (two array sites): four files, five array literals. The dev-repo `.gitignore` re-renders on next
+          update. _Note:_ omitting `join.ts` leaves the marker tracked on the `arc join` contributor path,
+          breaking R29's never-synced contract.
 
     - `[ ]` **1.3.c The single gating-decision function**
         - _Shape:_ marker present + clean + merged → interlock-gated offer to `git worktree remove`; present +
@@ -112,6 +125,12 @@ branch-gone / no-WU branch. branch-gone (2.2) is detected by classifying the fai
 probe already runs, so detection adds no fetch. The cascade (2.4) and sweep (2.7) consume the Phase 1 marker's
 gating decision. R7's forward-compat (trivializes to one worktree) rides with the cascade rather than as a
 separate task.
+
+_Note:_ the package copy of the session-init workflow is `session-init.template.md` (not `session-init.md`) —
+every "(both copies)" edit below targets the `.template.md`. The conditional-roster wiring (2.3) is a
+deliberately minimal two-phase seam designed to be absorbed by In-Flight Awareness's orchestration-model
+evolution; keep it clean and self-documenting, do not build a general slot framework here. _Notes:_ See
+`notes-worktree-foundation.md` § Phase 2.
 
 ### `[ ]` **2.1 Worktree-identity detection in the probe**
 
@@ -145,9 +164,13 @@ separate task.
             - upstream intact → unchanged (clean / ahead / behind / diverged)
 
     - `[ ]` **2.2.b Recommendation + exhaustiveness wiring** (`lib/session-init/recommended-action.ts`)
-        - `branch-gone` surfaces for the cascade (not a pull prompt).
+        - `branch-gone` → `recommendedAction: "surface"`; the recovery (cascade + candidate prompt) is a
+          **state-keyed** workflow arm (`state === "branch-gone"`), consistent with 2.5's state-keyed ordering
+          reversal — not a new `recommendedAction` enum member. `inferWorktree` keeps its existing
+          `{prompt, surface, skip}` codomain.
         - _Note:_ `inferWorktree` and the state tables are exhaustive (no `default`) — land 2.2a + 2.2b in one
-          green-build increment; the `session-init` workflow state-list (both copies) gains the member too.
+          green-build increment; the `session-init` workflow state-list (both copies → `.template.md` for the
+          package) gains the member too.
 
 ### `[ ]` **2.3 Pre-computed in-flight roster in the probe**
 
@@ -159,12 +182,19 @@ separate task.
 - **Strategies:** `strategy-session-operations.md`
 
     - `[ ]` **2.3.a Wire roster into the probe** (`commands/status/run.ts`, `commands/status/types.ts`)
-        - Add a roster slot fired only in the branch-gone / no-WU branch; identity-filtered.
-        - _Note:_ the probe orchestrator fires all slots eagerly via one `Promise.all` — firing the roster only
-          in the triggering branch needs either two-phase orchestration (resolve worktree state, then
-          conditionally fire the roster) or a self-no-op roster gated on worktree state; settle the shape here.
-          "no-WU" derives from the `active` slot. The owner-filter must define disposition for meta-less / admin
-          worktrees (no `**Owner:**`). _Notes:_ See `notes-worktree-foundation.md` § Phase 2.
+        - Add a roster slot fired only in the branch-gone / no-WU branch; identity-filtered. Use the existing
+          `Probe<T>` slot wrapper (so CSA's later `Probe → Result` conversion migrates it uniformly).
+        - _Approach:_ **two-phase orchestration** — the orchestrator today fires all slots eagerly through one
+          `Promise.all`, and a self-no-op roster gated on worktree state can't work (its gating signals —
+          worktree state, `active.resolution` — are produced by sibling slots in the _same_ `Promise.all`). So
+          resolve the cheap existing slots first (worktree, active — already computed, local), then
+          conditionally fire the roster only on branch-gone / no-WU. Preserve `safeProbe`'s "envelope never
+          rejects" contract. "no-WU" derives from the `active` slot (`resolution === "none"`).
+        - _Note:_ keep the two-phase seam **minimal and self-documenting** — a named conditional stage with the
+          gating rationale in a comment, designed to be absorbed by In-Flight Awareness's orchestration-model
+          evolution (it adds the 2nd gated slot, the oracle); do **not** build a general slot framework here.
+          The owner-filter must define disposition for meta-less / admin worktrees (no `**Owner:**`). _Notes:_
+          See `notes-worktree-foundation.md` § Phase 2.
         - Build `test-first` (one behavior at a time):
             - branch-gone branch → roster computed
             - clean resume branch → roster slot absent (no scan)
@@ -236,7 +266,9 @@ separate task.
 - **Strategies:** `strategy-session-operations.md`
 
     - `[ ]` **2.7.a Sweep logic**
-        - Cross-ref worktree list against `completed/` (local, network-light).
+        - Cross-ref worktree list against `completed/` (local, network-light). Reuse the existing
+          `parseWorktreeList` (`lib/git/worktree-roster.ts`) / `runWorktreeRoster` for enumeration — do not
+          re-roll a porcelain parser.
         - _Note:_ pin the match key — worktree branch (`plan/foo` / `feat/foo`) won't string-match
           `completed/{quarter}/NN_{wu-name}` dir names; normalize (strip `NN_` + branch type-prefix, compare
           WU-name slug) and decide the quarter-dir glob scope. _Notes:_ See `notes-worktree-foundation.md`
@@ -681,8 +713,9 @@ itself — and this WU dogfoods the retirement (no `atomic-*` companion was crea
   methods / templates / workflows; `strategy-work-organization.md` and § ROADMAP carry no cut
   shift-state-machine rows and use the location-based In-Flight definition; `manage-incidental-work.md` no
   longer sets retired pause-pointer fields
-- `[ ]` Methods genuinely overridable — the worktree branch-naming convention and `worktree.location_template`
-  resolve defaults and accept overrides through the standard method-override machinery
+- `[ ]` Methods genuinely overridable — the worktree branch posture (via `branch-format`) and
+  `worktree.location_template` resolve defaults and accept overrides through the standard method-override
+  machinery
 - `[ ]` All quality gates pass (tests, linting, type checking)
 - `[ ]` Ready for integration
 

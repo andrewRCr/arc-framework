@@ -222,11 +222,13 @@ flat at `user/{identity}/**`; `user/{identity}/.internal/**` never synced).
 
 ### E. Worktree conventions (overridable methods)
 
-- **R25 [P0]** — **Branch-naming convention**, delivered by **extending the existing `branch-format` method** —
+- **R25 [P0]** — **Worktree branch posture**, delivered by **extending the existing `branch-format` method** —
   which already owns the branch type-set (core execution types + `plan/<name>`) and the method-override
-  machinery — rather than adding a parallel method or config key. Add the worktree branch-naming convention to
-  `branch-format` plus an **advisory warn-on-external-mismatch**: when ARC creates branches the convention
-  applies; when branches arrive externally it warns on mismatch, never refusing or relocating.
+  machinery — rather than adding a parallel method or config key. A WU branch is a WU branch regardless of
+  worktree, so there is no separate worktree naming convention: state the worktree posture in `branch-format`'s
+  default — the existing convention governs ARC-created worktree branches — plus an **advisory
+  warn-on-external-mismatch**: when ARC creates branches the convention applies; when branches arrive externally
+  it warns on mismatch, never refusing or relocating.
 - **R26 [P0]** — **Worktree location template** (`worktree.location_template`), implemented under
   `system/methods/`. Default = `../{repo}.{branch}` (flat sibling-parent; slashes → `-`). Documents override
   examples (in-repo `.worktrees/{branch}`, centralized, home-rooted). When ARC creates worktrees the template
@@ -356,7 +358,7 @@ flat at `user/{identity}/**`; `user/{identity}/.internal/**` never synced).
   uniform in every worktree.
 - **Structural vs. advisory.** Structural (uniform regardless of worktree origin): single-branch-per-WU,
   location-by-state, per-worktree isolation, state machine, capture pipeline, integration ceremony. Advisory
-  (configurable defaults, soft-warned when violated): branch-naming convention (R25), worktree location
+  (configurable defaults, soft-warned when violated): worktree branch posture (R25), worktree location
   template (R26). Adopters using an external tool get the full structural discipline; the advisory
   conventions become recommendations they apply via their tool's UX.
 - **Dual-axis recovery model.** Session-init implicitly answers two questions with different authoritative
@@ -397,8 +399,9 @@ Validated explicitly at work-unit completion:
   strategies / methods / templates / workflows; `strategy-work-organization.md` and § ROADMAP carry no cut
   shift-state-machine rows and use the location-based In-Flight definition; `manage-incidental-work.md` no
   longer instructs setting retired pause-pointer fields.
-- **Methods are genuinely overridable** — `branch.naming_convention` and `worktree.location_template` resolve
-  defaults and accept overrides through the standard method-override machinery.
+- **Methods are genuinely overridable** — the worktree branch posture (via `branch-format`) and
+  `worktree.location_template` resolve defaults and accept overrides through the standard method-override
+  machinery.
 
 ## Design Decisions
 

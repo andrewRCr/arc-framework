@@ -83,6 +83,28 @@ implementing session is a different session; read the relevant subsection before
   `completed/{quarter}/NN_{wu-name}` dir names — pin a normalization (strip `NN_` + branch type-prefix,
   compare WU-name slug) and decide the quarter-dir glob scope.
 - `runWorktreeRoster` entries also carry `metaFilePath`; cohort from `**Cohort:**` (skips `[none]`).
+- **branch-gone classification duck-types the rejection (2.2a).** `boundedFetch` (`worktree-sync.ts`) returns
+  `"ok" | "timeout" | "error"` and its catch discards the error (only `AbortError` → timeout). Extend the
+  union to include `"branch-gone"` and classify by inspecting the rejection's `.stderr` / `.code` (exit 128 +
+  "couldn't find remote ref"): `GitExec` types only the resolved `ExecResult`, not the rejection, so this
+  duck-types the thrown error the way `gitMergeFile` already does (`exec.ts:219`). `runWorktreeSyncStatus`
+  then maps `"branch-gone"` → `state: "branch-gone"`, other failures → `remote-unavailable` as today. The
+  2.2a test mock must reject with a `{ stderr, code: 128 }`-shaped error, not a bare `Error`. Written plainly
+  here; CSA later migrates the branch-gone evidence to a zod discriminated union — leave the seam, don't
+  pre-build it.
+- **Probe orchestration is a forward-compat seam owned by In-Flight Awareness.** 2.3's conditional-roster
+  wiring is the *first* conditional-expensive slot in an orchestrator that today fans out every slot eagerly
+  (`commands/status/run.ts`, three entry points: `runStatus` / `runSessionInitStatus` /
+  `runSessionHandoffStatus`). IFA adds the *second* (the oracle, gated on `active.resolution === "none"`) and
+  owns evolving the orchestration model — gated-slot affordance + per-entry-point de-dup — see
+  `draft-in-flight-awareness.md` § In scope item 6. WF ships only the minimal, clean, absorbable two-phase
+  seam; do not build a general slot framework. CSA (parallel post-WF) separately converts `Probe<T>` →
+  `Result<T, E>` + zod-validates the envelope in the same file — orthogonal axis (slot-result type, not
+  firing discipline), but co-located: coordinate `run.ts` edits if the two run concurrently.
+- **CSA migration-target staleness (worktree-list parser).** `draft-cli-substrate-adoption.md` lists
+  "3 hand-rolled `git worktree list --porcelain` parsers" as WF migration targets, but `parseWorktreeList`
+  already exists (`worktree-roster.ts`, from WOR). WF reuses it across 2.4 / 2.7 (one parser, multiple
+  callers), so CSA's later sweep migrates **one** parser, not three — flag for CSA's pre-PRD refresh.
 
 ### Phases 3 & 4 — cross-WU sync
 
