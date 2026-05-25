@@ -92,11 +92,12 @@ implementing session is a different session; read the relevant subsection before
   2.2a test mock must reject with a `{ stderr, code: 128 }`-shaped error, not a bare `Error`. Written plainly
   here; CSA later migrates the branch-gone evidence to a zod discriminated union — leave the seam, don't
   pre-build it.
-- **Probe orchestration is a forward-compat seam owned by In-Flight Awareness.** 2.3's conditional-roster
-  wiring is the *first* conditional-expensive slot in an orchestrator that today fans out every slot eagerly
-  (`commands/status/run.ts`, three entry points: `runStatus` / `runSessionInitStatus` /
-  `runSessionHandoffStatus`). IFA adds the *second* (the oracle, gated on `active.resolution === "none"`) and
-  owns evolving the orchestration model — gated-slot affordance + per-entry-point de-dup — see
+- **Probe orchestration is a forward-compat seam owned by In-Flight Awareness.** 2.3's conditional roster and
+  2.4's branch-gone recovery cascade are WF's *two* conditional-expensive slots in an orchestrator that today
+  fans out every slot eagerly (`commands/status/run.ts`, three entry points: `runStatus` /
+  `runSessionInitStatus` / `runSessionHandoffStatus`). IFA adds a further one (the oracle, gated on
+  `active.resolution === "none"`) and owns evolving the orchestration model — gated-slot affordance +
+  per-entry-point de-dup — see
   `draft-in-flight-awareness.md` § In scope item 6. WF ships only the minimal, clean, absorbable two-phase
   seam; do not build a general slot framework. CSA (parallel post-WF) separately converts `Probe<T>` →
   `Result<T, E>` + zod-validates the envelope in the same file — orthogonal axis (slot-result type, not

@@ -192,19 +192,32 @@ evolution; keep it clean and self-documenting, do not build a general slot frame
 - _Goal:_ on branch-gone, a deterministic cascade produces high-confidence recovery candidates — stopping and
   prompting rather than guessing under ambiguity — and trivializes to a one-candidate resolve in the
   single-worktree case so it ships value pre-worktree-adoption.
-- _Approach:_ cascade order — `git worktree list` → per-worktree meta via the roster (identity-filtered) →
-  recently-active remote branches within an internal recency window → coord-probe (when available) → fall back
-  to `main` with explicit confirmation. Per-worktree action varies (stranded in main/admin → propose switch;
-  stranded in a WU worktree whose branch merged externally → propose worktree removal + meta archival, gated by
-  the Phase 1 marker decision).
-- _Note:_ the recency window is a Foundation-internal constant — the `coord.recency_days` config key is the
-  coord-probe WU's to add (it does not exist yet); do not register it here. _Notes:_ See
-  `notes-worktree-foundation.md` § Phase 2.
+- _Approach:_ cascade order — `git worktree list` → per-worktree meta via the 2.3 roster (identity-filtered) →
+  recently-active remote branches within the recency window → coord-probe (when available) → fall back to `main`
+  with explicit confirmation. Per-worktree action varies (stranded in main/admin → propose switch; stranded in a
+  WU worktree whose branch merged externally → propose worktree removal + meta archival, gated by the Phase 1
+  marker decision).
+- _Architecture (resolved at pre-impl audit):_ the cascade is **pre-computed in the session-init probe** as a
+  thin gated `recovery` slot, sibling to the 2.3 `roster` slot and gated on `branch-gone` only (narrower than
+  the roster's branch-gone / no-WU gate). Chosen over a dedicated `arc recover` subcommand: the roster is already
+  an envelope slot with two consumers (the dual-axis orientation and this cascade), so a slot keeps it computed
+  once and consumed in one pass, and it rides the gated-slot evolution IFA owns plus CSA's `Probe → Result`
+  sweep. Resolution stays a **pure lib function** (signals in, resolution out — no I/O) fed by thin
+  signal-gatherers, so the slot is a thin gated wrapper: the probe gates a call to a recovery module, it does not
+  hold recovery logic.
+- _Note:_ the recency window is a **fixed 30-day Foundation-internal constant** — the configurable
+  `coord.recency_days` key is the coord-probe WU's to add (it does not exist yet); do not register it here.
+  coord-probe is unbuilt, so its cascade step is a forward-compat **no-op** (skip the signal; do not stub a
+  call). _Notes:_ See `notes-worktree-foundation.md` § Phase 2.
 - **Strategies:** `strategy-session-operations.md`, `strategy-work-organization.md`
 
-    - `[ ]` **2.4.a Cascade resolution logic**
-        - _Note:_ detect-stop-prompt is the default for ambiguity; R7 trivialization (one worktree → one match
-          → notes-pull confirms) is the same mechanism's simplest instance.
+    - `[ ]` **2.4.a Cascade resolution logic + output contract** (pure lib fn)
+        - Define the resolution discriminated union 2.4.d renders and 2.5 consumes: `{ kind: "resolved";
+          candidate }` | `{ kind: "surface"; candidates[] }` | `{ kind: "main-fallback" }`, where a candidate
+          carries `{ worktreePath, branch, proposedAction }` (`proposedAction` filled by 2.4.b). Pure — roster
+          entries + recent remote branches in, resolution out; no git I/O.
+        - _Note:_ detect-stop-prompt is the default for ambiguity; R7 trivialization (one worktree → one match →
+          notes-pull confirms) must fall out of the single-entry path, not a special-case branch.
         - Build `test-first` (one behavior at a time):
             - single high-confidence signal → resolves to one candidate
             - multiple plausible signals → stop, surface candidates (no guess)
@@ -212,15 +225,31 @@ evolution; keep it clean and self-documenting, do not build a general slot frame
             - no signal anywhere → `main` fallback with explicit confirmation
 
     - `[ ]` **2.4.b Per-worktree action determination**
-        - Gated via the Phase 1 marker decision: merged-externally WU worktree → removal + archival offer;
-          stranded in main/admin → switch proposal.
+        - Fill each candidate's `proposedAction` via the Phase 1 decision fn (`decideWorktreeCleanup`,
+          `lib/git/worktree-cleanup.ts`): merged-externally WU worktree → removal + archival offer; stranded in
+          main/admin → switch proposal. Gather the `{ marker, clean, merged }` inputs it needs per candidate
+          worktree — the 2.3 roster carries path / branch / meta only, so read each worktree's marker, dirty
+          state, and `isBranchMerged` against the target.
         - Build `test-first` (one behavior at a time):
             - WU worktree, branch merged, marker present + clean → removal + archival offer
             - stranded in main → switch proposal
             - no marker → advisory only
 
-    - `[ ]` **2.4.c Session-init workflow doc** (both copies)
-        - Document the branch-gone recovery cascade and its single-prompt resolution.
+    - `[ ]` **2.4.c Signal gathering + probe `recovery` slot wiring** (`commands/status/run.ts` + `.../types.ts`)
+        - Add the recently-active-remote-branches gatherer (`git for-each-ref --sort=-committerdate
+          refs/remotes/origin`, filtered to the 30-day window — greenfield; no `for-each-ref` precedent in
+          `src/`). Wire roster + recent branches → resolution fn → per-worktree actions into the probe as the
+          gated `recovery` slot (branch-gone only) via the existing `Probe<T>` wrapper, extending 2.3's two-stage
+          seam.
+        - Build `test-first` (one behavior at a time):
+            - branch-gone → `recovery` slot present (cascade computed)
+            - clean resume / no-WU → `recovery` slot absent (no scan)
+            - gatherer filters branches by the recency window
+
+    - `[ ]` **2.4.d Session-init workflow doc** (both copies)
+        - Document the branch-gone recovery arm: a Step-6 orientation arm renders the pre-computed `recovery`
+          slot candidates and reaches single-prompt resolution in one turn (resolved → confirm; surface → choose;
+          main-fallback → confirm).
 
 ### `[ ]` **2.5 Branch-gone sync ordering reversal (git-align before notes-pull)**
 

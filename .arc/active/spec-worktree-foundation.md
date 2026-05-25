@@ -104,8 +104,9 @@ it falls out cheaply.
   distinct from timeout / network / auth `error`. No added fetch — detection rides the existing one.
 - **R3 [P0]** — On `branch-gone`, run a resolution cascade: `git worktree list` (other active worktrees) →
   per-worktree meta reads via WOR's cross-worktree roster cascade (active WU branches by `**Branch:**`,
-  identity-filtered by `(@identity)` in team mode) → recently-active remote branches within
-  `coord.recency_days` → coord-probe (when available) → fall back to `main` with explicit confirmation.
+  identity-filtered by `(@identity)` in team mode) → recently-active remote branches within an internal recency
+  window (a fixed Foundation default; the configurable `coord.recency_days` key is Coord Probe's to add, not
+  Foundation's) → coord-probe (when available) → fall back to `main` with explicit confirmation.
   Per-worktree action varies (stranded in main / admin worktree → propose switch; stranded in a WU worktree
   whose branch merged externally → propose worktree removal + meta archival, gating offer-to-execute vs.
   advisory via the R29 marker contract). **Detect-stop-prompt is the
@@ -362,7 +363,8 @@ flat at `user/{identity}/**`; `user/{identity}/.internal/**` never synced).
   presenting options. Hard constraint: the common path (resume an existing local WU) must not get slower —
   heavy capabilities (roster pre-compute, branch-gone cascade) fire only in their triggering branch. Probe
   deltas: worktree identity (cheap, always on); `branch-gone` as a distinct state (rides the existing fetch);
-  pre-computed roster (branch-gone / no-WU branch only). The handoff probe needs no structural change. The
+  pre-computed roster (branch-gone / no-WU branch only); pre-computed branch-gone recovery cascade (branch-gone
+  branch only). The handoff probe needs no structural change. The
   stale-worktree sweep (R34) is anchored at the main-worktree session-init for the same reason — the
   resume-a-WU path never scans siblings.
 - **Layering model.** Foundation's entry shape sits on top of two layers ARC does not own. The **tool layer**
