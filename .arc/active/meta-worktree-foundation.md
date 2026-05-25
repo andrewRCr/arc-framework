@@ -11,12 +11,14 @@
 - **Cohort:** agile-parallelism
 
 - **Task List:** tasks-worktree-foundation.md
-- **Last Completed:** Task 2.2 — `branch-gone` probe state split from `remote-unavailable` (exit-128 fetch
-  classification; surfaced through orientation + `arc sync`, with the deleted-branch push-block preserved).
-- **Next Task:** Task 2.3 — Pre-computed in-flight roster in the probe (line ~169)
+- **Last Completed:** Task 2.4 — Branch-gone resolution cascade (pure resolver + per-candidate action mapping,
+  recent-branch gatherer + I/O assembler, wired as a gated `recovery` probe slot; session-init Step-6 recovery
+  arm in both workflow copies). Task 2.3 (roster) also landed this session.
+- **Next Task:** Task 2.5 — Branch-gone sync ordering reversal (line ~230)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 2.3 per `3_process-task-loop.md` — wire the branch-gone/no-WU-gated roster slot
-  via two-phase orchestration (see 2.3 _Approach:_). Slot stays unused until 2.4 consumes it; consider pairing.
+- **Next Action:** Begin Task 2.5 per `3_process-task-loop.md` — reverse session-init's Step 2 → Step 3 ordering
+  on `branch-gone` (git-align before notes-pull) in both workflow copies; builds on 2.4.d's Step-6 recovery arm.
+  Doc-only.
 
 ---
