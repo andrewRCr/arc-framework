@@ -360,6 +360,26 @@ describe("buildSessionInitStatusSummary — scoped mode", () => {
     expect(summary).toContain("remote unavailable (timeout)");
   });
 
+  it("renders worktree branch-gone with a deleted-upstream summary", () => {
+    const summary = buildSessionInitStatusSummary(
+      makeSessionInitResult({
+        worktree: {
+          ok: true,
+          value: {
+            state: "branch-gone",
+            ahead: 0,
+            behind: 0,
+            branch: "feat/x",
+            recommendedAction: "surface",
+            recommendedPromptText: "",
+            identity: { kind: "primary" },
+          },
+        },
+      }),
+    );
+    expect(summary).toContain("branch gone");
+  });
+
   it("renders an (unavailable) marker for an errored session-init slot", () => {
     const summary = buildSessionInitStatusSummary(
       makeSessionInitResult({

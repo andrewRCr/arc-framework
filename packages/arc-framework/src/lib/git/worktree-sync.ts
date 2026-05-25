@@ -27,7 +27,10 @@ import { getCurrentBranch, type GitExec } from "./exec.js";
  * - `no-upstream` — current branch has no `@{upstream}` mapping.
  * - `detached-head` — HEAD is detached; no current branch.
  * - `no-remote` — repository has no `origin` remote configured.
- * - `remote-unavailable` — fetch failed (timeout, network, auth).
+ * - `branch-gone` — upstream branch was deleted on the remote; the bounded
+ *   fetch reports the ref no longer exists. Split out from `remote-unavailable`
+ *   so recovery can key on a recoverable, non-network failure.
+ * - `remote-unavailable` — fetch failed for a transient reason (timeout, network, auth).
  */
 export type WorktreeSyncState =
   | "skipped"
@@ -38,6 +41,7 @@ export type WorktreeSyncState =
   | "no-upstream"
   | "detached-head"
   | "no-remote"
+  | "branch-gone"
   | "remote-unavailable";
 
 export interface WorktreeSyncStatusResult {
@@ -107,6 +111,11 @@ export async function runWorktreeSyncStatus(
   }
 
   const fetchOutcome = await boundedFetch(exec, branch, fetchTimeoutMs);
+  if (fetchOutcome === "branch-gone") {
+    // Recoverable, non-network failure: the remote branch was deleted. Carries
+    // no failureReason — that field flags transient remote-unavailable causes.
+    return { state: "branch-gone", ahead: 0, behind: 0, branch };
+  }
   if (fetchOutcome !== "ok") {
     return {
       state: "remote-unavailable",
@@ -121,11 +130,13 @@ export async function runWorktreeSyncStatus(
   return { state: classifyState(counts), ...counts, branch };
 }
 
+type FetchOutcome = "ok" | "timeout" | "branch-gone" | "error";
+
 async function boundedFetch(
   exec: GitExec,
   branch: string,
   timeoutMs: number,
-): Promise<"ok" | "timeout" | "error"> {
+): Promise<FetchOutcome> {
   const controller = new AbortController();
   const timer = setTimeout(() => {
     controller.abort();
@@ -136,11 +147,26 @@ async function boundedFetch(
   } catch (err) {
     // Classify on AbortError name, not signal.aborted — a non-abort fetch
     // error coincident with the timer firing would otherwise misclassify.
-    const isAbortError = err instanceof Error && err.name === "AbortError";
-    return isAbortError ? "timeout" : "error";
+    if (err instanceof Error && err.name === "AbortError") return "timeout";
+    if (isBranchGoneError(err)) return "branch-gone";
+    return "error";
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * Duck-type a fetch rejection as a deleted-upstream-branch failure. Git exits
+ * 128 with a "couldn't find remote ref" stderr when the targeted remote branch
+ * no longer exists. `GitExec` types only the resolved `ExecResult`, so the
+ * rejection's `code`/`stderr` are read defensively off `unknown`.
+ */
+function isBranchGoneError(err: unknown): boolean {
+  if (typeof err !== "object" || err === null) return false;
+  const code = (err as { code?: unknown }).code;
+  const stderr = (err as { stderr?: unknown }).stderr;
+  const stderrText = typeof stderr === "string" ? stderr : "";
+  return code === 128 && /find remote ref/iu.test(stderrText);
 }
 
 async function getUpstream(exec: GitExec): Promise<string | null> {

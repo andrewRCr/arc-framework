@@ -171,6 +171,7 @@ const REFUSED_SYNC_CELLS: ReadonlySet<string> = new Set([
   "blocked-remote-ahead",
   "blocked-detached-head",
   "blocked-no-remote",
+  "blocked-branch-gone",
   "blocked-remote-unavailable",
 ]);
 
@@ -188,6 +189,7 @@ const NOTES_BLOCK_WORKTREE_STATES: ReadonlySet<WorktreeSyncState> = new Set([
   "no-upstream",
   "detached-head",
   "no-remote",
+  "branch-gone",
   "remote-unavailable",
 ]);
 
@@ -202,6 +204,7 @@ const WORKTREE_PUSH_BLOCK_STATES: ReadonlySet<WorktreeSyncState> = new Set([
   // as its first arm.
   "detached-head",
   "no-remote",
+  "branch-gone",
   "remote-unavailable",
 ]);
 
@@ -1119,6 +1122,9 @@ function worktreeBlockGuidance(
       return "Worktree push blocked: no `origin` remote is configured.";
     case "remote-unavailable":
       return "Worktree push blocked: origin is unavailable. Retry when the remote is reachable.";
+    case "branch-gone":
+      return `Worktree push blocked: upstream branch deleted on origin. `
+        + `Recreate the branch or remove the stale worktree before pushing.`;
     default:
       return `Worktree push blocked: worktree state is ${action.reason}.`;
   }
@@ -1145,6 +1151,9 @@ function reconcileGuidance(state: WorktreeSyncState): string {
       return `${prefix} No \`origin\` remote configured — set up a remote before notes can publish.`;
     case "remote-unavailable":
       return `${prefix} Origin unavailable — retry when reachable.`;
+    case "branch-gone":
+      return `${prefix} Upstream branch deleted on origin — recreate it, retarget the `
+        + "branch, or remove the stale worktree before notes can publish.";
     case "clean":
     case "skipped":
       // Defensive — reconcileGuidance only fires on save+notes-blocked, which

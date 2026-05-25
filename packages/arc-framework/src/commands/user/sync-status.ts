@@ -777,6 +777,8 @@ export function formatWorktreeQualifierLine(input: {
       return `Local worktree HEAD and its origin upstream have diverged (${worktree.ahead} local ahead, ${worktree.behind} remote ahead).`;
     case "remote-unavailable":
       return formatRemoteUnavailableWorktreeLine(worktree.failureReason);
+    case "branch-gone":
+      return "Local worktree's upstream branch no longer exists on origin (deleted upstream).";
     default:
       return null;
   }

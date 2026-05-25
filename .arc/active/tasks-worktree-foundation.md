@@ -140,30 +140,31 @@ evolution; keep it clean and self-documenting, do not build a general slot frame
   module is a distinct concern (HEAD-vs-origin) whose tests assert exact git-call counts an extra rev-parse
   would break. The datum nests under `worktree.value.identity`; it is not a top-level envelope slot.
 
-### `[ ]` **2.2 `branch-gone` probe state (split from `remote-unavailable`)**
+### `[x]` **2.2 `branch-gone` probe state (split from `remote-unavailable`)**
 
 - _Goal:_ a deleted-upstream branch is reported as a distinct `branch-gone` state instead of being masked as
   `remote-unavailable`, by classifying the failure of the bounded fetch the probe already runs (no new fetch,
   no added latency).
 
-    - `[ ]` **2.2.a Detection** (`lib/git/worktree-sync.ts`)
-        - Extend `boundedFetch` to surface the failure kind (preserve stderr / exit code); add `branch-gone`
-          to `WorktreeSyncState`; classify "couldn't find remote ref" (exit 128, ref-not-on-remote) as
-          `branch-gone`, distinct from timeout / network / auth `error`.
-        - Build `test-first` (one behavior at a time):
-            - fetch fails with remote-ref-not-found → `branch-gone`
-            - fetch timeout → `remote-unavailable` (timeout) unchanged
-            - fetch network/auth error → `remote-unavailable` (error) unchanged
-            - upstream intact → unchanged (clean / ahead / behind / diverged)
+    - `[x]` **2.2.a Detection** (`lib/git/worktree-sync.ts`)
+        - `boundedFetch` now returns a `FetchOutcome` union with `branch-gone`; `isBranchGoneError` duck-types
+          the rejection (exit 128 + "find remote ref" stderr, mirroring `gitMergeFile`'s `.stdout` read off
+          `unknown`). `runWorktreeSyncStatus` maps it to a distinct `branch-gone` state carrying no
+          `failureReason`; timeout / network / auth stay `remote-unavailable` as before.
 
-    - `[ ]` **2.2.b Recommendation + exhaustiveness wiring** (`lib/session-init/recommended-action.ts`)
-        - `branch-gone` → `recommendedAction: "surface"`; the recovery (cascade + candidate prompt) is a
-          **state-keyed** workflow arm (`state === "branch-gone"`), consistent with 2.5's state-keyed ordering
-          reversal — not a new `recommendedAction` enum member. `inferWorktree` keeps its existing
-          `{prompt, surface, skip}` codomain.
-        - _Note:_ `inferWorktree` and the state tables are exhaustive (no `default`) — land 2.2a + 2.2b in one
-          green-build increment; the `session-init` workflow state-list (both copies → `.template.md` for the
-          package) gains the member too.
+    - `[x]` **2.2.b Recommendation + exhaustiveness wiring** (`lib/session-init/recommended-action.ts`)
+        - `inferWorktree` surfaces `branch-gone` (same verb as `remote-unavailable`; recovery stays a
+          state-keyed workflow arm, not a new `recommendedAction` member). `session-init` workflow state-list
+          updated in both copies (`.md` + `.template.md`).
+
+- _Outcome:_ the split touched six consumers, not the two the type's named call sites implied. Compiler-forced
+  exhaustive switches: `inferWorktree` + `status/format.ts`. Not compiler-forced (Sets / `default`-bearing, so
+  caught only by tests/reasoning): `handlers/sync.ts` (two worktree-block Sets + the `REFUSED_SYNC_CELLS`
+  string-set + two guidance switches) and `sync-status.ts`'s qualifier line. `arc sync` behavior is preserved
+  deliberately — a deleted-upstream branch was previously masked as `remote-unavailable`, which sits in both
+  block-sets and the refused-cell set, so `branch-gone` inherits the same push-blocking (else `sync` would
+  silently start auto-recreating deleted branches) with accurate wording instead of "retry when reachable".
+  Guard rows added to the orchestrator `it.each` tables cover the string-keyed set the compiler can't.
 
 ### `[ ]` **2.3 Pre-computed in-flight roster in the probe**
 

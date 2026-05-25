@@ -85,6 +85,8 @@ function buildWorktreeSessionInitSummary(value: WorktreeSyncStatusResult): strin
       return "detached HEAD";
     case "no-remote":
       return "no remote configured";
+    case "branch-gone":
+      return "branch gone (upstream deleted on origin)";
     case "remote-unavailable": {
       const reason = value.failureReason ? ` (${value.failureReason})` : "";
       return `remote unavailable${reason}`;

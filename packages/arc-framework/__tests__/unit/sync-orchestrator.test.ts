@@ -462,6 +462,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
   it.each([
     ["remote-ahead", 0, 3, "main"],
     ["remote-unavailable", 0, 0, "main"],
+    ["branch-gone", 0, 0, "main"],
     ["detached-head", 0, 0, null],
   ] satisfies Array<[WorktreeSyncState, number, number, string | null]>)(
     "%s blocked cell saves locally before refusing notes push",
@@ -1237,6 +1238,7 @@ describe("audit-log integration", () => {
     ["detached-head", 0, 0, null],
     ["no-remote", 0, 0, "main"],
     ["remote-unavailable", 0, 0, "main"],
+    ["branch-gone", 0, 0, "main"],
   ] satisfies Array<[WorktreeSyncState, number, number, string | null]>)(
     "blocked-%s cell writes refused entry with refusalCode 14",
     async (state, ahead, behind, branch) => {

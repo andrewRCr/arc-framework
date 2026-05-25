@@ -694,6 +694,17 @@ describe("handleUserSync worktree qualifier", () => {
     );
   });
 
+  it("emits a branch-gone qualifier when the upstream branch is deleted on origin", async () => {
+    setSyncState("same", "same");
+    mockRunWorktreeSyncStatus.mockResolvedValue({ state: "branch-gone", ahead: 0, behind: 0, branch: "feat/x" });
+
+    await handleUserSync();
+
+    expect(mockLog.info).toHaveBeenCalledWith(
+      "Local worktree's upstream branch no longer exists on origin (deleted upstream).",
+    );
+  });
+
   it("stays silent when worktree is clean", async () => {
     setSyncState("same", "same");
     mockRunWorktreeSyncStatus.mockResolvedValue({ state: "clean", ahead: 0, behind: 0, branch: "main" });
