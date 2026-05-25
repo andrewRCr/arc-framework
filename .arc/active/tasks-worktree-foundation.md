@@ -579,6 +579,9 @@ worktree-creating mode (5.1) is the create-new path; the removal-side ceremony e
   The Errand's "launch from the main worktree" framing is an instance of the main-on-main pattern — the shipped
   doc cross-references the main-on-main strategy content (7.3's deliverable) for the launchpad rationale rather
   than restating it, to avoid drift.
+- _Cross-ref:_ the launch ergonomics (`errand-launch` primitive, Errand decision matrix, advisory
+  foreign-artifact gate) are **Errand Enablement's** (`draft-errand-enablement.md`), sequenced
+  WF → Errand Enablement → IFA — not Foundation's. 5.6 documents the path only.
 - **Strategies:** `strategy-work-organization.md`
 
 ## **Phase 6:** In-session shift (`arc-shift`)
@@ -597,13 +600,17 @@ verbs so there are worktrees to shift between.
   an optional arg.
 - _Mechanism:_ "repoint" = re-orient the agent to the target worktree **within the same conversation** (read
   its `meta-*` + SESSION-NOTES, operate against its path) — **not** a new session. Shift is **return-intent
-  sidequesting**: a short detour you intend to return from before handoff, which is what makes
+  cross-worktree investigation**: a short detour you intend to return from before handoff, which is what makes
   context-preservation worth it (a permanent switch is just handoff + fresh session; a mis-launch is clear +
   re-init — neither has accumulated context to preserve). Each worktree is independently handoff-able, so a
   sidequest that outgrows the detour can handoff in place then shift back — no special handling.
-- _Note:_ the fuller sidequest _usage doctrine_ (focus roles, when to parallelize, the return discipline) is
-  Concurrent Work Conventions's (a Non-Goal here); 6.1 ships the mechanism + the minimal framing that justifies
-  it.
+- _Note:_ **narrow scope** — shift's one irreducible use is interactive cross-worktree _investigation_
+  (operate in another worktree's runnable environment while reasoning with the current session's live,
+  expensive-to-reconstruct context). It is **not** the general sidequest tool: discovered side work is an
+  Errand (`errand-launch`, owned by Errand Enablement), and a discrete question about another worktree is
+  answered by reading its files or seeding an exploration session. The fuller usage doctrine (when to
+  parallelize, the return discipline) is Concurrent Work Conventions's (a Non-Goal here); 6.1 ships the
+  mechanism + the minimal framing that justifies it.
 
     - `[ ]` **6.1.a Skill authoring** (canonical sources + harness hand-sync)
     - `[ ]` **6.1.b Target selection (discovery-led + optional arg)**

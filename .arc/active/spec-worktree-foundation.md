@@ -160,15 +160,20 @@ it falls out cheaply.
   meta and never touches the spawn primitive — it launches from the **main worktree** (the atomic launchpad)
   on a short-lived branch off `main`, ships via the lighter gate, and tears down. Foundation's deliverable is
   *documenting that path* and ratifying ADR-021's cheap-branch floor — not building an "Errand mode" on
-  spawn.
+  spawn. The launch ergonomics (the `errand-launch` primitive, the Errand decision matrix, the advisory
+  foreign-artifact gate) are **Errand Enablement's** (sequenced WF → Errand Enablement → IFA), not
+  Foundation's.
 
 ### C. In-session shift (`arc-shift`)
 
 - **R13 [P0]** — **`/arc-shift` skill** — a thin skill that repoints the current session to another
-  **existing** in-flight worktree, preserving the agent's accumulated context (the niche short-detour case; a
-  fresh parallel `arc-session` would lose that context). Target selection is discovery-led (pick from `git
-  worktree list`), with an optional arg per the args posture. Creating a worktree for a new WU is spawn (R8),
-  not shift.
+  **existing** in-flight worktree, preserving the agent's accumulated context. **Narrow scope:** the one
+  irreducible use is interactive cross-worktree *investigation* — operating in another worktree's runnable
+  environment while reasoning with the current session's live, expensive-to-reconstruct context. It is
+  **not** the general sidequest tool — discovered side work is an Errand (`errand-launch`, owned by Errand
+  Enablement); a discrete question about another worktree is answered by reading its files or seeding an
+  exploration session; creating a worktree for a new WU is spawn (R8). Target selection is discovery-led
+  (pick from `git worktree list`), with an optional arg per the args posture.
 - **R14 [P0]** — **Uncommitted-work handling at the shift.** Before switching, detect uncommitted changes and
   offer commit (recommended) / stash / leave-as-is; the operator chooses.
 - **R15 [P2]** — **Resume-staleness advisory.** Arriving in a long-idle worktree surfaces a dismissible
@@ -274,8 +279,9 @@ flat at `user/{identity}/**`; `user/{identity}/.internal/**` never synced).
 - **R30 [P0]** — **Pause-pointer neutralization** in `manage-incidental-work.md`. WOR retired the
   pause-pointer fields (`Interrupts:` / `Paused At:` / `Paused To:` / `Spawned:`) from `template-meta.md`,
   but left this workflow built on them. Worktree isolation *obsoletes the workflow's premise* — an interrupt
-  spins up an atomic-tier WU / Errand in its own worktree rather than pausing the parent (interim mechanism =
-  the Errand cheap-branch path, R12). Foundation's bounded responsibility: neutralize the obsolete
+  spins up a WU in its own worktree, or launches an Errand from the main worktree, rather than pausing the
+  parent (interim mechanism = the Errand cheap-branch path, R12; the launch ergonomics are Errand
+  Enablement's). Foundation's bounded responsibility: neutralize the obsolete
   pause-pointer mechanic so the workflow no longer contradicts the template. The deeper reshape (whether a
   standalone workflow is the right shape; work-class single-source consolidation) belongs to the
   agent-context-optimization cohort, not here.
