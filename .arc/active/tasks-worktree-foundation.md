@@ -225,16 +225,24 @@ evolution; keep it clean and self-documenting, do not build a general slot frame
   roster — one computation, two consumers) layered over a pure resolver (`branch-gone-cascade.ts`: tier walk +
   the `resolved` / `surface` / `main-fallback` contract + per-candidate action mapping) and an I/O assembler
   (`branch-gone-recovery.ts`: recent-branch gather + per-worktree marker/clean/merged). The session-init Step-6
-  arm renders it as a single recovery prompt. Slot-over-subcommand rationale: commit `ab572dec`.
+  arm renders it as a single recovery prompt (Task 2.5 relocates this render to an early gating action ahead of
+  sync/load, leaving the Step-6 arm as narration — completing R4's ordering reversal). Slot-over-subcommand
+  rationale: commit `ab572dec`.
 
-### `[ ]` **2.5 Branch-gone sync ordering reversal (git-align before notes-pull)**
+### `[ ]` **2.5 Branch-gone recovery relocation & sync ordering (git-align before sync + load)**
 
-- _Goal:_ under branch-gone, git state is aligned (fetch → resolve target via cascade → switch) **before**
-  `arc user pull`, reversing session-init's standard Step 2 → Step 3 ordering so notes are not pulled against a
-  stale branch reference (surfacing metas / companions that do not exist on the current branch).
+- _Goal:_ under branch-gone, recovery (fetch → resolve target via cascade → switch) runs as an early gating
+  action right after the Step-1 probe detects it — ahead of the sync pulls (Step 2) and context-load (Step 3),
+  which re-run against the recovered branch — rather than the Step-6 orientation render Task 2.4.d landed. This
+  satisfies R4's ordering reversal: notes / metas / companions are never read against the deleted branch.
 
-    - Edit the session-init workflow (both copies) to branch the ordering on `branch-gone`.
-    - _Note:_ only this state reverses the ordering; all other states keep Step 2 → Step 3.
+    - Relocate the recovery resolution out of Step 6 into an early gating action (post-probe / top of Step 2);
+      on switch, re-run the Step-1 probe so Steps 2–3 dispatch against the recovered branch.
+    - Reduce the Step-6 branch-gone arm to orientation narration only (recovery declined / deferred, branch
+      still gone) — consistent with its sibling conditional sections.
+    - Pin the switch mechanics R4 names (fetch the candidate when it is a remote branch not checked out locally).
+    - Both copies (`session-init.md` + `session-init.template.md`).
+    - _Note:_ only this state reverses the ordering; every other state keeps the standard Step 2 → Step 3 flow.
 
 ### `[ ]` **2.6 Dual-axis Step 7 trust refactor**
 

@@ -113,9 +113,11 @@ it falls out cheaply.
   default for ambiguity:** when no high-confidence single signal emerges, stop and surface candidates rather
   than guess.
 - **R4 [P0]** — Under `branch-gone`, align git state (fetch → resolve target via cascade → switch) **before**
-  running `arc user pull`. This reverses session-init's standard Step 2 → Step 3 ordering for this state,
-  because notes pulled against a stale branch reference surfaces (metas, companion files) that do not exist
-  on the current branch.
+  the steps that read against the working branch — the personal-notes pull and the context-load. Because the
+  switch changes the checked-out branch, recovery runs as an early gating action right after detection
+  (re-probing afterward so the sync and load steps see the recovered branch), not as a late orientation render.
+  Notes or metas/companions read against the deleted branch surface work that does not exist on the recovered
+  branch.
 - **R5 [P0]** — Refactor session-init Step 7's single trust hierarchy (git > task list > status > notes)
   into two axes: *truth of work state* (git authoritative — narrowed to "was this actually committed?") and
   *which work am I picking up* (identity-filtered metas + worktree list authoritative). Redistribute the
