@@ -11,14 +11,14 @@
 - **Cohort:** agile-parallelism
 
 - **Task List:** tasks-worktree-foundation.md
-- **Last Completed:** Task 2.6 — Dual-axis Step 7 trust refactor (single trust hierarchy → truth-of-work-state +
-  which-work-am-I-picking-up axes; notes out of the roster axis). Task 2.5 (branch-gone recovery relocated to a
-  Step-2 gating action ahead of sync/load — Option C) also landed this session.
-- **Next Task:** Task 2.7 — Stale-worktree sweep at main-worktree session-init (line ~265)
+- **Last Completed:** Task 2.7 — Stale-worktree sweep at main-worktree session-init (marker-gated surfacing;
+  shipped-WU predicate `lib/work-unit/completed-index.ts` shared with Task 4.2; roster gate widened to fire in
+  the primary worktree; documented in both session-init workflow copies). Phase 2 complete.
+- **Next Task:** Task 3.1 — Path-driven sync-class dispatch (line ~309)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 2.7 per `3_process-task-loop.md` — main-worktree stale-worktree sweep: cross-ref
-  `git worktree list` against `completed/` (reuse `parseWorktreeList`, normalize the WU-name match key);
-  marker-gated surfacing + workflow doc, test-first. First Phase-2 task touching TS.
+- **Next Action:** Begin Task 3.1 per `3_process-task-loop.md` — path-driven sync-class classifier (per-WU
+  `user/{identity}/<wu-name>/**` vs cross-WU flat `user/{identity}/**` vs `.internal/**` never-synced),
+  test-first, then wire into `arc user` save/load. First Phase-3 task; opens the cross-WU sync substrate.
 
 ---
