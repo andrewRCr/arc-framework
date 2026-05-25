@@ -76,12 +76,12 @@ applies), and `.internal/scripts/validate-config.sh` `known_keys` (both copies).
   `git worktree remove` deletes it; it states a permanent fact, stable across an Active→Planning rename. The
   no-shared-state property (never synced) is what makes cross-machine cleanup coherent.
 
-    - `[ ]` **1.3.a Marker schema + write/read lib**
-        - `.arc/system/.internal/worktree-marker.json` carrying
-          `{ spawnedByArc, wuName, spawningIdentity, createdAt }`.
-        - Build `test-first` (one behavior at a time):
-            - write produces a schema-valid marker; read round-trips it
-            - read tolerates an absent marker (returns "no marker", not an error)
+    - `[x]` **1.3.a Marker schema + write/read lib**
+        - New lib `lib/git/worktree-marker.ts` (re-exported via `lib/git/index.ts`): the `WorktreeMarker` schema
+          (`{ spawnedByArc, wuName, spawningIdentity, createdAt }`) plus `writeWorktreeMarker` / `readWorktreeMarker`
+          / `resolveWorktreeMarkerPath` / `isWorktreeMarker`. `read` returns a `present | absent | malformed` union
+          so absence (ENOENT) is "no marker", not an error — the signal 1.3c gates on; `atomicWriteJson` creates the
+          `.internal/` parent. Identity-agnostic path (no `{identity}` segment, per R29).
 
     - `[ ]` **1.3.b `.gitignore` entry** (generated, not static)
         - Add `.arc/system/.internal/worktree-marker.json` to every hardcoded managed-gitignore array that
