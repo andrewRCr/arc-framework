@@ -46,6 +46,7 @@ import type { DirtyStateResult } from "../../../src/lib/git/dirty-state.js";
 import type { HeadHashResult } from "../../../src/lib/git/head-hash.js";
 import type { PushabilityResult } from "../../../src/lib/git/pushability.js";
 import type { WorktreeSyncStatusResult } from "../../../src/lib/git/worktree-sync.js";
+import type { WorktreeRosterResult } from "../../../src/lib/git/worktree-roster.js";
 import type { WorktreeIdentity } from "../../../src/lib/git/worktree-identity.js";
 import type { RestateCandidatesResult } from "../../../src/lib/handoff/restate-candidates.js";
 import type { ReleaseRoutingValue } from "../../../src/lib/release/routing.js";
@@ -157,6 +158,10 @@ function worktreeSync(
 
 function worktreeIdentity(value: WorktreeIdentity = { kind: "primary" }): WorktreeIdentity {
   return value;
+}
+
+function rosterResult(overrides: Partial<WorktreeRosterResult> = {}): WorktreeRosterResult {
+  return { entries: [], warnings: [], ...overrides };
 }
 
 function configSessionInit(
@@ -273,6 +278,7 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
     active: vi.fn(async () => activeSessionInit()),
     domainRules: vi.fn(async () => domainRulesSessionInit()),
     releaseRouting: vi.fn(async () => releaseRouting()),
+    roster: vi.fn(async () => rosterResult()),
     ...overrides,
   };
 }
@@ -789,8 +795,13 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
     if (result.worktree.ok) expect(result.worktree.value.state).toBe("skipped");
   });
 
-  it("keeps the envelope additive — every existing slot remains present", async () => {
-    const probes = sessionInitProbes();
+  it("keeps the envelope additive — every always-present slot remains present", async () => {
+    // Clean-resume state (active WU resolved, worktree clean) so the conditional
+    // roster slot stays absent — this asserts the stable always-present set.
+    const probes = sessionInitProbes({
+      active: vi.fn(async () =>
+        activeSessionInit({ resolution: "single", path: ".arc/active/meta-x.md" })),
+    });
     const result = await runSessionInitStatus({
       identity: "andrew",
       role: "maintainer",
@@ -962,6 +973,95 @@ describe("runSessionInitStatus — recommended actions", () => {
       expect(result.worktree.value.recommendedPromptText).toBe("");
     }
     expect(result.recommendedCombinedPrompt).toBeNull();
+  });
+});
+
+describe("runSessionInitStatus — in-flight roster gating", () => {
+  const cleanResume = {
+    worktree: () => worktreeSync({ state: "clean" }),
+    active: () => activeSessionInit({ resolution: "single", path: ".arc/active/meta-x.md" }),
+  };
+
+  it("fires the roster and exposes the slot when the worktree state is branch-gone", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "branch-gone", branch: "feat/x" })),
+      active: vi.fn(async () => cleanResume.active()),
+      roster: vi.fn(async () =>
+        rosterResult({ entries: [{ worktreePath: "/wt", branch: "feat/x" }] })),
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(probes.roster).toHaveBeenCalledTimes(1);
+    expect(result.roster?.ok).toBe(true);
+    if (result.roster?.ok) {
+      expect(result.roster.value.entries[0]?.branch).toBe("feat/x");
+    }
+  });
+
+  it("fires the roster when no active WU is resolved (resolution=none)", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "clean" })),
+      active: vi.fn(async () => activeSessionInit({ resolution: "none", path: null })),
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(probes.roster).toHaveBeenCalledTimes(1);
+    expect(result.roster?.ok).toBe(true);
+  });
+
+  it("omits the roster slot and never scans on the clean resume path", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => cleanResume.worktree()),
+      active: vi.fn(async () => cleanResume.active()),
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(probes.roster).not.toHaveBeenCalled();
+    expect("roster" in result).toBe(false);
+  });
+
+  it("wraps a rejecting roster probe as ok=false without rejecting the composite", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "branch-gone", branch: "feat/x" })),
+      active: vi.fn(async () => cleanResume.active()),
+      roster: async () => { throw new Error("worktree list failed"); },
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.roster?.ok).toBe(false);
+    if (result.roster && !result.roster.ok) {
+      expect(result.roster.error.kind).toBe("runtime");
+      expect(result.roster.error.message).toBe("worktree list failed");
+    }
+    // Sibling slots unaffected — the composite still resolves.
+    expect(result.worktree.ok).toBe(true);
+    expect(result.active.ok).toBe(true);
+  });
+
+  it("does not fire the roster when the gating slots themselves failed to resolve", async () => {
+    const probes = sessionInitProbes({
+      worktree: async () => { throw new Error("worktree probe boom"); },
+      active: async () => { throw new Error("active probe boom"); },
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(probes.roster).not.toHaveBeenCalled();
+    expect("roster" in result).toBe(false);
   });
 });
 

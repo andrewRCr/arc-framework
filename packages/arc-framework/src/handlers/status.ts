@@ -14,7 +14,7 @@
  * @module
  */
 
-import { access } from "node:fs/promises";
+import { access, readdir, readFile } from "node:fs/promises";
 
 import * as p from "@clack/prompts";
 
@@ -47,7 +47,11 @@ import {
   runUserSessionInitStatus,
   runUserStatus,
 } from "../commands/user.js";
-import { gitConfigGet } from "../lib/git/index.js";
+import {
+  filterRosterByIdentity,
+  gitConfigGet,
+  runWorktreeRoster,
+} from "../lib/git/index.js";
 import { runDirtyStateStatus } from "../lib/git/dirty-state.js";
 import { runHeadHashStatus } from "../lib/git/head-hash.js";
 import { runPushabilityStatus } from "../lib/git/pushability.js";
@@ -196,6 +200,18 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
       active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec: gitExec }),
       domainRules: () => runDomainRulesSessionInitStatus({ cwd }),
       releaseRouting: async () => releaseRoutingFromSettings(await resolvedSettingsP),
+      roster: async () => {
+        const resolved = await resolvedSettingsP;
+        const teamMode = resolved.settings["team.mode"] === "true";
+        const roster = await runWorktreeRoster({
+          exec: gitExec,
+          fs: {
+            readdir: (path) => readdir(path),
+            readFile: (path) => readFile(path, "utf8"),
+          },
+        });
+        return filterRosterByIdentity(roster, { identity, teamMode });
+      },
     };
     const result = await runSessionInitStatus({ identity, role, probes });
     if (json) {

@@ -201,6 +201,7 @@ function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
     config: () => runConfigSessionInitStatus({ cwd: fixture.root }),
     active: () => runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
     domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
+    roster: async () => ({ entries: [], warnings: [] }),
     releaseRouting: async () =>
       resolveReleaseRouting({
         releaseOptedIn: false,
@@ -245,6 +246,7 @@ function makeResolvedReleaseModeSessionInitProbes(
       }),
     active: () => runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
     domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
+    roster: async () => ({ entries: [], warnings: [] }),
     releaseRouting: async () => routingFromSettings(await resolvedSettings()),
   };
 }
@@ -451,6 +453,7 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
       active: (identity, role) =>
         runActiveSessionInitStatus({ cwd: fixture.root, identity, role, exec: makeGitExec(fixture.root) }),
       domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
+      roster: async () => ({ entries: [], warnings: [] }),
       releaseRouting: async () =>
         resolveReleaseRouting({
           releaseOptedIn: false,
@@ -608,6 +611,7 @@ function makeRealWorktreeProbes(
     config: () => runConfigSessionInitStatus({ cwd: fixture.root }),
     active: () => runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
     domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
+    roster: async () => ({ entries: [], warnings: [] }),
     releaseRouting: async () =>
       resolveReleaseRouting({
         releaseOptedIn: false,

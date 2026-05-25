@@ -166,33 +166,26 @@ evolution; keep it clean and self-documenting, do not build a general slot frame
   silently start auto-recreating deleted branches) with accurate wording instead of "retry when reachable".
   Guard rows added to the orchestrator `it.each` tables cover the string-keyed set the compiler can't.
 
-### `[ ]` **2.3 Pre-computed in-flight roster in the probe**
+### `[x]` **2.3 Pre-computed in-flight roster in the probe**
 
 - _Goal:_ in the branch-gone / no-WU branch only, the probe pre-computes an identity-filtered in-flight roster
   in one local pass by wiring WOR's existing `runWorktreeRoster` into the envelope — so the entry skill reaches
   the recovery prompt in a single turn.
-- _Context:_ integration, not greenfield; the roster lib exists and is tested. Hard constraint: must **not**
-  fire on the common resume path (latency budget).
-- **Strategies:** `strategy-session-operations.md`
 
-    - `[ ]` **2.3.a Wire roster into the probe** (`commands/status/run.ts`, `commands/status/types.ts`)
-        - Add a roster slot fired only in the branch-gone / no-WU branch; identity-filtered. Use the existing
-          `Probe<T>` slot wrapper (so CSA's later `Probe → Result` conversion migrates it uniformly).
-        - _Approach:_ **two-phase orchestration** — the orchestrator today fires all slots eagerly through one
-          `Promise.all`, and a self-no-op roster gated on worktree state can't work (its gating signals —
-          worktree state, `active.resolution` — are produced by sibling slots in the _same_ `Promise.all`). So
-          resolve the cheap existing slots first (worktree, active — already computed, local), then
-          conditionally fire the roster only on branch-gone / no-WU. Preserve `safeProbe`'s "envelope never
-          rejects" contract. "no-WU" derives from the `active` slot (`resolution === "none"`).
-        - _Note:_ keep the two-phase seam **minimal and self-documenting** — a named conditional stage with the
-          gating rationale in a comment, designed to be absorbed by In-Flight Awareness's orchestration-model
-          evolution (it adds the 2nd gated slot, the oracle); do **not** build a general slot framework here.
-          The owner-filter must define disposition for meta-less / admin worktrees (no `**Owner:**`). _Notes:_
-          See `notes-worktree-foundation.md` § Phase 2.
-        - Build `test-first` (one behavior at a time):
-            - branch-gone branch → roster computed
-            - clean resume branch → roster slot absent (no scan)
-            - team mode → roster filtered by `(@identity)`
+    - `[x]` **2.3.a Wire roster into the probe** (`commands/status/run.ts`, `commands/status/types.ts`)
+        - Two-phase seam in `runSessionInitStatus`: the eager `Promise.all` stays phase 1; a gated phase 2 fires
+          the roster only when `worktree.state === "branch-gone"` or `active.resolution === "none"`, wrapped in
+          `safeProbe` and omitted entirely (no scan) on the clean resume path. New required `roster` probe on
+          `SessionInitProbes` (orchestrator owns the firing decision, mirroring `worktreeIdentity`); optional
+          `roster?: Probe<WorktreeRosterResult>` envelope slot. `handlers/status.ts` binds `runWorktreeRoster`
+          (over `node:fs/promises`) plus the new `filterRosterByIdentity`.
+
+- _Outcome:_ `filterRosterByIdentity` (`lib/git/worktree-roster.ts`) is team-mode-gated — solo mode and absent
+  identity are pass-throughs; team mode drops other identities but **keeps unattributed worktrees** (admin /
+  main / meta-less checkouts carry no `**Owner:**`, so they have no identity — they are the "stranded in main"
+  recovery signal the 2.4 cascade reads, not someone else's WU). The team-mode flag is read handler-side from
+  `team.mode` in resolved settings, since the session-init envelope's config slot intentionally doesn't expose
+  it; the orchestrator stays purely a gate. Slot is produced but unconsumed until 2.4.
 
 ### `[ ]` **2.4 Branch-gone resolution cascade**
 

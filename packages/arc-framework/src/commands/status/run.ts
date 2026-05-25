@@ -206,6 +206,22 @@ export async function runSessionInitStatus(
     }
     : qualifiedUser;
 
+  // Two-stage orchestration seam. The eager `Promise.all` above is the first
+  // stage. The in-flight roster is the lone conditional-expensive slot: its
+  // gating signals — worktree state and active resolution — are produced by
+  // sibling slots in that fan-out, so it can only fire once they resolve. We
+  // gate on those resolved values and run the roster scan in a second stage;
+  // on the common resume path the gate is false, the scan never runs, and the
+  // slot is omitted, so resume latency is unchanged. `safeProbe` preserves the
+  // "envelope never rejects" contract for the roster too. Kept deliberately
+  // minimal — one named conditional stage, not a general gated-slot framework.
+  const rosterGated =
+    (worktree.ok && worktree.value.state === "branch-gone") ||
+    (active.ok && active.value.resolution === "none");
+  const roster = rosterGated
+    ? await safeProbe(() => probes.roster())
+    : undefined;
+
   return {
     mode: "session-init",
     identity: buildIdentity(identity, role),
@@ -217,6 +233,7 @@ export async function runSessionInitStatus(
     active,
     domainRules,
     releaseRouting,
+    ...(roster !== undefined ? { roster } : {}),
     recommendedCombinedPrompt: recommendations.recommendedCombinedPrompt,
   };
 }
