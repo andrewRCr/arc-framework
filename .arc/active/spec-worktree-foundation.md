@@ -220,7 +220,7 @@ flat at `user/{identity}/**`; `user/{identity}/.internal/**` never synced).
   after Foundation and therefore designs-for-worktrees from the start; its draft predates WOR R65 and this WU
   and gets a worktree-aware refresh at its own promotion. Foundation is not blocked on it.
 
-### E. Worktree conventions (overridable methods)
+### E. Worktree conventions
 
 - **R25 [P0]** — **Worktree branch posture**, delivered by **extending the existing `branch-format` method** —
   which already owns the branch type-set (core execution types + `plan/<name>`) and the method-override
@@ -229,12 +229,14 @@ flat at `user/{identity}/**`; `user/{identity}/.internal/**` never synced).
   default — the existing convention governs ARC-created worktree branches — plus an **advisory
   warn-on-external-mismatch**: when ARC creates branches the convention applies; when branches arrive externally
   it warns on mismatch, never refusing or relocating.
-- **R26 [P0]** — **Worktree location template** (`worktree.location_template`), implemented under
-  `system/methods/`. Default = `../{repo}.{branch}` (flat sibling-parent; slashes → `-`). Documents override
-  examples (in-repo `.worktrees/{branch}`, centralized, home-rooted). When ARC creates worktrees the template
-  resolves; when worktrees are external, ARC reads location from `git worktree list` — no enforcement, no
-  relocation. The **path is a creation-time artifact, decoupled from branch renames** — an Active→Planning
-  demotion leaves the path as-is.
+- **R26 [P0]** — **Worktree location template** (`worktree.location_template`) — a **config key**, not a method.
+  The value is consumed by code (the path-resolution helper at worktree-creation time), so it belongs with ARC's
+  other code-consumed config values (cf. `hooks.test_patterns`), not in `system/methods/`, which house
+  agent-read activities. Default = `../{repo}.{branch}` (flat sibling-parent; slashes → `-`). Supporting
+  documentation — semantics and override examples (in-repo `.worktrees/{branch}`, centralized, home-rooted) —
+  ships inline with the key. When ARC creates worktrees the template resolves; when worktrees are external, ARC
+  reads location from `git worktree list` — no enforcement, no relocation. The **path is a creation-time
+  artifact, decoupled from branch renames** — an Active→Planning demotion leaves the path as-is.
 - **R27 [P0]** — Schema placement uses flat dotted keys per current arc-config convention; a later
   flat-vs-nested evaluation may relocate them. Provisional flat-dotted form for this WU.
 
@@ -407,9 +409,9 @@ Validated explicitly at work-unit completion:
   strategies / methods / templates / workflows / briefs; `strategy-work-organization.md` and § ROADMAP carry no cut
   shift-state-machine rows and use the location-based In-Flight definition; `manage-incidental-work.md` no
   longer instructs setting retired pause-pointer fields.
-- **Methods are genuinely overridable** — the worktree branch posture (via `branch-format`) and
-  `worktree.location_template` resolve defaults and accept overrides through the standard method-override
-  machinery.
+- **Worktree conventions are genuinely customizable** — the worktree branch posture overrides via the
+  `branch-format` method (agent-read), and `worktree.location_template` resolves its default and accepts
+  overrides as a config value (code-read).
 
 ## Design Decisions
 
@@ -425,6 +427,13 @@ Settled during planning; final implementation details ratified when the relevant
 - **Worktree branch posture (R25).** A WU branch is a WU branch regardless of worktree, so there is no separate
   worktree naming convention: state the posture in `branch-format`'s default (extend the method) rather than add
   a parallel method or config key — `branch-format` already owns the type-set and override machinery.
+- **Worktree location template (R26) is config, not a method.** Refined at execution kickoff: the template value
+  is consumed by code (the resolution helper), so it is a config key (`worktree.location_template`) alongside
+  ARC's other code-consumed values, not a `system/methods/` file — methods house agent-read activities, and a
+  "documentation-only method" is a category error. Supporting docs ship inline with the key for now. The
+  holistic method-vs-config boundary routes to `customization-arch-realign` (with this as the worked example);
+  the inline-vs-reference doc-home decision routes to `config-storage-architecture` § comment-density. The
+  branch posture (R25) stays a `branch-format` method extension — it is an agent-read convention.
 - **Spawn's home (R8).** Spawn and cold-start share one CLI-level scaffolding primitive, parameterized by
   worktree-target mode (create-new vs. use-existing) — spawn creates the worktree (via `init-work-unit`'s mode),
   cold-start enters an existing one; invoked from the `arc-session` skill, not a standalone CLI command.

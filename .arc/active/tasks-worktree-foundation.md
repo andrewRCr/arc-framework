@@ -7,7 +7,7 @@
 ## **Phase 1:** Worktree conventions & ownership marker
 
 _Purpose:_ Land the small, well-specified primitives every later phase depends on — the worktree branch posture
-in `branch-format`, the worktree location-template method, and the machine-local worktree-ownership marker.
+in `branch-format`, the worktree location-template config key, and the machine-local worktree-ownership marker.
 Nothing upstream; built first so the entry verbs resolve locations and apply naming, and every cleanup site
 gates against one settled decision.
 
@@ -17,16 +17,18 @@ govern ARC-created worktree branches. 1.1 therefore states the worktree posture 
 section (ARC-authored: the convention applies to ARC-created branches; externally-arrived branches are
 advisory) rather than adding a parallel method or a `branch.naming_convention` key; adopters override it through
 the method's existing override machinery (the `.override` section, untouched here). The worktree location (1.2)
-— genuinely worktree-native, with no analog in `branch-format` — is its own new method; the marker (1.3) is a
-new lib. Override resolution is agent-side (read the markdown), so only string/path mechanics (template
-expansion, marker round-trip, gating decision) carry `test-first`. The marker ships with its call sites wired
-later: written at spawn / cold-start (Phase 5), consulted at the branch-gone cascade and sweep (Phase 2) and the
-ceremonies (Phase 7).
+— genuinely worktree-native, with no analog in `branch-format` — is a **config key** (`worktree.location_template`),
+not a method: the value is consumed by code (the path-resolution helper) and belongs with ARC's other
+code-consumed config values, not in `system/methods/`. The marker (1.3) is a new lib. 1.1's override resolves
+agent-side (read the `branch-format` markdown); 1.2's resolves code-side (read the config key). So only the
+string/path mechanics (template expansion, marker round-trip, gating decision) carry `test-first`. The marker
+ships with its call sites wired later: written at spawn / cold-start (Phase 5), consulted at the branch-gone
+cascade and sweep (Phase 2) and the ceremonies (Phase 7).
 
 _New config keys register across multiple sites_ — `arc-config.yml` (both copies), `commands/config/types.ts`
 `ConfigSettings`, `lib/config/status-reader.ts` (`DEFAULTS` + `ENUM_VALIDATORS` / `AGENT_CONSUMABLE_KEYS` as
-applies), and `.internal/scripts/validate-config.sh` `known_keys` (both copies); a new method file also
-registers in `lib/classification.ts` `CONFIGURABLE_FILES`. See `notes-worktree-foundation.md` § Phase 1.
+applies), and `.internal/scripts/validate-config.sh` `known_keys` (both copies). See
+`notes-worktree-foundation.md` § Phase 1.
 
 ### `[x]` **1.1 Worktree branch posture in `branch-format` (existing convention + external-mismatch advisory)**
 
@@ -45,28 +47,32 @@ registers in `lib/classification.ts` `CONFIGURABLE_FILES`. See `notes-worktree-f
           mismatch but never refuses or relocates them. Doc-behavior: there is no branch-name validator to
           hook, so the posture is the deliverable and there is no code path.
 
-### `[ ]` **1.2 Worktree location-template method (`worktree.location_template`)**
+### `[ ]` **1.2 Worktree location template config key (`worktree.location_template`)**
 
 - _Goal:_ ARC resolves a worktree's filesystem path from a configurable template (default `../{repo}.{branch}`,
   slashes → `-`) at creation time, reads external worktrees' locations from `git worktree list` without
   enforcement, and treats the path as a creation-time artifact decoupled from later branch renames.
+- _Context:_ a config key, not a method — the value is consumed by code (the resolution helper at
+  worktree-creation time), so it sits with ARC's other code-consumed config values (cf. `hooks.test_patterns`),
+  not in `system/methods/` (which house agent-read activities). A "documentation-only method" would be a
+  category error. Supporting docs (semantics + override examples) ship inline with the key for now; the
+  method-vs-config boundary and the inline-vs-reference doc-home route to `customization-arch-realign` and
+  `config-storage-architecture` respectively (see spec § Design Decisions).
 - **Strategies:** `strategy-configurability-architecture.md`
 
-    - `[ ]` **1.2.a Author the method file** (`system/methods/worktree-location.md`, both copies)
-        - Same override machinery as `branch-format`. Document override examples (in-repo `.worktrees/{branch}`,
-          centralized, home-rooted).
+    - `[ ]` **1.2.a Register the config key + inline supporting docs** (registration sites per the phase preamble)
+        - Add `worktree.location_template` across `arc-config.yml` (both copies — with inline default, semantics,
+          and override examples: in-repo `.worktrees/{branch}`, centralized, home-rooted), `ConfigSettings`,
+          `status-reader.ts` `DEFAULTS`, and `validate-config.sh` `known_keys`. Freeform value — default in code,
+          no `ENUM_VALIDATORS` entry; no method file, so no `classification.ts` registration. [R27]
 
-    - `[ ]` **1.2.b Config key + schema** (registration sites per the phase preamble)
-        - Add `worktree.location_template` across `arc-config.yml`, `ConfigSettings`, `status-reader.ts`, and
-          `validate-config.sh` `known_keys`; register the method in `classification.ts`. [R27]
-
-    - `[ ]` **1.2.c Template-resolution logic**
+    - `[ ]` **1.2.b Template-resolution logic**
         - _Note:_ lives as a new lib helper (e.g. `lib/git/worktree-location.ts`), consumed at worktree-creation
           time by `init-work-unit`'s worktree mode (5.1) and the Phase 5 spawn primitive — the slug/expansion
-          mechanics are code (hence `test-first`), not agent-side markdown resolution.
+          mechanics are code (hence `test-first`).
         - _Note:_ the path is decoupled from branch renames — an Active→Planning demotion leaves it as-is. Slug
           collisions (`plan/foo` and `plan-foo` both → `plan-foo`) are creation-time, last-write-wins /
-          user-resolved (a line in the method, not collision-handling code). Reading external locations from
+          user-resolved (a line in the inline docs, not collision-handling code). Reading external locations from
           `git worktree list` and never relocating is doc-behavior, not a unit test.
         - Build `test-first` (one behavior at a time):
             - default template resolves `../{repo}.{branch}` with slashes slugged to `-`
