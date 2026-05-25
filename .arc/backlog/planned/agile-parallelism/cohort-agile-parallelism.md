@@ -3,7 +3,8 @@
 > Cohort-level design record for the agile-parallelism cohort — Worktree Foundation (active),
 > In-Flight Awareness (`draft-in-flight-awareness.md`), Agile WU Lifecycle
 > (`draft-agile-wu-lifecycle.md`), Concurrent Work Conventions
-> (`draft-concurrent-work-conventions.md`). Internal-dev-facing; not shipped. The detailed designs live
+> (`draft-concurrent-work-conventions.md`), Errand Enablement (`draft-errand-enablement.md`).
+> Internal-dev-facing; not shipped. The detailed designs live
 > in each member's draft; this record holds what the cohort owns *as a whole* — the shared thesis, the
 > boundary map, cross-member contracts, the cross-cutting design spine, and candidates not yet owned by
 > any member.
@@ -27,8 +28,12 @@ laid the single-branch-per-WU substrate; this cohort builds the parallelism on t
 ## Membership and ownership map
 
 - **Worktree Foundation** (active — worktree mechanics): the WU entry primitives (spawn / cold-start) and
-  the `arc-session` skill, the in-session worktree shift (`arc-shift` — thin, provisional), worktree-aware
-  session-init + branch-gone handling, cross-WU sync, and the Errand-class cheap-branch mechanism.
+  the `arc-session` skill, the in-session worktree shift (`arc-shift` — thin; narrowed to cross-worktree
+  investigation), worktree-aware session-init + branch-gone handling, cross-WU sync, and the Errand-class
+  cheap-branch mechanism.
+- **Errand Enablement** (the Errand floor): the `errand-launch` entry primitive, the Errand decision matrix,
+  and the advisory foreign-artifact gate — the minimum to make the Errand class usable. Sequences Worktree
+  Foundation → Errand Enablement → In-Flight Awareness. Carved from AWL / CWC 2026-05-25.
 - **In-Flight Awareness** (awareness layer): the in-flight-detection oracle, the user-scoped `STATUS.USER`
   view + file / standard (below), the per-WU `Priority` field, materialize (the 4th entry-point quadrant),
   and the oracle-backed activation-time concurrency check. Split from Worktree Foundation 2026-05-24;
@@ -47,6 +52,37 @@ WU state is WOR's strict 4-state machine — `Planning | Active | Integrating | 
 (partial)`), authoritative in `template-meta.md`, with merge-position folded into `Integrating` (no
 separate `Integration:` field). "Awaiting PR review" is simply `Integrating`.
 
+## Path taxonomy — entry and in-session
+
+Two cross-member decision surfaces: the **entry model** (how you get into a worktree / WU) and the
+**in-session fork** (a need surfaces mid-session — which path?). `arc-shift`'s niche is stated narrowly on
+purpose; discovered side work is errand-launch's, not shift's.
+
+### Entry model — local worktree? × WU exists?
+
+| | WU exists (branch + meta) | WU is new (nothing yet) |
+| --- | --- | --- |
+| Local worktree exists | resume (`arc-session`) | cold-start (scaffold meta in place) |
+| No local worktree | materialize (In-Flight Awareness) | spawn (create worktree + scaffold) |
+
+### In-session fork — a need surfaces while working a WU
+
+| Need | Path | Owner |
+| --- | --- | --- |
+| Work that is this WU's own concern | continue / inline commit | (no verb) |
+| Standalone side-task, self-contained (maintain) | errand-launch -> main worktree | Errand Enablement |
+| Standalone side-task on a foreign artifact, owning WU not in flight | errand-launch | Errand Enablement |
+| Standalone side-task on a foreign artifact, owning WU in flight | errand-launch + advisory gate (coordinate) | Errand Enablement |
+| A new tracked unit of future work (create) | spawn a WU | Worktree Foundation |
+| Pick up a WU in flight only on another machine | materialize | In-Flight Awareness |
+| Operate briefly in another in-flight worktree's runnable environment, carrying live context, intending to return | arc-shift | Worktree Foundation |
+
+**`arc-shift` is the narrow exception, not the general detour tool.** Its only irreducible use is interactive
+cross-worktree *investigation* — running another worktree's environment while reasoning with the current
+session's live, expensive-to-reconstruct context. Discovered side work goes to errand-launch; a discrete
+question about another worktree is answered by reading its files (worktrees are directories) or seeding an
+exploration session — neither needs a context-merging shift.
+
 ## Cross-cutting design spine — the Errand work class
 
 The cohort's central cross-cutting decision is the **Errand work class** — see [ADR-021][adr-021] for
@@ -55,7 +91,16 @@ ADR-021 decides the taxonomy; the operational plumbing is owned across the cohor
 
 **Worktree Foundation owns:**
 
-- The cheap ephemeral-branch mechanism that makes an Errand affordable under full / host-protected `main`.
+- The cheap ephemeral-branch mechanism that makes an Errand affordable under full / host-protected `main`
+  (mechanism only — launch ergonomics are Errand Enablement's).
+
+**Errand Enablement owns (the floor):**
+
+- The `errand-launch` entry primitive (seed-and-continue from the main worktree), the **Errand decision
+  matrix** (create/maintain × self-contained/cross-cutting × owning-WU-in-flight routing), and the
+  **advisory foreign-artifact gate** (extends Foundation's R11 stub). The minimum that makes the class
+  *usable*, so it lands at WF+1 rather than cohort-end; sequences WF → Errand Enablement → IFA. In-Flight
+  Awareness later upgrades the advisory gate (and R11) to oracle-backed. See `draft-errand-enablement.md`.
 
 **In-Flight Awareness owns:**
 
@@ -72,7 +117,8 @@ ADR-021 decides the taxonomy; the operational plumbing is owned across the cohor
   branch, reaching `main` independently. Capture surfaces (USER-INBOX) are for *not-yet-actionable*
   pointers only; stub-ready or non-trivial work goes to its real home directly. Create = WU (a tracked
   deliverable); maintain = Errand.
-- **Concurrency gate.** Edit a foreign artifact directly only when its WU is not in flight. Editing your
+- **Concurrency gate** (the full all-owner doctrine; the *advisory* floor version ships with Errand
+  Enablement). Edit a foreign artifact directly only when its WU is not in flight. Editing your
   own WUs' artifacts uses the user-scoped in-flight view; a foreign WU that is in flight is coordinated,
   never blind-edited. The oracle is all-owner (refs + open PRs); a policy layer keeps the common path
   (your own work) on the cheap user-scoped check.

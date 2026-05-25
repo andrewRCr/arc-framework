@@ -131,6 +131,9 @@ Errand class safe and cheap is owned by the agile-parallelism cohort and detaile
 - **Worktree Foundation** — the cheap ephemeral-branch mechanism for Errands, and the concurrency
   oracle's hook (in-flight detection from remote refs + open PRs, path/content-based, all-owner). The
   in-flight blind spot is closed by `init-work-unit`'s existing branch-push step.
+- **Errand Enablement** — the `errand-launch` entry primitive, the Errand decision matrix (create/maintain ×
+  self-contained/cross-cutting × in-flight routing), and the advisory foreign-artifact gate: the floor that
+  makes the class usable, sequenced after Worktree Foundation.
 - **Concurrent Work Conventions** — the isolation doctrine (do actionable work once, in its real place;
   capture surfaces only for not-yet-actionable pointers), the concurrency gate (edit a foreign artifact
   only when its WU is not in flight; own work uses the user-scoped check, foreign in-flight work is

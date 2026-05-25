@@ -181,9 +181,10 @@ the posture as "tolerated" or "principled at modest scale."
       `arc start` / spawn (item 4) for ARC-managed worktree creation, and the cold-start
       primitive (item 11) for tool-spawned or manually-created worktrees. Same check, same
       heuristics; entry point varies with WU origin. Scope boundary: the check applies only to
-      worktree-based activation, not to in-current-worktree atomic-tier work (a side-branch detour) —
-      that stays in the current worktree and is bounded by review-increment discipline rather than
-      cross-WU concurrency overlap.
+      worktree-based WU activation. An atomic-character side-task is an **Errand**, launched from the main
+      worktree via `errand-launch` (not a side-branch in the current worktree); its concurrency handling is
+      Errand Enablement's **advisory foreign-artifact gate** (the floor — fires when an Errand touches an
+      in-flight foreign artifact), which CWC's full all-owner gate doctrine builds on.
 
     - **Branch and rebase discipline.** Periodic-rebase-onto-main vs end-of-flight rebase
       trade-off (lifetime threshold around 2 days per industry research); rerere setup for
@@ -375,6 +376,10 @@ ADR-020 splits the in-git concurrency problem precisely, and this WU owns codify
   branch-gone detection, pause-pointer migration. The activation-time concurrency check fires
   from Worktree Foundation's spawn workflow per the strategy doc's heuristics (Foundation ships the
   degrading advisory stub).
+- **Errand Enablement** (`draft-errand-enablement.md`): the Errand floor — the `errand-launch` primitive,
+  the **Errand decision matrix**, and the **advisory foreign-artifact gate**. CWC consumes the matrix and
+  the advisory gate as the floor beneath its full all-owner gate doctrine and isolation conventions.
+  Sequenced WF → Errand Enablement → IFA.
 - **In-Flight Awareness** (`draft-in-flight-awareness.md`): the in-flight **oracle** this WU's
   concurrency *gate* consumes (all-owner refs + open PRs), plus the oracle-backed activation-time
   concurrency check. Split from Worktree Foundation 2026-05-24; depends on it.

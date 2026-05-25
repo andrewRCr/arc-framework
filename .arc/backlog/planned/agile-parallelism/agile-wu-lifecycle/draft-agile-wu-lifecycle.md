@@ -267,8 +267,9 @@ get promoted: add the plan-*/PRD, restructure the task list into phases, continu
    model rather than owning the decision.
 
 9. **Incidental concept retirement.** With worktree isolation handling "unplanned, interrupts another
-   WU" (spin up an atomic-tier WU in its own worktree via `arc start --tier atomic`, ship via PR) and
-   the tier model handling "lighter ceremony," the incidental concept becomes redundant.
+   WU" (an atomic-character interrupt defaults to an **Errand** — launched from the main worktree via
+   `errand-launch`, no worktree — promoted to an atomic-tier WU only when the WU threshold trips) and the
+   tier model handling "lighter ceremony," the incidental concept becomes redundant.
    Work Organization Reform retires the `incidental/` category prefix as part of its
    broader category-prefix retirement (`feature/` / `technical/` / `incidental/` → Conventional
    Branch alignment); this WU retires the remaining conceptual references in workflows, strategy
@@ -337,10 +338,11 @@ commit. Execution discipline preserved; task-list ceremony stripped.
 ### Incidental retirement, not repurposing
 
 The incidental category was a workaround for ARC not having mobility infrastructure. With worktree
-isolation handling interrupts (an interrupt spins up its own atomic-tier WU/worktree) and the tier
-model handling lighter ceremony, the category has no remaining function. Renaming or repurposing
-would create migration confusion; clean retirement is simpler. Workflows that reference incidental
-migrate to the tier model + worktree-spawn, not to a shift state.
+isolation handling interrupts (an atomic-character interrupt defaults to an **Errand** launched from the
+main worktree, promoting to an atomic-tier WU only when the threshold trips) and the tier model handling
+lighter ceremony, the category has no remaining function. Renaming or repurposing would create migration
+confusion; clean retirement is simpler. Workflows that reference incidental migrate to the tier model +
+Errand / worktree-spawn, not to a shift state.
 
 ### Atomic-the-character vs atomic-the-shape
 
@@ -368,6 +370,13 @@ Errand on the bare-git path; quick / standard → worktree) is **AWL's** to laye
 primitive, and the life-phase param (`Planning` vs `Active` → branch-prefix follows) flows through WF's
 wrapper without reshaping it. WF references whatever tier set this WU lands; this WU references WF's
 spawn contract.
+
+**Errand Enablement coordination (2026-05-25):** The Errand path itself — the `errand-launch` primitive, the
+Errand decision matrix, and the advisory foreign-artifact gate — is **Errand Enablement's** (the floor WU,
+sequenced WF → Errand Enablement → IFA), not AWL's. `arc start` and `errand-launch` are sibling entry verbs.
+AWL owns the *tier-side* reconciliation (atomic-character work defaults to an Errand, promoted to an
+atomic-tier WU when the threshold trips); the Errand operationalization is EE's. The 2026-05-23 note's
+"atomic → an Errand on the bare-git path" routing is realized via EE's matrix.
 
 ---
 

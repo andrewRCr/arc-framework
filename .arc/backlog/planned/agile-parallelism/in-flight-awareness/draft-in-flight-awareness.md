@@ -117,10 +117,11 @@ remotely," then drops the operator to a raw `git worktree add`.
       harden rather than a manual git incantation.
 
 5. **Oracle-backed activation-time concurrency check.** Worktree Foundation ships this check as a
-   *degrading advisory stub* (falls back to general agent judgment over `**Purpose:**` / spec text when
-   nothing else is in flight or no oracle exists). This WU upgrades it to the **oracle-backed** version —
-   identity-filtered refs + PRs — consumed from spawn / cold-start / materialize. Still advisory,
-   judgment-based, never a gate (the *gate doctrine* is CWC's).
+   *degrading advisory stub* (R11), and Errand Enablement extends the same advisory pattern to the
+   `errand-launch` foreign-artifact gate. This WU upgrades **both** to the **oracle-backed** version —
+   identity-filtered refs + PRs — consumed from spawn / cold-start / materialize / errand-launch. Still
+   advisory, judgment-based, never a gate (the *gate doctrine* is CWC's). Absorbing both advisory stubs in
+   one pass is why Errand Enablement sequences before this WU.
 
 6. **Session-probe orchestration model (absorbs WF's conditional-slot seam).** The oracle's network slice
    (item 1), gated on `active.resolution === "none"` (the latency-budget decision below), is the **second**
@@ -200,8 +201,10 @@ surface is `arc-session`'s discovery offer.
 
 ### Recommended sequencing
 
-… → Work Organization Reform → **Worktree Foundation** → **In-Flight Awareness** → (Concurrent Work
-Conventions ‖ roadmap-tooling ‖ Coord Probe).
+… → Work Organization Reform → **Worktree Foundation** → **Errand Enablement** → **In-Flight Awareness** →
+(Concurrent Work Conventions ‖ roadmap-tooling ‖ Coord Probe). Errand Enablement before this WU is a
+sequencing *preference* (so the oracle upgrade absorbs both advisory stubs in one pass), not a hard
+dependency — left out of `Depends On` to keep the ROADMAP readiness view accurate.
 
 ## Open Questions
 
