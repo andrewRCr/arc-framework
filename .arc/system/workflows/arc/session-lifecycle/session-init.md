@@ -38,7 +38,7 @@ The probe returns a single JSON envelope the agent consumes:
 | `active`                    | Active meta file resolution (`value.resolution`: single / multiple / none; `value.path`, `value.candidates`, `value.layout`)                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `domainRules`               | `value.rules`: `{path, domain, purpose}` tuples from `DEV-RULES.{DOMAIN}.md` files; `value.warnings`: frontmatter parse diagnostics                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `recommendedCombinedPrompt` | Top-level. Composed combined-prompt text when both `worktree` and `user` resolve to `recommendedAction === "prompt"`; `null` otherwise                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `recovery`                  | Pre-computed branch-gone recovery resolution; present only on the `branch-gone` arm, and only when `roster` resolved (it consumes the roster to assemble candidates). `value.kind`: `resolved` (one high-confidence candidate), `surface` (multiple — operator chooses), or `main-fallback` (none — offer `main`). Candidates carry `branch`, optional `worktreePath`, and `proposedAction` (`switch` / `offer-remove` / `advisory`). Rendered by Step 6's branch-gone arm                                                                                                                |
+| `recovery`                  | Pre-computed branch-gone recovery resolution; present only on the `branch-gone` arm, and only when `roster` resolved (it consumes the roster to assemble candidates). `value.kind`: `resolved` (one high-confidence candidate), `surface` (multiple — operator chooses), or `main-fallback` (none — offer `main`). Candidates carry `branch`, optional `worktreePath`, and `proposedAction` (`switch` / `offer-remove` / `advisory`). Acted on by Step 2's branch-gone recovery gating block (Step 6 narrates declines)                                                                   |
 
 **Raw notes-ref topology on `user.value.refState?`**: The notes spine's 5-state `value.state` enum encodes
 pull-direction dispatch and collapses `same` and `local-ahead` into `clean` (both mean "no pull needed"). The
@@ -75,6 +75,29 @@ Two channels: worktree (`worktree.value`) and personal notes (`user.value`). Bot
 offer text when both pull channels resolve to `prompt`. The personal notes channel additionally
 carries `loadNeeded?: boolean` for the cross-machine resume gap; the notes-load dispatch fires
 alongside the pull dispatch on the clean arm.
+
+**Branch-gone recovery (gating — runs before the channels).** When `worktree.value.state == "branch-gone"`,
+align git state *before* anything reads against the working branch. The upstream was deleted (the branch
+shipped elsewhere), so the notes pull here and Step 3's context-load would otherwise surface metas and
+companion files that don't exist on the recovered branch. The `recovery` slot carries pre-computed candidates
+(no scanning across turns); render them as a single recovery prompt, branched on `recovery.value.kind`:
+
+- `resolved` — offer the one candidate directly; or, when its `proposedAction` is `offer-remove`, offer to
+  remove the shipped worktree and archive its meta instead of switching (`advisory` candidates are surfaced,
+  not acted on).
+- `surface` — list each candidate's `branch` + `proposedAction` for the operator to choose, never guessing.
+- `main-fallback` — offer `main`.
+
+```text
+**Branch gone:** `{branch}`'s upstream was deleted on `origin`. Recover onto `{candidate.branch}`?
+(surface → list candidates, ask which; main-fallback → switch to `main`?)
+```
+
+On a switch, fetch the target first when it is a remote branch not yet checked out locally, then **re-run the
+Step 1 probe** so the channels below and Step 3 dispatch against the recovered branch — the re-probed
+`worktree.value.state` is no longer `branch-gone`. If recovery is declined or deferred, skip the channels below
+and carry the still-gone state to Step 6's branch-gone arm. Every other state proceeds straight to the channels
+below.
 
 **Per-channel rule.** For each channel, dispatch on `recommendedAction`:
 
@@ -354,16 +377,13 @@ tracked source documents the work.
   Manual rebase or merge needed before pushing. Carried forward — commit/push requests will be flagged.
   ```
 
-- `worktree.value.state == "branch-gone"` — the branch's upstream was deleted on `origin` (it shipped
-  elsewhere). The `recovery` slot carries pre-computed candidates; render them as a single recovery prompt
-  (no scanning across turns), branched on `recovery.value.kind`: `resolved` offers the one candidate directly —
-  or, when its `proposedAction` is `offer-remove`, offers to remove the shipped worktree and archive its meta
-  instead of switching (`advisory` candidates are surfaced, not acted on); `surface` lists each candidate's
-  `branch` + `proposedAction` for the operator to choose, never guessing; `main-fallback` offers `main`.
+- `worktree.value.state == "branch-gone"` — recovery (Step 2's branch-gone gating block) was declined or
+  deferred, so the upstream is still gone at orientation time. Surface it and await direction; do not re-render
+  the cascade here.
 
   ```text
-  **Branch gone:** `{branch}`'s upstream was deleted on `origin`. Recover onto `{candidate.branch}`?
-  (surface → list candidates, ask which; main-fallback → switch to `main`?)
+  **Branch gone:** `{branch}`'s upstream was deleted on `origin`; recovery was not completed. Re-run
+  branch-gone recovery or pick a branch manually before sync, commit, or push.
   ```
 
 - `worktree.value.state == "local-ahead"`:

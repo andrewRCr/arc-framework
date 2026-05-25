@@ -229,20 +229,19 @@ evolution; keep it clean and self-documenting, do not build a general slot frame
   sync/load, leaving the Step-6 arm as narration — completing R4's ordering reversal). Slot-over-subcommand
   rationale: commit `ab572dec`.
 
-### `[ ]` **2.5 Branch-gone recovery relocation & sync ordering (git-align before sync + load)**
+### `[x]` **2.5 Branch-gone recovery relocation & sync ordering (git-align before sync + load)**
 
 - _Goal:_ under branch-gone, recovery (fetch → resolve target via cascade → switch) runs as an early gating
   action right after the Step-1 probe detects it — ahead of the sync pulls (Step 2) and context-load (Step 3),
   which re-run against the recovered branch — rather than the Step-6 orientation render Task 2.4.d landed. This
   satisfies R4's ordering reversal: notes / metas / companions are never read against the deleted branch.
 
-    - Relocate the recovery resolution out of Step 6 into an early gating action (post-probe / top of Step 2);
-      on switch, re-run the Step-1 probe so Steps 2–3 dispatch against the recovered branch.
-    - Reduce the Step-6 branch-gone arm to orientation narration only (recovery declined / deferred, branch
-      still gone) — consistent with its sibling conditional sections.
-    - Pin the switch mechanics R4 names (fetch the candidate when it is a remote branch not checked out locally).
-    - Both copies (`session-init.md` + `session-init.template.md`).
-    - _Note:_ only this state reverses the ordering; every other state keeps the standard Step 2 → Step 3 flow.
+- _Outcome:_ The recovery action — the full rendering contract (`resolved` / `offer-remove` / `surface` /
+  `main-fallback`) and the prompt — moved into a new Step-2 gating block that runs before both sync channels
+  and Step-3 context-load; on switch it fetches the target if needed, then re-runs the Step-1 probe so the rest
+  of init dispatches against the recovered branch. Step 6's branch-gone arm dropped to narration for the
+  declined / deferred case (consistent now with its sibling conditional sections), and the `recovery`
+  probe-field row re-points to Step 2. Both copies; R4 reworded to match.
 
 ### `[ ]` **2.6 Dual-axis Step 7 trust refactor**
 
