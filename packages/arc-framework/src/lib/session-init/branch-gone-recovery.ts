@@ -12,7 +12,7 @@
  * @module
  */
 
-import { isBranchMerged } from "../git/worktree-cleanup.js";
+import { isBranchMerged, isWorktreeClean } from "../git/worktree-cleanup.js";
 import { readWorktreeMarker } from "../git/worktree-marker.js";
 import type { GitExec } from "../git/exec.js";
 import type {
@@ -99,7 +99,7 @@ async function buildWorktreeCandidate(
 
   const [marker, clean, merged] = await Promise.all([
     ctx.readMarker(entry.worktreePath),
-    isWorktreeClean(ctx.exec, entry.worktreePath),
+    isWorktreeClean({ exec: ctx.exec, cwd: entry.worktreePath }),
     isBranchMerged({ exec: ctx.exec, branch: entry.branch, target: ctx.integrationTarget }),
   ]);
 
@@ -108,18 +108,4 @@ async function buildWorktreeCandidate(
     worktreePath: entry.worktreePath,
     proposedAction: determineCandidateAction({ isMainOrAdmin: false, marker, clean, merged }),
   };
-}
-
-/**
- * Whether a specific worktree's tree is clean. Scoped to the worktree via
- * `cwd` (each linked worktree has its own working tree). An exec failure reads
- * as not-clean — uncertainty never yields a removal offer downstream.
- */
-async function isWorktreeClean(exec: GitExec, cwd: string): Promise<boolean> {
-  try {
-    const { stdout } = await exec("git", ["status", "--porcelain"], { cwd });
-    return stdout.trim() === "";
-  } catch {
-    return false;
-  }
 }

@@ -57,6 +57,7 @@ import {
   runBranchGoneRecovery,
   RECOVERY_RECENCY_DAYS,
 } from "../lib/session-init/branch-gone-recovery.js";
+import { runStaleWorktreeSweep } from "../lib/session-init/stale-worktree-sweep.js";
 import { runDirtyStateStatus } from "../lib/git/dirty-state.js";
 import { runHeadHashStatus } from "../lib/git/head-hash.js";
 import { runPushabilityStatus } from "../lib/git/pushability.js";
@@ -229,6 +230,17 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
           baseBranch: resolved.settings["branch.base"],
           recentBranches,
           exec: gitExec,
+        });
+      },
+      sweep: async (roster, worktreeIdentity) => {
+        const resolved = await resolvedSettingsP;
+        return runStaleWorktreeSweep({
+          roster,
+          worktreeIdentity,
+          cwd,
+          baseBranch: resolved.settings["branch.base"],
+          exec: gitExec,
+          fs: { readdir: (path) => readdir(path) },
         });
       },
     };

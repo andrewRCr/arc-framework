@@ -203,6 +203,7 @@ function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
     domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
     roster: async () => ({ entries: [], warnings: [] }),
     recovery: async () => ({ kind: "main-fallback" as const }),
+    sweep: async () => ({ worktrees: [], warnings: [] }),
     releaseRouting: async () =>
       resolveReleaseRouting({
         releaseOptedIn: false,
@@ -249,6 +250,7 @@ function makeResolvedReleaseModeSessionInitProbes(
     domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
     roster: async () => ({ entries: [], warnings: [] }),
     recovery: async () => ({ kind: "main-fallback" as const }),
+    sweep: async () => ({ worktrees: [], warnings: [] }),
     releaseRouting: async () => routingFromSettings(await resolvedSettings()),
   };
 }
@@ -457,6 +459,7 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
       domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
       roster: async () => ({ entries: [], warnings: [] }),
       recovery: async () => ({ kind: "main-fallback" as const }),
+      sweep: async () => ({ worktrees: [], warnings: [] }),
       releaseRouting: async () =>
         resolveReleaseRouting({
           releaseOptedIn: false,
@@ -616,6 +619,7 @@ function makeRealWorktreeProbes(
     domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
     roster: async () => ({ entries: [], warnings: [] }),
     recovery: async () => ({ kind: "main-fallback" as const }),
+    sweep: async () => ({ worktrees: [], warnings: [] }),
     releaseRouting: async () =>
       resolveReleaseRouting({
         releaseOptedIn: false,

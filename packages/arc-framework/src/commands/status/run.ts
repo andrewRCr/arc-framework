@@ -208,27 +208,40 @@ export async function runSessionInitStatus(
 
   // Two-stage orchestration seam. The eager `Promise.all` above is the first
   // stage. The in-flight roster is the lone conditional-expensive slot: its
-  // gating signals — worktree state and active resolution — are produced by
-  // sibling slots in that fan-out, so it can only fire once they resolve. We
-  // gate on those resolved values and run the roster scan in a second stage;
-  // on the common resume path the gate is false, the scan never runs, and the
-  // slot is omitted, so resume latency is unchanged. `safeProbe` preserves the
-  // "envelope never rejects" contract for the roster too. Kept deliberately
-  // minimal — one named conditional stage, not a general gated-slot framework.
+  // gating signals — worktree state, active resolution, and worktree identity —
+  // are produced by sibling slots in that fan-out, so it can only fire once they
+  // resolve. We gate on those resolved values and run the roster scan in a
+  // second stage; on the linked-worktree resume path the gate is false, the
+  // scan never runs, and the slot is omitted, so resume latency is unchanged.
+  // The primary-worktree arm fires it for the stale-worktree sweep — a main
+  // session recurs often enough to bound the lingering window. `safeProbe`
+  // preserves the "envelope never rejects" contract for the roster too. Kept
+  // deliberately minimal — one named conditional stage, not a general
+  // gated-slot framework.
   const rosterGated =
     (worktree.ok && worktree.value.state === "branch-gone") ||
-    (active.ok && active.value.resolution === "none");
+    (active.ok && active.value.resolution === "none") ||
+    worktreeIdentity.kind === "primary";
   const roster = rosterGated
     ? await safeProbe(() => probes.roster())
     : undefined;
 
-  // Branch-gone recovery — a second gated slot, narrower than the roster gate
-  // (branch-gone only, not no-WU). It consumes the roster resolved just above,
-  // so one roster computation feeds both consumers and recovery fires only when
+  // Branch-gone recovery — a gated consumer of the roster, narrower than the
+  // roster gate (branch-gone only). It consumes the roster resolved just above,
+  // so one roster computation feeds every consumer and recovery fires only when
   // the worktree is branch-gone and the roster resolved.
   const recovery =
     worktree.ok && worktree.value.state === "branch-gone" && roster?.ok
       ? await safeProbe(() => probes.recovery(roster.value, worktree.value.branch))
+      : undefined;
+
+  // Stale-worktree sweep — a second roster consumer, gated to the primary (main)
+  // worktree. Cross-references the roster against `.arc/completed/` and resolves
+  // each lingering shipped-WU worktree's cleanup disposition. Fires only when
+  // the session is in the primary worktree and the roster resolved.
+  const sweep =
+    worktreeIdentity.kind === "primary" && roster?.ok
+      ? await safeProbe(() => probes.sweep(roster.value, worktreeIdentity))
       : undefined;
 
   return {
@@ -244,6 +257,7 @@ export async function runSessionInitStatus(
     releaseRouting,
     ...(roster !== undefined ? { roster } : {}),
     ...(recovery !== undefined ? { recovery } : {}),
+    ...(sweep !== undefined ? { sweep } : {}),
     recommendedCombinedPrompt: recommendations.recommendedCombinedPrompt,
   };
 }

@@ -262,7 +262,7 @@ evolution; keep it clean and self-documenting, do not build a general slot frame
   same authority the Step-2 branch-gone recovery uses (identity-filtered metas + worktree list), with notes
   explicitly excluded as context-not-roster — closing the conceptual loop with Task 2.5's relocation. Both copies.
 
-### `[ ]` **2.7 Stale-worktree sweep at main-worktree session-init**
+### `[x]` **2.7 Stale-worktree sweep at main-worktree session-init**
 
 - _Goal:_ a main-worktree session-init cross-references `git worktree list` against main's `completed/` and
   surfaces any lingering worktree whose WU has shipped for marker-gated cleanup — closing the spawn-on-A /
@@ -279,10 +279,21 @@ evolution; keep it clean and self-documenting, do not build a general slot frame
           roster (`runWorktreeRoster`) against the slug set, returning shipped-WU entries; empty when
           `worktreeIdentity.kind !== "primary"` so the linked-worktree resume path never scans siblings.
 
-    - `[ ]` **2.7.b Marker-gated surfacing + workflow doc**
-        - Consume the Phase 1 decision fn; document the sweep step in the session-init workflow (both copies).
-        - _Note:_ worktrees are only ever surfaced — never auto-removed without the marker-gated
-          clean-+-merged guard.
+    - `[x]` **2.7.b Marker-gated surfacing + workflow doc**
+        - `runStaleWorktreeSweep` enriches each candidate with marker / clean / merged and maps them through
+          the shared `decideWorktreeCleanup` (offer-remove / surface / advisory) — never auto-removing without
+          the marker-gated clean-and-merged guard. `isWorktreeClean` extracted to `worktree-cleanup.ts`
+          (sibling of `isBranchMerged`) and now shared with branch-gone recovery.
+        - Wired as a primary-gated `sweep` envelope slot (`run.ts` widens the roster gate to also fire in the
+          primary worktree; `types.ts` slot + probe; handler `sweep` probe binds cwd / base branch / fs).
+          Documented in both session-init workflow copies: Step 1 probe-field table row + a Step 6
+          "Stale worktrees" orientation section.
+
+- _Outcome:_ Closing the spawn-on-A / integrate-on-B / never-reopen-A gap, the roster scan now fires on every
+  primary-worktree session-init (the main-on-main cadence bounds the lingering window) while the linked-worktree
+  resume path stays scan-free; one roster computation feeds both branch-gone recovery and the sweep. Existing
+  roster-gating tests that conflated "clean resume" with the primary worktree were re-pointed at the linked
+  worktree, the genuine cheap path.
 
 ## **Phase 3:** Cross-WU sync — load & merge
 

@@ -36,6 +36,7 @@ import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
 import type { WorktreeRosterResult } from "../../lib/git/worktree-roster.js";
 import type { WorktreeIdentity } from "../../lib/git/worktree-identity.js";
 import type { CascadeResolution } from "../../lib/session-init/branch-gone-cascade.js";
+import type { StaleWorktreeSweepResult } from "../../lib/session-init/stale-worktree-sweep.js";
 import type { RestateCandidatesResult } from "../../lib/handoff/restate-candidates.js";
 import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
 import type { RecommendedAction } from "../../lib/session-init/recommended-action.js";
@@ -116,13 +117,13 @@ export interface SessionInitProbeResult {
   domainRules: Probe<DomainRulesSessionInitResult>;
   releaseRouting: Probe<ReleaseRoutingValue>;
   /**
-   * Pre-computed in-flight worktree roster, identity-filtered. Present ONLY
-   * on the branch-gone / no-WU recovery branch (worktree state `branch-gone`,
-   * or active `resolution === "none"`); the orchestrator fires the scan in a
-   * gated second phase and omits the slot entirely on the common resume path
+   * Pre-computed in-flight worktree roster, identity-filtered. Present when the
+   * orchestrator's gated second phase fires: worktree state `branch-gone`,
+   * active `resolution === "none"`, OR a primary (main) worktree (the
+   * stale-worktree sweep's gate). Omitted on the linked-worktree resume path
    * (the scan never runs — resume latency is unchanged). Feeds the branch-gone
-   * resolution cascade; absent means "no recovery roster was computed", not
-   * "an empty roster".
+   * resolution cascade and the stale-worktree sweep; absent means "no roster
+   * was computed", not "an empty roster".
    */
   roster?: Probe<WorktreeRosterResult>;
   /**
@@ -134,6 +135,14 @@ export interface SessionInitProbeResult {
    * recovery arm. Absent on every other path.
    */
   recovery?: Probe<CascadeResolution>;
+  /**
+   * Pre-computed stale-worktree sweep. Present ONLY in the primary (main)
+   * worktree and only when the roster resolved — it consumes that roster,
+   * cross-references it against `.arc/completed/`, and resolves each lingering
+   * shipped-WU worktree's marker-gated cleanup disposition. Absent in linked
+   * worktrees (the resume path never sweeps) and when the roster failed.
+   */
+  sweep?: Probe<StaleWorktreeSweepResult>;
   /**
    * Per-channel offer text composed when both the worktree and user slots
    * resolve to `recommendedAction === "prompt"`. Null when only one channel
@@ -277,6 +286,16 @@ export interface SessionInitProbes {
     roster: WorktreeRosterResult,
     currentBranch: string | null,
   ) => Promise<CascadeResolution>;
+  /**
+   * Stale-worktree sweep resolver. Receives the already-resolved roster and the
+   * session's worktree identity from the orchestrator; the handler binds the
+   * cwd, base branch, and `.arc/completed/` reader. Called ONLY in the primary
+   * worktree when the roster resolved.
+   */
+  sweep: (
+    roster: WorktreeRosterResult,
+    worktreeIdentity: WorktreeIdentity,
+  ) => Promise<StaleWorktreeSweepResult>;
 }
 
 /** Probe functions in session-handoff mode — bound to cwd and any required I/O. */

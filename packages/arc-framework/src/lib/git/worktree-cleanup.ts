@@ -52,6 +52,31 @@ export async function isBranchMerged(options: IsBranchMergedOptions): Promise<bo
   }
 }
 
+/** Inputs for the worktree-clean check. */
+export interface IsWorktreeCleanOptions {
+  exec: GitExec;
+  /** Working-tree root to scope the status check to (each linked worktree has its own tree). */
+  cwd: string;
+}
+
+/**
+ * Whether a specific worktree's tree is clean (no uncommitted changes), via
+ * `git status --porcelain` scoped to its `cwd`. An exec failure reads as
+ * not-clean — the safe default, so uncertainty never yields a removal offer
+ * downstream.
+ *
+ * @param options - Executor and the worktree root to check
+ * @returns Whether the worktree's tree is clean
+ */
+export async function isWorktreeClean(options: IsWorktreeCleanOptions): Promise<boolean> {
+  try {
+    const { stdout } = await options.exec("git", ["status", "--porcelain"], { cwd: options.cwd });
+    return stdout.trim() === "";
+  } catch {
+    return false;
+  }
+}
+
 /** Cleanup action for an ARC-managed worktree at a removal site. */
 export type WorktreeCleanupDecision =
   | { action: "offer-remove" }
