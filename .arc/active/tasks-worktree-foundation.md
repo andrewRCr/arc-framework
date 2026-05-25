@@ -28,27 +28,22 @@ _New config keys register across multiple sites_ — `arc-config.yml` (both copi
 applies), and `.internal/scripts/validate-config.sh` `known_keys` (both copies); a new method file also
 registers in `lib/classification.ts` `CONFIGURABLE_FILES`. See `notes-worktree-foundation.md` § Phase 1.
 
-### `[ ]` **1.1 Worktree branch posture in `branch-format` (existing convention + external-mismatch advisory)**
+### `[x]` **1.1 Worktree branch posture in `branch-format` (existing convention + external-mismatch advisory)**
 
 - _Goal:_ `branch-format`'s existing convention is affirmed to govern the branches ARC creates in linked
   worktrees, and an advisory warns — rather than refuses — when a branch arrives not matching it, so ARC
   composes with externally-created branches without relocating or rejecting them.
-- _Context:_ a WU branch is a WU branch regardless of worktree, so there is no separate naming convention to add
-  — `branch-format` already owns the type-set (core execution types + `plan/<name>`) and the `override-active` /
-  `.override` / `.default` machinery. 1.1 states the worktree posture, not a new convention or a
-  `branch.naming_convention` key.
-- **Strategies:** `strategy-configurability-architecture.md`, `strategy-work-organization.md`
 
-    - `[ ]` **1.1.a State the worktree posture in `branch-format`'s default section** (both copies)
-        - Affirm in the ARC-authored `.default` section that the existing convention governs ARC-created
-          worktree branches; externally-arrived branches are advisory (warn on mismatch, never refuse). Adopters
-          override through the method's existing override machinery — the `.override` section is untouched, and
-          no `branch.naming_convention` key is added.
+    - `[x]` **1.1.a State the worktree posture in `branch-format`'s default section** (both copies)
+        - Added a `**Worktree branch posture:**` paragraph to the `.default` section: the existing type set and
+          `plan/` prefix govern ARC-created worktree branches exactly as in the primary checkout. No separate
+          convention and no `branch.naming_convention` key; the `.override` section is untouched, so projects
+          customize through the existing override mechanism.
 
-    - `[ ]` **1.1.b Advisory warn-on-external-mismatch**
-        - ARC-created branch → the convention applies; externally-arrived branch → advisory, warn on mismatch,
-          never refuse or relocate. _Note:_ the warn surface is session-init / workflow prose (there is no
-          branch-name validator to hook) — doc-behavior, not a unit-tested path.
+    - `[x]` **1.1.b Advisory warn-on-external-mismatch**
+        - Same paragraph states branches ARC did not create are advisory only — ARC warns on a convention
+          mismatch but never refuses or relocates them. Doc-behavior: there is no branch-name validator to
+          hook, so the posture is the deliverable and there is no code path.
 
 ### `[ ]` **1.2 Worktree location-template method (`worktree.location_template`)**
 
