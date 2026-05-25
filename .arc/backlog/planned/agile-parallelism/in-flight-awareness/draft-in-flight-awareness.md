@@ -122,6 +122,25 @@ remotely," then drops the operator to a raw `git worktree add`.
    identity-filtered refs + PRs — consumed from spawn / cold-start / materialize. Still advisory,
    judgment-based, never a gate (the *gate doctrine* is CWC's).
 
+6. **Session-probe orchestration model (absorbs WF's conditional-slot seam).** The oracle's network slice
+   (item 1), gated on `active.resolution === "none"` (the latency-budget decision below), is the **second**
+   conditional-expensive slot added to a session-init orchestrator (`commands/status/run.ts`) whose three
+   entry points (`runStatus` / `runSessionInitStatus` / `runSessionHandoffStatus`) today fan out **every**
+   slot eagerly through one `Promise.all`, with no affordance for conditional or cost-tiered firing. Worktree
+   Foundation adds the *first* such slot (the branch-gone / no-WU roster) as a deliberately minimal two-phase
+   seam, written to be absorbed here. With both real instances in hand, this WU evolves the model: a clean
+   **gated-slot affordance** (cheap always-on slots fire on the common resume path; expensive slots fire only
+   under their condition) plus **de-duplication of the per-entry-point slot lists** (user / worktree / dirty
+   / active / releaseRouting are hand-re-declared across the three composites). The `safeProbe` "envelope
+   never rejects" contract and the per-slot result shape are preserved — this evolves the *firing* discipline,
+   not the slot contract.
+    - **Bounded — earn generality from the two real instances, no pre-building** for hypothetical future slots.
+    - **Coordinate with CLI Substrate Adoption on `commands/status/run.ts`.** CSA (post-WF parallel sibling)
+      converts the slot wrapper `Probe<T>` → `Result<T, E>` and zod-validates the envelope in the same file;
+      the two edits are orthogonal (slot-result *type* vs. slot-*firing* discipline) but co-located —
+      sequence or reconcile manually if they run concurrently (vanilla-git discipline until Concurrent Work
+      Conventions lands).
+
 ### Out of scope
 
 - **Render automation** — `roadmap-tooling` automates the `STATUS.*` render later; this WU ships the oracle,
