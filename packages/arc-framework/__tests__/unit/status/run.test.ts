@@ -95,6 +95,7 @@ function configResult(overrides: Partial<ConfigStatusResult> = {}): ConfigStatus
     settings: {
       "branch.base": "main",
       "branch.protection": "partial",
+      "worktree.location_template": "../{repo}.{branch}",
       "commit.format": "conventional",
       "commit.context_footer": "required",
       "commit.custom_pattern": "",

@@ -32,6 +32,7 @@ import type { ConfigSettings } from "../../commands/config/types.js";
 const DEFAULTS: ConfigSettings = {
   "branch.base": "main",
   "branch.protection": "partial",
+  "worktree.location_template": "../{repo}.{branch}",
   "commit.format": "conventional",
   "commit.context_footer": "required",
   "commit.custom_pattern": "",

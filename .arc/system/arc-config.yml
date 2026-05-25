@@ -26,6 +26,23 @@ branch.base: main
 # See strategy-work-organization.md § Branch Protection Modes.
 branch.protection: full
 
+# --- Worktree ---
+
+# Filesystem location template for ARC-created linked worktrees.
+# Resolved at worktree-creation time: {repo} is the repository name and
+# {branch} is the branch with slashes slugged to `-` (plan/foo -> plan-foo).
+#   default: ../{repo}.{branch}   - flat sibling of the primary checkout
+# Override examples:
+#   .worktrees/{branch}           - nested inside the repo
+#   ../worktrees/{repo}/{branch}  - centralized worktree parent dir
+#   ~/worktrees/{repo}.{branch}   - home-rooted, grouped by repo
+# Applies only to worktrees ARC creates; external worktrees are read from
+# `git worktree list` as-is and never relocated. The resolved path is a
+# creation-time artifact: a later branch rename does not move it. Slug
+# collisions (plan/foo and plan-foo both map to plan-foo) are creation-time,
+# last-write-wins / user-resolved.
+worktree.location_template: ../{repo}.{branch}
+
 # --- Commit Discipline ---
 
 # Commit message format enforced by commit-msg hook.

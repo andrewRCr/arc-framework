@@ -42,6 +42,7 @@ function buildSettings(overrides: FixtureOverrides = {}): ResolvedSettingsResult
   const settings: ConfigSettings = {
     "branch.base": branchBase,
     "branch.protection": branchProtection,
+    "worktree.location_template": "../{repo}.{branch}",
     "commit.format": "conventional",
     "commit.context_footer": "required",
     "commit.custom_pattern": "",

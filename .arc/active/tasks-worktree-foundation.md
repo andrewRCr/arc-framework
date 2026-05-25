@@ -60,11 +60,12 @@ applies), and `.internal/scripts/validate-config.sh` `known_keys` (both copies).
   `config-storage-architecture` respectively (see spec § Design Decisions).
 - **Strategies:** `strategy-configurability-architecture.md`
 
-    - `[ ]` **1.2.a Register the config key + inline supporting docs** (registration sites per the phase preamble)
-        - Add `worktree.location_template` across `arc-config.yml` (both copies — with inline default, semantics,
-          and override examples: in-repo `.worktrees/{branch}`, centralized, home-rooted), `ConfigSettings`,
-          `status-reader.ts` `DEFAULTS`, and `validate-config.sh` `known_keys`. Freeform value — default in code,
-          no `ENUM_VALIDATORS` entry; no method file, so no `classification.ts` registration. [R27]
+    - `[x]` **1.2.a Register the config key + inline supporting docs**
+        - Registered `worktree.location_template` (freeform; default `../{repo}.{branch}`) across both
+          `arc-config.yml` copies — a new `# --- Worktree ---` section carrying semantics, the three override
+          examples (in-repo, centralized, home-rooted), and the branch-rename-decoupling + slug-collision notes —
+          plus `ConfigSettings`, `status-reader.ts` `DEFAULTS`, and both `validate-config.sh` `known_keys` lists.
+          Default-in-code, so no `ENUM_VALIDATORS` entry and no `classification.ts` registration (no method file). [R27]
 
     - `[ ]` **1.2.b Template-resolution logic**
         - _Note:_ lives as a new lib helper (e.g. `lib/git/worktree-location.ts`), consumed at worktree-creation
