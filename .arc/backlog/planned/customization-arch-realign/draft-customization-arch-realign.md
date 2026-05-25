@@ -244,6 +244,18 @@ and isn't authorizing when changing config." A two-value enum that hides scope i
 fail this test even if it's mechanically simpler. Origin: 2026-05-16 mid-WOR session, surfaced
 during interlock-prompt-shape audit; explicitly not finalized.
 
+### (f) Two-surface drift for mechanically-enforced methods
+
+`commit-format` and `commit-footer` each pair an agent-read method (authoring guidance) with a hook-read config
+value (`commit.custom_pattern` / `commit.context_pattern`) that enforces the same format. The two surfaces are
+irreducibly different representations — prose can't be fed to a shell regex, and a regex can't express the
+three-layer scope/type guidance — so they can drift: set `commit.format: custom` + a regex but leave the method
+`.override` empty (agent writes a format the hook rejects), or the inverse. § Mechanism already concedes
+"contracts are advisory, not mechanically enforced." Unification isn't possible; the realistic fix is **drift
+detection** — warn when `commit.format: custom` (or `commit.context_footer: custom`) but the corresponding
+method `.override` is unpopulated, or vice versa. Evaluate folding a check into `validate-config.sh` or the
+config validators. Surfaced 2026-05-25 during Worktree Foundation execution kickoff.
+
 ---
 
 ## Cross-Plan Coordination
@@ -268,6 +280,12 @@ during interlock-prompt-shape audit; explicitly not finalized.
   plan because the enum design affects all of ARC's interlock-shaped configs; the routing
   evolution in `plan-interlock-release-refinement` works under any candidate enum shape. If
   either lands first, the other absorbs the resulting decision; ship-order doesn't matter.
+- **`plan-worktree-foundation`** — lands `worktree.location_template` as a **code-consumed config key, not a
+  method** — the first concrete instance of this plan's "changes a value hooks/CLI/structural code reads →
+  Config" decision-tree row. The method-vs-config boundary was surfaced during WF's execution kickoff (the spec
+  had provisionally placed the template under `system/methods/`) and routed here; use `worktree.location_template`
+  as the worked example when codifying the principle. WF ships the key + inline docs; this plan owns the holistic
+  codification (and the value-vs-activity / who-consumes framing that sharpens the existing decision tree).
 
 ---
 
