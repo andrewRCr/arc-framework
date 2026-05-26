@@ -41,11 +41,8 @@
 
 import { runPushabilityStatus } from "../../lib/git/index.js";
 import { pushWorktreeBranch } from "../../lib/git/push-worktree.js";
-import {
-  clearPartialPushMarker,
-  recordPartialPushMarker,
-  runUserSave,
-} from "./save-load.js";
+import { clearPartialPushMarker, recordPartialPushMarker } from "../../lib/user-sync/index.js";
+import { runUserSave } from "./save-load.js";
 import type {
   PairedPushNotesOutcome,
   PairedPushResult,

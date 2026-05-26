@@ -12,13 +12,15 @@ import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os";
 
 import {
-  clearPartialPushMarker,
   findNearestUserNote,
-  readLocalSyncState,
-  recordPartialPushMarker,
   runUserLoad,
   runUserSave,
 } from "../../src/commands/user/save-load.js";
+import {
+  clearPartialPushMarker,
+  readLocalSyncState,
+  recordPartialPushMarker,
+} from "../../src/lib/user-sync/index.js";
 import {
   UserLoadVerificationError,
   UserSaveVerificationError,

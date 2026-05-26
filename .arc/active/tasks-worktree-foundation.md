@@ -584,10 +584,14 @@ downstream sync WUs is recorded in `notes-worktree-foundation.md` § Phase 4 for
   file). _Notes:_ See `notes-worktree-foundation.md` § Phases 3 & 4 and § Phase 4 forward-compat cross-check.
 - **Strategies:** `strategy-storage-evolution.md`
 
-    - `[ ]` **4.4.a Extract sync-state schema to `lib/user-sync/sync-state.ts`**
-        - Move `LocalSyncState` + `readLocalSyncState` / `writeLocalSyncState` / `recordPartialPushMarker` /
-          `clearPartialPushMarker` out of `save-load.ts`; behavior-preserving, exports stable. Lands the
-          I/O-boundary home before the schema changes build on it.
+    - `[x]` **4.4.a Extract sync-state schema to `lib/user-sync/sync-state.ts`**
+        - `LocalSyncState` / `PartialPushMarker` + `readLocalSyncState` / `writeLocalSyncState` /
+          `recordPartialPushMarker` / `clearPartialPushMarker` (plus `getUserInternalDir`) moved to
+          `lib/user-sync/sync-state.ts`, re-exported via the barrel. IO param widened `UserIOContext` → `CoreIO`
+          to keep the module `lib`-internal (no `lib`→`commands` inversion); `writeLocalSyncState` now takes the
+          precomputed `materializedManifestHash` rather than the manifest, so `sync-state.ts` needs no
+          `hashSyncManifest` dependency (it stays in `save-load.ts` for its external importers) — avoids a
+          `save-load` ↔ `sync-state` import cycle. Consumers and the marker-mock test targets repointed.
 
     - `[ ]` **4.4.b Schema `version` bump + worktree-aware shape + reserved-field round-trip**
         - Build `test-first` (one behavior at a time):

@@ -7,18 +7,18 @@ import {
   type WorktreeSyncStatusResult,
 } from "../../lib/git/worktree-sync.js";
 import {
+  clearPartialPushMarker,
   inferUserSyncCause,
+  readLocalSyncState,
   type UserSyncCause,
   type UserSyncCauseConfidence,
   type UserSyncRefRelation,
 } from "../../lib/user-sync/index.js";
 import { formatRelativeTime } from "./relative-time.js";
 import {
-  clearPartialPushMarker,
   findNearestUserNote,
   hashSyncManifest,
   listBackupFiles,
-  readLocalSyncState,
 } from "./save-load.js";
 import { notesRef } from "./shared.js";
 import type {

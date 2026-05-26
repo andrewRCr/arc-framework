@@ -28,6 +28,10 @@ const mockRunUserSave = vi.fn();
 
 vi.mock("../../src/commands/user/save-load.js", () => ({
   runUserSave: (opts: unknown) => mockRunUserSave(opts),
+}));
+
+vi.mock("../../src/lib/user-sync/index.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../src/lib/user-sync/index.js")>()),
   recordPartialPushMarker: (...args: unknown[]) => mockRecordPartialPushMarker(...args),
   clearPartialPushMarker: (...args: unknown[]) => mockClearPartialPushMarker(...args),
 }));

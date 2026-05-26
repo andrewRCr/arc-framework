@@ -2,7 +2,6 @@ import { readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 
-import { atomicWriteJson } from "../../lib/fs.js";
 import { deserialize, isSafeManifestPath, serialize, shortHash, type SyncManifest } from "../../lib/git/index.js";
 import { ensureDir } from "../../lib/template/index.js";
 import {
@@ -10,9 +9,11 @@ import {
   classifyOrphans,
   classifyUserSyncPath,
   collectNotesWuNames,
+  getUserInternalDir,
   mergeCrossWuFile,
   planRetiredSubdirReconcile,
   subdirsFromPaths,
+  writeLocalSyncState,
   wuNameOfPath,
   type MergeNote,
   type OrphanClassification,
@@ -44,28 +45,6 @@ import {
 const BACKUP_TIMESTAMPED_PREFIX = ".pre-load-backup-";
 const BACKUP_TIMESTAMPED_SUFFIX = ".json";
 const BACKUP_RETENTION = 3;
-const LOCAL_SYNC_STATE_FILENAME = ".sync-state.json";
-const USER_INTERNAL_DIRNAME = ".internal";
-
-interface LocalSyncState {
-  version: 3;
-  materializedManifestHash: string;
-  sourceCommit: string;
-  sourceOperation: "save" | "load";
-  /**
-   * ISO-8601 timestamp when this record was written. Optional in memory because
-   * v2 records on disk predate the field — they hydrate with `savedAt: undefined`
-   * and pick up a populated value on the next save.
-   */
-  savedAt?: string;
-  verifiedAt?: string;
-  partialPush?: PartialPushMarker;
-}
-
-interface PartialPushMarker {
-  localRefHash: string;
-  sourceCommit: string;
-}
 
 /** Default ancestor-walk cap. Aligns with common shallow-clone depth conventions. */
 export const DEFAULT_MAX_ANCESTOR_WALK = 1000;
@@ -98,7 +77,7 @@ export async function runUserSave(
   const json = JSON.stringify(result.manifest);
   await io.writeNote(notesRef(identity), json, commit);
   await verifySavedNote(io, identity, commit, result.manifest);
-  await writeLocalSyncState(cwd, io, identity, result.manifest, commit, "save", commit);
+  await writeLocalSyncState(cwd, io, identity, hashSyncManifest(result.manifest), commit, "save", commit);
 
   return {
     identity,
@@ -201,7 +180,7 @@ export async function runUserLoad(
   await ensureDir(userDir, io.mkdir);
   await deserialize(userDir, loadManifest, io.writeFile, io.mkdir);
   await verifyMaterializedUserDir(userDir, io, sourceCommit, loadManifest);
-  await writeLocalSyncState(cwd, io, identity, loadManifest, sourceCommit, "load", sourceCommit);
+  await writeLocalSyncState(cwd, io, identity, hashSyncManifest(loadManifest), sourceCommit, "load", sourceCommit);
 
   return {
     kind: "loaded",
@@ -417,165 +396,6 @@ function isSyncManifest(value: unknown): value is SyncManifest {
   return Object.values(record.files as Record<string, unknown>)
     .every((content) => typeof content === "string");
 }
-
-export async function readLocalSyncState(
-  cwd: string,
-  io: UserIOContext,
-  identity: string,
-): Promise<LocalSyncState | null> {
-  for (const syncStatePath of [
-    join(getUserInternalDir(cwd, identity), LOCAL_SYNC_STATE_FILENAME),
-    join(cwd, ".arc", "user", identity, LOCAL_SYNC_STATE_FILENAME),
-  ]) {
-    let raw: string;
-    try {
-      raw = await io.readFile(syncStatePath);
-    } catch {
-      continue;
-    }
-
-    try {
-      const parsed: unknown = JSON.parse(raw);
-      if (typeof parsed !== "object" || parsed === null) {
-        continue;
-      }
-      const record = parsed as Record<string, unknown>;
-
-      if (
-        (record.version === 2 || record.version === 3)
-        && typeof record.materializedManifestHash === "string"
-        && record.materializedManifestHash.length > 0
-        && typeof record.sourceCommit === "string"
-        && record.sourceCommit.length > 0
-        && (record.sourceOperation === "save" || record.sourceOperation === "load")
-      ) {
-        const partialPush = parsePartialPushMarker(record.partialPush);
-        return {
-          version: 3,
-          materializedManifestHash: record.materializedManifestHash,
-          sourceCommit: record.sourceCommit,
-          sourceOperation: record.sourceOperation,
-          ...(typeof record.savedAt === "string" && record.savedAt.length > 0
-            ? { savedAt: record.savedAt }
-            : {}),
-          ...(typeof record.verifiedAt === "string" && record.verifiedAt.length > 0
-            ? { verifiedAt: record.verifiedAt }
-            : {}),
-          ...(partialPush ? { partialPush } : {}),
-        };
-      }
-    } catch {
-      return null;
-    }
-  }
-
-  return null;
-}
-
-function parsePartialPushMarker(value: unknown): PartialPushMarker | null {
-  if (typeof value !== "object" || value === null) return null;
-  const record = value as Record<string, unknown>;
-  if (
-    typeof record.localRefHash !== "string" ||
-    record.localRefHash.length === 0 ||
-    typeof record.sourceCommit !== "string" ||
-    record.sourceCommit.length === 0
-  ) {
-    return null;
-  }
-  return {
-    localRefHash: record.localRefHash,
-    sourceCommit: record.sourceCommit,
-  };
-}
-
-async function writeLocalSyncState(
-  cwd: string,
-  io: UserIOContext,
-  identity: string,
-  manifest: SyncManifest,
-  sourceCommit: string,
-  sourceOperation: "save" | "load",
-  verifiedAt?: string,
-): Promise<void> {
-  const internalDir = getUserInternalDir(cwd, identity);
-  const syncStatePath = join(internalDir, LOCAL_SYNC_STATE_FILENAME);
-  await ensureDir(internalDir, io.mkdir);
-  const state: LocalSyncState = {
-    version: 3,
-    materializedManifestHash: hashSyncManifest(manifest),
-    sourceCommit,
-    sourceOperation,
-    savedAt: new Date().toISOString(),
-    ...(verifiedAt ? { verifiedAt } : {}),
-  };
-  await atomicWriteJson(syncStatePath, state);
-}
-
-async function writeLocalSyncStateRecord(
-  cwd: string,
-  io: UserIOContext,
-  identity: string,
-  state: LocalSyncState,
-): Promise<void> {
-  const internalDir = getUserInternalDir(cwd, identity);
-  const syncStatePath = join(internalDir, LOCAL_SYNC_STATE_FILENAME);
-  await ensureDir(internalDir, io.mkdir);
-  await atomicWriteJson(syncStatePath, state);
-}
-
-export async function recordPartialPushMarker(
-  cwd: string,
-  io: UserIOContext,
-  identity: string,
-): Promise<boolean> {
-  const state = await readLocalSyncState(cwd, io, identity);
-  if (!state) return false;
-
-  const localRefHash = await readLocalNotesRefHash(io, identity);
-  if (!localRefHash) return false;
-
-  await writeLocalSyncStateRecord(cwd, io, identity, {
-    ...state,
-    partialPush: { localRefHash, sourceCommit: state.sourceCommit },
-  });
-  return true;
-}
-
-export async function clearPartialPushMarker(
-  cwd: string,
-  io: UserIOContext,
-  identity: string,
-): Promise<void> {
-  const state = await readLocalSyncState(cwd, io, identity);
-  if (!state?.partialPush) return;
-
-  await writeLocalSyncStateRecord(cwd, io, identity, {
-    version: state.version,
-    materializedManifestHash: state.materializedManifestHash,
-    sourceCommit: state.sourceCommit,
-    sourceOperation: state.sourceOperation,
-    ...(state.savedAt ? { savedAt: state.savedAt } : {}),
-    ...(state.verifiedAt ? { verifiedAt: state.verifiedAt } : {}),
-  });
-}
-
-async function readLocalNotesRefHash(
-  io: UserIOContext,
-  identity: string,
-): Promise<string | null> {
-  try {
-    const { stdout } = await io.exec("git", [
-      "rev-parse",
-      "--verify",
-      `refs/notes/${notesRef(identity)}`,
-    ]);
-    return stdout.trim() || null;
-  } catch {
-    return null;
-  }
-}
-
 
 function normalizeManifest(
   manifest: SyncManifest,
@@ -820,10 +640,6 @@ async function pruneTimestampedBackups(
       // Best-effort pruning; backup creation already succeeded.
     }
   }
-}
-
-function getUserInternalDir(cwd: string, identity: string): string {
-  return join(cwd, ".arc", "user", identity, USER_INTERNAL_DIRNAME);
 }
 
 async function readBackupNames(

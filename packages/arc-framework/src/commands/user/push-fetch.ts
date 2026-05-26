@@ -1,6 +1,7 @@
 import { runPushabilityStatus } from "../../lib/git/index.js";
 import type { AccessFn, PushabilityCondition } from "../../lib/git/index.js";
 import {
+  clearPartialPushMarker,
   incomingFetchRefspec,
   incomingNotesRef,
   isNonFastForwardError,
@@ -9,7 +10,7 @@ import {
   notesMergeArgs,
 } from "../../lib/user-sync/index.js";
 import { notesRef } from "./shared.js";
-import { clearPartialPushMarker, runUserLoad } from "./save-load.js";
+import { runUserLoad } from "./save-load.js";
 import {
   UserPushBlockedError,
   type UserFetchOptions,

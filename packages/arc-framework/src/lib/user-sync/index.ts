@@ -56,4 +56,14 @@ export {
   type OrphanClassification,
 } from "./orphan-classification.js";
 
+export {
+  clearPartialPushMarker,
+  getUserInternalDir,
+  readLocalSyncState,
+  recordPartialPushMarker,
+  writeLocalSyncState,
+  type LocalSyncState,
+  type PartialPushMarker,
+} from "./sync-state.js";
+
 export type { CrossWuEntry, CrossWuShape, EntryParse } from "./types.js";

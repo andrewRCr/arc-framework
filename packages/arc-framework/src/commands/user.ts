@@ -14,15 +14,17 @@ export {
   runUserOpen,
 } from "./user/open.js";
 export {
-  clearPartialPushMarker,
   findNearestUserNote,
   hashSyncManifest,
   listBackupFiles,
-  readLocalSyncState,
-  recordPartialPushMarker,
   runUserLoad,
   runUserSave,
 } from "./user/save-load.js";
+export {
+  clearPartialPushMarker,
+  readLocalSyncState,
+  recordPartialPushMarker,
+} from "../lib/user-sync/index.js";
 export {
   hasLocalNotes,
   hasRemoteNotes,
