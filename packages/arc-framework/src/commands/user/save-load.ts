@@ -1,4 +1,4 @@
-import { rm } from "node:fs/promises";
+import { readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 
@@ -9,9 +9,11 @@ import {
   appendRemovalTombstones,
   classifyUserSyncPath,
   mergeCrossWuFile,
+  planRetiredSubdirReconcile,
   wuNameOfPath,
   type MergeNote,
 } from "../../lib/user-sync/index.js";
+import { readShippedWorkUnits } from "../../lib/work-unit/completed-index.js";
 import {
   listChangedNotePaths,
   notePathToCommit,
@@ -20,6 +22,7 @@ import {
   readRecentUserNotes,
   type RecentNote,
 } from "../../lib/user-sync/notes-ref.js";
+import { removeStaleUserWuSubdir } from "./open.js";
 import { notesRef } from "./shared.js";
 import {
   BACKUP_FILENAME,
@@ -153,6 +156,7 @@ export async function runUserLoad(
   const loadManifest: SyncManifest = { version, files: { ...perWuFiles, ...crossWuFiles } };
 
   let staleWarnings: string[] = [];
+  let reconcileWarnings: string[] = [];
   try {
     const localResult = await serialize(userDir, io.readDir, io.readFile);
     const localFiles = localResult.manifest.files;
@@ -167,10 +171,26 @@ export async function runUserLoad(
       );
       await pruneTimestampedBackups(internalDir, io.readDir);
 
+      // Retired-subdir reconcile: a per-WU subdir that has shipped and is no
+      // longer carried in the recent-notes window is removed. Its files were
+      // just captured in the pre-load backup, so the removal is recoverable.
+      // Runs before the stale-file scan so a reconciled subdir's files aren't
+      // also reported as "preserved".
+      const reconciled = await reconcileRetiredSubdirs({ cwd, identity, localFiles, recentNotes });
+
       const manifestNames = new Set(Object.keys(loadManifest.files));
       staleWarnings = Object.keys(localFiles)
         .filter((name) => !manifestNames.has(name))
+        .filter((name) => {
+          const wu = wuNameOfPath(name);
+          return wu === null || !reconciled.has(wu);
+        })
         .map((name) => `Local file "${name}" not in saved manifest — preserved in .internal/${backupFilename}`);
+      reconcileWarnings = [...reconciled].map(
+        (subdir) =>
+          `Retired WU subdir "${subdir}" (shipped, absent from recent notes) — removed; ` +
+          `recoverable from .internal/${backupFilename}`,
+      );
     }
   } catch {
     // User dir doesn't exist yet — nothing to back up, skip gracefully
@@ -190,7 +210,7 @@ export async function runUserLoad(
     ancestorDistance: search.note?.ancestorDistance ?? 0,
     noteHistoryDistance: search.note?.noteHistoryDistance ?? 0,
     reachableFromHead: search.note?.reachableFromHead ?? false,
-    warnings: [...staleWarnings, ...mergeWarnings],
+    warnings: [...staleWarnings, ...reconcileWarnings, ...mergeWarnings],
   };
 }
 
@@ -659,6 +679,58 @@ function noteManifestContainsWu(noteContent: string, wuName: string): boolean {
   const files = parseManifestFiles(noteContent);
   if (!files) return false;
   return Object.keys(files).some((path) => wuNameOfPath(path) === wuName);
+}
+
+/** Distinct per-WU subdir names present in a local serialize manifest. */
+function distinctLocalSubdirs(localFiles: Record<string, string>): string[] {
+  const subdirs = new Set<string>();
+  for (const path of Object.keys(localFiles)) {
+    const wu = wuNameOfPath(path);
+    if (wu !== null) subdirs.add(wu);
+  }
+  return [...subdirs];
+}
+
+/** WU names referenced by any per-WU path across the recent-notes window. */
+function collectNotesWuNames(recentNotes: RecentNote[]): Set<string> {
+  const names = new Set<string>();
+  for (const note of recentNotes) {
+    const files = parseManifestFiles(note.content);
+    if (!files) continue;
+    for (const path of Object.keys(files)) {
+      const wu = wuNameOfPath(path);
+      if (wu !== null) names.add(wu);
+    }
+  }
+  return names;
+}
+
+/**
+ * Reconcile retired per-WU subdirs at load time: remove each present subdir
+ * whose WU has shipped and is no longer carried in the recent-notes window.
+ * Detection is {@link planRetiredSubdirReconcile}; the shipped set is the local
+ * `completed/` archive. Removal is recoverable — the caller has already written
+ * the pre-load backup capturing these files.
+ *
+ * @returns The set of reconciled (removed) subdir names.
+ */
+async function reconcileRetiredSubdirs(params: {
+  cwd: string;
+  identity: string;
+  localFiles: Record<string, string>;
+  recentNotes: RecentNote[];
+}): Promise<Set<string>> {
+  const localSubdirs = distinctLocalSubdirs(params.localFiles);
+  if (localSubdirs.length === 0) return new Set();
+
+  const notesWuNames = collectNotesWuNames(params.recentNotes);
+  const shipped = await readShippedWorkUnits({ cwd: params.cwd, fs: { readdir } });
+  const { reconcile } = planRetiredSubdirReconcile({ localSubdirs, notesWuNames, shipped });
+
+  for (const subdir of reconcile) {
+    await removeStaleUserWuSubdir({ cwd: params.cwd, identity: params.identity, subdir });
+  }
+  return new Set(reconcile);
 }
 
 /**

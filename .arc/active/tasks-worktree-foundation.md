@@ -515,6 +515,20 @@ downstream sync WUs is recorded in `notes-worktree-foundation.md` § Phase 4 for
 
     - `[ ]` **4.2.b Wire into load / pull / session-init**
 
+        - `[x]` **4.2.b.i Load / pull reconcile path**
+            - `reconcileRetiredSubdirs` in `runUserLoad` (`save-load.ts`) derives `localSubdirs` +
+              `notesWuNames` (recent-note manifests) + `shipped` (`readShippedWorkUnits`), feeds
+              `planRetiredSubdirReconcile`, and `removeStaleUserWuSubdir`s each retired subdir. Reuses the
+              pre-load backup (no second one) — reconciled subdirs are excluded from the stale-file
+              "preserved" warnings and surfaced as removal warnings instead. `runUserPull` inherits via
+              `runUserLoad`. Integration-tested against a real temp repo + notes.
+
+        - `[ ]` **4.2.b.ii Session-init detection slot**
+            - Read-only detection surfaced like the `sweep` slot (safeProbe-wrapped, envelope never rejects,
+              cheap local read); **no removal** in session-init — it surfaces, load / pull act. New
+              `lib/session-init/` module + probe interface + envelope field (`commands/status/{types,run}.ts`,
+              `handlers/status.ts`) + `session-init.md` orientation surfacing (both copies).
+
 ### `[ ]` **4.3 Orphan-warning messaging (T2 grouped + T1 rename-detection)**
 
 - _Goal:_ when retired orphans cluster under a path prefix entirely absent from the incoming manifest, one

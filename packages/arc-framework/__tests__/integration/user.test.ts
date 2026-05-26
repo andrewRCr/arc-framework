@@ -646,6 +646,87 @@ describe("user load — backup and stale detection", () => {
   });
 });
 
+describe("user load — retired-subdir reconciliation", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await initInTempRepo(DEFAULT_PROMPTS, "test-user");
+    await makeCommit(tempDir, "initial commit");
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tempDir);
+  });
+
+  /** Mark a WU shipped by materializing its `completed/<quarter>/NN_<slug>` archive dir. */
+  async function markShipped(slug: string, ordinal = "01", quarter = "2026-q2"): Promise<void> {
+    await mkdir(join(tempDir, ".arc", "completed", quarter, `${ordinal}_${slug}`), { recursive: true });
+  }
+
+  it("removes a shipped subdir absent from notes, leaving its content recoverable from the backup", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    // Baseline note carries only the cross-WU flat file — no per-WU subdir.
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Cross-WU", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    // A retired WU's subdir lingers locally; it never made it into a note and has shipped.
+    await mkdir(join(userDir, "old-wu"), { recursive: true });
+    await writeFile(join(userDir, "old-wu", "SESSION-NOTES.md"), "# Old WU notes", "utf-8");
+    await markShipped("old-wu");
+
+    const result = await runUserLoad({ cwd: tempDir, io, identity: "test-user" });
+    const loaded = expectLoaded(result);
+
+    expect(await readdir(userDir)).not.toContain("old-wu");
+
+    const backups = await listBackupFiles(userDir);
+    const preLoad = backups.find((name) => /^\.pre-load-backup-.*\.json$/u.test(name));
+    expect(preLoad).toBeDefined();
+    const backup = JSON.parse(
+      await readFile(join(userDir, ".internal", preLoad!), "utf-8"),
+    ) as { files: Record<string, string> };
+    expect(backup.files["old-wu/SESSION-NOTES.md"]).toBe("# Old WU notes");
+
+    expect(loaded.warnings.some((w) => w.includes("old-wu") && w.includes("removed"))).toBe(true);
+  });
+
+  it("preserves a present subdir whose WU has not shipped", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Cross-WU", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    // Absent from notes but in-flight (not shipped) → must stay.
+    await mkdir(join(userDir, "live-wu"), { recursive: true });
+    await writeFile(join(userDir, "live-wu", "SESSION-NOTES.md"), "# Live WU", "utf-8");
+
+    await runUserLoad({ cwd: tempDir, io, identity: "test-user" });
+
+    expect(await readdir(userDir)).toContain("live-wu");
+  });
+
+  it("preserves a shipped subdir still carried in the recent-notes window", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    // The subdir is in the saved note (still live elsewhere) and has shipped.
+    await mkdir(join(userDir, "live-wu"), { recursive: true });
+    await writeFile(join(userDir, "live-wu", "SESSION-NOTES.md"), "# Live WU", "utf-8");
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Cross-WU", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await markShipped("live-wu");
+
+    // A different current WU, so materialization can't re-create live-wu — its
+    // survival proves the reconcile preserved it rather than the load restoring it.
+    await runUserLoad({ cwd: tempDir, io, identity: "test-user", currentWuName: "current-wu" });
+
+    expect(await readdir(userDir)).toContain("live-wu");
+  });
+});
+
 describe("user save/load — subdirectory support", () => {
   let tempDir: string;
 
