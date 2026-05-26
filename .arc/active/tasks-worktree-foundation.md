@@ -395,18 +395,15 @@ is optional throughout.
           whole-file most-recent-wins; known shape rebuilds onto the most-recent note as base (preamble and
           existing formatting preserved), folding only older-only entries into their owning section and
           returning any malformed reasons on the result.
-    - `[ ]` **3.3.b Ref-wide N-most-recent-note read** (recency-ordered) (`lib/user-sync/notes-ref.ts`)
-        - _Note:_ a new read mode distinct from `findNearestUserNote`'s first-hit walk (N-most-recent across
-          the whole notes ref). Must expose note **recency order** — both 3.3's divergent-body resolution and
-          3.4's tombstone recency depend on it, so it returns an ordered sequence, not a set. **N is a named
-          constant**, not a literal — `cross-machine-sync-coherence`'s drift detection may bump it. Keep each
-          git command (`log` / `show` / `diff-tree`) in its own named fn (one `cli-substrate-adoption` exec
-          migration site per shape).
-        - Build `test-first` (one behavior at a time):
-            - N bound respected
-            - fewer-than-N notes available → reads what exists
-            - notes returned in recency order (most-recent first)
-            - empty ref → no-op
+    - `[x]` **3.3.b Ref-wide N-most-recent-note read** (recency-ordered) (`lib/user-sync/notes-ref.ts`)
+        - `readRecentUserNotes(exec, identity, limit)` walks the user-notes ref's own history newest-first and
+          returns up to `limit` note versions (`RecentNote` = `{ historyCommit, content }`) in recency order,
+          most-recent first; the bound defaults to the named `CROSS_WU_NOTE_WINDOW` (not a literal). Fewer-than-N
+          reads what exists, an empty/absent ref yields `[]`, and non-note tree paths are skipped. The three git
+          primitives (`log` / `diff-tree` / `show`) live here as one named fn per shape — relocated from
+          `save-load.ts`, which now imports them and threads `io.exec`; `findNearestUserNote` behavior is
+          unchanged (its tests stay green). Recency order is a sequence, not a set, so the merge can resolve a
+          divergent entry to the most-recent note within the window.
     - `[ ]` **3.3.c Wire merge into load**
         - Swap cross-WU flat sourcing from 3.2.b's single resolved note to the N-note merge; both reads stay
           **encapsulated inside `runUserLoad` / `arc user pull`** so callers (session-init, `materialize`) see

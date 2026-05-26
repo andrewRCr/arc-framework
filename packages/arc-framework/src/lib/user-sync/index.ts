@@ -21,6 +21,8 @@ export { resolveCurrentWuName, type ExecForBranch } from "./current-wu.js";
 
 export { parseCrossWuEntries, shapeForFile } from "./parser.js";
 
+export { readRecentUserNotes, CROSS_WU_NOTE_WINDOW, type RecentNote } from "./notes-ref.js";
+
 export {
   mergeEntries,
   mergeCrossWuFile,

@@ -6,6 +6,12 @@ import { atomicWriteJson } from "../../lib/fs.js";
 import { deserialize, isSafeManifestPath, serialize, shortHash, type SyncManifest } from "../../lib/git/index.js";
 import { ensureDir } from "../../lib/template/index.js";
 import { classifyUserSyncPath, wuNameOfPath } from "../../lib/user-sync/index.js";
+import {
+  listChangedNotePaths,
+  notePathToCommit,
+  readNoteContentAtHistoryCommit,
+  readNotesRefHistory,
+} from "../../lib/user-sync/notes-ref.js";
 import { notesRef } from "./shared.js";
 import {
   BACKUP_FILENAME,
@@ -468,18 +474,18 @@ export async function findNearestUserNote(
     headHash = "";
   }
 
-  const notesHistory = await readNotesRefHistory(io, fullRef, maxWalk);
+  const notesHistory = await readNotesRefHistory(io.exec, fullRef, maxWalk);
   if (notesHistory.length === 0) {
     return { note: null, walked: 0, maxWalk, capped: false };
   }
 
   for (const [index, noteHistoryCommit] of notesHistory.entries()) {
-    const changedPaths = await listChangedNotePaths(io, noteHistoryCommit);
+    const changedPaths = await listChangedNotePaths(io.exec, noteHistoryCommit);
     for (const path of changedPaths) {
       const annotatedCommit = notePathToCommit(path);
       if (!annotatedCommit) continue;
 
-      const content = await readNoteContentAtHistoryCommit(io, noteHistoryCommit, path);
+      const content = await readNoteContentAtHistoryCommit(io.exec, noteHistoryCommit, path);
       if (!content) continue;
 
       // Per-WU isolation: when a current WU is in play, skip notes that don't
@@ -564,62 +570,6 @@ function filterManifestForWu(
     }
   }
   return { version: manifest.version, files };
-}
-
-async function readNotesRefHistory(
-  io: UserIOContext,
-  fullRef: string,
-  maxWalk: number,
-): Promise<string[]> {
-  try {
-    const { stdout } = await io.exec("git", [
-      "log",
-      "--format=%H",
-      "--max-count",
-      String(maxWalk),
-      fullRef,
-    ]);
-    return stdout.split("\n").map((entry) => entry.trim()).filter(Boolean);
-  } catch {
-    return [];
-  }
-}
-
-async function listChangedNotePaths(
-  io: UserIOContext,
-  noteHistoryCommit: string,
-): Promise<string[]> {
-  try {
-    const { stdout } = await io.exec("git", [
-      "diff-tree",
-      "--no-commit-id",
-      "--name-only",
-      "-r",
-      "--root",
-      noteHistoryCommit,
-    ]);
-    return stdout.split("\n").map((entry) => entry.trim()).filter(Boolean);
-  } catch {
-    return [];
-  }
-}
-
-function notePathToCommit(path: string): string | null {
-  const commit = path.replaceAll("/", "");
-  return /^[0-9a-f]{40}$/u.test(commit) ? commit : null;
-}
-
-async function readNoteContentAtHistoryCommit(
-  io: UserIOContext,
-  noteHistoryCommit: string,
-  path: string,
-): Promise<string | null> {
-  try {
-    const { stdout } = await io.exec("git", ["show", `${noteHistoryCommit}:${path}`]);
-    return stdout;
-  } catch {
-    return null;
-  }
 }
 
 async function isCommitReachableFromHead(
