@@ -320,35 +320,26 @@ files from the one note resolved by 3.2 + cross-WU files merged across N notes (
 branch all resolve to "no current-WU subdir" → per-WU load no-ops, cross-WU still loads; the current-WU input
 is optional throughout.
 
-### `[ ]` **3.1 Path-driven sync-class dispatch**
+### `[x]` **3.1 Path-driven sync-class dispatch**
 
 - _Goal:_ `arc user save`/`load` infer per-WU vs cross-WU sync class purely from path structure
   (`user/{identity}/<wu-name>/**` per-WU; flat `user/{identity}/**` cross-WU; `.internal/**` never synced) — no
   sync-class allowlist, no in-band class declaration.
-- _Context:_ this is a **separate axis** from `serialize`'s existing file-**type** allowlist (`isAllowedFile` /
-  `ALLOWED_EXTENSIONS` + `EXCLUDED_NAMES`, which decides whether a file serializes at all) — R16's "no
-  allowlist" means no _sync-class_ allowlist; the type filter stays. The new classifier owns the sync-class
-  semantic and is its single source of truth; the io-layer dotfile skip (`io-context.ts` `readUserDir`,
-  `user-sync.ts` `serialize`) stays as a cheap walk-time prefilter (single consumer, no external breakage) —
-  don't replicate class logic across the two.
 
-    - `[ ]` **3.1.a Sync-class classification function** (`lib/user-sync/classifier.ts`)
-        - Owns the per-WU / cross-WU / never-synced decision; the file-type allowlist applies on its own axis.
-          Pure first-segment path inference, no filename allowlist (R16): **every** flat identity-root file is
-          cross-WU — not just the two known shapes; the merge in 3.3 is shape-keyed, the class is not.
-        - Build `test-first` (one behavior at a time):
-            - `<wu-name>/…` subdir path (incl. nested, e.g. `<wu-name>/drafts/x.md`) → per-WU class
-            - flat identity-root path → cross-WU class
-            - `.internal/**` path → never-synced
-    - `[ ]` **3.1.b Consumed by the load path** (`lib/user-sync/`, `commands/user/save-load.ts`)
-        - The classifier is the **load-side** single source of truth for the sync-class semantic — save stays
-          class-agnostic: `serialize` already emits every eligible file by path, and the `.internal/` dotfile
-          prefilter (`io-context.ts` `readUserDir`, `user-sync.ts` `serialize`) already drops never-synced
-          content at walk time. No save-side class branch to wire; the class changes behavior only at load
-          (3.2 per-WU restrict, 3.3 cross-WU merge).
-        - _Note:_ the `lib/user-sync/` home already exists (holds the unrelated `inferUserSyncCause`) — add the
-          classifier as a sibling; `user-sync-module-split` later consumes this layout, so don't inline into
-          `save-load.ts`. _Notes:_ See `notes-worktree-foundation.md` § Phases 3 & 4.
+    - `[x]` **3.1.a Sync-class classification function** (`lib/user-sync/classifier.ts`)
+        - `classifyUserSyncPath` does pure first-segment inference over a manifest-relative path: dot-prefixed
+          first segment → `never-synced`; any other subdir path → `per-wu`; any other flat path → `cross-wu`
+          (every flat identity-root file, not an allowlisted shape — R16). The file-type allowlist stays on its
+          own axis. Exported via `lib/user-sync/index.ts` as a sibling of `inferUserSyncCause`.
+    - `[x]` **3.1.b Consumed by the load path** (`lib/user-sync/`, `commands/user/save-load.ts`)
+        - No save-side wiring needed: `serialize` already emits every eligible file by path and the walk-time
+          dotfile prefilter drops never-synced content, so the class changes behavior only at load — consumed by
+          3.2 (per-WU restrict) and 3.3 (cross-WU merge), not yet here.
+
+- _Outcome:_ never-synced keys on any dot-prefixed first segment, not just literal `.internal/` — chosen to
+  mirror the serialize-walk dotfile prefilter (drops dot-prefixed dirs + dotfile basenames) so the two axes
+  share one boundary. The dot-prefix check precedes the flat→cross-wu rule, covering `.internal/**` (the
+  current `.sync-state.json` home) and any root-level dotfile as defense in depth.
 
 ### `[ ]` **3.2 Per-WU subdir load**
 

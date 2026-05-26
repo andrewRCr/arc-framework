@@ -14,3 +14,5 @@ export {
   type UserSyncCauseConfidence,
   type UserSyncRefRelation,
 } from "./inference.js";
+
+export { classifyUserSyncPath, type UserSyncClass } from "./classifier.js";
