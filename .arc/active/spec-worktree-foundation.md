@@ -434,6 +434,18 @@ Settled during planning; final implementation details ratified when the relevant
   this WU and gets a worktree-aware refresh at its own promotion. R24 leaves the versioned, worktree-aware seam;
   `notes-{name}.md` records the partial-push-surface widening. Sequencing awareness only — not a Foundation
   blocker.
+- **Cross-WU sync code layout + load model (Item D — ratified at Phase 3 kickoff, cross-checked against the
+  downstream drafts).** New sync code lands in `lib/user-sync/*` (`classifier`, `notes-ref`, `parser`,
+  `merge`, `types`), not inlined into `save-load.ts` — preempting `user-sync-module-split`'s consolidation and
+  giving `cli-substrate-adoption` a clean schema co-location; parsers/readers return discriminated outcomes
+  (no throw on expected failure) so the zod / `Result` migration is a later wrap, not a rewrite. Load is a
+  **two-read model** — per-WU files from the one note containing the current WU's subdir, cross-WU files
+  merged across the N most-recent ref-wide notes — both encapsulated inside `runUserLoad` / `arc user pull`.
+  **No-resolvable-WU → per-WU no-op:** fresh spawn, load on `main`, and `errand-enablement` sessions on non-WU
+  branches all resolve to "no current-WU subdir," so per-WU load no-ops while cross-WU still loads (the
+  current-WU input is optional throughout). N is a named constant so `cross-machine-sync-coherence` can bump
+  it; R24's `.sync-state.json` seam stays version-stable so that WU can populate the reserved `priorFileList`
+  and remote-marker fields without a re-bump.
 - **Worktree branch posture (R25).** A WU branch is a WU branch regardless of worktree, so there is no separate
   worktree naming convention: state the posture in `branch-format`'s default (extend the method) rather than add
   a parallel method or config key — `branch-format` already owns the type-set and override machinery.

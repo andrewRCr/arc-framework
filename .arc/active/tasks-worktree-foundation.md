@@ -306,6 +306,20 @@ _Design decisions:_ Layers on WOR R65's `user/` structure and the existing `arc 
 primitive (Phase 5) so spawn lands on a correct load — 3.2 is the fix behind the "spawn returns to origin"
 success criterion.
 
+_Forward-compat (verified against downstream drafts):_ all new code lands in `lib/user-sync/*`
+(`classifier.ts`, `notes-ref.ts`, `parser.ts`, `merge.ts`, `types.ts`), not inlined in `save-load.ts` — this
+preempts `user-sync-module-split`'s consolidation and gives `cli-substrate-adoption` a clean schema
+co-location; `findNearestUserNote` + the N-most-recent reader relocate to `notes-ref.ts`, with `save-load.ts`
+keeping thin orchestration. New parsers/readers return **discriminated outcomes**
+(`{ ok: true, … } | { ok: false, reason }`) over plain typed structs, **no throw** on expected failure
+(note-not-found, malformed entry, no notes ref), each git command in its own named fn — leaving the
+zod / `Result` seam for `cli-substrate-adoption`, not pre-building it. The load is a **two-read model**: per-WU
+files from the one note resolved by 3.2 + cross-WU files merged across N notes (3.3), both encapsulated inside
+`runUserLoad` / `arc user pull` so callers (session-init, `in-flight-awareness`'s `materialize`) see one call.
+**No-resolvable-WU → per-WU no-op:** fresh spawn, load on `main`, or an `errand-enablement` session on a non-WU
+branch all resolve to "no current-WU subdir" → per-WU load no-ops, cross-WU still loads; the current-WU input
+is optional throughout.
+
 ### `[ ]` **3.1 Path-driven sync-class dispatch**
 
 - _Goal:_ `arc user save`/`load` infer per-WU vs cross-WU sync class purely from path structure
@@ -318,40 +332,69 @@ success criterion.
   `user-sync.ts` `serialize`) stays as a cheap walk-time prefilter (single consumer, no external breakage) —
   don't replicate class logic across the two.
 
-    - `[ ]` **3.1.a Sync-class classification function**
+    - `[ ]` **3.1.a Sync-class classification function** (`lib/user-sync/classifier.ts`)
         - Owns the per-WU / cross-WU / never-synced decision; the file-type allowlist applies on its own axis.
+          Pure first-segment path inference, no filename allowlist (R16): **every** flat identity-root file is
+          cross-WU — not just the two known shapes; the merge in 3.3 is shape-keyed, the class is not.
         - Build `test-first` (one behavior at a time):
-            - subdir path → per-WU class
+            - `<wu-name>/…` subdir path (incl. nested, e.g. `<wu-name>/drafts/x.md`) → per-WU class
             - flat identity-root path → cross-WU class
             - `.internal/**` path → never-synced
-    - `[ ]` **3.1.b Wire into save/load** (`lib/git/user-sync.ts`, `commands/user/save-load.ts`)
-        - _Note:_ keep the classifier modular (a `lib/user-sync/` home) — `user-sync-module-split` later extracts
-          into `lib/user-sync/*`, and entangling it with `save-load.ts` flow widens that split. _Notes:_ See
-          `notes-worktree-foundation.md` § Phases 3 & 4.
+    - `[ ]` **3.1.b Consumed by the load path** (`lib/user-sync/`, `commands/user/save-load.ts`)
+        - The classifier is the **load-side** single source of truth for the sync-class semantic — save stays
+          class-agnostic: `serialize` already emits every eligible file by path, and the `.internal/` dotfile
+          prefilter (`io-context.ts` `readUserDir`, `user-sync.ts` `serialize`) already drops never-synced
+          content at walk time. No save-side class branch to wire; the class changes behavior only at load
+          (3.2 per-WU restrict, 3.3 cross-WU merge).
+        - _Note:_ the `lib/user-sync/` home already exists (holds the unrelated `inferUserSyncCause`) — add the
+          classifier as a sibling; `user-sync-module-split` later consumes this layout, so don't inline into
+          `save-load.ts`. _Notes:_ See `notes-worktree-foundation.md` § Phases 3 & 4.
 
 ### `[ ]` **3.2 Per-WU subdir load**
 
 - _Goal:_ a load restores from the most recent reachable note containing the current WU's subdir and skips
   older notes' other-WU subdirs — resolving the spawn → first-load overwrite where a fresh worktree's
-  ancestor-walk would otherwise import the prior WU's SESSION-NOTES.
+  ancestor-walk would otherwise import the prior WU's SESSION-NOTES. **No-resolvable-WU → per-WU no-op:** when
+  no current WU resolves (fresh spawn, load on `main`, or an `errand-enablement` session on a non-WU branch) or
+  no note contains its subdir, the per-WU restore is a clean no-op (never a stale WU name, never a crash) —
+  cross-WU files still load via 3.3.
 - _Context:_ the load path carries no current-WU signal today — `UserLoadOptions` (`{ cwd, io, identity,
   maxAncestorWalk? }`, defined in both `commands/user/types.ts` and `handlers/user.ts`) and
-  `findNearestUserNote` must gain a current-WU-name input, derived from active-meta resolution / branch →
-  wu-name (the same derivation session-init uses).
+  `findNearestUserNote` must gain an **optional** current-WU-name input, derived from active-meta resolution /
+  branch → **bare** wu-name (strip the `feat/` etc. type-prefix — the derivation session-init uses; reuse its
+  resolver, which already no-ops on "no active WU"). Optional because `findNearestUserNote` has 4 existing
+  callers (`sync-status.ts` ×3, `push-recovery.ts`) wanting the current newest-note behavior — absent input
+  preserves it, present input activates subdir-contains filtering.
 
     - `[ ]` **3.2.a Subdir-aware note resolution** (extend `findNearestUserNote` + thread the WU-name input)
-        - Add the current WU name to `UserLoadOptions` (both definitions) and `findNearestUserNote`'s signature;
-          resolve the note search by "contains the current WU's subdir."
+        - Add the **optional** current WU name to `UserLoadOptions` (both definitions) and
+          `findNearestUserNote`'s signature; resolve the note search by "contains the current WU's subdir."
+          Behavioral shift: the walk today returns the **first** note unconditionally (no content inspection) —
+          it must now parse each candidate note's manifest mid-walk to test subdir-containment, continuing past
+          notes that don't.
         - Build `test-first` (one behavior at a time):
             - restores from the most-recent note containing the current WU subdir
             - an older note's different-WU subdir → skipped
             - spawn → first-load → the prior WU's SESSION-NOTES is not imported
-    - `[ ]` **3.2.b Load restricts to current WU subdir + cross-WU flat**
+            - no note contains the current WU subdir → per-WU resolution returns nothing (no per-WU restore)
+            - WU-name input absent → unchanged first-note behavior (`sync-status.ts` / `push-recovery.ts` stay green)
+    - `[ ]` **3.2.b Load materializes the current WU subdir, drops other-WU subdirs**
+        - _Scope:_ per-WU subdir filtering **only** — materialize the resolved note's current-WU subdir files
+          plus cross-WU flat files, drop other WUs' subdirs. Cross-WU flat keeps loading from this single note
+          as today; **3.3.c** later swaps its source to the N-note merge — don't build elaborate cross-WU
+          handling here that 3.3 throws away.
+        - Build `test-first` (one behavior at a time):
+            - current WU subdir + cross-WU flat → materialized
+            - other WUs' subdirs in the same note → not materialized
+            - no-resolvable-WU → cross-WU flat still materializes, no per-WU subdir written
 
 ### `[ ]` **3.3 Cross-WU file merge (per-file entry list-union)**
 
 - _Goal:_ cross-WU files merge across the N most-recent ref-wide notes via value-level list-union of their
   entries, deduped by entry identity — so entries created in parallel worktrees converge instead of clobbering.
+  The merge is **shape-keyed by filename**; an unknown-shape cross-WU flat file (no registered parser) falls
+  back to **whole-file most-recent-note-wins** (same recency ordering) — the class stays path-only (3.1), the
+  merge strategy is per-file.
 - _Note:_ the two files have different entry shapes. `WORKING-MEMORY` entries = bold-field header (`**...:**`) +
   `_Remove when:_` + body under `## Memories`; `USER-INBOX` entries = list items (`- **lead-in** — text`)
   within `## Atomic` / `## Backlog` H2 sections. Merge-key per file (WORKING-MEMORY → bold-field header;
@@ -360,23 +403,36 @@ success criterion.
   its note history. Keep the merge modular (`lib/user-sync/` home) for the `user-sync-module-split` extraction.
   _Notes:_ See `notes-worktree-foundation.md` § Phases 3 & 4.
 
-    - `[ ]` **3.3.a Per-file entry parser + list-union / dedupe**
+    - `[ ]` **3.3.a Per-file entry parser + list-union / dedupe** (`lib/user-sync/parser.ts`, `…/merge.ts`)
+        - Parsers return **discriminated outcomes** (`{ ok: true, entry } | { ok: false, reason }`) over plain
+          typed structs — **no throw**; the malformed case is a returned `reason`, so `cli-substrate-adoption`
+          can wrap a zod schema (`z.infer`) later without touching consumers.
         - Build `test-first` (one behavior at a time):
             - WORKING-MEMORY: disjoint bold-field entries from two notes → union of all
             - WORKING-MEMORY: same header in both, identical body → single deduped entry
             - WORKING-MEMORY: same header, divergent body → most-recent-note's body wins
             - USER-INBOX: list items merge within their `## Atomic` / `## Backlog` section (boundaries kept)
-            - malformed / unparseable entry → surfaced, not silently dropped
-    - `[ ]` **3.3.b Ref-wide N-most-recent-note read** (recency-ordered)
+            - malformed / unparseable entry → surfaced as `{ ok: false, reason }`, not silently dropped
+            - unknown-shape cross-WU flat file (no registered parser) → whole-file most-recent-note-wins
+    - `[ ]` **3.3.b Ref-wide N-most-recent-note read** (recency-ordered) (`lib/user-sync/notes-ref.ts`)
         - _Note:_ a new read mode distinct from `findNearestUserNote`'s first-hit walk (N-most-recent across
           the whole notes ref). Must expose note **recency order** — both 3.3's divergent-body resolution and
-          3.4's tombstone recency depend on it, so it returns an ordered sequence, not a set.
+          3.4's tombstone recency depend on it, so it returns an ordered sequence, not a set. **N is a named
+          constant**, not a literal — `cross-machine-sync-coherence`'s drift detection may bump it. Keep each
+          git command (`log` / `show` / `diff-tree`) in its own named fn (one `cli-substrate-adoption` exec
+          migration site per shape).
         - Build `test-first` (one behavior at a time):
             - N bound respected
             - fewer-than-N notes available → reads what exists
             - notes returned in recency order (most-recent first)
             - empty ref → no-op
     - `[ ]` **3.3.c Wire merge into load**
+        - Swap cross-WU flat sourcing from 3.2.b's single resolved note to the N-note merge; both reads stay
+          **encapsulated inside `runUserLoad` / `arc user pull`** so callers (session-init, `materialize`) see
+          one call.
+        - Build `test-first` (one behavior at a time):
+            - end-to-end load: per-WU subdir from the resolved note + cross-WU flat from the N-note merge
+            - cross-WU entry present in an older note only → still present after load (merge, not single-note)
 
 ### `[ ]` **3.4 Tombstones for cross-WU deletions**
 
@@ -385,14 +441,28 @@ success criterion.
   contract being the mechanism (time-based TTL, filter-at-merge), not the constant.
 - _Note:_ no user-facing "sync within N days" guarantee; the failure mode (re-deleting a note, not data loss)
   keeps the TTL an internal cleanup detail. The tombstone keys to the same per-file entry identity as 3.3;
-  `## Removed: {name}` is an H2 marker.
+  `## Removed: {name}` is an H2 marker. **Write-side detection is cause-agnostic:** `arc user save` diffs the
+  current cross-WU file against the prior merged entry set (reuse 3.3.b's N-note merge) — "present before,
+  absent now → write tombstone" — keyed on file content, **not** on the agent flagging a removal. This keeps it
+  forward-compatible with `handoff-optimization`'s future CLI `readyToRemove` probe (which changes _why_ the
+  agent removes an entry, not _how_ save detects it). Per-handoff review is the eviction cadence for now —
+  don't hard-wire a permanent agent-trigger step; leave the seam for the CLI evaluator. Tombstone logic lives
+  in `lib/user-sync/merge.ts`.
 
-    - `[ ]` **3.4.a Tombstone write on entry removal**
+    - `[ ]` **3.4.a Tombstone write on entry removal** (`lib/user-sync/merge.ts`)
+        - Save reads the prior merged entry set (3.3.b's N-note read), diffs the current cross-WU file, and
+          writes a timestamped `## Removed: {name}` for each entry present-before / absent-now.
+        - Build `test-first` (one behavior at a time):
+            - entry present in prior merged state, absent in current file → `## Removed: {name}` written + timestamp
+            - entry never present (not in prior state) → no tombstone (not a removal)
+            - entry still present → no tombstone
+            - no prior merged state (fresh) → no tombstones synthesized
     - `[ ]` **3.4.b Merge respects latest tombstone**
         - Build `test-first` (one behavior at a time):
             - tombstone suppresses an earlier inclusion of the same entry
             - most-recent tombstone wins over an earlier re-add
             - TTL-expired tombstone stops propagating and drops
+            - malformed `## Removed:` marker → surfaced, not silently dropped (mirrors 3.3.a)
 
 ## **Phase 4:** Cross-WU sync — reconcile, orphans & seam
 
@@ -469,6 +539,11 @@ that all worktrees share.
   (main-worktree) HEAD assumption, since concurrent worktrees are now real and partial-push state is
   per-worktree; (iii) reserve extension points for a `priorFileList` (T3's drift signal) and remote-marker
   provenance, implementing neither.
+- _Forward-compat (cross-ref confirmed):_ `version: 4` is the **stable** contract — `cross-machine-sync-coherence`
+  must be able to _populate_ the reserved `priorFileList` (its T3 drift signal) and remote-marker provenance
+  **without a further version bump**, so v4 readers tolerate **and preserve** populated reserved fields
+  (4.4.a's round-trip). The worktree-scoped shape (no single-HEAD field) is load-bearing for that WU's
+  per-worktree partial-push state, not decoration.
 - _Note:_ `partialPush` is a live single-ref field with writers (`recordPartialPushMarker`, `runPairedPush`) —
   reshape them in lockstep; the reader's `2 || 3` back-compat ladder extends to `4`. _Notes:_ See
   `notes-worktree-foundation.md` § Phases 3 & 4.

@@ -52,6 +52,26 @@ WU state is WOR's strict 4-state machine — `Planning | Active | Integrating | 
 (partial)`), authoritative in `template-meta.md`, with merge-position folded into `Integrating` (no
 separate `Integration:` field). "Awaiting PR review" is simply `Integrating`.
 
+## Shared contract — cross-WU personal-notes sync
+
+Worktree Foundation's cross-WU sync (Item D of its PRD) is the substrate the cohort's personal-context flow
+rides on. Three contracts the members depend on:
+
+- **Per-WU isolation + cross-WU convergence.** SESSION-NOTES is per-WU (under `<wu-name>/`), restored only for
+  the WU whose worktree you occupy. WORKING-MEMORY and USER-INBOX are cross-WU (flat at the identity root),
+  merged across notes by per-file entry list-union with deletion tombstones — so parallel-worktree writers
+  *converge* instead of clobbering. This is the personal-notes answer to Concurrent Work Conventions'
+  mutated-shared-state problem ([ADR-020][adr-020]'s derived-vs-mutated split): git line-merge can't converge
+  hand-edited entries, the notes-ref entry-merge can.
+- **No-resolvable-WU → per-WU no-op.** An Errand session runs in the **main worktree on a non-WU branch with
+  no meta file** ([ADR-021][adr-021]: an Errand branch maps to no WU). `arc user load` there must no-op the
+  per-WU restore — never import the prior WU's SESSION-NOTES — while cross-WU files still load. Errand
+  Enablement depends on this; it is a required contract, not a fresh-spawn nicety (the same path also covers a
+  load on `main` and a fresh spawn).
+- **`arc user pull` encapsulates the load.** The per-WU-note + cross-WU-merge two-read model lives behind
+  `arc user pull` / `runUserLoad`, so In-Flight Awareness's **materialize** (`git worktree add` →
+  `arc user pull` → orient) calls it as one black box and inherits the per-WU isolation for free.
+
 ## Path taxonomy — entry and in-session
 
 Two cross-member decision surfaces: the **entry model** (how you get into a worktree / WU) and the
