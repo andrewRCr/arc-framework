@@ -18,3 +18,14 @@ export {
 export { classifyUserSyncPath, wuNameOfPath, type UserSyncClass } from "./classifier.js";
 
 export { resolveCurrentWuName, type ExecForBranch } from "./current-wu.js";
+
+export { parseCrossWuEntries, shapeForFile } from "./parser.js";
+
+export {
+  mergeEntries,
+  mergeCrossWuFile,
+  type MergeNote,
+  type MergeResult,
+} from "./merge.js";
+
+export type { CrossWuEntry, CrossWuShape, EntryParse } from "./types.js";

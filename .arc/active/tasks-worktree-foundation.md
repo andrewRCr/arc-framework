@@ -384,17 +384,17 @@ is optional throughout.
   its note history. Keep the merge modular (`lib/user-sync/` home) for the `user-sync-module-split` extraction.
   _Notes:_ See `notes-worktree-foundation.md` § Phases 3 & 4.
 
-    - `[ ]` **3.3.a Per-file entry parser + list-union / dedupe** (`lib/user-sync/parser.ts`, `…/merge.ts`)
-        - Parsers return **discriminated outcomes** (`{ ok: true, entry } | { ok: false, reason }`) over plain
-          typed structs — **no throw**; the malformed case is a returned `reason`, so `cli-substrate-adoption`
-          can wrap a zod schema (`z.infer`) later without touching consumers.
-        - Build `test-first` (one behavior at a time):
-            - WORKING-MEMORY: disjoint bold-field entries from two notes → union of all
-            - WORKING-MEMORY: same header in both, identical body → single deduped entry
-            - WORKING-MEMORY: same header, divergent body → most-recent-note's body wins
-            - USER-INBOX: list items merge within their `## Atomic` / `## Backlog` section (boundaries kept)
-            - malformed / unparseable entry → surfaced as `{ ok: false, reason }`, not silently dropped
-            - unknown-shape cross-WU flat file (no registered parser) → whole-file most-recent-note-wins
+    - `[x]` **3.3.a Per-file entry parser + list-union / dedupe** (`lib/user-sync/parser.ts`, `…/merge.ts`)
+        - New `lib/user-sync/{types,parser,merge}.ts`, barrel-exported. `parseCrossWuEntries(content, shape)`
+          splits a file into entry blocks and returns one discriminated `EntryParse`
+          (`{ ok: true, entry } | { ok: false, reason }`) each — no throw, so a WORKING-MEMORY block missing its
+          `_Remove when:_` trigger or a USER-INBOX item with no bold lead-in surfaces as a `reason` instead of
+          dropping. `mergeEntries` unions by `(section, key)` identity walking most-recent → oldest, so the
+          most-recent body wins a divergent collision and a USER-INBOX lead-in stays distinct across
+          `## Atomic` / `## Backlog`. `mergeCrossWuFile` dispatches on filename (`shapeForFile`): unknown shape →
+          whole-file most-recent-wins; known shape rebuilds onto the most-recent note as base (preamble and
+          existing formatting preserved), folding only older-only entries into their owning section and
+          returning any malformed reasons on the result.
     - `[ ]` **3.3.b Ref-wide N-most-recent-note read** (recency-ordered) (`lib/user-sync/notes-ref.ts`)
         - _Note:_ a new read mode distinct from `findNearestUserNote`'s first-hit walk (N-most-recent across
           the whole notes ref). Must expose note **recency order** — both 3.3's divergent-body resolution and
