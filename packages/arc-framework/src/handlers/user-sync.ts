@@ -418,6 +418,12 @@ async function handlePushDirection(params: DirectionParams): Promise<void> {
       p.log.warn("Local save preserved; notes push blocked by pre-check. Resolve and re-run `arc user push`.");
       process.exitCode = 1;
       return;
+    case "conflict":
+      await recordPartialPushMarkerAfterFailedPush(params);
+      p.log.error(pushResult.message);
+      p.log.warn("User directory was saved locally — push manually with `arc user push`.");
+      process.exitCode = 1;
+      return;
     case "failed": {
       await recordPartialPushMarkerAfterFailedPush(params);
       if (!isHandledError(pushResult.error)) {

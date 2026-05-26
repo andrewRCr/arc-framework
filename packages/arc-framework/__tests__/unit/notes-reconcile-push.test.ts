@@ -26,6 +26,8 @@ const { reconcileNotesPush } = await import("../../src/commands/user/push-fetch.
 const REF = "refs/notes/arc/user/andrew";
 const TEMP = "refs/notes/arc/user/andrew__incoming";
 const SHORT_REF = "arc/user/andrew";
+const NOTE_COMMIT = "c0ffeec0ffeec0ffeec0ffeec0ffeec0ffeec0ff";
+const VALID_NOTE = JSON.stringify({ version: 2, files: { "SESSION-NOTES.md": "x" } });
 
 type ResponseFn = (args: string[], options?: GitExecOptions) => ExecResult | Promise<ExecResult>;
 
@@ -93,6 +95,8 @@ describe("reconcileNotesPush", () => {
       },
       [`fetch origin +${REF}:${TEMP}`]: { stdout: "", stderr: "" },
       [`notes --ref ${SHORT_REF} merge -s cat_sort_uniq ${TEMP}`]: { stdout: "", stderr: "" },
+      [`notes --ref ${SHORT_REF} list`]: { stdout: `noteobj ${NOTE_COMMIT}`, stderr: "" },
+      [`notes --ref ${SHORT_REF} show *`]: { stdout: VALID_NOTE, stderr: "" },
       [`update-ref -d ${TEMP}`]: { stdout: "", stderr: "" },
     });
     const io = buildIo(exec);
@@ -142,5 +146,54 @@ describe("reconcileNotesPush", () => {
     expect(result.kind).toBe("noop");
     expect(calls.some((args) => args[0] === "push")).toBe(false);
     expect(calls.some((args) => args[0] === "notes")).toBe(false);
+  });
+
+  it("same-commit collision yields an unparseable merged note → conflict, no re-push, ref rolled back", async () => {
+    const noteA = JSON.stringify({ version: 2, files: { "SESSION-NOTES.md": "from-a" } });
+    const noteB = JSON.stringify({ version: 2, files: { "SESSION-NOTES.md": "from-b" } });
+    const { exec, calls } = buildExec({
+      [`rev-parse --verify ${REF}`]: { stdout: "premerge-tip", stderr: "" },
+      [`ls-remote origin ${REF}`]: { stdout: `remotehash\t${REF}`, stderr: "" },
+      [`push origin ${REF}`]: () => nonFastForward(),
+      [`fetch origin +${REF}:${TEMP}`]: { stdout: "", stderr: "" },
+      [`notes --ref ${SHORT_REF} merge -s cat_sort_uniq ${TEMP}`]: { stdout: "", stderr: "" },
+      [`notes --ref ${SHORT_REF} list`]: { stdout: `noteobj ${NOTE_COMMIT}`, stderr: "" },
+      // cat_sort_uniq concatenated two manifests for the same commit → invalid JSON.
+      [`notes --ref ${SHORT_REF} show *`]: { stdout: `${noteA}\n${noteB}`, stderr: "" },
+      [`update-ref ${REF} premerge-tip`]: { stdout: "", stderr: "" },
+      [`update-ref -d ${TEMP}`]: { stdout: "", stderr: "" },
+    });
+    const io = buildIo(exec);
+
+    const result = await reconcileNotesPush({ io, identity: "andrew", cwd: "/repo" });
+
+    expect(result.kind).toBe("conflict");
+    // The corrupt merge was never pushed — only the initial rejected push fired.
+    expect(calls.filter((args) => args[0] === "push")).toHaveLength(1);
+    // Local ref rolled back to its pre-merge tip; nothing corrupt persisted.
+    expect(
+      calls.some((args) => args[0] === "update-ref" && args[1] === REF && args[2] === "premerge-tip"),
+    ).toBe(true);
+  });
+
+  it("notes-merge command failure → conflict, merge aborted", async () => {
+    const { exec, calls } = buildExec({
+      [`rev-parse --verify ${REF}`]: { stdout: "premerge-tip", stderr: "" },
+      [`ls-remote origin ${REF}`]: { stdout: `remotehash\t${REF}`, stderr: "" },
+      [`push origin ${REF}`]: () => nonFastForward(),
+      [`fetch origin +${REF}:${TEMP}`]: { stdout: "", stderr: "" },
+      [`notes --ref ${SHORT_REF} merge -s cat_sort_uniq ${TEMP}`]: () => {
+        throw new Error("fatal: a notes merge is already in-progress");
+      },
+      [`notes --ref ${SHORT_REF} merge --abort`]: { stdout: "", stderr: "" },
+      [`update-ref -d ${TEMP}`]: { stdout: "", stderr: "" },
+    });
+    const io = buildIo(exec);
+
+    const result = await reconcileNotesPush({ io, identity: "andrew", cwd: "/repo" });
+
+    expect(result.kind).toBe("conflict");
+    expect(calls.some((args) => args[0] === "notes" && args.includes("--abort"))).toBe(true);
+    expect(calls.filter((args) => args[0] === "push")).toHaveLength(1);
   });
 });

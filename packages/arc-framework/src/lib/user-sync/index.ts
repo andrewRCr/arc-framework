@@ -26,6 +26,7 @@ export { readRecentUserNotes, CROSS_WU_NOTE_WINDOW, type RecentNote } from "./no
 export {
   isNonFastForwardError,
   isRemoteUnavailableError,
+  isResolvedNoteValid,
   incomingNotesRef,
   incomingFetchRefspec,
   notesMergeArgs,

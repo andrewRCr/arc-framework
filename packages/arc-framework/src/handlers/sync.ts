@@ -625,6 +625,8 @@ async function pairedNotesAdapter(
       return { status: "no-remote" };
     case "blocked":
       return { status: "blocked", conditions: outcome.conditions };
+    case "conflict":
+      return { status: "failed", error: new Error(outcome.message) };
     case "failed":
       return { status: "failed", error: outcome.error };
   }
@@ -911,6 +913,9 @@ async function pushNotesLeg(ctx: ExecuteContext): Promise<LegOutcomeRecord> {
         ctx.output.log.error(condition.guidance);
       }
       return { action: "push", result: "blocked" };
+    case "conflict":
+      ctx.output.log.error(outcome.message);
+      return { action: "push", result: "failed", detail: "conflict" };
     case "failed":
       ctx.output.log.error(`Notes push failed: ${outcome.error.message}`);
       return { action: "push", result: "failed" };

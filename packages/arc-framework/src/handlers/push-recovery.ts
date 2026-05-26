@@ -70,6 +70,8 @@ function notesPushStopMessage(outcome: NotesPushOutcome): string {
       return "No remote configured.";
     case "blocked":
       return "Push blocked.";
+    case "conflict":
+      return "Could not auto-reconcile concurrent notes.";
     case "failed":
       return "Failed.";
   }

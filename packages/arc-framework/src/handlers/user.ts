@@ -396,6 +396,10 @@ export async function handleUserPush(opts: UserPushOptions): Promise<void> {
       }
       process.exitCode = 1;
       return;
+    case "conflict":
+      p.log.error(outcome.message);
+      process.exitCode = 1;
+      return;
     case "failed":
       if (isHandledError(outcome.error)) return;
       throw outcome.error;

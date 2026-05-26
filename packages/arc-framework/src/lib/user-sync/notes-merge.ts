@@ -41,3 +41,28 @@ export function incomingFetchRefspec(fullNotesRef: string): string {
 export function notesMergeArgs(shortNotesRef: string, incomingRef: string): string[] {
   return ["notes", "--ref", shortNotesRef, "merge", "-s", "cat_sort_uniq", incomingRef];
 }
+
+/**
+ * Whether a merged note still parses as exactly one sync manifest.
+ *
+ * `cat_sort_uniq` line-merges note blobs and exits 0 even when two worktrees
+ * annotated the same commit — their single-line JSON manifests concatenate into
+ * `{…}\n{…}`, which is not valid JSON. The reconcile keys "non-trivial conflict"
+ * off this post-merge check, not git's (clean) exit signal. Parser-shaped (no
+ * throw) so a later zod swap on the read boundary is mechanical.
+ */
+export function isResolvedNoteValid(content: string): boolean {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    return false;
+  }
+  if (typeof parsed !== "object" || parsed === null) return false;
+  const raw = parsed as Record<string, unknown>;
+  return (
+    (raw.version === 1 || raw.version === 2)
+    && typeof raw.files === "object"
+    && raw.files !== null
+  );
+}

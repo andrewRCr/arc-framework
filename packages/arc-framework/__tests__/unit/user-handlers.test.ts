@@ -252,6 +252,20 @@ describe("handleUserPush", () => {
     await expect(handleUserPush({})).rejects.toThrow("network timeout");
   });
 
+  it("surfaces a reconcile conflict message and exits 1 without throwing", async () => {
+    mockPushNotesWithReconcile.mockResolvedValue({
+      kind: "conflict",
+      message: "Concurrent notes on commit abc12345 could not be auto-merged.",
+    });
+
+    await handleUserPush({});
+
+    expect(mockLog.error).toHaveBeenCalledWith(
+      expect.stringContaining("could not be auto-merged"),
+    );
+    expect(process.exitCode).toBe(1);
+  });
+
   it("--force escape hatch pushes forcibly via runUserPush, bypassing reconcile", async () => {
     mockRunUserPush.mockResolvedValue({ kind: "pushed" });
 

@@ -990,6 +990,59 @@ describe("user push and pull", () => {
     expect(remoteTip.trim().split(/\s+/u)[0]).toBe(localTip);
   });
 
+  it("surfaces (not silently pushes) a same-commit collision the union cannot resolve", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    // First worktree saves on the current commit and publishes.
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Temp v1", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await runUserPush({ io, identity: "test-user" });
+
+    // A second worktree clones and saves on the SAME commit (no HEAD advance),
+    // then force-publishes — so both refs annotate one commit with divergent
+    // single-line JSON manifests, the case cat_sort_uniq concatenates into an
+    // unparseable note while still exiting 0.
+    cloneDir = await mkdtemp(join(tmpdir(), "arc-clone-"));
+    await execFileAsync("git", ["clone", remoteDir, cloneDir]);
+    await execFileAsync("git", ["config", "user.email", "c@t.com"], { cwd: cloneDir });
+    await execFileAsync("git", ["config", "user.name", "Clone User"], { cwd: cloneDir });
+    const cloneIO = makeUserIO(cloneDir);
+    const cloneUserDir = join(cloneDir, ".arc", "user", "test-user");
+    await mkdir(cloneUserDir, { recursive: true });
+    await writeFile(join(cloneUserDir, "SESSION-NOTES.md"), "# Clone v1", "utf-8");
+    await runUserSave({ cwd: cloneDir, io: cloneIO, identity: "test-user" });
+    await runUserPush({ io: cloneIO, identity: "test-user", force: true });
+
+    const remoteTipBefore = (await execFileAsync(
+      "git", ["ls-remote", remoteDir, "refs/notes/arc/user/test-user"],
+    )).stdout.trim().split(/\s+/u)[0];
+
+    // First worktree re-saves on the same commit and pushes → non-ff.
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Temp v2", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await expect(
+      runUserPush({ io, identity: "test-user" }),
+    ).rejects.toThrow(/rejected/);
+
+    const result = await pushNotesWithReconcile({ io, identity: "test-user", cwd: tempDir, output: recoveryOutput });
+
+    // Surfaced as a conflict — the corrupt union is not silently pushed.
+    expect(result.kind).toBe("conflict");
+
+    // Remote untouched: nothing was pushed.
+    const remoteTipAfter = (await execFileAsync(
+      "git", ["ls-remote", remoteDir, "refs/notes/arc/user/test-user"],
+    )).stdout.trim().split(/\s+/u)[0];
+    expect(remoteTipAfter).toBe(remoteTipBefore);
+
+    // Local ref rolled back to a parseable note (this worktree's own save).
+    const { stdout: localNote } = await execFileAsync(
+      "git", ["notes", "--ref", "arc/user/test-user", "show", "HEAD"], { cwd: tempDir },
+    );
+    expect(() => JSON.parse(localNote) as unknown).not.toThrow();
+  });
+
   it("pull with --identity fetches another developer's notes", async () => {
     const io = makeUserIO(tempDir);
 

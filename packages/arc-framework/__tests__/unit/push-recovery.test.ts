@@ -59,6 +59,7 @@ describe("pushNotesWithReconcile", () => {
     [{ kind: "pushed" }, "Push complete."],
     [{ kind: "reconciled" }, "Reconciled concurrent notes and pushed."],
     [{ kind: "no-remote" }, "No remote configured."],
+    [{ kind: "conflict", message: "boom" }, "Could not auto-reconcile concurrent notes."],
     [{ kind: "failed", error: new Error("network timeout") }, "Failed."],
   ])("passes outcome %j through and stops the spinner with its message", async (outcome, message) => {
     mockReconcileNotesPush.mockResolvedValue(outcome);

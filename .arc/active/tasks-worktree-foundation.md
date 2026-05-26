@@ -458,7 +458,7 @@ that all worktrees share. The pure logic for 4.1–4.4 lands in `lib/user-sync/`
 thin and the schema extractable); a 2026-05-26 cross-check against the agile-parallelism cohort and the
 downstream sync WUs is recorded in `notes-worktree-foundation.md` § Phase 4 forward-compat cross-check.
 
-### `[ ]` **4.1 Concurrent-push reconcile (`git notes merge`)**
+### `[x]` **4.1 Concurrent-push reconcile (`git notes merge`)**
 
 - _Goal:_ when parallel worktrees push notes and the second hits non-fast-forward, the push reconciles via
   `git notes merge` (cat_sort_uniq default) and surfaces to the user only when the conflict is non-trivial.
@@ -478,17 +478,14 @@ downstream sync WUs is recorded in `notes-worktree-foundation.md` § Phase 4 for
           reconcile rather than fail).
         - Same-commit-collision corruption detection + surfacing is 4.1.b.
 
-    - `[ ]` **4.1.b Non-trivial-conflict surfacing**
-        - _Note:_ cat_sort_uniq auto-resolves at the line level and exits 0 even when the result is unusable,
-          so "non-trivial" cannot key off git's conflict / exit signal — detect via a post-merge validity
-          check (each merged note still parses as one manifest). The corrupting case is two worktrees noting
-          the **same commit**: two single-line JSON manifests concatenate to invalid JSON. See
-          `notes-worktree-foundation.md` § Phases 3 & 4.
-        - Build `test-first` (one behavior at a time):
-            - disjoint-commit union (worktrees on different branches) → clean merge, no surface
-            - same-commit divergent manifests → cat_sort_uniq yields an unparseable note → surfaced, push
-              not silently dropped
-            - notes-merge command failure / abort → surfaced to the user
+    - `[x]` **4.1.b Non-trivial-conflict surfacing**
+        - Post-merge validity scan keys "non-trivial" off whether each merged note still parses as one
+          manifest (`isResolvedNoteValid`, `lib/user-sync/notes-merge.ts`), not git's exit signal —
+          `cat_sort_uniq` exits 0 even when a same-commit collision concatenates two single-line JSON
+          manifests into an unparseable note. On corruption the local ref is rolled back to its pre-merge tip
+          (nothing corrupt persists or is pushed) and a new `conflict` outcome surfaces a commit-named,
+          actionable message; a failed `git notes merge` command is aborted and surfaced the same way. The
+          `conflict` outcome renders gracefully at all four notes-push sites (no throw).
 
 ### `[ ]` **4.2 Retired-subdir reconciliation**
 

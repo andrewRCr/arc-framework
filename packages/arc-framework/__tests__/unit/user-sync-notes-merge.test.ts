@@ -10,6 +10,7 @@ import {
   incomingFetchRefspec,
   incomingNotesRef,
   isNonFastForwardError,
+  isResolvedNoteValid,
   notesMergeArgs,
 } from "../../src/lib/user-sync/index.js";
 
@@ -37,5 +38,24 @@ describe("notes-merge pure helpers", () => {
     expect(isNonFastForwardError(" ! [rejected]    refs/notes/x -> refs/notes/x")).toBe(true);
     expect(isNonFastForwardError("Updates were rejected (non-fast-forward)")).toBe(true);
     expect(isNonFastForwardError("fatal: 'origin' does not appear to be a git repository")).toBe(false);
+  });
+
+  describe("isResolvedNoteValid", () => {
+    it("accepts a single well-formed manifest", () => {
+      expect(isResolvedNoteValid(JSON.stringify({ version: 2, files: { "a.md": "x" } }))).toBe(true);
+      expect(isResolvedNoteValid(JSON.stringify({ version: 1, files: {} }))).toBe(true);
+    });
+
+    it("rejects two manifests concatenated by a same-commit cat_sort_uniq merge", () => {
+      const a = JSON.stringify({ version: 2, files: { "a.md": "from-worktree-a" } });
+      const b = JSON.stringify({ version: 2, files: { "b.md": "from-worktree-b" } });
+      expect(isResolvedNoteValid(`${a}\n${b}`)).toBe(false);
+    });
+
+    it("rejects JSON that is not a manifest shape", () => {
+      expect(isResolvedNoteValid(JSON.stringify({ version: 9, files: {} }))).toBe(false);
+      expect(isResolvedNoteValid(JSON.stringify({ version: 2 }))).toBe(false);
+      expect(isResolvedNoteValid("not json at all")).toBe(false);
+    });
   });
 });
