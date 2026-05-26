@@ -50,4 +50,10 @@ export {
   type RetiredSubdirPlanInput,
 } from "./retired-subdir.js";
 
+export {
+  classifyOrphans,
+  type ClassifyOrphansInput,
+  type OrphanClassification,
+} from "./orphan-classification.js";
+
 export type { CrossWuEntry, CrossWuShape, EntryParse } from "./types.js";

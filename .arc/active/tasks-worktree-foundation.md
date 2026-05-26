@@ -532,7 +532,7 @@ downstream sync WUs is recorded in `notes-worktree-foundation.md` § Phase 4 for
               copies. `collectNotesWuNames` / `subdirsFromPaths` extracted to `lib/user-sync` and shared with
               the load path.
 
-### `[ ]` **4.3 Orphan-warning messaging (T2 grouped + T1 rename-detection)**
+### `[x]` **4.3 Orphan-warning messaging (T2 grouped + T1 rename-detection)**
 
 - _Goal:_ when retired orphans cluster under a path prefix entirely absent from the incoming manifest, one
   grouped informational line + cleanup hint replaces N warnings (T2, P0); and a local orphan whose content
@@ -545,17 +545,20 @@ downstream sync WUs is recorded in `notes-worktree-foundation.md` § Phase 4 for
   in without reworking T1/T2. Pure classifier in `lib/user-sync/`. See `notes-worktree-foundation.md`
   § Phase 4 forward-compat cross-check.
 
-    - `[ ]` **4.3.a T2 grouped retirement messaging**
-        - Build `test-first` (one behavior at a time):
-            - cluster under a prefix absent from manifest → one line + cleanup hint (not N warnings)
-            - mixed orphans → fall back to per-item warnings
-            - cross-WU-only load (no current WU) → present per-WU subdirs not flagged as orphans (live
-              other-WU context, absent from the cross-WU manifest by design)
+    - `[x]` **4.3.a T2 grouped retirement messaging**
+        - Pure `classifyOrphans` (`lib/user-sync/orphan-classification.ts`) emits a structured
+          `OrphanClassification[]` (`grouped-retirement` / `generic`; `rename-candidate` reserved for 4.3.b) —
+          the T3-extensible seam, not flat-string branching. Entirely-absent per-WU subdir → one grouped line;
+          partially-present-subdir / flat orphan → per-item generic; a no-current-WU load suppresses per-WU
+          subdir orphans as live other-WU context. Wired into `runUserLoad`, replacing the inline `staleWarnings`
+          map; `renderOrphanWarning` owns the structured→string render at the load seam.
 
-    - `[ ]` **4.3.b T1 content-equivalence rename detection** (P1)
-        - Build `test-first` (one behavior at a time):
-            - orphan content matches a different manifest name → "Looks like rename X → Y"
-            - no content match → generic "not in saved manifest"
+    - `[x]` **4.3.b T1 content-equivalence rename detection** (P1)
+        - Rename pass in the per-item branch of `classifyOrphans`: an orphan whose content matches a different
+          manifest path → `rename-candidate {from, to}`; no match → `generic`. Empty content is excluded from
+          the content index, so a trivially-empty orphan can't false-match an empty manifest file. Grouped
+          retirement clusters bypass the per-item branch, so they're untouched. `renderOrphanWarning`
+          renders the candidate as `not in saved manifest — looks like a rename to "<to>" (content matches)`.
 
 ### `[ ]` **4.4 Coherence-WU schema seam (`.sync-state.json`)**
 

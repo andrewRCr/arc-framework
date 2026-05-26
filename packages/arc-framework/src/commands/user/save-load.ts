@@ -7,6 +7,7 @@ import { deserialize, isSafeManifestPath, serialize, shortHash, type SyncManifes
 import { ensureDir } from "../../lib/template/index.js";
 import {
   appendRemovalTombstones,
+  classifyOrphans,
   classifyUserSyncPath,
   collectNotesWuNames,
   mergeCrossWuFile,
@@ -14,6 +15,7 @@ import {
   subdirsFromPaths,
   wuNameOfPath,
   type MergeNote,
+  type OrphanClassification,
 } from "../../lib/user-sync/index.js";
 import { readShippedWorkUnits } from "../../lib/work-unit/completed-index.js";
 import {
@@ -180,14 +182,12 @@ export async function runUserLoad(
       // also reported as "preserved".
       const reconciled = await reconcileRetiredSubdirs({ cwd, identity, localFiles, recentNotes });
 
-      const manifestNames = new Set(Object.keys(loadManifest.files));
-      staleWarnings = Object.keys(localFiles)
-        .filter((name) => !manifestNames.has(name))
-        .filter((name) => {
-          const wu = wuNameOfPath(name);
-          return wu === null || !reconciled.has(wu);
-        })
-        .map((name) => `Local file "${name}" not in saved manifest — preserved in .internal/${backupFilename}`);
+      staleWarnings = classifyOrphans({
+        localFiles,
+        manifestFiles: loadManifest.files,
+        reconciledSubdirs: reconciled,
+        currentWuName: options.currentWuName,
+      }).map((classification) => renderOrphanWarning(classification, backupFilename));
       reconcileWarnings = [...reconciled].map(
         (subdir) =>
           `Retired WU subdir "${subdir}" (shipped, absent from recent notes) — removed; ` +
@@ -709,6 +709,29 @@ async function reconcileRetiredSubdirs(params: {
     await removeStaleUserWuSubdir({ cwd: params.cwd, identity: params.identity, subdir });
   }
   return new Set(reconcile);
+}
+
+/**
+ * Render one orphan classification to a user-facing load warning. The seam where
+ * the structured classification ({@link classifyOrphans}) flattens to a string;
+ * a later drift tier adds classification kinds, not new call sites.
+ */
+function renderOrphanWarning(classification: OrphanClassification, backupFilename: string): string {
+  const preserved = `preserved in .internal/${backupFilename}`;
+  switch (classification.kind) {
+    case "grouped-retirement":
+      return (
+        `User subdir "${classification.subdir}/" (${classification.files.length} file(s)) not in saved ` +
+        `manifest — left in place, ${preserved}. Remove the subdir if its work unit is retired.`
+      );
+    case "rename-candidate":
+      return (
+        `Local file "${classification.from}" not in saved manifest — looks like a rename to ` +
+        `"${classification.to}" (content matches); ${preserved}`
+      );
+    case "generic":
+      return `Local file "${classification.name}" not in saved manifest — ${preserved}`;
+  }
 }
 
 /**
