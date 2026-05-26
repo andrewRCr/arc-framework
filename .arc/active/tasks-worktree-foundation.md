@@ -331,6 +331,7 @@ is optional throughout.
           first segment → `never-synced`; any other subdir path → `per-wu`; any other flat path → `cross-wu`
           (every flat identity-root file, not an allowlisted shape — R16). The file-type allowlist stays on its
           own axis. Exported via `lib/user-sync/index.ts` as a sibling of `inferUserSyncCause`.
+
     - `[x]` **3.1.b Consumed by the load path** (`lib/user-sync/`, `commands/user/save-load.ts`)
         - No save-side wiring needed: `serialize` already emits every eligible file by path and the walk-time
           dotfile prefilter drops never-synced content, so the class changes behavior only at load — consumed by
@@ -356,6 +357,7 @@ is optional throughout.
           each candidate note's manifest mid-walk and returns the most-recent note carrying that WU's subdir,
           skipping others and returning no note when none has it. Absent, the first-note behavior is unchanged,
           so the four `sync-status.ts` / `push-recovery.ts` callers keep their newest-note semantics.
+
     - `[x]` **3.2.b Load materializes the current WU subdir, drops other-WU subdirs**
         - `runUserLoad` filters the resolved note's manifest to cross-WU flat files plus the current WU's subdir
           before materializing / verifying / recording sync-state (`runUserPull` forwards the name). The filter
@@ -388,6 +390,7 @@ is optional throughout.
           whole-file most-recent-wins; known shape rebuilds onto the most-recent note as base (preamble and
           existing formatting preserved), folding only older-only entries into their owning section and
           returning any malformed reasons on the result.
+
     - `[x]` **3.3.b Ref-wide N-most-recent-note read** (recency-ordered) (`lib/user-sync/notes-ref.ts`)
         - `readRecentUserNotes(exec, identity, limit)` walks the user-notes ref's own history newest-first and
           returns up to `limit` note versions (`RecentNote` = `{ historyCommit, content }`) in recency order,
@@ -397,6 +400,7 @@ is optional throughout.
           `save-load.ts`, which now imports them and threads `io.exec`; `findNearestUserNote` behavior is
           unchanged (its tests stay green). Recency order is a sequence, not a set, so the merge can resolve a
           divergent entry to the most-recent note within the window.
+
     - `[x]` **3.3.c Wire merge into load**
         - `runUserLoad` now reads the recent-note window (`readRecentUserNotes`) and merges each cross-WU flat
           file via `mergeCrossWuFromNotes` → `mergeCrossWuFile`, while per-WU subdir files keep coming from the
@@ -427,6 +431,7 @@ is optional throughout.
           3.4.b reads). Wired into `runUserSave` via `applyRemovalTombstones`, which stamps the to-be-saved
           manifest before the note write/verify. Markers are recorded here, not yet honored — suppression + TTL
           is 3.4.b.
+
     - `[x]` **3.4.b Merge respects latest tombstone**
         - `mergeCrossWuFile` parses `## Removed:` markers per note and resolves each `(section, key)` by recency:
           the most-recent mention (entry or live tombstone) wins, so a tombstone suppresses an older inclusion and
@@ -468,6 +473,7 @@ that all worktrees share.
             - cat_sort_uniq unions both sides without loss
             - clean fast-forward → no merge invoked
             - branch/worktree-leg rejection → unchanged (still the interactive recovery path)
+
     - `[ ]` **4.1.b Non-trivial-conflict surfacing**
         - Build `test-first` (one behavior at a time):
             - cat_sort_uniq union (no true conflict) → no surface
@@ -489,6 +495,7 @@ that all worktrees share.
             - present + absent-from-notes + shipped → reconcile with `.internal/` backup
             - present + still-in-notes → preserved (not retired)
             - present + not-shipped → preserved
+
     - `[ ]` **4.2.b Wire into load / pull / session-init**
 
 ### `[ ]` **4.3 Orphan-warning messaging (T2 grouped + T1 rename-detection)**
@@ -502,6 +509,7 @@ that all worktrees share.
         - Build `test-first` (one behavior at a time):
             - cluster under a prefix absent from manifest → one line + cleanup hint (not N warnings)
             - mixed orphans → fall back to per-item warnings
+
     - `[ ]` **4.3.b T1 content-equivalence rename detection** (P1)
         - Build `test-first` (one behavior at a time):
             - orphan content matches a different manifest name → "Looks like rename X → Y"
@@ -531,6 +539,7 @@ that all worktrees share.
             - new `version` written; prior v2 / v3 records read back-compat (incl. the old single-`partialPush`)
             - shape carries per-worktree partial-push state (no single-HEAD assumption)
             - reserved fields absent → tolerated; present → preserved round-trip
+
     - `[ ]` **4.4.b Record the partial-push-surface widening**
         - _Note:_ document (in `notes-{name}.md`) that concurrent-worktree notes-push _widens_ the partial-push
           surface — the downstream WU is genuinely necessary, not merely inherited.
@@ -556,6 +565,7 @@ worktree-creating mode (5.1) is the create-new path; the removal-side ceremony e
 - **Strategies:** `strategy-work-organization.md`
 
     - `[ ]` **5.1.a Worktree-creating mode** (`init-work-unit.md`, both copies)
+
     - `[ ]` **5.1.b In-place mode retained + mode selection**
         - _Note:_ stays planning-welded — the Planning-vs-Active-at-creation generalization is AWL's seam,
           not this WU's.
@@ -581,6 +591,7 @@ worktree-creating mode (5.1) is the create-new path; the removal-side ceremony e
             - the originating session is unchanged, still on its own branch/worktree
             - `--tier` / `--type` accepted but not branched on
             - never fires under auto-cascade (explicit invocation only)
+
     - `[ ]` **5.2.b Ownership-marker write + optional breadcrumb seed**
         - Write the marker (1.3); optionally seed SESSION-NOTES with a one-line breadcrumb to the spawning
           context.
@@ -603,12 +614,14 @@ worktree-creating mode (5.1) is the create-new path; the removal-side ceremony e
         - Build `test-first` (one behavior at a time):
             - scaffolds a Planning-state meta in a bare worktree (use-existing, no `git worktree add`)
             - invoked via `arc-session` discovery
+
     - `[ ]` **5.3.b Spec-input parser**
         - _Note:_ written plainly now (hand-rolled per-variant); CSA later migrates the 5-variant parser to a
           zod discriminated union — leave the seam. _Notes:_ See `notes-worktree-foundation.md` § Phases 5 & 6.
         - Build `test-first` (one behavior at a time):
             - file pointer / URL / issue link / plan-doc / name + description each parse to the right shape
             - external reference → `**Origin:**`; ARC-owned artifact → `**Design:**`
+
     - `[ ]` **5.3.c Marker semantics via the created-by-arc flag**
         - The shared primitive's created-by-arc flag drives the marker: spawn → true (writes); cold-start in
           Foundation → false (advisory only — tool / manual worktree). The flag-true cold-start path is
@@ -628,10 +641,13 @@ worktree-creating mode (5.1) is the create-new path; the removal-side ceremony e
           (strategy-session-operations, strategy-package-project-sync, AGENT-BRIEF.ARC, analysis docs), both
           copies where applicable. _Note:_ ADR-011 names `arc-resume` as an example — update for accuracy
           (illustrative reference, not a claim about the name).
+
     - `[ ]` **5.4.b Dispatch logic**
         - _Note:_ dispatch reads the Phase 2 probe pre-resolution; the skill does not run its own
           fetch / worktree-list / meta-reads across turns.
+
     - `[ ]` **5.4.c Optional-arg seed (confirmed before use)**
+
     - `[ ]` **5.4.d Hand-sync harness skill copies**
         - Per the self-hosting drift note, copy the canonical `SKILL.md` into `.claude/skills/` and
           `.codex/skills/` so this repo's own sessions pick up the rename.
@@ -689,6 +705,7 @@ verbs so there are worktrees to shift between.
   mechanism + the minimal framing that justifies it.
 
     - `[ ]` **6.1.a Skill authoring** (canonical sources + harness hand-sync)
+
     - `[ ]` **6.1.b Target selection (discovery-led + optional arg)**
         - _Note:_ creating a worktree for a new WU is spawn, not shift. Reuse `runWorktreeRoster` /
           `parseWorktreeList` (`worktree-roster.ts`) for the worktree enumeration — same as 2.4 / 2.7a / 5.5.
@@ -736,12 +753,16 @@ docs WU). _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
 - **Strategies:** `strategy-work-organization.md`
 
     - `[ ]` **7.1.a `integrate-work-unit` post-merge removal (from main)** (both copies)
+
     - `[ ]` **7.1.b `deactivate-work-unit` Case A-delete order + Case A return-to-Planning path-left** (both copies)
+
     - `[ ]` **7.1.c `activate-work-unit` defensive `arc user open`** (both copies)
         - _Note:_ already present (idempotent reaffirm) — verify / light-touch, likely no net-new content.
+
     - `[ ]` **7.1.d `session-handoff` optional worktree-context surface** (both copies)
         - _Note:_ handoff already surfaces worktree context (worktree probe slot + summary line) — extend,
           don't add from scratch.
+
     - `[ ]` **7.1.e `activate-work-unit` Step 4 meta-field completeness** (both copies)
         - _Note:_ Step 4 flips only `**State:**`, but Step 5 renames the branch `plan/<name>` → `<type>/<name>` —
           leaving meta `**Branch:**` stale, which breaks session-init's branch-match disambiguation.
@@ -770,6 +791,7 @@ docs WU). _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
 - **Strategies:** `strategy-work-organization.md`
 
     - `[ ]` **7.3.a Strategy-doc content** (`strategy-work-organization.md`, both copies)
+
     - `[ ]` **7.3.b Workflow-guidance cross-refs**
 
 ### `[ ]` **7.4 Retire the `atomic-*` companion file type**
@@ -794,10 +816,12 @@ docs WU). _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
           internal analysis / supplemental docs, and this WU's own `spec-*` (self-referential — it describes
           the retirement). **Preserve:** the `ATOMIC-INBOX` / `USER-INBOX § Atomic` surfaces and the atomic
           _character_.
+
     - `[ ]` **7.4.b Sweep workflow mentions** (both copies)
         - `2_generate-tasks.md` (companion creation at Pass 1 + Step 4 checklist), `activate` / `verify` /
           `deactivate` / `archive` work-unit workflows. _Note:_ `integrate-work-unit.md` carries only the
           protected `§ Atomic → ATOMIC-INBOX` surface — verify-only, nothing to sweep.
+
     - `[ ]` **7.4.c Document the rerouted capture** (AGENT-BRIEF in scope; docs-site out)
         - `AGENT-BRIEF.{ARC,CONTRIBUTOR}.md` are in-scope shipped briefs — sweep their companion-type refs. The
           docs site (`docs/**`) is out of scope WU-wide (dedicated docs WU). Document the rerouted capture (fold
@@ -819,7 +843,9 @@ docs WU). _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
           contradicts `template-meta`'s `Planning | Active | Integrating | Shipped` on every row; rewrite the
           whole enum table + the Optional Pointer Fields sub-table. _Notes:_ See
           `notes-worktree-foundation.md` § Phase 7.
+
     - `[ ]` **7.5.b `deactivate-work-unit` arc-shift reference** (both copies)
+
     - `[ ]` **7.5.c § ROADMAP location-based In-Flight redefinition + regen fire-point shift**
         - _Note:_ edit the literal § ROADMAP text (the step-4 In-Flight definition `**In Flight** — State:
           Active | Integrating`; the Regeneration "Activation" bullet). ROADMAP regen is doc-only
