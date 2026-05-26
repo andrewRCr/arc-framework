@@ -128,8 +128,9 @@ implementing session is a different session; read the relevant subsection before
   (`io-context.ts` skips `.`-prefixed dirs; `user-sync.ts` skips dotfile basenames). The per-WU vs cross-WU
   distinction is the real new surface. Name-collision warning: `inferUserSyncCause` (a divergence-cause
   diagnostic) is UNRELATED to 3.1's sync-class dispatch — don't assume 3.1 is partly built there.
-- **4.1 precedes the existing push-recovery `[rejected]` handler** (`handlers/push-recovery.ts`). Define
-  whether `git notes merge` reconcile replaces or runs before the rejection prompt for the notes ref.
+- **4.1 reconcile replaces the generic `[rejected]` prompt for the notes leg, automatically** (no prompt);
+  the branch/worktree leg keeps `pushWithInteractiveRecovery` (`handlers/push-recovery.ts`). Mechanism,
+  wiring, and the cat_sort_uniq corruption gotcha are below under "4.1 reconcile is a notes-specific arm."
 - **Test coverage to add:** 3.3.b (ref-wide N-most-recent read) and 4.1.b (non-trivial-conflict surfacing)
   need behavior bullets; 3.3.a needs a per-section USER-INBOX case + a malformed-entry case; 4.1 needs a
   notes-merge-failure error path. (Folded into the task list.)
@@ -152,16 +153,92 @@ implementing session is a different session; read the relevant subsection before
   rather than inlining into `save-load.ts`, so the later split stays clean.
 - **4.1 reconcile is a notes-specific arm, not the generic recovery.** `pushWithInteractiveRecovery`
   (`push-recovery.ts`) is one generic `[rejected]` path (force/merge/cancel; force-fetch + re-save + re-push)
-  with no notes-vs-branch distinction. 4.1 adds an automatic `git notes merge` (cat_sort_uniq) arm at
-  `runPairedPush`'s notes-push leg, run instead of the interactive recovery for the notes ref; the interactive
-  path stays for the worktree/branch leg. Forward-compat: the arm lives in the push leg (`paired-push.ts`),
-  below `sync-handler-decomposition`'s target (`handlers/sync.ts` matrix/execute/render split) — orthogonal.
-  CSA later moves the reconcile's error handling onto execa's typed errors.
-- **Shared "WU shipped" predicate (2.7a ↔ 4.2).** Both the stale-worktree sweep (2.7a) and retired-subdir
-  reconciliation (4.2) need "is this WU shipped?" via the `completed/{quarter}/NN_{wu-name}` cross-ref +
-  match-key normalization (strip `NN_` + branch type-prefix, compare WU-name slug). Build it once, consume in
-  both; `findStaleUserWuSubdirs` is detection-only today and carries no shipped-check. (2.7a's task text
-  predates this sharing — add the back-pointer in the final coherence pass.)
+  with no notes-vs-branch distinction — and for the shared notes ref that "merge" is **lossy**: re-save only
+  serializes *this* worktree's `user/{identity}/` dir, dropping notes another worktree concurrently pushed.
+  4.1 replaces it, for the notes leg only, with an automatic `git notes merge` (cat_sort_uniq) arm; the
+  interactive path stays for the worktree/branch leg.
+    - **Wiring (the arm is injected, not inlined).** `runPairedPush` (`paired-push.ts`) delegates the notes
+      leg to an injected `pushNotes` (`RunPairedPushOptions`); production wires it in
+      `handlers/sync.ts:pairedNotesAdapter` → `pushWithInteractiveRecovery`. So the reconcile is a *new notes
+      pusher* — pure merge/validity logic in `lib/user-sync/`, IO orchestration in
+      `commands/user/push-fetch.ts` — injected via that seam, not code added to `runPairedPush` or the
+      handler. Keeps `handlers/sync.ts` thin for `sync-handler-decomposition` (orthogonal) and the pure logic
+      in `lib/user-sync/` for `user-sync-module-split`.
+    - **cat_sort_uniq corrupts single-line-JSON notes on a same-commit collision (the real 4.1.b case).**
+      User notes are single-line JSON (`JSON.stringify(manifest)`). `git notes merge -s cat_sort_uniq`
+      line-merges blobs *only when both refs annotate the same commit*. Different worktrees usually annotate
+      different commits (different branches) → clean disjoint union, no blob merge. But two worktrees at the
+      **same** HEAD commit (both freshly branched off one commit, neither has committed yet) each note that
+      commit → cat_sort_uniq concatenates two JSON objects into `{…}\n{…}` = invalid JSON, and exits **0
+      (success, no conflict)**. The next per-WU load (`parseResolvedNoteManifest`) then *throws* "Corrupt git
+      note." So 4.1.b's surfacing **cannot key off git's conflict/exit signal** — detect via a post-merge
+      validity check (does each merged note still parse as one manifest?). Reachable precisely in the
+      concurrent-worktree scenario this WU enables.
+    - **Pin the invocation before the test** (mirror 2.2a's fetch-idiom discipline): fetch remote notes into
+      a temp tracking ref, `git notes --ref <ref> merge -s cat_sort_uniq <temp>`, re-push; clean up
+      `NOTES_MERGE_*` state on abort. `gitMergeFile` (`exec.ts`) is the existing duck-typed analog.
+    - CSA later moves the reconcile's error handling onto execa's typed errors and adds zod-on-read of the
+      merged note payload — keep the validity check parser-shaped (discriminated outcome, no throw) on the
+      `GitExec` seam so that swap is mechanical.
+- **Shared "WU shipped" predicate is already built (2.7a → 4.2 consumes).** 2.7a shipped
+  `lib/work-unit/completed-index.ts` — `readShippedWorkUnits` (scans `completed/{quarter}/NN_{slug}` into a
+  slug set), `branchToWorkUnitSlug`, `isShippedWorkUnit` — and its module doc already names "retired-subdir
+  reconciliation" as a consumer. So 4.2 does **not** build a predicate; it consumes this one. Reuse nuance:
+  `isShippedWorkUnit` / `branchToWorkUnitSlug` are **branch-oriented** (strip a `<type>/` prefix), but 4.2's
+  input is a **subdir name** under `user/{identity}/` — already a bare WU-name slug, no prefix. So 4.2 calls
+  `readShippedWorkUnits()` and checks `shipped.has(subdirName)` directly; the branch helpers don't fit.
+  `findStaleUserWuSubdirs` (`commands/user/open.ts`) stays detection-only — 4.2 wires reconcile =
+  shipped-check + `removeStaleUserWuSubdir` + `.internal/` backup.
+
+#### Phase 4 forward-compat cross-check (2026-05-26)
+
+Cross-checked Phase 4's surfaces against the agile-parallelism cohort (errand-enablement, agile-wu-lifecycle,
+in-flight-awareness) and the downstream sync WUs (cross-machine-sync-coherence, user-sync-module-split,
+sync-handler-decomposition, cli-substrate-adoption). Mostly confirmed the spec's R20–R24; the items below
+either changed a design call or are load-bearing constraints for a downstream WU.
+
+- **No-current-WU load is a common path, not an edge (errand-enablement + R31 main-on-main).** On a session
+  with no current WU, per-WU restore no-ops and only cross-WU files load. Two consequences Phase 4 must
+  handle: (a) **4.2** reconciles only *shipped* subdirs — the shipped gate is what stops an Errand/main
+  session from mass-reconciling every in-flight WU's subdir (all of which look "not the current WU"); (b)
+  **4.3** must not flag present per-WU subdirs as orphans on a cross-WU-only load — they are other WUs'
+  legitimate in-flight context, absent from the cross-WU manifest by design. Today `runUserLoad`'s
+  `staleWarnings` (`save-load.ts:171`) would flag every such file. The clean disambiguation ("retired at
+  source" vs. "live other-WU context") is T3's `priorFileList`; 4.3's interim just must not be noisy.
+
+- **4.4 → cross-machine-sync-coherence (consumes the seam directly).** CSC's T3 drift tier reads the reserved
+  `priorFileList`; its remote partial-push marker reads the reserved provenance field. Two refinements: (a)
+  shape the **remote-marker-provenance** reservation to carry **per-worktree** state — CSC's remote marker
+  must represent multiple worktrees (its draft: "per-worktree HEAD, not just the main worktree's"), so don't
+  reserve a scalar a re-bump would have to pluralize. The local `.sync-state.json` is already per-worktree (a
+  per-working-tree file); `partialPush.sourceCommit` stays per-record. (b) "**Reserved fields present →
+  preserved round-trip**" is **not** free: `readLocalSyncState` currently reconstructs the record from only
+  the explicitly-extracted known fields (drops everything else), and `writeLocalSyncState` /
+  `clearPartialPushMarker` rebuild from scratch. 4.4 must change read + write to carry unknown reserved fields
+  forward, or CSC's populated fields vanish on the next op. CSC is pre-PRD — reserve *generically*, commit to
+  no marker shape.
+
+- **4.3 orphan classification is tier-extensible.** T1 (content-equivalence rename) + T2 (grouped retirement)
+  ship here; T3 (sync-state-aware drift) is CSC's, and CSC frames it as the *third tier of the same surface*.
+  So 4.3 emits a structured classification (rename-candidate / grouped-retirement / generic) that a T3 drift
+  axis slots into — not a flat string-formatting branch.
+
+- **Schema home: extract `LocalSyncState` → `lib/user-sync/sync-state.ts` in 4.4 (decided 2026-05-26).** It
+  lives in the 768-line `save-load.ts` today. Both CSC (remote marker, T3) and CSA (zod schema for "user-sync
+  state") build on it, and the Item-D layout decision already routes new sync code to `lib/user-sync/*`.
+  Extracting now gives both a clean I/O-boundary home; keep the validation parser-shaped (`LocalSyncState |
+  null`, no throw) so CSA's zod swap is mechanical (the eventual schema needs `.passthrough()` for the
+  reserved fields above).
+
+- **Two `version` fields, don't conflate.** `save-load.ts` carries the note **manifest** `version` (1/2,
+  gated in `parseResolvedNoteManifest` / `isSyncManifest`) and the `.sync-state.json` `LocalSyncState.version`
+  (2/3). 4.4 bumps **only** the sync-state version (3 → 4); the manifest gate is out of scope.
+
+- **in-flight-awareness owns the session-init probe orchestration.** If 4.2 wires retired-subdir detection
+  into session-init as a slot, follow the existing slot conventions (safeProbe-wrapped, "envelope never
+  rejects", cheap always-on local FS read like the `sweep` slot) so IFA's later gated-slot + de-dup evolution
+  absorbs it. Keep detection (read-only, surfaced) separate from removal (offer / auto-close-with-backup),
+  mirroring the worktree-sweep pattern. Don't build a general slot framework — IFA owns that.
 
 ### Phases 5 & 6 — entry primitives, arc-shift
 

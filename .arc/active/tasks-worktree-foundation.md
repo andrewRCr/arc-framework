@@ -454,7 +454,9 @@ grouped orphan messaging, and the coherence-WU schema seam. Depends on Phase 3's
 _Design decisions:_ `.sync-state.json` is already at schema `version: 3` with a `partialPush` marker — 4.4
 bumps the version and makes the shape worktree-aware on top of that, reserving (not building) the downstream
 extension points. Concurrent-push reconcile (4.1) operates on the global `refs/notes/arc/user/{identity}` ref
-that all worktrees share.
+that all worktrees share. The pure logic for 4.1–4.4 lands in `lib/user-sync/` (keeping `handlers/sync.ts`
+thin and the schema extractable); a 2026-05-26 cross-check against the agile-parallelism cohort and the
+downstream sync WUs is recorded in `notes-worktree-foundation.md` § Phase 4 forward-compat cross-check.
 
 ### `[ ]` **4.1 Concurrent-push reconcile (`git notes merge`)**
 
@@ -468,6 +470,10 @@ that all worktrees share.
           notes-vs-branch distinction. Notes merges auto-reconcile losslessly; the interactive recovery stays
           for the worktree/branch leg only (`runUserPush` surfaces the non-ff signal). _Notes:_ See
           `notes-worktree-foundation.md` § Phases 3 & 4.
+        - Wiring: a new notes pusher injected via the existing `pushNotes` seam (production adapter
+          `handlers/sync.ts:pairedNotesAdapter`), pure merge / validity logic in `lib/user-sync/` and IO in
+          `push-fetch.ts` — not code added to `runPairedPush` or the handler. Keeps `handlers/sync.ts` thin
+          for `sync-handler-decomposition` and the logic extractable for `user-sync-module-split`.
         - Build `test-first` (one behavior at a time):
             - second push hits non-ff → `git notes merge` reconcile, push succeeds
             - cat_sort_uniq unions both sides without loss
@@ -475,26 +481,42 @@ that all worktrees share.
             - branch/worktree-leg rejection → unchanged (still the interactive recovery path)
 
     - `[ ]` **4.1.b Non-trivial-conflict surfacing**
+        - _Note:_ cat_sort_uniq auto-resolves at the line level and exits 0 even when the result is unusable,
+          so "non-trivial" cannot key off git's conflict / exit signal — detect via a post-merge validity
+          check (each merged note still parses as one manifest). The corrupting case is two worktrees noting
+          the **same commit**: two single-line JSON manifests concatenate to invalid JSON. See
+          `notes-worktree-foundation.md` § Phases 3 & 4.
         - Build `test-first` (one behavior at a time):
-            - cat_sort_uniq union (no true conflict) → no surface
-            - notes-merge conflict / abort → surfaced to the user, push not silently dropped
+            - disjoint-commit union (worktrees on different branches) → clean merge, no surface
+            - same-commit divergent manifests → cat_sort_uniq yields an unparseable note → surfaced, push
+              not silently dropped
+            - notes-merge command failure / abort → surfaced to the user
 
 ### `[ ]` **4.2 Retired-subdir reconciliation**
 
 - _Goal:_ `arc user load` / `pull` / session-init reconcile retired-WU subdirs that linger after a WU shipped on
   another machine — local subdir present + absent from recent notes + WU shipped → offer or auto-close with a
   `.internal/` backup.
-- _Context:_ `findStaleUserWuSubdirs` (`commands/user/open.ts`) is **detection-only and has no shipped-check** —
-  it returns non-target subdir names; `removeStaleUserWuSubdir` is the separate removal primitive. 4.2 adds the
-  missing pieces: a **"WU shipped" predicate** (cross-ref `completed/` with the same match-key normalization as
-  2.7a's sweep — strip `NN_` + branch type-prefix, compare WU-name slug; **build once, share with 2.7a**), then
-  wires reconcile = shipped-predicate + `removeStaleUserWuSubdir` + `.internal/` backup.
+- _Context:_ the **"WU shipped" predicate already exists** — 2.7a shipped `readShippedWorkUnits` /
+  `isShippedWorkUnit` in `lib/work-unit/completed-index.ts`, whose module doc names retired-subdir
+  reconciliation as a consumer. 4.2 **consumes** it, doesn't build it. Reuse nuance: the branch-oriented
+  helpers (`isShippedWorkUnit` / `branchToWorkUnitSlug`, which strip a `<type>/` prefix) don't fit 4.2's input
+  — a subdir name is already a bare slug — so call `readShippedWorkUnits()` and check `shipped.has(subdirName)`
+  directly. `findStaleUserWuSubdirs` (`commands/user/open.ts`) stays detection-only; 4.2 wires reconcile =
+  shipped-check + `removeStaleUserWuSubdir` + `.internal/` backup.
+- _Forward-compat:_ pure shipped + orphan detection lives in `lib/user-sync/` (reusing `completed-index.ts`);
+  if wired into session-init as a slot (4.2.b), follow existing slot conventions (safeProbe-wrapped, envelope
+  never rejects, cheap local read like the `sweep` slot) so `in-flight-awareness`'s orchestration evolution
+  absorbs it, and keep detection (read-only, surfaced) separate from removal (offer / auto-close-with-backup).
+  See `notes-worktree-foundation.md` § Phase 4 forward-compat cross-check.
 
     - `[ ]` **4.2.a Reconciliation logic**
         - Build `test-first` (one behavior at a time):
             - present + absent-from-notes + shipped → reconcile with `.internal/` backup
             - present + still-in-notes → preserved (not retired)
             - present + not-shipped → preserved
+            - no current WU resolved (Errand / main session) → only shipped subdirs reconcile;
+              present-and-active subdirs preserved
 
     - `[ ]` **4.2.b Wire into load / pull / session-init**
 
@@ -504,11 +526,19 @@ that all worktrees share.
   grouped informational line + cleanup hint replaces N warnings (T2, P0); and a local orphan whose content
   matches a different name in the manifest surfaces as "Looks like rename X → Y" (T1, P1) — the underlying
   preserve-to-`.internal/` behavior unchanged, only surfacing changes.
+- _Forward-compat:_ compute grouping + rename at the detection site (`runUserLoad`, where `localFiles` and
+  `loadManifest.files` names + contents are both in hand) — warnings flatten to opaque strings downstream.
+  Emit a **structured classification** (rename-candidate / grouped-retirement / generic), not flat string
+  formatting, so `cross-machine-sync-coherence`'s T3 sync-state-drift tier (reads 4.4's `priorFileList`) slots
+  in without reworking T1/T2. Pure classifier in `lib/user-sync/`. See `notes-worktree-foundation.md`
+  § Phase 4 forward-compat cross-check.
 
     - `[ ]` **4.3.a T2 grouped retirement messaging**
         - Build `test-first` (one behavior at a time):
             - cluster under a prefix absent from manifest → one line + cleanup hint (not N warnings)
             - mixed orphans → fall back to per-item warnings
+            - cross-WU-only load (no current WU) → present per-WU subdirs not flagged as orphans (live
+              other-WU context, absent from the cross-WU manifest by design)
 
     - `[ ]` **4.3.b T1 content-equivalence rename detection** (P1)
         - Build `test-first` (one behavior at a time):
@@ -517,30 +547,42 @@ that all worktrees share.
 
 ### `[ ]` **4.4 Coherence-WU schema seam (`.sync-state.json`)**
 
-- _Goal:_ the `.sync-state.json` schema is versioned and worktree-aware so the downstream
-  `cross-machine-sync-coherence` WU's remote partial-push marker and T3 drift layer land without a rewrite —
-  leaving the seam, not building the marker.
-- _Shape:_ (i) bump the schema `version` (currently `3` → `4`); (ii) keep the shape worktree-aware — no single
-  (main-worktree) HEAD assumption, since concurrent worktrees are now real and partial-push state is
-  per-worktree; (iii) reserve extension points for a `priorFileList` (T3's drift signal) and remote-marker
-  provenance, implementing neither.
-- _Forward-compat (cross-ref confirmed):_ `version: 4` is the **stable** contract — `cross-machine-sync-coherence`
-  must be able to _populate_ the reserved `priorFileList` (its T3 drift signal) and remote-marker provenance
+- _Goal:_ the `.sync-state.json` schema is extracted to `lib/user-sync/sync-state.ts`, versioned, and
+  worktree-aware so the downstream `cross-machine-sync-coherence` WU's remote partial-push marker and T3 drift
+  layer land without a rewrite — leaving the seam, not building the marker.
+- _Shape:_ (i) extract `LocalSyncState` + its read / write / marker helpers from `save-load.ts` to
+  `lib/user-sync/sync-state.ts` (the I/O-boundary home CSA's zod schema and CSC's remote marker land on); (ii)
+  bump the schema `version` (`3` → `4`); (iii) keep the shape worktree-aware — no single (main-worktree) HEAD
+  assumption; (iv) reserve extension points for a `priorFileList` (T3's drift signal) and remote-marker
+  provenance — the provenance reservation shaped to carry **per-worktree** state (pluralizable), so CSC's
+  remote marker spans worktrees without a further bump — implementing neither.
+- _Forward-compat (cross-ref confirmed):_ `version: 4` is the **stable** contract —
+  `cross-machine-sync-coherence` must _populate_ the reserved `priorFileList` and remote-marker provenance
   **without a further version bump**, so v4 readers tolerate **and preserve** populated reserved fields
-  (4.4.a's round-trip). The worktree-scoped shape (no single-HEAD field) is load-bearing for that WU's
-  per-worktree partial-push state, not decoration.
-- _Note:_ `partialPush` is a live single-ref field with writers (`recordPartialPushMarker`, `runPairedPush`) —
-  reshape them in lockstep; the reader's `2 || 3` back-compat ladder extends to `4`. _Notes:_ See
-  `notes-worktree-foundation.md` § Phases 3 & 4.
+  (4.4.b's round-trip). This is **not** free today: `readLocalSyncState` reconstructs from known fields only
+  (drops unknowns) and the writers rebuild from scratch — both must carry reserved fields forward. Keep the
+  validation parser-shaped (`LocalSyncState | null`, no throw) so CSA's later zod swap is mechanical.
+- _Note:_ this is `LocalSyncState.version` (2/3), **distinct** from the note manifest's own `version` (1/2,
+  gated in `parseResolvedNoteManifest`); 4.4 touches only the former. `partialPush` is a live single-ref field
+  with writers (`recordPartialPushMarker`, `runPairedPush`) — reshape in lockstep; the reader's `2 || 3`
+  back-compat ladder extends to `4`. The local `.sync-state.json` is already per-worktree (a per-working-tree
+  file). _Notes:_ See `notes-worktree-foundation.md` § Phases 3 & 4 and § Phase 4 forward-compat cross-check.
 - **Strategies:** `strategy-storage-evolution.md`
 
-    - `[ ]` **4.4.a Schema `version` bump + worktree-aware shape**
+    - `[ ]` **4.4.a Extract sync-state schema to `lib/user-sync/sync-state.ts`**
+        - Move `LocalSyncState` + `readLocalSyncState` / `writeLocalSyncState` / `recordPartialPushMarker` /
+          `clearPartialPushMarker` out of `save-load.ts`; behavior-preserving, exports stable. Lands the
+          I/O-boundary home before the schema changes build on it.
+
+    - `[ ]` **4.4.b Schema `version` bump + worktree-aware shape + reserved-field round-trip**
         - Build `test-first` (one behavior at a time):
             - new `version` written; prior v2 / v3 records read back-compat (incl. the old single-`partialPush`)
             - shape carries per-worktree partial-push state (no single-HEAD assumption)
-            - reserved fields absent → tolerated; present → preserved round-trip
+            - reserved fields absent → tolerated; present → preserved round-trip (read + write carry unknowns
+              forward)
+            - remote-marker-provenance reservation is per-worktree-pluralizable (not a scalar)
 
-    - `[ ]` **4.4.b Record the partial-push-surface widening**
+    - `[ ]` **4.4.c Record the partial-push-surface widening**
         - _Note:_ document (in `notes-{name}.md`) that concurrent-worktree notes-push _widens_ the partial-push
           surface — the downstream WU is genuinely necessary, not merely inherited.
 

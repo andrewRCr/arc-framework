@@ -208,11 +208,15 @@ flat at `user/{identity}/**`; `user/{identity}/.internal/**` never synced).
 - **R21 [P0]** — **Retired-subdir reconciliation.** `arc user load` / `pull` / session-init reconciles
   retired-WU subdirs that linger after a WU shipped on another machine: local subdir present + absent from
   recent notes + WU shipped → offer or auto-close with `.internal/` backup (or a session-init stale-subdir
-  sweep).
+  sweep). The shipped gate is load-bearing: a session with **no current WU** (an Errand on a cheap branch
+  off `main`, a main-on-main launchpad session) resolves every in-flight subdir as "not the current WU," so
+  reconciliation acts only on *shipped* subdirs and never touches present-and-active ones.
 - **R22 [P0]** — **Orphan-warning T2 (subdir-grouped retirement messaging).** When orphans cluster under a
   path prefix entirely absent from the incoming manifest (the routine post-integration case), replace N
   warnings with one informational line plus a cleanup hint. The underlying preserve-to-`.internal/` behavior
-  is unchanged — only surfacing changes.
+  is unchanged — only surfacing changes. A **cross-WU-only load** (no current WU resolved) is not retirement:
+  other WUs' per-WU subdirs are absent from the cross-WU manifest by design, so they are excluded from orphan
+  surfacing rather than reported as retired.
 - **R23 [P1]** — **Orphan-warning T1 (content-equivalence rename detection).** When a local orphan's content
   matches a different name in the incoming manifest, surface as "Looks like rename X → Y" rather than generic
   "not in saved manifest."
@@ -222,9 +226,14 @@ flat at `user/{identity}/**`; `user/{identity}/.internal/**` never synced).
   marker**: (i) **bump** the `.sync-state.json` schema `version` field (the existing field, `3` → `4`); (ii) keep its shape
   **worktree-aware** — do not bake in a single (main-worktree) HEAD assumption, since Foundation makes
   concurrent worktrees real and partial-push state is per-worktree; (iii) reserve extension points for a
-  `priorFileList` (T3's drift signal, routed downstream) and remote-marker provenance, without implementing
-  either. Record that concurrent-worktree notes-push *widens* the partial-push surface — so the downstream WU
-  is genuinely necessary, not merely inherited. **Sequencing:** `cross-machine-sync-coherence` is planned
+  `priorFileList` (T3's drift signal, routed downstream) and remote-marker provenance — the provenance
+  reservation shaped to carry **per-worktree** state (pluralizable), so the downstream remote marker can
+  represent multiple worktrees without a further version bump — without implementing either. The schema
+  (`LocalSyncState` plus its read / write) moves to `lib/user-sync/sync-state.ts`: the single I/O-boundary
+  home the downstream remote marker and `cli-substrate-adoption`'s zod schema land on. The T1/T2 orphan
+  surfacing (R22/R23) is structured so T3 (sync-state-aware drift) layers on without reworking it. Record
+  that concurrent-worktree notes-push *widens* the partial-push surface — so the downstream WU is genuinely
+  necessary, not merely inherited. **Sequencing:** `cross-machine-sync-coherence` is planned
   after Foundation and therefore designs-for-worktrees from the start; its draft predates WOR R65 and this WU
   and gets a worktree-aware refresh at its own promotion. Foundation is not blocked on it.
 
@@ -436,9 +445,12 @@ Settled during planning; final implementation details ratified when the relevant
   blocker.
 - **Cross-WU sync code layout + load model (Item D — ratified at Phase 3 kickoff, cross-checked against the
   downstream drafts).** New sync code lands in `lib/user-sync/*` (`classifier`, `notes-ref`, `parser`,
-  `merge`, `types`), not inlined into `save-load.ts` — preempting `user-sync-module-split`'s consolidation and
-  giving `cli-substrate-adoption` a clean schema co-location; parsers/readers return discriminated outcomes
-  (no throw on expected failure) so the zod / `Result` migration is a later wrap, not a rewrite. Load is a
+  `merge`, `types`, and — added in Phase 4 — `sync-state` for the `.sync-state.json` schema, plus the
+  notes-merge reconcile and orphan-classification pure logic), not inlined into `save-load.ts` or
+  `handlers/sync.ts` — preempting `user-sync-module-split`'s consolidation, keeping `handlers/sync.ts` thin
+  for `sync-handler-decomposition`, and giving `cli-substrate-adoption` a clean schema co-location;
+  parsers/readers return discriminated outcomes (no throw on expected failure) so the zod / `Result`
+  migration is a later wrap, not a rewrite. Load is a
   **two-read model** — per-WU files from the one note containing the current WU's subdir, cross-WU files
   merged across the N most-recent ref-wide notes — both encapsulated inside `runUserLoad` / `arc user pull`.
   **No-resolvable-WU → per-WU no-op:** fresh spawn, load on `main`, and `errand-enablement` sessions on non-WU
