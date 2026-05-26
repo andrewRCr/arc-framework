@@ -369,20 +369,13 @@ is optional throughout.
   single resolved note here — 3.3 moves it to the N-note merge — so a brand-new WU whose own note doesn't exist
   yet loads nothing until then.
 
-### `[ ]` **3.3 Cross-WU file merge (per-file entry list-union)**
+### `[x]` **3.3 Cross-WU file merge (per-file entry list-union)**
 
 - _Goal:_ cross-WU files merge across the N most-recent ref-wide notes via value-level list-union of their
   entries, deduped by entry identity — so entries created in parallel worktrees converge instead of clobbering.
   The merge is **shape-keyed by filename**; an unknown-shape cross-WU flat file (no registered parser) falls
   back to **whole-file most-recent-note-wins** (same recency ordering) — the class stays path-only (3.1), the
   merge strategy is per-file.
-- _Note:_ the two files have different entry shapes. `WORKING-MEMORY` entries = bold-field header (`**...:**`) +
-  `_Remove when:_` + body under `## Memories`; `USER-INBOX` entries = list items (`- **lead-in** — text`)
-  within `## Atomic` / `## Backlog` H2 sections. Merge-key per file (WORKING-MEMORY → bold-field header;
-  USER-INBOX → list-item lead-in, section-scoped). Same entry-identity with a divergent body →
-  most-recent-note wins (recency-ordered), consistent with 3.4's tombstone recency; the older body survives in
-  its note history. Keep the merge modular (`lib/user-sync/` home) for the `user-sync-module-split` extraction.
-  _Notes:_ See `notes-worktree-foundation.md` § Phases 3 & 4.
 
     - `[x]` **3.3.a Per-file entry parser + list-union / dedupe** (`lib/user-sync/parser.ts`, `…/merge.ts`)
         - New `lib/user-sync/{types,parser,merge}.ts`, barrel-exported. `parseCrossWuEntries(content, shape)`
@@ -404,13 +397,21 @@ is optional throughout.
           `save-load.ts`, which now imports them and threads `io.exec`; `findNearestUserNote` behavior is
           unchanged (its tests stay green). Recency order is a sequence, not a set, so the merge can resolve a
           divergent entry to the most-recent note within the window.
-    - `[ ]` **3.3.c Wire merge into load**
-        - Swap cross-WU flat sourcing from 3.2.b's single resolved note to the N-note merge; both reads stay
-          **encapsulated inside `runUserLoad` / `arc user pull`** so callers (session-init, `materialize`) see
-          one call.
-        - Build `test-first` (one behavior at a time):
-            - end-to-end load: per-WU subdir from the resolved note + cross-WU flat from the N-note merge
-            - cross-WU entry present in an older note only → still present after load (merge, not single-note)
+    - `[x]` **3.3.c Wire merge into load**
+        - `runUserLoad` now reads the recent-note window (`readRecentUserNotes`) and merges each cross-WU flat
+          file via `mergeCrossWuFromNotes` → `mergeCrossWuFile`, while per-WU subdir files keep coming from the
+          single resolved note; both reads stay inside `runUserLoad` so callers see one call. Note parse +
+          version validation moved into `parseResolvedNoteManifest`, and the load anchors on a `sourceCommit`
+          that falls back to the most-recent note's commit when no per-WU note resolves, so a brand-new WU still
+          materializes cross-WU context. Malformed-entry reasons ride out on the load result.
+
+- _Outcome:_ cross-WU flat files converge across the recent-note window inside `runUserLoad` / `arc user pull`
+  (callers see one call), while per-WU subdir restore stays on the single resolved note. The two are now
+  decoupled: a brand-new WU with no note of its own still loads shared cross-WU context (the gap 3.2 flagged),
+  and load no-ops only when neither a resolved note nor any recent note exists. Running the merge against real
+  seeded templates exposed — and this task fixed — two parser gaps: HTML-comment stripping (commented shape
+  examples aren't entries) and accepting `*` or `_` italic removal triggers, so a clean install loads without
+  spurious malformed warnings.
 
 ### `[ ]` **3.4 Tombstones for cross-WU deletions**
 

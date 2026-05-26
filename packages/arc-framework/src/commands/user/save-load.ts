@@ -5,12 +5,19 @@ import { createHash } from "node:crypto";
 import { atomicWriteJson } from "../../lib/fs.js";
 import { deserialize, isSafeManifestPath, serialize, shortHash, type SyncManifest } from "../../lib/git/index.js";
 import { ensureDir } from "../../lib/template/index.js";
-import { classifyUserSyncPath, wuNameOfPath } from "../../lib/user-sync/index.js";
+import {
+  classifyUserSyncPath,
+  mergeCrossWuFile,
+  wuNameOfPath,
+  type MergeNote,
+} from "../../lib/user-sync/index.js";
 import {
   listChangedNotePaths,
   notePathToCommit,
   readNoteContentAtHistoryCommit,
   readNotesRefHistory,
+  readRecentUserNotes,
+  type RecentNote,
 } from "../../lib/user-sync/notes-ref.js";
 import { notesRef } from "./shared.js";
 import {
@@ -106,7 +113,13 @@ export async function runUserLoad(
   const { cwd, io, identity } = options;
   const userDir = join(cwd, ".arc", "user", identity);
   const search = await findNearestUserNote(options);
-  if (!search.note) {
+  const recentNotes = await readRecentUserNotes(io.exec, identity);
+
+  // Per-WU subdir restores from the note carrying the current WU; cross-WU flat
+  // files merge across the recent-note window, so a brand-new WU still loads
+  // shared context before its own note exists. There is nothing to load only
+  // when both sources are empty.
+  if (!search.note && recentNotes.length === 0) {
     if (search.capped) {
       return {
         kind: "walk-exhausted",
@@ -116,34 +129,24 @@ export async function runUserLoad(
     }
     return null;
   }
-  const { content: noteContent, commit: foundCommit, fromAncestor } = search.note;
 
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(noteContent) as unknown;
-  } catch {
-    throw new Error(
-      `Corrupt git note on ${await shortHash(io.exec, foundCommit)} — JSON parse failed. ` +
-      "The note may have been manually edited or partially written. " +
-      "Try a different ancestor with `arc user load`, or `arc user save` to overwrite.",
-    );
+  let version: SyncManifest["version"] = 2;
+  let sourceCommit = recentNotes[0]?.historyCommit ?? "";
+  let fromAncestor = false;
+  const perWuFiles: Record<string, string> = {};
+
+  if (search.note) {
+    const manifest = await parseResolvedNoteManifest(search.note.content, search.note.commit, io);
+    version = manifest.version;
+    sourceCommit = search.note.commit;
+    fromAncestor = search.note.fromAncestor;
+    for (const [path, content] of Object.entries(filterManifestForWu(manifest, options.currentWuName).files)) {
+      if (classifyUserSyncPath(path) !== "cross-wu") perWuFiles[path] = content;
+    }
   }
 
-  const raw = parsed as Record<string, unknown>;
-  if (
-    (raw.version !== 1 && raw.version !== 2) ||
-    typeof raw.files !== "object" ||
-    raw.files === null
-  ) {
-    throw new Error(
-      `Unsupported note format on ${await shortHash(io.exec, foundCommit)} ` +
-      `(version ${JSON.stringify(raw.version ?? "unknown")}). ` +
-      "This note may have been created by a newer version of ARC. " +
-      "Update the CLI and try again, or `arc user save` to overwrite.",
-    );
-  }
-  const manifest = parsed as SyncManifest;
-  const loadManifest = filterManifestForWu(manifest, options.currentWuName);
+  const { files: crossWuFiles, warnings: mergeWarnings } = mergeCrossWuFromNotes(recentNotes);
+  const loadManifest: SyncManifest = { version, files: { ...perWuFiles, ...crossWuFiles } };
 
   let staleWarnings: string[] = [];
   try {
@@ -171,20 +174,93 @@ export async function runUserLoad(
 
   await ensureDir(userDir, io.mkdir);
   await deserialize(userDir, loadManifest, io.writeFile, io.mkdir);
-  await verifyMaterializedUserDir(userDir, io, foundCommit, loadManifest);
-  await writeLocalSyncState(cwd, io, identity, loadManifest, foundCommit, "load", foundCommit);
+  await verifyMaterializedUserDir(userDir, io, sourceCommit, loadManifest);
+  await writeLocalSyncState(cwd, io, identity, loadManifest, sourceCommit, "load", sourceCommit);
 
   return {
     kind: "loaded",
     identity,
-    commit: await shortHash(io.exec, foundCommit),
+    commit: await shortHash(io.exec, sourceCommit),
     fileCount: Object.keys(loadManifest.files).length,
     fromAncestor,
-    ancestorDistance: search.note.ancestorDistance,
-    noteHistoryDistance: search.note.noteHistoryDistance,
-    reachableFromHead: search.note.reachableFromHead,
-    warnings: staleWarnings,
+    ancestorDistance: search.note?.ancestorDistance ?? 0,
+    noteHistoryDistance: search.note?.noteHistoryDistance ?? 0,
+    reachableFromHead: search.note?.reachableFromHead ?? false,
+    warnings: [...staleWarnings, ...mergeWarnings],
   };
+}
+
+/**
+ * Parse and validate a resolved note's serialized manifest, throwing a
+ * diagnostic on corrupt JSON or an unsupported version.
+ */
+async function parseResolvedNoteManifest(
+  noteContent: string,
+  commit: string,
+  io: UserIOContext,
+): Promise<SyncManifest> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(noteContent) as unknown;
+  } catch {
+    throw new Error(
+      `Corrupt git note on ${await shortHash(io.exec, commit)} — JSON parse failed. ` +
+      "The note may have been manually edited or partially written. " +
+      "Try a different ancestor with `arc user load`, or `arc user save` to overwrite.",
+    );
+  }
+
+  const raw = parsed as Record<string, unknown>;
+  if (
+    (raw.version !== 1 && raw.version !== 2) ||
+    typeof raw.files !== "object" ||
+    raw.files === null
+  ) {
+    throw new Error(
+      `Unsupported note format on ${await shortHash(io.exec, commit)} ` +
+      `(version ${JSON.stringify(raw.version ?? "unknown")}). ` +
+      "This note may have been created by a newer version of ARC. " +
+      "Update the CLI and try again, or `arc user save` to overwrite.",
+    );
+  }
+  return parsed as SyncManifest;
+}
+
+/**
+ * Merge cross-WU flat files across the recent-note window. Each cross-WU file
+ * present in any note is merged from its content in every note that carries it
+ * (recency order preserved), so entries authored in parallel worktrees survive
+ * rather than being clobbered by the most-recent note.
+ */
+function mergeCrossWuFromNotes(
+  recentNotes: readonly RecentNote[],
+): { files: Record<string, string>; warnings: string[] } {
+  const perNoteFiles = recentNotes.map((note) => parseManifestFiles(note.content) ?? {});
+
+  const crossWuNames: string[] = [];
+  const seen = new Set<string>();
+  for (const noteFiles of perNoteFiles) {
+    for (const path of Object.keys(noteFiles)) {
+      if (!seen.has(path) && classifyUserSyncPath(path) === "cross-wu") {
+        seen.add(path);
+        crossWuNames.push(path);
+      }
+    }
+  }
+
+  const files: Record<string, string> = {};
+  const warnings: string[] = [];
+  for (const name of crossWuNames) {
+    const notesForFile: MergeNote[] = [];
+    for (const noteFiles of perNoteFiles) {
+      const content = noteFiles[name];
+      if (typeof content === "string") notesForFile.push({ content });
+    }
+    const merged = mergeCrossWuFile(name, notesForFile);
+    files[name] = merged.content;
+    warnings.push(...merged.malformed);
+  }
+  return { files, warnings };
 }
 
 async function verifyMaterializedUserDir(

@@ -17,10 +17,12 @@ import type { CrossWuShape, EntryParse } from "./types.js";
 
 /** Bold-field header line: starts with `**`, ends with `:**`. */
 const WM_HEADER = /^\*\*.+:\*\*\s*$/;
-/** The required removal-trigger line within a WORKING-MEMORY entry. */
-const WM_REMOVE_WHEN = /^_Remove when:/;
+/** The required removal-trigger line within a WORKING-MEMORY entry (italic via `_` or `*`). */
+const WM_REMOVE_WHEN = /^[_*]Remove when:/;
 /** A top-level USER-INBOX list item with a bold lead-in. */
 const UI_LEAD_IN = /^-\s+\*\*(.+?)\*\*/;
+/** HTML comment block — guidance and shape examples that are not entries. */
+const HTML_COMMENT = /<!--[\s\S]*?-->/g;
 
 /** Resolve a filename to its registered parser shape, or `null` when unknown. */
 export function shapeForFile(filename: string): CrossWuShape | null {
@@ -38,7 +40,11 @@ export function shapeForFile(filename: string): CrossWuShape | null {
  * @returns One outcome per detected entry block, in document order.
  */
 export function parseCrossWuEntries(content: string, shape: CrossWuShape): EntryParse[] {
-  return shape === "working-memory" ? parseWorkingMemory(content) : parseUserInbox(content);
+  // Drop HTML comments first: templates carry commented-out shape examples
+  // (an entry header without a real trigger) that would otherwise parse as
+  // malformed entries.
+  const body = content.replace(HTML_COMMENT, "");
+  return shape === "working-memory" ? parseWorkingMemory(body) : parseUserInbox(body);
 }
 
 /**

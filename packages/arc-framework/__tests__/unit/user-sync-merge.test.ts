@@ -98,6 +98,42 @@ Body with no remove-when line.
     expect(first?.ok).toBe(false);
     if (first && !first.ok) expect(first.reason).toContain("Remove when");
   });
+
+  it("ignores commented-out shape examples", () => {
+    const withComment = `## Memories
+
+<!--
+Entry shape:
+
+**Short header naming the constraint or tradeoff:**
+*Remove when: [explicit trigger condition].*
+-->
+
+**Real constraint:**
+_Remove when: the work lands._
+
+Body.
+`;
+    const parsed = parseCrossWuEntries(withComment, "working-memory");
+    const ok = parsed.flatMap((p) => (p.ok ? [p.entry.key] : []));
+
+    expect(parsed.filter((p) => !p.ok)).toHaveLength(0);
+    expect(ok).toEqual(["**Real constraint:**"]);
+  });
+
+  it("accepts an italic-asterisk removal trigger", () => {
+    const asterisk = `## Memories
+
+**Constraint:**
+*Remove when: the work lands.*
+
+Body.
+`;
+    const parsed = parseCrossWuEntries(asterisk, "working-memory");
+
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0]?.ok).toBe(true);
+  });
 });
 
 describe("parseCrossWuEntries — USER-INBOX", () => {

@@ -715,6 +715,54 @@ describe("user save/load — subdirectory support", () => {
     expect(await readFile(join(userDir, "WORKING-MEMORY.md"), "utf-8")).toBe("# Memory");
     await expect(readFile(join(userDir, "feature-y", "SESSION-NOTES.md"), "utf-8")).rejects.toThrow();
   });
+
+  it("merges a cross-WU entry from an older note while restoring the current WU's subdir", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    // Older note (a different worktree's save): WORKING-MEMORY carries entry A.
+    await rm(userDir, { recursive: true, force: true });
+    await mkdir(join(userDir, "feature-old"), { recursive: true });
+    await writeFile(
+      join(userDir, "WORKING-MEMORY.md"),
+      "## Memories\n\n**Entry A:**\n_Remove when: a lands._\n\nFrom the older worktree.\n",
+      "utf-8",
+    );
+    await writeFile(join(userDir, "feature-old", "SESSION-NOTES.md"), "# old", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    // Advance HEAD so the next save lands on a distinct note rather than
+    // overwriting the first.
+    await makeCommit(tempDir, "second commit");
+
+    // Recent note (the current WU): WORKING-MEMORY replaced with entry B only.
+    await rm(userDir, { recursive: true, force: true });
+    await mkdir(join(userDir, "feature-current"), { recursive: true });
+    await writeFile(
+      join(userDir, "WORKING-MEMORY.md"),
+      "## Memories\n\n**Entry B:**\n_Remove when: b lands._\n\nFrom the current worktree.\n",
+      "utf-8",
+    );
+    await writeFile(join(userDir, "feature-current", "SESSION-NOTES.md"), "# current", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    // Load scoped to the current WU.
+    await rm(userDir, { recursive: true, force: true });
+    const loadResult = await runUserLoad({
+      cwd: tempDir, io, identity: "test-user", currentWuName: "feature-current",
+    });
+    expectLoaded(loadResult);
+
+    // Per-WU subdir restores from the resolved (recent) note only.
+    expect(await readFile(join(userDir, "feature-current", "SESSION-NOTES.md"), "utf-8")).toBe("# current");
+    await expect(readFile(join(userDir, "feature-old", "SESSION-NOTES.md"), "utf-8")).rejects.toThrow();
+
+    // Cross-WU flat merges across the window: entry B from the recent note and
+    // entry A merged in from the older note both survive.
+    const workingMemory = await readFile(join(userDir, "WORKING-MEMORY.md"), "utf-8");
+    expect(workingMemory).toContain("**Entry B:**");
+    expect(workingMemory).toContain("**Entry A:**");
+  });
 });
 
 describe("user add", () => {
