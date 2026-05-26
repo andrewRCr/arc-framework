@@ -17,8 +17,8 @@
 - **Next Task:** Task 4.1 — Concurrent-push reconcile (`git notes merge`) (line ~454)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 4.1 (`paired-push.ts` / `push-fetch.ts`) — at the notes-push leg of
-  `runPairedPush`, reconcile a non-fast-forward via fetch + `git notes merge` (cat_sort_uniq), surfacing only
-  non-trivial conflicts. Test-first per `3_process-task-loop.md`; Phase 4 design settled (see Phase 4 preamble).
+- **Next Action:** Run `/arc-task-audit Phase 4` first (pre-implementation pass, deferred from prior session),
+  then begin Task 4.1 (`paired-push.ts` / `push-fetch.ts`) — at the notes-push leg of `runPairedPush`, reconcile a
+  non-fast-forward via fetch + `git notes merge` (cat_sort_uniq); surface only non-trivial conflicts. Phase 4 design settled.
 
 ---
