@@ -11,14 +11,15 @@
 - **Cohort:** agile-parallelism
 
 - **Task List:** tasks-worktree-foundation.md
-- **Last Completed:** Task 2.7 — Stale-worktree sweep at main-worktree session-init (marker-gated surfacing;
-  shipped-WU predicate `lib/work-unit/completed-index.ts` shared with Task 4.2; roster gate widened to fire in
-  the primary worktree; documented in both session-init workflow copies). Phase 2 complete.
-- **Next Task:** Task 3.1 — Path-driven sync-class dispatch (line ~323)
+- **Last Completed:** Task 3.2 — Per-WU subdir load: note resolution + materialization scoped to the current WU
+  (3.1's path classifier consumed via `wuNameOfPath`; WU-name derived at the handlers, threaded through
+  load/pull/sync). Task 3.1 (path-driven sync-class classifier) also shipped this session.
+- **Next Task:** Task 3.3 — Cross-WU file merge (per-file entry list-union) (line ~372)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 3.1 (`lib/user-sync/classifier.ts`, pure path→sync-class classifier, test-first)
-  per `3_process-task-loop.md`. Phase 3 design refined this session (`b638826e`) — follow the task text, no
-  re-audit. Classifier is the load-side SSOT (save stays class-agnostic); context in SESSION-NOTES.
+- **Next Action:** Begin Task 3.3 (`lib/user-sync/parser.ts`, `…/merge.ts`, `…/notes-ref.ts`) — per-file entry
+  list-union across the N most-recent notes, deduped by entry identity; per `3_process-task-loop.md`. Phase 3
+  design is settled (`b638826e`) — follow the task text, no re-audit. Cross-WU load currently rides the single
+  resolved note (3.2); 3.3 swaps it to the ref-wide N-note merge.
 
 ---
