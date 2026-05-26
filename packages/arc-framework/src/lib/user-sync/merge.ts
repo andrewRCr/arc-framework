@@ -15,9 +15,14 @@
 import { parseCrossWuEntries, shapeForFile } from "./parser.js";
 import type { CrossWuEntry, CrossWuShape } from "./types.js";
 
+/** Section-scoped identity key shared by entries and tombstones. */
+function idOf(section: string, key: string): string {
+  return JSON.stringify([section, key]);
+}
+
 /** Identity of an entry for union/dedupe — section-scoped key. */
 function identityOf(entry: CrossWuEntry): string {
-  return JSON.stringify([entry.section, entry.key]);
+  return idOf(entry.section, entry.key);
 }
 
 /**
@@ -63,17 +68,29 @@ export interface MergeResult {
  * unknown-shape file (no registered parser) falls back to whole-file
  * most-recent-wins.
  *
+ * Deletion tombstones (`## Removed:` markers) are honored: for each identity,
+ * the most-recent note that mentions it as an entry or a live tombstone decides
+ * its fate — a winning tombstone suppresses the entry and is carried forward;
+ * a more-recent re-add wins over an earlier tombstone. Tombstones past their TTL
+ * are dropped (filter-at-merge GC) and stop suppressing.
+ *
  * @param filename - Manifest-relative or bare filename; the basename selects the parser.
  * @param notes - Per-note copies of the file, recency-ordered (most-recent first).
- * @returns Merged content plus any malformed-entry reasons encountered.
+ * @param now - ISO-8601 reference time for tombstone TTL evaluation.
+ * @returns Merged content plus any malformed-entry / malformed-tombstone reasons.
  */
-export function mergeCrossWuFile(filename: string, notes: readonly MergeNote[]): MergeResult {
+export function mergeCrossWuFile(
+  filename: string,
+  notes: readonly MergeNote[],
+  now: string = new Date().toISOString(),
+): MergeResult {
   const base = notes[0]?.content ?? "";
   const shape = shapeForFile(filename);
   if (shape === null) return { content: base, malformed: [] };
 
   const malformed: string[] = [];
   const perNoteEntries: CrossWuEntry[][] = [];
+  const perNoteTombstones: Tombstone[][] = [];
   for (const note of notes) {
     const entries: CrossWuEntry[] = [];
     for (const parse of parseCrossWuEntries(note.content, shape)) {
@@ -81,13 +98,51 @@ export function mergeCrossWuFile(filename: string, notes: readonly MergeNote[]):
       else malformed.push(parse.reason);
     }
     perNoteEntries.push(entries);
+
+    const tombstones: Tombstone[] = [];
+    for (const parse of parseTombstones(note.content)) {
+      if (!parse.ok) malformed.push(parse.reason);
+      else if (isLiveTombstone(parse.tombstone, now)) tombstones.push(parse.tombstone);
+    }
+    perNoteTombstones.push(tombstones);
+  }
+
+  // Resolve each identity by recency: the most-recent note that mentions it
+  // (entry or live tombstone) decides. Entries take precedence within one note.
+  const decided = new Map<string, "entry" | Tombstone>();
+  for (let i = 0; i < notes.length; i++) {
+    for (const entry of perNoteEntries[i] ?? []) {
+      const id = identityOf(entry);
+      if (!decided.has(id)) decided.set(id, "entry");
+    }
+    for (const tombstone of perNoteTombstones[i] ?? []) {
+      const id = idOf(tombstone.section, tombstone.key);
+      if (!decided.has(id)) decided.set(id, tombstone);
+    }
+  }
+
+  const suppressed = new Set<string>();
+  const winningTombstones: Tombstone[] = [];
+  for (const [id, decision] of decided) {
+    if (decision !== "entry") {
+      suppressed.add(id);
+      winningTombstones.push(decision);
+    }
   }
 
   const merged = mergeEntries(perNoteEntries);
   const baseKeys = new Set((perNoteEntries[0] ?? []).map(identityOf));
-  const olderOnly = merged.filter((entry) => !baseKeys.has(identityOf(entry)));
+  const olderOnly = merged.filter(
+    (entry) => !baseKeys.has(identityOf(entry)) && !suppressed.has(identityOf(entry)),
+  );
 
-  return { content: appendEntriesToSections(base, olderOnly), malformed: dedupe(malformed) };
+  let content = appendEntriesToSections(stripTombstoneSections(base), olderOnly);
+  if (winningTombstones.length > 0) {
+    const block = winningTombstones.map(renderTombstone).join("\n\n");
+    content = `${content.replace(/\n+$/u, "")}\n\n${block}\n`;
+  }
+
+  return { content, malformed: dedupe(malformed) };
 }
 
 /** Append older-only entries to the end of their owning section in `base`. */
@@ -217,4 +272,101 @@ export function appendRemovalTombstones(
 
   const block = tombstones.map(renderTombstone).join("\n\n");
   return `${currentContent.replace(/\n+$/u, "")}\n\n${block}\n`;
+}
+
+/**
+ * Generous fixed TTL after which a tombstone stops propagating and drops at
+ * merge time. The contract is the mechanism (time-based, filter-at-merge), not
+ * the constant — the failure mode past the window is re-deleting a note, not
+ * data loss.
+ */
+const TOMBSTONE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+
+/** Heading of a deletion tombstone — `## Removed: {key}`. */
+const TOMBSTONE_HEADING = /^## Removed:\s*(.+?)\s*$/;
+/** Body line carrying the removed entry's section. */
+const TOMBSTONE_SECTION = /^-\s*_Section:_\s*(.+?)\s*$/;
+/** Body line carrying the removal timestamp (the TTL anchor). */
+const TOMBSTONE_REMOVED = /^-\s*_Removed:_\s*(.+?)\s*$/;
+
+/** Discriminated parse outcome for a tombstone marker — mirrors entry parsing. */
+type TombstoneParse =
+  | { ok: true; tombstone: Tombstone }
+  | { ok: false; reason: string };
+
+/** Whether a tombstone is still within its TTL relative to `now`. */
+function isLiveTombstone(tombstone: Tombstone, now: string): boolean {
+  return Date.parse(now) - Date.parse(tombstone.removedAt) < TOMBSTONE_TTL_MS;
+}
+
+/** First capture group of the first line matching `re`, or `null`. */
+function matchFirst(lines: readonly string[], re: RegExp): string | null {
+  for (const line of lines) {
+    const match = line.match(re);
+    if (match) return (match[1] ?? "").trim();
+  }
+  return null;
+}
+
+/**
+ * Parse `## Removed:` markers from a file's content into discriminated outcomes.
+ *
+ * A marker is a `## Removed: {key}` heading followed by `- _Section:_` and
+ * `- _Removed:_` body lines, ending at the next top-level boundary (`## ` or
+ * `---`). A heading missing either field, or carrying an unparseable timestamp,
+ * surfaces as `{ ok: false, reason }` rather than being dropped.
+ */
+function parseTombstones(content: string): TombstoneParse[] {
+  const out: TombstoneParse[] = [];
+  let key: string | null = null;
+  let body: string[] = [];
+
+  const flush = (): void => {
+    if (key === null) return;
+    const section = matchFirst(body, TOMBSTONE_SECTION);
+    const removedAt = matchFirst(body, TOMBSTONE_REMOVED);
+    if (section !== null && removedAt !== null && !Number.isNaN(Date.parse(removedAt))) {
+      out.push({ ok: true, tombstone: { section, key, removedAt } });
+    } else {
+      out.push({ ok: false, reason: `\`## Removed:\` marker missing section or timestamp: ${key}` });
+    }
+    key = null;
+    body = [];
+  };
+
+  for (const line of content.split("\n")) {
+    const heading = line.match(TOMBSTONE_HEADING);
+    if (heading) {
+      flush();
+      key = (heading[1] ?? "").trim();
+    } else if (key !== null) {
+      const trimmed = line.trimEnd();
+      if (trimmed.startsWith("## ") || trimmed === "---") flush();
+      else body.push(line);
+    }
+  }
+  flush();
+  return out;
+}
+
+/**
+ * Strip every `## Removed:` section from `content` (heading through the line
+ * before the next top-level boundary). A no-op when no marker is present, so
+ * tombstone-free content round-trips byte-for-byte.
+ */
+function stripTombstoneSections(content: string): string {
+  if (!/^## Removed:/mu.test(content)) return content;
+
+  const out: string[] = [];
+  let skipping = false;
+  for (const line of content.split("\n")) {
+    if (TOMBSTONE_HEADING.test(line)) {
+      skipping = true;
+      continue;
+    }
+    const trimmed = line.trimEnd();
+    if (skipping && (trimmed.startsWith("## ") || trimmed === "---")) skipping = false;
+    if (!skipping) out.push(line);
+  }
+  return out.join("\n").replace(/\n{3,}/gu, "\n\n").replace(/\n+$/u, "\n");
 }

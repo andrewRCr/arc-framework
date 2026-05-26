@@ -322,3 +322,56 @@ describe("appendRemovalTombstones", () => {
     expect(result).toBe(current);
   });
 });
+
+describe("mergeCrossWuFile — tombstones", () => {
+  const NOW = "2026-05-25T12:00:00.000Z";
+  /** N days before NOW, as an ISO timestamp. */
+  const daysAgo = (n: number): string => new Date(Date.parse(NOW) - n * 86_400_000).toISOString();
+
+  const wmEntry = (header: string): string => `**${header}:**\n_Remove when: x._\n\n${header} body.`;
+  const wmTomb = (header: string, removedAt: string): string =>
+    `## Removed: **${header}:**\n\n- _Section:_ Memories\n- _Removed:_ ${removedAt}`;
+  /** A WORKING-MEMORY note: a `## Memories` block plus optional trailing tombstones. */
+  const note = (entries: string, tombstones: string[] = []): string => {
+    const head = `# Working Memory\n\n## Memories\n\n${entries}\n\n---\n`;
+    return tombstones.length > 0 ? `${head}\n${tombstones.join("\n\n")}\n` : head;
+  };
+
+  it("suppresses an earlier note's entry when a more-recent note tombstones it", () => {
+    const recent = note("", [wmTomb("Dropped", daysAgo(1))]);
+    const older = note(wmEntry("Dropped"));
+
+    const result = mergeCrossWuFile("WORKING-MEMORY.md", [{ content: recent }, { content: older }], NOW);
+
+    expect(result.content).not.toContain("Dropped body.");
+    expect(result.content).toContain("## Removed: **Dropped:**");
+  });
+
+  it("lets a more-recent re-add win over an earlier tombstone", () => {
+    const recent = note(wmEntry("Readded"));
+    const older = note("", [wmTomb("Readded", daysAgo(5))]);
+
+    const result = mergeCrossWuFile("WORKING-MEMORY.md", [{ content: recent }, { content: older }], NOW);
+
+    expect(result.content).toContain("Readded body.");
+    expect(result.content).not.toContain("## Removed:");
+  });
+
+  it("drops a TTL-expired tombstone, letting the entry propagate again", () => {
+    const recent = note("", [wmTomb("Old", daysAgo(200))]);
+    const older = note(wmEntry("Old"));
+
+    const result = mergeCrossWuFile("WORKING-MEMORY.md", [{ content: recent }, { content: older }], NOW);
+
+    expect(result.content).toContain("Old body.");
+    expect(result.content).not.toContain("## Removed:");
+  });
+
+  it("surfaces a malformed Removed marker instead of dropping it", () => {
+    const broken = `# Working Memory\n\n## Memories\n\n${wmEntry("Kept")}\n\n---\n\n## Removed: **Broken:**\n\nno fields here\n`;
+
+    const result = mergeCrossWuFile("WORKING-MEMORY.md", [{ content: broken }], NOW);
+
+    expect(result.malformed.some((reason) => reason.includes("Removed"))).toBe(true);
+  });
+});

@@ -413,20 +413,11 @@ is optional throughout.
   examples aren't entries) and accepting `*` or `_` italic removal triggers, so a clean install loads without
   spurious malformed warnings.
 
-### `[ ]` **3.4 Tombstones for cross-WU deletions**
+### `[x]` **3.4 Tombstones for cross-WU deletions**
 
 - _Goal:_ deleting a cross-WU entry writes a timestamped `## Removed: {name}` tombstone that the merge honors
   over earlier inclusions, with a generous fixed-TTL filter-at-merge GC so tombstones eventually drop — the
   contract being the mechanism (time-based TTL, filter-at-merge), not the constant.
-- _Note:_ no user-facing "sync within N days" guarantee; the failure mode (re-deleting a note, not data loss)
-  keeps the TTL an internal cleanup detail. The tombstone keys to the same per-file entry identity as 3.3;
-  `## Removed: {name}` is an H2 marker. **Write-side detection is cause-agnostic:** `arc user save` diffs the
-  current cross-WU file against the prior merged entry set (reuse 3.3.b's N-note merge) — "present before,
-  absent now → write tombstone" — keyed on file content, **not** on the agent flagging a removal. This keeps it
-  forward-compatible with `handoff-optimization`'s future CLI `readyToRemove` probe (which changes _why_ the
-  agent removes an entry, not _how_ save detects it). Per-handoff review is the eviction cadence for now —
-  don't hard-wire a permanent agent-trigger step; leave the seam for the CLI evaluator. Tombstone logic lives
-  in `lib/user-sync/merge.ts`.
 
     - `[x]` **3.4.a Tombstone write on entry removal** (`lib/user-sync/merge.ts`)
         - `appendRemovalTombstones` diffs the current cross-WU file against the prior merged state (list-union
@@ -436,12 +427,19 @@ is optional throughout.
           3.4.b reads). Wired into `runUserSave` via `applyRemovalTombstones`, which stamps the to-be-saved
           manifest before the note write/verify. Markers are recorded here, not yet honored — suppression + TTL
           is 3.4.b.
-    - `[ ]` **3.4.b Merge respects latest tombstone**
-        - Build `test-first` (one behavior at a time):
-            - tombstone suppresses an earlier inclusion of the same entry
-            - most-recent tombstone wins over an earlier re-add
-            - TTL-expired tombstone stops propagating and drops
-            - malformed `## Removed:` marker → surfaced, not silently dropped (mirrors 3.3.a)
+    - `[x]` **3.4.b Merge respects latest tombstone**
+        - `mergeCrossWuFile` parses `## Removed:` markers per note and resolves each `(section, key)` by recency:
+          the most-recent mention (entry or live tombstone) wins, so a tombstone suppresses an older inclusion and
+          a more-recent re-add overrides an older tombstone. Winning live tombstones carry forward (re-rendered onto
+          a tombstone-stripped base); TTL-expired ones drop and stop suppressing (filter-at-merge GC). Malformed
+          markers surface on `MergeResult.malformed` alongside malformed entries. A `now` reference time is injected
+          for TTL evaluation; tombstone-free content round-trips byte-for-byte.
+
+- _Outcome:_ the deletion round-trip is closed — `arc user save` records removals as `## Removed:` markers and the
+  load-time merge honors the most-recent one with a fixed-TTL GC. Write-side detection stays cause-agnostic (a
+  content diff against the prior merged set, not an agent-flagged removal), leaving the seam for a future CLI
+  `readyToRemove` evaluator without a rewrite. The TTL is an internal cleanup detail — no user-facing "sync within
+  N days" guarantee; past the window the failure mode is re-deleting a note, not data loss.
 
 ## **Phase 4:** Cross-WU sync — reconcile, orphans & seam
 
