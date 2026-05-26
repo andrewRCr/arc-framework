@@ -24,6 +24,14 @@ export { parseCrossWuEntries, shapeForFile } from "./parser.js";
 export { readRecentUserNotes, CROSS_WU_NOTE_WINDOW, type RecentNote } from "./notes-ref.js";
 
 export {
+  isNonFastForwardError,
+  isRemoteUnavailableError,
+  incomingNotesRef,
+  incomingFetchRefspec,
+  notesMergeArgs,
+} from "./notes-merge.js";
+
+export {
   appendRemovalTombstones,
   mergeEntries,
   mergeCrossWuFile,

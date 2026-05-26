@@ -44,7 +44,7 @@ import {
   type UserLoadOutcome,
   type UserLoadResult,
 } from "../../src/commands/user.js";
-import { pushWithInteractiveRecovery } from "../../src/handlers/push-recovery.js";
+import { pushNotesWithReconcile } from "../../src/handlers/push-recovery.js";
 import { createSyncOutput } from "../../src/lib/sync-output.js";
 
 /** Human-mode SyncOutput stub — delegates through the file-scoped clack mock above. */
@@ -940,20 +940,18 @@ describe("user push and pull", () => {
     expect(restoredInClone).toBe("# Version 3 local");
   });
 
-  it("merge recovery preserves local disk state and rebases the save onto the remote notes base", async () => {
-    mockSelect.mockResolvedValue("merge");
-    const originalIsTTY = process.stdin.isTTY;
-    const originalCI = process.env.CI;
-    Object.defineProperty(process.stdin, "isTTY", { value: true, configurable: true });
-    delete process.env.CI;
-
+  it("reconciles a concurrent non-fast-forward via lossless notes-merge, preserving both sides", async () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Version 1", "utf-8");
+    // First worktree saves on its current commit and publishes.
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Local notes", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
     await runUserPush({ io, identity: "test-user" });
 
+    // A second worktree clones, advances to a different commit, saves a note
+    // there, and force-publishes — so the remote notes ref annotates a commit
+    // the first worktree's ref does not carry (a disjoint, non-ff divergence).
     cloneDir = await mkdtemp(join(tmpdir(), "arc-clone-"));
     await execFileAsync("git", ["clone", remoteDir, cloneDir]);
     await execFileAsync("git", ["config", "user.email", "c@t.com"], { cwd: cloneDir });
@@ -961,55 +959,35 @@ describe("user push and pull", () => {
     const cloneIO = makeUserIO(cloneDir);
     const cloneUserDir = join(cloneDir, ".arc", "user", "test-user");
     await mkdir(cloneUserDir, { recursive: true });
-
-    await writeFile(join(cloneUserDir, "SESSION-NOTES.md"), "# Version 2 from clone", "utf-8");
+    await makeCommit(cloneDir, "clone advances HEAD");
+    await writeFile(join(cloneUserDir, "SESSION-NOTES.md"), "# Clone notes", "utf-8");
     await runUserSave({ cwd: cloneDir, io: cloneIO, identity: "test-user" });
     await runUserPush({ io: cloneIO, identity: "test-user", force: true });
 
-    const remoteTipBeforeRecovery = await readNotesRefTip(cloneDir, "test-user");
-
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Version 3 local", "utf-8");
+    // The first worktree re-saves on its own commit and pushes → non-ff.
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Local notes v2", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
-
     await expect(
       runUserPush({ io, identity: "test-user" }),
     ).rejects.toThrow(/rejected/);
 
-    try {
-      const result = await pushWithInteractiveRecovery({ io, identity: "test-user", cwd: tempDir, output: recoveryOutput });
-      expect(result).toEqual({ kind: "ok-recovered", via: "merge" });
+    // Auto-reconcile: union-merge the divergent refs and re-push, no prompt.
+    const result = await pushNotesWithReconcile({ io, identity: "test-user", cwd: tempDir, output: recoveryOutput });
+    expect(result).toEqual({ kind: "reconciled" });
+    expect(mockSelect).not.toHaveBeenCalled();
 
-      const diskContent = await readFile(join(userDir, "SESSION-NOTES.md"), "utf-8");
-      expect(diskContent).toBe("# Version 3 local");
+    // Lossless: the merged ref carries both worktrees' notes (distinct commits).
+    const { stdout: noteList } = await execFileAsync(
+      "git", ["notes", "--ref", "arc/user/test-user", "list"], { cwd: tempDir },
+    );
+    expect(noteList.trim().split("\n").filter(Boolean)).toHaveLength(2);
 
-      const localTipAfterRecovery = await readNotesRefTip(tempDir, "test-user");
-      expect(localTipAfterRecovery).not.toBe(remoteTipBeforeRecovery);
-      await expect(
-        execFileAsync(
-          "git",
-          ["merge-base", "--is-ancestor", remoteTipBeforeRecovery, localTipAfterRecovery],
-          { cwd: tempDir },
-        ),
-      ).resolves.toBeDefined();
-
-      const { stdout: remoteTipAfterPush } = await execFileAsync(
-        "git",
-        ["ls-remote", remoteDir, "refs/notes/arc/user/test-user"],
-      );
-      expect(remoteTipAfterPush.trim().split(/\s+/u)[0]).toBe(localTipAfterRecovery);
-
-      await runUserPull({ cwd: cloneDir, io: cloneIO, identity: "test-user", force: true });
-      await runUserLoad({ cwd: cloneDir, io: cloneIO, identity: "test-user" });
-      const restoredInClone = await readFile(join(cloneUserDir, "SESSION-NOTES.md"), "utf-8");
-      expect(restoredInClone).toBe("# Version 3 local");
-    } finally {
-      Object.defineProperty(process.stdin, "isTTY", { value: originalIsTTY, configurable: true });
-      if (originalCI === undefined) {
-        delete process.env.CI;
-      } else {
-        process.env.CI = originalCI;
-      }
-    }
+    // Re-push landed: the remote tip matches the reconciled local tip.
+    const localTip = await readNotesRefTip(tempDir, "test-user");
+    const { stdout: remoteTip } = await execFileAsync(
+      "git", ["ls-remote", remoteDir, "refs/notes/arc/user/test-user"],
+    );
+    expect(remoteTip.trim().split(/\s+/u)[0]).toBe(localTip);
   });
 
   it("pull with --identity fetches another developer's notes", async () => {
@@ -1103,7 +1081,7 @@ describe("user push and pull", () => {
     mockLog.info.mockClear();
     mockSpinner.stop.mockClear();
 
-    const result = await pushWithInteractiveRecovery({ io, identity: "test-user", cwd: tempDir, output: recoveryOutput });
+    const result = await pushNotesWithReconcile({ io, identity: "test-user", cwd: tempDir, output: recoveryOutput });
 
     expect(result).toEqual({ kind: "noop" });
     expect(mockSpinner.stop).toHaveBeenCalledWith(

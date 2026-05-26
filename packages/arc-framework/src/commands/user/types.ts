@@ -240,11 +240,13 @@ export type PairedPushLegOutcome =
 /**
  * Outcome surface of the injected notes-leg pusher delegate.
  *
- * Mirrors the discriminated `PushResult` surface of
- * `pushWithInteractiveRecovery` so the paired flow preserves the
- * single-leg recovery taxonomy (cancellation, conflict, blocked, no-remote)
- * for downstream rendering. The skip variants are added by
- * `runPairedPush` itself when an upstream leg short-circuits the flow.
+ * A superset taxonomy covering every notes-push result downstream rendering
+ * may encounter. Production's `pairedNotesAdapter` (wiring
+ * `pushNotesWithReconcile`) emits the lossless-reconcile subset
+ * (`success` / `noop` / `ok-recovered` / `no-remote` / `blocked` / `failed`);
+ * the remaining variants stay available for stub-injected tests. The skip
+ * variants are added by `runPairedPush` itself when an upstream leg
+ * short-circuits the flow.
  */
 export type PairedPushNotesPusherResult =
   | { status: "success" }
@@ -274,8 +276,8 @@ export interface PairedPushNotesContext {
 /**
  * Pluggable notes-leg pusher injected into {@link RunPairedPushOptions}.
  *
- * Production wires `pushWithInteractiveRecovery` so paired and single-leg
- * pushes share conflict-recovery prompts, idempotent no-op detection, and
+ * Production wires `pushNotesWithReconcile` so paired and single-leg pushes
+ * share automatic lossless reconcile, idempotent no-op detection, and
  * pre-check refusal. Tests inject a stub that emits a chosen outcome.
  */
 export type PairedPushNotesPusher = (
@@ -323,8 +325,8 @@ export interface RunPairedPushOptions {
   setUpstream?: boolean;
   /**
    * Notes-leg pusher delegate. Production wires
-   * `pushWithInteractiveRecovery` so the paired flow inherits its
-   * conflict-recovery and idempotent-noop semantics; tests inject a stub.
+   * `pushNotesWithReconcile` so the paired flow inherits its automatic
+   * lossless reconcile and idempotent-noop semantics; tests inject a stub.
    */
   pushNotes: PairedPushNotesPusher;
 }

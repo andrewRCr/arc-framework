@@ -1,69 +1,40 @@
 /**
- * Unit tests for pushWithInteractiveRecovery.
- *
- * Covers the discriminated PushResult surface: ok, ok-recovered (force / merge),
- * cancelled, no-remote, failed, and non-interactive degradation.
+ * Unit tests for `pushNotesWithReconcile` — the spinner + staleness-warning
+ * wrapper around the lossless reconcile pusher. The reconcile mechanics
+ * (non-ff → `git notes merge` → re-push) live in notes-reconcile-push.test.ts;
+ * here we cover outcome pass-through, spinner messaging, and the no-op
+ * local-note-staleness warning.
  */
 
-import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+import type { NotesPushOutcome } from "../../src/commands/user.js";
 
 // --- Mocks ---
 
 const mockLog = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
-const mockSelect = vi.fn();
-const mockIsCancel = vi.fn(() => false) as Mock<(v: unknown) => boolean>;
 const mockSpinnerInstance = { start: vi.fn(), stop: vi.fn() };
 
 vi.mock("@clack/prompts", () => ({
+  intro: vi.fn(),
+  outro: vi.fn(),
   log: mockLog,
-  select: (opts: unknown) => mockSelect(opts),
-  isCancel: (v: unknown) => mockIsCancel(v),
+  note: vi.fn(),
+  select: vi.fn(),
+  confirm: vi.fn(),
+  isCancel: vi.fn(() => false),
   spinner: () => mockSpinnerInstance,
 }));
 
-const mockRunUserPush = vi.fn();
-const mockRunUserFetch = vi.fn();
-const mockRunUserSave = vi.fn();
+const mockReconcileNotesPush = vi.fn();
 const mockFindNearestUserNote = vi.fn();
 
-class MockUserSaveError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "UserSaveError";
-  }
-}
-
-class MockUserPushBlockedError extends Error {
-  readonly conditions: unknown[];
-  constructor(conditions: unknown[]) {
-    super("blocked");
-    this.name = "UserPushBlockedError";
-    this.conditions = conditions;
-  }
-}
-
 vi.mock("../../src/commands/user.js", () => ({
-  runUserPush: (...args: unknown[]) => mockRunUserPush(...args),
-  runUserFetch: (...args: unknown[]) => mockRunUserFetch(...args),
-  runUserSave: (...args: unknown[]) => mockRunUserSave(...args),
+  reconcileNotesPush: (...args: unknown[]) => mockReconcileNotesPush(...args),
   findNearestUserNote: (...args: unknown[]) => mockFindNearestUserNote(...args),
-  UserSaveError: MockUserSaveError,
-  UserPushBlockedError: MockUserPushBlockedError,
 }));
 
-const mockIsNonInteractive = vi.fn(() => false);
-vi.mock("../../src/handlers/shared.js", () => ({
-  isNonInteractiveEnvironment: () => mockIsNonInteractive(),
-  isRemoteError: (msg: string) =>
-    msg.includes("No configured push destination") || msg.includes("does not appear to be a git repository"),
-  runWithSpinner: async (
-    _output: unknown,
-    _label: string,
-    fn: () => Promise<unknown>,
-  ) => fn(),
-}));
-
-const { pushWithInteractiveRecovery } = await import("../../src/handlers/push-recovery.js");
+const { pushNotesWithReconcile } = await import("../../src/handlers/push-recovery.js");
 const { createSyncOutput } = await import("../../src/lib/sync-output.js");
 
 // --- Tests ---
@@ -73,42 +44,58 @@ const identity = "andrew";
 const cwd = "/repo";
 /**
  * Human-mode SyncOutput stub — its log/spinner methods delegate through the
- * file-scoped `@clack/prompts` mock above, so existing assertions on
- * `mockLog` and `mockSpinnerInstance` keep firing.
+ * file-scoped `@clack/prompts` mock above, so assertions on `mockLog` and
+ * `mockSpinnerInstance` keep firing.
  */
 const output = createSyncOutput(false);
 
-describe("pushWithInteractiveRecovery", () => {
+describe("pushNotesWithReconcile", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    mockIsCancel.mockReturnValue(false);
-    mockIsNonInteractive.mockReturnValue(false);
     mockFindNearestUserNote.mockResolvedValue({ note: null });
   });
 
-  it("returns { kind: \"ok\" } when push succeeds on first try", async () => {
-    mockRunUserPush.mockResolvedValue({ kind: "pushed" });
-    const result = await pushWithInteractiveRecovery({ io, identity, cwd, output });
-    expect(result).toEqual({ kind: "ok" });
-    expect(mockRunUserPush).toHaveBeenCalledTimes(1);
-    expect(mockRunUserPush).toHaveBeenCalledWith(expect.objectContaining({ cwd }));
-    expect(mockSelect).not.toHaveBeenCalled();
+  it.each<[NotesPushOutcome, string]>([
+    [{ kind: "pushed" }, "Push complete."],
+    [{ kind: "reconciled" }, "Reconciled concurrent notes and pushed."],
+    [{ kind: "no-remote" }, "No remote configured."],
+    [{ kind: "failed", error: new Error("network timeout") }, "Failed."],
+  ])("passes outcome %j through and stops the spinner with its message", async (outcome, message) => {
+    mockReconcileNotesPush.mockResolvedValue(outcome);
+
+    const result = await pushNotesWithReconcile({ io, identity, cwd, output });
+
+    expect(result).toEqual(outcome);
+    expect(mockSpinnerInstance.stop).toHaveBeenCalledWith(message);
   });
 
-  it("reports matching remote/local notes without implying the local note is current for HEAD", async () => {
-    mockRunUserPush.mockResolvedValue({ kind: "noop" });
+  it("threads worktreeBranch into the reconcile pusher", async () => {
+    mockReconcileNotesPush.mockResolvedValue({ kind: "pushed" });
+
+    await pushNotesWithReconcile({ io, identity, cwd, worktreeBranch: "feature/x", output });
+
+    expect(mockReconcileNotesPush).toHaveBeenCalledWith(
+      expect.objectContaining({ worktreeBranch: "feature/x" }),
+    );
+  });
+
+  it("blocked outcome passes through with its conditions", async () => {
+    const conditions = [{ kind: "rebase-in-progress", disposition: "block", guidance: "g" }];
+    mockReconcileNotesPush.mockResolvedValue({ kind: "blocked", conditions });
+
+    const result = await pushNotesWithReconcile({ io, identity, cwd, output });
+
+    expect(result).toEqual({ kind: "blocked", conditions });
+    expect(mockSpinnerInstance.stop).toHaveBeenCalledWith("Push blocked.");
+  });
+
+  it("no-op with a local note behind HEAD → warns the note is stale", async () => {
+    mockReconcileNotesPush.mockResolvedValue({ kind: "noop" });
     mockFindNearestUserNote.mockResolvedValue({
-      note: {
-        commit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        reachableFromHead: true,
-        fromAncestor: true,
-        ancestorDistance: 2,
-        noteHistoryDistance: 0,
-        content: "{}",
-      },
+      note: { reachableFromHead: true, ancestorDistance: 2 },
     });
 
-    const result = await pushWithInteractiveRecovery({ io, identity, cwd, output });
+    const result = await pushNotesWithReconcile({ io, identity, cwd, output });
 
     expect(result).toEqual({ kind: "noop" });
     expect(mockSpinnerInstance.stop).toHaveBeenCalledWith(
@@ -122,210 +109,14 @@ describe("pushWithInteractiveRecovery", () => {
     );
   });
 
-  it("returns no-remote when push fails with missing-remote error", async () => {
-    mockRunUserPush.mockRejectedValue(new Error("No configured push destination"));
-    const result = await pushWithInteractiveRecovery({ io, identity, cwd, output });
-    expect(result).toEqual({ kind: "no-remote" });
-    expect(mockSelect).not.toHaveBeenCalled();
-  });
-
-  it("returns failed with original error for unknown push failure", async () => {
-    const err = new Error("network timeout");
-    mockRunUserPush.mockRejectedValue(err);
-    const result = await pushWithInteractiveRecovery({ io, identity, cwd, output });
-    expect(result).toEqual({ kind: "failed", error: err });
-    expect(mockSelect).not.toHaveBeenCalled();
-  });
-
-  it("returns ok-recovered (force) when user chooses force on divergence", async () => {
-    mockRunUserPush
-      .mockRejectedValueOnce(new Error("non-fast-forward"))
-      .mockResolvedValueOnce(undefined);
-    mockSelect.mockResolvedValue("force");
-
-    const result = await pushWithInteractiveRecovery({ io, identity, cwd, output });
-
-    expect(result).toEqual({ kind: "ok-recovered", via: "force" });
-    expect(mockRunUserPush).toHaveBeenNthCalledWith(2, expect.objectContaining({ force: true }));
-  });
-
-  it("returns ok-recovered (merge) when user chooses merge — runs fetch, re-save, push in order", async () => {
-    const callOrder: string[] = [];
-    mockRunUserPush
-      .mockImplementationOnce(() => { callOrder.push("push"); return Promise.reject(new Error("[rejected]")); })
-      .mockImplementationOnce(() => { callOrder.push("push"); return Promise.resolve(undefined); });
-    mockRunUserFetch.mockImplementation(() => {
-      callOrder.push("fetch");
-      return Promise.resolve(undefined);
-    });
-    mockRunUserSave.mockImplementation(() => {
-      callOrder.push("save");
-      return Promise.resolve({ identity, commit: "abc1234", fileCount: 1, warnings: [] });
-    });
-    mockSelect.mockResolvedValue("merge");
-
-    const result = await pushWithInteractiveRecovery({ io, identity, cwd, output });
-
-    expect(result).toEqual({ kind: "ok-recovered", via: "merge" });
-    // Sequence: initial push (rejected) → force-fetch → re-save → retry push (no force)
-    expect(callOrder).toEqual(["push", "fetch", "save", "push"]);
-    expect(mockRunUserFetch).toHaveBeenCalledWith(expect.objectContaining({ force: true }));
-    expect(mockRunUserSave).toHaveBeenCalledWith(expect.objectContaining({ cwd, identity }));
-    expect(mockRunUserPush).toHaveBeenNthCalledWith(2, expect.objectContaining({ identity }));
-    expect(mockRunUserPush).toHaveBeenNthCalledWith(2, expect.not.objectContaining({ force: true }));
-  });
-
-  it("returns failed without pushing when re-save throws UserSaveError", async () => {
-    const saveErr = new MockUserSaveError("No eligible files found in user directory to save.");
-    const callOrder: string[] = [];
-    mockRunUserPush.mockImplementationOnce(() => {
-      callOrder.push("push");
-      return Promise.reject(new Error("non-fast-forward"));
-    });
-    mockRunUserFetch.mockImplementation(() => {
-      callOrder.push("fetch");
-      return Promise.resolve(undefined);
-    });
-    mockRunUserSave.mockImplementation(() => {
-      callOrder.push("save");
-      return Promise.reject(saveErr);
-    });
-    mockSelect.mockResolvedValue("merge");
-
-    const result = await pushWithInteractiveRecovery({ io, identity, cwd, output });
-
-    expect(result).toEqual({ kind: "failed", error: saveErr });
-    // Initial push (rejected) → fetch → save (threw) → NO retry push
-    expect(callOrder).toEqual(["push", "fetch", "save"]);
-    expect(mockRunUserPush).toHaveBeenCalledTimes(1);
-  });
-
-  it("returns cancelled when user chooses cancel", async () => {
-    mockRunUserPush.mockRejectedValue(new Error("non-fast-forward"));
-    mockSelect.mockResolvedValue("cancel");
-    mockIsCancel.mockImplementation((value) => value === "cancel");
-
-    const result = await pushWithInteractiveRecovery({ io, identity, cwd, output });
-
-    expect(result).toEqual({ kind: "cancelled" });
-  });
-
-  it("returns cancelled when user presses Ctrl+C on the select", async () => {
-    mockRunUserPush.mockRejectedValue(new Error("non-fast-forward"));
-    mockSelect.mockResolvedValue(Symbol("cancel"));
-    mockIsCancel.mockReturnValue(true);
-
-    const result = await pushWithInteractiveRecovery({ io, identity, cwd, output });
-
-    expect(result).toEqual({ kind: "cancelled" });
-  });
-
-  it("returns failed with recovery error when force-push itself fails", async () => {
-    const recoveryErr = new Error("auth failure during force push");
-    mockRunUserPush
-      .mockRejectedValueOnce(new Error("non-fast-forward"))
-      .mockRejectedValueOnce(recoveryErr);
-    mockSelect.mockResolvedValue("force");
-
-    const result = await pushWithInteractiveRecovery({ io, identity, cwd, output });
-
-    expect(result).toEqual({ kind: "failed", error: recoveryErr });
-  });
-
-  it("surfaces divergence as failed-nontty-conflict when environment is non-interactive", async () => {
-    mockRunUserPush.mockRejectedValue(new Error("non-fast-forward"));
-    mockIsNonInteractive.mockReturnValue(true);
-
-    const result = await pushWithInteractiveRecovery({ io, identity, cwd, output });
-
-    expect(result).toEqual({ kind: "failed-nontty-conflict" });
-    expect(mockSelect).not.toHaveBeenCalled();
-  });
-
-  it("surfaces [rejected] divergence as failed-nontty-conflict when non-interactive", async () => {
-    mockRunUserPush.mockRejectedValue(new Error("[rejected] non-fast-forward"));
-    mockIsNonInteractive.mockReturnValue(true);
-
-    const result = await pushWithInteractiveRecovery({ io, identity, cwd, output });
-
-    expect(result).toEqual({ kind: "failed-nontty-conflict" });
-    expect(mockSelect).not.toHaveBeenCalled();
-  });
-
-  it("yes: auto-accepts merge on conflict — no prompt, runs fetch / re-save / push in order", async () => {
-    const callOrder: string[] = [];
-    mockRunUserPush
-      .mockImplementationOnce(() => { callOrder.push("push"); return Promise.reject(new Error("non-fast-forward")); })
-      .mockImplementationOnce(() => { callOrder.push("push"); return Promise.resolve(undefined); });
-    mockRunUserFetch.mockImplementation(() => { callOrder.push("fetch"); return Promise.resolve(undefined); });
-    mockRunUserSave.mockImplementation(() => {
-      callOrder.push("save");
-      return Promise.resolve({ identity, commit: "abc1234", fileCount: 1, warnings: [] });
+  it("no-op with a current local note → no staleness warning", async () => {
+    mockReconcileNotesPush.mockResolvedValue({ kind: "noop" });
+    mockFindNearestUserNote.mockResolvedValue({
+      note: { reachableFromHead: true, ancestorDistance: 0 },
     });
 
-    const result = await pushWithInteractiveRecovery({ io, identity, cwd, yes: true, output });
+    await pushNotesWithReconcile({ io, identity, cwd, output });
 
-    expect(result).toEqual({ kind: "ok-recovered", via: "merge" });
-    expect(mockSelect).not.toHaveBeenCalled();
-    expect(callOrder).toEqual(["push", "fetch", "save", "push"]);
-    expect(mockRunUserPush).toHaveBeenNthCalledWith(2, expect.not.objectContaining({ force: true }));
-  });
-
-  it("yes: overrides non-interactive — auto-merge instead of failed-nontty-conflict", async () => {
-    mockIsNonInteractive.mockReturnValue(true);
-    mockRunUserPush
-      .mockRejectedValueOnce(new Error("non-fast-forward"))
-      .mockResolvedValueOnce(undefined);
-    mockRunUserFetch.mockResolvedValue(undefined);
-    mockRunUserSave.mockResolvedValue({ identity, commit: "abc1234", fileCount: 1, warnings: [] });
-
-    const result = await pushWithInteractiveRecovery({ io, identity, cwd, yes: true, output });
-
-    expect(result).toEqual({ kind: "ok-recovered", via: "merge" });
-    expect(mockSelect).not.toHaveBeenCalled();
-  });
-
-  it("under JSON mode, conflict prompt routes warn through stderr and select returns the cancel default — no raw clack invocations", async () => {
-    const stderrSpy = vi
-      .spyOn(process.stderr, "write")
-      .mockImplementation(() => true);
-    try {
-      const jsonOutput = createSyncOutput(true);
-      mockRunUserPush.mockRejectedValue(new Error("non-fast-forward"));
-
-      const result = await pushWithInteractiveRecovery({
-        io,
-        identity,
-        cwd,
-        output: jsonOutput,
-      });
-
-      expect(result).toEqual({ kind: "cancelled" });
-      expect(mockSelect).not.toHaveBeenCalled();
-      expect(mockLog.warn).not.toHaveBeenCalled();
-      const stderrWrites = stderrSpy.mock.calls.map((call) => String(call[0])).join("");
-      expect(stderrWrites).toContain("Push rejected");
-      expect(stderrWrites).toContain("warn:");
-    } finally {
-      stderrSpy.mockRestore();
-    }
-  });
-
-  it("yes: never auto-selects force — destructive option requires explicit user choice", async () => {
-    // Under --yes, a divergent push goes through merge recovery; force is never
-    // invoked even though the user could have chosen it interactively. Pin by
-    // asserting runUserPush is never called with force: true under yes.
-    mockRunUserPush
-      .mockRejectedValueOnce(new Error("non-fast-forward"))
-      .mockResolvedValueOnce(undefined);
-    mockRunUserFetch.mockResolvedValue(undefined);
-    mockRunUserSave.mockResolvedValue({ identity, commit: "abc1234", fileCount: 1, warnings: [] });
-
-    await pushWithInteractiveRecovery({ io, identity, cwd, yes: true, output });
-
-    const forceCalls = mockRunUserPush.mock.calls.filter(
-      (call) => (call[0] as { force?: boolean })?.force === true,
-    );
-    expect(forceCalls).toHaveLength(0);
+    expect(mockLog.warn).not.toHaveBeenCalled();
   });
 });

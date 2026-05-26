@@ -71,7 +71,7 @@ vi.mock("../../src/lib/git/worktree-sync.js", () => ({
 
 const mockPushWithRecovery = vi.fn();
 vi.mock("../../src/handlers/push-recovery.js", () => ({
-  pushWithInteractiveRecovery: (opts: unknown) => mockPushWithRecovery(opts),
+  pushNotesWithReconcile: (opts: unknown) => mockPushWithRecovery(opts),
 }));
 
 const mockResolveUserIdentity = vi.fn();
@@ -238,7 +238,7 @@ describe("handleUserSync direction handling", () => {
     setSyncState("same", "different", { diskStatus: "local unsaved", unsavedDirection: "edits" });
     setPolicy("on-sync");
     mockRunUserSave.mockResolvedValue({ warnings: [] });
-    mockPushWithRecovery.mockResolvedValue({ kind: "ok" });
+    mockPushWithRecovery.mockResolvedValue({ kind: "pushed" });
 
     await handleUserSync();
 
@@ -415,7 +415,7 @@ describe("handleUserSync direction handling", () => {
     setPolicy("on-sync");
     mockSelect.mockResolvedValue("push");
     mockRunUserSave.mockResolvedValue({ warnings: [] });
-    mockPushWithRecovery.mockResolvedValue({ kind: "ok" });
+    mockPushWithRecovery.mockResolvedValue({ kind: "pushed" });
 
     await handleUserSync();
 
@@ -458,7 +458,7 @@ describe("handleUserSync direction handling", () => {
     setSyncState("local-ahead", "different", { diskStatus: "stale", unsavedDirection: "modified" });
     setPolicy("on-sync");
     mockRunUserSave.mockResolvedValue({ warnings: [] });
-    mockPushWithRecovery.mockResolvedValue({ kind: "ok" });
+    mockPushWithRecovery.mockResolvedValue({ kind: "pushed" });
     mockRunUserLoad.mockResolvedValue({
       kind: "loaded",
       identity: "andrew",
@@ -512,7 +512,7 @@ describe("handleUserSync push policy", () => {
     setPolicy("prompt");
     mockRunUserSave.mockResolvedValue({ warnings: [] });
     mockConfirm.mockResolvedValue(true);
-    mockPushWithRecovery.mockResolvedValue({ kind: "ok" });
+    mockPushWithRecovery.mockResolvedValue({ kind: "pushed" });
 
     await handleUserSync();
 
@@ -527,21 +527,6 @@ describe("handleUserSync push policy", () => {
     await handleUserSync();
 
     expect(mockLog.error).toHaveBeenCalledWith(expect.stringContaining("couldn't find remote ref"));
-    expect(process.exitCode).toBe(1);
-  });
-
-  it("renders failed-nontty-conflict banner when push recovery surfaces that discriminant", async () => {
-    setSyncState("local-ahead", "same");
-    setPolicy("on-sync");
-    mockRunUserSave.mockResolvedValue({ warnings: [] });
-    mockPushWithRecovery.mockResolvedValue({ kind: "failed-nontty-conflict" });
-
-    await handleUserSync();
-
-    expect(mockLog.warn).toHaveBeenCalledWith(expect.stringContaining("conflict"));
-    expect(mockLog.warn).toHaveBeenCalledWith(expect.stringContaining("non-interactive"));
-    expect(mockLog.warn).toHaveBeenCalledWith(expect.stringContaining("save preserved"));
-    expect(mockLog.error).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
 
@@ -561,7 +546,7 @@ describe("handleUserSync push policy", () => {
     expect(process.exitCode).toBe(1);
   });
 
-  it("threads worktreeBranch into pushWithInteractiveRecovery; surfaces matrix-blocked notes push", async () => {
+  it("threads worktreeBranch into pushNotesWithReconcile; surfaces matrix-blocked notes push", async () => {
     setSyncState("local-ahead", "same");
     setPolicy("on-sync");
     mockRunUserSave.mockResolvedValue({ warnings: [] });

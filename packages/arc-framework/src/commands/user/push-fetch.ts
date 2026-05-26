@@ -1,4 +1,12 @@
 import { runPushabilityStatus } from "../../lib/git/index.js";
+import type { AccessFn, PushabilityCondition } from "../../lib/git/index.js";
+import {
+  incomingFetchRefspec,
+  incomingNotesRef,
+  isNonFastForwardError,
+  isRemoteUnavailableError,
+  notesMergeArgs,
+} from "../../lib/user-sync/index.js";
 import { notesRef } from "./shared.js";
 import { clearPartialPushMarker, runUserLoad } from "./save-load.js";
 import {
@@ -157,4 +165,79 @@ export async function runUserPull(
   const { cwd, io, identity, force, maxAncestorWalk, currentWuName } = options;
   await runUserFetch({ io, identity, force });
   return runUserLoad({ cwd, io, identity, maxAncestorWalk, currentWuName });
+}
+
+/** Discriminated outcome of {@link reconcileNotesPush}. */
+export type NotesPushOutcome =
+  | { kind: "pushed" }
+  | { kind: "noop" }
+  | { kind: "reconciled" }
+  | { kind: "no-remote" }
+  | { kind: "blocked"; conditions: PushabilityCondition[] }
+  | { kind: "failed"; error: Error };
+
+/** Options for {@link reconcileNotesPush}. */
+export interface ReconcileNotesPushOptions {
+  io: UserIOContext;
+  identity: string;
+  /** Repository root, threaded to the partial-push marker clear inside the push. */
+  cwd?: string;
+  /** Path-existence check enabling the pushability pre-check matrix. */
+  access?: AccessFn;
+  /** Current worktree branch — threaded into the pushability matrix. */
+  worktreeBranch?: string;
+}
+
+/**
+ * Push user notes, auto-reconciling a concurrent-worktree non-fast-forward.
+ *
+ * On the shared user-notes ref, a non-ff rejection means another worktree
+ * pushed between this worktree's save and push. Recovery is automatic and
+ * lossless: fetch the remote ref into a temp tracking ref, union-merge it with
+ * `git notes merge -s cat_sort_uniq`, and re-push. No prompt — unlike the
+ * generic interactive recovery, whose "merge" re-saves only this worktree's
+ * directory and drops the other side. A clean push needs no merge; force-push
+ * stays an explicit opt-in on the single-leg `--force` path.
+ *
+ * @param options - See {@link ReconcileNotesPushOptions}.
+ * @returns `pushed` / `noop` on a clean push, `reconciled` after a merge,
+ *   `blocked` on a pushability block, `failed` on any other error.
+ */
+export async function reconcileNotesPush(
+  options: ReconcileNotesPushOptions,
+): Promise<NotesPushOutcome> {
+  const { io, identity, cwd, access, worktreeBranch } = options;
+  try {
+    const result = await runUserPush({ cwd, io, identity, access, worktreeBranch });
+    return result.kind === "noop" ? { kind: "noop" } : { kind: "pushed" };
+  } catch (err) {
+    if (err instanceof UserPushBlockedError) {
+      return { kind: "blocked", conditions: err.conditions };
+    }
+    const error = err instanceof Error ? err : new Error(String(err));
+    if (isRemoteUnavailableError(error.message)) return { kind: "no-remote" };
+    if (!isNonFastForwardError(error.message)) {
+      return { kind: "failed", error };
+    }
+    return reconcileAndRepush(options);
+  }
+}
+
+/**
+ * Fetch the remote notes ref into a temp tracking ref, union-merge it into the
+ * local ref, re-push, and clean up the temp ref.
+ */
+async function reconcileAndRepush(
+  options: ReconcileNotesPushOptions,
+): Promise<NotesPushOutcome> {
+  const { io, identity, cwd, access, worktreeBranch } = options;
+  const shortRef = notesRef(identity);
+  const fullRef = `refs/notes/${shortRef}`;
+  const incoming = incomingNotesRef(fullRef);
+
+  await io.exec("git", ["fetch", "origin", incomingFetchRefspec(fullRef)]);
+  await io.exec("git", notesMergeArgs(shortRef, incoming));
+  await runUserPush({ cwd, io, identity, access, worktreeBranch });
+  await io.exec("git", ["update-ref", "-d", incoming]);
+  return { kind: "reconciled" };
 }

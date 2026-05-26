@@ -33,7 +33,7 @@ import { runWorktreeSyncStatus } from "../lib/git/worktree-sync.js";
 import { createUserIOContext } from "../lib/io-context.js";
 import { createSyncOutput } from "../lib/sync-output.js";
 import { resolveNotesPushPolicy } from "../lib/config/resolved-settings.js";
-import { pushWithInteractiveRecovery } from "./push-recovery.js";
+import { pushNotesWithReconcile } from "./push-recovery.js";
 import {
   isHandledError, isNonInteractiveEnvironment, requireArcProjectRoot, resolveUserIdentity,
   resolveCurrentBranchName,
@@ -386,7 +386,7 @@ async function handlePushDirection(params: DirectionParams): Promise<void> {
     }
   }
 
-  const pushResult = await pushWithInteractiveRecovery({
+  const pushResult = await pushNotesWithReconcile({
     io,
     identity,
     cwd,
@@ -395,8 +395,8 @@ async function handlePushDirection(params: DirectionParams): Promise<void> {
     output,
   });
   switch (pushResult.kind) {
-    case "ok":
-    case "ok-recovered":
+    case "pushed":
+    case "reconciled":
     case "noop":
       if (restoreAfterPush) {
         await handleLoadDirection(params);
@@ -404,25 +404,11 @@ async function handlePushDirection(params: DirectionParams): Promise<void> {
       }
       p.outro("Done.");
       return;
-    case "cancelled":
-      p.log.info("Push cancelled. Run `arc user push` when ready.");
-      return;
     case "no-remote":
       await recordPartialPushMarkerAfterFailedPush(params);
       p.log.error("No remote configured. Push requires a remote repository.");
       p.log.info("Set up a remote with: git remote add origin <url>");
       p.log.warn("User directory was saved locally — push manually with `arc user push`.");
-      process.exitCode = 1;
-      return;
-    case "failed-nontty-conflict":
-      await recordPartialPushMarkerAfterFailedPush(params);
-      p.log.warn(
-        "Push rejected — local and remote notes conflict (both moved since common ancestor), "
-        + "and the environment is non-interactive.",
-      );
-      p.log.warn(
-        "Local save preserved; push skipped. Re-run `arc user sync` in a terminal to resolve.",
-      );
       process.exitCode = 1;
       return;
     case "blocked":
@@ -435,10 +421,7 @@ async function handlePushDirection(params: DirectionParams): Promise<void> {
     case "failed": {
       await recordPartialPushMarkerAfterFailedPush(params);
       if (!isHandledError(pushResult.error)) {
-        const msg = pushResult.error instanceof Error
-          ? pushResult.error.message
-          : String(pushResult.error);
-        p.log.error(`Failed to push user notes: ${msg}`);
+        p.log.error(`Failed to push user notes: ${pushResult.error.message}`);
       }
       p.log.warn("User directory was saved locally — push manually with `arc user push`.");
       process.exitCode = 1;

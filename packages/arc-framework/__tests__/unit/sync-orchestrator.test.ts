@@ -74,7 +74,7 @@ vi.mock("../../src/lib/git/worktree-sync.js", () => ({
 
 const mockPushWithRecovery = vi.fn();
 vi.mock("../../src/handlers/push-recovery.js", () => ({
-  pushWithInteractiveRecovery: (...args: unknown[]) => mockPushWithRecovery(...args),
+  pushNotesWithReconcile: (...args: unknown[]) => mockPushWithRecovery(...args),
 }));
 
 const mockResolveUserIdentity = vi.fn();
@@ -405,7 +405,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
     setWorktree("clean");
     mockRunUserSave.mockResolvedValue({ identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] });
     mockConfirm.mockResolvedValue(true);
-    mockPushWithRecovery.mockResolvedValue({ kind: "ok" });
+    mockPushWithRecovery.mockResolvedValue({ kind: "pushed" });
 
     await handleSync();
 
@@ -692,7 +692,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
       fileCount: 1,
       warnings: [],
     });
-    mockPushWithRecovery.mockResolvedValue({ kind: "ok" });
+    mockPushWithRecovery.mockResolvedValue({ kind: "pushed" });
 
     await handleSync();
 
@@ -985,15 +985,12 @@ describe("--yes wiring", () => {
       fileCount: 1,
       warnings: [],
     });
-    mockPushWithRecovery.mockResolvedValue({ kind: "ok" });
+    mockPushWithRecovery.mockResolvedValue({ kind: "pushed" });
 
     const outcome = await captureSyncJson({ yes: true });
 
     expect(mockConfirm).not.toHaveBeenCalled();
     expect(mockPushWithRecovery).toHaveBeenCalledTimes(1);
-    expect(mockPushWithRecovery).toHaveBeenCalledWith(
-      expect.objectContaining({ yes: true }),
-    );
     expect(outcome.cell).toBe("notes-only");
     expect(outcome.interlockState).toMatchObject({ notesPush: { value: "on-sync" } });
   });
@@ -1008,7 +1005,7 @@ describe("--yes wiring", () => {
       fileCount: 1,
       warnings: [],
     });
-    mockPushWithRecovery.mockResolvedValue({ kind: "ok" });
+    mockPushWithRecovery.mockResolvedValue({ kind: "pushed" });
 
     const outcome = await captureSyncJson({ yes: true });
 
@@ -1016,7 +1013,7 @@ describe("--yes wiring", () => {
     expect(outcome.cell).toBe("notes-only");
   });
 
-  it("--yes propagates yes: true into runPairedPush's notes adapter", async () => {
+  it("paired notes adapter delegates to the reconcile pusher and maps its outcome", async () => {
     setConfig("on-sync");
     setNotesPolicy("prompt");
     setWorktree("clean");
@@ -1042,13 +1039,11 @@ describe("--yes wiring", () => {
         exitCode: 0,
       };
     });
-    mockPushWithRecovery.mockResolvedValue({ kind: "ok" });
+    mockPushWithRecovery.mockResolvedValue({ kind: "pushed" });
 
     await handleSync({ yes: true });
 
-    expect(mockPushWithRecovery).toHaveBeenCalledWith(
-      expect.objectContaining({ yes: true }),
-    );
+    expect(mockPushWithRecovery).toHaveBeenCalledTimes(1);
     expect(capturedNotesContext).toEqual({ status: "success" });
   });
 
@@ -1629,7 +1624,7 @@ describe("audit-log integration > success cells", () => {
       fileCount: 1,
       warnings: [],
     });
-    mockPushWithRecovery.mockResolvedValue({ kind: "ok" });
+    mockPushWithRecovery.mockResolvedValue({ kind: "pushed" });
 
     await handleSync();
 
@@ -1655,7 +1650,7 @@ describe("audit-log integration > success cells", () => {
       warnings: [],
     });
     mockConfirm.mockResolvedValue(true);
-    mockPushWithRecovery.mockResolvedValue({ kind: "ok" });
+    mockPushWithRecovery.mockResolvedValue({ kind: "pushed" });
 
     await handleSync();
 
@@ -1684,7 +1679,7 @@ describe("audit-log integration > success cells", () => {
       warnings: [],
     });
     mockConfirm.mockResolvedValue(true);
-    mockPushWithRecovery.mockResolvedValue({ kind: "ok" });
+    mockPushWithRecovery.mockResolvedValue({ kind: "pushed" });
 
     await handleSync();
 

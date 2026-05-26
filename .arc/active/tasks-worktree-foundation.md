@@ -463,22 +463,20 @@ downstream sync WUs is recorded in `notes-worktree-foundation.md` § Phase 4 for
 - _Goal:_ when parallel worktrees push notes and the second hits non-fast-forward, the push reconciles via
   `git notes merge` (cat_sort_uniq default) and surfaces to the user only when the conflict is non-trivial.
 
-    - `[ ]` **4.1.a Non-ff detection + notes-merge reconcile** (`paired-push.ts` / `push-fetch.ts`)
-        - At the notes-push leg of `runPairedPush`: on non-ff, fetch + `git notes merge` (cat_sort_uniq) +
-          re-push, automatically — **instead of** the generic interactive recovery
-          (`pushWithInteractiveRecovery`, `push-recovery.ts`), a single force/merge/cancel path with no
-          notes-vs-branch distinction. Notes merges auto-reconcile losslessly; the interactive recovery stays
-          for the worktree/branch leg only (`runUserPush` surfaces the non-ff signal). _Notes:_ See
-          `notes-worktree-foundation.md` § Phases 3 & 4.
-        - Wiring: a new notes pusher injected via the existing `pushNotes` seam (production adapter
-          `handlers/sync.ts:pairedNotesAdapter`), pure merge / validity logic in `lib/user-sync/` and IO in
-          `push-fetch.ts` — not code added to `runPairedPush` or the handler. Keeps `handlers/sync.ts` thin
-          for `sync-handler-decomposition` and the logic extractable for `user-sync-module-split`.
-        - Build `test-first` (one behavior at a time):
-            - second push hits non-ff → `git notes merge` reconcile, push succeeds
-            - cat_sort_uniq unions both sides without loss
-            - clean fast-forward → no merge invoked
-            - branch/worktree-leg rejection → unchanged (still the interactive recovery path)
+    - `[x]` **4.1.a Non-ff detection + notes-merge reconcile** (`push-fetch.ts` / `lib/user-sync/notes-merge.ts`)
+        - Auto-reconcile pusher `reconcileNotesPush` (`push-fetch.ts`): on a notes-ref non-ff, fetch the remote
+          ref into a temp tracking ref, union-merge via `git notes merge -s cat_sort_uniq`, re-push, then delete
+          the temp ref — automatic, no prompt. Pure ref/arg/predicate helpers in `lib/user-sync/notes-merge.ts`
+          (extractable for `user-sync-module-split`); IO orchestration in `push-fetch.ts`.
+        - **Scope widened from the planned paired-only seam to every notes-push site** (decided mid-impl — the
+          lossy re-save "merge" is a latent data-loss bug for the shared ref under concurrency, identical across
+          callers, and this WU is what makes it reachable). `pushWithInteractiveRecovery` retired; replaced by
+          `pushNotesWithReconcile` (spinner + staleness-warn wrapper) wired into all four notes-push sites:
+          `pairedNotesAdapter`, `handleUserPush`, `user-sync` save+push, and the `sync` notes-only cell.
+          `--force` stays the explicit overwrite; the `--yes` notes-conflict-auto-accept role and the
+          `failed-nontty-conflict` surface are gone (auto-reconcile needs no prompt, and non-tty pushes now
+          reconcile rather than fail).
+        - Same-commit-collision corruption detection + surfacing is 4.1.b.
 
     - `[ ]` **4.1.b Non-trivial-conflict surfacing**
         - _Note:_ cat_sort_uniq auto-resolves at the line level and exits 0 even when the result is unusable,

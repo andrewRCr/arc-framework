@@ -39,9 +39,9 @@
  * **Force-push handling.** A diverged worktree is decoded by `decideMatrix`
  * as a blocked cell upstream of any push attempt. Defense-in-depth, the
  * paired flow refuses on the `force-push-required` advisory inside
- * `runPairedPush`; the single-leg notes path inherits advisory routing
- * through `pushWithInteractiveRecovery`'s `[rejected]` branch. No matrix
- * cell auto-opts into force-push.
+ * `runPairedPush`; the single-leg notes path auto-reconciles a
+ * non-fast-forward via `pushNotesWithReconcile` (lossless `git notes merge`).
+ * No matrix cell auto-opts into force-push.
  *
  * @module
  */
@@ -80,7 +80,7 @@ import { appendAuditEntry, toAuditWorkUnit } from "../lib/release/audit-log.js";
 import type { AuditEntry, AuditOutcome } from "../lib/release/types.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { createSyncOutput, type SyncOutput } from "../lib/sync-output.js";
-import { pushWithInteractiveRecovery } from "./push-recovery.js";
+import { pushNotesWithReconcile } from "./push-recovery.js";
 import {
   ARC_PROJECT_ROOT_ERROR,
   isNonInteractiveEnvironment,
@@ -585,7 +585,7 @@ async function executePaired(
     branch,
     worktreeSyncState: ctx.worktreeState,
     setUpstream,
-    pushNotes: (context) => pairedNotesAdapter(context, ctx.yes, ctx.output),
+    pushNotes: (context) => pairedNotesAdapter(context, ctx.output),
   });
   renderPairedResult(result, branch, ctx.output);
   return {
@@ -598,43 +598,35 @@ async function executePaired(
 
 /**
  * Notes-leg pusher delegate for `runPairedPush`. Threads the paired flow's
- * context into `pushWithInteractiveRecovery` so paired and single-leg pushes
- * share conflict recovery, idempotent no-op detection, and pre-check refusal.
+ * context into `pushNotesWithReconcile` so paired and single-leg pushes share
+ * automatic lossless reconcile, idempotent no-op detection, and pre-check
+ * refusal. Maps the notes-push outcome onto the paired result surface.
  */
 async function pairedNotesAdapter(
   context: PairedPushNotesContext,
-  yes: boolean,
   output: SyncOutput,
 ): Promise<PairedPushNotesPusherResult> {
-  const result = await pushWithInteractiveRecovery({
+  const outcome = await pushNotesWithReconcile({
     io: context.io,
     identity: context.identity,
     cwd: context.cwd,
     access: context.access,
     worktreeBranch: context.worktreeBranch,
-    yes,
     output,
   });
-  switch (result.kind) {
-    case "ok":
+  switch (outcome.kind) {
+    case "pushed":
       return { status: "success" };
     case "noop":
       return { status: "noop" };
-    case "ok-recovered":
-      return { status: "ok-recovered", via: result.via };
-    case "cancelled":
-      return { status: "cancelled" };
+    case "reconciled":
+      return { status: "ok-recovered", via: "merge" };
     case "no-remote":
       return { status: "no-remote" };
-    case "failed-nontty-conflict":
-      return { status: "failed-nontty-conflict" };
     case "blocked":
-      return { status: "blocked", conditions: result.conditions };
+      return { status: "blocked", conditions: outcome.conditions };
     case "failed":
-      return {
-        status: "failed",
-        error: result.error instanceof Error ? result.error : new Error(String(result.error)),
-      };
+      return { status: "failed", error: outcome.error };
   }
 }
 
@@ -896,44 +888,32 @@ async function performSave(ctx: ExecuteContext): Promise<LegOutcomeRecord> {
 }
 
 async function pushNotesLeg(ctx: ExecuteContext): Promise<LegOutcomeRecord> {
-  const result = await pushWithInteractiveRecovery({
+  const outcome = await pushNotesWithReconcile({
     io: ctx.io,
     identity: ctx.identity,
     cwd: ctx.cwd,
     access,
     worktreeBranch: ctx.branch ?? undefined,
-    yes: ctx.yes,
     output: ctx.output,
   });
-  switch (result.kind) {
-    case "ok":
+  switch (outcome.kind) {
+    case "pushed":
       return { action: "push", result: "success" };
-    case "ok-recovered":
-      return { action: "push", result: "success", detail: `recovered:${result.via}` };
+    case "reconciled":
+      return { action: "push", result: "success", detail: "recovered:merge" };
     case "noop":
       return { action: "push", result: "noop" };
-    case "cancelled":
-      ctx.output.log.info("Notes push cancelled. Run `arc user push` when ready.");
-      return { action: "push", result: "cancelled" };
     case "no-remote":
       ctx.output.log.error("No remote configured. Push requires a remote repository.");
       return { action: "push", result: "failed", detail: "no-remote" };
     case "blocked":
-      for (const condition of result.conditions.filter(isRefusalCondition)) {
+      for (const condition of outcome.conditions.filter(isRefusalCondition)) {
         ctx.output.log.error(condition.guidance);
       }
       return { action: "push", result: "blocked" };
     case "failed":
-      ctx.output.log.error(
-        `Notes push failed: ${result.error instanceof Error ? result.error.message : String(result.error)}`,
-      );
+      ctx.output.log.error(`Notes push failed: ${outcome.error.message}`);
       return { action: "push", result: "failed" };
-    case "failed-nontty-conflict":
-      ctx.output.log.warn(
-        "Push rejected — notes conflict and the environment is non-interactive. "
-        + "Re-run `arc sync` in a terminal to resolve.",
-      );
-      return { action: "push", result: "failed", detail: "nontty-conflict" };
   }
 }
 

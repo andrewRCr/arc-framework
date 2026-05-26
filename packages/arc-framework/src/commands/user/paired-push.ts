@@ -29,8 +29,8 @@
  * intentional (see {@link ../../lib/git/pushability.js}).
  *
  * The notes leg is delegated to an injected {@link PairedPushNotesPusher}
- * (production wires `pushWithInteractiveRecovery`) so the paired and
- * single-leg paths share conflict recovery, idempotent no-op detection, and
+ * (production wires `pushNotesWithReconcile`) so the paired and single-leg
+ * paths share automatic lossless reconcile, idempotent no-op detection, and
  * pre-check refusal without `commands/user/` taking a Clack dependency.
  *
  * No automatic retry. Recovery is the caller's responsibility via

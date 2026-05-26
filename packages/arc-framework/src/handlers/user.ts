@@ -25,7 +25,7 @@ import { getInternalTemplatePath, resolveArcRoot } from "../lib/paths.js";
 import { createUserIOContext } from "../lib/io-context.js";
 import { createSyncOutput, type SyncOutput } from "../lib/sync-output.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
-import { pushWithInteractiveRecovery } from "./push-recovery.js";
+import { pushNotesWithReconcile } from "./push-recovery.js";
 import {
   runWithSpinner, isHandledError, isNonInteractiveEnvironment,
   requireArcProjectRoot, resolveUserIdentity, isRemoteError,
@@ -313,17 +313,17 @@ export interface UserPushOptions {
 /**
  * Handle `arc user push`.
  *
- * Default path runs through `pushWithInteractiveRecovery`, which gates on the
- * pushability pre-check, surfaces no-op detection, and routes divergent
- * pushes through the `[rejected]` recovery branch. Block-disposition
+ * Default path runs through `pushNotesWithReconcile`, which gates on the
+ * pushability pre-check, surfaces no-op detection, and auto-reconciles a
+ * non-fast-forward (a concurrent worktree pushed first) losslessly via
+ * `git notes merge` before re-pushing — no prompt. Block-disposition
  * conditions (rebase in progress, detached HEAD) refuse the push; advisory
- * `force-push-required` is not refused at this site — divergence is handled
- * in recovery (see `commands/user/push-fetch.ts` for the single-leg / paired
- * asymmetry).
+ * `force-push-required` is not refused at this site — divergence reconciles
+ * automatically (see `commands/user/push-fetch.ts`).
  *
  * **`--force` escape hatch.** Explicit user opt-in bypasses both the
  * pushability pre-check (block-disposition conditions still throw via
- * `UserPushBlockedError`) and the recovery branch entirely, executing
+ * `UserPushBlockedError`) and the reconcile entirely, executing
  * `git push --force` against the notes ref. By-design unguarded — matches
  * `git push --force` semantics. Automatic pushes never reach this branch:
  * `arc sync`, the handoff cascade, and any other internal caller leaves
@@ -376,42 +376,29 @@ export async function handleUserPush(opts: UserPushOptions): Promise<void> {
     return;
   }
 
-  const result = await pushWithInteractiveRecovery({
+  const outcome = await pushNotesWithReconcile({
     io, identity, cwd, access, worktreeBranch, output,
   });
-  switch (result.kind) {
-    case "ok":
-    case "ok-recovered":
+  switch (outcome.kind) {
+    case "pushed":
+    case "reconciled":
     case "noop":
       p.outro("Done.");
-      return;
-    case "cancelled":
-      p.log.info("Push cancelled.");
       return;
     case "no-remote":
       p.log.error("No remote configured. Push requires a remote repository.");
       p.log.info("Set up a remote with: git remote add origin <url>");
       process.exitCode = 1;
       return;
-    case "failed-nontty-conflict":
-      p.log.warn(
-        "Push rejected — local and remote notes conflict (both moved since common ancestor), "
-        + "and the environment is non-interactive.",
-      );
-      p.log.warn(
-        "Local save preserved; push skipped. Re-run `arc user push` in a terminal to resolve.",
-      );
-      process.exitCode = 1;
-      return;
     case "blocked":
-      for (const condition of result.conditions.filter(isRefusalCondition)) {
+      for (const condition of outcome.conditions.filter(isRefusalCondition)) {
         p.log.error(condition.guidance);
       }
       process.exitCode = 1;
       return;
     case "failed":
-      if (isHandledError(result.error)) return;
-      throw result.error;
+      if (isHandledError(outcome.error)) return;
+      throw outcome.error;
   }
 }
 

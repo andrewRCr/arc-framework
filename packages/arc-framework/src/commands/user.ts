@@ -26,9 +26,12 @@ export {
 export {
   hasLocalNotes,
   hasRemoteNotes,
+  reconcileNotesPush,
   runUserFetch,
   runUserPull,
   runUserPush,
+  type NotesPushOutcome,
+  type ReconcileNotesPushOptions,
 } from "./user/push-fetch.js";
 export { runPairedPush } from "./user/paired-push.js";
 export {
