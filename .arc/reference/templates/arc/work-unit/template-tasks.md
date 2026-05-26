@@ -38,6 +38,7 @@ _Purpose:_ {what this phase delivers and why this granularity}
 
     - `[ ]` **1.2.a {Subtask description}**
         - {detail bullet — plan now, outcome at `[x]`}
+
     - `[ ]` **1.2.b {Subtask description}**
         - {detail bullet}
 
