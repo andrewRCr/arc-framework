@@ -128,9 +128,10 @@ implementing session is a different session; read the relevant subsection before
   (`io-context.ts` skips `.`-prefixed dirs; `user-sync.ts` skips dotfile basenames). The per-WU vs cross-WU
   distinction is the real new surface. Name-collision warning: `inferUserSyncCause` (a divergence-cause
   diagnostic) is UNRELATED to 3.1's sync-class dispatch — don't assume 3.1 is partly built there.
-- **4.1 reconcile replaces the generic `[rejected]` prompt for the notes leg, automatically** (no prompt);
-  the branch/worktree leg keeps `pushWithInteractiveRecovery` (`handlers/push-recovery.ts`). Mechanism,
-  wiring, and the cat_sort_uniq corruption gotcha are below under "4.1 reconcile is a notes-specific arm."
+- **4.1 reconcile replaces the lossy `[rejected]` recovery for notes pushes, automatically** (no prompt).
+  Shipped all-in: `pushWithInteractiveRecovery` was retired (not just bypassed for the paired leg) and the
+  reconcile became the universal notes-push recovery. Mechanism, the shipped wiring, the scope decision, and
+  the cat_sort_uniq corruption gotcha are below under "4.1 reconcile is a notes-specific arm."
 - **Test coverage to add:** 3.3.b (ref-wide N-most-recent read) and 4.1.b (non-trivial-conflict surfacing)
   need behavior bullets; 3.3.a needs a per-section USER-INBOX case + a malformed-entry case; 4.1 needs a
   notes-merge-failure error path. (Folded into the task list.)
@@ -151,19 +152,27 @@ implementing session is a different session; read the relevant subsection before
   ref/manifest helpers into `lib/user-sync/*` (not `save-load.ts`), so Phase 3 is forward-compatible; isolate
   the sync-class classifier (3.1) and the entry-merge (3.3) into their own functions / a `lib/user-sync/` home
   rather than inlining into `save-load.ts`, so the later split stays clean.
-- **4.1 reconcile is a notes-specific arm, not the generic recovery.** `pushWithInteractiveRecovery`
-  (`push-recovery.ts`) is one generic `[rejected]` path (force/merge/cancel; force-fetch + re-save + re-push)
-  with no notes-vs-branch distinction — and for the shared notes ref that "merge" is **lossy**: re-save only
-  serializes *this* worktree's `user/{identity}/` dir, dropping notes another worktree concurrently pushed.
-  4.1 replaces it, for the notes leg only, with an automatic `git notes merge` (cat_sort_uniq) arm; the
-  interactive path stays for the worktree/branch leg.
-    - **Wiring (the arm is injected, not inlined).** `runPairedPush` (`paired-push.ts`) delegates the notes
-      leg to an injected `pushNotes` (`RunPairedPushOptions`); production wires it in
-      `handlers/sync.ts:pairedNotesAdapter` → `pushWithInteractiveRecovery`. So the reconcile is a *new notes
-      pusher* — pure merge/validity logic in `lib/user-sync/`, IO orchestration in
-      `commands/user/push-fetch.ts` — injected via that seam, not code added to `runPairedPush` or the
-      handler. Keeps `handlers/sync.ts` thin for `sync-handler-decomposition` (orthogonal) and the pure logic
-      in `lib/user-sync/` for `user-sync-module-split`.
+- **4.1 reconcile is a notes-specific arm, not the generic recovery (shipped all-in 2026-05-26).** The old
+  `pushWithInteractiveRecovery` was one generic `[rejected]` path (force/merge/cancel; force-fetch, re-save,
+  re-push) with no notes-vs-branch distinction — and for the shared notes ref that "merge" was **lossy**:
+  re-save only serializes *this* worktree's `user/{identity}/` dir, dropping notes another worktree
+  concurrently pushed. Every notes-push site routed through it, so the lossy merge was a latent data-loss bug
+  reachable from any of them once this WU enables parallel worktrees.
+    - **Decision — fix it everywhere, not just the paired leg.** Planning scoped 4.1 to `runPairedPush`'s
+      notes leg via the `pushNotes` seam, leaving the other sites on the lossy path. At impl time the scope
+      widened (the bug is identical across callers, and this WU is what makes it reachable):
+      `pushWithInteractiveRecovery` was **retired** and replaced by `pushNotesWithReconcile` (a thin
+      spinner / staleness-warn wrapper over the new `reconcileNotesPush`), wired into **all four**
+      notes-push sites: `pairedNotesAdapter`, `handleUserPush` (`arc user push`), the `user-sync` save+push
+      flow, and the `sync` notes-only cell. `--force` stays the explicit overwrite; the `--yes`
+      notes-conflict-auto-accept role and the `failed-nontty-conflict` surface are gone (auto-reconcile
+      needs no prompt, and non-tty pushes now reconcile instead of failing).
+    - **Wiring (logic stays modular).** Pure ref/arg/predicate + validity helpers (`isResolvedNoteValid`)
+      live in `lib/user-sync/notes-merge.ts` (extractable for `user-sync-module-split`); IO orchestration
+      (`reconcileNotesPush`) in `commands/user/push-fetch.ts` — no merge logic in `runPairedPush` or the
+      handlers. `pushNotesWithReconcile` (`handlers/push-recovery.ts`) is the thin rendering wrapper the four
+      sites call; the paired flow still injects via the `pushNotes` seam (now pointing at the reconciler).
+      Keeps `handlers/sync.ts` thin for `sync-handler-decomposition` (orthogonal).
     - **cat_sort_uniq corrupts single-line-JSON notes on a same-commit collision (the real 4.1.b case).**
       User notes are single-line JSON (`JSON.stringify(manifest)`). `git notes merge -s cat_sort_uniq`
       line-merges blobs *only when both refs annotate the same commit*. Different worktrees usually annotate
