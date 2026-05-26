@@ -428,14 +428,14 @@ is optional throughout.
   don't hard-wire a permanent agent-trigger step; leave the seam for the CLI evaluator. Tombstone logic lives
   in `lib/user-sync/merge.ts`.
 
-    - `[ ]` **3.4.a Tombstone write on entry removal** (`lib/user-sync/merge.ts`)
-        - Save reads the prior merged entry set (3.3.b's N-note read), diffs the current cross-WU file, and
-          writes a timestamped `## Removed: {name}` for each entry present-before / absent-now.
-        - Build `test-first` (one behavior at a time):
-            - entry present in prior merged state, absent in current file → `## Removed: {name}` written + timestamp
-            - entry never present (not in prior state) → no tombstone (not a removal)
-            - entry still present → no tombstone
-            - no prior merged state (fresh) → no tombstones synthesized
+    - `[x]` **3.4.a Tombstone write on entry removal** (`lib/user-sync/merge.ts`)
+        - `appendRemovalTombstones` diffs the current cross-WU file against the prior merged state (list-union
+          across the recent-note window via 3.3's `mergeEntries`) and appends a timestamped, `(section, key)`-keyed
+          `## Removed: {key}` H2 marker per present-before / absent-now entry; unknown-shape, empty-window, and
+          no-removal cases no-op. The marker body carries `- _Section:_` / `- _Removed:_` lines (the TTL anchor
+          3.4.b reads). Wired into `runUserSave` via `applyRemovalTombstones`, which stamps the to-be-saved
+          manifest before the note write/verify. Markers are recorded here, not yet honored — suppression + TTL
+          is 3.4.b.
     - `[ ]` **3.4.b Merge respects latest tombstone**
         - Build `test-first` (one behavior at a time):
             - tombstone suppresses an earlier inclusion of the same entry

@@ -516,6 +516,91 @@ describe("runUserSave — save verification", () => {
   });
 });
 
+interface SaveNotesMockConfig {
+  head?: string;
+  /** Current on-disk files being saved. */
+  files: Record<string, string>;
+  /** The most-recent note's manifest files (the prior merged state). */
+  priorNoteFiles: Record<string, string>;
+}
+
+/**
+ * Save IO whose git exec also serves the recent-note window read
+ * (`readRecentUserNotes`) from a single prior note, so the removal-tombstone
+ * wiring has a prior merged state to diff against.
+ */
+function mockSaveIOWithNotes(
+  config: SaveNotesMockConfig,
+): { io: UserIOContext; written: () => string | null } {
+  const head = config.head ?? "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const historyCommit = "n1";
+  const annotated = "c1".padEnd(40, "0");
+  const notePath = `${annotated.slice(0, 2)}/${annotated.slice(2)}`;
+  const noteManifest = JSON.stringify({ version: 2, files: config.priorNoteFiles });
+  let writtenNote: string | null = null;
+
+  const io: UserIOContext = {
+    exec: vi.fn(async (cmd: string, args: string[]) => {
+      if (args[0] === "rev-parse" && args[1] === "HEAD") return { stdout: head, stderr: "" };
+      if (args[0] === "log") return { stdout: historyCommit, stderr: "" };
+      if (args[0] === "diff-tree") return { stdout: notePath, stderr: "" };
+      if (args[0] === "show") {
+        if (args[1] === `${historyCommit}:${notePath}`) return { stdout: noteManifest, stderr: "" };
+        throw new Error(`missing note content: ${args[1] ?? ""}`);
+      }
+      throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
+    }),
+    readFile: vi.fn(async (filePath: string) => {
+      const name = filePath.slice(filePath.lastIndexOf("/") + 1);
+      const content = config.files[name];
+      if (content === undefined) throw new Error(`unexpected file read: ${filePath}`);
+      return content;
+    }),
+    writeFile: vi.fn(async () => undefined),
+    readDir: vi.fn(async () => (
+      Object.entries(config.files).map(([name, content]) => ({
+        name,
+        size: Buffer.byteLength(content, "utf-8"),
+      }))
+    )),
+    mkdir: vi.fn(async () => undefined),
+    writeNote: vi.fn(async (_ref: string, content: string) => { writtenNote = content; }),
+    readNote: vi.fn(async () => writtenNote),
+  };
+  return { io, written: () => writtenNote };
+}
+
+describe("runUserSave — removal tombstones", () => {
+  let cwd: string;
+
+  beforeEach(async () => {
+    cwd = await mkdtemp(join(tmpdir(), "arc-save-tombstone-"));
+  });
+
+  afterEach(async () => {
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  it("stamps a Removed marker into a cross-WU file whose entry is absent since the prior note", async () => {
+    const wm = (...entries: string[]): string =>
+      `# Working Memory\n\n## Memories\n\n${entries.join("\n\n")}\n\n---\n`;
+    const entry = (header: string): string => `**${header}:**\n_Remove when: x._\n\nBody.`;
+
+    const { io, written } = mockSaveIOWithNotes({
+      files: { "WORKING-MEMORY.md": wm(entry("Kept")) },
+      priorNoteFiles: { "WORKING-MEMORY.md": wm(entry("Kept"), entry("Dropped")) },
+    });
+
+    await runUserSave({ cwd, io, identity: "andrew" });
+
+    const note = written();
+    expect(note).not.toBeNull();
+    const saved = (JSON.parse(note ?? "{}") as SyncManifest).files["WORKING-MEMORY.md"] ?? "";
+    expect(saved).toContain("## Removed: **Dropped:**");
+    expect(saved).not.toContain("## Removed: **Kept:**");
+  });
+});
+
 interface LoadMockConfig {
   head?: string;
   manifest?: SyncManifest;

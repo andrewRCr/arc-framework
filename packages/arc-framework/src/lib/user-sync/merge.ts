@@ -13,7 +13,7 @@
  */
 
 import { parseCrossWuEntries, shapeForFile } from "./parser.js";
-import type { CrossWuEntry } from "./types.js";
+import type { CrossWuEntry, CrossWuShape } from "./types.js";
 
 /** Identity of an entry for union/dedupe — section-scoped key. */
 function identityOf(entry: CrossWuEntry): string {
@@ -147,4 +147,74 @@ function insertIntoSection(content: string, section: string, block: string): str
 /** Stable dedupe preserving first-seen order. */
 function dedupe(values: readonly string[]): string[] {
   return [...new Set(values)];
+}
+
+/**
+ * A deletion tombstone — records that a cross-WU entry was removed, so the merge
+ * can suppress its reappearance from an older note within the window. `removedAt`
+ * is the TTL anchor.
+ */
+interface Tombstone {
+  /** Containing H2 section of the removed entry — preserves `(section, key)` identity. */
+  section: string;
+  /** The removed entry's merge key (WORKING-MEMORY header or USER-INBOX lead-in). */
+  key: string;
+  /** ISO-8601 timestamp when the removal was recorded. */
+  removedAt: string;
+}
+
+/** Well-formed entries from a file's content, dropping (here, ignoring) malformed blocks. */
+function okEntries(content: string, shape: CrossWuShape): CrossWuEntry[] {
+  return parseCrossWuEntries(content, shape).flatMap((parse) => (parse.ok ? [parse.entry] : []));
+}
+
+/** Entries present in the prior merged state but absent from the current file. */
+function synthesizeTombstones(
+  prior: readonly CrossWuEntry[],
+  current: readonly CrossWuEntry[],
+  now: string,
+): Tombstone[] {
+  const present = new Set(current.map(identityOf));
+  return prior
+    .filter((entry) => !present.has(identityOf(entry)))
+    .map((entry) => ({ section: entry.section, key: entry.key, removedAt: now }));
+}
+
+/** Render one tombstone as an `## Removed:` H2 marker block. */
+function renderTombstone(tombstone: Tombstone): string {
+  return `## Removed: ${tombstone.key}\n\n- _Section:_ ${tombstone.section}\n- _Removed:_ ${tombstone.removedAt}`;
+}
+
+/**
+ * Append deletion tombstones to a cross-WU file for entries removed since the
+ * prior merged state.
+ *
+ * The prior state is reconstructed by list-unioning entries across `priorNotes`
+ * (the same merge as the load path) — an entry present there but absent from
+ * `currentContent` is a removal and earns a timestamped `## Removed: {key}`
+ * marker. Unknown-shape files, an empty prior window, and the no-removal case
+ * return the content unchanged. The marker is recorded here; honoring it
+ * (suppression, TTL) happens at the next merge.
+ *
+ * @param filename - Manifest-relative or bare filename; the basename selects the parser.
+ * @param currentContent - The file content being saved.
+ * @param priorNotes - Prior copies of the file, recency-ordered (most-recent first).
+ * @param now - ISO-8601 timestamp stamped on each new tombstone.
+ * @returns The content with any removal tombstones appended at EOF.
+ */
+export function appendRemovalTombstones(
+  filename: string,
+  currentContent: string,
+  priorNotes: readonly MergeNote[],
+  now: string,
+): string {
+  const shape = shapeForFile(filename);
+  if (shape === null) return currentContent;
+
+  const prior = mergeEntries(priorNotes.map((note) => okEntries(note.content, shape)));
+  const tombstones = synthesizeTombstones(prior, okEntries(currentContent, shape), now);
+  if (tombstones.length === 0) return currentContent;
+
+  const block = tombstones.map(renderTombstone).join("\n\n");
+  return `${currentContent.replace(/\n+$/u, "")}\n\n${block}\n`;
 }

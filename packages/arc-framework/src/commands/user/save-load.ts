@@ -6,6 +6,7 @@ import { atomicWriteJson } from "../../lib/fs.js";
 import { deserialize, isSafeManifestPath, serialize, shortHash, type SyncManifest } from "../../lib/git/index.js";
 import { ensureDir } from "../../lib/template/index.js";
 import {
+  appendRemovalTombstones,
   classifyUserSyncPath,
   mergeCrossWuFile,
   wuNameOfPath,
@@ -83,6 +84,9 @@ export async function runUserSave(
   if (Object.keys(result.manifest.files).length === 0) {
     throw new UserSaveError("No eligible files found in user directory to save.");
   }
+
+  const recentNotes = await readRecentUserNotes(io.exec, identity);
+  applyRemovalTombstones(result.manifest, recentNotes, new Date().toISOString());
 
   const json = JSON.stringify(result.manifest);
   await io.writeNote(notesRef(identity), json, commit);
@@ -261,6 +265,35 @@ function mergeCrossWuFromNotes(
     warnings.push(...merged.malformed);
   }
   return { files, warnings };
+}
+
+/**
+ * Stamp removal tombstones into the cross-WU files of a to-be-saved manifest.
+ *
+ * Each cross-WU flat file is diffed against its prior merged state across the
+ * recent-note window: an entry present before and absent now earns a
+ * `## Removed:` marker (see {@link appendRemovalTombstones}). Per-WU subdir
+ * files and files absent from the window are left untouched. Mutates the
+ * manifest in place — the augmented content is what gets noted and verified.
+ */
+function applyRemovalTombstones(
+  manifest: SyncManifest,
+  recentNotes: readonly RecentNote[],
+  now: string,
+): void {
+  const perNoteFiles = recentNotes.map((note) => parseManifestFiles(note.content) ?? {});
+  for (const [name, content] of Object.entries(manifest.files)) {
+    if (classifyUserSyncPath(name) !== "cross-wu") continue;
+
+    const priorNotes: MergeNote[] = [];
+    for (const noteFiles of perNoteFiles) {
+      const prior = noteFiles[name];
+      if (typeof prior === "string") priorNotes.push({ content: prior });
+    }
+    if (priorNotes.length === 0) continue;
+
+    manifest.files[name] = appendRemovalTombstones(name, content, priorNotes, now);
+  }
 }
 
 async function verifyMaterializedUserDir(

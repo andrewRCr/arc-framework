@@ -8,6 +8,7 @@
 import { describe, it, expect } from "vitest";
 
 import {
+  appendRemovalTombstones,
   mergeEntries,
   mergeCrossWuFile,
   parseCrossWuEntries,
@@ -253,5 +254,71 @@ No remove-when trigger here.
 
     expect(result.malformed).toHaveLength(1);
     expect(result.malformed[0]).toContain("Remove when");
+  });
+});
+
+describe("appendRemovalTombstones", () => {
+  const NOW = "2026-05-25T12:00:00.000Z";
+
+  /** A WORKING-MEMORY file whose `## Memories` section holds the given entry blocks. */
+  const wmFile = (...entries: string[]): string =>
+    `# Working Memory\n\n## Memories\n\n${entries.join("\n\n")}\n\n---\n`;
+  const wmEntry = (header: string): string => `**${header}:**\n_Remove when: x._\n\nBody.`;
+
+  it("writes a timestamped Removed marker when a prior entry is absent now", () => {
+    const prior = wmFile(wmEntry("Kept"), wmEntry("Dropped"));
+    const current = wmFile(wmEntry("Kept"));
+
+    const result = appendRemovalTombstones("WORKING-MEMORY.md", current, [{ content: prior }], NOW);
+
+    expect(result).toContain("## Removed: **Dropped:**");
+    expect(result).toContain(NOW);
+    expect(result).not.toContain("## Removed: **Kept:**");
+  });
+
+  it("writes no tombstone for an entry that was never in the prior state", () => {
+    const prior = wmFile(wmEntry("Kept"));
+    const current = wmFile(wmEntry("Kept"), wmEntry("NewlyAdded"));
+
+    const result = appendRemovalTombstones("WORKING-MEMORY.md", current, [{ content: prior }], NOW);
+
+    expect(result).not.toContain("## Removed:");
+  });
+
+  it("writes no tombstone when every prior entry is still present", () => {
+    const file = wmFile(wmEntry("Kept"));
+
+    const result = appendRemovalTombstones("WORKING-MEMORY.md", file, [{ content: file }], NOW);
+
+    expect(result).not.toContain("## Removed:");
+  });
+
+  it("synthesizes no tombstones when there is no prior merged state", () => {
+    const current = wmFile(wmEntry("Kept"));
+
+    const result = appendRemovalTombstones("WORKING-MEMORY.md", current, [], NOW);
+
+    expect(result).toBe(current);
+  });
+
+  it("keys the tombstone to (section, key) so a removal spares the same lead-in elsewhere", () => {
+    const uiFile = (atomic: string, backlog: string): string =>
+      `# User Inbox\n\n## Atomic\n\n${atomic}\n\n## Backlog\n\n${backlog}\n\n---\n`;
+    const prior = uiFile("- **Shared** — atomic body", "- **Shared** — backlog body");
+    const current = uiFile("- **Shared** — atomic body", "");
+
+    const result = appendRemovalTombstones("USER-INBOX.md", current, [{ content: prior }], NOW);
+
+    expect(result).toContain("## Removed: Shared");
+    expect(result).toContain("_Section:_ Backlog");
+    expect(result).not.toContain("_Section:_ Atomic");
+  });
+
+  it("leaves an unknown-shape file unchanged", () => {
+    const current = "# Future file\n\narbitrary content\n";
+
+    const result = appendRemovalTombstones("SOME-FUTURE-FILE.md", current, [{ content: "anything" }], NOW);
+
+    expect(result).toBe(current);
   });
 });
