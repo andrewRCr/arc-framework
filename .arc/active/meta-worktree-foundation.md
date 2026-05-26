@@ -11,15 +11,16 @@
 - **Cohort:** agile-parallelism
 
 - **Task List:** tasks-worktree-foundation.md
-- **Last Completed:** Task 3.2 — Per-WU subdir load: note resolution + materialization scoped to the current WU
-  (3.1's path classifier consumed via `wuNameOfPath`; WU-name derived at the handlers, threaded through
-  load/pull/sync). Task 3.1 (path-driven sync-class classifier) also shipped this session.
-- **Next Task:** Task 3.3 — Cross-WU file merge (per-file entry list-union) (line ~372)
+- **Last Completed:** Task 3.3 — Cross-WU file merge (per-file entry list-union); all three subtasks shipped —
+  3.3.a parser + list-union/dedupe (`lib/user-sync/{parser,merge,types}.ts`), 3.3.b ref-wide N-most-recent-note
+  reader (`notes-ref.ts`), 3.3.c wired into `runUserLoad` (cross-WU merges across the note window; per-WU subdir
+  stays on the single resolved note).
+- **Next Task:** Task 3.4 — Tombstones for cross-WU deletions (line ~416)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 3.3 (`lib/user-sync/parser.ts`, `…/merge.ts`, `…/notes-ref.ts`) — per-file entry
-  list-union across the N most-recent notes, deduped by entry identity; per `3_process-task-loop.md`. Phase 3
-  design is settled (`b638826e`) — follow the task text, no re-audit. Cross-WU load currently rides the single
-  resolved note (3.2); 3.3 swaps it to the ref-wide N-note merge.
+- **Next Action:** Begin Task 3.4 (`lib/user-sync/merge.ts`) — `arc user save` writes a timestamped
+  `## Removed: {name}` tombstone when a cross-WU entry is present-before / absent-now (reuse 3.3.b's N-note merge
+  for the prior state); the merge honors the latest tombstone with a fixed-TTL filter-at-merge GC. Test-first per
+  `3_process-task-loop.md`; Phase 3 design settled (`b638826e`), no re-audit.
 
 ---
