@@ -11,16 +11,14 @@
 - **Cohort:** agile-parallelism
 
 - **Task List:** tasks-worktree-foundation.md
-- **Last Completed:** Task 3.3 — Cross-WU file merge (per-file entry list-union); all three subtasks shipped —
-  3.3.a parser + list-union/dedupe (`lib/user-sync/{parser,merge,types}.ts`), 3.3.b ref-wide N-most-recent-note
-  reader (`notes-ref.ts`), 3.3.c wired into `runUserLoad` (cross-WU merges across the note window; per-WU subdir
-  stays on the single resolved note).
-- **Next Task:** Task 3.4 — Tombstones for cross-WU deletions (line ~416)
+- **Last Completed:** Task 3.4 — Tombstones for cross-WU deletions (Phase 3 complete): 3.4.a save-side write
+  (`appendRemovalTombstones`, wired into `runUserSave`), 3.4.b merge honors them via recency resolution +
+  carry-forward + fixed-TTL GC (`lib/user-sync/merge.ts`).
+- **Next Task:** Task 4.1 — Concurrent-push reconcile (`git notes merge`) (line ~454)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 3.4 (`lib/user-sync/merge.ts`) — `arc user save` writes a timestamped
-  `## Removed: {name}` tombstone when a cross-WU entry is present-before / absent-now (reuse 3.3.b's N-note merge
-  for the prior state); the merge honors the latest tombstone with a fixed-TTL filter-at-merge GC. Test-first per
-  `3_process-task-loop.md`; Phase 3 design settled (`b638826e`), no re-audit.
+- **Next Action:** Begin Task 4.1 (`paired-push.ts` / `push-fetch.ts`) — at the notes-push leg of
+  `runPairedPush`, reconcile a non-fast-forward via fetch + `git notes merge` (cat_sort_uniq), surfacing only
+  non-trivial conflicts. Test-first per `3_process-task-loop.md`; Phase 4 design settled (see Phase 4 preamble).
 
 ---
