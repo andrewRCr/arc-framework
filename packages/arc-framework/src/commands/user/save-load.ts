@@ -8,8 +8,10 @@ import { ensureDir } from "../../lib/template/index.js";
 import {
   appendRemovalTombstones,
   classifyUserSyncPath,
+  collectNotesWuNames,
   mergeCrossWuFile,
   planRetiredSubdirReconcile,
+  subdirsFromPaths,
   wuNameOfPath,
   type MergeNote,
 } from "../../lib/user-sync/index.js";
@@ -681,30 +683,6 @@ function noteManifestContainsWu(noteContent: string, wuName: string): boolean {
   return Object.keys(files).some((path) => wuNameOfPath(path) === wuName);
 }
 
-/** Distinct per-WU subdir names present in a local serialize manifest. */
-function distinctLocalSubdirs(localFiles: Record<string, string>): string[] {
-  const subdirs = new Set<string>();
-  for (const path of Object.keys(localFiles)) {
-    const wu = wuNameOfPath(path);
-    if (wu !== null) subdirs.add(wu);
-  }
-  return [...subdirs];
-}
-
-/** WU names referenced by any per-WU path across the recent-notes window. */
-function collectNotesWuNames(recentNotes: RecentNote[]): Set<string> {
-  const names = new Set<string>();
-  for (const note of recentNotes) {
-    const files = parseManifestFiles(note.content);
-    if (!files) continue;
-    for (const path of Object.keys(files)) {
-      const wu = wuNameOfPath(path);
-      if (wu !== null) names.add(wu);
-    }
-  }
-  return names;
-}
-
 /**
  * Reconcile retired per-WU subdirs at load time: remove each present subdir
  * whose WU has shipped and is no longer carried in the recent-notes window.
@@ -720,7 +698,7 @@ async function reconcileRetiredSubdirs(params: {
   localFiles: Record<string, string>;
   recentNotes: RecentNote[];
 }): Promise<Set<string>> {
-  const localSubdirs = distinctLocalSubdirs(params.localFiles);
+  const localSubdirs = subdirsFromPaths(Object.keys(params.localFiles));
   if (localSubdirs.length === 0) return new Set();
 
   const notesWuNames = collectNotesWuNames(params.recentNotes);

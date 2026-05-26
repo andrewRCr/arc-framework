@@ -58,6 +58,7 @@ import {
   RECOVERY_RECENCY_DAYS,
 } from "../lib/session-init/branch-gone-recovery.js";
 import { runStaleWorktreeSweep } from "../lib/session-init/stale-worktree-sweep.js";
+import { runRetiredSubdirDetection } from "../lib/session-init/retired-subdir-detection.js";
 import { runDirtyStateStatus } from "../lib/git/dirty-state.js";
 import { runHeadHashStatus } from "../lib/git/head-hash.js";
 import { runPushabilityStatus } from "../lib/git/pushability.js";
@@ -243,6 +244,13 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
           fs: { readdir: (path) => readdir(path) },
         });
       },
+      retiredSubdirs: (id) => runRetiredSubdirDetection({
+        cwd,
+        identity: id,
+        exec: gitExec,
+        readDir: io.readDir,
+        fs: { readdir: (path) => readdir(path) },
+      }),
     };
     const result = await runSessionInitStatus({ identity, role, probes });
     if (json) {

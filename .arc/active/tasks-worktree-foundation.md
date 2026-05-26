@@ -487,7 +487,7 @@ downstream sync WUs is recorded in `notes-worktree-foundation.md` § Phase 4 for
           actionable message; a failed `git notes merge` command is aborted and surfaced the same way. The
           `conflict` outcome renders gracefully at all four notes-push sites (no throw).
 
-### `[ ]` **4.2 Retired-subdir reconciliation**
+### `[x]` **4.2 Retired-subdir reconciliation**
 
 - _Goal:_ `arc user load` / `pull` / session-init reconcile retired-WU subdirs that linger after a WU shipped on
   another machine — local subdir present + absent from recent notes + WU shipped → offer or auto-close with a
@@ -513,7 +513,7 @@ downstream sync WUs is recorded in `notes-worktree-foundation.md` § Phase 4 for
           filter is needed; the still-in-notes check precedes the shipped check so a shipped-but-still-live
           subdir is preserved. Removal (backup + delete) and the load / pull / session-init wiring are 4.2.b.
 
-    - `[ ]` **4.2.b Wire into load / pull / session-init**
+    - `[x]` **4.2.b Wire into load / pull / session-init**
 
         - `[x]` **4.2.b.i Load / pull reconcile path**
             - `reconcileRetiredSubdirs` in `runUserLoad` (`save-load.ts`) derives `localSubdirs` +
@@ -523,11 +523,14 @@ downstream sync WUs is recorded in `notes-worktree-foundation.md` § Phase 4 for
               "preserved" warnings and surfaced as removal warnings instead. `runUserPull` inherits via
               `runUserLoad`. Integration-tested against a real temp repo + notes.
 
-        - `[ ]` **4.2.b.ii Session-init detection slot**
-            - Read-only detection surfaced like the `sweep` slot (safeProbe-wrapped, envelope never rejects,
-              cheap local read); **no removal** in session-init — it surfaces, load / pull act. New
-              `lib/session-init/` module + probe interface + envelope field (`commands/status/{types,run}.ts`,
-              `handlers/status.ts`) + `session-init.md` orientation surfacing (both copies).
+        - `[x]` **4.2.b.ii Session-init detection slot**
+            - `runRetiredSubdirDetection` (`lib/session-init/retired-subdir-detection.ts`) surfaces lingering
+              retired subdirs read-only — cheap-base / gated-expensive like `sweep` (local subdirs ∩ shipped
+              first; the recent-notes read fires only when a shipped subdir is present), reusing
+              `planRetiredSubdirReconcile`. Wired as an eager identity-gated probe through
+              `commands/status/{types,run}.ts` + `handlers/status.ts`, with `session-init` orientation in both
+              copies. `collectNotesWuNames` / `subdirsFromPaths` extracted to `lib/user-sync` and shared with
+              the load path.
 
 ### `[ ]` **4.3 Orphan-warning messaging (T2 grouped + T1 rename-detection)**
 

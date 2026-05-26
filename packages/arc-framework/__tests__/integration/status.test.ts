@@ -204,6 +204,7 @@ function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
     roster: async () => ({ entries: [], warnings: [] }),
     recovery: async () => ({ kind: "main-fallback" as const }),
     sweep: async () => ({ worktrees: [], warnings: [] }),
+    retiredSubdirs: async () => ({ candidates: [] }),
     releaseRouting: async () =>
       resolveReleaseRouting({
         releaseOptedIn: false,
@@ -251,6 +252,7 @@ function makeResolvedReleaseModeSessionInitProbes(
     roster: async () => ({ entries: [], warnings: [] }),
     recovery: async () => ({ kind: "main-fallback" as const }),
     sweep: async () => ({ worktrees: [], warnings: [] }),
+    retiredSubdirs: async () => ({ candidates: [] }),
     releaseRouting: async () => routingFromSettings(await resolvedSettings()),
   };
 }
@@ -460,6 +462,7 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
       roster: async () => ({ entries: [], warnings: [] }),
       recovery: async () => ({ kind: "main-fallback" as const }),
       sweep: async () => ({ worktrees: [], warnings: [] }),
+      retiredSubdirs: async () => ({ candidates: [] }),
       releaseRouting: async () =>
         resolveReleaseRouting({
           releaseOptedIn: false,
@@ -620,6 +623,7 @@ function makeRealWorktreeProbes(
     roster: async () => ({ entries: [], warnings: [] }),
     recovery: async () => ({ kind: "main-fallback" as const }),
     sweep: async () => ({ worktrees: [], warnings: [] }),
+    retiredSubdirs: async () => ({ candidates: [] }),
     releaseRouting: async () =>
       resolveReleaseRouting({
         releaseOptedIn: false,

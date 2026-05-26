@@ -133,6 +133,9 @@ export async function runSessionInitStatus(
     | ProbeErrorSlot;
   type RawWorktree = { ok: true; value: import("../../lib/git/worktree-sync.js").WorktreeSyncStatusResult }
     | ProbeErrorSlot;
+  type RawRetired =
+    | { ok: true; value: import("../../lib/session-init/retired-subdir-detection.js").RetiredSubdirDetectionResult }
+    | ProbeErrorSlot;
 
   const userTask: Promise<RawUser> = identity === null
     ? Promise.resolve(identityMissing())
@@ -145,10 +148,16 @@ export async function runSessionInitStatus(
   const activeTask = safeProbe(() => probes.active(identity, role));
   const domainRulesTask = safeProbe(() => probes.domainRules());
   const releaseRoutingTask = safeProbe(() => probes.releaseRouting());
+  // Retired-subdir detection rides the eager phase (no roster dependency); it
+  // needs identity to resolve a user dir, so it is omitted when identity is
+  // absent. `null` here means "not computed" — distinct from an empty result.
+  const retiredSubdirsTask: Promise<RawRetired | null> = identity === null
+    ? Promise.resolve(null)
+    : safeProbe(() => probes.retiredSubdirs(identity));
 
   const [
     user, worktree, worktreeIdentitySlot, dirty, extensions, config, active,
-    domainRules, releaseRouting,
+    domainRules, releaseRouting, retiredSubdirs,
   ] = await Promise.all([
     userTask,
     worktreeTask,
@@ -159,6 +168,7 @@ export async function runSessionInitStatus(
     activeTask,
     domainRulesTask,
     releaseRoutingTask,
+    retiredSubdirsTask,
   ]);
 
   // Worktree identity is non-critical and always-on: a failed probe degrades
@@ -258,6 +268,7 @@ export async function runSessionInitStatus(
     ...(roster !== undefined ? { roster } : {}),
     ...(recovery !== undefined ? { recovery } : {}),
     ...(sweep !== undefined ? { sweep } : {}),
+    ...(retiredSubdirs !== null ? { retiredSubdirs } : {}),
     recommendedCombinedPrompt: recommendations.recommendedCombinedPrompt,
   };
 }

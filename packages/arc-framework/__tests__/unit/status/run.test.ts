@@ -50,6 +50,7 @@ import type { WorktreeRosterResult } from "../../../src/lib/git/worktree-roster.
 import type { WorktreeIdentity } from "../../../src/lib/git/worktree-identity.js";
 import type { CascadeResolution } from "../../../src/lib/session-init/branch-gone-cascade.js";
 import type { StaleWorktreeSweepResult } from "../../../src/lib/session-init/stale-worktree-sweep.js";
+import type { RetiredSubdirDetectionResult } from "../../../src/lib/session-init/retired-subdir-detection.js";
 import type { RestateCandidatesResult } from "../../../src/lib/handoff/restate-candidates.js";
 import type { ReleaseRoutingValue } from "../../../src/lib/release/routing.js";
 
@@ -283,6 +284,7 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
     roster: vi.fn(async () => rosterResult()),
     recovery: vi.fn(async (): Promise<CascadeResolution> => ({ kind: "main-fallback" })),
     sweep: vi.fn(async (): Promise<StaleWorktreeSweepResult> => ({ worktrees: [], warnings: [] })),
+    retiredSubdirs: vi.fn(async (): Promise<RetiredSubdirDetectionResult> => ({ candidates: [] })),
     ...overrides,
   };
 }
@@ -824,6 +826,7 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
       "mode",
       "recommendedCombinedPrompt",
       "releaseRouting",
+      "retiredSubdirs",
       "user",
       "worktree",
     ]);
@@ -1229,6 +1232,39 @@ describe("runSessionInitStatus — stale-worktree sweep gating", () => {
     expect(result.sweep?.ok).toBe(false);
     if (result.sweep && !result.sweep.ok) {
       expect(result.sweep.error.message).toBe("sweep boom");
+    }
+    expect(result.worktree.ok).toBe(true);
+  });
+});
+
+describe("runSessionInitStatus — retired-subdir detection slot", () => {
+  it("fires the detection when identity resolved, passing the identity", async () => {
+    const probes = sessionInitProbes({
+      retiredSubdirs: vi.fn(async () => ({ candidates: ["old-wu"] })),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(probes.retiredSubdirs).toHaveBeenCalledWith("andrew");
+    expect(result.retiredSubdirs?.ok).toBe(true);
+    if (result.retiredSubdirs?.ok) {
+      expect(result.retiredSubdirs.value.candidates).toEqual(["old-wu"]);
+    }
+  });
+
+  it("omits the detection when identity is absent", async () => {
+    const probes = sessionInitProbes();
+    const result = await runSessionInitStatus({ identity: null, role: null, probes });
+    expect(probes.retiredSubdirs).not.toHaveBeenCalled();
+    expect("retiredSubdirs" in result).toBe(false);
+  });
+
+  it("wraps a rejecting detection probe as ok=false without rejecting the composite", async () => {
+    const probes = sessionInitProbes({
+      retiredSubdirs: async () => { throw new Error("detect boom"); },
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(result.retiredSubdirs?.ok).toBe(false);
+    if (result.retiredSubdirs && !result.retiredSubdirs.ok) {
+      expect(result.retiredSubdirs.error.message).toBe("detect boom");
     }
     expect(result.worktree.ok).toBe(true);
   });

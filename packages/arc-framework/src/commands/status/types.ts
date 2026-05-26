@@ -37,6 +37,7 @@ import type { WorktreeRosterResult } from "../../lib/git/worktree-roster.js";
 import type { WorktreeIdentity } from "../../lib/git/worktree-identity.js";
 import type { CascadeResolution } from "../../lib/session-init/branch-gone-cascade.js";
 import type { StaleWorktreeSweepResult } from "../../lib/session-init/stale-worktree-sweep.js";
+import type { RetiredSubdirDetectionResult } from "../../lib/session-init/retired-subdir-detection.js";
 import type { RestateCandidatesResult } from "../../lib/handoff/restate-candidates.js";
 import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
 import type { RecommendedAction } from "../../lib/session-init/recommended-action.js";
@@ -143,6 +144,14 @@ export interface SessionInitProbeResult {
    * worktrees (the resume path never sweeps) and when the roster failed.
    */
   sweep?: Probe<StaleWorktreeSweepResult>;
+  /**
+   * Pre-computed retired-subdir detection — lingering retired-WU user subdirs
+   * (shipped + absent from the recent-notes window) under `user/{identity}/`.
+   * Read-only surface; the actual reconcile (with `.internal/` backup) happens
+   * at `arc user load` / `pull`. Present whenever identity resolved (a cheap
+   * always-on slot); omitted only when identity is absent.
+   */
+  retiredSubdirs?: Probe<RetiredSubdirDetectionResult>;
   /**
    * Per-channel offer text composed when both the worktree and user slots
    * resolve to `recommendedAction === "prompt"`. Null when only one channel
@@ -296,6 +305,12 @@ export interface SessionInitProbes {
     roster: WorktreeRosterResult,
     worktreeIdentity: WorktreeIdentity,
   ) => Promise<StaleWorktreeSweepResult>;
+  /**
+   * Retired-subdir detection resolver. Receives the resolved identity and reads
+   * `user/{identity}/` + `.arc/completed/` (cheap) plus a gated recent-notes
+   * read. Fired in the eager phase whenever identity resolved; read-only.
+   */
+  retiredSubdirs: (identity: string) => Promise<RetiredSubdirDetectionResult>;
 }
 
 /** Probe functions in session-handoff mode — bound to cwd and any required I/O. */

@@ -8,7 +8,18 @@
 
 import { describe, it, expect } from "vitest";
 
-import { planRetiredSubdirReconcile } from "../../src/lib/user-sync/index.js";
+import {
+  collectNotesWuNames,
+  planRetiredSubdirReconcile,
+  subdirsFromPaths,
+} from "../../src/lib/user-sync/index.js";
+import type { RecentNote } from "../../src/lib/user-sync/index.js";
+
+/** Build a RecentNote whose content is a serialized manifest over the given file paths. */
+function noteWithFiles(historyCommit: string, paths: string[]): RecentNote {
+  const files = Object.fromEntries(paths.map((p) => [p, "x"]));
+  return { historyCommit, content: JSON.stringify({ version: 2, files }) };
+}
 
 describe("planRetiredSubdirReconcile", () => {
   it("reconciles a present subdir that is absent from notes and shipped", () => {
@@ -70,5 +81,41 @@ describe("planRetiredSubdirReconcile", () => {
 
     expect(plan.reconcile).toEqual([]);
     expect(plan.preserved).toEqual([]);
+  });
+});
+
+describe("subdirsFromPaths", () => {
+  it("extracts distinct per-WU subdir names, ignoring flat and dot-prefixed paths", () => {
+    expect(
+      subdirsFromPaths([
+        "wu-a/SESSION-NOTES.md",
+        "wu-a/drafts/idea.md",
+        "wu-b/SESSION-NOTES.md",
+        "WORKING-MEMORY.md",
+        ".internal/.sync-state.json",
+      ]),
+    ).toEqual(["wu-a", "wu-b"]);
+  });
+
+  it("returns an empty array when no path carries a subdir", () => {
+    expect(subdirsFromPaths(["WORKING-MEMORY.md", "USER-INBOX.md"])).toEqual([]);
+  });
+});
+
+describe("collectNotesWuNames", () => {
+  it("unions per-WU subdir names across the recent-notes window, ignoring flat paths", () => {
+    const names = collectNotesWuNames([
+      noteWithFiles("h0", ["wu-a/SESSION-NOTES.md", "WORKING-MEMORY.md"]),
+      noteWithFiles("h1", ["wu-b/SESSION-NOTES.md"]),
+    ]);
+    expect([...names].sort()).toEqual(["wu-a", "wu-b"]);
+  });
+
+  it("skips a note whose content is not a usable manifest", () => {
+    const names = collectNotesWuNames([
+      { historyCommit: "h0", content: "not json" },
+      noteWithFiles("h1", ["wu-a/SESSION-NOTES.md"]),
+    ]);
+    expect([...names]).toEqual(["wu-a"]);
   });
 });

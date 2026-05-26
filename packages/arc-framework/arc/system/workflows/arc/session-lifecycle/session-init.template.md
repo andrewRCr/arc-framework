@@ -40,6 +40,7 @@ The probe returns a single JSON envelope the agent consumes:
 | `recommendedCombinedPrompt` | Top-level. Composed combined-prompt text when both `worktree` and `user` resolve to `recommendedAction === "prompt"`; `null` otherwise                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `recovery`                  | Pre-computed branch-gone recovery resolution; present only on the `branch-gone` arm, and only when `roster` resolved (it consumes the roster to assemble candidates). `value.kind`: `resolved` (one high-confidence candidate), `surface` (multiple — operator chooses), or `main-fallback` (none — offer `main`). Candidates carry `branch`, optional `worktreePath`, and `proposedAction` (`switch` / `offer-remove` / `advisory`). Acted on by Step 2's branch-gone recovery gating block (Step 6 narrates declines)                                                                   |
 | `sweep`                     | Pre-computed stale-worktree sweep; present only in the primary (main) worktree, and only when `roster` resolved. `value.worktrees`: lingering worktrees whose WU has shipped (against `completed/`), each with `worktreePath`, `branch`, and a marker-gated `decision` (`offer-remove`; `surface` with `reason` `uncommitted` or `unmerged`; or `advisory`). Surfaced in Step 6; never auto-removed                                                                                                                                                                                       |
+| `retiredSubdirs`            | Pre-computed retired-subdir detection. `value.candidates`: retired-WU user subdirs lingering under `user/{identity}/` — shipped and absent from the recent-notes window. Present whenever identity resolved; omitted only when identity is absent. Read-only surface (Step 6) — the reconcile (removal with a `.internal/` backup) runs at `arc user load` / `pull`, not at init                                                                                                                                                                                                          |
 
 **Raw notes-ref topology on `user.value.refState?`**: The notes spine's 5-state `value.state` enum encodes
 pull-direction dispatch and collapses `same` and `local-ahead` into `clean` (both mean "no pull needed"). The
@@ -462,6 +463,16 @@ tracked source documents the work.
   - `{branch}` — clean & merged → remove? `git worktree remove {worktreePath}`
   - `{branch}` — {uncommitted | unmerged}; surfaced, not removed
   - `{branch}` — externally-managed (no ARC marker); remove manually if desired
+  ```
+
+- `retiredSubdirs.value.candidates` non-empty: retired-WU user subdirs linger locally (shipped and absent
+  from the recent-notes window). They reconcile automatically — removed, with a `.internal/` backup — on the
+  next `arc user load` / `pull`; surface as a heads-up, no action needed at init.
+
+  ```text
+  **Retired subdirs:** {N} shipped-WU user subdir(s) linger; reconciled (with `.internal/` backup) on next
+  `arc user load` / `pull`:
+  - `{candidate}`
   ```
 
 **Never include**: configuration overrides, active-extensions list (any state), defaults active, freshness

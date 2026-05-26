@@ -41,7 +41,9 @@ export {
 } from "./merge.js";
 
 export {
+  collectNotesWuNames,
   planRetiredSubdirReconcile,
+  subdirsFromPaths,
   type PreservedReason,
   type PreservedSubdir,
   type RetiredSubdirPlan,
