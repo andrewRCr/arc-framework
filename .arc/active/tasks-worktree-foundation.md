@@ -505,13 +505,13 @@ downstream sync WUs is recorded in `notes-worktree-foundation.md` § Phase 4 for
   absorbs it, and keep detection (read-only, surfaced) separate from removal (offer / auto-close-with-backup).
   See `notes-worktree-foundation.md` § Phase 4 forward-compat cross-check.
 
-    - `[ ]` **4.2.a Reconciliation logic**
-        - Build `test-first` (one behavior at a time):
-            - present + absent-from-notes + shipped → reconcile with `.internal/` backup
-            - present + still-in-notes → preserved (not retired)
-            - present + not-shipped → preserved
-            - no current WU resolved (Errand / main session) → only shipped subdirs reconcile;
-              present-and-active subdirs preserved
+    - `[x]` **4.2.a Reconciliation logic**
+        - Pure decision `planRetiredSubdirReconcile` (`lib/user-sync/retired-subdir.ts`): partitions present
+          per-WU subdirs into `reconcile` (absent-from-notes AND shipped) vs. `preserved` (tagged
+          `still-in-notes` / `not-shipped`). No I/O and no current-WU input — the shipped gate alone confines a
+          no-current-WU (errand / `main`) session to genuinely-retired subdirs, so no "not the current WU"
+          filter is needed; the still-in-notes check precedes the shipped check so a shipped-but-still-live
+          subdir is preserved. Removal (backup + delete) and the load / pull / session-init wiring are 4.2.b.
 
     - `[ ]` **4.2.b Wire into load / pull / session-init**
 

@@ -40,4 +40,12 @@ export {
   type MergeResult,
 } from "./merge.js";
 
+export {
+  planRetiredSubdirReconcile,
+  type PreservedReason,
+  type PreservedSubdir,
+  type RetiredSubdirPlan,
+  type RetiredSubdirPlanInput,
+} from "./retired-subdir.js";
+
 export type { CrossWuEntry, CrossWuShape, EntryParse } from "./types.js";
