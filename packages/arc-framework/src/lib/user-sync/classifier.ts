@@ -48,3 +48,20 @@ export function classifyUserSyncPath(manifestPath: string): UserSyncClass {
 
   return manifestPath.includes("/") ? "per-wu" : "cross-wu";
 }
+
+/**
+ * The work-unit name a path belongs to, or `null` when it carries none.
+ *
+ * For `per-wu` paths the leading subdir *is* the work-unit name; `cross-wu`
+ * and `never-synced` paths return `null`. Callers use this to test
+ * subdir-containment ("does this note carry WU X's subdir?") and to partition
+ * a manifest by owning WU on the load path.
+ *
+ * @param manifestPath - Manifest-relative path under `user/{identity}/`.
+ * @returns The owning work-unit name, or `null`.
+ */
+export function wuNameOfPath(manifestPath: string): string | null {
+  return classifyUserSyncPath(manifestPath) === "per-wu"
+    ? (manifestPath.split("/", 1)[0] ?? null)
+    : null;
+}

@@ -19,6 +19,7 @@ import {
   type UserIOContext,
 } from "../commands/user.js";
 import { isRefusalCondition, slugifyIdentity } from "../lib/git/index.js";
+import { resolveCurrentWuName } from "../lib/user-sync/index.js";
 import { formatError, UserFacingError, type ArcErrorCode } from "../lib/errors.js";
 import { getInternalTemplatePath, resolveArcRoot } from "../lib/paths.js";
 import { createUserIOContext } from "../lib/io-context.js";
@@ -241,6 +242,8 @@ export async function handleUserSave(): Promise<void> {
 export interface UserLoadOptions {
   yes?: boolean;
   maxWalk?: number;
+  /** Override the auto-derived current WU name. Absent → derive from active-meta / branch. */
+  currentWuName?: string;
 }
 
 export async function handleUserLoad(opts: UserLoadOptions = {}): Promise<void> {
@@ -262,11 +265,13 @@ export async function handleUserLoad(opts: UserLoadOptions = {}): Promise<void> 
 
   let result;
   try {
+    const currentWuName = opts.currentWuName ?? await resolveCurrentWuName(cwd, io.exec);
     result = await runUserLoad({
       cwd,
       io,
       identity,
       maxAncestorWalk: opts.maxWalk,
+      currentWuName,
     });
   } catch (err) {
     spinner.stop("Load failed.");
@@ -477,6 +482,8 @@ export interface UserPullOptions {
   identity?: string;
   yes?: boolean;
   maxWalk?: number;
+  /** Override the auto-derived current WU name. Absent → derive from active-meta / branch. */
+  currentWuName?: string;
 }
 
 export async function handleUserPull(opts: UserPullOptions): Promise<void> {
@@ -517,12 +524,14 @@ export async function handleUserPull(opts: UserPullOptions): Promise<void> {
 
   let result;
   try {
+    const currentWuName = opts.currentWuName ?? await resolveCurrentWuName(cwd, io.exec);
     result = await runUserPull({
       cwd,
       io,
       identity,
       force: hasLocal,
       maxAncestorWalk: opts.maxWalk,
+      currentWuName,
     });
   } catch (err) {
     spinner.stop("Pull failed.");

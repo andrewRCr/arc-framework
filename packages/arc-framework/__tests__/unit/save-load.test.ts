@@ -45,6 +45,12 @@ interface GitMockConfig {
   reachableCommits?: string[];
   ancestorDistances?: Record<string, number>;
   noteContent?: string | null;
+  /**
+   * Per-note content keyed by the `git show` arg (`<noteHistoryCommit>:<notePath>`).
+   * Lets a single walk return distinct manifests per note — used to test
+   * WU-subdir containment filtering. Falls back to `noteContent`.
+   */
+  noteContentByHistoryPath?: Record<string, string>;
 }
 
 function notePathFor(commit: string): string {
@@ -61,6 +67,7 @@ function mockIO(config: GitMockConfig = {}): { io: UserIOContext; execCalls: [st
   const noteContent = config.noteContent === undefined
     ? JSON.stringify({ version: 2, files: {} })
     : config.noteContent;
+  const noteContentByHistoryPath = config.noteContentByHistoryPath ?? {};
 
   const execCalls: [string, string[]][] = [];
 
@@ -88,7 +95,7 @@ function mockIO(config: GitMockConfig = {}): { io: UserIOContext; execCalls: [st
       if (missingHistoryPaths.has(historyPath)) {
         throw new Error(`missing history path: ${historyPath}`);
       }
-      return { stdout: noteContent ?? "", stderr: "" };
+      return { stdout: noteContentByHistoryPath[historyPath] ?? noteContent ?? "", stderr: "" };
     }
     if (args[0] === "merge-base") {
       const commit = args[2] ?? "";
@@ -291,6 +298,111 @@ describe("findNearestUserNote — notes-ref history walk", () => {
     expect(result.note).toBeNull();
     expect(result.capped).toBe(false);
     expect(result.walked).toBe(0);
+  });
+});
+
+describe("findNearestUserNote — WU-subdir containment filtering", () => {
+  const manifestJson = (files: Record<string, string>): string =>
+    JSON.stringify({ version: 2, files });
+
+  it("resolves the most-recent note that carries the current WU's subdir", async () => {
+    const commit = "a".repeat(40);
+    const path = notePathFor(commit);
+    const { io } = mockIO({
+      head: "head",
+      notesHistory: ["nh0"],
+      changedPathsByNoteCommit: { nh0: [path] },
+      noteContentByHistoryPath: {
+        [`nh0:${path}`]: manifestJson({
+          "wu-a/SESSION-NOTES.md": "notes",
+          "WORKING-MEMORY.md": "mem",
+        }),
+      },
+    });
+
+    const result = await findNearestUserNote({
+      cwd: "/repo", io, identity: "andrew", currentWuName: "wu-a",
+    });
+
+    expect(result.note?.commit).toBe(commit);
+  });
+
+  it("skips a newer note whose only subdir is a different WU", async () => {
+    const newer = "b".repeat(40);
+    const older = "c".repeat(40);
+    const newerPath = notePathFor(newer);
+    const olderPath = notePathFor(older);
+    const { io } = mockIO({
+      head: "head",
+      notesHistory: ["nh0", "nh1"],
+      changedPathsByNoteCommit: { nh0: [newerPath], nh1: [olderPath] },
+      noteContentByHistoryPath: {
+        [`nh0:${newerPath}`]: manifestJson({ "other-wu/SESSION-NOTES.md": "x" }),
+        [`nh1:${olderPath}`]: manifestJson({ "wu-a/SESSION-NOTES.md": "y" }),
+      },
+    });
+
+    const result = await findNearestUserNote({
+      cwd: "/repo", io, identity: "andrew", currentWuName: "wu-a",
+    });
+
+    expect(result.note?.commit).toBe(older);
+    expect(result.note?.noteHistoryDistance).toBe(1);
+  });
+
+  it("does not import a prior WU's notes on a fresh spawn (other-WU-only note skipped)", async () => {
+    const commit = "d".repeat(40);
+    const path = notePathFor(commit);
+    const { io } = mockIO({
+      head: "head",
+      notesHistory: ["nh0"],
+      changedPathsByNoteCommit: { nh0: [path] },
+      noteContentByHistoryPath: {
+        [`nh0:${path}`]: manifestJson({ "prior-wu/SESSION-NOTES.md": "old" }),
+      },
+    });
+
+    const result = await findNearestUserNote({
+      cwd: "/repo", io, identity: "andrew", currentWuName: "fresh-wu",
+    });
+
+    expect(result.note).toBeNull();
+  });
+
+  it("returns no note when no walked note carries the WU subdir", async () => {
+    const commit = "e".repeat(40);
+    const path = notePathFor(commit);
+    const { io } = mockIO({
+      head: "head",
+      notesHistory: ["nh0"],
+      changedPathsByNoteCommit: { nh0: [path] },
+      noteContentByHistoryPath: {
+        [`nh0:${path}`]: manifestJson({ "WORKING-MEMORY.md": "mem" }),
+      },
+    });
+
+    const result = await findNearestUserNote({
+      cwd: "/repo", io, identity: "andrew", currentWuName: "wu-a",
+    });
+
+    expect(result.note).toBeNull();
+  });
+
+  it("returns the first note regardless of WU when currentWuName is absent", async () => {
+    const commit = "f".repeat(40);
+    const path = notePathFor(commit);
+    const { io } = mockIO({
+      head: "head",
+      notesHistory: ["nh0"],
+      changedPathsByNoteCommit: { nh0: [path] },
+      noteContentByHistoryPath: {
+        [`nh0:${path}`]: manifestJson({ "other-wu/SESSION-NOTES.md": "x" }),
+      },
+    });
+
+    const result = await findNearestUserNote({ cwd: "/repo", io, identity: "andrew" });
+
+    expect(result.note?.commit).toBe(commit);
   });
 });
 
@@ -533,6 +645,83 @@ describe("runUserLoad — load verification", () => {
       verifiedAt: head,
     });
     expect(typeof onDisk.savedAt).toBe("string");
+  });
+});
+
+describe("runUserLoad — per-WU subdir materialization filtering", () => {
+  let cwd: string;
+  let userDir: string;
+
+  beforeEach(async () => {
+    cwd = await mkdtemp(join(tmpdir(), "arc-load-filter-"));
+    userDir = join(cwd, ".arc", "user", "andrew");
+  });
+
+  afterEach(async () => {
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  function realFsLoadIO(manifest: SyncManifest): UserIOContext {
+    const head = "f".repeat(40);
+    const noteContent = JSON.stringify(manifest);
+    const notePath = `${head.slice(0, 2)}/${head.slice(2)}`;
+    return {
+      exec: vi.fn(async (cmd: string, args: string[]) => {
+        if (cmd !== "git") throw new Error(`unexpected exec: ${cmd}`);
+        if (args[0] === "rev-parse" && args[1] === "HEAD") return { stdout: head, stderr: "" };
+        if (args[0] === "log") return { stdout: "nh0", stderr: "" };
+        if (args[0] === "diff-tree") return { stdout: notePath, stderr: "" };
+        if (args[0] === "show") return { stdout: noteContent, stderr: "" };
+        if (args[0] === "merge-base") return { stdout: "", stderr: "" };
+        if (args[0] === "rev-list" && args[1] === "--count") return { stdout: "0", stderr: "" };
+        throw new Error(`unexpected git call: ${args.join(" ")}`);
+      }),
+      readFile: vi.fn(async (p: string) => readFile(p, "utf-8")),
+      writeFile: vi.fn(async (p: string, c: string) => {
+        await writeFile(p, c, "utf-8");
+      }),
+      readDir: vi.fn(async () => []),
+      mkdir: vi.fn(async (p: string, opts?: { recursive: boolean }) => {
+        await mkdir(p, opts ?? { recursive: true });
+        return undefined;
+      }),
+      writeNote: vi.fn(async () => undefined),
+      readNote: vi.fn(async () => noteContent),
+    };
+  }
+
+  it("materializes the current WU subdir and cross-WU flat files, dropping other WUs' subdirs", async () => {
+    const io = realFsLoadIO({
+      version: 2,
+      files: {
+        "wu-a/SESSION-NOTES.md": "a-notes",
+        "wu-b/SESSION-NOTES.md": "b-notes",
+        "WORKING-MEMORY.md": "mem",
+      },
+    });
+
+    const result = await runUserLoad({ cwd, io, identity: "andrew", currentWuName: "wu-a" });
+
+    expect(result?.kind).toBe("loaded");
+    expect(await exists(join(userDir, "wu-a", "SESSION-NOTES.md"))).toBe(true);
+    expect(await exists(join(userDir, "WORKING-MEMORY.md"))).toBe(true);
+    expect(await exists(join(userDir, "wu-b", "SESSION-NOTES.md"))).toBe(false);
+  });
+
+  it("materializes cross-WU flat files but no per-WU subdir when no WU resolves", async () => {
+    const io = realFsLoadIO({
+      version: 2,
+      files: {
+        "wu-a/SESSION-NOTES.md": "a-notes",
+        "WORKING-MEMORY.md": "mem",
+      },
+    });
+
+    const result = await runUserLoad({ cwd, io, identity: "andrew" });
+
+    expect(result?.kind).toBe("loaded");
+    expect(await exists(join(userDir, "WORKING-MEMORY.md"))).toBe(true);
+    expect(await exists(join(userDir, "wu-a", "SESSION-NOTES.md"))).toBe(false);
   });
 });
 

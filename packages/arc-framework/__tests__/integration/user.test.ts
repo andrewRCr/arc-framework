@@ -658,31 +658,62 @@ describe("user save/load — subdirectory support", () => {
     await cleanupTempDir(tempDir);
   });
 
-  it("round-trips files in subdirectories", async () => {
+  it("round-trips a current-WU subdir file alongside cross-WU flat files", async () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
     // Reset to a known minimal structure — init-seeded files would otherwise
-    // inflate the save count and obscure the round-trip assertion.
+    // inflate the save count and obscure the round-trip assertion. The subdir
+    // is a per-WU home; the flat file is cross-WU.
     await rm(userDir, { recursive: true, force: true });
-    await mkdir(join(userDir, "drafts"), { recursive: true });
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Notes", "utf-8");
-    await writeFile(join(userDir, "drafts", "idea.md"), "# Draft idea", "utf-8");
+    await mkdir(join(userDir, "feature-x"), { recursive: true });
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Memory", "utf-8");
+    await writeFile(join(userDir, "feature-x", "SESSION-NOTES.md"), "# Notes", "utf-8");
 
-    // Save
+    // Save (class-agnostic — every eligible file by path)
     const saveResult = await runUserSave({ cwd: tempDir, io, identity: "test-user" });
     expect(saveResult.fileCount).toBe(2);
 
-    // Delete everything and reload
+    // Delete everything and reload scoped to feature-x: its subdir plus the
+    // cross-WU flat file both restore.
     await rm(userDir, { recursive: true, force: true });
 
-    const loadResult = await runUserLoad({ cwd: tempDir, io, identity: "test-user" });
+    const loadResult = await runUserLoad({
+      cwd: tempDir, io, identity: "test-user", currentWuName: "feature-x",
+    });
     const loadedResult = expectLoaded(loadResult);
     expect(loadedResult.fileCount).toBe(2);
 
     // Verify nested file was restored
-    const restored = await readFile(join(userDir, "drafts", "idea.md"), "utf-8");
-    expect(restored).toBe("# Draft idea");
+    const restored = await readFile(join(userDir, "feature-x", "SESSION-NOTES.md"), "utf-8");
+    expect(restored).toBe("# Notes");
+  });
+
+  it("drops other-WU subdirs but keeps cross-WU flat files when scoped to one WU", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await rm(userDir, { recursive: true, force: true });
+    await mkdir(join(userDir, "feature-x"), { recursive: true });
+    await mkdir(join(userDir, "feature-y"), { recursive: true });
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Memory", "utf-8");
+    await writeFile(join(userDir, "feature-x", "SESSION-NOTES.md"), "# X", "utf-8");
+    await writeFile(join(userDir, "feature-y", "SESSION-NOTES.md"), "# Y", "utf-8");
+
+    const saveResult = await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    expect(saveResult.fileCount).toBe(3);
+
+    await rm(userDir, { recursive: true, force: true });
+
+    const loadResult = await runUserLoad({
+      cwd: tempDir, io, identity: "test-user", currentWuName: "feature-x",
+    });
+    const loadedResult = expectLoaded(loadResult);
+    expect(loadedResult.fileCount).toBe(2);
+
+    expect(await readFile(join(userDir, "feature-x", "SESSION-NOTES.md"), "utf-8")).toBe("# X");
+    expect(await readFile(join(userDir, "WORKING-MEMORY.md"), "utf-8")).toBe("# Memory");
+    await expect(readFile(join(userDir, "feature-y", "SESSION-NOTES.md"), "utf-8")).rejects.toThrow();
   });
 });
 

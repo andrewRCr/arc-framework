@@ -154,7 +154,7 @@ export async function runUserFetch(options: UserFetchOptions): Promise<void> {
 export async function runUserPull(
   options: UserPullOptions,
 ) {
-  const { cwd, io, identity, force, maxAncestorWalk } = options;
+  const { cwd, io, identity, force, maxAncestorWalk, currentWuName } = options;
   await runUserFetch({ io, identity, force });
-  return runUserLoad({ cwd, io, identity, maxAncestorWalk });
+  return runUserLoad({ cwd, io, identity, maxAncestorWalk, currentWuName });
 }

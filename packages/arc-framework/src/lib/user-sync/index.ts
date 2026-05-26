@@ -15,4 +15,6 @@ export {
   type UserSyncRefRelation,
 } from "./inference.js";
 
-export { classifyUserSyncPath, type UserSyncClass } from "./classifier.js";
+export { classifyUserSyncPath, wuNameOfPath, type UserSyncClass } from "./classifier.js";
+
+export { resolveCurrentWuName, type ExecForBranch } from "./current-wu.js";

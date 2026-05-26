@@ -5,7 +5,7 @@
 
 import { describe, it, expect } from "vitest";
 
-import { classifyUserSyncPath } from "../../src/lib/user-sync/index.js";
+import { classifyUserSyncPath, wuNameOfPath } from "../../src/lib/user-sync/index.js";
 
 describe("classifyUserSyncPath", () => {
   it("classifies a wu-name subdir path as per-wu", () => {
@@ -30,5 +30,23 @@ describe("classifyUserSyncPath", () => {
 
   it("classifies a root-level dotfile as never-synced", () => {
     expect(classifyUserSyncPath(".sync-state.json")).toBe("never-synced");
+  });
+});
+
+describe("wuNameOfPath", () => {
+  it("returns the work-unit name for a per-WU subdir path", () => {
+    expect(wuNameOfPath("worktree-foundation/SESSION-NOTES.md")).toBe("worktree-foundation");
+  });
+
+  it("returns the leading subdir for a nested per-WU path", () => {
+    expect(wuNameOfPath("worktree-foundation/drafts/idea.md")).toBe("worktree-foundation");
+  });
+
+  it("returns null for a cross-WU flat path", () => {
+    expect(wuNameOfPath("WORKING-MEMORY.md")).toBeNull();
+  });
+
+  it("returns null for a never-synced path", () => {
+    expect(wuNameOfPath(".internal/release-setup.json")).toBeNull();
   });
 });

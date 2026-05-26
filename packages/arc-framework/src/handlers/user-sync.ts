@@ -28,6 +28,7 @@ import {
 } from "../commands/user.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { isRefusalCondition } from "../lib/git/index.js";
+import { resolveCurrentWuName } from "../lib/user-sync/index.js";
 import { runWorktreeSyncStatus } from "../lib/git/worktree-sync.js";
 import { createUserIOContext } from "../lib/io-context.js";
 import { createSyncOutput } from "../lib/sync-output.js";
@@ -264,6 +265,7 @@ async function handlePullDirection(params: DirectionParams): Promise<void> {
       identity,
       force: true,
       maxAncestorWalk: maxWalk,
+      currentWuName: await resolveCurrentWuName(cwd, io.exec),
     });
     if (!result) {
       spinner.stop("No note found.");
@@ -301,6 +303,7 @@ async function handleLoadDirection(params: DirectionParams): Promise<void> {
       io,
       identity,
       maxAncestorWalk: maxWalk,
+      currentWuName: await resolveCurrentWuName(cwd, io.exec),
     });
     if (!result) {
       spinner.stop("No note found.");

@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import { atomicWriteJson } from "../../lib/fs.js";
 import { deserialize, isSafeManifestPath, serialize, shortHash, type SyncManifest } from "../../lib/git/index.js";
 import { ensureDir } from "../../lib/template/index.js";
+import { classifyUserSyncPath, wuNameOfPath } from "../../lib/user-sync/index.js";
 import { notesRef } from "./shared.js";
 import {
   BACKUP_FILENAME,
@@ -136,6 +137,7 @@ export async function runUserLoad(
     );
   }
   const manifest = parsed as SyncManifest;
+  const loadManifest = filterManifestForWu(manifest, options.currentWuName);
 
   let staleWarnings: string[] = [];
   try {
@@ -152,7 +154,7 @@ export async function runUserLoad(
       );
       await pruneTimestampedBackups(internalDir, io.readDir);
 
-      const manifestNames = new Set(Object.keys(manifest.files));
+      const manifestNames = new Set(Object.keys(loadManifest.files));
       staleWarnings = Object.keys(localFiles)
         .filter((name) => !manifestNames.has(name))
         .map((name) => `Local file "${name}" not in saved manifest — preserved in .internal/${backupFilename}`);
@@ -162,15 +164,15 @@ export async function runUserLoad(
   }
 
   await ensureDir(userDir, io.mkdir);
-  await deserialize(userDir, manifest, io.writeFile, io.mkdir);
-  await verifyMaterializedUserDir(userDir, io, foundCommit, manifest);
-  await writeLocalSyncState(cwd, io, identity, manifest, foundCommit, "load", foundCommit);
+  await deserialize(userDir, loadManifest, io.writeFile, io.mkdir);
+  await verifyMaterializedUserDir(userDir, io, foundCommit, loadManifest);
+  await writeLocalSyncState(cwd, io, identity, loadManifest, foundCommit, "load", foundCommit);
 
   return {
     kind: "loaded",
     identity,
     commit: await shortHash(io.exec, foundCommit),
-    fileCount: Object.keys(manifest.files).length,
+    fileCount: Object.keys(loadManifest.files).length,
     fromAncestor,
     ancestorDistance: search.note.ancestorDistance,
     noteHistoryDistance: search.note.noteHistoryDistance,
@@ -453,7 +455,7 @@ function normalizeManifest(
 export async function findNearestUserNote(
   options: UserLoadOptions,
 ): Promise<NearestNoteSearch> {
-  const { io, identity } = options;
+  const { io, identity, currentWuName } = options;
   const maxWalk = options.maxAncestorWalk ?? DEFAULT_MAX_ANCESTOR_WALK;
   const ref = notesRef(identity);
   const fullRef = `refs/notes/${ref}`;
@@ -479,6 +481,14 @@ export async function findNearestUserNote(
 
       const content = await readNoteContentAtHistoryCommit(io, noteHistoryCommit, path);
       if (!content) continue;
+
+      // Per-WU isolation: when a current WU is in play, skip notes that don't
+      // carry its subdir so the walk resolves to that WU's own save, not an
+      // older sibling's. Absent a WU (existing non-load callers), take the
+      // first readable note as before.
+      if (currentWuName !== undefined && !noteManifestContainsWu(content, currentWuName)) {
+        continue;
+      }
 
       const reachableFromHead = headHash.length > 0
         ? await isCommitReachableFromHead(io, annotatedCommit)
@@ -509,6 +519,51 @@ export async function findNearestUserNote(
     maxWalk,
     capped: notesHistory.length >= maxWalk,
   };
+}
+
+/**
+ * Best-effort extraction of a manifest's `files` map. Returns `null` when the
+ * content isn't valid JSON or lacks a `files` object — callers treat that as
+ * "not a usable manifest" without throwing (the note walk continues past it).
+ */
+function parseManifestFiles(noteContent: string): Record<string, unknown> | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(noteContent);
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== "object" || parsed === null) return null;
+  const files = (parsed as { files?: unknown }).files;
+  if (typeof files !== "object" || files === null) return null;
+  return files as Record<string, unknown>;
+}
+
+/** Whether a note's serialized manifest carries any file under the given WU's subdir. */
+function noteManifestContainsWu(noteContent: string, wuName: string): boolean {
+  const files = parseManifestFiles(noteContent);
+  if (!files) return false;
+  return Object.keys(files).some((path) => wuNameOfPath(path) === wuName);
+}
+
+/**
+ * Restrict a manifest to what the current load should materialize: cross-WU
+ * flat files plus the current WU's own subdir, dropping other WUs' subdirs.
+ * With no current WU the per-WU restore no-ops (only cross-WU flat survives);
+ * an all-flat pre-isolation manifest is unaffected, since every entry is
+ * cross-WU.
+ */
+function filterManifestForWu(
+  manifest: SyncManifest,
+  currentWuName: string | undefined,
+): SyncManifest {
+  const files: Record<string, string> = {};
+  for (const [path, content] of Object.entries(manifest.files)) {
+    if (classifyUserSyncPath(path) === "cross-wu" || wuNameOfPath(path) === currentWuName) {
+      files[path] = content;
+    }
+  }
+  return { version: manifest.version, files };
 }
 
 async function readNotesRefHistory(

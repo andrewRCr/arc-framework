@@ -102,6 +102,14 @@ export interface UserLoadOptions {
   identity: string;
   /** Maximum number of ancestor commits to walk. Defaults to DEFAULT_MAX_ANCESTOR_WALK. */
   maxAncestorWalk?: number;
+  /**
+   * Bare work-unit name of the session's current WU (e.g. `worktree-foundation`),
+   * derived from active-meta / branch by the caller. When set, note resolution
+   * filters to notes carrying this WU's subdir and materialization restores only
+   * this WU's subdir plus cross-WU flat files. Absent → first-note resolution and
+   * full-manifest materialization (the pre-isolation behavior).
+   */
+  currentWuName?: string;
 }
 
 /** Structured return from the ancestor walk helper. */
@@ -334,6 +342,8 @@ export interface UserFetchOptions {
 export interface UserPullOptions extends UserFetchOptions {
   cwd: string;
   maxAncestorWalk?: number;
+  /** Current WU name forwarded to the post-fetch load. See {@link UserLoadOptions.currentWuName}. */
+  currentWuName?: string;
 }
 
 /**

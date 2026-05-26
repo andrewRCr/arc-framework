@@ -341,7 +341,7 @@ is optional throughout.
   share one boundary. The dot-prefix check precedes the flat→cross-wu rule, covering `.internal/**` (the
   current `.sync-state.json` home) and any root-level dotfile as defense in depth.
 
-### `[ ]` **3.2 Per-WU subdir load**
+### `[x]` **3.2 Per-WU subdir load**
 
 - _Goal:_ a load restores from the most recent reachable note containing the current WU's subdir and skips
   older notes' other-WU subdirs — resolving the spawn → first-load overwrite where a fresh worktree's
@@ -349,35 +349,25 @@ is optional throughout.
   no current WU resolves (fresh spawn, load on `main`, or an `errand-enablement` session on a non-WU branch) or
   no note contains its subdir, the per-WU restore is a clean no-op (never a stale WU name, never a crash) —
   cross-WU files still load via 3.3.
-- _Context:_ the load path carries no current-WU signal today — `UserLoadOptions` (`{ cwd, io, identity,
-  maxAncestorWalk? }`, defined in both `commands/user/types.ts` and `handlers/user.ts`) and
-  `findNearestUserNote` must gain an **optional** current-WU-name input, derived from active-meta resolution /
-  branch → **bare** wu-name (strip the `feat/` etc. type-prefix — the derivation session-init uses; reuse its
-  resolver, which already no-ops on "no active WU"). Optional because `findNearestUserNote` has 4 existing
-  callers (`sync-status.ts` ×3, `push-recovery.ts`) wanting the current newest-note behavior — absent input
-  preserves it, present input activates subdir-contains filtering.
 
-    - `[ ]` **3.2.a Subdir-aware note resolution** (extend `findNearestUserNote` + thread the WU-name input)
-        - Add the **optional** current WU name to `UserLoadOptions` (both definitions) and
-          `findNearestUserNote`'s signature; resolve the note search by "contains the current WU's subdir."
-          Behavioral shift: the walk today returns the **first** note unconditionally (no content inspection) —
-          it must now parse each candidate note's manifest mid-walk to test subdir-containment, continuing past
-          notes that don't.
-        - Build `test-first` (one behavior at a time):
-            - restores from the most-recent note containing the current WU subdir
-            - an older note's different-WU subdir → skipped
-            - spawn → first-load → the prior WU's SESSION-NOTES is not imported
-            - no note contains the current WU subdir → per-WU resolution returns nothing (no per-WU restore)
-            - WU-name input absent → unchanged first-note behavior (`sync-status.ts` / `push-recovery.ts` stay green)
-    - `[ ]` **3.2.b Load materializes the current WU subdir, drops other-WU subdirs**
-        - _Scope:_ per-WU subdir filtering **only** — materialize the resolved note's current-WU subdir files
-          plus cross-WU flat files, drop other WUs' subdirs. Cross-WU flat keeps loading from this single note
-          as today; **3.3.c** later swaps its source to the N-note merge — don't build elaborate cross-WU
-          handling here that 3.3 throws away.
-        - Build `test-first` (one behavior at a time):
-            - current WU subdir + cross-WU flat → materialized
-            - other WUs' subdirs in the same note → not materialized
-            - no-resolvable-WU → cross-WU flat still materializes, no per-WU subdir written
+    - `[x]` **3.2.a Subdir-aware note resolution** (extend `findNearestUserNote` + thread the WU-name input)
+        - `findNearestUserNote` + `UserLoadOptions` (both the `commands/user/types.ts` and `handlers/user.ts`
+          definitions, plus `UserPullOptions`) gained an optional `currentWuName`. When set, the walk parses
+          each candidate note's manifest mid-walk and returns the most-recent note carrying that WU's subdir,
+          skipping others and returning no note when none has it. Absent, the first-note behavior is unchanged,
+          so the four `sync-status.ts` / `push-recovery.ts` callers keep their newest-note semantics.
+    - `[x]` **3.2.b Load materializes the current WU subdir, drops other-WU subdirs**
+        - `runUserLoad` filters the resolved note's manifest to cross-WU flat files plus the current WU's subdir
+          before materializing / verifying / recording sync-state (`runUserPull` forwards the name). The filter
+          is uniform: no current WU → cross-WU flat only (per-WU restore no-ops), and an all-flat pre-isolation
+          manifest is unaffected since every entry classifies cross-WU.
+
+- _Outcome:_ the current-WU name is an explicit optional input on the lib options, derived at the handlers by a
+  new `lib/user-sync/current-wu.ts` (`resolveCurrentWuName` — active-meta name first, branch-slug fallback) so
+  the lib functions stay io-injectable; the classifier gained `wuNameOfPath` as the shared subdir-containment /
+  partition key. Wired into `arc user load`, `arc user pull`, and `arc sync`. Cross-WU flat still rides the
+  single resolved note here — 3.3 moves it to the N-note merge — so a brand-new WU whose own note doesn't exist
+  yet loads nothing until then.
 
 ### `[ ]` **3.3 Cross-WU file merge (per-file entry list-union)**
 
