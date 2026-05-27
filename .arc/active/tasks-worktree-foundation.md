@@ -706,6 +706,11 @@ forward-compat seams: `notes-worktree-foundation.md` § Phases 5 & 6.
           bullets + trailing `---`, not YAML frontmatter. **Scope: introduce `META_FIELDS` in `meta-reader.ts`
           only** — do **not** touch the duplicate field-parsing in `worktree-roster.ts` or other consumers (that
           consolidation belongs to CSA / schema-introspection-layer). Full rationale: notes § Phases 5 & 6.
+        - _Note:_ the render takes a **general field→value override input** over `META_FIELDS` (model a
+          `Partial<Record<MetaFieldName, string>>`, not a fixed four-field signature). Spawn passes State /
+          Owner / Branch / Next Action; cold-start (5.3.b) feeds the spec-input parser's fields through the same
+          input and additionally sets Origin / Design. Pin the general shape here — 5.2.b builds first under
+          b → c → a — so 5.3.b consumes it rather than widening a spawn-only signature.
         - Build `test-first` (one behavior at a time):
             - a fresh Planning meta renders from `META_FIELDS` with State / Owner / Branch / Next Action
               substituted and every other field at its declared default
@@ -765,8 +770,9 @@ forward-compat seams: `notes-worktree-foundation.md` § Phases 5 & 6.
 
     - `[ ]` **5.3.a Shared scaffolding primitive (CLI-level)** — the use-existing path of 5.2's primitive
         - _Note:_ one primitive serves both spawn (create-new) and cold-start (use-existing) and reuses 5.2.b's
-          template-as-data meta scaffold; `arc start` is downstream (Agile WU Lifecycle's), so build it
-          standalone with `arc-session` as its only current caller (ready for the future `arc start`).
+          `META_FIELDS` code-render meta scaffold (no template read, no bundled template — ADR-022 interim);
+          `arc start` is downstream (Agile WU Lifecycle's), so build it standalone with `arc-session` as its
+          only current caller (ready for the future `arc start`).
         - Build `test-first` (one behavior at a time):
             - scaffolds a Planning-state meta in a bare worktree (use-existing, no `git worktree add`)
             - invoked via `arc-session` discovery
@@ -957,6 +963,10 @@ docs WU). _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
   consolidation) belongs to the agent-context-optimization cohort, not here. The three fields above are the
   ones the workflow actually sets. Fold in the file's other stale drift (a `status-{parent-name}.md` reference
   → `meta-`; non-4-state `State:` values). _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
+- _Note:_ framing guard — where the neutralization touches `State:` values, align them to the four-state enum
+  (`Planning | Active | Integrating | Shipped`) without asserting `template-meta.md` as the enum's source of
+  truth. This file is adopter-facing: keep the phrasing authority-neutral (no schema/ADR reference). Structural
+  authority is being reassigned off the template; neutral phrasing needs no later re-sweep.
 
     - Neutralize the pause-pointer mechanic in `manage-incidental-work.md` (both copies).
 
@@ -1022,6 +1032,12 @@ docs WU). _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
           contradicts `template-meta`'s `Planning | Active | Integrating | Shipped` on every row; rewrite the
           whole enum table + the Optional Pointer Fields sub-table. _Notes:_ See
           `notes-worktree-foundation.md` § Phase 7.
+        - _Note:_ framing guard — requalify, don't entrench: write the rewritten table to **present** the
+          four-state enum, not to declare `template-meta.md` its source of truth.
+          `strategy-work-organization.md` is adopter-facing — phrasing stays authority-neutral (no schema/ADR
+          reference, and no claim of a code schema that isn't built yet). The four state _values_ are stable
+          across the structural-ownership migration; only where the structure is owned changes. Neutral phrasing
+          needs no re-sweep when that ownership moves off the template.
 
     - `[ ]` **7.5.b `deactivate-work-unit` arc-shift reference** (both copies)
 

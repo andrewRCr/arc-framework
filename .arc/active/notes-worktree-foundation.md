@@ -447,6 +447,16 @@ them; rationale here.
   (`In Progress` / `Paused` / `Waiting-For` / `Complete` / `Superseded`) contradicts `template-meta`'s
   `Planning | Active | Integrating | Shipped` on every row — rewrite the whole enum table (+ the Optional
   Pointer Fields sub-table).
+- **Template-as-authority requalification (7.2 + 7.5a) — ADR-022 alignment.** Both tasks frame the 4-state
+  machine as "contradicts / aligns to `template-meta.md`." ADR-022 reassigns the state-enum + legal-transition
+  authority to a code-owned record (the template becomes the render skeleton); its Coordination set already
+  requalified the identical "authoritative in `template-meta.md`" line in `cohort-agile-parallelism.md`, but
+  that propagation was scoped to Task 5.2 and never reached Phase 7. Fix constraint: both edit targets
+  (`manage-incidental-work.md`, `strategy-work-organization.md`) are **adopter-facing**, so — unlike the
+  internal cohort file, which names the schema — these stay **authority-neutral**: present the four state
+  values as the enum, don't assert the template is their SoT, and don't name a schema WF hasn't built. The
+  values are stable across the migration; only structural ownership moves. Neutral phrasing now spares
+  `operational-state-docs` a re-sweep of these shipped docs later.
 - **7.5c literal anchors:** edit the § ROADMAP step-4 In-Flight definition (`**In Flight** — State: Active |
   Integrating`) and the Regeneration "Activation" bullet (`active/ ⟹ State: Active` is planner shorthand, not
   doc text). ROADMAP regen is doc-only (NO render code — hand-maintained per `activate-work-unit` Step 7);
