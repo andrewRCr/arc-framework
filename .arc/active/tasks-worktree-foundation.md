@@ -593,13 +593,15 @@ downstream sync WUs is recorded in `notes-worktree-foundation.md` § Phase 4 for
           `hashSyncManifest` dependency (it stays in `save-load.ts` for its external importers) — avoids a
           `save-load` ↔ `sync-state` import cycle. Consumers and the marker-mock test targets repointed.
 
-    - `[ ]` **4.4.b Schema `version` bump + worktree-aware shape + reserved-field round-trip**
-        - Build `test-first` (one behavior at a time):
-            - new `version` written; prior v2 / v3 records read back-compat (incl. the old single-`partialPush`)
-            - shape carries per-worktree partial-push state (no single-HEAD assumption)
-            - reserved fields absent → tolerated; present → preserved round-trip (read + write carry unknowns
-              forward)
-            - remote-marker-provenance reservation is per-worktree-pluralizable (not a scalar)
+    - `[x]` **4.4.b Schema `version` bump + worktree-aware shape + reserved-field round-trip**
+        - `LocalSyncState.version` 3 → 4: the reader accepts `2 | 3 | 4` and normalizes to 4 (a read-modify-write
+          migrates the on-disk record); the writers emit 4. `partialPush` stays a single per-worktree marker (the
+          `.sync-state.json` file is itself per-worktree — no single-HEAD assumption). Two reserved extension
+          points are declared but not populated: `priorFileList?: string[]` (drift tier) and
+          `remoteMarkerProvenance?: Record<string, unknown>` — a per-worktree map (pluralizable, not a scalar).
+          Round-trip preservation is wired through every path: `readLocalSyncState` carries reserved fields
+          forward, `writeLocalSyncState` reads the prior record so a rebuild-from-scratch save preserves them, and
+          `clearPartialPushMarker` keeps them while dropping the marker.
 
     - `[ ]` **4.4.c Record the partial-push-surface widening**
         - _Note:_ document (in `notes-{name}.md`) that concurrent-worktree notes-push _widens_ the partial-push

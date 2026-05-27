@@ -20,6 +20,7 @@ import {
   clearPartialPushMarker,
   readLocalSyncState,
   recordPartialPushMarker,
+  writeLocalSyncState,
 } from "../../src/lib/user-sync/index.js";
 import {
   UserLoadVerificationError,
@@ -509,7 +510,7 @@ describe("runUserSave — save verification", () => {
     expect(io.readNote).toHaveBeenCalledWith("arc/user/andrew", head);
     const onDisk = JSON.parse(await readFile(syncStatePath, "utf-8")) as Record<string, unknown>;
     expect(onDisk).toMatchObject({
-      version: 3,
+      version: 4,
       sourceCommit: head,
       sourceOperation: "save",
       verifiedAt: head,
@@ -726,7 +727,7 @@ describe("runUserLoad — load verification", () => {
     expect(result?.kind).toBe("loaded");
     const onDisk = JSON.parse(await readFile(syncStatePath, "utf-8")) as Record<string, unknown>;
     expect(onDisk).toMatchObject({
-      version: 3,
+      version: 4,
       sourceCommit: head,
       sourceOperation: "load",
       verifiedAt: head,
@@ -812,7 +813,7 @@ describe("runUserLoad — per-WU subdir materialization filtering", () => {
   });
 });
 
-describe("LocalSyncState v3 schema", () => {
+describe("LocalSyncState v4 schema", () => {
   let cwd: string;
   let internalDir: string;
   let syncStatePath: string;
@@ -864,7 +865,7 @@ describe("LocalSyncState v3 schema", () => {
     expect(state!.savedAt).toBeUndefined();
   });
 
-  it("writes v3 records with savedAt populated and version: 3 via runUserSave", async () => {
+  it("writes v4 records with savedAt populated and version: 4 via runUserSave", async () => {
     const head = "b".repeat(40);
     const userDir = join(cwd, ".arc", "user", identity);
     await mkdir(userDir, { recursive: true });
@@ -890,7 +891,7 @@ describe("LocalSyncState v3 schema", () => {
     const after = Date.now();
 
     const onDisk = JSON.parse(await readFile(syncStatePath, "utf-8")) as Record<string, unknown>;
-    expect(onDisk.version).toBe(3);
+    expect(onDisk.version).toBe(4);
     expect(onDisk.sourceCommit).toBe(head);
     expect(onDisk.sourceOperation).toBe("save");
     expect(onDisk.verifiedAt).toBe(head);
@@ -900,7 +901,7 @@ describe("LocalSyncState v3 schema", () => {
     expect(savedAtMs).toBeLessThanOrEqual(after);
   });
 
-  it("round-trips verifiedAt and partialPush across v3 read/write", async () => {
+  it("round-trips verifiedAt and partialPush across a v3 read and v4 write", async () => {
     const v3Record = {
       version: 3,
       materializedManifestHash: "deadbeef".repeat(2),
@@ -930,7 +931,7 @@ describe("LocalSyncState v3 schema", () => {
     expect(afterClear!.verifiedAt).toBe(v3Record.verifiedAt);
 
     const reReadFromDisk = JSON.parse(await readFile(syncStatePath, "utf-8")) as Record<string, unknown>;
-    expect(reReadFromDisk.version).toBe(3);
+    expect(reReadFromDisk.version).toBe(4);
     expect(reReadFromDisk.partialPush).toBeUndefined();
     expect(reReadFromDisk.savedAt).toBe(v3Record.savedAt);
 
@@ -992,7 +993,7 @@ describe("LocalSyncState v3 schema", () => {
 
     const raw = await readFile(syncStatePath, "utf-8");
     const parsed = JSON.parse(raw) as Record<string, unknown>;
-    expect(parsed.version).toBe(3);
+    expect(parsed.version).toBe(4);
     expect(parsed.sourceCommit).toBe(head);
     expect(parsed.sourceOperation).toBe("save");
     expect(typeof parsed.savedAt).toBe("string");
@@ -1017,5 +1018,86 @@ describe("LocalSyncState v3 schema", () => {
     expect(state!.savedAt).toBe(v3Record.savedAt);
     expect(state!.materializedManifestHash).toBe(v3Record.materializedManifestHash);
     expect(state!.sourceOperation).toBe("load");
+  });
+
+  it("normalizes a prior v3 record to version 4 on read and writes version 4", async () => {
+    const v3Record = {
+      version: 3,
+      materializedManifestHash: "ab".repeat(8),
+      sourceCommit: "c".repeat(40),
+      sourceOperation: "load" as const,
+      savedAt: "2026-05-06T10:30:00.000Z",
+    };
+    await writeFile(syncStatePath, `${JSON.stringify(v3Record)}\n`, "utf-8");
+
+    const state = await readLocalSyncState(cwd, realFsIO(), identity);
+    expect(state!.version).toBe(4);
+    expect(state!.materializedManifestHash).toBe(v3Record.materializedManifestHash);
+
+    await writeLocalSyncState(cwd, realFsIO(), identity, "ff".repeat(8), "d".repeat(40), "save");
+    const onDisk = JSON.parse(await readFile(syncStatePath, "utf-8")) as Record<string, unknown>;
+    expect(onDisk.version).toBe(4);
+  });
+
+  it("reserves remote partial-push provenance per worktree (no single-HEAD assumption)", async () => {
+    const record = {
+      version: 4,
+      materializedManifestHash: "1a".repeat(8),
+      sourceCommit: "c".repeat(40),
+      sourceOperation: "save" as const,
+      savedAt: "2026-05-06T10:30:00.000Z",
+      remoteMarkerProvenance: { "feat/worktree-foundation": { head: "aaa" } },
+    };
+    await writeFile(syncStatePath, `${JSON.stringify(record)}\n`, "utf-8");
+
+    const state = await readLocalSyncState(cwd, realFsIO(), identity);
+    // Keyed by worktree rather than a single global/main marker.
+    expect(state!.remoteMarkerProvenance).toEqual(record.remoteMarkerProvenance);
+  });
+
+  it("tolerates absent reserved fields and preserves present ones across a rebuild-from-scratch save", async () => {
+    const bare = {
+      version: 4,
+      materializedManifestHash: "2b".repeat(8),
+      sourceCommit: "c".repeat(40),
+      sourceOperation: "save" as const,
+      savedAt: "2026-05-06T10:30:00.000Z",
+    };
+    await writeFile(syncStatePath, `${JSON.stringify(bare)}\n`, "utf-8");
+    const bareRead = await readLocalSyncState(cwd, realFsIO(), identity);
+    expect(bareRead!.priorFileList).toBeUndefined();
+    expect(bareRead!.remoteMarkerProvenance).toBeUndefined();
+
+    const reserved = {
+      ...bare,
+      priorFileList: ["wu-a/SESSION-NOTES.md", "WORKING-MEMORY.md"],
+      remoteMarkerProvenance: { "feat/x": { head: "aaa" } },
+    };
+    await writeFile(syncStatePath, `${JSON.stringify(reserved)}\n`, "utf-8");
+
+    // writeLocalSyncState rebuilds the record from scratch — reserved fields must survive.
+    await writeLocalSyncState(cwd, realFsIO(), identity, "33".repeat(8), "d".repeat(40), "save");
+    const afterSave = await readLocalSyncState(cwd, realFsIO(), identity);
+    expect(afterSave!.priorFileList).toEqual(reserved.priorFileList);
+    expect(afterSave!.remoteMarkerProvenance).toEqual(reserved.remoteMarkerProvenance);
+  });
+
+  it("keeps remote-marker provenance pluralizable — multiple worktree entries survive a round-trip", async () => {
+    const record = {
+      version: 4,
+      materializedManifestHash: "4c".repeat(8),
+      sourceCommit: "c".repeat(40),
+      sourceOperation: "save" as const,
+      savedAt: "2026-05-06T10:30:00.000Z",
+      remoteMarkerProvenance: {
+        "feat/a": { head: "aaa" },
+        "feat/b": { head: "bbb" },
+      },
+    };
+    await writeFile(syncStatePath, `${JSON.stringify(record)}\n`, "utf-8");
+
+    const state = await readLocalSyncState(cwd, realFsIO(), identity);
+    expect(Object.keys(state!.remoteMarkerProvenance!)).toEqual(["feat/a", "feat/b"]);
+    expect(state!.remoteMarkerProvenance).toEqual(record.remoteMarkerProvenance);
   });
 });

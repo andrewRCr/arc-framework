@@ -26,7 +26,7 @@ const USER_INTERNAL_DIRNAME = ".internal";
 const USER_NOTES_REF = "refs/notes/arc/user";
 
 export interface LocalSyncState {
-  version: 3;
+  version: 4;
   materializedManifestHash: string;
   sourceCommit: string;
   sourceOperation: "save" | "load";
@@ -37,7 +37,22 @@ export interface LocalSyncState {
    */
   savedAt?: string;
   verifiedAt?: string;
+  /** This worktree's partial-push recovery marker. The `.sync-state.json` file is per-worktree. */
   partialPush?: PartialPushMarker;
+  /**
+   * Reserved extension point for the downstream drift tier — the file list
+   * captured at last sync. Not written here; carried forward round-trip so a
+   * later writer can populate it without a further version bump.
+   */
+  priorFileList?: string[];
+  /**
+   * Reserved extension point for the downstream remote partial-push marker's
+   * provenance, keyed per worktree so one remote marker can represent multiple
+   * worktrees without a further version bump. A per-worktree map
+   * (pluralizable), not a scalar; values stay generic until that work commits
+   * a shape. Not written here; carried forward round-trip.
+   */
+  remoteMarkerProvenance?: Record<string, unknown>;
 }
 
 export interface PartialPushMarker {
@@ -74,7 +89,7 @@ export async function readLocalSyncState(
       const record = parsed as Record<string, unknown>;
 
       if (
-        (record.version === 2 || record.version === 3)
+        (record.version === 2 || record.version === 3 || record.version === 4)
         && typeof record.materializedManifestHash === "string"
         && record.materializedManifestHash.length > 0
         && typeof record.sourceCommit === "string"
@@ -83,7 +98,7 @@ export async function readLocalSyncState(
       ) {
         const partialPush = parsePartialPushMarker(record.partialPush);
         return {
-          version: 3,
+          version: 4,
           materializedManifestHash: record.materializedManifestHash,
           sourceCommit: record.sourceCommit,
           sourceOperation: record.sourceOperation,
@@ -94,6 +109,10 @@ export async function readLocalSyncState(
             ? { verifiedAt: record.verifiedAt }
             : {}),
           ...(partialPush ? { partialPush } : {}),
+          ...(isPriorFileList(record.priorFileList) ? { priorFileList: record.priorFileList } : {}),
+          ...(isProvenanceMap(record.remoteMarkerProvenance)
+            ? { remoteMarkerProvenance: record.remoteMarkerProvenance }
+            : {}),
         };
       }
     } catch {
@@ -121,6 +140,16 @@ function parsePartialPushMarker(value: unknown): PartialPushMarker | null {
   };
 }
 
+/** A reserved `priorFileList` worth carrying forward: an array of strings. */
+function isPriorFileList(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === "string");
+}
+
+/** A reserved provenance value worth carrying forward: a (per-worktree) object map. */
+function isProvenanceMap(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 export async function writeLocalSyncState(
   cwd: string,
   io: CoreIO,
@@ -130,16 +159,23 @@ export async function writeLocalSyncState(
   sourceOperation: "save" | "load",
   verifiedAt?: string,
 ): Promise<void> {
+  // A save/load writes a fresh record but must not drop reserved fields a
+  // downstream writer may have populated — carry them forward from the prior
+  // record. partialPush is intentionally not carried (a successful save/load
+  // resolves the partial-push condition).
+  const prior = await readLocalSyncState(cwd, io, identity);
   const internalDir = getUserInternalDir(cwd, identity);
   const syncStatePath = join(internalDir, LOCAL_SYNC_STATE_FILENAME);
   await ensureDir(internalDir, io.mkdir);
   const state: LocalSyncState = {
-    version: 3,
+    version: 4,
     materializedManifestHash,
     sourceCommit,
     sourceOperation,
     savedAt: new Date().toISOString(),
     ...(verifiedAt ? { verifiedAt } : {}),
+    ...(prior?.priorFileList ? { priorFileList: prior.priorFileList } : {}),
+    ...(prior?.remoteMarkerProvenance ? { remoteMarkerProvenance: prior.remoteMarkerProvenance } : {}),
   };
   await atomicWriteJson(syncStatePath, state);
 }
@@ -189,6 +225,8 @@ export async function clearPartialPushMarker(
     sourceOperation: state.sourceOperation,
     ...(state.savedAt ? { savedAt: state.savedAt } : {}),
     ...(state.verifiedAt ? { verifiedAt: state.verifiedAt } : {}),
+    ...(state.priorFileList ? { priorFileList: state.priorFileList } : {}),
+    ...(state.remoteMarkerProvenance ? { remoteMarkerProvenance: state.remoteMarkerProvenance } : {}),
   });
 }
 
