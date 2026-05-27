@@ -657,35 +657,12 @@ forward-compat seams: `notes-worktree-foundation.md` § Phases 5 & 6.
   forward-compatible (single-worktree baseline + AWL's atomic-tier-no-worktree seam); R28 conflation + stale
   AWL "thin wrapper" note captured in `notes-worktree-foundation.md` § Phases 5 & 6.
 
-### `[ ]` **5.2 Spawn primitive (shared CLI-level scaffolding)**
+### `[x]` **5.2 Spawn primitive (shared CLI-level scaffolding)**
 
 - _Goal:_ a one-shot spawn, invoked from an existing session, creates a new WU's branch, worktree, meta, and
   empty SESSION-NOTES, reports the new worktree path, and returns the originating session unchanged to its own
   context — no stash-switch, no disruption to in-flight state. Atomic: a failure mid-scaffold rolls back rather
   than leaving a partial worktree.
-- _Approach:_ the testable git/fs mechanics live in **one shared CLI-level scaffolding primitive** (in
-  `src/lib/git/`, alongside `worktree-location.ts` / `worktree-marker.ts`) that cold-start (5.3) also calls,
-  parameterized by **(a)** worktree-target mode — create-new at the templated path (the primitive runs the
-  `git worktree add`) vs. use-existing — **(b)** a created-by-arc flag driving the marker, and **(c)**
-  life-phase / branch-prefix / initial-State (defaulted to `Planning` / `plan/` / `Planning`). Spawn calls it
-  create-new + flag true + Planning defaults (worktree + Planning-state meta + empty SESSION-NOTES + marker).
-  The new branch bases off the resolved `branch.base` (config, default `main`) — **not** the spawning HEAD —
-  read from local refs (no fetch inside the primitive). Invoked from the `arc-session` skill — the entry
-  surface is a thin skill, the primitive is the CLI unit. Ships tier-agnostic; accepts a forward-compat
-  `--tier` / `--type` it does **not** branch on (AWL's seam).
-- _Build order:_ **b → c → a.** 5.2.a is the create-new **wiring** that integrates the 5.2.b meta scaffold,
-  the 5.2.c marker, the SESSION-NOTES seed, and `git worktree add` — so the units it consumes land first.
-  (Letters keep their meaning: external refs in `notes-worktree-foundation.md` § 5.3.a and ADR-022 name
-  `5.2.b` = the meta scaffold; the build order is sequenced, not renumbered.)
-- _Note:_ params (b)/(c) are the **forward-compat seam** — Foundation always passes create-new + Planning, but
-  exposing life-phase / branch-prefix as parameters (not hardcodes) lets AWL's `arc start` (atomic-tier:
-  Active-from-start, `<type>/<name>`) and the conductor's resume wire in without reshaping the primitive. See
-  notes § Phases 5 & 6.
-- _Note:_ "returns to origin" is automatic at the git level (`git worktree add` doesn't touch the invoking
-  worktree's cwd/HEAD); because the primitive is CLI code that writes to the resolved target root and reports
-  the path — never `cd`-ing — the skill carries no return-to-origin discipline.
-- _Note:_ **"never under auto-cascade" is a skill-layer guarantee** (5.4 invokes the primitive only on explicit
-  `arc-session`), not a lib-unit concern — the primitive carries no cascade-guard because nothing would call one.
 - **Strategies:** `strategy-work-organization.md`
 
     - `[x]` **5.2.b Fresh-meta scaffold from the code-owned field set (ADR-022 interim)** — _build first_
@@ -700,33 +677,18 @@ forward-compat seams: `notes-worktree-foundation.md` § Phases 5 & 6.
           timestamp), a cold-start into an externally-created worktree passes `false` (no marker; absence is the
           not-ARC-created signal). Worktree removal satisfies 5.2.a's rollback contract; breadcrumb dropped.
 
-    - `[ ]` **5.2.a Spawn create-new wiring (integrates b + c + seed + worktree add)** — _build last_
-        - _Note:_ this is the orchestration increment — it runs `git worktree add`, calls the 5.2.b scaffold for
-          the meta, seeds SESSION-NOTES via `runUserOpen({cwd})`, and writes the 5.2.c marker; the meta and
-          marker units themselves are built in b and c.
-        - Build `test-first` (one behavior at a time):
-            - creates branch + worktree at the templated path — `git worktree add <path> -b <prefix><name>
-              <base>`, where `<base>` is the resolved `branch.base` (config, default `main`; local ref, no
-              fetch) and `<path>` comes from `resolveWorktreeLocation` (`worktree.location_template` from config;
-              `{repo}` = the main worktree's directory basename, `{branch}` = the new branch)
-            - writes meta (5.2.b) / seeds SESSION-NOTES (`runUserOpen({cwd})`) / writes marker (5.2.c) into the
-              **new worktree's** root — helpers are cwd-parameterized, targeting the resolved target root
-            - the originating session is unchanged, still on its own branch/worktree (no `cd`)
-            - life-phase / branch-prefix params default to `Planning` / `plan/`; a non-default value routes the
-              branch prefix + initial State accordingly
-            - `--tier` / `--type` accepted but not branched on
-            - error paths (all surfaced, never silently proceeded): target worktree path already exists; branch
-              already exists; `branch.base` ref missing / unresolvable; location-slug path collision — each a
-              `git worktree add` non-zero exit
-            - **rollback:** on any failure _after_ `git worktree add` succeeds (a meta / seed / marker write
-              throws), roll back — `git worktree remove --force` the new worktree + delete the new branch — then
-              surface; never leave a partial, unmarked worktree that R29 would misclassify as externally-managed
-        - _Note:_ "dirty base" is **not** an error path here — `git worktree add` neither requires a clean source
-          tree nor carries its uncommitted changes into the new checkout. Dirty-state matters only for the
-          in-place `git checkout -b` mode (5.1), which is out of this primitive's scope.
-        - _Note:_ keep `resolveWorktreeLocation` standalone and the bare `git worktree add` thin enough that
-          IFA's materialize (`git worktree add <path> origin/<branch>`, existing-branch, no `-b`) can reuse it —
-          don't fuse the add into the scaffold. Not built here; just not precluded.
+    - `[x]` **5.2.a Spawn create-new wiring (integrates b + c + seed + worktree add)** — _build last_
+        - `spawnWorktree` (new `worktree-scaffold.ts`) is the orchestration: `git worktree add <path> -b
+          <prefix><name> <base>` (base = resolved `branch.base`; path via `resolveWorktreeLocation`), then meta
+          (`renderMetaFile`) + SESSION-NOTES (`runUserOpen`) + marker into the new root, with best-effort
+          rollback (`worktree remove --force` + `branch -D`) on any post-add failure. No `cd`; `--tier`/`--type`
+          accepted, not branched. Config / repo / identity are caller-injected; direct `runUserOpen` (no cycle).
+
+- _Outcome:_ the shared spawn primitive is whole — `spawnWorktree` composes the b (meta render) + c (marker)
+  units + the SESSION-NOTES seed behind one atomic, rollback-guarded `git worktree add`, in
+  `lib/git/worktree-scaffold.ts` (barrel-exported). The worktree-creation ⊥ scaffolding split
+  (`scaffoldIntoWorktree`) is the reuse seam 5.3 cold-start consumes; life-phase / created-by-arc / tier-type
+  params are the AWL + conductor forward-compat seam. Full rationale: notes § Phases 5 & 6.
 
 ### `[ ]` **5.3 Cold-start scaffolding primitive**
 

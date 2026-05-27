@@ -423,6 +423,29 @@ them; rationale here.
   standalone and the bare `git worktree add` thin enough that IFA's materialize (`git worktree add <path>
   origin/<branch>`, existing-branch, no `-b`) can reuse it — present as a seam, not built here.
 
+#### Phase 5.2 implementation (2026-05-27) — spawn primitive landed
+
+Built b → c → a. The primitive is `spawnWorktree` in `lib/git/worktree-scaffold.ts` (barrel-exported). Context
+for the sessions that build on it:
+
+- **Reuse seam for 5.3 (cold-start).** Worktree-creation and scaffolding are split: `spawnWorktree` runs
+  `git worktree add` then calls a file-private `scaffoldIntoWorktree(ctx, path, branch, lifePhase, params)` that
+  writes the meta (`renderMetaFile`), seeds SESSION-NOTES (`runUserOpen`), and writes the marker
+  (`writeWorktreeOwnershipMarker`). 5.3's use-existing path reuses `scaffoldIntoWorktree` **without** the
+  `git worktree add` — export it rather than re-implementing.
+- **Injection boundary (for 5.4's handler).** The primitive is the testable core: it takes a
+  `{ io: UserIOContext, internalTemplateDir }` context plus resolved params (`wuName`, `spawningIdentity`,
+  `baseBranch`, `locationTemplate`, `repo`, `lifePhase?`, `createdByArc?`, `tier?`, `type?`, `now?`). The 5.4
+  caller resolves the ambient context: `createUserIOContext()` + `getInternalTemplatePath()`, `branch.base` /
+  `worktree.location_template` via the config reader, identity via git config, and `repo` = the main-worktree
+  directory basename (no existing helper — resolve it in the handler).
+- **`runUserOpen` imported directly** from `commands/user/open.js` into `lib/git/` — no runtime cycle
+  (`open.ts` only type-imports `lib/git`), and `worktree-roster.ts` already imports a value from `commands/`.
+  Chose this over an injected seam (KISS); revisit only if a cycle ever appears.
+- **Rollback is best-effort + git-level only.** On a post-add scaffold failure it force-removes the worktree
+  and deletes the branch, swallowing rollback errors so the original failure surfaces. The marker lives inside
+  the worktree, so worktree removal cleans it (5.2.c's contract).
+
 ### Phase 7 — lifecycle, retirements, drift
 
 - **Package workflow suffix map (`.md` vs `.template.md`) — affects every "(both copies)" workflow edit.**

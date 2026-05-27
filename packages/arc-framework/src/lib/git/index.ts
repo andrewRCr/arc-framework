@@ -86,6 +86,14 @@ export {
 } from "./worktree-marker.js";
 
 export {
+  spawnWorktree,
+  type SpawnWorktreeContext,
+  type SpawnWorktreeParams,
+  type SpawnWorktreeResult,
+  type WorktreeLifePhase,
+} from "./worktree-scaffold.js";
+
+export {
   isBranchMerged,
   decideWorktreeCleanup,
   type IsBranchMergedOptions,
