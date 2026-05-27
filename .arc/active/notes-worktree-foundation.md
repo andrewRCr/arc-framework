@@ -287,6 +287,89 @@ either changed a design call or are load-bearing constraints for a downstream WU
   AGENT-BRIEF.ARC, analysis); ADR-011's example reference updated for accuracy. Harness copies (`.claude`,
   `.codex`) hand-synced per 5.4.d.
 
+#### Phase 5 design ratification (2026-05-26) — CLI-primitive scaffolding + forward-compat seams
+
+Settled across an audit + forward-compat pass against the agile-parallelism cohort, the arc-plan conductor, CSA,
+and the architecture-remediation cluster. Refines (does not contradict) R8/R9/R28 — the PRD's "thin wrapper"
+language is realized as the decisions below.
+
+- **`git worktree add` + fresh-meta scaffold live in a CLI primitive (TypeScript, testable), not agent workflow
+  bash.** `init-work-unit`'s worktree-creating mode (5.1) is thin prose delegating to the primitive's
+  create-new path. Reasons: the PRD's single-turn budget (one tool call, not a multi-turn bash sequence);
+  atomicity (a half-run agent sequence leaves a worktree with no marker → R29 misclassifies it as
+  externally-managed); testability; and eliminating the "skill must not `cd` into the spawned path" hazard (CLI
+  code writes to the resolved root and reports the path; it never `cd`s). The Phase-1/WOR helpers are already
+  cwd-parameterized for this — `runUserOpen({cwd})`, `writeWorktreeMarker(cwd, …)`,
+  `resolveWorktreeMarkerPath(cwd)` all target an arbitrary worktree root; `resolveWorktreeLocation` is pure path
+  math (returns the path — something still has to run `git worktree add`, and that something is the primitive).
+
+- **Primitive scope = fresh scaffolding only.** Worktree-create + fresh Planning-meta + SESSION-NOTES seed +
+  conditional marker. Backlog-graduation (`init-work-unit` Step 3 `git mv` + Step 4 Path A field-preserving
+  reconcile) and the idempotent-resume case stay in the workflow — they reconcile existing files; the primitive
+  only mints fresh. Don't entangle them. The conductor (`draft-arc-plan-conductor.md:1090-1095`) will later want
+  graduation factored as its own callable for `resume-work-unit.md`; keep graduation a clean, self-contained
+  workflow step so that extraction is possible without un-baking it from the primitive.
+
+- **Parameterize life-phase / branch-prefix / initial-State (default `Planning` / `plan/` / `Planning`).** The
+  single highest-leverage forward-compat seam — converged from AWL (`draft-agile-wu-lifecycle.md:353-372`: its
+  `arc start` tier story, atomic = Active-from-start on `<type>/<name>`, flows through this param) and the
+  conductor (`draft-arc-plan-conductor.md:1039,1097-1106`: resume wants `plan/<name>`, life-phase-agnostic init
+  wants `<type>/<name>`). R8 reads as a `-b plan/{name}` hardcode while calling `--tier`/`--type` "AWL's seam";
+  resolve toward the parameter. Foundation's callers always pass create-new + Planning; the param costs an extra
+  default now and saves AWL + the conductor a primitive rewrite later.
+
+- **Primitive homes in `lib/`** (alongside `worktree-location.ts` / `worktree-marker.ts`), not `handlers/` or a
+  fat `commands/` module — so sync-handler-decomposition / user-sync-module-split never have to relocate it.
+
+- **Meta single-source-of-truth has two axes; the writer must respect both.** (1) **Document/rendering SoT =
+  `template-meta.md`** — the writer reads the **project's** installed template (via `resolveArcRoot`, **not** a
+  bundled copy — unlike the SESSION-NOTES seed which `runUserOpen` reads bundled; reading the project copy
+  preserves the adopter-customizable-template behavior the agent path has today), strips instructional
+  `<!-- -->` comments, substitutes `{wu-name}` / `{arc.identity}` tokens + overrides field-marker lines. **Do
+  not reconstruct meta shape in code.** Adding/renaming/restyling a field = template edit; code changes only for
+  a dynamically-substituted field. (2) **Structural/contract SoT** = field-set + types + allowed values — today
+  scattered as literal markers across `meta-reader.ts` (parses 5 fields via `extractField(section, "State")`
+  etc.), `worktree-roster.ts`, `wu-resolution.ts`, `validate-meta-spec.ts`. CSA consolidates this into a **zod
+  meta-schema** (`draft-cli-substrate-adoption.md:451,82`), which schema-introspection-layer then exposes
+  (`draft-schema-introspection-layer.md:6`). So the writer must **share field markers with `meta-reader.ts`
+  (extract a `META_FIELDS` constant — don't add a fourth scattered copy)** and keep field population a
+  structured override map (the proto-schema), so CSA's zod schema validates the writer's output by wrapping one
+  module, not a rewrite. Model the field-line override on `renderConfigOverrides` (`lib/template/render.ts`).
+  The meta is H1 + grouped bold-field bullets — **not** YAML frontmatter (CSA's "frontmatter" wording is loose).
+
+- **Spec-input parser (5.3.b) is discriminated-outcome / no-throw**, mirroring `lib/user-sync/parser.ts`
+  (`{ ok } | { ok: false, reason }`); it feeds structured meta fields into the writer's override map. The skill
+  gathers + confirms raw input. This keeps CSA's zod migration a wrap, not a rewrite.
+
+- **`arc-session` dispatch (5.4.b) must carry an explicit, named (empty) materialize branch.** IFA fills it
+  (`draft-in-flight-awareness.md:106-113`: remote-only in-flight WU → `git worktree add origin/<branch>` +
+  `arc user pull` — note this is a use-existing-branch path that does **not** route through the fresh-scaffold
+  primitive; it needs `resolveWorktreeLocation` callable on its own + `arc user pull`). Risk is omission: a
+  two-branch dispatcher forces IFA to restructure rather than add a branch.
+
+- **Concurrency stub (5.5) factored with a swappable data input; reuse `runWorktreeRoster` /
+  `parseWorktreeList`.** IFA swaps the data source (local roster → remote refs + PRs;
+  `draft-in-flight-awareness.md:119-124`), Errand Enablement clones the advisory shape for its foreign-artifact
+  gate (`draft-errand-enablement.md:69-71`), CWC layers gate doctrine (`draft-concurrent-work-conventions.md:177-187`)
+  — all presume a factored advisory step, not inline prose. (Also: CSA's "3 worktree-list parsers" count is
+  stale — one shared `parseWorktreeList` exists; don't add a third.)
+
+- **Do NOT let the primitive rework touch `commands/status/run.ts`.** The session-init two-stage probe seam is
+  orthogonal to the scaffold primitive and is IFA's + CSA's shared evolution target
+  (`draft-in-flight-awareness.md:126-143`); a stray edit there is a three-way collision. The primitive is
+  invoked at spawn/cold-start time, not session-init — keep it that way.
+
+- **`errand-launch` is a sibling primitive, not a mode of spawn (5.6).** Spawn always creates worktree +
+  Planning meta; an Errand never does (`draft-errand-enablement.md:54,156-157` says "mirrors," not "reuses").
+  Phrase 5.6's boundary so EE's author mirrors the architecture rather than extends the spawn primitive.
+  ADR-021 stays Proposed (promotion gated on all three cohort PRDs); 5.6 ratifies the cheap-branch floor only.
+
+- **Rename-staleness coordination (5.4.a).** The `arc-resume` → `arc-session` rename creates downstream
+  staleness Foundation does **not** sweep: Instruction Optimization audits the skill by literal name
+  (`draft-instruction-optimization.md:226`), and backlog drafts cite `arc-resume`. 5.4.a's sweep correctly
+  scopes to `.arc/system/**` + `.arc/reference/**` (both copies); backlog drafts refresh at their own promotion.
+  Surface this so it isn't a surprise when those drafts are next touched.
+
 ### Phase 7 — lifecycle, retirements, drift
 
 - **Package workflow suffix map (`.md` vs `.template.md`) — affects every "(both copies)" workflow edit.**

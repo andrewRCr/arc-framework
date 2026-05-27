@@ -614,51 +614,103 @@ _Purpose:_ Deliver the WU entry verbs — spawn (create branch + worktree + meta
 (scaffold-in-place) behind the renamed `arc-session` entry skill — plus the degrading concurrency-check stub
 and the Errand cheap-branch path documentation.
 
-_Design decisions:_ Consumes Phase 1 (methods resolve location/naming; marker written at create), Phase 2 (probe
-pre-resolves dispatch data so `arc-session` reaches the right prompt in one turn), and Phase 3 (correct per-WU
-load). Spawn and cold-start share **one** CLI-level scaffolding primitive, parameterized by worktree-target
-mode (create-new vs. use-existing) — spawn creates the worktree, cold-start enters an existing one; the entry
-surfaces (`arc-session`, and the downstream `arc start`) stay thin skills over it. R28's `init-work-unit`
-worktree-creating mode (5.1) is the create-new path; the removal-side ceremony edits live in Phase 7.
+_Design decisions:_ Consumes Phase 1 (location-resolution helper + marker I/O), Phase 2 (probe pre-resolves
+dispatch data so `arc-session` reaches the right prompt in one turn), and Phase 3 (correct per-WU load). Spawn
+and cold-start share **one** CLI-level scaffolding primitive (TypeScript, testable — **not** agent workflow
+bash): it owns `git worktree add` + fresh Planning-meta scaffold + SESSION-NOTES seed + a conditional ownership
+marker, parameterized by **(a)** worktree-target mode (create-new vs. use-existing), **(b)** a created-by-arc
+flag (drives the marker), and **(c)** life-phase / branch-prefix / initial-State (defaulted to `Planning` /
+`plan/` / `Planning`; Foundation's callers always pass Planning — the parameter is AWL's + the conductor's
+seam). The primitive's scope is **fresh scaffolding only** — backlog-graduation (`git mv` + field-preserving
+reconcile) and idempotent-resume stay in the `init-work-unit` workflow (5.1), un-entangled. `init-work-unit`'s
+worktree-creating mode (R28 / 5.1) is thin prose that **delegates** to the primitive's create-new path; the
+testable `git worktree add` lives in the primitive (5.2). Entry surfaces (`arc-session`, the downstream
+`arc start`) stay thin skills over it. The primitive homes in `lib/` (alongside its `worktree-location` /
+`worktree-marker` deps). Removal-side ceremony edits live in Phase 7. Full ratification + reasons +
+forward-compat seams: `notes-worktree-foundation.md` § Phases 5 & 6.
 
-### `[ ]` **5.1 `init-work-unit` worktree-creating mode**
+### `[ ]` **5.1 `init-work-unit` worktree-creating mode (delegation + mode selection)**
 
-- _Goal:_ `init-work-unit` gains a worktree-creating mode (`git worktree add <templated-path> -b plan/{name}`,
-  path resolved via the Phase 1 location template) while the in-place `git checkout -b` mode survives for the
-  single-worktree / atomic-launchpad case.
+- _Goal:_ `init-work-unit` gains a worktree-creating mode that **delegates** to the 5.2 scaffolding primitive's
+  create-new path (the primitive runs `git worktree add <templated-path> -b plan/{name}`, path via the Phase 1
+  `resolveWorktreeLocation` helper); the in-place `git checkout -b` mode survives for the single-worktree /
+  atomic-launchpad case. This task is the **workflow-doc** change only — thin delegation prose + mode
+  selection; the testable `git worktree add` + fresh-meta scaffold live in 5.2.
+- _Note:_ backlog-graduation (Step 3 `git mv` + Step 4 Path A field-preserving reconcile) and the
+  idempotent-resume case **stay in the workflow**, un-entangled from the primitive — they reconcile existing
+  files, the primitive only mints fresh scaffolding. Keep graduation a clean, self-contained step so the
+  conductor's future `resume-work-unit.md` can call it as a sub-procedure (see notes § Phases 5 & 6).
 - **Strategies:** `strategy-work-organization.md`
 
-    - `[ ]` **5.1.a Worktree-creating mode** (`init-work-unit.md`, both copies)
+    - `[ ]` **5.1.a Worktree-creating mode = delegation prose** (`init-work-unit.md`, both copies)
+        - _Note:_ the mode invokes the 5.2 primitive (create-new); it does not carry its own `git worktree add`
+          bash. R8's "thin wrapper over init-work-unit's mode" is realized as "the mode delegates to the
+          primitive."
 
     - `[ ]` **5.1.b In-place mode retained + mode selection**
-        - _Note:_ stays planning-welded — the Planning-vs-Active-at-creation generalization is AWL's seam,
-          not this WU's.
+        - _Note:_ mode selection is **caller-driven** (spawn / `arc start` → create-new; a direct planning
+          `init-work-unit` → in-place); no new arg required. Stays planning-welded — the
+          Planning-vs-Active-at-creation generalization is AWL's seam, not this WU's.
 
-### `[ ]` **5.2 Spawn primitive**
+### `[ ]` **5.2 Spawn primitive (shared CLI-level scaffolding)**
 
 - _Goal:_ a one-shot spawn, invoked from an existing session, creates a new WU's branch, worktree, meta, and
   empty SESSION-NOTES, reports the new worktree path, and returns the originating session unchanged to its own
   context — no stash-switch, no disruption to in-flight state.
-- _Approach:_ the testable git/fs mechanics live in **one shared CLI-level scaffolding primitive** that
-  cold-start (5.3) also calls, parameterized by **(a) a worktree-target mode** — create-new at the templated
-  path (via 5.1's `git worktree add` mode) vs. use-existing — and **(b) a created-by-arc flag** driving the
-  marker. Spawn calls it create-new + flag true (worktree + Planning-state meta + empty SESSION-NOTES +
-  marker), invoked from the `arc-session` skill — not a standalone CLI command. Ships tier-agnostic; accepts a
-  forward-compat `--tier` / `--type` it does **not** branch on (AWL's seam); **never fires under auto-cascade**.
+- _Approach:_ the testable git/fs mechanics live in **one shared CLI-level scaffolding primitive** (in `lib/`,
+  alongside `worktree-location.ts` / `worktree-marker.ts`) that cold-start (5.3) also calls, parameterized by
+  **(a)** worktree-target mode — create-new at the templated path (the primitive runs the `git worktree add`)
+  vs. use-existing — **(b)** a created-by-arc flag driving the marker, and **(c)** life-phase / branch-prefix /
+  initial-State (defaulted to `Planning` / `plan/` / `Planning`). Spawn calls it create-new + flag true +
+  Planning defaults (worktree + Planning-state meta + empty SESSION-NOTES + marker), invoked from the
+  `arc-session` skill — the entry surface is a thin skill, the primitive is the CLI unit. Ships tier-agnostic;
+  accepts a forward-compat `--tier` / `--type` it does **not** branch on (AWL's seam); **never fires under
+  auto-cascade**.
+- _Note:_ params (b)/(c) are the **forward-compat seam** — Foundation always passes create-new + Planning, but
+  exposing life-phase / branch-prefix as parameters (not hardcodes) lets AWL's `arc start` (atomic-tier:
+  Active-from-start, `<type>/<name>`) and the conductor's resume wire in without reshaping the primitive. See
+  notes § Phases 5 & 6.
 - _Note:_ "returns to origin" is automatic at the git level (`git worktree add` doesn't touch the invoking
-  worktree); the residual discipline is in the skill — do NOT `cd` into the spawned path, only report it.
+  worktree's cwd/HEAD); because the primitive is CLI code that writes to the resolved target root and reports
+  the path — never `cd`-ing — the skill carries no return-to-origin discipline.
 - **Strategies:** `strategy-work-organization.md`
 
     - `[ ]` **5.2.a Spawn via the shared scaffolding primitive (create-new)**
         - Build `test-first` (one behavior at a time):
             - creates branch + worktree + meta + empty SESSION-NOTES at the templated path
-            - the originating session is unchanged, still on its own branch/worktree
+            - writes meta / SESSION-NOTES / marker into the **new worktree's** root (helpers are
+              cwd-parameterized: `runUserOpen({cwd})`, `writeWorktreeMarker(cwd, …)`)
+            - the originating session is unchanged, still on its own branch/worktree (no `cd`)
+            - life-phase / branch-prefix params default to `Planning` / `plan/`; a non-default value routes the
+              branch prefix + initial State accordingly
             - `--tier` / `--type` accepted but not branched on
             - never fires under auto-cascade (explicit invocation only)
+            - error paths: target worktree path already exists; branch already exists; dirty base; location
+              slug collision (`git worktree add` fails — surface, don't silently proceed)
 
-    - `[ ]` **5.2.b Ownership-marker write + optional breadcrumb seed**
-        - Write the marker (1.3); optionally seed SESSION-NOTES with a one-line breadcrumb to the spawning
-          context.
+    - `[ ]` **5.2.b Fresh-meta scaffold via template-as-data (single source of truth)**
+        - _Note:_ scaffold the fresh meta by **reading the project's `template-meta.md`** (via `resolveArcRoot`
+          → `.arc/reference/templates/arc/work-unit/`, **not** a bundled copy — preserves the
+          adopter-customizable template behavior the agent path has today) → strip instructional `<!-- -->`
+          comments → substitute `{wu-name}` / `{arc.identity}` tokens + override the field-marker lines. The
+          **template stays the single source of truth** for meta shape/order/style/defaults; **do not
+          reconstruct meta shape in code.**
+        - _Note:_ field population is a structured `field → value` override map keyed on field markers **shared
+          with `lib/active/meta-reader.ts`** — extract a `META_FIELDS` constant rather than hardcoding a fourth
+          scattered copy of the marker strings. Keep it schema-shaped (the override map is the proto-schema) so
+          CSA's planned zod meta-schema validates the writer's output by wrapping one module, not a rewrite.
+          Model the field-line override on `renderConfigOverrides` (`lib/template/render.ts`). Two-axis SoT
+          (template = document shape; CSA's zod schema = structural contract) detailed in notes § Phases 5 & 6.
+        - Build `test-first` (one behavior at a time):
+            - a fresh Planning meta renders from the project template with State / Owner / Branch / Next Action
+              substituted and other fields at their template defaults
+            - instructional comments stripped; archive skeleton handling matches a scaffolded meta
+            - an added/renamed template field flows through without a code change unless it is a
+              dynamically-substituted field
+
+    - `[ ]` **5.2.c Ownership-marker write + optional breadcrumb seed**
+        - Write the marker (1.3) via `writeWorktreeMarker` (created-by-arc flag true for spawn); optionally
+          seed SESSION-NOTES with a one-line breadcrumb to the spawning context.
 
 ### `[ ]` **5.3 Cold-start scaffolding primitive**
 
@@ -672,19 +724,24 @@ worktree-creating mode (5.1) is the create-new path; the removal-side ceremony e
 - **Strategies:** `strategy-work-organization.md`
 
     - `[ ]` **5.3.a Shared scaffolding primitive (CLI-level)** — the use-existing path of 5.2's primitive
-        - _Note:_ one primitive serves both spawn (create-new) and cold-start (use-existing); `arc start` is
-          downstream (Agile WU Lifecycle's), so build it standalone with `arc-session` as its only current
-          caller (ready for the future `arc start`).
+        - _Note:_ one primitive serves both spawn (create-new) and cold-start (use-existing) and reuses 5.2.b's
+          template-as-data meta scaffold; `arc start` is downstream (Agile WU Lifecycle's), so build it
+          standalone with `arc-session` as its only current caller (ready for the future `arc start`).
         - Build `test-first` (one behavior at a time):
             - scaffolds a Planning-state meta in a bare worktree (use-existing, no `git worktree add`)
             - invoked via `arc-session` discovery
 
     - `[ ]` **5.3.b Spec-input parser**
-        - _Note:_ written plainly now (hand-rolled per-variant); CSA later migrates the 5-variant parser to a
-          zod discriminated union — leave the seam. _Notes:_ See `notes-worktree-foundation.md` § Phases 5 & 6.
+        - _Note:_ a **discriminated-outcome, no-throw** parser (mirror the house pattern in
+          `lib/user-sync/parser.ts` — `{ ok } | { ok: false, reason }`); it turns raw spec-input into the
+          **structured meta fields** that feed 5.2.b's override map. The skill gathers + confirms the raw
+          input; the parser + primitive do the rest. Written plainly now (hand-rolled per-variant); CSA later
+          migrates the 5-variant parser to a zod discriminated union — leave the parser-shaped seam, don't
+          pre-build it. See `notes-worktree-foundation.md` § Phases 5 & 6.
         - Build `test-first` (one behavior at a time):
             - file pointer / URL / issue link / plan-doc / name + description each parse to the right shape
             - external reference → `**Origin:**`; ARC-owned artifact → `**Design:**`
+            - malformed / ambiguous input returns a `{ ok: false, reason }` outcome (no throw)
 
     - `[ ]` **5.3.c Marker semantics via the created-by-arc flag**
         - The shared primitive's created-by-arc flag drives the marker: spawn → true (writes); cold-start in
@@ -699,16 +756,23 @@ worktree-creating mode (5.1) is the create-new path; the removal-side ceremony e
   default; one optional `/arc-session <pointer-or-blurb>` may pre-seed cold-start, confirmed before use.
 
     - `[ ]` **5.4.a Rename + reframe the skill + sweep references** (canonical sources, both copies)
-        - Rename `arc-resume` → `arc-session` in `system/.internal/skills/` and reframe from resume-only to
-          entry/dispatch; then **grep-sweep all ~19 `arc-resume` references** so none dangle — `.arc/system/**`
-          (session-loop, initial-setup 01/02, add-agent, skills/README) and `.arc/reference/**`
-          (strategy-session-operations, strategy-package-project-sync, AGENT-BRIEF.ARC, analysis docs), both
-          copies where applicable. _Note:_ ADR-011 names `arc-resume` as an example — update for accuracy
-          (illustrative reference, not a claim about the name).
+        - Rename `arc-resume` → `arc-session` in `system/.internal/skills/` (dir + `name:` frontmatter) and
+          reframe from resume-only to entry/dispatch; then **grep-sweep all ~19 `arc-resume` references** so
+          none dangle — `.arc/system/**` (session-loop, initial-setup 01/02, add-agent, skills/README) and
+          `.arc/reference/**` (strategy-session-operations, strategy-package-project-sync, AGENT-BRIEF.ARC,
+          analysis docs), both copies where applicable. _Note:_ `.arc/system/.internal/manifest.json` carries a
+          **pristine-hash registration entry** keyed by the skill's path — not a prose reference; the rename
+          changes the path key (and, via the `name:` edit, the hash). Verify whether it regenerates vs. needs a
+          hand-edit — handle it as a registration update, not a find-replace. _Note:_ ADR-011 names `arc-resume`
+          as an example — update for accuracy (illustrative reference, not a claim about the name).
 
-    - `[ ]` **5.4.b Dispatch logic**
+    - `[ ]` **5.4.b Dispatch logic (resume / cold-start + explicit materialize seam)**
         - _Note:_ dispatch reads the Phase 2 probe pre-resolution; the skill does not run its own
           fetch / worktree-list / meta-reads across turns.
+        - _Note:_ leave an **explicit, named (empty) materialize branch** in the dispatcher — In-Flight
+          Awareness fills it (remote-only in-flight WU → `git worktree add origin/<branch>` + `arc user pull`).
+          The risk is omission: a two-branch dispatcher forces IFA to restructure rather than add a branch. See
+          notes § Phases 5 & 6.
 
     - `[ ]` **5.4.c Optional-arg seed (confirmed before use)**
 
@@ -723,6 +787,11 @@ worktree-creating mode (5.1) is the create-new path; the removal-side ceremony e
   `**Purpose:**` / spec text — but does **not** gate, and degrades to a no-op when nothing else is in flight.
 - _Note:_ Foundation ships only this stub — no probe tooling, no `**Touches:**` field. In-Flight Awareness
   upgrades it to the oracle-backed version. Fires identically from spawn and cold-start.
+- _Note:_ **factor it as a reusable advisory step with a swappable in-flight-WU data input** — reuse the
+  existing `runWorktreeRoster` / `parseWorktreeList` (Phase 2 / WOR) for the data; do **not** hand-roll a
+  worktree-list parser. IFA swaps the data source (local roster → remote refs + PRs), Errand Enablement clones
+  the advisory shape for its foreign-artifact gate, Concurrent Work Conventions layers gate doctrine — all
+  presume a factored step, not inline skill prose. See notes § Phases 5 & 6.
 
     - Add the advisory step to the spawn + cold-start surfaces (shared).
 
@@ -732,9 +801,15 @@ worktree-creating mode (5.1) is the create-new path; the removal-side ceremony e
   primitive, launches from the **main worktree** on a short-lived branch off `main`, ships via the lighter
   gate, and tears down — and ADR-021's cheap-branch floor is ratified.
 - _Note:_ the deliverable is documenting the path + ratifying the ADR, not building an "Errand mode" on spawn.
-  The Errand's "launch from the main worktree" framing is an instance of the main-on-main pattern — the shipped
-  doc cross-references the main-on-main strategy content (7.3's deliverable) for the launchpad rationale rather
-  than restating it, to avoid drift.
+  When Errand Enablement builds `errand-launch`, it is a **sibling primitive** that mirrors the spawn /
+  cold-start architecture — **not** a mode of the 5.2 primitive (which always creates a worktree + Planning
+  meta; an Errand does neither). Phrase the boundary so EE's author mirrors, not extends. The Errand's "launch
+  from the main worktree" framing is an instance of the main-on-main pattern — the shipped doc cross-references
+  the main-on-main strategy content (7.3's deliverable) for the launchpad rationale rather than restating it,
+  to avoid drift.
+- _Note:_ ADR-021 Status stays **Proposed** — its own text gates promotion-to-Accepted on **all three** cohort
+  PRDs (Worktree Foundation + Concurrent Work Conventions + Agile WU Lifecycle), two of which are unbuilt. 5.6
+  ratifies the **cheap-branch floor specifically**; it must **not** flip Status to Accepted.
 - _Cross-ref:_ the launch ergonomics (`errand-launch` primitive, Errand decision matrix, advisory
   foreign-artifact gate) are **Errand Enablement's** (`draft-errand-enablement.md`), sequenced
   WF → Errand Enablement → IFA — not Foundation's. 5.6 documents the path only.
