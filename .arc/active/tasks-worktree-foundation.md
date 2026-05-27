@@ -709,17 +709,13 @@ forward-compat seams: `notes-worktree-foundation.md` § Phases 5 & 6.
           `true`; cold-start passes `false`) — the marker-write seam 5.3.c formalizes. Tested: scaffolds a
           Planning meta + SESSION-NOTES into an existing root with no `git worktree add`.
 
-    - `[ ]` **5.3.b Spec-input parser**
-        - _Note:_ a **discriminated-outcome, no-throw** parser (mirror the house pattern in
-          `lib/user-sync/parser.ts` — `{ ok } | { ok: false, reason }`); it turns raw spec-input into the
-          **structured meta fields** that feed 5.2.b's override map. The skill gathers + confirms the raw
-          input; the parser + primitive do the rest. Written plainly now (hand-rolled per-variant); CSA later
-          migrates the 5-variant parser to a zod discriminated union — leave the parser-shaped seam, don't
-          pre-build it. See `notes-worktree-foundation.md` § Phases 5 & 6.
-        - Build `test-first` (one behavior at a time):
-            - file pointer / URL / issue link / plan-doc / name + description each parse to the right shape
-            - external reference → `**Origin:**`; ARC-owned artifact → `**Design:**`
-            - malformed / ambiguous input returns a `{ ok: false, reason }` outcome (no throw)
+    - `[x]` **5.3.b Spec-input parser**
+        - `parseSpecInput` (`lib/active/spec-input-parser.ts`): a no-throw `SpecInputParse` discriminated union
+          making two _closed_ assignments — ARC spec artifact (`draft-` / `spec-` basename) → `Design`, issue
+          ref (`#n` / `owner/repo#n` / `/issues/` URL) → `Origin` — and passing all else through untouched: a
+          `document` (file / URL, incl. prefixless `whatever.md` and non-spec ARC files like `tasks-`) or
+          free-text `description`, for the `arc-session` agent to assess (trigger-vs-spec is operator intent, not
+          syntax). Origin / Design stay narrow by design; only empty input fails. Shaped for CSA's zod wrap.
 
     - `[ ]` **5.3.c Marker semantics via the created-by-arc flag**
         - The shared primitive's created-by-arc flag drives the marker: spawn → true (writes); cold-start in
