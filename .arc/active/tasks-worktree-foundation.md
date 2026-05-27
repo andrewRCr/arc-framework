@@ -661,16 +661,22 @@ forward-compat seams: `notes-worktree-foundation.md` § Phases 5 & 6.
 
 - _Goal:_ a one-shot spawn, invoked from an existing session, creates a new WU's branch, worktree, meta, and
   empty SESSION-NOTES, reports the new worktree path, and returns the originating session unchanged to its own
-  context — no stash-switch, no disruption to in-flight state.
-- _Approach:_ the testable git/fs mechanics live in **one shared CLI-level scaffolding primitive** (in `lib/`,
-  alongside `worktree-location.ts` / `worktree-marker.ts`) that cold-start (5.3) also calls, parameterized by
-  **(a)** worktree-target mode — create-new at the templated path (the primitive runs the `git worktree add`)
-  vs. use-existing — **(b)** a created-by-arc flag driving the marker, and **(c)** life-phase / branch-prefix /
-  initial-State (defaulted to `Planning` / `plan/` / `Planning`). Spawn calls it create-new + flag true +
-  Planning defaults (worktree + Planning-state meta + empty SESSION-NOTES + marker), invoked from the
-  `arc-session` skill — the entry surface is a thin skill, the primitive is the CLI unit. Ships tier-agnostic;
-  accepts a forward-compat `--tier` / `--type` it does **not** branch on (AWL's seam); **never fires under
-  auto-cascade**.
+  context — no stash-switch, no disruption to in-flight state. Atomic: a failure mid-scaffold rolls back rather
+  than leaving a partial worktree.
+- _Approach:_ the testable git/fs mechanics live in **one shared CLI-level scaffolding primitive** (in
+  `src/lib/git/`, alongside `worktree-location.ts` / `worktree-marker.ts`) that cold-start (5.3) also calls,
+  parameterized by **(a)** worktree-target mode — create-new at the templated path (the primitive runs the
+  `git worktree add`) vs. use-existing — **(b)** a created-by-arc flag driving the marker, and **(c)**
+  life-phase / branch-prefix / initial-State (defaulted to `Planning` / `plan/` / `Planning`). Spawn calls it
+  create-new + flag true + Planning defaults (worktree + Planning-state meta + empty SESSION-NOTES + marker).
+  The new branch bases off the resolved `branch.base` (config, default `main`) — **not** the spawning HEAD —
+  read from local refs (no fetch inside the primitive). Invoked from the `arc-session` skill — the entry
+  surface is a thin skill, the primitive is the CLI unit. Ships tier-agnostic; accepts a forward-compat
+  `--tier` / `--type` it does **not** branch on (AWL's seam).
+- _Build order:_ **b → c → a.** 5.2.a is the create-new **wiring** that integrates the 5.2.b meta scaffold,
+  the 5.2.c marker, the SESSION-NOTES seed, and `git worktree add` — so the units it consumes land first.
+  (Letters keep their meaning: external refs in `notes-worktree-foundation.md` § 5.3.a and ADR-022 name
+  `5.2.b` = the meta scaffold; the build order is sequenced, not renumbered.)
 - _Note:_ params (b)/(c) are the **forward-compat seam** — Foundation always passes create-new + Planning, but
   exposing life-phase / branch-prefix as parameters (not hardcodes) lets AWL's `arc start` (atomic-tier:
   Active-from-start, `<type>/<name>`) and the conductor's resume wire in without reshaping the primitive. See
@@ -678,45 +684,73 @@ forward-compat seams: `notes-worktree-foundation.md` § Phases 5 & 6.
 - _Note:_ "returns to origin" is automatic at the git level (`git worktree add` doesn't touch the invoking
   worktree's cwd/HEAD); because the primitive is CLI code that writes to the resolved target root and reports
   the path — never `cd`-ing — the skill carries no return-to-origin discipline.
+- _Note:_ **"never under auto-cascade" is a skill-layer guarantee** (5.4 invokes the primitive only on explicit
+  `arc-session`), not a lib-unit concern — the primitive carries no cascade-guard because nothing would call one.
 - **Strategies:** `strategy-work-organization.md`
 
-    - `[ ]` **5.2.a Spawn via the shared scaffolding primitive (create-new)**
+    - `[ ]` **5.2.b Fresh-meta scaffold from the code-owned field set (ADR-022 interim)** — _build first_
+        - _Note:_ **Superseded by ADR-022** (`adr-022-managed-operational-state-documents.md`): the meta is a
+          managed operational-state document whose **structure is a code-owned record, not the template**.
+          **Pure code-render** — render the markdown projection from `META_FIELDS` in code; do **not** read the
+          adopter `.arc/` `template-meta.md`, and add **no** bundled meta template file (a token-template would
+          reintroduce a third drift surface — the very thing the ADR removes). The asymmetry with the
+          SESSION-NOTES seed (which _is_ a bundled static file) is intentional: meta needs field population at
+          scaffold time, SESSION-NOTES does not. Model-aligned interim; `operational-state-docs` later
+          generalizes this into the record→render engine and owns the `.arc/` template's eventual retirement —
+          leave that file in place here.
+        - _Note:_ `META_FIELDS` is a **declarative, ordered field-descriptor set** (name/label, default, group)
+          in `lib/active/meta-reader.ts`, shared by scaffold + round-trip — one definition. Keep it a clean
+          declarative const so CSA's zod meta-schema **wraps** it (not a rewrite) and AWL / IFA extend it by
+          adding one entry (`Tier`, `Priority`, an extended `State` enum). Render the field lines from it (model
+          on `renderConfigOverrides`, `lib/template/render.ts`); the meta is H1 + blank-line-grouped bold-field
+          bullets + trailing `---`, not YAML frontmatter. **Scope: introduce `META_FIELDS` in `meta-reader.ts`
+          only** — do **not** touch the duplicate field-parsing in `worktree-roster.ts` or other consumers (that
+          consolidation belongs to CSA / schema-introspection-layer). Full rationale: notes § Phases 5 & 6.
         - Build `test-first` (one behavior at a time):
-            - creates branch + worktree + meta + empty SESSION-NOTES at the templated path
-            - writes meta / SESSION-NOTES / marker into the **new worktree's** root (helpers are
-              cwd-parameterized: `runUserOpen({cwd})`, `writeWorktreeMarker(cwd, …)`)
+            - a fresh Planning meta renders from `META_FIELDS` with State / Owner / Branch / Next Action
+              substituted and every other field at its declared default
+            - output is H1 (`# Metadata: {wu-name}`) + blank-line-grouped bold-field bullets + trailing `---`;
+              no instructional comments, and no archive sections during the Planning phase
+            - a **round-trip test** holds — rendering then parsing (`meta-reader`) recovers the rendered field
+              set; the round-trip guards render-format ⊥ parse-regex — if the emitted bullet shape stops matching
+              `extractField`'s regex, it fails loudly (no silent structural drift)
+
+    - `[ ]` **5.2.c Ownership-marker write (create-by-arc flag)** — _build second_
+        - Write the ownership marker (1.3) into the new worktree's root via `writeWorktreeMarker(cwd, …)` with
+          the created-by-arc flag **true** for spawn (false for cold-start, 5.3). Marker presence ⟺ ARC-created
+          is the R29 signal, so the write participates in 5.2.a's rollback contract (a rolled-back spawn leaves
+          neither worktree nor marker).
+        - _Note:_ the optional spawning-context breadcrumb is **dropped** — `runUserOpen` is idempotent and won't
+          overwrite a seeded SESSION-NOTES, so a breadcrumb would need an append-after-seed step; deferred as a
+          future nicety, not built here.
+
+    - `[ ]` **5.2.a Spawn create-new wiring (integrates b + c + seed + worktree add)** — _build last_
+        - _Note:_ this is the orchestration increment — it runs `git worktree add`, calls the 5.2.b scaffold for
+          the meta, seeds SESSION-NOTES via `runUserOpen({cwd})`, and writes the 5.2.c marker; the meta and
+          marker units themselves are built in b and c.
+        - Build `test-first` (one behavior at a time):
+            - creates branch + worktree at the templated path — `git worktree add <path> -b <prefix><name>
+              <base>`, where `<base>` is the resolved `branch.base` (config, default `main`; local ref, no
+              fetch) and `<path>` comes from `resolveWorktreeLocation` (`worktree.location_template` from config;
+              `{repo}` = the main worktree's directory basename, `{branch}` = the new branch)
+            - writes meta (5.2.b) / seeds SESSION-NOTES (`runUserOpen({cwd})`) / writes marker (5.2.c) into the
+              **new worktree's** root — helpers are cwd-parameterized, targeting the resolved target root
             - the originating session is unchanged, still on its own branch/worktree (no `cd`)
             - life-phase / branch-prefix params default to `Planning` / `plan/`; a non-default value routes the
               branch prefix + initial State accordingly
             - `--tier` / `--type` accepted but not branched on
-            - never fires under auto-cascade (explicit invocation only)
-            - error paths: target worktree path already exists; branch already exists; dirty base; location
-              slug collision (`git worktree add` fails — surface, don't silently proceed)
-
-    - `[ ]` **5.2.b Fresh-meta scaffold from the code-owned field set (ADR-022 interim)**
-        - _Note:_ **Superseded by ADR-022** (`adr-022-managed-operational-state-documents.md`): the meta is a
-          managed operational-state document whose **structure is a code-owned record, not the template**. The
-          earlier "read the project `template-meta.md` as the single source of truth / preserve
-          adopter-customizable template behavior" framing is dropped — meta is **not** adopter-customizable.
-          Scaffold from an **internal/bundled skeleton** (like the SESSION-NOTES seed, **not** the adopter
-          `.arc/` copy via `resolveArcRoot`) populated via the code-owned field set, then render the markdown
-          projection. Model-aligned interim; `operational-state-docs` later generalizes it into the full
-          record→render engine.
-        - _Note:_ field population is the `META_FIELDS` constant **shared with `lib/active/meta-reader.ts`** —
-          one definition for both parse and scaffold (the proto-schema CSA's zod meta-schema wraps, not a
-          rewrite). Model the field-line render on `renderConfigOverrides` (`lib/template/render.ts`). The meta
-          is H1 + grouped bold-field bullets, not YAML frontmatter. Full rationale: notes § Phases 5 & 6.
-        - Build `test-first` (one behavior at a time):
-            - a fresh Planning meta renders from the code-owned field set with State / Owner / Branch /
-              Next Action substituted and other fields at their defaults
-            - instructional comments absent from the rendered output; archive skeleton handling matches a
-              scaffolded meta
-            - a **round-trip test** holds — rendering then parsing (`meta-reader`) recovers the same field
-              set; a `META_FIELDS` change that breaks the pair fails loudly (no silent structural drift)
-
-    - `[ ]` **5.2.c Ownership-marker write + optional breadcrumb seed**
-        - Write the marker (1.3) via `writeWorktreeMarker` (created-by-arc flag true for spawn); optionally
-          seed SESSION-NOTES with a one-line breadcrumb to the spawning context.
+            - error paths (all surfaced, never silently proceeded): target worktree path already exists; branch
+              already exists; `branch.base` ref missing / unresolvable; location-slug path collision — each a
+              `git worktree add` non-zero exit
+            - **rollback:** on any failure _after_ `git worktree add` succeeds (a meta / seed / marker write
+              throws), roll back — `git worktree remove --force` the new worktree + delete the new branch — then
+              surface; never leave a partial, unmarked worktree that R29 would misclassify as externally-managed
+        - _Note:_ "dirty base" is **not** an error path here — `git worktree add` neither requires a clean source
+          tree nor carries its uncommitted changes into the new checkout. Dirty-state matters only for the
+          in-place `git checkout -b` mode (5.1), which is out of this primitive's scope.
+        - _Note:_ keep `resolveWorktreeLocation` standalone and the bare `git worktree add` thin enough that
+          IFA's materialize (`git worktree add <path> origin/<branch>`, existing-branch, no `-b`) can reuse it —
+          don't fuse the add into the scaffold. Not built here; just not precluded.
 
 ### `[ ]` **5.3 Cold-start scaffolding primitive**
 

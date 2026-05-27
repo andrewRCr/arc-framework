@@ -381,6 +381,48 @@ language is realized as the decisions below.
   spawn "a thin wrapper over `init-work-unit`" — the Phase 5 ratification moved the mechanics into the primitive
   (spawn wraps the primitive; init's worktree-creating mode also delegates to it).
 
+#### Phase 5.2 audit resolution (2026-05-27)
+
+Pre-implementation audit + a forward-compat scan (config-storage-architecture, customization-arch-realign, AWL,
+IFA, CSA, operational-state-docs, doc-naming-convention) closed the open 5.2 specifics. The task list now encodes
+them; rationale here.
+
+- **Pure code-render — no bundled meta file.** The Phase-5 "internal/bundled skeleton" is realized as *code*, not
+  a `.md`: render the projection from `META_FIELDS` in `meta-reader.ts`; do **not** read the adopter `.arc/`
+  `template-meta.md`, and add **no** bundled meta template. A token-template would reintroduce a third drift
+  surface (tokens + `META_FIELDS` + parse regex) — the thing ADR-022 removes. The SESSION-NOTES analogy is
+  "internal / not-adopter" **only**, not mechanism: the SESSION-NOTES seed is a bundled static file because it
+  needs no scaffold-time population; the meta populates (State/Owner/Branch/Next Action), so it is code-render.
+  The `.arc/` template's retirement is `operational-state-docs`' migration — leave it in place here.
+- **`META_FIELDS` shape = declarative, ordered, extensible.** `{name/label, default, group}` descriptors in
+  `meta-reader.ts`; render + round-trip both derive from the one definition. Kept declarative so CSA's zod
+  meta-schema **wraps** it (not a rewrite) and AWL (`Tier`, extended `State` enum) / IFA (`Priority`) extend by
+  one entry. **Scope is `meta-reader.ts` only** — the duplicate field-parsing in `worktree-roster.ts` (and other
+  consumers) is left for CSA / schema-introspection-layer.
+- **Round-trip teeth.** With render + parse both keyed on `META_FIELDS`, label drift can't break the pair; the
+  round-trip instead guards render-format ⊥ parse-regex — the emitted bullet shape must stay matchable by
+  `extractField`, else it fails loudly.
+- **Build order b → c → a.** 5.2.a is the create-new *wiring* that integrates the b scaffold + c marker +
+  SESSION-NOTES seed + `git worktree add`, so b and c land first. Letters keep meaning (`5.2.b` = meta scaffold)
+  — sequenced, not renumbered — to preserve external refs (this file § 5.3.a, ADR-022 § Coordination).
+- **Branch base = `branch.base`** (config, default `main`), read from local refs — **not** the spawning HEAD, no
+  fetch inside the primitive. config-storage-architecture confirmed `branch.base` + `worktree.location_template`
+  stay project-level `arc-config.yml` keys (it relocates only the per-developer keys), so reading them via the
+  existing config reader is forward-compatible.
+- **Atomicity = rollback.** On any failure *after* `git worktree add` succeeds (meta / seed / marker write), roll
+  back — `git worktree remove --force` + delete the new branch — then surface; never a partial, unmarked worktree
+  (R29 would misclassify it). This atomicity is the reason the mechanics moved to a CLI primitive over agent bash.
+- **"Dirty base" dropped.** Not a `git worktree add` failure — it neither needs a clean source tree nor carries
+  its uncommitted changes into the new checkout. Dirty-state is the in-place `git checkout -b` mode's concern
+  (5.1), not this primitive's.
+- **Breadcrumb dropped.** `runUserOpen` is idempotent and won't overwrite a seeded SESSION-NOTES; a breadcrumb
+  would need an append-after-seed step — deferred, not built.
+- **"Never under auto-cascade" = skill-layer.** 5.4 invokes the primitive only on explicit `arc-session`; the lib
+  unit carries no cascade-guard (nothing would call one).
+- **`{repo}` = main-worktree directory basename** for `resolveWorktreeLocation`. Keep `resolveWorktreeLocation`
+  standalone and the bare `git worktree add` thin enough that IFA's materialize (`git worktree add <path>
+  origin/<branch>`, existing-branch, no `-b`) can reuse it — present as a seam, not built here.
+
 ### Phase 7 — lifecycle, retirements, drift
 
 - **Package workflow suffix map (`.md` vs `.template.md`) — affects every "(both copies)" workflow edit.**
