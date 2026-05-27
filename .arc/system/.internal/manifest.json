@@ -315,10 +315,10 @@
       "layer": "core",
       "pristine_hash": "b4e12b419b18029ab79f7123242c7c9b8b53dafcca66735e56c2a18c37e24049"
     },
-    "system/.internal/skills/arc-resume/SKILL.md": {
+    "system/.internal/skills/arc-session/SKILL.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "81bfc0b5cb84b5cc13421a8ddac84cb54e4eb5fbe7889adba8417dc477b3dcec"
+      "pristine_hash": "9d9d75eac6a585da418186d6d12d816152189a79dd7a9dbd158db6ea2db57acb"
     },
     "system/.internal/skills/arc-task-audit/SKILL.md": {
       "classification": "Framework",

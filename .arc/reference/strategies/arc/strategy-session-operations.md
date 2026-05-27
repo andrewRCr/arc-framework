@@ -203,7 +203,7 @@ determine relevance without loading the full document.
 
 ### User-invocable skills (T3)
 
-Skills (arc-resume, arc-commit, arc-handoff) are user-initiated triggers that load thin guidance
+Skills (arc-session, arc-commit, arc-handoff) are user-initiated triggers that load thin guidance
 layers and reference T3 workflows. These cover session lifecycle events where the user explicitly
 initiates the activity.
 

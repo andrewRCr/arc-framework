@@ -63,7 +63,7 @@ emerged as de facto standards across Claude Code, VS Code/Copilot, and Cursor:
 - `user-invocable: false` — Hides from `/` menu; model can still auto-invoke
 
 Both default to their permissive value (model invocation enabled, user invocation enabled). Tools that don't recognize
-these fields ignore them harmlessly. ARC skills intended for explicit user invocation (arc-resume, arc-commit,
+these fields ignore them harmlessly. ARC skills intended for explicit user invocation (arc-session, arc-commit,
 arc-handoff) use `disable-model-invocation: true` to prevent unnecessary context consumption.
 
 **Alternatives considered:**
@@ -86,14 +86,14 @@ ARC skills use standard frontmatter fields (`name`, `description`) and keep inst
 this workflow. Extended frontmatter fields (Claude Code's `disable-model-invocation`, `context: fork`, etc.) are added
 per-tool where needed — the spec guarantees graceful ignore by tools that don't recognize them.
 
-**Naming convention:** Framework skills use the `arc-` prefix (`arc-resume`, `arc-handoff`, `arc-commit`). The prefix
+**Naming convention:** Framework skills use the `arc-` prefix (`arc-session`, `arc-handoff`, `arc-commit`). The prefix
 provides namespace separation — users can immediately distinguish framework skills from project or personal skills in
 autocomplete lists and directory listings. Names are action-oriented (what the user is doing), not workflow-aligned
 (which internal file gets loaded). Project and personal skills use no prefix.
 
 **Default skill set (1.0):** Three skills covering the primary user-invoked session touchpoints:
 
-- `arc-resume` — Session initialization (start of session)
+- `arc-session` — Session initialization (start of session)
 - `arc-commit` — Atomic commit with WORK-STATUS staging (during session)
 - `arc-handoff` — Session handoff (end of session)
 
@@ -143,7 +143,7 @@ pointers:
 
 ```markdown
 ---
-name: arc-resume
+name: arc-session
 description: Initialize and resume the active working session...
 disable-model-invocation: true
 ---

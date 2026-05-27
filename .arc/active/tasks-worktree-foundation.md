@@ -732,16 +732,17 @@ forward-compat seams: `notes-worktree-foundation.md` § Phases 5 & 6.
   with the _materialize_ dispatch seam present (In-Flight Awareness fills it). Arg-free / discovery-led by
   default; one optional `/arc-session <pointer-or-blurb>` may pre-seed cold-start, confirmed before use.
 
-    - `[ ]` **5.4.a Rename + reframe the skill + sweep references** (canonical sources, both copies)
-        - Rename `arc-resume` → `arc-session` in `system/.internal/skills/` (dir + `name:` frontmatter) and
-          reframe from resume-only to entry/dispatch; then **grep-sweep all ~19 `arc-resume` references** so
-          none dangle — `.arc/system/**` (session-loop, initial-setup 01/02, add-agent, skills/README) and
-          `.arc/reference/**` (strategy-session-operations, strategy-package-project-sync, AGENT-BRIEF.ARC,
-          analysis docs), both copies where applicable. _Note:_ `.arc/system/.internal/manifest.json` carries a
-          **pristine-hash registration entry** keyed by the skill's path — not a prose reference; the rename
-          changes the path key (and, via the `name:` edit, the hash). Verify whether it regenerates vs. needs a
-          hand-edit — handle it as a registration update, not a find-replace. _Note:_ ADR-011 names `arc-resume`
-          as an example — update for accuracy (illustrative reference, not a claim about the name).
+    - `[x]` **5.4.a Rename + reframe the skill + sweep references** (canonical sources, both copies)
+        - Renamed the skill dir + `name:`/heading to `arc-session`; reframed the description/intro to the
+          session-entry surface (names the resume / cold-start paths; resume steps retained, dispatch mechanics
+          left to 5.4.b — no task-ID forward-refs in the shipped skill). Swept every `arc-resume` → `arc-session`
+          reference across `.arc/system/**`, `.arc/reference/**`, and the package mirror (both copies) — zero
+          remain. Registration was hand-edited (this repo never runs `arc update` on itself, and nothing enforces
+          the hash): the `manifest.json` key + refreshed `pristine_hash` (the stored hash was already stale), and
+          the `init-recipe.json` install path so `arc init` still copies the skill — both per the `bdd663cf`
+          rename precedent. ADR-011 name updated for accuracy. Scope calls: included the top-level `README.md`
+          skill-list (shipped doc, beyond the enumerated set); excluded `docs/**` (docs-content-sweep owns it)
+          and backlog drafts (refresh at their own promotion).
 
     - `[ ]` **5.4.b Dispatch logic (resume / cold-start + explicit materialize seam)**
         - _Note:_ dispatch reads the Phase 2 probe pre-resolution; the skill does not run its own

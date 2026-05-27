@@ -34,7 +34,7 @@ full installation and setup walkthrough.
 └── system/                    # Agent-facing operational files
     ├── arc-config.yml         # Project settings (base branch, protection mode)
     ├── briefs/                # Agent briefings loaded at session-init (ARC, PROJECT, CONTRIBUTOR variants)
-    ├── skills/                # Canonical skill definitions (arc-setup, arc-resume, arc-commit, arc-handoff)
+    ├── skills/                # Canonical skill definitions (arc-setup, arc-session, arc-commit, arc-handoff)
     ├── githooks/              # Git hook scripts
     └── workflows/             # Development process workflows
         ├── arc/               # ARC framework workflows (setup, session lifecycle, supplemental)

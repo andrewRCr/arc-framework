@@ -50,7 +50,7 @@ _Remove when: initial-setup sequence complete._
 ```
 
 Confirm the entry is present. Session-init treats Persistent Context as active
-constraints, so the next `arc-resume` invocation surfaces the pointer to this
+constraints, so the next `arc-session` invocation surfaces the pointer to this
 workflow in its orientation output.
 
 ### Verify Agent Configuration

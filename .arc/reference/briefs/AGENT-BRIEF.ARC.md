@@ -5,7 +5,7 @@ git hooks, and a CLI package — all agent-platform agnostic.
 
 ## How ARC Works
 
-**Session lifecycle:** Sessions are bounded — init via the `arc-resume` skill, handoff via
+**Session lifecycle:** Sessions are bounded — init via the `arc-session` skill, handoff via
 `arc-handoff`. State files: active work unit's `meta-{name}.md` (tracked, `active/`)
 and `SESSION-NOTES.md` (gitignored, `user/{identity}/`).
 

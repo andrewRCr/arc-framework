@@ -193,7 +193,7 @@ arc-in-git files are annotated explicitly.
 - `system/.internal/skills/arc-commit/SKILL.md`
 - `system/.internal/skills/arc-handoff/SKILL.md`
 - `system/.internal/skills/arc-plan/SKILL.md`
-- `system/.internal/skills/arc-resume/SKILL.md`
+- `system/.internal/skills/arc-session/SKILL.md`
 - `system/.internal/skills/arc-setup/SKILL.md`
 - `system/.internal/skills/arc-task-audit/SKILL.md`
 - `system/.internal/skills/arc-task-review/SKILL.md`
