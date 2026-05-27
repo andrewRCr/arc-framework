@@ -701,14 +701,13 @@ forward-compat seams: `notes-worktree-foundation.md` § Phases 5 & 6.
   `branch-format` convention when ARC creates state (warn-only on external mismatch).
 - **Strategies:** `strategy-work-organization.md`
 
-    - `[ ]` **5.3.a Shared scaffolding primitive (CLI-level)** — the use-existing path of 5.2's primitive
-        - _Note:_ one primitive serves both spawn (create-new) and cold-start (use-existing) and reuses 5.2.b's
-          `META_FIELDS` code-render meta scaffold (no template read, no bundled template — ADR-022 interim);
-          `arc start` is downstream (Agile WU Lifecycle's), so build it standalone with `arc-session` as its
-          only current caller (ready for the future `arc start`).
-        - Build `test-first` (one behavior at a time):
-            - scaffolds a Planning-state meta in a bare worktree (use-existing, no `git worktree add`)
-            - invoked via `arc-session` discovery
+    - `[x]` **5.3.a Shared scaffolding primitive (CLI-level)** — the use-existing path of 5.2's primitive
+        - Exported `scaffoldIntoWorktree` (`worktree-scaffold.ts` + barrel) behind a creation-free
+          `ScaffoldWorktreeParams` (worktree path + branch + `initialState` / `origin` / `design`, no
+          base / location / repo); `spawnWorktree` now delegates to it after `git worktree add`. `origin` /
+          `design` thread into the meta overrides (Origin ⊥ Design); `createdByArc` stays caller-set (default
+          `true`; cold-start passes `false`) — the marker-write seam 5.3.c formalizes. Tested: scaffolds a
+          Planning meta + SESSION-NOTES into an existing root with no `git worktree add`.
 
     - `[ ]` **5.3.b Spec-input parser**
         - _Note:_ a **discriminated-outcome, no-throw** parser (mirror the house pattern in

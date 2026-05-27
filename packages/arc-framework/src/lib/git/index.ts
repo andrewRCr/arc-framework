@@ -87,9 +87,11 @@ export {
 
 export {
   spawnWorktree,
+  scaffoldIntoWorktree,
   type SpawnWorktreeContext,
   type SpawnWorktreeParams,
   type SpawnWorktreeResult,
+  type ScaffoldWorktreeParams,
   type WorktreeLifePhase,
 } from "./worktree-scaffold.js";
 

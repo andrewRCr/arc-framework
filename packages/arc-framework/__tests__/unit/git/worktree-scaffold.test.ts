@@ -11,7 +11,7 @@ import { mkdtemp, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-import { spawnWorktree } from "../../../src/lib/git/worktree-scaffold.js";
+import { spawnWorktree, scaffoldIntoWorktree } from "../../../src/lib/git/worktree-scaffold.js";
 import { resolveWorktreeLocation } from "../../../src/lib/git/worktree-location.js";
 import { readWorktreeMarker } from "../../../src/lib/git/worktree-marker.js";
 import { parseMetaRecord } from "../../../src/lib/active/meta-reader.js";
@@ -246,5 +246,75 @@ describe("spawnWorktree — error and rollback", () => {
     ).rejects.toThrow("disk full");
     expect(calls).toContainEqual(["git", "worktree", "remove", "--force", expectedPath]);
     expect(calls).toContainEqual(["git", "branch", "-D", "plan/my-feature"]);
+  });
+});
+
+describe("scaffoldIntoWorktree — cold-start (use-existing)", () => {
+  let worktree: string;
+  let calls: string[][];
+  let io: UserIOContext;
+
+  beforeEach(async () => {
+    // A worktree that already exists — created externally (tool / manual `git
+    // worktree add`), entered by cold-start rather than minted by spawn.
+    worktree = await mkdtemp(join(tmpdir(), "arc-coldstart-"));
+    const rec = recordingExec();
+    calls = rec.calls;
+    io = { ...createUserIOContext(), exec: rec.exec };
+  });
+
+  afterEach(async () => {
+    await rm(worktree, { recursive: true, force: true });
+  });
+
+  it("scaffolds a Planning meta and seeds SESSION-NOTES into an existing worktree without creating one", async () => {
+    await scaffoldIntoWorktree(
+      { io, internalTemplateDir: getInternalTemplatePath() },
+      {
+        worktreePath: worktree,
+        branch: "feat/manual-tool",
+        wuName: "manual-tool",
+        spawningIdentity: "andrew",
+        nextAction: "Begin planning",
+        createdByArc: false,
+        now: Date.parse("2026-05-27T12:00:00.000Z"),
+      },
+    );
+
+    const record = parseMetaRecord(
+      await io.readFile(join(worktree, ".arc", "active", "meta-manual-tool.md")),
+    );
+    expect(record.State).toBe("Planning");
+    expect(record.Owner).toBe("andrew");
+    expect(record.Branch).toBe("feat/manual-tool");
+    expect(record["Next Action"]).toBe("Begin planning");
+
+    expect(
+      await pathExists(join(worktree, ".arc", "user", "andrew", "manual-tool", "SESSION-NOTES.md")),
+    ).toBe(true);
+
+    // Use-existing path: it scaffolds into the given root and never creates a worktree.
+    expect(calls.some((c) => c[0] === "git" && c[1] === "worktree" && c[2] === "add")).toBe(false);
+  });
+
+  it("renders Origin and Design from parsed spec-input fields (Origin ⊥ Design)", async () => {
+    await scaffoldIntoWorktree(
+      { io, internalTemplateDir: getInternalTemplatePath() },
+      {
+        worktreePath: worktree,
+        branch: "feat/manual-tool",
+        wuName: "manual-tool",
+        spawningIdentity: "andrew",
+        origin: "https://github.com/acme/widget/issues/42",
+        design: "spec-manual-tool.md",
+        createdByArc: false,
+      },
+    );
+
+    const record = parseMetaRecord(
+      await io.readFile(join(worktree, ".arc", "active", "meta-manual-tool.md")),
+    );
+    expect(record.Origin).toBe("https://github.com/acme/widget/issues/42");
+    expect(record.Design).toBe("spec-manual-tool.md");
   });
 });
