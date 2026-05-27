@@ -11,14 +11,13 @@
 - **Cohort:** agile-parallelism
 
 - **Task List:** tasks-worktree-foundation.md
-- **Last Completed:** Task 5.4.a — renamed `arc-resume` → `arc-session` (dir, `name:`, heading), reframed to
-  the session-entry surface, swept all references across system + reference + package mirror, and refreshed the
-  manifest + init-recipe registration.
-- **Next Task:** Task 5.3.R — Cold-start invocation command (`arc start --here`) (line ~728)
+- **Last Completed:** Task 5.3.R — `arc start --here` cold-start command (`runColdStart` over
+  `scaffoldIntoWorktree` use-existing; `--from` spec-input, advisory marker, active-WU guard).
+- **Next Task:** Task 5.4.b — Dispatch logic (resume / cold-start + explicit materialize seam) (line ~771)
 - **Blockers:** [none]
 
-- **Next Action:** Build Task 5.3.R — wire `arc start --here` over `scaffoldIntoWorktree` (use-existing); a
-  fresh-session design space (command shape, args, test-first). 5.4.b's cold-start dispatch depends on it.
-  Detail in the task list (5.3.R) + `notes-worktree-foundation.md` § Phases 5 & 6.
+- **Next Action:** Build Task 5.4.b — `arc-session` dispatch routes resume / cold-start (bare worktree → offer
+  `arc start --here`) / a named-empty materialize seam (IFA fills); reads the Phase 2 probe pre-resolution.
+  Detail in the task list (5.4.b) + `notes-worktree-foundation.md` § Phases 5 & 6.
 
 ---
