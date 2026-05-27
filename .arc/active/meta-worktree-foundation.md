@@ -16,7 +16,7 @@
 - **Next Task:** Task 5.2 — Spawn primitive (shared CLI-level scaffolding) (line ~660)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 5.2 — the shared CLI-level scaffolding primitive (create-new path) in `lib/`;
-  Phase 5 audit cleared 5.2–5.6 as consistent. Design + seams: `notes-worktree-foundation.md` § Phases 5 & 6.
+- **Next Action:** Begin Task 5.2 — shared scaffolding primitive (create-new) in `lib/`. Meta-scaffold approach
+  set by ADR-022 (code-owned `META_FIELDS`, not template-as-SoT); seams: `notes-worktree-foundation.md` § Phases 5 & 6.
 
 ---
