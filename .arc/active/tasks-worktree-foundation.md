@@ -725,7 +725,7 @@ forward-compat seams: `notes-worktree-foundation.md` § Phases 5 & 6.
   `document` / `description` for the `arc-session` agent to assess (`plan-*` retired). Consumed by 5.4; the
   flag-true create-in-place path is `arc start`'s seam.
 
-### `[ ]` **5.3.R Cold-start invocation command (`arc start --here`)**
+### `[x]` **5.3.R Cold-start invocation command (`arc start --here`)**
 
 - _Goal:_ give `arc-session`'s cold-start dispatch (5.4.b) an invocable command to run — a remedial fix for
   the primitive↔skill gap surfaced at the 5.4 interlock: the scaffolding primitives (5.2 / 5.3) are lib-only
@@ -734,20 +734,16 @@ forward-compat seams: `notes-worktree-foundation.md` § Phases 5 & 6.
   worktree, advisory marker (`createdByArc: false` — ARC didn't create the worktree), confirm-before-use.
   Config / repo / identity are caller-injected (mirroring the primitive's seams); no `cd`.
 - **Strategies:** `strategy-work-organization.md`
-- _Scope boundary — `--here` (use-existing) only._ Create-new (`arc start <name>` + `--tier` / `--type` /
-  `--branch` / `--spec`) and the tier model are **AWL's**: it _extends_ this verb with the create-new modes,
-  inheriting `--here` rather than re-registering or redesigning the command. WF introduces the `arc start`
-  verb + `--here`; create-new layers on later. (Ownership re-slice recorded in the cohort map + AWL draft.)
-- _Supersedes R8's "not a standalone CLI command."_ That clause assumed the skill could drive the primitive
-  with no command — the under-specification behind this gap. The command exists; `arc-session` stays the
-  primary discovery-led entry, and tool-spawned adopters invoke `arc start --here` directly in the worktree
-  their tool created (per AWL's worktree-landscape research). 5.3.R reconciles R8 with that finding.
-- _Note — fresh-session work._ Better suited to a session without the rename/dispatch context; the design
-  space is command shape, arg parsing, and test-first wiring. Until it lands, 5.4.b's cold-start branch is a
-  dispatch seam (symmetric with the materialize seam IFA fills) — detection + offer written, invocation
-  pending this command.
-- _Build notes:_ test-first (the primitive is already tested — cover the command's arg handling, the
-  use-existing wiring, and the advisory-marker path); run `typecheck:test` before declaring green.
+- _Outcome:_ `arc start [name] --here [--from <input>] [-y]` registered (`cli.ts`) over a testable
+  `runColdStart` + `deriveColdStartWuName` (`commands/start.ts`) and a thin `handleStart` (`handlers/start.ts`):
+  name defaults to the branch slug, `--from` routes through `parseSpecInput` (issue → Origin, `spec-`/`draft-`
+  → Design, else pass-through for the agent), an active-WU guard refuses rather than clobber, and
+  `createdByArc: false` keeps the marker advisory. Settled **agent-invoked** — run by `arc-session`'s
+  cold-start dispatch, not a human step (the confirm auto-skips the agent's non-interactive call); scope stays
+  `--here` (create-new `arc start <name>` + `--tier`/`--type`/`--branch`/`--spec` is AWL's, which extends this
+  verb and inherits `--here`); a separate `arc adopt` verb was weighed and declined. Supersedes R8's
+  "not a standalone CLI command." Design depth + the "adopters invoke directly" reframing:
+  `notes-worktree-foundation.md` § Phases 5 & 6.
 
 ### `[ ]` **5.4 `arc-session` entry skill (rename from `arc-resume`, dispatch)**
 

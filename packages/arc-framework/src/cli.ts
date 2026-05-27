@@ -15,6 +15,7 @@ import { formatUnexpectedError } from "./lib/errors.js";
 import { checkDevBuildStaleness, createDevCheckDeps } from "./lib/dev-check.js";
 import { handleInit } from "./handlers/init.js";
 import { handleJoin } from "./handlers/join.js";
+import { handleStart, type StartOptions } from "./handlers/start.js";
 import { handleUpdate, handleHealth, handleDiff } from "./handlers/lifecycle.js";
 import {
   handleUserAdd, handleUserClose, handleUserOpen, handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
@@ -67,6 +68,22 @@ program
   .option("--tools <csv>", "Comma-separated tool list (requires --yes)")
   .option("--reconfigure", "Change personal workspace settings (role, tools)")
   .action(handleJoin);
+
+// --- Work units ---
+
+program
+  .command("start [name]")
+  .description(
+    "Start a work unit. `--here` cold-starts into the current worktree "
+    + "(scaffolds a Planning meta + SESSION-NOTES); create-new modes layer on later.",
+  )
+  .option("--here", "Cold-start: scaffold into the current worktree (the only mode available today)")
+  .option(
+    "--from <pointer-or-blurb>",
+    "Spec input — issue ref → Origin, spec/draft artifact → Design, else passed through for assessment",
+  )
+  .option("-y, --yes", "Skip the confirm prompt")
+  .action((name: string | undefined, opts: StartOptions) => handleStart(name, opts));
 
 // --- Lifecycle ---
 

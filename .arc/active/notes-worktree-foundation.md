@@ -446,6 +446,38 @@ for the sessions that build on it:
   and deletes the branch, swallowing rollback errors so the original failure surfaces. The marker lives inside
   the worktree, so worktree removal cleans it (5.2.c's contract).
 
+#### Phase 5.3.R implementation (2026-05-27) — `arc start --here` cold-start command
+
+The invocation surface `arc-session` reaches for on cold-start. `runColdStart` (`commands/start.ts`) is the
+testable core; `handleStart` (`handlers/start.ts`) resolves ambient cwd/branch/identity and reports. Decisions
+settled this session, beyond the task-list Outcome:
+
+- **Shape `arc start [name] --here [--from <input>] [-y]`.** Optional positional name → branch slug via
+  `branchToWorkUnitSlug` when omitted (refuses a multi-slash / empty derivation, asking for an explicit name).
+  `--from` carries the pointer-or-blurb through `parseSpecInput` (issue → Origin, `spec-`/`draft-` → Design,
+  else `document` / `description` pass-through for the agent to assess).
+- **`--from`, not `--spec`.** Cold-start's input is a "figure out what this is" conservative classify; AWL's
+  create-new `--spec` is an explicit "this IS the design spec → Design" set. Different contracts → distinct
+  flags, so WF neither pre-empts nor collides with AWL's `--spec`. The positional means "WU name" in both modes
+  (required in create-new, optional here) — never overloaded to carry spec input.
+- **Agent-invoked, not human-direct.** `arc-session` is the uniform entrypoint; on a bare worktree its 5.4.b
+  dispatch runs `arc start --here`. There is no "human runs it, then `arc-session`" path — that's redundant
+  double-entry. The command exists because the markdown skill can't call the lib primitive and must not
+  hand-write the managed meta. The confirm auto-skips under the agent's no-TTY bash call; a direct terminal run
+  still prompts. This corrected the "adopters invoke directly" framing (task entry + AWL draft § composition).
+- **One verb, not a separate `arc adopt`.** Splitting was weighed (the `--here` vs create-new flag sets barely
+  overlap; `--here` flips the core action + marker semantics). Declined: the command is agent-facing plumbing,
+  so human-discoverability — the main pro-split argument — doesn't apply, and the cohort already coordinated on
+  `arc start --here`.
+- **Active-WU guard.** Refuses (no-throw `{ ok: false }`) when the worktree already holds an active WU —
+  defense-in-depth; the dispatch decides resume-vs-cold-start, but the command won't clobber an existing meta.
+
+**Pre-existing break found + fixed (separate commit).** 5.4.a's `arc-resume` → `arc-session` rename missed the
+CLI source — `CANONICAL_SKILLS` (`lib/skills/resolution.ts`), a generation JSDoc example, the join restart
+hint — plus the matching test expectations, leaving the integration + e2e install tiers red at `f69483a5` (the
+unit suite passed only because its skill tests asserted the same stale name). Fixed standalone as `fix(skills):`
+(`3e45cfc8`); 5.4.a's "zero remain" sweep was doc-scoped. 5.4.d (hand-sync harness copies) remains open.
+
 ### Phase 7 — lifecycle, retirements, drift
 
 - **Package workflow suffix map (`.md` vs `.template.md`) — affects every "(both copies)" workflow edit.**
