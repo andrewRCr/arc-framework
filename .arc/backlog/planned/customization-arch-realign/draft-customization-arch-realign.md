@@ -315,3 +315,10 @@ revealed the bare-halt-toggle smell, which then opened into the broader customiz
 review captured here. WOR R46 deferred and reverted to keep WOR's scope clean (forward-compat with
 this plan); see `notes-work-organization-reform.md` § Customization-architecture smell surfaced
 mid-execution (planning-checkpoint deferred) for the mid-execution decision record.
+
+## Coordination — ADR-022
+
+The proposed `core: true` method flag is the method-layer parallel to ADR-022's document-layer
+`structural_contract` annotation (structure code-owned, not adopter-customizable). Align the framing, and
+resolve the "File-customizable / template formats" wording so it means "fill content into a fixed structure,"
+not "redesign the structure." See `adr-022-managed-operational-state-documents.md` § Coordination.

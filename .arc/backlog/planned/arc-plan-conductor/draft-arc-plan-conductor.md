@@ -1515,3 +1515,10 @@ iteration session.*
   Microsoft (Bacchelli & Bird), and GitHub-scale studies, plus SPIDR/INVEST methodological
   frames. Includes draft section text ready to lift.
 - **Effort estimate:** S (atomic-tier — strategy edit + workflow cross-references)
+
+## Coordination — ADR-022
+
+Replace the stale `status-{name}.md` references with `meta-*` (post-WOR, the per-WU file is the
+meta). Per ADR-022 the meta-creation paths converge on one code-owned schema and `**State:**`
+transitions are schema events; the conductor's park/resume edits go through the model, not
+free-text field writes. See `adr-022-managed-operational-state-documents.md` § Coordination.

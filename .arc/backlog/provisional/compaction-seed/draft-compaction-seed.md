@@ -92,3 +92,9 @@ commits + earlier handoffs) stands.
 - Reversing or weakening the bounded-session model.
 
 ---
+
+## Coordination — ADR-022
+
+The seed reads the managed operational-state document records/schema (ADR-022) — its premise that ARC
+"already produces structured state" is realized by the model; the emitter consumes records, not parsed
+markdown. See `adr-022-managed-operational-state-documents.md` § Coordination.

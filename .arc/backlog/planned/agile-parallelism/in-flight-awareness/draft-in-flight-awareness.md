@@ -222,3 +222,10 @@ Whether a persisted local cache of the rendered view beats pure on-demand render
 
 `STATUS.USER` is the settled surface name; the cohort earlier floated DASHBOARD / IN-FLIGHT / WORKLIST.
 Confirm at spec alongside roadmap-tooling's `ROADMAP → STATUS.PROJECT` rename.
+
+## Coordination — ADR-022
+
+`STATUS.USER` is a *derived* managed operational-state document (ADR-022). The `**Priority:**` field is
+schema-owned *structure* (name, valid values, default) with a human-set *value* — the structure is not
+adopter-customizable; the value is the owner's. See `adr-022-managed-operational-state-documents.md`
+§ Coordination.

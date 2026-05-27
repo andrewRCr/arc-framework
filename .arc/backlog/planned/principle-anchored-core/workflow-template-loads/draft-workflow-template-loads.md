@@ -82,3 +82,10 @@ Estimate: small WU — cross-cutting but bounded.
 ## Forward Pointer
 
 When triggers fire, this plan moves to `1_create-prd.md` for formalization.
+
+## Coordination — ADR-022
+
+Managed operational-state document templates no longer need `arc.templates` declarations under ADR-022 (the
+schema enforces structure, and these become rendered projections / internal seeds). The `arc.templates`
+mechanism stays relevant for *authored-artifact* templates (PRD, task list, spec). See
+`adr-022-managed-operational-state-documents.md` § Coordination.

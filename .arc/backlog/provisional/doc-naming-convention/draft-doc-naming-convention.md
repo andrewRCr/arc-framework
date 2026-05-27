@@ -121,4 +121,9 @@ messages, and ROADMAP regen tooling. Mechanical but broad — comparable to the 
 Small–Medium. No behavioral change; the work is rename + cascade + the file-classification codification.
 Size is dominated by reference breadth and cross-WU coordination, not logic.
 
----
+## Coordination — ADR-022
+
+ADR-022 classifies the managed operational-state documents *by role* and is rename-agnostic; this WU owns the
+file renames (`WORKING-MEMORY → MEMORY.USER`, `SESSION-NOTES → NOTES.SESSION`, `ROADMAP → STATUS.PROJECT`,
+etc.). The managed-doc class concept is a motivation for the rename, but timing stays this WU's call. See
+`adr-022-managed-operational-state-documents.md` § Coordination.

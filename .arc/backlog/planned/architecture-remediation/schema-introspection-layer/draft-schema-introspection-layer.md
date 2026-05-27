@@ -198,3 +198,9 @@ budget and the role of the introspection surface in agent runtime behavior.
   **`plan-user-sync-module-split.md`** — Sibling post-trio parallel cluster.
 
 ---
+
+## Coordination — ADR-022
+
+The `arc schema` registry exposes the managed operational-state document schemas (ADR-022). Scope which
+managed-doc schemas the registry surfaces at launch vs. defer to `operational-state-docs`. See
+`adr-022-managed-operational-state-documents.md` § Coordination.

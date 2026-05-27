@@ -133,3 +133,10 @@ attributions below now name it.)
 
 Small–Medium. Three bounded commands plus tests; no new constitutional surface. Lighter if `cohort` / `graduate`
 split out. Dependencies above shape sequencing more than size.
+
+## Coordination — ADR-022
+
+`ROADMAP` / `STATUS.PROJECT` is a *derived* managed operational-state document (ADR-022): a rendered
+projection over the meta records. This WU's renderer is the first instance of the model's
+render-and-reconcile engine; coordinate the engine boundary with `operational-state-docs`. See
+`adr-022-managed-operational-state-documents.md` § Coordination.

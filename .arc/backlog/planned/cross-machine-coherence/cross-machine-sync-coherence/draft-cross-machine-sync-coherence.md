@@ -361,3 +361,9 @@ What this plan should *not* try to do:
 
 The plan is **not** ready for PRD promotion as written — it captures the concern and the design space,
 not a chosen shape.
+
+## Coordination — ADR-022
+
+ADR-022's notes-synced managed operational-state documents depend on this WU's transport hardening; the
+partial-push gap gates the "notes-synced" storage classification for those members. Coordinate; do not assume
+the transport solved. See `adr-022-managed-operational-state-documents.md` § Coordination.

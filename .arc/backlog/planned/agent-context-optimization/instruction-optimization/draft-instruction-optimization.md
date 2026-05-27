@@ -726,3 +726,10 @@ scope decisions. Roughly:
 - Whether the WU splits into multiple WUs along pillar lines (each pillar is internally coherent
   and could ship independently) or stays unified. Pillar 4 in particular is a natural split point
   if scope discipline argues for a focused conditional-loading WU.
+
+## Coordination — ADR-022
+
+Per ADR-022, the probe slots that parse `meta-*` / `SESSION-NOTES` fields derive from the managed
+operational-state document schema — not template-stabilized field names. Field retirement / addition is
+a schema change (caught by round-trip tests), not a template edit. See
+`adr-022-managed-operational-state-documents.md` § Coordination.

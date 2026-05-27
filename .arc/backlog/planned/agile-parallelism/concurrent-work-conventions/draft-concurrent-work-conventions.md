@@ -570,6 +570,13 @@ Sources informing CWC's design. The 2026-05-08 redesign drew on
   same git-worktree substrate (§ 3.1) with no extension-point integration (§ 4.3). Per-tool
   reports and source URLs captured in the research doc.
 
+## Coordination — ADR-022
+
+Per ADR-022, merge correctness for the agent-maintained-with-merge managed docs (`WORKING-MEMORY`,
+`USER-INBOX`, the inboxes) lives in the notes-merge engine operating on structured records — not in
+the markdown or a schema. Reference the model rather than redefining write/merge semantics here. See
+`adr-022-managed-operational-state-documents.md` § Coordination.
+
 ---
 
 [adr-016]: ../../../../reference/adr/adr-016-configurable-autonomy-interlocks-for-session-operations.md

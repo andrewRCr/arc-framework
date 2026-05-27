@@ -346,3 +346,11 @@ improvement while β is designed, (c) settle the multi-maintainer coordination
 pattern as a PRD-time decision rather than a plan-time one.
 
 ---
+
+## Coordination — ADR-022
+
+Demoted to `provisional/` by ADR-022, which answers the *class* question — the WU meta file is a
+lifecycle-fielded managed operational-state document whose structure is a code-owned record, not a template.
+This WU's residual scope is the meta-specific *storage* question (active-phase tracked vs. notes-synced; the
+multi-maintainer coordination model) — the β-shaped slot ADR-022 reserves but does **not** ratify. Do not
+assume β lands. See `adr-022-managed-operational-state-documents.md` § Coordination.

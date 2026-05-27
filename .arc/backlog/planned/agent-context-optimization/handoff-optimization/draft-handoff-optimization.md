@@ -255,3 +255,11 @@ consider before Worktree Foundation; otherwise treat as opportunistic.
   larger schemas drift toward over-engineering.
 
 ---
+
+## Coordination — ADR-022
+
+Per ADR-022, consume the managed operational-state document schema rather than coining a meta /
+`SESSION-NOTES` field-set here. `**Commit at Handoff:**` becomes a CLI-owned pointer field (set
+from git state, not hand-typed), and the structured `_Remove when:_` triggers become part of the
+`WORKING-MEMORY` record schema. See `adr-022-managed-operational-state-documents.md`
+§ Coordination.

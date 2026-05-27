@@ -49,8 +49,9 @@ and the in-flight view (below) derive from.
 ## Shared contract — WU state machine
 
 WU state is WOR's strict 4-state machine — `Planning | Active | Integrating | Shipped` (+ `Superseded
-(partial)`), authoritative in `template-meta.md`, with merge-position folded into `Integrating` (no
-separate `Integration:` field). "Awaiting PR review" is simply `Integrating`.
+(partial)`), defined by the meta record's schema (per ADR-022 — `template-meta.md` is its render skeleton),
+with merge-position folded into `Integrating` (no separate `Integration:` field). "Awaiting PR review" is
+simply `Integrating`.
 
 ## Shared contract — cross-WU personal-notes sync
 

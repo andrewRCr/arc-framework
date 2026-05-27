@@ -246,3 +246,10 @@ Multi-phase WU. Comparable in shape and scale to the User Sync UX Polish WU or t
 Ergonomics WU.
 
 ---
+
+## Coordination — ADR-022
+
+Co-owns (with `cli-substrate-adoption`) `arc-config.yml`'s structure-vs-value model — the adjacent archetype
+of ADR-022's structural-ownership principle (keys code-owned, values adopter-customizable). Coordinate the
+notes-sync channel + manifest extension with ADR-022's managed-doc surfaces; keep the key-schema treatment
+consistent with the managed-doc schemas. See `adr-022-managed-operational-state-documents.md` § Coordination.

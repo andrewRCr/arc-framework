@@ -448,3 +448,10 @@ Captured 2026-05-20 in maintainer-side exploratory session. The parallel-session
   confirming this WU coins a not-yet-named anti-pattern.
 
 ---
+
+## Coordination — ADR-022
+
+Per ADR-022, the `SESSION-NOTES` / meta pointer-field length hooks become schema-derived — the managed
+operational-state document schema owns the field set and which fields are pointer-shaped vs. free-text,
+so enforcement reads from one schema rather than per-field hooks. See
+`adr-022-managed-operational-state-documents.md` § Coordination.

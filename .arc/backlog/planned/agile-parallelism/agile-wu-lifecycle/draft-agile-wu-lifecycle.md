@@ -612,6 +612,13 @@ concrete examples for the strategy doc.
   (`--tier atomic | quick | standard`) and at the cold-start primitive operates on the same
   meta-* foundation.
 
+## Coordination — ADR-022
+
+`**Tier:**` and `**Design:**` are schema-owned meta fields with tier-conditional validity (a cross-field
+constraint a flat template cannot express), per ADR-022's structured-record meta model. The State
+machine's transitions are schema events, not free-text field edits. See
+`adr-022-managed-operational-state-documents.md` § Coordination.
+
 ---
 
 [dev-rules]: ../../../../system/rules/DEV-RULES.ARC.md
