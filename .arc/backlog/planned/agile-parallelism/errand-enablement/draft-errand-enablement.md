@@ -161,6 +161,14 @@ exists only to make the cohort's *intent* (cheap parallel + Errands) safely usab
   Foundation's R11 stub and CWC's eventual doctrine.
 - **Matrix home** — full matrix here (WU design) with the path-taxonomy table in `cohort-agile-parallelism.md`
   summarizing the in-session fork; confirm the split at PRD.
+- **Cold errand entry (no originating session)** — `errand-launch` seeds from an existing WU session and returns
+  to it, so it has nothing to fork from when an Errand arises cold. No planned verb owns this entry. Lean: keep
+  **one** door — `arc-session` grows a no-WU / orient-and-await leaf (orphan path made Errand-aware) and
+  `errand-launch` stays an in-session *prep* action seeding the main worktree, entered via `arc-session` — not a
+  second entrypoint. This WU likely owns the Errand-aware fill (coordinating with the session-init orientation
+  mode); Worktree Foundation leaves the seam (explicit no-WU leaf + general optional-arg). Disambiguate the
+  leaf's discovery-vs-Errand intents with an explicit signal, not "any arg = Errand". Full capture:
+  `cohort-agile-parallelism.md` § Known gap — cold errand entry.
 
 ---
 

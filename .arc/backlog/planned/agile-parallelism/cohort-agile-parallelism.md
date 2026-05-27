@@ -104,6 +104,33 @@ session's live, expensive-to-reconstruct context. Discovered side work goes to e
 question about another worktree is answered by reading its files (worktrees are directories) or seeding an
 exploration session — neither needs a context-merging shift.
 
+### Known gap — cold errand entry (no originating session)
+
+The tables above cover every case *except* an Errand that arises with **no originating session to fork from** —
+you boot up wanting to do one, so `errand-launch` (which seeds from an existing WU session and returns to it)
+has nothing to fork from. No planned verb owns this: every entry verb routes to a WU (resume / cold-start /
+spawn / materialize), and `errand-launch` presupposes an origin.
+
+The notes-sync side already anticipates the Errand session (§ Shared contract — cross-WU personal-notes sync,
+"No-resolvable-WU → per-WU no-op": main worktree, no meta, universal / cross-WU loads only). The
+**orientation** side has not caught up — `arc-session` on a no-meta tree falls into session-init's orphan path,
+which does *WU discovery* ("next ROADMAP item?") rather than "orient and await an Errand." The missing piece is
+an orientation mode that loads the universal session-init content but stops before any WU-artifact reads.
+
+**Provisional resolution (ratify when an owner takes it):** keep **one** entrypoint. `arc-session` is the
+universal door and grows a **no-WU / orient-and-await leaf** (the orphan path, made Errand-aware);
+`errand-launch` is *not* a second entrypoint but an in-session **prep** action that sets up the cheap branch +
+seed in the main worktree, which you then *enter via `arc-session`*. This keeps session-init machinery DRY
+behind one door and stops `errand-launch` re-implementing orientation. Disambiguate the leaf's two intents —
+between-WU **discovery** vs. **Errand** — with an explicit signal, *not* "any arg = Errand" (that collides with
+cold-start's spec-input arg); or disambiguate interactively at the leaf.
+
+**Likely owner:** Errand Enablement, coordinating with whoever owns the session-init orientation mode.
+**Worktree Foundation seam (built now, no Errand behavior):** `arc-session` dispatch carries an explicit no-WU
+leaf instead of collapsing it into WU-discovery, and the optional `<pointer-or-blurb>` arg threads to whatever
+leaf is dispatched (not hard-wired to cold-start) — so the fill attaches without a restructure, mirroring the
+materialize seam left for In-Flight Awareness.
+
 ## Cross-cutting design spine — the Errand work class
 
 The cohort's central cross-cutting decision is the **Errand work class** — see [ADR-021][adr-021] for
