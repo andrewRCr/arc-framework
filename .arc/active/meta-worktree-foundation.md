@@ -11,14 +11,15 @@
 - **Cohort:** agile-parallelism
 
 - **Task List:** tasks-worktree-foundation.md
-- **Last Completed:** Task 5.2 — Spawn primitive (shared CLI-level scaffolding): `spawnWorktree` +
-  `META_FIELDS`/`renderMetaFile`/`parseMetaRecord` + `writeWorktreeOwnershipMarker` in `lib/git` (5.2.b/c/a).
-- **Next Task:** Task 5.3 — Cold-start scaffolding primitive; begin with 5.3.a (use-existing path) (line ~693)
+- **Last Completed:** Task 5.3 — Cold-start scaffolding primitive (5.3.a/b/c): exported `scaffoldIntoWorktree`
+  (use-existing), added `parseSpecInput` (`lib/active` — closed Origin/Design plus `document`/`description`
+  pass-through), and locked marker semantics via the created-by-arc flag.
+- **Next Task:** Task 5.4 — `arc-session` entry skill (rename from `arc-resume`, dispatch); begin with 5.4.a
+  (line ~728)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 5.3 (cold-start) — export the file-private `scaffoldIntoWorktree` from
-  `worktree-scaffold.ts` for the use-existing path (5.3.a), then the discriminated-outcome spec-input parser
-  (5.3.b) + marker semantics (5.3.c). Reuse seam + injection boundary: `notes-worktree-foundation.md`
-  § Phases 5 & 6 "Phase 5.2 implementation".
+- **Next Action:** Begin Task 5.4 — rename `arc-resume` → `arc-session` + reframe to entry/dispatch (5.4.a is
+  large: ~19-ref sweep both copies + manifest re-registration). Take subtasks one at a time; detail in the task
+  list + `notes-worktree-foundation.md` § Phases 5 & 6.
 
 ---
