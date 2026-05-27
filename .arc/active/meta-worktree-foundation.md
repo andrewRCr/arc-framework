@@ -15,12 +15,11 @@
   `LocalSyncState` and its read/write/marker helpers to `lib/user-sync/sync-state.ts`; 4.4.b bumped the schema
   to v4 (worktree-aware, reserved `priorFileList` / `remoteMarkerProvenance` seams, reserved-field round-trip);
   4.4.c recorded the partial-push-surface widening. **Phase 4 complete** (Tasks 4.1–4.4).
-- **Next Task:** Task 5.1 — `init-work-unit` worktree-creating mode (line ~624)
+- **Next Task:** Task 5.1 — `init-work-unit` worktree-creating mode (delegation + mode selection) (line ~632)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 5.1 — give `init-work-unit` a worktree-creating mode (`git worktree add
-  <templated-path> -b plan/{name}`, path resolved via the Phase 1 location template) while retaining the in-place
-  `git checkout -b` mode for the single-worktree / atomic-launchpad case (5.1.b). Consult
-  `strategy-work-organization.md`.
+- **Next Action:** Begin Task 5.1 per the ratified Phase 5 design (`notes-worktree-foundation.md` § Phases 5 & 6,
+  commit `883f59db`): 5.1 is workflow-doc delegation + caller-driven mode selection; the `git worktree add` +
+  fresh-meta scaffold live in the 5.2 CLI primitive. Consult `strategy-work-organization.md`.
 
 ---
