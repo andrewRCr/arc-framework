@@ -693,25 +693,26 @@ forward-compat seams: `notes-worktree-foundation.md` § Phases 5 & 6.
             - error paths: target worktree path already exists; branch already exists; dirty base; location
               slug collision (`git worktree add` fails — surface, don't silently proceed)
 
-    - `[ ]` **5.2.b Fresh-meta scaffold via template-as-data (single source of truth)**
-        - _Note:_ scaffold the fresh meta by **reading the project's `template-meta.md`** (via `resolveArcRoot`
-          → `.arc/reference/templates/arc/work-unit/`, **not** a bundled copy — preserves the
-          adopter-customizable template behavior the agent path has today) → strip instructional `<!-- -->`
-          comments → substitute `{wu-name}` / `{arc.identity}` tokens + override the field-marker lines. The
-          **template stays the single source of truth** for meta shape/order/style/defaults; **do not
-          reconstruct meta shape in code.**
-        - _Note:_ field population is a structured `field → value` override map keyed on field markers **shared
-          with `lib/active/meta-reader.ts`** — extract a `META_FIELDS` constant rather than hardcoding a fourth
-          scattered copy of the marker strings. Keep it schema-shaped (the override map is the proto-schema) so
-          CSA's planned zod meta-schema validates the writer's output by wrapping one module, not a rewrite.
-          Model the field-line override on `renderConfigOverrides` (`lib/template/render.ts`). Two-axis SoT
-          (template = document shape; CSA's zod schema = structural contract) detailed in notes § Phases 5 & 6.
+    - `[ ]` **5.2.b Fresh-meta scaffold from the code-owned field set (ADR-022 interim)**
+        - _Note:_ **Superseded by ADR-022** (`adr-022-managed-operational-state-documents.md`): the meta is a
+          managed operational-state document whose **structure is a code-owned record, not the template**. The
+          earlier "read the project `template-meta.md` as the single source of truth / preserve
+          adopter-customizable template behavior" framing is dropped — meta is **not** adopter-customizable.
+          Scaffold from an **internal/bundled skeleton** (like the SESSION-NOTES seed, **not** the adopter
+          `.arc/` copy via `resolveArcRoot`) populated via the code-owned field set, then render the markdown
+          projection. Model-aligned interim; `operational-state-docs` later generalizes it into the full
+          record→render engine.
+        - _Note:_ field population is the `META_FIELDS` constant **shared with `lib/active/meta-reader.ts`** —
+          one definition for both parse and scaffold (the proto-schema CSA's zod meta-schema wraps, not a
+          rewrite). Model the field-line render on `renderConfigOverrides` (`lib/template/render.ts`). The meta
+          is H1 + grouped bold-field bullets, not YAML frontmatter. Full rationale: notes § Phases 5 & 6.
         - Build `test-first` (one behavior at a time):
-            - a fresh Planning meta renders from the project template with State / Owner / Branch / Next Action
-              substituted and other fields at their template defaults
-            - instructional comments stripped; archive skeleton handling matches a scaffolded meta
-            - an added/renamed template field flows through without a code change unless it is a
-              dynamically-substituted field
+            - a fresh Planning meta renders from the code-owned field set with State / Owner / Branch /
+              Next Action substituted and other fields at their defaults
+            - instructional comments absent from the rendered output; archive skeleton handling matches a
+              scaffolded meta
+            - a **round-trip test** holds — rendering then parsing (`meta-reader`) recovers the same field
+              set; a `META_FIELDS` change that breaks the pair fails loudly (no silent structural drift)
 
     - `[ ]` **5.2.c Ownership-marker write + optional breadcrumb seed**
         - Write the marker (1.3) via `writeWorktreeMarker` (created-by-arc flag true for spawn); optionally

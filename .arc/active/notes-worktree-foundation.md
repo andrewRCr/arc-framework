@@ -321,21 +321,17 @@ language is realized as the decisions below.
 - **Primitive homes in `lib/`** (alongside `worktree-location.ts` / `worktree-marker.ts`), not `handlers/` or a
   fat `commands/` module — so sync-handler-decomposition / user-sync-module-split never have to relocate it.
 
-- **Meta single-source-of-truth has two axes; the writer must respect both.** (1) **Document/rendering SoT =
-  `template-meta.md`** — the writer reads the **project's** installed template (via `resolveArcRoot`, **not** a
-  bundled copy — unlike the SESSION-NOTES seed which `runUserOpen` reads bundled; reading the project copy
-  preserves the adopter-customizable-template behavior the agent path has today), strips instructional
-  `<!-- -->` comments, substitutes `{wu-name}` / `{arc.identity}` tokens + overrides field-marker lines. **Do
-  not reconstruct meta shape in code.** Adding/renaming/restyling a field = template edit; code changes only for
-  a dynamically-substituted field. (2) **Structural/contract SoT** = field-set + types + allowed values — today
-  scattered as literal markers across `meta-reader.ts` (parses 5 fields via `extractField(section, "State")`
-  etc.), `worktree-roster.ts`, `wu-resolution.ts`, `validate-meta-spec.ts`. CSA consolidates this into a **zod
-  meta-schema** (`draft-cli-substrate-adoption.md:451,82`), which schema-introspection-layer then exposes
-  (`draft-schema-introspection-layer.md:6`). So the writer must **share field markers with `meta-reader.ts`
-  (extract a `META_FIELDS` constant — don't add a fourth scattered copy)** and keep field population a
-  structured override map (the proto-schema), so CSA's zod schema validates the writer's output by wrapping one
-  module, not a rewrite. Model the field-line override on `renderConfigOverrides` (`lib/template/render.ts`).
-  The meta is H1 + grouped bold-field bullets — **not** YAML frontmatter (CSA's "frontmatter" wording is loose).
+- **Meta single-source-of-truth — superseded by ADR-022** (`adr-022-managed-operational-state-documents.md`).
+  ADR-022 makes the meta a *managed operational-state document* whose **structure is a code-owned record**;
+  the markdown is a projection. This **drops the earlier "`template-meta.md` is the document SoT / read the
+  project copy to preserve adopter-customizable behavior" framing** — meta is **not** adopter-customizable.
+  What survives: (1) the field set is the **`META_FIELDS` constant shared with `meta-reader.ts`** — one
+  definition for parse + scaffold (the proto-schema CSA's zod meta-schema wraps, not a rewrite; today
+  scattered across `meta-reader.ts`, `worktree-roster.ts`, `wu-resolution.ts`, `validate-meta-spec.ts`, which
+  schema-introspection-layer then exposes); and (2) the meta is H1 + grouped bold-field bullets — **not** YAML
+  frontmatter. WF Task 5.2.b scaffolds from an internal/bundled skeleton (not the adopter `.arc/` copy)
+  populated via `META_FIELDS`, round-trip-tested — the model-aligned interim `operational-state-docs` later
+  generalizes into the full record→render engine.
 
 - **Spec-input parser (5.3.b) is discriminated-outcome / no-throw**, mirroring `lib/user-sync/parser.ts`
   (`{ ok } | { ok: false, reason }`); it feeds structured meta fields into the writer's override map. The skill
