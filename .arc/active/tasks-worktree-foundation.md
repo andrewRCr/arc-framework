@@ -690,15 +690,11 @@ forward-compat seams: `notes-worktree-foundation.md` § Phases 5 & 6.
   (`scaffoldIntoWorktree`) is the reuse seam 5.3 cold-start consumes; life-phase / created-by-arc / tier-type
   params are the AWL + conductor forward-compat seam. Full rationale: notes § Phases 5 & 6.
 
-### `[ ]` **5.3 Cold-start scaffolding primitive**
+### `[x]` **5.3 Cold-start scaffolding primitive**
 
 - _Goal:_ the shared scaffolding primitive (5.2's) creates a meta in an existing bare worktree from any spec
   input (file pointer / URL / issue / plan-doc / name + description), honoring WOR's Origin ⊥ Design
   orthogonality, invoked from `arc-session` (discovery) and, later, `arc start` (deliberate create-in-place).
-- _Note:_ cold-start calls the shared primitive in **use-existing** mode — it enters a worktree ARC did not
-  create (tool / manual `git worktree add`), so in Foundation it is **always advisory** (created-by-arc flag
-  false → no marker). The create-new + marker branch is spawn's (and later `arc start`'s). Honors the
-  `branch-format` convention when ARC creates state (warn-only on external mismatch).
 - **Strategies:** `strategy-work-organization.md`
 
     - `[x]` **5.3.a Shared scaffolding primitive (CLI-level)** — the use-existing path of 5.2's primitive
@@ -717,10 +713,17 @@ forward-compat seams: `notes-worktree-foundation.md` § Phases 5 & 6.
           free-text `description`, for the `arc-session` agent to assess (trigger-vs-spec is operator intent, not
           syntax). Origin / Design stay narrow by design; only empty input fails. Shaped for CSA's zod wrap.
 
-    - `[ ]` **5.3.c Marker semantics via the created-by-arc flag**
-        - The shared primitive's created-by-arc flag drives the marker: spawn → true (writes); cold-start in
-          Foundation → false (advisory only — tool / manual worktree). The flag-true cold-start path is
-          exercised later by `arc start` — present as a seam, not built here.
+    - `[x]` **5.3.c Marker semantics via the created-by-arc flag**
+        - Locked the cold-start marker semantics on `scaffoldIntoWorktree`'s `createdByArc` flag (gating built
+          in 5.2.c): `false` → no marker (advisory — tool / manual worktree), `true` → marker written. The
+          flag-true path is the `arc start` create-in-place seam — exercised by test, not wired to a caller here.
+
+- _Outcome:_ cold-start is whole — `scaffoldIntoWorktree` (use-existing) scaffolds a Planning meta into a
+  worktree ARC didn't create, fed by `parseSpecInput`, marker gated advisory off the created-by-arc flag. The
+  spec-input model landed narrower than the Goal's flat variant list: Origin / Design are _closed_
+  auto-assignments (issue → Origin, `draft-` / `spec-` → Design), with files / URLs / blurbs passed through as
+  `document` / `description` for the `arc-session` agent to assess (`plan-*` retired). Consumed by 5.4; the
+  flag-true create-in-place path is `arc start`'s seam.
 
 ### `[ ]` **5.4 `arc-session` entry skill (rename from `arc-resume`, dispatch)**
 

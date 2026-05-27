@@ -318,3 +318,57 @@ describe("scaffoldIntoWorktree — cold-start (use-existing)", () => {
     expect(record.Design).toBe("spec-manual-tool.md");
   });
 });
+
+describe("scaffoldIntoWorktree — ownership marker semantics (created-by-arc flag)", () => {
+  let worktree: string;
+  let io: UserIOContext;
+
+  beforeEach(async () => {
+    worktree = await mkdtemp(join(tmpdir(), "arc-coldstart-marker-"));
+    io = { ...createUserIOContext(), exec: recordingExec().exec };
+  });
+
+  afterEach(async () => {
+    await rm(worktree, { recursive: true, force: true });
+  });
+
+  it("writes no marker on the advisory cold-start path (createdByArc: false)", async () => {
+    await scaffoldIntoWorktree(
+      { io, internalTemplateDir: getInternalTemplatePath() },
+      {
+        worktreePath: worktree,
+        branch: "feat/manual-tool",
+        wuName: "manual-tool",
+        spawningIdentity: "andrew",
+        createdByArc: false,
+      },
+    );
+
+    // Absence is the "not ARC-created" signal — cleanup of a tool-made worktree stays advisory.
+    expect(await readWorktreeMarker(worktree)).toEqual({ kind: "absent" });
+  });
+
+  it("writes the marker when ARC created the worktree (createdByArc: true — the arc start seam)", async () => {
+    await scaffoldIntoWorktree(
+      { io, internalTemplateDir: getInternalTemplatePath() },
+      {
+        worktreePath: worktree,
+        branch: "feat/manual-tool",
+        wuName: "manual-tool",
+        spawningIdentity: "andrew",
+        createdByArc: true,
+        now: Date.parse("2026-05-27T12:00:00.000Z"),
+      },
+    );
+
+    expect(await readWorktreeMarker(worktree)).toEqual({
+      kind: "present",
+      marker: {
+        spawnedByArc: true,
+        wuName: "manual-tool",
+        spawningIdentity: "andrew",
+        createdAt: "2026-05-27T12:00:00.000Z",
+      },
+    });
+  });
+});
