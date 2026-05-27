@@ -41,7 +41,7 @@ function buildCanonicalFiles(
 ): Record<string, string> {
   const files: Record<string, string> = {};
   const descriptions: Record<string, string> = {
-    "arc-resume": "Initialize and resume the active working ARC session.",
+    "arc-session": "Initialize and resume the active working ARC session.",
     "arc-commit": "Commit current repository changes with atomic boundaries.",
     "arc-handoff": "Update and finalize current ARC session documentation.",
     "arc-setup": "Run post-install ARC setup.",
@@ -167,7 +167,7 @@ describe("generateSkills", () => {
     // Add a modified existing file at the target path
     const existingFiles: Record<string, string> = {
       ...canonicalFiles,
-      [`${CWD}/.agents/skills/arc-resume/SKILL.md`]: "modified content\n",
+      [`${CWD}/.agents/skills/arc-session/SKILL.md`]: "modified content\n",
     };
     const io = buildIO(existingFiles);
 
@@ -182,15 +182,15 @@ describe("generateSkills", () => {
     // Should emit exactly one warning for the modified file
     expect(result.warnings).toHaveLength(1);
     expect(result.warnings[0]).toBe(
-      "Overwriting modified skill file: .agents/skills/arc-resume/SKILL.md",
+      "Overwriting modified skill file: .agents/skills/arc-session/SKILL.md",
     );
 
     // Output still contains canonical content (overwrite)
     const resumeOutput = result.outputs.find(
-      (o) => o.path === ".agents/skills/arc-resume/SKILL.md",
+      (o) => o.path === ".agents/skills/arc-session/SKILL.md",
     );
     expect(resumeOutput!.content).toBe(
-      canonicalFiles[`${SKILLS_DIR}/arc-resume/SKILL.md`],
+      canonicalFiles[`${SKILLS_DIR}/arc-session/SKILL.md`],
     );
   });
 
@@ -199,8 +199,8 @@ describe("generateSkills", () => {
     // Existing file with identical content
     const existingFiles: Record<string, string> = {
       ...canonicalFiles,
-      [`${CWD}/.agents/skills/arc-resume/SKILL.md`]:
-        canonicalFiles[`${SKILLS_DIR}/arc-resume/SKILL.md`]!,
+      [`${CWD}/.agents/skills/arc-session/SKILL.md`]:
+        canonicalFiles[`${SKILLS_DIR}/arc-session/SKILL.md`]!,
     };
     const io = buildIO(existingFiles);
 
@@ -218,7 +218,7 @@ describe("generateSkills", () => {
   it("preserves .arc/ references in skill content unchanged", async () => {
     const contentWithRef = [
       "---",
-      "name: arc-resume",
+      "name: arc-session",
       "description: Resume the session.",
       "disable-model-invocation: false",
       "---",
@@ -229,7 +229,7 @@ describe("generateSkills", () => {
 
     const files: Record<string, string> = {
       ...buildCanonicalFiles(SKILLS_DIR),
-      [`${SKILLS_DIR}/arc-resume/SKILL.md`]: contentWithRef,
+      [`${SKILLS_DIR}/arc-session/SKILL.md`]: contentWithRef,
     };
     const io = buildIO(files);
 
@@ -242,7 +242,7 @@ describe("generateSkills", () => {
     );
 
     const output = result.outputs.find(
-      (o) => o.path === ".agents/skills/arc-resume/SKILL.md",
+      (o) => o.path === ".agents/skills/arc-session/SKILL.md",
     );
     expect(output!.content).toBe(contentWithRef);
     expect(output!.content).toContain(".arc/system/workflows/");
@@ -272,10 +272,10 @@ describe("generateSkills", () => {
 
     // Verify one yaml output structure
     const resumeYaml = result.outputs.find(
-      (o) => o.path === ".agents/skills/arc-resume/agents/openai.yaml",
+      (o) => o.path === ".agents/skills/arc-session/agents/openai.yaml",
     );
     expect(resumeYaml).toBeDefined();
-    expect(resumeYaml!.content).toContain('display_name: "ARC Resume"');
+    expect(resumeYaml!.content).toContain('display_name: "ARC Session"');
     expect(resumeYaml!.content).toContain("short_description:");
     expect(resumeYaml!.content).toContain("default_prompt:");
   });
@@ -283,10 +283,10 @@ describe("generateSkills", () => {
 
 describe("parseSkillFrontmatter", () => {
   it("extracts name and description from valid frontmatter", () => {
-    const content = skillMd("arc-resume", "Resume the session.");
+    const content = skillMd("arc-session", "Resume the session.");
     const result = parseSkillFrontmatter(content);
     expect(result).toEqual({
-      name: "arc-resume",
+      name: "arc-session",
       description: "Resume the session.",
     });
   });
@@ -330,11 +330,11 @@ describe("validateTools", () => {
 describe("buildCodexYaml", () => {
   it("produces valid yaml from frontmatter", () => {
     const yaml = buildCodexYaml({
-      name: "arc-resume",
+      name: "arc-session",
       description: "Initialize and resume the active working ARC session.",
     });
 
-    expect(yaml).toContain('display_name: "ARC Resume"');
+    expect(yaml).toContain('display_name: "ARC Session"');
     expect(yaml).toContain(
       'short_description: "Initialize and resume the active working ARC session."',
     );

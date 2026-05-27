@@ -64,7 +64,7 @@ export interface SkillGenerationTarget {
  * of truth for all generated per-tool copies.
  */
 export const CANONICAL_SKILLS = [
-  "arc-resume",
+  "arc-session",
   "arc-commit",
   "arc-handoff",
   "arc-plan",

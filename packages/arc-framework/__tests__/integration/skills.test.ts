@@ -164,7 +164,7 @@ describe("skill generation (integration)", () => {
     tempDir = await initWithTools(["claude"]);
 
     // Modify a generated skill file
-    const skillPath = join(tempDir, ".claude/skills/arc-resume/SKILL.md");
+    const skillPath = join(tempDir, ".claude/skills/arc-session/SKILL.md");
     const originalContent = await readFile(skillPath, "utf-8");
     await writeFile(skillPath, "modified by user\n", "utf-8");
 

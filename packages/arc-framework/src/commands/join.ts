@@ -265,7 +265,7 @@ export function buildPostJoinMessage(result: JoinResult): string {
   if (result.tools.length > 0) {
     lines.push("");
     lines.push(
-      "Next: Restart your AI tool so the new /arc-resume skill is available, then run it.",
+      "Next: Restart your AI tool so the new /arc-session skill is available, then run it.",
     );
   }
 

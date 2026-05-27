@@ -297,7 +297,7 @@ describe("arc join --reconfigure", () => {
 
     // Claude skills should exist
     expect(await pathExists(
-      join(tmpDir, ".claude", "skills", "arc-resume", "SKILL.md"),
+      join(tmpDir, ".claude", "skills", "arc-session", "SKILL.md"),
     )).toBe(true);
 
     // Reconfigure to cursor (universal → .agents/skills/)
@@ -309,12 +309,12 @@ describe("arc join --reconfigure", () => {
 
     // Old claude skills should be removed
     expect(await pathExists(
-      join(tmpDir, ".claude", "skills", "arc-resume", "SKILL.md"),
+      join(tmpDir, ".claude", "skills", "arc-session", "SKILL.md"),
     )).toBe(false);
 
     // New cursor skills should exist (resolves to .agents/skills/)
     expect(await pathExists(
-      join(tmpDir, ".agents", "skills", "arc-resume", "SKILL.md"),
+      join(tmpDir, ".agents", "skills", "arc-session", "SKILL.md"),
     )).toBe(true);
 
     // Tool config should be updated
