@@ -374,8 +374,10 @@ language is realized as the decisions below.
   5.1 audit question — does in-place have a forward-compatible role given Errands absorbed the incidental
   class? — resolved **yes, retain**. Worktrees are a capability, not a mandate (PRD Goals: "operates correctly
   inside one [worktree]"; usage conventions deferred to CWC), so in-place is the single-worktree posture's
-  WU-creation path **and** the no-worktree-creation substrate AWL's atomic-tier-under-`full` init layers on via
-  the life-phase param. R28's "single-worktree / **atomic-launchpad**" conflates two things: the
+  WU-creation path **and** a no-worktree-creation substrate AWL's atomic-tier-under-`full` init may layer on —
+  AWL leaves the mechanism open among three options (`arc start` directly, an `init-work-unit` life-phase param,
+  or the conductor absorbing both; `draft-agile-wu-lifecycle.md:358`). R28's "single-worktree /
+  **atomic-launchpad**" conflates two things: the
   atomic-launchpad half is an internal forward-pointer (AWL atomic-tier; Errands launch from the launchpad but
   via `errand-launch`, never `init-work-unit`). So the shipped `## Execution Modes` justifies in-place as
   single-worktree **only** and stamps **neither** mode as default (WF must not preempt CWC's when-to-parallelize
