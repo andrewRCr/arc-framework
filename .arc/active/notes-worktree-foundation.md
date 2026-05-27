@@ -370,6 +370,19 @@ language is realized as the decisions below.
   scopes to `.arc/system/**` + `.arc/reference/**` (both copies); backlog drafts refresh at their own promotion.
   Surface this so it isn't a surprise when those drafts are next touched.
 
+- **In-place mode survives as the single-worktree baseline; framed neutrally in the shipped doc (5.1).** The
+  5.1 audit question — does in-place have a forward-compatible role given Errands absorbed the incidental
+  class? — resolved **yes, retain**. Worktrees are a capability, not a mandate (PRD Goals: "operates correctly
+  inside one [worktree]"; usage conventions deferred to CWC), so in-place is the single-worktree posture's
+  WU-creation path **and** the no-worktree-creation substrate AWL's atomic-tier-under-`full` init layers on via
+  the life-phase param. R28's "single-worktree / **atomic-launchpad**" conflates two things: the
+  atomic-launchpad half is an internal forward-pointer (AWL atomic-tier; Errands launch from the launchpad but
+  via `errand-launch`, never `init-work-unit`). So the shipped `## Execution Modes` justifies in-place as
+  single-worktree **only** and stamps **neither** mode as default (WF must not preempt CWC's when-to-parallelize
+  convention). Stale cross-draft note to refresh at its own PRD: `draft-agile-wu-lifecycle.md:366` still calls
+  spawn "a thin wrapper over `init-work-unit`" — the Phase 5 ratification moved the mechanics into the primitive
+  (spawn wraps the primitive; init's worktree-creating mode also delegates to it).
+
 ### Phase 7 — lifecycle, retirements, drift
 
 - **Package workflow suffix map (`.md` vs `.template.md`) — affects every "(both copies)" workflow edit.**

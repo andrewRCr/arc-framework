@@ -32,6 +32,21 @@ integrate-work-unit         — PR, review, merge to main
 
 ---
 
+## Execution Modes
+
+The workflow runs in one of two modes, selected by the caller — there is no mode flag:
+
+- **In-place** — the planning branch is created in the current worktree (Step 2, `git checkout -b`) and the
+  meta file is scaffolded inline (Step 4, Path B); the current worktree becomes the work unit's worktree.
+  This is the single-worktree path: one work unit at a time in one checkout.
+- **Worktree-creating** — spawning the work unit into a dedicated worktree creates the planning branch, the
+  fresh meta file, the seeded SESSION-NOTES, and the worktree ownership marker in a single operation. The
+  spawn entry point performs this; the inline Step 2 and Step 4 (Path B) are its in-place counterpart.
+
+Both modes share the rest of the workflow. Graduating a backlog stub (Step 3), reconciling an existing meta
+file (Step 4, Path A), and the idempotent-resume case stay part of the workflow in either mode — they
+reconcile files that already exist, whereas fresh scaffolding mints new ones.
+
 ## Steps
 
 ### 1) Ensure Clean Base Branch
@@ -52,6 +67,9 @@ creating the planning branch. This guard matters most on cross-machine resume, w
 on a sibling clone.
 
 ### 2) Create Planning Branch
+
+_Worktree-creating mode delegates this step and Step 4 (Path B) to the spawn entry point — see
+[§ Execution Modes](#execution-modes). The commands below are the in-place path._
 
 ```bash
 git checkout -b plan/{name}

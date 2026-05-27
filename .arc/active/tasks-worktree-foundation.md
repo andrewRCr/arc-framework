@@ -629,28 +629,33 @@ testable `git worktree add` lives in the primitive (5.2). Entry surfaces (`arc-s
 `worktree-marker` deps). Removal-side ceremony edits live in Phase 7. Full ratification + reasons +
 forward-compat seams: `notes-worktree-foundation.md` § Phases 5 & 6.
 
-### `[ ]` **5.1 `init-work-unit` worktree-creating mode (delegation + mode selection)**
+### `[x]` **5.1 `init-work-unit` worktree-creating mode (delegation + mode selection)**
 
 - _Goal:_ `init-work-unit` gains a worktree-creating mode that **delegates** to the 5.2 scaffolding primitive's
   create-new path (the primitive runs `git worktree add <templated-path> -b plan/{name}`, path via the Phase 1
   `resolveWorktreeLocation` helper); the in-place `git checkout -b` mode survives for the single-worktree /
   atomic-launchpad case. This task is the **workflow-doc** change only — thin delegation prose + mode
   selection; the testable `git worktree add` + fresh-meta scaffold live in 5.2.
-- _Note:_ backlog-graduation (Step 3 `git mv` + Step 4 Path A field-preserving reconcile) and the
-  idempotent-resume case **stay in the workflow**, un-entangled from the primitive — they reconcile existing
-  files, the primitive only mints fresh scaffolding. Keep graduation a clean, self-contained step so the
-  conductor's future `resume-work-unit.md` can call it as a sub-procedure (see notes § Phases 5 & 6).
 - **Strategies:** `strategy-work-organization.md`
 
-    - `[ ]` **5.1.a Worktree-creating mode = delegation prose** (`init-work-unit.md`, both copies)
-        - _Note:_ the mode invokes the 5.2 primitive (create-new); it does not carry its own `git worktree add`
-          bash. R8's "thin wrapper over init-work-unit's mode" is realized as "the mode delegates to the
-          primitive."
+    - `[x]` **5.1.a Worktree-creating mode = delegation prose** (`init-work-unit.md`, both copies)
+        - New `## Execution Modes` section frames worktree-creating as pure delegation: the planning branch,
+          fresh meta, seeded SESSION-NOTES, and ownership marker are minted by the spawn path's create-new
+          operation — no `git worktree add` bash enters the workflow. Adopter-facing prose carries neither task
+          IDs nor the not-yet-built skill name; "spawn entry point" is the forward-safe referent.
 
-    - `[ ]` **5.1.b In-place mode retained + mode selection**
-        - _Note:_ mode selection is **caller-driven** (spawn / `arc start` → create-new; a direct planning
-          `init-work-unit` → in-place); no new arg required. Stays planning-welded — the
-          Planning-vs-Active-at-creation generalization is AWL's seam, not this WU's.
+    - `[x]` **5.1.b In-place mode retained + mode selection**
+        - Both modes are framed neutrally — neither stamped default, since WF ships worktrees as a capability
+          and defers the when-to-parallelize convention downstream. Mode selection is caller-driven, no flag —
+          direct planning init → in-place (single-worktree posture), spawn → worktree-creating. A Step 2 pointer
+          cross-references § Execution Modes so the branch command isn't misread as the only path.
+
+- _Outcome:_ Both copies carry the two modes neutrally (neither stamped default), with zero create-new
+  mechanics — `git worktree add` and the fresh-meta scaffold stay deferred to the 5.2 primitive. Backlog
+  graduation (Step 3), meta reconcile (Step 4 Path A), and idempotent-resume left workflow-owned and
+  un-entangled, staying factorable for the conductor's future `resume-work-unit.md`. In-place validated as
+  forward-compatible (single-worktree baseline + AWL's atomic-tier-no-worktree seam); R28 conflation + stale
+  AWL "thin wrapper" note captured in `notes-worktree-foundation.md` § Phases 5 & 6.
 
 ### `[ ]` **5.2 Spawn primitive (shared CLI-level scaffolding)**
 
