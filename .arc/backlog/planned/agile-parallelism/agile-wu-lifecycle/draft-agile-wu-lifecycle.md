@@ -195,9 +195,11 @@ get promoted: add the plan-*/PRD, restructure the task list into phases, continu
    `arc start` is the spawn-from-existing-session entry point — it creates the worktree (when
    applicable per tier), scaffolds the meta file, and reports the new worktree path so a fresh
    session can pick up via the cold-start primitive. Adopters working in tool-spawned worktrees
-   (Conductor, emdash, Maestro, Warp, Worktrunk, Zed, etc.) skip `arc start` and invoke the
-   cold-start primitive directly inside the tool-created worktree — same scaffolding logic,
-   different entry point. Both paths converge once the meta file is written.
+   (Conductor, emdash, Maestro, Warp, Worktrunk, Zed, etc.) still enter through `arc-session`: on
+   finding a bare worktree, its cold-start dispatch scaffolds the meta in place by invoking
+   `arc start --here` — same scaffolding logic, reached through the uniform session entrypoint
+   rather than `arc start` create-new. The command is agent-invoked, not a human-run step. Both
+   paths converge once the meta file is written.
 
    **Worktree Foundation coordination (2026-05-27).** WF introduces the `arc start` verb with a `--here`
    (use-existing / cold-start) mode — the invocation surface `arc-session` needs for cold-start (WF 5.3.R).
