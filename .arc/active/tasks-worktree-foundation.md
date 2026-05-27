@@ -688,37 +688,11 @@ forward-compat seams: `notes-worktree-foundation.md` § Phases 5 & 6.
   `arc-session`), not a lib-unit concern — the primitive carries no cascade-guard because nothing would call one.
 - **Strategies:** `strategy-work-organization.md`
 
-    - `[ ]` **5.2.b Fresh-meta scaffold from the code-owned field set (ADR-022 interim)** — _build first_
-        - _Note:_ **Superseded by ADR-022** (`adr-022-managed-operational-state-documents.md`): the meta is a
-          managed operational-state document whose **structure is a code-owned record, not the template**.
-          **Pure code-render** — render the markdown projection from `META_FIELDS` in code; do **not** read the
-          adopter `.arc/` `template-meta.md`, and add **no** bundled meta template file (a token-template would
-          reintroduce a third drift surface — the very thing the ADR removes). The asymmetry with the
-          SESSION-NOTES seed (which _is_ a bundled static file) is intentional: meta needs field population at
-          scaffold time, SESSION-NOTES does not. Model-aligned interim; `operational-state-docs` later
-          generalizes this into the record→render engine and owns the `.arc/` template's eventual retirement —
-          leave that file in place here.
-        - _Note:_ `META_FIELDS` is a **declarative, ordered field-descriptor set** (name/label, default, group)
-          in `lib/active/meta-reader.ts`, shared by scaffold + round-trip — one definition. Keep it a clean
-          declarative const so CSA's zod meta-schema **wraps** it (not a rewrite) and AWL / IFA extend it by
-          adding one entry (`Tier`, `Priority`, an extended `State` enum). Render the field lines from it (model
-          on `renderConfigOverrides`, `lib/template/render.ts`); the meta is H1 + blank-line-grouped bold-field
-          bullets + trailing `---`, not YAML frontmatter. **Scope: introduce `META_FIELDS` in `meta-reader.ts`
-          only** — do **not** touch the duplicate field-parsing in `worktree-roster.ts` or other consumers (that
-          consolidation belongs to CSA / schema-introspection-layer). Full rationale: notes § Phases 5 & 6.
-        - _Note:_ the render takes a **general field→value override input** over `META_FIELDS` (model a
-          `Partial<Record<MetaFieldName, string>>`, not a fixed four-field signature). Spawn passes State /
-          Owner / Branch / Next Action; cold-start (5.3.b) feeds the spec-input parser's fields through the same
-          input and additionally sets Origin / Design. Pin the general shape here — 5.2.b builds first under
-          b → c → a — so 5.3.b consumes it rather than widening a spawn-only signature.
-        - Build `test-first` (one behavior at a time):
-            - a fresh Planning meta renders from `META_FIELDS` with State / Owner / Branch / Next Action
-              substituted and every other field at its declared default
-            - output is H1 (`# Metadata: {wu-name}`) + blank-line-grouped bold-field bullets + trailing `---`;
-              no instructional comments, and no archive sections during the Planning phase
-            - a **round-trip test** holds — rendering then parsing (`meta-reader`) recovers the rendered field
-              set; the round-trip guards render-format ⊥ parse-regex — if the emitted bullet shape stops matching
-              `extractField`'s regex, it fails loudly (no silent structural drift)
+    - `[x]` **5.2.b Fresh-meta scaffold from the code-owned field set (ADR-022 interim)** — _build first_
+        - `META_FIELDS` (ordered name/default/group descriptors) + `renderMetaFile` + `parseMetaRecord` in
+          `meta-reader.ts`: pure code-render of the Planning meta (no template read), a general
+          `Partial<Record<MetaFieldName, string>>` override map (spawn sets 4 fields, cold-start extends), and a
+          shared field set giving the render↔parse round-trip its teeth. Rationale + seams: notes § Phases 5 & 6.
 
     - `[ ]` **5.2.c Ownership-marker write (create-by-arc flag)** — _build second_
         - Write the ownership marker (1.3) into the new worktree's root via `writeWorktreeMarker(cwd, …)` with

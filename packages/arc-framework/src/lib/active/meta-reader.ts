@@ -3,7 +3,13 @@
  * detects Full vs Lite layout, and parses per-WU fields into structured
  * candidates.
  *
- * The reader does filesystem work only. Mode-specific shaping (full
+ * Also home to the canonical meta field set (`META_FIELDS`) and the projection
+ * between a meta's structured field record and its markdown form:
+ * `renderMetaFile` emits the markdown from the field set, `parseMetaRecord`
+ * recovers the record. Sharing one field definition keeps the rendered and
+ * parsed views from disagreeing on structure.
+ *
+ * The directory scan does filesystem work only. Mode-specific shaping (full
  * enumeration vs session-init single-path resolution) lives in the probe
  * runners that call this helper.
  *
@@ -182,6 +188,100 @@ export function parseMetaFile(content: string): ParsedMetaFields {
     taskList: extractField(section, "Task List"),
     nextAction: extractField(section, "Next Action"),
   };
+}
+
+/**
+ * A managed-meta field descriptor: the bold-marker label, the value rendered
+ * when no override is supplied, and the blank-line group the field belongs to.
+ * The ordered set in {@link META_FIELDS} is the single definition both the
+ * markdown projection ({@link renderMetaFile}) and the structured parse
+ * ({@link parseMetaRecord}) derive from.
+ */
+export interface MetaFieldDescriptor {
+  /** Bold-marker label, e.g. `"Next Action"` (rendered as `- **Next Action:** …`). */
+  readonly name: string;
+  /** Value rendered when the caller supplies no override for this field. */
+  readonly default: string;
+  /** Grouping key — fields sharing a group render contiguously; groups are blank-line separated. */
+  readonly group: string;
+}
+
+/**
+ * The canonical meta field set — ordered, grouped, with per-field defaults.
+ * Declared `as const` so the labels form the {@link MetaFieldName} literal union.
+ */
+export const META_FIELDS = [
+  { name: "State", default: "—", group: "identity" },
+  { name: "Owner", default: "—", group: "identity" },
+  { name: "Branch", default: "—", group: "identity" },
+  { name: "Origin", default: "[internal]", group: "reference" },
+  { name: "Design", default: "[none]", group: "reference" },
+  { name: "Depends On", default: "[none]", group: "coordination" },
+  { name: "Cohort", default: "[none]", group: "coordination" },
+  { name: "Task List", default: "[none]", group: "pointers" },
+  { name: "Last Completed", default: "[none]", group: "pointers" },
+  { name: "Next Task", default: "[none]", group: "pointers" },
+  { name: "Blockers", default: "[none]", group: "pointers" },
+  { name: "Next Action", default: "—", group: "directive" },
+] as const satisfies readonly MetaFieldDescriptor[];
+
+/** Union of the legal meta field labels, derived from {@link META_FIELDS}. */
+export type MetaFieldName = (typeof META_FIELDS)[number]["name"];
+
+/**
+ * Field→value overrides for {@link renderMetaFile}. A general partial map over
+ * the field set, not a fixed signature: a spawn caller supplies State / Owner /
+ * Branch / Next Action; a cold-start caller additionally supplies Origin /
+ * Design from parsed spec input. Fields absent from the map render at their
+ * declared default.
+ */
+export type MetaFieldOverrides = Partial<Record<MetaFieldName, string>>;
+
+/** The structured field record recovered from a meta projection by {@link parseMetaRecord}. */
+export type MetaRecord = Record<MetaFieldName, string | null>;
+
+/**
+ * Render a fresh meta-file markdown projection from {@link META_FIELDS}.
+ *
+ * Emits `# Metadata: {wuName}`, the field bullets grouped with a single blank
+ * line between groups, and a trailing `---`. Each field takes its override
+ * value when present, otherwise its declared default. No instructional comments
+ * and no archive-phase sections are emitted — those materialize later in the
+ * lifecycle, not at fresh-scaffold time.
+ *
+ * @param wuName - Work-unit name for the H1.
+ * @param overrides - Field→value overrides; absent fields render at their default.
+ * @returns The rendered meta markdown, terminated by a single newline.
+ */
+export function renderMetaFile(
+  wuName: string,
+  overrides: MetaFieldOverrides = {},
+): string {
+  const lines: string[] = [`# Metadata: ${wuName}`, ""];
+  let prevGroup: string | null = null;
+  for (const field of META_FIELDS) {
+    if (prevGroup !== null && field.group !== prevGroup) lines.push("");
+    lines.push(`- **${field.name}:** ${overrides[field.name] ?? field.default}`);
+    prevGroup = field.group;
+  }
+  lines.push("", "---");
+  return `${lines.join("\n")}\n`;
+}
+
+/**
+ * Recover the structured field record from a meta projection by reading every
+ * {@link META_FIELDS} label out of the H1-bounded preamble. Sharing the field
+ * set makes this the inverse of {@link renderMetaFile}: a render → parse
+ * round-trip fails loudly if the emitted bullet shape ever stops matching the
+ * field extractor. A field whose marker is absent (or empty) comes back `null`.
+ */
+export function parseMetaRecord(content: string): MetaRecord {
+  const section = extractMetadataSection(content) ?? "";
+  const record = {} as MetaRecord;
+  for (const field of META_FIELDS) {
+    record[field.name] = extractField(section, field.name);
+  }
+  return record;
 }
 
 /**
