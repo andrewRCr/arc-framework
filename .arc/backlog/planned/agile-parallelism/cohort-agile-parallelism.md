@@ -28,9 +28,10 @@ laid the single-branch-per-WU substrate; this cohort builds the parallelism on t
 ## Membership and ownership map
 
 - **Worktree Foundation** (active — worktree mechanics): the WU entry primitives (spawn / cold-start) and
-  the `arc-session` skill, the in-session worktree shift (`arc-shift` — thin; narrowed to cross-worktree
-  investigation), worktree-aware session-init + branch-gone handling, cross-WU sync, and the Errand-class
-  cheap-branch mechanism.
+  the `arc-session` skill, the `arc start --here` cold-start invocation command (introduces the `arc start`
+  verb; AWL extends it with the create-new + tier modes), the in-session worktree shift (`arc-shift` — thin;
+  narrowed to cross-worktree investigation), worktree-aware session-init + branch-gone handling, cross-WU
+  sync, and the Errand-class cheap-branch mechanism.
 - **Errand Enablement** (the Errand floor): the `errand-launch` entry primitive, the Errand decision matrix,
   and the advisory foreign-artifact gate — the minimum to make the Errand class usable. Sequences Worktree
   Foundation → Errand Enablement → In-Flight Awareness. Carved from AWL / CWC 2026-05-25.
@@ -38,8 +39,9 @@ laid the single-branch-per-WU substrate; this cohort builds the parallelism on t
   view + file / standard (below), the per-WU `Priority` field, materialize (the 4th entry-point quadrant),
   and the oracle-backed activation-time concurrency check. Split from Worktree Foundation 2026-05-24;
   depends on it.
-- **Agile WU Lifecycle** (verbs / lifecycle): tier model (atomic / quick / standard), `arc start`, the
-  `**State:**`-machine rollout, and tier-model reconciliation to the Errand/WU split.
+- **Agile WU Lifecycle** (verbs / lifecycle): tier model (atomic / quick / standard), `arc start` create-new + tier
+  modes (extends the verb Worktree Foundation introduces with `--here`), the `**State:**`-machine rollout, and
+  tier-model reconciliation to the Errand/WU split.
 - **Concurrent Work Conventions** (conventions): when to parallelize, awaiting-review handling, parked =
   soft guidance, and the Errand-class doctrine + gates (below).
 

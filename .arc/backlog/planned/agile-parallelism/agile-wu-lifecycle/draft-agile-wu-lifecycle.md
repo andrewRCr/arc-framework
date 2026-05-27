@@ -199,6 +199,12 @@ get promoted: add the plan-*/PRD, restructure the task list into phases, continu
    cold-start primitive directly inside the tool-created worktree — same scaffolding logic,
    different entry point. Both paths converge once the meta file is written.
 
+   **Worktree Foundation coordination (2026-05-27).** WF introduces the `arc start` verb with a `--here`
+   (use-existing / cold-start) mode — the invocation surface `arc-session` needs for cold-start (WF 5.3.R).
+   `arc start` here **extends** that command: it adds the create-new modes (worktree creation + tier flags)
+   over the same verb and inherits `--here`, rather than re-registering or redesigning it. The shared
+   scaffolding primitive (`scaffoldIntoWorktree` / `spawnWorktree`) underlies both modes.
+
 5. **Quick-tier task list shape.** Flat task list (no phases). Required `## Scope` prose section at
    the top (3-5 sentences, bounded by convention) when no external `**Design:**` is set — fills the
    internal-spec gap under `pm.layer: arc-pm`. New section in [strategy-task-list-formatting.md][
