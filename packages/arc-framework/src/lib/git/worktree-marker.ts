@@ -74,6 +74,46 @@ export async function writeWorktreeMarker(cwd: string, marker: WorktreeMarker): 
   await atomicWriteJson(resolveWorktreeMarkerPath(cwd), marker);
 }
 
+/** Inputs for {@link writeWorktreeOwnershipMarker}. */
+export interface WriteWorktreeOwnershipMarkerOptions {
+  /**
+   * Whether ARC created this worktree. When `false`, no marker is written —
+   * the worktree is externally-created and its cleanup stays advisory.
+   */
+  createdByArc: boolean;
+  /** Work-unit name the worktree was created to host. */
+  wuName: string;
+  /** Identity that created the worktree. */
+  spawningIdentity: string;
+  /** Marker creation time in epoch millis; defaults to `Date.now()`. Injectable for tests. */
+  now?: number;
+}
+
+/**
+ * Write the worktree-ownership marker when ARC created the worktree, and do
+ * nothing when it did not. The `createdByArc` flag is the single switch: a
+ * spawn passes `true` (the marker lands, its presence the ARC-created signal),
+ * a cold-start into an externally-created worktree passes `false` (no marker —
+ * cleanup there is advisory). A written marker always records
+ * `spawnedByArc: true`; absence, not a `false` field, is the "not ARC-created"
+ * signal.
+ *
+ * @param cwd - Worktree root the marker belongs to
+ * @param options - The created-by-arc flag plus marker context
+ */
+export async function writeWorktreeOwnershipMarker(
+  cwd: string,
+  options: WriteWorktreeOwnershipMarkerOptions,
+): Promise<void> {
+  if (!options.createdByArc) return;
+  await writeWorktreeMarker(cwd, {
+    spawnedByArc: true,
+    wuName: options.wuName,
+    spawningIdentity: options.spawningIdentity,
+    createdAt: new Date(options.now ?? Date.now()).toISOString(),
+  });
+}
+
 /**
  * Read the worktree-ownership marker. A missing file is reported as `absent`
  * (not an error) — absence is the documented "not ARC-created" signal. A file

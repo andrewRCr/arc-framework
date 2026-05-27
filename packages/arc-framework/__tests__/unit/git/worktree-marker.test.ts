@@ -14,6 +14,7 @@ import { tmpdir } from "node:os";
 import {
   readWorktreeMarker,
   writeWorktreeMarker,
+  writeWorktreeOwnershipMarker,
   resolveWorktreeMarkerPath,
   type WorktreeMarker,
 } from "../../../src/lib/git/worktree-marker.js";
@@ -64,5 +65,46 @@ describe("worktree-marker", () => {
     await writeFile(path, JSON.stringify({ spawnedByArc: "yes", wuName: 3 }), "utf8");
 
     expect((await readWorktreeMarker(cwd)).kind).toBe("malformed");
+  });
+});
+
+describe("writeWorktreeOwnershipMarker — created-by-arc flag gates the write", () => {
+  let cwd: string;
+
+  beforeEach(async () => {
+    cwd = await mkdtemp(join(tmpdir(), "arc-worktree-ownership-"));
+  });
+
+  afterEach(async () => {
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  it("writes a spawnedByArc marker with the injected timestamp when ARC created the worktree", async () => {
+    await writeWorktreeOwnershipMarker(cwd, {
+      createdByArc: true,
+      wuName: "worktree-foundation",
+      spawningIdentity: "andrew",
+      now: Date.parse("2026-05-27T12:00:00.000Z"),
+    });
+
+    expect(await readWorktreeMarker(cwd)).toEqual({
+      kind: "present",
+      marker: {
+        spawnedByArc: true,
+        wuName: "worktree-foundation",
+        spawningIdentity: "andrew",
+        createdAt: "2026-05-27T12:00:00.000Z",
+      },
+    });
+  });
+
+  it("writes no marker for an advisory worktree ARC did not create", async () => {
+    await writeWorktreeOwnershipMarker(cwd, {
+      createdByArc: false,
+      wuName: "worktree-foundation",
+      spawningIdentity: "andrew",
+    });
+
+    expect(await readWorktreeMarker(cwd)).toEqual({ kind: "absent" });
   });
 });

@@ -694,14 +694,11 @@ forward-compat seams: `notes-worktree-foundation.md` § Phases 5 & 6.
           `Partial<Record<MetaFieldName, string>>` override map (spawn sets 4 fields, cold-start extends), and a
           shared field set giving the render↔parse round-trip its teeth. Rationale + seams: notes § Phases 5 & 6.
 
-    - `[ ]` **5.2.c Ownership-marker write (create-by-arc flag)** — _build second_
-        - Write the ownership marker (1.3) into the new worktree's root via `writeWorktreeMarker(cwd, …)` with
-          the created-by-arc flag **true** for spawn (false for cold-start, 5.3). Marker presence ⟺ ARC-created
-          is the R29 signal, so the write participates in 5.2.a's rollback contract (a rolled-back spawn leaves
-          neither worktree nor marker).
-        - _Note:_ the optional spawning-context breadcrumb is **dropped** — `runUserOpen` is idempotent and won't
-          overwrite a seeded SESSION-NOTES, so a breadcrumb would need an append-after-seed step; deferred as a
-          future nicety, not built here.
+    - `[x]` **5.2.c Ownership-marker write (create-by-arc flag)** — _build second_
+        - `writeWorktreeOwnershipMarker` (`worktree-marker.ts`, barrel-exported): the `createdByArc` flag
+          self-gates the write — spawn passes `true` (marker lands with `spawnedByArc: true` + injectable
+          timestamp), a cold-start into an externally-created worktree passes `false` (no marker; absence is the
+          not-ARC-created signal). Worktree removal satisfies 5.2.a's rollback contract; breadcrumb dropped.
 
     - `[ ]` **5.2.a Spawn create-new wiring (integrates b + c + seed + worktree add)** — _build last_
         - _Note:_ this is the orchestration increment — it runs `git worktree add`, calls the 5.2.b scaffold for

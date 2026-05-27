@@ -77,10 +77,12 @@ export {
 export {
   readWorktreeMarker,
   writeWorktreeMarker,
+  writeWorktreeOwnershipMarker,
   resolveWorktreeMarkerPath,
   isWorktreeMarker,
   type WorktreeMarker,
   type WorktreeMarkerReadResult,
+  type WriteWorktreeOwnershipMarkerOptions,
 } from "./worktree-marker.js";
 
 export {
