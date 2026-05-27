@@ -227,6 +227,14 @@ either changed a design call or are load-bearing constraints for a downstream WU
   forward, or CSC's populated fields vanish on the next op. CSC is pre-PRD — reserve *generically*, commit to
   no marker shape.
 
+- **Concurrent-worktree notes-push *widens* the partial-push surface (R24 record).** Parallel worktrees sharing
+  `refs/notes/arc/user/{identity}` multiply the partial-push / recovery scenarios the marker guards — Worktree
+  Foundation *creates* this exposure (4.1 made the shared-ref push reconcile universal; concurrent worktrees
+  make same-ref collisions routine rather than a single-machine rarity), so `cross-machine-sync-coherence`'s
+  remote partial-push marker is genuinely necessary, not a pre-WF plan merely inherited. The local
+  `.sync-state.json` marker (4.4) is the per-worktree half; CSC adds the remote, cross-worktree half that the
+  reserved `remoteMarkerProvenance` seam (per-worktree-pluralizable) is shaped to carry.
+
 - **4.3 orphan classification is tier-extensible.** T1 (content-equivalence rename) + T2 (grouped retirement)
   ship here; T3 (sync-state-aware drift) is CSC's, and CSC frames it as the *third tier of the same surface*.
   So 4.3 emits a structured classification (rename-candidate / grouped-retirement / generic) that a T3 drift

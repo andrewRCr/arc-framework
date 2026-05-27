@@ -560,7 +560,7 @@ downstream sync WUs is recorded in `notes-worktree-foundation.md` § Phase 4 for
           retirement clusters bypass the per-item branch, so they're untouched. `renderOrphanWarning`
           renders the candidate as `not in saved manifest — looks like a rename to "<to>" (content matches)`.
 
-### `[ ]` **4.4 Coherence-WU schema seam (`.sync-state.json`)**
+### `[x]` **4.4 Coherence-WU schema seam (`.sync-state.json`)**
 
 - _Goal:_ the `.sync-state.json` schema is extracted to `lib/user-sync/sync-state.ts`, versioned, and
   worktree-aware so the downstream `cross-machine-sync-coherence` WU's remote partial-push marker and T3 drift
@@ -603,9 +603,10 @@ downstream sync WUs is recorded in `notes-worktree-foundation.md` § Phase 4 for
           forward, `writeLocalSyncState` reads the prior record so a rebuild-from-scratch save preserves them, and
           `clearPartialPushMarker` keeps them while dropping the marker.
 
-    - `[ ]` **4.4.c Record the partial-push-surface widening**
-        - _Note:_ document (in `notes-{name}.md`) that concurrent-worktree notes-push _widens_ the partial-push
-          surface — the downstream WU is genuinely necessary, not merely inherited.
+    - `[x]` **4.4.c Record the partial-push-surface widening**
+        - Recorded in `notes-worktree-foundation.md` § Phase 4 forward-compat cross-check: concurrent-worktree
+          notes-push widens the partial-push surface, so `cross-machine-sync-coherence`'s remote marker is
+          genuinely necessary (WF _creates_ the exposure), not merely inherited.
 
 ## **Phase 5:** Entry primitives & `arc-session`
 
