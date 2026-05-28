@@ -107,6 +107,13 @@ strategy docs (file-classification, session-operations, work-organization), temp
 messages, and ROADMAP regen tooling. Mechanical but broad — comparable to the ROADMAP-rename cascade
 `roadmap-tooling` already flags. Infra-touching → a planned WU, not atomic.
 
+**Briefs + a stale token to catch.** Include `AGENT-BRIEF.{ARC,CONTRIBUTOR}` in the sweep — they reference the
+inboxes in *content*, not just the filename-convention conformance noted above. Specifically,
+`AGENT-BRIEF.CONTRIBUTOR` still names the **pre-WOR per-user `ATOMIC-INBOX.md`** (WOR renamed it to `USER-INBOX`);
+a `USER-INBOX` → `INBOX.USER` rename grep won't catch the stale `ATOMIC-INBOX` token, so sweep it explicitly to
+the renamed surface. Surfaced during Worktree Foundation's atomic-companion retirement, which left this brief ref
+untouched as off-axis (inbox rename, not companion-type).
+
 ## Open questions
 
 - Final sequencing with `roadmap-tooling` (STATUS.PROJECT) and `handoff-optimization` (SESSION-NOTES
