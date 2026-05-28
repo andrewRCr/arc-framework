@@ -745,7 +745,7 @@ forward-compat seams: `notes-worktree-foundation.md` § Phases 5 & 6.
   "not a standalone CLI command." Design depth + the "adopters invoke directly" reframing:
   `notes-worktree-foundation.md` § Phases 5 & 6.
 
-### `[ ]` **5.4 `arc-session` entry skill (rename from `arc-resume`, dispatch)**
+### `[x]` **5.4 `arc-session` entry skill (rename from `arc-resume`, dispatch)**
 
 - _Goal:_ the renamed `arc-session` skill is the thin session-_entry_ surface that runs `session-init`, which
   inspects worktree state and dispatches _resume_ (local meta present) or _cold-start_ (bare worktree, offered,
@@ -777,14 +777,26 @@ forward-compat seams: `notes-worktree-foundation.md` § Phases 5 & 6.
           against `system/extensions/`). Skill thinned to a pointer (both copies); R10 + walkthrough
           reframed. Detail: `notes-worktree-foundation.md` § Phases 5 & 6.
 
-    - `[ ]` **5.4.c Optional-arg seed (confirmed before use)**
-        - _Note:_ under B (dispatch in `session-init`), the thin skill forwards `/arc-session <pointer-or-blurb>`
-          into session-init's cold-start arm, which threads it through `arc start --here --from <input>`
-          (`parseSpecInput`: issue → Origin, `spec-`/`draft-` → Design, else pass-through). Confirmed before use.
+    - `[x]` **5.4.c Optional-arg seed (confirmed before use)**
+        - Skill (both copies): a body line names the optional argument an **entry seed** that the cold-start arm
+          consumes; frontmatter left uniform (no `argument-hint` — a Claude-only slash-command field, out of place
+          in the harness-agnostic source). `session-init` (both copies): Entry dispatch defines the entry-seed
+          concept (feeds cold-start only); the cold-start arm threads `arc start --here --from <seed>` and shows
+          the seed's resolved disposition in the offer (issue → Origin, `draft-`/`spec-` → Design, else
+          pass-through for the agent to read) so the user confirms the reading, not just the act; non-cold-start
+          arms surface-and-note rather than act, mirrored in Step 6's actionable list. No TypeScript — `--from`
+          and `parseSpecInput` shipped in 5.3.R / 5.3.b.
 
-    - `[ ]` **5.4.d Hand-sync harness skill copies**
-        - Per the self-hosting drift note, copy the canonical `SKILL.md` into `.claude/skills/` and
-          `.codex/skills/` so this repo's own sessions pick up the rename.
+    - `[x]` **5.4.d Hand-sync harness skill copies**
+        - Copied the updated canonical `arc-session/SKILL.md` into `.claude/skills/` and `.codex/skills/` and
+          removed the stale `arc-resume/` dirs from both, so this repo's own sessions resolve `/arc-session`
+          (carrying the 5.4.c entry-seed line). `.gemini/skills/` is absent here — skipped. All harness skill
+          dirs are gitignored; only the checkbox is committed.
+
+- _Outcome:_ `arc-session` is the thin session-entry skill: renamed from `arc-resume` (5.4.a), dispatch
+  relocated into `session-init` as the single source of truth (5.4.b), an optional first argument pre-seeds
+  cold-start through `arc start --here --from` (5.4.c), and the gitignored harness copies re-synced (5.4.d). The
+  materialize seam ships present-but-dormant for In-Flight Awareness.
 
 ### `[ ]` **5.5 Activation-time concurrency-check stub**
 

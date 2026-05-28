@@ -105,15 +105,23 @@ entry dispatch below.
 Select the entry mode from `active.value.resolution` and `worktree.value` (the probe pre-resolves both — do
 not run your own fetch / `git worktree list` / meta reads):
 
+An **entry seed** may accompany the invocation — an optional spec pointer or description provided at session
+entry (it reaches this workflow as context, not via the probe). It feeds **cold-start** only; on every other
+arm it is surfaced, not acted on.
+
 - **Resume** — `active.resolution` is `single` or `multiple`. An active work unit is present; continue to the
   sync channels below, then Step 3.
 - **Orient** — `active.resolution` is `none` and the worktree is not bare (e.g. the primary worktree between
   units). Continue as resume; Step 5's next-work discovery orients and awaits direction.
 - **Cold-start** — `active.resolution` is `none` and the worktree is bare: a branch checked out for new work
   with no work unit (typically a linked worktree, `worktree.value.identity.kind` of `linked`). Offer to
-  scaffold — never auto-scaffold. On accept, run `arc start --here` (it scaffolds a Planning meta and seeded
-  SESSION-NOTES into the current worktree, with an advisory ownership marker since ARC didn't create it),
-  then **re-run the Step 1 probe** and proceed as **Resume**. On decline, fall through to **Orient**.
+  scaffold — never auto-scaffold. When an entry seed is present, run `arc start --here --from <seed>`; otherwise
+  run bare `arc start --here`. Either scaffolds a Planning meta and seeded SESSION-NOTES into the current
+  worktree, with an advisory ownership marker since ARC didn't create it. Show the seed's resolved disposition
+  in the offer so the user confirms the reading, not just the act — the command reads an issue ref as `Origin`,
+  an ARC spec artifact (`draft-` / `spec-`) as `Design`, and passes anything else (a file/URL or free-text
+  blurb) through for you to interpret. On accept, run the command, **re-run the Step 1 probe**, and proceed as
+  **Resume**. On decline, fall through to **Orient**.
 - **Materialize** — the probe surfaces a remote-only work unit, its branch on `origin` with no local
   worktree: `git worktree add <path> origin/<branch>`, then `arc user pull` to load its notes; **re-run the
   Step 1 probe** and proceed as **Resume**. This arm runs when the probe surfaces such a unit.
@@ -121,6 +129,11 @@ not run your own fetch / `git worktree list` / meta reads):
 **Cold-start** and **Materialize** are the only arms peeled off before context-load — each mints or fetches
 state, then re-runs the probe and re-enters as **Resume**. **Resume** and **Orient** continue straight to the
 channels below.
+
+**Seed not consumed (non-cold-start arms).** Per the entry-seed rule above, only cold-start acts on a seed.
+When one was supplied but the resolved arm is anything else, surface a one-line note in orientation (Step 6):
+the seed was not consumed; starting fresh work from it means spawning or checking out a new worktree and
+re-entering there.
 
 ### Conditional sync pulls (resume / orient arm)
 
@@ -422,7 +435,7 @@ no other tracked source documents.
 Awaiting direction — proceed to Next Action?
 
 **Include only if actionable**: freshness gaps, missing identity, environment issues, sync states other than
-`clean` (worktree or notes), probe-failure fallback.
+`clean` (worktree or notes), an unconsumed entry seed (non-cold-start entry), probe-failure fallback.
 
 **Anti-pattern:** Restating the Next Task's full description from the task list. The task list carries the
 detail; orientation needs only the pointer. Reserve unbounded prose for off-task-list scenarios where no
