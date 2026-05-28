@@ -1175,7 +1175,7 @@ describe("runSessionInitStatus — stale-worktree sweep gating", () => {
   it("fires the sweep in the primary worktree, passing the resolved roster and identity", async () => {
     const rosterValue = rosterResult({ entries: [{ worktreePath: "/wt", branch: "feat/shipped" }] });
     const sweepValue: StaleWorktreeSweepResult = {
-      worktrees: [{ worktreePath: "/wt", branch: "feat/shipped", decision: { action: "offer-remove" } }],
+      worktrees: [{ worktreePath: "/wt", branch: "feat/shipped", decision: { action: "removable" } }],
       warnings: [],
     };
     const probes = sessionInitProbes({
@@ -1190,7 +1190,7 @@ describe("runSessionInitStatus — stale-worktree sweep gating", () => {
     expect(probes.sweep).toHaveBeenCalledWith(rosterValue, { kind: "primary" });
     expect(result.sweep?.ok).toBe(true);
     if (result.sweep?.ok) {
-      expect(result.sweep.value.worktrees[0]?.decision).toEqual({ action: "offer-remove" });
+      expect(result.sweep.value.worktrees[0]?.decision).toEqual({ action: "removable" });
     }
   });
 

@@ -2,7 +2,8 @@
  * Worktree cleanup gating.
  *
  * Two pieces, consumed wherever ARC decides whether to remove a worktree
- * (post-merge integration, the branch-gone cascade, the stale-worktree sweep):
+ * (post-merge integration, the branch-gone cascade, the stale-worktree sweep,
+ * deactivation's Case A-delete):
  *
  * - {@link isBranchMerged} — the "is this branch merged into the integration
  *   target" check, via `git merge-base --is-ancestor`. Detects true-merge and
@@ -11,9 +12,12 @@
  *   an ancestor and reads as not-merged — the same boundary `git branch
  *   --merged` has.
  * - {@link decideWorktreeCleanup} — the pure decision mapping marker presence,
- *   clean, and merged signals to one cleanup action. Only present + clean +
- *   merged offers removal; an untrustworthy marker (absent or malformed) is
- *   advisory, the safe "externally managed" default.
+ *   clean, merged, and removal-context signals to one removability state. The
+ *   returned state describes the *worktree* (not the action) — each caller
+ *   chooses its action per its own approval model: integrate's pre-approved
+ *   auto-execute, the branch-gone cascade's user-offer, the stale-worktree
+ *   sweep's user-offer, deactivate Case A-delete's deactivation-approved
+ *   auto-execute.
  *
  * @module
  */
@@ -77,11 +81,22 @@ export async function isWorktreeClean(options: IsWorktreeCleanOptions): Promise<
   }
 }
 
-/** Cleanup action for an ARC-managed worktree at a removal site. */
+/** Removability state of an ARC-managed worktree at a cleanup site. */
 export type WorktreeCleanupDecision =
-  | { action: "offer-remove" }
-  | { action: "surface"; reason: "uncommitted" | "unmerged" }
-  | { action: "advisory" };
+  | { action: "removable" }
+  | { action: "blocked"; reason: "uncommitted" | "unmerged" }
+  | { action: "external" };
+
+/**
+ * Removal context — what kind of cleanup the call site is performing.
+ *
+ * - `shipped` — default cleanup model; the worktree is being cleaned up
+ *   because its WU shipped. The merge gate applies: unmerged work blocks
+ *   removal.
+ * - `abandonment` — explicit user abandonment (e.g. deactivate Case A-delete)
+ *   authorizes removal of unmerged work, so the merge gate is bypassed.
+ */
+export type WorktreeCleanupContext = "shipped" | "abandonment";
 
 /** Signals the cleanup decision is computed from. */
 export interface WorktreeCleanupInputs {
@@ -91,33 +106,37 @@ export interface WorktreeCleanupInputs {
   clean: boolean;
   /** Whether the branch is merged into the integration target. */
   merged: boolean;
+  /** Removal context — gates whether the merge check applies. */
+  context: WorktreeCleanupContext;
 }
 
 /**
- * Map a marker read result plus the clean/merged signals to a cleanup action.
+ * Map marker / clean / merged / context signals to a removability state.
  *
- * - No trustworthy marker (`absent` or `malformed`) → `advisory`: the worktree
- *   is treated as externally managed; cleanup is advised, never offered.
- * - Present but uncommitted changes → `surface` (`uncommitted`): never
+ * - No trustworthy marker (`absent` or `malformed`) → `external`: the worktree
+ *   is externally managed; cleanup is the operator's tool's concern.
+ * - Present but uncommitted changes → `blocked` (`uncommitted`): never
  *   auto-remove; the dirty state is shown.
- * - Present and clean but unmerged → `surface` (`unmerged`): the branch (or its
- *   unpushed commits) is not in the target; never auto-remove.
- * - Present + clean + merged → `offer-remove`: the only state that offers an
- *   (interlock-gated) `git worktree remove`.
+ * - Present and clean but unmerged under `shipped` context → `blocked`
+ *   (`unmerged`): the branch (or its unpushed commits) is not in the target;
+ *   never auto-remove.
+ * - Present + clean + (merged OR `abandonment` context) → `removable`: the
+ *   worktree is safe to remove. Abandonment authorizes removal of unmerged
+ *   work, so the merge gate is bypassed.
  *
- * @param inputs - Marker read result plus clean and merged signals
- * @returns The cleanup action for this worktree
+ * @param inputs - Marker result + clean + merged + context signals
+ * @returns The worktree's removability state
  */
 export function decideWorktreeCleanup(inputs: WorktreeCleanupInputs): WorktreeCleanupDecision {
-  const { marker, clean, merged } = inputs;
+  const { marker, clean, merged, context } = inputs;
   if (marker.kind !== "present") {
-    return { action: "advisory" };
+    return { action: "external" };
   }
   if (!clean) {
-    return { action: "surface", reason: "uncommitted" };
+    return { action: "blocked", reason: "uncommitted" };
   }
-  if (!merged) {
-    return { action: "surface", reason: "unmerged" };
+  if (!merged && context === "shipped") {
+    return { action: "blocked", reason: "unmerged" };
   }
-  return { action: "offer-remove" };
+  return { action: "removable" };
 }

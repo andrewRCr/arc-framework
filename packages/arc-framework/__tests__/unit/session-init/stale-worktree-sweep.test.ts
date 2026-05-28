@@ -141,30 +141,30 @@ function runSweep(opts: {
 }
 
 describe("runStaleWorktreeSweep", () => {
-  it("offers removal for a shipped worktree that is clean, merged, and ARC-marked", async () => {
+  it("is removable for a shipped worktree that is clean, merged, and ARC-marked", async () => {
     const result = await runSweep({ clean: true, merged: true, marker: presentMarker });
 
     expect(result.worktrees).toHaveLength(1);
     expect(result.worktrees[0]?.branch).toBe("feat/work-organization-reform");
-    expect(result.worktrees[0]?.decision).toEqual({ action: "offer-remove" });
+    expect(result.worktrees[0]?.decision).toEqual({ action: "removable" });
   });
 
-  it("stays advisory when the worktree carries no ARC marker", async () => {
+  it("is external when the worktree carries no ARC marker", async () => {
     const result = await runSweep({ clean: true, merged: true, marker: { kind: "absent" } });
 
-    expect(result.worktrees[0]?.decision).toEqual({ action: "advisory" });
+    expect(result.worktrees[0]?.decision).toEqual({ action: "external" });
   });
 
-  it("surfaces (never offers) a shipped worktree with uncommitted changes", async () => {
+  it("blocks (never offers) a shipped worktree with uncommitted changes", async () => {
     const result = await runSweep({ clean: false, merged: true, marker: presentMarker });
 
-    expect(result.worktrees[0]?.decision).toEqual({ action: "surface", reason: "uncommitted" });
+    expect(result.worktrees[0]?.decision).toEqual({ action: "blocked", reason: "uncommitted" });
   });
 
-  it("surfaces (never offers) a shipped worktree whose branch is not merged", async () => {
+  it("blocks (never offers) a shipped worktree whose branch is not merged", async () => {
     const result = await runSweep({ clean: true, merged: false, marker: presentMarker });
 
-    expect(result.worktrees[0]?.decision).toEqual({ action: "surface", reason: "unmerged" });
+    expect(result.worktrees[0]?.decision).toEqual({ action: "blocked", reason: "unmerged" });
   });
 
   it("reports no worktrees when none of the roster's WUs have shipped", async () => {

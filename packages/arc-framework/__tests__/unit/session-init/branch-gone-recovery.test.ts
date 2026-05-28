@@ -81,7 +81,7 @@ describe("runBranchGoneRecovery", () => {
 
     expect(result).toEqual({
       kind: "resolved",
-      candidate: { branch: "feat/a", worktreePath: "/wt/a", proposedAction: "offer-remove" },
+      candidate: { branch: "feat/a", worktreePath: "/wt/a", proposedAction: "removable" },
     });
   });
 

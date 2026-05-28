@@ -11,7 +11,7 @@
  * {@link findStaleWorktreeCandidates} selects *which* worktrees are shipped-WU
  * candidates; {@link runStaleWorktreeSweep} then gathers each candidate's
  * marker / clean / merged signals and maps them through the shared cleanup
- * decision (offer-remove / surface / advisory) — worktrees are only ever
+ * decision (removable / blocked / external) — worktrees are only ever
  * surfaced, never auto-removed without the marker-gated clean-and-merged guard.
  *
  * @module
@@ -75,7 +75,7 @@ export function findStaleWorktreeCandidates(
 export interface StaleWorktreeReport {
   worktreePath: string;
   branch: string;
-  /** Cleanup action: `offer-remove` only when ARC-marked, clean, and merged. */
+  /** Removability state: `removable` only when ARC-marked, clean, and merged. */
   decision: WorktreeCleanupDecision;
 }
 
@@ -132,7 +132,7 @@ export async function runStaleWorktreeSweep(
       return {
         worktreePath: entry.worktreePath,
         branch: entry.branch,
-        decision: decideWorktreeCleanup({ marker, clean, merged }),
+        decision: decideWorktreeCleanup({ marker, clean, merged, context: "shipped" }),
       };
     }),
   );

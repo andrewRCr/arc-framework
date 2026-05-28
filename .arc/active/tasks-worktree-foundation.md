@@ -893,7 +893,7 @@ _Note:_ "(both copies)" maps to per-file package suffixes — `.template.md` for
 7.1e) and `manage-incidental-work` (7.2). Docs-site content (`docs/`) is out of scope WU-wide (dedicated docs WU).
 _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
 
-### `[ ]` **7.1 Lifecycle ceremony worktree wiring (marker-gated cleanup)**
+### `[x]` **7.1 Lifecycle ceremony worktree wiring (marker-gated cleanup)**
 
 - _Goal:_ the lifecycle ceremonies wire worktree removal with marker-gated cleanup — `integrate-work-unit` adds a
   workflow-driven post-merge worktree-removal step; `deactivate-work-unit` Case A-delete restructures around the
@@ -943,19 +943,15 @@ _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
           activation-pointer with a first-task pointer. Commit template body updated to enumerate the three
           field edits.
 
-    - `[ ]` **7.1.f `decideWorktreeCleanup` abandonment-context extension + return-value rename** (Phase 1 fn, both
-      copies)
-        - _Note:_ extend the fn signature with `context: 'shipped' | 'abandonment'` — abandonment-context callers
-          (7.1.b's Case A-delete) bypass the merge gate (abandonment authorizes removal of unmerged work; marker +
-          clean → `removable`). Rename return values to state-descriptive: `offer-remove` → `removable`,
-          `surface` → `blocked`, `advisory` → `external` — the fn returns the worktree's removability _state_; each
-          caller chooses action per its own approval context (integrate's pre-approved auto-execute, branch-gone's
-          user-offer, sweep's user-offer, Case A-delete's deactivation-approved auto-execute).
-        - _Note:_ probe envelope's `sweep.value.worktrees[].decision.action` field updates to the new names; consumer
-          docs sweep at the same time (`session-init.md` branch-gone arm + Step 6 sweep block; `integrate-work-unit`'s
-          new post-merge step; `deactivate-work-unit`'s restructured Case A-delete). Touches
-          `lib/git/worktree-cleanup.ts` + tests. Forward extension, not Phase 1 correction — Phase 1's shipped
-          contract is correct for its original shipped-cleanup callers.
+    - `[x]` **7.1.f `decideWorktreeCleanup` abandonment-context extension + return-value rename** (Phase 1 fn,
+      both copies)
+        - _Outcome:_ `decideWorktreeCleanup` takes a required `context: 'shipped' | 'abandonment'` and returns
+          state-descriptive `removable` / `blocked` / `external` (was `offer-remove` / `surface` / `advisory`).
+          Abandonment bypasses the merge gate; clean gate stays. Consumers (`stale-worktree-sweep`,
+          `branch-gone-cascade` + its `CandidateAction` mirror) pass `shipped` explicitly. Doc sweep:
+          session-init's envelope rows, Step 2 resolved arm, Step 6 sweep block (both copies). Tests extended
+          for both contexts (worktree-cleanup: 5 → 11 cases); enum strings renamed across run / sweep / cascade
+          / recovery test suites. All 1780 unit tests pass; typecheck + lint clean.
 
 ### `[ ]` **7.2 Pause-pointer neutralization in `manage-incidental-work.md`**
 

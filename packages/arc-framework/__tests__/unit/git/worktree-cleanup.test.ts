@@ -2,10 +2,11 @@
  * Unit tests for worktree cleanup gating.
  *
  * Covers the merged-check (`git merge-base --is-ancestor` — exit 0 → merged,
- * non-zero or error → not merged) and the pure decision that maps a marker
- * read result plus clean/merged signals to a cleanup action: offer-remove only
- * when present + clean + merged; surface (never auto-remove) when present but
- * dirty or unmerged; advisory when there is no trustworthy marker.
+ * non-zero or error → not merged) and the pure decision that maps marker /
+ * clean / merged / context signals to a removability state: `removable` only
+ * when present + clean + (merged OR abandonment context); `blocked` when
+ * present but dirty (or unmerged under shipped context); `external` when there
+ * is no trustworthy marker.
  */
 
 import { describe, it, expect } from "vitest";
@@ -57,35 +58,70 @@ describe("isBranchMerged", () => {
 });
 
 describe("decideWorktreeCleanup", () => {
-  it("offers removal when present + clean + merged", () => {
-    expect(decideWorktreeCleanup({ marker: present, clean: true, merged: true })).toEqual({
-      action: "offer-remove",
+  describe("shipped context", () => {
+    it("is removable when present + clean + merged", () => {
+      expect(
+        decideWorktreeCleanup({ marker: present, clean: true, merged: true, context: "shipped" }),
+      ).toEqual({ action: "removable" });
+    });
+
+    it("is blocked (uncommitted) when present + dirty, even if merged", () => {
+      expect(
+        decideWorktreeCleanup({ marker: present, clean: false, merged: true, context: "shipped" }),
+      ).toEqual({ action: "blocked", reason: "uncommitted" });
+    });
+
+    it("is blocked (unmerged) when present + clean but unmerged — merge gate applies", () => {
+      expect(
+        decideWorktreeCleanup({ marker: present, clean: true, merged: false, context: "shipped" }),
+      ).toEqual({ action: "blocked", reason: "unmerged" });
+    });
+
+    it("is external when there is no marker — externally managed", () => {
+      expect(
+        decideWorktreeCleanup({ marker: absent, clean: true, merged: true, context: "shipped" }),
+      ).toEqual({ action: "external" });
+    });
+
+    it("is external when the marker is malformed — untrustworthy reads as the safe external default", () => {
+      expect(
+        decideWorktreeCleanup({ marker: malformed, clean: true, merged: true, context: "shipped" }),
+      ).toEqual({ action: "external" });
     });
   });
 
-  it("surfaces (never auto-removes) when present + dirty, even if merged", () => {
-    expect(decideWorktreeCleanup({ marker: present, clean: false, merged: true })).toEqual({
-      action: "surface",
-      reason: "uncommitted",
+  describe("abandonment context", () => {
+    it("is removable when present + clean + unmerged — merge gate bypassed", () => {
+      expect(
+        decideWorktreeCleanup({
+          marker: present,
+          clean: true,
+          merged: false,
+          context: "abandonment",
+        }),
+      ).toEqual({ action: "removable" });
     });
-  });
 
-  it("surfaces (never auto-removes) when present + clean but unmerged (e.g. unpushed commits)", () => {
-    expect(decideWorktreeCleanup({ marker: present, clean: true, merged: false })).toEqual({
-      action: "surface",
-      reason: "unmerged",
+    it("is still blocked (uncommitted) when present + dirty — clean gate still applies", () => {
+      expect(
+        decideWorktreeCleanup({
+          marker: present,
+          clean: false,
+          merged: false,
+          context: "abandonment",
+        }),
+      ).toEqual({ action: "blocked", reason: "uncommitted" });
     });
-  });
 
-  it("advises only when there is no marker — externally managed", () => {
-    expect(decideWorktreeCleanup({ marker: absent, clean: true, merged: true })).toEqual({
-      action: "advisory",
-    });
-  });
-
-  it("advises when the marker is malformed — untrustworthy reads as the safe external default", () => {
-    expect(decideWorktreeCleanup({ marker: malformed, clean: true, merged: true })).toEqual({
-      action: "advisory",
+    it("is external when there is no marker — externally managed regardless of context", () => {
+      expect(
+        decideWorktreeCleanup({
+          marker: absent,
+          clean: true,
+          merged: false,
+          context: "abandonment",
+        }),
+      ).toEqual({ action: "external" });
     });
   });
 });

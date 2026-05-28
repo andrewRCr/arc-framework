@@ -105,7 +105,7 @@ describe("determineCandidateAction", () => {
     },
   };
 
-  it("offers removal for a shipped WU worktree (branch merged, marker present + clean)", () => {
+  it("is removable for a shipped WU worktree (branch merged, marker present + clean)", () => {
     const action = determineCandidateAction({
       isMainOrAdmin: false,
       marker: presentMarker,
@@ -113,7 +113,7 @@ describe("determineCandidateAction", () => {
       merged: true,
     });
 
-    expect(action).toBe("offer-remove");
+    expect(action).toBe("removable");
   });
 
   it("proposes a switch for a main / admin worktree regardless of merge state", () => {
@@ -127,7 +127,7 @@ describe("determineCandidateAction", () => {
     expect(action).toBe("switch");
   });
 
-  it("stays advisory for a WU worktree with no marker", () => {
+  it("is external for a WU worktree with no marker", () => {
     const action = determineCandidateAction({
       isMainOrAdmin: false,
       marker: { kind: "absent" },
@@ -135,7 +135,7 @@ describe("determineCandidateAction", () => {
       merged: true,
     });
 
-    expect(action).toBe("advisory");
+    expect(action).toBe("external");
   });
 
   it("proposes a switch for a live WU worktree (clean but unmerged)", () => {
@@ -160,7 +160,7 @@ describe("determineCandidateAction", () => {
     expect(action).toBe("switch");
   });
 
-  it("stays advisory for a malformed marker", () => {
+  it("is external for a malformed marker", () => {
     const action = determineCandidateAction({
       isMainOrAdmin: false,
       marker: { kind: "malformed", message: "bad json", path: "/wt/.arc/system/.internal/worktree-marker.json" },
@@ -168,6 +168,6 @@ describe("determineCandidateAction", () => {
       merged: true,
     });
 
-    expect(action).toBe("advisory");
+    expect(action).toBe("external");
   });
 });

@@ -27,7 +27,7 @@ import { decideWorktreeCleanup } from "../git/worktree-cleanup.js";
 import type { WorktreeMarkerReadResult } from "../git/worktree-marker.js";
 
 /** Proposed disposition for a recovery candidate's worktree. */
-export type CandidateAction = "switch" | "offer-remove" | "advisory";
+export type CandidateAction = "switch" | "removable" | "external";
 
 /** A recovery destination the cascade can resolve to. */
 export interface CascadeCandidate {
@@ -115,9 +115,9 @@ export interface CandidateActionInputs {
  *
  * A main / admin worktree is always a `switch` destination. For a WU worktree,
  * the shared cleanup decision is mapped to a candidate action: a shipped-and-
- * clean WU (branch merged, trustworthy marker) offers removal; a live WU
+ * clean WU (branch merged, trustworthy marker) is `removable`; a live WU
  * (uncommitted or unmerged) is a `switch` target; an untrustworthy marker
- * (absent / malformed) stays `advisory`.
+ * (absent / malformed) stays `external`.
  *
  * @param inputs - Worktree role plus marker / clean / merged signals
  * @returns The candidate action
@@ -128,13 +128,14 @@ export function determineCandidateAction(inputs: CandidateActionInputs): Candida
     marker: inputs.marker,
     clean: inputs.clean,
     merged: inputs.merged,
+    context: "shipped",
   });
   switch (decision.action) {
-    case "offer-remove":
-      return "offer-remove";
-    case "surface":
+    case "removable":
+      return "removable";
+    case "blocked":
       return "switch";
-    case "advisory":
-      return "advisory";
+    case "external":
+      return "external";
   }
 }

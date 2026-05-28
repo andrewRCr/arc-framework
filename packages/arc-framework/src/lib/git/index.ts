@@ -99,6 +99,7 @@ export {
   isBranchMerged,
   decideWorktreeCleanup,
   type IsBranchMergedOptions,
+  type WorktreeCleanupContext,
   type WorktreeCleanupDecision,
   type WorktreeCleanupInputs,
 } from "./worktree-cleanup.js";
