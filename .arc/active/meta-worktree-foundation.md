@@ -11,13 +11,13 @@
 - **Cohort:** agile-parallelism
 
 - **Task List:** tasks-worktree-foundation.md
-- **Last Completed:** Task 7.1 — Lifecycle ceremony worktree wiring (marker-gated cleanup), closing Phase 7.1.
-- **Next Task:** Task 7.2 — Pause-pointer neutralization in `manage-incidental-work.md` (line ~956)
+- **Last Completed:** Task 7.4 — Retire the `atomic-*` companion file type (parent + 7.4.a–d).
+- **Next Task:** Task 7.5 — Shipped-doc drift-fix (line ~1030)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 7.2 — decisively delete § Coordinated Pause/Resume from
-  `manage-incidental-work.md` (both copies), replace with a one-line cross-ref to § Per-Worktree Isolation in
-  `strategy-work-organization.md`; sweep the stale `status-{parent-name}.md` reference. Don't invest in deeper
-  reshape — the workflow's fate is the agent-context-optimization cohort's call.
+- **Next Action:** Begin Task 7.5.a — rewrite the § Work Unit State enum table + Superseded disposition in
+  `strategy-work-organization.md`, paired with the `integrate-work-unit` § Handling Partially Superseded Work
+  update (both copies, same commit). Note: 7.5.d was added this session (sweep residual pause-pointer drift in
+  `strategy-task-list-formatting` incidental-header guidance).
 
 ---
