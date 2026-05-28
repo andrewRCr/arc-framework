@@ -1109,11 +1109,11 @@ _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
   off-WU axis — out of scope (possible future `--include-contributions`).
 - **Strategies:** `commit-footer.md` (method), `strategy-planning-module.md`
 
-    - `[ ]` **7.6.a `commit-msg` githook — drop the retired atomic-companion footer branch** (both copies)
-        - Remove the `^Context: atomic-[a-z0-9-]+\.md$` validation branch + companion-existence check, and the
-          two `Context: atomic-[name].md` example lines (the "missing footer" examples block + the "invalid
-          format" error block). Standalone / task / meta / spec / contribution branches unchanged. This is the
-          code-side completion of 7.4's companion retirement, independent of the command repoint below.
+    - `[x]` **7.6.a `commit-msg` githook — drop the retired atomic-companion footer branch** (both copies)
+        - Removed the `^Context: atomic-[a-z0-9-]+\.md$` validation branch + companion-existence check and the
+          two `Context: atomic-[name].md` example lines (missing-footer + invalid-format blocks), both copies.
+          An `atomic-*` footer now falls through to "Invalid Context: format"; `standalone (...)` and the
+          task / meta / spec / contribution branches unchanged.
 
     - `[ ]` **7.6.b Repoint + rename the command** (`commands/log.ts` + `cli.ts` + `handlers/log.ts`)
         - Retarget the git grep from `Context: atomic-` / `(atomic / no associated task list)` to
