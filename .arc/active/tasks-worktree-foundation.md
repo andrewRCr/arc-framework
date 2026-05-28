@@ -905,22 +905,15 @@ _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
   origin-agnostic (ARC-spawned and external both reach the same descriptor).
 - **Strategies:** `strategy-work-organization.md`
 
-    - `[ ]` **7.1.a `integrate-work-unit` post-merge worktree-removal step (workflow-driven)** (both copies)
-        - _Note:_ at integrate's post-merge tail (after `arc user close`), consult Phase 1's cleanup-decision fn
-          (`decideWorktreeCleanup`, extended by 7.1.f). Workflow-driven execution under the pre-merge
-          integration-interlock approval — no second offer prompt fires. On `removable`: execute
-          `cd <other-worktree> && git worktree remove <wu-path> && git branch -d <wu-branch>` (lowercase `-d`,
-          merged-only-safe; local branch cleanup rides with worktree removal). On `blocked`: surface the
-          dirty/unmerged state without auto-removing; the stale-worktree check at the next main-worktree session-init
-          picks up. On `external`: note the externally-managed status (operator's tool likely handles cleanup).
-        - _Note:_ workflow concludes with a terminal close message — "WU shipped, worktree removed; this session ends
-          here, start a fresh session in another worktree or main." No Next Action pointer (the agent's cwd is now
-          deleted). All surface text describes the stale-worktree check by behavior, not by planning-artifact ID, per
-          DEV-RULES.ARC § Documentation Boundaries.
-        - _Acceptance:_ spawn-on-A → integrate-on-A walk-through. Cleanup-decision fires after `gh pr merge` +
-          `arc user close`; `removable` arm auto-executes the cd + remove + branch-delete cascade and concludes;
-          `blocked` arm surfaces state without action; `external` arm notes externally-managed. All three branch on
-          Phase 1's fn return.
+    - `[x]` **7.1.a `integrate-work-unit` post-merge worktree-removal step (workflow-driven)** (both copies)
+        - _Outcome:_ Step 14 added at integrate's post-merge tail (both copies). Dispatches by worktree identity —
+          primary (in-place WU) falls through to `## Next step`; linked consults `decideWorktreeCleanup` and branches
+          on `removable` (cd + remove + branch-delete cascade in one invocation; session terminates with cwd
+          dangling), `blocked` (surface state; await next main-session stale-worktree check), or `external`
+          (operator-managed). In-place degenerate case made explicit per forward-compat check against
+          `draft-composable-workflows.md` — keeps the new step honest about the single-worktree posture without
+          pre-investing in fragment extraction. References 7.1.f's renamed enum; code rename + cross-doc sweep land
+          there.
 
     - `[ ]` **7.1.b `deactivate-work-unit` Case A-delete multi-worktree restructure** (both copies)
         - _Note:_ consumes 7.1.f's `context: 'abandonment'` decision arm. Two variants gated by marker presence —

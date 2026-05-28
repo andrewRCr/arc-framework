@@ -256,6 +256,37 @@ contents are gitignored):
 arc user close {name}
 ```
 
+### 14) Post-merge worktree cleanup
+
+After `arc user close`, clean up the WU's worktree under the pre-merge `integration-interlock` approval — no
+second prompt fires. Dispatch by current worktree identity:
+
+**Primary worktree (in-place WU):** the WU branch lived directly in the main worktree — no distinct worktree
+exists to remove. The workflow continues to `## Next step` normally.
+
+**Linked worktree (spawned WU):** consult `decideWorktreeCleanup` against the current worktree, then dispatch
+on the resolved state:
+
+- **`removable`** — the worktree is ARC-marked, clean, and merged. Execute one cascade from another worktree
+  (typically main):
+
+    ```bash
+    cd <main-worktree-path> && git worktree remove <wu-worktree-path> && git branch -d <wu-branch>
+    ```
+
+    Lowercase `-d` keeps the branch delete merged-only-safe; local branch cleanup rides with worktree removal.
+
+    **Session terminates here.** The WU shipped, the worktree is removed, and the agent's prior cwd no longer
+    exists. Start a fresh session in another worktree (typically main). `## Next step` does not apply on this
+    arm.
+
+- **`blocked`** — uncommitted edits or unmerged work in the worktree. Surface the state; do not auto-remove.
+  The next time a session opens in the main worktree, the stale-worktree check surfaces the lingering
+  worktree with an interlock-gated removal offer.
+
+- **`external`** — the worktree carries no ARC ownership marker (externally-spawned). Note the
+  externally-managed status; the operator's tool handles cleanup.
+
 ---
 
 ## Next step
