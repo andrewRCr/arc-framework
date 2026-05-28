@@ -1039,24 +1039,19 @@ _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
   `activate-work-unit` framing touch.
 - **Strategies:** `strategy-work-organization.md`
 
-    - `[ ]` **7.5.a Rewrite the State Enum table + Superseded disposition + integrate sub-section update**
-      (`strategy-work-organization.md` + `integrate-work-unit.md`, both copies)
-        - _Note:_ rewrite the whole enum table — 4 rows: Planning (set by `init-work-unit`), Active (set by
-          `activate-work-unit` Step 4), Integrating (set by `integrate-work-unit` Step 1), Shipped (set by
-          `archive-work-unit`) — each with Set By + Meaning. Superseded is **not** in the enum; its disposition
-          lives in the Optional Pointer Fields sub-table as `**Superseded By:**`, annotating WUs whose remaining
-          scope was absorbed by a successor (state flows Integrating → Shipped normally — no separate state value).
-          Also rewrite the Optional Pointer Fields sub-table accordingly. _Notes:_ See
-          `notes-worktree-foundation.md` § Phase 7.
-        - _Note:_ `integrate-work-unit.md § Handling Partially Superseded Work` updates to set the
-          `**Superseded By:**` annotation, not a state value. Same commit as the strategy-doc rewrite (interfaces
-          are paired).
-        - _Note:_ framing guard — requalify, don't entrench: write the rewritten tables to **present** the
-          four-state enum, not to declare `template-meta.md` its source of truth. Both edit targets are
-          adopter-facing — phrasing stays authority-neutral (no schema/ADR reference, no claim of a code schema WF
-          hasn't built). The four state values are stable across the structural-ownership migration; only where
-          the structure is owned changes. Neutral phrasing needs no re-sweep when that ownership moves off the
-          template.
+    - `[x]` **7.5.a Rewrite the State Enum table to the 4-state machine; drop Superseded**
+      (`strategy-work-organization.md`, both copies)
+        - _Outcome:_ § Work Unit State enum rewritten to the 4-state machine (`Planning` / `Active` /
+          `Integrating` / `Shipped`, each with Set By + Meaning; authority-neutral phrasing — presents the four
+          values, no template/schema source-of-truth claim), both copies. **Superseded dropped entirely** rather
+          than retained: the `Superseded (partial)` state row and the sole-row `**Superseded By:**` Optional
+          Pointer Fields sub-section both removed. The planned paired `integrate-work-unit § Handling Partially
+          Superseded Work` edit was a no-op — that section (and § Appendix) were deleted in the integrate
+          restructure (`cab193e9`) before Phase 7, leaving the strategy doc's two cross-refs dangling; the field
+          had zero live setters/readers and was absent from `template-meta.md`. Decided to drop rather than
+          reanimate — deliberate-supersession provenance, if ever needed, rides the successor `Origin:` +
+          completion-doc narrative; deferred to demonstrated need. Swept the orphaned `[clean-work-unit]` link
+          def; added `[init-work-unit]`. _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
 
     - `[ ]` **7.5.b Case B fill + arc-shift reference removal** (both copies)
         - _Note:_ `deactivate-work-unit.md` Case Matrix's Case B cell currently reads "→ `arc-shift` (future)" —

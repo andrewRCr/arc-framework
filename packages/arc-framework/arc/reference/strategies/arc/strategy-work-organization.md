@@ -111,25 +111,16 @@ is merged or deleted. Branch cleanup happens independently as PRs merge.
 ## Work Unit State
 
 The `**State:**` field on each WU's `meta-{name}.md` is the load-bearing lifecycle marker.
-Enum values and optional pointer fields below; workflows listed set each value.
+The four values below trace the WU lifecycle; the workflow that sets each is listed.
 
 ### State Enum
 
-| Value                                          | Set By                                                                          | Meaning                                                                              |
-| ---------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `In Progress`                                  | [activate-work-unit][activate-work-unit] Step 4; resume from pause              | Active task execution (the common case)                                              |
-| `Paused (YYYY-MM-DD) — reason`                 | [manage-incidental-work][manage-incidental]; future arc-shift pause             | Interrupted by an incidental or future arc-shift pause                               |
-| `Waiting-For {category} (YYYY-MM-DD) — reason` | Future arc-shift lifecycle                                                      | Blocked awaiting external action (not yet written by any current workflow)           |
-| `Complete`                                     | [clean-work-unit][clean-work-unit]                                              | Work done, opened for integration; file is stable through review, deleted at archive |
-| `Superseded (partial)`                         | [integrate-work-unit][integrate-work-unit] § Handling Partially Superseded Work | Partial work being integrated; remaining phases absorbed into a successor WU         |
-
-### Optional Pointer Fields
-
-Added to meta files when the WU's state calls for cross-references. Omit otherwise.
-
-| Field                                                     | Appears On                                         | Set By                                                                               |
-| --------------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `**Superseded By:** tasks-{new-approach}.md (YYYY-MM-DD)` | WU meta files with `State: Superseded (partial)`   | [integrate-work-unit][integrate-work-unit] § Appendix — points to successor WU       |
+| Value         | Set By                                            | Meaning                                                                       |
+| ------------- | ------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `Planning`    | [init-work-unit][init-work-unit]                  | Spec and task list being authored; task execution not yet begun               |
+| `Active`      | [activate-work-unit][activate-work-unit] Step 4   | Task execution underway (the common case)                                     |
+| `Integrating` | [integrate-work-unit][integrate-work-unit] Step 1 | Tasks complete; the WU is open for review and integration, stable until merge |
+| `Shipped`     | [archive-work-unit][archive-work-unit]            | Merged to the integration target and archived                                 |
 
 ---
 
@@ -631,10 +622,10 @@ installs, routing and graduation flow, inbox routing, and scaling guidance.
 ---
 
 [team-coordination]: strategy-team-coordination.md
+[init-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/planning/init-work-unit.md
 [activate-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/activate-work-unit.md
 [integrate-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md
 [archive-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/archive-work-unit.md
-[clean-work-unit]: ../../../system/workflows/arc/supplemental/clean-work-unit.md
 [manage-incidental]: ../../../system/workflows/arc/supplemental/manage-incidental-work.md
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
 [branch-format-method]: ../../../system/methods/branch-format.md

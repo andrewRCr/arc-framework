@@ -570,6 +570,20 @@ thin-dispatcher implementation shape, and the cohort-end fallback decision tree 
   ownership moves. Neutral phrasing now spares `operational-state-docs` a re-sweep of these shipped docs
   later. (7.2 originally inherited this concern but moved to decisive deletion — no in-place State: alignment
   remains.)
+- **7.5a outcome — Superseded dropped, not retained (decision pivot during impl).** The plan assumed
+  `integrate-work-unit § Handling Partially Superseded Work` still existed and would be updated in lockstep to
+  set `**Superseded By:**` as an annotation. It doesn't: that § (and § Appendix) were removed in the integrate
+  restructure (`cab193e9`, ~30 commits before Phase 7), so the strategy doc's enum-row + pointer-field cross-refs
+  were dangling. A framework-wide sweep found the `**Superseded By:**` field had zero live setters/readers and
+  wasn't in `template-meta.md` — pure speculative doc-machinery that bit-rotted unnoticed. Decided (with the
+  maintainer) to **drop it entirely** rather than reanimate the workflow handling: dropped the `Superseded
+  (partial)` state row AND the `**Superseded By:**` Optional Pointer Fields sub-section (its only row). Rationale:
+  the deliberate-supersession-vs-abandonment distinction is real but a *predecessor-side* forward-pointer is the
+  wrong carrier — it dies on Case A-delete (reflog-only, no `completed/` doc) and goes stale on partial-ship.
+  Provenance is better carried *successor-side* (`Origin:` "supersedes/continues Y", forward-natural + durable)
+  plus completion-doc / deactivate-commit narrative, and the task-level `[~]` marker already covers per-task
+  supersession. Any structured supersession metadata deferred to demonstrated need (YAGNI). No `integrate`
+  edit — it already tracks reality.
 - **7.5c literal anchors + init-work-unit regen step + activate framing touch.** Edit the § ROADMAP step-4
   In-Flight definition (currently `**In Flight** — State: Active | Integrating`) to location-based — a WU
   located in `active/**` is in flight regardless of state. Correct the Regeneration "Activation" bullet
