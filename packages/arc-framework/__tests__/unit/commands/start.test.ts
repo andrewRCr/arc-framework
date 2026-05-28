@@ -47,6 +47,14 @@ function ctx(io: UserIOContext) {
   return { io, internalTemplateDir: getInternalTemplatePath() };
 }
 
+/** Write a minimal `arc-config.yml` (flat dotted keys) into a worktree's `.arc/system/`. */
+async function writeArcConfig(worktree: string, values: Record<string, string>): Promise<void> {
+  const systemDir = join(worktree, ".arc", "system");
+  await mkdir(systemDir, { recursive: true });
+  const body = Object.entries(values).map(([k, v]) => `${k}: ${v}`).join("\n") + "\n";
+  await writeFile(join(systemDir, "arc-config.yml"), body);
+}
+
 describe("deriveColdStartWuName", () => {
   it("strips a conventional branch prefix (feat/foo → foo)", () => {
     expect(deriveColdStartWuName(undefined, "feat/widget")).toBe("widget");
@@ -259,5 +267,52 @@ describe("runColdStart — guards", () => {
     if (outcome.ok) return;
     expect(outcome.reason).toMatch(/name/i);
     expect(calls.some((c) => c[0] === "git" && c[1] === "worktree" && c[2] === "add")).toBe(false);
+  });
+
+  it("refuses to scaffold onto the protected base under full protection (reason names the branch)", async () => {
+    await writeArcConfig(worktree, { "branch.protection": "full", "branch.base": "main" });
+
+    const outcome = await runColdStart(ctx(io), {
+      worktreePath: worktree,
+      branch: "main",
+      identity: "andrew",
+    });
+
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toMatch(/main/);
+    expect(outcome.reason).toMatch(/protect/i);
+    // The trunk stays clean — no meta minted.
+    expect(await pathExists(join(worktree, ".arc", "active", "meta-main.md"))).toBe(false);
+  });
+
+  it("allows cold-start on the base branch under partial protection", async () => {
+    await writeArcConfig(worktree, { "branch.protection": "partial", "branch.base": "main" });
+
+    const outcome = await runColdStart(ctx(io), {
+      worktreePath: worktree,
+      branch: "main",
+      identity: "andrew",
+    });
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.value.wuName).toBe("main");
+    expect(await pathExists(join(worktree, ".arc", "active", "meta-main.md"))).toBe(true);
+  });
+
+  it("allows a feature branch under full protection", async () => {
+    await writeArcConfig(worktree, { "branch.protection": "full", "branch.base": "main" });
+
+    const outcome = await runColdStart(ctx(io), {
+      worktreePath: worktree,
+      branch: "plan/foo",
+      identity: "andrew",
+    });
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.value.wuName).toBe("foo");
+    expect(await pathExists(join(worktree, ".arc", "active", "meta-foo.md"))).toBe(true);
   });
 });

@@ -833,7 +833,7 @@ forward-compat seams: `notes-worktree-foundation.md` § Phases 5 & 6.
   WF → Errand Enablement → IFA — not Foundation's. 5.6 documents the path only.
 - **Strategies:** `strategy-work-organization.md`
 
-### `[ ]` **5.7 Cold-start protected-branch guard**
+### `[x]` **5.7 Cold-start protected-branch guard**
 
 - _Goal:_ `runColdStart` refuses to scaffold onto a protected branch — mirroring the release-path rule
   (`branch.protection: full` **and** current branch == resolved `branch.base` → refuse), in the same no-throw
@@ -841,19 +841,13 @@ forward-compat seams: `notes-worktree-foundation.md` § Phases 5 & 6.
   `deriveColdStartWuName("main")` returns `main` (no `/`, non-empty) instead of refusing, and `runColdStart`
   carries no protection check, so a direct cold-start onto `main` would mint a Planning meta on the trunk. This
   repo runs `full`; the WU must not ship with the gap present.
-- _Note:_ Surfaced during 5.4.c design review. The dispatch arm almost certainly never routes cold-start onto
-  `main` (primary worktree → orient), but the command must be safe under any caller — 5.3.R's own framing.
-  Reuse the protection rule rather than re-roll it: ideally factor a small `isProtectedBranch(settings, branch)`
-  predicate from `lib/release/interlock-validation.ts` and consume it in both sites; a local mirror of the
-  two-line check is acceptable if extraction over-reaches. Under `partial` there is no protection — allow,
-  consistent with the rest of ARC. The gate hardens cold-start only; spawn always mints a fresh `plan/` branch,
-  so it never targets an existing protected branch. Gating decision → carries `test-first` (per the Phase 1
-  preamble).
 - **Strategies:** `strategy-work-organization.md`
-
-    - Behaviors to cover: refuses on `branch.base` under `full` (reason names the branch); allows under
-      `partial`; allows a normal `plan/foo` / prefixless `foo`. Order the protection check before the active-WU
-      resolve — it is config-only and cheap, mirroring interlock-validation's protection-first short-circuit.
+- _Outcome:_ Factored `isProtectedBranch(settings, branch)` out of the inline check in
+  `interlock-validation.ts` (extraction stayed clean, so no local mirror) — now shared by `checkBranchProtection`
+  and the new `runColdStart` guard. Cold-start reads config via `readConfigSettings` (yaml-only, cheap) and
+  refuses onto `branch.base` under `full` _before_ the active-WU scan; `partial` and feature branches (e.g.
+  `plan/foo`) pass through. Reason names the branch. Handler signature unchanged. Closes the 5.3.R
+  trunk-scaffold gap.
 
 ## **Phase 6:** In-session shift (`arc-shift`)
 

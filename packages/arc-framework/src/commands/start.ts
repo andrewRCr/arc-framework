@@ -9,8 +9,8 @@
  * the same verb later.
  *
  * {@link runColdStart} is the testable core: it derives the WU name, refuses to
- * clobber a worktree that already holds an active work unit, classifies the
- * optional spec input, and delegates the writes to
+ * scaffold onto a protected base or to clobber a worktree that already holds an
+ * active work unit, classifies the optional spec input, and delegates the writes to
  * {@link scaffoldIntoWorktree} with `createdByArc: false` (advisory marker — ARC
  * did not create this worktree). The handler resolves the ambient context (cwd,
  * branch, identity) and reports.
@@ -19,6 +19,8 @@
  */
 
 import { parseSpecInput } from "../lib/active/spec-input-parser.js";
+import { readConfigSettings } from "../lib/config/status-reader.js";
+import { isProtectedBranch } from "../lib/release/interlock-validation.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { branchToWorkUnitSlug } from "../lib/work-unit/completed-index.js";
 import {
@@ -90,7 +92,8 @@ export function deriveColdStartWuName(
 /**
  * Scaffold a Planning meta + SESSION-NOTES into the current worktree
  * (use-existing / cold-start). Refuses, without writing, when the WU name
- * cannot be derived or the worktree already holds an active work unit.
+ * cannot be derived, the branch is the protected base under
+ * `branch.protection: full`, or the worktree already holds an active work unit.
  *
  * @param ctx - I/O context and internal template directory.
  * @param params - Resolved ambient context plus optional name / spec input.
@@ -107,6 +110,20 @@ export async function runColdStart(
       reason:
         `could not derive a clean work-unit name from branch '${params.branch}'; `
         + "pass an explicit name",
+    };
+  }
+
+  // Guard: never scaffold onto the protected base. Under `branch.protection:
+  // full`, direct work on the configured `branch.base` is refused — the same
+  // rule the release wrappers apply. Config-only, so it runs ahead of the
+  // active-WU scan; `partial` (the default) protects nothing.
+  const { settings } = await readConfigSettings(params.worktreePath);
+  if (isProtectedBranch(settings, params.branch)) {
+    return {
+      ok: false,
+      reason:
+        `cannot cold-start onto protected base '${params.branch}' under `
+        + "`branch.protection: full`; switch to a feature branch",
     };
   }
 
