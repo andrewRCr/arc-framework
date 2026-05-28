@@ -11,13 +11,10 @@
 - **Cohort:** agile-parallelism
 
 - **Task List:** tasks-worktree-foundation.md
-- **Last Completed:** Task 5.4 — `arc-session` entry skill complete: rename, dispatch relocated into
-  `session-init`, optional-arg seed, harness-copy sync (5.4.a–d).
-- **Next Task:** Task 5.7 — Cold-start protected-branch guard (line ~836)
+- **Last Completed:** Task 5.6 — Errand cheap-branch path doc, closing Phase 5 (entry primitives & `arc-session`).
+- **Next Task:** Task 6.1 — `/arc-shift` skill (line ~853)
 - **Blockers:** [none]
 
-- **Next Action:** Build Task 5.7 — `runColdStart` protected-branch guard (mirror `isProtectedBranch` from
-  `interlock-validation.ts`; refuse on `branch.base` under `full`, allow under `partial`), test-first. 5.5 / 5.6
-  remain, ordered behind 5.7.
+- **Next Action:** Begin Task 6.1 — `/arc-shift` skill (Phase 6 opens; 6.2 / 6.3 follow within the phase).
 
 ---
