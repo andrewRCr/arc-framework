@@ -111,24 +111,51 @@ gh pr close {pr-number} --comment "Deactivating work unit; abandoning. No task w
 
 See QUICK-REFERENCE § Platform Commands for non-GitHub equivalents.
 
-### 2) Switch to base branch
+### 2) Branch + worktree teardown · dispatched by worktree identity
+
+Dispatch by the current worktree's identity:
+
+**Primary worktree (in-place WU):** no distinct worktree exists. Switch to base and force-delete the branch:
 
 ```bash
 git switch {base-branch}
-```
-
-### 3) Delete the branch
-
-```bash
-git branch -D {type}/{name}                 # local
+git branch -D {type}/{name}                 # local (force — unmerged is expected for abandonment)
 git push origin --delete {type}/{name}      # remote (if pushed)
 ```
 
-`-D` (force) is required — the activation commit on the branch never merged to base. That's expected.
+`-D` (force) is required — the activation commit never merged to base. That's expected.
 
-### 4) Clean up base-branch leftovers (per `pm.mode`)
+**Linked worktree (spawned WU):** navigate to another worktree (typically main):
 
-Branch deletion in Step 3 removed the WU's in-flight artifacts (`active/meta-*`, `active/spec-*`, `active/tasks-*`,
+```bash
+cd <main-worktree-path>
+```
+
+Consult `decideWorktreeCleanup` against the abandoned WU's worktree with abandonment context. Abandonment
+authorizes removal of unmerged work — the merge gate is bypassed; marker + clean resolves to `removable`.
+
+- **`removable`** — auto-remove the WU worktree:
+
+    ```bash
+    git worktree remove <wu-worktree-path>
+    ```
+
+- **`blocked`** (marker + dirty) or **`external`** (no ARC marker) — surface the state; do not auto-remove.
+  The operator's tool handles externally-spawned worktree removal; manually clean up a `blocked` worktree
+  before re-invoking if its state matters.
+
+Then force-delete the branch from main:
+
+```bash
+git branch -D {type}/{name}                 # local (force — unmerged is expected)
+git push origin --delete {type}/{name}      # remote (if pushed)
+```
+
+The agent's prior cwd no longer exists if it was in the WU worktree (on the `removable` arm).
+
+### 3) Clean up base-branch leftovers (per `pm.mode`)
+
+Branch deletion in Step 2 removed the WU's in-flight artifacts (`active/meta-*`, `active/spec-*`, `active/tasks-*`,
 `active/atomic-*`, `active/notes-*`, any residual `active/draft-*`) — they lived only on the deleted branch and
 were never merged. The remaining cleanup concerns base-branch leftovers that activation never touched:
 

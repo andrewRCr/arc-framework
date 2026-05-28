@@ -915,14 +915,13 @@ _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
           pre-investing in fragment extraction. References 7.1.f's renamed enum; code rename + cross-doc sweep land
           there.
 
-    - `[ ]` **7.1.b `deactivate-work-unit` Case A-delete multi-worktree restructure** (both copies)
-        - _Note:_ consumes 7.1.f's `context: 'abandonment'` decision arm. Two variants gated by marker presence —
-          single-worktree (no marker, in-place WU): close PR → `git switch base` → `git branch -D` → backlog
-          leftovers. Multi-worktree (marker present): close PR → navigate to another worktree (typically main) →
-          marker-gated `git worktree remove <wu-path>` (abandonment context skips the merge gate; marker + clean →
-          `removable`) → `git branch -D` + remote delete → backlog leftovers.
-        - _Note:_ Case A return-to-Planning path stays as-is — R26's path-decoupled-from-branch-rename means the
-          worktree path survives the rename, no restructure needed.
+    - `[x]` **7.1.b `deactivate-work-unit` Case A-delete multi-worktree restructure** (both copies)
+        - _Outcome:_ Case A-delete restructured to dispatch by worktree identity (both copies). Primary
+          (in-place) keeps switch + force-delete; linked (spawned) navigates to main, consults
+          `decideWorktreeCleanup` with abandonment context (`removable` auto-removes; `blocked` / `external`
+          surface without removal — operator handles externally-spawned cleanup), then runs branch teardown
+          uniformly from main. Steps 2 + 3 merged; Step 4 renumbered to Step 3. Case A return-to-Planning
+          unchanged. Uses 7.1.f's renamed enum + abandonment-context extension.
 
     - `[~]` **7.1.c `activate-work-unit` defensive `arc user open`** (both copies)
         - _Outcome:_ Audit-confirmed (Phase 7 pre-impl): `activate-work-unit.md` Step 5 (post-rename) already carries
