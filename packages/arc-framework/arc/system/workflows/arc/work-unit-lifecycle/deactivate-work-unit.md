@@ -27,7 +27,7 @@ design needs rework, the feature was cancelled. The activation itself is the onl
 |                        | No task work executed                       | Some task work executed           |
 | ---------------------- | ------------------------------------------- | --------------------------------- |
 | **Not merged to base** | **Case A** — this workflow (or A-delete)    | **Case B** — see § Case B below   |
-| **Merged to base**     | **Case C** — noted edge case below          | **Case D** → integrate or clean   |
+| **Merged to base**     | **Case C** — see § Case C below             | **Case D** → integrate or clean   |
 
 **Case A** has two variants — the user chooses; surface the variant decision when invoking the workflow:
 
@@ -202,6 +202,21 @@ three paths and routes each to the workflow that owns it.
 
 Case B is operator-driven throughout: no state flip, and no automated branch handling beyond whichever terminal
 path (integrate or Case A-delete) the operator selects.
+
+---
+
+## Case C — merged to base, no task work executed
+
+Rare. The activation reached base — its meta-file edits merged (e.g. as a direct commit under partial
+protection) — but no task work has run, so the activation is the only thing to undo, and it can't be reversed
+locally since it lives on base. No dedicated workflow ships for this; reverse it with a deactivation PR:
+
+1. Branch from base.
+2. Reverse the activation's meta-file edits — the inverse of [`activate-work-unit.md`][activate] Step 4:
+   `**State:** Active → Planning`, `**Branch:**` back to `plan/{name}`, and the Next Action back to a planning
+   pointer.
+3. Open the PR, note the deactivation in its description, and merge once approved. If the activation also renamed
+   the live branch, rename it back per the Case A branch-rename routing above.
 
 ---
 

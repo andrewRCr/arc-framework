@@ -1088,6 +1088,17 @@ _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
           surface is gone, so incidental lifecycle state is just `State:` (4-state). Don't reshape incidental-WU
           semantics beyond removing the retired references.
 
+    - `[x]` **7.5.e Restore the dangling Case C section in `deactivate-work-unit.md`** (both copies)
+        - _Outcome:_ Folded into 7.5 from the 7.5.b review. The Case Matrix's `Case C — noted edge case below`
+          pointer dangled: the `## When NOT to Deactivate` section that held the Case B/C/D detail was dropped in
+          a prior trim (`e2934d38`) on the rationale "the matrix is the single source of routing" — sound for B/D
+          (their cells name target workflows) but over-applied to C, whose original text said "no separate
+          workflow ships for this case — use this section as the reference." Restored a concise `## Case C —
+          merged to base, no task work executed` (parallel to the new § Case B): the rare reversal-PR edge case
+          (branch from base, reverse activation's meta edits as the inverse of `activate-work-unit` Step 4, merge
+          a deactivation PR), in current vocab. Matrix cell repointed to "see § Case C below". Case D left as a
+          self-contained `integrate or clean` routing pointer (not dangling).
+
 ### `[x]` **7.6 Repoint the atomic-commit browse surface to the `standalone` footer convention**
 
 - _Goal:_ `arc log atomic` is reconciled to the live commit-footer convention — neither footer it currently
