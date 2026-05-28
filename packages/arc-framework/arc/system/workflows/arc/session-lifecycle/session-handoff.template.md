@@ -470,6 +470,9 @@ This is a quick confirmation for the human — the session state files are the d
 
 **ARC session handoff complete** · `{branch-name}` · {clean | uncommitted changes}
 
+When `worktree.value.identity.kind === "linked"`, insert `` · `worktree: {identity.path}` `` into the header
+after the branch — naming the non-primary worktree the session occupies. Omit entirely in the primary worktree.
+
 **Sync:** one of (read from `arc sync --json`'s envelope when sync ran; otherwise per the
 skip arms):
 

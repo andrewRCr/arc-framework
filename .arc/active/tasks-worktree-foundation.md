@@ -930,12 +930,11 @@ _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
           branch-rename, where the worktree's `arc user` path is stable). Marker contract / spec scope satisfied via
           existing behavior.
 
-    - `[ ]` **7.1.d `session-handoff` linked-worktree header insert** (both copies)
-        - _Note:_ edit `session-handoff.md` § Confirm Handoff header line: insert `· worktree: {worktree-path}` after
-          the branch when the session occupies a linked worktree, mirroring `session-init.md` Step 6's identical
-          insert. Key on probe-1's `worktree.value.identity.kind === "linked"`; omit in the primary worktree. The
-          worktree slot is already populated by probe-1 — no probe extension needed. "Optional" describes the
-          conditional surface (only fires in linked worktrees), not deferrable scope.
+    - `[x]` **7.1.d `session-handoff` linked-worktree header insert** (both copies)
+        - _Outcome:_ § Confirm Handoff header line gains the conditional `worktree: {identity.path}` insert
+          after the branch (both copies), mirroring session-init Step 6 verbatim. Keyed on
+          `worktree.value.identity.kind === "linked"`; omitted in the primary worktree. No probe extension —
+          the worktree slot is already populated.
 
     - `[ ]` **7.1.e `activate-work-unit` Step 4 meta-field completeness** (both copies)
         - _Note:_ Step 4 flips only `**State:**`, but Step 5 renames the branch `plan/<name>` → `<type>/<name>` —
