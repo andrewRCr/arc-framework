@@ -26,7 +26,7 @@ import { handleActiveStatus, handleActiveRoster } from "./handlers/active.js";
 import { handleStatus } from "./handlers/status.js";
 import { handleSync } from "./handlers/sync.js";
 import { handleUserSync } from "./handlers/user-sync.js";
-import { handleLogAtomic } from "./handlers/log.js";
+import { handleLogStandalone } from "./handlers/log.js";
 import {
   handleReleaseCommit,
   handleReleaseOptIn,
@@ -368,14 +368,17 @@ const logCmd = program
   .description("Browse ARC commit history");
 
 logCmd
-  .command("atomic")
-  .description("Show atomic task commits")
+  .command("standalone")
+  .description("Show off-WU standalone commits")
   .option("--since <date>", "Show commits after date (e.g., 2026-03-01)")
   .option("--author <name>", "Filter by author")
   .option("--limit <n>", "Maximum number of commits (default: 50)", parseInt)
   .option("--all", "Show all matching commits (no limit)")
-  .option("--work-unit <name>", "Filter by work unit name (matches atomic-{name})")
-  .action(handleLogAtomic);
+  .option(
+    "--category <category>",
+    "Filter by standalone category (maintenance|planning|documentation|refactor)",
+  )
+  .action(handleLogStandalone);
 
 // --- Dev-mode stale-build guard (self-hosting only) ---
 

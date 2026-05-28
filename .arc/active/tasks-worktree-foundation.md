@@ -1115,18 +1115,20 @@ _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
           An `atomic-*` footer now falls through to "Invalid Context: format"; `standalone (...)` and the
           task / meta / spec / contribution branches unchanged.
 
-    - `[ ]` **7.6.b Repoint + rename the command** (`commands/log.ts` + `cli.ts` + `handlers/log.ts`)
-        - Retarget the git grep from `Context: atomic-` / `(atomic / no associated task list)` to
-          `Context: standalone (`. Rename the `atomic` subcommand → `standalone` (no back-compat alias — the
-          old footer is gone). Replace `--work-unit <name>` (matched `atomic-{name}`, meaningless off-WU) with
-          `--category <maintenance|planning|documentation|refactor>`. Rewrite module docstrings + the
-          `AtomicLogEntry` / `runLogAtomic` / `handleLogAtomic` naming to the standalone surface. Keep
-          `--since` / `--author` / `--limit` / `--all`.
+    - `[x]` **7.6.b Repoint + rename the command** (`commands/log.ts` + `cli.ts` + `handlers/log.ts`)
+        - `arc log atomic` → `arc log standalone`: git grep retargeted to a single `Context: standalone (`
+          pattern (BRE literal parens); `--work-unit` (matched `atomic-{name}`) replaced by `--category`, a
+          client-side substring match on `standalone (<category>)` (no validation — unknown category yields no
+          matches). Symbols renamed across the three files (`runLogStandalone` / `buildLogStandaloneOutput` /
+          `StandaloneLogEntry` / `handleLogStandalone`); empty message now "No standalone commits found." No
+          back-compat alias. `--since` / `--author` / `--limit` / `--all` unchanged.
 
-    - `[ ]` **7.6.c Tests** (`log` unit/integration/e2e + `commit-msg-footer`)
-        - Rework `unit/log.test.ts`, `integration/log.test.ts`, `e2e/log.e2e.test.ts` to the standalone
-          footer + `--category` filter (drop companion / `--work-unit` cases). Drop the atomic-companion
-          case(s) from `integration/commit-msg-footer.test.ts` (hook branch removed in 7.6.a).
+    - `[x]` **7.6.c Tests** (`log` unit/integration/e2e + `commit-msg-footer`)
+        - `log` unit/integration/e2e reworked to the standalone footer + `--category` (companion /
+          `--work-unit` cases dropped; added an assertion locking the grep target to `Context: standalone (`).
+          The `commit-msg-footer.test.ts` atomic-* move (positive → negative) rode with 7.6.a, where it
+          belongs — 7.6.a's hook change had left that must-pass case red, surfaced when the full suite first
+          ran against this slice.
 
     - `[ ]` **7.6.d Adopter-facing doc reconciliation** (both copies)
         - `QUICK-REFERENCE`: rewrite the `arc log --atomic` line (line ~307–308) to `arc log standalone` —

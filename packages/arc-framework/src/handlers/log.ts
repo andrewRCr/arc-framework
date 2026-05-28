@@ -6,30 +6,30 @@
 
 import * as p from "@clack/prompts";
 
-import { runLogAtomic, buildLogAtomicOutput } from "../commands/log.js";
+import { runLogStandalone, buildLogStandaloneOutput } from "../commands/log.js";
 import { gitExec } from "../lib/io-context.js";
 import { isHandledError } from "./shared.js";
 
-export interface LogAtomicOptions {
+export interface LogStandaloneOptions {
   since?: string;
   author?: string;
   limit?: number;
   all?: boolean;
-  workUnit?: string;
+  category?: string;
 }
 
-export async function handleLogAtomic(opts: LogAtomicOptions): Promise<void> {
+export async function handleLogStandalone(opts: LogStandaloneOptions): Promise<void> {
   try {
-    const result = await runLogAtomic({
+    const result = await runLogStandalone({
       exec: gitExec,
       since: opts.since,
       author: opts.author,
       limit: opts.limit,
       all: opts.all,
-      workUnit: opts.workUnit,
+      category: opts.category,
     });
 
-    const output = buildLogAtomicOutput(result);
+    const output = buildLogStandaloneOutput(result);
     p.log.message(output);
   } catch (err) {
     if (isHandledError(err)) return;

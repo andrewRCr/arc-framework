@@ -1,9 +1,9 @@
 /**
- * Log command — browse atomic task commit history.
+ * Log command — browse off-WU standalone commit history.
  *
- * Searches git history for commits with atomic task context footers
- * (both companion-file and standalone patterns) and presents them
- * in a formatted list.
+ * Searches git history for commits carrying a `Context: standalone (...)`
+ * footer — off-work-unit maintenance, planning, documentation, or refactor
+ * commits — and presents them in a formatted list.
  *
  * @module
  */
@@ -12,8 +12,8 @@ import type { GitExec } from "../lib/git/index.js";
 
 // --- Types ---
 
-/** A parsed atomic commit entry. */
-export interface AtomicLogEntry {
+/** A parsed standalone commit entry. */
+export interface StandaloneLogEntry {
   shortHash: string;
   date: string;
   type: string;
@@ -22,22 +22,22 @@ export interface AtomicLogEntry {
   contextLine: string;
 }
 
-/** Result from a log --atomic run. */
-export interface LogAtomicResult {
-  entries: AtomicLogEntry[];
+/** Result from a log standalone run. */
+export interface LogStandaloneResult {
+  entries: StandaloneLogEntry[];
 }
 
 /** Default number of commits shown when no --limit or --all is specified. */
 export const DEFAULT_LOG_LIMIT = 50;
 
-/** Options for the log --atomic orchestrator. */
-export interface LogAtomicOptions {
+/** Options for the log standalone orchestrator. */
+export interface LogStandaloneOptions {
   exec: GitExec;
   since?: string;
   author?: string;
   limit?: number;
   all?: boolean;
-  workUnit?: string;
+  category?: string;
 }
 
 // --- Internal ---
@@ -69,8 +69,8 @@ function extractContextLine(body: string): string | undefined {
 }
 
 /** Parse raw git log output into entries. */
-function parseGitLogOutput(raw: string): AtomicLogEntry[] {
-  const entries: AtomicLogEntry[] = [];
+function parseGitLogOutput(raw: string): StandaloneLogEntry[] {
+  const entries: StandaloneLogEntry[] = [];
   const blocks = raw.split("\0").filter((b) => b.trim());
 
   for (const block of blocks) {
@@ -97,21 +97,20 @@ function parseGitLogOutput(raw: string): AtomicLogEntry[] {
 // --- Public API ---
 
 /**
- * Search git history for atomic task commits.
+ * Search git history for off-WU standalone commits.
  *
  * @param options - Search options with injectable git executor
- * @returns Matching atomic log entries
+ * @returns Matching standalone log entries
  */
-export async function runLogAtomic(
-  options: LogAtomicOptions,
-): Promise<LogAtomicResult> {
-  const { exec, since, author, limit, all, workUnit } = options;
+export async function runLogStandalone(
+  options: LogStandaloneOptions,
+): Promise<LogStandaloneResult> {
+  const { exec, since, author, limit, all, category } = options;
 
   const args = [
     "log",
     "--basic-regexp",
-    `--grep=Context: atomic-`,
-    `--grep=(atomic / no associated task list)`,
+    `--grep=Context: standalone (`,
     `--format=%x00%h%n%ai%n%s%n%b`,
   ];
 
@@ -125,17 +124,17 @@ export async function runLogAtomic(
   const safeLimit = (limit != null && !Number.isNaN(limit)) ? limit : DEFAULT_LOG_LIMIT;
   const effectiveLimit = all ? undefined : Math.max(1, safeLimit);
 
-  // When filtering by work-unit, fetch all matches from git and apply limit
+  // When filtering by category, fetch all matches from git and apply limit
   // after client-side filtering. Otherwise git's -n truncates before filtering.
-  if (effectiveLimit && !workUnit) args.push(`-n`, String(effectiveLimit));
+  if (effectiveLimit && !category) args.push(`-n`, String(effectiveLimit));
 
   const { stdout } = await exec("git", args);
 
   let entries = parseGitLogOutput(stdout);
 
-  if (workUnit) {
+  if (category) {
     entries = entries.filter((e) =>
-      e.contextLine.includes(`atomic-${workUnit}`),
+      e.contextLine.includes(`standalone (${category})`),
     );
     if (effectiveLimit) entries = entries.slice(0, effectiveLimit);
   }
@@ -144,14 +143,14 @@ export async function runLogAtomic(
 }
 
 /**
- * Format atomic log entries for display.
+ * Format standalone log entries for display.
  *
  * @param result - The log result to format
  * @returns Formatted string for terminal output
  */
-export function buildLogAtomicOutput(result: LogAtomicResult): string {
+export function buildLogStandaloneOutput(result: LogStandaloneResult): string {
   if (result.entries.length === 0) {
-    return "No atomic task commits found.";
+    return "No standalone commits found.";
   }
 
   const lines = result.entries.map((e) => {
