@@ -120,10 +120,10 @@ arc user open {name}
 > **Skip this step** under `pm.mode: none` or `external`.
 
 If activation absorbs queued inbox entries — `user/{identity}/USER-INBOX.md` (`## Atomic` / `## Backlog` sections)
-or shared `backlog/ATOMIC-INBOX.md` / `backlog/BACKLOG-INBOX.md` — into this WU's task list or atomic companion,
+or shared `backlog/ATOMIC-INBOX.md` / `backlog/BACKLOG-INBOX.md` — into this WU's task list,
 finalize absorption now. Delete the source entries; record routing in the commit message.
 
-The absorbing-artifact edits (task list, atomic companion) typically already landed during planning; this step
+The absorbing-artifact edits (task list) typically already landed during planning; this step
 lands the source deletions as the ceremony write (`workflowCommit`).
 
 See [DEV-RULES.ARC § Leave it cleaner][dev-rules-leave-cleaner] for the capture-routing table.

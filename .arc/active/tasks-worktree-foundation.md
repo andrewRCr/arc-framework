@@ -992,29 +992,43 @@ _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
   companion-type refs (in scope) from atomic-character refs (preserved — tier shape, not file type). _Notes:_ See
   `notes-worktree-foundation.md` § Phase 7 for the full found-list.
 
-    - `[ ]` **7.4.a Sweep companion-type refs across live shipped content** (both copies)
-        - Named anchors: `DEV-RULES.ARC.md` § Leave it cleaner; `strategy-task-list-formatting.md` § Atomic Companion
-          File; `commit-footer` method; `template-tasks.md`; `strategy-work-organization.md` § Directory Structure
-          row; plus the full found-list. Acceptance: zero `atomic-{name}` / `atomic-*` / "atomic companion file"
-          companion-type refs remain in live shipped content (reword dangling §-links rather than deleting the
-          surfaces they point at).
-        - _Scope:_ live shipped ARC content (rules / strategies / methods / templates / workflows / briefs). **Out:**
-          docs-site (`docs/` — dedicated docs WU), historical ADRs (e.g. `adr-008`, immutable record), internal
-          analysis / supplemental docs, and this WU's own `spec-*` (self-referential — it describes the retirement).
-          **Preserve:** the `ATOMIC-INBOX` / `USER-INBOX § Atomic` surfaces and atomic-character refs (e.g. tier-shape
-          mentions in `strategy-work-organization.md` § Spec-Flow Invariants line ~133 and § Archival line ~353).
+    - `[x]` **7.4.a Sweep companion-type refs across live shipped content** (both copies)
+        - _Outcome:_ Companion-type refs swept from rules / strategies / methods / templates, `completed/README.md`,
+          and the inbox surfaces (workflows and briefs are 7.4.b / 7.4.c). `strategy-task-list-formatting § Atomic
+          Companion File` deleted outright; the atomic-entry shape now lives self-contained as inline HTML comments
+          in the `ATOMIC-INBOX` / `USER-INBOX` templates — collapse-resilient (rides into `INBOX.PROJECT` /
+          `INBOX.USER` per `draft-doc-naming-convention.md` with no cross-ref to re-sweep). `strategy-planning-module
+          § Inbox vs. Companion File` deleted (premise gone); during-WU atomic routing reframed to "fold into the
+          commit, or spin an Errand" in `DEV-RULES.ARC` § Leave it cleaner, planning-module, and the
+          `DEV-RULES.PROJECT` template (stale `ATOMIC-INBOX` → `USER-INBOX § Atomic` path fixed incidentally).
+          `commit-footer` atomic chain-terminal + § removed; orphaned link defs cleaned. Atomic _character_ /
+          atomic-tier refs preserved throughout.
 
-    - `[ ]` **7.4.b Sweep workflow mentions** (both copies)
-        - `2_generate-tasks.md` (companion creation at Pass 1 + Step 4 checklist), `activate` / `verify` /
-          `deactivate` / `archive` work-unit workflows. Watch for cleanup-list enumerations (e.g.
-          `deactivate-work-unit.md` Case A-delete Step 4's `active/atomic-*` line ~132), not just companion-creation
-          refs. _Note:_ `integrate-work-unit.md` carries only the protected `§ Atomic → ATOMIC-INBOX` surface —
-          verify-only, nothing to sweep.
+    - `[x]` **7.4.b Sweep workflow mentions** (both copies)
+        - _Outcome:_ Companion creation removed from `2_generate-tasks` (Pass 1 + Step 4 checklist + Companion-file
+          subsection — the workflow no longer mints the file). `3_process-task-loop` § Where to Capture reframed to
+          fold/Errand routing; § Atomic Task Completion retargeted to the surviving inbox surfaces. Lifecycle sweep:
+          `activate` (absorption target), `archive` (`git mv` line), `deactivate` (Case A cleanup list). `verify`
+          § Step 3 (companion review) removed and steps renumbered — the during-WU atomic surface it checked no
+          longer exists; cascaded the coupled three-→two-category verification-task exception in
+          `strategy-task-list-formatting`. `integrate` untouched (protected `§ Atomic → ATOMIC-INBOX` only).
 
-    - `[ ]` **7.4.c Document the rerouted capture** (AGENT-BRIEF in scope; docs-site out)
-        - `AGENT-BRIEF.{ARC,CONTRIBUTOR}.md` are in-scope shipped briefs — sweep their companion-type refs. The
-          docs site (`docs/**`) is out of scope WU-wide (dedicated docs WU). Document the rerouted capture (fold
-          into commit / add a task / spin an Errand / `USER-INBOX § Atomic`) in the swept ARC docs.
+    - `[x]` **7.4.c Document the rerouted capture** (AGENT-BRIEF in scope; docs-site out)
+        - _Outcome:_ `AGENT-BRIEF.ARC` § Vocabulary reworded — WU artifact group drops `atomic-*` (→ `notes-*`),
+          and the atomic-_character_ task-scale example becomes "a single leaf task, or an Errand" (character
+          intact). `AGENT-BRIEF.CONTRIBUTOR` companion-file list dropped `atomic-{name}.md`. The reroute itself is
+          documented canonically in `DEV-RULES.ARC` § Leave it cleaner (7.4.a); the briefs carry orientation, not a
+          duplicate routing table. Docs-site out of scope (dedicated WU).
+
+    - `[ ]` **7.4.d Give the atomic work-character a robust home in `strategy-work-organization.md`** (both copies)
+        - The atomic _character_ (single-bounded, indivisible; the axis behind "inboxes route by character, not
+          wrapper presence") is defined only in `AGENT-BRIEF.ARC.md` § Vocabulary today and was otherwise implied
+          through the now-retired companion file. Author a short, surface-agnostic treatment in
+          `strategy-work-organization.md` — the work-class domain, neighboring § Work Categories / § Errand Work
+          Class — covering the character at all three scales (items / tasks / WUs); `AGENT-BRIEF` keeps the
+          one-line intro. _Scope:_ net-new prose sequenced after the 7.4.a–c sweep; must not re-introduce the
+          companion file type. Forward-compat with the `## Atomic` / `## Work Unit` character-section model in
+          `draft-doc-naming-convention.md` (provisional) — name by character, not vehicle.
 
 ### `[ ]` **7.5 Shipped-doc drift-fix**
 
@@ -1071,6 +1085,15 @@ _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
           (re-renders same tier state); light framing touch — "activation refreshes ROADMAP" rather than
           "activation moves the WU into the In Flight tier."
         - _Note:_ ROADMAP regen is doc-only (hand-maintained, no render code) — no tests.
+
+    - `[ ]` **7.5.d Sweep residual pause-pointer drift in `strategy-task-list-formatting.md`** (both copies)
+        - The Incidental task-list-header guidance (§ Task List Headers, ~L48–50) still names retired pause-pointer
+          fields (`Interrupts` / `Paused At` / `Paused To`) as living "in the status file" and links the deleted
+          `manage-incidental-work.md § Coordinated Pause/Resume` (removed in Task 7.2). Surfaced during the 7.4.a
+          sweep — same retired-mechanic family as 7.5.a/b. Reconcile the incidental-header guidance to the 4-state
+          machine: drop the pause-pointer field list and the dangling §-link; the retired `status-{parent}.md`
+          surface is gone, so incidental lifecycle state is just `State:` (4-state). Don't reshape incidental-WU
+          semantics beyond removing the retired references.
 
 ## **Phase 8:** Verification
 

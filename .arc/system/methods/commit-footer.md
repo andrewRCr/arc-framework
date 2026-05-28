@@ -27,12 +27,12 @@ override-active: false
 **Chain naming.** The footer names the deepest spec-shaped artifact under edit along the WU chain:
 
 `meta-{name}` (lifecycle / maintenance) → `draft-{name}` / `spec-{name}` (Spec) → `tasks-{name}`
-(execution spec) → `atomic-{name}` (atomic-companion scope)
+(execution spec)
 
 Walk down from `meta-*` to the most specific artifact this commit edits. Ceremony and maintenance
 commits name the meta file; planning iteration names the plan/PRD; task-execution commits name the
-task list; atomic-companion completion names the atomic file. When no active WU exists, the chain
-collapses to the `standalone` anchor (see § Standalone anchor).
+task list. When no active WU exists, the chain collapses to the `standalone` anchor (see
+§ Standalone anchor).
 
 **Discreteness test (incidental in-WU vs. standalone off-WU).** Active WU? Yes → in-chain
 file-pointer with `(incidental during X)`. No → `standalone (...)`. Single binary check.
@@ -76,14 +76,6 @@ Used for WU lifecycle ceremonies (which edit the meta file) and for off-ceremony
 - `Context: meta-[name].md (maintenance)` — off-ceremony meta edits (review-driven or otherwise)
 - `Context: meta-[name].md (incidental during <context>)` — incidental fix folded into a
   ceremony or maintenance commit
-
-### Atomic companion references — `atomic-[name].md`
-
-- `Context: atomic-[name].md` — work-unit-scoped atomic task
-
-Use `atomic-*.md` only for commits that complete work tracked in the companion file. Incidental fixes
-discovered *during* an atomic task but not themselves tracked there use the task list incidental
-pattern: `tasks-[name].md (incidental during <context>)`.
 
 ### Standalone anchor — `standalone`
 

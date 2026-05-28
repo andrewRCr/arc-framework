@@ -135,8 +135,8 @@ Separate concerns, prefer composition over duplication, favor readability when p
 
 Using `pm.mode: arc-in-git` — deferred work routes through ARC's built-in capture surfaces:
 
-- **Atomic tasks for this work unit** → atomic companion file (`atomic-{name}.md`)
-- **Atomic tasks for later** → `user/{identity}/ATOMIC-INBOX.md`
+- **Atomic work for this work unit** → fold into the commit, or spin an Errand
+- **Atomic work for later** → `user/{identity}/USER-INBOX.md` § Atomic
 - **Multi-step work for later** → appropriate backlog file or existing draft document
 
 See [DEV-RULES.ARC][dev-rules-arc] § Leave it cleaner for the full routing table.

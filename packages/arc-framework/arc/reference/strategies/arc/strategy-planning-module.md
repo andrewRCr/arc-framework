@@ -18,7 +18,6 @@ work without these artifacts.
 - [What It Installs](#what-it-installs) — capture surfaces and directory shape
 - [Inbox Family](#inbox-family) — per-inbox orientation: purpose, lifecycle, write discipline
 - [How Work Flows Through](#how-work-flows-through) — routing by intent, ownership, and character
-- [Inbox vs. Companion File](#inbox-vs-companion-file) — during-WU vs. for-later routing
 - [Ceremony-Only Writes to Shared Inboxes](#ceremony-only-writes-to-shared-inboxes) — write-isolation discipline
 - [State-Dir Graduation](#state-dir-graduation) — `provisional/` → `planned/` commitment semantics
 - [Cohort Wrapper Subdirs](#cohort-wrapper-subdirs) — codified sibling sets, backlog-only
@@ -74,8 +73,8 @@ Committed-tracked queue of atomic-character entries from across the project. Cer
 as-is from inbox at their owning WU; completion deletes the entry, and the routing record lives
 in the deletion commit message plus the absorbing artifact.
 
-Browse completed atomic work across all atomic surfaces (USER-INBOX § Atomic, this file, and
-companion files): `arc log --atomic`.
+Browse completed atomic work across the atomic surfaces (USER-INBOX § Atomic and this file):
+`arc log --atomic`.
 
 ### `backlog/BACKLOG-INBOX.md` — project-shared multi-step capture
 
@@ -109,7 +108,7 @@ Routing depends on three axes: **lifecycle intent** (during this WU vs. for late
 
 ```text
 New work item
-  ├─ Atomic, during this WU?      → atomic-{name}.md (companion file)
+  ├─ Atomic, during this WU?      → fold into the commit, or spin an Errand
   ├─ Multi-step, during this WU?  → fold into current task list
   ├─ Atomic, for later?           → USER-INBOX.md § Atomic
   ├─ Multi-step, for later?       → USER-INBOX.md § Backlog
@@ -119,28 +118,12 @@ New work item
 Captures land in `USER-INBOX.md` (personal, live). Entries drain at ceremony boundaries —
 § Atomic flows to `backlog/ATOMIC-INBOX.md`; § Backlog flows to `backlog/BACKLOG-INBOX.md`, or
 graduates directly to a per-WU subdir under `backlog/{planned,provisional}/` when scope and plan
-have emerged. Atomic items execute as-is from inbox or companion file; multi-step items mature
+have emerged. Atomic items execute as-is from inbox; multi-step items mature
 into `plan-<wu-name>.md` and (when ready) `prd-<wu-name>.md`. See
 [Work Planning Strategy][work-planning] for the plan → PRD pipeline and discovery checklist.
 
 For the full intent × mode routing table (including `pm.mode: external` and `pm.mode: none`),
 see [DEV-RULES.ARC][dev-rules] § Leave it cleaner.
-
----
-
-## Inbox vs. Companion File
-
-Route by **when you intend to handle it**, not what domain it's in:
-
-- **During this work unit** → atomic companion file (`atomic-{name}.md` — tracked, archives
-  with the work unit)
-- **For later** → `USER-INBOX.md` (personal, gitignored, branch-agnostic; drains at ceremony
-  boundaries)
-
-The companion file is scoped to a work unit's lifecycle. USER-INBOX is personal and persistent
-until drained. For companion file format and completion protocol, see
-[Task List Formatting][task-list-fmt] § Atomic Companion File and [process-task-loop][process-loop]
-§ Atomic Task Completion.
 
 ---
 
@@ -150,7 +133,7 @@ Shared inboxes (`backlog/ATOMIC-INBOX.md`, `backlog/BACKLOG-INBOX.md`) are read-
 convention outside three lifecycle fire-points:
 
 - **Activation absorption** — at WU activation, USER-INBOX entries scoped to that WU's domain
-  absorb into the WU's atomic companion or task list; the remainder stays personal.
+  absorb into the WU's task list; the remainder stays personal.
 - **Integration drain** — at WU integration, surviving USER-INBOX entries flush to the matching
   shared inbox (`§ Atomic` → `ATOMIC-INBOX.md`; `§ Backlog` → `BACKLOG-INBOX.md`), or graduate
   to a new `backlog/provisional/<wu-name>/` subdir if scope and plan have emerged.
@@ -158,7 +141,7 @@ convention outside three lifecycle fire-points:
   shared inbox or provisional subdir promote into the WU's plan/PRD as concrete tasks.
 
 **Absorbed entries are deleted, not marked.** The routing record lives in the deletion commit
-message plus the absorbing artifact (companion file, task list, or new WU subdir). Don't leave
+message plus the absorbing artifact (task list or new WU subdir). Don't leave
 strikethrough, `[absorbed]` tags, or status markers — git history is the audit trail.
 
 The discipline trades write immediacy for write isolation. Shared inboxes represent
@@ -258,7 +241,7 @@ Without arc-in-git (`pm.mode: none` or `external`):
 - No `backlog/` directory — no `ATOMIC-INBOX.md`, `BACKLOG-INBOX.md`, ROADMAP, per-WU
   subdirs, or commitment-dir split
 - No `USER-INBOX.md` — for-later routing follows project convention or the external tracker
-- Atomic tasks still exist via companion files (`atomic-{name}.md`) — that's Core
+- Atomic during-WU work still folds into the commit or spins an Errand — that's Core
 - Plan documents and PRDs (when used) live in `active/` directly; no graduation pipeline
 
 The planning module adds structure for teams that want built-in project management without
@@ -273,7 +256,6 @@ events to external trackers.
 - [Work Planning][work-planning] — Planning pipeline, plan/PRD conventions, discovery checklist
 - [Work Organization][work-org] — Branching, archival, ROADMAP render algorithm, state semantics
 - [DEV-RULES.ARC][dev-rules] § Leave it cleaner — Full intent × mode capture routing table
-- [Task List Formatting][task-list-fmt] § Atomic Companion File — companion file format
 - [Process Task Loop][process-loop] § Atomic Task Completion — atomic task execution and routing
 - [Team Coordination][team-coord] § External Tracker Integration — external PM integration model
 
@@ -283,5 +265,4 @@ events to external trackers.
 [work-org]: strategy-work-organization.md
 [dev-rules]: ../../../system/rules/DEV-RULES.ARC.md
 [process-loop]: ../../../system/workflows/arc/3_process-task-loop.md
-[task-list-fmt]: strategy-task-list-formatting.md
 [team-coord]: strategy-team-coordination.md

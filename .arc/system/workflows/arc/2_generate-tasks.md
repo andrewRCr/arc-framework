@@ -30,10 +30,10 @@ fill (Pass 2), and grounding audit (Pass 3) — each pass has a deliverable the 
 the next begins. This prevents the one-shot-to-impl-ready pattern that masks design decisions and
 ungrounded assumptions until impl time.
 
-**The task list file lives on disk from Pass 1 onward.** Pass 1 creates `tasks-{name}.md` (and the
-empty `atomic-{name}.md` companion) at the destination path resolved per Step 4's `Destination
-path` rule. Passes 2 and 3 edit the file in place. Step 4 collapses to pre-save checklist
-verification + ceremony commit. The file is in-progress until Step 4's checklist passes — staging
+**The task list file lives on disk from Pass 1 onward.** Pass 1 creates `tasks-{name}.md` at the
+destination path resolved per Step 4's `Destination path` rule. Passes 2 and 3 edit the file in
+place. Step 4 collapses to pre-save checklist verification + ceremony commit. The file is
+in-progress until Step 4's checklist passes — staging
 discipline keeps it from landing in commits before then. On-disk iteration keeps partial work
 durable across handoffs and lets each pass's review happen against the rendered file rather than
 reproduced conversation.
@@ -70,9 +70,7 @@ parent satisfies.
   [task-list-formatting strategy][task-list-formatting] § Verification Phase for conventions
 
 **Save before stopping.** Create `tasks-{name}.md` at the Step 4 destination path with the
-Pass 1 file shape below; create the empty companion `atomic-{name}.md` in the same directory
-(skeleton per [`template-tasks.md`][template-tasks] § Atomic Companion File). Both stay on disk
-through Passes 2-3 and Step 4.
+Pass 1 file shape below. It stays on disk through Passes 2-3 and Step 4.
 
 **Pass 1 file shape:**
 
@@ -264,9 +262,9 @@ inconsistency), loop back to that phase's Step 3.2 — the coherence pass is not
 
 ### Step 4: Pre-save verification + ceremony commit
 
-By Step 4, `tasks-{name}.md` and `atomic-{name}.md` are already on disk (created at Pass 1,
-iterated through Passes 2-3). Implementation notes, technical context, and design rationale belong
-in the dedicated notes file (`notes-{name}.md`), not in the task list. Step 4 verifies the file
+By Step 4, `tasks-{name}.md` is already on disk (created at Pass 1, iterated through Passes 2-3).
+Implementation notes, technical context, and design rationale belong in the dedicated notes file
+(`notes-{name}.md`), not in the task list. Step 4 verifies the file
 against the pre-save checklist and bundles the commit.
 
 **Verify the file against this checklist:**
@@ -309,7 +307,6 @@ against the pre-save checklist and bundles the commit.
       register — no movable WU artifact references (`draft-*` / `spec-*` / `tasks-*` / `meta-*` /
       companions) that would survive verbatim execution into the target. See
       [strategy-task-list-formatting § Instruction Audience][task-list-formatting]
-- [ ] Atomic companion file created alongside task list (`atomic-{name}.md`, same directory)
 - [ ] Success Criteria section at bottom with checkboxes (checked during verification phase)
 
 **Destination path** (referenced by Pass 1's file creation; depends on
@@ -320,11 +317,6 @@ against the pre-save checklist and bundles the commit.
   (create the directory first if it doesn't exist: `mkdir -p .arc/active/`)
 
 Name matches the PRD (e.g., `spec-api-modernization.md` → `tasks-api-modernization.md`).
-
-**Companion file** at `atomic-{name}.md` (same directory, same name stem) — created at Pass 1
-as the empty capture surface for atomic tasks discovered during implementation. Skeleton per
-[`template-tasks.md`][template-tasks] § Atomic Companion File; see
-[process-task-loop § Where to Capture Atomic Tasks](3_process-task-loop.md#where-to-capture-atomic-tasks).
 
 > [!IMPORTANT]
 > `workflow-interlock`: Stop after the pre-save checklist passes. Surface the task list location

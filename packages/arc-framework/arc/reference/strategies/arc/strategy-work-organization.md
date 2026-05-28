@@ -575,7 +575,6 @@ by git history through its commit footer, and tears down.
   prd-<name>.md          # product requirements (when WU has a PRD)
   tasks-<name>.md        # execution spec (when WU has a task list)
   notes-<name>.md        # working context (optional; may carry content graduated from draft-*)
-  atomic-<name>.md       # atomic-task companion (optional)
 ```
 
 `active/` is flat — per-worktree isolation (see [§ Per-Worktree Isolation](#per-worktree-isolation))
@@ -605,7 +604,7 @@ patterns, merge conflict expectations, and external tracker integration.
 ## Planning Module
 
 See [Planning Module Strategy](strategy-planning-module.md) **(arc-in-git)** — what arc-in-git
-installs, routing and graduation flow, inbox vs. companion file routing, and scaling guidance.
+installs, routing and graduation flow, inbox routing, and scaling guidance.
 
 ---
 

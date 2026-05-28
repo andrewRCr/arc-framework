@@ -156,7 +156,7 @@ The agent's prior cwd no longer exists if it was in the WU worktree (on the `rem
 ### 3) Clean up base-branch leftovers (per `pm.mode`)
 
 Branch deletion in Step 2 removed the WU's in-flight artifacts (`active/meta-*`, `active/spec-*`, `active/tasks-*`,
-`active/atomic-*`, `active/notes-*`, any residual `active/draft-*`) — they lived only on the deleted branch and
+`active/notes-*`, any residual `active/draft-*`) — they lived only on the deleted branch and
 were never merged. The remaining cleanup concerns base-branch leftovers that activation never touched:
 
 - **`arc-in-git`:** If the WU originated from a backlog stub, `backlog/{state}/{name}/` may still exist on base

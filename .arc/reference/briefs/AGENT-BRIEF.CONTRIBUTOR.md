@@ -47,7 +47,7 @@ recommended directory layout, and rationale.
 - `SESSION-NOTES.md` — session context, loaded at session-init, written at session-handoff
 - `ATOMIC-INBOX.md` — personal capture queue (arc-in-git upstream projects only)
 - `active/meta-{name}.md` — personal active work state for an in-flight contribution (optional)
-- `active/tasks-{name}.md` + `notes-{name}.md` + `atomic-{name}.md` — task list and companion files when
+- `active/tasks-{name}.md` + `notes-{name}.md` — task list and notes companion when
   running a full planning pipeline
 
 **Guardrails:**
