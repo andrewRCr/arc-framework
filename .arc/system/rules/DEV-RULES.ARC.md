@@ -215,7 +215,7 @@ Route to an actionable capture surface — a location that gets reviewed as part
 
 | Intent                   | Size       | Destination                                                    |
 |--------------------------|------------|----------------------------------------------------------------|
-| During this WU           | Atomic     | Atomic companion file (`atomic-{name}.md`)                     |
+| During this WU           | Atomic     | Fold into the commit, or spin an Errand                        |
 | During this WU           | Multi-step | Propose placement in existing task structure — user approves   |
 | For later (arc-in-git)   | Atomic     | `user/{identity}/USER-INBOX.md` § Atomic                       |
 | For later (arc-in-git)   | Multi-step | `user/{identity}/USER-INBOX.md` § Backlog                      |

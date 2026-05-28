@@ -10,6 +10,7 @@ import { describe, it, expect } from "vitest";
 import {
   authorizeRelease,
   formatRefusal,
+  isProtectedBranch,
 } from "../../../src/lib/release/interlock-validation.js";
 import type {
   ResolvedSettingsResult,
@@ -42,6 +43,7 @@ function buildSettings(overrides: FixtureOverrides = {}): ResolvedSettingsResult
   const settings: ConfigSettings = {
     "branch.base": branchBase,
     "branch.protection": branchProtection,
+    "worktree.location_template": "../{repo}.{branch}",
     "commit.format": "conventional",
     "commit.context_footer": "required",
     "commit.custom_pattern": "",
@@ -230,6 +232,25 @@ describe("authorizeRelease — branch-protection check", () => {
       identifier: "branch-protection-violation",
       branch: "main",
     });
+  });
+});
+
+// --- isProtectedBranch predicate ---
+
+describe("isProtectedBranch", () => {
+  it("true when full protection and the branch is the configured base", () => {
+    const { settings } = buildSettings({ branchProtection: "full", branchBase: "main" });
+    expect(isProtectedBranch(settings, "main")).toBe(true);
+  });
+
+  it("false under partial protection even on the base branch", () => {
+    const { settings } = buildSettings({ branchProtection: "partial", branchBase: "main" });
+    expect(isProtectedBranch(settings, "main")).toBe(false);
+  });
+
+  it("false when the branch is not the configured base, under full", () => {
+    const { settings } = buildSettings({ branchProtection: "full", branchBase: "main" });
+    expect(isProtectedBranch(settings, "feature/x")).toBe(false);
   });
 });
 

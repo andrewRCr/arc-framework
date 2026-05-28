@@ -1087,6 +1087,13 @@ branch + meta-file scaffolding while the conductor owns upstream intent assessme
 entirely. PRD-time decision based on whether direct-invocation paths remain useful alongside
 conductor invocation.
 
+**DRY constraint (now that WOR has shipped the graduate-from-backlog mechanics):** `init-work-unit.md`
+Step 3 already performs resume's mechanical half — `git mv backlog/{state}/{name}/* → active/`, branch
+creation, `**Branch:**` reconcile. `resume-work-unit.md` must call that primitive, not re-implement it; the
+file-move/branch logic stays in exactly one place regardless of how the direct-invocation question resolves.
+This biases the resolution toward the sub-procedure path (resume delegates the mechanics; conductor owns
+upstream intent) over a second workflow that duplicates the moves.
+
 **Towards — life-phase-agnostic init (surfaced 2026-05-20 during WOR Task 6.7.c):** WOR ships
 `init-work-unit.md` as planning-only — Step 2 hardcodes `git checkout -b plan/{name}` and Step 4
 sets `**State:** Planning`. Under WOR-as-shipped, an atomic-tier or direct-impl WU that skips
@@ -1508,3 +1515,10 @@ iteration session.*
   Microsoft (Bacchelli & Bird), and GitHub-scale studies, plus SPIDR/INVEST methodological
   frames. Includes draft section text ready to lift.
 - **Effort estimate:** S (atomic-tier — strategy edit + workflow cross-references)
+
+## Coordination — ADR-022
+
+Replace the stale `status-{name}.md` references with `meta-*` (post-WOR, the per-WU file is the
+meta). Per ADR-022 the meta-creation paths converge on one code-owned schema and `**State:**`
+transitions are schema events; the conductor's park/resume edits go through the model, not
+free-text field writes. See `adr-022-managed-operational-state-documents.md` § Coordination.

@@ -115,58 +115,10 @@ branch workflow, merge strategy, and handling branch updates.
 
 ---
 
-## Coordinated Pause/Resume
+## Parent WU Continuity
 
-Interrupt coordination is symmetric — every pause has a corresponding resume, and both meta files flip in the
-same commit as the triggering lifecycle event. The task list carries structural metadata only; dynamic interrupt
-state (`State`, `Interrupts`, `Paused At`, `Paused To`) lives in meta files.
-
-**Atomic-commit requirement:** The parent meta file update and the incidental artifact change (create, archive,
-or delete) must land in a single commit. A split would leave the repo with a paused parent whose pointer resolves
-to nothing, or an incidental with a dangling `Interrupts:` pointer.
-
-### Activation — incidental interrupts active WU
-
-Triggered during [activate-work-unit.md](../work-unit-lifecycle/activate-work-unit.md). The pause/resume protocol
-layers on top of the standard activation flow — the incidental activates normally (branch, meta file, task list
-status), with the parent paused as a paired operation.
-
-1. Create `.arc/active/incidental/meta-{incidental-name}.md` from [`template-meta.md`][template-status].
-2. On the incidental meta file, set the `**Interrupts:**` pointer to the parent WU:
-
-    ```markdown
-    **Interrupts:** {parent-category}/{parent-name}
-    ```
-
-3. Update the parent meta file (`.arc/active/{parent-category}/status-{parent-name}.md`):
-    - `**State:**` → `Paused (YYYY-MM-DD) — interrupted by incidental/{incidental-name}`
-    - Add `**Paused At:** Task X.Y` — the task where parent work stopped
-    - Add `**Paused To:** incidental/{incidental-name}`
-
-### Completion — incidental archives cleanly
-
-Triggered during [archive-work-unit.md](../work-unit-lifecycle/archive-work-unit.md) when all incidental tasks are
-complete. Archival `git rm`s `meta-{incidental-name}.md` — the parent flips back to active in the same commit.
-
-1. Archive the incidental via the standard archive workflow (deletes `meta-{incidental-name}.md`).
-2. Update the parent meta file:
-    - `**State:**` → `In Progress`
-    - Remove `**Paused At:**` and `**Paused To:**` entirely
-
-The parent's `**Next Task:**` and `**Next Action:**` may also need refreshing if the incidental changed the
-landscape — update alongside the state flip.
-
-### Abandonment — incidental deactivates without work executed
-
-Triggered during [deactivate-work-unit.md](../work-unit-lifecycle/deactivate-work-unit.md) (Case A) when the
-incidental was activated but work never proceeded — false alarm, scope disagreement, or reclassified as a
-different kind of work.
-
-1. Deactivate via the deactivation workflow. If `meta-{incidental-name}.md` was already created, deactivation
-   deletes it; if never created, nothing to delete.
-2. Update the parent meta file — same flip as completion:
-    - `**State:**` → `In Progress`
-    - Remove `**Paused At:**` and `**Paused To:**`
+Incidental work with its own task list runs on its own branch and worktree; the parent WU continues
+independently in its own — no pause coordination needed. See [§ Per-Worktree Isolation][work-org-isolation].
 
 ---
 
@@ -185,5 +137,5 @@ Incidental work follows standard workflows with no special procedures:
 
 [dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
 [task-list-formatting]: ../../../../reference/strategies/arc/strategy-task-list-formatting.md
-[template-status]: ../../../../reference/templates/arc/work-unit/template-meta.md
 [work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md
+[work-org-isolation]: ../../../../reference/strategies/arc/strategy-work-organization.md#per-worktree-isolation

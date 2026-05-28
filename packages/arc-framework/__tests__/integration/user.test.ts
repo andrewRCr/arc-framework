@@ -44,7 +44,7 @@ import {
   type UserLoadOutcome,
   type UserLoadResult,
 } from "../../src/commands/user.js";
-import { pushWithInteractiveRecovery } from "../../src/handlers/push-recovery.js";
+import { pushNotesWithReconcile } from "../../src/handlers/push-recovery.js";
 import { createSyncOutput } from "../../src/lib/sync-output.js";
 
 /** Human-mode SyncOutput stub — delegates through the file-scoped clack mock above. */
@@ -646,6 +646,87 @@ describe("user load — backup and stale detection", () => {
   });
 });
 
+describe("user load — retired-subdir reconciliation", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await initInTempRepo(DEFAULT_PROMPTS, "test-user");
+    await makeCommit(tempDir, "initial commit");
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tempDir);
+  });
+
+  /** Mark a WU shipped by materializing its `completed/<quarter>/NN_<slug>` archive dir. */
+  async function markShipped(slug: string, ordinal = "01", quarter = "2026-q2"): Promise<void> {
+    await mkdir(join(tempDir, ".arc", "completed", quarter, `${ordinal}_${slug}`), { recursive: true });
+  }
+
+  it("removes a shipped subdir absent from notes, leaving its content recoverable from the backup", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    // Baseline note carries only the cross-WU flat file — no per-WU subdir.
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Cross-WU", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    // A retired WU's subdir lingers locally; it never made it into a note and has shipped.
+    await mkdir(join(userDir, "old-wu"), { recursive: true });
+    await writeFile(join(userDir, "old-wu", "SESSION-NOTES.md"), "# Old WU notes", "utf-8");
+    await markShipped("old-wu");
+
+    const result = await runUserLoad({ cwd: tempDir, io, identity: "test-user" });
+    const loaded = expectLoaded(result);
+
+    expect(await readdir(userDir)).not.toContain("old-wu");
+
+    const backups = await listBackupFiles(userDir);
+    const preLoad = backups.find((name) => /^\.pre-load-backup-.*\.json$/u.test(name));
+    expect(preLoad).toBeDefined();
+    const backup = JSON.parse(
+      await readFile(join(userDir, ".internal", preLoad!), "utf-8"),
+    ) as { files: Record<string, string> };
+    expect(backup.files["old-wu/SESSION-NOTES.md"]).toBe("# Old WU notes");
+
+    expect(loaded.warnings.some((w) => w.includes("old-wu") && w.includes("removed"))).toBe(true);
+  });
+
+  it("preserves a present subdir whose WU has not shipped", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Cross-WU", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    // Absent from notes but in-flight (not shipped) → must stay.
+    await mkdir(join(userDir, "live-wu"), { recursive: true });
+    await writeFile(join(userDir, "live-wu", "SESSION-NOTES.md"), "# Live WU", "utf-8");
+
+    await runUserLoad({ cwd: tempDir, io, identity: "test-user" });
+
+    expect(await readdir(userDir)).toContain("live-wu");
+  });
+
+  it("preserves a shipped subdir still carried in the recent-notes window", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    // The subdir is in the saved note (still live elsewhere) and has shipped.
+    await mkdir(join(userDir, "live-wu"), { recursive: true });
+    await writeFile(join(userDir, "live-wu", "SESSION-NOTES.md"), "# Live WU", "utf-8");
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Cross-WU", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await markShipped("live-wu");
+
+    // A different current WU, so materialization can't re-create live-wu — its
+    // survival proves the reconcile preserved it rather than the load restoring it.
+    await runUserLoad({ cwd: tempDir, io, identity: "test-user", currentWuName: "current-wu" });
+
+    expect(await readdir(userDir)).toContain("live-wu");
+  });
+});
+
 describe("user save/load — subdirectory support", () => {
   let tempDir: string;
 
@@ -658,31 +739,110 @@ describe("user save/load — subdirectory support", () => {
     await cleanupTempDir(tempDir);
   });
 
-  it("round-trips files in subdirectories", async () => {
+  it("round-trips a current-WU subdir file alongside cross-WU flat files", async () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
     // Reset to a known minimal structure — init-seeded files would otherwise
-    // inflate the save count and obscure the round-trip assertion.
+    // inflate the save count and obscure the round-trip assertion. The subdir
+    // is a per-WU home; the flat file is cross-WU.
     await rm(userDir, { recursive: true, force: true });
-    await mkdir(join(userDir, "drafts"), { recursive: true });
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Notes", "utf-8");
-    await writeFile(join(userDir, "drafts", "idea.md"), "# Draft idea", "utf-8");
+    await mkdir(join(userDir, "feature-x"), { recursive: true });
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Memory", "utf-8");
+    await writeFile(join(userDir, "feature-x", "SESSION-NOTES.md"), "# Notes", "utf-8");
 
-    // Save
+    // Save (class-agnostic — every eligible file by path)
     const saveResult = await runUserSave({ cwd: tempDir, io, identity: "test-user" });
     expect(saveResult.fileCount).toBe(2);
 
-    // Delete everything and reload
+    // Delete everything and reload scoped to feature-x: its subdir plus the
+    // cross-WU flat file both restore.
     await rm(userDir, { recursive: true, force: true });
 
-    const loadResult = await runUserLoad({ cwd: tempDir, io, identity: "test-user" });
+    const loadResult = await runUserLoad({
+      cwd: tempDir, io, identity: "test-user", currentWuName: "feature-x",
+    });
     const loadedResult = expectLoaded(loadResult);
     expect(loadedResult.fileCount).toBe(2);
 
     // Verify nested file was restored
-    const restored = await readFile(join(userDir, "drafts", "idea.md"), "utf-8");
-    expect(restored).toBe("# Draft idea");
+    const restored = await readFile(join(userDir, "feature-x", "SESSION-NOTES.md"), "utf-8");
+    expect(restored).toBe("# Notes");
+  });
+
+  it("drops other-WU subdirs but keeps cross-WU flat files when scoped to one WU", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await rm(userDir, { recursive: true, force: true });
+    await mkdir(join(userDir, "feature-x"), { recursive: true });
+    await mkdir(join(userDir, "feature-y"), { recursive: true });
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Memory", "utf-8");
+    await writeFile(join(userDir, "feature-x", "SESSION-NOTES.md"), "# X", "utf-8");
+    await writeFile(join(userDir, "feature-y", "SESSION-NOTES.md"), "# Y", "utf-8");
+
+    const saveResult = await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    expect(saveResult.fileCount).toBe(3);
+
+    await rm(userDir, { recursive: true, force: true });
+
+    const loadResult = await runUserLoad({
+      cwd: tempDir, io, identity: "test-user", currentWuName: "feature-x",
+    });
+    const loadedResult = expectLoaded(loadResult);
+    expect(loadedResult.fileCount).toBe(2);
+
+    expect(await readFile(join(userDir, "feature-x", "SESSION-NOTES.md"), "utf-8")).toBe("# X");
+    expect(await readFile(join(userDir, "WORKING-MEMORY.md"), "utf-8")).toBe("# Memory");
+    await expect(readFile(join(userDir, "feature-y", "SESSION-NOTES.md"), "utf-8")).rejects.toThrow();
+  });
+
+  it("merges a cross-WU entry from an older note while restoring the current WU's subdir", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    // Older note (a different worktree's save): WORKING-MEMORY carries entry A.
+    await rm(userDir, { recursive: true, force: true });
+    await mkdir(join(userDir, "feature-old"), { recursive: true });
+    await writeFile(
+      join(userDir, "WORKING-MEMORY.md"),
+      "## Memories\n\n**Entry A:**\n_Remove when: a lands._\n\nFrom the older worktree.\n",
+      "utf-8",
+    );
+    await writeFile(join(userDir, "feature-old", "SESSION-NOTES.md"), "# old", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    // Advance HEAD so the next save lands on a distinct note rather than
+    // overwriting the first.
+    await makeCommit(tempDir, "second commit");
+
+    // Recent note (the current WU): WORKING-MEMORY replaced with entry B only.
+    await rm(userDir, { recursive: true, force: true });
+    await mkdir(join(userDir, "feature-current"), { recursive: true });
+    await writeFile(
+      join(userDir, "WORKING-MEMORY.md"),
+      "## Memories\n\n**Entry B:**\n_Remove when: b lands._\n\nFrom the current worktree.\n",
+      "utf-8",
+    );
+    await writeFile(join(userDir, "feature-current", "SESSION-NOTES.md"), "# current", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    // Load scoped to the current WU.
+    await rm(userDir, { recursive: true, force: true });
+    const loadResult = await runUserLoad({
+      cwd: tempDir, io, identity: "test-user", currentWuName: "feature-current",
+    });
+    expectLoaded(loadResult);
+
+    // Per-WU subdir restores from the resolved (recent) note only.
+    expect(await readFile(join(userDir, "feature-current", "SESSION-NOTES.md"), "utf-8")).toBe("# current");
+    await expect(readFile(join(userDir, "feature-old", "SESSION-NOTES.md"), "utf-8")).rejects.toThrow();
+
+    // Cross-WU flat merges across the window: entry B from the recent note and
+    // entry A merged in from the older note both survive.
+    const workingMemory = await readFile(join(userDir, "WORKING-MEMORY.md"), "utf-8");
+    expect(workingMemory).toContain("**Entry B:**");
+    expect(workingMemory).toContain("**Entry A:**");
   });
 });
 
@@ -861,20 +1021,18 @@ describe("user push and pull", () => {
     expect(restoredInClone).toBe("# Version 3 local");
   });
 
-  it("merge recovery preserves local disk state and rebases the save onto the remote notes base", async () => {
-    mockSelect.mockResolvedValue("merge");
-    const originalIsTTY = process.stdin.isTTY;
-    const originalCI = process.env.CI;
-    Object.defineProperty(process.stdin, "isTTY", { value: true, configurable: true });
-    delete process.env.CI;
-
+  it("reconciles a concurrent non-fast-forward via lossless notes-merge, preserving both sides", async () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Version 1", "utf-8");
+    // First worktree saves on its current commit and publishes.
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Local notes", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
     await runUserPush({ io, identity: "test-user" });
 
+    // A second worktree clones, advances to a different commit, saves a note
+    // there, and force-publishes — so the remote notes ref annotates a commit
+    // the first worktree's ref does not carry (a disjoint, non-ff divergence).
     cloneDir = await mkdtemp(join(tmpdir(), "arc-clone-"));
     await execFileAsync("git", ["clone", remoteDir, cloneDir]);
     await execFileAsync("git", ["config", "user.email", "c@t.com"], { cwd: cloneDir });
@@ -882,55 +1040,88 @@ describe("user push and pull", () => {
     const cloneIO = makeUserIO(cloneDir);
     const cloneUserDir = join(cloneDir, ".arc", "user", "test-user");
     await mkdir(cloneUserDir, { recursive: true });
-
-    await writeFile(join(cloneUserDir, "SESSION-NOTES.md"), "# Version 2 from clone", "utf-8");
+    await makeCommit(cloneDir, "clone advances HEAD");
+    await writeFile(join(cloneUserDir, "SESSION-NOTES.md"), "# Clone notes", "utf-8");
     await runUserSave({ cwd: cloneDir, io: cloneIO, identity: "test-user" });
     await runUserPush({ io: cloneIO, identity: "test-user", force: true });
 
-    const remoteTipBeforeRecovery = await readNotesRefTip(cloneDir, "test-user");
-
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Version 3 local", "utf-8");
+    // The first worktree re-saves on its own commit and pushes → non-ff.
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Local notes v2", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
-
     await expect(
       runUserPush({ io, identity: "test-user" }),
     ).rejects.toThrow(/rejected/);
 
-    try {
-      const result = await pushWithInteractiveRecovery({ io, identity: "test-user", cwd: tempDir, output: recoveryOutput });
-      expect(result).toEqual({ kind: "ok-recovered", via: "merge" });
+    // Auto-reconcile: union-merge the divergent refs and re-push, no prompt.
+    const result = await pushNotesWithReconcile({ io, identity: "test-user", cwd: tempDir, output: recoveryOutput });
+    expect(result).toEqual({ kind: "reconciled" });
+    expect(mockSelect).not.toHaveBeenCalled();
 
-      const diskContent = await readFile(join(userDir, "SESSION-NOTES.md"), "utf-8");
-      expect(diskContent).toBe("# Version 3 local");
+    // Lossless: the merged ref carries both worktrees' notes (distinct commits).
+    const { stdout: noteList } = await execFileAsync(
+      "git", ["notes", "--ref", "arc/user/test-user", "list"], { cwd: tempDir },
+    );
+    expect(noteList.trim().split("\n").filter(Boolean)).toHaveLength(2);
 
-      const localTipAfterRecovery = await readNotesRefTip(tempDir, "test-user");
-      expect(localTipAfterRecovery).not.toBe(remoteTipBeforeRecovery);
-      await expect(
-        execFileAsync(
-          "git",
-          ["merge-base", "--is-ancestor", remoteTipBeforeRecovery, localTipAfterRecovery],
-          { cwd: tempDir },
-        ),
-      ).resolves.toBeDefined();
+    // Re-push landed: the remote tip matches the reconciled local tip.
+    const localTip = await readNotesRefTip(tempDir, "test-user");
+    const { stdout: remoteTip } = await execFileAsync(
+      "git", ["ls-remote", remoteDir, "refs/notes/arc/user/test-user"],
+    );
+    expect(remoteTip.trim().split(/\s+/u)[0]).toBe(localTip);
+  });
 
-      const { stdout: remoteTipAfterPush } = await execFileAsync(
-        "git",
-        ["ls-remote", remoteDir, "refs/notes/arc/user/test-user"],
-      );
-      expect(remoteTipAfterPush.trim().split(/\s+/u)[0]).toBe(localTipAfterRecovery);
+  it("surfaces (not silently pushes) a same-commit collision the union cannot resolve", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
 
-      await runUserPull({ cwd: cloneDir, io: cloneIO, identity: "test-user", force: true });
-      await runUserLoad({ cwd: cloneDir, io: cloneIO, identity: "test-user" });
-      const restoredInClone = await readFile(join(cloneUserDir, "SESSION-NOTES.md"), "utf-8");
-      expect(restoredInClone).toBe("# Version 3 local");
-    } finally {
-      Object.defineProperty(process.stdin, "isTTY", { value: originalIsTTY, configurable: true });
-      if (originalCI === undefined) {
-        delete process.env.CI;
-      } else {
-        process.env.CI = originalCI;
-      }
-    }
+    // First worktree saves on the current commit and publishes.
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Temp v1", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await runUserPush({ io, identity: "test-user" });
+
+    // A second worktree clones and saves on the SAME commit (no HEAD advance),
+    // then force-publishes — so both refs annotate one commit with divergent
+    // single-line JSON manifests, the case cat_sort_uniq concatenates into an
+    // unparseable note while still exiting 0.
+    cloneDir = await mkdtemp(join(tmpdir(), "arc-clone-"));
+    await execFileAsync("git", ["clone", remoteDir, cloneDir]);
+    await execFileAsync("git", ["config", "user.email", "c@t.com"], { cwd: cloneDir });
+    await execFileAsync("git", ["config", "user.name", "Clone User"], { cwd: cloneDir });
+    const cloneIO = makeUserIO(cloneDir);
+    const cloneUserDir = join(cloneDir, ".arc", "user", "test-user");
+    await mkdir(cloneUserDir, { recursive: true });
+    await writeFile(join(cloneUserDir, "SESSION-NOTES.md"), "# Clone v1", "utf-8");
+    await runUserSave({ cwd: cloneDir, io: cloneIO, identity: "test-user" });
+    await runUserPush({ io: cloneIO, identity: "test-user", force: true });
+
+    const remoteTipBefore = (await execFileAsync(
+      "git", ["ls-remote", remoteDir, "refs/notes/arc/user/test-user"],
+    )).stdout.trim().split(/\s+/u)[0];
+
+    // First worktree re-saves on the same commit and pushes → non-ff.
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Temp v2", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await expect(
+      runUserPush({ io, identity: "test-user" }),
+    ).rejects.toThrow(/rejected/);
+
+    const result = await pushNotesWithReconcile({ io, identity: "test-user", cwd: tempDir, output: recoveryOutput });
+
+    // Surfaced as a conflict — the corrupt union is not silently pushed.
+    expect(result.kind).toBe("conflict");
+
+    // Remote untouched: nothing was pushed.
+    const remoteTipAfter = (await execFileAsync(
+      "git", ["ls-remote", remoteDir, "refs/notes/arc/user/test-user"],
+    )).stdout.trim().split(/\s+/u)[0];
+    expect(remoteTipAfter).toBe(remoteTipBefore);
+
+    // Local ref rolled back to a parseable note (this worktree's own save).
+    const { stdout: localNote } = await execFileAsync(
+      "git", ["notes", "--ref", "arc/user/test-user", "show", "HEAD"], { cwd: tempDir },
+    );
+    expect(() => JSON.parse(localNote) as unknown).not.toThrow();
   });
 
   it("pull with --identity fetches another developer's notes", async () => {
@@ -1024,7 +1215,7 @@ describe("user push and pull", () => {
     mockLog.info.mockClear();
     mockSpinner.stop.mockClear();
 
-    const result = await pushWithInteractiveRecovery({ io, identity: "test-user", cwd: tempDir, output: recoveryOutput });
+    const result = await pushNotesWithReconcile({ io, identity: "test-user", cwd: tempDir, output: recoveryOutput });
 
     expect(result).toEqual({ kind: "noop" });
     expect(mockSpinner.stop).toHaveBeenCalledWith(

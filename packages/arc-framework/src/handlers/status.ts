@@ -14,7 +14,7 @@
  * @module
  */
 
-import { access } from "node:fs/promises";
+import { access, readdir, readFile } from "node:fs/promises";
 
 import * as p from "@clack/prompts";
 
@@ -47,11 +47,23 @@ import {
   runUserSessionInitStatus,
   runUserStatus,
 } from "../commands/user.js";
-import { gitConfigGet } from "../lib/git/index.js";
+import {
+  filterRosterByIdentity,
+  gitConfigGet,
+  runWorktreeRoster,
+} from "../lib/git/index.js";
+import { runRecentRemoteBranches } from "../lib/git/recent-remote-branches.js";
+import {
+  runBranchGoneRecovery,
+  RECOVERY_RECENCY_DAYS,
+} from "../lib/session-init/branch-gone-recovery.js";
+import { runStaleWorktreeSweep } from "../lib/session-init/stale-worktree-sweep.js";
+import { runRetiredSubdirDetection } from "../lib/session-init/retired-subdir-detection.js";
 import { runDirtyStateStatus } from "../lib/git/dirty-state.js";
 import { runHeadHashStatus } from "../lib/git/head-hash.js";
 import { runPushabilityStatus } from "../lib/git/pushability.js";
 import { runWorktreeSyncStatus } from "../lib/git/worktree-sync.js";
+import { resolveWorktreeIdentity } from "../lib/git/worktree-identity.js";
 import { deriveRestateCandidates } from "../lib/handoff/restate-candidates.js";
 import { resolveSessionNotesPath } from "../lib/handoff/session-notes-path.js";
 import {
@@ -188,12 +200,57 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
         const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
         return runWorktreeSyncStatus({ exec: gitExec, remoteSyncEnabled });
       },
+      worktreeIdentity: () => resolveWorktreeIdentity(gitExec),
       dirty: () => runDirtyStateStatus({ exec: gitExec }),
       extensions: () => runExtensionsSessionInitStatus({ cwd }),
       config: async () => runConfigSessionInitStatus({ cwd, resolvedSettings: await resolvedSettingsP }),
       active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec: gitExec }),
       domainRules: () => runDomainRulesSessionInitStatus({ cwd }),
       releaseRouting: async () => releaseRoutingFromSettings(await resolvedSettingsP),
+      roster: async () => {
+        const resolved = await resolvedSettingsP;
+        const teamMode = resolved.settings["team.mode"] === "true";
+        const roster = await runWorktreeRoster({
+          exec: gitExec,
+          fs: {
+            readdir: (path) => readdir(path),
+            readFile: (path) => readFile(path, "utf8"),
+          },
+        });
+        return filterRosterByIdentity(roster, { identity, teamMode });
+      },
+      recovery: async (roster, currentBranch) => {
+        const resolved = await resolvedSettingsP;
+        const recentBranches = await runRecentRemoteBranches({
+          exec: gitExec,
+          withinDays: RECOVERY_RECENCY_DAYS,
+        });
+        return runBranchGoneRecovery({
+          roster,
+          currentBranch,
+          baseBranch: resolved.settings["branch.base"],
+          recentBranches,
+          exec: gitExec,
+        });
+      },
+      sweep: async (roster, worktreeIdentity) => {
+        const resolved = await resolvedSettingsP;
+        return runStaleWorktreeSweep({
+          roster,
+          worktreeIdentity,
+          cwd,
+          baseBranch: resolved.settings["branch.base"],
+          exec: gitExec,
+          fs: { readdir: (path) => readdir(path) },
+        });
+      },
+      retiredSubdirs: (id) => runRetiredSubdirDetection({
+        cwd,
+        identity: id,
+        exec: gitExec,
+        readDir: io.readDir,
+        fs: { readdir: (path) => readdir(path) },
+      }),
     };
     const result = await runSessionInitStatus({ identity, role, probes });
     if (json) {

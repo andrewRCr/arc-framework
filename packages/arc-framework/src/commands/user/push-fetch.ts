@@ -1,6 +1,16 @@
 import { runPushabilityStatus } from "../../lib/git/index.js";
+import type { AccessFn, PushabilityCondition } from "../../lib/git/index.js";
+import {
+  clearPartialPushMarker,
+  incomingFetchRefspec,
+  incomingNotesRef,
+  isNonFastForwardError,
+  isRemoteUnavailableError,
+  isResolvedNoteValid,
+  notesMergeArgs,
+} from "../../lib/user-sync/index.js";
 import { notesRef } from "./shared.js";
-import { clearPartialPushMarker, runUserLoad } from "./save-load.js";
+import { runUserLoad } from "./save-load.js";
 import {
   UserPushBlockedError,
   type UserFetchOptions,
@@ -154,7 +164,175 @@ export async function runUserFetch(options: UserFetchOptions): Promise<void> {
 export async function runUserPull(
   options: UserPullOptions,
 ) {
-  const { cwd, io, identity, force, maxAncestorWalk } = options;
+  const { cwd, io, identity, force, maxAncestorWalk, currentWuName } = options;
   await runUserFetch({ io, identity, force });
-  return runUserLoad({ cwd, io, identity, maxAncestorWalk });
+  return runUserLoad({ cwd, io, identity, maxAncestorWalk, currentWuName });
+}
+
+/** Discriminated outcome of {@link reconcileNotesPush}. */
+export type NotesPushOutcome =
+  | { kind: "pushed" }
+  | { kind: "noop" }
+  | { kind: "reconciled" }
+  | { kind: "no-remote" }
+  | { kind: "blocked"; conditions: PushabilityCondition[] }
+  /**
+   * The non-ff merge could not be auto-resolved losslessly — either the
+   * `git notes merge` command failed, or `cat_sort_uniq` exited 0 but produced
+   * an unparseable note (a same-commit collision). The local ref is left intact
+   * and nothing is pushed; `message` is a user-facing surface.
+   */
+  | { kind: "conflict"; message: string }
+  | { kind: "failed"; error: Error };
+
+/** Options for {@link reconcileNotesPush}. */
+export interface ReconcileNotesPushOptions {
+  io: UserIOContext;
+  identity: string;
+  /** Repository root, threaded to the partial-push marker clear inside the push. */
+  cwd?: string;
+  /** Path-existence check enabling the pushability pre-check matrix. */
+  access?: AccessFn;
+  /** Current worktree branch — threaded into the pushability matrix. */
+  worktreeBranch?: string;
+}
+
+/**
+ * Push user notes, auto-reconciling a concurrent-worktree non-fast-forward.
+ *
+ * On the shared user-notes ref, a non-ff rejection means another worktree
+ * pushed between this worktree's save and push. Recovery is automatic and
+ * lossless: fetch the remote ref into a temp tracking ref, union-merge it with
+ * `git notes merge -s cat_sort_uniq`, and re-push. No prompt — unlike the
+ * generic interactive recovery, whose "merge" re-saves only this worktree's
+ * directory and drops the other side. A clean push needs no merge; force-push
+ * stays an explicit opt-in on the single-leg `--force` path.
+ *
+ * @param options - See {@link ReconcileNotesPushOptions}.
+ * @returns `pushed` / `noop` on a clean push, `reconciled` after a merge,
+ *   `blocked` on a pushability block, `failed` on any other error.
+ */
+export async function reconcileNotesPush(
+  options: ReconcileNotesPushOptions,
+): Promise<NotesPushOutcome> {
+  const { io, identity, cwd, access, worktreeBranch } = options;
+  try {
+    const result = await runUserPush({ cwd, io, identity, access, worktreeBranch });
+    return result.kind === "noop" ? { kind: "noop" } : { kind: "pushed" };
+  } catch (err) {
+    if (err instanceof UserPushBlockedError) {
+      return { kind: "blocked", conditions: err.conditions };
+    }
+    const error = err instanceof Error ? err : new Error(String(err));
+    if (isRemoteUnavailableError(error.message)) return { kind: "no-remote" };
+    if (!isNonFastForwardError(error.message)) {
+      return { kind: "failed", error };
+    }
+    return reconcileAndRepush(options);
+  }
+}
+
+/**
+ * Fetch the remote notes ref into a temp tracking ref, union-merge it into the
+ * local ref, validate the result, and (only if clean) re-push.
+ *
+ * `cat_sort_uniq` exits 0 even when two worktrees annotated the same commit and
+ * their single-line JSON manifests concatenate into an unparseable note, so the
+ * non-trivial-conflict check is a post-merge manifest-validity scan rather than
+ * git's exit signal. On corruption the local ref is rolled back to its
+ * pre-merge tip (nothing corrupt persists or is pushed) and the conflict is
+ * surfaced; a failed merge command is aborted and surfaced the same way.
+ */
+async function reconcileAndRepush(
+  options: ReconcileNotesPushOptions,
+): Promise<NotesPushOutcome> {
+  const { io, identity, cwd, access, worktreeBranch } = options;
+  const shortRef = notesRef(identity);
+  const fullRef = `refs/notes/${shortRef}`;
+  const incoming = incomingNotesRef(fullRef);
+  const preMergeTip = await readRefTip(io, fullRef);
+
+  await io.exec("git", ["fetch", "origin", incomingFetchRefspec(fullRef)]);
+
+  try {
+    await io.exec("git", notesMergeArgs(shortRef, incoming));
+  } catch (err) {
+    await tryExec(io, ["notes", "--ref", shortRef, "merge", "--abort"]);
+    await tryExec(io, ["update-ref", "-d", incoming]);
+    const detail = err instanceof Error ? err.message : String(err);
+    return {
+      kind: "conflict",
+      message: `Concurrent notes could not be merged (git notes merge failed): ${detail}`,
+    };
+  }
+
+  const corruptCommit = await findCorruptMergedNote(io, shortRef);
+  if (corruptCommit !== null) {
+    if (preMergeTip !== null) {
+      await tryExec(io, ["update-ref", fullRef, preMergeTip]);
+    }
+    await tryExec(io, ["update-ref", "-d", incoming]);
+    return {
+      kind: "conflict",
+      message:
+        `Concurrent notes on commit ${corruptCommit.slice(0, 8)} could not be auto-merged `
+        + "(the union produced an unparseable note). Your local notes are preserved; resolve the "
+        + "conflicting saves and retry, or `arc user push --force` to overwrite the remote.",
+    };
+  }
+
+  await runUserPush({ cwd, io, identity, access, worktreeBranch });
+  await tryExec(io, ["update-ref", "-d", incoming]);
+  return { kind: "reconciled" };
+}
+
+/** Current tip of a ref, or `null` when it does not resolve. */
+async function readRefTip(io: UserIOContext, ref: string): Promise<string | null> {
+  try {
+    const { stdout } = await io.exec("git", ["rev-parse", "--verify", ref]);
+    return stdout.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Best-effort git invocation for cleanup steps; swallows failures. */
+async function tryExec(io: UserIOContext, args: string[]): Promise<void> {
+  try {
+    await io.exec("git", args);
+  } catch {
+    // Cleanup is best-effort — a failed rollback/abort must not mask the outcome.
+  }
+}
+
+/**
+ * First annotated commit whose merged note no longer parses as one manifest, or
+ * `null` when every note is valid. Scans the post-merge ref since `cat_sort_uniq`
+ * corrupts silently (exit 0) on a same-commit collision.
+ */
+async function findCorruptMergedNote(
+  io: UserIOContext,
+  shortRef: string,
+): Promise<string | null> {
+  let listOut: string;
+  try {
+    ({ stdout: listOut } = await io.exec("git", ["notes", "--ref", shortRef, "list"]));
+  } catch {
+    return null;
+  }
+  const commits = listOut
+    .split("\n")
+    .map((line) => line.trim().split(/\s+/u)[1])
+    .filter((commit): commit is string => Boolean(commit));
+
+  for (const commit of commits) {
+    let content: string;
+    try {
+      ({ stdout: content } = await io.exec("git", ["notes", "--ref", shortRef, "show", commit]));
+    } catch {
+      continue;
+    }
+    if (!isResolvedNoteValid(content)) return commit;
+  }
+  return null;
 }

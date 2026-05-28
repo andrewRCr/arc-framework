@@ -176,7 +176,6 @@ case "$context_footer_mode" in
             echo "   Context: meta-auth-system.md (archival)"
             echo "   Context: meta-auth-system.md (deactivation)"
             echo "   Context: meta-auth-system.md (maintenance)"
-            echo "   Context: atomic-auth-system.md"
             echo "   Context: standalone (maintenance)"
             echo "   Context: standalone (planning)"
             echo "   Context: standalone (documentation)"
@@ -291,23 +290,6 @@ case "$context_footer_mode" in
                     warnings=$((warnings + 1))
                 fi
 
-            # Matches: Context: atomic-[name].md (work-unit-scoped atomic task)
-            elif echo "$context_line" | grep -qE '^Context: atomic-[a-z0-9-]+\.md$'; then
-                # Atomic companion file reference — valid, no task number needed
-                atomic_file=$(echo "$context_line" | sed -E 's/Context: (atomic-[a-z0-9-]+\.md).*/\1/')
-
-                # Check if atomic companion file exists at .arc/active/ root
-                atomic_found=false
-                if [ -f ".arc/active/$atomic_file" ]; then
-                    atomic_found=true
-                fi
-
-                if [ "$atomic_found" = false ]; then
-                    echo -e "${YELLOW}Warning: Atomic companion file '$atomic_file' not found in active directory${NC}"
-                    echo "   This may be intentional if the file was just created or archived"
-                    warnings=$((warnings + 1))
-                fi
-
             # Matches: Context: standalone (maintenance|planning|documentation|refactor) — off-WU work
             elif echo "$context_line" | grep -qE '^Context: standalone \((maintenance|planning|documentation|refactor)\)$'; then
                 :
@@ -327,7 +309,6 @@ case "$context_footer_mode" in
                 echo "   - Context: spec-[name].md (planning) or (code review)"
                 echo "   - Context: meta-[name].md (handoff), (activation), (integration), (archival), (deactivation), or (maintenance)"
                 echo "   - Context: meta-[name].md (incidental during <context>)"
-                echo "   - Context: atomic-[name].md"
                 echo "   - Context: standalone (maintenance|planning|documentation|refactor)"
                 echo "   - Context: contribution (description)"
                 echo ""

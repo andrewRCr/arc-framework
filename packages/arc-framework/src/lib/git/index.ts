@@ -29,6 +29,7 @@ export {
 
 export {
   runWorktreeRoster,
+  filterRosterByIdentity,
   type WorktreeRosterEntry,
   type WorktreeRosterFs,
   type WorktreeRosterResult,
@@ -62,6 +63,46 @@ export {
 } from "./head-hash.js";
 
 export { shortHash } from "./short-hash.js";
+
+export {
+  resolveWorktreeLocation,
+  type WorktreeLocationParams,
+} from "./worktree-location.js";
+
+export {
+  resolveWorktreeIdentity,
+  type WorktreeIdentity,
+} from "./worktree-identity.js";
+
+export {
+  readWorktreeMarker,
+  writeWorktreeMarker,
+  writeWorktreeOwnershipMarker,
+  resolveWorktreeMarkerPath,
+  isWorktreeMarker,
+  type WorktreeMarker,
+  type WorktreeMarkerReadResult,
+  type WriteWorktreeOwnershipMarkerOptions,
+} from "./worktree-marker.js";
+
+export {
+  spawnWorktree,
+  scaffoldIntoWorktree,
+  type SpawnWorktreeContext,
+  type SpawnWorktreeParams,
+  type SpawnWorktreeResult,
+  type ScaffoldWorktreeParams,
+  type WorktreeLifePhase,
+} from "./worktree-scaffold.js";
+
+export {
+  isBranchMerged,
+  decideWorktreeCleanup,
+  type IsBranchMergedOptions,
+  type WorktreeCleanupContext,
+  type WorktreeCleanupDecision,
+  type WorktreeCleanupInputs,
+} from "./worktree-cleanup.js";
 
 export {
   slugifyIdentity,

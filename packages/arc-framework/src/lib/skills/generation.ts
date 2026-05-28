@@ -20,7 +20,7 @@ import {
 
 /** A single generated output file ready to write to disk. */
 export interface SkillOutput {
-  /** Output path relative to repo root (e.g., `.agents/skills/arc-resume/SKILL.md`). */
+  /** Output path relative to repo root (e.g., `.agents/skills/arc-session/SKILL.md`). */
   path: string;
   /** File content. */
   content: string;
@@ -75,7 +75,7 @@ export function parseSkillFrontmatter(
  * Convert a skill name to a display name for codex YAML.
  *
  * Replaces hyphens with spaces, uppercases "arc", and title-cases other words.
- * Example: "arc-resume" → "ARC Resume"
+ * Example: "arc-session" → "ARC Session"
  */
 function toDisplayName(name: string): string {
   return name

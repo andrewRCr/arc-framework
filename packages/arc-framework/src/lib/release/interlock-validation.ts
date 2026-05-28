@@ -36,6 +36,7 @@
  */
 
 import type { ResolvedSettingsResult } from "../config/resolved-settings.js";
+import type { ConfigSettings } from "../../commands/config/types.js";
 import type { AuthorizationDecision, FormatRefusal } from "./types.js";
 
 /** Release-wrapper operation kind. */
@@ -64,6 +65,21 @@ export function authorizeRelease(opts: AuthorizeReleaseOptions): AuthorizationDe
 }
 
 /**
+ * Branch-protection predicate: `true` when `branch.protection` is `full` and
+ * the given branch is the configured `branch.base`. The shared rule behind both
+ * the release-wrapper branch-protection gate ({@link checkBranchProtection}) and
+ * the cold-start protected-branch guard — direct work on the protected base is
+ * refused under `full`; `partial` (the default) protects nothing.
+ *
+ * @param settings - Resolved config settings carrying `branch.protection` / `branch.base`.
+ * @param branch - The branch to test against the protected base.
+ * @returns `true` when the branch is the protected base under full protection.
+ */
+export function isProtectedBranch(settings: ConfigSettings, branch: string): boolean {
+  return settings["branch.protection"] === "full" && branch === settings["branch.base"];
+}
+
+/**
  * Branch-protection gate. Returns the code 13 refusal when
  * `branch.protection: full` and the current branch matches the configured
  * base; null otherwise. Exported so the push cascade can sequence branch
@@ -74,8 +90,7 @@ export function authorizeRelease(opts: AuthorizeReleaseOptions): AuthorizationDe
 export function checkBranchProtection(
   opts: AuthorizeReleaseOptions,
 ): Extract<AuthorizationDecision, { code: 13 }> | null {
-  if (opts.settings.settings["branch.protection"] !== "full") return null;
-  if (opts.currentBranch !== opts.settings.settings["branch.base"]) return null;
+  if (!isProtectedBranch(opts.settings.settings, opts.currentBranch)) return null;
   return {
     kind: "refuse",
     code: 13,

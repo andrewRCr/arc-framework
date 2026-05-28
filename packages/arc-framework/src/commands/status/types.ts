@@ -33,11 +33,16 @@ import type { DirtyStateResult } from "../../lib/git/dirty-state.js";
 import type { HeadHashResult } from "../../lib/git/head-hash.js";
 import type { PushabilityResult } from "../../lib/git/pushability.js";
 import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
+import type { WorktreeRosterResult } from "../../lib/git/worktree-roster.js";
+import type { WorktreeIdentity } from "../../lib/git/worktree-identity.js";
+import type { CascadeResolution } from "../../lib/session-init/branch-gone-cascade.js";
+import type { StaleWorktreeSweepResult } from "../../lib/session-init/stale-worktree-sweep.js";
+import type { RetiredSubdirDetectionResult } from "../../lib/session-init/retired-subdir-detection.js";
 import type { RestateCandidatesResult } from "../../lib/handoff/restate-candidates.js";
 import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
 import type { RecommendedAction } from "../../lib/session-init/recommended-action.js";
 
-export type { RecommendedAction };
+export type { RecommendedAction, WorktreeIdentity };
 
 /**
  * Worktree slot in the session-init envelope. Extends the raw probe result
@@ -47,6 +52,12 @@ export interface SessionInitWorktreeValue extends WorktreeSyncStatusResult {
   recommendedAction: RecommendedAction;
   /** Composed prompt text when `recommendedAction === "prompt"`; empty string otherwise. */
   recommendedPromptText: string;
+  /**
+   * Which physical worktree the session is in. Folded in from the
+   * `worktreeIdentity` probe; defaults to `{ kind: "primary" }` when that
+   * probe failed. Orientation surfaces a `worktree:` line only when `linked`.
+   */
+  identity: WorktreeIdentity;
 }
 
 /**
@@ -106,6 +117,41 @@ export interface SessionInitProbeResult {
   active: Probe<ActiveSessionInitResult>;
   domainRules: Probe<DomainRulesSessionInitResult>;
   releaseRouting: Probe<ReleaseRoutingValue>;
+  /**
+   * Pre-computed in-flight worktree roster, identity-filtered. Present when the
+   * orchestrator's gated second phase fires: worktree state `branch-gone`,
+   * active `resolution === "none"`, OR a primary (main) worktree (the
+   * stale-worktree sweep's gate). Omitted on the linked-worktree resume path
+   * (the scan never runs — resume latency is unchanged). Feeds the branch-gone
+   * resolution cascade and the stale-worktree sweep; absent means "no roster
+   * was computed", not "an empty roster".
+   */
+  roster?: Probe<WorktreeRosterResult>;
+  /**
+   * Pre-computed branch-gone recovery resolution. Present ONLY on the
+   * branch-gone arm (narrower than the roster's branch-gone / no-WU gate) and
+   * only when the roster resolved — it consumes that roster to assemble
+   * candidate destinations. Carries the cascade outcome (`resolved` /
+   * `surface` / `main-fallback`) the workflow renders into the single-prompt
+   * recovery arm. Absent on every other path.
+   */
+  recovery?: Probe<CascadeResolution>;
+  /**
+   * Pre-computed stale-worktree sweep. Present ONLY in the primary (main)
+   * worktree and only when the roster resolved — it consumes that roster,
+   * cross-references it against `.arc/completed/`, and resolves each lingering
+   * shipped-WU worktree's marker-gated cleanup disposition. Absent in linked
+   * worktrees (the resume path never sweeps) and when the roster failed.
+   */
+  sweep?: Probe<StaleWorktreeSweepResult>;
+  /**
+   * Pre-computed retired-subdir detection — lingering retired-WU user subdirs
+   * (shipped + absent from the recent-notes window) under `user/{identity}/`.
+   * Read-only surface; the actual reconcile (with `.internal/` backup) happens
+   * at `arc user load` / `pull`. Present whenever identity resolved (a cheap
+   * always-on slot); omitted only when identity is absent.
+   */
+  retiredSubdirs?: Probe<RetiredSubdirDetectionResult>;
   /**
    * Per-channel offer text composed when both the worktree and user slots
    * resolve to `recommendedAction === "prompt"`. Null when only one channel
@@ -209,6 +255,12 @@ export interface SessionHandoffResult {
 export interface SessionInitProbes {
   user: (identity: string) => Promise<UserSessionInitStatusResult>;
   worktree: () => Promise<WorktreeSyncStatusResult>;
+  /**
+   * Physical-worktree detection (primary vs. linked). Local rev-parse only —
+   * no network — so it rides every session-init pass. Folded onto the worktree
+   * slot in the orchestrator rather than surfaced as a top-level slot.
+   */
+  worktreeIdentity: () => Promise<WorktreeIdentity>;
   dirty: () => Promise<DirtyStateResult>;
   extensions: () => Promise<ExtensionsSessionInitResult>;
   config: () => Promise<ConfigSessionInitResult>;
@@ -224,6 +276,41 @@ export interface SessionInitProbes {
   ) => Promise<ActiveSessionInitResult>;
   domainRules: () => Promise<DomainRulesSessionInitResult>;
   releaseRouting: () => Promise<ReleaseRoutingValue>;
+  /**
+   * In-flight worktree roster scan, identity-filtered (`git worktree list` +
+   * per-worktree meta reads). Always provided — the orchestrator owns the
+   * firing decision and calls this ONLY on the branch-gone / no-WU branch, so
+   * the expensive scan never touches the common resume path. The handler binds
+   * the identity + team-mode filter (team mode drops other identities; solo
+   * mode is a pass-through).
+   */
+  roster: () => Promise<WorktreeRosterResult>;
+  /**
+   * Branch-gone recovery resolver. Receives the already-resolved roster and the
+   * current (branch-gone) branch from the orchestrator; the handler gathers the
+   * recent-branch tier + per-worktree signals and resolves the cascade. Called
+   * ONLY on the branch-gone arm when the roster resolved.
+   */
+  recovery: (
+    roster: WorktreeRosterResult,
+    currentBranch: string | null,
+  ) => Promise<CascadeResolution>;
+  /**
+   * Stale-worktree sweep resolver. Receives the already-resolved roster and the
+   * session's worktree identity from the orchestrator; the handler binds the
+   * cwd, base branch, and `.arc/completed/` reader. Called ONLY in the primary
+   * worktree when the roster resolved.
+   */
+  sweep: (
+    roster: WorktreeRosterResult,
+    worktreeIdentity: WorktreeIdentity,
+  ) => Promise<StaleWorktreeSweepResult>;
+  /**
+   * Retired-subdir detection resolver. Receives the resolved identity and reads
+   * `user/{identity}/` + `.arc/completed/` (cheap) plus a gated recent-notes
+   * read. Fired in the eager phase whenever identity resolved; read-only.
+   */
+  retiredSubdirs: (identity: string) => Promise<RetiredSubdirDetectionResult>;
 }
 
 /** Probe functions in session-handoff mode — bound to cwd and any required I/O. */

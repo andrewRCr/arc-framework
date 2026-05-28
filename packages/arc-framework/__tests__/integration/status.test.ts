@@ -195,11 +195,16 @@ function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
   return {
     user: async (identity) => stubUserSessionInit(identity),
     worktree: async () => ({ state: "skipped", ahead: 0, behind: 0, branch: "main" }),
+    worktreeIdentity: async () => ({ kind: "primary" }),
     dirty: async () => ({ state: "clean", fileCount: 0 }),
     extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
     config: () => runConfigSessionInitStatus({ cwd: fixture.root }),
     active: () => runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
     domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
+    roster: async () => ({ entries: [], warnings: [] }),
+    recovery: async () => ({ kind: "main-fallback" as const }),
+    sweep: async () => ({ worktrees: [], warnings: [] }),
+    retiredSubdirs: async () => ({ candidates: [] }),
     releaseRouting: async () =>
       resolveReleaseRouting({
         releaseOptedIn: false,
@@ -234,6 +239,7 @@ function makeResolvedReleaseModeSessionInitProbes(
   return {
     user: async (identity) => stubUserSessionInit(identity),
     worktree: async () => ({ state: "skipped", ahead: 0, behind: 0, branch: "main" }),
+    worktreeIdentity: async () => ({ kind: "primary" }),
     dirty: async () => ({ state: "clean", fileCount: 0 }),
     extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
     config: async () =>
@@ -243,6 +249,10 @@ function makeResolvedReleaseModeSessionInitProbes(
       }),
     active: () => runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
     domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
+    roster: async () => ({ entries: [], warnings: [] }),
+    recovery: async () => ({ kind: "main-fallback" as const }),
+    sweep: async () => ({ worktrees: [], warnings: [] }),
+    retiredSubdirs: async () => ({ candidates: [] }),
     releaseRouting: async () => routingFromSettings(await resolvedSettings()),
   };
 }
@@ -442,12 +452,17 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
     const probes: SessionInitProbes = {
       user: async (id) => stubUserSessionInit(id),
       worktree: async () => ({ state: "skipped", ahead: 0, behind: 0, branch: "main" }),
+      worktreeIdentity: async () => ({ kind: "primary" }),
       dirty: async () => ({ state: "clean", fileCount: 0 }),
       extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
       config: () => runConfigSessionInitStatus({ cwd: fixture.root }),
       active: (identity, role) =>
         runActiveSessionInitStatus({ cwd: fixture.root, identity, role, exec: makeGitExec(fixture.root) }),
       domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
+      roster: async () => ({ entries: [], warnings: [] }),
+      recovery: async () => ({ kind: "main-fallback" as const }),
+      sweep: async () => ({ worktrees: [], warnings: [] }),
+      retiredSubdirs: async () => ({ candidates: [] }),
       releaseRouting: async () =>
         resolveReleaseRouting({
           releaseOptedIn: false,
@@ -599,11 +614,16 @@ function makeRealWorktreeProbes(
         exec: makeGitExec(fixture.root),
         remoteSyncEnabled,
       }),
+    worktreeIdentity: async () => ({ kind: "primary" }),
     dirty: async () => ({ state: "clean", fileCount: 0 }),
     extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
     config: () => runConfigSessionInitStatus({ cwd: fixture.root }),
     active: () => runActiveSessionInitStatus({ cwd: fixture.root, exec: makeGitExec(fixture.root) }),
     domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
+    roster: async () => ({ entries: [], warnings: [] }),
+    recovery: async () => ({ kind: "main-fallback" as const }),
+    sweep: async () => ({ worktrees: [], warnings: [] }),
+    retiredSubdirs: async () => ({ candidates: [] }),
     releaseRouting: async () =>
       resolveReleaseRouting({
         releaseOptedIn: false,

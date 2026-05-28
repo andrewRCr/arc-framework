@@ -5,7 +5,7 @@ git hooks, and a CLI package — all agent-platform agnostic.
 
 ## How ARC Works
 
-**Session lifecycle:** Sessions are bounded — init via the `arc-resume` skill, handoff via
+**Session lifecycle:** Sessions are bounded — init via the `arc-session` skill, handoff via
 `arc-handoff`. State files: active work unit's `meta-{name}.md` (tracked, `active/`)
 and `SESSION-NOTES.md` (gitignored, `user/{identity}/`).
 
@@ -28,9 +28,9 @@ Precise meanings — assume the technical sense.
 
 - **Work unit (WU):** Wrapper noun — a bounded chunk of work with one branch, a meta file, and
   one PR. Tier-invariant (atomic / quick / standard). Artifact group: `meta-{name}.md` plus any
-  present `draft-*`, `tasks-*`, `atomic-*` companions. Not "any chunk of work".
+  present `draft-*`, `tasks-*`, `notes-*` companions. Not "any chunk of work".
 - **Atomic:** Work _character_ — single-bounded, indivisible, no internal stages. Applies at all
-  scales: items (inbox entries), tasks (`atomic-{name}.md` companions), WUs (atomic-tier). Inboxes
+  scales: items (inbox entries), tasks (a single leaf task, or an Errand), WUs (atomic-tier). Inboxes
   route by character, not wrapper presence. Not "atomic" in the concurrency sense.
 - **Interlock:** Configurable control point gating an action — fires automatically, on user approval, or
   only on explicit invocation, per type and config. Always-stop: `task-`, `workflow-`, `integration-`.

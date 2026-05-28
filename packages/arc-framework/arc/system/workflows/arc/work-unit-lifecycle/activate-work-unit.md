@@ -56,9 +56,15 @@ Fires only when TECHNICAL-OVERVIEW has been edited since the WU's PRD was approv
 technical surfaces (tech stack, architecture, runtime, dependencies, infrastructure). Soft check; rarely blocks.
 Independent of the PROJECT-PRD check — scope distinction is the trigger.
 
-### 4) State-flip + draft-doc removal
+### 4) State-flip + Branch + Next Action edits + draft-doc removal
 
-Edit `active/meta-{name}.md`: `**State:** Planning` → `**State:** Active`.
+Edit `active/meta-{name}.md`:
+
+- `**State:** Planning` → `**State:** Active`
+- `**Branch:** plan/{name}` → `**Branch:** {type}/{name}` (matches the Step 5 rename)
+- `**Next Action:**` refresh to point at the first incomplete task in `tasks-{name}.md` (e.g.,
+  `Begin Task 1.1 — <task description>`). The pre-activation pointer named this workflow; post-activation
+  it should describe the next executable step.
 
 Remove any residual draft-doc:
 
@@ -69,7 +75,7 @@ git rm .arc/active/draft-{name}.md
 Safety-catch — the draft-doc should already be absent (deleted at PRD creation per `1_create-spec.md`); this covers
 paths that skipped the create-PRD boundary.
 
-Stage both edits.
+Stage all edits.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
@@ -78,6 +84,8 @@ Stage both edits.
 chore(arc): activate {work-name} work unit
 
 - Flip State: Planning → Active
+- Branch field: plan/{name} → {type}/{name}
+- Refresh Next Action to first task
 - Remove draft-{name}.md (graduated to PRD; safety-catch)
 
 Context: meta-{name}.md (activation)
@@ -112,10 +120,10 @@ arc user open {name}
 > **Skip this step** under `pm.mode: none` or `external`.
 
 If activation absorbs queued inbox entries — `user/{identity}/USER-INBOX.md` (`## Atomic` / `## Backlog` sections)
-or shared `backlog/ATOMIC-INBOX.md` / `backlog/BACKLOG-INBOX.md` — into this WU's task list or atomic companion,
+or shared `backlog/ATOMIC-INBOX.md` / `backlog/BACKLOG-INBOX.md` — into this WU's task list,
 finalize absorption now. Delete the source entries; record routing in the commit message.
 
-The absorbing-artifact edits (task list, atomic companion) typically already landed during planning; this step
+The absorbing-artifact edits (task list) typically already landed during planning; this step
 lands the source deletions as the ceremony write (`workflowCommit`).
 
 See [DEV-RULES.ARC § Leave it cleaner][dev-rules-leave-cleaner] for the capture-routing table.
@@ -124,11 +132,11 @@ See [DEV-RULES.ARC § Leave it cleaner][dev-rules-leave-cleaner] for the capture
 
 > **Skip this step** under `pm.mode: none` or `external`.
 
-Hand-maintain (interim, pre-CLI) by re-rendering per [Work Organization Strategy § ROADMAP][work-org-roadmap] —
-activation moves the WU into the In Flight tier.
+Re-render per [Work Organization Strategy § ROADMAP][work-org-roadmap] — the WU is already In Flight from
+initialization, so this refreshes the ROADMAP rather than changing its tier.
 
 Default: dedicated `chore(arc):` commit (`workflowCommit`). May ride the activation commit (Step 4) only when the
-edit is trivial (a single-row move into In Flight) — see [DEV-RULES.ARC § Atomicity][dev-rules-atomicity].
+regen is a trivial refresh (no render-set change) — see [DEV-RULES.ARC § Atomicity][dev-rules-atomicity].
 
 ### 8) Fire `post-work-unit-activate` extension
 

@@ -12,13 +12,16 @@ import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os";
 
 import {
-  clearPartialPushMarker,
   findNearestUserNote,
-  readLocalSyncState,
-  recordPartialPushMarker,
   runUserLoad,
   runUserSave,
 } from "../../src/commands/user/save-load.js";
+import {
+  clearPartialPushMarker,
+  readLocalSyncState,
+  recordPartialPushMarker,
+  writeLocalSyncState,
+} from "../../src/lib/user-sync/index.js";
 import {
   UserLoadVerificationError,
   UserSaveVerificationError,
@@ -45,6 +48,12 @@ interface GitMockConfig {
   reachableCommits?: string[];
   ancestorDistances?: Record<string, number>;
   noteContent?: string | null;
+  /**
+   * Per-note content keyed by the `git show` arg (`<noteHistoryCommit>:<notePath>`).
+   * Lets a single walk return distinct manifests per note — used to test
+   * WU-subdir containment filtering. Falls back to `noteContent`.
+   */
+  noteContentByHistoryPath?: Record<string, string>;
 }
 
 function notePathFor(commit: string): string {
@@ -61,6 +70,7 @@ function mockIO(config: GitMockConfig = {}): { io: UserIOContext; execCalls: [st
   const noteContent = config.noteContent === undefined
     ? JSON.stringify({ version: 2, files: {} })
     : config.noteContent;
+  const noteContentByHistoryPath = config.noteContentByHistoryPath ?? {};
 
   const execCalls: [string, string[]][] = [];
 
@@ -88,7 +98,7 @@ function mockIO(config: GitMockConfig = {}): { io: UserIOContext; execCalls: [st
       if (missingHistoryPaths.has(historyPath)) {
         throw new Error(`missing history path: ${historyPath}`);
       }
-      return { stdout: noteContent ?? "", stderr: "" };
+      return { stdout: noteContentByHistoryPath[historyPath] ?? noteContent ?? "", stderr: "" };
     }
     if (args[0] === "merge-base") {
       const commit = args[2] ?? "";
@@ -294,6 +304,111 @@ describe("findNearestUserNote — notes-ref history walk", () => {
   });
 });
 
+describe("findNearestUserNote — WU-subdir containment filtering", () => {
+  const manifestJson = (files: Record<string, string>): string =>
+    JSON.stringify({ version: 2, files });
+
+  it("resolves the most-recent note that carries the current WU's subdir", async () => {
+    const commit = "a".repeat(40);
+    const path = notePathFor(commit);
+    const { io } = mockIO({
+      head: "head",
+      notesHistory: ["nh0"],
+      changedPathsByNoteCommit: { nh0: [path] },
+      noteContentByHistoryPath: {
+        [`nh0:${path}`]: manifestJson({
+          "wu-a/SESSION-NOTES.md": "notes",
+          "WORKING-MEMORY.md": "mem",
+        }),
+      },
+    });
+
+    const result = await findNearestUserNote({
+      cwd: "/repo", io, identity: "andrew", currentWuName: "wu-a",
+    });
+
+    expect(result.note?.commit).toBe(commit);
+  });
+
+  it("skips a newer note whose only subdir is a different WU", async () => {
+    const newer = "b".repeat(40);
+    const older = "c".repeat(40);
+    const newerPath = notePathFor(newer);
+    const olderPath = notePathFor(older);
+    const { io } = mockIO({
+      head: "head",
+      notesHistory: ["nh0", "nh1"],
+      changedPathsByNoteCommit: { nh0: [newerPath], nh1: [olderPath] },
+      noteContentByHistoryPath: {
+        [`nh0:${newerPath}`]: manifestJson({ "other-wu/SESSION-NOTES.md": "x" }),
+        [`nh1:${olderPath}`]: manifestJson({ "wu-a/SESSION-NOTES.md": "y" }),
+      },
+    });
+
+    const result = await findNearestUserNote({
+      cwd: "/repo", io, identity: "andrew", currentWuName: "wu-a",
+    });
+
+    expect(result.note?.commit).toBe(older);
+    expect(result.note?.noteHistoryDistance).toBe(1);
+  });
+
+  it("does not import a prior WU's notes on a fresh spawn (other-WU-only note skipped)", async () => {
+    const commit = "d".repeat(40);
+    const path = notePathFor(commit);
+    const { io } = mockIO({
+      head: "head",
+      notesHistory: ["nh0"],
+      changedPathsByNoteCommit: { nh0: [path] },
+      noteContentByHistoryPath: {
+        [`nh0:${path}`]: manifestJson({ "prior-wu/SESSION-NOTES.md": "old" }),
+      },
+    });
+
+    const result = await findNearestUserNote({
+      cwd: "/repo", io, identity: "andrew", currentWuName: "fresh-wu",
+    });
+
+    expect(result.note).toBeNull();
+  });
+
+  it("returns no note when no walked note carries the WU subdir", async () => {
+    const commit = "e".repeat(40);
+    const path = notePathFor(commit);
+    const { io } = mockIO({
+      head: "head",
+      notesHistory: ["nh0"],
+      changedPathsByNoteCommit: { nh0: [path] },
+      noteContentByHistoryPath: {
+        [`nh0:${path}`]: manifestJson({ "WORKING-MEMORY.md": "mem" }),
+      },
+    });
+
+    const result = await findNearestUserNote({
+      cwd: "/repo", io, identity: "andrew", currentWuName: "wu-a",
+    });
+
+    expect(result.note).toBeNull();
+  });
+
+  it("returns the first note regardless of WU when currentWuName is absent", async () => {
+    const commit = "f".repeat(40);
+    const path = notePathFor(commit);
+    const { io } = mockIO({
+      head: "head",
+      notesHistory: ["nh0"],
+      changedPathsByNoteCommit: { nh0: [path] },
+      noteContentByHistoryPath: {
+        [`nh0:${path}`]: manifestJson({ "other-wu/SESSION-NOTES.md": "x" }),
+      },
+    });
+
+    const result = await findNearestUserNote({ cwd: "/repo", io, identity: "andrew" });
+
+    expect(result.note?.commit).toBe(commit);
+  });
+});
+
 describe("runUserLoad — walk-exhausted outcome", () => {
   it("returns walk-exhausted with walked and maxWalk when cap hit without match", async () => {
     const { io } = mockIO({
@@ -395,12 +510,97 @@ describe("runUserSave — save verification", () => {
     expect(io.readNote).toHaveBeenCalledWith("arc/user/andrew", head);
     const onDisk = JSON.parse(await readFile(syncStatePath, "utf-8")) as Record<string, unknown>;
     expect(onDisk).toMatchObject({
-      version: 3,
+      version: 4,
       sourceCommit: head,
       sourceOperation: "save",
       verifiedAt: head,
     });
     expect(typeof onDisk.savedAt).toBe("string");
+  });
+});
+
+interface SaveNotesMockConfig {
+  head?: string;
+  /** Current on-disk files being saved. */
+  files: Record<string, string>;
+  /** The most-recent note's manifest files (the prior merged state). */
+  priorNoteFiles: Record<string, string>;
+}
+
+/**
+ * Save IO whose git exec also serves the recent-note window read
+ * (`readRecentUserNotes`) from a single prior note, so the removal-tombstone
+ * wiring has a prior merged state to diff against.
+ */
+function mockSaveIOWithNotes(
+  config: SaveNotesMockConfig,
+): { io: UserIOContext; written: () => string | null } {
+  const head = config.head ?? "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const historyCommit = "n1";
+  const annotated = "c1".padEnd(40, "0");
+  const notePath = `${annotated.slice(0, 2)}/${annotated.slice(2)}`;
+  const noteManifest = JSON.stringify({ version: 2, files: config.priorNoteFiles });
+  let writtenNote: string | null = null;
+
+  const io: UserIOContext = {
+    exec: vi.fn(async (cmd: string, args: string[]) => {
+      if (args[0] === "rev-parse" && args[1] === "HEAD") return { stdout: head, stderr: "" };
+      if (args[0] === "log") return { stdout: historyCommit, stderr: "" };
+      if (args[0] === "diff-tree") return { stdout: notePath, stderr: "" };
+      if (args[0] === "show") {
+        if (args[1] === `${historyCommit}:${notePath}`) return { stdout: noteManifest, stderr: "" };
+        throw new Error(`missing note content: ${args[1] ?? ""}`);
+      }
+      throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
+    }),
+    readFile: vi.fn(async (filePath: string) => {
+      const name = filePath.slice(filePath.lastIndexOf("/") + 1);
+      const content = config.files[name];
+      if (content === undefined) throw new Error(`unexpected file read: ${filePath}`);
+      return content;
+    }),
+    writeFile: vi.fn(async () => undefined),
+    readDir: vi.fn(async () => (
+      Object.entries(config.files).map(([name, content]) => ({
+        name,
+        size: Buffer.byteLength(content, "utf-8"),
+      }))
+    )),
+    mkdir: vi.fn(async () => undefined),
+    writeNote: vi.fn(async (_ref: string, content: string) => { writtenNote = content; }),
+    readNote: vi.fn(async () => writtenNote),
+  };
+  return { io, written: () => writtenNote };
+}
+
+describe("runUserSave — removal tombstones", () => {
+  let cwd: string;
+
+  beforeEach(async () => {
+    cwd = await mkdtemp(join(tmpdir(), "arc-save-tombstone-"));
+  });
+
+  afterEach(async () => {
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  it("stamps a Removed marker into a cross-WU file whose entry is absent since the prior note", async () => {
+    const wm = (...entries: string[]): string =>
+      `# Working Memory\n\n## Memories\n\n${entries.join("\n\n")}\n\n---\n`;
+    const entry = (header: string): string => `**${header}:**\n_Remove when: x._\n\nBody.`;
+
+    const { io, written } = mockSaveIOWithNotes({
+      files: { "WORKING-MEMORY.md": wm(entry("Kept")) },
+      priorNoteFiles: { "WORKING-MEMORY.md": wm(entry("Kept"), entry("Dropped")) },
+    });
+
+    await runUserSave({ cwd, io, identity: "andrew" });
+
+    const note = written();
+    expect(note).not.toBeNull();
+    const saved = (JSON.parse(note ?? "{}") as SyncManifest).files["WORKING-MEMORY.md"] ?? "";
+    expect(saved).toContain("## Removed: **Dropped:**");
+    expect(saved).not.toContain("## Removed: **Kept:**");
   });
 });
 
@@ -527,7 +727,7 @@ describe("runUserLoad — load verification", () => {
     expect(result?.kind).toBe("loaded");
     const onDisk = JSON.parse(await readFile(syncStatePath, "utf-8")) as Record<string, unknown>;
     expect(onDisk).toMatchObject({
-      version: 3,
+      version: 4,
       sourceCommit: head,
       sourceOperation: "load",
       verifiedAt: head,
@@ -536,7 +736,84 @@ describe("runUserLoad — load verification", () => {
   });
 });
 
-describe("LocalSyncState v3 schema", () => {
+describe("runUserLoad — per-WU subdir materialization filtering", () => {
+  let cwd: string;
+  let userDir: string;
+
+  beforeEach(async () => {
+    cwd = await mkdtemp(join(tmpdir(), "arc-load-filter-"));
+    userDir = join(cwd, ".arc", "user", "andrew");
+  });
+
+  afterEach(async () => {
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  function realFsLoadIO(manifest: SyncManifest): UserIOContext {
+    const head = "f".repeat(40);
+    const noteContent = JSON.stringify(manifest);
+    const notePath = `${head.slice(0, 2)}/${head.slice(2)}`;
+    return {
+      exec: vi.fn(async (cmd: string, args: string[]) => {
+        if (cmd !== "git") throw new Error(`unexpected exec: ${cmd}`);
+        if (args[0] === "rev-parse" && args[1] === "HEAD") return { stdout: head, stderr: "" };
+        if (args[0] === "log") return { stdout: "nh0", stderr: "" };
+        if (args[0] === "diff-tree") return { stdout: notePath, stderr: "" };
+        if (args[0] === "show") return { stdout: noteContent, stderr: "" };
+        if (args[0] === "merge-base") return { stdout: "", stderr: "" };
+        if (args[0] === "rev-list" && args[1] === "--count") return { stdout: "0", stderr: "" };
+        throw new Error(`unexpected git call: ${args.join(" ")}`);
+      }),
+      readFile: vi.fn(async (p: string) => readFile(p, "utf-8")),
+      writeFile: vi.fn(async (p: string, c: string) => {
+        await writeFile(p, c, "utf-8");
+      }),
+      readDir: vi.fn(async () => []),
+      mkdir: vi.fn(async (p: string, opts?: { recursive: boolean }) => {
+        await mkdir(p, opts ?? { recursive: true });
+        return undefined;
+      }),
+      writeNote: vi.fn(async () => undefined),
+      readNote: vi.fn(async () => noteContent),
+    };
+  }
+
+  it("materializes the current WU subdir and cross-WU flat files, dropping other WUs' subdirs", async () => {
+    const io = realFsLoadIO({
+      version: 2,
+      files: {
+        "wu-a/SESSION-NOTES.md": "a-notes",
+        "wu-b/SESSION-NOTES.md": "b-notes",
+        "WORKING-MEMORY.md": "mem",
+      },
+    });
+
+    const result = await runUserLoad({ cwd, io, identity: "andrew", currentWuName: "wu-a" });
+
+    expect(result?.kind).toBe("loaded");
+    expect(await exists(join(userDir, "wu-a", "SESSION-NOTES.md"))).toBe(true);
+    expect(await exists(join(userDir, "WORKING-MEMORY.md"))).toBe(true);
+    expect(await exists(join(userDir, "wu-b", "SESSION-NOTES.md"))).toBe(false);
+  });
+
+  it("materializes cross-WU flat files but no per-WU subdir when no WU resolves", async () => {
+    const io = realFsLoadIO({
+      version: 2,
+      files: {
+        "wu-a/SESSION-NOTES.md": "a-notes",
+        "WORKING-MEMORY.md": "mem",
+      },
+    });
+
+    const result = await runUserLoad({ cwd, io, identity: "andrew" });
+
+    expect(result?.kind).toBe("loaded");
+    expect(await exists(join(userDir, "WORKING-MEMORY.md"))).toBe(true);
+    expect(await exists(join(userDir, "wu-a", "SESSION-NOTES.md"))).toBe(false);
+  });
+});
+
+describe("LocalSyncState v4 schema", () => {
   let cwd: string;
   let internalDir: string;
   let syncStatePath: string;
@@ -588,7 +865,7 @@ describe("LocalSyncState v3 schema", () => {
     expect(state!.savedAt).toBeUndefined();
   });
 
-  it("writes v3 records with savedAt populated and version: 3 via runUserSave", async () => {
+  it("writes v4 records with savedAt populated and version: 4 via runUserSave", async () => {
     const head = "b".repeat(40);
     const userDir = join(cwd, ".arc", "user", identity);
     await mkdir(userDir, { recursive: true });
@@ -614,7 +891,7 @@ describe("LocalSyncState v3 schema", () => {
     const after = Date.now();
 
     const onDisk = JSON.parse(await readFile(syncStatePath, "utf-8")) as Record<string, unknown>;
-    expect(onDisk.version).toBe(3);
+    expect(onDisk.version).toBe(4);
     expect(onDisk.sourceCommit).toBe(head);
     expect(onDisk.sourceOperation).toBe("save");
     expect(onDisk.verifiedAt).toBe(head);
@@ -624,7 +901,7 @@ describe("LocalSyncState v3 schema", () => {
     expect(savedAtMs).toBeLessThanOrEqual(after);
   });
 
-  it("round-trips verifiedAt and partialPush across v3 read/write", async () => {
+  it("round-trips verifiedAt and partialPush across a v3 read and v4 write", async () => {
     const v3Record = {
       version: 3,
       materializedManifestHash: "deadbeef".repeat(2),
@@ -654,7 +931,7 @@ describe("LocalSyncState v3 schema", () => {
     expect(afterClear!.verifiedAt).toBe(v3Record.verifiedAt);
 
     const reReadFromDisk = JSON.parse(await readFile(syncStatePath, "utf-8")) as Record<string, unknown>;
-    expect(reReadFromDisk.version).toBe(3);
+    expect(reReadFromDisk.version).toBe(4);
     expect(reReadFromDisk.partialPush).toBeUndefined();
     expect(reReadFromDisk.savedAt).toBe(v3Record.savedAt);
 
@@ -716,7 +993,7 @@ describe("LocalSyncState v3 schema", () => {
 
     const raw = await readFile(syncStatePath, "utf-8");
     const parsed = JSON.parse(raw) as Record<string, unknown>;
-    expect(parsed.version).toBe(3);
+    expect(parsed.version).toBe(4);
     expect(parsed.sourceCommit).toBe(head);
     expect(parsed.sourceOperation).toBe("save");
     expect(typeof parsed.savedAt).toBe("string");
@@ -741,5 +1018,86 @@ describe("LocalSyncState v3 schema", () => {
     expect(state!.savedAt).toBe(v3Record.savedAt);
     expect(state!.materializedManifestHash).toBe(v3Record.materializedManifestHash);
     expect(state!.sourceOperation).toBe("load");
+  });
+
+  it("normalizes a prior v3 record to version 4 on read and writes version 4", async () => {
+    const v3Record = {
+      version: 3,
+      materializedManifestHash: "ab".repeat(8),
+      sourceCommit: "c".repeat(40),
+      sourceOperation: "load" as const,
+      savedAt: "2026-05-06T10:30:00.000Z",
+    };
+    await writeFile(syncStatePath, `${JSON.stringify(v3Record)}\n`, "utf-8");
+
+    const state = await readLocalSyncState(cwd, realFsIO(), identity);
+    expect(state!.version).toBe(4);
+    expect(state!.materializedManifestHash).toBe(v3Record.materializedManifestHash);
+
+    await writeLocalSyncState(cwd, realFsIO(), identity, "ff".repeat(8), "d".repeat(40), "save");
+    const onDisk = JSON.parse(await readFile(syncStatePath, "utf-8")) as Record<string, unknown>;
+    expect(onDisk.version).toBe(4);
+  });
+
+  it("reserves remote partial-push provenance per worktree (no single-HEAD assumption)", async () => {
+    const record = {
+      version: 4,
+      materializedManifestHash: "1a".repeat(8),
+      sourceCommit: "c".repeat(40),
+      sourceOperation: "save" as const,
+      savedAt: "2026-05-06T10:30:00.000Z",
+      remoteMarkerProvenance: { "feat/worktree-foundation": { head: "aaa" } },
+    };
+    await writeFile(syncStatePath, `${JSON.stringify(record)}\n`, "utf-8");
+
+    const state = await readLocalSyncState(cwd, realFsIO(), identity);
+    // Keyed by worktree rather than a single global/main marker.
+    expect(state!.remoteMarkerProvenance).toEqual(record.remoteMarkerProvenance);
+  });
+
+  it("tolerates absent reserved fields and preserves present ones across a rebuild-from-scratch save", async () => {
+    const bare = {
+      version: 4,
+      materializedManifestHash: "2b".repeat(8),
+      sourceCommit: "c".repeat(40),
+      sourceOperation: "save" as const,
+      savedAt: "2026-05-06T10:30:00.000Z",
+    };
+    await writeFile(syncStatePath, `${JSON.stringify(bare)}\n`, "utf-8");
+    const bareRead = await readLocalSyncState(cwd, realFsIO(), identity);
+    expect(bareRead!.priorFileList).toBeUndefined();
+    expect(bareRead!.remoteMarkerProvenance).toBeUndefined();
+
+    const reserved = {
+      ...bare,
+      priorFileList: ["wu-a/SESSION-NOTES.md", "WORKING-MEMORY.md"],
+      remoteMarkerProvenance: { "feat/x": { head: "aaa" } },
+    };
+    await writeFile(syncStatePath, `${JSON.stringify(reserved)}\n`, "utf-8");
+
+    // writeLocalSyncState rebuilds the record from scratch — reserved fields must survive.
+    await writeLocalSyncState(cwd, realFsIO(), identity, "33".repeat(8), "d".repeat(40), "save");
+    const afterSave = await readLocalSyncState(cwd, realFsIO(), identity);
+    expect(afterSave!.priorFileList).toEqual(reserved.priorFileList);
+    expect(afterSave!.remoteMarkerProvenance).toEqual(reserved.remoteMarkerProvenance);
+  });
+
+  it("keeps remote-marker provenance pluralizable — multiple worktree entries survive a round-trip", async () => {
+    const record = {
+      version: 4,
+      materializedManifestHash: "4c".repeat(8),
+      sourceCommit: "c".repeat(40),
+      sourceOperation: "save" as const,
+      savedAt: "2026-05-06T10:30:00.000Z",
+      remoteMarkerProvenance: {
+        "feat/a": { head: "aaa" },
+        "feat/b": { head: "bbb" },
+      },
+    };
+    await writeFile(syncStatePath, `${JSON.stringify(record)}\n`, "utf-8");
+
+    const state = await readLocalSyncState(cwd, realFsIO(), identity);
+    expect(Object.keys(state!.remoteMarkerProvenance!)).toEqual(["feat/a", "feat/b"]);
+    expect(state!.remoteMarkerProvenance).toEqual(record.remoteMarkerProvenance);
   });
 });

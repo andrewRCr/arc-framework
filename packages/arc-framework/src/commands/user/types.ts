@@ -102,6 +102,14 @@ export interface UserLoadOptions {
   identity: string;
   /** Maximum number of ancestor commits to walk. Defaults to DEFAULT_MAX_ANCESTOR_WALK. */
   maxAncestorWalk?: number;
+  /**
+   * Bare work-unit name of the session's current WU (e.g. `worktree-foundation`),
+   * derived from active-meta / branch by the caller. When set, note resolution
+   * filters to notes carrying this WU's subdir and materialization restores only
+   * this WU's subdir plus cross-WU flat files. Absent → first-note resolution and
+   * full-manifest materialization (the pre-isolation behavior).
+   */
+  currentWuName?: string;
 }
 
 /** Structured return from the ancestor walk helper. */
@@ -232,11 +240,13 @@ export type PairedPushLegOutcome =
 /**
  * Outcome surface of the injected notes-leg pusher delegate.
  *
- * Mirrors the discriminated `PushResult` surface of
- * `pushWithInteractiveRecovery` so the paired flow preserves the
- * single-leg recovery taxonomy (cancellation, conflict, blocked, no-remote)
- * for downstream rendering. The skip variants are added by
- * `runPairedPush` itself when an upstream leg short-circuits the flow.
+ * A superset taxonomy covering every notes-push result downstream rendering
+ * may encounter. Production's `pairedNotesAdapter` (wiring
+ * `pushNotesWithReconcile`) emits the lossless-reconcile subset
+ * (`success` / `noop` / `ok-recovered` / `no-remote` / `blocked` / `failed`);
+ * the remaining variants stay available for stub-injected tests. The skip
+ * variants are added by `runPairedPush` itself when an upstream leg
+ * short-circuits the flow.
  */
 export type PairedPushNotesPusherResult =
   | { status: "success" }
@@ -266,8 +276,8 @@ export interface PairedPushNotesContext {
 /**
  * Pluggable notes-leg pusher injected into {@link RunPairedPushOptions}.
  *
- * Production wires `pushWithInteractiveRecovery` so paired and single-leg
- * pushes share conflict-recovery prompts, idempotent no-op detection, and
+ * Production wires `pushNotesWithReconcile` so paired and single-leg pushes
+ * share automatic lossless reconcile, idempotent no-op detection, and
  * pre-check refusal. Tests inject a stub that emits a chosen outcome.
  */
 export type PairedPushNotesPusher = (
@@ -315,8 +325,8 @@ export interface RunPairedPushOptions {
   setUpstream?: boolean;
   /**
    * Notes-leg pusher delegate. Production wires
-   * `pushWithInteractiveRecovery` so the paired flow inherits its
-   * conflict-recovery and idempotent-noop semantics; tests inject a stub.
+   * `pushNotesWithReconcile` so the paired flow inherits its automatic
+   * lossless reconcile and idempotent-noop semantics; tests inject a stub.
    */
   pushNotes: PairedPushNotesPusher;
 }
@@ -334,6 +344,8 @@ export interface UserFetchOptions {
 export interface UserPullOptions extends UserFetchOptions {
   cwd: string;
   maxAncestorWalk?: number;
+  /** Current WU name forwarded to the post-fetch load. See {@link UserLoadOptions.currentWuName}. */
+  currentWuName?: string;
 }
 
 /**

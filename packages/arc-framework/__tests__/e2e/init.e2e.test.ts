@@ -297,7 +297,7 @@ describe("arc join", () => {
 
     // Skills installed for both tools
     const claudeSkillExists = await access(
-      join(tmpDir, ".claude/skills/arc-resume/SKILL.md"),
+      join(tmpDir, ".claude/skills/arc-session/SKILL.md"),
     ).then(() => true).catch(() => false);
     expect(claudeSkillExists).toBe(true);
   });
@@ -310,7 +310,7 @@ describe("arc join", () => {
     expect(role.trim()).toBe("contributor");
 
     const claudeSkillExists = await access(
-      join(tmpDir, ".claude/skills/arc-resume/SKILL.md"),
+      join(tmpDir, ".claude/skills/arc-session/SKILL.md"),
     ).then(() => true).catch(() => false);
     expect(claudeSkillExists).toBe(true);
   });

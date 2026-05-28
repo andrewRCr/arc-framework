@@ -105,7 +105,38 @@ integrating` validates archive-phase section presence on the meta file).
 - Output-stability contract: the renderer should reproduce the WOR-era hand baseline exactly, so the cutover is
   a no-op diff. Confirm the hand baseline matches the algorithm closely enough that this holds.
 
+### Cross-WU design input (Worktree Foundation planning, 2026-05-24)
+
+The Worktree Foundation planning round, while designing the user-scoped in-flight view (`STATUS.USER`),
+settled several points that bear on this WU's open questions. (That awareness layer — the oracle,
+`STATUS.USER`, `Priority`, and materialize — has since split out to **In-Flight Awareness**; the
+attributions below now name it.)
+
+- **Priority field — standardized by In-Flight Awareness (updated 2026-05-24).** The per-WU `**Priority:**`
+  field (3 bounded levels, `P3` default; a *field*, never a hand-curated ordering *doc* per ADR-020) is
+  introduced by In-Flight Awareness, not here: it is an *input* field that lands where first needed, and the
+  multi-in-flight worklist is that place. In-Flight Awareness adds it to `template-meta.md` +
+  `strategy-work-organization.md` and renders it in both `STATUS.*` views. **This WU's scope narrows to
+  *automating* the render** + the directional derivation (now/next/later) of an already-standardized field —
+  it no longer introduces the field.
+- **Answers "Direction's home."** With `State × Depends-On × Priority`, now/next/later is *derivable* (Now =
+  In Flight; Next = Ready, priority-ordered; Later = the rest) — a render mode, not a separately-curated doc.
+  Narrative direction stays in PROJECT-PRD. So the open call leans **no separate directional doc**; the
+  freed name goes to a derived view, not a hand-maintained timeline.
+- **The rename leans toward `STATUS`.** Adding priority shifts the project view from a pure dependency graph
+  toward a status/priority board — so a `STATUS`/dashboard-flavored name fits better than the earlier
+  graph/pipeline candidates, and **`STATUS.PROJECT`** pairs with In-Flight Awareness's **`STATUS.USER`**
+  under the `TYPE.QUALIFIER` convention (see the `doc-naming-convention` provisional stub). The rename +
+  cascade stays this WU's to execute.
+
 ## Scope Estimate
 
 Small–Medium. Three bounded commands plus tests; no new constitutional surface. Lighter if `cohort` / `graduate`
 split out. Dependencies above shape sequencing more than size.
+
+## Coordination — ADR-022
+
+`ROADMAP` / `STATUS.PROJECT` is a *derived* managed operational-state document (ADR-022): a rendered
+projection over the meta records. This WU's renderer is the first instance of the model's
+render-and-reconcile engine; coordinate the engine boundary with `operational-state-docs`. See
+`adr-022-managed-operational-state-documents.md` § Coordination.

@@ -245,13 +245,13 @@ For the full decision tree, see [manage-incidental-work.md][manage-incidental].
 
 ### Where to Capture Atomic Tasks
 
-Routing depends on lifecycle intent — "during this WU" goes to the atomic companion file
-(`atomic-{name}.md`); "for later" depends on PM mode. See [DEV-RULES.ARC][dev-rules-arc]
+Routing depends on lifecycle intent — during this WU, fold into the commit or spin an Errand;
+for later, capture in `USER-INBOX § Atomic` (PM-mode-dependent). See [DEV-RULES.ARC][dev-rules-arc]
 § Leave it cleaner for the full routing table.
 
 ### Atomic Task Completion
 
-When you complete an atomic task (in the companion file or ATOMIC-INBOX), follow this protocol:
+When you complete an atomic task in a shared inbox (`ATOMIC-INBOX` or `USER-INBOX § Atomic`), follow this protocol:
 
 1. **Mark `[x]`** and update the description — trim planning scaffolding (problem statement,
    research steps, options to evaluate) to outcomes (what was done, key decisions, files changed).

@@ -32,6 +32,23 @@ integrate-work-unit         — PR, review, merge to main
 
 ---
 
+## Execution Modes
+
+The workflow runs in one of two modes, selected by the caller — there is no mode flag:
+
+- **In-place** — the planning branch is created in the current worktree (Step 2, `git checkout -b`) and the
+  meta file is scaffolded inline (Step 4, Path B); the current worktree becomes the work unit's worktree.
+  This is the single-worktree path: one work unit at a time in one checkout.
+- **Worktree-creating** — spawning the work unit into a dedicated worktree creates the planning branch, the
+  fresh meta file, the seeded SESSION-NOTES, and the worktree ownership marker in a single operation. The
+  spawn entry point performs this; the inline Step 2 and Step 4 (Path B) are its in-place counterpart. Before
+  creating the worktree, run the [in-flight scope check][in-flight-scope-check] — an advisory pass over
+  in-flight work units that surfaces scope overlap and never gates.
+
+Both modes share the rest of the workflow. Graduating a backlog stub (Step 3), reconciling an existing meta
+file (Step 4, Path A), and the idempotent-resume case stay part of the workflow in either mode — they
+reconcile files that already exist, whereas fresh scaffolding mints new ones.
+
 ## Steps
 
 ### 1) Ensure Clean Base Branch
@@ -52,6 +69,9 @@ creating the planning branch. This guard matters most on cross-machine resume, w
 on a sibling clone.
 
 ### 2) Create Planning Branch
+
+_Worktree-creating mode delegates this step and Step 4 (Path B) to the spawn entry point — see
+[§ Execution Modes](#execution-modes). The commands below are the in-place path._
 
 ```bash
 git checkout -b plan/{name}
@@ -130,7 +150,17 @@ as in Path A; preserve other field values.
 > per [`commit-format`][commit-format]; meta-file commit shape per [DEV-RULES.ARC][dev-rules-arc]
 > § Commit Discipline.
 
-### 5) Push Planning Branch
+### 5) ROADMAP regen · `arc-in-git` only
+
+> **Skip this step** under `pm.mode: none` or `external`.
+
+Hand-maintain by re-rendering per [Work Organization Strategy § ROADMAP][work-org-roadmap] — the meta file
+landing in `active/<name>/` enters the WU into the In Flight tier.
+
+Default: dedicated `chore(arc):` commit (`workflowCommit`). May ride the init commit (Step 4) only when the
+edit is trivial (a single-row add into In Flight) — see [DEV-RULES.ARC § Atomicity][dev-rules-atomicity].
+
+### 6) Push Planning Branch
 
 Set upstream for the planning branch.
 
@@ -141,7 +171,7 @@ Set upstream for the planning branch.
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `-u origin plan/{name}`.
 
-### 6) Proceed to Next Step
+### 7) Proceed to Next Step
 
 - If the work needs synthesis exploration first: create `draft-*.md` documents (see [Work Planning
   Strategy][work-planning] for conventions)
@@ -150,8 +180,11 @@ Set upstream for the planning branch.
 ---
 
 [create-spec]: ../../1_create-spec.md
+[in-flight-scope-check]: ../in-flight-scope-check.md
 [commit-format]: ../../../../methods/commit-format.md
 [branch-format]: ../../../../methods/branch-format.md
 [dev-rules-arc]: ../../../../../system/rules/DEV-RULES.ARC.md
+[dev-rules-atomicity]: ../../../../../system/rules/DEV-RULES.ARC.md#atomicity
 [work-org-protection]: ../../../../../reference/strategies/arc/strategy-work-organization.md#branch-protection-modes
+[work-org-roadmap]: ../../../../../reference/strategies/arc/strategy-work-organization.md#roadmap
 [work-planning]: ../../../../../reference/strategies/arc/strategy-work-planning.md

@@ -75,6 +75,7 @@ function okConfig(): Probe<ConfigStatusResult> {
       settings: {
         "branch.base": "main",
         "branch.protection": "partial",
+        "worktree.location_template": "../{repo}.{branch}",
         "commit.format": "conventional",
         "commit.context_footer": "required",
         "commit.custom_pattern": "",
@@ -144,6 +145,7 @@ function makeSessionInitResult(
         branch: "main",
         recommendedAction: "skip",
         recommendedPromptText: "",
+        identity: { kind: "primary" },
       },
     },
     dirty: { ok: true, value: { state: "clean", fileCount: 0 } },
@@ -247,7 +249,7 @@ describe("buildStatusSummary — full mode", () => {
     // Extensions full formatter headline: "N active · N inactive · N orphaned refs"
     expect(summary).toContain("1 active · 0 inactive · 0 orphaned refs");
     // Config formatter: "N agent-consumable settings"
-    expect(summary).toContain("17 agent-consumable settings");
+    expect(summary).toContain("18 agent-consumable settings");
     // Active formatter: "0 active work units"
     expect(summary).toContain("0 active work units");
   });
@@ -329,6 +331,7 @@ describe("buildSessionInitStatusSummary — scoped mode", () => {
             branch: "main",
             recommendedAction: "prompt",
             recommendedPromptText: "Worktree: branch is behind origin by 3 commit(s).\nPull?",
+            identity: { kind: "primary" },
           },
         },
       }),
@@ -349,11 +352,32 @@ describe("buildSessionInitStatusSummary — scoped mode", () => {
             failureReason: "timeout",
             recommendedAction: "surface",
             recommendedPromptText: "",
+            identity: { kind: "primary" },
           },
         },
       }),
     );
     expect(summary).toContain("remote unavailable (timeout)");
+  });
+
+  it("renders worktree branch-gone with a deleted-upstream summary", () => {
+    const summary = buildSessionInitStatusSummary(
+      makeSessionInitResult({
+        worktree: {
+          ok: true,
+          value: {
+            state: "branch-gone",
+            ahead: 0,
+            behind: 0,
+            branch: "feat/x",
+            recommendedAction: "surface",
+            recommendedPromptText: "",
+            identity: { kind: "primary" },
+          },
+        },
+      }),
+    );
+    expect(summary).toContain("branch gone");
   });
 
   it("renders an (unavailable) marker for an errored session-init slot", () => {

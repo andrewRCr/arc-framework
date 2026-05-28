@@ -21,7 +21,7 @@ Each session follows the same rhythm: establish context, co-develop, preserve st
    platform mechanism varies (new conversation, `/clear`, fresh terminal session).
 
 2. **Initialize.** Trigger the [session-init workflow][session-init]. The agent loads project context, verifies the
-   environment, and presents an orientation summary with active work state and next action. Invoke via the `arc-resume`
+   environment, and presents an orientation summary with active work state and next action. Invoke via the `arc-session`
    skill (invocation syntax is agent-specific) or conversational request.
 
 3. **Co-develop.** Work with the agent — task execution, planning, investigation, whatever the session requires. Commit
@@ -36,7 +36,7 @@ Each session follows the same rhythm: establish context, co-develop, preserve st
 5. **Clear and repeat.** After handoff is complete and you've received the session summary, clear the conversation or
    context. Return to step 1.
 
-The skills (`arc-resume`, `arc-commit`, `arc-handoff`) are ARC's intended invocation mechanism — they make the common
+The skills (`arc-session`, `arc-commit`, `arc-handoff`) are ARC's intended invocation mechanism — they make the common
 workflow mechanical and consistent. Conversational requests accomplish the same thing; the skills just remove ambiguity.
 
 ---

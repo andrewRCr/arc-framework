@@ -372,6 +372,7 @@ export async function runUpdate(
   const gitignorePath = join(cwd, ".gitignore");
   const gitignoreEntries = [
     ".arc/system/.internal/pristine.json",
+    ".arc/system/.internal/worktree-marker.json",
     ".arc/user/*/",
     ...skillGitignoreEntries(skillResult.targetDirs),
   ];

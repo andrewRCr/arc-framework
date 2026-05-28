@@ -526,7 +526,7 @@ The goal is not exhaustive coverage — it is to catch option failures against r
 **Scenario 1 — Solo tracked Full, 2 paused WUs on 2 branches.**
 
 Developer has activated `feature-x` on branch `feature/x`, paused it to work on `feature-y` on
-branch `feature/y`, is currently active on `feature-y`. Developer invokes `arc-resume` on branch
+branch `feature/y`, is currently active on `feature-y`. Developer invokes `arc-session` on branch
 `feature/y`.
 
 - Option A: what does `WORK-STATUS.md` on branch `feature/y` contain? What does orientation show?

@@ -423,7 +423,7 @@ describe("buildPostJoinMessage", () => {
   it("includes skill restart cue when tools are configured", () => {
     const msg = buildPostJoinMessage(makeJoinResult());
 
-    expect(msg).toContain("Restart your AI tool so the new /arc-resume skill is available");
+    expect(msg).toContain("Restart your AI tool so the new /arc-session skill is available");
   });
 
   it("omits skill restart cue when no tools are configured", () => {

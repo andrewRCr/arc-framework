@@ -218,3 +218,9 @@ balloons). Rough shape: Layer 1 principle (~0.5 session), Layer 2 audit (~0.5), 
   distinct concern (template *loading*, not loop *authoring*).
 
 ---
+
+## Coordination — ADR-022
+
+`SESSION-NOTES` structure is code-owned per ADR-022; the freshness-probe field (`Commit at Handoff`)
+reads from the managed-doc record/schema, not a parsed markdown template. Audit T1 membership against
+the schema as the canonical source. See `adr-022-managed-operational-state-documents.md` § Coordination.

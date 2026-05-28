@@ -65,8 +65,11 @@ const DIRTY_TREE_WARNING = "Working tree dirty — stash or commit before accept
  * State table (config × state):
  * - `remote-ahead` + `prompt` → action=prompt, channel-named + count-included prompt text.
  * - `remote-ahead` + `manual` → action=surface, prompt text empty.
- * - `local-ahead` / `diverged` / `remote-unavailable` → action=surface, prompt text empty.
+ * - `local-ahead` / `diverged` / `branch-gone` / `remote-unavailable` → action=surface, prompt text empty.
  * - `clean` / `no-upstream` / `detached-head` / `no-remote` / `skipped` → action=skip.
+ *
+ * `branch-gone` surfaces rather than prompts: the recovery (cascade + candidate
+ * prompt) is a state-keyed workflow arm, not a new `recommendedAction` member.
  */
 function inferWorktree(
   worktree: WorktreeSyncStatusResult,
@@ -84,6 +87,7 @@ function inferWorktree(
       return { recommendedAction: "surface", recommendedPromptText: "" };
     case "local-ahead":
     case "diverged":
+    case "branch-gone":
     case "remote-unavailable":
       return { recommendedAction: "surface", recommendedPromptText: "" };
     case "clean":

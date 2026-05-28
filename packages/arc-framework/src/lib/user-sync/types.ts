@@ -1,0 +1,44 @@
+/**
+ * Shared types for cross-WU user-notes entry parsing and merge.
+ *
+ * Cross-WU flat files (`WORKING-MEMORY.md`, `USER-INBOX.md`) hold entries that
+ * may be created independently in parallel worktrees; the merge converges them
+ * by entry identity instead of letting the most-recent note clobber the rest.
+ * These types are the seam between the per-shape parser and the shape-agnostic
+ * merge. Parse outcomes are discriminated so an expected failure surfaces as
+ * data rather than an exception.
+ *
+ * @module
+ */
+
+/**
+ * A parsed cross-WU entry, the unit of list-union merge.
+ *
+ * Identity is `(section, key)`: `WORKING-MEMORY` keys on the bold-field header
+ * within its single `## Memories` section; `USER-INBOX` keys on the list-item
+ * lead-in scoped to its `## Atomic` / `## Backlog` section, so the same lead-in
+ * under different sections stays distinct. `raw` is the verbatim entry block —
+ * preserved for divergent-body resolution (most-recent note wins) and for
+ * lossless reconstruction into the merged file.
+ */
+export interface CrossWuEntry {
+  /** Containing H2 heading text — `Memories`, `Atomic`, or `Backlog`. */
+  section: string;
+  /** Merge identity within the section — header (WM) or list-item lead-in (UI). */
+  key: string;
+  /** Verbatim entry block text (header/lead-in through body), trailing blanks trimmed. */
+  raw: string;
+}
+
+/**
+ * Discriminated parse outcome for a single entry block. Expected failures
+ * (a block that doesn't match its shape) return `{ ok: false, reason }` rather
+ * than throwing, so a malformed entry surfaces to the caller instead of being
+ * silently dropped.
+ */
+export type EntryParse =
+  | { ok: true; entry: CrossWuEntry }
+  | { ok: false; reason: string };
+
+/** Cross-WU file shapes with a registered entry parser. */
+export type CrossWuShape = "working-memory" | "user-inbox";

@@ -44,7 +44,6 @@ git mv .arc/active/meta-{name}.md   .arc/completed/{dated}/{NN}_{name}/
 git mv .arc/active/prd-{name}.md    .arc/completed/{dated}/{NN}_{name}/   # when WU has a PRD
 git mv .arc/active/tasks-{name}.md  .arc/completed/{dated}/{NN}_{name}/   # when WU has a task list
 git mv .arc/active/notes-{name}.md  .arc/completed/{dated}/{NN}_{name}/   # when present
-git mv .arc/active/atomic-{name}.md .arc/completed/{dated}/{NN}_{name}/   # when present
 ```
 
 `{dated}` follows `YYYY-q*` (e.g., `2026-q2`). `{NN}` is a 2-digit completion-order prefix assigned at
@@ -57,9 +56,9 @@ list to what exists for the WU — per-worktree isolation means `active/` carrie
 
 > **Skip this step** under `pm.mode: none` or `external`.
 
-WU integration is a regen fire-point. Hand-maintain (interim, pre-CLI) per [Work Organization Strategy
-§ ROADMAP][work-org-roadmap] — the shipped WU drops out of ROADMAP (rendered from `active/**` and
-`backlog/planned/**`; once swept, no longer reachable).
+WU integration is a regen fire-point. Re-render per [Work Organization Strategy § ROADMAP][work-org-roadmap] —
+the shipped WU drops out of ROADMAP (rendered from `active/**` and `backlog/planned/**`; once swept, no longer
+reachable).
 
 ### 5) Fire `post-work-unit-archive` extension
 

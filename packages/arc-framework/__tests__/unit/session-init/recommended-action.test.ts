@@ -139,6 +139,17 @@ describe("inferSessionInitRecommendations — worktree channel", () => {
     );
     expect(result.worktree.recommendedAction).toBe("surface");
   });
+
+  it("branch-gone → action=surface (recovery is a state-keyed workflow arm, no prompt text)", () => {
+    const result = inferSessionInitRecommendations(
+      input({
+        worktree: worktree({ state: "branch-gone" }),
+        user: user({ state: "clean" }),
+      }),
+    );
+    expect(result.worktree.recommendedAction).toBe("surface");
+    expect(result.worktree.recommendedPromptText).toBe("");
+  });
 });
 
 // --- Notes channel ---

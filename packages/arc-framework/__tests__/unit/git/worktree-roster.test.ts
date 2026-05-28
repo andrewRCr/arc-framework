@@ -1,8 +1,13 @@
 import { describe, it, expect } from "vitest";
 
-import { runWorktreeRoster } from "../../../src/lib/git/worktree-roster.js";
+import {
+  filterRosterByIdentity,
+  runWorktreeRoster,
+} from "../../../src/lib/git/worktree-roster.js";
 import type {
+  WorktreeRosterEntry,
   WorktreeRosterFs,
+  WorktreeRosterResult,
 } from "../../../src/lib/git/worktree-roster.js";
 import type {
   ExecResult,
@@ -388,5 +393,64 @@ describe("runWorktreeRoster", () => {
     expect(result.warnings[0]).toMatch(/match branch feature\/x/);
     expect(result.warnings[0]).toMatch(/meta-a\.md/);
     expect(result.warnings[0]).toMatch(/meta-b\.md/);
+  });
+});
+
+describe("filterRosterByIdentity", () => {
+  function entry(overrides: Partial<WorktreeRosterEntry> = {}): WorktreeRosterEntry {
+    return { worktreePath: "/wt", branch: "feat/x", ...overrides };
+  }
+
+  function roster(
+    entries: WorktreeRosterEntry[],
+    warnings: string[] = [],
+  ): WorktreeRosterResult {
+    return { entries, warnings };
+  }
+
+  it("in team mode keeps the current identity's entries and unattributed worktrees, dropping others", () => {
+    const input = roster([
+      entry({ worktreePath: "/main", branch: "main" }), // no Owner — admin/main
+      entry({ worktreePath: "/mine", branch: "feat/a", identity: "andrew" }),
+      entry({ worktreePath: "/theirs", branch: "feat/b", identity: "bob" }),
+    ]);
+
+    const result = filterRosterByIdentity(input, { identity: "andrew", teamMode: true });
+
+    expect(result.entries.map((e) => e.worktreePath)).toEqual(["/main", "/mine"]);
+  });
+
+  it("in solo mode returns the roster unchanged (no identity filtering)", () => {
+    const input = roster([
+      entry({ worktreePath: "/mine", branch: "feat/a", identity: "andrew" }),
+      entry({ worktreePath: "/theirs", branch: "feat/b", identity: "bob" }),
+    ]);
+
+    const result = filterRosterByIdentity(input, { identity: "andrew", teamMode: false });
+
+    expect(result).toBe(input);
+  });
+
+  it("returns the roster unchanged when no identity is configured, even in team mode", () => {
+    const input = roster([
+      entry({ worktreePath: "/a", branch: "feat/a", identity: "andrew" }),
+      entry({ worktreePath: "/b", branch: "feat/b", identity: "bob" }),
+    ]);
+
+    const result = filterRosterByIdentity(input, { identity: null, teamMode: true });
+
+    expect(result).toBe(input);
+  });
+
+  it("preserves warnings through the team-mode filter", () => {
+    const input = roster(
+      [entry({ identity: "bob" })],
+      ["Multiple meta files in /theirs/.arc/active/"],
+    );
+
+    const result = filterRosterByIdentity(input, { identity: "andrew", teamMode: true });
+
+    expect(result.entries).toEqual([]);
+    expect(result.warnings).toEqual(["Multiple meta files in /theirs/.arc/active/"]);
   });
 });

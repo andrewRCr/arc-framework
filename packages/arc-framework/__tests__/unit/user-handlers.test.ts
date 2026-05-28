@@ -132,6 +132,11 @@ vi.mock("../../src/lib/git/index.js", () => ({
     c.disposition === "block" || c.disposition === "caller-resolvable",
 }));
 
+const mockPushNotesWithReconcile = vi.fn();
+vi.mock("../../src/handlers/push-recovery.js", () => ({
+  pushNotesWithReconcile: (...args: unknown[]) => mockPushNotesWithReconcile(...args),
+}));
+
 const {
   handleUserPush, handleUserFetch, handleUserPull, handleUserLoad, handleUserStatus,
   handleUserOpen, handleUserClose,
@@ -180,7 +185,7 @@ function resetMockDefaults() {
 
 // --- handleUserPush tests ---
 
-describe("handleUserPush divergence resolution", () => {
+describe("handleUserPush", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     resetMockDefaults();
@@ -188,75 +193,22 @@ describe("handleUserPush divergence resolution", () => {
     process.exitCode = undefined;
   });
 
-  it("prompts for resolution on non-fast-forward rejection", async () => {
-    mockRunUserPush
-      .mockRejectedValueOnce(new Error("non-fast-forward"))
-      .mockResolvedValueOnce(undefined);
-    mockSelect.mockResolvedValue("force");
+  it.each([
+    ["pushed", { kind: "pushed" }],
+    ["reconciled", { kind: "reconciled" }],
+    ["noop", { kind: "noop" }],
+  ])("auto-reconcile outcome %s → reports Done without prompting", async (_label, outcome) => {
+    mockPushNotesWithReconcile.mockResolvedValue(outcome);
 
     await handleUserPush({});
 
-    expect(mockLog.warn).toHaveBeenCalledWith(
-      expect.stringContaining("notes conflict"),
-    );
-    expect(mockSelect).toHaveBeenCalledTimes(1);
-    // Force push retry
-    expect(mockRunUserPush).toHaveBeenCalledTimes(2);
-    expect(mockRunUserPush).toHaveBeenLastCalledWith(
-      expect.objectContaining({ force: true }),
-    );
-  });
-
-  it("merges (fetch → re-save → push) when user chooses merge resolution", async () => {
-    mockRunUserPush
-      .mockRejectedValueOnce(new Error("[rejected]"))
-      .mockResolvedValueOnce(undefined);
-    mockRunUserFetch.mockResolvedValue(undefined);
-    mockRunUserSave.mockResolvedValue({ identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] });
-    mockSelect.mockResolvedValue("merge");
-
-    await handleUserPush({});
-
-    // Fetch with force (aligns local with remote)
-    expect(mockRunUserFetch).toHaveBeenCalledWith(
-      expect.objectContaining({ force: true }),
-    );
-    // Re-save writes current disk state on top of the aligned base
-    expect(mockRunUserSave).toHaveBeenCalledWith(
-      expect.objectContaining({ identity: "andrew", cwd: process.cwd() }),
-    );
-    // Then push (no force — refs should now be aligned)
-    expect(mockRunUserPush).toHaveBeenCalledTimes(2);
-    expect(mockRunUserPush).toHaveBeenLastCalledWith(
-      expect.objectContaining({ identity: "andrew" }),
-    );
     expect(mockOutro).toHaveBeenCalledWith("Done.");
+    expect(mockSelect).not.toHaveBeenCalled();
+    expect(process.exitCode).toBeUndefined();
   });
 
-  it("cancels gracefully when user chooses cancel", async () => {
-    mockRunUserPush.mockRejectedValueOnce(new Error("non-fast-forward"));
-    mockSelect.mockResolvedValue("cancel");
-
-    await handleUserPush({});
-
-    expect(mockLog.info).toHaveBeenCalledWith("Push cancelled.");
-    expect(mockRunUserPush).toHaveBeenCalledTimes(1);
-  });
-
-  it("cancels gracefully when user presses Ctrl+C on select", async () => {
-    mockRunUserPush.mockRejectedValueOnce(new Error("non-fast-forward"));
-    mockSelect.mockResolvedValue(Symbol("cancel"));
-    mockIsCancel.mockReturnValue(true);
-
-    await handleUserPush({});
-
-    expect(mockLog.info).toHaveBeenCalledWith("Push cancelled.");
-  });
-
-  it("reports missing remote with helpful message", async () => {
-    mockRunUserPush.mockRejectedValueOnce(
-      new Error("No configured push destination"),
-    );
+  it("reports missing remote with a helpful message and exits 1", async () => {
+    mockPushNotesWithReconcile.mockResolvedValue({ kind: "no-remote" });
 
     await handleUserPush({});
 
@@ -269,20 +221,22 @@ describe("handleUserPush divergence resolution", () => {
     expect(process.exitCode).toBe(1);
   });
 
-  it("threads worktreeBranch into runUserPush; surfaces matrix-blocked guidance and exits 1", async () => {
-    const blocked = new MockUserPushBlockedError([
-      {
-        kind: "worktree-not-aligned-with-origin",
-        disposition: "block",
-        guidance: "Worktree has 2 unpushed commit(s) on `feature/x` — push the worktree first.",
-        worktreeAlignment: { state: "local-ahead", ahead: 2, behind: 0 },
-      },
-    ]);
-    mockRunUserPush.mockRejectedValueOnce(blocked);
+  it("threads worktreeBranch into the reconcile pusher; surfaces matrix-blocked guidance and exits 1", async () => {
+    mockPushNotesWithReconcile.mockResolvedValue({
+      kind: "blocked",
+      conditions: [
+        {
+          kind: "worktree-not-aligned-with-origin",
+          disposition: "block",
+          guidance: "Worktree has 2 unpushed commit(s) on `feature/x` — push the worktree first.",
+          worktreeAlignment: { state: "local-ahead", ahead: 2, behind: 0 },
+        },
+      ],
+    });
 
     await handleUserPush({});
 
-    expect(mockRunUserPush).toHaveBeenCalledWith(
+    expect(mockPushNotesWithReconcile).toHaveBeenCalledWith(
       expect.objectContaining({ worktreeBranch: "feature/x" }),
     );
     expect(mockLog.error).toHaveBeenCalledWith(
@@ -291,35 +245,37 @@ describe("handleUserPush divergence resolution", () => {
     expect(process.exitCode).toBe(1);
   });
 
-  it("re-attempt after worktree push succeeds without --force: gate is transient", async () => {
-    // The alignment gate is keyed on probe-time worktree state — once the
-    // worktree leg lands, retrying succeeds via the normal idempotent path.
-    mockRunUserPush.mockResolvedValueOnce({ kind: "pushed" });
+  it("rethrows an unhandled failure from the reconcile pusher", async () => {
+    const err = new Error("network timeout");
+    mockPushNotesWithReconcile.mockResolvedValue({ kind: "failed", error: err });
 
-    await handleUserPush({});
-
-    expect(mockRunUserPush).toHaveBeenCalledTimes(1);
-    expect(mockRunUserPush).toHaveBeenCalledWith(
-      expect.objectContaining({ worktreeBranch: "feature/x" }),
-    );
-    expect(mockRunUserPush).toHaveBeenCalledWith(
-      expect.not.objectContaining({ force: true }),
-    );
-    expect(mockOutro).toHaveBeenCalledWith("Done.");
+    await expect(handleUserPush({})).rejects.toThrow("network timeout");
   });
 
-  it("renders failed-nontty-conflict banner without prompting when non-interactive", async () => {
-    mockRunUserPush.mockRejectedValueOnce(new Error("non-fast-forward"));
-    mockIsNonInteractive.mockReturnValue(true);
+  it("surfaces a reconcile conflict message and exits 1 without throwing", async () => {
+    mockPushNotesWithReconcile.mockResolvedValue({
+      kind: "conflict",
+      message: "Concurrent notes on commit abc12345 could not be auto-merged.",
+    });
 
     await handleUserPush({});
 
-    expect(mockSelect).not.toHaveBeenCalled();
-    expect(mockLog.warn).toHaveBeenCalledWith(expect.stringContaining("conflict"));
-    expect(mockLog.warn).toHaveBeenCalledWith(expect.stringContaining("non-interactive"));
-    expect(mockLog.warn).toHaveBeenCalledWith(expect.stringContaining("save preserved"));
-    expect(mockLog.error).not.toHaveBeenCalled();
+    expect(mockLog.error).toHaveBeenCalledWith(
+      expect.stringContaining("could not be auto-merged"),
+    );
     expect(process.exitCode).toBe(1);
+  });
+
+  it("--force escape hatch pushes forcibly via runUserPush, bypassing reconcile", async () => {
+    mockRunUserPush.mockResolvedValue({ kind: "pushed" });
+
+    await handleUserPush({ force: true });
+
+    expect(mockRunUserPush).toHaveBeenCalledWith(
+      expect.objectContaining({ force: true }),
+    );
+    expect(mockPushNotesWithReconcile).not.toHaveBeenCalled();
+    expect(mockOutro).toHaveBeenCalledWith("Done.");
   });
 });
 

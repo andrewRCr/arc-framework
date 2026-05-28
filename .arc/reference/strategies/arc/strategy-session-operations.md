@@ -203,7 +203,7 @@ determine relevance without loading the full document.
 
 ### User-invocable skills (T3)
 
-Skills (arc-resume, arc-commit, arc-handoff) are user-initiated triggers that load thin guidance
+Skills (arc-session, arc-commit, arc-handoff) are user-initiated triggers that load thin guidance
 layers and reference T3 workflows. These cover session lifecycle events where the user explicitly
 initiates the activity.
 
@@ -818,7 +818,7 @@ live-write capture surface — entries land any time, drain at lifecycle boundar
 
 **Section structure.**
 
-- **`## Atomic`** — single-step entries shaped like `atomic-{name}.md` items.
+- **`## Atomic`** — single-step entries (H3 + checkbox + bold title + italic-descriptor sub-bullets).
 - **`## Backlog`** — multi-step entries that need draft-doc / PRD treatment before scheduling.
 
 **Lifecycle.** Writes accepted any time (the live-capture role). Drain fires at WU lifecycle

@@ -39,10 +39,10 @@ and any tool-specific directories), use it. If not, create the directory your ag
 
 **Copy skills:**
 
-For each subdirectory in `.arc/system/.internal/skills/` (e.g., `arc-resume/`, `arc-commit/`):
+For each subdirectory in `.arc/system/.internal/skills/` (e.g., `arc-session/`, `arc-commit/`):
 
 1. Read the canonical `SKILL.md`
-2. Create the matching subdirectory in your skill location (e.g., `{your-skill-dir}/arc-resume/`)
+2. Create the matching subdirectory in your skill location (e.g., `{your-skill-dir}/arc-session/`)
 3. Copy the `SKILL.md` content — these are agent-agnostic by design
 
 **Gitignore the generated skills:**
@@ -62,11 +62,11 @@ This ignores only the ARC-generated skills, not other content in your agent's di
 Skill files are typically loaded when the agent's harness starts. After creating skill files:
 
 1. **Restart your agent** (or reload the workspace/session) so it discovers the new skills
-2. **Run the `arc-resume` skill** to initialize a normal ARC session
+2. **Run the `arc-session` skill** to initialize a normal ARC session
 3. From this point, the agent operates like any other — session init loads context, workflows
    guide execution, session handoff preserves state
 
 ---
 
 **After this workflow:** The agent has full ARC integration — skill files and access to all ARC
-workflows. Subsequent sessions use `arc-resume` normally.
+workflows. Subsequent sessions use `arc-session` normally.

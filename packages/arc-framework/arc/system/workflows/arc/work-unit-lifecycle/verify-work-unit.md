@@ -41,26 +41,7 @@ original text preserves intent; annotations capture reality.
 during implementation. Implementation tasks get checked as work progresses; success criteria
 get checked when the implementer steps back and validates outcomes against the PRD.
 
-## Step 3 — Verify All Atomic Tasks Resolved
-
-Review the atomic companion file (`atomic-{name}.md`). Every item must have a final
-disposition — none should remain `[ ]`:
-
-- `[x]` — **Completed.** Work done, completion note present.
-- `[~]` — **Deferred.** Intentionally deferred with a note explaining where it goes next
-  (backlog item, future work unit, etc.).
-
-**Check for:**
-
-- No `[ ]` items remaining — all atomic tasks either completed or consciously deferred
-- Completion notes present on `[x]` items (what was done, where)
-- Deferred items (`[~]`) have a forward pointer (where the work will be picked up)
-
-If unresolved atomic tasks are found, address them before considering verification complete.
-If the companion file is empty (no checkbox items), it will be deleted during integration —
-no action needed.
-
-## Step 4 — Pre-align Meta File for Integration Handoff
+## Step 3 — Pre-align Meta File for Integration Handoff
 
 Before marking the verification task `[x]`, update the active meta file's `**Next Action:**`
 to `integrate-work-unit Step 1 — verify completion` per the workflow-step-pointer convention
@@ -72,17 +53,15 @@ to set `sessionType: integration`. Stage with the verification commit.
 
 When marking the verification task `[x]`, include completion notes that make the task
 self-documenting — a reader of the archived task list should understand what was verified
-without loading this workflow. The verification task uses three italic descriptor bullets in
+without loading this workflow. The verification task uses two italic descriptor bullets in
 lieu of the single `_Outcome:_` rule (per
 [strategy-task-list-formatting § Goal/Note Lines][task-list-formatting] —
-verification-task exception). Cover all three steps:
+verification-task exception). Cover both:
 
 - _Quality gates:_ what ran and the outcome (e.g., "md lint, code lint, typecheck,
   42 tests, build — all passed")
 - _Success criteria:_ summary disposition (e.g., "8 criteria: 7 met, 1 superseded
   with annotation")
-- _Atomic tasks:_ disposition (e.g., "companion file empty" or "3 completed, 1 deferred
-  to backlog")
 
 ---
 

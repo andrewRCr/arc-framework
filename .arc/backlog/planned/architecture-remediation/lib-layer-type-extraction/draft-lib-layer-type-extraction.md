@@ -82,3 +82,9 @@ Lifecycle + Concurrent Work Conventions) and Coord Probe per
 candidate with Plans B and C once worktree infrastructure unlocks parallel WUs.
 
 ---
+
+## Coordination — ADR-022
+
+Per ADR-022, managed-doc types at I/O boundaries are canonical as `z.infer` from the schema (via
+`cli-substrate-adoption`) — they are **not** hand-re-homed types. Carve those out of the re-homing scope;
+re-home only the residual non-schema types. See `adr-022-managed-operational-state-documents.md` § Coordination.

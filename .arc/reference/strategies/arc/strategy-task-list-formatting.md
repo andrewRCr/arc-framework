@@ -20,8 +20,7 @@ checklist, see [2_generate-tasks.md § Step 4][generate-tasks].
 3. [Task Ownership Markers](#task-ownership-markers)
 4. [Test-First Task Structure](#test-first-task-structure)
 5. [Verification Phase](#verification-phase)
-6. [Atomic Companion File](#atomic-companion-file)
-7. [Success Criteria Section](#success-criteria-section)
+6. [Success Criteria Section](#success-criteria-section)
 
 ---
 
@@ -45,9 +44,8 @@ Two variants. See [`template-tasks.md`][template-tasks] for skeletons.
 - `## Context` — `**Discovered:**` / `**Problem:**` / `**Why Now:**` — captures discovery
   framing in lieu of an upstream spec (incidental is its own spec)
 - `## Scope` (`### Will Do` / `### Won't Do`) is retained — no PRD to canonicalize from
-- Lifecycle state (`State`, `Interrupts`, `Paused At`, `Paused To`) lives in the status file,
-  not the task list header — see
-  [manage-incidental-work.md § Coordinated Pause/Resume][manage-incidental]
+- Lifecycle state (`**State:**`, the 4-state lifecycle) lives in the WU's `meta-{name}.md`, not the task
+  list header — see [strategy-work-organization.md § Work Unit State][work-org-state]
 
 Both variants: Success Criteria section at the bottom; optional sections (Architecture Patterns,
 Current State, Testing Strategy) only when the work needs them.
@@ -204,9 +202,9 @@ description bullets at indent +2 shift from plan-content to outcome-content — 
 no label change. The parent's rolled-up Outcome at root summarizes the unit-level result.
 
 **Verification-task exception preserved.** The verification phase's single task (per
-[verify-work-unit.md][verify-work-unit]) carries three required completion-note categories
-at root — `_Quality gates:_`, `_Success criteria:_`, `_Atomic tasks:_` — peers to Goal in
-lieu of `_Outcome:_`. All four (Goal + three categories) protected post-completion.
+[verify-work-unit.md][verify-work-unit]) carries two required completion-note categories
+at root — `_Quality gates:_`, `_Success criteria:_` — peers to Goal in
+lieu of `_Outcome:_`. All three (Goal + two categories) protected post-completion.
 
 ### Revision Numbering (R Scheme)
 
@@ -256,11 +254,12 @@ Blank lines required:
 
 - Between every subtask (whether or not it carries detail bullets)
 
-- Loose-list rendering for any list containing multi-line items — when at least one item spans
-  2+ lines, every item in that list separates from its neighbors with a blank line. Lists
-  where every item is single-line stay tight. Applies uniformly to atomic-file items,
-  ATOMIC-INBOX entries, success criteria items, item-level descriptor sub-bullets, and any
-  other list content where multi-line entries appear.
+- Loose-list rendering for any list of distinct items containing multi-line items — when at
+  least one item spans 2+ lines, every item in that list separates from its neighbors with a
+  blank line. Lists where every item is single-line stay tight. Applies to lists of
+  independently-trackable items — subtasks, atomic-file items, ATOMIC-INBOX entries,
+  success-criteria items. It does not reach the descriptor bullets that frame a single item
+  (see the descriptor-cluster carve-out below).
 
 - Before and after multi-paragraph descriptor blocks within a phase preamble
 
@@ -286,9 +285,17 @@ stays tight; a one-sentence Context that fits on one line still gets the separat
 it's prose by role. By convention descriptive fields land at the end of the block, but the
 rule is shape-based — a descriptive field anywhere separates from its neighbors.
 
-Markdownlint MD022 enforces heading spacing; the "between every subtask", loose-list, and
-file-header-metadata-block rules are project convention beyond MD022 and are verified at the
-pre-save checklist.
+**Descriptor clusters also stay tight.** The consecutive root-level descriptor bullets that
+open a parent task — `_Goal:_` plus any peer descriptors (`_Context:_`, `_Rationale:_`,
+`_Approach:_`, `_Shape:_`, `_Note:_`) and `**Strategies:**` — and the descriptor sub-bullets
+under an atomic item (`_Observation:_`, `_Scope:_`, `_Files:_`) describe one work item, not a
+list of items, so they stay tight to one another even when individual descriptors wrap to
+multiple lines. Separation is supplied at the cluster's boundaries, not within it: a blank
+before the indent-+1 children block and before a post-completion `_Outcome:_` (both above).
+
+Markdownlint MD022 enforces heading spacing; the "between every subtask", loose-list,
+descriptor-cluster, and file-header-metadata-block rules are project convention beyond MD022
+and are verified at the pre-save checklist.
 
 ---
 
@@ -365,70 +372,6 @@ task list's end.
 
 ---
 
-## Atomic Companion File
-
-Created alongside every task list: `atomic-{name}.md` in the same directory as
-`tasks-{name}.md`. No phases or numbering hierarchy; items are flat parent-level entries under
-a single `## Tasks` wrapper. Empty by default; populated during execution as off-plan work
-surfaces.
-
-See [`template-tasks.md`][template-tasks] for the skeleton and
-[3_process-task-loop.md § Atomic Task Completion][process-task-loop] for the completion
-protocol.
-
-**Shape parity with task lists.** Atomic items follow Format C parent-task conventions:
-
-- Items are H3 headings with backtick-wrapped markers: `` ### `[ ]` **{Title}** `` /
-  `` ### `[x]` **{Title}** `` / `` ### `[~]` **{Title}** ``
-
-- A single `## Tasks` wrapper sits between the file-header preamble and the items, demoting
-  items to H3 (the parent-task layer) so visual level matches task-list parent tasks
-
-- File-header preamble field labels stay bold (`**Purpose:**`, `**Ordering:**`) per § Bold
-  and Italic Conventions — file-header metadata, not work descriptors
-
-- Item-level descriptor sub-bullets use italic when needed (`_Observation:_`, `_Scope:_`,
-  `_Files:_`, `_Approach:_`)
-
-- At completion, planning content is replaced by outcome content — single `_Outcome:_`
-  bullet, or outcome prose under the heading
-
-What atomic files don't carry: phases, subtask layer, letter numbering. Each item is
-indivisible by definition — that's the contract.
-
-**ATOMIC-INBOX parallel** (arc-in-git mode, `user/{identity}/`): same shape — `## Inbox`
-wrapper in lieu of `## Tasks`, H3 items with backtick markers, italic descriptor sub-bullets.
-File-header preamble fields stay bold. The wrapper name reflects the file's queue-of-deferred
-semantics; the structural shape (H1 → H2 wrapper → H3 items) matches the companion file.
-
-**Scope guards** (each item must satisfy all three):
-
-- **Size** — if an item needs subtasks, phases, or more than ~30 minutes of work, it is
-  multi-step. Required-for-WU multi-step goes in the task list as a new phase; outside-WU
-  multi-step routes via [manage-incidental-work][manage-incidental]
-- **Relationship** — elective, not required for the work unit's success criteria. If required
-  for the WU to succeed but doesn't fit existing phases, add to the task list
-- **Timing** — during this WU's lifecycle. For later work, use ATOMIC-INBOX (arc-in-git) or
-  your PM mechanism. The [issue-triage method][arc-methods-it] applies for trivial fixes in
-  files already being touched
-
-**Ordering:** incomplete (`[ ]`) at top; completed (`[x]`) sink below in completion order
-(oldest first). Parenthetical context ("discovered during Task X.Y") preserves traceability
-without formal numbering.
-
-**Naming:** `atomic-{name}.md` where `{name}` matches the task list's `tasks-{name}.md`. The
-`atomic-` prefix sorts before `tasks-` in directory listings, bookending the other work-unit
-artifacts.
-
-**Lifecycle:** Don't delete an empty companion file — its presence signals off-plan work has a
-home. Feature, technical, and incidental task lists all get companion files.
-
-**Commit context:** `Context: atomic-{name}.md` (no task number, no special suffix). The commit
-message body describes the work. **Archival:** alongside the task list if it contains any
-items; deleted if empty at integration time.
-
----
-
 ## Success Criteria Section
 
 Required final section of every task list. Each Scope "Will Do" item maps to a verifiable
@@ -469,8 +412,8 @@ All items must be `[x]` or `[~]` (with annotations) before running archive. Any 
 [manage-incidental]: ../../../system/workflows/arc/supplemental/manage-incidental-work.md
 [process-task-loop]: ../../../system/workflows/arc/3_process-task-loop.md
 [verify-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md
-[arc-methods-it]: ../../../system/methods/issue-triage.md
 [arc-methods-tf]: ../../../system/methods/test-first.md
 [template-tasks]: ../../templates/arc/work-unit/template-tasks.md
 [team-coordination]: strategy-team-coordination.md
+[work-org-state]: strategy-work-organization.md#work-unit-state
 [work-org-wu-headers]: strategy-work-organization.md#wu-artifact-headers

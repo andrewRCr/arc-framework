@@ -57,6 +57,13 @@ overridable surface; the planning prefix is not.
 - Short and descriptive — name the WU, not the task
 - No trailing slashes; no characters beyond `[a-z0-9-]`
 
+**Worktree branch posture:** A work unit's branch is the same branch regardless of which worktree checks it
+out, so worktrees introduce no new naming surface — the type set, the `plan/` prefix, and the override
+mechanism below govern ARC-created branches in linked worktrees exactly as in the primary checkout. A branch
+that arrives in a worktree ARC did not create is advisory only: ARC warns when its name does not match this
+convention but never refuses or relocates it, so ARC composes with externally-created branches rather than
+rejecting them.
+
 **Relationship to Conventional Branch.** ARC's default set is *inspired by* Conventional Branch
 but doesn't strictly match its recommended set. CB's recommended set is
 `feature|feat | bugfix|fix | chore | hotfix | release`. ARC:

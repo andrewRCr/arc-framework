@@ -7,18 +7,18 @@ import {
   type WorktreeSyncStatusResult,
 } from "../../lib/git/worktree-sync.js";
 import {
+  clearPartialPushMarker,
   inferUserSyncCause,
+  readLocalSyncState,
   type UserSyncCause,
   type UserSyncCauseConfidence,
   type UserSyncRefRelation,
 } from "../../lib/user-sync/index.js";
 import { formatRelativeTime } from "./relative-time.js";
 import {
-  clearPartialPushMarker,
   findNearestUserNote,
   hashSyncManifest,
   listBackupFiles,
-  readLocalSyncState,
 } from "./save-load.js";
 import { notesRef } from "./shared.js";
 import type {
@@ -777,6 +777,8 @@ export function formatWorktreeQualifierLine(input: {
       return `Local worktree HEAD and its origin upstream have diverged (${worktree.ahead} local ahead, ${worktree.behind} remote ahead).`;
     case "remote-unavailable":
       return formatRemoteUnavailableWorktreeLine(worktree.failureReason);
+    case "branch-gone":
+      return "Local worktree's upstream branch no longer exists on origin (deleted upstream).";
     default:
       return null;
   }

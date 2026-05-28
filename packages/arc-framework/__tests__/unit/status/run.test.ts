@@ -46,6 +46,11 @@ import type { DirtyStateResult } from "../../../src/lib/git/dirty-state.js";
 import type { HeadHashResult } from "../../../src/lib/git/head-hash.js";
 import type { PushabilityResult } from "../../../src/lib/git/pushability.js";
 import type { WorktreeSyncStatusResult } from "../../../src/lib/git/worktree-sync.js";
+import type { WorktreeRosterResult } from "../../../src/lib/git/worktree-roster.js";
+import type { WorktreeIdentity } from "../../../src/lib/git/worktree-identity.js";
+import type { CascadeResolution } from "../../../src/lib/session-init/branch-gone-cascade.js";
+import type { StaleWorktreeSweepResult } from "../../../src/lib/session-init/stale-worktree-sweep.js";
+import type { RetiredSubdirDetectionResult } from "../../../src/lib/session-init/retired-subdir-detection.js";
 import type { RestateCandidatesResult } from "../../../src/lib/handoff/restate-candidates.js";
 import type { ReleaseRoutingValue } from "../../../src/lib/release/routing.js";
 
@@ -95,6 +100,7 @@ function configResult(overrides: Partial<ConfigStatusResult> = {}): ConfigStatus
     settings: {
       "branch.base": "main",
       "branch.protection": "partial",
+      "worktree.location_template": "../{repo}.{branch}",
       "commit.format": "conventional",
       "commit.context_footer": "required",
       "commit.custom_pattern": "",
@@ -151,6 +157,14 @@ function worktreeSync(
   overrides: Partial<WorktreeSyncStatusResult> = {},
 ): WorktreeSyncStatusResult {
   return { state: "clean", ahead: 0, behind: 0, branch: "main", ...overrides };
+}
+
+function worktreeIdentity(value: WorktreeIdentity = { kind: "primary" }): WorktreeIdentity {
+  return value;
+}
+
+function rosterResult(overrides: Partial<WorktreeRosterResult> = {}): WorktreeRosterResult {
+  return { entries: [], warnings: [], ...overrides };
 }
 
 function configSessionInit(
@@ -260,12 +274,17 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
   return {
     user: vi.fn(async () => userSessionInit()),
     worktree: vi.fn(async () => worktreeSync()),
+    worktreeIdentity: vi.fn(async () => worktreeIdentity()),
     dirty: vi.fn(async () => dirtyState()),
     extensions: vi.fn(async () => extensionsSessionInit()),
     config: vi.fn(async () => configSessionInit()),
     active: vi.fn(async () => activeSessionInit()),
     domainRules: vi.fn(async () => domainRulesSessionInit()),
     releaseRouting: vi.fn(async () => releaseRouting()),
+    roster: vi.fn(async () => rosterResult()),
+    recovery: vi.fn(async (): Promise<CascadeResolution> => ({ kind: "main-fallback" })),
+    sweep: vi.fn(async (): Promise<StaleWorktreeSweepResult> => ({ worktrees: [], warnings: [] })),
+    retiredSubdirs: vi.fn(async (): Promise<RetiredSubdirDetectionResult> => ({ candidates: [] })),
     ...overrides,
   };
 }
@@ -473,6 +492,7 @@ describe("runSessionInitStatus — orchestration", () => {
     await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
     expect(probes.user).toHaveBeenCalledTimes(1);
     expect(probes.worktree).toHaveBeenCalledTimes(1);
+    expect(probes.worktreeIdentity).toHaveBeenCalledTimes(1);
     expect(probes.dirty).toHaveBeenCalledTimes(1);
     expect(probes.extensions).toHaveBeenCalledTimes(1);
     expect(probes.config).toHaveBeenCalledTimes(1);
@@ -635,6 +655,54 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
     }
   });
 
+  it("folds linked worktree identity onto the worktree slot with its path", async () => {
+    const probes = sessionInitProbes({
+      worktreeIdentity: vi.fn(async () =>
+        worktreeIdentity({ kind: "linked", path: "/Users/dev/arc-wu-b" })),
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.worktree.ok).toBe(true);
+    if (result.worktree.ok) {
+      expect(result.worktree.value.identity).toEqual({
+        kind: "linked",
+        path: "/Users/dev/arc-wu-b",
+      });
+    }
+  });
+
+  it("folds primary worktree identity onto the worktree slot (no surface)", async () => {
+    const probes = sessionInitProbes();
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.worktree.ok).toBe(true);
+    if (result.worktree.ok) {
+      expect(result.worktree.value.identity).toEqual({ kind: "primary" });
+    }
+  });
+
+  it("defaults identity to primary when the identity probe fails; worktree slot still resolves", async () => {
+    const probes = sessionInitProbes({
+      worktreeIdentity: async () => { throw new Error("rev-parse failed"); },
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.worktree.ok).toBe(true);
+    if (result.worktree.ok) {
+      expect(result.worktree.value.identity).toEqual({ kind: "primary" });
+      expect(result.worktree.value.state).toBe("clean");
+    }
+  });
+
   it("attaches qualifier 'clean-at-current-head' when worktree=remote-ahead and user=clean", async () => {
     const probes = sessionInitProbes({
       user: vi.fn(async () => userSessionInit({ state: "clean" })),
@@ -733,8 +801,16 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
     if (result.worktree.ok) expect(result.worktree.value.state).toBe("skipped");
   });
 
-  it("keeps the envelope additive — every existing slot remains present", async () => {
-    const probes = sessionInitProbes();
+  it("keeps the envelope additive — every always-present slot remains present", async () => {
+    // Linked-worktree clean-resume state (active WU resolved, worktree clean) so
+    // the conditional roster / recovery / sweep slots all stay absent — this
+    // asserts the stable always-present set.
+    const probes = sessionInitProbes({
+      active: vi.fn(async () =>
+        activeSessionInit({ resolution: "single", path: ".arc/active/meta-x.md" })),
+      worktreeIdentity: vi.fn(async () =>
+        worktreeIdentity({ kind: "linked", path: "/wt/x" })),
+    });
     const result = await runSessionInitStatus({
       identity: "andrew",
       role: "maintainer",
@@ -750,6 +826,7 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
       "mode",
       "recommendedCombinedPrompt",
       "releaseRouting",
+      "retiredSubdirs",
       "user",
       "worktree",
     ]);
@@ -906,6 +983,290 @@ describe("runSessionInitStatus — recommended actions", () => {
       expect(result.worktree.value.recommendedPromptText).toBe("");
     }
     expect(result.recommendedCombinedPrompt).toBeNull();
+  });
+});
+
+describe("runSessionInitStatus — in-flight roster gating", () => {
+  const cleanResume = {
+    worktree: () => worktreeSync({ state: "clean" }),
+    active: () => activeSessionInit({ resolution: "single", path: ".arc/active/meta-x.md" }),
+  };
+
+  it("fires the roster and exposes the slot when the worktree state is branch-gone", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "branch-gone", branch: "feat/x" })),
+      active: vi.fn(async () => cleanResume.active()),
+      roster: vi.fn(async () =>
+        rosterResult({ entries: [{ worktreePath: "/wt", branch: "feat/x" }] })),
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(probes.roster).toHaveBeenCalledTimes(1);
+    expect(result.roster?.ok).toBe(true);
+    if (result.roster?.ok) {
+      expect(result.roster.value.entries[0]?.branch).toBe("feat/x");
+    }
+  });
+
+  it("fires the roster when no active WU is resolved (resolution=none)", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "clean" })),
+      active: vi.fn(async () => activeSessionInit({ resolution: "none", path: null })),
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(probes.roster).toHaveBeenCalledTimes(1);
+    expect(result.roster?.ok).toBe(true);
+  });
+
+  it("omits the roster slot and never scans on the linked-worktree resume path", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => cleanResume.worktree()),
+      active: vi.fn(async () => cleanResume.active()),
+      worktreeIdentity: vi.fn(async () =>
+        worktreeIdentity({ kind: "linked", path: "/wt/x" })),
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(probes.roster).not.toHaveBeenCalled();
+    expect("roster" in result).toBe(false);
+  });
+
+  it("fires the roster in the primary worktree even on the clean resume path (the sweep gate)", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => cleanResume.worktree()),
+      active: vi.fn(async () => cleanResume.active()),
+      worktreeIdentity: vi.fn(async () => worktreeIdentity({ kind: "primary" })),
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(probes.roster).toHaveBeenCalledTimes(1);
+    expect(result.roster?.ok).toBe(true);
+  });
+
+  it("wraps a rejecting roster probe as ok=false without rejecting the composite", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "branch-gone", branch: "feat/x" })),
+      active: vi.fn(async () => cleanResume.active()),
+      roster: async () => { throw new Error("worktree list failed"); },
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.roster?.ok).toBe(false);
+    if (result.roster && !result.roster.ok) {
+      expect(result.roster.error.kind).toBe("runtime");
+      expect(result.roster.error.message).toBe("worktree list failed");
+    }
+    // Sibling slots unaffected — the composite still resolves.
+    expect(result.worktree.ok).toBe(true);
+    expect(result.active.ok).toBe(true);
+  });
+
+  it("does not fire the roster when the gating slots themselves failed to resolve", async () => {
+    const probes = sessionInitProbes({
+      worktree: async () => { throw new Error("worktree probe boom"); },
+      active: async () => { throw new Error("active probe boom"); },
+      // Linked worktree so the primary-worktree (sweep) arm is also off; only
+      // the failed branch-gone / no-WU gates remain, and neither can fire.
+      worktreeIdentity: vi.fn(async () =>
+        worktreeIdentity({ kind: "linked", path: "/wt/x" })),
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(probes.roster).not.toHaveBeenCalled();
+    expect("roster" in result).toBe(false);
+  });
+});
+
+describe("runSessionInitStatus — branch-gone recovery gating", () => {
+  it("fires recovery on branch-gone, passing the resolved roster and current branch", async () => {
+    const rosterValue = rosterResult({ entries: [{ worktreePath: "/wt", branch: "feat/a" }] });
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "branch-gone", branch: "feat/gone" })),
+      roster: vi.fn(async () => rosterValue),
+      recovery: vi.fn(async (): Promise<CascadeResolution> => ({
+        kind: "resolved",
+        candidate: { branch: "feat/a", worktreePath: "/wt", proposedAction: "switch" },
+      })),
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(probes.recovery).toHaveBeenCalledTimes(1);
+    expect(probes.recovery).toHaveBeenCalledWith(rosterValue, "feat/gone");
+    expect(result.recovery?.ok).toBe(true);
+    if (result.recovery?.ok) expect(result.recovery.value.kind).toBe("resolved");
+  });
+
+  it("does not fire recovery on the no-WU path — recovery is branch-gone only", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "clean" })),
+      active: vi.fn(async () => activeSessionInit({ resolution: "none", path: null })),
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    // Roster fires on no-WU, but recovery is gated strictly on branch-gone.
+    expect(probes.roster).toHaveBeenCalledTimes(1);
+    expect(probes.recovery).not.toHaveBeenCalled();
+    expect("recovery" in result).toBe(false);
+  });
+
+  it("omits recovery on the clean resume path", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "clean" })),
+      active: vi.fn(async () =>
+        activeSessionInit({ resolution: "single", path: ".arc/active/meta-x.md" })),
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(probes.recovery).not.toHaveBeenCalled();
+    expect("recovery" in result).toBe(false);
+  });
+
+  it("skips recovery when the roster probe failed on branch-gone (recovery needs the roster)", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "branch-gone", branch: "feat/gone" })),
+      roster: async () => { throw new Error("roster scan failed"); },
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.roster?.ok).toBe(false);
+    expect(probes.recovery).not.toHaveBeenCalled();
+    expect("recovery" in result).toBe(false);
+  });
+});
+
+describe("runSessionInitStatus — stale-worktree sweep gating", () => {
+  const primaryClean = {
+    worktree: () => worktreeSync({ state: "clean" }),
+    active: () => activeSessionInit({ resolution: "single", path: ".arc/active/meta-x.md" }),
+    worktreeIdentity: () => worktreeIdentity({ kind: "primary" }),
+  };
+
+  it("fires the sweep in the primary worktree, passing the resolved roster and identity", async () => {
+    const rosterValue = rosterResult({ entries: [{ worktreePath: "/wt", branch: "feat/shipped" }] });
+    const sweepValue: StaleWorktreeSweepResult = {
+      worktrees: [{ worktreePath: "/wt", branch: "feat/shipped", decision: { action: "removable" } }],
+      warnings: [],
+    };
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => primaryClean.worktree()),
+      active: vi.fn(async () => primaryClean.active()),
+      worktreeIdentity: vi.fn(async () => primaryClean.worktreeIdentity()),
+      roster: vi.fn(async () => rosterValue),
+      sweep: vi.fn(async () => sweepValue),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(probes.sweep).toHaveBeenCalledTimes(1);
+    expect(probes.sweep).toHaveBeenCalledWith(rosterValue, { kind: "primary" });
+    expect(result.sweep?.ok).toBe(true);
+    if (result.sweep?.ok) {
+      expect(result.sweep.value.worktrees[0]?.decision).toEqual({ action: "removable" });
+    }
+  });
+
+  it("omits the sweep in a linked worktree (the resume path never sweeps)", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => primaryClean.worktree()),
+      active: vi.fn(async () => primaryClean.active()),
+      worktreeIdentity: vi.fn(async () =>
+        worktreeIdentity({ kind: "linked", path: "/wt/x" })),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(probes.sweep).not.toHaveBeenCalled();
+    expect("sweep" in result).toBe(false);
+  });
+
+  it("skips the sweep when the roster probe failed in the primary worktree", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => primaryClean.worktree()),
+      active: vi.fn(async () => primaryClean.active()),
+      worktreeIdentity: vi.fn(async () => primaryClean.worktreeIdentity()),
+      roster: async () => { throw new Error("roster scan failed"); },
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(result.roster?.ok).toBe(false);
+    expect(probes.sweep).not.toHaveBeenCalled();
+    expect("sweep" in result).toBe(false);
+  });
+
+  it("wraps a rejecting sweep probe as ok=false without rejecting the composite", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => primaryClean.worktree()),
+      active: vi.fn(async () => primaryClean.active()),
+      worktreeIdentity: vi.fn(async () => primaryClean.worktreeIdentity()),
+      roster: vi.fn(async () =>
+        rosterResult({ entries: [{ worktreePath: "/wt", branch: "feat/shipped" }] })),
+      sweep: async () => { throw new Error("sweep boom"); },
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(result.sweep?.ok).toBe(false);
+    if (result.sweep && !result.sweep.ok) {
+      expect(result.sweep.error.message).toBe("sweep boom");
+    }
+    expect(result.worktree.ok).toBe(true);
+  });
+});
+
+describe("runSessionInitStatus — retired-subdir detection slot", () => {
+  it("fires the detection when identity resolved, passing the identity", async () => {
+    const probes = sessionInitProbes({
+      retiredSubdirs: vi.fn(async () => ({ candidates: ["old-wu"] })),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(probes.retiredSubdirs).toHaveBeenCalledWith("andrew");
+    expect(result.retiredSubdirs?.ok).toBe(true);
+    if (result.retiredSubdirs?.ok) {
+      expect(result.retiredSubdirs.value.candidates).toEqual(["old-wu"]);
+    }
+  });
+
+  it("omits the detection when identity is absent", async () => {
+    const probes = sessionInitProbes();
+    const result = await runSessionInitStatus({ identity: null, role: null, probes });
+    expect(probes.retiredSubdirs).not.toHaveBeenCalled();
+    expect("retiredSubdirs" in result).toBe(false);
+  });
+
+  it("wraps a rejecting detection probe as ok=false without rejecting the composite", async () => {
+    const probes = sessionInitProbes({
+      retiredSubdirs: async () => { throw new Error("detect boom"); },
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(result.retiredSubdirs?.ok).toBe(false);
+    if (result.retiredSubdirs && !result.retiredSubdirs.ok) {
+      expect(result.retiredSubdirs.error.message).toBe("detect boom");
+    }
+    expect(result.worktree.ok).toBe(true);
   });
 });
 

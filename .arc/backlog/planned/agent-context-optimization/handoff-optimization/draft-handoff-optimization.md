@@ -204,6 +204,17 @@ lowest:
 - **Worktree Foundation** (planned) — independent. Worktree-aware handoff would
   ride on Worktree Foundation if it lands first; otherwise this WU's scope stays
   on the single-worktree handoff path.
+    - **Removal-trigger eval cadence (captured from WF planning, 2026-05-24).** WORKING-MEMORY's
+      `_Remove when:_` triggers are reviewed every handoff — arguably over-sampling, since triggers
+      change at WU-velocity (days/weeks) while handoffs recur many times a day. Item 3 (structured
+      triggers, CLI-evaluated at probe time) is the *principled* fix: it converts the per-handoff cost
+      from "agent reads + judges every entry" to "CLI mechanically checks; silent unless ready-to-remove,"
+      so frequency becomes cheap and a separate throttle is largely unnecessary (make-it-cheap beats
+      throttle-an-expensive-check). A once-per-day timestamp throttle (per-machine state in `.internal/`)
+      is a viable *fallback* for non-mechanizable judgment triggers — but most ARC triggers ("when WU-X
+      integrates / ships") are mechanizable via `refExists` / PR-state, so the throttle's residual value
+      is small. Principle to preserve: a removal-trigger-bearing surface needs a paired eval cadence or it
+      rots.
 
 - **Work Organization Reform (WOR)** — ships the handoff-commit rendering convention
   (Task 6.1.e: subject template + position-string vocabulary + body template) as
@@ -244,3 +255,11 @@ consider before Worktree Foundation; otherwise treat as opportunistic.
   larger schemas drift toward over-engineering.
 
 ---
+
+## Coordination — ADR-022
+
+Per ADR-022, consume the managed operational-state document schema rather than coining a meta /
+`SESSION-NOTES` field-set here. `**Commit at Handoff:**` becomes a CLI-owned pointer field (set
+from git state, not hand-typed), and the structured `_Remove when:_` triggers become part of the
+`WORKING-MEMORY` record schema. See `adr-022-managed-operational-state-documents.md`
+§ Coordination.

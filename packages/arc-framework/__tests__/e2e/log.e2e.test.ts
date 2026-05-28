@@ -1,8 +1,8 @@
 /**
  * Log command E2E tests.
  *
- * Exercises `arc log atomic` with matching commits, filter options
- * (--since, --author, --limit, --work-unit), and empty result handling.
+ * Exercises `arc log standalone` with matching commits, filter options
+ * (--since, --author, --limit, --category), and empty result handling.
  */
 
 import { execFile } from "node:child_process";
@@ -35,7 +35,7 @@ async function commitWithContext(
   );
 }
 
-describe("log atomic", () => {
+describe("log standalone", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
@@ -50,20 +50,20 @@ describe("log atomic", () => {
     await cleanupTempDir(tmpDir);
   });
 
-  it("shows commits with atomic context footers", async () => {
-    // Create commits with atomic context patterns
+  it("shows commits with standalone context footers", async () => {
+    // Create commits with standalone context patterns
     await commitWithContext(
       tmpDir,
       "fix(auth): patch session timeout",
-      "Context: atomic-cli-implementation.md",
+      "Context: standalone (maintenance)",
     );
     await commitWithContext(
       tmpDir,
       "docs(arc): update quick reference",
-      "Context: maintenance (atomic / no associated task list)",
+      "Context: standalone (documentation)",
     );
 
-    const result = await runArc(["log", "atomic"], tmpDir);
+    const result = await runArc(["log", "standalone"], tmpDir);
 
     expect(result.exitCode).toBe(0);
     const output = result.stdout + result.stderr;
@@ -71,21 +71,21 @@ describe("log atomic", () => {
     expect(output).toContain("update quick reference");
   });
 
-  it("does not show commits without atomic context", async () => {
-    // Regular task commit — not atomic
+  it("does not show commits without a standalone context", async () => {
+    // Regular task commit — not standalone
     await commitWithContext(
       tmpDir,
       "feat(init): add init command",
       "Context: tasks-cli-implementation.md (Task 3.1)",
     );
-    // Atomic commit
+    // Standalone commit
     await commitWithContext(
       tmpDir,
       "fix(config): correct default path",
-      "Context: atomic-cli-implementation.md",
+      "Context: standalone (maintenance)",
     );
 
-    const result = await runArc(["log", "atomic"], tmpDir);
+    const result = await runArc(["log", "standalone"], tmpDir);
 
     expect(result.exitCode).toBe(0);
     const output = result.stdout + result.stderr;
@@ -94,11 +94,11 @@ describe("log atomic", () => {
   });
 
   it("--limit restricts number of results", async () => {
-    await commitWithContext(tmpDir, "fix(a): first", "Context: atomic-test.md");
-    await commitWithContext(tmpDir, "fix(b): second", "Context: atomic-test.md");
-    await commitWithContext(tmpDir, "fix(c): third", "Context: atomic-test.md");
+    await commitWithContext(tmpDir, "fix(a): first", "Context: standalone (maintenance)");
+    await commitWithContext(tmpDir, "fix(b): second", "Context: standalone (maintenance)");
+    await commitWithContext(tmpDir, "fix(c): third", "Context: standalone (maintenance)");
 
-    const result = await runArc(["log", "atomic", "--limit", "2"], tmpDir);
+    const result = await runArc(["log", "standalone", "--limit", "2"], tmpDir);
 
     expect(result.exitCode).toBe(0);
     const output = result.stdout + result.stderr;
@@ -108,35 +108,35 @@ describe("log atomic", () => {
     expect(output).not.toContain("first");
   });
 
-  it("--work-unit filters by work unit name", async () => {
+  it("--category filters by standalone category", async () => {
     await commitWithContext(
       tmpDir,
-      "fix(a): from cli work",
-      "Context: atomic-cli-implementation.md",
+      "fix(a): maintenance work",
+      "Context: standalone (maintenance)",
     );
     await commitWithContext(
       tmpDir,
-      "fix(b): from docs work",
-      "Context: atomic-docs-update.md",
+      "docs(b): documentation work",
+      "Context: standalone (documentation)",
     );
 
     const result = await runArc(
-      ["log", "atomic", "--work-unit", "cli-implementation"],
+      ["log", "standalone", "--category", "maintenance"],
       tmpDir,
     );
 
     expect(result.exitCode).toBe(0);
     const output = result.stdout + result.stderr;
-    expect(output).toContain("from cli work");
-    expect(output).not.toContain("from docs work");
+    expect(output).toContain("maintenance work");
+    expect(output).not.toContain("documentation work");
   });
 
   it("--author filters by commit author", async () => {
     // Default author is "Test User" from createTempRepo
-    await commitWithContext(tmpDir, "fix(a): by test user", "Context: atomic-test.md");
+    await commitWithContext(tmpDir, "fix(a): by test user", "Context: standalone (maintenance)");
 
     const result = await runArc(
-      ["log", "atomic", "--author", "Test User"],
+      ["log", "standalone", "--author", "Test User"],
       tmpDir,
     );
 
@@ -146,29 +146,29 @@ describe("log atomic", () => {
 
     // Non-matching author returns nothing
     const empty = await runArc(
-      ["log", "atomic", "--author", "Nobody"],
+      ["log", "standalone", "--author", "Nobody"],
       tmpDir,
     );
     expect(empty.exitCode).toBe(0);
     const emptyOutput = empty.stdout + empty.stderr;
-    expect(emptyOutput).toContain("No atomic task commits found");
+    expect(emptyOutput).toContain("No standalone commits found");
   });
 
   it("--since filters by date", async () => {
-    await commitWithContext(tmpDir, "fix(a): recent fix", "Context: atomic-test.md");
+    await commitWithContext(tmpDir, "fix(a): recent fix", "Context: standalone (maintenance)");
 
     // Future date should return nothing
     const empty = await runArc(
-      ["log", "atomic", "--since", "2099-01-01"],
+      ["log", "standalone", "--since", "2099-01-01"],
       tmpDir,
     );
     expect(empty.exitCode).toBe(0);
     const emptyOutput = empty.stdout + empty.stderr;
-    expect(emptyOutput).toContain("No atomic task commits found");
+    expect(emptyOutput).toContain("No standalone commits found");
 
     // Past date should include the commit
     const found = await runArc(
-      ["log", "atomic", "--since", "2000-01-01"],
+      ["log", "standalone", "--since", "2000-01-01"],
       tmpDir,
     );
     expect(found.exitCode).toBe(0);
@@ -177,11 +177,11 @@ describe("log atomic", () => {
   });
 
   it("empty result when no matching commits", async () => {
-    // No atomic commits exist — only the initial commit
-    const result = await runArc(["log", "atomic"], tmpDir);
+    // No standalone commits exist — only the initial commit
+    const result = await runArc(["log", "standalone"], tmpDir);
 
     expect(result.exitCode).toBe(0);
     const output = result.stdout + result.stderr;
-    expect(output).toContain("No atomic task commits found");
+    expect(output).toContain("No standalone commits found");
   });
 });

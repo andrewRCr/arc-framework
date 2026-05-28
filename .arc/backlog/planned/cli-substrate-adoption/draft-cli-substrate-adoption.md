@@ -518,3 +518,10 @@ into plan body deferred to a focused iteration session.*
   extraction) was selected over option C (full unification) for that task's scope.
 - **Effort estimate:** M (helper redesign + 86-site migration + new unit coverage for
   the mode parameter and default-merge behavior)
+
+## Coordination — ADR-022
+
+ADR-022 designates the meta record (this WU's zod meta schema) as the structural source of truth for the
+managed operational-state document class. Enumerate full managed-doc schema coverage beyond the current four
+surfaces (or hand the remainder to `operational-state-docs`), and resolve the schema-home convention so every
+consumer derives from one schema. See `adr-022-managed-operational-state-documents.md` § Coordination.

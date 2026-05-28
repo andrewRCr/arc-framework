@@ -15,17 +15,18 @@ import { formatUnexpectedError } from "./lib/errors.js";
 import { checkDevBuildStaleness, createDevCheckDeps } from "./lib/dev-check.js";
 import { handleInit } from "./handlers/init.js";
 import { handleJoin } from "./handlers/join.js";
+import { handleStart, type StartOptions } from "./handlers/start.js";
 import { handleUpdate, handleHealth, handleDiff } from "./handlers/lifecycle.js";
 import {
   handleUserAdd, handleUserClose, handleUserOpen, handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
 } from "./handlers/user.js";
 import { handleExtensionsStatus } from "./handlers/extensions.js";
 import { handleConfigStatus } from "./handlers/config.js";
-import { handleActiveStatus } from "./handlers/active.js";
+import { handleActiveStatus, handleActiveRoster } from "./handlers/active.js";
 import { handleStatus } from "./handlers/status.js";
 import { handleSync } from "./handlers/sync.js";
 import { handleUserSync } from "./handlers/user-sync.js";
-import { handleLogAtomic } from "./handlers/log.js";
+import { handleLogStandalone } from "./handlers/log.js";
 import {
   handleReleaseCommit,
   handleReleaseOptIn,
@@ -67,6 +68,22 @@ program
   .option("--tools <csv>", "Comma-separated tool list (requires --yes)")
   .option("--reconfigure", "Change personal workspace settings (role, tools)")
   .action(handleJoin);
+
+// --- Work units ---
+
+program
+  .command("start [name]")
+  .description(
+    "Start a work unit. `--here` cold-starts into the current worktree "
+    + "(scaffolds a Planning meta + SESSION-NOTES); create-new modes layer on later.",
+  )
+  .option("--here", "Cold-start: scaffold into the current worktree (the only mode available today)")
+  .option(
+    "--from <pointer-or-blurb>",
+    "Spec input — issue ref → Origin, spec/draft artifact → Design, else passed through for assessment",
+  )
+  .option("-y, --yes", "Skip the confirm prompt")
+  .action((name: string | undefined, opts: StartOptions) => handleStart(name, opts));
 
 // --- Lifecycle ---
 
@@ -197,6 +214,12 @@ activeCmd
   .option("--session-init", "Emit resolved path / null / candidate list for session-init")
   .option("--json", "Emit the typed result as JSON")
   .action(handleActiveStatus);
+
+activeCmd
+  .command("roster")
+  .description("Emit the cross-worktree in-flight work-unit roster (concurrency-advisory data input)")
+  .option("--json", "Emit the typed result as JSON")
+  .action(handleActiveRoster);
 
 // --- Status (composite) ---
 
@@ -345,14 +368,17 @@ const logCmd = program
   .description("Browse ARC commit history");
 
 logCmd
-  .command("atomic")
-  .description("Show atomic task commits")
+  .command("standalone")
+  .description("Show off-WU standalone commits")
   .option("--since <date>", "Show commits after date (e.g., 2026-03-01)")
   .option("--author <name>", "Filter by author")
   .option("--limit <n>", "Maximum number of commits (default: 50)", parseInt)
   .option("--all", "Show all matching commits (no limit)")
-  .option("--work-unit <name>", "Filter by work unit name (matches atomic-{name})")
-  .action(handleLogAtomic);
+  .option(
+    "--category <category>",
+    "Filter by standalone category (maintenance|planning|documentation|refactor)",
+  )
+  .action(handleLogStandalone);
 
 // --- Dev-mode stale-build guard (self-hosting only) ---
 

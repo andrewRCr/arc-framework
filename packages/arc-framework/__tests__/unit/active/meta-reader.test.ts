@@ -14,7 +14,11 @@ import { tmpdir } from "node:os";
 
 import {
   parseMetaFile,
+  parseMetaRecord,
   readActiveMetaCandidates,
+  renderMetaFile,
+  META_FIELDS,
+  type MetaFieldOverrides,
 } from "../../../src/lib/active/meta-reader.js";
 
 interface Fixture {
@@ -380,5 +384,98 @@ describe("readActiveMetaCandidates — layout detection", () => {
     expect(result.candidates).toEqual([]);
     expect(result.warnings.length).toBe(1);
     expect(result.warnings[0]).toContain(".arc/user/alice/active/");
+  });
+});
+
+const SPAWN_OVERRIDES: MetaFieldOverrides = {
+  State: "Planning",
+  Owner: "andrew",
+  Branch: "plan/foo",
+  "Next Action": "Begin planning — draft the spec",
+};
+
+describe("renderMetaFile — fresh Planning scaffold", () => {
+  it("substitutes State, Owner, Branch, and Next Action from the overrides", () => {
+    const md = renderMetaFile("foo", SPAWN_OVERRIDES);
+    expect(md).toContain("- **State:** Planning");
+    expect(md).toContain("- **Owner:** andrew");
+    expect(md).toContain("- **Branch:** plan/foo");
+    expect(md).toContain("- **Next Action:** Begin planning — draft the spec");
+  });
+
+  it("renders every non-substituted field at its declared default", () => {
+    const md = renderMetaFile("foo", SPAWN_OVERRIDES);
+    expect(md).toContain("- **Origin:** [internal]");
+    expect(md).toContain("- **Design:** [none]");
+    expect(md).toContain("- **Depends On:** [none]");
+    expect(md).toContain("- **Cohort:** [none]");
+    expect(md).toContain("- **Task List:** [none]");
+    expect(md).toContain("- **Last Completed:** [none]");
+    expect(md).toContain("- **Next Task:** [none]");
+    expect(md).toContain("- **Blockers:** [none]");
+  });
+});
+
+describe("renderMetaFile — projection shape", () => {
+  it("opens with the `# Metadata: {wu-name}` H1", () => {
+    const md = renderMetaFile("foo", SPAWN_OVERRIDES);
+    expect(md.startsWith("# Metadata: foo\n")).toBe(true);
+  });
+
+  it("separates each field group with a single blank line", () => {
+    const md = renderMetaFile("foo", SPAWN_OVERRIDES);
+    expect(md).toContain("- **Branch:** plan/foo\n\n- **Origin:** [internal]");
+    expect(md).toContain("- **Design:** [none]\n\n- **Depends On:** [none]");
+    expect(md).toContain("- **Cohort:** [none]\n\n- **Task List:** [none]");
+    expect(md).toContain(
+      "- **Blockers:** [none]\n\n- **Next Action:** Begin planning — draft the spec",
+    );
+  });
+
+  it("closes the field block with a trailing `---` and a single newline", () => {
+    const md = renderMetaFile("foo", SPAWN_OVERRIDES);
+    expect(md.endsWith("\n---\n")).toBe(true);
+    expect(md.endsWith("\n\n")).toBe(false);
+  });
+
+  it("emits no instructional comments or archive sections in the Planning phase", () => {
+    const md = renderMetaFile("foo", SPAWN_OVERRIDES);
+    expect(md).not.toContain("<!--");
+    expect(md).not.toContain("##");
+  });
+});
+
+describe("renderMetaFile ↔ parseMetaRecord — round-trip", () => {
+  it("recovers every rendered field value through the meta parser", () => {
+    const overrides: MetaFieldOverrides = {
+      State: "Planning",
+      Owner: "andrew",
+      Branch: "plan/foo",
+      Origin: "tracker-123",
+      Design: "draft-foo.md",
+      "Depends On": "alpha beta",
+      Cohort: "gamma",
+      "Task List": "tasks-foo.md",
+      "Last Completed": "Task 1.1 — kicked off (line ~10)",
+      "Next Task": "Task 1.2 — next up (line ~20)",
+      Blockers: "waiting on review",
+      "Next Action": "Begin planning",
+    };
+    const record = parseMetaRecord(renderMetaFile("foo", overrides));
+    for (const field of META_FIELDS) {
+      expect(record[field.name]).toBe(overrides[field.name]);
+    }
+  });
+
+  it("recovers the declared defaults for non-substituted fields", () => {
+    const record = parseMetaRecord(renderMetaFile("foo", SPAWN_OVERRIDES));
+    expect(record.Origin).toBe("[internal]");
+    expect(record.Design).toBe("[none]");
+    expect(record["Depends On"]).toBe("[none]");
+    expect(record.Cohort).toBe("[none]");
+    expect(record["Task List"]).toBe("[none]");
+    expect(record["Last Completed"]).toBe("[none]");
+    expect(record["Next Task"]).toBe("[none]");
+    expect(record.Blockers).toBe("[none]");
   });
 });

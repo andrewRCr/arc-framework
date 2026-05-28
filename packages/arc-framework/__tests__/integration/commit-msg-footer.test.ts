@@ -80,9 +80,6 @@ const positiveCases: FooterCase[] = [
   { name: "standalone (documentation)", footer: "Context: standalone (documentation)" },
   { name: "standalone (refactor)", footer: "Context: standalone (refactor)" },
 
-  // atomic-*
-  { name: "atomic-*", footer: "Context: atomic-foo.md" },
-
   // contribution
   { name: "contribution (freeform)", footer: "Context: contribution (fix typo in README)" },
 ];
@@ -103,6 +100,9 @@ const negativeCases: FooterCase[] = [
   // Retired off-WU patterns (replaced by `standalone (...)`)
   { name: "off-WU (no associated task list) — retired", footer: "Context: planning (no associated task list)" },
   { name: "off-WU (atomic / no associated task list) — retired", footer: "Context: maintenance (atomic / no associated task list)" },
+
+  // Retired atomic-* companion file footer (companion file type removed)
+  { name: "atomic-* companion footer — retired", footer: "Context: atomic-foo.md" },
 
   // `content` dropped from off-WU vocabulary in standalone
   { name: "standalone (content) — content dropped", footer: "Context: standalone (content)" },

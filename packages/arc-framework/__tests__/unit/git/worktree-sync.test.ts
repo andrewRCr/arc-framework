@@ -230,6 +230,46 @@ describe("runWorktreeSyncStatus", () => {
     expect(result.behind).toBe(0);
   });
 
+  it("returns branch-gone when fetch fails with a remote-ref-not-found rejection (exit 128)", async () => {
+    const { exec } = buildExec({
+      [REV_PARSE_HEAD]: { stdout: "feat/x", stderr: "" },
+      [REV_PARSE_UPSTREAM]: { stdout: "origin/feat/x", stderr: "" },
+      [FETCH_BRANCH]: () => {
+        throw Object.assign(new Error("fetch failed"), {
+          code: 128,
+          stderr: "fatal: couldn't find remote ref refs/heads/feat/x",
+        });
+      },
+    });
+
+    const result = await runWorktreeSyncStatus({ exec, remoteSyncEnabled: true });
+
+    expect(result.state).toBe("branch-gone");
+    expect(result.ahead).toBe(0);
+    expect(result.behind).toBe(0);
+    expect(result.branch).toBe("feat/x");
+    // branch-gone is a distinct state, not a remote-unavailable failure flavor.
+    expect(result.failureReason).toBeUndefined();
+  });
+
+  it("keeps remote-unavailable (error) for an exit-128 fetch failure that is not ref-not-found", async () => {
+    const { exec } = buildExec({
+      [REV_PARSE_HEAD]: { stdout: "main", stderr: "" },
+      [REV_PARSE_UPSTREAM]: { stdout: "origin/main", stderr: "" },
+      [FETCH_BRANCH]: () => {
+        throw Object.assign(new Error("fetch failed"), {
+          code: 128,
+          stderr: "fatal: unable to access 'https://...': Could not resolve host: github.com",
+        });
+      },
+    });
+
+    const result = await runWorktreeSyncStatus({ exec, remoteSyncEnabled: true });
+
+    expect(result.state).toBe("remote-unavailable");
+    expect(result.failureReason).toBe("error");
+  });
+
   it("classifies as error (not timeout) when a non-AbortError rejection coincides with signal abort", async () => {
     const { exec } = buildExec({
       [REV_PARSE_HEAD]: { stdout: "main", stderr: "" },

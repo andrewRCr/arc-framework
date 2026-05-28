@@ -113,6 +113,7 @@ export async function runJoin(options: JoinOptions): Promise<JoinResult> {
   const gitignorePath = join(cwd, ".gitignore");
   const gitignoreEntries = [
     ".arc/system/.internal/pristine.json",
+    ".arc/system/.internal/worktree-marker.json",
     ".arc/user/*/",
     ...skillGitignoreEntries(skillResult.targetDirs),
   ];
@@ -217,6 +218,7 @@ export async function runJoinReconfigure(
   const gitignorePath = join(cwd, ".gitignore");
   const gitignoreEntries = [
     ".arc/system/.internal/pristine.json",
+    ".arc/system/.internal/worktree-marker.json",
     ".arc/user/*/",
     ...skillGitignoreEntries(skillResult.targetDirs),
   ];
@@ -263,7 +265,7 @@ export function buildPostJoinMessage(result: JoinResult): string {
   if (result.tools.length > 0) {
     lines.push("");
     lines.push(
-      "Next: Restart your AI tool so the new /arc-resume skill is available, then run it.",
+      "Next: Restart your AI tool so the new /arc-session skill is available, then run it.",
     );
   }
 

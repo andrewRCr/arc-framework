@@ -1,14 +1,14 @@
-# Metadata: Worktree Foundation
+# Metadata: Configurable Lifecycle Artifacts
 
 - **State:** Planning
 - **Owner:** andrew
 - **Branch:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-worktree-foundation.md`
+- **Design:** `draft-configurable-lifecycle-artifacts.md`
 
-- **Depends On:** work-organization-reform
-- **Cohort:** agile-parallelism
+- **Depends On:** [none]
+- **Cohort:** [none]
 
 - **Task List:** [none]
 - **Last Completed:** [none]

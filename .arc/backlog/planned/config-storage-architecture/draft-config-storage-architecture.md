@@ -100,7 +100,9 @@ Rationale per tier:
 - **`arc-config.yml` comment-density model.** ATOMIC-INBOX entry (2026-05-09) flagged the project-level
   `arc-config.yml` has grown to ~250 lines, dominated by inline reference content. The new per-user file faces the
   same UX question; resolving it for both files together with a shared comment-density model is more coherent than
-  splitting the decision across WUs.
+  splitting the decision across WUs. Worktree Foundation adds `worktree.location_template` with inline supporting
+  docs (semantics + override examples) as a deliberate interim, deferring the doc-home decision here — it is a new
+  entry that should adopt whatever comment-density model this WU settles (inline-heavy vs minimal-with-reference).
 
 - **`arc-` prefix audit (potential).** With `~/.arc/config.yml` as the canonical global filename, the symmetric
   shape across the three tiers would be: `~/.arc/config.yml`, `.arc/system/config.yml` (or hoisted to
@@ -244,3 +246,10 @@ Multi-phase WU. Comparable in shape and scale to the User Sync UX Polish WU or t
 Ergonomics WU.
 
 ---
+
+## Coordination — ADR-022
+
+Co-owns (with `cli-substrate-adoption`) `arc-config.yml`'s structure-vs-value model — the adjacent archetype
+of ADR-022's structural-ownership principle (keys code-owned, values adopter-customizable). Coordinate the
+notes-sync channel + manifest extension with ADR-022's managed-doc surfaces; keep the key-schema treatment
+consistent with the managed-doc schemas. See `adr-022-managed-operational-state-documents.md` § Coordination.

@@ -32,6 +32,7 @@ import type {
   SessionInitWorktreeValue,
   StatusIdentity,
   StatusResult,
+  WorktreeIdentity,
 } from "./types.js";
 import {
   inferSessionInitRecommendations,
@@ -132,31 +133,49 @@ export async function runSessionInitStatus(
     | ProbeErrorSlot;
   type RawWorktree = { ok: true; value: import("../../lib/git/worktree-sync.js").WorktreeSyncStatusResult }
     | ProbeErrorSlot;
+  type RawRetired =
+    | { ok: true; value: import("../../lib/session-init/retired-subdir-detection.js").RetiredSubdirDetectionResult }
+    | ProbeErrorSlot;
 
   const userTask: Promise<RawUser> = identity === null
     ? Promise.resolve(identityMissing())
     : safeProbe(() => probes.user(identity));
   const worktreeTask: Promise<RawWorktree> = safeProbe(() => probes.worktree());
+  const worktreeIdentityTask = safeProbe(() => probes.worktreeIdentity());
   const dirtyTask = safeProbe(() => probes.dirty());
   const extensionsTask = safeProbe(() => probes.extensions());
   const configTask = safeProbe(() => probes.config());
   const activeTask = safeProbe(() => probes.active(identity, role));
   const domainRulesTask = safeProbe(() => probes.domainRules());
   const releaseRoutingTask = safeProbe(() => probes.releaseRouting());
+  // Retired-subdir detection rides the eager phase (no roster dependency); it
+  // needs identity to resolve a user dir, so it is omitted when identity is
+  // absent. `null` here means "not computed" — distinct from an empty result.
+  const retiredSubdirsTask: Promise<RawRetired | null> = identity === null
+    ? Promise.resolve(null)
+    : safeProbe(() => probes.retiredSubdirs(identity));
 
   const [
-    user, worktree, dirty, extensions, config, active, domainRules,
-    releaseRouting,
+    user, worktree, worktreeIdentitySlot, dirty, extensions, config, active,
+    domainRules, releaseRouting, retiredSubdirs,
   ] = await Promise.all([
     userTask,
     worktreeTask,
+    worktreeIdentityTask,
     dirtyTask,
     extensionsTask,
     configTask,
     activeTask,
     domainRulesTask,
     releaseRoutingTask,
+    retiredSubdirsTask,
   ]);
+
+  // Worktree identity is non-critical and always-on: a failed probe degrades
+  // to "primary" (surface nothing) rather than masking the whole worktree slot.
+  const worktreeIdentity: WorktreeIdentity = worktreeIdentitySlot.ok
+    ? worktreeIdentitySlot.value
+    : { kind: "primary" };
 
   // Cross-channel qualifier: when the notes-clean verdict is true only
   // because local HEAD is behind origin, attach the qualifier to user
@@ -181,6 +200,7 @@ export async function runSessionInitStatus(
         ...worktree.value,
         recommendedAction: recommendations.worktree.recommendedAction,
         recommendedPromptText: recommendations.worktree.recommendedPromptText,
+        identity: worktreeIdentity,
       } satisfies SessionInitWorktreeValue,
     }
     : worktree;
@@ -196,6 +216,44 @@ export async function runSessionInitStatus(
     }
     : qualifiedUser;
 
+  // Two-stage orchestration seam. The eager `Promise.all` above is the first
+  // stage. The in-flight roster is the lone conditional-expensive slot: its
+  // gating signals — worktree state, active resolution, and worktree identity —
+  // are produced by sibling slots in that fan-out, so it can only fire once they
+  // resolve. We gate on those resolved values and run the roster scan in a
+  // second stage; on the linked-worktree resume path the gate is false, the
+  // scan never runs, and the slot is omitted, so resume latency is unchanged.
+  // The primary-worktree arm fires it for the stale-worktree sweep — a main
+  // session recurs often enough to bound the lingering window. `safeProbe`
+  // preserves the "envelope never rejects" contract for the roster too. Kept
+  // deliberately minimal — one named conditional stage, not a general
+  // gated-slot framework.
+  const rosterGated =
+    (worktree.ok && worktree.value.state === "branch-gone") ||
+    (active.ok && active.value.resolution === "none") ||
+    worktreeIdentity.kind === "primary";
+  const roster = rosterGated
+    ? await safeProbe(() => probes.roster())
+    : undefined;
+
+  // Branch-gone recovery — a gated consumer of the roster, narrower than the
+  // roster gate (branch-gone only). It consumes the roster resolved just above,
+  // so one roster computation feeds every consumer and recovery fires only when
+  // the worktree is branch-gone and the roster resolved.
+  const recovery =
+    worktree.ok && worktree.value.state === "branch-gone" && roster?.ok
+      ? await safeProbe(() => probes.recovery(roster.value, worktree.value.branch))
+      : undefined;
+
+  // Stale-worktree sweep — a second roster consumer, gated to the primary (main)
+  // worktree. Cross-references the roster against `.arc/completed/` and resolves
+  // each lingering shipped-WU worktree's cleanup disposition. Fires only when
+  // the session is in the primary worktree and the roster resolved.
+  const sweep =
+    worktreeIdentity.kind === "primary" && roster?.ok
+      ? await safeProbe(() => probes.sweep(roster.value, worktreeIdentity))
+      : undefined;
+
   return {
     mode: "session-init",
     identity: buildIdentity(identity, role),
@@ -207,6 +265,10 @@ export async function runSessionInitStatus(
     active,
     domainRules,
     releaseRouting,
+    ...(roster !== undefined ? { roster } : {}),
+    ...(recovery !== undefined ? { recovery } : {}),
+    ...(sweep !== undefined ? { sweep } : {}),
+    ...(retiredSubdirs !== null ? { retiredSubdirs } : {}),
     recommendedCombinedPrompt: recommendations.recommendedCombinedPrompt,
   };
 }

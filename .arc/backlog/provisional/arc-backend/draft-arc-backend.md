@@ -294,6 +294,13 @@ priority/ordering), which is unsolvable in-git by git's nature. Derived shared s
 in-git via serialization-point regeneration and is not backend-dependent. This reinforces the concurrency
 calibration note above — the backend's load-bearing value is canonical mutable storage, not sync generally.
 
+## Coordination — ADR-022
+
+ADR-022's record layer is forward-compatible with the backend tier — structured records lift without
+reshaping. The mutated managed docs (inboxes, `WORKING-MEMORY`, `USER-INBOX`) are backend-canonical
+eventually; ADR-022's interim notes-sync assignment is a bridge, not a terminal home. See
+`adr-022-managed-operational-state-documents.md` § Coordination.
+
 ---
 
 [strategy-storage-evolution]: ../../../reference/strategies/project/strategy-storage-evolution.md

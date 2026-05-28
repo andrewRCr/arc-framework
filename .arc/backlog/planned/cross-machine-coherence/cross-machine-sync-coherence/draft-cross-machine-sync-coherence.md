@@ -155,6 +155,25 @@ The narrow scope is sufficient for the immediate concern. The broad scope is the
 comparable. A remote sync-state mechanism that handles partial-push + sibling-sessions + load-symmetry
 verification is more general than a partial-push-specific marker.
 
+**Inbound from Worktree Foundation (2026-05-24): the orphan-warning T3 tier routes here.** WF's
+orphan-warning surfacing ships T1 (content-equivalence rename detection) + T2 (subdir-grouped retirement
+messaging), but defers **T3 — sync-state-aware drift detection** to this WU. T3 extends
+`.internal/.sync-state.json` with the prior file-list so a warning can distinguish "intentional retirement
+at source" from "real local drift, possibly unsaved work" — the same file and the same coherence question
+as the broader scope above. WF establishes the `.sync-state.json` schema seam (so this WU's remote-marker
+and T3 layer on without a rewrite); this WU owns the drift-detection layer. Fold T3 into the broader-scope
+decision at PRD time.
+
+**Inbound from Worktree Foundation (2026-05-25): the `branch-gone` `arc sync` notes-push softening routes
+here.** WF's new `branch-gone` worktree state (split from `remote-unavailable`) inherits the conservative
+sync treatment — both push legs blocked, refused with code 14 — to avoid regressing into auto-recreating a
+deleted upstream. The worktree-push block is unconditionally correct (pushing a gone branch resurrects it);
+the notes-push block is over-conservative for the common merged-then-deleted case, where the commits stay
+reachable from `origin/main` so the notes wouldn't dangle. Refinement to evaluate: gate the notes push on
+`HEAD`-reachable-from-`origin/main`, blocking only the rare unmerged force-delete — a "what's safe to push"
+coherence judgment on this WU's surface. WF ships the conservative block; fold the reachability-gated
+softening into the scope decision at PRD time.
+
 ---
 
 ## Alternatives
@@ -342,3 +361,9 @@ What this plan should *not* try to do:
 
 The plan is **not** ready for PRD promotion as written — it captures the concern and the design space,
 not a chosen shape.
+
+## Coordination — ADR-022
+
+ADR-022's notes-synced managed operational-state documents depend on this WU's transport hardening; the
+partial-push gap gates the "notes-synced" storage classification for those members. Coordinate; do not assume
+the transport solved. See `adr-022-managed-operational-state-documents.md` § Coordination.

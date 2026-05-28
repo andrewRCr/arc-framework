@@ -1092,7 +1092,7 @@ describe("buildUpdateSummary", () => {
     const result: UpdateResult = {
       ...baseResult,
       unchanged: 1,
-      skillWarnings: ["Modified skill overwritten: .agents/skills/arc-resume/SKILL.md"],
+      skillWarnings: ["Modified skill overwritten: .agents/skills/arc-session/SKILL.md"],
     };
     const output = buildUpdateSummary(result);
     expect(output).toContain("Skill warnings:");

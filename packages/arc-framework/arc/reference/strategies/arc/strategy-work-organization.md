@@ -15,16 +15,19 @@ documentation.
 
 - [Work Categories](#work-categories)
 - [Decision Rules](#decision-rules)
+- [Work Character](#work-character)
 - [Task Lists and Branches](#task-lists-and-branches)
 - [Work Unit State](#work-unit-state)
 - [Spec-Flow Invariants](#spec-flow-invariants)
 - [Branching](#branching)
 - [Per-Worktree Isolation](#per-worktree-isolation)
+- [Main-on-Main Pattern](#main-on-main-pattern)
 - [WU Artifact Headers](#wu-artifact-headers)
 - [Archival](#archival)
 - [ROADMAP](#roadmap)
 - [Incidental Work Model](#incidental-work-model)
 - [Branch Protection Modes](#branch-protection-modes)
+- [Errand Work Class](#errand-work-class)
 - [Directory Structure](#directory-structure)
 - [Team Coordination](#team-coordination) *(→ dedicated strategy)*
 - [Planning Module](#planning-module) *(→ dedicated strategy)*
@@ -50,6 +53,27 @@ itself.
 
 For routing deferred or discovered work — inline fix vs. atomic task vs. new work unit — see
 [DEV-RULES.ARC][dev-rules-arc] § Leave it cleaner.
+
+---
+
+## Work Character
+
+Orthogonal to a work unit's *category* (its branch-type prefix, above) is its *character* — whether the work is
+**atomic** or **multi-step**. Character is a routing axis in its own right, and it is *scale-invariant*: the same
+distinction sorts inbox items, individual tasks, and whole work units.
+
+- **Atomic** — single-bounded, indivisible, no internal stages: one review increment, fully resolved when its
+  commit lands. At the **WU scale** it sets the atomic tier (a `meta-*` and little else); at the **task scale**,
+  atomic work surfacing mid-WU folds into the current commit or spins off as an [Errand](#errand-work-class)
+  rather than accreting a holding file; at the **item scale**, deferred atomic work lands in an inbox's
+  `## Atomic` section.
+- **Multi-step** — distinct stages with separate goals; needs decomposition into phases or a task list, and
+  (when for-later) matures through the planning pipeline rather than executing as-is.
+
+**Route by character, not by wrapper.** Capture surfaces sort on this axis directly — on what the work *is*, not
+on which artifact happened to produce it. That is why inboxes carry character-named sections rather than
+surface-named ones, and why the same word ("atomic") stays correct at every scale. For the
+during-WU-vs-later routing table, see [DEV-RULES.ARC][dev-rules-arc] § Leave it cleaner.
 
 ---
 
@@ -87,25 +111,16 @@ is merged or deleted. Branch cleanup happens independently as PRs merge.
 ## Work Unit State
 
 The `**State:**` field on each WU's `meta-{name}.md` is the load-bearing lifecycle marker.
-Enum values and optional pointer fields below; workflows listed set each value.
+The four values below trace the WU lifecycle; the workflow that sets each is listed.
 
 ### State Enum
 
-| Value                                          | Set By                                                                          | Meaning                                                                              |
-| ---------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `In Progress`                                  | [activate-work-unit][activate-work-unit] Step 4; resume from pause              | Active task execution (the common case)                                              |
-| `Paused (YYYY-MM-DD) — reason`                 | [manage-incidental-work][manage-incidental]; future arc-shift pause             | Interrupted by an incidental or future arc-shift pause                               |
-| `Waiting-For {category} (YYYY-MM-DD) — reason` | Future arc-shift lifecycle                                                      | Blocked awaiting external action (not yet written by any current workflow)           |
-| `Complete`                                     | [clean-work-unit][clean-work-unit]                                              | Work done, opened for integration; file is stable through review, deleted at archive |
-| `Superseded (partial)`                         | [integrate-work-unit][integrate-work-unit] § Handling Partially Superseded Work | Partial work being integrated; remaining phases absorbed into a successor WU         |
-
-### Optional Pointer Fields
-
-Added to meta files when the WU's state calls for cross-references. Omit otherwise.
-
-| Field                                                     | Appears On                                         | Set By                                                                               |
-| --------------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `**Superseded By:** tasks-{new-approach}.md (YYYY-MM-DD)` | WU meta files with `State: Superseded (partial)`   | [integrate-work-unit][integrate-work-unit] § Appendix — points to successor WU       |
+| Value         | Set By                                            | Meaning                                                                       |
+| ------------- | ------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `Planning`    | [init-work-unit][init-work-unit]                  | Spec and task list being authored; task execution not yet begun               |
+| `Active`      | [activate-work-unit][activate-work-unit] Step 4   | Task execution underway (the common case)                                     |
+| `Integrating` | [integrate-work-unit][integrate-work-unit] Step 1 | Tasks complete; the WU is open for review and integration, stable until merge |
+| `Shipped`     | [archive-work-unit][archive-work-unit]            | Merged to the integration target and archived                                 |
 
 ---
 
@@ -245,6 +260,27 @@ contains exactly the spawning WU's meta file plus its companions, and nothing el
 
 ---
 
+## Main-on-Main Pattern
+
+The **main worktree** — the primary checkout the repository was cloned into — stays on `main`. It is not
+a work unit's worktree; it is the stable reference every WU worktree spawns from (see
+[§ Per-Worktree Isolation](#per-worktree-isolation)) and the launchpad for work that has no WU branch of
+its own: planning entry, stale-worktree sweep, repository-wide edits, and Errand launches (atomic fixes
+and other short-lived off-WU work — see [§ Errand Work Class](#errand-work-class)).
+
+ARC defines no separate, dedicated administrative worktree. Admin operations run from the main worktree
+directly — keeping `main` checked out there is what makes them safe to launch and gives every spawn a
+clean base. The pattern composes with externally spawned worktrees: whatever checkout the tooling treats
+as the primary workspace *is* the main worktree, with no extra setup.
+
+### Operational constraint
+
+One worktree per IDE / language-server window. Coordination across worktrees at the editor and
+language-server layer is largely outside ARC's control, so the working model is one active worktree per
+window rather than machinery to share state across them.
+
+---
+
 ## WU Artifact Headers
 
 A WU's tracked artifacts form a chain of authority: an `Origin` (the upstream issue, request,
@@ -371,7 +407,8 @@ those fields, with each WU rendered by its canonical WU-name.
 `active/**/<wu-name>/meta-<name>.md` and `backlog/planned/**/<wu-name>/meta-<name>.md` carry the
 canonical fields ROADMAP renders from:
 
-- `**State:**` — lifecycle phase (`Planning | Active | Integrating | Shipped`)
+- `**State:**` — lifecycle phase (`Planning | Active | Integrating | Shipped`); surfaced in the **In Flight**
+  tier's **State** column
 - `**Owner:**` — single owner (per WU)
 - `**Depends On:**` — dependency list (bare WU names; `[none]` if independent)
 - `**Cohort:**` — cohort membership (`[none]` for solo WUs)
@@ -404,15 +441,19 @@ the target's **absence** from the `active/` + `backlog/` pipeline (a shipped WU 
 3. Resolve each `**Depends On:**` entry against the `active/` + `backlog/` set (planned and
    provisional): a target still present is unsatisfied; an absent target is satisfied (shipped).
 4. Group into three tiers:
-    - **In Flight** — `State: Active | Integrating`.
+    - **In Flight** — located in `active/**`, regardless of `State:` (a WU is in flight from the moment it
+      lands in `active/`, whether `Planning`, `Active`, or `Integrating`).
     - **Ready** — planned work with no unsatisfied dependencies (deps all shipped, or none to begin
       with).
     - **Blocked** — planned work with at least one unsatisfied dependency, banded by dependency
       depth (shallowest first) so each WU follows the deps it waits on.
 5. Render each tier as a markdown table, splitting **Blocked** into one table per depth band (`Depth 1`,
    `Depth 2`, …). Columns: **Work unit** (the canonical WU-name) · **Owner** · **Depends on** ·
-   **Cohort**, with an em-dash (`—`) for empty cells. Within a tier or band, order rows to cluster
-   cohort members (by cohort, then WU-name), and pad columns to shared widths so the raw tables align.
+   **Cohort**, with an em-dash (`—`) for empty cells. The **In Flight** table inserts a **State** column
+   after **Work unit** (`Planning` / `Active` / `Integrating`); the tier spans all three, so the column
+   distinguishes them. Ready and Blocked omit it — planned work is uniformly `Planning`. Within a tier or
+   band, order rows to cluster cohort members (by cohort, then WU-name), and pad columns to shared widths
+   so the raw tables align.
 6. Footer note pointing to `backlog/provisional/` for pre-commitment thinking that hasn't been
    sequenced.
 
@@ -424,8 +465,11 @@ regeneration re-reads current state, so a regen reflects whatever changed since 
 **Ceremony-wired** — the lifecycle workflow that owns the transition carries a regenerate-ROADMAP
 step, so these need no separate discipline:
 
-- **Activation** (`backlog/planned/<wu>/` → `active/<wu>/`, `State: Planning → Active`) — moves the WU
-  into In Flight.
+- **Initialization** (`backlog/planned/<wu>/` → `active/<wu>/` graduation, or a fresh meta scaffolded
+  directly into `active/<wu>/`) — the WU lands in `active/**` and enters In Flight.
+- **Activation** (in-place `State: Planning → Active` + branch rename; no directory move) — the WU is
+  already In Flight from initialization, so tier membership doesn't change; the regen self-heals any render
+  drift since the last one.
 - **Integration / archive** (`active/<wu>/` → `completed/<dated>/<wu>/`, `State: Integrating →
   Shipped`) — drops the WU from the render set; by the same absence its dependents re-evaluate from
   Blocked to Ready, with no edits to their meta files.
@@ -488,6 +532,60 @@ All changes require branches and PR review. No direct base branch commits.
 
 ---
 
+## Errand Work Class
+
+ARC defines two work classes that share commit and review machinery but differ in tracking and lifecycle:
+
+- **Work Unit (WU)** — a bounded chunk of design-bearing or trackable work with its own branch, a
+  `meta-{name}.md`, a lifecycle (Planning → Active → Integrating → Shipped), and one PR. Activated via the
+  planning entry point (spawn or cold-start; see [§ Branching](#branching)).
+- **Errand** — a single review increment fully consumed when its commit lands. No meta, no lifecycle, no name
+  as a WU. Tracked by git history (Conventional Commits + the `standalone (...)` context footer — see
+  [`commit-footer`][commit-footer-method]), not by the planning layer (ROADMAP, backlog, `active/`).
+
+### Threshold
+
+Use a Work Unit when *any* of these hold:
+
+1. The work spans **more than one review increment** (multiple logical commits / internal sequencing).
+2. It carries **design that must be authored and referenced** (a Spec).
+3. It must be **tracked or resumed** as future or owned work (a roadmap slot, dependencies, an owner, a
+   cross-session lifecycle).
+
+None of these → it is an Errand. As an empirical *symptom* check (not the primary criterion), a candidate
+Errand that cannot be reviewed in one window (~400 lines / ~60 minutes) is almost certainly multi-increment,
+so treat it as a Work Unit.
+
+**Create vs. maintain.** *Creating* a new tracked unit of future work — a backlog stub — is a (small) Work
+Unit even when it is one commit, because its output is a tracked deliverable with a meta file. *Maintaining*
+an existing artifact — a dependency note, a cross-reference, a doc fix — is an Errand.
+
+### Cheap-branch path
+
+The cheap-branch mechanism lands an Errand without WU machinery. Behavior depends on protection mode (see
+[§ Branch Protection Modes](#branch-protection-modes)):
+
+- **Partially protected:** an Errand commits directly to the base branch (the documented off-WU-maintenance
+  path).
+- **Fully protected:** an Errand uses a short-lived ephemeral branch with a `chore`-type prefix (per
+  [`branch-format`][branch-format-method]) plus a PR. The branch exists only long enough for review and
+  merge, then is torn down. It is not a planning branch, carries no meta, and never enters lifecycle.
+
+Either way, the work is tracked by its commit's `standalone (...)` context footer (vocabulary:
+`maintenance | planning | documentation | refactor`; see [`commit-footer`][commit-footer-method]) rather than
+by an `active/` entry.
+
+### Entry path
+
+An Errand launches from the **main worktree** (see [§ Main-on-Main Pattern](#main-on-main-pattern)). The
+Errand is initiated by starting a fresh session there on a new `chore`-type branch (under full protection)
+or directly against the base branch (under partial). It does
+not invoke planning entry — spawn and cold-start scaffold meta files and lifecycles, which an Errand has
+neither of. The Errand mints no `active/` artifact and produces no orientation surface; it ships, is recorded
+by git history through its commit footer, and tears down.
+
+---
+
 ## Directory Structure
 
 ### Active Work
@@ -498,7 +596,6 @@ All changes require branches and PR review. No direct base branch commits.
   prd-<name>.md          # product requirements (when WU has a PRD)
   tasks-<name>.md        # execution spec (when WU has a task list)
   notes-<name>.md        # working context (optional; may carry content graduated from draft-*)
-  atomic-<name>.md       # atomic-task companion (optional)
 ```
 
 `active/` is flat — per-worktree isolation (see [§ Per-Worktree Isolation](#per-worktree-isolation))
@@ -528,17 +625,18 @@ patterns, merge conflict expectations, and external tracker integration.
 ## Planning Module
 
 See [Planning Module Strategy](strategy-planning-module.md) **(arc-in-git)** — what arc-in-git
-installs, routing and graduation flow, inbox vs. companion file routing, and scaling guidance.
+installs, routing and graduation flow, inbox routing, and scaling guidance.
 
 ---
 
 [team-coordination]: strategy-team-coordination.md
+[init-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/planning/init-work-unit.md
 [activate-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/activate-work-unit.md
 [integrate-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md
 [archive-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/archive-work-unit.md
-[clean-work-unit]: ../../../system/workflows/arc/supplemental/clean-work-unit.md
 [manage-incidental]: ../../../system/workflows/arc/supplemental/manage-incidental-work.md
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
 [branch-format-method]: ../../../system/methods/branch-format.md
+[commit-footer-method]: ../../../system/methods/commit-footer.md
 [commit-format-method]: ../../../system/methods/commit-format.md
 [cb-spec]: https://conventional-branch.github.io/

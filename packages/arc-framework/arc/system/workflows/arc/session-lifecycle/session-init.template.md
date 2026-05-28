@@ -31,13 +31,16 @@ The probe returns a single JSON envelope the agent consumes:
 |-----------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------                                                                                                                                                                                                                                      |
 | `identity`                  | `{identity, role}` — either may be `null`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `user`                      | Remote notes state (`value.state`: clean / remote-ahead / conflict / disabled / remote-unavailable). Carries `value.recommendedAction` ∈ `{pull, prompt, surface, skip}` and `value.recommendedPromptText` (composed channel-named offer text; empty string when not prompting) for Step 2's per-channel pull dispatch. The clean arm also carries `value.loadNeeded?: boolean` — `true` when refs match but disk lags behind the latest local note (cross-machine resume gap), feeding Step 2's notes-load dispatch; omitted on every non-clean spine state                              |
-| `worktree`                  | Worktree sync state vs. `origin/<current-branch>` (`value.state`: clean / local-ahead / remote-ahead / diverged / no-upstream / detached-head / no-remote / remote-unavailable / skipped; `value.ahead` and `value.behind` populated for healthy states). Carries `value.recommendedAction` / `value.recommendedPromptText` mirroring the user slot                                                                                                                                                                                                                                       |
+| `worktree`                  | Worktree sync state vs. `origin/<current-branch>` (`value.state`: clean / local-ahead / remote-ahead / diverged / no-upstream / detached-head / no-remote / branch-gone / remote-unavailable / skipped; `value.ahead` and `value.behind` populated for healthy states). Carries `value.recommendedAction` / `value.recommendedPromptText` mirroring the user slot. Also carries `value.identity` (`kind`: `primary` or `linked`, plus `path` when linked) — the physical worktree the session occupies, surfaced in orientation only when `linked`                                        |
 | `dirty`                     | Working-tree state from `git status --porcelain` (`value.state`: clean / dirty; `value.fileCount`). Folded into the user/worktree `recommendedPromptText` so Step 2 doesn't re-probe                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `extensions`                | `value.active`: the **active-extensions list** — consulted by fire-point directives in downstream workflows                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `config`                    | `value.settings`: session-relevant settings (`session.remote_sync`, `session.init_pull.worktree`, `session.init_pull.notes`, `session.init_load.notes`, `branch.protection`, `pm.mode`, `commit.format`, `commit.context_footer`, `commit.interlock`, `push.interlock`)                                                                                                                                                                                                                                                                                                                   |
 | `active`                    | Active meta file resolution (`value.resolution`: single / multiple / none; `value.path`, `value.candidates`, `value.layout`)                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `domainRules`               | `value.rules`: `{path, domain, purpose}` tuples from `DEV-RULES.{DOMAIN}.md` files; `value.warnings`: frontmatter parse diagnostics                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `recommendedCombinedPrompt` | Top-level. Composed combined-prompt text when both `worktree` and `user` resolve to `recommendedAction === "prompt"`; `null` otherwise                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `recovery`                  | Pre-computed branch-gone recovery resolution; present only on the `branch-gone` arm, and only when `roster` resolved (it consumes the roster to assemble candidates). `value.kind`: `resolved` (one high-confidence candidate), `surface` (multiple — operator chooses), or `main-fallback` (none — offer `main`). Candidates carry `branch`, optional `worktreePath`, and `proposedAction` (`switch` / `removable` / `external`). Acted on by Step 2's branch-gone recovery precondition (Step 6 narrates declines)                                                                      |
+| `sweep`                     | Pre-computed stale-worktree sweep; present only in the primary (main) worktree, and only when `roster` resolved. `value.worktrees`: lingering worktrees whose WU has shipped (against `completed/`), each with `worktreePath`, `branch`, and a marker-gated `decision` (`removable`; `blocked` with `reason` `uncommitted` or `unmerged`; or `external`). Surfaced in Step 6; never auto-removed                                                                                                                                                                                          |
+| `retiredSubdirs`            | Pre-computed retired-subdir detection. `value.candidates`: retired-WU user subdirs lingering under `user/{identity}/` — shipped and absent from the recent-notes window. Present whenever identity resolved; omitted only when identity is absent. Read-only surface (Step 6) — the reconcile (removal with a `.internal/` backup) runs at `arc user load` / `pull`, not at init                                                                                                                                                                                                          |
 
 **Raw notes-ref topology on `user.value.refState?`**: The notes spine's 5-state `value.state` enum encodes
 pull-direction dispatch and collapses `same` and `local-ahead` into `clean` (both mean "no pull needed"). The
@@ -66,7 +69,75 @@ of the role-resolved active root — `.arc/active/**/meta-*.md` for maintainer /
 `.arc/user/{identity}/active/meta-*.md` (flat) for contributor with identity resolved. Skip Step 2 (no
 user-sync state available) and note the degradation in orientation.
 
-## 2. Conditional Sync Pulls
+## 2. Dispatch & Conditional Sync
+
+From the resolved probe (Step 1), realign git state if needed, select the **entry mode**, and — for the arm
+that continues into context-load — run the conditional sync pulls. Three parts in order: a branch-gone
+precondition, the entry dispatch, then the sync channels.
+
+### Branch-gone recovery (precondition)
+
+When `worktree.value.state == "branch-gone"`, align git state *before* anything reads against the working
+branch. The upstream was deleted (the branch shipped elsewhere), so the notes pull here and Step 3's
+context-load would otherwise surface metas and companion files that don't exist on the recovered branch.
+The `recovery` slot carries pre-computed candidates (no scanning across turns); render them as a single
+recovery prompt, branched on `recovery.value.kind`:
+
+- `resolved` — offer the one candidate directly; or, when its `proposedAction` is `removable`, offer to
+  remove the shipped worktree and archive its meta instead of switching (`external` candidates are surfaced,
+  not acted on).
+- `surface` — list each candidate's `branch` + `proposedAction` for the operator to choose, never guessing.
+- `main-fallback` — offer `main`.
+
+```text
+**Branch gone:** `{branch}`'s upstream was deleted on `origin`. Recover onto `{candidate.branch}`?
+(surface → list candidates, ask which; main-fallback → switch to `main`?)
+```
+
+On a switch, fetch the target first when it is a remote branch not yet checked out locally, then **re-run the
+Step 1 probe** so the entry dispatch below and Step 3 read against the recovered branch — the re-probed
+`worktree.value.state` is no longer `branch-gone`. If recovery is declined or deferred, skip the dispatch and
+channels below and carry the still-gone state to Step 6's branch-gone arm. Every other state proceeds to the
+entry dispatch below.
+
+### Entry dispatch
+
+Select the entry mode from `active.value.resolution` and `worktree.value` (the probe pre-resolves both — do
+not run your own fetch / `git worktree list` / meta reads):
+
+An **entry seed** may accompany the invocation — an optional spec pointer or description provided at session
+entry (it reaches this workflow as context, not via the probe). It feeds **cold-start** only; on every other
+arm it is surfaced, not acted on.
+
+- **Resume** — `active.resolution` is `single` or `multiple`. An active work unit is present; continue to the
+  sync channels below, then Step 3.
+- **Orient** — `active.resolution` is `none` and the worktree is not bare (e.g. the primary worktree between
+  units). Continue as resume; Step 5's next-work discovery orients and awaits direction.
+- **Cold-start** — `active.resolution` is `none` and the worktree is bare: a branch checked out for new work
+  with no work unit (typically a linked worktree, `worktree.value.identity.kind` of `linked`). Offer to
+  scaffold — never auto-scaffold. Before scaffolding, run the [in-flight scope check][in-flight-scope-check] —
+  an advisory pass over in-flight work units that surfaces scope overlap and never gates. When an entry seed is
+  present, run `arc start --here --from <seed>`; otherwise run bare `arc start --here`. Either scaffolds a
+  Planning meta and seeded SESSION-NOTES into the current worktree, with an advisory ownership marker since ARC
+  didn't create it. Show the seed's resolved disposition
+  in the offer so the user confirms the reading, not just the act — the command reads an issue ref as `Origin`,
+  an ARC spec artifact (`draft-` / `spec-`) as `Design`, and passes anything else (a file/URL or free-text
+  blurb) through for you to interpret. On accept, run the command, **re-run the Step 1 probe**, and proceed as
+  **Resume**. On decline, fall through to **Orient**.
+- **Materialize** — the probe surfaces a remote-only work unit, its branch on `origin` with no local
+  worktree: `git worktree add <path> origin/<branch>`, then `arc user pull` to load its notes; **re-run the
+  Step 1 probe** and proceed as **Resume**. This arm runs when the probe surfaces such a unit.
+
+**Cold-start** and **Materialize** are the only arms peeled off before context-load — each mints or fetches
+state, then re-runs the probe and re-enters as **Resume**. **Resume** and **Orient** continue straight to the
+channels below.
+
+**Seed not consumed (non-cold-start arms).** Per the entry-seed rule above, only cold-start acts on a seed.
+When one was supplied but the resolved arm is anything else, surface a one-line note in orientation (Step 6):
+the seed was not consumed; starting fresh work from it means spawning or checking out a new worktree and
+re-entering there.
+
+### Conditional sync pulls (resume / orient arm)
 
 Two channels: worktree (`worktree.value`) and personal notes (`user.value`). Both expose
 `recommendedAction` and `recommendedPromptText` derived from current state × `session.init_pull.*` config
@@ -351,6 +422,9 @@ Produce the orientation summary.
 
 **ARC session initialized** · `{branch-name}` · {clean | uncommitted changes}
 
+When `worktree.value.identity.kind === "linked"`, insert `` · `worktree: {identity.path}` `` into the header
+after the branch — naming the non-primary worktree the session occupies. Omit entirely in the primary worktree.
+
 **Active work state:**
 
 - **Last completed**: One line. Task ID + title + commit state.
@@ -363,7 +437,7 @@ no other tracked source documents.
 Awaiting direction — proceed to Next Action?
 
 **Include only if actionable**: freshness gaps, missing identity, environment issues, sync states other than
-`clean` (worktree or notes), probe-failure fallback.
+`clean` (worktree or notes), an unconsumed entry seed (non-cold-start entry), probe-failure fallback.
 
 **Anti-pattern:** Restating the Next Task's full description from the task list. The task list carries the
 detail; orientation needs only the pointer. Reserve unbounded prose for off-task-list scenarios where no
@@ -376,6 +450,15 @@ tracked source documents the work.
   ```text
   **Reconcile required:** `{branch}` diverged from `origin/{branch}` ({ahead} ahead, {behind} behind).
   Manual rebase or merge needed before pushing. Carried forward — commit/push requests will be flagged.
+  ```
+
+- `worktree.value.state == "branch-gone"` — recovery (Step 2's branch-gone precondition) was declined or
+  deferred, so the upstream is still gone at orientation time. Surface it and await direction; do not re-render
+  the cascade here.
+
+  ```text
+  **Branch gone:** `{branch}`'s upstream was deleted on `origin`; recovery was not completed. Re-run
+  branch-gone recovery or pick a branch manually before sync, commit, or push.
   ```
 
 - `worktree.value.state == "local-ahead"`:
@@ -414,51 +497,71 @@ tracked source documents the work.
   **Uncommitted changes:** {fileCount} file(s) dirty in working tree.
   ```
 
+- `sweep.value.worktrees` non-empty (primary worktree only): worktrees for shipped work units linger.
+  Surface each with its `decision.action` — `removable` (ARC-marked, clean, merged) offers an
+  interlock-gated `git worktree remove {worktreePath}`; `blocked` shows the blocking state
+  (`uncommitted` / `unmerged`) and never auto-removes (no `--force`); `external` (no ARC marker) is
+  externally-managed — leave removal to the operator. Removal runs from the current (primary) worktree.
+
+  ```text
+  **Stale worktrees:** {N} worktree(s) for shipped work units linger:
+  - `{branch}` — clean & merged → remove? `git worktree remove {worktreePath}`
+  - `{branch}` — {uncommitted | unmerged}; surfaced, not removed
+  - `{branch}` — externally-managed (no ARC marker); remove manually if desired
+  ```
+
+- `retiredSubdirs.value.candidates` non-empty: retired-WU user subdirs linger locally (shipped and absent
+  from the recent-notes window). They reconcile automatically — removed, with a `.internal/` backup — on the
+  next `arc user load` / `pull`; surface as a heads-up, no action needed at init.
+
+  ```text
+  **Retired subdirs:** {N} shipped-WU user subdir(s) linger; reconciled (with `.internal/` backup) on next
+  `arc user load` / `pull`:
+  - `{candidate}`
+  ```
+
 **Never include**: configuration overrides, active-extensions list (any state), defaults active, freshness
 clean, environment checks passed.
 
 ## 7. Handle Context Mismatches
 
-If documented state doesn't match reality during initialization, use the trust hierarchy.
+If documented state doesn't match reality during initialization, resolve along the axis the mismatch belongs
+to. A mismatch answers one of two distinct questions, each with its own authoritative source — don't apply one
+axis's authority to the other's question.
 
-**Trust hierarchy** (highest to lowest):
+**Axis 1 — Truth of work state** ("was this actually committed?"). Git is authoritative: commits, file
+contents on disk, `git status`. The task list, the active meta file, and personal session context
+(SESSION-NOTES, WORKING-MEMORY) are *claims* about work state — verify them against git, which wins on conflict.
 
-1. **Git state** — `git status`, `git log`, file contents on disk
-2. **Task list** — checkbox state, task descriptions
-3. **Active meta file** — tracked project pointer
-4. **Personal session context** — SESSION-NOTES.md (per-WU) and WORKING-MEMORY.md (cross-WU);
-   gitignored, most volatile
+**Axis 2 — Which work am I picking up** (the roster question). Identity-filtered metas + the worktree list are
+authoritative — the same authority the Step-2 branch-gone recovery uses to pick a target. Personal notes are
+deliberately absent from this axis: they answer the *context* question (how the work was approached), not the
+*roster* question (which WU / branch / task this session resumes).
 
-**Tier 1 — Auto-recover with notice:**
+**Acting on a mismatch.** Auto-recover when one axis's authority resolves it cleanly; stop and ask when it
+stays ambiguous.
 
-When higher-trust sources agree and a lower-trust source is the outlier, proceed with the ground truth and
-report the discrepancy in orientation.
+**Auto-recover with notice** — the authoritative source is unambiguous; proceed with ground truth and report
+the discrepancy in orientation. Report format: "Active meta file said X. Git/task list show Y. Proceeding
+with Y."
 
-Report format: "Active meta file said X. Git/task list show Y. Proceeding with Y."
-
-Examples:
-
-- Active meta file says "Task 3.3 in progress" but task list shows 3.3 marked `[x]` and git log confirms the
-  commit → proceed with Task 3.4 as current
-- `worktree.value.state == "diverged"` while session docs reflect clean state → git is ground truth.
+- *Axis 1:* active meta file says "Task 3.3 in progress" but the task list shows 3.3 `[x]` and git log confirms
+  the commit → proceed with Task 3.4 as current.
+- *Axis 1:* `worktree.value.state == "diverged"` while session docs reflect clean state → git is ground truth.
   Surface as `Reconcile required:` (Step 6) and carry forward. Non-blocking; do not auto-reconcile.
 
-**Tier 2 — Stop and ask:**
+**Stop and ask** — multiple plausible explanations, or same-tier sources within an axis disagree. Report each
+source's view with specific details and wait for explicit direction before any corrective action.
 
-When the mismatch is ambiguous — multiple plausible explanations, or sources at the same trust tier disagree —
-stop, report each source's view with specific details, and wait for explicit direction before any corrective
-action.
-
-Examples:
-
-- Git shows uncommitted changes to files not mentioned in any session doc — could be co-development, a
-  partial task, or an interrupted session
-- The active meta file references a task that doesn't exist in the task list — renumbered, removed, or the
-  meta file points to the wrong task list
+- *Axis 1:* git shows uncommitted changes to files not mentioned in any session doc — could be co-development,
+  a partial task, or an interrupted session.
+- *Axis 2:* the active meta file references a task that doesn't exist in the task list — renumbered, removed,
+  or the meta file points to the wrong task list.
 
 ---
 
 [init-work-unit]: ../work-unit-lifecycle/planning/init-work-unit.md
+[in-flight-scope-check]: ../work-unit-lifecycle/in-flight-scope-check.md
 [create-spec]: ../1_create-spec.md
 [arc-methods-session]: ../../../methods/session-state.md
 [arc-ext-post-context-load]: ../../../extensions/post-context-load.md

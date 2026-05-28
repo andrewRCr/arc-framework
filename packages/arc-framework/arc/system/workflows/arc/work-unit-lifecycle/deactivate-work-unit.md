@@ -26,8 +26,8 @@ design needs rework, the feature was cancelled. The activation itself is the onl
 
 |                        | No task work executed                       | Some task work executed           |
 | ---------------------- | ------------------------------------------- | --------------------------------- |
-| **Not merged to base** | **Case A** — this workflow (or A-delete)    | **Case B** → `arc-shift` (future) |
-| **Merged to base**     | **Case C** — noted edge case below          | **Case D** → integrate or clean   |
+| **Not merged to base** | **Case A** — this workflow (or A-delete)    | **Case B** — see § Case B below   |
+| **Merged to base**     | **Case C** — see § Case C below             | **Case D** → integrate or clean   |
 
 **Case A** has two variants — the user chooses; surface the variant decision when invoking the workflow:
 
@@ -111,25 +111,52 @@ gh pr close {pr-number} --comment "Deactivating work unit; abandoning. No task w
 
 See QUICK-REFERENCE § Platform Commands for non-GitHub equivalents.
 
-### 2) Switch to base branch
+### 2) Branch + worktree teardown · dispatched by worktree identity
+
+Dispatch by the current worktree's identity:
+
+**Primary worktree (in-place WU):** no distinct worktree exists. Switch to base and force-delete the branch:
 
 ```bash
 git switch {base-branch}
-```
-
-### 3) Delete the branch
-
-```bash
-git branch -D {type}/{name}                 # local
+git branch -D {type}/{name}                 # local (force — unmerged is expected for abandonment)
 git push origin --delete {type}/{name}      # remote (if pushed)
 ```
 
-`-D` (force) is required — the activation commit on the branch never merged to base. That's expected.
+`-D` (force) is required — the activation commit never merged to base. That's expected.
 
-### 4) Clean up base-branch leftovers (per `pm.mode`)
+**Linked worktree (spawned WU):** navigate to another worktree (typically main):
 
-Branch deletion in Step 3 removed the WU's in-flight artifacts (`active/meta-*`, `active/spec-*`, `active/tasks-*`,
-`active/atomic-*`, `active/notes-*`, any residual `active/draft-*`) — they lived only on the deleted branch and
+```bash
+cd <main-worktree-path>
+```
+
+Consult `decideWorktreeCleanup` against the abandoned WU's worktree with abandonment context. Abandonment
+authorizes removal of unmerged work — the merge gate is bypassed; marker + clean resolves to `removable`.
+
+- **`removable`** — auto-remove the WU worktree:
+
+    ```bash
+    git worktree remove <wu-worktree-path>
+    ```
+
+- **`blocked`** (marker + dirty) or **`external`** (no ARC marker) — surface the state; do not auto-remove.
+  The operator's tool handles externally-spawned worktree removal; manually clean up a `blocked` worktree
+  before re-invoking if its state matters.
+
+Then force-delete the branch from main:
+
+```bash
+git branch -D {type}/{name}                 # local (force — unmerged is expected)
+git push origin --delete {type}/{name}      # remote (if pushed)
+```
+
+The agent's prior cwd no longer exists if it was in the WU worktree (on the `removable` arm).
+
+### 3) Clean up base-branch leftovers (per `pm.mode`)
+
+Branch deletion in Step 2 removed the WU's in-flight artifacts (`active/meta-*`, `active/spec-*`, `active/tasks-*`,
+`active/notes-*`, any residual `active/draft-*`) — they lived only on the deleted branch and
 were never merged. The remaining cleanup concerns base-branch leftovers that activation never touched:
 
 - **`arc-in-git`:** If the WU originated from a backlog stub, `backlog/{state}/{name}/` may still exist on base
@@ -155,6 +182,44 @@ Context: meta-{name}.md (deactivation)
 
 ---
 
+## Case B — some task work executed, not merged
+
+Task work has run but nothing has merged to base, so the activation is no longer the only thing to undo —
+committed work exists and its fate is the operator's call. This workflow does not automate Case B; it names the
+three paths and routes each to the workflow that owns it.
+
+- **Integrate the partial scope.** The work done so far stands on its own and is worth shipping. Run
+  [`integrate-work-unit.md`][integrate] from the WU branch; the completed scope merges through the normal PR
+  path. Drop any unstarted scope from the task list (mark those tasks `[~]` with a note) or carry it into a
+  follow-up WU.
+- **Abandon with history loss.** The work is not worth keeping. This is Case A-delete with committed work
+  present — branch deletion leaves those commits reachable only via reflog (garbage-collected over time), not
+  recoverable from base. Surface the irreversibility, get explicit operator authorization, then run the Case
+  A-delete teardown above.
+- **Move the work to a successor.** The direction changed but the committed work seeds a new approach.
+  Cherry-pick the relevant commits onto the successor WU's branch — the successor's meta records the
+  continuation through its `**Origin:**` — then run the Case A-delete teardown above on the original.
+
+Case B is operator-driven throughout: no state flip, and no automated branch handling beyond whichever terminal
+path (integrate or Case A-delete) the operator selects.
+
+---
+
+## Case C — merged to base, no task work executed
+
+Rare. The activation reached base — its meta-file edits merged (e.g. as a direct commit under partial
+protection) — but no task work has run, so the activation is the only thing to undo, and it can't be reversed
+locally since it lives on base. No dedicated workflow ships for this; reverse it with a deactivation PR:
+
+1. Branch from base.
+2. Reverse the activation's meta-file edits — the inverse of [`activate-work-unit.md`][activate] Step 4:
+   `**State:** Active → Planning`, `**Branch:**` back to `plan/{name}`, and the Next Action back to a planning
+   pointer.
+3. Open the PR, note the deactivation in its description, and merge once approved. If the activation also renamed
+   the live branch, rename it back per the Case A branch-rename routing above.
+
+---
+
 ## Next Step
 
 Deactivation has no session-level next action. The developer decides what follows — resume another WU, return to
@@ -163,6 +228,7 @@ Deactivation has no session-level next action. The developer decides what follow
 ---
 
 [activate]: activate-work-unit.md
+[integrate]: integrate-work-unit.md
 [branch-format]: ../../../methods/branch-format.md
 [incidental]: ../supplemental/manage-incidental-work.md
 [work-org-roadmap]: ../../../../reference/strategies/arc/strategy-work-organization.md#roadmap

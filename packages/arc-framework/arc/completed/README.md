@@ -31,9 +31,9 @@ metadata captured during execution.
 Companion artifacts stay alongside the meta file for historical reference. Which companions are present
 depends on WU tier:
 
-- **Atomic-tier** — `meta-*` plus optional `atomic-*` (no PRD or task list)
+- **Atomic-tier** — `meta-*` only (no PRD or task list)
 - **Quick-tier** — `meta-*` plus `tasks-*` (no PRD)
-- **Standard-tier** — `meta-*` plus `prd-*` plus `tasks-*` plus optional `notes-*` and `atomic-*`
+- **Standard-tier** — `meta-*` plus `prd-*` plus `tasks-*` plus optional `notes-*`
 
 ## Adding new archives
 

@@ -1,8 +1,8 @@
 /**
- * Integration tests for the log command (arc log atomic).
+ * Integration tests for the log command (arc log standalone).
  *
  * Creates a real git repo with commits containing various context footers,
- * then verifies runLogAtomic correctly searches and parses the history.
+ * then verifies runLogStandalone correctly searches and parses the history.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
@@ -13,13 +13,13 @@ import {
   makeGitExec,
   makeCommit,
 } from "../helpers/integration.js";
-import { runLogAtomic } from "../../src/commands/log.js";
+import { runLogStandalone } from "../../src/commands/log.js";
 import type { GitExec } from "../../src/lib/git/index.js";
 
 let tempDir: string;
 let exec: GitExec;
 
-describe("arc log atomic integration", () => {
+describe("arc log standalone integration", () => {
   beforeEach(async () => {
     tempDir = await createTempRepo("arc-log-test-");
     exec = makeGitExec(tempDir);
@@ -30,13 +30,13 @@ describe("arc log atomic integration", () => {
       "",
       "- Fixed edge case in refresh flow",
       "",
-      "Context: atomic-cli-implementation.md",
+      "Context: standalone (maintenance)",
     ].join("\n"));
 
     await makeCommit(tempDir, [
       "chore(deps): bump lodash",
       "",
-      "Context: maintenance (atomic / no associated task list)",
+      "Context: standalone (maintenance)",
     ].join("\n"));
 
     await makeCommit(tempDir, [
@@ -50,7 +50,7 @@ describe("arc log atomic integration", () => {
     await makeCommit(tempDir, [
       "docs(arc): update session workflow",
       "",
-      "Context: atomic-docs-update.md",
+      "Context: standalone (documentation)",
     ].join("\n"));
   });
 
@@ -58,34 +58,22 @@ describe("arc log atomic integration", () => {
     await cleanupTempDir(tempDir);
   });
 
-  it("finds commits with companion file atomic context footers", async () => {
-    const result = await runLogAtomic({ exec });
+  it("finds commits with standalone context footers", async () => {
+    const result = await runLogStandalone({ exec });
 
-    const companionEntries = result.entries.filter((e) =>
-      e.contextLine.startsWith("Context: atomic-"),
+    const standaloneEntries = result.entries.filter((e) =>
+      e.contextLine.startsWith("Context: standalone ("),
     );
-    expect(companionEntries.length).toBeGreaterThanOrEqual(2);
+    expect(standaloneEntries.length).toBeGreaterThanOrEqual(3);
 
-    const authFix = companionEntries.find((e) => e.description === "patch token refresh");
+    const authFix = standaloneEntries.find((e) => e.description === "patch token refresh");
     expect(authFix).toBeDefined();
     expect(authFix!.type).toBe("fix");
     expect(authFix!.scope).toBe("auth");
   });
 
-  it("finds commits with standalone atomic context footers", async () => {
-    const result = await runLogAtomic({ exec });
-
-    const standalone = result.entries.find((e) =>
-      e.contextLine.includes("atomic / no associated task list"),
-    );
-    expect(standalone).toBeDefined();
-    expect(standalone!.type).toBe("chore");
-    expect(standalone!.scope).toBe("deps");
-    expect(standalone!.description).toBe("bump lodash");
-  });
-
-  it("excludes non-atomic commits from results", async () => {
-    const result = await runLogAtomic({ exec });
+  it("excludes work-unit task commits from results", async () => {
+    const result = await runLogStandalone({ exec });
 
     const taskCommit = result.entries.find((e) =>
       e.description === "add user endpoint",
@@ -93,29 +81,29 @@ describe("arc log atomic integration", () => {
     expect(taskCommit).toBeUndefined();
   });
 
-  it("filters by --work-unit name", async () => {
-    const result = await runLogAtomic({ exec, workUnit: "docs-update" });
+  it("filters by --category name", async () => {
+    const result = await runLogStandalone({ exec, category: "documentation" });
 
     expect(result.entries).toHaveLength(1);
     expect(result.entries[0]!.description).toBe("update session workflow");
   });
 
   it("respects --limit flag", async () => {
-    const result = await runLogAtomic({ exec, limit: 1 });
+    const result = await runLogStandalone({ exec, limit: 1 });
 
-    // git log returns most recent first; limit=1 gives the latest atomic commit
+    // git log returns most recent first; limit=1 gives the latest standalone commit
     expect(result.entries).toHaveLength(1);
   });
 
-  it("returns empty results when no atomic commits exist", async () => {
-    // Fresh repo with no atomic commits
+  it("returns empty results when no standalone commits exist", async () => {
+    // Fresh repo with no standalone commits
     const emptyDir = await createTempRepo("arc-log-empty-");
     try {
       const emptyExec = makeGitExec(emptyDir);
 
       await makeCommit(emptyDir, "feat: initial commit\n\nContext: tasks-foo.md (Task 1.1)");
 
-      const result = await runLogAtomic({ exec: emptyExec });
+      const result = await runLogStandalone({ exec: emptyExec });
       expect(result.entries).toHaveLength(0);
     } finally {
       await cleanupTempDir(emptyDir);

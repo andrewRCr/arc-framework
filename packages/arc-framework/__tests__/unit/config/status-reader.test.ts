@@ -29,8 +29,8 @@ async function createFixture(): Promise<Fixture> {
 }
 
 describe("readConfigSettings — AGENT_CONSUMABLE_KEYS", () => {
-  it("enumerates the 17 agent-consumable keys", () => {
-    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(17);
+  it("enumerates the 18 agent-consumable keys", () => {
+    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(18);
   });
 
   it("excludes all hooks.* keys", () => {
@@ -113,6 +113,7 @@ describe("readConfigSettings — user-supplied values", () => {
     const content = [
       "branch.base: develop",
       "branch.protection: full",
+      "worktree.location_template: .worktrees/{branch}",
       "commit.format: custom",
       "commit.context_footer: disabled",
       "commit.custom_pattern: ^FOO-.+",
@@ -133,6 +134,7 @@ describe("readConfigSettings — user-supplied values", () => {
 
     const result = await readConfigSettings(fixture.root);
     expect(result.settings["branch.base"]).toBe("develop");
+    expect(result.settings["worktree.location_template"]).toBe(".worktrees/{branch}");
     expect(result.settings["commit.format"]).toBe("custom");
     expect(result.settings["pm.mode"]).toBe("arc-in-git");
     expect(result.settings["user.notes_push"]).toBe("manual");
@@ -387,5 +389,37 @@ describe("readConfigSettings — archive.cadence", () => {
     expect(message).toContain("'deferred'");
     expect(message).toContain("with-integration");
     expect(message).toContain("manual");
+  });
+});
+
+describe("readConfigSettings — worktree.location_template", () => {
+  let fixture: Fixture;
+  beforeEach(async () => {
+    fixture = await createFixture();
+  });
+  afterEach(async () => {
+    await rm(fixture.root, { recursive: true, force: true });
+  });
+
+  it("is an agent-consumable key", () => {
+    expect(AGENT_CONSUMABLE_KEYS).toContain("worktree.location_template");
+  });
+
+  it("applies the '../{repo}.{branch}' default when absent", async () => {
+    await writeFile(fixture.configPath, "pm.mode: arc-in-git\n");
+    const result = await readConfigSettings(fixture.root);
+    expect(result.settings["worktree.location_template"]).toBe("../{repo}.{branch}");
+    expect(result.defaultsApplied).toContain("worktree.location_template");
+    expect(result.warnings).toHaveLength(0);
+  });
+
+  it("passes any on-disk value through verbatim (freeform — no enum gate)", async () => {
+    for (const value of ["../{repo}.{branch}", ".worktrees/{branch}", "~/wt/{repo}.{branch}"]) {
+      await writeFile(fixture.configPath, `worktree.location_template: ${value}\n`);
+      const result = await readConfigSettings(fixture.root);
+      expect(result.settings["worktree.location_template"]).toBe(value);
+      expect(result.defaultsApplied).not.toContain("worktree.location_template");
+      expect(result.warnings).toHaveLength(0);
+    }
   });
 });

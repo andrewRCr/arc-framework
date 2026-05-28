@@ -21,9 +21,13 @@ const mockClearPartialPushMarker = vi.fn();
 const mockRecordPartialPushMarker = vi.fn();
 
 vi.mock("../../src/commands/user/save-load.js", () => ({
+  runUserLoad: vi.fn(),
+}));
+
+vi.mock("../../src/lib/user-sync/index.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../src/lib/user-sync/index.js")>()),
   clearPartialPushMarker: (...args: unknown[]) => mockClearPartialPushMarker(...args),
   recordPartialPushMarker: (...args: unknown[]) => mockRecordPartialPushMarker(...args),
-  runUserLoad: vi.fn(),
 }));
 
 const { runUserPush } = await import("../../src/commands/user/push-fetch.js");
