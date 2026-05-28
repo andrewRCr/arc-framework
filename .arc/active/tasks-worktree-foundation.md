@@ -1027,7 +1027,7 @@ _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
           keeps the one-line vocab intro (7.4.c). Forward-compat with the `## Atomic` / `## Work Unit`
           character-section model — references character-named sections, not the renaming-in-flight surface names.
 
-### `[ ]` **7.5 Shipped-doc drift-fix**
+### `[x]` **7.5 Shipped-doc drift-fix**
 
 - _Goal:_ the cut shift-state-machine rows (`Paused` / `Waiting-For`, "future arc-shift") are removed from
   `strategy-work-organization.md` and its state table reconciled with the 4-state machine; the
@@ -1080,14 +1080,13 @@ _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
           ("refreshes ROADMAP" not "moves into In Flight tier"). Doc-only (no render code) — no tests. _Notes:_
           See `notes-worktree-foundation.md` § Phase 7.
 
-    - `[ ]` **7.5.d Sweep residual pause-pointer drift in `strategy-task-list-formatting.md`** (both copies)
-        - The Incidental task-list-header guidance (§ Task List Headers, ~L48–50) still names retired pause-pointer
-          fields (`Interrupts` / `Paused At` / `Paused To`) as living "in the status file" and links the deleted
-          `manage-incidental-work.md § Coordinated Pause/Resume` (removed in Task 7.2). Surfaced during the 7.4.a
-          sweep — same retired-mechanic family as 7.5.a/b. Reconcile the incidental-header guidance to the 4-state
-          machine: drop the pause-pointer field list and the dangling §-link; the retired `status-{parent}.md`
-          surface is gone, so incidental lifecycle state is just `State:` (4-state). Don't reshape incidental-WU
-          semantics beyond removing the retired references.
+    - `[x]` **7.5.d Sweep residual pause-pointer drift in `strategy-task-list-formatting.md`** (both copies)
+        - _Outcome:_ § Task List Headers' Incidental bullet reconciled to the 4-state machine (both copies):
+          dropped the retired pause-pointer fields (`Interrupts` / `Paused At` / `Paused To`), corrected
+          "status file" → the WU's `meta-{name}.md` (the `status-{parent}.md` surface is retired), and replaced
+          the dangling `manage-incidental-work § Coordinated Pause/Resume` link (removed in 7.2) with a pointer to
+          `strategy-work-organization § Work Unit State` (added the `[work-org-state]` link def). Incidental-WU
+          semantics otherwise unchanged.
 
     - `[x]` **7.5.e Restore the dangling Case C section in `deactivate-work-unit.md`** (both copies)
         - _Outcome:_ Folded into 7.5 from the 7.5.b review. The Case Matrix's `Case C — noted edge case below`

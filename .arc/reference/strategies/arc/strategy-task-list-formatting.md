@@ -44,9 +44,8 @@ Two variants. See [`template-tasks.md`][template-tasks] for skeletons.
 - `## Context` — `**Discovered:**` / `**Problem:**` / `**Why Now:**` — captures discovery
   framing in lieu of an upstream spec (incidental is its own spec)
 - `## Scope` (`### Will Do` / `### Won't Do`) is retained — no PRD to canonicalize from
-- Lifecycle state (`State`, `Interrupts`, `Paused At`, `Paused To`) lives in the status file,
-  not the task list header — see
-  [manage-incidental-work.md § Coordinated Pause/Resume][manage-incidental]
+- Lifecycle state (`**State:**`, the 4-state lifecycle) lives in the WU's `meta-{name}.md`, not the task
+  list header — see [strategy-work-organization.md § Work Unit State][work-org-state]
 
 Both variants: Success Criteria section at the bottom; optional sections (Architecture Patterns,
 Current State, Testing Strategy) only when the work needs them.
@@ -416,4 +415,5 @@ All items must be `[x]` or `[~]` (with annotations) before running archive. Any 
 [arc-methods-tf]: ../../../system/methods/test-first.md
 [template-tasks]: ../../templates/arc/work-unit/template-tasks.md
 [team-coordination]: strategy-team-coordination.md
+[work-org-state]: strategy-work-organization.md#work-unit-state
 [work-org-wu-headers]: strategy-work-organization.md#wu-artifact-headers
