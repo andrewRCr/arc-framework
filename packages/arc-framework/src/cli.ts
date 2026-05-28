@@ -22,7 +22,7 @@ import {
 } from "./handlers/user.js";
 import { handleExtensionsStatus } from "./handlers/extensions.js";
 import { handleConfigStatus } from "./handlers/config.js";
-import { handleActiveStatus } from "./handlers/active.js";
+import { handleActiveStatus, handleActiveRoster } from "./handlers/active.js";
 import { handleStatus } from "./handlers/status.js";
 import { handleSync } from "./handlers/sync.js";
 import { handleUserSync } from "./handlers/user-sync.js";
@@ -214,6 +214,12 @@ activeCmd
   .option("--session-init", "Emit resolved path / null / candidate list for session-init")
   .option("--json", "Emit the typed result as JSON")
   .action(handleActiveStatus);
+
+activeCmd
+  .command("roster")
+  .description("Emit the cross-worktree in-flight work-unit roster (concurrency-advisory data input)")
+  .option("--json", "Emit the typed result as JSON")
+  .action(handleActiveRoster);
 
 // --- Status (composite) ---
 

@@ -41,7 +41,9 @@ The workflow runs in one of two modes, selected by the caller — there is no mo
   This is the single-worktree path: one work unit at a time in one checkout.
 - **Worktree-creating** — spawning the work unit into a dedicated worktree creates the planning branch, the
   fresh meta file, the seeded SESSION-NOTES, and the worktree ownership marker in a single operation. The
-  spawn entry point performs this; the inline Step 2 and Step 4 (Path B) are its in-place counterpart.
+  spawn entry point performs this; the inline Step 2 and Step 4 (Path B) are its in-place counterpart. Before
+  creating the worktree, run the [in-flight scope check][in-flight-scope-check] — an advisory pass over
+  in-flight work units that surfaces scope overlap and never gates.
 
 Both modes share the rest of the workflow. Graduating a backlog stub (Step 3), reconciling an existing meta
 file (Step 4, Path A), and the idempotent-resume case stay part of the workflow in either mode — they
@@ -168,6 +170,7 @@ Set upstream for the planning branch.
 ---
 
 [create-spec]: ../../1_create-spec.md
+[in-flight-scope-check]: ../in-flight-scope-check.md
 [commit-format]: ../../../../methods/commit-format.md
 [branch-format]: ../../../../methods/branch-format.md
 [dev-rules-arc]: ../../../../../system/rules/DEV-RULES.ARC.md

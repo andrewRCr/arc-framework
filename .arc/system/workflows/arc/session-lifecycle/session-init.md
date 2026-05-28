@@ -115,9 +115,11 @@ arm it is surfaced, not acted on.
   units). Continue as resume; Step 5's next-work discovery orients and awaits direction.
 - **Cold-start** — `active.resolution` is `none` and the worktree is bare: a branch checked out for new work
   with no work unit (typically a linked worktree, `worktree.value.identity.kind` of `linked`). Offer to
-  scaffold — never auto-scaffold. When an entry seed is present, run `arc start --here --from <seed>`; otherwise
-  run bare `arc start --here`. Either scaffolds a Planning meta and seeded SESSION-NOTES into the current
-  worktree, with an advisory ownership marker since ARC didn't create it. Show the seed's resolved disposition
+  scaffold — never auto-scaffold. Before scaffolding, run the [in-flight scope check][in-flight-scope-check] —
+  an advisory pass over in-flight work units that surfaces scope overlap and never gates. When an entry seed is
+  present, run `arc start --here --from <seed>`; otherwise run bare `arc start --here`. Either scaffolds a
+  Planning meta and seeded SESSION-NOTES into the current worktree, with an advisory ownership marker since ARC
+  didn't create it. Show the seed's resolved disposition
   in the offer so the user confirms the reading, not just the act — the command reads an issue ref as `Origin`,
   an ARC spec artifact (`draft-` / `spec-`) as `Design`, and passes anything else (a file/URL or free-text
   blurb) through for you to interpret. On accept, run the command, **re-run the Step 1 probe**, and proceed as
@@ -531,6 +533,7 @@ source's view with specific details and wait for explicit direction before any c
 ---
 
 [init-work-unit]: ../work-unit-lifecycle/planning/init-work-unit.md
+[in-flight-scope-check]: ../work-unit-lifecycle/in-flight-scope-check.md
 [create-spec]: ../1_create-spec.md
 [arc-methods-session]: ../../../methods/session-state.md
 [arc-ext-post-context-load]: ../../../extensions/post-context-load.md

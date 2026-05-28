@@ -511,6 +511,21 @@ Step 2") and re-read the `active.resolution` the workflow already forks on — t
   workflow). **Scope:** dispatch only — optional-arg pre-seed (5.4.c: thin skill forwards `/arc-session
   <pointer>` → cold-start's `arc start --here --from`) and harness hand-sync (5.4.d) remain open.
 
+#### Phase 5.5 implementation (2026-05-27) — concurrency-check stub
+
+Shipped as a shared `in-flight-scope-check.md` fragment over a new `arc active roster [--json]` command
+(`commands/active/roster.ts`, reusing `runWorktreeRoster` + `filterRosterByIdentity`), referenced by the spawn
+(`init-work-unit`) and cold-start (`session-init`) surfaces. Detail in the task-list Outcome.
+
+- **`composable-workflows` forward-compat seam.** The fragment is an *unconditional* shared step (runtime
+  degrade-on-empty, not load-time config resolution), composed by a reference link — the right mechanism for an
+  always-invoked step, and distinct from `composable-workflows`' resolve-then-load machinery, which targets
+  *conditional* mode/tier spokes. Granularity already matches the draft's "extract whole steps" rule. If that
+  WU later generalizes declared-load + fire-points to all fragments, this fragment's invocation is a mechanical
+  migration candidate (reference link → declared load) — nothing to pre-invest now, and inventing a load
+  mechanism here would be the "new machinery" the draft warns against. Pairs with the `#entry-dispatch` anchor
+  seam above.
+
 ### Phase 7 — lifecycle, retirements, drift
 
 - **Package workflow suffix map (`.md` vs `.template.md`) — affects every "(both copies)" workflow edit.**

@@ -9,6 +9,11 @@ export {
   runActiveSessionInitStatus,
 } from "./active/status.js";
 export {
+  runActiveRoster,
+  type ActiveRosterOptions,
+  type ActiveRosterResult,
+} from "./active/roster.js";
+export {
   buildActiveStatusSummary,
   buildActiveSessionInitSummary,
 } from "./active/format.js";

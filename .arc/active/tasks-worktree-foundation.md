@@ -798,20 +798,18 @@ forward-compat seams: `notes-worktree-foundation.md` § Phases 5 & 6.
   cold-start through `arc start --here --from` (5.4.c), and the gitignored harness copies re-synced (5.4.d). The
   materialize seam ships present-but-dormant for In-Flight Awareness.
 
-### `[ ]` **5.5 Activation-time concurrency-check stub**
+### `[x]` **5.5 Activation-time concurrency-check stub**
 
 - _Goal:_ before creating a worktree, the spawning / cold-starting session reads in-flight WUs (`git worktree
   list` + identity-filtered metas) and surfaces scope-overlap concerns via general agent judgment over
   `**Purpose:**` / spec text — but does **not** gate, and degrades to a no-op when nothing else is in flight.
-- _Note:_ Foundation ships only this stub — no probe tooling, no `**Touches:**` field. In-Flight Awareness
-  upgrades it to the oracle-backed version. Fires identically from spawn and cold-start.
-- _Note:_ **factor it as a reusable advisory step with a swappable in-flight-WU data input** — reuse the
-  existing `runWorktreeRoster` / `parseWorktreeList` (Phase 2 / WOR) for the data; do **not** hand-roll a
-  worktree-list parser. IFA swaps the data source (local roster → remote refs + PRs), Errand Enablement clones
-  the advisory shape for its foreign-artifact gate, Concurrent Work Conventions layers gate doctrine — all
-  presume a factored step, not inline skill prose. See notes § Phases 5 & 6.
-
-    - Add the advisory step to the spawn + cold-start surfaces (shared).
+- _Outcome:_ Shipped as a shared `in-flight-scope-check.md` workflow fragment, referenced by the spawn surface
+  (`init-work-unit` worktree-creating mode) and the cold-start surface (`session-init`), over a new
+  `arc active roster [--json]` command. The command reuses `runWorktreeRoster` + `filterRosterByIdentity` and
+  narrows to meta-bearing (in-flight) worktrees; the fragment treats it as a swappable data input. Gather and
+  degrade-on-empty are deterministic; scope-overlap assessment is agent judgment over each in-flight WU's
+  `**Design:**` spec (the meta has no `Purpose` field), biased toward surfacing and never gating. `cohort` is
+  carried as a neutral fact only — no concurrency inference. `commands/status/run.ts` left untouched.
 
 ### `[ ]` **5.6 Errand cheap-branch path documentation**
 
