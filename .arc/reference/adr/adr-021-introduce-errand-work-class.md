@@ -186,6 +186,12 @@ regenerated from refs / PRs on demand, conflict-free.
 <!-- Reserved for post-implementation learnings per the three-tier amendment model
      (strategy-adr-methodology.md). Append dated annotations as `**Amendment (YYYY-MM-DD):** …`. -->
 
+**Amendment (2026-05-27):** Worktree Foundation ratifies the **cheap ephemeral-branch mechanism** named under
+§ Operational conventions. The Errand cheap-branch path — short-lived `chore`-prefix branch under full
+protection / direct commit under partial, tracked by the `standalone (...)` context footer — is now
+documented in `strategy-work-organization.md` § Errand Work Class. Status remains **Proposed** pending
+Concurrent Work Conventions and Agile WU Lifecycle.
+
 ---
 
 [adr-019]: adr-019-work-unit-lifecycle-reform.md

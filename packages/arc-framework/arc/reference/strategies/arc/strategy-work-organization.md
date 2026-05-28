@@ -25,6 +25,7 @@ documentation.
 - [ROADMAP](#roadmap)
 - [Incidental Work Model](#incidental-work-model)
 - [Branch Protection Modes](#branch-protection-modes)
+- [Errand Work Class](#errand-work-class)
 - [Directory Structure](#directory-structure)
 - [Team Coordination](#team-coordination) *(→ dedicated strategy)*
 - [Planning Module](#planning-module) *(→ dedicated strategy)*
@@ -488,6 +489,60 @@ All changes require branches and PR review. No direct base branch commits.
 
 ---
 
+## Errand Work Class
+
+ARC defines two work classes that share commit and review machinery but differ in tracking and lifecycle:
+
+- **Work Unit (WU)** — a bounded chunk of design-bearing or trackable work with its own branch, a
+  `meta-{name}.md`, a lifecycle (Planning → Active → Integrating → Shipped), and one PR. Activated via the
+  planning entry point (spawn or cold-start; see [§ Branching](#branching)).
+- **Errand** — a single review increment fully consumed when its commit lands. No meta, no lifecycle, no name
+  as a WU. Tracked by git history (Conventional Commits + the `standalone (...)` context footer — see
+  [`commit-footer`][commit-footer-method]), not by the planning layer (ROADMAP, backlog, `active/`).
+
+### Threshold
+
+Use a Work Unit when *any* of these hold:
+
+1. The work spans **more than one review increment** (multiple logical commits / internal sequencing).
+2. It carries **design that must be authored and referenced** (a Spec).
+3. It must be **tracked or resumed** as future or owned work (a roadmap slot, dependencies, an owner, a
+   cross-session lifecycle).
+
+None of these → it is an Errand. As an empirical *symptom* check (not the primary criterion), a candidate
+Errand that cannot be reviewed in one window (~400 lines / ~60 minutes) is almost certainly multi-increment,
+so treat it as a Work Unit.
+
+**Create vs. maintain.** *Creating* a new tracked unit of future work — a backlog stub — is a (small) Work
+Unit even when it is one commit, because its output is a tracked deliverable with a meta file. *Maintaining*
+an existing artifact — a dependency note, a cross-reference, a doc fix — is an Errand.
+
+### Cheap-branch path
+
+The cheap-branch mechanism lands an Errand without WU machinery. Behavior depends on protection mode (see
+[§ Branch Protection Modes](#branch-protection-modes)):
+
+- **Partially protected:** an Errand commits directly to the base branch (the documented off-WU-maintenance
+  path).
+- **Fully protected:** an Errand uses a short-lived ephemeral branch with a `chore`-type prefix (per
+  [`branch-format`][branch-format-method]) plus a PR. The branch exists only long enough for review and
+  merge, then is torn down. It is not a planning branch, carries no meta, and never enters lifecycle.
+
+Either way, the work is tracked by its commit's `standalone (...)` context footer (vocabulary:
+`maintenance | planning | documentation | refactor`; see [`commit-footer`][commit-footer-method]) rather than
+by an `active/` entry.
+
+### Entry path
+
+An Errand launches from the **main worktree** — the stable checkout that holds the base branch as a launchpad
+for admin operations and short-lived off-WU work. The Errand is initiated by starting a fresh session there on
+a new `chore`-type branch (under full protection) or directly against the base branch (under partial). It does
+not invoke planning entry — spawn and cold-start scaffold meta files and lifecycles, which an Errand has
+neither of. The Errand mints no `active/` artifact and produces no orientation surface; it ships, is recorded
+by git history through its commit footer, and tears down.
+
+---
+
 ## Directory Structure
 
 ### Active Work
@@ -540,5 +595,6 @@ installs, routing and graduation flow, inbox vs. companion file routing, and sca
 [manage-incidental]: ../../../system/workflows/arc/supplemental/manage-incidental-work.md
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
 [branch-format-method]: ../../../system/methods/branch-format.md
+[commit-footer-method]: ../../../system/methods/commit-footer.md
 [commit-format-method]: ../../../system/methods/commit-format.md
 [cb-spec]: https://conventional-branch.github.io/

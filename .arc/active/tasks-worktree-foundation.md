@@ -811,25 +811,19 @@ forward-compat seams: `notes-worktree-foundation.md` § Phases 5 & 6.
   `**Design:**` spec (the meta has no `Purpose` field), biased toward surfacing and never gating. `cohort` is
   carried as a neutral fact only — no concurrency inference. `commands/status/run.ts` left untouched.
 
-### `[ ]` **5.6 Errand cheap-branch path documentation**
+### `[x]` **5.6 Errand cheap-branch path documentation**
 
 - _Goal:_ the Errand-class path is documented — an Errand (per ADR-021) has no meta, never touches the spawn
   primitive, launches from the **main worktree** on a short-lived branch off `main`, ships via the lighter
   gate, and tears down — and ADR-021's cheap-branch floor is ratified.
-- _Note:_ the deliverable is documenting the path + ratifying the ADR, not building an "Errand mode" on spawn.
-  When Errand Enablement builds `errand-launch`, it is a **sibling primitive** that mirrors the spawn /
-  cold-start architecture — **not** a mode of the 5.2 primitive (which always creates a worktree + Planning
-  meta; an Errand does neither). Phrase the boundary so EE's author mirrors, not extends. The Errand's "launch
-  from the main worktree" framing is an instance of the main-on-main pattern — the shipped doc cross-references
-  the main-on-main strategy content (7.3's deliverable) for the launchpad rationale rather than restating it,
-  to avoid drift.
-- _Note:_ ADR-021 Status stays **Proposed** — its own text gates promotion-to-Accepted on **all three** cohort
-  PRDs (Worktree Foundation + Concurrent Work Conventions + Agile WU Lifecycle), two of which are unbuilt. 5.6
-  ratifies the **cheap-branch floor specifically**; it must **not** flip Status to Accepted.
-- _Cross-ref:_ the launch ergonomics (`errand-launch` primitive, Errand decision matrix, advisory
-  foreign-artifact gate) are **Errand Enablement's** (`draft-errand-enablement.md`), sequenced
-  WF → Errand Enablement → IFA — not Foundation's. 5.6 documents the path only.
 - **Strategies:** `strategy-work-organization.md`
+- _Outcome:_ New `## Errand Work Class` section in `strategy-work-organization.md` (both copies) introduces
+  the WU/Errand split as self-contained content (no ADR citation, per the strategy/ADR audience boundary),
+  with Threshold (three-part test + create/maintain), Cheap-branch path (per-mode: direct under partial,
+  ephemeral `chore`-prefix branch + PR under full), and Entry path (launches from main worktree, distinct
+  from spawn/cold-start; ships via the `standalone (...)` footer). Brief inline launchpad mention; full
+  main-on-main rationale + the cross-ref deferred to 7.3.a (Note added under it). ADR-021 carries a dated
+  Amendment ratifying the cheap-branch floor; Status remains **Proposed** (CWC and AWL still pending).
 
 ### `[x]` **5.7 Cold-start protected-branch guard**
 
@@ -966,6 +960,8 @@ docs WU). _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
 - **Strategies:** `strategy-work-organization.md`
 
     - `[ ]` **7.3.a Strategy-doc content** (`strategy-work-organization.md`, both copies)
+        - _Note:_ 5.6 left a terse launchpad mention in § Errand Work Class — when this step authors the
+          main-on-main section, convert that mention to a proper cross-ref (and drop any restated rationale).
 
     - `[ ]` **7.3.b Workflow-guidance cross-refs**
 
