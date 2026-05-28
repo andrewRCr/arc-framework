@@ -11,12 +11,11 @@
 - **Cohort:** agile-parallelism
 
 - **Task List:** tasks-worktree-foundation.md
-- **Last Completed:** Task 7.6 — Repoint the atomic-commit browse surface to the `standalone` footer convention (7.6.a–d).
-- **Next Task:** Task 7.5 — Shipped-doc drift-fix (line ~1030)
+- **Last Completed:** Task 7.5 — Shipped-doc drift-fix (7.5.a–g). Phase 7 complete.
+- **Next Task:** Task 8.1 — Complete verification (line ~1171)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 7.5.a — rewrite the § Work Unit State enum table + Superseded disposition in
-  `strategy-work-organization.md`, paired with the `integrate-work-unit` § Handling Partially Superseded Work
-  update (both copies, same commit).
+- **Next Action:** Begin Task 8.1 — load and follow `verify-work-unit.md`; run the verification protocol
+  against the WU Success Criteria.
 
 ---
