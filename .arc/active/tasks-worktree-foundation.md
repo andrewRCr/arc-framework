@@ -1092,7 +1092,7 @@ _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
           surface is gone, so incidental lifecycle state is just `State:` (4-state). Don't reshape incidental-WU
           semantics beyond removing the retired references.
 
-### `[ ]` **7.6 Repoint the atomic-commit browse surface to the `standalone` footer convention**
+### `[x]` **7.6 Repoint the atomic-commit browse surface to the `standalone` footer convention**
 
 - _Goal:_ `arc log atomic` is reconciled to the live commit-footer convention — neither footer it currently
   greps is produced anymore (`Context: atomic-{name}.md` companion retired by 7.4; `(atomic / no associated
@@ -1100,13 +1100,6 @@ _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
   `arc log standalone` and retargeted to browse `Context: standalone (...)` off-WU commits; the commit-msg
   hook's retired atomic-companion branch is dropped. The atomic _character_ and atomic-tier WUs / Errands are
   unaffected — this is the commit-history browse surface only.
-- _Note:_ surfaced as a carried SESSION-NOTES item from 7.4 (companion doc-refs swept, code path unchecked).
-  Investigation found it broader than a file glob: both grepped footers are dead, and `arc log atomic` is the
-  only command surfacing off-WU discrete work from history (no `standalone` browse exists). Repoint over
-  retire chosen to preserve that capability rather than drop and rebuild it later.
-- _Note:_ ADR-012 designed `arc log --atomic` around the old footer; left as immutable history. Repoint
-  rationale recorded in `notes-worktree-foundation.md § Phase 7`. `contribution (...)` commits are a separate
-  off-WU axis — out of scope (possible future `--include-contributions`).
 - **Strategies:** `commit-footer.md` (method), `strategy-planning-module.md`
 
     - `[x]` **7.6.a `commit-msg` githook — drop the retired atomic-companion footer branch** (both copies)
@@ -1130,10 +1123,19 @@ _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
           belongs — 7.6.a's hook change had left that must-pass case red, surfaced when the full suite first
           ran against this slice.
 
-    - `[ ]` **7.6.d Adopter-facing doc reconciliation** (both copies)
-        - `QUICK-REFERENCE`: rewrite the `arc log --atomic` line (line ~307–308) to `arc log standalone` —
-          fixes the latent flag-vs-subcommand bug in the same pass. `strategy-planning-module.md`: update the
-          `arc log` reference to the renamed/repointed command + standalone framing.
+    - `[x]` **7.6.d Adopter-facing doc reconciliation** (both copies)
+        - `QUICK-REFERENCE` § renamed Atomic → Standalone Work History, `arc log standalone` (+ a `--category`
+          example), both copies — clearing the latent `--atomic` flag-vs-subcommand bug.
+          `strategy-planning-module` ATOMIC-INBOX browse sentence reframed: the command browses off-WU
+          `standalone (...)` commit history, not the inbox surfaces. ATOMIC-INBOX future-README command list
+          updated. ADR-012 left as immutable history; the `arcd-rebrand` provisional draft left to that WU's
+          own command-set reconciliation.
+
+- _Outcome:_ `arc log atomic` → `arc log standalone`, repointed to the live `Context: standalone (...)`
+  footer. Repoint-over-retire once investigation showed both footers the command searched were dead (companion
+  retired by 7.4; `(atomic / no associated task list)` long superseded) yet nothing else surfaces off-WU
+  history. Hook atomic-companion branch dropped and all adopter-facing docs reconciled; ADR-012 kept as
+  history; atomic _character_ / atomic-tier / Errands untouched.
 
 ## **Phase 8:** Verification
 

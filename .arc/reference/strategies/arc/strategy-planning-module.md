@@ -73,8 +73,8 @@ Committed-tracked queue of atomic-character entries from across the project. Cer
 as-is from inbox at their owning WU; completion deletes the entry, and the routing record lives
 in the deletion commit message plus the absorbing artifact.
 
-Browse completed atomic work across the atomic surfaces (USER-INBOX § Atomic and this file):
-`arc log --atomic`.
+Off-WU work is committed with the `standalone (...)` footer; browse that history with
+`arc log standalone`.
 
 ### `backlog/BACKLOG-INBOX.md` — project-shared multi-step capture
 

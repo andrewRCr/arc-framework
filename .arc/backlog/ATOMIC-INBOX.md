@@ -77,7 +77,7 @@
   root README covers the full framework, not the CLI specifically.
 
 - _Proposed action:_ Author a CLI-focused README covering installation, core commands (`arc init`, `arc join`,
-  `arc update`, `arc user *`, `arc sync`, `arc log --atomic`), basic usage, and a pointer to the full docs
+  `arc update`, `arc user *`, `arc sync`, `arc log standalone`), basic usage, and a pointer to the full docs
   site. Keep it focused — this is the npm landing page, not the full marketing surface.
 
 - _Scope:_ Content authoring, ~1-2 hours. Has real design decisions (tone, scope boundaries, include vs. defer

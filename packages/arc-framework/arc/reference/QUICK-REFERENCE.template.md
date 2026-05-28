@@ -248,11 +248,14 @@ Refusal exit codes 10–14 cover `no-active-wu`, `interlock-not-authorized`, `de
 [DEV-RULES.ARC](constitution/DEV-RULES.ARC.md) § Commit Discipline for the trust model and
 opt-in semantics.
 
-### Atomic Work History
+### Standalone Work History
 
 ```bash
-# Browse completed atomic work from commit history
-arc log --atomic
+# Browse off-WU standalone commits from history
+arc log standalone
+
+# Filter by category (maintenance | planning | documentation | refactor)
+arc log standalone --category maintenance
 ```
 
 ---

@@ -620,3 +620,14 @@ thin-dispatcher implementation shape, and the cohort-end fallback decision tree 
   — not a mere table-compression." 7.2's decisive deletion of § Coordinated Pause/Resume aligns with that
   trajectory — neutralize the mechanic now, defer the deeper reshape. Don't invest in replacement prose for
   an § that may not survive.
+- **7.6 — `arc log atomic` repointed to `standalone`, not retired.** The carried 7.4 follow-up (companion
+  doc-refs swept, CLI code path unchecked) surfaced wider than a file glob: the commit-msg hook still validated
+  the retired `Context: atomic-{name}.md` companion footer (and checked for the now-never-created file), and
+  `arc log atomic` greped both that and `(atomic / no associated task list)` — the latter long superseded by
+  the `standalone (...)` anchor (ADR-012 → `commit-footer.md`). Both search targets were dead. Retire vs.
+  repoint: repointed, because nothing else surfaces off-WU history and the command + handler + test scaffold
+  already exist (reuse over rebuild-later). Renamed `atomic` → `standalone` (no back-compat alias — the old
+  footer is gone), `--work-unit` (matched `atomic-{name}`) → `--category` (the four standalone categories).
+  7.6.a's hook-test move (`commit-msg-footer` atomic-* positive → negative) rode with 7.6.a via amend after the
+  full suite first caught it red. ADR-012 kept as immutable history; `contribution (...)` and the `arcd-rebrand`
+  provisional draft scoped out (the latter reconciles its own command set when that WU is worked).
