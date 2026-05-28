@@ -75,8 +75,8 @@ Representative scenarios the mechanics must serve:
    worktree, meta, and empty SESSION-NOTES, reports the new path, and returns the originating session to its
    own context — no stash-switch, no disruption to in-flight state.
 3. **Cold-start in a tool-spawned worktree.** Operator lands in a bare worktree created by an external tool
-   (no meta); `arc-session` detects "no WU here" and offers to scaffold a meta in place from a supplied spec
-   input (file / URL / issue / name + description) — **one** prompt.
+   (no meta) and runs `arc-session`; session-init detects "no WU here" and offers to scaffold a meta in place
+   from a supplied spec input (file / URL / issue / name + description) — **one** prompt.
 4. **Branch-gone recovery.** Machine B opens on a branch whose upstream was pruned after integration on
    machine A; session-init surfaces a dedicated `branch-gone` state with pre-computed recovery candidates and
    resolves in **one** prompt.
@@ -147,11 +147,13 @@ it falls out cheaply.
   creates state (warn-only on external mismatch). Implemented as a **shared CLI-level scaffolding primitive**
   invoked from both `arc-session` (discovery, on finding a bare worktree) and `arc start` (deliberate
   create-in-place), so each surface stays thin.
-- **R10 [P0]** — **`arc-session` skill** (rename from `arc-resume`). The session-*entry* surface: it
-  inspects worktree state and **dispatches** — *resume* (local meta present) or *cold-start* (bare worktree,
-  offered, never auto-scaffolded). The *materialize* dispatch branch is In-Flight Awareness's, but the
-  dispatch seam must exist here. Arg-free / discovery-led by default; one sanctioned optional arg
-  `/arc-session <pointer-or-blurb>` may pre-seed cold-start, confirmed before use.
+- **R10 [P0]** — **`arc-session` skill** (rename from `arc-resume`). The session-*entry* surface: a thin
+  pointer that runs `session-init`, which inspects worktree state and **dispatches** — *resume* (local meta
+  present) or *cold-start* (bare worktree, offered, never auto-scaffolded). Dispatch lives in the workflow,
+  not the skill (single source of truth — `session-init` loads on every entry regardless); the *materialize*
+  branch is In-Flight Awareness's, but its dispatch seam must be present in the workflow. Arg-free /
+  discovery-led by default; one sanctioned optional arg `/arc-session <pointer-or-blurb>` may pre-seed
+  cold-start, confirmed before use.
 - **R11 [P0]** — **Activation-time concurrency check (degrading advisory stub).** Before creating a worktree,
   the spawning (or cold-starting) session reads in-flight WUs via `git worktree list` plus identity-filtered
   meta reads and assesses scope overlap with general agent judgment over `**Purpose:**` / spec text. It

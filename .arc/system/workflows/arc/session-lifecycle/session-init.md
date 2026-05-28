@@ -38,7 +38,7 @@ The probe returns a single JSON envelope the agent consumes:
 | `active`                    | Active meta file resolution (`value.resolution`: single / multiple / none; `value.path`, `value.candidates`, `value.layout`)                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `domainRules`               | `value.rules`: `{path, domain, purpose}` tuples from `DEV-RULES.{DOMAIN}.md` files; `value.warnings`: frontmatter parse diagnostics                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `recommendedCombinedPrompt` | Top-level. Composed combined-prompt text when both `worktree` and `user` resolve to `recommendedAction === "prompt"`; `null` otherwise                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `recovery`                  | Pre-computed branch-gone recovery resolution; present only on the `branch-gone` arm, and only when `roster` resolved (it consumes the roster to assemble candidates). `value.kind`: `resolved` (one high-confidence candidate), `surface` (multiple — operator chooses), or `main-fallback` (none — offer `main`). Candidates carry `branch`, optional `worktreePath`, and `proposedAction` (`switch` / `offer-remove` / `advisory`). Acted on by Step 2's branch-gone recovery gating block (Step 6 narrates declines)                                                                   |
+| `recovery`                  | Pre-computed branch-gone recovery resolution; present only on the `branch-gone` arm, and only when `roster` resolved (it consumes the roster to assemble candidates). `value.kind`: `resolved` (one high-confidence candidate), `surface` (multiple — operator chooses), or `main-fallback` (none — offer `main`). Candidates carry `branch`, optional `worktreePath`, and `proposedAction` (`switch` / `offer-remove` / `advisory`). Acted on by Step 2's branch-gone recovery precondition (Step 6 narrates declines)                                                                   |
 | `sweep`                     | Pre-computed stale-worktree sweep; present only in the primary (main) worktree, and only when `roster` resolved. `value.worktrees`: lingering worktrees whose WU has shipped (against `completed/`), each with `worktreePath`, `branch`, and a marker-gated `decision` (`offer-remove`; `surface` with `reason` `uncommitted` or `unmerged`; or `advisory`). Surfaced in Step 6; never auto-removed                                                                                                                                                                                       |
 | `retiredSubdirs`            | Pre-computed retired-subdir detection. `value.candidates`: retired-WU user subdirs lingering under `user/{identity}/` — shipped and absent from the recent-notes window. Present whenever identity resolved; omitted only when identity is absent. Read-only surface (Step 6) — the reconcile (removal with a `.internal/` backup) runs at `arc user load` / `pull`, not at init                                                                                                                                                                                                          |
 
@@ -69,20 +69,19 @@ of the role-resolved active root — `.arc/active/**/meta-*.md` for maintainer /
 `.arc/user/{identity}/active/meta-*.md` (flat) for contributor with identity resolved. Skip Step 2 (no
 user-sync state available) and note the degradation in orientation.
 
-## 2. Conditional Sync Pulls
+## 2. Dispatch & Conditional Sync
 
-Two channels: worktree (`worktree.value`) and personal notes (`user.value`). Both expose
-`recommendedAction` and `recommendedPromptText` derived from current state × `session.init_pull.*` config
-× dirty-tree state. The envelope's top-level `recommendedCombinedPrompt` carries the combined-prompt
-offer text when both pull channels resolve to `prompt`. The personal notes channel additionally
-carries `loadNeeded?: boolean` for the cross-machine resume gap; the notes-load dispatch fires
-alongside the pull dispatch on the clean arm.
+From the resolved probe (Step 1), realign git state if needed, select the **entry mode**, and — for the arm
+that continues into context-load — run the conditional sync pulls. Three parts in order: a branch-gone
+precondition, the entry dispatch, then the sync channels.
 
-**Branch-gone recovery (gating — runs before the channels).** When `worktree.value.state == "branch-gone"`,
-align git state *before* anything reads against the working branch. The upstream was deleted (the branch
-shipped elsewhere), so the notes pull here and Step 3's context-load would otherwise surface metas and
-companion files that don't exist on the recovered branch. The `recovery` slot carries pre-computed candidates
-(no scanning across turns); render them as a single recovery prompt, branched on `recovery.value.kind`:
+### Branch-gone recovery (precondition)
+
+When `worktree.value.state == "branch-gone"`, align git state *before* anything reads against the working
+branch. The upstream was deleted (the branch shipped elsewhere), so the notes pull here and Step 3's
+context-load would otherwise surface metas and companion files that don't exist on the recovered branch.
+The `recovery` slot carries pre-computed candidates (no scanning across turns); render them as a single
+recovery prompt, branched on `recovery.value.kind`:
 
 - `resolved` — offer the one candidate directly; or, when its `proposedAction` is `offer-remove`, offer to
   remove the shipped worktree and archive its meta instead of switching (`advisory` candidates are surfaced,
@@ -96,10 +95,41 @@ companion files that don't exist on the recovered branch. The `recovery` slot ca
 ```
 
 On a switch, fetch the target first when it is a remote branch not yet checked out locally, then **re-run the
-Step 1 probe** so the channels below and Step 3 dispatch against the recovered branch — the re-probed
-`worktree.value.state` is no longer `branch-gone`. If recovery is declined or deferred, skip the channels below
-and carry the still-gone state to Step 6's branch-gone arm. Every other state proceeds straight to the channels
-below.
+Step 1 probe** so the entry dispatch below and Step 3 read against the recovered branch — the re-probed
+`worktree.value.state` is no longer `branch-gone`. If recovery is declined or deferred, skip the dispatch and
+channels below and carry the still-gone state to Step 6's branch-gone arm. Every other state proceeds to the
+entry dispatch below.
+
+### Entry dispatch
+
+Select the entry mode from `active.value.resolution` and `worktree.value` (the probe pre-resolves both — do
+not run your own fetch / `git worktree list` / meta reads):
+
+- **Resume** — `active.resolution` is `single` or `multiple`. An active work unit is present; continue to the
+  sync channels below, then Step 3.
+- **Orient** — `active.resolution` is `none` and the worktree is not bare (e.g. the primary worktree between
+  units). Continue as resume; Step 5's next-work discovery orients and awaits direction.
+- **Cold-start** — `active.resolution` is `none` and the worktree is bare: a branch checked out for new work
+  with no work unit (typically a linked worktree, `worktree.value.identity.kind` of `linked`). Offer to
+  scaffold — never auto-scaffold. On accept, run `arc start --here` (it scaffolds a Planning meta and seeded
+  SESSION-NOTES into the current worktree, with an advisory ownership marker since ARC didn't create it),
+  then **re-run the Step 1 probe** and proceed as **Resume**. On decline, fall through to **Orient**.
+- **Materialize** — the probe surfaces a remote-only work unit, its branch on `origin` with no local
+  worktree: `git worktree add <path> origin/<branch>`, then `arc user pull` to load its notes; **re-run the
+  Step 1 probe** and proceed as **Resume**. This arm runs when the probe surfaces such a unit.
+
+**Cold-start** and **Materialize** are the only arms peeled off before context-load — each mints or fetches
+state, then re-runs the probe and re-enters as **Resume**. **Resume** and **Orient** continue straight to the
+channels below.
+
+### Conditional sync pulls (resume / orient arm)
+
+Two channels: worktree (`worktree.value`) and personal notes (`user.value`). Both expose
+`recommendedAction` and `recommendedPromptText` derived from current state × `session.init_pull.*` config
+× dirty-tree state. The envelope's top-level `recommendedCombinedPrompt` carries the combined-prompt
+offer text when both pull channels resolve to `prompt`. The personal notes channel additionally
+carries `loadNeeded?: boolean` for the cross-machine resume gap; the notes-load dispatch fires
+alongside the pull dispatch on the clean arm.
 
 **Per-channel rule.** For each channel, dispatch on `recommendedAction`:
 
@@ -379,7 +409,7 @@ tracked source documents the work.
   Manual rebase or merge needed before pushing. Carried forward — commit/push requests will be flagged.
   ```
 
-- `worktree.value.state == "branch-gone"` — recovery (Step 2's branch-gone gating block) was declined or
+- `worktree.value.state == "branch-gone"` — recovery (Step 2's branch-gone precondition) was declined or
   deferred, so the upstream is still gone at orientation time. Surface it and await direction; do not re-render
   the cascade here.
 

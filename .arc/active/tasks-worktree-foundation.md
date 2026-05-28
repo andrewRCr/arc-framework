@@ -747,10 +747,11 @@ forward-compat seams: `notes-worktree-foundation.md` § Phases 5 & 6.
 
 ### `[ ]` **5.4 `arc-session` entry skill (rename from `arc-resume`, dispatch)**
 
-- _Goal:_ the renamed `arc-session` skill is the session-_entry_ surface — it inspects worktree state and
-  dispatches _resume_ (local meta present) or _cold-start_ (bare worktree, offered, never auto-scaffolded) —
-  with the _materialize_ dispatch seam present (In-Flight Awareness fills it). Arg-free / discovery-led by
-  default; one optional `/arc-session <pointer-or-blurb>` may pre-seed cold-start, confirmed before use.
+- _Goal:_ the renamed `arc-session` skill is the thin session-_entry_ surface that runs `session-init`, which
+  inspects worktree state and dispatches _resume_ (local meta present) or _cold-start_ (bare worktree, offered,
+  never auto-scaffolded) — with the _materialize_ dispatch seam present (In-Flight Awareness fills it).
+  Dispatch lives in the workflow, not the skill. Arg-free / discovery-led by default; one optional
+  `/arc-session <pointer-or-blurb>` may pre-seed cold-start, confirmed before use.
 
     - `[x]` **5.4.a Rename + reframe the skill + sweep references** (canonical sources, both copies)
         - Renamed the skill dir + `name:`/heading to `arc-session`; reframed the description/intro to the
@@ -764,15 +765,22 @@ forward-compat seams: `notes-worktree-foundation.md` § Phases 5 & 6.
           skill-list (shipped doc, beyond the enumerated set); excluded `docs/**` (docs-content-sweep owns it)
           and backlog drafts (refresh at their own promotion).
 
-    - `[ ]` **5.4.b Dispatch logic (resume / cold-start + explicit materialize seam)**
-        - _Note:_ dispatch reads the Phase 2 probe pre-resolution; the skill does not run its own
-          fetch / worktree-list / meta-reads across turns.
-        - _Note:_ leave an **explicit, named (empty) materialize branch** in the dispatcher — In-Flight
-          Awareness fills it (remote-only in-flight WU → `git worktree add origin/<branch>` + `arc user pull`).
-          The risk is omission: a two-branch dispatcher forces IFA to restructure rather than add a branch. See
-          notes § Phases 5 & 6.
+    - `[x]` **5.4.b Dispatch logic (resume / cold-start + explicit materialize seam)** (canonical sources, both copies)
+        - Dispatch lives in **`session-init`**, not the skill — single source of truth (the workflow loads on
+          every entry; cf. `arc-commit`, whose skill-fork gates whether its workflow loads). Step 2 (retitled
+          "Dispatch & Conditional Sync") gained a named `### Entry dispatch` step beside the branch-gone
+          precondition: resume / orient continue into sync + context-load; cold-start (offer `arc start --here`,
+          never auto-scaffold) and materialize (`git worktree add origin/<branch>` + `arc user pull`) mint/fetch
+          state → re-probe → re-enter as resume. No step renumber (`contributor.md` welds to step numbers); the
+          named step (slug `#entry-dispatch`) is the forward-compat seam, with the systemic ordinals→anchors
+          refactor captured for `composable-workflows` (the `· #name` heading tag is extension-only — validated
+          against `system/extensions/`). Skill thinned to a pointer (both copies); R10 + walkthrough
+          reframed. Detail: `notes-worktree-foundation.md` § Phases 5 & 6.
 
     - `[ ]` **5.4.c Optional-arg seed (confirmed before use)**
+        - _Note:_ under B (dispatch in `session-init`), the thin skill forwards `/arc-session <pointer-or-blurb>`
+          into session-init's cold-start arm, which threads it through `arc start --here --from <input>`
+          (`parseSpecInput`: issue → Origin, `spec-`/`draft-` → Design, else pass-through). Confirmed before use.
 
     - `[ ]` **5.4.d Hand-sync harness skill copies**
         - Per the self-hosting drift note, copy the canonical `SKILL.md` into `.claude/skills/` and

@@ -478,6 +478,39 @@ hint — plus the matching test expectations, leaving the integration + e2e inst
 unit suite passed only because its skill tests asserted the same stale name). Fixed standalone as `fix(skills):`
 (`3e45cfc8`); 5.4.a's "zero remain" sweep was doc-scoped. 5.4.d (hand-sync harness copies) remains open.
 
+#### Phase 5.4.b implementation (2026-05-27, revised) — dispatch home = `session-init`, not the skill
+
+First landed as dispatch prose *in* the `arc-session` skill; reworked after review to live in the
+**workflow**. The skill had bolted onto session-init's internal step numbers ("run Step 1, continue from
+Step 2") and re-read the `active.resolution` the workflow already forks on — two places, one signal.
+
+- **Single source of truth (B).** `arc-commit` dispatches in its skill because the fork *gates whether the
+  workflow loads at all*; `session-init` loads on every entry regardless, so the branch belongs in it.
+  `session-init` is already a dispatcher (forks on `active.resolution`, disambiguates multiple metas, orients
+  on `none`) and already does pre-context entry handling — branch-gone recovery, which mutates git state and
+  re-probes. Cold-start / materialize are the same move, so they sit beside it.
+- **Expanded Step 2, no renumber.** Dispatch went into Step 2 (retitled "Dispatch & Conditional Sync") as
+  `### Branch-gone recovery (precondition)` → `### Entry dispatch` → `### Conditional sync pulls`. *No* step
+  renumber — renumbering is high blast-radius (`contributor.md` welded to "Step 3 item 7+,
+  Step 5, Step 6"; `DEV-RULES.ARC` "item 10"; extension docs). Steps 3–7 keep their numbers; cross-file
+  citations stay valid.
+- **Four arms.** resume / orient continue into the sync channels + context-load; cold-start / materialize
+  mint or fetch state → re-run the Step 1 probe → re-enter as resume. Orient is *not* a separate arm — it's
+  resume with no active WU, handled by Step 5 discovery.
+- **Named `Entry dispatch` step — the forward-compat seam.** The dispatch surface is a named heading (slug
+  `#entry-dispatch`), a stable reference target for IFA / `composable-workflows`, not a buried sub-bullet.
+  Learned via the pre-commit hook: the `· #name` heading tag is the *extension fire-point* marker (validated
+  against `system/extensions/`), so it can't double as a general anchor — `#entry-dispatch` is just the
+  markdown heading slug. The systemic ordinals→anchors fix (heading slugs or a codified scheme, **not** the
+  extension syntax) is captured for `composable-workflows` (USER-INBOX § Backlog): cross-file step citations
+  are brittle (the `contributor.md` welding + already-stale extension refs are the evidence).
+- **Materialize stays dormant + WU-name-free.** session-init ships (`.arc/system/**` + package template), so
+  the arm is present-tense and IFA-name-free; it never fires under WF's probe (no remote-only-WU signal).
+  Rationale (seam for IFA, omission risk) lives here, not in shipped prose.
+- **Skill thinned to a pointer** (both copies); R10 + walkthrough scenario 3 reframed (dispatch home =
+  workflow). **Scope:** dispatch only — optional-arg pre-seed (5.4.c: thin skill forwards `/arc-session
+  <pointer>` → cold-start's `arc start --here --from`) and harness hand-sync (5.4.d) remain open.
+
 ### Phase 7 — lifecycle, retirements, drift
 
 - **Package workflow suffix map (`.md` vs `.template.md`) — affects every "(both copies)" workflow edit.**
