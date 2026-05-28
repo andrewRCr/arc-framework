@@ -1,6 +1,6 @@
 # Metadata: Worktree Foundation
 
-- **State:** Integrating
+- **State:** Shipped
 - **Owner:** andrew
 - **Branch:** feat/worktree-foundation
 
@@ -11,11 +11,14 @@
 - **Cohort:** agile-parallelism
 
 - **Task List:** tasks-worktree-foundation.md
-- **Last Completed:** Task 7.5 — Shipped-doc drift-fix (7.5.a–g). Phase 7 complete.
-- **Next Task:** Task 8.1 — Complete verification (line ~1171)
+- **Last Completed:** Task 8.1 — Complete verification (Tier-3 gates; all 11 success criteria met).
+- **Next Task:** [none] — verification complete; WU shipped.
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — verify completion
+- **Next Action:** [none] — shipped.
+
+- **PR URL:** https://github.com/andrewRCr/arc-framework/pull/35
+- **Completed:** 2026-05-28
 
 ---
 
