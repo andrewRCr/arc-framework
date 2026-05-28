@@ -26,7 +26,7 @@ design needs rework, the feature was cancelled. The activation itself is the onl
 
 |                        | No task work executed                       | Some task work executed           |
 | ---------------------- | ------------------------------------------- | --------------------------------- |
-| **Not merged to base** | **Case A** — this workflow (or A-delete)    | **Case B** → `arc-shift` (future) |
+| **Not merged to base** | **Case A** — this workflow (or A-delete)    | **Case B** — see § Case B below   |
 | **Merged to base**     | **Case C** — noted edge case below          | **Case D** → integrate or clean   |
 
 **Case A** has two variants — the user chooses; surface the variant decision when invoking the workflow:
@@ -182,6 +182,29 @@ Context: meta-{name}.md (deactivation)
 
 ---
 
+## Case B — some task work executed, not merged
+
+Task work has run but nothing has merged to base, so the activation is no longer the only thing to undo —
+committed work exists and its fate is the operator's call. This workflow does not automate Case B; it names the
+three paths and routes each to the workflow that owns it.
+
+- **Integrate the partial scope.** The work done so far stands on its own and is worth shipping. Run
+  [`integrate-work-unit.md`][integrate] from the WU branch; the completed scope merges through the normal PR
+  path. Drop any unstarted scope from the task list (mark those tasks `[~]` with a note) or carry it into a
+  follow-up WU.
+- **Abandon with history loss.** The work is not worth keeping. This is Case A-delete with committed work
+  present — branch deletion leaves those commits reachable only via reflog (garbage-collected over time), not
+  recoverable from base. Surface the irreversibility, get explicit operator authorization, then run the Case
+  A-delete teardown above.
+- **Move the work to a successor.** The direction changed but the committed work seeds a new approach.
+  Cherry-pick the relevant commits onto the successor WU's branch — the successor's meta records the
+  continuation through its `**Origin:**` — then run the Case A-delete teardown above on the original.
+
+Case B is operator-driven throughout: no state flip, and no automated branch handling beyond whichever terminal
+path (integrate or Case A-delete) the operator selects.
+
+---
+
 ## Next Step
 
 Deactivation has no session-level next action. The developer decides what follows — resume another WU, return to
@@ -190,6 +213,7 @@ Deactivation has no session-level next action. The developer decides what follow
 ---
 
 [activate]: activate-work-unit.md
+[integrate]: integrate-work-unit.md
 [branch-format]: ../../../methods/branch-format.md
 [incidental]: ../supplemental/manage-incidental-work.md
 [work-org-roadmap]: ../../../../reference/strategies/arc/strategy-work-organization.md#roadmap

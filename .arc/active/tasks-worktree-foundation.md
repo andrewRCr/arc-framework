@@ -1053,15 +1053,16 @@ _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
           completion-doc narrative; deferred to demonstrated need. Swept the orphaned `[clean-work-unit]` link
           def; added `[init-work-unit]`. _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
 
-    - `[ ]` **7.5.b Case B fill + arc-shift reference removal** (both copies)
-        - _Note:_ `deactivate-work-unit.md` Case Matrix's Case B cell currently reads "→ `arc-shift` (future)" —
-          change to "See § Case B below" and add a new § Case B section enumerating three operator paths: (1)
-          integrate the partial scope (→ `integrate-work-unit`); (2) abandon with history loss (like Case A-delete
-          but commits become reflog-only-recoverable — explicit warning, explicit authorization); (3) move work
-          to a successor (cherry-pick to a new WU's branch, then run Case A-delete on the original). The
-          deactivate workflow doesn't automate Case B — names the paths without claiming automation.
-        - _Note:_ no surviving `arc-shift` in this WU to reconcile against — remove the "(future)" reference and
-          fill with the § Case B content (don't reword the cell to point at planning artifacts).
+    - `[x]` **7.5.b Case B fill + arc-shift reference removal** (both copies)
+        - _Outcome:_ `deactivate-work-unit.md` Case Matrix's Case B cell repointed from "→ `arc-shift` (future)"
+          to "— see § Case B below", and a new § Case B section added (both copies) enumerating the three
+          operator paths: integrate the partial scope (→ `integrate-work-unit`), abandon with history loss
+          (Case A-delete with committed work — reflog-only-recoverable, explicit-authorization warning), and move
+          to a successor (cherry-pick onto the successor branch, whose meta records the continuation via
+          `**Origin:**`, then Case A-delete the original). Framed operator-driven — the workflow names the paths
+          and routes each to its owning workflow without claiming automation. Added the `[integrate]` link def;
+          no surviving `arc-shift` anywhere in live framework surfaces (swept). Provenance phrasing aligns with
+          7.5.a's Superseded drop — successor `**Origin:**`, not a predecessor field.
 
     - `[ ]` **7.5.c § ROADMAP location-based In-Flight redefinition + regen fire-point shift + init-work-unit
       edit** (`strategy-work-organization.md` + `init-work-unit.md` + `activate-work-unit.md` framing touch, both
