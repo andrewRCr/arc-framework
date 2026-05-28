@@ -966,22 +966,18 @@ _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
   values); the now-orphaned `[template-status]` link definition was dropped. Deeper reshape of the workflow
   stays with the agent-context-optimization cohort.
 
-### `[ ]` **7.3 Main-on-main pattern documentation + workflow cross-ref sweep**
+### `[x]` **7.3 Main-on-main pattern documentation + workflow cross-ref sweep**
 
 - _Goal:_ ARC's stance is documented — the main worktree stays on `main` as a stable reference and the launchpad for
   admin operations (planning, sweep, global edits) and atomic / Errand launches; no separate dedicated administrative
   worktree; composes with externally-spawned worktrees (the tool's main workspace IS ARC's main worktree).
-- _Note:_ author the dedicated section in `strategy-work-organization.md` as a **new top-level § Main-on-Main
-  Pattern**, placed immediately after § Per-Worktree Isolation — the two sections together answer "what's the role of
-  each kind of worktree?" Include the one-worktree-per-IDE/LSP operational constraint (document, don't engineer
-  around).
-- _Note:_ sweep workflows for incidental main-on-main mentions and add cross-refs to the new § at point of use
-  (author-judgment sweep, not a fixed list). Convert § Errand Work Class's terse launchpad mention (left by 5.6) to a
-  one-line cross-ref to the new § (drop any restated rationale).
 - **Strategies:** `strategy-work-organization.md`
-
-    - Author § Main-on-Main Pattern + sweep cross-refs (`strategy-work-organization.md` both copies; workflows
-      touched per author-judgment sweep).
+- _Outcome:_ Authored a top-level § Main-on-Main Pattern in `strategy-work-organization.md` (both copies)
+  immediately after § Per-Worktree Isolation, with a Contents entry and the one-worktree-per-IDE/LSP operational
+  constraint as a subsection. § Errand Work Class's Entry-path launchpad mention collapsed to a one-line cross-ref
+  to the new § (restated rationale dropped). Workflow sweep: the remaining main-worktree mentions are operational
+  mechanics (spawn/in-place mode, cleanup dispatch, `cd <main-worktree-path>` commands) that restate no rationale
+  and carry no existing coupling to this strategy — no workflow cross-refs added.
 
 ### `[ ]` **7.4 Retire the `atomic-*` companion file type**
 

@@ -20,6 +20,7 @@ documentation.
 - [Spec-Flow Invariants](#spec-flow-invariants)
 - [Branching](#branching)
 - [Per-Worktree Isolation](#per-worktree-isolation)
+- [Main-on-Main Pattern](#main-on-main-pattern)
 - [WU Artifact Headers](#wu-artifact-headers)
 - [Archival](#archival)
 - [ROADMAP](#roadmap)
@@ -243,6 +244,27 @@ fields on the meta file, not through filesystem co-residency.
 
 The invariant is enforceable mechanically: spawn a worktree from `main`, assert that `active/`
 contains exactly the spawning WU's meta file plus its companions, and nothing else.
+
+---
+
+## Main-on-Main Pattern
+
+The **main worktree** — the primary checkout the repository was cloned into — stays on `main`. It is not
+a work unit's worktree; it is the stable reference every WU worktree spawns from (see
+[§ Per-Worktree Isolation](#per-worktree-isolation)) and the launchpad for work that has no WU branch of
+its own: planning entry, stale-worktree sweep, repository-wide edits, and Errand launches (atomic fixes
+and other short-lived off-WU work — see [§ Errand Work Class](#errand-work-class)).
+
+ARC defines no separate, dedicated administrative worktree. Admin operations run from the main worktree
+directly — keeping `main` checked out there is what makes them safe to launch and gives every spawn a
+clean base. The pattern composes with externally spawned worktrees: whatever checkout the tooling treats
+as the primary workspace *is* the main worktree, with no extra setup.
+
+### Operational constraint
+
+One worktree per IDE / language-server window. Coordination across worktrees at the editor and
+language-server layer is largely outside ARC's control, so the working model is one active worktree per
+window rather than machinery to share state across them.
 
 ---
 
@@ -534,9 +556,9 @@ by an `active/` entry.
 
 ### Entry path
 
-An Errand launches from the **main worktree** — the stable checkout that holds the base branch as a launchpad
-for admin operations and short-lived off-WU work. The Errand is initiated by starting a fresh session there on
-a new `chore`-type branch (under full protection) or directly against the base branch (under partial). It does
+An Errand launches from the **main worktree** (see [§ Main-on-Main Pattern](#main-on-main-pattern)). The
+Errand is initiated by starting a fresh session there on a new `chore`-type branch (under full protection)
+or directly against the base branch (under partial). It does
 not invoke planning entry — spawn and cold-start scaffold meta files and lifecycles, which an Errand has
 neither of. The Errand mints no `active/` artifact and produces no orientation surface; it ships, is recorded
 by git history through its commit footer, and tears down.
