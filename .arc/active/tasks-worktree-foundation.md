@@ -1110,6 +1110,18 @@ _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
           there. Re-rendered the live `ROADMAP.md` In-Flight table to match (sole entry `worktree-foundation` →
           `Active`). Both strategy copies; `ROADMAP.md` is project-instance-only.
 
+    - `[x]` **7.5.g Sweep the `(interim, pre-CLI)` transitional-framing leak** (both copies)
+        - _Outcome:_ Folded into 7.5 from the 7.5.c review. `(interim, pre-CLI)` — a forward-pointer to the
+          unshipped `roadmap-tooling` WU — violates DEV-RULES.PROJECT § Audience Boundaries (which lists "pre-CLI"
+          and "now hand-maintained" as banned transitional framing) and reads as nonsense to adopters who install
+          ARC _as_ a CLI. Dropped entirely rather than softened: a gentler "pending feature" phrasing is the same
+          banned pattern, and the "will be automated" intent already lives in the `roadmap-tooling` backlog WU.
+          Reworded the ROADMAP-regen prose in `activate-work-unit` Step 7 and `archive-work-unit` to a plain
+          "Re-render per § ROADMAP" (also dropping "hand-maintain", itself on the banned list), and dropped
+          "interim" from the `pre-commit` CHECK 17 comment. Left `verify-integrity.sh`'s "pre-CLI or fresh
+          install" — different sense (an install predating manifest support), internal runtime diagnostic.
+          Self-maintaining: when `roadmap-tooling` ships, these steps get rewritten to invoke the command.
+
 ### `[x]` **7.6 Repoint the atomic-commit browse surface to the `standalone` footer convention**
 
 - _Goal:_ `arc log atomic` is reconciled to the live commit-footer convention — neither footer it currently

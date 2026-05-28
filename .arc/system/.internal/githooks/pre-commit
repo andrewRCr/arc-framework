@@ -464,7 +464,7 @@ fi
 # ============================================================================
 # When a staged meta file under active/ or backlog/planned/ changes a ROADMAP
 # render field (Depends On / Owner / Cohort), backlog/ROADMAP.md should be
-# re-rendered in the same commit (interim hand-maintenance per
+# re-rendered in the same commit (hand-maintenance per
 # strategy-work-organization.md § ROADMAP). Field-specific by design: lifecycle
 # ceremonies change State and paths, not these fields, and regen via their own
 # dedicated step — so they never trip this check. Warn-only: a manual re-render
