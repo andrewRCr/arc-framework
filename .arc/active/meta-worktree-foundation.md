@@ -1,6 +1,6 @@
 # Metadata: Worktree Foundation
 
-- **State:** Active
+- **State:** Integrating
 - **Owner:** andrew
 - **Branch:** feat/worktree-foundation
 
