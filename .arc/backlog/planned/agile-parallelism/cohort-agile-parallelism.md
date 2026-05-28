@@ -29,9 +29,9 @@ laid the single-branch-per-WU substrate; this cohort builds the parallelism on t
 
 - **Worktree Foundation** (active — worktree mechanics): the WU entry primitives (spawn / cold-start) and
   the `arc-session` skill, the `arc start --here` cold-start invocation command (introduces the `arc start`
-  verb; AWL extends it with the create-new + tier modes), the in-session worktree shift (`arc-shift` — thin;
-  narrowed to cross-worktree investigation), worktree-aware session-init + branch-gone handling, cross-WU
-  sync, and the Errand-class cheap-branch mechanism.
+  verb; AWL extends it with the create-new + tier modes), worktree-aware session-init + branch-gone handling,
+  cross-WU sync, and the Errand-class cheap-branch mechanism. (`/arc-shift` was originally in WF scope;
+  deferred during execution — see § Deferred — `/arc-shift`.)
 - **Errand Enablement** (the Errand floor): the `errand-launch` entry primitive, the Errand decision matrix,
   and the advisory foreign-artifact gate — the minimum to make the Errand class usable. Sequences Worktree
   Foundation → Errand Enablement → In-Flight Awareness. Carved from AWL / CWC 2026-05-25.
@@ -78,8 +78,7 @@ rides on. Three contracts the members depend on:
 ## Path taxonomy — entry and in-session
 
 Two cross-member decision surfaces: the **entry model** (how you get into a worktree / WU) and the
-**in-session fork** (a need surfaces mid-session — which path?). `arc-shift`'s niche is stated narrowly on
-purpose; discovered side work is errand-launch's, not shift's.
+**in-session fork** (a need surfaces mid-session — which path?).
 
 ### Entry model — local worktree? × WU exists?
 
@@ -98,13 +97,10 @@ purpose; discovered side work is errand-launch's, not shift's.
 | Standalone side-task on a foreign artifact, owning WU in flight | errand-launch + advisory gate (coordinate) | Errand Enablement |
 | A new tracked unit of future work (create) | spawn a WU | Worktree Foundation |
 | Pick up a WU in flight only on another machine | materialize | In-Flight Awareness |
-| Operate briefly in another in-flight worktree's runnable environment, carrying live context, intending to return | arc-shift | Worktree Foundation |
 
-**`arc-shift` is the narrow exception, not the general detour tool.** Its only irreducible use is interactive
-cross-worktree *investigation* — running another worktree's environment while reasoning with the current
-session's live, expensive-to-reconstruct context. Discovered side work goes to errand-launch; a discrete
-question about another worktree is answered by reading its files (worktrees are directories) or seeding an
-exploration session — neither needs a context-merging shift.
+> *Cross-worktree investigation* — operate briefly in another in-flight worktree's runnable env while
+> carrying live context, intending to return — was originally a separate row (`arc-shift`); deferred during
+> cohort execution. See § Deferred — `/arc-shift`.
 
 ### Known gap — cold errand entry (no originating session)
 
@@ -132,6 +128,49 @@ cold-start's spec-input arg); or disambiguate interactively at the leaf.
 leaf instead of collapsing it into WU-discovery, and the optional `<pointer-or-blurb>` arg threads to whatever
 leaf is dispatched (not hard-wired to cold-start) — so the fill attaches without a restructure, mirroring the
 materialize seam left for In-Flight Awareness.
+
+## Deferred — `/arc-shift`
+
+The narrow in-session shift was originally in WF scope (R13/R14/R15, Phase 6) and was deferred at the start
+of Phase 6 execution (2026-05-28). The use case is real but demand-unverified, and the wider conception this
+verb was originally sized for was absorbed by the Errand class. Preserved here for cohort-level revisit; not
+re-attempted by WF.
+
+### Surviving narrow use case (preserved from WF spec)
+
+Interactive cross-worktree *investigation* — operate in another worktree's runnable environment while
+reasoning with the current session's live, expensive-to-reconstruct context. Requires all three
+simultaneously: the target worktree's runtime environment, this session's accumulated reasoning, and return
+intent (short detour, not a permanent switch). Discovered side work goes to errand-launch; a discrete
+question about another worktree is answered by reading its files (worktrees are directories) or seeding an
+exploration session — neither needs a context-merging shift. A permanent switch is handoff + fresh session;
+a mis-launch is clear + re-init — neither has accumulated context worth preserving.
+
+### Alternative framing to evaluate
+
+**PR-review checkout** — pulling a teammate's (or one's own past) branch into a transient worktree with the
+current session's review-context loaded. Different shape than the in-flight-own-WU framing above (the target
+is a remote PR branch, not necessarily an in-flight WU of yours); plausibly higher frequency than
+investigation-into-own-WU. If shift earns its keep when revisited, the case may be this one rather than the
+spec's original.
+
+### Implementation shape (if revived)
+
+Workflow doc `shift-work-unit.md` carries the logic — including the uncommitted-work gate (the original R14,
+which gates everything else); the `/arc-shift` skill body is a thin dispatcher. Matches the codified
+skill/workflow split (arc-commit → prepare-commits; arc-session → session-init). The gate-belongs-in-workflow
+shape is what keeps the skill body honest as a thin dispatcher.
+
+### Fallback decision tree (at end of cohort)
+
+The deferral leaves three exits at cohort end:
+
+- **Pick up in a remaining cohort WU** if a real instance surfaces during the cohort run — Errand
+  Enablement, In-Flight Awareness, Agile WU Lifecycle, or Concurrent Work Conventions can absorb it.
+- **Materialize as a provisional backlog stub** (`.arc/backlog/provisional/arc-shift/`) if still ambiguous
+  at cohort end — keeps the design captured under a low-commitment surface.
+- **Dismiss entirely** if confidence grows during the cohort that no instance will surface; the verb dies,
+  this section archives with the cohort.
 
 ## Cross-cutting design spine — the Errand work class
 

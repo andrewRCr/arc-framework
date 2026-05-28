@@ -14,9 +14,11 @@ the cohort's heavier conventions (Concurrent Work Conventions) and awareness (In
   ARC's structural answer to that trigger — but the class had not yet *cascaded* through the cohort, which
   was sliced under the older "every bounded chunk is a WU (with a worktree)" assumption. Worktree Foundation
   *documents* the Errand path (R12) but ships no launch ergonomics; the launch primitive was implied to Agile
-  WU Lifecycle and the doctrine/gate to Concurrent Work Conventions — both at cohort-end. So the cohort builds
-  the *niche* entry verb (`arc-shift`, Foundation R13) but defers the *common* one (errand-launch) to last.
-  This WU is the floor/ceiling re-slice that corrects the inversion.
+  WU Lifecycle and the doctrine/gate to Concurrent Work Conventions — both at cohort-end. So the cohort sliced
+  the *niche* entry verb (`arc-shift`, Foundation R13) into Foundation while deferring the *common* one
+  (errand-launch) to last. This WU is the floor/ceiling re-slice that corrects the inversion. (`arc-shift`
+  itself was subsequently deferred during Foundation execution — see cohort doc § Deferred — `/arc-shift` —
+  but the niche/common inversion that drove this re-slice is unchanged.)
 
 ---
 
@@ -55,8 +57,8 @@ R12 + ADR-021 + Foundation's no-stash-switch invariant, the same way `spawn` ear
    Errand-class work. Classifies against the decision matrix, emits a minimal forward-pointing **seed**
    (purpose + pointers + suggested skills / quality-gate context + the cheap-branch-off-`main` setup), and
    returns the originating session to its own context — `spawn`'s "return to origin" applied to the main
-   worktree. Targets **invocation-friction parity with `arc-shift`**, not single-window parity: the Errand
-   runs in a *separate* main-worktree session by structural necessity (above). Operating posture is
+   worktree. Targets **low invocation friction**, not single-window parity: the Errand runs in a *separate*
+   main-worktree session by structural necessity (above). Operating posture is
    **seed-now, execute-at-boundary** — the seed is produced immediately (cheap, no context pollution) and the
    Errand session is serviced at the next review-increment boundary in the originating WU, preserving
    single-thread attention (P2/P7) rather than demanding simultaneous sessions.
@@ -82,9 +84,10 @@ R12 + ADR-021 + Foundation's no-stash-switch invariant, the same way `spawn` ear
 - **Knowledge-return channel** (compressed learnings back to a waiting session) → deferred. Code/doc Errands
   return via git (merge to `main` + rebase); the rare exploration-return case is absorbed by WORKING-MEMORY.
   Revisit only on real need (Open Questions).
-- **`arc-shift` re-scoping** → owned by Foundation (its R13). This WU's matrix *redirects* discovered tangents
-  to errand-launch, which is what lets Foundation narrow shift to the cross-worktree-investigation niche; the
-  shift edit itself stays in Foundation.
+- **`arc-shift` re-scoping** → deferred during Foundation execution; see cohort doc § Deferred — `/arc-shift`.
+  This WU's matrix *redirects* discovered tangents to errand-launch (the same redirection that motivated
+  narrowing shift originally); the cohort-end disposition for shift — pick up in a remaining cohort WU,
+  materialize a provisional backlog stub, or dismiss — sits in the cohort doc.
 
 ## The Errand decision matrix
 
@@ -109,7 +112,9 @@ Its genuinely irreducible niche is narrow (briefly operating in another worktree
 while reasoning with the current session's live, expensive-to-reconstruct context — cross-worktree
 investigation). The *common* in-session need — "I hit some side work" — is not that; it is an Errand, and its
 clean handler is errand-launch (seed → separate main-worktree session), not a context-merging shift. Foundation
-narrows shift to its niche; this WU supplies the common-case verb shift was over-serving.
+initially planned to ship the narrowed shift but deferred it during execution (see cohort doc § Deferred —
+`/arc-shift`); this WU still supplies the common-case verb shift was over-serving, regardless of whether the
+niche verb is later revived.
 
 ### Seed-now, execute-at-boundary (threads P2)
 

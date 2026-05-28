@@ -148,8 +148,8 @@ remotely," then drops the operator to a raw `git worktree add`.
   the hand-maintained view, and the strategy-doc standard.
 - **The concurrency *gate doctrine*** — Concurrent Work Conventions owns when/how the oracle gates
   foreign-artifact edits; this WU ships the oracle the gate consumes.
-- **Worktree mechanics** (spawn / cold-start / arc-shift / session-init / cross-WU sync) — Worktree
-  Foundation (hard upstream).
+- **Worktree mechanics** (spawn / cold-start / session-init / cross-WU sync) — Worktree Foundation
+  (hard upstream).
 
 ## Design Decisions
 

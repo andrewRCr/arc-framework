@@ -3,9 +3,10 @@
 - **Origin:** [internal]
 
 - **Purpose:** Land the worktree-mechanics layer for parallel and mobile work — the WU entry primitives
-  (spawn, cold-start) and the `arc-session` entry skill, the in-session `arc-shift`, worktree-aware
-  session-init with branch-gone recovery, and cross-WU file sync — as mechanism only; usage conventions
-  land downstream.
+  (spawn, cold-start) and the `arc-session` entry skill, worktree-aware session-init with branch-gone
+  recovery, and cross-WU file sync — as mechanism only; usage conventions land downstream. (The in-session
+  shift was originally in scope; deferred at the start of Phase 6 — see `cohort-agile-parallelism.md`
+  § Deferred — `/arc-shift`.)
 
 ---
 
@@ -42,8 +43,7 @@ and `arc start` belong to Agile WU Lifecycle.
 - Make per-WU-per-worktree isolation a first-class, mechanism-level capability for solo work — not a
   team-mode-only affordance.
 - Give a session a coherent set of entry primitives (spawn a new WU's worktree; cold-start a WU inside an
-  existing worktree; shift the current session to another in-flight worktree) behind two user-facing verbs
-  plus the shift, all built on WOR's isolation substrate.
+  existing worktree) behind two user-facing verbs, all built on WOR's isolation substrate.
 - Make session-init worktree-aware and turn the silent `remote-unavailable` branch-gone failure into a
   recoverable, candidate-bearing state with a single-turn recovery prompt.
 - Resolve cross-WU file divergence across concurrent worktrees with path-driven sync that needs no allowlist
@@ -80,11 +80,9 @@ Representative scenarios the mechanics must serve:
 4. **Branch-gone recovery.** Machine B opens on a branch whose upstream was pruned after integration on
    machine A; session-init surfaces a dedicated `branch-gone` state with pre-computed recovery candidates and
    resolves in **one** prompt.
-5. **In-session shift.** Mid-task, the operator needs a short detour into another in-flight worktree without
-   losing accumulated agent context; `/arc-shift` repoints the session to a chosen existing worktree.
-6. **Cross-machine resume of notes.** A WU worked on machine A resumes on machine B with the correct
+5. **Cross-machine resume of notes.** A WU worked on machine A resumes on machine B with the correct
    per-WU SESSION-NOTES restored, and without older WUs' notes or retired-WU subdirs bleeding in.
-7. **Atomic / Errand work.** A quick standalone fix runs from the main worktree on a short-lived branch off
+6. **Atomic / Errand work.** A quick standalone fix runs from the main worktree on a short-lived branch off
    `main`, ships via the lighter gate, and tears down — never pausing or disrupting an in-flight WU's
    worktree.
 
@@ -169,20 +167,13 @@ it falls out cheaply.
   foreign-artifact gate) are **Errand Enablement's** (sequenced WF → Errand Enablement → IFA), not
   Foundation's.
 
-### C. In-session shift (`arc-shift`)
+### C. In-session shift (`arc-shift`) — deferred
 
-- **R13 [P0]** — **`/arc-shift` skill** — a thin skill that repoints the current session to another
-  **existing** in-flight worktree, preserving the agent's accumulated context. **Narrow scope:** the one
-  irreducible use is interactive cross-worktree *investigation* — operating in another worktree's runnable
-  environment while reasoning with the current session's live, expensive-to-reconstruct context. It is
-  **not** the general sidequest tool — discovered side work is an Errand (`errand-launch`, owned by Errand
-  Enablement); a discrete question about another worktree is answered by reading its files or seeding an
-  exploration session; creating a worktree for a new WU is spawn (R8). Target selection is discovery-led
-  (pick from `git worktree list`), with an optional arg per the args posture.
-- **R14 [P0]** — **Uncommitted-work handling at the shift.** Before switching, detect uncommitted changes and
-  offer commit (recommended) / stash / leave-as-is; the operator chooses.
-- **R15 [P2]** — **Resume-staleness advisory.** Arriving in a long-idle worktree surfaces a dismissible
-  "assumptions may be stale — re-read the spec" nudge past a fixed threshold.
+R13/R14/R15 (the `/arc-shift` skill, the uncommitted-work shift gate, and the resume-staleness advisory) were
+deferred at the start of Phase 6 execution (2026-05-28). The surviving narrow design — workflow-plus-thin-skill
+implementation shape, PR-review-checkout alternative framing, and cohort-end fallback decision tree — lives in
+`cohort-agile-parallelism.md` § Deferred — `/arc-shift`. Downstream references that named this section as the
+delivery site treat it as not-shipped-here.
 
 ### D. Cross-WU file sync
 
@@ -312,8 +303,9 @@ flat at `user/{identity}/**`; `user/{identity}/.internal/**` never synced).
   File, the `commit-footer` method, templates, and workflow mentions.
 - **R33 [P0]** — **Shipped-doc drift-fix.** Remove the cut shift-state-machine rows (`Paused` /
   `Waiting-For`, labeled "future arc-shift") from `strategy-work-organization.md` and reconcile its state
-  table with `template-meta.md`'s 4-state machine. Reconcile `deactivate-work-unit.md`'s Case Matrix
-  "arc-shift (future)" reference (it points at the *cut* state machine, not the surviving `arc-shift`).
+  table with `template-meta.md`'s 4-state machine. Remove `deactivate-work-unit.md`'s Case Matrix
+  "arc-shift (future)" reference — it pointed at the *cut* state machine, and no surviving `arc-shift`
+  ships here to reconcile against (deferred — see `cohort-agile-parallelism.md` § Deferred — `/arc-shift`).
   Reconcile § ROADMAP: **step 4 redefines In Flight as location-based** (a WU in `active/**` is in flight;
   Ready/Blocked scope to `backlog/planned/**`) and corrects the `active/ ⟹ State: Active` activation framing
   to `active/ ⟹ in flight`. The regen fire-point shifts earlier (a WU enters In Flight on landing in
@@ -479,7 +471,9 @@ Settled during planning; final implementation details ratified when the relevant
 - **Cold-start spec-input model** — interactive prompt vs. the optional `/arc-session <pointer>` seed.
   *Decided: interactive default, seed optional.*
 - **`arc-shift` target selection** — discovery-led pick from `git worktree list` vs. a required arg.
-  *Decided: discovery-led default, optional arg (mirrors the general args posture).*
+  *Decided: discovery-led default, optional arg (mirrors the general args posture).* **Superseded** by the
+  Phase 6 deferral (see `cohort-agile-parallelism.md` § Deferred — `/arc-shift`); the decision stands as
+  recorded if shift is revived.
 - **Cold-start marker semantics for tool-made worktrees** — when cold-start scaffolds into a worktree ARC did
   not create (external tool / manual `git worktree add`), does ARC write an ownership marker (→
   offer-to-execute removal) or stay advisory (the tool owns cleanup)? Affects only the offer-vs-advise boundary

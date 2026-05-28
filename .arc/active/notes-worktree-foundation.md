@@ -257,7 +257,7 @@ either changed a design call or are load-bearing constraints for a downstream WU
   absorbs it. Keep detection (read-only, surfaced) separate from removal (offer / auto-close-with-backup),
   mirroring the worktree-sweep pattern. Don't build a general slot framework — IFA owns that.
 
-### Phases 5 & 6 — entry primitives, arc-shift
+### Phase 5 — entry primitives
 
 - **`arc start` does not exist** (downstream Agile WU Lifecycle's). 5.3's cold-start primitive builds
   standalone with `arc-session` as its only current caller; its test must exercise via `arc-session`, not a
@@ -265,14 +265,6 @@ either changed a design call or are load-bearing constraints for a downstream WU
 - **"Spawn returns to origin" is automatic at the git level** (`git worktree add` doesn't touch the invoking
   worktree's cwd/HEAD). Residual risk is skill-authoring discipline: the skill must NOT `cd` into the spawned
   path, only report it.
-- **6.2 `runDirtyStateStatus` covers uncommitted, not unpushed** — correct as scoped (commit/stash/leave is
-  uncommitted-only; the R29 marker-gating separately handles unpushed for removal).
-- **arc-shift = return-intent sidequesting, same-session re-orient (6.1).** "Repoint" re-orients the agent to
-  the target worktree's `meta-*` + SESSION-NOTES within the same conversation (operate against its path), not a
-  new session — context-preservation earns its keep only because you intend to return before handoff. Permanent
-  switch = handoff + fresh session; mis-launch = clear + re-init. The mechanism is Foundation's; the sidequest
-  usage doctrine (focus roles, when to parallelize, return discipline) is Concurrent Work Conventions's
-  (Non-Goal) — don't bake it into the skill.
 - **ADR-021 confirmed** (`adr-021-introduce-errand-work-class.md`, Status: Proposed; names Worktree
   Foundation as the cheap-branch ratification owner). 5.6 ratifies it as intended.
 - **One shared scaffolding primitive, parameterized (5.2 / 5.3).** meta + SESSION-NOTES (`runUserOpen`-style
@@ -525,6 +517,14 @@ Shipped as a shared `in-flight-scope-check.md` fragment over a new `arc active r
   migration candidate (reference link → declared load) — nothing to pre-invest now, and inventing a load
   mechanism here would be the "new machinery" the draft warns against. Pairs with the `#entry-dispatch` anchor
   seam above.
+
+### Phase 6 (deferred) — `/arc-shift`
+
+Deferred at start of execution (2026-05-28). The implementation notes previously captured here (return-intent
+same-session re-orient; `runDirtyStateStatus` for the uncommitted-work gate) are moot for this WU. The
+surviving narrow design — preserved use case, PR-review-checkout alternative framing, workflow +
+thin-dispatcher implementation shape, and the cohort-end fallback decision tree — lives in
+`cohort-agile-parallelism.md` § Deferred — `/arc-shift`. The cohort owns any revival decision.
 
 ### Phase 7 — lifecycle, retirements, drift
 

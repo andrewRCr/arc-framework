@@ -841,53 +841,39 @@ forward-compat seams: `notes-worktree-foundation.md` § Phases 5 & 6.
   `plan/foo`) pass through. Reason names the branch. Handler signature unchanged. Closes the 5.3.R
   trunk-scaffold gap.
 
-## **Phase 6:** In-session shift (`arc-shift`)
+## **Phase 6:** In-session shift (`arc-shift`) — deferred
 
-_Purpose:_ Add the thin `/arc-shift` skill that repoints the current session to another existing in-flight
-worktree, preserving accumulated agent context, with uncommitted-work handling at the switch.
+_Status (2026-05-28):_ Phase deferred at the start of execution. The use case is real but demand-unverified,
+and the wider conception this verb was originally sized for was absorbed by the Errand class. Surviving
+narrow design (workflow + thin-dispatcher implementation shape, PR-review-checkout alternative framing,
+cohort-end fallback decision tree) lives in `cohort-agile-parallelism.md` § Deferred — `/arc-shift`. Not
+re-attempted by this WU.
 
-_Design decisions:_ Distinct from spawn — shift repoints to an **existing** worktree (the short-detour case a
-fresh `arc-session` would lose context on); creating one for a new WU is spawn (5.2). Built after the entry
-verbs so there are worktrees to shift between.
-
-### `[ ]` **6.1 `/arc-shift` skill**
+### `[~]` **6.1 `/arc-shift` skill**
 
 - _Goal:_ a thin `/arc-shift` skill repoints the current session to another existing in-flight worktree,
   preserving the agent's accumulated context, with discovery-led target selection from `git worktree list` and
   an optional arg.
-- _Mechanism:_ "repoint" = re-orient the agent to the target worktree **within the same conversation** (read
-  its `meta-*` + SESSION-NOTES, operate against its path) — **not** a new session. Shift is **return-intent
-  cross-worktree investigation**: a short detour you intend to return from before handoff, which is what makes
-  context-preservation worth it (a permanent switch is just handoff + fresh session; a mis-launch is clear +
-  re-init — neither has accumulated context to preserve). Each worktree is independently handoff-able, so a
-  sidequest that outgrows the detour can handoff in place then shift back — no special handling.
-- _Note:_ **narrow scope** — shift's one irreducible use is interactive cross-worktree _investigation_
-  (operate in another worktree's runnable environment while reasoning with the current session's live,
-  expensive-to-reconstruct context). It is **not** the general sidequest tool: discovered side work is an
-  Errand (`errand-launch`, owned by Errand Enablement), and a discrete question about another worktree is
-  answered by reading its files or seeding an exploration session. The fuller usage doctrine (when to
-  parallelize, the return discipline) is Concurrent Work Conventions's (a Non-Goal here); 6.1 ships the
-  mechanism + the minimal framing that justifies it.
 
-    - `[ ]` **6.1.a Skill authoring** (canonical sources + harness hand-sync)
+    - `[~]` **6.1.a Skill authoring** (canonical sources + harness hand-sync)
 
-    - `[ ]` **6.1.b Target selection (discovery-led + optional arg)**
-        - _Note:_ creating a worktree for a new WU is spawn, not shift. Reuse `runWorktreeRoster` /
-          `parseWorktreeList` (`worktree-roster.ts`) for the worktree enumeration — same as 2.4 / 2.7a / 5.5.
-          The stale "arc-shift (future)" references (`deactivate-work-unit.md`, `strategy-work-organization.md`)
-          reconcile to this shipped skill in 7.5.
+    - `[~]` **6.1.b Target selection (discovery-led + optional arg)**
 
-### `[ ]` **6.2 Uncommitted-work handling at the shift**
+- _Outcome:_ Deferred — see `cohort-agile-parallelism.md` § Deferred — `/arc-shift`.
+
+### `[~]` **6.2 Uncommitted-work handling at the shift**
 
 - _Goal:_ before switching, `/arc-shift` detects uncommitted changes (reusing `runDirtyStateStatus`) and offers
   commit (recommended) / stash / leave-as-is; the operator chooses.
 
-    - Detect uncommitted changes; present the three-way choice.
+- _Outcome:_ Deferred with Phase 6 — see `cohort-agile-parallelism.md` § Deferred — `/arc-shift`.
 
-### `[ ]` **6.3 Resume-staleness advisory** (P2)
+### `[~]` **6.3 Resume-staleness advisory** (P2)
 
 - _Goal:_ arriving in a long-idle worktree surfaces a dismissible "assumptions may be stale — re-read the spec"
   nudge past a fixed idle threshold.
+
+- _Outcome:_ Deferred with Phase 6 — see `cohort-agile-parallelism.md` § Deferred — `/arc-shift`.
 
 ## **Phase 7:** Lifecycle ceremonies, retirements & doc reconciliation
 
@@ -1002,10 +988,11 @@ docs WU). _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
 
 - _Goal:_ the cut shift-state-machine rows (`Paused` / `Waiting-For`, "future arc-shift") are removed from
   `strategy-work-organization.md` and its state table reconciled with `template-meta.md`'s 4-state machine; the
-  `deactivate-work-unit.md` "arc-shift (future)" reference is reconciled to the surviving `arc-shift`; and
-  § ROADMAP redefines In Flight as location-based (`active/**` is in flight; Ready/Blocked scope to
-  `backlog/planned/**`), corrects the activation framing to `active/ ⟹ in flight`, and shifts the regen
-  fire-point earlier (a WU enters In Flight on landing in `active/**`).
+  `deactivate-work-unit.md` "arc-shift (future)" reference is removed (no surviving `arc-shift` to reconcile
+  against — see `cohort-agile-parallelism.md` § Deferred — `/arc-shift`); and § ROADMAP redefines In Flight as
+  location-based (`active/**` is in flight; Ready/Blocked scope to `backlog/planned/**`), corrects the
+  activation framing to `active/ ⟹ in flight`, and shifts the regen fire-point earlier (a WU enters In Flight
+  on landing in `active/**`).
 - **Strategies:** `strategy-work-organization.md`
 
     - `[ ]` **7.5.a Rewrite the State Enum table to the 4-state machine** (`strategy-work-organization.md`,
@@ -1021,7 +1008,9 @@ docs WU). _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
           across the structural-ownership migration; only where the structure is owned changes. Neutral phrasing
           needs no re-sweep when that ownership moves off the template.
 
-    - `[ ]` **7.5.b `deactivate-work-unit` arc-shift reference** (both copies)
+    - `[ ]` **7.5.b Remove `deactivate-work-unit` arc-shift reference** (both copies)
+        - _Note:_ no surviving `arc-shift` in this WU to reconcile against — remove the "(future)" reference,
+          don't reword it. See `cohort-agile-parallelism.md` § Deferred — `/arc-shift`.
 
     - `[ ]` **7.5.c § ROADMAP location-based In-Flight redefinition + regen fire-point shift**
         - _Note:_ edit the literal § ROADMAP text (the step-4 In-Flight definition `**In Flight** — State:

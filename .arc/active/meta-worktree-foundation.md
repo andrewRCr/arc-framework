@@ -12,9 +12,11 @@
 
 - **Task List:** tasks-worktree-foundation.md
 - **Last Completed:** Task 5.6 — Errand cheap-branch path doc, closing Phase 5 (entry primitives & `arc-session`).
-- **Next Task:** Task 6.1 — `/arc-shift` skill (line ~853)
+- **Next Task:** Task 7.1 — Lifecycle ceremony worktree touches (line ~908)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 6.1 — `/arc-shift` skill (Phase 6 opens; 6.2 / 6.3 follow within the phase).
+- **Next Action:** Begin Task 7.1 — Phase 6 (`/arc-shift`) deferred during execution (see
+  `cohort-agile-parallelism.md` § Deferred — `/arc-shift`); resume on-task-list at Phase 7 (lifecycle
+  ceremonies, retirements & doc reconciliation).
 
 ---
