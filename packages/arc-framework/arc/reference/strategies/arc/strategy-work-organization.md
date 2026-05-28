@@ -15,6 +15,7 @@ documentation.
 
 - [Work Categories](#work-categories)
 - [Decision Rules](#decision-rules)
+- [Work Character](#work-character)
 - [Task Lists and Branches](#task-lists-and-branches)
 - [Work Unit State](#work-unit-state)
 - [Spec-Flow Invariants](#spec-flow-invariants)
@@ -52,6 +53,27 @@ itself.
 
 For routing deferred or discovered work — inline fix vs. atomic task vs. new work unit — see
 [DEV-RULES.ARC][dev-rules-arc] § Leave it cleaner.
+
+---
+
+## Work Character
+
+Orthogonal to a work unit's *category* (its branch-type prefix, above) is its *character* — whether the work is
+**atomic** or **multi-step**. Character is a routing axis in its own right, and it is *scale-invariant*: the same
+distinction sorts inbox items, individual tasks, and whole work units.
+
+- **Atomic** — single-bounded, indivisible, no internal stages: one review increment, fully resolved when its
+  commit lands. At the **WU scale** it sets the atomic tier (a `meta-*` and little else); at the **task scale**,
+  atomic work surfacing mid-WU folds into the current commit or spins off as an [Errand](#errand-work-class)
+  rather than accreting a holding file; at the **item scale**, deferred atomic work lands in an inbox's
+  `## Atomic` section.
+- **Multi-step** — distinct stages with separate goals; needs decomposition into phases or a task list, and
+  (when for-later) matures through the planning pipeline rather than executing as-is.
+
+**Route by character, not by wrapper.** Capture surfaces sort on this axis directly — on what the work *is*, not
+on which artifact happened to produce it. That is why inboxes carry character-named sections rather than
+surface-named ones, and why the same word ("atomic") stays correct at every scale. For the
+during-WU-vs-later routing table, see [DEV-RULES.ARC][dev-rules-arc] § Leave it cleaner.
 
 ---
 

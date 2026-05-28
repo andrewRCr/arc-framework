@@ -979,7 +979,7 @@ _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
   mechanics (spawn/in-place mode, cleanup dispatch, `cd <main-worktree-path>` commands) that restate no rationale
   and carry no existing coupling to this strategy — no workflow cross-refs added.
 
-### `[ ]` **7.4 Retire the `atomic-*` companion file type**
+### `[x]` **7.4 Retire the `atomic-*` companion file type**
 
 - _Goal:_ the `atomic-*` companion file type is retired and its capture rerouted (fold into the commit / add a
   task / spin an Errand / `USER-INBOX.md § Atomic`), with all references swept — the shared `ATOMIC-INBOX.md`
@@ -1020,15 +1020,12 @@ _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
           documented canonically in `DEV-RULES.ARC` § Leave it cleaner (7.4.a); the briefs carry orientation, not a
           duplicate routing table. Docs-site out of scope (dedicated WU).
 
-    - `[ ]` **7.4.d Give the atomic work-character a robust home in `strategy-work-organization.md`** (both copies)
-        - The atomic _character_ (single-bounded, indivisible; the axis behind "inboxes route by character, not
-          wrapper presence") is defined only in `AGENT-BRIEF.ARC.md` § Vocabulary today and was otherwise implied
-          through the now-retired companion file. Author a short, surface-agnostic treatment in
-          `strategy-work-organization.md` — the work-class domain, neighboring § Work Categories / § Errand Work
-          Class — covering the character at all three scales (items / tasks / WUs); `AGENT-BRIEF` keeps the
-          one-line intro. _Scope:_ net-new prose sequenced after the 7.4.a–c sweep; must not re-introduce the
-          companion file type. Forward-compat with the `## Atomic` / `## Work Unit` character-section model in
-          `draft-doc-naming-convention.md` (provisional) — name by character, not vehicle.
+    - `[x]` **7.4.d Give the atomic work-character a robust home in `strategy-work-organization.md`** (both copies)
+        - _Outcome:_ New `## Work Character` section (after § Decision Rules, both copies) defines atomic vs.
+          multi-step as a scale-invariant routing axis across items / tasks / WUs, states "route by character, not
+          wrapper," and cross-refs § Errand Work Class + `DEV-RULES.ARC` § Leave it cleaner. `AGENT-BRIEF.ARC`
+          keeps the one-line vocab intro (7.4.c). Forward-compat with the `## Atomic` / `## Work Unit`
+          character-section model — references character-named sections, not the renaming-in-flight surface names.
 
 ### `[ ]` **7.5 Shipped-doc drift-fix**
 
