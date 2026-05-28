@@ -936,11 +936,12 @@ _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
           `worktree.value.identity.kind === "linked"`; omitted in the primary worktree. No probe extension —
           the worktree slot is already populated.
 
-    - `[ ]` **7.1.e `activate-work-unit` Step 4 meta-field completeness** (both copies)
-        - _Note:_ Step 4 flips only `**State:**`, but Step 5 renames the branch `plan/<name>` → `<type>/<name>` —
-          leaving meta `**Branch:**` stale, which breaks session-init's branch-match disambiguation.
-          `deactivate-work-unit` Step 2 updates both `State` and `Branch`; activate should mirror it. Also refresh
-          the now-stale `**Next Action:**` pointer (still names the activation workflow after activation completes).
+    - `[x]` **7.1.e `activate-work-unit` Step 4 meta-field completeness** (both copies)
+        - _Outcome:_ Step 4 now updates `**State:**` + `**Branch:**` + `**Next Action:**` (both copies),
+          mirroring `deactivate-work-unit` Step 2. Branch flip prevents session-init's branch-match
+          disambiguation from breaking after Step 5's rename; Next Action refresh replaces the stale
+          activation-pointer with a first-task pointer. Commit template body updated to enumerate the three
+          field edits.
 
     - `[ ]` **7.1.f `decideWorktreeCleanup` abandonment-context extension + return-value rename** (Phase 1 fn, both
       copies)

@@ -56,9 +56,15 @@ Fires only when TECHNICAL-OVERVIEW has been edited since the WU's PRD was approv
 technical surfaces (tech stack, architecture, runtime, dependencies, infrastructure). Soft check; rarely blocks.
 Independent of the PROJECT-PRD check — scope distinction is the trigger.
 
-### 4) State-flip + draft-doc removal
+### 4) State-flip + Branch + Next Action edits + draft-doc removal
 
-Edit `active/meta-{name}.md`: `**State:** Planning` → `**State:** Active`.
+Edit `active/meta-{name}.md`:
+
+- `**State:** Planning` → `**State:** Active`
+- `**Branch:** plan/{name}` → `**Branch:** {type}/{name}` (matches the Step 5 rename)
+- `**Next Action:**` refresh to point at the first incomplete task in `tasks-{name}.md` (e.g.,
+  `Begin Task 1.1 — <task description>`). The pre-activation pointer named this workflow; post-activation
+  it should describe the next executable step.
 
 Remove any residual draft-doc:
 
@@ -69,7 +75,7 @@ git rm .arc/active/draft-{name}.md
 Safety-catch — the draft-doc should already be absent (deleted at PRD creation per `1_create-spec.md`); this covers
 paths that skipped the create-PRD boundary.
 
-Stage both edits.
+Stage all edits.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
@@ -78,6 +84,8 @@ Stage both edits.
 chore(arc): activate {work-name} work unit
 
 - Flip State: Planning → Active
+- Branch field: plan/{name} → {type}/{name}
+- Refresh Next Action to first task
 - Remove draft-{name}.md (graduated to PRD; safety-catch)
 
 Context: meta-{name}.md (activation)
