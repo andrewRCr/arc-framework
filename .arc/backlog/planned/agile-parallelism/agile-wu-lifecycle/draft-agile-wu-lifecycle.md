@@ -83,9 +83,11 @@ Current "lighter" options fall short:
   feature/technical. The "lightening" is mostly about scope (no PRD/plan needed), not ceremony.
 - **Lightweight completion-doc template** — exists, but only saves doc time at integration; doesn't
   reduce activation or task-list overhead.
-- **Atomic work** (atomic companion + ATOMIC-INBOX) — bypasses WU lifecycle entirely. But the
-  boundary is "smaller than warrants a branch" — under `branch.protection: full` (the default for
-  most teams), most reviewable work needs a branch and therefore a WU.
+- **Atomic work** (capture rerouted post-WF to fold-into-commit / add a task / spin an Errand /
+  `USER-INBOX § Atomic`; per-WU atomic companion file type retired under WF Phase 7.4) — bypasses WU
+  lifecycle entirely. But the boundary is "smaller than warrants a branch" — under
+  `branch.protection: full` (the default for most teams), most reviewable work needs a branch and
+  therefore a WU.
 - **`branch.protection: partial`** — allows direct-to-main commits for atomic work, but that's not
   what teams using PR review do.
 
@@ -244,12 +246,14 @@ get promoted: add the plan-*/PRD, restructure the task list into phases, continu
     that remain in this WU's scope (post-2026-05-08 split):
 
     - **State enum.** WOR settled the strict 4-state machine `Planning | Active | Integrating |
-      Shipped` (`Superseded (partial)` as a variant) in `template-meta.md`, folding merge-position
-      into the `Integrating` state — so there is no separate `**Integration:**` field, and no
-      `Paused` / `In Progress` (the pre-WOR / shift-state vocabulary; see
-      `cohort-agile-parallelism.md`). Workflow updates compose with WOR's consolidated boundaries:
-      `clean-work-unit.md` Mode 2 advances State at integration; PR review state lives in the PR (the
-      WU sits in `Integrating` while awaiting review).
+      Shipped`, folding merge-position into the `Integrating` state — so there is no separate
+      `**Integration:**` field, and no `Paused` / `In Progress` (the pre-WOR / shift-state
+      vocabulary; see `cohort-agile-parallelism.md`). Partial supersession is an optional
+      `**Superseded By:**` annotation, not a state variant — a partially-superseded WU still ships
+      through `Integrating → Shipped` normally (set by `integrate-work-unit § Handling Partially
+      Superseded Work`; framing settled under WF Phase 7.5.a). Workflow updates compose with WOR's
+      consolidated boundaries: `integrate-work-unit` Step 1 advances State at integration; PR review
+      state lives in the PR (the WU sits in `Integrating` while awaiting review).
     - **Tier-aware sweep ceremony.** Atomic WUs: trivial sweep (single meta file delete in
       integration PR). Quick: standard sweep. Standard: full sweep with ROADMAP/PROJECT-STATUS
       updates. Layered on top of WOR's sweep-as-you-go shape.

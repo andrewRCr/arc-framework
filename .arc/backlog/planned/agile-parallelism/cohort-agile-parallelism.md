@@ -50,10 +50,12 @@ and the in-flight view (below) derive from.
 
 ## Shared contract — WU state machine
 
-WU state is WOR's strict 4-state machine — `Planning | Active | Integrating | Shipped` (+ `Superseded
-(partial)`), defined by the meta record's schema (per ADR-022 — `template-meta.md` is its render skeleton),
-with merge-position folded into `Integrating` (no separate `Integration:` field). "Awaiting PR review" is
-simply `Integrating`.
+WU state is the strict 4-state machine — `Planning | Active | Integrating | Shipped`, defined by the meta
+record's schema (per ADR-022 — `template-meta.md` is its render skeleton), with merge-position folded into
+`Integrating` (no separate `Integration:` field). "Awaiting PR review" is simply `Integrating`. Partial
+supersession is **not** a state value — it's an optional `**Superseded By:**` annotation on a WU that ships
+normally through `Integrating → Shipped` with reduced scope (set by `integrate-work-unit § Handling
+Partially Superseded Work`; framing settled under WF Phase 7.5.a).
 
 ## Shared contract — cross-WU personal-notes sync
 
@@ -273,9 +275,10 @@ cross-machine discovery and the advisory concurrency check.
 
 ## Pending cross-cohort follow-ons
 
-- **Shipped-doc drift-fix** (rides with WF execution, WF draft Scope Estimate phase 7):
-  `strategy-work-organization.md` still advertises `Paused` / `Waiting-For` as "future arc-shift" —
-  remove; reconcile its state table with `template-meta.md` (including `Superseded`).
+- **Shipped-doc drift-fix** — addressed by WF Phase 7.5. `strategy-work-organization.md`'s state table is
+  reconciled to the 4-state machine under 7.5.a (Superseded becomes an `**Superseded By:**` annotation, not
+  a state value), and § ROADMAP's In-Flight tier is redefined as location-based under 7.5.c (`active/**`).
+  No follow-on for the cohort.
 - **arc-modes re-scope** (queued on its own meta `**Next Action:**`): Lite cut, post-WOR de-stale,
   local-mode rename.
 - **AWL generic artifact-model prefix mentions** (`plan-*` / PRD in the tier-model body): left during the

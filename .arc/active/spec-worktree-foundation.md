@@ -253,13 +253,20 @@ flat at `user/{identity}/**`; `user/{identity}/.internal/**` never synced).
 ### F. Lifecycle ceremonies, documentation, and retirements
 
 - **R28 [P0]** — **Lifecycle workflow updates.** `init-work-unit` gains a worktree-creating mode (the concrete
-  content of R8's "thin wrapper"; in-place mode survives for the single-worktree / atomic-launchpad case).
-  `integrate-work-unit` adds a post-merge worktree-removal step (R29). `deactivate-work-unit` Case A-delete
-  runs `git worktree remove` **before** `git branch -D`; Case A return-to-Planning leaves the decoupled path
-  in place. `activate-work-unit` is largely unaffected (branch rename runs inside the WU's worktree; `arc
-  user open` reappears defensively). `session-handoff` needs **no structural change** (delegates push/sync to
-  `arc sync`, which owns worktree + notes coherence); optional symmetry touch: surface worktree context in
-  the Confirm-Handoff summary.
+  content of R8's "thin wrapper"; in-place mode survives for the single-worktree / atomic-launchpad case) and
+  a ROADMAP regen step at its directory-move work (per R33's location-based In-Flight redefinition).
+  `integrate-work-unit` adds a post-merge worktree-removal step (R29) — workflow-driven under the pre-merge
+  integration-interlock approval, with local branch cleanup (`git branch -d`) riding the same step.
+  `deactivate-work-unit` Case A-delete restructures around the multi-worktree case — marker-present path
+  navigates out of the WU's worktree, then marker-gated `git worktree remove` (consuming an
+  abandonment-context extension to R29's cleanup-decision fn — abandonment authorizes removal of unmerged
+  work), then `git branch -D` + remote delete; marker-absent path stays as the existing single-worktree
+  in-place sequence. Case A return-to-Planning leaves the decoupled path. `activate-work-unit` Step 4 expands
+  to update `**Branch:**` alongside `**State:**` (mirroring deactivate Step 2) and refresh the now-stale
+  `**Next Action:**` pointer; `arc user open` reappears defensively at Step 5. `session-handoff` gains a
+  linked-worktree header insert in Confirm Handoff mirroring `session-init` Step 6 (fires only in linked
+  worktrees; primary worktree omits). Push/sync stays delegated to `arc sync`, which owns worktree + notes
+  coherence.
 - **R29 [P0]** — **Worktree-ownership marker — a machine-local, never-synced contract.** When **ARC creates or
   scaffolds a worktree** — spawn, cold-start (when ARC scaffolds), and **materialize** (owned by In-Flight
   Awareness, which inherits this contract) — ARC writes a small gitignored, identity-agnostic marker at
@@ -303,13 +310,19 @@ flat at `user/{identity}/**`; `user/{identity}/.internal/**` never synced).
   File, the `commit-footer` method, templates, and workflow mentions.
 - **R33 [P0]** — **Shipped-doc drift-fix.** Remove the cut shift-state-machine rows (`Paused` /
   `Waiting-For`, labeled "future arc-shift") from `strategy-work-organization.md` and reconcile its state
-  table with `template-meta.md`'s 4-state machine. Remove `deactivate-work-unit.md`'s Case Matrix
-  "arc-shift (future)" reference — it pointed at the *cut* state machine, and no surviving `arc-shift`
-  ships here to reconcile against (deferred — see `cohort-agile-parallelism.md` § Deferred — `/arc-shift`).
-  Reconcile § ROADMAP: **step 4 redefines In Flight as location-based** (a WU in `active/**` is in flight;
-  Ready/Blocked scope to `backlog/planned/**`) and corrects the `active/ ⟹ State: Active` activation framing
-  to `active/ ⟹ in flight`. The regen fire-point shifts earlier (a WU enters In Flight on landing in
-  `active/**`, not at activation).
+  table with the 4-state machine (`Planning | Active | Integrating | Shipped`). **Superseded** is not in the
+  enum; its disposition lives in the Optional Pointer Fields sub-table as `**Superseded By:**`, annotating
+  WUs whose remaining scope was absorbed by a successor (state flows Integrating → Shipped normally;
+  `integrate-work-unit § Handling Partially Superseded Work` sets the annotation, not a state value).
+  Remove `deactivate-work-unit.md`'s Case Matrix "arc-shift (future)" reference and fill Case B with
+  substantive operator-path content (a § Case B subsection enumerating the manual paths — integrate the
+  partial scope, abandon with history loss, move work to a successor) — no surviving `arc-shift` ships here
+  to reconcile against (deferred — see `cohort-agile-parallelism.md` § Deferred — `/arc-shift`). Reconcile
+  § ROADMAP: **step 4 redefines In Flight as location-based** (a WU in `active/**` is in flight; Ready/Blocked
+  scope to `backlog/planned/**`) and corrects the `active/ ⟹ State: Active` activation framing. The regen
+  fire-point shifts earlier (a WU enters In Flight on landing in `active/**`, not at activation) —
+  `init-work-unit` gains a ROADMAP regen step at its directory-move work; `activate-work-unit`'s existing
+  regen stays as self-healing redundancy.
 - **R34 [P0]** — **Stale-worktree sweep at session-init (anchored at the main worktree).** To guarantee no
   *permanent* orphaned worktree, session-init in the **main worktree** cross-references `git worktree list`
   against main's `completed/` (a local, network-light check: a worktree whose WU has shipped) and surfaces any

@@ -875,44 +875,75 @@ re-attempted by this WU.
 
 - _Outcome:_ Deferred with Phase 6 — see `cohort-agile-parallelism.md` § Deferred — `/arc-shift`.
 
-## **Phase 7:** Lifecycle ceremonies, retirements & doc reconciliation
+## **Phase 7:** Lifecycle wiring, retirements & doc reconciliation
 
-_Purpose:_ Wire worktree create/remove into the lifecycle ceremonies (consuming the marker contract) and leave
-the framework self-consistent at ship — neutralize the obsolete pause-pointer mechanic, document the
-main-on-main pattern, retire the `atomic-*` companion type, and fix the shipped-doc drift the cohort's resolved
-decisions create.
+_Purpose:_ Wire worktree create/remove into the lifecycle ceremonies (consuming the marker contract; extending its
+decision fn for the new abandonment caller) and leave the framework self-consistent at ship — neutralize the obsolete
+pause-pointer mechanic, document the main-on-main pattern, retire the `atomic-*` companion type, and fix the
+shipped-doc drift the cohort's resolved decisions create.
 
 _Design decisions:_ Sequenced last so the doc reconciliation lands against everything built. R28's removal-side
-ceremony edits join here with R29's cleanup-site wiring (7.1). R32's sweep includes `2_generate-tasks.md`
-itself — and this WU dogfoods the retirement (no `atomic-*` companion was created for it).
+ceremony edits join here with R29's cleanup-site wiring (7.1). R32's sweep includes `2_generate-tasks.md` itself — and
+this WU dogfoods the retirement (no `atomic-*` companion was created for it). 7.1.f extends the Phase 1
+cleanup-decision fn for a new caller (Case A-delete abandonment context) and renames its return-value enum to
+state-descriptive — forward extension, not Phase 1 correction.
 
 _Note:_ "(both copies)" maps to per-file package suffixes — `.template.md` for `session-handoff` (7.1d),
-`2_generate-tasks` + `3_process-task-loop` (swept by 7.4); plain `.md` for the work-unit-lifecycle ceremonies
-(7.1a-c) and `manage-incidental-work` (7.2). Docs-site content (`docs/`) is out of scope WU-wide (dedicated
-docs WU). _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
+`2_generate-tasks` + `3_process-task-loop` (swept by 7.4); plain `.md` for the work-unit-lifecycle ceremonies (7.1a-c,
+7.1e) and `manage-incidental-work` (7.2). Docs-site content (`docs/`) is out of scope WU-wide (dedicated docs WU).
+_Notes:_ See `notes-worktree-foundation.md` § Phase 7.
 
-### `[ ]` **7.1 Lifecycle ceremony worktree touches (marker-gated cleanup)**
+### `[ ]` **7.1 Lifecycle ceremony worktree wiring (marker-gated cleanup)**
 
-- _Goal:_ the lifecycle ceremonies wire worktree removal with marker-gated cleanup — `integrate-work-unit` adds
-  a post-merge worktree-removal step run from main; `deactivate-work-unit` Case A-delete runs `git worktree
-  remove` before `git branch -D` while Case A return-to-Planning leaves the decoupled path; `activate` gets a
-  defensive `arc user open` reaffirm plus Step-4 meta-field sync (`Branch` + `Next Action`); `session-handoff`
-  gets an optional worktree-context surface.
-- _Note:_ a worktree cannot remove itself — removal runs from the main worktree, composing with the
-  batched-archive step. All cleanup consults the Phase 1 marker decision; phrasing is origin-agnostic
-  (ARC-spawned and external both reach the same advisory/offer).
+- _Goal:_ the lifecycle ceremonies wire worktree removal with marker-gated cleanup — `integrate-work-unit` adds a
+  workflow-driven post-merge worktree-removal step; `deactivate-work-unit` Case A-delete restructures around the
+  multi-worktree case (consuming 7.1.f's abandonment-context decision arm) while Case A return-to-Planning leaves the
+  decoupled path; `activate` Step 4 mirrors `deactivate` Step 2 (Branch + Next Action refresh) plus a defensive
+  `arc user open` reaffirm; `session-handoff` gains a linked-worktree header insert mirroring `session-init` Step 6.
+- _Note:_ a worktree cannot remove itself — removal runs from another worktree (typically main), composing with the
+  batched-archive step. All cleanup consults the Phase 1 marker decision (extended by 7.1.f); phrasing is
+  origin-agnostic (ARC-spawned and external both reach the same descriptor).
 - **Strategies:** `strategy-work-organization.md`
 
-    - `[ ]` **7.1.a `integrate-work-unit` post-merge removal (from main)** (both copies)
+    - `[ ]` **7.1.a `integrate-work-unit` post-merge worktree-removal step (workflow-driven)** (both copies)
+        - _Note:_ at integrate's post-merge tail (after `arc user close`), consult Phase 1's cleanup-decision fn
+          (`decideWorktreeCleanup`, extended by 7.1.f). Workflow-driven execution under the pre-merge
+          integration-interlock approval — no second offer prompt fires. On `removable`: execute
+          `cd <other-worktree> && git worktree remove <wu-path> && git branch -d <wu-branch>` (lowercase `-d`,
+          merged-only-safe; local branch cleanup rides with worktree removal). On `blocked`: surface the
+          dirty/unmerged state without auto-removing; the stale-worktree check at the next main-worktree session-init
+          picks up. On `external`: note the externally-managed status (operator's tool likely handles cleanup).
+        - _Note:_ workflow concludes with a terminal close message — "WU shipped, worktree removed; this session ends
+          here, start a fresh session in another worktree or main." No Next Action pointer (the agent's cwd is now
+          deleted). All surface text describes the stale-worktree check by behavior, not by planning-artifact ID, per
+          DEV-RULES.ARC § Documentation Boundaries.
+        - _Acceptance:_ spawn-on-A → integrate-on-A walk-through. Cleanup-decision fires after `gh pr merge` +
+          `arc user close`; `removable` arm auto-executes the cd + remove + branch-delete cascade and concludes;
+          `blocked` arm surfaces state without action; `external` arm notes externally-managed. All three branch on
+          Phase 1's fn return.
 
-    - `[ ]` **7.1.b `deactivate-work-unit` Case A-delete order + Case A return-to-Planning path-left** (both copies)
+    - `[ ]` **7.1.b `deactivate-work-unit` Case A-delete multi-worktree restructure** (both copies)
+        - _Note:_ consumes 7.1.f's `context: 'abandonment'` decision arm. Two variants gated by marker presence —
+          single-worktree (no marker, in-place WU): close PR → `git switch base` → `git branch -D` → backlog
+          leftovers. Multi-worktree (marker present): close PR → navigate to another worktree (typically main) →
+          marker-gated `git worktree remove <wu-path>` (abandonment context skips the merge gate; marker + clean →
+          `removable`) → `git branch -D` + remote delete → backlog leftovers.
+        - _Note:_ Case A return-to-Planning path stays as-is — R26's path-decoupled-from-branch-rename means the
+          worktree path survives the rename, no restructure needed.
 
-    - `[ ]` **7.1.c `activate-work-unit` defensive `arc user open`** (both copies)
-        - _Note:_ already present (idempotent reaffirm) — verify / light-touch, likely no net-new content.
+    - `[~]` **7.1.c `activate-work-unit` defensive `arc user open`** (both copies)
+        - _Outcome:_ Audit-confirmed (Phase 7 pre-impl): `activate-work-unit.md` Step 5 (post-rename) already carries
+          the idempotent `arc user open {name}` reaffirm covering paths that activated without going through
+          `init-work-unit`. No net-new content; audit verified the defensive reaffirm is correctly positioned (post
+          branch-rename, where the worktree's `arc user` path is stable). Marker contract / spec scope satisfied via
+          existing behavior.
 
-    - `[ ]` **7.1.d `session-handoff` optional worktree-context surface** (both copies)
-        - _Note:_ handoff already surfaces worktree context (worktree probe slot + summary line) — extend,
-          don't add from scratch.
+    - `[ ]` **7.1.d `session-handoff` linked-worktree header insert** (both copies)
+        - _Note:_ edit `session-handoff.md` § Confirm Handoff header line: insert `· worktree: {worktree-path}` after
+          the branch when the session occupies a linked worktree, mirroring `session-init.md` Step 6's identical
+          insert. Key on probe-1's `worktree.value.identity.kind === "linked"`; omit in the primary worktree. The
+          worktree slot is already populated by probe-1 — no probe extension needed. "Optional" describes the
+          conditional surface (only fires in linked worktrees), not deferrable scope.
 
     - `[ ]` **7.1.e `activate-work-unit` Step 4 meta-field completeness** (both copies)
         - _Note:_ Step 4 flips only `**State:**`, but Step 5 renames the branch `plan/<name>` → `<type>/<name>` —
@@ -920,36 +951,54 @@ docs WU). _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
           `deactivate-work-unit` Step 2 updates both `State` and `Branch`; activate should mirror it. Also refresh
           the now-stale `**Next Action:**` pointer (still names the activation workflow after activation completes).
 
+    - `[ ]` **7.1.f `decideWorktreeCleanup` abandonment-context extension + return-value rename** (Phase 1 fn, both
+      copies)
+        - _Note:_ extend the fn signature with `context: 'shipped' | 'abandonment'` — abandonment-context callers
+          (7.1.b's Case A-delete) bypass the merge gate (abandonment authorizes removal of unmerged work; marker +
+          clean → `removable`). Rename return values to state-descriptive: `offer-remove` → `removable`,
+          `surface` → `blocked`, `advisory` → `external` — the fn returns the worktree's removability _state_; each
+          caller chooses action per its own approval context (integrate's pre-approved auto-execute, branch-gone's
+          user-offer, sweep's user-offer, Case A-delete's deactivation-approved auto-execute).
+        - _Note:_ probe envelope's `sweep.value.worktrees[].decision.action` field updates to the new names; consumer
+          docs sweep at the same time (`session-init.md` branch-gone arm + Step 6 sweep block; `integrate-work-unit`'s
+          new post-merge step; `deactivate-work-unit`'s restructured Case A-delete). Touches
+          `lib/git/worktree-cleanup.ts` + tests. Forward extension, not Phase 1 correction — Phase 1's shipped
+          contract is correct for its original shipped-cleanup callers.
+
 ### `[ ]` **7.2 Pause-pointer neutralization in `manage-incidental-work.md`**
 
 - _Goal:_ `manage-incidental-work.md` no longer instructs setting the retired pause-pointer fields
-  (`Interrupts:` / `Paused At:` / `Paused To:`), so it stops contradicting `template-meta.md`'s 4-state
-  machine.
-- _Note:_ surgical premise-neutralization only — the deeper reshape (standalone-workflow question, work-class
-  consolidation) belongs to the agent-context-optimization cohort, not here. The three fields above are the
-  ones the workflow actually sets. Fold in the file's other stale drift (a `status-{parent-name}.md` reference
-  → `meta-`; non-4-state `State:` values). _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
-- _Note:_ framing guard — where the neutralization touches `State:` values, align them to the four-state enum
-  (`Planning | Active | Integrating | Shipped`) without asserting `template-meta.md` as the enum's source of
-  truth. This file is adopter-facing: keep the phrasing authority-neutral (no schema/ADR reference). Structural
-  authority is being reassigned off the template; neutral phrasing needs no later re-sweep.
+  (`Interrupts:` / `Paused At:` / `Paused To:`), so it stops contradicting the 4-state machine.
+- _Note:_ decisive deletion — § Coordinated Pause/Resume is deleted entirely (its parent-pause premise is dead under
+  worktree isolation), replaced with a one-line cross-ref to § Per-Worktree Isolation in
+  `strategy-work-organization.md`. The file's other stale drift folds in: the `status-{parent-name}.md` reference
+  (stale `status-` prefix → `meta-`). Non-4-state `State:` values were all inside § Coordinated Pause/Resume —
+  deletion handles them; no in-place alignment remains. _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
+- _Note:_ the deeper reshape (whether this workflow survives as-is vs. folds into always-loaded DEV-RULES routing +
+  a design-time strategy) belongs to the agent-context-optimization cohort — ownership tracked across
+  `draft-instruction-optimization.md` and `draft-documentation-surface-routing.md`. WF neutralizes the mechanic for
+  interim correctness; this step is bounded to that.
+- _Note:_ framing guard — the one-line cross-ref stays authority-neutral (no schema/ADR reference, no claim of a
+  code schema WF hasn't built). This file is adopter-facing.
 
-    - Neutralize the pause-pointer mechanic in `manage-incidental-work.md` (both copies).
+    - Decisive delete + replacement in `manage-incidental-work.md` (both copies).
 
-### `[ ]` **7.3 Main-on-main pattern documentation**
+### `[ ]` **7.3 Main-on-main pattern documentation + workflow cross-ref sweep**
 
-- _Goal:_ ARC's stance is documented — the main worktree stays on `main` as a stable reference and the launchpad
-  for admin operations (planning, sweep, global edits) and atomic / Errand launches; no separate dedicated
-  administrative worktree; composes with externally-spawned worktrees (the tool's main workspace IS ARC's main
-  worktree).
-- _Note:_ include the one-worktree-per-IDE/LSP operational constraint (document, don't engineer around).
+- _Goal:_ ARC's stance is documented — the main worktree stays on `main` as a stable reference and the launchpad for
+  admin operations (planning, sweep, global edits) and atomic / Errand launches; no separate dedicated administrative
+  worktree; composes with externally-spawned worktrees (the tool's main workspace IS ARC's main worktree).
+- _Note:_ author the dedicated section in `strategy-work-organization.md` as a **new top-level § Main-on-Main
+  Pattern**, placed immediately after § Per-Worktree Isolation — the two sections together answer "what's the role of
+  each kind of worktree?" Include the one-worktree-per-IDE/LSP operational constraint (document, don't engineer
+  around).
+- _Note:_ sweep workflows for incidental main-on-main mentions and add cross-refs to the new § at point of use
+  (author-judgment sweep, not a fixed list). Convert § Errand Work Class's terse launchpad mention (left by 5.6) to a
+  one-line cross-ref to the new § (drop any restated rationale).
 - **Strategies:** `strategy-work-organization.md`
 
-    - `[ ]` **7.3.a Strategy-doc content** (`strategy-work-organization.md`, both copies)
-        - _Note:_ 5.6 left a terse launchpad mention in § Errand Work Class — when this step authors the
-          main-on-main section, convert that mention to a proper cross-ref (and drop any restated rationale).
-
-    - `[ ]` **7.3.b Workflow-guidance cross-refs**
+    - Author § Main-on-Main Pattern + sweep cross-refs (`strategy-work-organization.md` both copies; workflows
+      touched per author-judgment sweep).
 
 ### `[ ]` **7.4 Retire the `atomic-*` companion file type**
 
@@ -957,27 +1006,31 @@ docs WU). _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
   task / spin an Errand / `USER-INBOX.md § Atomic`), with all references swept — the shared `ATOMIC-INBOX.md`
   surface, `USER-INBOX § Atomic`, and the atomic _character_ unaffected; only the per-WU companion file type
   retires.
-- _Note:_ a grep-driven sweep, not a fixed list — companion-type refs extend well beyond the named anchors
-  (e.g. `strategy-planning-module.md` ~17 refs, `strategy-file-classification.md`'s file-type registry row,
-  `3_process-task-loop.md`, `DEV-RULES.PROJECT.md`, `completed/README.md`, and `USER-INBOX` / `ATOMIC-INBOX`
-  template §-cross-links that dangle on removal). _Notes:_ See `notes-worktree-foundation.md` § Phase 7 for the
-  full found-list.
+- _Note:_ a grep-driven sweep, not a fixed list — companion-type refs extend well beyond the named anchors (e.g.
+  `strategy-planning-module.md` ~17 refs, `strategy-file-classification.md`'s file-type registry row,
+  `strategy-work-organization.md`'s § Directory Structure row, `3_process-task-loop.md`, `DEV-RULES.PROJECT.md`,
+  `completed/README.md`, and `USER-INBOX` / `ATOMIC-INBOX` template §-cross-links that dangle on removal). Distinguish
+  companion-type refs (in scope) from atomic-character refs (preserved — tier shape, not file type). _Notes:_ See
+  `notes-worktree-foundation.md` § Phase 7 for the full found-list.
 
     - `[ ]` **7.4.a Sweep companion-type refs across live shipped content** (both copies)
-        - Named anchors: `DEV-RULES.ARC.md` § Leave it cleaner; `strategy-task-list-formatting.md` § Atomic
-          Companion File; `commit-footer` method; `template-tasks.md`; plus the full found-list. Acceptance:
-          zero `atomic-{name}` / `atomic-*` / "atomic companion file" companion-type refs remain in live
-          shipped content (reword dangling §-links rather than deleting the surfaces they point at).
-        - _Scope:_ live shipped ARC content (rules / strategies / methods / templates / workflows / briefs).
-          **Out:** docs-site (`docs/` — dedicated docs WU), historical ADRs (e.g. `adr-008`, immutable record),
-          internal analysis / supplemental docs, and this WU's own `spec-*` (self-referential — it describes
-          the retirement). **Preserve:** the `ATOMIC-INBOX` / `USER-INBOX § Atomic` surfaces and the atomic
-          _character_.
+        - Named anchors: `DEV-RULES.ARC.md` § Leave it cleaner; `strategy-task-list-formatting.md` § Atomic Companion
+          File; `commit-footer` method; `template-tasks.md`; `strategy-work-organization.md` § Directory Structure
+          row; plus the full found-list. Acceptance: zero `atomic-{name}` / `atomic-*` / "atomic companion file"
+          companion-type refs remain in live shipped content (reword dangling §-links rather than deleting the
+          surfaces they point at).
+        - _Scope:_ live shipped ARC content (rules / strategies / methods / templates / workflows / briefs). **Out:**
+          docs-site (`docs/` — dedicated docs WU), historical ADRs (e.g. `adr-008`, immutable record), internal
+          analysis / supplemental docs, and this WU's own `spec-*` (self-referential — it describes the retirement).
+          **Preserve:** the `ATOMIC-INBOX` / `USER-INBOX § Atomic` surfaces and atomic-character refs (e.g. tier-shape
+          mentions in `strategy-work-organization.md` § Spec-Flow Invariants line ~133 and § Archival line ~353).
 
     - `[ ]` **7.4.b Sweep workflow mentions** (both copies)
         - `2_generate-tasks.md` (companion creation at Pass 1 + Step 4 checklist), `activate` / `verify` /
-          `deactivate` / `archive` work-unit workflows. _Note:_ `integrate-work-unit.md` carries only the
-          protected `§ Atomic → ATOMIC-INBOX` surface — verify-only, nothing to sweep.
+          `deactivate` / `archive` work-unit workflows. Watch for cleanup-list enumerations (e.g.
+          `deactivate-work-unit.md` Case A-delete Step 4's `active/atomic-*` line ~132), not just companion-creation
+          refs. _Note:_ `integrate-work-unit.md` carries only the protected `§ Atomic → ATOMIC-INBOX` surface —
+          verify-only, nothing to sweep.
 
     - `[ ]` **7.4.c Document the rerouted capture** (AGENT-BRIEF in scope; docs-site out)
         - `AGENT-BRIEF.{ARC,CONTRIBUTOR}.md` are in-scope shipped briefs — sweep their companion-type refs. The
@@ -987,35 +1040,58 @@ docs WU). _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
 ### `[ ]` **7.5 Shipped-doc drift-fix**
 
 - _Goal:_ the cut shift-state-machine rows (`Paused` / `Waiting-For`, "future arc-shift") are removed from
-  `strategy-work-organization.md` and its state table reconciled with `template-meta.md`'s 4-state machine; the
-  `deactivate-work-unit.md` "arc-shift (future)" reference is removed (no surviving `arc-shift` to reconcile
-  against — see `cohort-agile-parallelism.md` § Deferred — `/arc-shift`); and § ROADMAP redefines In Flight as
-  location-based (`active/**` is in flight; Ready/Blocked scope to `backlog/planned/**`), corrects the
-  activation framing to `active/ ⟹ in flight`, and shifts the regen fire-point earlier (a WU enters In Flight
-  on landing in `active/**`).
+  `strategy-work-organization.md` and its state table reconciled with the 4-state machine; the
+  `deactivate-work-unit.md` "arc-shift (future)" reference is removed and Case B fills with substantive
+  operator-path content (no surviving `arc-shift` to reconcile against — see `cohort-agile-parallelism.md`
+  § Deferred — `/arc-shift`); and § ROADMAP redefines In Flight as location-based (`active/**` is in flight;
+  Ready/Blocked scope to `backlog/planned/**`), corrects the activation framing, and shifts the regen fire-point
+  earlier — a WU enters In Flight on landing in `active/**`, requiring an `init-work-unit` regen step + an
+  `activate-work-unit` framing touch.
 - **Strategies:** `strategy-work-organization.md`
 
-    - `[ ]` **7.5.a Rewrite the State Enum table to the 4-state machine** (`strategy-work-organization.md`,
-      both copies)
-        - _Note:_ the current table (`In Progress` / `Paused` / `Waiting-For` / `Complete` / `Superseded`)
-          contradicts `template-meta`'s `Planning | Active | Integrating | Shipped` on every row; rewrite the
-          whole enum table + the Optional Pointer Fields sub-table. _Notes:_ See
+    - `[ ]` **7.5.a Rewrite the State Enum table + Superseded disposition + integrate sub-section update**
+      (`strategy-work-organization.md` + `integrate-work-unit.md`, both copies)
+        - _Note:_ rewrite the whole enum table — 4 rows: Planning (set by `init-work-unit`), Active (set by
+          `activate-work-unit` Step 4), Integrating (set by `integrate-work-unit` Step 1), Shipped (set by
+          `archive-work-unit`) — each with Set By + Meaning. Superseded is **not** in the enum; its disposition
+          lives in the Optional Pointer Fields sub-table as `**Superseded By:**`, annotating WUs whose remaining
+          scope was absorbed by a successor (state flows Integrating → Shipped normally — no separate state value).
+          Also rewrite the Optional Pointer Fields sub-table accordingly. _Notes:_ See
           `notes-worktree-foundation.md` § Phase 7.
-        - _Note:_ framing guard — requalify, don't entrench: write the rewritten table to **present** the
-          four-state enum, not to declare `template-meta.md` its source of truth.
-          `strategy-work-organization.md` is adopter-facing — phrasing stays authority-neutral (no schema/ADR
-          reference, and no claim of a code schema that isn't built yet). The four state _values_ are stable
-          across the structural-ownership migration; only where the structure is owned changes. Neutral phrasing
-          needs no re-sweep when that ownership moves off the template.
+        - _Note:_ `integrate-work-unit.md § Handling Partially Superseded Work` updates to set the
+          `**Superseded By:**` annotation, not a state value. Same commit as the strategy-doc rewrite (interfaces
+          are paired).
+        - _Note:_ framing guard — requalify, don't entrench: write the rewritten tables to **present** the
+          four-state enum, not to declare `template-meta.md` its source of truth. Both edit targets are
+          adopter-facing — phrasing stays authority-neutral (no schema/ADR reference, no claim of a code schema WF
+          hasn't built). The four state values are stable across the structural-ownership migration; only where
+          the structure is owned changes. Neutral phrasing needs no re-sweep when that ownership moves off the
+          template.
 
-    - `[ ]` **7.5.b Remove `deactivate-work-unit` arc-shift reference** (both copies)
-        - _Note:_ no surviving `arc-shift` in this WU to reconcile against — remove the "(future)" reference,
-          don't reword it. See `cohort-agile-parallelism.md` § Deferred — `/arc-shift`.
+    - `[ ]` **7.5.b Case B fill + arc-shift reference removal** (both copies)
+        - _Note:_ `deactivate-work-unit.md` Case Matrix's Case B cell currently reads "→ `arc-shift` (future)" —
+          change to "See § Case B below" and add a new § Case B section enumerating three operator paths: (1)
+          integrate the partial scope (→ `integrate-work-unit`); (2) abandon with history loss (like Case A-delete
+          but commits become reflog-only-recoverable — explicit warning, explicit authorization); (3) move work
+          to a successor (cherry-pick to a new WU's branch, then run Case A-delete on the original). The
+          deactivate workflow doesn't automate Case B — names the paths without claiming automation.
+        - _Note:_ no surviving `arc-shift` in this WU to reconcile against — remove the "(future)" reference and
+          fill with the § Case B content (don't reword the cell to point at planning artifacts).
 
-    - `[ ]` **7.5.c § ROADMAP location-based In-Flight redefinition + regen fire-point shift**
-        - _Note:_ edit the literal § ROADMAP text (the step-4 In-Flight definition `**In Flight** — State:
-          Active | Integrating`; the Regeneration "Activation" bullet). ROADMAP regen is doc-only
-          (hand-maintained, no render code) — no tests.
+    - `[ ]` **7.5.c § ROADMAP location-based In-Flight redefinition + regen fire-point shift + init-work-unit
+      edit** (`strategy-work-organization.md` + `init-work-unit.md` + `activate-work-unit.md` framing touch, both
+      copies)
+        - _Note:_ edit the literal § ROADMAP step-4 In-Flight definition (currently
+          `**In Flight** — State: Active | Integrating`) to location-based — a WU located in `active/**` is in
+          flight regardless of state. Correct the Regeneration "Activation" bullet's framing
+          (`active/ ⟹ State: Active` is planner shorthand; reframe activation as self-healing regen against the
+          location-based tier).
+        - _Note:_ add a ROADMAP regen step to `init-work-unit.md` at the end of its directory-move work (Step 3
+          Path A and other paths that populate `active/<wu>/`) — that's where the WU enters In Flight under the
+          new definition. `activate-work-unit.md` Step 7's existing regen stays as self-healing redundancy
+          (re-renders same tier state); light framing touch — "activation refreshes ROADMAP" rather than
+          "activation moves the WU into the In Flight tier."
+        - _Note:_ ROADMAP regen is doc-only (hand-maintained, no render code) — no tests.
 
 ## **Phase 8:** Verification
 
