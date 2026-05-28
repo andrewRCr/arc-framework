@@ -953,23 +953,18 @@ _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
           for both contexts (worktree-cleanup: 5 → 11 cases); enum strings renamed across run / sweep / cascade
           / recovery test suites. All 1780 unit tests pass; typecheck + lint clean.
 
-### `[ ]` **7.2 Pause-pointer neutralization in `manage-incidental-work.md`**
+### `[x]` **7.2 Pause-pointer neutralization in `manage-incidental-work.md`**
 
 - _Goal:_ `manage-incidental-work.md` no longer instructs setting the retired pause-pointer fields
   (`Interrupts:` / `Paused At:` / `Paused To:`), so it stops contradicting the 4-state machine.
-- _Note:_ decisive deletion — § Coordinated Pause/Resume is deleted entirely (its parent-pause premise is dead under
-  worktree isolation), replaced with a one-line cross-ref to § Per-Worktree Isolation in
-  `strategy-work-organization.md`. The file's other stale drift folds in: the `status-{parent-name}.md` reference
-  (stale `status-` prefix → `meta-`). Non-4-state `State:` values were all inside § Coordinated Pause/Resume —
-  deletion handles them; no in-place alignment remains. _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
-- _Note:_ the deeper reshape (whether this workflow survives as-is vs. folds into always-loaded DEV-RULES routing +
-  a design-time strategy) belongs to the agent-context-optimization cohort — ownership tracked across
-  `draft-instruction-optimization.md` and `draft-documentation-surface-routing.md`. WF neutralizes the mechanic for
-  interim correctness; this step is bounded to that.
-- _Note:_ framing guard — the one-line cross-ref stays authority-neutral (no schema/ADR reference, no claim of a
-  code schema WF hasn't built). This file is adopter-facing.
 
     - Decisive delete + replacement in `manage-incidental-work.md` (both copies).
+
+- _Outcome:_ § Coordinated Pause/Resume deleted entirely (both copies), replaced by a § Parent WU Continuity
+  stub — a short, authority-neutral cross-ref to § Per-Worktree Isolation in `strategy-work-organization.md`.
+  Removing the section absorbed the drift it carried (stale `status-{parent-name}.md` path; non-4-state `State:`
+  values); the now-orphaned `[template-status]` link definition was dropped. Deeper reshape of the workflow
+  stays with the agent-context-optimization cohort.
 
 ### `[ ]` **7.3 Main-on-main pattern documentation + workflow cross-ref sweep**
 
