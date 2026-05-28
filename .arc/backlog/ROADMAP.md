@@ -11,9 +11,9 @@ separate them from a startable root. Cohort membership is a logical grouping, no
 
 ## In Flight
 
-| Work unit                     | Owner  | Depends on               | Cohort                     |
-| ----------------------------- | ------ | ------------------------ | -------------------------- |
-| worktree-foundation           | andrew | —                        | agile-parallelism          |
+| Work unit                     | State  | Owner  | Depends on               | Cohort                     |
+| ----------------------------- | ------ | ------ | ------------------------ | -------------------------- |
+| worktree-foundation           | Active | andrew | —                        | agile-parallelism          |
 
 ## Ready
 

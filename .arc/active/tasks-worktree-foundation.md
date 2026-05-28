@@ -1100,6 +1100,16 @@ _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
           a deactivation PR), in current vocab. Matrix cell repointed to "see § Case C below". Case D left as a
           self-contained `integrate or clean` routing pointer (not dangling).
 
+    - `[x]` **7.5.f Add a State column to the ROADMAP In-Flight tier** (`strategy-work-organization.md` + live
+      `ROADMAP.md`)
+        - _Outcome:_ Folded into 7.5 from the 7.5.c review. With In-Flight tiering now location-based (7.5.c), the
+          tier spans `Planning` / `Active` / `Integrating` — so `State` no longer redundant with the tier, and was
+          left listed as a § Source-of-truth render field while rendering nowhere. Resolved by surfacing it:
+          § Render algorithm step 5 now gives the **In Flight** table a **State** column after **Work unit**
+          (Ready / Blocked omit it — planned work is uniformly `Planning`); § Source of truth notes State surfaces
+          there. Re-rendered the live `ROADMAP.md` In-Flight table to match (sole entry `worktree-foundation` →
+          `Active`). Both strategy copies; `ROADMAP.md` is project-instance-only.
+
 ### `[x]` **7.6 Repoint the atomic-commit browse surface to the `standalone` footer convention**
 
 - _Goal:_ `arc log atomic` is reconciled to the live commit-footer convention — neither footer it currently

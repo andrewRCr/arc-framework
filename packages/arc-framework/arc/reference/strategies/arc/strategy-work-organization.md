@@ -407,7 +407,8 @@ those fields, with each WU rendered by its canonical WU-name.
 `active/**/<wu-name>/meta-<name>.md` and `backlog/planned/**/<wu-name>/meta-<name>.md` carry the
 canonical fields ROADMAP renders from:
 
-- `**State:**` — lifecycle phase (`Planning | Active | Integrating | Shipped`)
+- `**State:**` — lifecycle phase (`Planning | Active | Integrating | Shipped`); surfaced in the **In Flight**
+  tier's **State** column
 - `**Owner:**` — single owner (per WU)
 - `**Depends On:**` — dependency list (bare WU names; `[none]` if independent)
 - `**Cohort:**` — cohort membership (`[none]` for solo WUs)
@@ -448,8 +449,11 @@ the target's **absence** from the `active/` + `backlog/` pipeline (a shipped WU 
       depth (shallowest first) so each WU follows the deps it waits on.
 5. Render each tier as a markdown table, splitting **Blocked** into one table per depth band (`Depth 1`,
    `Depth 2`, …). Columns: **Work unit** (the canonical WU-name) · **Owner** · **Depends on** ·
-   **Cohort**, with an em-dash (`—`) for empty cells. Within a tier or band, order rows to cluster
-   cohort members (by cohort, then WU-name), and pad columns to shared widths so the raw tables align.
+   **Cohort**, with an em-dash (`—`) for empty cells. The **In Flight** table inserts a **State** column
+   after **Work unit** (`Planning` / `Active` / `Integrating`); the tier spans all three, so the column
+   distinguishes them. Ready and Blocked omit it — planned work is uniformly `Planning`. Within a tier or
+   band, order rows to cluster cohort members (by cohort, then WU-name), and pad columns to shared widths
+   so the raw tables align.
 6. Footer note pointing to `backlog/provisional/` for pre-commitment thinking that hasn't been
    sequenced.
 
