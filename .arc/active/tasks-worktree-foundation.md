@@ -1214,9 +1214,9 @@ _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
   shift-state-machine rows and use the location-based In-Flight definition; `manage-incidental-work.md` no
   longer sets retired pause-pointer fields
 
-- `[x]` Methods genuinely overridable — the worktree branch posture (via `branch-format`) and
-  `worktree.location_template` resolve defaults and accept overrides through the standard method-override
-  machinery
+- `[x]` Worktree conventions genuinely overridable — the worktree branch posture overrides via the
+  `branch-format` method (agent-read), and `worktree.location_template` resolves its default and accepts
+  overrides as a config value (code-read)
 
 - `[x]` All quality gates pass (tests, linting, type checking)
 

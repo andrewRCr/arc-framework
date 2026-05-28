@@ -267,9 +267,9 @@ flat at `user/{identity}/**`; `user/{identity}/.internal/**` never synced).
   linked-worktree header insert in Confirm Handoff mirroring `session-init` Step 6 (fires only in linked
   worktrees; primary worktree omits). Push/sync stays delegated to `arc sync`, which owns worktree + notes
   coherence.
-- **R29 [P0]** — **Worktree-ownership marker — a machine-local, never-synced contract.** When **ARC creates or
-  scaffolds a worktree** — spawn, cold-start (when ARC scaffolds), and **materialize** (owned by In-Flight
-  Awareness, which inherits this contract) — ARC writes a small gitignored, identity-agnostic marker at
+- **R29 [P0]** — **Worktree-ownership marker — a machine-local, never-synced contract.** When **ARC creates a
+  worktree** — spawn and **materialize** (owned by In-Flight Awareness, which inherits this contract) — ARC
+  writes a small gitignored, identity-agnostic marker at
   `.arc/system/.internal/worktree-marker.json` (`{ spawnedByArc, wuName, spawningIdentity, createdAt }`;
   `.gitignore` entry mirrors the existing `.arc/system/.internal/pristine.json` line — that dir already hosts
   gitignored machine-local runtime state and carries the "ARC internals, don't touch" signal). The marker is
@@ -277,7 +277,9 @@ flat at `user/{identity}/**`; `user/{identity}/.internal/**` never synced).
   tracked); that no-shared-state property is what makes cross-machine cleanup coherent without reconciliation.
   It is **self-cleaning** — it lives inside the worktree, so `git worktree remove` (and `rm -rf` + prune)
   delete it; it shares the worktree's lifetime exactly and so cannot orphan or go stale-and-misleading (it
-  states a permanent fact, stable across an Active→Planning branch rename).
+  states a permanent fact, stable across an Active→Planning branch rename). **Cold-start writes no marker:** the
+  user pre-created the bare worktree and ARC only scaffolds content into it, so the worktree is advisory and
+  reads as external (no marker present) at every cleanup site.
     - **One gating rule, consulted at every cleanup site** — `integrate-work-unit`, the branch-gone cascade
       (R3), and the stale-worktree sweep (R34): **marker present + worktree clean + branch merged** →
       interlock-gated offer to `git worktree remove`; **present + uncommitted/unpushed** → never auto-remove,
