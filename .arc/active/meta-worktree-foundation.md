@@ -11,13 +11,13 @@
 - **Cohort:** agile-parallelism
 
 - **Task List:** tasks-worktree-foundation.md
-- **Last Completed:** Task 5.4.b — session-entry dispatch relocated into `session-init` (Step 2 `Entry
-  dispatch`); `arc-session` thinned to a pointer.
-- **Next Task:** Task 5.4.c — Optional-arg seed (confirmed before use) (line ~780)
+- **Last Completed:** Task 5.4 — `arc-session` entry skill complete: rename, dispatch relocated into
+  `session-init`, optional-arg seed, harness-copy sync (5.4.a–d).
+- **Next Task:** Task 5.7 — Cold-start protected-branch guard (line ~836)
 - **Blockers:** [none]
 
-- **Next Action:** Build Task 5.4.c — thin `arc-session` forwards `/arc-session <pointer>` into session-init's
-  cold-start arm (via `arc start --here --from`: issue → Origin, `spec-`/`draft-` → Design, else pass-through),
-  confirmed before use. Detail in the task list (5.4.c) + `notes-worktree-foundation.md` § Phases 5 & 6.
+- **Next Action:** Build Task 5.7 — `runColdStart` protected-branch guard (mirror `isProtectedBranch` from
+  `interlock-validation.ts`; refuse on `branch.base` under `full`, allow under `partial`), test-first. 5.5 / 5.6
+  remain, ordered behind 5.7.
 
 ---
