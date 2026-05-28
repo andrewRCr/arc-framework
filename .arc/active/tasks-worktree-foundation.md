@@ -1168,46 +1168,58 @@ _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
 
 ## **Phase 8:** Verification
 
-### `[ ]` **8.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+### `[x]` **8.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+
+- _Quality gates:_ md lint (311 files), code lint (ts + sh), typecheck (src + test), full test suite
+  (unit + integration + e2e), build, and the three `lint:arc:*` audits (triggers, domain-rules,
+  section-refs) — all passed.
+- _Success criteria:_ 11 criteria, all met. Turn-budget and branch-gone/remote-unavailable split
+  confirmed via the probe's per-channel `recommended-action` + state-keyed recovery arm (resume-clean
+  → 0 prompts observed live this session); conditional pre-compute confirmed at `status/run.ts`
+  (roster/recovery/sweep gated on branch-gone / primary); spawn-to-origin, cross-WU sync purity,
+  external-worktree warn-not-block, and coupled marker lifetime confirmed against `worktree-*` libs +
+  passing unit/e2e coverage; framework self-consistency (no dangling `atomic-*`, location-based
+  In-Flight, no retired pause-pointer fields) and method/config overridability verified by inspection
+  across both copies.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Prompt-flow turn budget met: resume-clean → 0 prompts; resume-needs-sync → 1; cold-start (bare
+- `[x]` Prompt-flow turn budget met: resume-clean → 0 prompts; resume-needs-sync → 1; cold-start (bare
   worktree) → 1; branch-gone → 1 with pre-computed candidates
 
-- `[ ]` A deleted upstream reports `branch-gone` (not `remote-unavailable`); the motivating recovery resolves
+- `[x]` A deleted upstream reports `branch-gone` (not `remote-unavailable`); the motivating recovery resolves
   through the cascade with candidate surfacing, not manual git archaeology
 
-- `[ ]` Common-path latency unchanged — resume of a local WU adds no fetch/scan beyond today's probe; roster
+- `[x]` Common-path latency unchanged — resume of a local WU adds no fetch/scan beyond today's probe; roster
   pre-compute and cascade demonstrably fire only in their triggering branch
 
-- `[ ]` Spawn returns to origin — the originating session is unchanged and on its own branch/worktree; the new
+- `[x]` Spawn returns to origin — the originating session is unchanged and on its own branch/worktree; the new
   worktree exists at the templated path with branch + meta + empty SESSION-NOTES
 
-- `[ ]` Cross-WU sync correctness — spawn → first-load does not import the prior WU's SESSION-NOTES; cross-WU
+- `[x]` Cross-WU sync correctness — spawn → first-load does not import the prior WU's SESSION-NOTES; cross-WU
   entries merge by entry identity with tombstones honored; concurrent worktree pushes reconcile without data
   loss; retired-WU subdirs reconcile rather than linger
 
-- `[ ]` External-worktree composability — ARC reads location from `git worktree list` and never relocates or
+- `[x]` External-worktree composability — ARC reads location from `git worktree list` and never relocates or
   refuses an externally-created worktree; a branch-naming mismatch is a warning, not a block
 
-- `[ ]` No permanent orphaned worktrees or markers — a marker cannot outlive its worktree; every lingering
+- `[x]` No permanent orphaned worktrees or markers — a marker cannot outlive its worktree; every lingering
   worktree for a shipped WU is surfaced at the next main-worktree session-init or on reopen (verified against a
   spawn-on-A / integrate-on-B / resume-on-A trace)
 
-- `[ ]` Framework self-consistency — no dangling `atomic-*` companion references across rules / strategies /
+- `[x]` Framework self-consistency — no dangling `atomic-*` companion references across rules / strategies /
   methods / templates / workflows / briefs; `strategy-work-organization.md` and § ROADMAP carry no cut
   shift-state-machine rows and use the location-based In-Flight definition; `manage-incidental-work.md` no
   longer sets retired pause-pointer fields
 
-- `[ ]` Methods genuinely overridable — the worktree branch posture (via `branch-format`) and
+- `[x]` Methods genuinely overridable — the worktree branch posture (via `branch-format`) and
   `worktree.location_template` resolve defaults and accept overrides through the standard method-override
   machinery
 
-- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[x]` All quality gates pass (tests, linting, type checking)
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration
 
 [verify-work-unit]: ../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md

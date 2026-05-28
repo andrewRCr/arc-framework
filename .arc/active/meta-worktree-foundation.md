@@ -15,7 +15,6 @@
 - **Next Task:** Task 8.1 — Complete verification (line ~1171)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 8.1 — load and follow `verify-work-unit.md`; run the verification protocol
-  against the WU Success Criteria.
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 ---
