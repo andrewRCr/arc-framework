@@ -1092,6 +1092,47 @@ _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
           surface is gone, so incidental lifecycle state is just `State:` (4-state). Don't reshape incidental-WU
           semantics beyond removing the retired references.
 
+### `[ ]` **7.6 Repoint the atomic-commit browse surface to the `standalone` footer convention**
+
+- _Goal:_ `arc log atomic` is reconciled to the live commit-footer convention — neither footer it currently
+  greps is produced anymore (`Context: atomic-{name}.md` companion retired by 7.4; `(atomic / no associated
+  task list)` superseded by the `standalone (...)` anchor per `commit-footer.md`). The command is renamed
+  `arc log standalone` and retargeted to browse `Context: standalone (...)` off-WU commits; the commit-msg
+  hook's retired atomic-companion branch is dropped. The atomic _character_ and atomic-tier WUs / Errands are
+  unaffected — this is the commit-history browse surface only.
+- _Note:_ surfaced as a carried SESSION-NOTES item from 7.4 (companion doc-refs swept, code path unchecked).
+  Investigation found it broader than a file glob: both grepped footers are dead, and `arc log atomic` is the
+  only command surfacing off-WU discrete work from history (no `standalone` browse exists). Repoint over
+  retire chosen to preserve that capability rather than drop and rebuild it later.
+- _Note:_ ADR-012 designed `arc log --atomic` around the old footer; left as immutable history. Repoint
+  rationale recorded in `notes-worktree-foundation.md § Phase 7`. `contribution (...)` commits are a separate
+  off-WU axis — out of scope (possible future `--include-contributions`).
+- **Strategies:** `commit-footer.md` (method), `strategy-planning-module.md`
+
+    - `[ ]` **7.6.a `commit-msg` githook — drop the retired atomic-companion footer branch** (both copies)
+        - Remove the `^Context: atomic-[a-z0-9-]+\.md$` validation branch + companion-existence check, and the
+          two `Context: atomic-[name].md` example lines (the "missing footer" examples block + the "invalid
+          format" error block). Standalone / task / meta / spec / contribution branches unchanged. This is the
+          code-side completion of 7.4's companion retirement, independent of the command repoint below.
+
+    - `[ ]` **7.6.b Repoint + rename the command** (`commands/log.ts` + `cli.ts` + `handlers/log.ts`)
+        - Retarget the git grep from `Context: atomic-` / `(atomic / no associated task list)` to
+          `Context: standalone (`. Rename the `atomic` subcommand → `standalone` (no back-compat alias — the
+          old footer is gone). Replace `--work-unit <name>` (matched `atomic-{name}`, meaningless off-WU) with
+          `--category <maintenance|planning|documentation|refactor>`. Rewrite module docstrings + the
+          `AtomicLogEntry` / `runLogAtomic` / `handleLogAtomic` naming to the standalone surface. Keep
+          `--since` / `--author` / `--limit` / `--all`.
+
+    - `[ ]` **7.6.c Tests** (`log` unit/integration/e2e + `commit-msg-footer`)
+        - Rework `unit/log.test.ts`, `integration/log.test.ts`, `e2e/log.e2e.test.ts` to the standalone
+          footer + `--category` filter (drop companion / `--work-unit` cases). Drop the atomic-companion
+          case(s) from `integration/commit-msg-footer.test.ts` (hook branch removed in 7.6.a).
+
+    - `[ ]` **7.6.d Adopter-facing doc reconciliation** (both copies)
+        - `QUICK-REFERENCE`: rewrite the `arc log --atomic` line (line ~307–308) to `arc log standalone` —
+          fixes the latent flag-vs-subcommand bug in the same pass. `strategy-planning-module.md`: update the
+          `arc log` reference to the renamed/repointed command + standalone framing.
+
 ## **Phase 8:** Verification
 
 ### `[ ]` **8.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
