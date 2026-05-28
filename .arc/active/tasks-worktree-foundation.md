@@ -1064,20 +1064,21 @@ _Notes:_ See `notes-worktree-foundation.md` § Phase 7.
           no surviving `arc-shift` anywhere in live framework surfaces (swept). Provenance phrasing aligns with
           7.5.a's Superseded drop — successor `**Origin:**`, not a predecessor field.
 
-    - `[ ]` **7.5.c § ROADMAP location-based In-Flight redefinition + regen fire-point shift + init-work-unit
+    - `[x]` **7.5.c § ROADMAP location-based In-Flight redefinition + regen fire-point shift + init-work-unit
       edit** (`strategy-work-organization.md` + `init-work-unit.md` + `activate-work-unit.md` framing touch, both
       copies)
-        - _Note:_ edit the literal § ROADMAP step-4 In-Flight definition (currently
-          `**In Flight** — State: Active | Integrating`) to location-based — a WU located in `active/**` is in
-          flight regardless of state. Correct the Regeneration "Activation" bullet's framing
-          (`active/ ⟹ State: Active` is planner shorthand; reframe activation as self-healing regen against the
-          location-based tier).
-        - _Note:_ add a ROADMAP regen step to `init-work-unit.md` at the end of its directory-move work (Step 3
-          Path A and other paths that populate `active/<wu>/`) — that's where the WU enters In Flight under the
-          new definition. `activate-work-unit.md` Step 7's existing regen stays as self-healing redundancy
-          (re-renders same tier state); light framing touch — "activation refreshes ROADMAP" rather than
-          "activation moves the WU into the In Flight tier."
-        - _Note:_ ROADMAP regen is doc-only (hand-maintained, no render code) — no tests.
+        - _Outcome:_ § ROADMAP § Render algorithm step-4 In-Flight tier redefined location-based — a WU in
+          `active/**` is In Flight regardless of `State:` (`Planning` / `Active` / `Integrating`), decoupling the
+          tier from the old `State: Active | Integrating` discriminator that stranded planning-in-`active/` WUs.
+          § Regeneration fire-points reworked: added an **Initialization** ceremony-wired bullet (the WU lands in
+          `active/**` and enters In Flight — the fire-point shifted earlier, to init), and corrected the
+          **Activation** bullet (it's an in-place `State: Planning → Active` + branch rename, no directory move;
+          the WU is already In Flight from init, so its regen self-heals rather than moves the tier — the prior
+          bullet wrongly attributed init's `backlog → active` move to activation). Added `init-work-unit` Step 5
+          "ROADMAP regen · arc-in-git only" (renumbered Push→6, Proceed→7; `[work-org-roadmap]` +
+          `[dev-rules-atomicity]` link defs added) and applied the `activate-work-unit` Step 7 framing touch
+          ("refreshes ROADMAP" not "moves into In Flight tier"). Doc-only (no render code) — no tests. _Notes:_
+          See `notes-worktree-foundation.md` § Phase 7.
 
     - `[ ]` **7.5.d Sweep residual pause-pointer drift in `strategy-task-list-formatting.md`** (both copies)
         - The Incidental task-list-header guidance (§ Task List Headers, ~L48–50) still names retired pause-pointer

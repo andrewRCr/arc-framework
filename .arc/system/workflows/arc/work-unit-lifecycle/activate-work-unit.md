@@ -133,10 +133,10 @@ See [DEV-RULES.ARC § Leave it cleaner][dev-rules-leave-cleaner] for the capture
 > **Skip this step** under `pm.mode: none` or `external`.
 
 Hand-maintain (interim, pre-CLI) by re-rendering per [Work Organization Strategy § ROADMAP][work-org-roadmap] —
-activation moves the WU into the In Flight tier.
+the WU is already In Flight from initialization, so this refreshes the ROADMAP rather than changing its tier.
 
 Default: dedicated `chore(arc):` commit (`workflowCommit`). May ride the activation commit (Step 4) only when the
-edit is trivial (a single-row move into In Flight) — see [DEV-RULES.ARC § Atomicity][dev-rules-atomicity].
+regen is a trivial refresh (no render-set change) — see [DEV-RULES.ARC § Atomicity][dev-rules-atomicity].
 
 ### 8) Fire `post-work-unit-activate` extension
 

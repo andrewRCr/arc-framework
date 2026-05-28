@@ -440,7 +440,8 @@ the target's **absence** from the `active/` + `backlog/` pipeline (a shipped WU 
 3. Resolve each `**Depends On:**` entry against the `active/` + `backlog/` set (planned and
    provisional): a target still present is unsatisfied; an absent target is satisfied (shipped).
 4. Group into three tiers:
-    - **In Flight** — `State: Active | Integrating`.
+    - **In Flight** — located in `active/**`, regardless of `State:` (a WU is in flight from the moment it
+      lands in `active/`, whether `Planning`, `Active`, or `Integrating`).
     - **Ready** — planned work with no unsatisfied dependencies (deps all shipped, or none to begin
       with).
     - **Blocked** — planned work with at least one unsatisfied dependency, banded by dependency
@@ -460,8 +461,11 @@ regeneration re-reads current state, so a regen reflects whatever changed since 
 **Ceremony-wired** — the lifecycle workflow that owns the transition carries a regenerate-ROADMAP
 step, so these need no separate discipline:
 
-- **Activation** (`backlog/planned/<wu>/` → `active/<wu>/`, `State: Planning → Active`) — moves the WU
-  into In Flight.
+- **Initialization** (`backlog/planned/<wu>/` → `active/<wu>/` graduation, or a fresh meta scaffolded
+  directly into `active/<wu>/`) — the WU lands in `active/**` and enters In Flight.
+- **Activation** (in-place `State: Planning → Active` + branch rename; no directory move) — the WU is
+  already In Flight from initialization, so tier membership doesn't change; the regen self-heals any render
+  drift since the last one.
 - **Integration / archive** (`active/<wu>/` → `completed/<dated>/<wu>/`, `State: Integrating →
   Shipped`) — drops the WU from the render set; by the same absence its dependents re-evaluate from
   Blocked to Ready, with no edits to their meta files.

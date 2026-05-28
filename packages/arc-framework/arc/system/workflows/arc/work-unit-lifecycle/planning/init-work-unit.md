@@ -150,7 +150,17 @@ as in Path A; preserve other field values.
 > per [`commit-format`][commit-format]; meta-file commit shape per [DEV-RULES.ARC][dev-rules-arc]
 > § Commit Discipline.
 
-### 5) Push Planning Branch
+### 5) ROADMAP regen · `arc-in-git` only
+
+> **Skip this step** under `pm.mode: none` or `external`.
+
+Hand-maintain by re-rendering per [Work Organization Strategy § ROADMAP][work-org-roadmap] — the meta file
+landing in `active/<name>/` enters the WU into the In Flight tier.
+
+Default: dedicated `chore(arc):` commit (`workflowCommit`). May ride the init commit (Step 4) only when the
+edit is trivial (a single-row add into In Flight) — see [DEV-RULES.ARC § Atomicity][dev-rules-atomicity].
+
+### 6) Push Planning Branch
 
 Set upstream for the planning branch.
 
@@ -161,7 +171,7 @@ Set upstream for the planning branch.
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `-u origin plan/{name}`.
 
-### 6) Proceed to Next Step
+### 7) Proceed to Next Step
 
 - If the work needs synthesis exploration first: create `draft-*.md` documents (see [Work Planning
   Strategy][work-planning] for conventions)
@@ -174,5 +184,7 @@ Set upstream for the planning branch.
 [commit-format]: ../../../../methods/commit-format.md
 [branch-format]: ../../../../methods/branch-format.md
 [dev-rules-arc]: ../../../../../system/rules/DEV-RULES.ARC.md
+[dev-rules-atomicity]: ../../../../../system/rules/DEV-RULES.ARC.md#atomicity
 [work-org-protection]: ../../../../../reference/strategies/arc/strategy-work-organization.md#branch-protection-modes
+[work-org-roadmap]: ../../../../../reference/strategies/arc/strategy-work-organization.md#roadmap
 [work-planning]: ../../../../../reference/strategies/arc/strategy-work-planning.md
