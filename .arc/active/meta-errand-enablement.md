@@ -11,10 +11,10 @@
 - **Cohort:** agile-parallelism
 
 - **Task List:** tasks-errand-enablement.md
-- **Last Completed:** Task 1.2 — Re-cut the "Leave it cleaner" routing table (Phase 1 complete)
-- **Next Task:** Task 2.1 — Define the `ERRANDS.md` template, entry schema, and seeding (line ~82)
+- **Last Completed:** Task 2.3 — Staleness sweep advisory (Phase 2 complete)
+- **Next Task:** Task 3.1 — Deterministic foreign-artifact detection (line ~180)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 2.1 — define the `ERRANDS.md` template, entry schema, and seeding.
+- **Next Action:** Begin Task 3.1 — deterministic foreign-artifact detection feeding the advisory gate.
 
 ---
