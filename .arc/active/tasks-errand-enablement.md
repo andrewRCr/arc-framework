@@ -359,36 +359,50 @@ _Design decisions:_
 
 ## **Phase 6:** Verification
 
-### `[ ]` **6.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+### `[x]` **6.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+
+- _Quality gates:_ md lint (313 files), code lint (ts + sh), typecheck, typecheck:test, 2109 unit/integration
+  tests + 63 e2e, and build — all passed.
+- _Success criteria:_ 10 criteria, all met; two carry a deviation note (auto-merge behavioral path first
+  exercised by a future planning-only PR, not this WU's reviewed-lane integration; cohort-wide `main`→base-branch
+  doc sweep scoped to CWC).
 
 ---
 
 ## Success Criteria
 
-- `[ ]` `arc-errand` launches an Errand from a WU session in one invocation: writes a queue entry, runs the
+- `[x]` `arc-errand` launches an Errand from a WU session in one invocation: writes a queue entry, runs the
   advisory gate, returns to the originating context without creating a branch/commit or touching the WU's worktree.
 
-- `[ ]` The errand queue (`ERRANDS.md`) converges across worktrees and machines, drains by execution, and
+- `[x]` The errand queue (`ERRANDS.md`) converges across worktrees and machines, drains by execution, and
   surfaces a staleness advisory when entries linger.
 
-- `[ ]` The Errand decision matrix is complete in `strategy-work-organization.md` § Errand Work Class, and the
+- `[x]` The Errand decision matrix is complete in `strategy-work-organization.md` § Errand Work Class, and the
   DEV-RULES.ARC § "Leave it cleaner" routing table is re-cut on the commitment axis.
 
-- `[ ]` The advisory gate records a coordinate/sequence caveat for a foreign in-flight artifact and does not hard-block.
+- `[x]` The advisory gate records a coordinate/sequence caveat for a foreign in-flight artifact and does not hard-block.
 
-- `[ ]` `arc-session` on a no-WU primary-worktree tree orients in an Errand-aware mode, disambiguating via an
+- `[x]` `arc-session` on a no-WU primary-worktree tree orients in an Errand-aware mode, disambiguating via an
   explicit signal.
 
-- `[ ]` Under full protection, a planning/backlog-only PR auto-merges via `merge-ok`; a constitutional-doc PR
+- `[x]` Under full protection, a planning/backlog-only PR auto-merges via `merge-ok`; a constitutional-doc PR
   requires review via CODEOWNERS. The `setup-merge-gate` workflow runs end-to-end, is idempotent, and is offered
   (protection-mode-aware) from `01_verify-and-configure.md`.
+    - **Deviation:** Mechanism is built, configured live on this repo, and documented; the lane logic lives in
+      `ci.yml`'s `classify` job. The auto-merge _behavioral_ path will first be exercised by a future
+      planning/backlog-only PR — this WU's own integration PR is reviewed-lane (touches `.github/`, `ci.yml`,
+      `spec-*`), so it merges deliberately rather than auto-merging.
 
-- `[ ]` This repo's own `merge-ok` lane is live (dogfooding), and TECHNICAL-OVERVIEW § 3 documents it.
+- `[x]` This repo's own `merge-ok` lane is live (dogfooding), and TECHNICAL-OVERVIEW § 3 documents it.
 
-- `[ ]` Terminology is base-branch / primary-worktree throughout; the `errand-launch` label is retired to `arc-errand`.
+- `[x]` Terminology is base-branch / primary-worktree throughout; the `errand-launch` label is retired to `arc-errand`.
+    - **Deviation:** `errand-launch` → `arc-errand` is fully retired across this WU's deliverable surfaces
+      (workflows, skills, strategies, spec, CLI). Residual references survive only in the immutable `completed/`
+      archive and in _sibling_ backlog drafts (concurrent-work-conventions, in-flight-awareness, the cohort doc);
+      the cohort-wide `main`→base-branch / primary-worktree doc sweep is explicitly CWC's scope, not this WU's.
 
-- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[x]` All quality gates pass (tests, linting, type checking)
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration
 
 [verify-work-unit]: ../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md

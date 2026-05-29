@@ -11,11 +11,11 @@
 - **Cohort:** agile-parallelism
 
 - **Task List:** tasks-errand-enablement.md
-- **Last Completed:** Task 5.3 — Repo-local dogfooding instance + TECHNICAL-OVERVIEW § 3 (Phase 5 complete)
-- **Next Task:** Task 6.1 — Complete verification (line ~362)
+- **Last Completed:** Task 6.1 — Complete verification (Phase 6 complete; Tier 3 gates green, 10/10 success
+  criteria met)
+- **Next Task:** [none] — task list complete
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 6.1 — load and follow `verify-work-unit.md` and run the work-unit verification
-  phase (the final task before integration).
+- **Next Action:** integrate-work-unit Step 1 — verify completion.
 
 ---
