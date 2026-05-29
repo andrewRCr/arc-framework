@@ -1,6 +1,6 @@
 # Metadata: Errand Enablement
 
-- **State:** Active
+- **State:** Integrating
 - **Owner:** andrew
 - **Branch:** feat/errand-enablement
 
