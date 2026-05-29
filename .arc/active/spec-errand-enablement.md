@@ -100,11 +100,18 @@ blockers. P1 here means "in scope, deferral seam," not "optional."
    tombstones), giving cross-worktree and cross-machine convergence for free. It is registered as a future
    **managed operational-state document** member ([ADR-022][adr-022]); the structured-record/CLI-render version
    is `operational-state-docs`' later migration, not built here.
-    - **Entry schema (minimal, every field load-bearing):** goal · pointers · proposed `chore/<slug>` branch ·
-      *(optional)* coordination caveat (the in-flight gate advisory, or a rare non-default execution hint).
-      **No `State` field** — State means lifecycle means the WU threshold tripping. Dropped: "suggested skills /
-      quality-gate context" as standing fields (identically-filled noise; the executing session is a full ARC
-      session that already knows).
+    - **Entry schema (minimal, every field load-bearing):** the **managed-entry grammar** — the task-list
+      parent-task shape minus numbered IDs. An `###` heading carrying a `[ ]` checkbox and a bold `<slug>` whose
+      text is the merge/tombstone key and the `chore/<slug>` branch name — bold, not backticked, since the heading
+      is a structural key slot like the task-list `**X.Y Title**`; backticks are reserved for the slug in prose,
+      e.g. the `_Branch:_` field and cross-refs), followed by Goal-first italic-descriptor bullets:
+      `_Goal:_` (the one-line "what", first at root per the family grammar) then `_Pointers:_` · `_Branch:_`
+      (`chore/<slug>`) · *(optional)* `_Caveat:_` (the in-flight gate advisory, or a rare non-default execution
+      hint) · `_Created:_` (date; the staleness sweep's age source). **No `State` field** — State means lifecycle
+      means the WU threshold tripping. The `[ ]` checkbox is **holding-ground** — never checked in place; entries
+      drain by removal on ship. Dropped: "suggested skills / quality-gate context" as standing fields
+      (identically-filled noise; the executing session is a full ARC session that already knows). The file carries
+      an italic `>`-callout preamble and a `---` EOF marker, mirroring the sibling user-scoped surfaces.
     - **Drains by execution:** the entry is removed on ship. The durable record stays the conventional commit +
       `standalone (...)` footer ([ADR-021][adr-021]); the PR/commit body is composed from the entry at ship.
     - **Staleness sweep** (advisory; sibling of the stale-worktree sweep, surfaced at session-init / ceremonies):
@@ -244,6 +251,21 @@ spec, is their execution home; the records here are the pre-instantiation manife
 ADR-022 member-list change, that lands in its own planning, not as this WU's errand.
 
 **Captures / coordination for the owning WU (not this WU's errands):**
+
+- **`doc-naming-convention` / `operational-state-docs` — managed-entry grammar convergence + common primitive.**
+  This WU establishes the **managed-entry grammar** for `ERRANDS.md` (an `###` heading with a `[ ]` checkbox and a
+  bold `<slug>` whose text is the merge/tombstone key, then Goal-first italic-descriptor bullets — the task-list
+  parent-task shape
+  minus numbered IDs). The inboxes and `WORKING-MEMORY` should converge on it — an actionable `[ ]` variant for
+  the inboxes, a no-checkbox `_Remove when:_`-first variant for memory — but that realignment is multi-touch
+  (templates + the `parseUserInboxSection` / `parseWorkingMemory` parsers + live instances) and owned by
+  `doc-naming-convention` (structure / section anchors) coordinating with `operational-state-docs` (the record
+  model), so it is a capture for them, not this WU's errand. Two design seeds: (a) **codify the grammar once** as
+  a single-source convention section (`strategy-file-classification`) that templates *reference* rather than each
+  restating it in an HTML comment; (b) at the record layer, a **shared base keyed-entry schema** the member
+  schemas extend, with the renderer projecting markdown (templates become render skeletons) and an **opaque
+  record-key** for stable cross-edit identity — humans still reference by the **slug** (coordination-free and
+  merge-stable; sequential / coded IDs would collide across machines and renumber on churn or drain).
 
 - **In-Flight Awareness** — the spec requirement-priority scale (P0/P1/P2) vs. IFA's planned per-WU `Priority`
   field (P1/P2/P3, P3 default): same `P{n}` token, different axes, offset scales. *Not-yet-decided*

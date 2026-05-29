@@ -81,23 +81,31 @@ _Design decisions:_
 
 ### `[ ]` **2.1 Define the `ERRANDS.md` template, entry schema, and seeding**
 
-- _Goal:_ A fresh install seeds `user/{identity}/ERRANDS.md` — h1 "Errand Queue" + a single `## Queue` section —
-  whose entries mirror the `USER-INBOX` shape: a bold lead-in `<slug>` (the dedup/tombstone identity, matching the
-  entry's `chore/<slug>` branch) followed by goal · pointers · proposed `chore/<slug>` branch · optional
-  coordination caveat · `created` date. No `State` field (State means lifecycle means WU).
+- _Goal:_ A fresh install seeds `user/{identity}/ERRANDS.md` — h1 "Errand Queue", an italic `>`-callout preamble,
+  a single `## Queue` section, and a `---` EOF marker (mirroring the sibling user-scoped surfaces). Entries use the
+  **managed-entry grammar** (the task-list parent-task shape minus numbered IDs): an `###` heading carrying a
+  `[ ]` checkbox and a bold `<slug>` whose text is the dedup/tombstone key and the `chore/<slug>` branch name —
+  bold, not backticked (the heading is a structural key slot; backticks are reserved for the slug in prose) —
+  followed by Goal-first
+  italic-descriptor bullets: `_Goal:_` then `_Pointers:_` · `_Branch:_` · optional `_Caveat:_` · `_Created:_` (the
+  staleness age source). No `State` field (State means lifecycle means WU). The `[ ]` checkbox is holding-ground —
+  never checked in place; entries drain by removal on ship.
 
-- _Context:_ Mirrors `USER-INBOX` seeding and structure; the template lives in package source
+- _Context:_ Mirrors `USER-INBOX` seeding; the template lives in package source
   (`packages/arc-framework/templates/user/`) and is seeded by `runPostInitSetup()`. The `## Queue` H2 section +
-  bold-lead-in identity are what let the cross-WU entry-merge (Task 2.2) key entries for union and tombstones.
+  H3 bold-slug identity are what let the cross-WU entry-merge (Task 2.2) key entries for union and tombstones.
 
 - _Note:_ The `created` date is the staleness sweep's age source (Task 2.3) — load-bearing, and it works for the
   direct-written primary-worktree copy before any note exists.
 
 - **Strategies:** strategy-package-project-sync.md
 
-    - `[ ]` **2.1.a Author the `ERRANDS.md` template** — h1 "Errand Queue" + `## Queue` section; entry schema with
-      bold-lead-in `<slug>` identity + goal / pointers / `chore/<slug>` / optional caveat / `created`; no `State`
-      field, no standing "suggested skills / quality-gate" fields
+    - `[ ]` **2.1.a Author the `ERRANDS.md` template** — h1 "Errand Queue" + italic `>`-callout preamble +
+      `## Queue` section + `---` EOF marker; managed-entry grammar — an `###` heading with a `[ ]` checkbox and a
+      bold `<slug>` (slug key = `chore/<slug>` branch = tombstone key) + Goal-first italic bullets `_Goal:_` /
+      `_Pointers:_` / `_Branch:_` /
+      optional `_Caveat:_` / `_Created:_`; no `State` field, no standing "suggested skills / quality-gate" fields;
+      checkbox is holding-ground (never checked in place)
 
     - `[ ]` **2.1.b Seed `ERRANDS.md` at install** — add it to the `runPostInitSetup()` seeding loop alongside
       `WORKING-MEMORY.md` / `USER-INBOX.md`
@@ -111,15 +119,18 @@ _Design decisions:_
 
 - _Approach:_ Three edit points, all in `lib/user-sync/`: register `errands` in `shapeForFile` (`parser.ts`), add
   it to the `CrossWuShape` union (`types.ts`), and extend the `parseCrossWuEntries` dispatch (`parser.ts`) from a
-  ternary to a 3-way for a new `parseErrands` — which mirrors `parseUserInboxSection` (bold lead-in = key, under
-  the `## Queue` section). The classifier (flat user-root → cross-WU) and the merge (shape-driven, tombstones) are
-  untouched, so load/save/push/pull need no change.
+  ternary to a 3-way for a new `parseErrands` — which keys on the **H3 bold slug** (an `^###`-anchored entry
+  boundary, with an optional `[ ]` checkbox before the bold) under the `## Queue` section, emitting
+  `(section, key, raw)` like the existing parsers. It is the first notes-layer parser for the H3 grammar — the
+  flat-bullet `parseUserInboxSection` keys on a top-level `-` bullet boundary, so `parseErrands` is its H3 sibling,
+  not a copy. The classifier (flat user-root →
+  cross-WU) and the merge (shape-driven, tombstones) are untouched, so load/save/push/pull need no change.
 
 - **Strategies:** strategy-testing-methodology.md
 
     - Build `test-first` (one behavior at a time):
 
-        - `parseErrands` extracts each `## Queue` entry's `(section, key, raw)`, keyed by the bold lead-in slug
+        - `parseErrands` extracts each `## Queue` entry's `(section, key, raw)`, keyed by the H3 bold slug
         - a malformed entry surfaces a reason rather than being silently dropped
         - two divergent copies of one entry resolve most-recent-wins across the note window
         - an entry present only in an older note is unioned into the merged result
