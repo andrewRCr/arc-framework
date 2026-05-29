@@ -91,13 +91,18 @@ echo '["merge-ok"]' | gh api --method POST \
   "repos/{owner}/{repo}/branches/{branch}/protection/required_status_checks/contexts" --input -
 ```
 
-Also ensure **Require review from Code Owners** is enabled on the rule, so reviewed-lane paths demand owner
-approval (the UI toggle is the simplest reliable route; `gh api --method PATCH .../protection` works for those
-who script it).
+**Reviewed-lane review — team vs. solo:**
+
+- **Team:** enable **Require review from Code Owners** on the rule, so reviewed-lane paths demand owner approval
+  (the UI toggle is the simplest reliable route; `gh api --method PATCH .../protection` also works).
+- **Solo:** do NOT enable code-owner review — a sole maintainer can't approve their own PR, so it would block
+  every reviewed-lane PR. Require only the `merge-ok` check plus pull requests, and enforce the reviewed lane by
+  not arming auto-merge on those PRs (a deliberate manual merge). A code-review bot (CodeRabbit, etc.) is a
+  useful advisory reviewer there — keep its check non-required so it doesn't gate the auto-merge lane.
 
 **Guided-manual fallback** (no admin, or no protection rule exists yet): Settings → Branches → the base-branch
-rule → require the `merge-ok` status check and enable "Require review from Code Owners". Create the rule first
-if none exists.
+rule → require the `merge-ok` status check (and, for a team, "Require review from Code Owners"). Create the rule
+first if none exists.
 
 ## Step 4: Enable native auto-merge
 

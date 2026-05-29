@@ -584,6 +584,14 @@ On an auto-merge-lane PR, condition 1 reports green and condition 2 demands noth
 a reviewed-lane PR additionally waits on owner approval. Hosts without these primitives fall back to the
 classification as doctrine plus manual review discipline.
 
+**Solo repositories.** Condition 2 is a two-party primitive — a sole maintainer cannot approve their own PR, so
+requiring code-owner review would block every reviewed-lane PR. A solo repo instead requires only the stable
+check (condition 1) plus pull requests, and enforces the reviewed lane by *not* arming auto-merge on those PRs
+— a deliberate manual merge rather than a review gate. CODEOWNERS still documents the boundary and becomes a
+live gate the moment a second contributor can review. An agent code-review bot (CodeRabbit, etc.) composes as
+an advisory reviewer on the reviewed lane — keep its check non-required so it doesn't gate the auto-merge lane;
+for a solo maintainer it stands in for the missing second pair of eyes.
+
 ---
 
 ## Errand Work Class
