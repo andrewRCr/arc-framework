@@ -310,28 +310,30 @@ _Design decisions:_
   edits are an orthogonal axis, deferred to CWC's all-owner gate). CODEOWNERS naturally enforces "lanes never
   split a PR" (any owned changed path → whole PR reviewed).
 
-### `[ ]` **5.2 Guided `setup-merge-gate` workflow + protection-mode-aware offer in `01_verify-and-configure.md`**
+### `[x]` **5.2 Guided `setup-merge-gate` workflow + protection-mode-aware offer in `01_verify-and-configure.md`**
 
 - _Goal:_ A standalone, runnable-anytime `setup-merge-gate` workflow walks the user through the recipe — drop in
   the `merge-ok` job + CODEOWNERS, require the `merge-ok` check in branch protection, enable native auto-merge —
   idempotent and honest that it is GitHub-flavored; it is offered (full-protection only) from
   `01_verify-and-configure.md`.
 
-- _Context:_ Standalone so it runs post-init or later. The offer is protection-mode-aware — surfaced only under
-  `branch.protection: full` (under partial protection an Errand is a direct commit with no merge-wait).
-
-- _Approach:_ The workflow drives the GitHub-side settings with `gh` where exposed (`gh api` for the
-  branch-protection required-check, `gh repo edit --enable-auto-merge`) and falls back to guiding the user where
-  host access isn't available; host-agnostic doctrine for non-GitHub hosts.
-
 - **Strategies:** strategy-workflow-authoring.md
 
-    - `[ ]` **5.2.a Author the standalone `setup-merge-gate` workflow** — idempotent (detect-if-present, safe to
-      re-run), GitHub-flavored via `gh` with a manual-adaptation note for other hosts; places CODEOWNERS at
-      `.github/CODEOWNERS` by default, detecting an existing file and deferring to the user for root / `docs/`
+    - `[x]` **5.2.a Author the standalone `setup-merge-gate` workflow** (`supplemental/`, both copies) —
+      Prerequisites (full-protection + `gh`/admin gate) then five idempotent steps (drop in `merge-ok.yml`,
+      drop in CODEOWNERS, require the `merge-ok` check via `gh api` contexts endpoint, `gh repo edit
+      --enable-auto-merge`, verify) plus an § Other Hosts manual-adaptation note. Copies the recipe from
+      `templates/arc/merge-gate/`; CODEOWNERS defaults to `.github/CODEOWNERS`, detect-if-present defers to the
+      user for `.github/` / root / `docs/`; every GitHub-settings step carries a guided-manual fallback. Agent-led
+      (no companion CLI), unlike `setup-release-wrapper`.
 
-    - `[ ]` **5.2.b Add the protection-mode-aware offer** to `01_verify-and-configure.md` (full protection only),
-      pointing to the standalone workflow
+    - `[x]` **5.2.b Add the protection-mode-aware offer** — new "Optional: Set Up the Auto-Merge Gate" section in
+      `01_verify-and-configure.md` Path 1 (both copies), explicitly gated to `branch.protection: full` with the
+      partial-protection skip rationale; set-up-now / defer / skip options point at the standalone workflow.
+
+- _Outcome:_ The merge-gate recipe (Task 5.1) now has a runnable applicator: 5.1 = doctrine + templates, 5.2 =
+  the workflow that lands them on a live GitHub repo. The offer lives in Path 1 only (repo-level, fresh-install
+  concern; joiners run the standalone workflow). Task 5.3 dogfoods by running this workflow against this repo.
 
 ### `[ ]` **5.3 Repo-local dogfooding instance (run Task 5.2's workflow) + TECHNICAL-OVERVIEW § 3 update**
 

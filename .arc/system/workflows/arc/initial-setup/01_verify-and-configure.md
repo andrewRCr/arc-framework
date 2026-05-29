@@ -146,6 +146,25 @@ Three options:
 - **Skip entirely** — continue initial setup; `arc release setup install` remains
   available regardless of this choice. The framework doesn't gate the feature out.
 
+### Optional: Set Up the Auto-Merge Gate
+
+**Applies only under `branch.protection: full`** (reviewed in § Configuration Walkthrough). Skip under partial
+protection — there a planning-path Errand is already a direct base-branch commit with no merge-wait, so the
+lane buys nothing.
+
+Under full protection every change ships through a branch and PR, including the planning/backlog grooming that
+makes up most Errands. The auto-merge gate lets those low-risk planning PRs merge unattended once checks pass,
+while constitutional docs (rules, ADRs, strategies) and code still require review. See
+[strategy-work-organization § Auto-Merge Lane][work-org-auto-merge] for the doctrine.
+
+It is GitHub-flavored (driven via `gh`) and a repo-level, one-time setup. Three options:
+
+- **Set up now** — run the [Set Up the Auto-Merge Gate workflow][setup-merge-gate]: it drops in the `merge-ok`
+  status job and a planning-paths CODEOWNERS, requires the `merge-ok` check in branch protection, and enables
+  native auto-merge. Idempotent and safe to re-run.
+- **Defer** — run that workflow whenever ready; it works post-init or later.
+- **Skip entirely** — the lane is optional; the framework doesn't gate it out.
+
 ### Optional: Verify Installation
 
 Run `/arc-verify` to confirm that the installation is complete and consistent — file
@@ -228,3 +247,5 @@ skip [02_define-project.md](02_define-project.md) unless documents need updating
 [config-arch]: ../../../../reference/strategies/arc/strategy-configurability-architecture.md
 [interlock-strategy]: ../../../../reference/strategies/arc/strategy-interlock-release-wrappers.md
 [setup-workflow]: ../supplemental/setup-release-wrapper.md
+[work-org-auto-merge]: ../../../../reference/strategies/arc/strategy-work-organization.md#auto-merge-lane
+[setup-merge-gate]: ../supplemental/setup-merge-gate.md
