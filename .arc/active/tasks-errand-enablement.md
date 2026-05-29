@@ -115,30 +115,23 @@ _Design decisions:_
   team-member directories would lack an errand queue. The `## Queue` H2 + H3 bold-slug identity are the hooks the
   cross-WU entry-merge keys on next (Task 2.2); the `_Created:_` date is the staleness sweep's age source (Task 2.3).
 
-### `[ ]` **2.2 Register the `errands` cross-WU shape in the notes entry-merge**
+### `[x]` **2.2 Register the `errands` cross-WU shape in the notes entry-merge**
 
 - _Goal:_ `ERRANDS.md` entries converge across worktrees and machines through the existing entry-merge —
   per-entry list-union with deletion tombstones — with no change to the load/save/push/pull orchestrators.
 
-- _Approach:_ Three edit points, all in `lib/user-sync/`: register `errands` in `shapeForFile` (`parser.ts`), add
-  it to the `CrossWuShape` union (`types.ts`), and extend the `parseCrossWuEntries` dispatch (`parser.ts`) from a
-  ternary to a 3-way for a new `parseErrands` — which keys on the **H3 bold slug** (an `^###`-anchored entry
-  boundary, with an optional `[ ]` checkbox before the bold) under the `## Queue` section, emitting
-  `(section, key, raw)` like the existing parsers. It is the first notes-layer parser for the H3 grammar — the
-  flat-bullet `parseUserInboxSection` keys on a top-level `-` bullet boundary, so `parseErrands` is its H3 sibling,
-  not a copy. The classifier (flat user-root →
-  cross-WU) and the merge (shape-driven, tombstones) are untouched, so load/save/push/pull need no change.
-
 - **Strategies:** strategy-testing-methodology.md
 
-    - Build `test-first` (one behavior at a time):
-
-        - `parseErrands` extracts each `## Queue` entry's `(section, key, raw)`, keyed by the H3 bold slug
-        - a malformed entry surfaces a reason rather than being silently dropped
-        - two divergent copies of one entry resolve most-recent-wins across the note window
-        - an entry present only in an older note is unioned into the merged result
-        - a live deletion tombstone suppresses a re-added entry; an expired tombstone is GC'd at merge
-        - end-to-end: an entry written in one worktree converges after save → push → pull in another
+- _Outcome:_ Three edit points in `lib/user-sync/`: `errands` registered in `shapeForFile`, added to the
+  `CrossWuShape` union, and `parseCrossWuEntries` extended from a ternary to a 3-way for a new `parseErrands`
+  (keyed on the H3 bold slug under `## Queue`, optional checkbox before the bold; emits `(section, key, raw)`
+  like its siblings). It is the first notes-layer parser for the H3 grammar — modeled on `parseWorkingMemory`'s
+  boundary-flush, not copied from the flat-bullet inbox parser. The classifier and the shape-driven merge were
+  untouched as predicted, so list-union, divergent most-recent-wins, and tombstone suppress/GC came for free
+  (proven by `mergeCrossWuFile` tests over a recency-ordered note window — which _is_ the cross-worktree
+  convergence case). The full save → push → pull round-trip stays generically covered for cross-WU files in
+  the e2e portability test (transport is shape-agnostic); no `ERRANDS`-specific CLI e2e was added, since it
+  would re-prove transport rather than convergence.
 
 ### `[ ]` **2.3 Staleness sweep advisory (sibling of the stale-worktree sweep)**
 

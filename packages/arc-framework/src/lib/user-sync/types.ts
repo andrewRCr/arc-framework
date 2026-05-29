@@ -17,14 +17,15 @@
  * Identity is `(section, key)`: `WORKING-MEMORY` keys on the bold-field header
  * within its single `## Memories` section; `USER-INBOX` keys on the list-item
  * lead-in scoped to its `## Atomic` / `## Backlog` section, so the same lead-in
- * under different sections stays distinct. `raw` is the verbatim entry block —
+ * under different sections stays distinct; `ERRANDS` keys on the H3 bold slug
+ * within its single `## Queue` section. `raw` is the verbatim entry block —
  * preserved for divergent-body resolution (most-recent note wins) and for
  * lossless reconstruction into the merged file.
  */
 export interface CrossWuEntry {
-  /** Containing H2 heading text — `Memories`, `Atomic`, or `Backlog`. */
+  /** Containing H2 heading text — `Memories`, `Atomic`, `Backlog`, or `Queue`. */
   section: string;
-  /** Merge identity within the section — header (WM) or list-item lead-in (UI). */
+  /** Merge identity within the section — header (WM), list-item lead-in (UI), or H3 slug (errands). */
   key: string;
   /** Verbatim entry block text (header/lead-in through body), trailing blanks trimmed. */
   raw: string;
@@ -41,4 +42,4 @@ export type EntryParse =
   | { ok: false; reason: string };
 
 /** Cross-WU file shapes with a registered entry parser. */
-export type CrossWuShape = "working-memory" | "user-inbox";
+export type CrossWuShape = "working-memory" | "user-inbox" | "errands";
