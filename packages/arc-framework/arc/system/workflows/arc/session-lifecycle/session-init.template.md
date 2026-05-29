@@ -110,10 +110,21 @@ An **entry seed** may accompany the invocation — an optional spec pointer or d
 entry (it reaches this workflow as context, not via the probe). It feeds **cold-start** only; on every other
 arm it is surfaced, not acted on.
 
+An **`--errand` signal** may also accompany the invocation — an explicit token, orthogonal to the positional
+entry seed (so it never collides with cold-start's spec input). It feeds the **Orient** arm only, switching that
+arm from between-WU discovery to **errand mode** (the cold-Errand path); on every other arm it is surfaced, not
+acted on.
+
 - **Resume** — `active.resolution` is `single` or `multiple`. An active work unit is present; continue to the
   sync channels below, then Step 3.
 - **Orient** — `active.resolution` is `none` and the worktree is not bare (e.g. the primary worktree between
-  units). Continue as resume; Step 5's next-work discovery orients and awaits direction.
+  units). Two intents, disambiguated by the explicit `--errand` signal (never "any arg" — the positional seed
+  stays orthogonal):
+    - **Discovery** (default — bare `arc-session`, or with a positional seed): continue as resume; Step 5's
+      next-work discovery orients and awaits direction.
+    - **Errand** (`--errand` present, primary worktree): enter **errand mode** — see
+      [Errand cold-entry](#errand-cold-entry-orient-arm) below. If `--errand` arrives in a non-primary worktree,
+      surface that an Errand runs from the primary worktree and fall through to discovery.
 - **Cold-start** — `active.resolution` is `none` and the worktree is bare: a branch checked out for new work
   with no work unit (typically a linked worktree, `worktree.value.identity.kind` of `linked`). Offer to
   scaffold — never auto-scaffold. Before scaffolding, run the [in-flight scope check][in-flight-scope-check] —
@@ -137,6 +148,11 @@ channels below.
 When one was supplied but the resolved arm is anything else, surface a one-line note in orientation (Step 6):
 the seed was not consumed; starting fresh work from it means spawning or checking out a new worktree and
 re-entering there.
+
+**Errand signal not consumed (non-Orient arms).** `--errand` feeds only the Orient arm's errand mode. On a
+Resume arm (an active WU session), an in-session Errand uses the [arc-errand skill][arc-errand-skill] instead —
+it queues and returns without disrupting the worktree; surface that pointer in orientation. On cold-start or
+materialize, note the signal was not consumed.
 
 ### Conditional sync pulls (resume / orient arm)
 
@@ -190,6 +206,28 @@ matters, re-probe to confirm.
 **Identity absent.** When `identity.identity === null`, the notes slot resolves to
 `recommendedAction: "skip"` with no `loadNeeded` field, so notes-pull and notes-load both skip.
 Worktree channel still applies.
+
+### Errand cold-entry (Orient arm)
+
+Reached from the Orient arm when `--errand` is present in the primary worktree — a maintenance Errand arising
+with no originating session (the cold case). `arc-session` stays the one universal door; this is its no-WU path
+acting on the second intent. Errand mode loads **universal context only**, then classifies and sets up the
+Errand in place — no cross-worktree hop, since the primary worktree is where an Errand executes.
+
+1. **Sync, then load universal context only.** Run the conditional sync pulls above, then Step 3 items 1–6 and
+   WORKING-MEMORY (item 8.2) — the universal surfaces. **Skip every WU-artifact read:** SESSION-NOTES (item 8.1),
+   the active task list (item 9), and the lifecycle workflow (item 10) — there is no work unit to orient against.
+2. **Skip Step 5 (Assess Readiness).** No handoff baseline exists to freshness-check, and the setup below
+   replaces next-work-unit discovery (that is the *discovery* intent, not the Errand one).
+3. **Classify, gate, set up in place.** Follow the [arc-errand skill][arc-errand-skill] for the
+   classify-against-the-matrix and advisory-check halves (`arc errand check`) — including its stop-and-route exit
+   when the work is really a Work Unit, not an Errand. Then **diverge on the tail:** the cold path **executes
+   immediately by default** — cut the `chore/<slug>` branch off the configured base branch (`branch.base`,
+   default `main`) in this worktree and do the Errand as a normal review increment. The queue entry is
+   **optional** here, earning its keep only for deferral or cross-machine handoff — unlike in-session
+   `arc-errand`, which always queues and returns.
+4. **Orient on the Errand.** Frame the Step 6 summary on the Errand — its goal, the `chore/<slug>` branch, and
+   any coordination caveat — rather than on a work unit, then continue into the Errand as the session's work.
 
 ## 3. Load Context Documents
 
@@ -357,6 +395,10 @@ If `post-context-load` appears in the active-extensions list (from Step 1), load
 
 ## 5. Assess Readiness
 
+**Errand mode** (Orient arm reached via `--errand`): skip this entire step — there is no handoff baseline to
+freshness-check, and the errand setup replaces next-work discovery. See
+[Errand cold-entry](#errand-cold-entry-orient-arm).
+
 ### Freshness check
 
 **Skip if** SESSION-NOTES `Commit at Handoff` hash matches current HEAD — documents are current.
@@ -418,6 +460,10 @@ planning session, assess readiness for the next unit:
 ## 6. Confirm Orientation
 
 Produce the orientation summary.
+
+**Errand mode** (Orient arm via `--errand`): frame the summary on the Errand — its goal, the `chore/<slug>`
+branch, and any coordination caveat — instead of work-unit state; the active-work-state shape below does not
+apply. See [Errand cold-entry](#errand-cold-entry-orient-arm).
 
 **Output format:**
 
@@ -572,6 +618,7 @@ source's view with specific details and wait for explicit direction before any c
 
 [init-work-unit]: ../work-unit-lifecycle/planning/init-work-unit.md
 [in-flight-scope-check]: ../work-unit-lifecycle/in-flight-scope-check.md
+[arc-errand-skill]: ../../../.internal/skills/arc-errand/SKILL.md
 [create-spec]: ../1_create-spec.md
 [arc-methods-session]: ../../../methods/session-state.md
 [arc-ext-post-context-load]: ../../../extensions/post-context-load.md

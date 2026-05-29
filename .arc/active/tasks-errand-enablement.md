@@ -236,28 +236,28 @@ _Design decisions:_
 _Purpose:_ Close the cold-errand gap — make session-init's no-WU Orient arm Errand-aware via the explicit
 `arc-session --errand` signal, keeping `arc-session` the one universal door.
 
-### `[ ]` **4.1 Errand-aware Orient arm + the `--errand` signal**
+### `[x]` **4.1 Errand-aware Orient arm + the `--errand` signal**
 
 - _Goal:_ `arc-session --errand` on a no-WU primary worktree enters errand mode — orient with universal content
   only (no WU-artifact reads), then classify + run the Phase 3 detection gate and set up the errand in place;
   bare `arc-session` stays frictionless between-WU discovery.
 
-- _Context:_ Fills the Worktree Foundation seam (the no-WU leaf + optional-arg threading). `--errand` is an
-  explicit token orthogonal to the positional entry-seed, so it doesn't collide with cold-start's spec-input arg;
-  `arc-session <seed>` in the Orient arm keeps its current "not consumed / surface" behavior.
-
-- _Note:_ Cold path executes immediately by default — already in the primary worktree, the leaf can cut the
-  `chore` branch and do the errand; the queue entry is optional (it earns its keep only for deferral /
-  cross-machine). Reuses the Phase 3 detection gate (Task 3.1) and classification.
-
 - **Strategies:** strategy-session-operations.md, strategy-workflow-authoring.md
 
-    - `[ ]` **4.1.a Make the Orient arm consume the `--errand` signal in `session-init.md`** (+ package mirror) —
-      dispatch the no-WU leaf into errand mode on the explicit token; leave bare-`arc-session` discovery and the
-      positional seed unchanged
+    - `[x]` **4.1.a Make the Orient arm consume the `--errand` signal in `session-init.md`** (+ package mirror) —
+      Orient arm now forks on the explicit `--errand` token into a Discovery/Errand pair; the positional entry
+      seed stays orthogonal, and non-Orient arms surface "not consumed" (Resume points at the arc-errand skill).
+      Edited `session-init.template.md` + the rendered `.arc/` copy; the arc-session skill advertises the flag.
 
-    - `[ ]` **4.1.b Orient in errand mode + set up locally** — universal content only (no WU-artifact reads), then
-      classify + run the Phase 3 gate and execute immediately or queue (queue optional)
+    - `[x]` **4.1.b Orient in errand mode + set up locally** — added the "Errand cold-entry (Orient arm)"
+      subsection: universal context only (items 1–6 + WORKING-MEMORY; WU-artifact reads 8.1/9/10 and Step 5
+      skipped), then classify + `arc errand check`, then execute immediately on a `chore/<slug>` branch off
+      `branch.base` (queue optional). Step 5 and Step 6 carry errand-mode guards.
+
+- _Outcome:_ One door preserved — `arc-session`'s no-WU Orient arm gained the second intent via an explicit
+  flag, not arg-overloading. The cold path diverges from in-session `arc-errand` on the tail only (execute-now
+  vs. queue-and-return), reusing the skill's classify + Phase 3 `check` halves. Skill copies and both workflow
+  copies (template + rendered) kept in sync.
 
 ## **Phase 5:** Planning-path auto-merge lane (merge-gate minimal slice)
 
