@@ -133,20 +133,10 @@ _Design decisions:_
   the e2e portability test (transport is shape-agnostic); no `ERRANDS`-specific CLI e2e was added, since it
   would re-prove transport rather than convergence.
 
-### `[ ]` **2.3 Staleness sweep advisory (sibling of the stale-worktree sweep)**
+### `[x]` **2.3 Staleness sweep advisory (sibling of the stale-worktree sweep)**
 
 - _Goal:_ Errand-queue entries older than a configurable threshold (default 3 days) surface an advisory in
   session-init orientation — execute, or demote to the inbox — so the queue can't silently rot.
-
-- _Context:_ Mirrors `stale-worktree-sweep.ts` → the `status` probe envelope → `session-init.md` Step 6
-  orientation. Advisory only — never auto-removes an entry. A stale entry is a miscategorization signal (not
-  actually committed-near-term); the advisory routes it back to the inbox. Scoped to session-init (no existing
-  ceremony surfaces the worktree sweep to mirror).
-
-- _Note:_ Entry age reads the `created` field (Task 2.1). The threshold key (`errands.staleness_days`, default 3)
-  lands in both arc-config copies + the `ConfigSettings` type + reader default; adding a `ConfigSettings` field
-  ripples into test fixtures, so the gate runs `typecheck:test`. Coordinated for later migration to the per-user
-  `config.user.yml` substrate.
 
 - **Strategies:** strategy-testing-methodology.md
 
@@ -158,8 +148,15 @@ _Design decisions:_
       session-init probe envelope — a sibling of `retiredSubdirs` (eager, identity-gated), not worktree-gated.
       The `ConfigSettings` addition rippled into eight test fixtures (`typecheck:test` gate); all updated.
 
-    - `[ ]` **2.3.b Surface the advisory in `session-init.md` Step 6 orientation** (+ package mirror) — an
-      execute-or-demote line mirroring the stale-worktree surface
+    - `[x]` **2.3.b Surface the advisory in `session-init.md` Step 6 orientation** (+ package mirror) — added a
+      `**Stale errands:**` execute-or-demote block to Step 6's conditional sections (keyed on
+      `errandSweep.value.stale`) and an `errandSweep` row to the Step 1 envelope table, in both the rendered
+      `session-init.md` and its `session-init.template.md` source.
+
+- _Outcome:_ The errand queue now self-polices: entries pending past `errands.staleness_days` surface a
+  session-init advisory to execute or demote, so the queue can't silently rot. The sweep is a role-sibling of the
+  stale-worktree sweep (envelope slot → Step 6 line) sharing no mechanics — it reuses the `errands` parser and
+  ages `_Created:_`, identity-gated rather than worktree-gated.
 
 ## **Phase 3:** `arc-errand` primitive + advisory foreign-artifact gate
 

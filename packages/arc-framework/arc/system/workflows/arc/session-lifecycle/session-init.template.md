@@ -41,6 +41,7 @@ The probe returns a single JSON envelope the agent consumes:
 | `recovery`                  | Pre-computed branch-gone recovery resolution; present only on the `branch-gone` arm, and only when `roster` resolved (it consumes the roster to assemble candidates). `value.kind`: `resolved` (one high-confidence candidate), `surface` (multiple — operator chooses), or `main-fallback` (none — offer `main`). Candidates carry `branch`, optional `worktreePath`, and `proposedAction` (`switch` / `removable` / `external`). Acted on by Step 2's branch-gone recovery precondition (Step 6 narrates declines)                                                                      |
 | `sweep`                     | Pre-computed stale-worktree sweep; present only in the primary (main) worktree, and only when `roster` resolved. `value.worktrees`: lingering worktrees whose WU has shipped (against `completed/`), each with `worktreePath`, `branch`, and a marker-gated `decision` (`removable`; `blocked` with `reason` `uncommitted` or `unmerged`; or `external`). Surfaced in Step 6; never auto-removed                                                                                                                                                                                          |
 | `retiredSubdirs`            | Pre-computed retired-subdir detection. `value.candidates`: retired-WU user subdirs lingering under `user/{identity}/` — shipped and absent from the recent-notes window. Present whenever identity resolved; omitted only when identity is absent. Read-only surface (Step 6) — the reconcile (removal with a `.internal/` backup) runs at `arc user load` / `pull`, not at init                                                                                                                                                                                                          |
+| `errandSweep`               | Pre-computed errand-staleness sweep. `value.stale`: errand-queue entries (`user/{identity}/ERRANDS.md`) pending past `errands.staleness_days` (default 3), each with `slug`, `created`, and `ageDays`. Present whenever identity resolved (the queue is identity-scoped — not worktree-gated, unlike `sweep`); omitted only when identity is absent. Read-only advisory surfaced in Step 6 — execute or demote to the inbox; never auto-removed                                                                                                                                           |
 
 **Raw notes-ref topology on `user.value.refState?`**: The notes spine's 5-state `value.state` enum encodes
 pull-direction dispatch and collapses `same` and `local-ahead` into `clean` (both mean "no pull needed"). The
@@ -518,6 +519,15 @@ tracked source documents the work.
   **Retired subdirs:** {N} shipped-WU user subdir(s) linger; reconciled (with `.internal/` backup) on next
   `arc user load` / `pull`:
   - `{candidate}`
+  ```
+
+- `errandSweep.value.stale` non-empty: errand-queue entries pending past `errands.staleness_days` (default 3) —
+  a miscategorization signal (committed-near-term work that wasn't). Surface each for the operator to execute now
+  or demote to `USER-INBOX`; advisory only, never auto-removed.
+
+  ```text
+  **Stale errands:** {N} errand(s) pending past the staleness threshold — execute, or demote to the inbox:
+  - `{slug}` — created {created} ({ageDays}d ago)
   ```
 
 **Never include**: configuration overrides, active-extensions list (any state), defaults active, freshness
