@@ -11,11 +11,11 @@
 - **Cohort:** agile-parallelism
 
 - **Task List:** tasks-errand-enablement.md
-- **Last Completed:** Task 4.1 — Errand-aware Orient arm + `--errand` signal (Phase 4 complete)
-- **Next Task:** Task 5.1 — Adopter-facing doctrine + GitHub reference recipe (line ~285)
+- **Last Completed:** Task 5.3 — Repo-local dogfooding instance + TECHNICAL-OVERVIEW § 3 (Phase 5 complete)
+- **Next Task:** Task 6.1 — Complete verification (line ~362)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 5.1 — author the planning-path auto-merge doctrine + GitHub reference recipe
-  (the `merge-ok` status job + static planning-paths CODEOWNERS skeleton) into adopter-facing surfaces.
+- **Next Action:** Begin Task 6.1 — load and follow `verify-work-unit.md` and run the work-unit verification
+  phase (the final task before integration).
 
 ---
