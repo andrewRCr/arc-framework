@@ -90,8 +90,8 @@ blockers. P1 here means "in scope, deferral seam," not "optional."
    **zero-git-mutation prep action**: it creates no branch and no commit (only the queue entry); the
    `chore`-branch is cut lazily by the errand session at execution, so an abandoned errand leaves only a
    sweepable queue entry, never an orphan branch. `arc-errand` is the ratified **skill** name (the working label
-   "errand-launch" is retired to lowercase prose for the action). Exact CLI command spelling resolves at task
-   generation, coordinated against the AWL `arc start` surface.
+   "errand-launch" is retired to lowercase prose for the action). The CLI command is `arc errand` — a sibling
+   entry verb to `arc start` (per AWL coordination: the two are sibling verbs, not a shared command).
 
 2. **The errand queue (`ERRANDS.md`)** — a single, user-scoped surface at `user/{identity}/ERRANDS.md`
    (h1 "Errand Queue"; "the errand queue" in prose), holding entries for committed-but-not-yet-executed errands.
@@ -163,7 +163,7 @@ dependent-WU / stacked-PR ordering stay in CWC (Non-Goals). Delivered in three f
    to the standalone workflow — surfaced only under `branch.protection: full` (under partial protection an Errand
    is a direct commit with no merge-wait). The workflow lives standalone so it works post-init *or* later.
 
-9. **Repo-local dogfooding instance.** This repo's actual `.github/workflows/merge-ok.yml` + root `CODEOWNERS`,
+9. **Repo-local dogfooding instance.** This repo's actual `.github/workflows/merge-ok.yml` + `.github/CODEOWNERS`,
    branch-protection required-check wiring, and auto-merge enablement — our own instance, **not shipped** (every
    repo owns its `.github/`). **Update TECHNICAL-OVERVIEW § 3 Infrastructure** to document the new host config
    (additive to the existing GitHub Actions CI) when the instance lands, per its event-driven update discipline.
@@ -196,15 +196,16 @@ dependent-WU / stacked-PR ordering stay in CWC (Non-Goals). Delivered in three f
   "primary worktree" (the git-primary checkout) — never bare "main," which conflates the configurable trunk with
   the git-primary worktree.
 - **Queue convergence + same-machine handoff timing.** `ERRANDS.md` converges via the shipped cross-WU notes
-  entry-merge (cross-machine + cross-worktree). One detail to pin at task generation: under
-  `user.notes_push: on-sync`, an entry written in a linked worktree isn't visible in the primary worktree until
-  a sync+load cycle. Lean: `arc-errand` direct-writes the entry into the *primary worktree's* `ERRANDS.md` copy
-  for immediate same-machine handoff, with notes-sync carrying cross-machine convergence; reconcile against the
-  entry-merge dedupe so a later note-merge doesn't double-add.
-- **Notes-sync feasibility.** Confirm the cross-WU entry-merge generalizes to a new entry-file (`ERRANDS.md`) or
-  needs a small extension to its file set. Bounded; rides shipped machinery, not the unbuilt substrate.
-- **Cold path may execute immediately.** When servicing is immediate (you're already oriented in the primary
-  worktree), a queue entry is optional; the entry earns its keep for deferral and cross-machine. Pin at task-gen.
+  entry-merge (cross-machine + cross-worktree). Under `user.notes_push: on-sync`, an entry written in a linked
+  worktree isn't visible in the primary worktree until a sync+load cycle — so `arc errand` direct-writes the entry
+  into the *primary worktree's* `ERRANDS.md` copy for immediate same-machine handoff, with notes-sync carrying
+  cross-machine convergence; the slug-keyed entry-merge makes a later note-merge idempotent (no double-add).
+- **Notes-sync feasibility.** The cross-WU entry-merge generalizes to `ERRANDS.md` with no file-set change — a
+  flat user-root file auto-classifies as cross-WU; only a new `errands` parser shape is added. Rides shipped
+  machinery, not the unbuilt substrate.
+- **Cold path executes immediately by default.** Already oriented in the primary worktree, the cold leaf cuts the
+  `chore` branch and does the errand; the queue entry is optional, earning its keep only for deferral and
+  cross-machine. (In-session `arc errand` always queues + returns.)
 - **Audience split.** Matrix + doctrine + recipe/templates + the `setup-merge-gate` workflow are adopter-facing
   (neutral framing); the dogfooding instance and cohort/ADR cross-references stay internal-dev-facing.
 
@@ -215,7 +216,8 @@ commitment axis: a **committed propagation of a decision into a foreign artifact
 — the errand mechanism is what this WU builds, so these are its first dogfooding errands; hand-rolling them
 pre-ship is the manual friction the WU exists to remove); a **not-yet-decided or oversized concern** is a
 *capture* for the owning WU. The decision *records* below are inline (this WU's own artifact); the *propagations*
-route as noted.
+route as noted — the post-ship errands materialize into `ERRANDS.md` via `arc-errand` at ship (the queue, not this
+spec, is their execution home; the records here are the pre-instantiation manifest).
 
 **Post-ship errands (committed propagations of this WU's decisions):**
 
@@ -228,8 +230,15 @@ route as noted.
   `STATUS.*` (real pairs) stay suffixed; add `ERRANDS.md` as a bare user-scoped singleton. Also reconcile the
   draft's "Errand is routing language inside `## Atomic`, not a surface" line with the new errand-queue surface.
   `backlog/` planning path → *auto-merge* lane. One review increment → errand, not a WU.
-- **[ADR-021][adr-021] + `cohort-agile-parallelism.md`** — retire the "errand-launch" working label in favor of
-  `arc-errand`. Planning/internal-dev docs → *auto-merge* lane.
+- **`errand-launch` → `arc-errand` label retirement** — sweep the working label across the cohort planning docs
+  (`cohort-agile-parallelism.md` plus the `agile-wu-lifecycle` / `in-flight-awareness` / `concurrent-work-conventions`
+  drafts) on the *auto-merge* lane; the single [ADR-021][adr-021] occurrence rides the *reviewed* lane
+  (constitutional doc, can batch with the ADR-022 errand) — so two errands by lane, not one. Archived content
+  (`completed/worktree-foundation`) is immutable history — excluded.
+- **`config-storage-architecture`** (planned draft) — add the errand-queue **staleness threshold** to that WU's
+  per-user-config migration scope: it ships interim in `arc-config.yml` (default 3 days) and migrates to the
+  per-user `config.user.yml` substrate when that lands, since the threshold is a per-user preference (errands are
+  per-user). Planning-path draft → *auto-merge* lane. One review increment → errand, not a WU.
 
 `operational-state-docs` also adds `ERRANDS.md` to its migration scope — but as a downstream consumer of the
 ADR-022 member-list change, that lands in its own planning, not as this WU's errand.
@@ -270,12 +279,7 @@ ratified above.
 
 **Resolve during work:**
 
-- Exact `arc-errand` CLI command spelling, settled against the AWL `arc start` surface.
-- Same-machine cross-worktree handoff mechanism (direct-write-to-primary vs. sync-cadence) and entry-merge
-  dedupe interaction.
-- Exact advisory-gate phrasing/heuristics, aligned with R11 and CWC.
-- The explicit discovery-vs-errand signal for the cold-errand leaf (flag vs. interactive), non-colliding with
-  cold-start's spec-input arg.
+- Advisory-gate caveat phrasing (detection is deterministic per the task list; wording aligns with R11 and CWC).
 - Reference-recipe host coverage — GitHub-only with a host-agnostic doctrine note vs. adaptation notes for other
   hosts.
 

@@ -10,11 +10,11 @@
 - **Depends On:** worktree-foundation
 - **Cohort:** agile-parallelism
 
-- **Task List:** [none]
+- **Task List:** tasks-errand-enablement.md
 - **Last Completed:** [none]
-- **Next Task:** [none]
+- **Next Task:** Task 1.1 — Author the Errand decision matrix (line ~22)
 - **Blockers:** [none]
 
-- **Next Action:** Run `2_generate-tasks.md` to decompose `spec-errand-enablement.md` into a task list.
+- **Next Action:** Run `activate-work-unit.md` (flip State → Active, rename branch) when implementation begins; first task is 1.1.
 
 ---
