@@ -16,7 +16,12 @@ import { checkDevBuildStaleness, createDevCheckDeps } from "./lib/dev-check.js";
 import { handleInit } from "./handlers/init.js";
 import { handleJoin } from "./handlers/join.js";
 import { handleStart, type StartOptions } from "./handlers/start.js";
-import { handleErrand, type ErrandOptions } from "./handlers/errand.js";
+import {
+  handleErrandQueue,
+  handleErrandCheck,
+  type ErrandQueueOptions,
+  type ErrandCheckOptions,
+} from "./handlers/errand.js";
 import { handleUpdate, handleHealth, handleDiff } from "./handlers/lifecycle.js";
 import {
   handleUserAdd, handleUserClose, handleUserOpen, handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
@@ -86,17 +91,28 @@ program
   .option("-y, --yes", "Skip the confirm prompt")
   .action((name: string | undefined, opts: StartOptions) => handleStart(name, opts));
 
-program
+const errand = program
   .command("errand")
   .description(
-    "Queue a forward-pointing errand entry into the primary worktree's ERRANDS.md "
-    + "and return — no branch, no commit. A sibling entry verb to `start`.",
-  )
+    "Errand queue operations. `queue` writes a forward-pointing entry into the primary "
+    + "worktree's ERRANDS.md (no branch, no commit); `check` reports foreign in-flight overlap.",
+  );
+
+errand
+  .command("queue")
+  .description("Queue an errand entry into the primary worktree's ERRANDS.md and return")
   .option("--slug <slug>", "Merge key + `chore/<slug>` branch name (branch-safe: lowercase, digits, hyphens)")
   .option("--goal <goal>", "One-line \"what\" — the outcome the errand delivers")
   .option("--pointers <pointers>", "Files, symbols, or context the executing session needs to start")
   .option("--caveat <caveat>", "Optional in-flight coordination advisory (composed by the skill)")
-  .action((opts: ErrandOptions) => handleErrand(opts));
+  .action((opts: ErrandQueueOptions) => handleErrandQueue(opts));
+
+errand
+  .command("check")
+  .description("Report which in-flight work units touch the target path(s) — advisory, never blocks")
+  .option("--target <paths...>", "Target path(s) the errand will edit (prefix-matched)")
+  .option("--json", "Emit overlap facts as JSON (for skill consumption)")
+  .action((opts: ErrandCheckOptions) => handleErrandCheck(opts));
 
 // --- Lifecycle ---
 

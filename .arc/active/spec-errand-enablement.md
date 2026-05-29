@@ -218,6 +218,14 @@ dependent-WU / stacked-PR ordering stay in CWC (Non-Goals). Delivered in three f
 - **Audience split.** Matrix + doctrine + recipe/templates + the `setup-merge-gate` workflow are adopter-facing
   (neutral framing); the dogfooding instance and cohort/ADR cross-references stay internal-dev-facing.
 
+- **CLI shape — `arc errand` is a noun with two subcommands**, not a flat verb. `arc errand check` (read —
+  reports foreign in-flight overlap as advisory facts, `--json` for the skill) and `arc errand queue` (write —
+  composes + writes the entry; no branch, no commit). The skill is the only piece that needs the detection
+  *facts*, so detection is exposed as a distinct read subcommand it calls before wording the caveat — mirroring
+  `arc active status` / `roster` and preserving the detect (check) / judge (skill) / record (queue) split. The
+  read/write split also keeps the CLI surface unmistakable next to the `arc-errand` skill; bare `arc errand`
+  prints usage. The command is still errand-owned (not a flag on `arc start`), honoring the sibling-entry intent.
+
 ## Coordination
 
 This WU's planning surfaced cross-cutting obligations on sibling artifacts. They sort by the Errand matrix +

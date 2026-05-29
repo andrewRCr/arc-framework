@@ -209,30 +209,27 @@ _Design decisions:_
   of `start`), supplying identity + today's date. Covered by resolver + orchestrator units and an e2e proving the
   real path resolution and the zero-git-mutation contract (no `chore/*` branch cut).
 
-### `[ ]` **3.3 `arc-errand` skill (thin skill over the helper)**
+### `[x]` **3.3 `arc-errand` skill (thin skill over the helper)**
 
 - _Goal:_ Invoking the `arc-errand` skill from a WU session drives the flow end-to-end — classify against the
   matrix, run the advisory assessment (call Task 3.1 detection, apply bias-to-surface judgment, word any caveat),
   then invoke `arc errand` (Task 3.2) passing the caveat — and return to the WU.
 
-- _Context:_ Mirrors the `arc-commit` skill shape — the skill owns a short linear flow (classify → assess → invoke
-  the CLI) with no backing workflow, since there's no multi-arm branching or cross-lifecycle reuse to house in
-  one. (The genuinely workflow-shaped slices live in their own workflows: cold-errand entry extends
-  `session-init.md` in Phase 4; merge-gate setup is `setup-merge-gate.md` in Phase 5.) The skill is where the
-  advisory _judgment_ lives (detection is deterministic in Task 3.1; the helper only records), collapsing
-  Task 3.1's overlap facts into the single `_Caveat:_` string Task 3.2 records. References § Errand decision
-  matrix (Phase 1) for classification. `arc-errand` is the ratified skill name (the working label "errand-launch"
-  is retired).
-
-- _Note:_ Self-hosting skill-file drift — hand-sync the harness copy (`.claude/skills/`) from canonical per
-  DEV-RULES.PROJECT § Package-Project Sync.
-
 - **Strategies:** strategy-package-project-sync.md
 
-    - `[ ]` **3.3.a Author `SKILL.md`** at the canonical locations (package source + `.arc/system/.internal/skills/arc-errand/`)
+    - `[x]` **3.3.a Author `SKILL.md`** — authored the adopter-facing skill (thin numbered flow, no meta-refs) at
+      both canonical copies (package source + `.arc/system/.internal/skills/arc-errand/`) and hand-synced the
+      gitignored harness copy (`.claude/skills/`); all three byte-identical.
 
-    - `[ ]` **3.3.b Wire the skill flow** — classify (§ Errand decision matrix) → advisory assessment (Task 3.1
-      detection + caveat judgment) → `arc errand` invocation (Task 3.2) with the caveat
+    - `[x]` **3.3.b Wire the skill flow** — classify (§ Errand decision matrix) → `arc errand check --json`
+      (overlap facts) → bias-to-surface caveat judgment → `arc errand queue ... --caveat` → return.
+
+- _Outcome:_ Authored the thin `arc-errand` skill (classify → check → judge → queue). Wiring it surfaced a missing
+  seam: a markdown skill can't call the detection library directly, so `arc errand` was promoted from a flat verb
+  to a noun with `check` (read — exposes `detectForeignArtifactOverlap` as JSON facts, the seam the skill calls)
+  and `queue` (the renamed write from Task 3.2). The check/queue split preserves the detect → judge → record
+  separation, mirrors `arc active status`/`roster`, and disambiguates the CLI from the `arc-errand` skill name
+  (bare `arc errand` now prints usage); recorded in spec § Technical Considerations.
 
 ## **Phase 4:** Cold-errand entry (session-init Orient arm)
 

@@ -38,7 +38,7 @@ describe("arc errand", () => {
   it("queues an entry into the primary worktree's ERRANDS.md without branching or committing", async () => {
     const result = await runArc(
       [
-        "errand",
+        "errand", "queue",
         "--slug", "drain-inbox",
         "--goal", "Flush the deferred USER-INBOX captures",
         "--pointers", "user/test-user/USER-INBOX.md",
@@ -65,10 +65,20 @@ describe("arc errand", () => {
 
   it("refuses a slug that is not branch-safe", async () => {
     const result = await runArc(
-      ["errand", "--slug", "Not A Slug", "--goal", "g", "--pointers", "p"],
+      ["errand", "queue", "--slug", "Not A Slug", "--goal", "g", "--pointers", "p"],
       tmpDir,
     );
 
     expect(result.exitCode).toBe(1);
+  });
+
+  it("reports no overlap as JSON when no other work unit is in flight", async () => {
+    const result = await runArc(
+      ["errand", "check", "--target", "docs/x.md", "--json"],
+      tmpDir,
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout.trim())).toEqual({ overlaps: [] });
   });
 });
