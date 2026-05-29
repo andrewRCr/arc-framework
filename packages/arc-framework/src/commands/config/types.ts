@@ -29,6 +29,7 @@ export interface ConfigSettings {
   "session.init_load.notes": string;
   "archive.cadence": string;
   "user.notes_push": string;
+  "errands.staleness_days": string;
 }
 
 /**

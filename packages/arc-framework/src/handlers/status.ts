@@ -15,6 +15,7 @@
  */
 
 import { access, readdir, readFile } from "node:fs/promises";
+import { join } from "node:path";
 
 import * as p from "@clack/prompts";
 
@@ -59,6 +60,7 @@ import {
 } from "../lib/session-init/branch-gone-recovery.js";
 import { runStaleWorktreeSweep } from "../lib/session-init/stale-worktree-sweep.js";
 import { runRetiredSubdirDetection } from "../lib/session-init/retired-subdir-detection.js";
+import { runErrandStalenessSweep } from "../lib/session-init/errand-staleness-sweep.js";
 import { runDirtyStateStatus } from "../lib/git/dirty-state.js";
 import { runHeadHashStatus } from "../lib/git/head-hash.js";
 import { runPushabilityStatus } from "../lib/git/pushability.js";
@@ -251,6 +253,16 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
         readDir: io.readDir,
         fs: { readdir: (path) => readdir(path) },
       }),
+      errandSweep: async (id) => {
+        const resolved = await resolvedSettingsP;
+        const parsed = Number.parseInt(resolved.settings["errands.staleness_days"], 10);
+        const thresholdDays = Number.isInteger(parsed) && parsed >= 0 ? parsed : 3;
+        const content = await readFile(
+          join(cwd, ".arc", "user", id, "ERRANDS.md"),
+          "utf8",
+        ).catch(() => "");
+        return runErrandStalenessSweep({ content, thresholdDays });
+      },
     };
     const result = await runSessionInitStatus({ identity, role, probes });
     if (json) {

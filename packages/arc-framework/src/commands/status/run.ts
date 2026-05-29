@@ -136,6 +136,9 @@ export async function runSessionInitStatus(
   type RawRetired =
     | { ok: true; value: import("../../lib/session-init/retired-subdir-detection.js").RetiredSubdirDetectionResult }
     | ProbeErrorSlot;
+  type RawErrandSweep =
+    | { ok: true; value: import("../../lib/session-init/errand-staleness-sweep.js").ErrandStalenessSweepResult }
+    | ProbeErrorSlot;
 
   const userTask: Promise<RawUser> = identity === null
     ? Promise.resolve(identityMissing())
@@ -154,10 +157,15 @@ export async function runSessionInitStatus(
   const retiredSubdirsTask: Promise<RawRetired | null> = identity === null
     ? Promise.resolve(null)
     : safeProbe(() => probes.retiredSubdirs(identity));
+  // Errand-staleness sweep rides the same eager / identity-gated phase: the
+  // queue is identity-scoped, so it is omitted when identity is absent.
+  const errandSweepTask: Promise<RawErrandSweep | null> = identity === null
+    ? Promise.resolve(null)
+    : safeProbe(() => probes.errandSweep(identity));
 
   const [
     user, worktree, worktreeIdentitySlot, dirty, extensions, config, active,
-    domainRules, releaseRouting, retiredSubdirs,
+    domainRules, releaseRouting, retiredSubdirs, errandSweep,
   ] = await Promise.all([
     userTask,
     worktreeTask,
@@ -169,6 +177,7 @@ export async function runSessionInitStatus(
     domainRulesTask,
     releaseRoutingTask,
     retiredSubdirsTask,
+    errandSweepTask,
   ]);
 
   // Worktree identity is non-critical and always-on: a failed probe degrades
@@ -269,6 +278,7 @@ export async function runSessionInitStatus(
     ...(recovery !== undefined ? { recovery } : {}),
     ...(sweep !== undefined ? { sweep } : {}),
     ...(retiredSubdirs !== null ? { retiredSubdirs } : {}),
+    ...(errandSweep !== null ? { errandSweep } : {}),
     recommendedCombinedPrompt: recommendations.recommendedCombinedPrompt,
   };
 }

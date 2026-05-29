@@ -150,14 +150,13 @@ _Design decisions:_
 
 - **Strategies:** strategy-testing-methodology.md
 
-    - `[ ]` **2.3.a Compute the staleness sweep** — mirror `stale-worktree-sweep.ts`: read each entry's `created`
-      against the configured threshold; carry the result on the `status` probe envelope
-
-        - Build `test-first` (one behavior at a time):
-            - an entry younger than the threshold produces no advisory
-            - an entry older than the threshold is flagged with the execute-or-demote advisory
-            - the threshold resolves from `arc-config.yml`, falling back to the 3-day default when unset
-            - the sweep result rides the `status` probe envelope, parallel to the worktree sweep
+    - `[x]` **2.3.a Compute the staleness sweep** — added `lib/session-init/errand-staleness-sweep.ts`: a pure
+      `runErrandStalenessSweep` that reuses the `errands` parser and ages each entry's `_Created:_` against the
+      threshold (entries strictly older are flagged; undated/unparseable entries skip). Registered
+      `errands.staleness_days` (default `3`) across `ConfigSettings` + reader defaults + both `arc-config.yml`
+      copies + `validate-config.sh` known-keys, and wired an identity-gated `errandSweep` slot onto the
+      session-init probe envelope — a sibling of `retiredSubdirs` (eager, identity-gated), not worktree-gated.
+      The `ConfigSettings` addition rippled into eight test fixtures (`typecheck:test` gate); all updated.
 
     - `[ ]` **2.3.b Surface the advisory in `session-init.md` Step 6 orientation** (+ package mirror) — an
       execute-or-demote line mirroring the stale-worktree surface

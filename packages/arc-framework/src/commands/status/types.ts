@@ -38,6 +38,7 @@ import type { WorktreeIdentity } from "../../lib/git/worktree-identity.js";
 import type { CascadeResolution } from "../../lib/session-init/branch-gone-cascade.js";
 import type { StaleWorktreeSweepResult } from "../../lib/session-init/stale-worktree-sweep.js";
 import type { RetiredSubdirDetectionResult } from "../../lib/session-init/retired-subdir-detection.js";
+import type { ErrandStalenessSweepResult } from "../../lib/session-init/errand-staleness-sweep.js";
 import type { RestateCandidatesResult } from "../../lib/handoff/restate-candidates.js";
 import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
 import type { RecommendedAction } from "../../lib/session-init/recommended-action.js";
@@ -152,6 +153,15 @@ export interface SessionInitProbeResult {
    * always-on slot); omitted only when identity is absent.
    */
   retiredSubdirs?: Probe<RetiredSubdirDetectionResult>;
+  /**
+   * Pre-computed errand-staleness sweep — errand-queue entries pending past the
+   * configured threshold (`errands.staleness_days`, default 3), surfaced for
+   * execute-or-demote. Advisory only. Present whenever identity resolved (the
+   * queue is identity-scoped); omitted only when identity is absent. Unlike the
+   * worktree sweep it is not worktree-gated — the queue is present in every
+   * worktree.
+   */
+  errandSweep?: Probe<ErrandStalenessSweepResult>;
   /**
    * Per-channel offer text composed when both the worktree and user slots
    * resolve to `recommendedAction === "prompt"`. Null when only one channel
@@ -311,6 +321,12 @@ export interface SessionInitProbes {
    * read. Fired in the eager phase whenever identity resolved; read-only.
    */
   retiredSubdirs: (identity: string) => Promise<RetiredSubdirDetectionResult>;
+  /**
+   * Errand-staleness sweep resolver. Receives the resolved identity; the handler
+   * reads `user/{identity}/ERRANDS.md` and the `errands.staleness_days` threshold.
+   * Fired in the eager phase whenever identity resolved; advisory, read-only.
+   */
+  errandSweep: (identity: string) => Promise<ErrandStalenessSweepResult>;
 }
 
 /** Probe functions in session-handoff mode — bound to cwd and any required I/O. */
