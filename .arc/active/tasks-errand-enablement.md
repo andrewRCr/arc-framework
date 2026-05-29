@@ -177,39 +177,21 @@ _Design decisions:_
 - Zero-git-mutation prep: the helper creates only the queue entry (no branch, no commit); the `chore/<slug>`
   branch is cut lazily by the errand session at execution, so an abandoned errand leaves only a sweepable entry.
 
-### `[ ]` **3.1 Deterministic foreign-artifact detection (feeds the advisory gate)**
+### `[x]` **3.1 Deterministic foreign-artifact detection (feeds the advisory gate)**
 
 - _Goal:_ Given an errand's target path(s) and the originating WU, detect which _other_ in-flight WUs touch the
   target — a deterministic check over the local identity-filtered roster + per-worktree git state — returning the
   overlap facts the skill turns into an advisory caveat. Never blocks.
 
-- _Context:_ Extends the R11 in-flight posture (advisory, never gates) but goes deterministic where its spawn-time
-  precedent can't: an errand has a concrete target path, so overlap is a git-checkable fact rather than a
-  spec-vs-spec judgment. The roster (`runWorktreeRoster` / `filterRosterByIdentity`, no remote fetch) supplies the
-  in-flight set; the per-path overlap diff is net-new on top of it. The judgment residual (bias-to-surface on
-  unstated scope, word the caveat) lives in the skill (Task 3.3).
-
-- _Detection boundary:_
-    - **"modifies"** = committed branch divergence (`git diff <base>...<branch> -- <path>`) **or** uncommitted
-      edits in that WU's worktree touching the target — both count.
-    - **"in-flight"** = a roster entry with a resolved meta in a live state (Active / Integrating); meta-less
-      admin/main checkouts and shipped entries don't count.
-    - **base branch** resolves from `branch.base` (default `main`) — never hardcoded.
-    - **self-excluded:** the originating WU's own branch/worktree is never reported (own-scope is self-contained,
-      not a foreign overlap) — hence the originating WU is an input, not derived.
-    - **target match** is path-prefix, so a directory target matches any file beneath it; the target may be a set.
-
 - **Strategies:** strategy-testing-methodology.md
 
-    - Build `test-first` (one behavior at a time):
-
-        - a target modified on another in-flight WU's branch (committed, vs. base) is reported as an overlap
-        - a target with uncommitted edits in another in-flight WU's worktree is reported as an overlap
-        - the originating WU's own overlap is excluded (not reported)
-        - a target no other in-flight WU touches reports no overlap
-        - meta-less / shipped roster entries are not treated as in-flight
-        - base resolves from `branch.base`; detection uses the local roster + per-worktree git state (no fetch)
-        - detection returns facts only — it never blocks (the gate stays advisory)
+- _Outcome:_ Added `lib/git/foreign-artifact-detection.ts` — `detectForeignArtifactOverlap` unions committed
+  divergence (`git diff <base>...<branch>`) with uncommitted edits (`git status --porcelain` run in the foreign
+  worktree), prefix-matches the target path(s), excludes the originating worktree, and returns facts only (never
+  blocks; collects every overlap). Refined the pinned in-flight rule: not "Active / Integrating" but **meta-bearing
+  AND not `Shipped`** — Planning and Integrating branches also merge to base and can plant a cross-branch conflict,
+  so narrowing would miss real overlaps; only `Shipped` (already merged) and meta-less admin/main checkouts are
+  excluded. Exported via the git barrel for Tasks 3.2/3.3.
 
 ### `[ ]` **3.2 `arc errand` CLI helper — resolve primary worktree, compose + write entry, return**
 
