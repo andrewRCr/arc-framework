@@ -1,0 +1,26 @@
+# CODEOWNERS — reviewed-lane ownership for the auto-merge lane.
+# Owned paths require code-owner review; the trailing unowned block clears the
+# auto-merge-lane paths so they need none. Last-match-wins, so the unowned block
+# is LAST. Owned paths are reviewed; unowned (trailing) paths auto-merge.
+
+# --- Reviewed lane: all code + constitutional docs (review required) -------
+* @andrewRCr
+
+# Constitutional surfaces, called out explicitly.
+/.arc/system/rules/DEV-RULES.* @andrewRCr
+/.arc/reference/adr/ @andrewRCr
+/.arc/reference/strategies/ @andrewRCr
+
+# --- Auto-merge lane: per-WU / per-cohort planning artifacts (UNOWNED) ------
+# No owner clears the catch-all above. Scoped by artifact PREFIX, not all of
+# backlog/ — so derived / shared surfaces (ROADMAP, the *-INBOX queues) keep the
+# catch-all owner and stay reviewed. Specs and PRDs are absent by design.
+/.arc/active/draft-*
+/.arc/active/tasks-*
+/.arc/active/meta-*
+/.arc/active/notes-*
+/.arc/backlog/**/draft-*
+/.arc/backlog/**/tasks-*
+/.arc/backlog/**/meta-*
+/.arc/backlog/**/notes-*
+/.arc/backlog/**/cohort-*

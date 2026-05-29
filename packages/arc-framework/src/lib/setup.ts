@@ -46,6 +46,19 @@ export async function configureGitIntegration(
   }
 }
 
+/**
+ * Cross-WU per-user instance files seeded into `user/{identity}/` at user-directory
+ * creation (`arc init` / `arc join` via {@link runPostInitSetup}, and `arc user add`).
+ * SESSION-NOTES is intentionally excluded — it is per-WU and seeded lazily by
+ * `arc user open` once a work unit is anchored. Every creation path must seed the same
+ * set, so both loops read this single source.
+ */
+export const CROSS_WU_INSTANCE_FILES = [
+  "WORKING-MEMORY.md",
+  "USER-INBOX.md",
+  "ERRANDS.md",
+] as const;
+
 /** Options for post-init user setup. */
 export interface PostInitSetupOptions {
   arcDir: string;
@@ -58,7 +71,7 @@ export interface PostInitSetupOptions {
  * Run post-init user setup shared by both fresh and join modes.
  *
  * Stores identity in git config, creates the user directory with the
- * cross-WU instance files (WORKING-MEMORY, USER-INBOX) seeded from the
+ * cross-WU instance files (WORKING-MEMORY, USER-INBOX, ERRANDS) seeded from the
  * internal templates, and configures the git notes refspec for cross-machine
  * portability. SESSION-NOTES is per-WU and seeded lazily by `arc user open`
  * once a work unit is anchored — there is no anchored WU at init time. Per-
@@ -76,7 +89,7 @@ export async function runPostInitSetup(
     const userDir = join(arcDir, "user", identityResult);
     await ensureDir(userDir, io.mkdir);
 
-    for (const filename of ["WORKING-MEMORY.md", "USER-INBOX.md"]) {
+    for (const filename of CROSS_WU_INSTANCE_FILES) {
       const content = await io.readFile(join(internalTemplateDir, "user", filename));
       await io.writeFile(join(userDir, filename), content);
     }

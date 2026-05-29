@@ -51,6 +51,7 @@ import type { WorktreeIdentity } from "../../../src/lib/git/worktree-identity.js
 import type { CascadeResolution } from "../../../src/lib/session-init/branch-gone-cascade.js";
 import type { StaleWorktreeSweepResult } from "../../../src/lib/session-init/stale-worktree-sweep.js";
 import type { RetiredSubdirDetectionResult } from "../../../src/lib/session-init/retired-subdir-detection.js";
+import type { ErrandStalenessSweepResult } from "../../../src/lib/session-init/errand-staleness-sweep.js";
 import type { RestateCandidatesResult } from "../../../src/lib/handoff/restate-candidates.js";
 import type { ReleaseRoutingValue } from "../../../src/lib/release/routing.js";
 
@@ -116,6 +117,7 @@ function configResult(overrides: Partial<ConfigStatusResult> = {}): ConfigStatus
       "session.init_load.notes": "prompt",
       "archive.cadence": "with-integration",
       "user.notes_push": "on-sync",
+      "errands.staleness_days": "3",
     },
     defaultsApplied: [],
     warnings: [],
@@ -285,6 +287,7 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
     recovery: vi.fn(async (): Promise<CascadeResolution> => ({ kind: "main-fallback" })),
     sweep: vi.fn(async (): Promise<StaleWorktreeSweepResult> => ({ worktrees: [], warnings: [] })),
     retiredSubdirs: vi.fn(async (): Promise<RetiredSubdirDetectionResult> => ({ candidates: [] })),
+    errandSweep: vi.fn(async (): Promise<ErrandStalenessSweepResult> => ({ stale: [] })),
     ...overrides,
   };
 }
@@ -821,6 +824,7 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
       "config",
       "dirty",
       "domainRules",
+      "errandSweep",
       "extensions",
       "identity",
       "mode",
@@ -1265,6 +1269,39 @@ describe("runSessionInitStatus — retired-subdir detection slot", () => {
     expect(result.retiredSubdirs?.ok).toBe(false);
     if (result.retiredSubdirs && !result.retiredSubdirs.ok) {
       expect(result.retiredSubdirs.error.message).toBe("detect boom");
+    }
+    expect(result.worktree.ok).toBe(true);
+  });
+});
+
+describe("runSessionInitStatus — errand-staleness sweep slot", () => {
+  it("fires the sweep when identity resolved, passing the identity", async () => {
+    const probes = sessionInitProbes({
+      errandSweep: vi.fn(async () => ({ stale: [{ slug: "old-errand", created: "2026-05-01", ageDays: 24 }] })),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(probes.errandSweep).toHaveBeenCalledWith("andrew");
+    expect(result.errandSweep?.ok).toBe(true);
+    if (result.errandSweep?.ok) {
+      expect(result.errandSweep.value.stale[0]?.slug).toBe("old-errand");
+    }
+  });
+
+  it("omits the sweep when identity is absent", async () => {
+    const probes = sessionInitProbes();
+    const result = await runSessionInitStatus({ identity: null, role: null, probes });
+    expect(probes.errandSweep).not.toHaveBeenCalled();
+    expect("errandSweep" in result).toBe(false);
+  });
+
+  it("wraps a rejecting sweep probe as ok=false without rejecting the composite", async () => {
+    const probes = sessionInitProbes({
+      errandSweep: async () => { throw new Error("sweep boom"); },
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(result.errandSweep?.ok).toBe(false);
+    if (result.errandSweep && !result.errandSweep.ok) {
+      expect(result.errandSweep.error.message).toBe("sweep boom");
     }
     expect(result.worktree.ok).toBe(true);
   });

@@ -241,3 +241,11 @@ user.notes_push: on-sync
 #                      separate commit in the integration PR. (default)
 #   manual           - Defer archival until explicitly invoked.
 archive.cadence: with-integration
+
+# --- Errands ---
+
+# Staleness threshold, in whole days, for the errand queue (user/{identity}/ERRANDS.md).
+# Entries pending longer than this surface a session-init advisory to execute them or
+# demote them to the inbox. Conceptually a per-user preference (errands are per-user);
+# lives here today, migrating to a per-user config substrate later.
+errands.staleness_days: 3

@@ -12,6 +12,8 @@ Project-owned templates live in `../project/` (never touched by `arc update`).
 - `template-workflow.md` — workflow-authoring skeleton.
 - `template-dev-rules.md` — domain DEV-RULES scaffold (optional starter).
 - `template-contributing.md` — CONTRIBUTING.md starter (optional starter).
+- `merge-gate/` — GitHub-flavored auto-merge-lane recipe: a `CODEOWNERS` skeleton plus a `merge-ok` gate
+  snippet to merge into your CI workflow (see its README).
 
 ## Placeholder convention
 

@@ -1,0 +1,41 @@
+# CODEOWNERS — reviewed-lane ownership for the auto-merge lane recipe.
+#
+# Enable "Require review from Code Owners" in branch protection. Paths listed
+# here with an owner require owner approval before merge (the reviewed lane).
+# Trailing entries with NO owner CLEAR ownership, so those paths need no review
+# and ride the auto-merge lane. CODEOWNERS is last-match-wins, so the unowned
+# auto-merge block must come AFTER the reviewed-lane entries.
+#
+# An auto-merge PR must touch only unowned paths; if any changed file matches an
+# owned pattern, the whole PR requires review — which is exactly the "lanes
+# never split a PR" rule.
+#
+# Replace @your-org/reviewers with your reviewers (a user or team).
+
+# --- Reviewed lane: all code + constitutional docs (review required) -------
+* @your-org/reviewers
+
+# Constitutional surfaces, called out explicitly so they stay reviewed even if
+# the catch-all above is later narrowed.
+/.arc/system/rules/DEV-RULES.* @your-org/reviewers
+/.arc/reference/adr/ @your-org/reviewers
+/.arc/reference/strategies/ @your-org/reviewers
+
+# --- Auto-merge lane: per-WU / per-cohort planning artifacts (UNOWNED) ------
+# No owner on these lines clears the catch-all above, so these paths merge once
+# `merge-ok` is green, with no required review. Keep this block LAST.
+#
+# Scoped by artifact PREFIX, NOT all of backlog/ — so derived / shared surfaces
+# (ROADMAP, the *-INBOX queues) keep the catch-all owner and stay reviewed.
+# Specs and PRDs are absent by design: they carry design authority. cohort-*
+# coordination records ride the auto-merge lane (content grooming); their
+# concurrent multi-owner edits are a separate, project-level concern.
+/.arc/active/draft-*
+/.arc/active/tasks-*
+/.arc/active/meta-*
+/.arc/active/notes-*
+/.arc/backlog/**/draft-*
+/.arc/backlog/**/tasks-*
+/.arc/backlog/**/meta-*
+/.arc/backlog/**/notes-*
+/.arc/backlog/**/cohort-*

@@ -20,6 +20,7 @@ import type {
 } from "../../src/commands/config/types.js";
 
 const FULL_SETTINGS: ConfigSettings = {
+  "errands.staleness_days": "3",
   "branch.base": "main",
   "branch.protection": "full",
   "worktree.location_template": "../{repo}.{branch}",

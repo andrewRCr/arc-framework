@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 
 import {
   filterRosterByIdentity,
+  resolvePrimaryWorktreePath,
   runWorktreeRoster,
 } from "../../../src/lib/git/worktree-roster.js";
 import type {
@@ -452,5 +453,25 @@ describe("filterRosterByIdentity", () => {
 
     expect(result.entries).toEqual([]);
     expect(result.warnings).toEqual(["Multiple meta files in /theirs/.arc/active/"]);
+  });
+});
+
+describe("resolvePrimaryWorktreePath", () => {
+  it("returns the main worktree (listed first), not a linked worktree", async () => {
+    const { exec } = buildExec({
+      [WORKTREE_LIST]: {
+        stdout:
+          "worktree /home/dev/repo\nHEAD aaa\nbranch refs/heads/main\n\n"
+          + "worktree /home/dev/repo.wu-a\nHEAD bbb\nbranch refs/heads/feat/wu-a\n\n",
+      },
+    });
+
+    expect(await resolvePrimaryWorktreePath(exec)).toBe("/home/dev/repo");
+  });
+
+  it("returns null when no worktrees resolve", async () => {
+    const { exec } = buildExec({ [WORKTREE_LIST]: { stdout: "" } });
+
+    expect(await resolvePrimaryWorktreePath(exec)).toBeNull();
   });
 });

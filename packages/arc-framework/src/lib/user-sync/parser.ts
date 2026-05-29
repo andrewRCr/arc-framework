@@ -1,13 +1,15 @@
 /**
  * Per-shape entry parsers for cross-WU flat files.
  *
- * The two cross-WU files carry entries in different shapes. `WORKING-MEMORY.md`
+ * The cross-WU files carry entries in different shapes. `WORKING-MEMORY.md`
  * entries are a bold-field header (`**…:**`) followed by a `_Remove when:_`
  * trigger and a body, all under `## Memories`. `USER-INBOX.md` entries are
  * top-level markdown list items (`- **lead-in** — text`, possibly multi-line)
- * within `## Atomic` / `## Backlog` sections. Each parser splits a file into
- * entry blocks and returns one discriminated outcome per block: a block that
- * doesn't match its shape becomes `{ ok: false, reason }` instead of being
+ * within `## Atomic` / `## Backlog` sections. `ERRANDS.md` entries are H3
+ * headings (`### \`[ ]\` **slug**`, an optional checkbox before the bold slug)
+ * followed by descriptor bullets, under `## Queue`. Each parser splits a file
+ * into entry blocks and returns one discriminated outcome per block: a block
+ * that doesn't match its shape becomes `{ ok: false, reason }` instead of being
  * dropped.
  *
  * @module
@@ -21,6 +23,10 @@ const WM_HEADER = /^\*\*.+:\*\*\s*$/;
 const WM_REMOVE_WHEN = /^[_*]Remove when:/;
 /** A top-level USER-INBOX list item with a bold lead-in. */
 const UI_LEAD_IN = /^-\s+\*\*(.+?)\*\*/;
+/** An ERRANDS Queue entry boundary — any `###` heading. */
+const ERRAND_BOUNDARY = /^###\s/;
+/** The bold `<slug>` of an ERRANDS H3 heading, after an optional (backtick-wrapped) checkbox. */
+const ERRAND_SLUG = /^###\s+(?:`?\[[ xX]\]`?\s+)?\*\*(.+?)\*\*/;
 /** HTML comment block — guidance and shape examples that are not entries. */
 const HTML_COMMENT = /<!--[\s\S]*?-->/g;
 
@@ -29,6 +35,7 @@ export function shapeForFile(filename: string): CrossWuShape | null {
   const base = filename.split("/").pop() ?? filename;
   if (base === "WORKING-MEMORY.md") return "working-memory";
   if (base === "USER-INBOX.md") return "user-inbox";
+  if (base === "ERRANDS.md") return "errands";
   return null;
 }
 
@@ -44,7 +51,9 @@ export function parseCrossWuEntries(content: string, shape: CrossWuShape): Entry
   // (an entry header without a real trigger) that would otherwise parse as
   // malformed entries.
   const body = content.replace(HTML_COMMENT, "");
-  return shape === "working-memory" ? parseWorkingMemory(body) : parseUserInbox(body);
+  if (shape === "working-memory") return parseWorkingMemory(body);
+  if (shape === "user-inbox") return parseUserInbox(body);
+  return parseErrands(body);
 }
 
 /**
@@ -134,4 +143,42 @@ function parseUserInboxSection(lines: readonly string[], section: string, out: E
     }
   }
   flush();
+}
+
+/**
+ * Parse `ERRANDS.md` Queue entries. Each entry is an `### \`[ ]\` **slug**`
+ * heading (the checkbox is optional and may be backtick-wrapped) followed by
+ * descriptor bullets, keyed on the bold slug within the single `## Queue`
+ * section. An H3 heading with no bold slug surfaces as a failure.
+ */
+function parseErrands(content: string): EntryParse[] {
+  const lines = sectionLines(content, "Queue");
+  const out: EntryParse[] = [];
+
+  let block: string[] = [];
+  let started = false;
+
+  const flush = (): void => {
+    if (!started) return;
+    const raw = trimBlock(block);
+    const slug = block[0]?.match(ERRAND_SLUG)?.[1];
+    if (slug !== undefined) {
+      out.push({ ok: true, entry: { section: "Queue", key: slug.trim(), raw } });
+    } else {
+      out.push({ ok: false, reason: `ERRANDS Queue entry missing bold slug: ${(block[0] ?? "").trim()}` });
+    }
+    block = [];
+  };
+
+  for (const line of lines) {
+    if (ERRAND_BOUNDARY.test(line)) {
+      flush();
+      started = true;
+      block = [line];
+    } else if (started) {
+      block.push(line);
+    }
+  }
+  flush();
+  return out;
 }

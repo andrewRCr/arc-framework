@@ -125,6 +125,7 @@ describe("init", () => {
     // Per-user file set seeded (cross-PM-mode); legacy user/ATOMIC-INBOX retired.
     expect(await pathExists(join(tmpDir, ".arc", "user", "test-user", "WORKING-MEMORY.md"))).toBe(true);
     expect(await pathExists(join(tmpDir, ".arc", "user", "test-user", "USER-INBOX.md"))).toBe(true);
+    expect(await pathExists(join(tmpDir, ".arc", "user", "test-user", "ERRANDS.md"))).toBe(true);
     expect(await pathExists(join(tmpDir, ".arc", "user", "test-user", "ATOMIC-INBOX.md"))).toBe(false);
 
     // Config reflects pm.mode

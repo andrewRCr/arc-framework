@@ -30,6 +30,7 @@ export {
 export {
   runWorktreeRoster,
   filterRosterByIdentity,
+  resolvePrimaryWorktreePath,
   type WorktreeRosterEntry,
   type WorktreeRosterFs,
   type WorktreeRosterResult,
@@ -43,6 +44,13 @@ export {
   type DirtyStateResult,
   type RunDirtyStateStatusOptions,
 } from "./dirty-state.js";
+
+export {
+  detectForeignArtifactOverlap,
+  type ForeignArtifactDetectionOptions,
+  type ForeignArtifactDetectionResult,
+  type ForeignArtifactOverlap,
+} from "./foreign-artifact-detection.js";
 
 export {
   isRefusalCondition,

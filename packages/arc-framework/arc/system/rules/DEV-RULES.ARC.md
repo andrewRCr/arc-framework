@@ -205,21 +205,28 @@ If quality gates fail after task completion:
 When you encounter an issue that needs addressing — whether in a file you're modifying,
 during analysis, or anywhere in the course of work — take responsibility for it.
 
-**If you can fix it now** (in the file, manageable scope): · `[configurable]`
+**Fixing it inline** (in a file you're already changing, manageable scope) · `[configurable]`:
+assess severity via the [issue-triage method][arc-methods-it] and fold the fix into the work in hand.
 
-Assess severity via the [issue-triage method][arc-methods-it].
+**Otherwise, route by commitment.** The question that decides the home is *am I committing to do this
+myself, soon?* — not the size of the work. This boundary is the precondition that gates the Errand decision
+matrix ([strategy-work-organization][work-org] § Errand Work Class): the boundary decides act-now vs.
+capture-for-later; the matrix selects the path once you have committed to act.
 
-**If you can't fix it now** (not in the file, too large, or would derail current work):
+| Committing to do it yourself, soon? | Character  | Destination                                                      |
+| ----------------------------------- | ---------- | ---------------------------------------------------------------- |
+| **Yes** — act now                   | Atomic     | Errand — its own commit, or folded into the work in hand         |
+| **Yes** — act now                   | Multi-step | Task structure / a Work Unit (multi-step trips the WU threshold) |
+| **No** — unsure / maybe / not-yet   | Atomic     | `user/{identity}/USER-INBOX.md` § Atomic (arc-in-git)            |
+| **No** — unsure / maybe / not-yet   | Multi-step | `user/{identity}/USER-INBOX.md` § Backlog (arc-in-git)           |
 
-Route to an actionable capture surface — a location that gets reviewed as part of a workflow.
-
-| Intent                   | Size       | Destination                                                    |
-|--------------------------|------------|----------------------------------------------------------------|
-| During this WU           | Atomic     | Fold into the commit, or spin an Errand                        |
-| During this WU           | Multi-step | Propose placement in existing task structure — user approves   |
-| For later (arc-in-git)   | Atomic     | `user/{identity}/USER-INBOX.md` § Atomic                       |
-| For later (arc-in-git)   | Multi-step | `user/{identity}/USER-INBOX.md` § Backlog                      |
-| For later (other modes)  | Any        | Per project convention (DEV-RULES.PROJECT) — default: ask user |
+Committed work is done in its real place now — never anticipatorily captured to an inbox. An atomic
+commitment is an Errand (or folds into the current commit when it belongs to the work in hand); a multi-step
+commitment trips the Work-Unit threshold and routes to task structure or a Work Unit, never an Errand.
+Not-committed work — unsure, maybe-someone-else, needs-a-think — is a capture, triaged at a ceremony where it
+may *become* an Errand, graduate to a Work Unit, or be dismissed. Under PM modes other than arc-in-git,
+not-committed work captures per project convention (see [DEV-RULES.PROJECT][dev-rules-project]); default: ask
+the user.
 
 **Drain at ceremonies, not capture.** USER-INBOX entries drain at lifecycle ceremonies —
 activation absorption, integration drain, planning-kickoff promotion. § Atomic items drain to
@@ -228,7 +235,7 @@ activation absorption, integration drain, planning-kickoff promotion. § Atomic 
 `backlog/{planned,provisional}/<wu-name>/` when scope/plan emerges. Project-shared inboxes are
 read-only by convention outside these ceremonies.
 
-**Multi-step in current work unit:** Search the active task list for a natural home — fold
+**Multi-step committed work:** Search the active task list for a natural home — fold
 into an existing incomplete task, add a subtask, or insert a new task at a logical point. If
 the work needs a new phase, it may not belong in this work unit — present to user.
 
@@ -419,6 +426,7 @@ Load these documents when you reach the relevant work — not during session ini
 [arc-methods-tf]: ../../system/methods/test-first.md
 [arc-methods-dir]: ../../system/methods/README.md
 [config-arch]: ../../reference/strategies/arc/strategy-configurability-architecture.md
+[work-org]: ../../reference/strategies/arc/strategy-work-organization.md
 [work-org-roadmap]: ../../reference/strategies/arc/strategy-work-organization.md#roadmap
 [workflow-authoring]: ../../reference/strategies/arc/strategy-workflow-authoring.md
 [session-ops]: ../../reference/strategies/arc/strategy-session-operations.md
