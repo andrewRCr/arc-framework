@@ -42,26 +42,25 @@ _Design decisions:_
   cohort table defers to it, and the two axes are split as distinct decisions: create/maintain selects WU vs.
   Errand; self-contained/cross-cutting selects how an Errand routes once it is one.
 
-### `[ ]` **1.2 Re-cut the DEV-RULES.ARC § "Leave it cleaner" routing table on the commitment axis**
+### `[x]` **1.2 Re-cut the DEV-RULES.ARC § "Leave it cleaner" routing table on the commitment axis**
 
 - _Goal:_ The "Leave it cleaner" routing table is keyed on commitment ("Am I committing to do this myself,
   soon?") primary × character (atomic vs. multi-step) secondary, so every discovered item has one obvious home:
   committed+atomic → errand (or fold into the commit); committed+multi-step → task structure / WU; not-committed
   → `USER-INBOX` (§ Atomic / § Backlog by character).
 
-- _Context:_ The commitment axis replaces today's during-this-WU-vs-later split; character survives as the
-  secondary axis, which also preserves the § Atomic / § Backlog inbox routing. Commitment alone is insufficient —
-  errand-eligibility still requires single-review-increment character (ADR-021 threshold), so multi-step committed
-  work routes to a WU, not an errand. Does **not** re-architect `USER-INBOX`'s internal sections (Non-Goal).
-
-- **Strategies:** strategy-package-project-sync.md
-
-    - `[ ]` **1.2.a Re-cut the routing table on commitment (primary) × character (secondary)** (both copies of
+    - `[x]` **1.2.a Re-cut the routing table on commitment (primary) × character (secondary)** (both copies of
       `DEV-RULES.ARC.md`)
 
-    - `[ ]` **1.2.b Wire the boundary↔matrix sequencing** — the boundary table is the precondition (is this an
+    - `[x]` **1.2.b Wire the boundary↔matrix sequencing** — the boundary table is the precondition (is this an
       errand at all?), the § Errand Work Class matrix is the path-selector (how to route it once committed);
       cross-reference both directions so they read as one sequenced model
+
+- _Outcome:_ § Leave it cleaner now routes on commitment (primary) × character (secondary); the old
+  during-WU-vs-later framing is retired, inline-fix kept as an issue-triage sub-case, and other-mode capture
+  folded into prose. With 1.1's matrix→boundary link, the new boundary→matrix link (and a `[work-org]`
+  reference) close the sequenced model — boundary as precondition (errand-at-all?), matrix as path-selector
+  (how to route once committed).
 
 ## **Phase 2:** Errand queue substrate (`ERRANDS.md`) + cross-WU convergence
 
