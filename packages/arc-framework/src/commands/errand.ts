@@ -29,6 +29,13 @@ export interface ErrandIO {
   exec: GitExec;
   readFile: (path: string) => Promise<string>;
   writeFile: (path: string, content: string) => Promise<void>;
+  /**
+   * Read the packaged `ERRANDS.md` template scaffold — used to seed the queue
+   * when the primary worktree has none yet (an install predating queue seeding,
+   * where the gitignored user-dir file was never backfilled). Production wires
+   * this to the internal template; the entry is then inserted into the scaffold.
+   */
+  readScaffold: () => Promise<string>;
 }
 
 /** The composed-entry inputs the skill hands the helper. */
@@ -65,6 +72,16 @@ export type ErrandOutcome =
 /** A branch-safe slug: lowercase alphanumerics and hyphens, starting alphanumeric. */
 const SAFE_SLUG = /^[a-z0-9][a-z0-9-]*$/;
 
+/** True when an error is a filesystem "not found" (`ENOENT`). */
+function isNotFound(err: unknown): boolean {
+  return typeof err === "object" && err !== null && (err as { code?: unknown }).code === "ENOENT";
+}
+
+/** Best-effort message for an unknown thrown value. */
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 /**
  * Compose and write a forward-pointing errand-queue entry into the primary
  * worktree's `ERRANDS.md`. No branch, no commit — only the queue entry.
@@ -92,7 +109,24 @@ export async function runErrand(
   }
 
   const errandsPath = join(primary, ".arc", "user", params.identity, "ERRANDS.md");
-  const existing = await io.readFile(errandsPath);
+
+  let existing: string;
+  try {
+    existing = await io.readFile(errandsPath);
+  } catch (err) {
+    if (!isNotFound(err)) {
+      return { ok: false, reason: `could not read the errand queue at ${errandsPath}: ${errorMessage(err)}` };
+    }
+    // No queue yet — seed from the packaged template scaffold, then insert below.
+    try {
+      existing = await io.readScaffold();
+    } catch (seedErr) {
+      return {
+        ok: false,
+        reason: `errand queue is absent and its template scaffold could not be read: ${errorMessage(seedErr)}`,
+      };
+    }
+  }
 
   const branch = `chore/${params.slug}`;
   const entry = composeEntry(params, branch);

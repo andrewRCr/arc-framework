@@ -33,14 +33,35 @@ const SEEDED_ERRANDS = [
   "",
 ].join("\n");
 
+/** A distinct template scaffold — lets a seeding assertion prove the scaffold (not a stale read) was used. */
+const TEMPLATE_SCAFFOLD = [
+  "# Errand Queue",
+  "",
+  "## Queue",
+  "",
+  "<!-- template scaffold -->",
+  "",
+  "---",
+  "",
+].join("\n");
+
 interface Harness {
-  io: { exec: GitExec; readFile: (p: string) => Promise<string>; writeFile: (p: string, c: string) => Promise<void> };
+  io: {
+    exec: GitExec;
+    readFile: (p: string) => Promise<string>;
+    writeFile: (p: string, c: string) => Promise<void>;
+    readScaffold: () => Promise<string>;
+  };
   calls: Array<{ cmd: string; args: string[] }>;
   written: Array<{ path: string; content: string }>;
 }
 
-/** Build an injected IO harness: worktree-list exec, a seeded ERRANDS read, a write capture. */
-function harness(errandsContent = SEEDED_ERRANDS): Harness {
+/**
+ * Build an injected IO harness: worktree-list exec, a write capture, a template
+ * scaffold, and a queue read (the seeded content by default; pass `readFile` to
+ * simulate an absent queue or a read error).
+ */
+function harness(errandsContent = SEEDED_ERRANDS, readFile?: () => Promise<string>): Harness {
   const calls: Array<{ cmd: string; args: string[] }> = [];
   const written: Array<{ path: string; content: string }> = [];
   const exec: GitExec = async (cmd, args) => {
@@ -53,14 +74,22 @@ function harness(errandsContent = SEEDED_ERRANDS): Harness {
   return {
     io: {
       exec,
-      readFile: async () => errandsContent,
+      readFile: readFile ?? (async () => errandsContent),
       writeFile: async (path, content) => {
         written.push({ path, content });
       },
+      readScaffold: async () => TEMPLATE_SCAFFOLD,
     },
     calls,
     written,
   };
+}
+
+/** A filesystem "not found" rejection, as `readFile` throws for an absent path. */
+function enoent(): NodeJS.ErrnoException {
+  const err: NodeJS.ErrnoException = new Error("ENOENT: no such file or directory");
+  err.code = "ENOENT";
+  return err;
 }
 
 describe("runErrand", () => {
@@ -152,6 +181,41 @@ describe("runErrand", () => {
     const outcome = await runErrand(h.io, {
       identity: "andrew",
       slug: "not a slug",
+      goal: "g",
+      pointers: "p",
+      created: "2026-05-29",
+    });
+
+    expect(outcome.ok).toBe(false);
+    expect(h.written).toEqual([]);
+  });
+
+  it("seeds from the template scaffold when the queue is absent (ENOENT)", async () => {
+    const h = harness(SEEDED_ERRANDS, () => Promise.reject(enoent()));
+
+    const outcome = await runErrand(h.io, {
+      identity: "andrew",
+      slug: "drain-inbox",
+      goal: "Flush the deferred USER-INBOX captures",
+      pointers: "user/andrew/USER-INBOX.md",
+      created: "2026-05-29",
+    });
+
+    expect(outcome.ok).toBe(true);
+    expect(h.written).toHaveLength(1);
+    const content = h.written[0]?.content ?? "";
+    // The entry was inserted into the scaffold, not a structureless blank file.
+    expect(content).toContain("<!-- template scaffold -->");
+    expect(content).toContain("### `[ ]` **drain-inbox**");
+    expect(content.indexOf("## Queue")).toBeLessThan(content.indexOf("### `[ ]` **drain-inbox**"));
+  });
+
+  it("refuses (no throw) on an unexpected queue read error", async () => {
+    const h = harness(SEEDED_ERRANDS, () => Promise.reject(new Error("EACCES: permission denied")));
+
+    const outcome = await runErrand(h.io, {
+      identity: "andrew",
+      slug: "drain-inbox",
       goal: "g",
       pointers: "p",
       created: "2026-05-29",

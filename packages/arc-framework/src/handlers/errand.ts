@@ -17,12 +17,14 @@
  */
 
 import { readdir, readFile } from "node:fs/promises";
+import { join } from "node:path";
 
 import * as p from "@clack/prompts";
 
 import { runErrand } from "../commands/errand.js";
 import { runActiveRoster } from "../commands/active.js";
 import { detectForeignArtifactOverlap } from "../lib/git/index.js";
+import { getInternalTemplatePath } from "../lib/paths.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { createUserIOContext, gitExec } from "../lib/io-context.js";
 import { isHandledError, requireArcProjectRoot, resolveIdentityWithPrompt, resolveUserIdentity } from "./shared.js";
@@ -80,7 +82,13 @@ export async function handleErrandQueue(opts: ErrandQueueOptions): Promise<void>
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
 
-  const io = createUserIOContext();
+  const userIO = createUserIOContext();
+  const io = {
+    exec: userIO.exec,
+    readFile: userIO.readFile,
+    writeFile: userIO.writeFile,
+    readScaffold: () => readFile(join(getInternalTemplatePath(), "user", "ERRANDS.md"), "utf-8"),
+  };
   const outcome = await runErrand(io, {
     identity,
     slug,
