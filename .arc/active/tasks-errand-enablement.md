@@ -335,25 +335,27 @@ _Design decisions:_
   the workflow that lands them on a live GitHub repo. The offer lives in Path 1 only (repo-level, fresh-install
   concern; joiners run the standalone workflow). Task 5.3 dogfoods by running this workflow against this repo.
 
-### `[ ]` **5.3 Repo-local dogfooding instance (run Task 5.2's workflow) + TECHNICAL-OVERVIEW § 3 update**
+### `[x]` **5.3 Repo-local dogfooding instance (run Task 5.2's workflow) + TECHNICAL-OVERVIEW § 3 update**
 
 - _Goal:_ This repo's own `merge-ok` lane is live — `.github/workflows/merge-ok.yml` + `.github/CODEOWNERS` +
   branch-protection required-check + native auto-merge — produced by running the `setup-merge-gate` workflow
   against this repo, and TECHNICAL-OVERVIEW § 3 documents the new host config.
 
-- _Context:_ Not shipped (every repo owns its `.github/`); running the Task 5.2 workflow here both lands the live
-  instance and validates the workflow end-to-end (runnability + idempotency). CODEOWNERS keeps constitutional
-  docs in the reviewed lane.
+    - `[x]` **5.3.a Dogfood — ran `setup-merge-gate` against this repo**: integrated `classify` + `merge-ok`
+      into `ci.yml` (lane-gating `quality` + `full-suite`) rather than a standalone `merge-ok.yml` — `needs` is
+      intra-workflow, so the gate must co-locate with the jobs it rolls up; added `.github/CODEOWNERS`
+      (`@andrewRCr` owner, planning prefixes unowned); created `main` branch protection requiring the `merge-ok`
+      check (require-PR, no code-owner review, `enforce_admins: true`) and enabled native auto-merge — all via `gh`.
 
-- _Note:_ The workflow is agent-led; branch-protection + auto-merge enablement go through `gh` where it drives
-  the GitHub settings, and surface as guided steps where the maintainer must apply them.
+    - `[x]` **5.3.b Updated TECHNICAL-OVERVIEW § 3** with a Merge-gating bullet (additive to the existing CI
+      entry) documenting the lane, the required check, CODEOWNERS, and auto-merge.
 
-    - `[ ]` **5.3.a Dogfood — run `setup-merge-gate` against this repo**, landing the `merge-ok` job +
-      `.github/CODEOWNERS` (co-located with the existing `.github/workflows/`), wiring the required-check, and
-      enabling auto-merge; confirm idempotency on a second run
-
-    - `[ ]` **5.3.b Update TECHNICAL-OVERVIEW § 3 Infrastructure** to document the new host config (additive to the
-      existing GitHub Actions CI)
+- _Outcome:_ Dogfooding against a real `ci.yml` drove the WU's biggest design corrections — the
+  standalone-`merge-ok.yml` footgun (reshaped to a README snippet), the multi-workflow-CI path, and the solo
+  code-owner-review wall (Option A: require `merge-ok` + PR, no code-owner review, reviewed lane enforced by not
+  arming auto-merge). The live instance therefore diverges from the Goal's idealized
+  `.github/workflows/merge-ok.yml`: the gate lives in `ci.yml` (cross-workflow `needs` constraint). Spec R9 and
+  the success criteria are realigned to the integrated-gate framing.
 
 ## **Phase 6:** Verification
 

@@ -7,8 +7,41 @@ on:
     branches: [main]
 
 jobs:
+  # Auto-merge lane gate (see strategy-work-organization § Auto-Merge Lane).
+  # On a PR, classify the changed paths; the heavy jobs run only on the
+  # reviewed lane, and merge-ok rolls them up into the single required check
+  # so a planning-only PR gets a green check without the heavy jobs running.
+  classify:
+    name: Classify lane
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      lane: ${{ steps.lane.outputs.lane }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - id: lane
+        run: |
+          base='${{ github.event.pull_request.base.sha }}'
+          head='${{ github.event.pull_request.head.sha }}'
+          changed="$(git diff --name-only "$base...$head")"
+          echo "changed paths:"; printf '%s\n' "$changed"
+          # Auto-merge lane = per-WU / per-cohort planning artifacts only,
+          # matched by PREFIX: draft- / tasks- / meta- / notes- / cohort-*
+          # under active/ or backlog/. Any other path -> reviewed lane.
+          if printf '%s\n' "$changed" \
+            | grep -qvE '^\.arc/(active|backlog)/([^/]+/)*(draft|tasks|meta|notes|cohort)-'; then
+            echo "lane=reviewed" >> "$GITHUB_OUTPUT"
+          else
+            echo "lane=auto" >> "$GITHUB_OUTPUT"
+          fi
+
   quality:
     name: Quality Checks
+    needs: classify
+    # Run on every push (feedback); on a PR, only the reviewed lane.
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.classify.outputs.lane == 'reviewed') }}
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v5
@@ -30,8 +63,9 @@ jobs:
 
   full-suite:
     name: Full Test Suite
+    needs: classify
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' }}
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
     steps:
     - uses: actions/checkout@v5
     - uses: actions/setup-node@v5
@@ -42,3 +76,20 @@ jobs:
     - run: npm run build
     - run: npm run test:integration
     - run: npm run test:e2e
+
+  merge-ok:
+    name: merge-ok
+    needs: [classify, quality, full-suite]
+    if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Roll up required jobs
+        run: |
+          # Pass when every needed job succeeded OR was skipped; fail otherwise.
+          for r in ${{ join(needs.*.result, ' ') }}; do
+            echo "needed job result: $r"
+            case "$r" in
+              failure|cancelled) echo "::error::a required job did not succeed"; exit 1 ;;
+            esac
+          done
+          echo "merge-ok ✓ (lane=${{ needs.classify.outputs.lane }})"

@@ -144,6 +144,11 @@ _CI & configuration:_
 
 - **CI/CD**: GitHub Actions (`.github/workflows/ci.yml`) — markdown linting, TypeScript type checking, test
   suite, build verification, template structure validation, internal link checking
+- **Merge gating**: the `merge-ok` job in `ci.yml` classifies each PR's lane and rolls up the lane-gated heavy
+  jobs into one required status check; `main` branch protection requires `merge-ok` (full enforcement via
+  `enforce_admins`), `.github/CODEOWNERS` marks the reviewed lane, and native auto-merge is enabled —
+  planning/backlog grooming PRs auto-merge, code and constitutional PRs merge deliberately (solo repo: no
+  code-owner review). See `strategy-work-organization.md` § Auto-Merge Lane.
 - **Configuration**: `.markdownlint-cli2.jsonc` for lint rules, `.gitattributes` for line ending normalization,
   `tsconfig.json` for TypeScript, `tsup.config.ts` for build, `vitest.config.ts` for tests
 
