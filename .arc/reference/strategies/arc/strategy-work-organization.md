@@ -27,6 +27,7 @@ documentation.
 - [ROADMAP](#roadmap)
 - [Incidental Work Model](#incidental-work-model)
 - [Branch Protection Modes](#branch-protection-modes)
+- [Auto-Merge Lane](#auto-merge-lane)
 - [Errand Work Class](#errand-work-class)
 - [Directory Structure](#directory-structure)
 - [Team Coordination](#team-coordination) *(→ dedicated strategy)*
@@ -532,6 +533,59 @@ All changes require branches and PR review. No direct base branch commits.
 
 ---
 
+## Auto-Merge Lane
+
+Under full protection every change ships through a branch and PR — including the planning-path Errands that
+groom `backlog/` and `active/` artifacts. Most of that grooming is low-risk and high-frequency, so the
+mandatory merge-wait is pure friction. The auto-merge lane removes it for a classified set of low-risk paths
+while holding every higher-stakes change in the reviewed lane. It is meaningful only under
+`branch.protection: full`; under partial protection a planning-path Errand is already a direct base-branch
+commit with no merge-wait (see [§ Branch Protection Modes](#branch-protection-modes)).
+
+ARC owns the **classification and a recommended recipe, not enforcement** — the host (GitHub branch
+protection, GitLab merge-request approvals, …) applies the gate. The classification is host-agnostic; a
+concrete GitHub-flavored recipe ships in [`reference/templates/arc/merge-gate/`][merge-gate-templates].
+
+### Path classification
+
+Two lanes, by what the PR touches — classified by artifact **prefix**, not by directory:
+
+- **Auto-merge lane** — per-WU and per-cohort planning grooming: the movable artifacts `draft-*`, `tasks-*`,
+  `meta-*`, `notes-*`, and the `cohort-*` coordination record, under `active/` or `backlog/`. Single-increment
+  grooming with no design authority. Merges automatically once required checks pass; no human review required.
+- **Reviewed lane** — everything else. Explicitly: **design-authority** artifacts (`spec-*`, `prd-*`); the
+  **constitutional** surfaces — rules (`DEV-RULES.*`), ADRs (`reference/adr/**`), strategies
+  (`reference/strategies/**`); the **derived or shared project surfaces** — `ROADMAP` (rendered from metas, so a
+  hand-edit must not silently diverge from its source) and the shared backlog inboxes (which change only at
+  reviewed ceremonies); and all code. Always requires owner review before merge.
+
+A PR that touches any reviewed-lane path is reviewed-lane as a whole — the lanes never split a single PR. Keep
+grooming PRs path-pure to stay on the auto-merge lane.
+
+The lane classifies by **content type, not concurrency**: it decides whether a change needs a human to read it,
+not whether two branches edit the same artifact at once. Concurrent edits to a shared record — a multi-owner
+coordination doc, say — are a separate axis; gate those with the project's concurrent-work discipline, not this
+lane.
+
+### The mechanism (host-agnostic)
+
+Three conditions compose the lane on any host:
+
+1. A **stable required status check present on every PR** — call it `merge-ok`. It runs unconditionally, so
+   branch protection always has a check to wait on. This is why the recipe uses a conditional status job and
+   **not** a path-ignored CI workflow: a required check that is path-filtered away never reports, stays
+   *Pending*, and blocks the merge indefinitely.
+2. **Owner review required for reviewed-lane paths only** — a code-owners mapping that names owners for the
+   constitutional surfaces and leaves auto-merge-lane paths unowned, so only reviewed-lane PRs require approval.
+3. **Native auto-merge enabled** — the PR merges itself the moment its required conditions are satisfied
+   (checks green, plus owner review where the lane demands it).
+
+On an auto-merge-lane PR, condition 1 reports green and condition 2 demands nothing, so it merges unattended;
+a reviewed-lane PR additionally waits on owner approval. Hosts without these primitives fall back to the
+classification as doctrine plus manual review discipline.
+
+---
+
 ## Errand Work Class
 
 ARC defines two work classes that share commit and review machinery but differ in tracking and lifecycle:
@@ -664,3 +718,4 @@ installs, routing and graduation flow, inbox routing, and scaling guidance.
 [commit-footer-method]: ../../../system/methods/commit-footer.md
 [commit-format-method]: ../../../system/methods/commit-format.md
 [cb-spec]: https://conventional-branch.github.io/
+[merge-gate-templates]: ../../templates/arc/merge-gate/README.md

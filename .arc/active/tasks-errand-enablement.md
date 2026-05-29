@@ -282,27 +282,33 @@ _Design decisions:_
   `docs/`. A setup-time choice, not an arc-config key — ARC never reads CODEOWNERS at runtime (GitHub resolves it),
   so a key would be inert.
 
-### `[ ]` **5.1 Adopter-facing doctrine + GitHub reference recipe (templates)**
+### `[x]` **5.1 Adopter-facing doctrine + GitHub reference recipe (templates)**
 
 - _Goal:_ Projects get host-agnostic classification doctrine (planning/backlog grooming auto-merges;
   constitutional docs — rules, ADRs, strategies — stay reviewed) plus a concrete GitHub recipe: a conditional
   `merge-ok` status-job template and a static planning-paths CODEOWNERS skeleton.
 
-- _Context:_ `merge-ok` is a conditional **status job**, deliberately not CI `paths-ignore` (which leaves required
-  jobs Pending and blocks branch protection). ARC owns the classification + a recommended recipe, not enforcement.
-
 - **Strategies:** strategy-package-project-sync.md
 
-    - `[ ]` **5.1.a Author the auto-merge doctrine** as a new subsection by § Branch Protection Modes in
-      `strategy-work-organization.md` (both copies) — which path classes auto-merge vs. stay reviewed,
-      host-agnostic framing; CWC later extends it
+    - `[x]` **5.1.a Author the auto-merge doctrine** — new `## Auto-Merge Lane` section between § Branch
+      Protection Modes and § Errand Work Class in `strategy-work-organization.md` (both copies): the two-lane
+      path classification (auto vs. reviewed) and the host-agnostic three-condition mechanism (stable required
+      check, owner-review on reviewed paths only, native auto-merge), with the status-job-not-`paths-ignore`
+      rationale. Contents entry + `[merge-gate-templates]` reference link added.
 
-    - `[ ]` **5.1.b Add the recipe templates** under `templates/arc/merge-gate/` (both copies; first non-md
-      templates in the tree, so include a short README) — a `merge-ok` status-job template + a planning-paths
-      CODEOWNERS skeleton
+    - `[x]` **5.1.b Add the recipe templates** under `templates/arc/merge-gate/` (both copies) — `merge-ok.yml`
+      (lane-classify job + heavy jobs + an `if: !cancelled()` roll-up gate, dependency-free git-diff path
+      classification), a `CODEOWNERS` skeleton (catch-all owner + trailing unowned prefix-scoped block,
+      last-match-wins), and a README; parent `templates/arc/README.md` index updated. First non-md templates in
+      the tree.
 
-        - GitHub-flavored, with a host-agnostic doctrine note; host coverage (GitHub-only vs. adaptation notes for
-          other hosts) is an Open Question to ground
+- _Outcome:_ Two design calls settled. (1) Host-coverage open question → GitHub-flavored recipe + host-agnostic
+  doctrine note, no per-host recipes (beyond the minimal slice). (2) Auto-merge boundary classifies by artifact
+  **prefix** (`draft-/tasks-/meta-/notes-/cohort-*` under `active/` or `backlog/`), not by directory — so
+  derived / shared surfaces (`ROADMAP`, the backlog inboxes) stay reviewed while per-WU/per-cohort grooming
+  auto-merges; `cohort-*` rides the auto-merge lane on the content-review axis (its concurrent multi-owner
+  edits are an orthogonal axis, deferred to CWC's all-owner gate). CODEOWNERS naturally enforces "lanes never
+  split a PR" (any owned changed path → whole PR reviewed).
 
 ### `[ ]` **5.2 Guided `setup-merge-gate` workflow + protection-mode-aware offer in `01_verify-and-configure.md`**
 
