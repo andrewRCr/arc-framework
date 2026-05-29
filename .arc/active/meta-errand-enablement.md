@@ -1,8 +1,8 @@
 # Metadata: Errand Enablement
 
-- **State:** Planning
+- **State:** Active
 - **Owner:** andrew
-- **Branch:** plan/errand-enablement
+- **Branch:** feat/errand-enablement
 
 - **Origin:** [internal]
 - **Design:** `spec-errand-enablement.md`
@@ -15,6 +15,6 @@
 - **Next Task:** Task 1.1 — Author the Errand decision matrix (line ~22)
 - **Blockers:** [none]
 
-- **Next Action:** Run `activate-work-unit.md` (flip State → Active, rename branch) when implementation begins; first task is 1.1.
+- **Next Action:** Begin Task 1.1 — Author the Errand decision matrix in `strategy-work-organization.md` § Errand Work Class.
 
 ---

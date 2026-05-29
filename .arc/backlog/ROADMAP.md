@@ -13,7 +13,7 @@ separate them from a startable root. Cohort membership is a logical grouping, no
 
 | Work unit                     | State    | Owner  | Depends on               | Cohort                     |
 | ----------------------------- | -------- | ------ | ------------------------ | -------------------------- |
-| errand-enablement             | Planning | andrew | —                        | agile-parallelism          |
+| errand-enablement             | Active   | andrew | —                        | agile-parallelism          |
 
 ## Ready
 
