@@ -39,24 +39,26 @@ duplicates.
    If the host is not GitHub, jump to [§ Other Hosts](#other-hosts). If `gh` lacks admin, the settings steps
    (3–4) drop to their guided-manual fallback.
 
-## Step 1: Drop in the merge-ok workflow
+## Step 1: Add the merge-ok gate to your CI workflow
 
-**Detect-if-present:** if `.github/workflows/merge-ok.yml` already exists, do NOT overwrite — diff it against
-the template and reconcile with the user. Otherwise copy it in:
+The gate is a snippet, not a drop-in file — `needs:` reaches only jobs in the same workflow, so it must live
+alongside the required CI jobs it rolls up. Take the `classify` + `merge-ok` jobs from
+[`templates/arc/merge-gate/README.md`][templates] § The merge-ok gate and merge them in, branching on the
+repo's CI layout:
 
-```bash
-mkdir -p .github/workflows
-cp .arc/reference/templates/arc/merge-gate/merge-ok.yml .github/workflows/merge-ok.yml
-```
+- **Single CI workflow:** paste the two jobs into it; add `needs: classify` and
+  `if: ${{ needs.classify.outputs.lane == 'reviewed' }}` to each heavy job; list classify + every heavy job in
+  `merge-ok.needs`.
+- **CI split across workflow files** (e.g. `lint.yml` / `test.yml`): add `on: workflow_call` to each CI
+  workflow and a thin parent that `uses:` them and hosts `classify` + `merge-ok`; mark only the parent's
+  `merge-ok` required. (Advanced fallback: a `workflow_run` aggregator — see the README.)
 
-Then adapt the copy to the repo:
+Then confirm the lane classifier matches the project's layout (the default matches ARC's
+`draft-/tasks-/meta-/notes-/cohort-*` prefixes under `active/` and `backlog/`), and set the workflow's
+`pull_request` trigger to the base branch.
 
-- Set `on.pull_request.branches` to the base branch.
-- Replace the `quality` placeholder with the repo's real build/lint/test — or, if CI already lives in another
-  workflow, move the `classify` + `merge-ok` jobs into that workflow and list every heavy job in
-  `merge-ok.needs` (`needs` reaches only jobs in the same workflow).
-- Confirm the lane classifier matches the project's layout (the default matches ARC's
-  `draft-/tasks-/meta-/notes-/cohort-*` prefixes under `active/` and `backlog/`).
+**Detect-if-present:** if a `merge-ok` job already exists, do NOT duplicate — diff against the snippet and
+reconcile with the user.
 
 ## Step 2: Drop in CODEOWNERS
 
@@ -112,8 +114,9 @@ PR UI) once these conditions are in place.
 
 ## Step 5: Verify
 
-Summarize what landed: the `merge-ok` workflow, the CODEOWNERS location + reviewers, the required check, and the
-auto-merge setting. To confirm end-to-end, open a planning-only PR (touch a `draft-*` / `meta-*` only) and
+Summarize what landed: the `merge-ok` gate in the CI workflow, the CODEOWNERS location + reviewers, the
+required check, and the auto-merge setting. To confirm end-to-end, open a planning-only PR (touch a
+`draft-*` / `meta-*` only) and
 confirm `merge-ok` reports and the PR is auto-merge-eligible with no required review; a PR touching a
 constitutional path (a rule, ADR, or strategy) should require owner review.
 
