@@ -177,4 +177,4 @@ exists only to make the cohort's *intent* (cheap parallel + Errands) safely usab
 
 ---
 
-[adr-021]: ../../../../reference/adr/adr-021-introduce-errand-work-class.md
+[adr-021]: ../reference/adr/adr-021-introduce-errand-work-class.md
