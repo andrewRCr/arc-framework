@@ -172,10 +172,12 @@ dependent-WU / stacked-PR ordering stay in CWC (Non-Goals). Delivered in three f
    to the standalone workflow — surfaced only under `branch.protection: full` (under partial protection an Errand
    is a direct commit with no merge-wait). The workflow lives standalone so it works post-init *or* later.
 
-9. **Repo-local dogfooding instance.** This repo's actual `.github/workflows/merge-ok.yml` + `.github/CODEOWNERS`,
-   branch-protection required-check wiring, and auto-merge enablement — our own instance, **not shipped** (every
-   repo owns its `.github/`). **Update TECHNICAL-OVERVIEW § 3 Infrastructure** to document the new host config
-   (additive to the existing GitHub Actions CI) when the instance lands, per its event-driven update discipline.
+9. **Repo-local dogfooding instance.** This repo's actual `merge-ok` gate (integrated into `ci.yml` — `needs`
+   is intra-workflow, so the gate co-locates with the jobs it rolls up rather than landing as a standalone
+   `merge-ok.yml`) + `.github/CODEOWNERS`, branch-protection required-check wiring, and auto-merge enablement —
+   our own instance, **not shipped** (every repo owns its `.github/`). **Update TECHNICAL-OVERVIEW § 3
+   Infrastructure** to document the new host config (additive to the existing GitHub Actions CI) when the
+   instance lands, per its event-driven update discipline.
 
 ## Non-Goals
 
@@ -306,8 +308,10 @@ ADR-022 member-list change, that lands in its own planning, not as this WU's err
 - `arc-session` on a no-WU primary-worktree tree orients in an Errand-aware mode and disambiguates discovery vs.
   Errand via an explicit signal.
 - Under `branch.protection: full`, a PR touching only planning/backlog paths auto-merges via the `merge-ok` job;
-  a constitutional-doc PR requires review via CODEOWNERS. The guided `setup-merge-gate` workflow runs end-to-end
-  on a fresh GitHub repo, is idempotent, and is offered (protection-mode-aware) from `01_verify-and-configure.md`.
+  a constitutional-doc PR stays in the reviewed lane (CODEOWNERS-gated where code-owner review is enabled; a
+  deliberate manual merge on solo repos, which can't self-approve). The guided `setup-merge-gate` workflow lands
+  the recipe on a GitHub repo, is idempotent (detect-if-present + idempotent `gh` calls), and is offered
+  (protection-mode-aware) from `01_verify-and-configure.md`.
 - This repo's own `merge-ok` lane is live (dogfooding), and TECHNICAL-OVERVIEW § 3 documents it.
 - Terminology is base-branch / primary-worktree throughout (no bare "main"); the `errand-launch` label is retired
   to `arc-errand`.
