@@ -106,6 +106,24 @@ export function filterRosterByIdentity(
   };
 }
 
+/**
+ * Resolve the primary (main) worktree's absolute path. `git worktree list`
+ * always lists the main worktree first, so the first stanza's path is the
+ * primary — the base-branch launchpad an errand writes its queue entry into,
+ * regardless of which linked worktree the session currently occupies.
+ *
+ * @param exec - Injectable command executor (local only — no remote).
+ * @returns The primary worktree path, or `null` when it can't be resolved.
+ */
+export async function resolvePrimaryWorktreePath(exec: GitExec): Promise<string | null> {
+  try {
+    const worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain"]));
+    return worktrees[0]?.path ?? null;
+  } catch {
+    return null;
+  }
+}
+
 interface EntryResolution {
   entry: WorktreeRosterEntry;
   warnings: string[];

@@ -30,6 +30,7 @@ export {
 export {
   runWorktreeRoster,
   filterRosterByIdentity,
+  resolvePrimaryWorktreePath,
   type WorktreeRosterEntry,
   type WorktreeRosterFs,
   type WorktreeRosterResult,

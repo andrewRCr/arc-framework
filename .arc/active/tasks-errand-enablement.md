@@ -193,32 +193,21 @@ _Design decisions:_
   so narrowing would miss real overlaps; only `Shipped` (already merged) and meta-less admin/main checkouts are
   excluded. Exported via the git barrel for Tasks 3.2/3.3.
 
-### `[ ]` **3.2 `arc errand` CLI helper — resolve primary worktree, compose + write entry, return**
+### `[x]` **3.2 `arc errand` CLI helper — resolve primary worktree, compose + write entry, return**
 
 - _Goal:_ One CLI invocation — `arc errand` — from any WU session resolves the primary worktree, composes a
   forward-pointing queue entry (goal / pointers / `chore/<slug>` / `created` / an optional caveat handed in by the
   skill), direct-writes it into that worktree's `ERRANDS.md`, and returns — creating no branch and no commit.
 
-- _Approach:_ Mirror the `start.ts` shape (thin handler → testable orchestrator in `src/commands/`). Direct-write
-  the entry into the _primary_ worktree's `ERRANDS.md` (under `## Queue`) for same-machine handoff — the roster
-  carries no primary marker today, so flag the primary entry (the first `git worktree list` stanza / the
-  `--git-common-dir` parent) as part of this task. Cross-machine convergence rides notes-sync, and the slug-keyed
-  entry-merge (Task 2.2) makes the later note-merge idempotent — no double-add, no new dedupe logic here.
-
-- _Note:_ Command spelling `arc errand` is a sibling entry verb to `arc start` (AWL coordination). Classification
-  and the advisory assessment are the skill's job (Task 3.3); the helper only resolves/composes/writes and records
-  a caveat — and a branch-safe slug — it is handed.
-
 - **Strategies:** strategy-testing-methodology.md
 
-    - Build `test-first` (one behavior at a time):
-
-        - resolves the primary worktree from the roster, not the current linked worktree
-        - composes a queue entry from goal / pointers / `chore/<slug>` / `created` / optional caveat
-        - writes the entry and creates no branch and no commit (zero git mutation)
-        - the originating worktree's branch and working tree are untouched
-        - records a caveat passed in — it does not compute the advisory assessment
-        - a re-written entry with the same slug is idempotent under the later note-merge (no double-add)
+- _Outcome:_ Added `runErrand` (`src/commands/errand.ts`): resolves the primary worktree, composes the
+  managed-entry grammar (Goal-first; `_Caveat:_` only when handed one), inserts under `## Queue` before the `---`
+  EOF, and direct-writes via injected IO — no branch, no commit; refuses a non-branch-safe slug. Closed the
+  primary-resolution gap with `resolvePrimaryWorktreePath` (first `git worktree list` stanza) in
+  `worktree-roster.ts`, barrel-exported. Wired a thin `handlers/errand.ts` + the `arc errand` registration (sibling
+  of `start`), supplying identity + today's date. Covered by resolver + orchestrator units and an e2e proving the
+  real path resolution and the zero-git-mutation contract (no `chore/*` branch cut).
 
 ### `[ ]` **3.3 `arc-errand` skill (thin skill over the helper)**
 
