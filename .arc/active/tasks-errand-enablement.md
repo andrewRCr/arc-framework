@@ -19,35 +19,28 @@ _Design decisions:_
 
 - Terminology: "base branch" / "primary worktree" — never bare "main" (cohort-wide doc sweep is CWC's, not this WU's).
 
-### `[ ]` **1.1 Author the Errand decision matrix in `strategy-work-organization.md` § Errand Work Class**
+### `[x]` **1.1 Author the Errand decision matrix in `strategy-work-organization.md` § Errand Work Class**
 
 - _Goal:_ § Errand Work Class carries a complete, self-contained decision matrix (create/maintain ×
   self-contained/cross-cutting × in-flight routing) that outlives the ephemeral cohort doc and gives CWC a clean
   extension seam.
 
-- _Context:_ The create/maintain split is ADR-021's; the in-flight column is this WU's advisory gate. The section
-  already carries Threshold / Cheap-branch path / Entry path — the matrix slots in as a new subsection.
+    - `[x]` **1.1.a Add the decision-matrix subsection to § Errand Work Class**
 
-- **Strategies:** strategy-package-project-sync.md
+        - Replaced § Threshold with § Decision matrix: a 2×2 (create/maintain × self-contained/cross-cutting)
+          whose maintain × cross-cutting cell carries the in-flight advisory-gate routing. Folded the threshold
+          test + create/maintain prose in without duplication, cross-referenced the commitment boundary
+          (DEV-RULES.ARC § Leave it cleaner), and shifted the section's "main worktree" → "primary worktree".
+          Authored in package source, synced identically to `.arc/`.
 
-    - `[ ]` **1.1.a Add the decision-matrix subsection to § Errand Work Class**
+    - `[x]` **1.1.b Add a defer-to-matrix pointer to the cohort path-taxonomy table**
 
-        - Dimensions: create vs. maintain × self-contained vs. cross-cutting, with the in-flight cell routing to
-          the advisory gate (coordinate/sequence)
-        - Consolidate the section's existing Threshold + Create/maintain prose into the matrix — reference, don't
-          duplicate
-        - The matrix selects the _path_ once committed; the commitment boundary (Task 1.2) is the precondition —
-          cross-reference it
-        - Use "primary worktree" terminology within the edited section (bounded; the cohort-wide sweep is CWC's)
-        - Edit package source, then sync to `.arc/`
+        - Added a pointer-only note at the in-session-fork table naming § Errand Work Class as the full-matrix
+          home; table rows and the `errand-launch` label left untouched (single internal-dev copy, no sync).
 
-    - `[ ]` **1.1.b Add a defer-to-matrix pointer to the cohort path-taxonomy table**
-
-        - `cohort-agile-parallelism.md` keeps its in-session-fork summary; add a pointer to § Errand Work Class as
-          the full-matrix home — no duplicated matrix
-        - Pointer-only: do **not** rewrite the table's rows or rename `errand-launch` here — that label retirement
-          is a separate post-ship errand spanning the cohort docs
-        - Internal-dev surface (single copy under `backlog/planned/`) — no package sync
+- _Outcome:_ The three surfaces cohere with no duplicated matrix — the strategy doc is the durable home, the
+  cohort table defers to it, and the two axes are split as distinct decisions: create/maintain selects WU vs.
+  Errand; self-contained/cross-cutting selects how an Errand routes once it is one.
 
 ### `[ ]` **1.2 Re-cut the DEV-RULES.ARC § "Leave it cleaner" routing table on the commitment axis**
 

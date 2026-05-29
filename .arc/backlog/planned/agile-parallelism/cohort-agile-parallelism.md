@@ -100,6 +100,12 @@ Two cross-member decision surfaces: the **entry model** (how you get into a work
 | A new tracked unit of future work (create) | spawn a WU | Worktree Foundation |
 | Pick up a WU in flight only on another machine | materialize | In-Flight Awareness |
 
+*Full matrix.* The rows above are the in-session-fork **summary** (which path when a need surfaces mid-WU).
+The complete Errand decision matrix — create/maintain × self-contained/cross-cutting, with the
+owning-WU-in-flight routing — lives in `strategy-work-organization.md` § Errand Work Class, its durable home;
+this cohort summary archives with the cohort, the strategy matrix outlives it and Concurrent Work Conventions
+later extends it.
+
 > *Cross-worktree investigation* — operate briefly in another in-flight worktree's runnable env while
 > carrying live context, intending to return — was originally a separate row (`arc-shift`); deferred during
 > cohort execution. See § Deferred — `/arc-shift`.

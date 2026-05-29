@@ -543,22 +543,46 @@ ARC defines two work classes that share commit and review machinery but differ i
   as a WU. Tracked by git history (Conventional Commits + the `standalone (...)` context footer — see
   [`commit-footer`][commit-footer-method]), not by the planning layer (ROADMAP, backlog, `active/`).
 
-### Threshold
+### Decision matrix
 
-Use a Work Unit when *any* of these hold:
+Incidental work you have **committed to do yourself, soon** routes through this matrix, which selects its
+path. Work you are not committing to now is an inbox capture — triaged at a later ceremony, never routed here
+directly (the commitment boundary that gates entry to this matrix lives in [DEV-RULES.ARC][dev-rules-arc]
+§ Leave it cleaner). Two axes govern the choice: **create vs. maintain** decides whether the work needs the
+Work-Unit wrapper at all; **self-contained vs. cross-cutting** decides how an Errand routes once it does not.
 
-1. The work spans **more than one review increment** (multiple logical commits / internal sequencing).
-2. It carries **design that must be authored and referenced** (a Spec).
-3. It must be **tracked or resumed** as future or owned work (a roadmap slot, dependencies, an owner, a
+| Once committed to act ↓                        | **Self-contained** (own scope) | **Cross-cutting** (foreign-owned artifact)         |
+| ---------------------------------------------- | ------------------------------ | -------------------------------------------------- |
+| **Create** — a new tracked unit of future work | Work Unit                      | Work Unit                                          |
+| **Maintain** — an existing artifact            | Errand · cheap-branch path     | Errand · advisory gate when the owner is in flight |
+
+Create resolves to a Work Unit in both columns: minting a tracked deliverable is itself what trips the
+threshold, so the routing axis only bites for **maintain**. A create that also touches a foreign artifact is
+two concerns — mint the Work Unit, and route the foreign edit as its own maintain Errand.
+
+**Create vs. maintain — the Work-Unit/Errand axis.** *Creating* a new tracked unit of future work — a backlog
+stub — is a (small) Work Unit even at one commit, because its output is a tracked deliverable with a meta file
+and a roadmap slot. *Maintaining* an existing artifact — a dependency note, a cross-reference, a doc fix — is
+an Errand. The split operationalizes the general Work-Unit threshold: promote to a Work Unit when *any* of
+these hold —
+
+1. the work spans **more than one review increment** (multiple logical commits / internal sequencing);
+2. it carries **design that must be authored and referenced** (a Spec);
+3. it must be **tracked or resumed** as future or owned work (a roadmap slot, dependencies, an owner, a
    cross-session lifecycle).
 
-None of these → it is an Errand. As an empirical *symptom* check (not the primary criterion), a candidate
-Errand that cannot be reviewed in one window (~400 lines / ~60 minutes) is almost certainly multi-increment,
-so treat it as a Work Unit.
+None of these → it is an Errand. Create trips criterion 3; a maintain edit that turns out to span multiple
+increments or carry design trips 1 or 2 and likewise promotes. As an empirical *symptom* check — not the
+primary criterion — a candidate Errand that cannot be reviewed in one window (~400 lines / ~60 minutes) is
+almost certainly multi-increment, so treat it as a Work Unit.
 
-**Create vs. maintain.** *Creating* a new tracked unit of future work — a backlog stub — is a (small) Work
-Unit even when it is one commit, because its output is a tracked deliverable with a meta file. *Maintaining*
-an existing artifact — a dependency note, a cross-reference, a doc fix — is an Errand.
+**Self-contained vs. cross-cutting — the Errand-routing axis.** This axis applies once the work resolves to an
+Errand. A **self-contained** Errand touches only artifacts in your own scope and takes the cheap-branch path
+below. A **cross-cutting** Errand targets an artifact owned by another work unit; when that work unit is **in
+flight**, the edit is advisory-gated — coordinate with it, or sequence the Errand after it integrates, rather
+than editing the shared artifact in parallel (parallel edits on an in-flight artifact plant a latent
+cross-branch conflict). The check is **advisory and judgment-based** — it records a caveat, never a hard
+block; when no in-flight work unit owns the target, the Errand proceeds unchanged.
 
 ### Cheap-branch path
 
@@ -577,7 +601,7 @@ by an `active/` entry.
 
 ### Entry path
 
-An Errand launches from the **main worktree** (see [§ Main-on-Main Pattern](#main-on-main-pattern)). The
+An Errand launches from the **primary worktree** (see [§ Main-on-Main Pattern](#main-on-main-pattern)). The
 Errand is initiated by starting a fresh session there on a new `chore`-type branch (under full protection)
 or directly against the base branch (under partial). It does
 not invoke planning entry — spawn and cold-start scaffold meta files and lifecycles, which an Errand has
