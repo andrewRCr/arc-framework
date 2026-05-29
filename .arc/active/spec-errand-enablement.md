@@ -283,6 +283,14 @@ ADR-022 member-list change, that lands in its own planning, not as this WU's err
 - **Concurrent Work Conventions** — standardize the cohort-wide "base branch" / "primary worktree" terminology.
   Spans many cohort docs (> one review increment) → **CWC-owned scope** by the ADR-021 size threshold, not a
   single errand. CWC already owns the "your main worktree is not always on main" convention — natural home.
+- **Concurrent Work Conventions — content-lane vs. concurrency-gate phasing.** The P1 merge-gate slice ships a
+  *static* lane that classifies by artifact **content type** (path prefix): per-WU/per-cohort planning artifacts
+  auto-merge, `cohort-*` coordination records included. That deliberately leaves *concurrent multi-owner* edits to
+  a shared record ungated — an orthogonal axis. CWC's deferred **all-owner concurrency gate** (the named phase-2
+  CODEOWNERS-from-`**Owner:**`) is the layer that gates that axis; it builds on this WU's advisory foreign-artifact
+  floor. Handoff framing for CWC: phase-1 = path/content classification (here), phase-2 = owner/concurrency gating
+  (CWC); the `cohort-*` doc is the concrete shared record on the auto-merge lane awaiting that layer. A **capture**
+  for CWC, not this WU's errand.
 
 ## Success Criteria
 
