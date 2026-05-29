@@ -136,11 +136,12 @@ blockers. P1 here means "in scope, deferral seam," not "optional."
    / the inbox-model's concern (Non-Goals).
 
 5. **Advisory foreign-artifact concurrency gate** — extends Foundation's R11 spawn-time advisory stub to the
-   `arc-errand` path. When an Errand targets an artifact owned by another WU, detect whether that WU is in flight
-   (local `git worktree list` + identity-filtered metas); if so, record a "coordinate / sequence after it
-   integrates" caveat on the queue entry rather than proceed. **Advisory, judgment-based, never a hard gate** —
-   same posture as R11. Exact phrasing/heuristics resolve during work, aligned with R11 and CWC's eventual
-   doctrine.
+   `arc-errand` path. When an Errand targets an artifact, detect which *other* in-flight WUs touch it — a
+   deterministic check over the local roster + per-worktree git state (committed branch divergence vs. the base
+   branch, or uncommitted worktree edits), excluding the originating WU; if any overlap, record a "coordinate /
+   sequence after it integrates" caveat on the queue entry rather than proceed. **Advisory, judgment-based, never
+   a hard gate** — same posture as R11. Detection is deterministic (per the task list); the caveat wording is the
+   judgment residual, resolved during work aligned with R11 and CWC's eventual doctrine.
 
 6. **Cold-errand entry** — make session-init's no-WU **Orient** arm (primary worktree, no active WU)
    **Errand-aware**. Keep **one** door: `arc-session` is the universal entrypoint; its orient/no-WU path learns

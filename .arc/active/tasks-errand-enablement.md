@@ -179,22 +179,36 @@ _Design decisions:_
 
 ### `[ ]` **3.1 Deterministic foreign-artifact detection (feeds the advisory gate)**
 
-- _Goal:_ Given an errand's target path, detect which in-flight WUs touch it — a deterministic check over the
-  local identity-filtered roster + per-worktree git state (does any in-flight branch/worktree modify the target
-  vs. the base branch?) — returning the overlap facts the skill turns into an advisory caveat. Never blocks.
+- _Goal:_ Given an errand's target path(s) and the originating WU, detect which _other_ in-flight WUs touch the
+  target — a deterministic check over the local identity-filtered roster + per-worktree git state — returning the
+  overlap facts the skill turns into an advisory caveat. Never blocks.
 
 - _Context:_ Extends the R11 in-flight posture (advisory, never gates) but goes deterministic where its spawn-time
   precedent can't: an errand has a concrete target path, so overlap is a git-checkable fact rather than a
-  spec-vs-spec judgment. Consumes `runWorktreeRoster` / `filterRosterByIdentity` (no remote fetch). The judgment
-  residual (bias-to-surface on unstated scope, word the caveat) lives in the skill (Task 3.3).
+  spec-vs-spec judgment. The roster (`runWorktreeRoster` / `filterRosterByIdentity`, no remote fetch) supplies the
+  in-flight set; the per-path overlap diff is net-new on top of it. The judgment residual (bias-to-surface on
+  unstated scope, word the caveat) lives in the skill (Task 3.3).
+
+- _Detection boundary:_
+    - **"modifies"** = committed branch divergence (`git diff <base>...<branch> -- <path>`) **or** uncommitted
+      edits in that WU's worktree touching the target — both count.
+    - **"in-flight"** = a roster entry with a resolved meta in a live state (Active / Integrating); meta-less
+      admin/main checkouts and shipped entries don't count.
+    - **base branch** resolves from `branch.base` (default `main`) — never hardcoded.
+    - **self-excluded:** the originating WU's own branch/worktree is never reported (own-scope is self-contained,
+      not a foreign overlap) — hence the originating WU is an input, not derived.
+    - **target match** is path-prefix, so a directory target matches any file beneath it; the target may be a set.
 
 - **Strategies:** strategy-testing-methodology.md
 
     - Build `test-first` (one behavior at a time):
 
-        - a target path modified on an in-flight WU's branch/worktree (vs. base) is reported as an overlap
-        - a target path no in-flight WU touches reports no overlap
-        - detection uses the local identity-filtered roster + per-worktree git state (no remote fetch)
+        - a target modified on another in-flight WU's branch (committed, vs. base) is reported as an overlap
+        - a target with uncommitted edits in another in-flight WU's worktree is reported as an overlap
+        - the originating WU's own overlap is excluded (not reported)
+        - a target no other in-flight WU touches reports no overlap
+        - meta-less / shipped roster entries are not treated as in-flight
+        - base resolves from `branch.base`; detection uses the local roster + per-worktree git state (no fetch)
         - detection returns facts only — it never blocks (the gate stays advisory)
 
 ### `[ ]` **3.2 `arc errand` CLI helper — resolve primary worktree, compose + write entry, return**
@@ -203,14 +217,15 @@ _Design decisions:_
   forward-pointing queue entry (goal / pointers / `chore/<slug>` / `created` / an optional caveat handed in by the
   skill), direct-writes it into that worktree's `ERRANDS.md`, and returns — creating no branch and no commit.
 
-- _Approach:_ Mirror the `start.ts` shape (thin handler → testable orchestrator in `src/commands/`), reusing
-  `runWorktreeRoster` for worktree resolution. Direct-write the entry into the _primary_ worktree's `ERRANDS.md`
-  for same-machine handoff; cross-machine convergence rides notes-sync, and the slug-keyed entry-merge (Task 2.2)
-  makes the later note-merge idempotent — no double-add, no new dedupe logic here.
+- _Approach:_ Mirror the `start.ts` shape (thin handler → testable orchestrator in `src/commands/`). Direct-write
+  the entry into the _primary_ worktree's `ERRANDS.md` (under `## Queue`) for same-machine handoff — the roster
+  carries no primary marker today, so flag the primary entry (the first `git worktree list` stanza / the
+  `--git-common-dir` parent) as part of this task. Cross-machine convergence rides notes-sync, and the slug-keyed
+  entry-merge (Task 2.2) makes the later note-merge idempotent — no double-add, no new dedupe logic here.
 
 - _Note:_ Command spelling `arc errand` is a sibling entry verb to `arc start` (AWL coordination). Classification
   and the advisory assessment are the skill's job (Task 3.3); the helper only resolves/composes/writes and records
-  a caveat it is handed.
+  a caveat — and a branch-safe slug — it is handed.
 
 - **Strategies:** strategy-testing-methodology.md
 
@@ -229,9 +244,14 @@ _Design decisions:_
   matrix, run the advisory assessment (call Task 3.1 detection, apply bias-to-surface judgment, word any caveat),
   then invoke `arc errand` (Task 3.2) passing the caveat — and return to the WU.
 
-- _Context:_ Mirrors the `arc-session` skill shape (skill → CLI). The skill is where the advisory _judgment_ lives
-  (detection is deterministic in Task 3.1; the helper only records). References § Errand decision matrix (Phase 1)
-  for classification. `arc-errand` is the ratified skill name (the working label "errand-launch" is retired).
+- _Context:_ Mirrors the `arc-commit` skill shape — the skill owns a short linear flow (classify → assess → invoke
+  the CLI) with no backing workflow, since there's no multi-arm branching or cross-lifecycle reuse to house in
+  one. (The genuinely workflow-shaped slices live in their own workflows: cold-errand entry extends
+  `session-init.md` in Phase 4; merge-gate setup is `setup-merge-gate.md` in Phase 5.) The skill is where the
+  advisory _judgment_ lives (detection is deterministic in Task 3.1; the helper only records), collapsing
+  Task 3.1's overlap facts into the single `_Caveat:_` string Task 3.2 records. References § Errand decision
+  matrix (Phase 1) for classification. `arc-errand` is the ratified skill name (the working label "errand-launch"
+  is retired).
 
 - _Note:_ Self-hosting skill-file drift — hand-sync the harness copy (`.claude/skills/`) from canonical per
   DEV-RULES.PROJECT § Package-Project Sync.
