@@ -11,10 +11,10 @@
 - **Cohort:** agile-parallelism
 
 - **Task List:** tasks-errand-enablement.md
-- **Last Completed:** Task 2.3 — Staleness sweep advisory (Phase 2 complete)
-- **Next Task:** Task 3.1 — Deterministic foreign-artifact detection (line ~180)
+- **Last Completed:** Task 3.3 — arc-errand skill (Phase 3 complete)
+- **Next Task:** Task 4.1 — Errand-aware Orient arm + the `--errand` signal (line ~239)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 3.1 — deterministic foreign-artifact detection feeding the advisory gate.
+- **Next Action:** Begin Task 4.1 — make session-init's no-WU Orient arm Errand-aware via the `arc-session --errand` signal.
 
 ---
