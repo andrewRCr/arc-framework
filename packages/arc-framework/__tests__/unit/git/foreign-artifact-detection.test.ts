@@ -96,6 +96,33 @@ describe("detectForeignArtifactOverlap", () => {
     expect(status?.cwd).toBe("/repo.wu-a");
   });
 
+  it("detects a target renamed into place in another WU's worktree (porcelain `old -> new`)", async () => {
+    const roster = rosterOf({
+      worktreePath: "/repo.wu-a",
+      branch: "feat/wu-a",
+      metaFilePath: "/repo.wu-a/.arc/active/meta-wu-a.md",
+      state: "Active",
+      identity: "andrew",
+    });
+    // Porcelain renders a rename as `R  <old> -> <new>`; the destination is the live path.
+    const { exec } = buildExec({
+      "diff main...feat/wu-a --name-only -- docs/x.md": { stdout: "" },
+      "status --porcelain -- docs/x.md": { stdout: "R  docs/old.md -> docs/x.md\n" },
+    });
+
+    const result = await detectForeignArtifactOverlap({
+      exec,
+      roster,
+      targetPaths: ["docs/x.md"],
+      baseBranch: "main",
+      originatingWorktreePath: "/repo.wu-self",
+    });
+
+    expect(result.overlaps).toEqual([
+      { branch: "feat/wu-a", worktreePath: "/repo.wu-a", matchedPaths: ["docs/x.md"] },
+    ]);
+  });
+
   it("excludes the originating WU's own overlap (self is never reported)", async () => {
     const roster = rosterOf({
       worktreePath: "/repo.wu-self",

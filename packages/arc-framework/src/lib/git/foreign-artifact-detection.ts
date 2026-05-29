@@ -114,11 +114,17 @@ async function uncommittedMatches(
     ["status", "--porcelain", "--", ...targetPaths],
     { cwd: worktreePath },
   );
-  // Porcelain v1 lines are `XY <path>` — the path begins at column 3.
+  // Porcelain v1 lines are `XY <path>` — the path begins at column 3. A rename
+  // or copy reads `XY <old> -> <new>`; the destination after the arrow is the
+  // live path, so match on that (else a renamed target slips past detection).
   const changed = stdout
     .split("\n")
     .map((l) => l.slice(3).trim())
-    .filter((l) => l !== "");
+    .filter((l) => l !== "")
+    .map((entry) => {
+      const arrow = entry.lastIndexOf(" -> ");
+      return arrow === -1 ? entry : entry.slice(arrow + 4);
+    });
   return targetPaths.filter((target) => changed.some((file) => underPath(file, target)));
 }
 
