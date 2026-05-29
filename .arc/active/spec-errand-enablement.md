@@ -105,9 +105,10 @@ blockers. P1 here means "in scope, deferral seam," not "optional."
       text is the merge/tombstone key and the `chore/<slug>` branch name — bold, not backticked, since the heading
       is a structural key slot like the task-list `**X.Y Title**`; backticks are reserved for the slug in prose,
       e.g. the `_Branch:_` field and cross-refs), followed by Goal-first italic-descriptor bullets:
-      `_Goal:_` (the one-line "what", first at root per the family grammar) then `_Pointers:_` · `_Branch:_`
-      (`chore/<slug>`) · *(optional)* `_Caveat:_` (the in-flight gate advisory, or a rare non-default execution
-      hint) · `_Created:_` (date; the staleness sweep's age source). **No `State` field** — State means lifecycle
+      `_Goal:_` (the one-line "what", first at root per the family grammar) then `_Pointers:_` · *(optional)*
+      `_Caveat:_` (the in-flight gate advisory, or a rare non-default execution hint) · `_Branch:_` (`chore/<slug>`)
+      · `_Created:_` (date; the staleness sweep's age source). Prose fields (Pointers, Caveat) first; the short
+      derived key/value fields (Branch, Created) close the group. **No `State` field** — State means lifecycle
       means the WU threshold tripping. The `[ ]` checkbox is **holding-ground** — never checked in place; entries
       drain by removal on ship. Dropped: "suggested skills / quality-gate context" as standing fields
       (identically-filled noise; the executing session is a full ARC session that already knows). The file carries

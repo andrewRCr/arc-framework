@@ -87,6 +87,7 @@ describe("runJoin", () => {
       // Internal templates for user directory setup
       "/internal-templates/user/WORKING-MEMORY.md": "# Working Memory\n",
       "/internal-templates/user/USER-INBOX.md": "# User Inbox\n",
+      "/internal-templates/user/ERRANDS.md": "# Errand Queue\n",
     });
     opts = baseOptions(io);
   });

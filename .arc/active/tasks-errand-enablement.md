@@ -79,7 +79,7 @@ _Design decisions:_
   substrate is unbuilt); register the per-user migration as coordination input. Conceptually a per-user
   preference, given errands are per-user.
 
-### `[ ]` **2.1 Define the `ERRANDS.md` template, entry schema, and seeding**
+### `[x]` **2.1 Define the `ERRANDS.md` template, entry schema, and seeding**
 
 - _Goal:_ A fresh install seeds `user/{identity}/ERRANDS.md` — h1 "Errand Queue", an italic `>`-callout preamble,
   a single `## Queue` section, and a `---` EOF marker (mirroring the sibling user-scoped surfaces). Entries use the
@@ -87,30 +87,33 @@ _Design decisions:_
   `[ ]` checkbox and a bold `<slug>` whose text is the dedup/tombstone key and the `chore/<slug>` branch name —
   bold, not backticked (the heading is a structural key slot; backticks are reserved for the slug in prose) —
   followed by Goal-first
-  italic-descriptor bullets: `_Goal:_` then `_Pointers:_` · `_Branch:_` · optional `_Caveat:_` · `_Created:_` (the
-  staleness age source). No `State` field (State means lifecycle means WU). The `[ ]` checkbox is holding-ground —
+  italic-descriptor bullets: `_Goal:_` then `_Pointers:_` · optional `_Caveat:_` · `_Branch:_` · `_Created:_` (the
+  staleness age source) — prose fields first, the short key/value fields (Branch, Created) closing the group. No
+  `State` field (State means lifecycle means WU). The `[ ]` checkbox is holding-ground —
   never checked in place; entries drain by removal on ship.
-
-- _Context:_ Mirrors `USER-INBOX` seeding; the template lives in package source
-  (`packages/arc-framework/templates/user/`) and is seeded by `runPostInitSetup()`. The `## Queue` H2 section +
-  H3 bold-slug identity are what let the cross-WU entry-merge (Task 2.2) key entries for union and tombstones.
-
-- _Note:_ The `created` date is the staleness sweep's age source (Task 2.3) — load-bearing, and it works for the
-  direct-written primary-worktree copy before any note exists.
 
 - **Strategies:** strategy-package-project-sync.md
 
-    - `[ ]` **2.1.a Author the `ERRANDS.md` template** — h1 "Errand Queue" + italic `>`-callout preamble +
-      `## Queue` section + `---` EOF marker; managed-entry grammar — an `###` heading with a `[ ]` checkbox and a
-      bold `<slug>` (slug key = `chore/<slug>` branch = tombstone key) + Goal-first italic bullets `_Goal:_` /
-      `_Pointers:_` / `_Branch:_` /
-      optional `_Caveat:_` / `_Created:_`; no `State` field, no standing "suggested skills / quality-gate" fields;
-      checkbox is holding-ground (never checked in place)
+    - `[x]` **2.1.a Author the `ERRANDS.md` template** — authored `packages/arc-framework/templates/user/ERRANDS.md`:
+      h1 "Errand Queue" + italic `>`-callout preamble (drain-by-removal + staleness, pointing at
+      `strategy-work-organization.md` § Errand Work Class) + empty `## Queue` + `---` EOF. The managed-entry
+      grammar lives in a `<!-- -->` shape comment — backtick-wrapped `` `[ ]` `` checkbox + bold `<slug>`,
+      bullets `_Goal:_` / `_Pointers:_` / optional `_Caveat:_` / `_Branch:_` / `_Created:_` (prose fields, then the
+      short key/value fields close the group); no `State` field, no standing skills/quality-gate fields.
+      Package-only infra (read at runtime via the internal
+      templates dir) — no `.arc/` two-copy counterpart.
 
-    - `[ ]` **2.1.b Seed `ERRANDS.md` at install** — add it to the `runPostInitSetup()` seeding loop alongside
-      `WORKING-MEMORY.md` / `USER-INBOX.md`
+    - `[x]` **2.1.b Seed `ERRANDS.md` at install** — added `ERRANDS.md` to the per-user seeding loops in both
+      `runPostInitSetup()` (`arc init` / `arc join`) and `runUserAdd()` (`arc user add`), keeping the cross-WU
+      file set coherent across every entry path.
 
-        - Integration coverage: a fresh install produces a seeded `ERRANDS.md`
+        - Coverage across all three paths: unit (`init`/`join` stubs), integration (byte-for-byte seed), and e2e
+          (fresh install + team-member add both seed `ERRANDS.md`)
+
+- _Outcome:_ The literal task named only `runPostInitSetup()`, but `arc user add` seeds the same per-user set via a
+  parallel `runUserAdd()` loop; wiring `ERRANDS.md` into both (plus their JSDoc) avoids a latent gap where
+  team-member directories would lack an errand queue. The `## Queue` H2 + H3 bold-slug identity are the hooks the
+  cross-WU entry-merge keys on next (Task 2.2); the `_Created:_` date is the staleness sweep's age source (Task 2.3).
 
 ### `[ ]` **2.2 Register the `errands` cross-WU shape in the notes entry-merge**
 
