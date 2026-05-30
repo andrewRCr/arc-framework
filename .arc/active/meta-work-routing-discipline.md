@@ -11,16 +11,15 @@
 - **Cohort:** [none]
 
 - **Task List:** [none]
-- **Last Completed:** Carved from the errand-enablement post-ship session (2026-05-29) — the errand-era
-  work-routing doctrine (capture-as-deferral-buffer + between-WU housekeep drain + anti-rider) surfaced while
-  diagnosing why the deferred USER-INBOX / shared-inbox drain stopped happening.
+- **Last Completed:** Design elicited and `draft-work-routing-discipline.md` authored (pre-spec) — capture
+  model (both faces), housekeep mechanism, lifecycle deltas, merge-lane interaction; key open questions
+  resolved (errand↔PR, merge-threshold, strict-empty, standalone).
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Continue refining `draft-work-routing-discipline.md` toward spec (`1_create-spec`). Design
-  settled this session — the capture model (both faces), the housekeep mechanism, lifecycle deltas, the
-  merge-lane interaction, and the resolved open questions (errand↔PR packaging → per-lane PRs; merge-threshold;
-  strict-empty target-state; standalone). Remaining: bucket-collapse AWL-gating. Intended to land before
-  `in-flight-awareness` so that WU starts from a clean, trustworthy capture pipeline.
+- **Next Action:** Run `1_create-spec` to synthesize the spec from `draft-work-routing-discipline.md` (design
+  settled; draft comprehensive). Open at spec-time: bucket-collapse AWL-gating + the two merge-lane
+  sub-questions (coordinate with CWC). Lands before `in-flight-awareness` so that WU starts from a clean,
+  trustworthy capture pipeline.
 
 ---
